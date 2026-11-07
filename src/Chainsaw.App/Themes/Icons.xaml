@@ -66,6 +66,10 @@
     <Geometry x:Key="Icon.Link">M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1</Geometry>
     <Geometry x:Key="Icon.NoSpread">M3.5 12V3.5H12l8.5 8.5-8.5 8.5z M8 8h.01 M3 21L21 3</Geometry>
     <Geometry x:Key="Icon.Hold">M7 11V8a5 5 0 0 1 10 0v3 M5 11h14v10H5z</Geometry>
+    <!-- Taking back and undoing (sketch AN1b): the arrow back, merging again, and the label library. -->
+    <Geometry x:Key="Icon.Undo">M9 14L4 9l5-5 M4 9h10.5a5.5 5.5 0 0 1 0 11H11</Geometry>
+    <Geometry x:Key="Icon.Join">M6 3v6l6 6 M18 3v6l-6 6 M12 15v6</Geometry>
+    <Geometry x:Key="Icon.Library">M4 4h4v16H4z M10 4h4v16h-4z M16 5l3.5-1 3 15.5-3.5 1z</Geometry>
     <!-- A transaction with inputs from several owners: two ways in, one way on. -->
     <Geometry x:Key="Icon.Kind.Transaction">M4 6h4l4 6 M4 18h4l4-6 M12 12h8 M17 9l3 3-3 3</Geometry>
     <!-- A coin without an address: a coin seen edge-on, a ring in a ring. -->

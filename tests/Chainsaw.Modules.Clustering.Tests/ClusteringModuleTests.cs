@@ -31,7 +31,9 @@ public sealed class ClusteringModuleTests
             service.Heuristics.Select(heuristic => heuristic.ToString()));
         var schema = Assert.Single(provider.GetServices<ICaseSchemaContributor>());
         Assert.Equal("clustering", schema.Module);
-        Assert.Equal(["clustering.evidence", "clustering.splits"], schema.SealedChains.Select(chain => chain.Name));
+        Assert.Equal(
+            ["clustering.evidence", "clustering.splits", "clustering.split_undos"],
+            schema.SealedChains.Select(chain => chain.Name));
     }
 
     [Fact]

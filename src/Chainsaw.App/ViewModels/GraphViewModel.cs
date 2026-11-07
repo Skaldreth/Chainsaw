@@ -110,6 +110,18 @@ public sealed partial class GraphViewModel : ObservableObject
         Forms = new InspectorFormsViewModel(session, editor, clock);
         Forms.Saved += (_, _) => _ = RefreshAsync();
         Forms.Failed += (_, text) => Notice = Notice.Length == 0 ? text : $"{text} {Notice}";
+        History = new InspectorHistoryViewModel(session, editor);
+        History.Saved += (_, notice) => _ = RefreshThenSayAsync(notice);
+        History.Failed += (_, text) => Say(text);
+
+        // A form (L, U or K) opens among the facts, so the facts are shown.
+        Forms.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(InspectorFormsViewModel.Form) && Forms.IsOpen)
+            {
+                History.ShowFacts();
+            }
+        };
         session.Changed += (_, _) => OnCaseChanged();
         workflow.StartPointAdded += (_, _) => ui.Post(() => _ = RefreshAsync());
         exit.Changed += (_, _) => IsOffline = !exit.IsLive;
@@ -234,6 +246,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// </summary>
     public InspectorFormsViewModel Forms { get; }
 
+    /// <summary>Gets the inspector's tabs and its history, with taking back and undoing (sketch AN1b).</summary>
+    public InspectorHistoryViewModel History { get; }
+
     /// <summary>Gets the answers to <em>Varför?</em> for what is chosen, the cluster's added when they come.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<WhyLine> Why { get; private set; } = [];
@@ -323,6 +338,25 @@ public sealed partial class GraphViewModel : ObservableObject
 
         return ReloadAsync(fit: false);
     }
+
+    /// <summary>
+    /// Reads the graph anew and then says what a taking back has to tell (sketch AN1b), so that the reading does not
+    /// replace it.
+    /// </summary>
+    /// <param name="notice">What to say, or <see langword="null"/>.</param>
+    /// <returns>A task that completes when it is said.</returns>
+    private async Task RefreshThenSayAsync(string? notice)
+    {
+        await RefreshAsync();
+        if (notice is not null)
+        {
+            Say(notice);
+        }
+    }
+
+    /// <summary>Puts a text first in the graph's notice, keeping what it already says.</summary>
+    /// <param name="text">The text.</param>
+    private void Say(string text) => Notice = Notice.Length == 0 ? text : $"{text} {Notice}";
 
     /// <summary>Steps which amounts the lines carry: all, the traced, none.</summary>
     [RelayCommand]
@@ -846,6 +880,7 @@ public sealed partial class GraphViewModel : ObservableObject
         };
         Why = Inspection?.Why ?? [];
         Forms.Follow(scene, node);
+        History.Follow(scene, node);
         if (node is { Node.Kind: GraphNodeKind.Cluster } && _session.Current is { } openCase)
         {
             _ = ExplainClusterAsync(openCase, node);

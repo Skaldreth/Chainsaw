@@ -86,6 +86,59 @@ internal sealed class TestGraphEditor : IGraphEditor
         Links.Add((coin, target, reason));
         return Task.CompletedTask;
     }
+
+    /// <summary>Gets or sets what the history reads; empty by default.</summary>
+    public NodeHistoryData History { get; set; } = new([], [], [], null, new Dictionary<long, string>());
+
+    /// <summary>Gets or sets what reading the history throws, or <see langword="null"/>.</summary>
+    public Exception? HistoryFailure { get; set; }
+
+    /// <summary>Gets or sets what the confirmation of an undoing reads.</summary>
+    public UndoSplitPreview? Preview { get; set; }
+
+    /// <summary>Gets or sets what a taking back answers.</summary>
+    public UndoOutcome Outcome { get; set; } = new(true);
+
+    /// <summary>Gets what was taken back or undone, in order: the kind, what and the reason.</summary>
+    public List<(string Kind, string What, string? Reason)> Undone { get; } = [];
+
+    /// <summary>Gets how many times the history was read.</summary>
+    public int HistoryReads { get; private set; }
+
+    public Task<NodeHistoryData> ReadHistoryAsync(ICase @case, GraphNode node, CancellationToken cancellationToken)
+    {
+        HistoryReads++;
+        return HistoryFailure is { } failure ? Task.FromException<NodeHistoryData>(failure) : Task.FromResult(History);
+    }
+
+    public Task<UndoOutcome> RetractLabelAsync(ICase @case, long sequence, string? reason) =>
+        Undo("label", sequence.ToString(System.Globalization.CultureInfo.InvariantCulture), reason);
+
+    public Task<UndoSplitPreview?> PreviewUndoSplitsAsync(
+        ICase @case, IReadOnlyList<long> splits, BitcoinAddress? from, CancellationToken cancellationToken) =>
+        Task.FromResult(Preview);
+
+    public Task<UndoOutcome> UndoSplitsAsync(ICase @case, IReadOnlyList<long> splits, string? reason) =>
+        Undo("split", string.Join(",", splits), reason);
+
+    public Task<UndoOutcome> UnlinkAsync(ICase @case, CrossChainLink link, string? reason) =>
+        Undo("link", link.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture), reason);
+
+    /// <summary>Records a taking back, or throws the set failure.</summary>
+    /// <param name="kind">What sort.</param>
+    /// <param name="what">Which.</param>
+    /// <param name="reason">The reason.</param>
+    /// <returns>The set outcome.</returns>
+    private Task<UndoOutcome> Undo(string kind, string what, string? reason)
+    {
+        if (Failure is { } failure)
+        {
+            return Task.FromException<UndoOutcome>(failure);
+        }
+
+        Undone.Add((kind, what, reason));
+        return Task.FromResult(Outcome);
+    }
 }
 
 /// <summary>The inspector's forms (sketch IN1a) and their rules.</summary>

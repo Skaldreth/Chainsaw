@@ -110,3 +110,28 @@ Under fakta i inspektören finns tre knappar. Formuläret fälls ut där, grafen
 - **Annan kedja (K)**: pengarna fortsätter på Ethereum eller TRON genom en brygga eller swap. Välj kedjan och klistra
   in tx:en, som känns igen direkt (en Ethereum-tx börjar med `0x`). Kom flera mynt in till aktören väljer du vilket som
   gick vidare. Länken ritas lila och streckad, eftersom den är din bedömning och inte något kedjan säger.
+
+## Historik: ta tillbaka och ångra
+
+Inspektören har två flikar, **Fakta** och **Historik**. Historiken visar allt som hänt med noden i tidsordning: när
+pengar först kom in (med blocket), vilka heuristiker som klustrade adresserna, etiketterna, uppbrytningarna och
+länkarna till andra kedjor. Det som står på kedjan är fakta, och det heuristikerna kommit fram till ändras med *Bryt
+upp*, så de raderna har ingen knapp.
+
+Det du själv har sparat (en etikett, en uppbrytning eller en länk till en annan kedja) har **Ta tillbaka** eller, för
+en uppbrytning, **Ångra**. Knappen fäller ut ett skäl, som är **frivilligt**; **Enter** sparar och **Esc** avbryter.
+
+- **Inget tas bort.** Att ta tillbaka sparas som en ny förseglad post med vem, när och skälet, och raden det gäller
+  står kvar **överstruken och tonad**, med tillbakatagandet som en egen rad. Det gamla räknas inte längre, men det går
+  alltid att se vad som troddes och när (princip 1).
+- **En etikett** som tas tillbaka tas tillbaka också i **etikettbiblioteket**, direkt: den ges aldrig igen, och
+  kopiorna i andra ärenden tas tillbaka där nästa gång de får etiketter. En etikett från ett annat ärende, en
+  sanktionsträff eller en analys är inte din egen och har ingen knapp.
+- **En uppbrytning** som ångras låter heuristiken slå ihop adresserna igen. Därför visar formuläret först **vilka
+  adresser som slås ihop igen och med vilken heuristik**, och du bekräftar med *Ångra*. Håller en annan uppbrytning
+  isär dem, eller binder ingen heuristik dem, står det i stället att inget slås ihop just nu.
+- **En länk till en annan kedja** som tas tillbaka tonas bort ur grafen, och spåret slutar vid bryggan eller swappen
+  igen.
+
+Något som redan tagits tillbaka kan inte tas tillbaka igen. Var det fel att ta tillbaka det, gör om det i stället:
+sätt etiketten igen, bryt upp igen eller knyt länken igen.

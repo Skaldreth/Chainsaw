@@ -168,6 +168,103 @@ internal sealed class ClusteringService : IClusteringService
     }
 
     /// <inheritdoc/>
+    public int UndoSplits(ICase @case, IReadOnlyCollection<long> splitSequences, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(splitSequences);
+        var checkedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        if (checkedReason?.Length > MaximumReasonLength)
+        {
+            throw new ArgumentException("A reason is at most 1 000 characters.", nameof(reason));
+        }
+
+        var wanted = splitSequences.ToHashSet();
+        return @case.Write(transaction =>
+        {
+            // The stored splits are what is undone, read in the same transaction, so that none is undone twice.
+            var splits = EvidenceStore.ReadSplitHistory(transaction)
+                .Where(entry => !entry.IsUndone && wanted.Contains(entry.Split.Sequence))
+                .Select(entry => entry.Split)
+                .ToList();
+            if (splits.Count == 0)
+            {
+                return 0;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                ClusteringJournalKinds.SplitUndone,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Uppbrytning ångrad, kan slås ihop igen: {0}.",
+                    string.Join(
+                        "; ",
+                        splits.Select(split => $"{split.First.Value} och {split.Second.Value} ({split.Heuristic})"))),
+                JsonSerializer.Serialize(
+                    new { splits = splits.Select(split => split.Sequence), reason = checkedReason })));
+            foreach (var split in splits)
+            {
+                EvidenceStore.AppendUndo(transaction, split, checkedReason, journal);
+            }
+
+            return splits.Count;
+        });
+    }
+
+    /// <inheritdoc/>
+    public UndoSplitPreview? PreviewUndoSplits(
+        ICase @case, IReadOnlyCollection<long> splitSequences, BitcoinAddress? from)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(splitSequences);
+        var wanted = splitSequences.ToHashSet();
+        var (evidence, history) = @case.Read(reader =>
+            (EvidenceStore.ReadLatest(reader, withFindings: false).Evidence, EvidenceStore.ReadSplitHistory(reader)));
+        var named = history.Where(entry => wanted.Contains(entry.Split.Sequence)).ToList();
+        if (named.Count == 0)
+        {
+            return null;
+        }
+
+        var undone = named.Where(entry => !entry.IsUndone).Select(entry => entry.Split).ToList();
+        if (undone.Count == 0)
+        {
+            return new UndoSplitPreview([], [], []);
+        }
+
+        var inForce = history.Where(entry => !entry.IsUndone).Select(entry => entry.Split).ToList();
+        var before = new ClusterGraph(evidence, inForce);
+        var after = new ClusterGraph(evidence, [.. inForce.Where(split => !wanted.Contains(split.Sequence))]);
+        var sides = undone.SelectMany(split => new[] { split.First, split.Second }).ToList();
+        var anchor = from is not null && sides.Any(side => before.ClusterOf(side).Contains(from)) ? from : sides[0];
+        var now = before.ClusterOf(anchor).Addresses.ToHashSet();
+        var rejoined = after.ClusterOf(anchor).Members.Where(member => !now.Contains(member.Address)).ToList();
+        var heuristics = rejoined.Select(member => member.JoinedBy?.Evidence.Heuristic)
+            .OfType<HeuristicId>()
+            .Distinct()
+            .ToList();
+        return new UndoSplitPreview(undone, rejoined, heuristics);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SplitHistoryEntry> GetSplitHistory(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(addresses);
+        var wanted = addresses.ToHashSet();
+        if (wanted.Count == 0)
+        {
+            return [];
+        }
+
+        return
+        [
+            .. @case.Read(EvidenceStore.ReadSplitHistory)
+                .Where(entry => wanted.Contains(entry.Split.First) || wanted.Contains(entry.Split.Second)),
+        ];
+    }
+
+    /// <inheritdoc/>
     public Cluster GetCluster(ICase @case, BitcoinAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);

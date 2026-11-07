@@ -297,6 +297,9 @@ public sealed class GraphCanvas : FrameworkElement
             case Key.Escape when _model.Forms.IsOpen:
                 _model.Forms.Cancel();
                 break;
+            case Key.Escape when _model.History.IsOpen:
+                _model.History.Cancel();
+                break;
             case Key.Escape:
                 _model.Choose(null, null);
                 break;

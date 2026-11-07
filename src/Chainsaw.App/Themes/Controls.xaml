@@ -454,6 +454,36 @@
         <Setter Property="BorderThickness" Value="1" />
     </Style>
 
+    <!--
+      A tab in the inspector (sketch AN1b, Fakta and Historik): words over a line, the accent under the chosen one. It
+      never takes the keyboard, so that the graph's keys still reach the graph.
+    -->
+    <Style x:Key="Button.Tab" TargetType="Button">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Padding" Value="2,0" />
+        <Setter Property="Margin" Value="0,0,16,0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0,0,0,1.5"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- One half of the graph's switch between the free surface and the hop columns: an icon, no frame of its own. -->
     <Style x:Key="Button.Segment" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
         <Setter Property="Width" Value="34" />

@@ -1,0 +1,440 @@
+using System.Globalization;
+using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
+
+namespace Chainsaw.App.Graph;
+
+/// <summary>What happened to a node, as a row in the inspector's <em>Historik</em> (sketch AN1b).</summary>
+public enum HistoryKind
+{
+    /// <summary>Money first came to the node on the chain: a fact.</summary>
+    FirstReceived,
+
+    /// <summary>A heuristic merged the node's addresses: an automatic conclusion.</summary>
+    Clustered,
+
+    /// <summary>A label was set on the node.</summary>
+    Label,
+
+    /// <summary>The user broke addresses out of the node's cluster.</summary>
+    Split,
+
+    /// <summary>The user linked money that came to the node to a transaction on another chain.</summary>
+    Link,
+
+    /// <summary>A label or a link was taken back, or a split undone: a sealed record of its own.</summary>
+    Withdrawal,
+}
+
+/// <summary>What the row's button does, when the row is the user's own and still counts.</summary>
+public enum HistoryUndo
+{
+    /// <summary>Nothing: a fact, an automatic conclusion, someone else's judgement, or already taken back.</summary>
+    None,
+
+    /// <summary>Takes a label back (<em>Ta tillbaka</em>), and the label library follows.</summary>
+    RetractLabel,
+
+    /// <summary>Undoes a breaking out (<em>Ångra</em>), after a confirmation of what merges again.</summary>
+    UndoSplit,
+
+    /// <summary>Takes a link to another chain back (<em>Ta tillbaka</em>).</summary>
+    Unlink,
+}
+
+/// <summary>One row in the node's history (sketch AN1b).</summary>
+/// <param name="Key">The row's stable key, so that an open row stays open when the history is read again.</param>
+/// <param name="Kind">What happened.</param>
+/// <param name="Utc">When, in UTC.</param>
+/// <param name="Text">The row's words, for example <c>Etikett · Börs A</c>.</param>
+/// <param name="Sub">The quiet line under: who, and what it rests on.</param>
+/// <param name="Icon">The icon's resource key.</param>
+/// <param name="Ink">The icon's colour.</param>
+/// <param name="IsDashed">Whether the icon's frame is dashed: an automatic conclusion or a link, never a fact.</param>
+/// <param name="IsFact">Whether it is a fact from the chain, drawn the quietest.</param>
+/// <param name="IsWithdrawn">Whether it is taken back or undone: struck through and toned, but never removed.</param>
+/// <param name="Undo">What the row's button does.</param>
+public sealed record HistoryEvent(
+    string Key,
+    HistoryKind Kind,
+    DateTimeOffset Utc,
+    string Text,
+    string Sub,
+    string Icon,
+    GraphInk Ink,
+    bool IsDashed,
+    bool IsFact,
+    bool IsWithdrawn,
+    HistoryUndo Undo)
+{
+    /// <summary>Gets the label's sequence, for <see cref="HistoryUndo.RetractLabel"/>.</summary>
+    public long LabelSequence { get; init; }
+
+    /// <summary>
+    /// Gets whether the label may have reached the label library, which then also learns that it is taken back.
+    /// </summary>
+    public bool ReachesLibrary { get; init; }
+
+    /// <summary>Gets the splits of one breaking out, for <see cref="HistoryUndo.UndoSplit"/>.</summary>
+    public IReadOnlyList<long> SplitSequences { get; init; } = [];
+
+    /// <summary>Gets the link, for <see cref="HistoryUndo.Unlink"/>.</summary>
+    public CrossChainLink? Link { get; init; }
+
+    /// <summary>Gets whether the row has a button: it is the user's own and still counts.</summary>
+    public bool CanUndo => Undo != HistoryUndo.None && !IsWithdrawn;
+
+    /// <summary>Gets the button's words: <em>Ångra</em> for a breaking out, <em>Ta tillbaka</em> otherwise.</summary>
+    public string UndoText => Undo == HistoryUndo.UndoSplit ? NodeHistory.UndoText : NodeHistory.RetractText;
+
+    /// <summary>Gets the time as the row writes it: the day, the month and the time, in local time.</summary>
+    public string TimeText => NodeHistory.Short(Utc);
+
+    /// <summary>Gets the row's tooltip: the time in local time and UTC (principle 1).</summary>
+    public string ToolTip => InspectorContent.Time(Utc);
+}
+
+/// <summary>What the inspector reads from the modules to write a node's history.</summary>
+/// <param name="Labels">The labels on the node's addresses, also those taken back.</param>
+/// <param name="Splits">The splits that involve the node's addresses, also those undone.</param>
+/// <param name="Links">Every link to another chain in the case, also those taken back.</param>
+/// <param name="Cluster">The cluster, for a cluster; <see langword="null"/> otherwise.</param>
+/// <param name="Operators">Who wrote each journal entry the history names, by the entry's sequence.</param>
+public sealed record NodeHistoryData(
+    IReadOnlyList<LabelHistoryEntry> Labels,
+    IReadOnlyList<SplitHistoryEntry> Splits,
+    IReadOnlyList<CrossChainLinkHistoryEntry> Links,
+    Cluster? Cluster,
+    IReadOnlyDictionary<long, string> Operators)
+{
+    /// <summary>Gets the journal entries whose writer the history names.</summary>
+    /// <param name="labels">The labels.</param>
+    /// <param name="splits">The splits.</param>
+    /// <param name="links">The links.</param>
+    /// <returns>The journal sequences.</returns>
+    public static IReadOnlySet<long> JournalNeeds(
+        IEnumerable<LabelHistoryEntry> labels,
+        IEnumerable<SplitHistoryEntry> splits,
+        IEnumerable<CrossChainLinkHistoryEntry> links)
+    {
+        ArgumentNullException.ThrowIfNull(labels);
+        ArgumentNullException.ThrowIfNull(splits);
+        ArgumentNullException.ThrowIfNull(links);
+        var needs = new HashSet<long>();
+        foreach (var label in labels)
+        {
+            if (label.Retraction is { By: null } retraction)
+            {
+                needs.Add(retraction.JournalSequence);
+            }
+        }
+
+        foreach (var split in splits)
+        {
+            needs.Add(split.Split.JournalSequence);
+            if (split.Undo is { } undo)
+            {
+                needs.Add(undo.JournalSequence);
+            }
+        }
+
+        foreach (var link in links)
+        {
+            needs.Add(link.Link.JournalSequence);
+            if (link.Unlink is { } unlink)
+            {
+                needs.Add(unlink.JournalSequence);
+            }
+        }
+
+        return needs;
+    }
+}
+
+/// <summary>
+/// Writes a node's history (sketch AN1b) from what the modules read: the facts and the automatic conclusions without a
+/// button, the user's own judgements with <em>Ta tillbaka</em> or <em>Ångra</em>, and every taking back as a row of its
+/// own while the row it concerns stays, struck through. Knows nothing of WPF.
+/// </summary>
+public static class NodeHistory
+{
+    /// <summary>The button of a label or a link.</summary>
+    public const string RetractText = "Ta tillbaka";
+
+    /// <summary>The button of a breaking out.</summary>
+    public const string UndoText = "Ångra";
+
+    /// <summary>Who wrote a journal entry the case could not name.</summary>
+    public const string UnknownOperator = "Okänd";
+
+    /// <summary>
+    /// How far apart in time the splits of one breaking out may be stored: the inspector stores them one after the
+    /// other, so splits further apart are separate decisions.
+    /// </summary>
+    public static readonly TimeSpan SameBreakingOut = TimeSpan.FromMinutes(1);
+
+    /// <summary>The months as the rows write them, in Swedish, whatever the computer's language.</summary>
+    private static readonly string[] Months =
+        ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+
+    /// <summary>Writes a time as a row does, in local time, for example <c>7 nov 09:12</c>.</summary>
+    /// <param name="time">The time.</param>
+    /// <returns>The text.</returns>
+    public static string Short(DateTimeOffset time)
+    {
+        var local = time.ToLocalTime();
+        return string.Create(
+            CultureInfo.InvariantCulture, $"{local.Day} {Months[local.Month - 1]} {local:HH:mm}");
+    }
+
+    /// <summary>Says which nodes can have a history: an address, a cluster, or another chain's transaction.</summary>
+    /// <param name="node">The node.</param>
+    /// <returns><see langword="true"/> when it can.</returns>
+    public static bool HasHistory(NodeView node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return node.Node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster or GraphNodeKind.OtherChain
+            || node.Node.Coin is not null;
+    }
+
+    /// <summary>Writes the node's history, oldest first.</summary>
+    /// <param name="scene">The scene the node is in.</param>
+    /// <param name="node">The node.</param>
+    /// <param name="data">What the modules read.</param>
+    /// <returns>The rows.</returns>
+    public static IReadOnlyList<HistoryEvent> Build(GraphScene scene, NodeView node, NodeHistoryData data)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(node);
+        ArgumentNullException.ThrowIfNull(data);
+        var rows = new List<HistoryEvent>();
+        AddFirstReceived(scene, node, rows);
+        AddClustered(data, rows);
+        AddLabels(data, rows);
+        AddSplits(node, data, rows);
+        AddLinks(scene, node, data, rows);
+
+        // In time order; what happened at the same moment keeps the order above, a taking back after what it concerns.
+        return [.. rows.Select((row, index) => (row, index)).OrderBy(pair => pair.row.Utc).ThenBy(pair => pair.index)
+            .Select(pair => pair.row)];
+    }
+
+    /// <summary>Adds when money first came to the node, with its block: a fact from the chain.</summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="node">The node.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddFirstReceived(GraphScene scene, NodeView node, List<HistoryEvent> rows)
+    {
+        if (node.Node.FirstReceived is not { } first)
+        {
+            return;
+        }
+
+        var block = scene.Snapshot.Graph.Edges
+            .Where(edge => edge.To == node.Key && edge.Kind == GraphEdgeKind.Transfer)
+            .SelectMany(edge => edge.Transfers)
+            .Select(transfer => transfer.Block)
+            .OfType<BlockReference>()
+            .OrderBy(reference => reference.Time)
+            .FirstOrDefault();
+        var sub = block is null
+            ? "På kedjan"
+            : string.Create(CultureInfo.InvariantCulture, $"Block {block.Height:N0} · på kedjan").Replace(',', ' ');
+        rows.Add(new HistoryEvent(
+            "first", HistoryKind.FirstReceived, first, "Först in", sub, "Icon.Download", GraphInk.Unknown,
+            IsDashed: false, IsFact: true, IsWithdrawn: false, HistoryUndo.None));
+    }
+
+    /// <summary>Adds each heuristic that merged the cluster's addresses: an automatic conclusion.</summary>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddClustered(NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        if (data.Cluster is not { } cluster)
+        {
+            return;
+        }
+
+        var members = cluster.Addresses.ToHashSet();
+        foreach (var group in cluster.Links.GroupBy(link => link.Evidence.Heuristic))
+        {
+            var addresses = group.SelectMany(link => link.Evidence.Addresses)
+                .Where(members.Contains)
+                .Distinct()
+                .Count();
+            var sub = string.Create(
+                CultureInfo.InvariantCulture, $"{InspectorForms.ShortName(group.Key)} · {addresses} adresser");
+            rows.Add(new HistoryEvent(
+                "clustered/" + group.Key, HistoryKind.Clustered, group.Min(link => link.Evidence.RecordedUtc),
+                "Klustrad", sub, "Icon.Kind.Wallet", GraphInk.Cluster, IsDashed: true, IsFact: false,
+                IsWithdrawn: false, HistoryUndo.None));
+        }
+    }
+
+    /// <summary>Adds every label and every taking back of one.</summary>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddLabels(NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        foreach (var entry in data.Labels)
+        {
+            var label = entry.Label;
+            var look = VisualLanguage.Of(VisualLanguage.SortOf(label.Kind));
+            var what = label.Name ?? label.Kind.Describe();
+            var origin = label.Origin;
+            var source = origin.Source switch
+            {
+                LabelSource.OtherCase => "från ett annat ärende",
+                LabelSource.SanctionList => origin.SourceName,
+                LabelSource.OpenSource => origin.SourceName,
+                LabelSource.Behaviour => origin.SourceName,
+                _ => null,
+            };
+            var key = "label/" + label.Sequence.ToString(CultureInfo.InvariantCulture);
+            rows.Add(new HistoryEvent(
+                key, HistoryKind.Label, origin.SetUtc, "Etikett · " + what,
+                source is null ? origin.SetBy.Name : $"{origin.SetBy.Name} · {source}", look.Icon, look.Ink,
+                IsDashed: false, IsFact: false, entry.IsRetracted,
+                entry.IsUsersOwn ? HistoryUndo.RetractLabel : HistoryUndo.None)
+            {
+                LabelSequence = label.Sequence,
+                ReachesLibrary = !label.DoNotSpread && label.Kind != LabelKind.Victim,
+            });
+            if (entry.Retraction is { } retraction)
+            {
+                var who = retraction.By?.Name ?? Who(data, retraction.JournalSequence);
+                rows.Add(Withdrawal(key, retraction.Utc, "Tillbakatagen: " + what, who, retraction.Reason));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds every breaking out, the splits stored together in one row, and every undoing of one.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddSplits(NodeView node, NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        var members = data.Cluster?.Addresses.ToHashSet() ?? [.. node.Node.GraphAddresses];
+        foreach (var group in BreakingsOut(data.Splits))
+        {
+            var first = group[0];
+            var key = "split/" + first.Split.Sequence.ToString(CultureInfo.InvariantCulture);
+            var undone = group.All(entry => entry.IsUndone);
+            var outside = group.SelectMany(entry => new[] { entry.Split.First, entry.Split.Second })
+                .Where(address => !members.Contains(address))
+                .Distinct()
+                .Count();
+            var count = outside > 0 ? outside : group.Count;
+            var heuristic = string.Join(", ", group.Select(entry => entry.Split.Heuristic).Distinct());
+            rows.Add(new HistoryEvent(
+                key, HistoryKind.Split, first.Split.RecordedUtc,
+                string.Create(CultureInfo.InvariantCulture, $"Uppbruten · {count} ut"),
+                $"{Who(data, first.Split.JournalSequence)} · {heuristic}", "Icon.Split", GraphInk.Cluster,
+                IsDashed: false, IsFact: false, undone, HistoryUndo.UndoSplit)
+            {
+                SplitSequences = [.. group.Where(entry => !entry.IsUndone).Select(entry => entry.Split.Sequence)],
+            });
+            foreach (var undo in group.Select(entry => entry.Undo).OfType<ClusterSplitUndo>()
+                .DistinctBy(undo => undo.JournalSequence))
+            {
+                rows.Add(Withdrawal(
+                    key, undo.RecordedUtc, "Ångrad: uppbrytningen", Who(data, undo.JournalSequence), undo.Reason));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Groups the splits stored one after the other by one breaking out: the same heuristic and reason, consecutive,
+    /// and close in time. A split undone on its own starts a group of its own.
+    /// </summary>
+    /// <param name="splits">The splits, oldest first.</param>
+    /// <returns>The groups.</returns>
+    public static IReadOnlyList<IReadOnlyList<SplitHistoryEntry>> BreakingsOut(IReadOnlyList<SplitHistoryEntry> splits)
+    {
+        ArgumentNullException.ThrowIfNull(splits);
+        var groups = new List<List<SplitHistoryEntry>>();
+        foreach (var entry in splits.OrderBy(entry => entry.Split.Sequence))
+        {
+            var last = groups.Count > 0 ? groups[^1][^1] : null;
+            if (last is not null
+                && last.Split.Heuristic == entry.Split.Heuristic
+                && last.Split.Reason == entry.Split.Reason
+                && entry.Split.RecordedUtc - last.Split.RecordedUtc <= SameBreakingOut
+                && last.Undo?.JournalSequence == entry.Undo?.JournalSequence)
+            {
+                groups[^1].Add(entry);
+            }
+            else
+            {
+                groups.Add([entry]);
+            }
+        }
+
+        return groups;
+    }
+
+    /// <summary>
+    /// Adds every link to another chain from money that came to the node (or to the other chain's transaction it
+    /// is), and every taking back of one.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="node">The node.</param>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddLinks(GraphScene scene, NodeView node, NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        var coins = scene.Snapshot.Graph.Edges
+            .Where(edge => edge.To == node.Key && edge.Kind == GraphEdgeKind.Transfer)
+            .SelectMany(edge => edge.Transfers)
+            .Select(transfer => transfer.Coin)
+            .ToHashSet();
+        if (node.Node.Coin is { } own)
+        {
+            coins.Add(own);
+        }
+
+        foreach (var entry in data.Links.Where(entry =>
+            coins.Contains(entry.Link.From) || (node.Node.OtherChain is { } other && entry.Link.To == other)))
+        {
+            var link = entry.Link;
+            var chain = GraphScene.ChainShortName(link.To.Chain);
+            var key = "link/" + link.Sequence.ToString(CultureInfo.InvariantCulture);
+            rows.Add(new HistoryEvent(
+                key, HistoryKind.Link, link.RecordedUtc, "Länk till annan kedja · " + chain,
+                $"{Who(data, link.JournalSequence)} · tx {GraphScene.Shorten(link.To.Id)}", "Icon.Link",
+                GraphInk.OtherChain, IsDashed: true, IsFact: false, entry.IsTakenBack, HistoryUndo.Unlink)
+            {
+                Link = link,
+            });
+            if (entry.Unlink is { } unlink)
+            {
+                rows.Add(Withdrawal(
+                    key, unlink.RecordedUtc, "Tillbakatagen: länken till " + chain,
+                    Who(data, unlink.JournalSequence), unlink.Reason));
+            }
+        }
+    }
+
+    /// <summary>Gives the row of a taking back.</summary>
+    /// <param name="of">The key of the row it concerns.</param>
+    /// <param name="utc">When.</param>
+    /// <param name="text">The row's words.</param>
+    /// <param name="who">Who.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>The row.</returns>
+    private static HistoryEvent Withdrawal(string of, DateTimeOffset utc, string text, string who, string? reason) =>
+        new(
+            of + "/withdrawn", HistoryKind.Withdrawal, utc, text, reason is null ? who : $"{who} · {reason}",
+            "Icon.Undo", GraphInk.Unknown, IsDashed: false, IsFact: false, IsWithdrawn: false, HistoryUndo.None);
+
+    /// <summary>Gives who wrote a journal entry.</summary>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="journal">The entry's sequence.</param>
+    /// <returns>The operator's name, or <see cref="UnknownOperator"/>.</returns>
+    private static string Who(NodeHistoryData data, long journal) =>
+        data.Operators.TryGetValue(journal, out var name) ? name : UnknownOperator;
+}

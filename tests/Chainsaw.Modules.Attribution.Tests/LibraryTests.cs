@@ -131,6 +131,27 @@ public sealed class LibraryTests : IDisposable
     }
 
     [Fact]
+    public void A_label_taken_back_without_a_reason_is_withdrawn_from_the_copies_in_other_cases()
+    {
+        var address = Wpkh("withdrawn-everywhere");
+        var label = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB");
+        _harness.Library.Absorb(_harness.Case);
+        using var other = _harness.Create(OtherCaseNumber);
+        Assert.Single(_harness.Library.ShareInto(other, [address]));
+
+        _harness.Labels.Retract(_harness.Case, label.Sequence, null);
+        _harness.Library.Absorb(_harness.Case);
+        _harness.Library.ShareInto(other, [address]);
+
+        Assert.Empty(_harness.Library.List());
+        Assert.Empty(_harness.Labels.GetLabels(other, address));
+        var copy = Assert.Single(_harness.Labels.GetHistory(other, [address]));
+        Assert.True(copy.IsRetracted);
+        Assert.False(copy.IsUsersOwn);
+        Assert.True(_harness.Verify(other).IsIntact);
+    }
+
+    [Fact]
     public void A_label_the_case_took_back_is_not_given_again()
     {
         var address = Wpkh("refused");

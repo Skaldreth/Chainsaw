@@ -421,7 +421,11 @@ internal sealed class TestTracing : ITracingService
     public CrossChainLink LinkCrossChain(ICase @case, Outpoint from, ChainTransactionRef to, string reason) =>
         throw new NotSupportedException();
 
-    public bool UnlinkCrossChain(ICase @case, CrossChainLink link, string reason) => throw new NotSupportedException();
+    public bool UnlinkCrossChain(ICase @case, CrossChainLink link, string? reason) =>
+        throw new NotSupportedException();
+
+    public IReadOnlyList<CrossChainLinkHistoryEntry> GetCrossChainHistory(ICase @case) =>
+        throw new NotSupportedException();
 
     public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position) =>
         throw new NotSupportedException();

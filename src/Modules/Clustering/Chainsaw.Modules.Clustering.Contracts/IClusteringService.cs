@@ -46,6 +46,48 @@ public interface IClusteringService
     /// </exception>
     ClusterSplit Split(ICase @case, SplitRequest request);
 
+    /// <summary>
+    /// Undoes splits (sketch AN1b), all or none: a new sealed record per split, under one journal entry, says that it
+    /// no longer holds, and the heuristics may merge the addresses again from now on. Nothing is removed; the splits
+    /// stay readable in <see cref="GetSplitHistory"/>. An undone split cannot be undone again; the addresses are split
+    /// anew instead.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="splitSequences">
+    /// The splits' <see cref="ClusterSplit.Sequence"/>, for example every split of one breaking out.
+    /// </param>
+    /// <param name="reason">Why, at most 1 000 characters; optional (the user's decision 2026-11-07).</param>
+    /// <returns>How many were undone; a split that does not exist or is already undone is not counted.</returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    int UndoSplits(ICase @case, IReadOnlyCollection<long> splitSequences, string? reason);
+
+    /// <summary>
+    /// Says what undoing splits would merge, for the confirmation the user sees before they are undone: the
+    /// addresses that would join the cluster again and the heuristics that would do it. Nothing is stored.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="splitSequences">The splits' <see cref="ClusterSplit.Sequence"/>.</param>
+    /// <param name="from">
+    /// The address the user looks from (the chosen cluster's); the addresses that would join its cluster are given.
+    /// <see langword="null"/>, or an address in none of the splits' clusters, looks from the first split's first
+    /// address.
+    /// </param>
+    /// <returns>The preview, or <see langword="null"/> when none of the splits exists.</returns>
+    UndoSplitPreview? PreviewUndoSplits(
+        ICase @case, IReadOnlyCollection<long> splitSequences, BitcoinAddress? from);
+
+    /// <summary>
+    /// Reads the history of the splits that involve some addresses: every split with one of them on either side, also
+    /// those undone, each with its undoing, oldest first (sketch AN1b, <em>Historik</em>).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses, for a cluster all of its addresses.</param>
+    /// <returns>The splits and their undoing.</returns>
+    IReadOnlyList<SplitHistoryEntry> GetSplitHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
+
     /// <summary>Builds the cluster an address belongs to, explained from that address.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="address">The address.</param>

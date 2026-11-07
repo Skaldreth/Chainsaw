@@ -94,12 +94,100 @@ public sealed class LabelTests : IDisposable
             _harness.Own(LabelSubject.ForAddress(Wpkh("no-reason")), LabelKind.Exchange, reason: reason));
     }
 
-    [Fact]
-    public void A_retraction_needs_a_reason()
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    public void A_retraction_needs_no_reason(string? reason)
     {
         var label = _harness.Own(LabelSubject.ForAddress(Wpkh("keep")), LabelKind.Exchange);
 
-        Assert.Throws<ArgumentException>(() => _harness.Labels.Retract(_harness.Case, label.Sequence, " "));
+        Assert.True(_harness.Labels.Retract(_harness.Case, label.Sequence, reason));
+
+        var entry = Assert.Single(_harness.Labels.GetHistory(_harness.Case, [label.Subject.Address]));
+        Assert.True(entry.IsRetracted);
+        Assert.Null(entry.Retraction!.Reason);
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public void A_retraction_reason_cannot_be_too_long()
+    {
+        var label = _harness.Own(LabelSubject.ForAddress(Wpkh("long")), LabelKind.Exchange);
+
+        Assert.Throws<ArgumentException>(
+            () => _harness.Labels.Retract(_harness.Case, label.Sequence, new string('x', 1_001)));
+        Assert.False(Assert.Single(_harness.Labels.GetHistory(_harness.Case, [label.Subject.Address])).IsRetracted);
+    }
+
+    [Fact]
+    public void The_history_keeps_a_label_taken_back_with_who_when_and_why_and_survives_reopening()
+    {
+        var address = Wpkh("history");
+        var label = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Mixer, "Blandaren");
+        var other = _harness.Own(LabelSubject.ForAddress(Wpkh("elsewhere")), LabelKind.Exchange);
+        _harness.Clock.UtcNow += TimeSpan.FromMinutes(5);
+        Assert.True(_harness.Labels.Retract(_harness.Case, label.Sequence, "Gällde klustret bredvid"));
+
+        _harness.Reopen();
+
+        var entry = Assert.Single(_harness.Labels.GetHistory(_harness.Case, [address]));
+        Assert.Equal(label, entry.Label);
+        var retraction = Assert.IsType<LabelRetraction>(entry.Retraction);
+        Assert.Equal("Testa Testsson", retraction.By!.Name);
+        Assert.Equal(_harness.Clock.UtcNow, retraction.Utc);
+        Assert.Equal("Gällde klustret bredvid", retraction.Reason);
+        Assert.True(retraction.Sequence > other.Sequence);
+        Assert.False(entry.CanRetract);
+        Assert.True(entry.IsUsersOwn);
+        var journal = _harness.Case.ReadJournal().Single(found => found.Sequence == retraction.JournalSequence);
+        Assert.Equal(AttributionJournalKinds.LabelRetracted, journal.Kind);
+        Assert.Empty(_harness.Labels.GetLabels(_harness.Case, address));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public void A_label_taken_back_is_set_anew_instead_of_taken_back_again()
+    {
+        var address = Wpkh("again");
+        var label = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange);
+        _harness.Labels.Retract(_harness.Case, label.Sequence, null);
+        var before = _harness.Case.ReadJournal().Count;
+
+        Assert.False(_harness.Labels.Retract(_harness.Case, label.Sequence, "Igen"));
+        Assert.Equal(before, _harness.Case.ReadJournal().Count);
+
+        var anew = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange);
+        var history = _harness.Labels.GetHistory(_harness.Case, [address]);
+        Assert.Equal([label.Sequence, anew.Sequence], history.Select(entry => entry.Label.Sequence));
+        Assert.Equal([false, true], history.Select(entry => entry.CanRetract));
+        Assert.NotEqual(label.Origin.OriginId, anew.Origin.OriginId);
+    }
+
+    [Fact]
+    public void Only_the_users_own_labels_can_be_taken_back_from_the_history()
+    {
+        var address = Wpkh("open-source");
+        var open = _harness.Labels.Add(_harness.Case, new LabelDraft(
+            LabelSubject.ForAddress(address), LabelKind.Mixer, "X", "Står på listan")
+        {
+            Source = LabelSource.OpenSource,
+            SourceName = "Lista",
+            SourceVersion = "läst 2026-11-07",
+        });
+        var behaviour = _harness.Labels.Add(_harness.Case, new LabelDraft(
+            LabelSubject.ForAddress(address), LabelKind.Exchange, null, "Töms till samma plånbok")
+        {
+            Source = LabelSource.Behaviour,
+            SourceName = "sweep",
+            SourceVersion = "v1",
+        });
+
+        var history = _harness.Labels.GetHistory(_harness.Case, [address]);
+
+        Assert.True(history.Single(entry => entry.Label.Sequence == open.Sequence).CanRetract);
+        Assert.False(history.Single(entry => entry.Label.Sequence == behaviour.Sequence).CanRetract);
+        Assert.Empty(_harness.Labels.GetHistory(_harness.Case, [Wpkh("nothing")]));
+        Assert.Empty(_harness.Labels.GetHistory(_harness.Case, []));
     }
 
     [Theory]

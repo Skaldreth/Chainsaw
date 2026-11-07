@@ -20,14 +20,27 @@ public interface IAttributionService
     LabelEntry Add(ICase @case, LabelDraft draft);
 
     /// <summary>
-    /// Takes a label back with a line in the journal. The label stays sealed in the case, marked as taken back, so
-    /// that what was believed and when can always be read.
+    /// Takes a label back with a line in the journal: a new sealed record with who, when and the reason, if one is
+    /// given. Nothing is removed; the label stays sealed in the case, marked as taken back, so that what was believed
+    /// and when can always be read, and it no longer counts. A label taken back cannot be taken back again; it is set
+    /// anew instead. A label set in this case and taken back is withdrawn from the label library the next time the
+    /// case is absorbed (<see cref="ILabelLibrary.Absorb"/>).
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="sequence">The label's <see cref="LabelEntry.Sequence"/>.</param>
-    /// <param name="reason">Why; required, at most 1 000 characters.</param>
+    /// <param name="reason">Why, at most 1 000 characters; optional (the user's decision 2026-11-07, AN1b).</param>
     /// <returns><see langword="false"/> when there is no such label or it is already taken back.</returns>
-    bool Retract(ICase @case, long sequence, string reason);
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    bool Retract(ICase @case, long sequence, string? reason);
+
+    /// <summary>
+    /// Reads the history of the labels on some addresses: every label whose subject is one of them, also those taken
+    /// back, each with its taking back, oldest first (sketch AN1b, <em>Historik</em>).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses, for a cluster all of its addresses.</param>
+    /// <returns>The labels and their taking back.</returns>
+    IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
 
     /// <summary>Reads every label in the case that is not taken back, oldest first.</summary>
     /// <param name="case">The open case.</param>

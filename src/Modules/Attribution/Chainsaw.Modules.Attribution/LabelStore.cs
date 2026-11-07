@@ -35,19 +35,24 @@ internal static class LabelStore
         return label with { Sequence = record.Sequence, JournalSequence = journal.Sequence };
     }
 
-    /// <summary>Seals that a label is taken back.</summary>
+    /// <summary>
+    /// Seals that a label is taken back: a new record with who and when (the journal entry's operator and time) and
+    /// the reason, if any. The label's own record is never touched.
+    /// </summary>
     /// <param name="transaction">The case's transaction.</param>
     /// <param name="label">The stored label.</param>
-    /// <param name="reason">Why.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
     /// <param name="journal">The journal entry that records it.</param>
-    public static void SealRetract(ICaseTransaction transaction, LabelEntry label, string reason, JournalEntry journal)
+    public static void SealRetract(
+        ICaseTransaction transaction, LabelEntry label, string? reason, JournalEntry journal)
     {
         transaction.AppendSealed(
             AttributionSchema.LabelsChain,
             [
                 RetractAction, label.Sequence, label.Origin.OriginId, label.Subject.Kind.ToString(),
-                label.Subject.Address.Value, label.Kind.ToString(), null, null, null, null, null, null, null, reason,
-                null, null, journal.Sequence, Text(journal.Utc),
+                label.Subject.Address.Value, label.Kind.ToString(), null, null, null, null, null,
+                JsonSerializer.Serialize(journal.Operator), Text(journal.Utc), reason, null, null, journal.Sequence,
+                Text(journal.Utc),
             ]);
     }
 
@@ -59,17 +64,24 @@ internal static class LabelStore
         using var command = reader.CreateCommand("""
             SELECT sequence, action, label_sequence, origin_id, subject_kind, subject, kind, name, source,
                    original_source, source_name, source_version, set_by, set_utc, reason, note, do_not_spread,
-                   journal_sequence
+                   journal_sequence, recorded_utc
             FROM attribution_labels ORDER BY sequence
             """);
         using var rows = command.ExecuteReader();
         var all = new List<LabelEntry>();
-        var retracted = new HashSet<long>();
+        var retractions = new Dictionary<long, LabelRetraction>();
         while (rows.Read())
         {
             if (rows.GetString(1) == RetractAction)
             {
-                retracted.Add(rows.GetInt64(2));
+                // The first taking back counts; a label is never taken back twice, but a record is never ignored
+                // silently either: a later one for the same label changes nothing.
+                retractions.TryAdd(rows.GetInt64(2), new LabelRetraction(
+                    rows.GetInt64(0),
+                    rows.IsDBNull(12) ? null : JsonSerializer.Deserialize<OperatorProfile>(rows.GetString(12)),
+                    Time(rows.IsDBNull(13) ? rows.GetString(18) : rows.GetString(13)),
+                    rows.IsDBNull(14) ? null : rows.GetString(14),
+                    rows.GetInt64(17)));
                 continue;
             }
 
@@ -95,7 +107,7 @@ internal static class LabelStore
                 rows.GetInt64(17)));
         }
 
-        return new StoredLabels(all, retracted);
+        return new StoredLabels(all, retractions);
     }
 
     /// <summary>Gives the identity of a label across cases: its origin and what it says.</summary>
@@ -127,11 +139,16 @@ internal static class LabelStore
 
 /// <summary>The labels in a case.</summary>
 /// <param name="All">Every label, also those taken back, oldest first.</param>
-/// <param name="Retracted">The sequences of the labels that are taken back.</param>
-internal sealed record StoredLabels(IReadOnlyList<LabelEntry> All, IReadOnlySet<long> Retracted)
+/// <param name="Retractions">The taking back of each label that is taken back, by the label's sequence.</param>
+internal sealed record StoredLabels(
+    IReadOnlyList<LabelEntry> All, IReadOnlyDictionary<long, LabelRetraction> Retractions)
 {
+    /// <summary>Gets the sequences of the labels that are taken back.</summary>
+    public IReadOnlySet<long> Retracted { get; } = Retractions.Keys.ToHashSet();
+
     /// <summary>Gets the labels that are not taken back, oldest first.</summary>
-    public IReadOnlyList<LabelEntry> Active { get; } = [.. All.Where(label => !Retracted.Contains(label.Sequence))];
+    public IReadOnlyList<LabelEntry> Active { get; } =
+        [.. All.Where(label => !Retractions.ContainsKey(label.Sequence))];
 
     /// <summary>Gets the identities of every label, also those taken back, with how the case got them.</summary>
     private HashSet<(LabelKey Key, LabelSource Source)> Keys { get; } =

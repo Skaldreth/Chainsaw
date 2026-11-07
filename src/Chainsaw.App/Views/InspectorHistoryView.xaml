@@ -1,0 +1,217 @@
+<UserControl x:Class="Chainsaw.App.Views.InspectorHistoryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:graph="clr-namespace:Chainsaw.App.Graph"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             d:DataContext="{d:DesignInstance Type=vm:InspectorHistoryViewModel}"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+
+    <!--
+      The inspector's Historik (sketch AN1b): the node's events in time order on a thin line. Facts and automatic
+      conclusions have no button; the user's own have Ta tillbaka or Ångra, which folds out an optional reason under
+      the row (Enter stores, Esc cancels). Undoing a breaking out shows first which addresses merge again and by which
+      heuristic. What is taken back stays, struck through and toned. Only wiring; what happens lives in
+      InspectorHistoryViewModel.
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- The row's button: small and quiet; it never takes the keyboard, so that Enter stores the open form. -->
+        <Style x:Key="Button.Undo" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+
+        <!-- A quiet line in the form: what storing it means. -->
+        <Style x:Key="Text.Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- A text that is hidden while empty. -->
+        <Style x:Key="Text.Notice" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Margin="0,12,0,0">
+        <TextBlock Text="{Binding Notice}" Style="{StaticResource Text.Notice}" />
+
+        <ItemsControl ItemsSource="{Binding Rows}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:HistoryRowViewModel}">
+                    <Grid x:Name="RowGrid">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="26" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- The time line, down to the next row. -->
+                        <Rectangle x:Name="Line" Width="1" Fill="{StaticResource Brush.BorderStrong}" Margin="0,24,0,0"
+                                   HorizontalAlignment="Center" />
+
+                        <!-- The icon in a small frame: dashed for an automatic conclusion or a link. -->
+                        <Grid x:Name="Mark" Width="22" Height="22" VerticalAlignment="Top">
+                            <Rectangle x:Name="Frame" RadiusX="6" RadiusY="6" StrokeThickness="1.2"
+                                       Fill="{StaticResource Brush.Surface}"
+                                       Stroke="{Binding Event.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
+                            <controls:GridIcon Size="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Data="{Binding Event.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
+                                               Foreground="{Binding Event.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
+                        </Grid>
+
+                        <StackPanel Grid.Column="1" Margin="8,0,0,14">
+                            <DockPanel x:Name="Head" ToolTip="{Binding Event.ToolTip}">
+                                <Button DockPanel.Dock="Right" Margin="6,0,0,0" Style="{StaticResource Button.Undo}"
+                                        Visibility="{Binding Event.CanUndo, Converter={StaticResource Visible}}"
+                                        AutomationProperties.Name="{Binding Event.UndoText}"
+                                        Command="{Binding DataContext.ToggleCommand,
+                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <controls:GridIcon Size="12" VerticalAlignment="Center" Data="{StaticResource Icon.Undo}"
+                                                           Foreground="{StaticResource Brush.TextMuted}" />
+                                        <TextBlock Text="{Binding Event.UndoText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock Text="{Binding Event.TimeText}" DockPanel.Dock="Right" FontSize="11"
+                                           Foreground="{StaticResource Brush.TextDim}" Margin="6,3,0,0" />
+                                <StackPanel>
+                                    <TextBlock x:Name="Title" Text="{Binding Event.Text}" FontSize="12.5"
+                                               TextTrimming="CharacterEllipsis" Foreground="{StaticResource Brush.Text}" />
+                                    <TextBlock x:Name="Sub" Text="{Binding Event.Sub}" FontSize="11" Margin="0,2,0,0"
+                                               TextTrimming="CharacterEllipsis" Foreground="{StaticResource Brush.TextDim}" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- The form under the row: an optional reason, and what storing it means. -->
+                            <Border x:Name="Form" Margin="0,10,0,0" Padding="10,2,10,10" CornerRadius="8" BorderThickness="1"
+                                    BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.SurfaceRaised}"
+                                    Visibility="{Binding IsOpen, Converter={StaticResource Visible}}"
+                                    DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <Border.InputBindings>
+                                    <KeyBinding Key="Enter" Command="{Binding SubmitCommand}" />
+                                    <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+                                </Border.InputBindings>
+                                <StackPanel>
+                                    <!-- Undoing a breaking out: the confirmation of what merges again. -->
+                                    <StackPanel Visibility="{Binding IsSplitOpen, Converter={StaticResource Visible}}">
+                                        <DockPanel Margin="0,10,0,5">
+                                            <TextBlock Text="{Binding RejoinHeuristics}" DockPanel.Dock="Right" FontSize="11"
+                                                       Foreground="{StaticResource Brush.TextMuted}" />
+                                            <TextBlock Text="Slås ihop igen" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding RejoinNotice}" Style="{StaticResource Text.Notice}" />
+                                        <ItemsControl ItemsSource="{Binding Rejoined}" Focusable="False">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:RejoinRow}">
+                                                    <DockPanel Margin="0,2" ToolTip="{Binding ToolTip}">
+                                                        <controls:GridIcon Size="12" DockPanel.Dock="Left" VerticalAlignment="Center"
+                                                                           Data="{StaticResource Icon.Join}"
+                                                                           Foreground="{StaticResource Brush.TextMuted}" />
+                                                        <TextBlock Text="{Binding Heuristic}" DockPanel.Dock="Right" FontSize="11"
+                                                                   Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding ShortAddress}" FontSize="11.5" Margin="7,0,6,0"
+                                                                   FontFamily="{StaticResource Font.Mono}" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource Brush.Text}" TextTrimming="CharacterEllipsis" />
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <DockPanel Margin="0,12,0,5">
+                                        <TextBlock Text="frivilligt" DockPanel.Dock="Right" FontSize="11"
+                                                   Foreground="{StaticResource Brush.TextDim}" />
+                                        <TextBlock Text="Skäl" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                                    </DockPanel>
+                                    <TextBox Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Skäl" Height="Auto"
+                                             MinHeight="48" Padding="8,6" FontSize="12.5" TextWrapping="Wrap" AcceptsReturn="False"
+                                             VerticalContentAlignment="Top"
+                                             MaxLength="{x:Static graph:InspectorForms.MostReasonLength}"
+                                             IsVisibleChanged="OnReasonVisibleChanged"
+                                             Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <!-- What it means: never removed; the library learns it; the dashed line fades. -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                                                Visibility="{Binding ReachesLibrary, Converter={StaticResource Visible}}">
+                                        <controls:GridIcon Size="13" Data="{StaticResource Icon.Library}"
+                                                           Foreground="{StaticResource Brush.TextDim}" />
+                                        <TextBlock Text="Biblioteket får veta" Style="{StaticResource Text.Note}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                                Visibility="{Binding IsLinkOpen, Converter={StaticResource Visible}}">
+                                        <controls:GridIcon Size="13" Data="{StaticResource Icon.Link}"
+                                                           Foreground="{StaticResource Brush.Kind.OtherChain}" />
+                                        <TextBlock Text="Den streckade länken tonas bort ur grafen" Style="{StaticResource Text.Note}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <controls:GridIcon Size="13" Data="{StaticResource Icon.Hold}"
+                                                           Foreground="{StaticResource Brush.TextDim}" />
+                                        <TextBlock Text="Står kvar, överstruket" Style="{StaticResource Text.Note}" />
+                                    </StackPanel>
+
+                                    <TextBlock Text="{Binding Error}" Style="{StaticResource Text.Error}" Margin="0,10,0,0" />
+                                    <DockPanel Margin="0,12,0,0" LastChildFill="False">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="30" Padding="10,0"
+                                                FontSize="12" Command="{Binding SubmitCommand}" IsEnabled="{Binding CanSubmit}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding SubmitText}" />
+                                                <TextBlock Text="Enter" Margin="7,0,0,0" FontWeight="Normal" Opacity="0.6" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="30" Padding="10,0"
+                                                FontSize="12" Margin="0,0,8,0" Command="{Binding CancelCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Avbryt" />
+                                                <TextBlock Text="Esc" Margin="7,0,0,0" Foreground="{StaticResource Brush.TextDim}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsLast}" Value="True">
+                            <Setter TargetName="Line" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Event.IsDashed}" Value="True">
+                            <Setter TargetName="Frame" Property="StrokeDashArray" Value="2.5 2" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Event.IsFact}" Value="True">
+                            <Setter TargetName="Title" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Event.Kind}" Value="{x:Static graph:HistoryKind.Withdrawal}">
+                            <Setter TargetName="Title" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Event.IsWithdrawn}" Value="True">
+                            <Setter TargetName="Head" Property="Opacity" Value="0.45" />
+                            <Setter TargetName="Mark" Property="Opacity" Value="0.45" />
+                            <Setter TargetName="Title" Property="TextDecorations" Value="Strikethrough" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsOpen}" Value="True">
+                            <Setter TargetName="Frame" Property="Fill" Value="{StaticResource Brush.SurfaceSelected}" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

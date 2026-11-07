@@ -209,18 +209,21 @@ internal static class GraphStateStore
         return new CrossChainLink(record.Sequence, from, to, reason, journal.Sequence, journal.Utc);
     }
 
-    /// <summary>Seals that a link is taken back.</summary>
+    /// <summary>
+    /// Seals that a link is taken back, as a new record; the link's own record is never touched. A taking back without
+    /// a reason is stored with an empty reason, since the column holds text.
+    /// </summary>
     /// <param name="transaction">The case's transaction.</param>
     /// <param name="link">The link.</param>
-    /// <param name="reason">Why.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
     /// <param name="journal">The journal entry that records it.</param>
     public static void SealUnlink(
-        ICaseTransaction transaction, CrossChainLink link, string reason, JournalEntry journal)
+        ICaseTransaction transaction, CrossChainLink link, string? reason, JournalEntry journal)
     {
         transaction.AppendSealed(
             TracingSchema.CrossChainChain,
             [UnlinkAction, link.Sequence, link.From.Txid.Value, (long)link.From.Index, link.To.Chain.ToString(),
-                link.To.Id, reason, journal.Sequence, Text(journal.Utc)]);
+                link.To.Id, reason ?? string.Empty, journal.Sequence, Text(journal.Utc)]);
     }
 
     /// <summary>Reads the start points.</summary>
@@ -271,7 +274,13 @@ internal static class GraphStateStore
     /// <summary>Reads the sealed links and leaves out those that have been taken back.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>The links in force, oldest first.</returns>
-    private static List<CrossChainLink> ReadLinks(ICaseReader reader)
+    private static List<CrossChainLink> ReadLinks(ICaseReader reader) =>
+        [.. ReadLinkHistory(reader).Where(entry => !entry.IsTakenBack).Select(entry => entry.Link)];
+
+    /// <summary>Reads every sealed link, also those taken back, each with its taking back; the first counts.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The links, oldest first.</returns>
+    public static List<CrossChainLinkHistoryEntry> ReadLinkHistory(ICaseReader reader)
     {
         using var command = reader.CreateCommand("""
             SELECT sequence, action, link_sequence, from_txid, from_output, to_chain, to_id, reason, journal_sequence,
@@ -280,12 +289,14 @@ internal static class GraphStateStore
             """);
         using var rows = command.ExecuteReader();
         var links = new List<CrossChainLink>();
-        var takenBack = new HashSet<long>();
+        var takenBack = new Dictionary<long, CrossChainUnlink>();
         while (rows.Read())
         {
             if (rows.GetString(1) == UnlinkAction)
             {
-                takenBack.Add(rows.GetInt64(2));
+                var reason = rows.GetString(7);
+                takenBack.TryAdd(rows.GetInt64(2), new CrossChainUnlink(
+                    rows.GetInt64(0), reason.Length == 0 ? null : reason, rows.GetInt64(8), Time(rows, 9)));
                 continue;
             }
 
@@ -298,7 +309,10 @@ internal static class GraphStateStore
                 Time(rows, 9)));
         }
 
-        return [.. links.Where(link => !takenBack.Contains(link.Sequence))];
+        return
+        [
+            .. links.Select(link => new CrossChainLinkHistoryEntry(link, takenBack.GetValueOrDefault(link.Sequence))),
+        ];
     }
 
     /// <summary>Reads the places.</summary>

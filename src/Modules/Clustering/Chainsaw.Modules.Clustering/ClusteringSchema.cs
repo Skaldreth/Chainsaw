@@ -24,6 +24,18 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
     /// <summary>The table of the user's splits.</summary>
     public const string SplitsTable = "clustering_splits";
 
+    /// <summary>The sealed chain of the user's undoing of splits.</summary>
+    public const string SplitUndosChain = "clustering.split_undos";
+
+    /// <summary>The table of the user's undoing of splits.</summary>
+    public const string SplitUndosTable = "clustering_split_undos";
+
+    /// <summary>The sealed columns of an undoing of a split, in order.</summary>
+    public static readonly IReadOnlyList<string> SplitUndoColumns =
+    [
+        "split_sequence", "reason", "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The sealed columns of a conclusion, in order.</summary>
     public static readonly IReadOnlyList<string> EvidenceColumns =
     [
@@ -69,17 +81,36 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The second version: the user's undoing of a split (sketch AN1b), sealed as a record of its own that points at
+    /// the split, which stays as it was. The reason is optional.
+    /// </summary>
+    private const string Version2 = """
+        CREATE TABLE clustering_split_undos (
+            sequence INTEGER PRIMARY KEY,
+            split_sequence INTEGER NOT NULL,
+            reason TEXT,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
     /// <inheritdoc/>
     public IReadOnlyList<CaseSchemaStep> Steps { get; } =
-        [new(1, "Klustringens slutsatser och uppbrytningar (förseglade)", Version1)];
+    [
+        new(1, "Klustringens slutsatser och uppbrytningar (förseglade)", Version1),
+        new(2, "Ångrade uppbrytningar (förseglade)", Version2),
+    ];
 
     /// <inheritdoc/>
     public IReadOnlyList<SealedChain> SealedChains { get; } =
     [
         new(EvidenceChain, EvidenceTable, EvidenceColumns),
         new(SplitsChain, SplitsTable, SplitColumns),
+        new(SplitUndosChain, SplitUndosTable, SplitUndoColumns),
     ];
 }

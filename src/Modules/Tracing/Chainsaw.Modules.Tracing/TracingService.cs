@@ -159,11 +159,16 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
-    public bool UnlinkCrossChain(ICase @case, CrossChainLink link, string reason)
+    public bool UnlinkCrossChain(ICase @case, CrossChainLink link, string? reason)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(link);
-        CheckReason(reason);
+        reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        if (reason is not null)
+        {
+            CheckReason(reason);
+        }
+
         return @case.Write(transaction =>
         {
             // The stored link is what is taken back, whatever the caller's copy says.
@@ -185,6 +190,13 @@ internal sealed class TracingService : ITracingService
             GraphStateStore.SealUnlink(transaction, stored, reason, journal);
             return true;
         });
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<CrossChainLinkHistoryEntry> GetCrossChainHistory(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(GraphStateStore.ReadLinkHistory);
     }
 
     /// <inheritdoc/>

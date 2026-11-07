@@ -85,18 +85,27 @@ public interface ITracingService
     CrossChainLink LinkCrossChain(ICase @case, Outpoint from, ChainTransactionRef to, string reason);
 
     /// <summary>
-    /// Takes back a link to another chain. The link stays sealed; a sealed record of the removal says it is no
-    /// longer in force.
+    /// Takes back a link to another chain. Nothing is removed: the link stays sealed, and a new sealed record of the
+    /// taking back, with who, when and the reason if one is given, says it no longer counts. A link taken back cannot
+    /// be taken back again; it is made anew instead.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="link">The link.</param>
-    /// <param name="reason">Why, at most 1 000 characters.</param>
+    /// <param name="reason">Why, at most 1 000 characters; optional (the user's decision 2026-11-07, AN1b).</param>
     /// <returns><see langword="true"/> when the link was in force and is now taken back.</returns>
-    /// <exception cref="ArgumentException">The reason is empty or too long.</exception>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
     /// </exception>
-    bool UnlinkCrossChain(ICase @case, CrossChainLink link, string reason);
+    bool UnlinkCrossChain(ICase @case, CrossChainLink link, string? reason);
+
+    /// <summary>
+    /// Reads every link to another chain, also those taken back, each with its taking back, oldest first (sketch
+    /// AN1b, <em>Historik</em>).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The links and their taking back.</returns>
+    IReadOnlyList<CrossChainLinkHistoryEntry> GetCrossChainHistory(ICase @case);
 
     /// <summary>Remembers where the user placed a node in a layout (ordinary data, no journal).</summary>
     /// <param name="case">The open case.</param>

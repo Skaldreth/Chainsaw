@@ -214,27 +214,78 @@ internal static class EvidenceStore
             journal.Utc);
     }
 
-    /// <summary>Reads every split, in sequence order.</summary>
+    /// <summary>Reads the splits in force (those not undone), in sequence order.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>The splits.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
-    public static List<ClusterSplit> ReadSplits(ICaseReader reader)
+    public static List<ClusterSplit> ReadSplits(ICaseReader reader) =>
+        [.. ReadSplitHistory(reader).Where(entry => !entry.IsUndone).Select(entry => entry.Split)];
+
+    /// <summary>Reads every split, also those undone, each with its undoing, in sequence order.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The splits and their undoing.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static List<SplitHistoryEntry> ReadSplitHistory(ICaseReader reader)
     {
+        var undos = ReadUndos(reader);
         using var command = reader.CreateCommand(
             """
             SELECT sequence, first_address, second_address, heuristic, reason, journal_sequence, recorded_utc
             FROM clustering_splits ORDER BY sequence
             """);
         using var row = command.ExecuteReader();
-        var splits = new List<ClusterSplit>();
+        var splits = new List<SplitHistoryEntry>();
         while (row.Read())
         {
-            splits.Add(new ClusterSplit(
+            var split = new ClusterSplit(
                 row.GetInt64(0), ParseAddress(row.GetString(1)), ParseAddress(row.GetString(2)), row.GetString(3),
-                row.GetString(4), row.GetInt64(5), ParseTime(row.GetString(6))));
+                row.GetString(4), row.GetInt64(5), ParseTime(row.GetString(6)));
+            splits.Add(new SplitHistoryEntry(split, undos.GetValueOrDefault(split.Sequence)));
         }
 
         return splits;
+    }
+
+    /// <summary>
+    /// Seals that a split is undone under its journal entry; the split's own record is never touched.
+    /// </summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="split">The split.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <param name="journal">The journal entry.</param>
+    /// <returns>The stored undoing.</returns>
+    public static ClusterSplitUndo AppendUndo(
+        ICaseTransaction transaction, ClusterSplit split, string? reason, JournalEntry journal)
+    {
+        object?[] values =
+        [
+            split.Sequence, reason, journal.Sequence, journal.Utc.ToString("O", CultureInfo.InvariantCulture),
+        ];
+        var record = transaction.AppendSealed(ClusteringSchema.SplitUndosChain, values);
+        return new ClusterSplitUndo(record.Sequence, split.Sequence, reason, journal.Sequence, journal.Utc);
+    }
+
+    /// <summary>Reads the undoing of splits; the first record for a split counts.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The undoing of each undone split, by the split's sequence.</returns>
+    private static Dictionary<long, ClusterSplitUndo> ReadUndos(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            """
+            SELECT sequence, split_sequence, reason, journal_sequence, recorded_utc
+            FROM clustering_split_undos ORDER BY sequence
+            """);
+        using var row = command.ExecuteReader();
+        var undos = new Dictionary<long, ClusterSplitUndo>();
+        while (row.Read())
+        {
+            var undo = new ClusterSplitUndo(
+                row.GetInt64(0), row.GetInt64(1), row.IsDBNull(2) ? null : row.GetString(2), row.GetInt64(3),
+                ParseTime(row.GetString(4)));
+            undos.TryAdd(undo.SplitSequence, undo);
+        }
+
+        return undos;
     }
 
     /// <summary>Reads one record of the conclusions.</summary>

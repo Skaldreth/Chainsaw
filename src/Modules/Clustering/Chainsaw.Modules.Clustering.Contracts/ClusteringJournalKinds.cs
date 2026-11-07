@@ -8,4 +8,7 @@ public static class ClusteringJournalKinds
 
     /// <summary>The user split two addresses that a heuristic had merged.</summary>
     public const string Split = "clustering.split";
+
+    /// <summary>The user undid a split, so that the heuristics may merge the two addresses again.</summary>
+    public const string SplitUndone = "clustering.split-undone";
 }

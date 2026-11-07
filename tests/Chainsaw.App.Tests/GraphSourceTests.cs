@@ -34,7 +34,21 @@ internal sealed class TestAttribution : IAttributionService
 
     public LabelEntry Add(ICase @case, LabelDraft draft) => throw new NotSupportedException();
 
-    public bool Retract(ICase @case, long sequence, string reason) => throw new NotSupportedException();
+    /// <summary>Gets or sets what taking a label back answers; unset, it is not supported.</summary>
+    public bool? RetractAnswer { get; set; }
+
+    /// <summary>Gets what was taken back: the sequence and the reason.</summary>
+    public List<(long Sequence, string? Reason)> Retracted { get; } = [];
+
+    public bool Retract(ICase @case, long sequence, string? reason)
+    {
+        var answer = RetractAnswer ?? throw new NotSupportedException();
+        Retracted.Add((sequence, reason));
+        return answer;
+    }
+
+    public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
+        throw new NotSupportedException();
 
     public IReadOnlyList<LabelEntry> GetEntries(ICase @case) => throw new NotSupportedException();
 
@@ -65,6 +79,16 @@ internal sealed class TestClustering : IClusteringService
         throw new NotSupportedException();
 
     public ClusterSplit Split(ICase @case, SplitRequest request) => throw new NotSupportedException();
+
+    public int UndoSplits(ICase @case, IReadOnlyCollection<long> splitSequences, string? reason) =>
+        throw new NotSupportedException();
+
+    public UndoSplitPreview? PreviewUndoSplits(
+        ICase @case, IReadOnlyCollection<long> splitSequences, BitcoinAddress? from) =>
+        throw new NotSupportedException();
+
+    public IReadOnlyList<SplitHistoryEntry> GetSplitHistory(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) => throw new NotSupportedException();
 
     public IReadOnlyList<ClusterLink>? ExplainConnection(ICase @case, BitcoinAddress from, BitcoinAddress to) =>
         throw new NotSupportedException();

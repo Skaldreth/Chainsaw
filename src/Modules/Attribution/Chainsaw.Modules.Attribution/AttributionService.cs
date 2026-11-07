@@ -96,10 +96,10 @@ internal sealed class AttributionService(
     }
 
     /// <inheritdoc/>
-    public bool Retract(ICase @case, long sequence, string reason)
+    public bool Retract(ICase @case, long sequence, string? reason)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        var checkedReason = LabelRules.Required(reason, LabelRules.MaximumReasonLength, nameof(reason));
+        var checkedReason = LabelRules.Optional(reason, LabelRules.MaximumReasonLength, nameof(reason));
         return @case.Write(transaction =>
         {
             var stored = LabelStore.Read(transaction).Active.FirstOrDefault(label => label.Sequence == sequence);
@@ -119,6 +119,26 @@ internal sealed class AttributionService(
             LabelStore.SealRetract(transaction, stored, checkedReason, journal);
             return true;
         });
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(addresses);
+        var wanted = addresses.ToHashSet();
+        if (wanted.Count == 0)
+        {
+            return [];
+        }
+
+        var stored = @case.Read(LabelStore.Read);
+        return
+        [
+            .. stored.All.Where(label => wanted.Contains(label.Subject.Address))
+                .Select(label => new LabelHistoryEntry(
+                    label, stored.Retractions.TryGetValue(label.Sequence, out var retraction) ? retraction : null)),
+        ];
     }
 
     /// <inheritdoc/>

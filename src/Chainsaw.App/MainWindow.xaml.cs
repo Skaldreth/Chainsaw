@@ -160,7 +160,7 @@ public partial class MainWindow : Window
         }
 
         if (e.Key != Key.Escape || _shell.OpenSubmenu is not null || _shell.ExitPanel.IsOpen
-            || CommandBox.IsKeyboardFocusWithin || _graph.Forms.IsOpen)
+            || CommandBox.IsKeyboardFocusWithin || _graph.Forms.IsOpen || _graph.History.IsOpen)
         {
             return;
         }
