@@ -1,0 +1,182 @@
+<UserControl x:Class="Chainsaw.App.Views.CasePicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             Width="340" Focusable="False" KeyboardNavigation.TabNavigation="Cycle"
+             PreviewKeyDown="OnKey">
+    <UserControl.RenderTransform>
+        <TranslateTransform x:Name="Glide" />
+    </UserControl.RenderTransform>
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- A row of the list as a button that never takes the keyboard: the search field keeps it. -->
+        <Style x:Key="Button.CaseRow" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+          A case file: the accent bar while it is the open case, the file icon, the number and when it was saved, and at
+          the right Öppet for the open case or Enter öppnar for the chosen row.
+        -->
+        <DataTemplate x:Key="CaseRow" DataType="{x:Type vm:CasePickerRow}">
+            <Button Style="{StaticResource Button.CaseRow}"
+                    Command="{Binding DataContext.PressCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding}" AutomationProperties.Name="{Binding CaseNumber}">
+                <Border x:Name="Row" Height="42" CornerRadius="6" Background="Transparent" Padding="12,0,10,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="3" CornerRadius="2" Background="{StaticResource Brush.Accent}" Margin="-10,11,0,11"
+                                HorizontalAlignment="Left"
+                                Visibility="{Binding IsOpenCase, Converter={StaticResource Visible}}" />
+                        <controls:GridIcon x:Name="FileIcon" Size="16" Data="{StaticResource Icon.File}" Margin="0,0,10,0"
+                                           Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CaseNumber}" FontSize="14" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ChangedText}" FontSize="12" Margin="0,1,0,0"
+                                       Foreground="{StaticResource Brush.TextDim}" />
+                        </StackPanel>
+                        <Border Grid.Column="2" CornerRadius="9" BorderThickness="1.5" BorderBrush="{StaticResource Brush.Accent}"
+                                Padding="7,1" VerticalAlignment="Center"
+                                Visibility="{Binding IsOpenCase, Converter={StaticResource Visible}}">
+                            <TextBlock Text="Öppet" FontSize="11.5" Foreground="{StaticResource Brush.Accent}" />
+                        </Border>
+                        <TextBlock Grid.Column="2" Text="Enter öppnar" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Brush.TextDim}"
+                                   Visibility="{Binding ShowsEnterHint, Converter={StaticResource Visible}}" />
+                    </Grid>
+                </Border>
+            </Button>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SubmenuHover}" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsChosen}" Value="True">
+                    <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsOpenCase}" Value="True">
+                    <Setter TargetName="FileIcon" Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!--
+      The case picker (sketch ÄV1a), folded out under the case in the title bar: the open case with Verifiera and Stäng,
+      a search on the case number, the case files newest first, and Nytt ärende. Only the number and the last save are
+      shown, since the rest of a case lies encrypted in its file.
+    -->
+    <Grid>
+        <!-- The shadow lies in a layer of its own, as under the exits' panel, so that it never blurs the text. -->
+        <Border CornerRadius="10" Background="{StaticResource Brush.Submenu}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="32" ShadowDepth="12" Direction="270" Opacity="0.5" Color="Black" />
+            </Border.Effect>
+        </Border>
+        <Border CornerRadius="10" Background="{StaticResource Brush.Submenu}" BorderBrush="{StaticResource Brush.BorderStrong}"
+                BorderThickness="1">
+            <StackPanel>
+                <!-- Öppet nu: the open case, its verification in this opening, and Verifiera and Stäng. -->
+                <StackPanel Visibility="{Binding HasOpenCase, Converter={StaticResource Visible}}">
+                    <DockPanel Margin="14,12,14,0">
+                        <TextBlock DockPanel.Dock="Left" Text="Öppet nu" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                   VerticalAlignment="Top" Margin="0,0,12,0" />
+                        <TextBlock Text="{Binding VerifyText}" FontSize="12" TextWrapping="Wrap" TextAlignment="Right"
+                                   HorizontalAlignment="Right">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsVerifyFailed}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </DockPanel>
+                    <TextBlock Text="{Binding OpenName}" FontSize="15" FontWeight="SemiBold" Margin="14,6,14,0"
+                               TextTrimming="CharacterEllipsis" ToolTip="{Binding OpenName}" />
+                    <StackPanel Orientation="Horizontal" Margin="14,10,14,12">
+                        <Button Style="{StaticResource Button.Secondary}" Height="30" Padding="10,0" FontSize="13.5"
+                                Command="{Binding VerifyCommand}" IsEnabled="{Binding CanVerify}"
+                                ToolTip="Kontrollerar att inget i ärendet har ändrats (som /verify)">
+                            <StackPanel Orientation="Horizontal">
+                                <controls:GridIcon Size="16" Data="{StaticResource Icon.ShieldCheck}" Margin="0,0,6,0"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                <TextBlock Text="Verifiera" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource Button.Secondary}" Height="30" Padding="12,0" FontSize="13.5"
+                                Margin="8,0,0,0" Content="Stäng" Command="{Binding CloseCaseCommand}"
+                                ToolTip="Sparar och stänger ärendet" />
+                    </StackPanel>
+                    <Border Height="1" Margin="10,0" Background="{StaticResource Brush.BorderStrong}" />
+                </StackPanel>
+
+                <!-- The search on the case number. -->
+                <TextBox x:Name="SearchBox" Style="{StaticResource TextBox.Field}" Height="34" FontSize="14" Margin="10,10,10,0"
+                         Background="{StaticResource Brush.Background}" Tag="Sök ärendenummer"
+                         AutomationProperties.Name="Sök ärendenummer"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+
+                <DockPanel Margin="14,10,14,4">
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="12"
+                               Foreground="{StaticResource Brush.TextDim}" />
+                    <TextBlock Text="Senaste" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                </DockPanel>
+
+                <!-- The case files, newest first; virtualized, since a folder can hold many. -->
+                <ItemsControl x:Name="List" ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource CaseRow}"
+                              Focusable="False" Margin="4,0" MaxHeight="300" AutomationProperties.Name="Ärenden"
+                              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel">
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                                <ItemsPresenter />
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <TextBlock Text="{Binding EmptyText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
+                           Margin="14,6,14,8" Visibility="{Binding IsEmpty, Converter={StaticResource Visible}}" />
+
+                <!-- What went wrong when a case was opened or closed here, in plain words. -->
+                <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="13" Margin="14,6,14,4"
+                           TextWrapping="Wrap" Visibility="{Binding HasError, Converter={StaticResource Visible}}" />
+
+                <Border Height="1" Margin="10,4,10,0" Background="{StaticResource Brush.BorderStrong}" />
+                <Button Style="{StaticResource Button.MenuItem}" Margin="4" Command="{Binding NewCaseCommand}"
+                        ToolTip="Nytt ärende (Ctrl+N)">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="Ctrl+N" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Brush.TextDim}" />
+                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}" Foreground="{StaticResource Brush.TextMuted}"
+                                           Margin="0,0,10,0" />
+                        <TextBlock Text="Nytt ärende …" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

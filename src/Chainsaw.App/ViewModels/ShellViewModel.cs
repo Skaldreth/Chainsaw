@@ -90,6 +90,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="watches">
     /// The watches, whose unseen hits put a dot on the pill's eye; or <see langword="null"/>.
     /// </param>
+    /// <param name="casePicker">
+    /// The case picker under the case in the title bar (sketch ÄV1a), or <see langword="null"/>.
+    /// </param>
     public ShellViewModel(
         CaseSession session,
         CommandRegistry commands,
@@ -102,8 +105,10 @@ public sealed partial class ShellViewModel : ObservableObject
         SettingsViewModel settings,
         IUiThread ui,
         MonitoringViewModel? monitoring = null,
-        WatchBoard? watches = null)
+        WatchBoard? watches = null,
+        CasePickerViewModel? casePicker = null)
     {
+        CasePicker = casePicker;
         Monitoring = monitoring;
         _way = exit;
         Settings = settings;
@@ -121,8 +126,14 @@ public sealed partial class ShellViewModel : ObservableObject
             if (e.PropertyName == nameof(ExitPanelViewModel.IsOpen) && exitPanel.IsOpen)
             {
                 DismissMenus();
+                CasePicker?.Close();
             }
         };
+        if (casePicker is not null)
+        {
+            FollowCasePicker(casePicker);
+        }
+
         workflow.CasesListed += (_, _) => ui.Post(() => CommandHint = _commands.Hint(CommandText));
         session.Changed += (_, _) => OnCaseChanged();
         newCase.Created += (_, reply) => OnCreated(reply);
@@ -165,6 +176,12 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets the exits' panel, folded out under the exit in the title bar (sketch UT1a).</summary>
     public ExitPanelViewModel ExitPanel { get; }
+
+    /// <summary>
+    /// Gets the case picker under the case in the title bar (sketch ÄV1a), opened with a click or Ctrl+O; or
+    /// <see langword="null"/> where there is none.
+    /// </summary>
+    public CasePickerViewModel? CasePicker { get; }
 
     /// <summary>Gets the settings dialog (sketch ST1a), opened with Ctrl+, or the pill's cog.</summary>
     public SettingsViewModel Settings { get; }
@@ -282,6 +299,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(item);
         ExitPanel.Close();
+        CasePicker?.Close();
         if (NewCase.IsOpen || Settings.IsOpen)
         {
             // The panel or the dialog lies over the pill: a menu opened behind it would take the keys unseen.
@@ -316,7 +334,21 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         DismissMenus();
         ExitPanel.Close();
+        CasePicker?.Close();
         Settings.Close();
+    }
+
+    /// <summary>
+    /// Opens the case picker (Ctrl+O), unless Nytt ärende or the settings lie over the title bar's space.
+    /// </summary>
+    public void OpenCasePicker()
+    {
+        if (CasePicker is null || NewCase.IsOpen || Settings.IsOpen)
+        {
+            return;
+        }
+
+        CasePicker.Open();
     }
 
     /// <summary>
@@ -504,6 +536,24 @@ public sealed partial class ShellViewModel : ObservableObject
             default:
                 break;
         }
+    }
+
+    /// <summary>
+    /// Follows the case picker: while it is out, the submenus and the exits' panel fold in, and its
+    /// <em>Nytt ärende …</em> opens the panel from the right.
+    /// </summary>
+    /// <param name="picker">The case picker.</param>
+    private void FollowCasePicker(CasePickerViewModel picker)
+    {
+        picker.NewCaseWanted += (_, _) => Show(AppView.New);
+        picker.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(CasePickerViewModel.IsOpen) && picker.IsOpen)
+            {
+                DismissMenus();
+                ExitPanel.Close();
+            }
+        };
     }
 
     /// <summary>Puts a dot on the pill's eye while a watch has hits the user has not seen (sketch BV1a).</summary>

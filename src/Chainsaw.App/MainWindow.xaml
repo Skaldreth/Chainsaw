@@ -131,8 +131,26 @@
                         <Image DockPanel.Dock="Left" Source="{StaticResource Logo.Small}" Width="16" Height="16"
                                Margin="14,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                         <TextBlock DockPanel.Dock="Left" Text="Chainsaw" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <TextBlock DockPanel.Dock="Left" Text="{Binding CaseTitle}" Foreground="{StaticResource Brush.TextDim}"
-                                   FontSize="14" Margin="18,0,0,0" VerticalAlignment="Center" />
+                        <!-- The case, or Inget ärende öppet: a click (or Ctrl+O) folds out the case picker (sketch ÄV1a). -->
+                        <Button x:Name="CaseChip" DockPanel.Dock="Left" Margin="9,0,0,0" VerticalAlignment="Center"
+                                Command="{Binding CasePicker.ToggleCommand}" ToolTip="Ärenden (Ctrl+O)"
+                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Ärenden">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Button.Chip}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CasePicker.IsOpen}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource Brush.SubmenuHover}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding CaseTitle}" Foreground="{StaticResource Brush.TextDim}" FontSize="14"
+                                           VerticalAlignment="Center" MaxWidth="420" TextTrimming="CharacterEllipsis" />
+                                <controls:GridIcon Size="12" Data="{StaticResource Icon.ChevronDown}" Margin="6,0,0,0"
+                                                   VerticalAlignment="Center" Foreground="{StaticResource Brush.TextDim}" />
+                            </StackPanel>
+                        </Button>
 
                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.WindowClose}" Click="OnClose"
                                 WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Stäng">
@@ -345,6 +363,17 @@
                     <Rectangle Fill="Transparent" MouseDown="OnExitPanelOutside" />
                     <views:ExitPanel x:Name="ExitPanelView" HorizontalAlignment="Right" VerticalAlignment="Top"
                                      Margin="0,4,152,0" />
+                </Grid>
+
+                <!--
+                  The case picker (sketch ÄV1a), folded out under the case in the title bar, its left edge at the chip's.
+                  A click anywhere else under the title bar folds it in, and goes no further.
+                -->
+                <Grid x:Name="CasePickerLayer" Grid.Row="1" Grid.RowSpan="2"
+                      Visibility="{Binding CasePicker.IsOpen, Converter={StaticResource VisibleWhen}, FallbackValue=Collapsed}">
+                    <Rectangle Fill="Transparent" MouseDown="OnCasePickerOutside" />
+                    <views:CasePicker x:Name="CasePickerView" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                      Margin="100,4,0,0" />
                 </Grid>
 
                 <!-- Nytt ärende (NC1a): over everything under the title bar, with the rest darkened. -->

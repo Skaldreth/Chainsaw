@@ -110,6 +110,21 @@ public sealed class VerifyCommand(CaseSession session, ICaseVerifier verifier) :
             return CommandReply.Failed(CaseWorkflow.NoCaseText);
         }
 
+        return await VerifyAsync(verifier, openCase, cancellationToken);
+    }
+
+    /// <summary>
+    /// Verifies a case off the UI thread and says how it went, for <c>/verify</c> and for <em>Verifiera</em> in the
+    /// case picker (sketch ÄV1a) alike.
+    /// </summary>
+    /// <param name="verifier">Cases' verification.</param>
+    /// <param name="openCase">The case to verify.</param>
+    /// <param name="cancellationToken">Stops waiting for the answer.</param>
+    /// <returns>A done answer when nothing has changed, otherwise an error that says what and where.</returns>
+    public static async Task<CommandReply> VerifyAsync(
+        ICaseVerifier verifier, ICase openCase, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(verifier);
         try
         {
             var verification = await Task.Run(() => verifier.Verify(openCase), cancellationToken);

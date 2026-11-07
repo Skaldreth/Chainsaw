@@ -45,6 +45,9 @@ public partial class MainWindow : Window
     /// <summary>What <em>Alla ärenden …</em> in the empty graph puts in the command bar, for Tab to complete.</summary>
     private const string OpenCommandText = "/open ";
 
+    /// <summary>The shortcut that folds out the case picker (sketch ÄV1a).</summary>
+    private const string CasePickerGesture = "Ctrl+O";
+
     /// <summary>The graph, whose inspector's open form takes Esc before the Guide's panel (sketch IN1a).</summary>
     private readonly GraphViewModel _graph;
 
@@ -83,6 +86,7 @@ public partial class MainWindow : Window
         Gate.Attach(gate);
         NewCasePanel.Attach(shell.NewCase);
         ExitPanelView.Attach(shell.ExitPanel);
+        WatchCasePicker();
         SettingsDialog.Attach(shell.Settings);
         GraphPage.Attach(graph);
         Toasts.Attach(toaster);
@@ -239,6 +243,7 @@ public partial class MainWindow : Window
         }
 
         if (e.Key != Key.Escape || _shell.OpenSubmenu is not null || _shell.ExitPanel.IsOpen
+            || _shell.CasePicker is { IsOpen: true }
             || CommandBox.IsKeyboardFocusWithin || _graph.Forms.IsOpen || _graph.History.IsOpen)
         {
             return;
@@ -430,6 +435,12 @@ public partial class MainWindow : Window
         {
             _shell.ExitPanel.Close();
         }
+
+        if (_shell.CasePicker is { IsOpen: true } picker
+            && !IsWithin(target, CasePickerView) && !IsWithin(target, CaseChip))
+        {
+            picker.Close();
+        }
     }
 
     /// <summary>Finds the pill's button of an icon.</summary>
@@ -482,6 +493,56 @@ public partial class MainWindow : Window
                 ExitChip.Focus();
             }
         };
+    }
+
+    /// <summary>
+    /// Follows the case picker (sketch ÄV1a): Ctrl+O folds it out, it is placed under the case in the title bar, the
+    /// caret goes to its search field when it folds out, and the keyboard goes back to the case when it folds in while
+    /// the keyboard was in it.
+    /// </summary>
+    private void WatchCasePicker()
+    {
+        if (_shell.CasePicker is not { } picker)
+        {
+            return;
+        }
+
+        CasePickerView.Attach(picker);
+        if (Shortcuts.TryParse(CasePickerGesture) is { } gesture)
+        {
+            var open = new RoutedCommand();
+            CommandBindings.Add(new CommandBinding(
+                open, (_, _) => _shell.OpenCasePicker(), (_, e) => e.CanExecute = _gate.IsShellVisible));
+            InputBindings.Add(new KeyBinding(open, gesture));
+        }
+
+        picker.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(CasePickerViewModel.IsOpen))
+            {
+                return;
+            }
+
+            if (picker.IsOpen)
+            {
+                var left = CaseChip.TranslatePoint(default, ShellRoot).X;
+                CasePickerView.Margin = new Thickness(left, 4, 0, 0);
+                CasePickerView.TakeFocus();
+            }
+            else if (CasePickerView.IsKeyboardFocusWithin && _gate.IsShellVisible)
+            {
+                CaseChip.Focus();
+            }
+        };
+    }
+
+    /// <summary>A click under the title bar outside the case picker folds it in, and goes no further.</summary>
+    /// <param name="sender">The space around the picker.</param>
+    /// <param name="e">The click.</param>
+    private void OnCasePickerOutside(object sender, MouseButtonEventArgs e)
+    {
+        _shell.CasePicker?.Close();
+        e.Handled = true;
     }
 
     /// <summary>A click under the title bar outside the exits' panel folds it in, and goes no further.</summary>
@@ -587,6 +648,7 @@ public partial class MainWindow : Window
     private void FocusCommandBar()
     {
         _shell.ExitPanel.Close();
+        _shell.CasePicker?.Close();
         _shell.Settings.Close();
         CommandBox.Focus();
         CommandBox.SelectAll();
