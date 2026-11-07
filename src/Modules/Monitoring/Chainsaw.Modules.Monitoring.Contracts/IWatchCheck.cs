@@ -129,7 +129,9 @@ public sealed record WatchCheckResult(
 {
     /// <summary>
     /// Gets, for a partial check, the block above which every address was read completely (the highest of the
-    /// addresses' <see cref="WatchFeedPage.CompleteAbove"/>), or <see langword="null"/> when that is not known.
+    /// addresses' <see cref="WatchFeedPage.CompleteAbove"/>), or <see langword="null"/> when that is not known. Since
+    /// the highest counts, a feed that holds a check back below what it read (a block without its hash) holds it only
+    /// where one address is read; a watch with several addresses on such a chain needs the holds kept apart.
     /// </summary>
     public long? CompleteAbove { get; init; }
 }

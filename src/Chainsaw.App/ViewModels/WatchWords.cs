@@ -36,12 +36,16 @@ public static class WatchWords
         "Källan kunde inte frågas eller svarade fel vid senaste kontrollen; bevakningens rad säger varför. " +
         "Bevakningen försöker igen vid nästa kontroll.";
 
-    /// <summary>The head when the last check could not ask the source (it was offline, or only the case answered).</summary>
+    /// <summary>
+    /// The head when the last check could not ask the source (it was offline, or only the case answered).
+    /// </summary>
     public const string NoSourceText = "Kunde inte fråga källan · försöker igen";
 
-    /// <summary>The head's tooltip when no endpoint is in step.</summary>
+    /// <summary>
+    /// The head's tooltip when the last check could not ask the source (offline, or only the case answered).
+    /// </summary>
     public const string NoSourceTip =
-        "Källan var inte nåbar vid senaste kontrollen, och bara det ärendet redan har kunde läsas. " +
+        "Källan kunde inte frågas vid senaste kontrollen; inget nytt är känt. " +
         "Bevakningen försöker igen vid nästa kontroll.";
 
     /// <summary>The head while Chainsaw is locked (never shown, since the window is then hidden).</summary>

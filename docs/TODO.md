@@ -635,6 +635,9 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   vidare från det äldsta block den läste och sparar luckan (*tx under block N kan ha missats*) med kontrollen; tx i luckan
   kan ha missats. Samma när källan inte kan bläddra längre (en full sida i ett block) eller inte läst historiken
   färdigt. Läs luckan i efterhand med en markör, eller med källans egen bevakning (websocket).
+- **Flera adresser på Ethereum** (granskningen omgång 5, M): `WatchCheckResult.CompleteAbove` tar den högsta över
+  adresserna, så en adress som håller kontrollen tillbaka (ett block utan hash) kan köras över av en annans högre golv.
+  Kan inte hända i dag (bara Bitcoin har kluster); håll isär golv och spärrar innan kluster på andra kedjor bevakas.
 - **Motparter som kluster** följer inte klustringen: en Ctrl+klickad klusternod lägger dess adresser då, inte de som
   kommer senare (noden själv följer klustringen vid varje kontroll).
 - **Ringarna** ritas genom att grafen ritas om (15 gånger i sekunden medan en osedd träff syns). Ett eget lager för

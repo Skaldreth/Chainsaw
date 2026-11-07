@@ -2042,6 +2042,129 @@ Bygget är utan varningar. Nätet används aldrig i testerna.
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Endpointarna, andra delen*), bevakningen (Monitoring)
 som ska använda `LookupMode.InStep`, och punkterna i TODO under *Bitcoin-källan* och *Utgångar*.
 
+## Etapp 26 (2026-11-07): bevakningen, första delen (BV1a och BV2a)
+
+**Byggt:**
+- **Modulen Monitoring** (`AddMonitoringModule`):
+  - **Kontrakten:** en bevakning har en nod (`WatchSubject`: adress, eller kluster på Bitcoin), och ett filter
+    (`WatchFilter`): kedja, riktning (in, ut, båda), mottagare (1:n) och avsändare (n:1) där tom lista är alla,
+    tillgång (Ethereum: alla eller en viss, efter kontraktet) och valfritt minsta belopp i den tillgången.
+  - **Förseglat** i två kedjor: `monitoring.watches` (lagd till, ändrad, startad, pausad, återupptagen, tillbakatagen
+    med valfritt skäl; vem, när och journalrad) och `monitoring.hits` (tx, blockhöjd, blockhash, blocktid, riktning,
+    tillgång, belopp, motparter och de förseglade råsvar träffen bygger på, under kontrollens journalrad). Inget tas
+    bort; en tillbakatagen bevakning och dess träffar står kvar.
+  - **Vanlig data** bredvid (inte förseglad): när varje bevakning senast kontrollerades (`monitoring_checked`) och
+    vilka träffar användaren sett (`monitoring_seen`).
+  - **Kontrollen utan ärendet** (`IWatchCheck`, `IWatchFeed`): adresser och filter in, träffar ut, från vilket flöde
+    som helst. Ärendets flöden (`BitcoinCaseFeed`, `EthereumCaseFeed`) frågar källan med `LookupMode.InStep`, sida för
+    sida bakåt till där förra kontrollen var (högst fem sidor, annars sägs det). Etapp 27:s bakgrundsprocess tar med
+    sig ett eget flöde och samma kontroll.
+  - **Vad som räknas:** ut är det som lämnar de bevakade adresserna till andra (växel tillbaka räknas inte), in är det
+    som kommer från andra i en tx där noden inte själv betalar. Belopp summeras per tx, riktning och tillgång, och
+    minsta belopp prövas på summan. Bara bekräftade tx; en träff kräver blockets hash (Ethereums interna tx slår upp
+    blocket, i fas, och väntar annars till nästa kontroll).
+  - **Grinden** (`IWatchGate`, `MonitoringGate`): inga uppslag när valvet är låst, när VPN är valt och ingen utgång är
+    ansluten, eller när kedjans källor är *Av*.
+  - **Starten:** en ny bevakning får vid första kontrollen kedjans höjd som start, förseglat; bara pengar i senare block
+    räknas. Varje kontroll läser om de sex senaste blocken (`WatchRules.Lookback`), och en träff förseglas en gång.
+  - **Hur ofta** gäller per bevakning (`WatchPace` i filtret, förseglat med det; användarens beslut 2026-11-07):
+    *Varje block* (förval), 1, 5 eller 15 minuter. Modulen avgör vilka bevakningar som står på tur (`IsDue`: ett nytt
+    block sedan förra kontrollen och bevakningens tid), så att etapp 27 använder samma regel.
+  - **Delvis läst:** hinner en kontroll inte ner till förra kontrollens block (fler än fem sidor, en historik källan
+    inte gett färdigt, ett block utan hash) är den *delvis läst*. Den går vidare bara ovanför det den läste helt och
+    sparar luckan som text; ett block utan hash håller kontrollen kvar så att det läses igen. En misslyckad kontroll
+    läses om från samma block.
+  - **Ut ur en CoinJoin:** har andra satt in pengar i samma tx räknas högst det de bevakade adresserna satte in, minus
+    växeln.
+  - Träffen förseglas bara om bevakningen fortfarande gäller oförändrad när kontrollen är klar, och citerar bara de
+    råsvar den bygger på.
+  - **Kluster** läses som klustringen säger vid varje kontroll (högst 50 adresser, resten sägs).
+- **Appen:**
+  - **Bakgrunden medan Chainsaw är öppet** (`WatchRunner`): var femte sekund ser den på det öppna ärendets aktiva
+    bevakningar; per kedja med öppen grind frågas höjden högst en gång i minuten (genast för en ny bevakning), och
+    modulen kontrollerar de bevakningar som står på tur. Ett stängt, bytt eller låst ärende lämnas i fred.
+  - **`WatchBoard`** håller ärendets bevakningar, så att vyn, grafen och pillrets prick aldrig säger olika.
+  - **Vyn Bevakning (BV1a):** listan, den valda med fakta och träffar, *Ny bevakning …* (B, också Nytt → Bevakning),
+    Ändra, Pausa/Fortsätt, Ta bort (bekräftelse med valfritt skäl, förseglat tillbakatagande), Öppna i grafen, och i
+    huvudet ärligt *Bevakar medan Chainsaw är öppet*, eller *Väntar på utgången* / *Källorna är av*.
+  - **Formuläret** (`WatchFormViewModel`, `Views/WatchForm`) är samma i grafen och vyn: riktning, mottagare och
+    avsändare som brickor (adress eller Ctrl+klick i grafen till den rad vars sikte är valt), tillgång på Ethereum,
+    minsta belopp (komma eller punkt) och *Hur ofta*. Ett kluster som motpart tas med alla sina adresser (en bricka);
+    noden själv och klustrets egna adresser vägras. Formuläret stängs när ett annat ärende öppnas.
+  - **Grafen (BV2a):** högerklicksmenyn på en nod (Etikett, Bryt upp, Annan kedja, *Bevaka … (B)*, Expandera, Kopiera
+    adress), ögat i nodens hörn (markeringen *Bevakad* också i bildspråket), prickade vaktlinjer i bevakningens egen
+    dova ton (`Brush.Watch`) med ett öga mitt på, sken på linjer i bevakad riktning, strålar vid porten utan filter, och
+    vid en träff en riktig linje med beloppet och **animerade ringar** tills träffen är sedd (stilla när Windows har
+    animeringar avstängda). Grått när grinden är stängd. Bara det som syns ritas, och ringarnas tidur går bara medan
+    något rör sig. Att välja noden räknar dess träffar som sedda; grafens rad säger *Bevakning slog till · …*.
+  - **Pillrets öga** får en prick vid osedda träffar.
+  - **Historiken (AN1b)** visar bevakningens poster, träffarna som fakta och *Ta tillbaka* på bevakningen.
+  - **Vyns huvud** säger ärligt också *Väntar på utgången*, *Källorna är av*, *Uppslagen misslyckas · försöker igen*
+    och *Kunde inte fråga källan*; raderna säger *Senaste uppslaget misslyckades*. Listorna är virtualiserade.
+- **Guiden:** *Bevakning* i en egen grupp.
+
+**Egna beslut:**
+- **Hur ofta** byggdes först som en rad under Låsning i ST1a; användarens beslut (förmedlat av huvudsessionen under
+  etappen) att den ställs per bevakning ersatte den, och raden är borttagen.
+- **Varje nytt block** betyder: höjden frågas högst en gång i minuten och adresserna läses när den ökat. Det håller nere
+  både uppslagen och det som förseglas (varje råsvar förseglas, princip 1); på Ethereum blir det i praktiken en gång i
+  minuten.
+- **Starten är kedjans höjd vid första kontrollen**, inte när bevakningen lades till, eftersom en bevakning ska gå att
+  lägga till offline. En ändring behåller starten, så att inget som hänt sedan bevakningen startade tappas.
+- **En pausad bevakning** som återupptas räknar också det som hände under pausen (inget tappas), läst bakåt så långt fem
+  sidor räcker.
+- **Senast kontrollerad och sedda träffar** är vanlig data, inte förseglad: de säger inget om kedjan.
+- **Ctrl+klick** går till formuläret när det är öppet och annars till egna ytor (etapp 22).
+- **Träffen i grafen** blir en linje bara till en motpart som finns i grafen; annars rör sig ringarna runt nodens öga.
+  Beloppet står på linjen bara när träffen har en motpart, eftersom en träffs belopp är summan till alla.
+- **Ringarna** går med 15 bilder i sekunden och bara medan en osedd träff syns på skärmen.
+- **Aviseringssätten** (Windows, ljud, meddelande mitt på skärmen) och bakgrundsprocessen hör till etapp 27 och är inte
+  byggda; inget i gränssnittet säger att bevakningen går när Chainsaw är stängt.
+
+**Granskningen:** fem omgångar.
+- **Omgång 1:** ett C, sex I och tio M.
+  - **C:** B i vyn Bevakning tömde formuläret medan man skrev en adress (`bc1…`). Nu bara utanför textfält.
+  - **I:** en kontroll som stannade efter fem sidor flyttade höjden ändå; pengar ut överskattades i en tx med andras
+    inputs (CoinJoin); linjerna fick hela träffens belopp; ett kluster som motpart gav bara första adressen; ringarna
+    ritade om hela grafen också utanför skärmen; *hur ofta* var global, inte per bevakning.
+  - **M rättade:** höjden frågades var femte sekund efter ett fel, en träff från förra ärendet kunde sägas i nästa,
+    tx-noder som motpart, onödiga blockuppslag på Ethereum, blockhashen visas med träffen, ett ärligt huvud, radlängd.
+    **I TODO:** starten från en höjd som kan ligga efter, paus och omorganisation.
+- **Omgång 2:** inga C, fem I och fyra M.
+  - **I:** en delvis läst kontroll kom aldrig ikapp; ett kluster som motpart ritades och listades en gång per adress;
+    misslyckade uppslag syntes som *Bevakar*; formuläret överlevde ett byte av ärende och kunde spara i fel ärende;
+    listorna var inte virtualiserade.
+  - **M rättade:** en träff förseglades för en bevakning som ändrats under kontrollen, takten blev dubbelt så lång,
+    journalen sa *alla tillgångar* för BTC, klustrets egna adresser som motpart.
+- **Omgång 3:** inga C, två I och sju M.
+  - **I:** en delvis läst historik utan känt golv flyttade kontrollen förbi det som inte lästes; en timeout visades som
+    att inget skickats.
+  - **M rättade:** träffar citerade råsvar de inte byggde på, en delvis läst kontroll lästes om varje minut,
+    bekräftelsen av en borttagning följde med till nästa bevakning, ringarna stod still efter att grafen visats igen,
+    en klusterbevakning kunde ändras till egna adresser, alla avsändare namngavs. **I TODO:** CoinJoin-taket borde
+    visas som *högst*.
+- **Omgång 4:** inga C, ett I och två M. **I:** två block utan hash långt isär: kontrollen gick förbi det lägre. Nu
+  håller det lägsta. **M rättade:** neutrala texter i huvudet, TODO:s ordalydelse.
+- **Omgång 5:** inga C eller I. Två M: en text (rättad) och att golv och spärrar behöver hållas isär innan kluster på
+  andra kedjor bevakas (dokumenterat, TODO).
+
+Bitcoins facit (`GoldenTests`) är oförändrat: bevakningen lägger inget till i grafen eller spårningen.
+
+**Tester:** 2 184 gröna i hela lösningen, varav nya:
+- 46 i Monitoring (de två gamla ersatta): facit för vad som räknas (ut, in, växel, mottagare, avsändare, riktning,
+  minsta belopp, obekräftat, Ethereum per överföring, CoinJoin), kontrollen utan ärendet, tjänsten med syntetiska källor
+  (försegling, journal, start, en träff en gång, grinden, paus, misslyckat och inte frågat, kluster, Ethereum med
+  blockuppslag, block utan hash, delvis läst, egna adresser, takten och `IsDue`), grinden, och ett inspelat test genom
+  den riktiga Esplora-källan och endpointarna (bara en endpoint i fas frågas, råsvaren förseglas och citeras);
+- 35 i appen: formuläret, vyn, löparen, grafens lager (vaktlinjer, sken, strålar, träffar, grått), menyn, Ctrl+klick,
+  historiken, pillrets prick, Nytt → Bevakning och fallen från granskningen.
+
+Bygget är utan varningar. Nätet används aldrig i testerna.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Bevakningen, första delen*); etapp 27
+(bakgrundsprocessen, aviseringarna); punkterna under *Bevakning (etapp 26)* i TODO.
+
+
 ## Låsskärmen ID8c (2026-11-07): kättingen som blir DNA
 
 Användaren valde ID8c efter flera omgångar på canvasen (ID8a–d). En ren gränssnittsändring, granskad av sessionen mot
