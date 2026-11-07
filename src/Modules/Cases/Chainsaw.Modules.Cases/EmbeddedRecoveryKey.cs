@@ -82,11 +82,12 @@ internal static partial class EmbeddedRecoveryKey
 
         // Every line is read, also those of the key: a block written on one line or never closed must not hide a
         // revocation, and the key's Base64 holding the keyword or a fingerprint is too unlikely to matter (and would
-        // stop the build rather than pass unnoticed).
+        // stop the application at startup rather than pass unnoticed).
         var lines = text.Split(LineBreaks);
         var revoked = lines
-            .Where(line => line.Contains(RevokedKeyword, StringComparison.OrdinalIgnoreCase))
-            .Select(ReadFingerprint)
+            .Select((line, index) => (Line: line, Number: index + 1))
+            .Where(item => item.Line.Contains(RevokedKeyword, StringComparison.OrdinalIgnoreCase))
+            .Select(item => ReadFingerprint(item.Line, item.Number))
             .ToHashSet(StringComparer.Ordinal);
         if (lines.Any(line => !line.Contains(RevokedKeyword, StringComparison.OrdinalIgnoreCase)
             && HoldsFingerprint(line)))
@@ -111,16 +112,18 @@ internal static partial class EmbeddedRecoveryKey
     /// written.
     /// </summary>
     /// <param name="line">The line.</param>
+    /// <param name="number">The line's number, for the message (never its text).</param>
     /// <returns>The fingerprint in lowercase.</returns>
     /// <exception cref="InvalidOperationException">The line is not exactly one revocation.</exception>
-    private static string ReadFingerprint(string line)
+    private static string ReadFingerprint(string line, int number)
     {
         var rest = line.Replace(RevokedKeyword, string.Empty, StringComparison.OrdinalIgnoreCase);
         var digits = new string([.. rest.Where(character => !IsDecoration(character))]);
         return digits.Length == FingerprintLength && digits.All(char.IsAsciiHexDigit)
             ? digits.ToLowerInvariant()
             : throw new InvalidOperationException(
-                $"The resource {ResourceName} has a line about a revoked key that is not exactly one fingerprint.");
+                $"The resource {ResourceName}, line {number}: a revocation must hold only the keyword and one "
+                + "fingerprint.");
     }
 
     /// <summary>Checks whether a character is decoration around a revocation rather than content.</summary>

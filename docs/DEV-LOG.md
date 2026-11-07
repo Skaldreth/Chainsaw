@@ -640,6 +640,8 @@ Inget gränssnitt i appen.
   dekoration, annars startar inte appen. M rättade: fler skiljetecken på rader utan ordet, fler radbrytningar. M kvar
   i TODO: ett fingeravtryck delat på två rader utan ordet; en nyckel inklistrad direkt efter text utan radbrytning
   stoppar appen (felar säkert).
+- Omgång 8: inga C eller I (160 000 tolkningar av slumpade nycklar med och utan återkallelser utan fel). Tre M
+  rättade: dokumentet säger vilka tecken som går bra, felet säger vilken rad, och en kommentar.
 
 **Återstår:** gränssnittet som visar nyckelns fingeravtryck och när den saknas, att administratören skapar nyckeln och
 bygger in den, och att byta ärendets filnyckel (för att stänga en röjd nyckel i kopior som redan lämnats ut).
