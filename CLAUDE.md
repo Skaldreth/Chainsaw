@@ -89,6 +89,15 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
 vid en mixer, men Chainsaw kan föreslå **troliga utgångar** ur belopp (minus avgift), tid och adresstyp. De är kandidater,
 alltid streckade och aldrig fakta (princip 2), och användaren godkänner eller avfärdar dem.
 
+**Förvirring analyseras, så mycket som möjligt automatiskt** (användarens beslut 2026-11-07): allt som används för att
+förvirra och försvåra spårningen (mixers, CoinJoin, peel chains, uppdelning i många små belopp, byte av kedja och token,
+nästlade tjänster, privacy coins, fördröjning och många hopp) ska Chainsaw känna igen och analysera. Chainsaw gör så
+mycket som möjligt av sig självt: **kontroller** som körs på det som hämtas och **förslag** (troliga utgångar, troliga
+fortsättningar, troliga sammanslagningar) som användaren godkänner eller avfärdar. Varje kontroll och förslag är en
+analys med namn och version, är en bedömning och aldrig ett faktum (princip 2), visas som markeringar och streckat i
+stället för text (princip 7) och kan förklaras med *Varför?* (princip 3). Katalogen står i `docs/TODO.md` under
+*Förvirringstekniker*.
+
 **Spåret tar slut** är ett eget, uttalat läge med orsak: privacy coin, mixer eller CoinJoin, brygga eller swap till annan
 kedja, börs (uttag funnet), okänd tjänst. Ett slut är aldrig tyst.
 

@@ -184,6 +184,29 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   har) eller en cache som byggs om när något nytt förseglas.
 - **Mönsterigenkänning** (kanske en lokal modell senare): läggs till som ännu en analys med namn och version.
 
+### Förvirringstekniker (användarens beslut 2026-11-07)
+Allt som används för att förvirra spårningen ska kännas igen och analyseras, med så mycket automatiska kontroller och
+förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Katalogen, med det som redan står ovan och under Spårning:
+- **Centrala mixers:** kända adresser och mönster per mixer, troliga utgångar ur belopp minus avgift och tid.
+- **CoinJoin** (Wasabi, Whirlpool och efterföljare, JoinMarket): finns som heuristik (etapp 6), fler mönster ovan.
+  Förslag: utgångar ur CoinJoin som slås ihop igen efteråt (toxic change, ihopslagning av mixade mynt).
+- **Tornado Cash och andra zk-mixers:** under *Kedjor och data*.
+- **Peel chain:** finns (etapp 6), med fler inputs ovan. Kontroll: en lång peel chain som slutar vid en börs.
+- **Uppdelning och ihopslagning** (smurfing, fan-out och fan-in): kontroll som visar när ett belopp delas i många
+  likstora delar eller samlas igen, och förslag att följa summan.
+- **Många hopp och fördröjning** (layering): kontroll av hopp där pengarna bara passerar (in och ut snabbt, nästan
+  samma belopp), som kan fällas ihop till en kedja i grafen.
+- **Byte av kedja och token** (bryggor, swap-tjänster utan konto, DEX): kända kontrakt och tjänster känns igen som
+  *Fortsätter på annan kedja*; förslag på fortsättningen ur belopp och tid (under Spårning).
+- **Nästlade tjänster** (en tjänst som har konto hos en börs): beteende som insättningar och uttag i mönster.
+- **Privacy coins och skyddade pooler** (Monero, Zcash, Litecoin MWEB): slut på spåret; förslag på uttag ur poolen ur
+  belopp och tid.
+- **PayJoin och ändrade fingeravtryck:** kan bara anas; kontroll som säger när klustringen är osäkrare.
+- **Damm och adressförgiftning** (dusting, address poisoning): små belopp som skickas för att förvirra eller lura;
+  kontroll som tonar ner dem så att de inte drar spåret fel.
+- **Jämna belopp i fiat och tidsmönster** (tidszon ur aktiva timmar): stöd för växeln och för vem som står bakom.
+Hur kontrollerna och förslagen visas samlat (en lista att gå igenom, markeringar i grafen) **väntar på skiss**.
+
 ### Spårning (Tracing)
 - **LIFO och poison** (etapp 7): kontraktet `ITracingMethod` tar emot fler metoder, men LIFO behöver en definition
   (inom en tx är ordningen redan FIFO:s; LIFO handlar om en adress saldo över tid), och poison ger inga belopp som går
