@@ -45,6 +45,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   direkt; då behövs en annan väg att byta metod och se bildspråket. Bekräfta eller välj.
 
 ## Bygga härnäst
+- **Etapp 20, grafen och spårningen oberoende av kedjan** (användarens beslut 2026-11-07, startas när 16 och 19 är klara):
+  belopp som vet sin kedja och tillgång (coin eller token med decimaler), kanter som överföringar i stället för mynt
+  (`Outpoint`), spårningsmetoderna och heuristikerna bakom ett kontrakt per sorts kedja (UTXO eller konton). Bitcoin
+  ska fungera precis som nu, utan ändring i gränssnittet. Därefter, i ordning: Ethereum med ERC-20 (4–6 etapper, källan
+  med API-nyckel i valvet, saldobaserad spårning, egna heuristiker som insättningsadresser som töms till samma
+  plånbok), TRON med USDT (2–3 etapper, återanvänder kontomodellen) och UTXO-kedjor som Litecoin efter behov (en etapp
+  var). Hur tokens och *Kan frysas* visas i grafen och inspektören skissas innan Ethereum byggs.
 
 
 ## Väntar på skiss
