@@ -22,6 +22,9 @@ internal sealed class RiksbankRateSource(Uri baseUri) : IFiatRateSource
     public string Name => SourceName;
 
     /// <inheritdoc/>
+    public string DisplayName => "Riksbanken";
+
+    /// <inheritdoc/>
     public FiatCurrency Base => FiatCurrency.Sek;
 
     /// <inheritdoc/>

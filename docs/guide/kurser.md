@@ -27,13 +27,16 @@ alltid perioden, så att avståndet till tidpunkten syns.
 
 - **Timme är förvalet.** En blocktid är bara ungefär rätt (den sätts av den som bryter blocket och kan avvika
   ett par timmar från den verkliga tiden), så en minutkurs ger en precision som inte finns.
-- **En period som inte är slut** har ingen kurs än. Chainsaw frågar inte förrän den är slut, och sparar aldrig en
-  pågående period som slutlig.
-- **Volym noll** betyder att ingen handel skedde under perioden, så priset kommer inte från någon affär i den.
-  Volymen visas med kursen.
+- **En period som inte är slut** har ingen kurs än. Chainsaw frågar först fem minuter efter periodens slut (datorns
+  klocka kan gå före, och börsen kan lägga till de sista affärerna lite sent), och sparar aldrig en pågående period
+  som slutlig.
+- **Volym noll** betyder att ingen handel skedde under perioden, så priset kommer inte från någon affär i den. Då står
+  *Ingen handel under perioden* i stegen.
 
 Riksbankens kurs gäller för en **bankdag** i svensk tid. För en helg eller helgdag används den senaste bankdagen före, och
-det står i stegen. Dagens kurs sätts under dagen, så före dess står det att den inte är publicerad än.
+det står i stegen. Dagens kurs sätts under dagen, så före dess står det att den inte är publicerad än (eller att dagen
+kanske inte är en bankdag). Riksbanken tar bara emot några få uppslag i minuten utan nyckel, så Chainsaw frågar en gång
+i taget, med tolv sekunders mellanrum, och ett svar täcker en hel månad.
 
 ## Så ser stegen ut
 

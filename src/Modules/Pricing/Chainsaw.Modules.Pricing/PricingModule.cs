@@ -24,18 +24,25 @@ public static class PricingModule
     /// <param name="options">The settings; by default kronor, an hour, and the crypto rate in dollars.</param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
-    /// <exception cref="ArgumentException">A base address is not <c>https</c> of its own.</exception>
+    /// <exception cref="ArgumentException">The interval between requests to the Riksbank is negative.</exception>
+    /// <remarks>
+    /// A default source's base address is checked when the source is first used, so that a source registered in its
+    /// place is never held up by it.
+    /// </remarks>
     public static IServiceCollection AddPricingModule(
         this IServiceCollection services, PricingOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         var settings = options ?? new PricingOptions();
-        var crypto = new BitstampRateSource(settings.BitstampBaseUri);
-        var fiat = new RiksbankRateSource(settings.RiksbankBaseUri);
+        if (settings.RiksbankInterval < TimeSpan.Zero)
+        {
+            throw new ArgumentException("The interval between requests cannot be negative.", nameof(options));
+        }
+
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<ICaseSchemaContributor, PricingSchema>();
-        services.TryAddSingleton<ICryptoRateSource>(crypto);
-        services.TryAddSingleton<IFiatRateSource>(fiat);
+        services.TryAddSingleton<ICryptoRateSource>(_ => new BitstampRateSource(settings.BitstampBaseUri));
+        services.TryAddSingleton<IFiatRateSource>(_ => new RiksbankRateSource(settings.RiksbankBaseUri));
         services.AddSingleton<IPriceService>(provider => new PriceService(
             provider.GetRequiredService<ICryptoRateSource>(),
             provider.GetRequiredService<IFiatRateSource>(),

@@ -9,7 +9,10 @@ namespace Chainsaw.Modules.Pricing.Contracts;
 /// and carry only the market and the time, never anything about the case (principle 4). Without an exit the case
 /// answers, or the answer honestly says <see cref="PriceLookupStatus.Offline"/> (principle 9).
 /// </summary>
-/// <remarks>The methods never throw for a failed lookup; the answer says what went wrong.</remarks>
+/// <remarks>
+/// The methods never throw for a failed lookup; the answer says what went wrong. Only a case that cannot be read
+/// throws.
+/// </remarks>
 public interface IPriceService
 {
     /// <summary>Gives the price of one unit of a chain's currency at a time.</summary>
@@ -20,6 +23,10 @@ public interface IPriceService
     /// <returns>The price with its rates and their origins, or why there is none.</returns>
     /// <exception cref="ArgumentNullException">The case or the request is null.</exception>
     /// <exception cref="OperationCanceledException">The caller cancelled.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Closed"/>, or <see cref="CaseError.Corrupt"/> when a stored response does not match its
+    /// SHA-256.
+    /// </exception>
     Task<PriceLookup<Price>> GetPriceAsync(
         ICase @case, PriceRequest request, PriceLookupMode mode = PriceLookupMode.AsNeeded,
         CancellationToken cancellationToken = default);

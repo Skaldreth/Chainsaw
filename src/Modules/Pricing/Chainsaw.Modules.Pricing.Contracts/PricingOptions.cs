@@ -18,6 +18,12 @@ public sealed record PricingOptions
     /// </summary>
     public FiatCurrency KronaVia { get; init; } = FiatCurrency.Usd;
 
+    /// <summary>
+    /// Gets the shortest time between two requests to the Riksbank, which allows 5 anonymous requests a minute (and
+    /// 1 000 a day) from one IP address; 12 seconds by default.
+    /// </summary>
+    public TimeSpan RiksbankInterval { get; init; } = TimeSpan.FromSeconds(12);
+
     /// <summary>Gets the base address of Bitstamp's public API.</summary>
     public Uri BitstampBaseUri { get; init; } = new("https://www.bitstamp.net/api/v2/");
 

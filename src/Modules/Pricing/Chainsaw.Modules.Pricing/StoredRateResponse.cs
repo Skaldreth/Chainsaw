@@ -9,11 +9,11 @@ namespace Chainsaw.Modules.Pricing;
 /// <param name="Body">The raw bytes, checked against their SHA-256.</param>
 internal sealed record StoredRateResponse(string Kind, string Subject, RateOrigin Origin, byte[] Body);
 
-/// <summary>A sealed response from a fiat source and the days it covers, as the index says.</summary>
+/// <summary>A sealed response from a fiat source and the days it was asked for.</summary>
 /// <param name="Response">The response.</param>
-/// <param name="From">The first day asked.</param>
-/// <param name="To">The last day asked.</param>
-internal sealed record StoredFiatRange(StoredRateResponse Response, DateOnly From, DateOnly To);
+/// <param name="From">The first day asked for.</param>
+/// <param name="AskedTo">The last day asked for.</param>
+internal sealed record StoredFiatRange(StoredRateResponse Response, DateOnly From, DateOnly AskedTo);
 
 /// <summary>The kinds of request, stored with each response so that it can be found again.</summary>
 internal static class RateKinds

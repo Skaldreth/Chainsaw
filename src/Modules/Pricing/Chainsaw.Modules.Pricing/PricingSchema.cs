@@ -56,6 +56,7 @@ internal sealed class PricingSchema : ICaseSchemaContributor
             series TEXT NOT NULL,
             date_from TEXT NOT NULL,
             date_to TEXT NOT NULL,
+            asked_to TEXT NOT NULL,
             sequence INTEGER NOT NULL,
             PRIMARY KEY (source, series, sequence)
         ) STRICT, WITHOUT ROWID;

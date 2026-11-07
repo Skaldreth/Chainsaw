@@ -21,7 +21,7 @@ internal sealed class Harness : IDisposable
     private readonly string _directory =
         Path.Combine(Path.GetTempPath(), "chainsaw-pricing-" + Guid.NewGuid().ToString("N"));
 
-    public Harness(PricingOptions? options = null)
+    public Harness(PricingOptions? options = null, Action<IServiceCollection>? before = null)
     {
         Http = new FakeExitHttp(Clock);
         var services = new ServiceCollection();
@@ -30,6 +30,7 @@ internal sealed class Harness : IDisposable
         services.AddSingleton<IOperatorProfileStore>(Profiles);
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IExitHttp>(Http);
+        before?.Invoke(services);
         services.AddCasesModule(settings =>
         {
             settings.Directory = _directory;
@@ -39,6 +40,7 @@ internal sealed class Harness : IDisposable
         {
             BitstampBaseUri = new Uri(Fixtures.Bitstamp),
             RiksbankBaseUri = new Uri(Fixtures.Riksbank),
+            RiksbankInterval = TimeSpan.Zero,
         });
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(CaseNumber);
@@ -72,8 +74,8 @@ internal sealed class Harness : IDisposable
         Http.AnswerText(
             $"{Fixtures.Bitstamp}ohlc/btcusd/?step=3600&limit=1&start={start}",
             $$$"""
-            {"data": {"pair": "BTC/USD", "ohlc": [{"timestamp": "{{{start}}}", "open": "{{{price}}}", "high": "{{{price}}}",
-            "low": "{{{price}}}", "close": "{{{price}}}", "volume": "1"}]}}
+            {"data": {"pair": "BTC/USD", "ohlc": [{"timestamp": "{{{start}}}", "open": "{{{price}}}",
+            "high": "{{{price}}}", "low": "{{{price}}}", "close": "{{{price}}}", "volume": "1"}]}}
             """);
     }
 
@@ -103,6 +105,13 @@ internal sealed class Harness : IDisposable
         }
 
         return rows;
+    });
+
+    /// <summary>Runs SQL on the case's tables that are not sealed, as a change outside Chainsaw would.</summary>
+    public void Execute(string sql) => Case.Write(transaction =>
+    {
+        using var command = transaction.CreateCommand(sql);
+        return command.ExecuteNonQuery();
     });
 
     /// <summary>Counts the rows of an index.</summary>

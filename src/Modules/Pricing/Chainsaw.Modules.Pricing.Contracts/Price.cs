@@ -73,19 +73,22 @@ public sealed record Price
         {
             var asset = Chain.Code();
             var crypto = CryptoRate;
+            var noTrade = crypto.Volume == 0 ? " Ingen handel under perioden." : string.Empty;
+            var cryptoSource = crypto.SourceName ?? crypto.Origin.Source;
             var steps = new List<string>
             {
-                $"1 {asset} = {Exact(crypto.Close)} {crypto.Quote.Code()}: {Name(crypto.Origin.Source)}, " +
-                $"{crypto.Market}, sista priset för {Period(crypto)} (UTC).",
+                $"1 {asset} = {Exact(crypto.Close)} {crypto.Quote.Code()}: {cryptoSource}, " +
+                $"{crypto.Market}, sista priset för {Period(crypto)} (UTC).{noTrade}",
             };
             if (FiatRate is { } fiat)
             {
                 var moved = fiat.Date == fiat.AskedDate
                     ? string.Empty
                     : $" ({Day(fiat.AskedDate)} saknar kurs, senaste dagen före används)";
+                var fiatSource = fiat.SourceName ?? fiat.Origin.Source;
                 steps.Add(
                     $"1 {fiat.Currency.Code()} = {Exact(fiat.PerUnit)} {fiat.Base.Code()}: " +
-                    $"{Name(fiat.Origin.Source)}, serien {fiat.Series}, kursen för {Day(fiat.Date)}{moved}.");
+                    $"{fiatSource}, serien {fiat.Series}, kursen för {Day(fiat.Date)}{moved}.");
                 steps.Add(
                     $"1 {asset} = {Exact(crypto.Close)} × {Exact(fiat.PerUnit)} = {Exact(UnitPrice)} " +
                     $"{Currency.Code()}.");
@@ -135,16 +138,6 @@ public sealed record Price
         var endFormat = start.Date == end.Date ? "HH:mm" : "yyyy-MM-dd HH:mm";
         return $"{startText}–{end.ToString(endFormat, CultureInfo.InvariantCulture)}";
     }
-
-    /// <summary>Gives a source's name for the user.</summary>
-    /// <param name="source">The source's stable name.</param>
-    /// <returns>For example <c>Riksbanken</c>.</returns>
-    private static string Name(string source) => source switch
-    {
-        "bitstamp" => "Bitstamp",
-        "riksbank" => "Riksbanken",
-        _ => source,
-    };
 }
 
 /// <summary>An amount valued at a price, with the steps that lead there (principle 3).</summary>

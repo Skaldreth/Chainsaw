@@ -14,11 +14,11 @@ public sealed class PriceTests
         Chain.Bitcoin, FiatCurrency.Usd, PriceResolution.Hour,
         DateTimeOffset.FromUnixTimeSeconds(Fixtures.HourStart),
         DateTimeOffset.FromUnixTimeSeconds(Fixtures.HourStart + 3_600),
-        "BTC/USD", 30050m, 30200m, 30000m, 30123.45m, 20.25m, Origin);
+        "BTC/USD", 30050m, 30200m, 30000m, 30123.45m, 20.25m, Origin) { SourceName = "Bitstamp" };
 
     private static readonly FiatRate Krona = new(
         FiatCurrency.Usd, FiatCurrency.Sek, 10.513m, new DateOnly(2023, 11, 14), new DateOnly(2023, 11, 14),
-        "SEKUSDPMI", Origin with { Sequence = 2, Source = "riksbank" });
+        "SEKUSDPMI", Origin with { Sequence = 2, Source = "riksbank" }) { SourceName = "Riksbanken" };
 
     [Fact]
     public void Multiplies_the_rates_exactly()
@@ -52,6 +52,22 @@ public sealed class PriceTests
 
         Assert.Contains("kursen för 2023-11-17 (2023-11-18 saknar kurs, senaste dagen före används).", steps[1],
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Says_when_no_trade_was_made_in_the_period()
+    {
+        var steps = new Price(Fixtures.At, FiatCurrency.Usd, Usd with { Volume = 0 }, null).Steps;
+
+        Assert.EndsWith("(UTC). Ingen handel under perioden.", steps[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Names_a_source_without_a_name_for_the_user_by_its_stable_name()
+    {
+        var steps = new Price(Fixtures.At, FiatCurrency.Usd, Usd with { SourceName = null }, null).Steps;
+
+        Assert.Contains("USD: bitstamp, BTC/USD", steps[0], StringComparison.Ordinal);
     }
 
     [Fact]

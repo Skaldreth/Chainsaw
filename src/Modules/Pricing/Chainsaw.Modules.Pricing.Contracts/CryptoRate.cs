@@ -34,4 +34,11 @@ public sealed record CryptoRate(
     decimal Low,
     decimal Close,
     decimal Volume,
-    RateOrigin Origin);
+    RateOrigin Origin)
+{
+    /// <summary>
+    /// Gets the source's name for the user, for example <c>Bitstamp</c>, or <see langword="null"/> for the stable
+    /// name in <see cref="RateOrigin.Source"/>.
+    /// </summary>
+    public string? SourceName { get; init; }
+}

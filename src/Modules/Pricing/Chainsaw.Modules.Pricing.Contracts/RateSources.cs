@@ -12,6 +12,9 @@ public interface ICryptoRateSource
     /// <summary>Gets the source's stable name, stored with every response, for example <c>bitstamp</c>.</summary>
     string Name { get; }
 
+    /// <summary>Gets the source's name for the user, for example <c>Bitstamp</c>.</summary>
+    string DisplayName { get; }
+
     /// <summary>Gets whether the source has a market for a chain's currency in a currency.</summary>
     /// <param name="chain">The chain.</param>
     /// <param name="quote">The currency.</param>
@@ -58,6 +61,9 @@ public interface IFiatRateSource
 {
     /// <summary>Gets the source's stable name, stored with every response, for example <c>riksbank</c>.</summary>
     string Name { get; }
+
+    /// <summary>Gets the source's name for the user, for example <c>Riksbanken</c>.</summary>
+    string DisplayName { get; }
 
     /// <summary>Gets the currency the rates are given in, for the Riksbank Swedish kronor.</summary>
     FiatCurrency Base { get; }

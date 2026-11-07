@@ -20,4 +20,11 @@ public sealed record FiatRate(
     DateOnly Date,
     DateOnly AskedDate,
     string Series,
-    RateOrigin Origin);
+    RateOrigin Origin)
+{
+    /// <summary>
+    /// Gets the source's name for the user, for example <c>Riksbanken</c>, or <see langword="null"/> for the stable
+    /// name in <see cref="RateOrigin.Source"/>.
+    /// </summary>
+    public string? SourceName { get; init; }
+}

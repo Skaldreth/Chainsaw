@@ -66,17 +66,38 @@ public sealed class PricingModuleTests
     public void Refuses_a_base_address_that_is_not_https(string bitstamp, string riksbank)
     {
         var options = new PricingOptions { BitstampBaseUri = new Uri(bitstamp), RiksbankBaseUri = new Uri(riksbank) };
+        using var provider = Provider(new ServiceCollection(), options);
+
+        Assert.Throws<ArgumentException>(() => provider.GetRequiredService<IPriceService>());
+    }
+
+    [Fact]
+    public void Never_checks_the_address_of_a_source_that_was_replaced()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ICryptoRateSource>(new BitstampRateSource(new Uri("https://other.test/")));
+        var options = new PricingOptions { BitstampBaseUri = new Uri("http://www.bitstamp.net/api/v2/") };
+
+        using var provider = Provider(services, options);
+
+        Assert.NotNull(provider.GetRequiredService<IPriceService>());
+    }
+
+    [Fact]
+    public void Refuses_a_negative_interval()
+    {
+        var options = new PricingOptions { RiksbankInterval = TimeSpan.FromSeconds(-1) };
 
         Assert.Throws<ArgumentException>(() => new ServiceCollection().AddPricingModule(options));
     }
 
-    private static ServiceProvider Provider(ServiceCollection services)
+    private static ServiceProvider Provider(ServiceCollection services, PricingOptions? options = null)
     {
         var clock = new FakeClock();
         services.AddSingleton<IExitHttp>(new FakeExitHttp(clock));
         services.AddSingleton<IOperatorProfileStore>(new FakeProfiles());
         services.AddSingleton<IClock>(clock);
-        services.AddPricingModule();
+        services.AddPricingModule(options);
         return services.BuildServiceProvider();
     }
 }

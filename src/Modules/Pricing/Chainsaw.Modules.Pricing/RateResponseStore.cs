@@ -72,18 +72,21 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
     /// <summary>Records that a sealed response holds a fiat source's final rates over some days.</summary>
     /// <param name="transaction">The case's write transaction.</param>
     /// <param name="series">The series.</param>
-    /// <param name="range">The response and its days.</param>
-    public static void AddFiatRange(ICaseTransaction transaction, string series, StoredFiatRange range)
+    /// <param name="range">The response and the days it was asked for.</param>
+    /// <param name="finalTo">The last day whose rate is final in the response.</param>
+    public static void AddFiatRange(
+        ICaseTransaction transaction, string series, StoredFiatRange range, DateOnly finalTo)
     {
         using var command = transaction.CreateCommand(
             """
-            INSERT INTO pricing_fiat_ranges (source, series, date_from, date_to, sequence)
-            VALUES ($source, $series, $from, $to, $sequence)
+            INSERT INTO pricing_fiat_ranges (source, series, date_from, date_to, asked_to, sequence)
+            VALUES ($source, $series, $from, $to, $asked, $sequence)
             """);
         Add(command, "$source", range.Response.Origin.Source);
         Add(command, "$series", series);
         Add(command, "$from", Day(range.From));
-        Add(command, "$to", Day(range.To));
+        Add(command, "$to", Day(finalTo));
+        Add(command, "$asked", Day(range.AskedTo));
         Add(command, "$sequence", range.Response.Origin.Sequence);
         command.ExecuteNonQuery();
     }
@@ -110,21 +113,31 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
         return command.ExecuteScalar() is long sequence ? Read(reader, sequence, source, kind, subject) : null;
     }
 
-    /// <summary>Finds the final fiat rates that cover a day, newest first.</summary>
+    /// <summary>
+    /// Goes through the fiat responses the index says cover a day, newest first, reading each only when the one
+    /// before gave nothing, and gives the first answer.
+    /// </summary>
+    /// <typeparam name="T">The answer.</typeparam>
     /// <param name="reader">The case's reader.</param>
     /// <param name="source">The source's name.</param>
     /// <param name="series">The series.</param>
     /// <param name="day">The day.</param>
-    /// <returns>The responses and their days.</returns>
+    /// <param name="use">
+    /// Reads an answer from a response, or gives <see langword="null"/>; the caller decides from the sealed response
+    /// itself whether it is final, since the index is not sealed.
+    /// </param>
+    /// <returns>The first answer, or <see langword="null"/>.</returns>
     /// <exception cref="CaseException">
-    /// <see cref="CaseError.Corrupt"/> when the bytes do not match their SHA-256.
+    /// <see cref="CaseError.Corrupt"/> when the bytes of a response read do not match their SHA-256.
     /// </exception>
-    public List<StoredFiatRange> FiatRangesCovering(ICaseReader reader, string source, string series, DateOnly day)
+    public T? FirstFiatRange<T>(
+        ICaseReader reader, string source, string series, DateOnly day, Func<StoredFiatRange, T?> use)
+        where T : class
     {
-        var found = new List<(long Sequence, DateOnly From, DateOnly To)>();
+        var found = new List<(long Sequence, DateOnly From, DateOnly AskedTo)>();
         using (var command = reader.CreateCommand(
             """
-            SELECT sequence, date_from, date_to FROM pricing_fiat_ranges
+            SELECT sequence, date_from, asked_to FROM pricing_fiat_ranges
             WHERE source = $source AND series = $series AND date_from <= $day AND date_to >= $day
             ORDER BY sequence DESC
             """))
@@ -135,25 +148,25 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
             using var row = command.ExecuteReader();
             while (row.Read())
             {
-                if (TryDay(row.GetString(1), out var from) && TryDay(row.GetString(2), out var to))
+                if (TryDay(row.GetString(1), out var from) && TryDay(row.GetString(2), out var askedTo))
                 {
-                    found.Add((row.GetInt64(0), from, to));
+                    found.Add((row.GetInt64(0), from, askedTo));
                 }
             }
         }
 
-        var ranges = new List<StoredFiatRange>();
-        foreach (var (sequence, from, to) in found)
+        foreach (var (sequence, from, askedTo) in found)
         {
             // The index is not sealed: the sealed subject must name the same series and days.
-            var response = Read(reader, sequence, source, RateKinds.FiatObservations, FiatSubject(series, from, to));
-            if (response is not null)
+            var subject = FiatSubject(series, from, askedTo);
+            if (Read(reader, sequence, source, RateKinds.FiatObservations, subject) is { } response
+                && use(new StoredFiatRange(response, from, askedTo)) is { } answer)
             {
-                ranges.Add(new StoredFiatRange(response, from, to));
+                return answer;
             }
         }
 
-        return ranges;
+        return null;
     }
 
     /// <summary>Gives the subject of a request for a fiat series over some days.</summary>

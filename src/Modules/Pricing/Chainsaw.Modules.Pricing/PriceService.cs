@@ -29,6 +29,20 @@ internal sealed class PriceService : IPriceService
     /// <summary>The HTTP status for too many requests.</summary>
     private const int TooManyRequestsStatus = 429;
 
+    /// <summary>
+    /// How long after a period's end the source is asked, and a response must have arrived, before its candle is
+    /// final: the computer's clock may be ahead, and the exchange may add the last trades a little late.
+    /// </summary>
+    private static readonly TimeSpan SettleMargin = TimeSpan.FromMinutes(5);
+
+    /// <summary>Lets one request at a time go to the fiat source.</summary>
+    private readonly SemaphoreSlim _fiatGate = new(1, 1);
+
+    /// <summary>
+    /// When the last request to the fiat source was answered, as <see cref="Environment.TickCount64"/>.
+    /// </summary>
+    private long? _lastFiatRequest;
+
     /// <summary>The source of crypto rates.</summary>
     private readonly ICryptoRateSource _crypto;
 
@@ -98,7 +112,7 @@ internal sealed class PriceService : IPriceService
                 crypto.Status, new Price(request.At, currency, cryptoRate, null), crypto.Origins, null);
         }
 
-        var day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(request.At, _fiat.Calendar).DateTime);
+        var day = DayOf(request.At);
         var fiat = await FiatRateAsync(@case, quote, day, mode, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<RateOrigin> origins = [.. crypto.Origins, .. fiat.Origins];
         if (fiat.Value is not { } fiatRate)
@@ -158,10 +172,14 @@ internal sealed class PriceService : IPriceService
     {
         var start = resolution.PeriodStart(at);
         var end = start.AddSeconds(resolution.Seconds());
+        var settlesAt = end + SettleMargin;
         var subject = $"{chain.Code()}-{quote.Code()}/{resolution.Seconds().ToString(CultureInfo.InvariantCulture)}/" +
             start.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+
+        // The index is not sealed: a stored candle counts only when its own sealed time shows it was final.
         CryptoRate? Read(StoredRateResponse response) =>
-            _crypto.ReadCandle(response.Body, chain, quote, resolution, start) is { } candle
+            response.Origin.ReceivedUtc >= settlesAt
+            && _crypto.ReadCandle(response.Body, chain, quote, resolution, start) is { } candle
                 ? Rate(chain, quote, resolution, start, end, candle, response.Origin)
                 : null;
 
@@ -179,10 +197,10 @@ internal sealed class PriceService : IPriceService
         }
 
         var period = $"{Time(start)}–{Time(end)} UTC";
-        if (end > _clock.UtcNow)
+        if (settlesAt > _clock.UtcNow)
         {
             return Missing<CryptoRate>(PriceLookupStatus.NotAvailable,
-                $"Perioden {period} är inte slut än, så kursen är inte satt. Inget skickades.");
+                $"Perioden {period} är inte avslutad hos källan än, så kursen är inte satt. Inget skickades.");
         }
 
         var sent = await SendAsync(_crypto.RequestUri(chain, quote, resolution, start), cancellationToken)
@@ -200,15 +218,16 @@ internal sealed class PriceService : IPriceService
             try
             {
                 candle = _crypto.ReadCandle(response.Body.Span, chain, quote, resolution, start);
-                if (candle is null || end > response.ReceivedAt)
+                if (candle is null || settlesAt > response.ReceivedAt)
                 {
-                    // A period that has not ended at the source can still change, so it is never kept as final.
+                    // A period that may not have ended at the source can still change, so it is never kept.
                     candle = null;
                     problem = $"Källan har ingen avslutad kurs för perioden {period}.";
                 }
             }
-            catch (RateFormatException)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
+                // Whatever the source's reader throws, the response is sealed afterwards (principle 1).
                 (problem, failed) = (UnreadableProblem, true);
             }
         }
@@ -225,11 +244,15 @@ internal sealed class PriceService : IPriceService
         return candle is null
             ? new PriceLookup<CryptoRate>(StatusOf(failed), null, [origin], problem)
             : new PriceLookup<CryptoRate>(
-                PriceLookupStatus.Fetched, Rate(chain, quote, resolution, start, end, candle, origin), [origin], null);
+                PriceLookupStatus.Fetched, Rate(chain, quote, resolution, start, end, candle, origin), [origin],
+                null);
     }
 
     /// <summary>
-    /// Gives the fiat rate for a day: the source's rate on that day, or on the latest banking day before it.
+    /// Gives the fiat rate for a day: the source's rate on that day, or on the latest banking day before it. Requests
+    /// to the source go one at a time, at least <see cref="PricingOptions.RiksbankInterval"/> apart, and the case is
+    /// read again before each, so that many lookups at once share one response (the Riksbank allows few anonymous
+    /// requests).
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="currency">The foreign currency.</param>
@@ -241,19 +264,10 @@ internal sealed class PriceService : IPriceService
         ICase @case, FiatCurrency currency, DateOnly day, PriceLookupMode mode, CancellationToken cancellationToken)
     {
         var series = _fiat.Series(currency);
-        var ranges = await Task.Run(
-            () => @case.Read(reader => _store.FiatRangesCovering(reader, _fiat.Name, series, day)),
-            cancellationToken).ConfigureAwait(false);
-        foreach (var range in ranges)
+        if (await StoredFiatRateAsync(@case, currency, series, day, cancellationToken).ConfigureAwait(false)
+            is { } kept)
         {
-            var kept = Quietly(() => Pick(
-                _fiat.ReadObservations(range.Response.Body, currency, range.From, range.To), day) is { } found
-                ? FiatRateOf(currency, series, day, found, range.Response.Origin)
-                : null);
-            if (kept is not null)
-            {
-                return new PriceLookup<FiatRate>(PriceLookupStatus.FromCase, kept, [kept.Origin], null);
-            }
+            return new PriceLookup<FiatRate>(PriceLookupStatus.FromCase, kept, [kept.Origin], null);
         }
 
         if (mode == PriceLookupMode.CaseOnly)
@@ -261,6 +275,71 @@ internal sealed class PriceService : IPriceService
             return Missing<FiatRate>(PriceLookupStatus.NotInCase, "Läst bara ur ärendet; inget skickades.");
         }
 
+        await _fiatGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (await StoredFiatRateAsync(@case, currency, series, day, cancellationToken).ConfigureAwait(false)
+                is { } meanwhile)
+            {
+                return new PriceLookup<FiatRate>(PriceLookupStatus.FromCase, meanwhile, [meanwhile.Origin], null);
+            }
+
+            await SpaceFiatRequestAsync(cancellationToken).ConfigureAwait(false);
+            return await FetchFiatRateAsync(@case, currency, series, day, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _fiatGate.Release();
+        }
+    }
+
+    /// <summary>Finds a final fiat rate for a day in the case.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="currency">The foreign currency.</param>
+    /// <param name="series">The series.</param>
+    /// <param name="day">The day asked about.</param>
+    /// <param name="cancellationToken">Stops the lookup before it starts.</param>
+    /// <returns>The rate, or <see langword="null"/>.</returns>
+    private Task<FiatRate?> StoredFiatRateAsync(
+        ICase @case, FiatCurrency currency, string series, DateOnly day, CancellationToken cancellationToken) =>
+        Task.Run(
+            () => @case.Read(reader => _store.FirstFiatRange(reader, _fiat.Name, series, day, range => Quietly(() =>
+            {
+                var observations = _fiat.ReadObservations(range.Response.Body, currency, range.From, range.AskedTo);
+                return FinalFor(range.Response.Origin, range.From, range.AskedTo, observations, day)
+                    && Pick(observations, day) is { } found
+                    ? FiatRateOf(currency, series, day, found, range.Response.Origin)
+                    : null;
+            }))),
+            cancellationToken);
+
+    /// <summary>Waits until the last request to the fiat source is far enough behind.</summary>
+    /// <param name="cancellationToken">Stops the wait.</param>
+    /// <returns>A task that completes when a request may be sent.</returns>
+    private async Task SpaceFiatRequestAsync(CancellationToken cancellationToken)
+    {
+        if (_lastFiatRequest is not { } last)
+        {
+            return;
+        }
+
+        var wait = _options.RiksbankInterval - TimeSpan.FromMilliseconds(Environment.TickCount64 - last);
+        if (wait > TimeSpan.Zero)
+        {
+            await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Asks the fiat source for the days around a day, seals the response and reads the day's rate.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="currency">The foreign currency.</param>
+    /// <param name="series">The series.</param>
+    /// <param name="day">The day asked about.</param>
+    /// <param name="cancellationToken">Stops the request.</param>
+    /// <returns>The rate, or why there is none.</returns>
+    private async Task<PriceLookup<FiatRate>> FetchFiatRateAsync(
+        ICase @case, FiatCurrency currency, string series, DateOnly day, CancellationToken cancellationToken)
+    {
         var today = Today();
         var from = day.AddDays(-LookbackDays);
         var to = day < today ? Min(day.AddDays(AheadDays), today.AddDays(-1)) : day;
@@ -270,21 +349,25 @@ internal sealed class PriceService : IPriceService
             return Missing<FiatRate>(sent.Status, sent.Problem!);
         }
 
+        _lastFiatRequest = Environment.TickCount64;
         FiatObservation? picked = null;
-        var settled = false;
+        DateOnly? finalTo = null;
         var problem = Unusable(response);
         var failed = problem is not null;
         if (problem is null)
         {
             try
             {
-                picked = Pick(_fiat.ReadObservations(response.Body.Span, currency, from, to), day);
-                settled = to < DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(response.ReceivedAt, _fiat.Calendar)
-                    .DateTime);
-                problem = FiatProblem(series, day, from, picked, settled);
+                var observations = _fiat.ReadObservations(response.Body.Span, currency, from, to);
+                picked = Pick(observations, day);
+                var received = DayOf(response.ReceivedAt);
+                var final = to < received || observations.Any(observation => observation.Date == day);
+                finalTo = to < received ? to : observations.LastOrDefault()?.Date;
+                problem = FiatProblem(series, day, from, picked, final);
             }
-            catch (RateFormatException)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
+                // Whatever the source's reader throws, the response is sealed afterwards (principle 1).
                 (problem, failed) = (UnreadableProblem, true);
             }
         }
@@ -293,9 +376,9 @@ internal sealed class PriceService : IPriceService
         var sealedResponse = await SealAsync(@case, _fiat.Name, RateKinds.FiatObservations, subject, sent,
             (transaction, saved) =>
             {
-                if (problem is null && settled)
+                if (problem is null && finalTo is { } covered && covered >= day)
                 {
-                    RateResponseStore.AddFiatRange(transaction, series, new StoredFiatRange(saved, from, to));
+                    RateResponseStore.AddFiatRange(transaction, series, new StoredFiatRange(saved, from, to), covered);
                 }
             }).ConfigureAwait(false);
         return problem is null
@@ -304,15 +387,30 @@ internal sealed class PriceService : IPriceService
             : new PriceLookup<FiatRate>(StatusOf(failed), null, [sealedResponse.Origin], problem);
     }
 
+    /// <summary>
+    /// Decides from a sealed response alone whether its rate for a day is final: the day must be one that was asked
+    /// for, and either have passed when the response arrived or have its own rate (a published rate does not change).
+    /// </summary>
+    /// <param name="origin">The sealed response's origin.</param>
+    /// <param name="from">The first day asked for.</param>
+    /// <param name="to">The last day asked for.</param>
+    /// <param name="observations">The rates in the response.</param>
+    /// <param name="day">The day.</param>
+    /// <returns><see langword="true"/> when the day's rate can no longer change.</returns>
+    private bool FinalFor(
+        RateOrigin origin, DateOnly from, DateOnly to, IReadOnlyList<FiatObservation> observations, DateOnly day) =>
+        day >= from && day <= to
+        && (day < DayOf(origin.ReceivedUtc) || observations.Any(observation => observation.Date == day));
+
     /// <summary>Says why fiat rates that were read give no rate for the day, if they do not.</summary>
     /// <param name="series">The series.</param>
     /// <param name="day">The day asked about.</param>
     /// <param name="from">The first day asked for.</param>
     /// <param name="picked">The rate picked for the day, if any.</param>
-    /// <param name="settled">Whether every day asked for has passed, so that the rates are final.</param>
+    /// <param name="final">Whether the day's rate can no longer change.</param>
     /// <returns>Why, in Swedish, or <see langword="null"/> when there is a rate.</returns>
     private static string? FiatProblem(
-        string series, DateOnly day, DateOnly from, FiatObservation? picked, bool settled)
+        string series, DateOnly day, DateOnly from, FiatObservation? picked, bool final)
     {
         if (picked is null)
         {
@@ -320,9 +418,10 @@ internal sealed class PriceService : IPriceService
         }
 
         // Today's rate is set during the day: until it is, the latest earlier rate may not be the day's.
-        return !settled && picked.Date != day
-            ? $"Kursen i serien {series} för {Day(day)} är inte publicerad än. Försök igen senare."
-            : null;
+        return final
+            ? null
+            : $"Kursen i serien {series} för {Day(day)} är inte publicerad än, eller så är dagen ingen bankdag; " +
+              $"då gäller kursen för {Day(picked.Date)} när dagen har passerat. Försök igen senare.";
     }
 
     /// <summary>Picks the rate for a day: the day's own, or the latest before it.</summary>
@@ -341,7 +440,10 @@ internal sealed class PriceService : IPriceService
     /// <returns>The rate.</returns>
     private FiatRate FiatRateOf(
         FiatCurrency currency, string series, DateOnly day, FiatObservation observation, RateOrigin origin) =>
-        new(currency, _fiat.Base, observation.PerUnit, observation.Date, day, series, origin);
+        new(currency, _fiat.Base, observation.PerUnit, observation.Date, day, series, origin)
+        {
+            SourceName = _fiat.DisplayName,
+        };
 
     /// <summary>Makes a crypto rate from what the source said.</summary>
     /// <param name="chain">The chain.</param>
@@ -352,11 +454,11 @@ internal sealed class PriceService : IPriceService
     /// <param name="candle">The period as the source gave it.</param>
     /// <param name="origin">The sealed response.</param>
     /// <returns>The rate.</returns>
-    private static CryptoRate Rate(
+    private CryptoRate Rate(
         Chain chain, FiatCurrency quote, PriceResolution resolution, DateTimeOffset start, DateTimeOffset end,
         RateCandle candle, RateOrigin origin) =>
         new(chain, quote, resolution, start, end, candle.Market, candle.Open, candle.High, candle.Low, candle.Close,
-            candle.Volume, origin);
+            candle.Volume, origin) { SourceName = _crypto.DisplayName };
 
     /// <summary>The text for a response that cannot be read.</summary>
     private const string UnreadableProblem =
@@ -442,7 +544,9 @@ internal sealed class PriceService : IPriceService
             }),
             CancellationToken.None);
 
-    /// <summary>Reads a stored rate; a response this build can no longer read counts as no answer.</summary>
+    /// <summary>
+    /// Reads a stored rate; a response this build (or a replaced source) can no longer read counts as no answer.
+    /// </summary>
     /// <typeparam name="T">What is read.</typeparam>
     /// <param name="read">The reading.</param>
     /// <returns>The value, or <see langword="null"/>.</returns>
@@ -453,7 +557,7 @@ internal sealed class PriceService : IPriceService
         {
             return read();
         }
-        catch (RateFormatException)
+        catch (Exception exception) when (exception is not OperationCanceledException and not CaseException)
         {
             return null;
         }
@@ -494,8 +598,13 @@ internal sealed class PriceService : IPriceService
 
     /// <summary>Gives today's date in the fiat source's calendar.</summary>
     /// <returns>The date.</returns>
-    private DateOnly Today() =>
-        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, _fiat.Calendar).DateTime);
+    private DateOnly Today() => DayOf(_clock.UtcNow);
+
+    /// <summary>Gives the date of a time in the fiat source's calendar.</summary>
+    /// <param name="time">The time.</param>
+    /// <returns>The date.</returns>
+    private DateOnly DayOf(DateTimeOffset time) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time, _fiat.Calendar).DateTime);
 
     /// <summary>Gives the earlier of two days.</summary>
     /// <param name="first">The first day.</param>

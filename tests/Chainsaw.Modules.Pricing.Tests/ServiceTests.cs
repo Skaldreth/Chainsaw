@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.SharedKernel;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Chainsaw.Modules.Pricing.Tests;
 
@@ -158,7 +159,8 @@ public sealed class ServiceTests : IDisposable
             "low": "2", "close": "3", "volume": "5"}]}}
             """);
         harness.Http.AnswerText(
-            $"{Fixtures.Riksbank}Observations/SEKEURPMI/2023-10-31/2023-12-15", """[{"date":"2023-11-14","value":11.5}]""");
+            $"{Fixtures.Riksbank}Observations/SEKEURPMI/2023-10-31/2023-12-15",
+            """[{"date":"2023-11-14","value":11.5}]""");
 
         var lookup = await harness.PriceAsync(Fixtures.At);
 
@@ -266,16 +268,16 @@ public sealed class ServiceTests : IDisposable
         var lookup = await _harness.PriceAsync(_harness.Clock.UtcNow.AddMinutes(-1));
 
         Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status);
-        Assert.Contains("inte slut", lookup.Problem, StringComparison.Ordinal);
+        Assert.Contains("inte avslutad", lookup.Problem, StringComparison.Ordinal);
         Assert.Empty(_harness.Http.Sent);
     }
 
     [Fact]
     public async Task Never_keeps_a_period_the_source_has_not_ended_as_final()
     {
+        // The computer's clock says the hour ended five minutes ago, but the response arrived before that.
         _harness.AnswerAll();
-        // The computer's clock says the hour has ended, but the response arrived before it did.
-        _harness.Clock.UtcNow = DateTimeOffset.FromUnixTimeSeconds(Fixtures.HourStart + 3_600);
+        _harness.Clock.UtcNow = DateTimeOffset.FromUnixTimeSeconds(Fixtures.HourStart + 3_600 + 300);
         _harness.Http.Lag = TimeSpan.FromSeconds(-1);
 
         var lookup = await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
@@ -283,6 +285,17 @@ public sealed class ServiceTests : IDisposable
         Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status);
         Assert.Single(_harness.Http.Sent);
         Assert.Equal(0, _harness.Count("pricing_lookup"));
+    }
+
+    [Fact]
+    public async Task Waits_five_minutes_after_the_period_before_asking()
+    {
+        _harness.Clock.UtcNow = DateTimeOffset.FromUnixTimeSeconds(Fixtures.HourStart + 3_600 + 299);
+
+        var lookup = await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+
+        Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status);
+        Assert.Empty(_harness.Http.Sent);
     }
 
     [Fact]
@@ -365,17 +378,18 @@ public sealed class ServiceTests : IDisposable
         _harness.Http.AnswerText(riksbank, """[{"date":"2026-11-05","value":9.5}]""");
 
         var waiting = await _harness.PriceAsync(at);
-        _harness.Http.AnswerText(riksbank, """[{"date":"2026-11-05","value":9.5},{"date":"2026-11-06","value":9.6}]""");
+        _harness.Http.AnswerText(
+            riksbank, """[{"date":"2026-11-05","value":9.5},{"date":"2026-11-06","value":9.6}]""");
         var published = await _harness.PriceAsync(at);
         var again = await _harness.PriceAsync(at);
 
         Assert.Equal(PriceLookupStatus.NotAvailable, waiting.Status);
         Assert.Contains("inte publicerad", waiting.Problem, StringComparison.Ordinal);
+        Assert.Equal(1, _harness.Count("pricing_fiat_ranges"));
         Assert.Equal(9.6m, published.Value!.FiatRate!.PerUnit);
-        Assert.Equal(PriceLookupStatus.Fetched, again.Status);
-        Assert.Equal(0, _harness.Count("pricing_fiat_ranges"));
+        Assert.Equal(PriceLookupStatus.FromCase, again.Status);
         Assert.Equal(
-            [riksbank, riksbank, riksbank],
+            [riksbank, riksbank],
             _harness.Http.Sent.Select(request => request.Uri.AbsoluteUri).Where(url => url.Contains("riksbank")));
     }
 
@@ -386,7 +400,8 @@ public sealed class ServiceTests : IDisposable
         var at = new DateTimeOffset(2026, 11, 3, 10, 30, 0, TimeSpan.Zero);
         _harness.AnswerCandle(at, "1");
         _harness.Http.AnswerText(
-            $"{Fixtures.Riksbank}Observations/SEKUSDPMI/2026-10-20/2026-11-05", """[{"date":"2026-11-03","value":9.5}]""");
+            $"{Fixtures.Riksbank}Observations/SEKUSDPMI/2026-10-20/2026-11-05",
+            """[{"date":"2026-11-03","value":9.5}]""");
 
         var lookup = await _harness.PriceAsync(at);
 
@@ -516,9 +531,146 @@ public sealed class StoredRateTests : IDisposable
         Assert.Equal(3, _harness.RawRows().Count);
     }
 
-    private void Execute(string sql) => _harness.Case.Write(transaction =>
+    private void Execute(string sql) => _harness.Execute(sql);
+}
+
+public sealed class ReviewRegressionTests : IDisposable
+{
+    private readonly Harness _harness = new();
+
+    public void Dispose() => _harness.Dispose();
+
+    [Fact]
+    public async Task Never_trusts_an_index_for_a_candle_that_was_not_final_when_it_arrived()
     {
-        using var command = transaction.CreateCommand(sql);
-        return command.ExecuteNonQuery();
-    });
+        _harness.AnswerAll();
+        _harness.Clock.UtcNow = DateTimeOffset.FromUnixTimeSeconds(Fixtures.HourStart + 3_600 + 300);
+        _harness.Http.Lag = TimeSpan.FromSeconds(-1);
+        await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+        _harness.Execute(
+            """
+            INSERT INTO pricing_lookup (source, kind, subject, sequence)
+            SELECT source, kind, subject, sequence FROM pricing_raw_responses
+            """);
+        _harness.Http.Lag = TimeSpan.FromSeconds(1);
+
+        var lookup = await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+
+        Assert.Equal(PriceLookupStatus.Fetched, lookup.Status);
+        Assert.Equal(2, _harness.Http.Sent.Count);
+    }
+
+    [Fact]
+    public async Task Never_trusts_an_index_for_a_day_that_had_no_rate_yet()
+    {
+        _harness.Clock.UtcNow = new DateTimeOffset(2026, 11, 6, 12, 0, 1, TimeSpan.Zero);
+        var at = new DateTimeOffset(2026, 11, 6, 10, 30, 0, TimeSpan.Zero);
+        _harness.AnswerCandle(at, "1");
+        var riksbank = $"{Fixtures.Riksbank}Observations/SEKUSDPMI/2026-10-23/2026-11-06";
+        _harness.Http.AnswerText(riksbank, """[{"date":"2026-11-05","value":9.5}]""");
+        await _harness.PriceAsync(at);
+        _harness.Execute(
+            """
+            INSERT INTO pricing_fiat_ranges (source, series, date_from, date_to, asked_to, sequence)
+            SELECT source, 'SEKUSDPMI', '2026-10-23', '2026-11-06', '2026-11-06', sequence
+            FROM pricing_raw_responses WHERE source = 'riksbank'
+            """);
+
+        var lookup = await _harness.PriceAsync(at);
+
+        Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status);
+        Assert.Equal(2, _harness.Http.Sent.Count(request => request.Uri.Host == "riksbank.test"));
+    }
+
+    [Fact]
+    public async Task Says_that_today_may_be_no_banking_day()
+    {
+        // Saturday 2026-11-07: the case asks about the morning, and Friday's rate is the latest.
+        _harness.Clock.UtcNow = new DateTimeOffset(2026, 11, 7, 12, 0, 0, TimeSpan.Zero);
+        var at = new DateTimeOffset(2026, 11, 7, 9, 30, 0, TimeSpan.Zero);
+        _harness.AnswerCandle(at, "1");
+        _harness.Http.AnswerText(
+            $"{Fixtures.Riksbank}Observations/SEKUSDPMI/2026-10-24/2026-11-07",
+            """[{"date":"2026-11-06","value":9.6}]""");
+
+        var lookup = await _harness.PriceAsync(at);
+
+        Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status);
+        Assert.Contains("ingen bankdag", lookup.Problem, StringComparison.Ordinal);
+        Assert.Contains("2026-11-06", lookup.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Shares_one_riksbank_request_among_lookups_at_once()
+    {
+        _harness.AnswerAll();
+        var days = Enumerable.Range(0, 8).Select(day => Fixtures.At.AddDays(day)).ToList();
+        foreach (var at in days.Skip(1))
+        {
+            _harness.AnswerCandle(at, "2");
+        }
+
+        var lookups = await Task.WhenAll(days.Select(at => _harness.PriceAsync(at)));
+
+        Assert.All(lookups, lookup => Assert.NotNull(lookup.Value));
+        Assert.Single(_harness.Http.Sent, request => request.Uri.Host == "riksbank.test");
+    }
+
+    [Fact]
+    public async Task Spaces_the_requests_to_the_riksbank()
+    {
+        var interval = TimeSpan.FromMilliseconds(400);
+        using var harness = new Harness(new PricingOptions
+        {
+            BitstampBaseUri = new Uri(Fixtures.Bitstamp),
+            RiksbankBaseUri = new Uri(Fixtures.Riksbank),
+            RiksbankInterval = interval,
+        });
+        var later = Fixtures.At.AddDays(60);
+        harness.AnswerCandle(Fixtures.At, "1");
+        harness.AnswerCandle(later, "1");
+        harness.Http.Answer(Fixtures.RiksbankUsdNovember, "riksbank-sekusdpmi.json");
+        harness.Http.AnswerText(
+            $"{Fixtures.Riksbank}Observations/SEKUSDPMI/2023-12-30/2024-02-13",
+            """[{"date":"2024-01-12","value":10}]""");
+        await harness.PriceAsync(Fixtures.At);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        var lookup = await harness.PriceAsync(later);
+
+        Assert.Equal(10m, lookup.Value!.FiatRate!.PerUnit);
+        Assert.True(watch.Elapsed >= interval - TimeSpan.FromMilliseconds(100), watch.Elapsed.ToString());
+    }
+
+    [Fact]
+    public async Task Seals_a_response_a_replaced_source_cannot_read()
+    {
+        using var harness = new Harness(before: services => services.AddSingleton<ICryptoRateSource>(new Throwing()));
+        harness.Http.AnswerText("https://throwing.test/", "{}");
+
+        var lookup = await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+
+        Assert.Equal(PriceLookupStatus.Failed, lookup.Status);
+        Assert.Single(harness.RawRows());
+        Assert.Contains("Throwing", harness.RawRows()[0].Source, StringComparison.Ordinal);
+    }
+
+    /// <summary>A replaced source whose reader throws something other than its contract says.</summary>
+    private sealed class Throwing : ICryptoRateSource
+    {
+        public string Name => "Throwing";
+
+        public string DisplayName => "Throwing";
+
+        public bool Supports(Chain chain, FiatCurrency quote) => true;
+
+        public Uri RequestUri(
+            Chain chain, FiatCurrency quote, PriceResolution resolution, DateTimeOffset periodStart) =>
+            new("https://throwing.test/");
+
+        public RateCandle? ReadCandle(
+            ReadOnlySpan<byte> body, Chain chain, FiatCurrency quote, PriceResolution resolution,
+            DateTimeOffset periodStart) =>
+            throw new ArgumentException("Not what the contract says.");
+    }
 }

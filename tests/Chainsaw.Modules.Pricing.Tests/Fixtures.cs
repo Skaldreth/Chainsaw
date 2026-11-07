@@ -23,5 +23,6 @@ internal static class Fixtures
     /// <summary>The Riksbank request for 2023-11-14: 14 days before and 31 days after.</summary>
     public static readonly string RiksbankUsdNovember = $"{Riksbank}Observations/SEKUSDPMI/2023-10-31/2023-12-15";
 
-    public static byte[] Bytes(string name) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Responses", name));
+    public static byte[] Bytes(string name) =>
+        File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Responses", name));
 }

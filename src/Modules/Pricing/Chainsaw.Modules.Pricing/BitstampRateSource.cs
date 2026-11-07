@@ -23,6 +23,9 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
     public string Name => SourceName;
 
     /// <inheritdoc/>
+    public string DisplayName => "Bitstamp";
+
+    /// <inheritdoc/>
     public bool Supports(Chain chain, FiatCurrency quote) =>
         chain == Chain.Bitcoin && quote is FiatCurrency.Usd or FiatCurrency.Eur;
 
