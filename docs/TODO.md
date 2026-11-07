@@ -8,10 +8,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Ordningen bland uttagen** (CLAUDE.md, *Sorterna efter vad som händer med pengarna*): fråga kryptospåraren vilka uttag
   som är vanligast i de svenska ärendena, och om några sorter kan slås ihop.
 
-- **Vad av ett annat ärende som följer med en etikett** (CLAUDE.md, *Etiketter smittar*): ärendenumret, utredarens
-  anteckning och varför etiketten sattes kan vara sekretess i det andra ärendet. Förslag: ärendenumret och anteckningen
-  följer med till biblioteket men inte vidare in i ett annat ärende; där står bara vem, när och etiketten. Kan också
-  behöva gå att stänga av per ärende eller per etikett (*Sprid inte*).
+- **Vad av ett annat ärende som följer med en etikett** (CLAUDE.md, *Etiketter smittar*; byggt i etapp 8 efter
+  förslaget, bekräfta med användaren): ärendenumret, anteckningen och skälet följer med till biblioteket men inte vidare
+  in i ett annat ärende; där står bara vem (hela operatörsprofilen: namn, titel, enhet), när, etiketten med namn och
+  vilken sorts källa. En etikett kan märkas *Sprid inte*. Sessionens egna tillägg: en etikett på ett offer, och varje
+  etikett på offrets adresser eller kluster, sprids aldrig; en etikett som tas tillbaka där den sattes dras tillbaka ur
+  alla kopior. Ska *Sprid inte* också gå att sätta för ett helt ärende? Ska titel och enhet följa med?
 - **Hur bevakningen säger till** (den går också när Chainsaw är stängt, CLAUDE.md *Bevaka*): bara en avisering i Windows,
   eller också ljud, e-post eller telefon? Hur ofta källan frågas (var femte minut, varje block) och om en viktig bevakning
   ska kunna frågas oftare.
@@ -144,10 +146,34 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   bryggornas egna händelser. I v1 knyts den för hand.
 
 ### Attribution
-- **Sanktionslistor:** OFAC SDN (har kryptoadresser), EU:s lista. Hämtas som filer och sparas med hash och datum.
+- **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.
+- **Kan frysas** (CLAUDE.md, *Sorterna*): markeringen för adresser med USDT eller USDC hör till Ethereum och TRON. SDN
+  har redan adresser för `USDT`, `ETH` och `TRX`, som etapp 8 läser in och räknar men ännu inte slår upp.
 - **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster),
-  Chainabuse (kräver nyckel). Varje källa granskas för licens och kvalitet innan den byggs in.
-- **Egna etiketter** med vem, när och varför.
+  Chainabuse (kräver nyckel). Varje källa granskas för licens och kvalitet innan den byggs in. `LabelSource.OpenSource`
+  finns i kontraktet.
+- **Appen kopplar ihop det** (etapp 8 har inget gränssnitt): när ett ärende öppnas `ILabelLibrary.Absorb`, när grafen
+  har adresser `ShareInto` och `CheckSanctions`, och vyn Etiketter (skissas först).
+- **Slutet *Börs, uttag funnet*** gäller alla blå sorter (också börs utan kundkontroll, P2P, automat och kort), där
+  en begäran inte alltid går att göra; sorten står i förklaringen. En egen orsak eller text per sort? (granskningen
+  etapp 8, M1).
+- **Etiketter från ett annat ärende i grafen** avslutar spåret som en egen etikett; grafen bör rita dem streckade
+  (`Label.IsOnlyFromOtherCases`) tills någon i ärendet bekräftat dem (granskningen etapp 8, M2).
+- **Namnet sprids:** etikettens namn, en analys eller källas namn och hela operatörsprofilen följer med till andra
+  ärenden. Gränssnittet ska säga det, och kanske varna när namnet liknar ett ärendenummer (granskningen etapp 8, M3).
+- **Listan i ärendet:** ärendet sparar listans hash, datum och postens uid, inte listan. En kollega eller en annan dator
+  kan inte kontrollera träffen utan filen. Försegla postens XML i ärendet? (granskningen etapp 8, M4).
+- **Sanktionslistorna i appdata:** ingen funktion för att ta bort en lista (en lista med fel datum i framtiden förblir
+  aktuell), en trasig beskrivning gör att listan försvinner tyst ur listningen, och ändringar utanför Chainsaw märks
+  först vid omstart (granskningen etapp 8, M5).
+- **Minnet vid import:** en `sdnEntry` läses in hel; en konstruerad fil med miljontals `id` i en post kan ta mycket
+  minne. Läs id:n strömmande eller sätt ett tak per post (granskningen etapp 8, M6).
+- **Etiketterna läses en gång per adress** när grafen byggs (O(adresser × etiketter)). Läs dem en gång per bygge
+  (granskningen etapp 8, M7).
+- **Biblioteket:** ärenden som tagits bort ligger kvar som innehavare, två kopior av samma ärende (samma id) skriver
+  över varandra, och ett bibliotek som inte går att läsa (skadat eller från ett annat valv) stoppar varje inläsning
+  tills det byggs om. Bygg om biblioteket ur ärendena, och ta bort ett ärendes etiketter (granskningen etapp 8, M8).
+- **Etiketter på tx** (till exempel en känd brygga eller swap): `ClassifyTransaction` ger inget från etiketter än.
 
 ### Kurser
 - Kursen vid tx:ens tid i vald valuta (SEK som förval), med källa, sparad i ärendet. Riksbankens kurser för SEK mot USD och
