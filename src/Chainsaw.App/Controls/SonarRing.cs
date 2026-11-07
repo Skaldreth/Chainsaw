@@ -5,52 +5,66 @@ using System.Windows.Media;
 namespace Chainsaw.App.Controls;
 
 /// <summary>
-/// Soft rings that grow out from a node's own rounded outline and fade, again and again, like sonar: it marks the step
-/// the user stands at in the empty graph (sketch GR6c). Put it in the same grid cell as the node: it takes no room of
-/// its own, is arranged to the node's size and draws outside it, so the rings always stand centred on the node.
-/// It shows one faint, still ring when Windows has animations turned off, and runs only while it is shown.
+/// The sonar of sketch SN1a: no ring and no line, but a soft, blurred glow in the accent's tone that swells slowly out
+/// of the node's own rounded outline, grows more blurred as it widens and dissolves; one wave at a time, then a rest,
+/// over a faint glow that always lies behind the node. It marks the step the user stands at (sketch GR6c). Put it in
+/// the same grid cell as the node, before it: it takes no room of its own, is arranged to the node's size and draws
+/// outside and behind it, so the glow always stands centred on the node. It shows only the faint still glow when
+/// Windows has animations turned off, and runs only while it is shown.
 /// </summary>
 public sealed class SonarRing : FrameworkElement
 {
-    /// <summary>The rings' colour, normally the accent.</summary>
+    /// <summary>The glow's colour, normally the accent.</summary>
     public static readonly DependencyProperty StrokeProperty = DependencyProperty.Register(
         nameof(Stroke), typeof(Brush), typeof(SonarRing),
         new FrameworkPropertyMetadata(Brushes.Transparent, FrameworkPropertyMetadataOptions.AffectsRender, OnLookChanged));
 
-    /// <summary>The corner radius of the node's outline, which the rings start from and keep as they grow.</summary>
+    /// <summary>The corner radius of the node's outline, which the glow starts from and keeps as it grows.</summary>
     public static readonly DependencyProperty CornerRadiusProperty = DependencyProperty.Register(
         nameof(CornerRadius), typeof(double), typeof(SonarRing),
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    /// <summary>How many rings are under way at once, spread evenly over one wave.</summary>
-    private const int RingCount = 3;
+    /// <summary>How long, in seconds, one wave and its rest take together (SN1a's slider, 6 s).</summary>
+    private const double PeriodSeconds = 6;
 
-    /// <summary>How long, in seconds, one ring takes from the node's edge until it has faded away.</summary>
-    private const double WaveSeconds = 2.7;
+    /// <summary>The share of the period the wave swells and dissolves in; the rest of it is the pause.</summary>
+    private const double WaveShare = 0.72;
 
-    /// <summary>How far, in pixels, a ring grows out from the node's outline before it is gone.</summary>
-    private const double Reach = 22;
+    /// <summary>The share of the period at which the wave is at its strongest.</summary>
+    private const double PeakShare = 0.36;
 
-    /// <summary>How visible a ring is as it leaves the node's edge.</summary>
-    private const double StartOpacity = 0.35;
+    /// <summary>How far, in pixels, the wave swells out from the node's outline before it is gone.</summary>
+    private const double Reach = 30;
 
-    /// <summary>The rings' line width, thin like the node's own frame.</summary>
-    private const double StrokeWidth = 1.5;
+    /// <summary>How visible the wave is at its strongest.</summary>
+    private const double PeakOpacity = 0.42;
 
-    /// <summary>How far out the one still ring stands when Windows has animations turned off.</summary>
-    private const double StillReach = 6;
+    /// <summary>The glow's blur in pixels; the wave starts at half of it and ends at one and a half.</summary>
+    private const double Blur = 18;
 
-    /// <summary>How visible the still ring is.</summary>
-    private const double StillOpacity = 0.2;
+    /// <summary>How far out from the outline the faint resting glow stands.</summary>
+    private const double RestReach = 2;
 
-    /// <summary>The exponent of the ease-out: a ring leaves quickly and slows as it fades.</summary>
-    private const double EaseExponent = 3;
+    /// <summary>The resting glow's blur, as a share of <see cref="Blur"/>.</summary>
+    private const double RestBlurShare = 0.8;
 
-    /// <summary>How long, in seconds, the rings take to fade in when the wave starts, so they never pop up.</summary>
+    /// <summary>The resting glow's opacity while the wave runs, as a share of <see cref="PeakOpacity"/>.</summary>
+    private const double RestShare = 0.32;
+
+    /// <summary>The resting glow's opacity when the wave stands still, as a share of <see cref="PeakOpacity"/>.</summary>
+    private const double StillShare = 0.45;
+
+    /// <summary>
+    /// How many filled outlines make up one blurred glow. WPF has no cheap blur for a drawing, so the blur is laid as
+    /// outlines from inside to outside the edge whose opacities add up to a soft falloff.
+    /// </summary>
+    private const int BlurLayers = 10;
+
+    /// <summary>How long, in seconds, the glow takes to fade in when the wave starts, so it never pops up.</summary>
     private const double EntrySeconds = 0.6;
 
-    /// <summary>The frozen pen the rings are drawn with, made again only when the colour changes.</summary>
-    private Pen? _pen;
+    /// <summary>The frozen colour the glow is filled with, made again only when the colour changes.</summary>
+    private Brush? _fill;
 
     /// <summary>When the wave started, on the render clock; null while it does not run.</summary>
     private TimeSpan? _start;
@@ -64,7 +78,7 @@ public sealed class SonarRing : FrameworkElement
     /// <summary>Whether the element follows the render clock.</summary>
     private bool _running;
 
-    /// <summary>Creates the rings, which never take the mouse or room in the layout.</summary>
+    /// <summary>Creates the glow, which never takes the mouse or room in the layout.</summary>
     public SonarRing()
     {
         IsHitTestVisible = false;
@@ -72,8 +86,8 @@ public sealed class SonarRing : FrameworkElement
         Focusable = false;
         IsVisibleChanged += (_, _) => Run();
 
-        // Windows' setting and the render clock are static events, so the rings listen only while they are in the
-        // window and are never held by them.
+        // Windows' setting and the render clock are static events, so the glow listens only while it is in the
+        // window and is never held by them.
         Loaded += (_, _) =>
         {
             SystemParameters.StaticPropertyChanged += OnSystemChanged;
@@ -86,7 +100,7 @@ public sealed class SonarRing : FrameworkElement
         };
     }
 
-    /// <summary>Gets or sets the rings' colour.</summary>
+    /// <summary>Gets or sets the glow's colour.</summary>
     public Brush Stroke
     {
         get => (Brush)GetValue(StrokeProperty);
@@ -100,53 +114,73 @@ public sealed class SonarRing : FrameworkElement
         set => SetValue(CornerRadiusProperty, value);
     }
 
-    /// <summary>Takes no room, so that the node alone decides the cell's size and the rings follow it.</summary>
+    /// <summary>Takes no room, so that the node alone decides the cell's size and the glow follows it.</summary>
     /// <param name="availableSize">The room offered.</param>
     /// <returns>An empty size.</returns>
     protected override Size MeasureOverride(Size availableSize) => default;
 
-    /// <summary>Draws the rings around the outline, or the one still ring when the wave does not run.</summary>
+    /// <summary>Draws the resting glow and, while the wave runs, the wave swelling out over it.</summary>
     /// <param name="drawingContext">Where to draw.</param>
     protected override void OnRender(DrawingContext drawingContext)
     {
-        var pen = _pen ??= MakePen(Stroke);
+        var fill = _fill ??= Freeze(Stroke);
         if (!_running)
         {
-            DrawRing(drawingContext, pen, StillReach, StillOpacity);
+            DrawGlow(drawingContext, fill, RestReach, Blur * RestBlurShare, PeakOpacity * StillShare);
             return;
         }
 
         var entry = Math.Min(1, _elapsed / EntrySeconds);
-        for (var ring = 0; ring < RingCount; ring++)
+        DrawGlow(drawingContext, fill, RestReach, Blur * RestBlurShare, entry * PeakOpacity * RestShare);
+
+        var phase = _elapsed / PeriodSeconds % 1;
+        if (phase >= WaveShare)
         {
-            var progress = (_elapsed / WaveSeconds + (double)ring / RingCount) % 1;
-            var eased = 1 - Math.Pow(1 - progress, EaseExponent);
-            DrawRing(drawingContext, pen, Reach * eased, entry * StartOpacity * (1 - progress));
+            return;
         }
+
+        var growth = EaseInOut(phase / WaveShare);
+        DrawGlow(drawingContext, fill, Reach * growth, Blur * (0.5 + growth), entry * PeakOpacity * WaveOpacity(phase));
     }
 
-    /// <summary>Drops the pen when the colour changes, so the next frame makes a new one.</summary>
-    /// <param name="d">The rings.</param>
+    /// <summary>How visible the wave is at a point in the period: it rises to its peak and then dissolves.</summary>
+    /// <param name="phase">Where in the period, from 0 to <see cref="WaveShare"/>.</param>
+    /// <returns>The share of the peak opacity, from 0 to 1.</returns>
+    private static double WaveOpacity(double phase) => phase < PeakShare
+        ? EaseInOut(phase / PeakShare)
+        : 1 - EaseInOut((phase - PeakShare) / (WaveShare - PeakShare));
+
+    /// <summary>A gentle ease in and out, the sketch's <c>cubic-bezier(.37, 0, .63, 1)</c> as a sine.</summary>
+    /// <param name="t">The progress, from 0 to 1.</param>
+    /// <returns>The eased progress.</returns>
+    private static double EaseInOut(double t) => (1 - Math.Cos(Math.PI * Math.Clamp(t, 0, 1))) / 2;
+
+    /// <summary>Drops the colour when it changes, so the next frame makes a new one.</summary>
+    /// <param name="d">The glow.</param>
     /// <param name="e">The change.</param>
     private static void OnLookChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
-        ((SonarRing)d)._pen = null;
+        ((SonarRing)d)._fill = null;
 
-    /// <summary>Makes the frozen pen in the given colour.</summary>
+    /// <summary>Makes a frozen copy of the colour, so drawing it every frame costs nothing.</summary>
     /// <param name="brush">The colour.</param>
-    /// <returns>The pen.</returns>
-    private static Pen MakePen(Brush brush)
+    /// <returns>The frozen colour.</returns>
+    private static Brush Freeze(Brush brush)
     {
-        var pen = new Pen(brush, StrokeWidth);
-        pen.Freeze();
-        return pen;
+        var frozen = brush.CloneCurrentValue();
+        frozen.Freeze();
+        return frozen;
     }
 
-    /// <summary>Draws one ring a distance out from the outline, keeping the outline's shape as it grows.</summary>
+    /// <summary>
+    /// Draws one blurred glow in the outline's shape: filled outlines from <paramref name="blur"/> inside the edge at
+    /// <paramref name="distance"/> to as far outside it, so that the overlap is strongest in the middle and fades out.
+    /// </summary>
     /// <param name="drawingContext">Where to draw.</param>
-    /// <param name="pen">The frozen pen.</param>
-    /// <param name="distance">How far out from the node's edge the ring stands.</param>
-    /// <param name="opacity">How visible the ring is.</param>
-    private void DrawRing(DrawingContext drawingContext, Pen pen, double distance, double opacity)
+    /// <param name="fill">The frozen colour.</param>
+    /// <param name="distance">How far out from the node's edge the glow's edge stands.</param>
+    /// <param name="blur">How soft the glow's edge is, in pixels.</param>
+    /// <param name="opacity">How visible the glow is.</param>
+    private void DrawGlow(DrawingContext drawingContext, Brush fill, double distance, double blur, double opacity)
     {
         var size = RenderSize;
         if (size.Width <= 0 || size.Height <= 0 || opacity <= 0)
@@ -154,10 +188,16 @@ public sealed class SonarRing : FrameworkElement
             return;
         }
 
-        var bounds = new Rect(-distance, -distance, size.Width + 2 * distance, size.Height + 2 * distance);
-        var radius = CornerRadius + distance;
-        drawingContext.PushOpacity(opacity);
-        drawingContext.DrawRoundedRectangle(null, pen, bounds, radius, radius);
+        drawingContext.PushOpacity(opacity / BlurLayers);
+        for (var layer = 0; layer < BlurLayers; layer++)
+        {
+            var spread = distance - blur + 2 * blur * (layer + 0.5) / BlurLayers;
+            var inset = Math.Max(spread, -Math.Min(size.Width, size.Height) / 2);
+            var bounds = new Rect(-inset, -inset, size.Width + 2 * inset, size.Height + 2 * inset);
+            var radius = Math.Max(0, CornerRadius + inset);
+            drawingContext.DrawRoundedRectangle(fill, null, bounds, radius, radius);
+        }
+
         drawingContext.Pop();
     }
 
@@ -172,7 +212,7 @@ public sealed class SonarRing : FrameworkElement
         }
     }
 
-    /// <summary>Runs the wave while the rings are shown and animations are on; otherwise they stand still.</summary>
+    /// <summary>Runs the wave while the glow is shown and animations are on; otherwise the glow stands still.</summary>
     private void Run()
     {
         if (!IsLoaded || !IsVisible || !SystemParameters.ClientAreaAnimation)
@@ -192,7 +232,7 @@ public sealed class SonarRing : FrameworkElement
         InvalidateVisual();
     }
 
-    /// <summary>Stops the wave and lets one faint ring stand still.</summary>
+    /// <summary>Stops the wave and lets the faint resting glow stand still.</summary>
     private void Stop()
     {
         if (!_running)
