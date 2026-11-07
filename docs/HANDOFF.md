@@ -115,6 +115,7 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 | 21 | **Ta tillbaka och ångra (AN1b):** fliken Historik i inspektören, tillbakatagande som förseglad post i Attribution, Clustering och Tracing, biblioteket följer, ångrad uppbrytning med bekräftelse. Startad när 19 var klar | Pågår |
 | 22 | **Kontroller och förslag (KF1a) med områden:** ramverket för kontroller och förslag (analys med namn och version, förseglade), listan Ctrl+J, områdena och egna ytor (Z), först med CoinJoin, peel chain och mixerns kandidater. Startas när 20 är klar | Väntar |
 | 23 | **Ethereum och ERC-20 (TK1a), första delen:** källan, kontomodellen och tokenmärkena. Startas när 20 är klar; delas i flera etapper | Väntar |
+| 24 | **Källornas endpoints (KL1a):** sidan Källor i ST1a, lägga till, prioritera och ta bort endpoints per kedja, lägena Snabbast (prov vid start genom utgången), Prioriterad och Av, endpointen i varje förseglat råsvar. Startas när 20 är klar | Väntar |
 
 ## Nästa steg
 

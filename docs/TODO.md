@@ -62,9 +62,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 
 ## Väntar på skiss
-- **Källornas endpoints per kedja** (användarens beslut 2026-11-07, CLAUDE.md *Datalagret*): lägga till, prioritera och
-  ta bort, och lägena Snabbast, Prioriterad lista och Av. Skissas som KL1 på sidan Inställningar och byggs som en etapp
-  (Chains, Network och sidan i ST1a).
 
 - **Förstagångsinställningens steg Utgång** (etapp 19): erbjuder bara en WireGuard-fil eller *Senare*, och VPN är
   förvalt. Valet *Windows* eller *VPN* där, som de två korten i ST1a, behöver en ändring av FS1a.
