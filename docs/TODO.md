@@ -5,12 +5,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på beslut
 
-- **Hur tunneln delas med Gawk:** ett eget exemplar av hjälpprogrammet för WireGuard i Chainsaw, eller att Chainsaw går ut
-  genom en utgång som Gawk redan har anslutit (Gawks SOCKS-port). Det andra kräver att Gawk är igång.
-- **Delning av etiketter mellan utredare:** etiketterna sparas i ärendet (`.cut`). Ska de också kunna delas, till exempel
-  som ett eget lösenordsskyddat etikettpaket som exporteras och importeras, med vem som satt etiketten och varför?
-- **Bevakning när Chainsaw är stängt:** räcker det att bevakningen går när appen är igång, eller ska den kunna gå i
-  bakgrunden (ikon i aktivitetsfältet)? Hur ska den säga till: toast i Windows, ljud, något annat?
+- **Vad av ett annat ärende som följer med en etikett** (CLAUDE.md, *Etiketter smittar*): ärendenumret, utredarens
+  anteckning och varför etiketten sattes kan vara sekretess i det andra ärendet. Förslag: ärendenumret och anteckningen
+  följer med till biblioteket men inte vidare in i ett annat ärende; där står bara vem, när och etiketten. Kan också
+  behöva gå att stänga av per ärende eller per etikett (*Sprid inte*).
+- **Hur bevakningen säger till** (den går också när Chainsaw är stängt, CLAUDE.md *Bevaka*): bara en avisering i Windows,
+  eller också ljud, e-post eller telefon? Hur ofta källan frågas (var femte minut, varje block) och om en viktig bevakning
+  ska kunna frågas oftare.
 - **Rapporten:** hur redovisningen byggs (som i Gawk med bilagor, eller enklare underlag för underrättelse). Bestäms när vi
   kommer dit.
 - **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Fråga kryptospåraren vilken som används i praktiken.

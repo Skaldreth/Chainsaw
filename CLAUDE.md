@@ -70,7 +70,14 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
 - **Uttag:** målet är att hitta den punkt där pengarna lämnar kedjan, oftast en börs, och vilka insättningar det gäller.
 - **Begäran:** Chainsaw tar fram en begäran om uppgifter till börsen ur mallar, med tx, tider och belopp.
 - **Bevaka:** adresser och kluster kan bevakas, så att användaren får veta när pengarna rör sig. Det är viktigt, särskilt
-  inför ett beslag.
+  inför ett beslag. **Bevakningen går också när Chainsaw är stängt** (användarens beslut 2026-11-07), i en egen liten
+  bakgrundsprocess som startar med Windows:
+  - Den vet bara det bevakningen kräver: adresserna och ett id för ärendet, krypterat för Windows-användaren (DPAPI), så att
+    den kan arbeta utan huvudnyckeln. Ärendet och valvet öppnas aldrig av den.
+  - Den går ut genom Chainsaws utgång och gör inga uppslag om utgången inte är ansluten (princip 4).
+  - Det den ser sparas i en kö och förs in i ärendet, med journal och hash, först när ärendet öppnas.
+  - Aviseringen säger bara att en bevakning har slagit till, inte adressen, beloppet eller ärendet. Detaljerna visas efter
+    upplåsning.
 - **Redovisa:** hur rapporten byggs bestäms när vi kommer dit (användarens beslut 2026-11-06).
 
 **Spåret tar slut** är ett eget, uttalat läge med orsak: privacy coin, mixer eller CoinJoin, brygga eller swap till annan
@@ -141,7 +148,16 @@ tests/                      xUnit, ett testprojekt per modul
 
 - **En fil per ärende:** `<ärendenummer>.cut`, krypterad och lösenordsskyddad på samma sätt som Gawks ärenden (huvudnyckeln
   låser upp). Allt ligger i filen: hämtade svar, kluster, etiketter, grafens läge, bevakningar och journal.
-- **Appdata** i `%LOCALAPPDATA%\Chainsaw\`: valv, inställningar och delade listor (sanktionslistor, öppna etikettkällor).
+- **Appdata** i `%LOCALAPPDATA%\Chainsaw\`: valv, inställningar, delade listor (sanktionslistor, öppna etikettkällor) och
+  etikettbiblioteket.
+- **Etiketter smittar** (användarens beslut 2026-11-07). En etikett hör hemma i ärendet där den sattes, men det finns också
+  ett **samlat etikettbibliotek** på datorn, krypterat i valvet, som sammanställer etiketterna ur alla ärenden man öppnat:
+  - När ett ärende öppnas läses dess etiketter in i biblioteket, också när det är en kollegas fil.
+  - Biblioteket smittar tillbaka: adresser i ärendet som har en etikett i biblioteket får den i ärendet, så att kollegans
+    kunskap följer med nästa gång filen lämnas vidare.
+  - En etikett behåller alltid sitt ursprung (vem, när, varför och från vilket ärende den kom) och visas som *från ett annat
+    ärende* när den inte sattes här. Den blir en bedömning i det nya ärendet, aldrig ett faktum (princip 2).
+  - Samma etikett som kommer in flera gånger slås ihop, och flera oberoende ursprung visas som bekräftelse.
 - **Före 1.0 får schemat ändras fritt.** Migreringar får slås ihop och gamla testärenden behöver inte fungera.
 
 ### Säkerhet
@@ -149,8 +165,8 @@ tests/                      xUnit, ett testprojekt per modul
 - **Huvudnyckeln lagras aldrig.** Samma modell som Gawk: en slumpad datanyckel (AES-256-GCM) lindad med en nyckel härledd
   ur huvudnyckeln (PBKDF2-SHA512). Datanyckeln finns i minnet bara medan appen är upplåst.
 - **Låsning** automatiskt efter inaktivitet, när Windows låses och med Ctrl+L.
-- **Utgångar:** Chainsaw kan dela tunnel med Gawk (användarens beslut 2026-11-06). Hur, ett eget exemplar av hjälpprogrammet
-  eller Gawks anslutna utgång, står i `docs/TODO.md` under *Väntar på beslut*.
+- **Utgångar:** Chainsaw har ett **eget exemplar** av hjälpprogrammet för WireGuard och egna utgångar, och är inte beroende
+  av att Gawk är igång (användarens beslut 2026-11-07). Samma sorts tunnel som Gawk, men Chainsaws egen.
 
 ## Gränssnitt
 
