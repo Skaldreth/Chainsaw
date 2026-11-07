@@ -465,8 +465,8 @@ Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunnel
 
 **Titelraden och statusraden**
 - Utan ansluten utgång står det *Ingen utgång* med en grå prick och en liten pil i titelraden, och statusraden säger
-  *Offline: ingen utgång ansluten. Det ärendet redan har visas, men inget nytt hämtas.*. Med en ansluten utgång: grön prick och namnet, och
-  statusraden *Uppslag går genom utgången …*.
+  *Offline: ingen utgång ansluten. Det ärendet redan har visas, men inget nytt hämtas.* Med en ansluten utgång: grön
+  prick och namnet, och statusraden *Uppslag går genom utgången …*.
 - Hovring över utgången visar statusradens text. Fönstret går fortfarande att dra i titelraden runt knappen.
 
 **Rutan**
