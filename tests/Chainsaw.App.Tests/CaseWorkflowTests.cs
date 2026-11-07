@@ -1,0 +1,207 @@
+using Chainsaw.App.ViewModels;
+using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Security.Contracts;
+
+namespace Chainsaw.App.Tests;
+
+public sealed class CaseWorkflowTests
+{
+    [Fact]
+    public async Task Opening_a_case_saves_and_closes_the_one_open_before()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("A1", 10);
+        rig.Cases.AddFile("A2", 5);
+        await rig.Workflow.OpenAsync("A1");
+        var first = (TestCase)rig.Session.Current!;
+
+        var reply = await rig.Workflow.OpenAsync("A2");
+
+        Assert.False(reply.IsError);
+        Assert.Equal(1, first.Disposed);
+        Assert.Equal("A2", rig.Session.Current!.Info.CaseNumber);
+        Assert.Equal("Ärendet A2 är öppet.", reply.Text);
+    }
+
+    [Fact]
+    public async Task A_case_that_is_already_open_is_not_opened_again()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("A1", 10);
+        await rig.Workflow.OpenAsync("A1");
+        var open = rig.Session.Current;
+
+        var reply = await rig.Workflow.OpenAsync("a1");
+
+        Assert.False(reply.IsError);
+        Assert.Same(open, rig.Session.Current);
+        Assert.Single(rig.Cases.Cases);
+    }
+
+    [Fact]
+    public async Task A_missing_case_is_said_in_words()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+
+        var reply = await rig.Workflow.OpenAsync("A9");
+
+        Assert.True(reply.IsError);
+        Assert.Equal(CaseTexts.For(CaseError.NotFound), reply.Text);
+        Assert.Null(rig.Session.Current);
+    }
+
+    [Fact]
+    public async Task A_failed_save_of_the_case_open_before_is_said_and_the_next_case_still_opens()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("A1", 10);
+        rig.Cases.AddFile("A2", 5);
+        await rig.Workflow.OpenAsync("A1");
+        ((TestCase)rig.Session.Current!).CloseFailure = new IOException("disk");
+
+        var reply = await rig.Workflow.OpenAsync("A2");
+
+        Assert.Contains("A1 gick inte att spara", reply.Text, StringComparison.Ordinal);
+        Assert.Equal("A2", rig.Session.Current!.Info.CaseNumber);
+    }
+
+    [Fact]
+    public async Task Closing_saves_and_says_so()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("A1", 10);
+        await rig.Workflow.OpenAsync("A1");
+        var open = (TestCase)rig.Session.Current!;
+
+        var reply = await rig.Workflow.CloseAsync();
+
+        Assert.Equal("Ärendet A1 sparades och stängdes.", reply.Text);
+        Assert.Equal(1, open.Disposed);
+        Assert.Null(rig.Session.Current);
+        Assert.True((await rig.Workflow.CloseAsync()).IsError);
+    }
+
+    [Fact]
+    public async Task A_case_opened_while_Chainsaw_locked_is_closed_again()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("A1", 10);
+        rig.Cases.DuringCreate = null;
+        var store = rig.Cases;
+        rig.Vault.Set(VaultState.Locked);
+
+        var reply = await rig.Workflow.OpenAsync("A1");
+
+        Assert.True(reply.IsError);
+        Assert.Null(rig.Session.Current);
+        Assert.True(SpinWait.SpinUntil(() => store.Cases[0].Disposed > 0, TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task A_new_case_gets_its_title_its_bitcoin_start_points_and_a_note_for_the_rest()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var request = new NewCaseRequest(
+            "2026-0117",
+            "Investeringsbedrägeri via chatt",
+            [
+                ChainStartPoint.Recognise(Samples.Address),
+                ChainStartPoint.Recognise(Samples.Txid),
+                ChainStartPoint.Recognise(Samples.Tron),
+            ]);
+
+        var creation = await rig.Workflow.CreateAsync(request, sharingPassword: null);
+
+        Assert.True(creation.IsCreated);
+        Assert.False(creation.Reply.IsError);
+        var created = (TestCase)rig.Session.Current!;
+        Assert.Equal("Investeringsbedrägeri via chatt", created.Title);
+        Assert.Equal(
+            [Samples.Address, Samples.Txid],
+            rig.Tracing.Added.Select(item => item.StartPoint.ToString()));
+        var note = Assert.Single(created.Journal);
+        Assert.Equal(AppJournalKinds.StartPointNoted, note.Kind);
+        Assert.Contains(Samples.Tron, note.Summary, StringComparison.Ordinal);
+        Assert.False(created.HasSharingPassword);
+    }
+
+    [Fact]
+    public async Task A_shared_case_gets_its_sharing_envelope()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+
+        await rig.Workflow.CreateAsync(new NewCaseRequest("A1", string.Empty, []), "ett långt lösenord".ToCharArray());
+
+        Assert.Equal("ett långt lösenord", ((TestCase)rig.Session.Current!).SharingPassword);
+    }
+
+    [Fact]
+    public async Task A_start_point_that_fails_after_the_case_exists_keeps_the_case_open_and_says_so()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Tracing.Failure = new CaseException(CaseError.NoOperatorProfile);
+
+        var creation = await rig.Workflow.CreateAsync(
+            new NewCaseRequest("A1", string.Empty, [ChainStartPoint.Recognise(Samples.Address)]), null);
+
+        Assert.True(creation.IsCreated);
+        Assert.True(creation.Reply.IsError);
+        Assert.Contains("lades inte till", creation.Reply.Text, StringComparison.Ordinal);
+        Assert.NotNull(rig.Session.Current);
+    }
+
+    [Fact]
+    public async Task A_case_number_that_exists_creates_nothing()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.Failure = new CaseException(CaseError.AlreadyExists);
+
+        var creation = await rig.Workflow.CreateAsync(new NewCaseRequest("A1", string.Empty, []), null);
+
+        Assert.False(creation.IsCreated);
+        Assert.Equal(CaseTexts.For(CaseError.AlreadyExists), creation.Reply.Text);
+    }
+
+    [Fact]
+    public async Task A_start_point_is_added_to_the_open_case_once()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        await rig.Workflow.CreateAsync(new NewCaseRequest("A1", string.Empty, []), null);
+        var startPoint = ChainStartPoint.Recognise(Samples.Address);
+
+        var first = await rig.Workflow.AddStartPointAsync(startPoint);
+        var again = await rig.Workflow.AddStartPointAsync(startPoint);
+
+        Assert.Contains("lades till", first.Text, StringComparison.Ordinal);
+        Assert.Contains("redan en startpunkt", again.Text, StringComparison.Ordinal);
+        Assert.Single(rig.Tracing.Added);
+    }
+
+    [Fact]
+    public async Task The_case_worked_on_last_is_suggested_first_and_the_open_one_not_at_all()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("2026-0100", 60);
+        rig.Cases.AddFile("2026-0117", 1);
+        rig.Cases.AddFile("2025-0001", 5);
+        rig.Cases.AddFile("B7", 2);
+        await rig.Workflow.OpenAsync("B7");
+
+        Assert.Equal(["2026-0117", "2025-0001", "2026-0100"], rig.Workflow.SuggestCaseNumbers(string.Empty));
+        Assert.Equal(["2026-0117", "2026-0100"], rig.Workflow.SuggestCaseNumbers("2026"));
+    }
+
+    [Fact]
+    public void Closing_at_exit_waits_for_the_save()
+    {
+        var session = new CaseSession();
+        var open = new TestCase("A1");
+        session.Open(open);
+
+        Assert.True(session.CloseNow());
+
+        Assert.Equal(1, open.Disposed);
+        Assert.Null(session.Current);
+    }
+}

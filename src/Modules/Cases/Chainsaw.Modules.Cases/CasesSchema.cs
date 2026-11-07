@@ -3,7 +3,7 @@ using Chainsaw.Modules.Cases.Contracts;
 namespace Chainsaw.Modules.Cases;
 
 /// <summary>
-/// The Cases module's own tables: what the case says about itself, the chains' heads and the journal.
+/// The Cases module's own tables: what the case says about itself, the chains' heads, the journal and the title.
 /// </summary>
 internal sealed class CasesSchema : ICaseSchemaContributor
 {
@@ -18,6 +18,11 @@ internal sealed class CasesSchema : ICaseSchemaContributor
             "utc", "local", "time_zone", "operator_name", "operator_title", "operator_organization",
             "kind", "summary", "details",
         ]);
+
+    /// <summary>
+    /// The case's titles, sealed like the journal: the last record is the title in force, the earlier ones stay.
+    /// </summary>
+    public static readonly SealedChain Title = new("cases.title", "case_title", ["utc", "title"]);
 
     /// <summary>The first version of the tables.</summary>
     private const string Version1 = """
@@ -60,13 +65,26 @@ internal sealed class CasesSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>The second version: the case's title (stage 11).</summary>
+    private const string Version2 = """
+        CREATE TABLE case_title (
+            sequence INTEGER PRIMARY KEY,
+            utc TEXT NOT NULL,
+            title TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc />
     public string Module => ModuleName;
 
     /// <inheritdoc />
     public IReadOnlyList<CaseSchemaStep> Steps { get; } =
-        [new(1, "Case information, chain heads and the journal", Version1)];
+        [
+            new(1, "Case information, chain heads and the journal", Version1),
+            new(2, "The case's title", Version2),
+        ];
 
     /// <inheritdoc />
-    public IReadOnlyList<SealedChain> SealedChains { get; } = [Journal];
+    public IReadOnlyList<SealedChain> SealedChains { get; } = [Journal, Title];
 }

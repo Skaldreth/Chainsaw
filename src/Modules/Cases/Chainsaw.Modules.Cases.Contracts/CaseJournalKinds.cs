@@ -42,4 +42,10 @@ public static class CaseJournalKinds
     /// key's fingerprint.
     /// </summary>
     public const string OpenedWithRecoveryKey = "case.opened-with-recovery-key";
+
+    /// <summary>
+    /// The case's title was set or changed; the details give the new title. Earlier titles stay in the sealed chain
+    /// <c>cases.title</c>.
+    /// </summary>
+    public const string TitleSet = "case.title-set";
 }

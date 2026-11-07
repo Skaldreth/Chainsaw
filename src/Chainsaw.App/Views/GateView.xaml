@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Chainsaw.App.Controls"
              xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:cases="clr-namespace:Chainsaw.Modules.Cases.Contracts;assembly=Chainsaw.Modules.Cases.Contracts"
              Focusable="False">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
@@ -208,6 +209,16 @@
                         <TextBlock Text="Ärendenummer" Style="{StaticResource Text.Label}" Margin="0,16,0,6" />
                         <TextBox x:Name="CaseNumberBox" Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Ärendenummer"
                                  Text="{Binding CaseNumber, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="Titel" Style="{StaticResource Text.Label}" Margin="0,14,0,6" />
+                        <TextBox Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Titel"
+                                 MaxLength="{x:Static cases:CaseTitleRules.MaximumLength}"
+                                 Text="{Binding CaseTitle, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="Startpunkt" Style="{StaticResource Text.Label}" Margin="0,14,0,6" />
+                        <TextBox Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Startpunkt"
+                                 FontFamily="{StaticResource Font.Mono}" FontSize="12.5"
+                                 Text="{Binding StartPointText, UpdateSourceTrigger=PropertyChanged}" />
+                        <ContentControl Content="{Binding StartPoint}" ContentTemplate="{StaticResource StartPointLine}"
+                                        Focusable="False" Visibility="{Binding HasStartPoint, Converter={StaticResource Visible}}" />
                     </StackPanel>
 
                     <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" Margin="0,16,0,0" />

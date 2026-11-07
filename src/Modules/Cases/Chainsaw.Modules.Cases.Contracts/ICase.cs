@@ -20,6 +20,12 @@ public interface ICase : IDisposable
     /// <summary>Gets what the case says about itself.</summary>
     CaseInfo Info { get; }
 
+    /// <summary>
+    /// Gets the case's title, the last one set with <see cref="SetTitle"/>; empty when it has none. Read without
+    /// touching the database, so it can be read on the UI thread, also after the case has closed.
+    /// </summary>
+    string Title { get; }
+
     /// <summary>Gets the path of the case file.</summary>
     string Path { get; }
 
@@ -63,6 +69,20 @@ public interface ICase : IDisposable
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
     /// </exception>
     JournalEntry AppendJournal(JournalDraft draft);
+
+    /// <summary>
+    /// Sets the case's title (see <see cref="CaseTitleRules"/>): the title is sealed in the chain <c>cases.title</c>
+    /// with a line in the journal, in one transaction, so that every earlier title stays. Setting the title it already
+    /// has does nothing.
+    /// </summary>
+    /// <param name="title">The title; it is normalized first, and an empty title means none.</param>
+    /// <returns><see langword="true"/> when the title changed.</returns>
+    /// <exception cref="ArgumentException">The title is too long or holds control characters.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/>, <see cref="CaseError.Corrupt"/> when the title's table has been
+    /// changed outside Chainsaw, or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    bool SetTitle(string title);
 
     /// <summary>Reads journal entries in order.</summary>
     /// <param name="fromSequence">The first sequence number to read; the journal starts at 1.</param>

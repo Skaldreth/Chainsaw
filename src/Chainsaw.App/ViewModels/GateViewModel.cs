@@ -23,6 +23,9 @@ public sealed partial class GateViewModel : ObservableObject
     /// <summary>The automatic lock after inactivity.</summary>
     private readonly AutoLock _autoLock;
 
+    /// <summary>The links that wait while Chainsaw is locked.</summary>
+    private readonly LinkInbox _links;
+
     /// <summary>Creates the gate and chooses what is shown first from the vault's state.</summary>
     /// <param name="vault">The vault.</param>
     /// <param name="lockScreen">The lock screen.</param>
@@ -30,6 +33,8 @@ public sealed partial class GateViewModel : ObservableObject
     /// <param name="shell">The shell.</param>
     /// <param name="session">The open case.</param>
     /// <param name="autoLock">The automatic lock.</param>
+    /// <param name="links">The links, handed to the shell only while it is shown.</param>
+    /// <param name="lockSignal">Requests to lock from the command bar (<c>/lock</c>).</param>
     /// <param name="ui">The UI thread, where the vault's changes are shown.</param>
     public GateViewModel(
         IVault vault,
@@ -38,12 +43,15 @@ public sealed partial class GateViewModel : ObservableObject
         ShellViewModel shell,
         CaseSession session,
         AutoLock autoLock,
+        LinkInbox links,
+        LockSignal lockSignal,
         IUiThread ui)
     {
         _vault = vault;
         _shell = shell;
         _session = session;
         _autoLock = autoLock;
+        _links = links;
         LockScreen = lockScreen;
         FirstRun = firstRun;
         Mode = vault.State switch
@@ -54,6 +62,11 @@ public sealed partial class GateViewModel : ObservableObject
         };
         vault.StateChanged += (_, state) => ui.Post(() => OnVaultChanged(state));
         firstRun.Completed += (_, _) => OnSetupCompleted();
+        lockSignal.Requested += (_, _) => Lock();
+        if (Mode == GateMode.Unlocked)
+        {
+            links.Open();
+        }
     }
 
     /// <summary>Gets the lock screen.</summary>
@@ -157,19 +170,25 @@ public sealed partial class GateViewModel : ObservableObject
         }
     }
 
-    /// <summary>Shows the lock screen in place of everything else and lets go of what the shell held.</summary>
+    /// <summary>
+    /// Shows the lock screen in place of everything else and lets go of what the shell held: the command bar, Nytt
+    /// ärende with what was written in it, and the open case. Links wait from now on.
+    /// </summary>
     private void HideEverything()
     {
         Mode = GateMode.Locked;
+        _links.Close();
         _shell.ClearCommand();
+        _shell.NewCase.Dismiss();
         _session.Forget();
         LockScreen.Reset();
     }
 
-    /// <summary>Shows the shell and starts the time without activity anew.</summary>
+    /// <summary>Shows the shell, starts the time without activity anew and hands over a link that waits.</summary>
     private void Open()
     {
         _autoLock.Touch();
         Mode = GateMode.Unlocked;
+        _links.Open();
     }
 }

@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -25,26 +26,20 @@ public sealed partial class FirstRunViewModel : ObservableObject
     /// <summary>Where the exit is stored.</summary>
     private readonly IExitStore _exits;
 
-    /// <summary>Where the first case is created.</summary>
-    private readonly ICaseStore _cases;
-
-    /// <summary>The window's open case, which the first case becomes.</summary>
-    private readonly CaseSession _session;
+    /// <summary>Creates the first case and makes it the window's open case.</summary>
+    private readonly CaseWorkflow _workflow;
 
     /// <summary>Creates the setup at its first step.</summary>
     /// <param name="vault">The vault.</param>
     /// <param name="profiles">The operator profile's store.</param>
     /// <param name="exits">The exits' store.</param>
-    /// <param name="cases">The cases.</param>
-    /// <param name="session">The window's open case.</param>
-    public FirstRunViewModel(
-        IVault vault, IOperatorProfileStore profiles, IExitStore exits, ICaseStore cases, CaseSession session)
+    /// <param name="workflow">Creates the first case.</param>
+    public FirstRunViewModel(IVault vault, IOperatorProfileStore profiles, IExitStore exits, CaseWorkflow workflow)
     {
         _vault = vault;
         _profiles = profiles;
         _exits = exits;
-        _cases = cases;
-        _session = session;
+        _workflow = workflow;
     }
 
     /// <summary>Raised when the setup is done and the shell can be shown.</summary>
@@ -71,6 +66,21 @@ public sealed partial class FirstRunViewModel : ObservableObject
     /// <summary>Gets or sets the first case's number.</summary>
     [ObservableProperty]
     public partial string CaseNumber { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the first case's title; it may be left empty.</summary>
+    [ObservableProperty]
+    public partial string CaseTitle { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the first case's start point; it may be left empty.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StartPoint), nameof(HasStartPoint))]
+    public partial string StartPointText { get; set; } = string.Empty;
+
+    /// <summary>Gets what Chains recognises in the start point, for the line under the field.</summary>
+    public StartPointLine StartPoint => new(ChainStartPoint.Recognise(StartPointText));
+
+    /// <summary>Gets whether a start point is written, so that the line under the field is shown.</summary>
+    public bool HasStartPoint => StartPointText.Trim().Length > 0;
 
     /// <summary>Gets why the last step did not go on, or an empty text.</summary>
     [ObservableProperty]
@@ -395,7 +405,10 @@ public sealed partial class FirstRunViewModel : ObservableObject
         }
     }
 
-    /// <summary>Creates the first case through Cases, makes it the open case and ends the setup.</summary>
+    /// <summary>
+    /// Creates the first case with its title and start point through <see cref="CaseWorkflow"/>, which makes it the
+    /// open case, and ends the setup.
+    /// </summary>
     /// <returns>A task that completes when the case is created or the reason is shown.</returns>
     private async Task CreateCaseAsync()
     {
@@ -408,57 +421,42 @@ public sealed partial class FirstRunViewModel : ObservableObject
 
         if (!CaseNumberRules.IsValid(number))
         {
-            ErrorText = $"Ärendenumret får ha bokstäver, siffror, mellanslag, - _ och . och högst "
-                + $"{CaseNumberRules.MaximumLength} tecken.";
+            ErrorText = CaseTexts.InvalidCaseNumber;
             return;
         }
 
+        if (!CaseTitleRules.IsValid(CaseTitle))
+        {
+            ErrorText = CaseTexts.InvalidTitle;
+            return;
+        }
+
+        var startPoint = StartPoint.StartPoint;
+        if (HasStartPoint && !startPoint.IsRecognised)
+        {
+            ErrorText = "Startpunkten känns inte igen som en adress eller en tx.";
+            return;
+        }
+
+        var request = new NewCaseRequest(
+            number, CaseTitleRules.Normalize(CaseTitle), HasStartPoint ? [startPoint] : []);
         IsBusy = true;
+        CaseCreation creation;
         try
         {
-            var created = await Task.Run(() => _cases.Create(number));
-            if (_vault.State != VaultState.Unlocked)
-            {
-                // Locked while the case was created: Cases has closed it, and the lock screen stays.
-                _ = Task.Run(() => CaseSession.DisposeQuietly(created));
-                return;
-            }
-
-            _session.Open(created);
-        }
-        catch (CaseException exception)
-        {
-            ErrorText = TextFor(exception.Error);
-            return;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            ErrorText = "Ärendet gick inte att spara i ärendemappen.";
-            return;
-        }
-        catch (Exception exception) when (exception is not (OperationCanceledException or ArgumentException))
-        {
-            ErrorText = "Ärendet gick inte att skapa.";
-            return;
+            creation = await _workflow.CreateAsync(request, sharingPassword: null);
         }
         finally
         {
             IsBusy = false;
         }
 
+        if (!creation.IsCreated)
+        {
+            ErrorText = creation.Reply.Text;
+            return;
+        }
+
         Completed?.Invoke(this, EventArgs.Empty);
     }
-
-    /// <summary>Gives the Swedish text for why the case was not created.</summary>
-    /// <param name="error">The reason.</param>
-    /// <returns>The text.</returns>
-    private static string TextFor(CaseError error) => error switch
-    {
-        CaseError.AlreadyExists => "Det finns redan ett ärende med det numret.",
-        CaseError.InvalidCaseNumber => "Ärendenumret går inte att använda som filnamn.",
-        CaseError.InUse => "Ärendet används redan av en annan Chainsaw.",
-        CaseError.VaultLocked => "Valvet är låst, så ärendet skapades inte.",
-        CaseError.NoOperatorProfile => "Operatörsprofilen saknas. Gå tillbaka och skriv ditt namn.",
-        _ => "Ärendet gick inte att skapa.",
-    };
 }

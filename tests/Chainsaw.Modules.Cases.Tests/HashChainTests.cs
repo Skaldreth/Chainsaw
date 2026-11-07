@@ -33,12 +33,12 @@ public sealed class HashChainTests : IDisposable
 
         Assert.True(verification.IsIntact);
         Assert.Equal(_fixture.Clock.UtcNow, verification.CheckedUtc);
-        Assert.Equal(["cases.journal", "test.sealed"], verification.Chains.Select(chain => chain.Chain));
+        Assert.Equal(["cases.journal", "cases.title", "test.sealed"], verification.Chains.Select(chain => chain.Chain));
         var journal = verification.Chains[0];
         Assert.Equal(5, journal.RecordCount);
         Assert.Equal(5, journal.HeadSequence);
         Assert.Equal(opened.ReadJournal()[^1].Hash, journal.HeadHash);
-        Assert.Equal(2, verification.Chains[1].HeadSequence);
+        Assert.Equal(2, verification.Chains[2].HeadSequence);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class HashChainTests : IDisposable
             "DELETE FROM test_sealed WHERE sequence = 2",
             HashChain.Triggers("test_sealed")[1].Sql);
 
-        var sealedChain = Verify().Chains[1];
+        var sealedChain = Verify().Chains[2];
 
         Assert.Equal(new ChainBreak(2, ChainBreakReason.HeadMismatch), sealedChain.Break);
         Assert.Equal(1, sealedChain.HeadSequence);
@@ -190,7 +190,7 @@ public sealed class HashChainTests : IDisposable
     {
         Tamper("DROP TABLE test_sealed");
 
-        Assert.Equal(new ChainBreak(0, ChainBreakReason.TableChanged), Verify().Chains[1].Break);
+        Assert.Equal(new ChainBreak(0, ChainBreakReason.TableChanged), Verify().Chains[2].Break);
     }
 
     [Fact]

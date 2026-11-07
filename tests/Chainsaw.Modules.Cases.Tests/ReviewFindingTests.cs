@@ -107,7 +107,7 @@ public sealed class ReviewFindingTests : IDisposable
         }));
         var verification = new CaseVerifier(_fixture.Clock).Verify(opened);
         Assert.True(verification.IsIntact);
-        Assert.Equal(["cases.journal", "test.sealed"], verification.Chains.Select(chain => chain.Chain));
+        Assert.Equal(["cases.journal", "cases.title", "test.sealed"], verification.Chains.Select(chain => chain.Chain));
     }
 
     [Fact]

@@ -229,6 +229,35 @@ public sealed class FirstRunViewModelTests
         Assert.Equal(["IsMasterKey", "IsMasterKeyChosen"], keyNames);
     }
 
+    [Fact]
+    public async Task The_first_case_gets_its_title_and_start_point()
+    {
+        var rig = await AtFirstCase();
+        rig.FirstRun.CaseNumber = "2026-0117";
+        rig.FirstRun.CaseTitle = "Investeringsbedrägeri via chatt";
+        rig.FirstRun.StartPointText = Samples.Address;
+
+        Assert.True(rig.FirstRun.HasStartPoint);
+        Assert.Equal("Bitcoin-adress", rig.FirstRun.StartPoint.KindText);
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+
+        Assert.Equal("2026-0117 · Investeringsbedrägeri via chatt", rig.Shell.CaseTitle);
+        Assert.Equal(Samples.Address, rig.Tracing.Added.Single().StartPoint.ToString());
+    }
+
+    [Fact]
+    public async Task An_unknown_start_point_creates_no_first_case()
+    {
+        var rig = await AtFirstCase();
+        rig.FirstRun.CaseNumber = "2026-0117";
+        rig.FirstRun.StartPointText = "hej";
+
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+
+        Assert.Empty(rig.Cases.Created);
+        Assert.True(rig.FirstRun.HasError);
+    }
+
     private static async Task<GateRig> AtMasterKey()
     {
         var rig = new GateRig(VaultState.NotCreated);

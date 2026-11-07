@@ -100,11 +100,22 @@
                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </Button>
 
-                        <!-- No exit is connected until the network is built: a grey dot and the honest words. -->
+                        <!-- The exit, honestly: a green dot and its place while it is connected, grey words otherwise. -->
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center"
-                                    ToolTip="Utgångar är inte byggda än">
-                            <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.TextFaint}" Margin="0,0,6,0" />
-                            <TextBlock Text="Ingen utgång" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                                    ToolTip="{Binding SourceText}">
+                            <Ellipse Width="7" Height="7" Margin="0,0,6,0">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{StaticResource Brush.TextFaint}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsExitConnected}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="{Binding ExitText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
                         </StackPanel>
                     </DockPanel>
                 </Border>
@@ -128,14 +139,19 @@
 
                         <!-- The command bar: search and commands are here and nowhere else (decided 2026-11-07). -->
                         <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20">
-                            <TextBlock Text="{Binding CommandAnswer}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
-                                       HorizontalAlignment="Center" Margin="0,0,0,8">
+                            <!-- The answer above the bar, or the hint for what is written; an error in the error colour. -->
+                            <TextBlock Text="{Binding ShownAbove}" FontSize="12" MaxWidth="560" TextWrapping="Wrap"
+                                       HorizontalAlignment="Center" Margin="0,0,0,8" LineHeight="18">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
                                         <Style.Triggers>
                                             <Trigger Property="Text" Value="">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </Trigger>
+                                            <DataTrigger Binding="{Binding IsShowingError}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
@@ -167,7 +183,7 @@
                                         <TextBox x:Name="CommandBox" Style="{StaticResource TextBox.Command}"
                                                  Tag="Sök adress, tx eller etikett, eller skriv /kommando"
                                                  Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}"
-                                                 AutomationProperties.Name="Kommandorad">
+                                                 AutomationProperties.Name="Kommandorad" PreviewKeyDown="OnCommandKey">
                                             <TextBox.InputBindings>
                                                 <KeyBinding Key="Enter" Command="{Binding SubmitCommand}" />
                                                 <KeyBinding Key="Escape" Command="{Binding ClearCommandCommand}" />
@@ -202,14 +218,28 @@
                     </Grid>
                 </Grid>
 
-                <!-- ===== Status line: the source, honestly none until the data layer is built ===== -->
+                <!-- ===== Status line: where lookups go, honestly offline while no exit is connected ===== -->
                 <Border Grid.Row="2" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
                         BorderThickness="0,1,0,0">
                     <StackPanel Orientation="Horizontal" Margin="14,0" VerticalAlignment="Center">
-                        <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.TextFaint}" Margin="0,0,6,0" />
+                        <Ellipse Width="7" Height="7" Margin="0,0,6,0">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="{StaticResource Brush.TextFaint}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsExitConnected}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
                         <TextBlock Text="{Binding SourceText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
                     </StackPanel>
                 </Border>
+
+                <!-- Nytt ärende (NC1a): over everything under the title bar, with the rest darkened. -->
+                <views:NewCasePanel x:Name="NewCasePanel" Grid.Row="1" Grid.RowSpan="2" />
             </Grid>
 
             <!-- The gate: the lock screen (ID7) or the first-run setup (FS1a) on the field, in place of everything. -->

@@ -188,7 +188,15 @@ public sealed class GateViewModelTests
         var rig = new GateRig(VaultState.Locked);
         var posted = new List<Action>();
         var gate = new GateViewModel(
-            rig.Vault, rig.LockScreen, rig.FirstRun, rig.Shell, rig.Session, rig.AutoLock, new QueueUi(posted));
+            rig.Vault,
+            rig.LockScreen,
+            rig.FirstRun,
+            rig.Shell,
+            rig.Session,
+            rig.AutoLock,
+            rig.Links,
+            rig.LockSignal,
+            new QueueUi(posted));
 
         await rig.LockScreen.UnlockAsync(new TestEntry("correct horse battery"));
         rig.Vault.Lock();

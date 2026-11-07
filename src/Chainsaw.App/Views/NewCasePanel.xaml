@@ -1,0 +1,106 @@
+<UserControl x:Class="Chainsaw.App.Views.NewCasePanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:cases="clr-namespace:Chainsaw.Modules.Cases.Contracts;assembly=Chainsaw.Modules.Cases.Contracts"
+             Focusable="False" Visibility="Collapsed">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+    </UserControl.Resources>
+
+    <!--
+      Nytt ärende (sketch NC1a): the rest of the window darkens, and the panel comes in from the right, 470 px wide.
+      A click on the dark part closes the panel, as Avbryt and Esc do.
+    -->
+    <Grid>
+        <Rectangle Fill="#8C000000" MouseLeftButtonDown="OnDimClicked" />
+        <Border HorizontalAlignment="Right" Width="470" Background="{StaticResource Brush.Surface}"
+                BorderBrush="{StaticResource Brush.Border}" BorderThickness="1,0,0,0">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="40" ShadowDepth="0" Opacity="0.35" Color="Black" />
+            </Border.Effect>
+            <DockPanel>
+                <!-- The head: the name, its shortcut and × -->
+                <Border DockPanel.Dock="Top" Height="56" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1"
+                        Padding="24,0,16,0">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Window}" Width="30" Height="30"
+                                Click="OnCancel" AutomationProperties.Name="Stäng" ToolTip="Stäng (Esc)">
+                            <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" StrokeThickness="1"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                        <TextBlock DockPanel.Dock="Right" Text="Ctrl+N" FontSize="11" Foreground="{StaticResource Brush.TextDim}"
+                                   VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock Text="Nytt ärende" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
+
+                <!-- The foot: the shortcut, Avbryt and Skapa ärende -->
+                <Border DockPanel.Dock="Bottom" Height="68" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0"
+                        Padding="24,0">
+                    <DockPanel VerticalAlignment="Center">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="38" Padding="18,0"
+                                Content="Skapa ärende" Click="OnCreate" Margin="10,0,0,0" ToolTip="Skapa ärende (Ctrl+Enter)"
+                                IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="38" Padding="14,0"
+                                Content="Avbryt" Click="OnCancel" ToolTip="Avbryt (Esc)"
+                                IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}" />
+                        <TextBlock Text="Ctrl+Enter skapar" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <StackPanel Margin="24,22,24,22">
+                        <TextBlock Text="Ärendenummer" Style="{StaticResource Text.Label}" />
+                        <TextBox x:Name="CaseNumberBox" Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Ärendenummer"
+                                 MaxLength="{x:Static cases:CaseNumberRules.MaximumLength}"
+                                 Text="{Binding CaseNumber, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Text="Titel" Style="{StaticResource Text.Label}" Margin="0,16,0,6" />
+                        <TextBox Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Titel"
+                                 MaxLength="{x:Static cases:CaseTitleRules.MaximumLength}"
+                                 Text="{Binding CaseTitle, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Text="Startpunkter" Style="{StaticResource Text.Label}" Margin="0,16,0,6" />
+                        <TextBox Style="{StaticResource TextBox.Area}" AutomationProperties.Name="Startpunkter"
+                                 ToolTip="En adress eller tx per rad"
+                                 Text="{Binding StartPointsText, UpdateSourceTrigger=PropertyChanged}" />
+                        <ItemsControl ItemsSource="{Binding StartPoints}" ItemTemplate="{StaticResource StartPointLine}"
+                                      Focusable="False" />
+
+                        <Border Height="1" Background="{StaticResource Brush.Border}" Margin="0,18,0,16" />
+
+                        <ToggleButton Style="{StaticResource Toggle.Switch}" IsChecked="{Binding IsShared}"
+                                      AutomationProperties.Name="Kan öppnas av en kollega">
+                            <StackPanel>
+                                <TextBlock Text="Kan öppnas av en kollega" FontSize="13" />
+                                <TextBlock Text="Ett ärendelösenord som du ger kollegan" FontSize="12"
+                                           Foreground="{StaticResource Brush.TextDim}" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <Grid Margin="0,12,0,0" Visibility="{Binding IsShared, Converter={StaticResource Visible}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Ärendelösenord" Style="{StaticResource Text.Label}" />
+                                <PasswordBox x:Name="SharingBox" Style="{StaticResource PasswordBox.Field}"
+                                             AutomationProperties.Name="Ärendelösenord" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Upprepa" Style="{StaticResource Text.Label}" />
+                                <PasswordBox x:Name="RepeatBox" Style="{StaticResource PasswordBox.Field}"
+                                             AutomationProperties.Name="Upprepa ärendelösenordet" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" Margin="0,16,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

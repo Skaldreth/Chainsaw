@@ -9,44 +9,81 @@ using Chainsaw.Modules.Tracing;
 using Chainsaw.Modules.Pricing;
 using Chainsaw.Modules.Monitoring;
 using Chainsaw.Modules.Requests;
+using Chainsaw.App.Commands;
 using Chainsaw.App.Controls;
+using Chainsaw.App.Interop;
 using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
 using Chainsaw.SharedKernel;
+using Chainsaw.SharedKernel.Commands;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Chainsaw.App;
 
 /// <summary>
-/// The application: builds the host with every module and shows the main window, which starts with the first-run
-/// setup when there is no vault (sketch FS1a) and with the lock screen otherwise (sketch ID7).
+/// The application: one per Windows user, builds the host with every module and shows the main window, which starts
+/// with the first-run setup when there is no vault (sketch FS1a) and with the lock screen otherwise (sketch ID7).
 /// </summary>
 public partial class App : Application
 {
+    /// <summary>How long the exit waits for the modules to stop, after the case has been saved.</summary>
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>The host with every module, once built.</summary>
     private IHost? _host;
 
-    /// <summary>Builds and starts the host, then shows the main window.</summary>
+    /// <summary>The hold on being the one Chainsaw of this user, and the pipe that links arrive on.</summary>
+    private SingleInstance? _instance;
+
+    /// <summary>
+    /// Becomes the one Chainsaw of this user, or hands the link to the one that runs and ends. Then builds and starts
+    /// the host, shows the main window and takes the link Chainsaw was started with, which waits for the unlock.
+    /// </summary>
     /// <param name="e">The arguments Chainsaw was started with, for example a <c>chainsaw:</c> link.</param>
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        var argument = e.Args.Length > 0 ? e.Args[0] : string.Empty;
+        _instance = SingleInstance.TryAcquire();
+        if (_instance is null)
+        {
+            SingleInstance.Send(argument);
+            Shutdown();
+            return;
+        }
+
         _host = BuildHost();
         await _host.StartAsync();
-        MainWindow = _host.Services.GetRequiredService<MainWindow>();
-        MainWindow.Show();
+        var window = _host.Services.GetRequiredService<MainWindow>();
+        MainWindow = window;
+        var links = _host.Services.GetRequiredService<LinkInbox>();
+        links.Receive(argument);
+        _instance.Listen(text => Dispatcher.BeginInvoke(() =>
+        {
+            links.Receive(text);
+            window.BringForward();
+        }));
+        window.Show();
     }
 
-    /// <summary>Stops the host so that every module can close what it holds.</summary>
+    /// <summary>
+    /// Saves and closes the open case first and waits for it, so that Chainsaw never ends before the case is saved;
+    /// then stops the host so that every module can close what it holds.
+    /// </summary>
     /// <param name="e">The exit arguments.</param>
-    protected override async void OnExit(ExitEventArgs e)
+    protected override void OnExit(ExitEventArgs e)
     {
         if (_host is not null)
         {
-            await _host.StopAsync();
+            _host.Services.GetRequiredService<CaseSession>().CloseNow();
+
+            // The modules stop on the thread pool, since a handler that posts to this thread must never wait for it.
+            Task.Run(() => _host.StopAsync()).Wait(StopTimeout);
             _host.Dispose();
         }
 
+        _instance?.Dispose();
         base.OnExit(e);
     }
 
@@ -75,7 +112,18 @@ public partial class App : Application
                 .AddMonitoringModule()
                 .AddRequestsModule()
                 .AddSingleton<CaseSession>()
+                .AddSingleton<CaseWorkflow>()
+                .AddSingleton<LockSignal>()
+                .AddSingleton<NewCaseViewModel>()
+                .AddSingleton<StartPointInput>()
+                .AddSingleton<IShellCommand, NewCaseCommand>()
+                .AddSingleton<IShellCommand, OpenCaseCommand>()
+                .AddSingleton<IShellCommand, CloseCaseCommand>()
+                .AddSingleton<IShellCommand, VerifyCommand>()
+                .AddSingleton<IShellCommand, LockCommand>()
+                .AddSingleton<CommandRegistry>()
                 .AddSingleton<ShellViewModel>()
+                .AddSingleton<LinkInbox>()
                 .AddSingleton<LockViewModel>()
                 .AddSingleton<FirstRunViewModel>()
                 .AddSingleton<GateViewModel>()

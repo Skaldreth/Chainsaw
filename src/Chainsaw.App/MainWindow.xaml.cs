@@ -44,6 +44,7 @@ public partial class MainWindow : Window
         _gate = gate;
         DataContext = shell;
         Gate.Attach(gate);
+        NewCasePanel.Attach(shell.NewCase);
         gate.PropertyChanged += OnGateChanged;
         ShowGate();
 
@@ -175,6 +176,42 @@ public partial class MainWindow : Window
         {
             Dispatcher.BeginInvoke(_gate.OnWindowsLocked);
         }
+    }
+
+    /// <summary>
+    /// Brings the window forward when another start of Chainsaw sent a link (or only asked to be shown); restores it
+    /// when it is minimised. What is shown stays behind the gate.
+    /// </summary>
+    public void BringForward()
+    {
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+        if (_gate.IsShellVisible && !_shell.NewCase.IsOpen && _shell.CommandText.Length > 0)
+        {
+            FocusCommandBar();
+        }
+    }
+
+    /// <summary>
+    /// Tab in the command bar fills in (a command's name, or a case number for <c>/open</c>) instead of moving the
+    /// keyboard on, and leaves the caret at the end of the text.
+    /// </summary>
+    /// <param name="sender">The command bar's text box.</param>
+    /// <param name="e">The key.</param>
+    private void OnCommandKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Tab || Keyboard.Modifiers != ModifierKeys.None)
+        {
+            return;
+        }
+
+        _shell.Complete();
+        CommandBox.CaretIndex = CommandBox.Text.Length;
+        e.Handled = true;
     }
 
     /// <summary>Moves the keyboard to the command bar and selects what is written there.</summary>

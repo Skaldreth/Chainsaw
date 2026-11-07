@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Chainsaw.Modules.Cases.Contracts;
@@ -83,6 +84,9 @@ internal sealed class Case : ICase
     /// <summary>Set, without waiting for the gate, when the vault is locked and the case is about to close.</summary>
     private volatile bool _closing;
 
+    /// <summary>The title in force, read when the case is opened and replaced when it is set.</summary>
+    private volatile string _title;
+
     /// <summary>Wraps an opened database; the store's create and open build it.</summary>
     /// <param name="services">The services.</param>
     /// <param name="paths">The case's files.</param>
@@ -130,6 +134,8 @@ internal sealed class Case : ICase
                 _shapes[chain.Name] = shape;
             }
         }
+
+        _title = ReadTitle(database);
     }
 
     /// <inheritdoc />
@@ -144,6 +150,9 @@ internal sealed class Case : ICase
 
     /// <summary>Gets the store's count of vault locks when the opening began.</summary>
     internal long LocksAtOpening { get; init; }
+
+    /// <inheritdoc />
+    public string Title => _title;
 
     /// <inheritdoc />
     public string Path => _paths.CaseFile;
@@ -213,6 +222,40 @@ internal sealed class Case : ICase
         {
             using var operation = BeginOperation();
             return AppendOwnJournal(draft);
+        }
+    }
+
+    /// <inheritdoc />
+    public bool SetTitle(string title)
+    {
+        if (!CaseTitleRules.IsValid(title))
+        {
+            throw new ArgumentException(
+                $"A title holds at most {CaseTitleRules.MaximumLength} characters and no control characters.",
+                nameof(title));
+        }
+
+        var normalized = CaseTitleRules.Normalize(title);
+        lock (_gate)
+        {
+            using var operation = BeginOperation();
+            if (string.Equals(normalized, _title, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var database = Database;
+            using var scope = database.As(GuardMode.Internal);
+            using var transaction = database.Begin();
+            var utc = _services.Clock.UtcNow.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+            SealAsCases(transaction, CasesSchema.Title, [utc, normalized]);
+            AppendJournalIn(transaction, new JournalDraft(
+                CaseJournalKinds.TitleSet,
+                TitleSummary(normalized, _title.Length == 0),
+                JsonSerializer.Serialize(new Dictionary<string, string> { ["title"] = normalized })));
+            transaction.Commit();
+            _title = normalized;
+            return true;
         }
     }
 
@@ -470,6 +513,31 @@ internal sealed class Case : ICase
 
         handle.End();
         return result;
+    }
+
+    /// <summary>Gives the journal's line for a new title.</summary>
+    /// <param name="title">The new title; empty when the title is taken away.</param>
+    /// <param name="first">Whether the case had no title before.</param>
+    /// <returns>The line.</returns>
+    private static string TitleSummary(string title, bool first)
+    {
+        if (title.Length == 0)
+        {
+            return "Titeln togs bort";
+        }
+
+        return first ? $"Titeln sattes till {title}" : $"Titeln ändrades till {title}";
+    }
+
+    /// <summary>Reads the title in force: the last record of the chain <c>cases.title</c>.</summary>
+    /// <param name="database">The open database with an up-to-date schema.</param>
+    /// <returns>The title, or an empty text when none has been set.</returns>
+    private static string ReadTitle(CaseDatabase database)
+    {
+        using var scope = database.As(GuardMode.Internal);
+        using var select = database.Command(
+            $"SELECT title FROM {CasesSchema.Title.Table} ORDER BY sequence DESC LIMIT 1");
+        return select.ExecuteScalar() as string ?? string.Empty;
     }
 
     /// <summary>Records something the Cases module did, in a transaction of its own.</summary>

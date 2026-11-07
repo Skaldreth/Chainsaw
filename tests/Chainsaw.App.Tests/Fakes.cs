@@ -1,7 +1,9 @@
+using Chainsaw.App.Commands;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Tests;
@@ -142,7 +144,9 @@ internal sealed class TestExitStore : IExitStore
 
     public Exception? Failure { get; set; }
 
-    public IReadOnlyList<ExitInfo> List() => [];
+    public List<ExitInfo> Known { get; } = [];
+
+    public IReadOnlyList<ExitInfo> List() => Known;
 
     public ExitInfo Add(string name, string place, ExitKind kind, string configuration)
     {
@@ -172,11 +176,21 @@ internal sealed class TestCase(string caseNumber) : ICase
 
     public CaseInfo Info { get; } = new(Guid.NewGuid(), caseNumber, DateTimeOffset.UnixEpoch);
 
+    public string Title { get; private set; } = string.Empty;
+
     public string Path => caseNumber + ".cut";
 
     public bool IsClosed => Disposed > 0;
 
-    public bool HasSharingPassword => false;
+    public bool HasSharingPassword => SharingPassword is not null;
+
+    /// <summary>The sharing password as it was given, copied, to check that it arrived.</summary>
+    public string? SharingPassword { get; private set; }
+
+    public List<JournalDraft> Journal { get; } = [];
+
+    /// <summary>When set, <see cref="Close"/> throws this after counting, as a failed save does.</summary>
+    public Exception? CloseFailure { get; set; }
 
     public IReadOnlyList<string> RecoveryFingerprints => [];
 
@@ -184,12 +198,22 @@ internal sealed class TestCase(string caseNumber) : ICase
 
     public T Write<T>(Func<ICaseTransaction, T> work) => throw new NotSupportedException();
 
-    public JournalEntry AppendJournal(JournalDraft draft) => throw new NotSupportedException();
+    public JournalEntry AppendJournal(JournalDraft draft)
+    {
+        Journal.Add(draft);
+        return null!;
+    }
 
     public IReadOnlyList<JournalEntry> ReadJournal(long fromSequence = 1, int maximumCount = int.MaxValue) =>
         throw new NotSupportedException();
 
-    public void SetSharingPassword(ReadOnlySpan<char> password) => throw new NotSupportedException();
+    public bool SetTitle(string title)
+    {
+        Title = CaseTitleRules.Normalize(title);
+        return true;
+    }
+
+    public void SetSharingPassword(ReadOnlySpan<char> password) => SharingPassword = password.ToString();
 
     public void RemoveSharingPassword() => throw new NotSupportedException();
 
@@ -199,7 +223,14 @@ internal sealed class TestCase(string caseNumber) : ICase
     {
     }
 
-    public void Close() => Disposed++;
+    public void Close()
+    {
+        Disposed++;
+        if (CloseFailure is not null)
+        {
+            throw CloseFailure;
+        }
+    }
 
     public void Dispose() => Disposed++;
 }
@@ -211,13 +242,24 @@ internal sealed class TestCaseStore : ICaseStore
 
     public List<string> Created { get; } = [];
 
+    public List<TestCase> Cases { get; } = [];
+
+    public List<CaseFileInfo> Files { get; } = [];
+
     public Exception? Failure { get; set; }
 
     public string Directory => "Ärenden";
 
     public RecoveryPublicKey? RecoveryKey => null;
 
-    public IReadOnlyList<CaseFileInfo> List() => [];
+    public IReadOnlyList<CaseFileInfo> List() => Files;
+
+    public void AddFile(string caseNumber, int minutesAgo) =>
+        Files.Add(new CaseFileInfo(
+            caseNumber,
+            caseNumber + ".cut",
+            1,
+            new DateTimeOffset(2026, 11, 7, 12, 0, 0, TimeSpan.Zero).AddMinutes(-minutesAgo)));
 
     public ICase Create(string caseNumber)
     {
@@ -228,10 +270,27 @@ internal sealed class TestCaseStore : ICaseStore
 
         DuringCreate?.Invoke();
         Created.Add(caseNumber);
-        return new TestCase(caseNumber);
+        var created = new TestCase(caseNumber);
+        Cases.Add(created);
+        return created;
     }
 
-    public ICase Open(string caseNumber) => throw new NotSupportedException();
+    public ICase Open(string caseNumber)
+    {
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
+
+        if (!Files.Any(file => file.CaseNumber == caseNumber))
+        {
+            throw new CaseException(CaseError.NotFound);
+        }
+
+        var opened = new TestCase(caseNumber);
+        Cases.Add(opened);
+        return opened;
+    }
 
     public ICase OpenWithPassword(string path, ReadOnlySpan<char> password) => throw new NotSupportedException();
 
@@ -242,17 +301,84 @@ internal sealed class TestCaseStore : ICaseStore
     public IReadOnlyList<string> ReadRecoveryFingerprints(string path) => throw new NotSupportedException();
 }
 
-/// <summary>Everything a gate needs, wired as the program wires it, with test doubles for the modules.</summary>
+/// <summary>Tracing as far as the window uses it: start points, remembered per case.</summary>
+internal sealed class TestTracing : ITracingService
+{
+    public List<(ICase Case, TraceStartPoint StartPoint)> Added { get; } = [];
+
+    public Exception? Failure { get; set; }
+
+    public IReadOnlyList<TracingMethodId> Methods => [];
+
+    public Task<TraceGraph> LoadAsync(ICase @case, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public bool AddStartPoint(ICase @case, TraceStartPoint startPoint)
+    {
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
+
+        if (Added.Any(item => item.Case == @case && item.StartPoint == startPoint))
+        {
+            return false;
+        }
+
+        Added.Add((@case, startPoint));
+        return true;
+    }
+
+    public bool RemoveStartPoint(ICase @case, TraceStartPoint startPoint) => throw new NotSupportedException();
+
+    public Task<ExpansionResult> ExpandAsync(
+        ICase @case, ExpansionRequest request, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public CrossChainLink LinkCrossChain(ICase @case, Outpoint from, ChainTransactionRef to, string reason) =>
+        throw new NotSupportedException();
+
+    public bool UnlinkCrossChain(ICase @case, CrossChainLink link, string reason) => throw new NotSupportedException();
+
+    public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position) =>
+        throw new NotSupportedException();
+
+    public TraceResult Trace(TraceGraph graph, TraceRequest request) => throw new NotSupportedException();
+}
+
+/// <summary>A verifier that gives what the test set.</summary>
+internal sealed class TestVerifier : ICaseVerifier
+{
+    public CaseVerification Result { get; set; } =
+        new(DateTimeOffset.UnixEpoch, [], [new ChainVerification("cases.journal", 3, 3, "ab", null)]);
+
+    public CaseVerification Verify(ICase @case) => Result;
+}
+
+/// <summary>Everything a window needs, wired as the program wires it, with test doubles for the modules.</summary>
 internal sealed class GateRig
 {
     public GateRig(VaultState state)
     {
         Vault = new TestVault(state);
         AutoLock = new AutoLock(Clock, TimeSpan.FromMinutes(15));
-        Shell = new ShellViewModel(Session);
+        Workflow = new CaseWorkflow(Cases, Tracing, Vault, Session);
+        NewCase = new NewCaseViewModel(Workflow);
+        var input = new StartPointInput(Workflow, Session, NewCase);
+        Commands = new CommandRegistry(
+            [
+                new NewCaseCommand(NewCase),
+                new OpenCaseCommand(Workflow),
+                new CloseCaseCommand(Workflow),
+                new VerifyCommand(Session, Verifier),
+                new LockCommand(LockSignal),
+            ],
+            input);
+        Shell = new ShellViewModel(Session, Commands, NewCase, Exit, Exits, Ui);
+        Links = new LinkInbox(Shell);
         LockScreen = new LockViewModel(Vault, Exit, AutoLock, BuildInfo.Parse("0.1.0+abcdef0123456"), Ui);
-        FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Cases, Session);
-        Gate = new GateViewModel(Vault, LockScreen, FirstRun, Shell, Session, AutoLock, Ui);
+        FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow);
+        Gate = new GateViewModel(Vault, LockScreen, FirstRun, Shell, Session, AutoLock, Links, LockSignal, Ui);
     }
 
     public InlineUi Ui { get; } = new();
@@ -269,7 +395,21 @@ internal sealed class GateRig
 
     public TestCaseStore Cases { get; } = new();
 
+    public TestTracing Tracing { get; } = new();
+
+    public TestVerifier Verifier { get; } = new();
+
+    public LockSignal LockSignal { get; } = new();
+
     public CaseSession Session { get; } = new();
+
+    public CaseWorkflow Workflow { get; }
+
+    public NewCaseViewModel NewCase { get; }
+
+    public CommandRegistry Commands { get; }
+
+    public LinkInbox Links { get; }
 
     public AutoLock AutoLock { get; }
 
