@@ -750,3 +750,37 @@ Grafen för Ethereum är inte byggd än; det som går att prova är källan, sta
 - Guiden (F1): gruppen *Ethereum* med *Kontomodellen*, *ERC-20 och tokens*, *Interna tx* och *Kan frysas*.
 - Vid start provas nu också Ethereums endpoint (eth.blockscout.com) genom utgången, fast grafen för Ethereum inte är
   byggd än (beslutet att prova vid start gäller alla kedjor). Sätt Ethereum på *Av* i Källor om det inte ska ske.
+
+## Endpointarna, andra delen (etapp 25)
+
+**Takt och väntan**
+- Expandera en adress med många tx i grafen: uppslagen går i takt (högst fyra i sekunden per endpoint, Chainsaws eget
+  förval) och fördelas mellan mempool.space och Blockstream (se i ärendets råsvar att båda förekommer). Grafen och
+  dialogerna ska kännas lika snabba som förut; inget fryser medan Chainsaw väntar.
+- Får en källa svara `429` (lättast med en egen proxy eller en egen Esplora bakom en hastighetsgräns): raden i *Källor*
+  får den gula markeringen *Väntar* med tiden på hovring, pricken blir inte röd, och de andra endpointarna används under
+  tiden. Statusraden säger *Väntar på källan · Bitcoin* bara medan ett uppslag faktiskt väntar (mer än en sekund), och
+  markeringen försvinner när tiden gått.
+- En källa som är död (fel adress eller avstängd server): den lämnas tyst (uppslagen lyckas genom de andra, inget fel i
+  grafen), får röd prick, och provas på sin plats igen efter en minut, sedan två, fyra … högst 30 minuter. Starta servern
+  igen och se att den kommer tillbaka och får grön prick.
+
+**Ett blocks marginal**
+- En egen Esplora som ligger exakt ett block efter (till exempel direkt efter ett nytt block): ingen gul markering, och
+  hovring på pricken säger *ett block efter räknas inte som efter*. Två block efter ger *2 block efter* som förut.
+
+**Egen nod på det lokala nätet**
+- *Lägg till endpoint …* med `https://192.168.x.x/…` (eller `https://esplora.lan/…`) utan *Lokal*: *En adress på datorn
+  eller ett privat nät kräver att den märks Lokal.* och *Lägg till* tonad. Slå på *Lokal*: felet försvinner.
+- *Lokal* på med en adress på internet som IP (till exempel `https://8.8.8.8/`): *En lokal endpoint ska ha en adress på
+  datorn eller ett privat nät.*
+- Med en egen Esplora på det lokala nätet (eget certifikat installerat bland Windows betrodda rötter): *Prova* svarar med
+  höjd och hash **också utan ansluten utgång**, raden får märket *Lokal*, och uppslag till den syns inte i utgångens
+  logg (kontrollera med Wireshark att de går direkt till noden och att inget annat går direkt ut på nätkortet med VPN
+  valt).
+- Ett namn märkt *Lokal* som pekar på internet (ändra `hosts` eller DNS): uppslaget vägras med *Adressen pekar inte på
+  datorn eller ett privat nät …* och inget skickas.
+- Efter en expansion genom den lokala noden: `/verify` grön, och råsvaren har `exit_route` = `local` och inget
+  `exit_id`.
+- `sources.json`: endpointen har `"Local": true` och `"IntervalMilliseconds": 0`. Ändra för hand en privat adress till
+  `"Local": false`: den endpointen används inte efter omstart.
