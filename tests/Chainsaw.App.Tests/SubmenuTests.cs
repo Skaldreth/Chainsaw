@@ -350,6 +350,7 @@ public sealed class ShellSubmenuTests
     public void Pressing_a_view_without_a_menu_shows_the_view()
     {
         var rig = new GateRig(VaultState.Unlocked);
+        rig.Session.Open(new TestCase("2026-0117"));
 
         rig.Shell.PressCommand.Execute(rig.Shell.Work.Single(i => i.Entry.View == AppView.Timeline));
 

@@ -985,3 +985,14 @@ ligger bredvid `Chainsaw.exe`.
       fälls in animerat, stäng det och de fälls bort (en vy som kräver ett ärende byter då till grafen).
 - [ ] Tidslinje, Flöde, Exponering, Begäran och Etiketter är nedtonade, och tipset säger *Inte byggt än*. Terminal
       finns inte längre.
+
+## Statusraden och kommandoraden som Spotlight (polering 2026-11-07)
+- [ ] Statusraden längst ner är borta; utgången står bara i titelraden, och hovring på den säger vart uppslagen går.
+- [ ] När en källa ber Chainsaw vänta syns en liten gul prick till vänster om utgången i titelraden, med texten på hovring; den försvinner när väntan är över.
+- [ ] Kommandoraden syns inte förrän Ctrl+K eller Ctrl+F; då kommer den som Spotlight i övre delen, 640 px bred, med förstoringsglas och större text, över en mjuk mörkning, och tonar in med en liten rörelse (direkt med animeringar avstängda).
+- [ ] Esc, ett klick utanför (också i titelraden) och ett kommando som lyckas döljer raden; tangentbordet går tillbaka dit det var.
+- [ ] Ett kommando som misslyckas låter raden stå kvar med felet i rött under fältet.
+- [ ] *Alla ärenden …* i den tomma grafen öppnar raden med "/open " och markören sist, och Tab fyller i ärendenumret.
+- [ ] Ett svar som kommer när raden är dold (nytt ärende skapat, sanktionslista importerad) visas som en toast.
+- [ ] Nytt → Startpunkt med ett ärende öppet tar fram raden med förklaringen; en chainsaw:-länk tar fram den med adressen ifylld.
+- [ ] Med Guidens panel öppen står raden mitt i ytan bredvid panelen; Ctrl+K medan Nytt ärende är öppet gör ingenting.

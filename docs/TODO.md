@@ -53,10 +53,10 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 13. **Bevakningens tomma läge** (*byggt 2026-11-07*) såg inte professionellt ut: en större ikon i mitten med en förklarande text under att
     det är tomt; knapparna och pillret uppe till höger (*Bevakar medan Chainsaw är öppet*, *Ny bevakning …*) görs om.
 14. **Bevakningens högra panel:** *klart 2026-11-07*, syns bara när en bevakning är vald.
-15. **Statusraden längst ner** (*Uppslag går genom Windows*) upprepar titelraden och tas bort.
+15. **Statusraden längst ner:** *borttagen 2026-11-07*; väntan är en gul prick vid utgången.
 16. **Pillret efter läget:** *klart 2026-11-07*, och bildspråkets *?* syns bara med ett ärende.
 17. **Bildspråkets ruta** bakom *?* är stökig och designas om; den får ta större plats.
-18. **Kommandoraden längst ner** behövs i princip aldrig: den döljs och fälls fram med Ctrl+K, som Spotlight i macOS.
+18. **Kommandoraden:** *dold 2026-11-07*, fälls fram med Ctrl+K som Spotlight; svar när den är dold blir en toast.
 19. **Sonarpulsen runt *Nytt ärende*:** *omgjord 2026-11-07*, tre tunna ringar ur nodens egen kant.
 20. **Soptunnan (SO1a)** byggs, och finns redan i startvyn: där kan man slänga ärenden.
 21. **Startvyn grupperar ärenden** som grafen grupperar tx (samlingsnoden, EX2b); ett ärende som dras ut hamnar på
