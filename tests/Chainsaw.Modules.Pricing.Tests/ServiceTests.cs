@@ -649,13 +649,13 @@ public sealed class ReviewRegressionTests : IDisposable
         harness.Http.AnswerText(
             $"{Fixtures.Riksbank}Observations/SEKUSDPMI/2023-12-30/2024-02-13",
             """[{"date":"2024-01-12","value":10}]""");
-        await harness.PriceAsync(Fixtures.At);
         var watch = System.Diagnostics.Stopwatch.StartNew();
+        await harness.PriceAsync(Fixtures.At);
 
         var lookup = await harness.PriceAsync(later);
 
         Assert.Equal(10m, lookup.Value!.FiatRate!.PerUnit);
-        Assert.True(watch.Elapsed >= interval - TimeSpan.FromMilliseconds(100), watch.Elapsed.ToString());
+        Assert.True(watch.Elapsed >= interval, watch.Elapsed.ToString());
     }
 
     [Fact]
@@ -759,13 +759,13 @@ public sealed class ReviewRegressionTests : IDisposable
         harness.AnswerAll();
         await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
         harness.Http.Failure = Chainsaw.Modules.Network.Contracts.ExitError.Timeout;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         await harness.PriceAsync(Fixtures.At);
         harness.Http.Failure = null;
-        var watch = System.Diagnostics.Stopwatch.StartNew();
 
         await harness.PriceAsync(Fixtures.At);
 
-        Assert.True(watch.Elapsed >= interval - TimeSpan.FromMilliseconds(100), watch.Elapsed.ToString());
+        Assert.True(watch.Elapsed >= interval, watch.Elapsed.ToString());
     }
 
     [Fact]
@@ -775,24 +775,94 @@ public sealed class ReviewRegressionTests : IDisposable
         {
             BitstampBaseUri = new Uri(Fixtures.Bitstamp),
             RiksbankBaseUri = new Uri(Fixtures.Riksbank),
-            RiksbankInterval = TimeSpan.FromSeconds(30),
+            RiksbankInterval = TimeSpan.FromMilliseconds(800),
         });
         harness.AnswerAll();
         await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
         harness.Http.Failure = Chainsaw.Modules.Network.Contracts.ExitError.Timeout;
         await harness.PriceAsync(Fixtures.At);
-        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        harness.Http.Failure = null;
+        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harness.Prices.GetPriceAsync(
             harness.Case, new PriceRequest(Chain.Bitcoin, Fixtures.At), cancellationToken: cancel.Token));
-        var offline = await harness.Prices.GetPriceAsync(
-            harness.Case, new PriceRequest(Chain.Bitcoin, Fixtures.At), PriceLookupMode.CaseOnly);
+        var next = await harness.PriceAsync(Fixtures.At).WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.Equal(PriceLookupStatus.NotInCase, offline.Status);
+        Assert.Equal(PriceLookupStatus.Fetched, next.Status);
     }
 
     [Fact]
-    public async Task Answers_a_source_that_gives_an_address_the_exit_refuses()
+    public async Task Keeps_fetching_a_shared_period_when_the_first_lookup_stops_waiting()
+    {
+        _harness.AnswerAll();
+        _harness.Http.Delay = TimeSpan.FromMilliseconds(300);
+        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        var first = _harness.Prices.GetPriceAsync(
+            _harness.Case, new PriceRequest(Chain.Bitcoin, Fixtures.At) { Currency = FiatCurrency.Usd },
+            cancellationToken: cancel.Token);
+        var second = _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        Assert.Equal(PriceLookupStatus.Fetched, (await second).Status);
+        Assert.Single(_harness.Http.Sent);
+        Assert.Single(_harness.RawRows());
+        _harness.Http.Delay = TimeSpan.Zero;
+        Assert.Equal(PriceLookupStatus.FromCase, (await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd)).Status);
+        Assert.Single(_harness.Http.Sent);
+    }
+
+    [Fact]
+    public async Task Takes_fridays_rate_for_a_saturday_in_the_small_hours_of_monday()
+    {
+        _harness.Clock.UtcNow = new DateTimeOffset(2026, 11, 9, 1, 0, 0, TimeSpan.Zero);
+        var at = new DateTimeOffset(2026, 11, 7, 9, 30, 0, TimeSpan.Zero);
+        _harness.AnswerCandle(at, "1");
+        _harness.Http.AnswerText(
+            $"{Fixtures.Riksbank}Observations/SEKUSDPMI/2026-10-24/2026-11-07",
+            """[{"date":"2026-11-06","value":9.6}]""");
+
+        var lookup = await _harness.PriceAsync(at);
+
+        Assert.Equal(9.6m, lookup.Value!.FiatRate!.PerUnit);
+        Assert.Equal(1, _harness.Count("pricing_fiat_ranges"));
+    }
+
+    [Fact]
+    public async Task Does_not_space_a_request_the_exit_refused()
+    {
+        using var harness = new Harness(new PricingOptions
+        {
+            BitstampBaseUri = new Uri(Fixtures.Bitstamp),
+            RiksbankBaseUri = new Uri(Fixtures.Riksbank),
+            RiksbankInterval = TimeSpan.FromSeconds(30),
+        });
+        harness.AnswerAll();
+        await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+        harness.Http.Connected = false;
+        await harness.PriceAsync(Fixtures.At);
+        harness.Http.Connected = true;
+
+        var lookup = await harness.PriceAsync(Fixtures.At).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(PriceLookupStatus.Fetched, lookup.Status);
+    }
+
+    [Fact]
+    public async Task Answers_a_source_whose_address_the_exit_refuses()
+    {
+        using var harness = new Harness(
+            before: services => services.AddSingleton<ICryptoRateSource>(new Throwing(insecure: true)));
+
+        var lookup = await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+
+        Assert.Equal(PriceLookupStatus.Failed, lookup.Status);
+        Assert.Empty(harness.Http.Sent);
+        Assert.Empty(harness.RawRows());
+    }
+
+    [Fact]
+    public async Task Answers_a_source_that_gives_no_address()
     {
         using var harness = new Harness(
             before: services => services.AddSingleton<ICryptoRateSource>(new Throwing(http: true)));
@@ -804,7 +874,7 @@ public sealed class ReviewRegressionTests : IDisposable
     }
 
     /// <summary>A replaced source whose reader throws something other than its contract says.</summary>
-    private sealed class Throwing(bool http = false) : ICryptoRateSource
+    private sealed class Throwing(bool http = false, bool insecure = false) : ICryptoRateSource
     {
         public string Name => "Throwing";
 
@@ -814,7 +884,10 @@ public sealed class ReviewRegressionTests : IDisposable
 
         public Uri RequestUri(
             Chain chain, FiatCurrency quote, PriceResolution resolution, DateTimeOffset periodStart) =>
-            http ? throw new InvalidOperationException("No address.") : new("https://throwing.test/");
+            http ? throw new InvalidOperationException("No address.") : new(Address(insecure));
+
+        private static string Address(bool insecure) =>
+            insecure ? "http://throwing.test/" : "https://throwing.test/";
 
         public RateCandle? ReadCandle(
             ReadOnlySpan<byte> body, Chain chain, FiatCurrency quote, PriceResolution resolution,

@@ -202,9 +202,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   värdet är kronor per *en* enhet (stämmer med nivån, cirka 10 kr per dollar), vilken tid på dagen kursen sätts, och
   att Bitstamps perioder börjar på jämna multipler av sin längd från 1970 och att en period utan handel har volym noll
   och föregående pris.
-- **Perioder före källans historik** (granskningen, M6): ett svar utan kurs (Bitstamp före 2011, Riksbanken före 1993)
-  sparas men pekas inte ut som slutligt, så varje uppslag frågar igen och sparar ett nytt svar. Kan pekas ut som
-  *ingen kurs* när perioden är slut.
+- **Perioder före källans historik** (granskningen, omgång 1 M6 och omgång 3 M-3): ett svar utan kurs (Bitstamp före
+  2011, Riksbanken före 1993) sparas men pekas inte ut som slutligt, så varje uppslag som inte sker samtidigt frågar
+  igen och sparar ett nytt svar. Kan pekas ut som *ingen kurs* när perioden är slut.
+- **Riksbankens dygnsgräns** räknas bara sedan Chainsaw startade och bara på den här datorn; datorer bakom samma utgång
+  delar gränsen utan att veta om det. Kan sparas i appdata, och en nyckel i valvet höjer gränsen.
 - **Fler källor och tokens:** ETH och TRX (och USDT/USDC, som i praktiken är dollar) när Ethereum och TRON byggs; en
   andra kryptokälla att jämföra med (till exempel Kraken eller Coinbase för nyare perioder); Riksbankens nyckel (200
   anrop i minuten) i valvet om gränsen på 5 i minuten blir ett problem.

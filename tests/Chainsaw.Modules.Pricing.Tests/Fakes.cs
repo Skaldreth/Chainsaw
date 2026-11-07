@@ -71,6 +71,9 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
 
     public List<ExitRequest> Sent { get; } = [];
 
+    /// <summary>How long the request takes on the real clock before it is answered.</summary>
+    public TimeSpan Delay { get; set; }
+
     /// <summary>How long after the clock's time the response arrives.</summary>
     public TimeSpan Lag { get; set; } = TimeSpan.FromMilliseconds(120);
 
@@ -80,8 +83,13 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
     public void AnswerText(string url, string body, int status = 200) =>
         _answers[url] = (status, Encoding.UTF8.GetBytes(body));
 
-    public Task<ExitResponse> SendAsync(ExitRequest request, CancellationToken cancellationToken = default)
+    public async Task<ExitResponse> SendAsync(ExitRequest request, CancellationToken cancellationToken = default)
     {
+        if (request.Uri.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new ArgumentException("Only https.", nameof(request));
+        }
+
         if (!Connected)
         {
             throw new ExitNotConnectedException();
@@ -100,8 +108,12 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
         var (status, body) = _answers.TryGetValue(request.Uri.AbsoluteUri, out var answer)
             ? answer
             : (404, Encoding.UTF8.GetBytes("Not found"));
+        if (Delay > TimeSpan.Zero)
+        {
+            await Task.Delay(Delay, cancellationToken);
+        }
+
         var sent = clock.UtcNow;
-        return Task.FromResult(new ExitResponse(
-            request.Uri, ExitId, status, "application/json", body, sent, sent + Lag));
+        return new ExitResponse(request.Uri, ExitId, status, "application/json", body, sent, sent + Lag);
     }
 }
