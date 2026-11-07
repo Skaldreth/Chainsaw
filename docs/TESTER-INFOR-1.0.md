@@ -734,3 +734,17 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
 - Klicka på ytans bricka: namnet, pennan och korgen syns. Pennan byter namn, korgen tar bort ytan (med valfritt skäl).
   Journalen har en rad för varje.
 - Esc stänger formuläret, sedan menyn, sedan listan, sedan valet av aktörer.
+
+## Ethereum, första delen (etapp 23)
+
+Grafen för Ethereum är inte byggd än; det som går att prova är källan, startpunkterna, Källor och Guiden.
+
+- Ctrl+, → *Källor*: chipset **Ethereum är inte längre tonat**. Det har *Blockscout* (`https://eth.blockscout.com/api/`)
+  i läget *Snabbast*. *Prova alla nu* frågar bara efter kedjans höjd (`?module=block&action=eth_block_number`) genom
+  utgången; raden visar höjd och millisekunder. TRON och Solana är fortfarande tonade.
+- *Lägg till endpoint …* för Ethereum: sorten *Blockscout*; *Prova* visar höjd och blockets hash (`v2/blocks/:höjd`).
+  En egen Blockscout på det lokala nätet går att lägga till på samma sätt (bara https).
+- Kommandoraden och Nytt ärende: en Ethereum-adress i blandade versaler med rätt kontrollsumma (EIP-55) känns igen som
+  Ethereum; ändra en bokstavs versal/gemen och den känns inte igen. Svaret säger ärligt att grafen för Ethereum inte är
+  byggd än. Samma för `chainsaw:ethereum/0x…`.
+- Guiden (F1): gruppen *Ethereum* med *Kontomodellen*, *ERC-20 och tokens*, *Interna tx* och *Kan frysas*.

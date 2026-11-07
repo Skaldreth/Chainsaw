@@ -93,13 +93,40 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 ## Senare (efter MVP:n)
 
 ### Kedjor och data
-- **Ethereum och ERC-20:** native ETH, interna tx (traces) och tokenöverföringar (Transfer-eventet). Kräver en källa med
-  adresshistorik och traces.
+- **Ethereum, nästa del (etapp 23b, efter etapp 23):** källan, modellen, kontometoderna och tokenmärkena är byggda.
+  Kvar, i ordning:
+  - **Grafen och inspektören:** noder och adresser som `ChainAddress` (punkterna nedan *Med den första kontokedjan*),
+    expansion av en adress genom `IEthereumSource` (de tre historikerna, sida för sida, dubbletter vid sidgränsen
+    tas bort på tx, sort och position), en tx med alla sina rörelser, spårning per tillgång med `AccountChecks.Run`,
+    märket först i beloppet och SEK under (`TokenMarks`), saldo per token med utgivaren och snöflingan i inspektören,
+    snöflingan i nodens hörn, och `TraceStartPoint` för Ethereum så att startpunkter kan läggas till (i dag säger
+    appen ärligt att grafen inte är byggd).
+  - **Swap som piller på linjen** (₮ → Ξ), bara när tx:en själv visar det: samma adress skickar en token och får en
+    annan (eller ether) i samma tx genom en känd DEX. Annars inget piller.
+  - **Kurser för USDT och USDC:** Bitstamp har `usdtusd` och `usdcusd`, men `PriceRequest` och `ICryptoRateSource` frågar
+    per kedja; de behöver fråga per tillgång (känd token efter kontrakt, aldrig symbol). Till dess: *ingen kurs*.
+  - **Kontoheuristiker** (`IAccountHeuristic`): börsens insättningsadresser som töms till samma hot wallet, och
+    adresser som betalar varandras gas. Kräver att kluster och bevis kan hålla `ChainAddress`.
+  - **Tornado Cash** och andra kända kontrakt (DEX, bryggor) som etiketter och slut på spåret (se nedan).
+- **Ethereum-källan, det som återstår** (etapp 23):
+  - **Etherscan med API-nyckel:** Etherscan tar nyckeln bara som `apikey` i adressen, som förseglas i ärendet (CLAUDE.md:
+    nycklar aldrig i ärendet). Byggs först när Network kan skicka en nyckel i adressen och adressen förseglas utan den.
+    Blockscouts nyckel skickas som `Authorization: Bearer`, vilket inte är kontrollerat mot en Blockscout med nyckel.
+  - **Blockets hash för en tx** hämtas ur `v2/blocks/:höjd` (Blockscouts eget API), eftersom `gettxinfo` saknar den.
+    Byts blocket på höjden mellan uppslagen (en omorganisation) kan hashen höra till ett annat block; ovanligt när
+    blocket är slutgiltigt efter 64 block. En egen nod (JSON-RPC `eth_getTransactionReceipt`) ger hashen direkt.
+  - **Decimaler** kommer från källan (`getToken`), inte ur kedjan; JSON-RPC `eth_call decimals()` är kedjans eget svar.
+  - **Interna tx i en adress historik** saknar blockets hash; den hämtas med blocket.
+  - **En sida i ett enda block** (fler än sidstorleken i samma block) kan inte bläddras förbi; sidan säger det
+    (`IsCutShort`).
+  - **`BitcoinLookup<T>`** används av båda kedjorna och borde heta `ChainLookup<T>`; byts när ingen annan etapp rör
+    Chains.
 - **Tornado Cash** (användarens fråga 2026-11-07) kommer med Ethereum: kontrakten känns igen som mixer och blir *Spåret
   tar slut här*. Poolerna har fasta belopp (0,1, 1, 10 och 100 ETH), så beloppet säger inget, och de troliga utgångarna
   kräver egna heuristiker ur forskningen: samma adress in och ut, ovanligt gaspris, adresser som betalar varandras gas,
   flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater som mixerns.
-- **TRON och USDT (TRC-20).**
+- **TRON och USDT (TRC-20)**, efter Ethereums andra del: återanvänder kontomodellen, `IAccountTracingMethod`,
+  `KnownTokens.TronUsdt` och *Kan frysas*.
 - **Fler kedjor** efter behov: Litecoin, BSC.
 - **Efter etapp 20, i ordning:** Ethereum med ERC-20 (4–6 etapper, källan med API-nyckel i valvet, saldobaserad
   spårning, egna heuristiker som insättningsadresser som töms till samma plånbok), TRON med USDT (2–3 etapper,
@@ -108,12 +135,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   - **Med den första kontokedjan (Ethereum):** grafens noder och adresser (`GraphNode.GraphAddresses`, `NodeOf`) blir
     `ChainAddress`; spårningens resultat (`TraceSeed`, `TracedCoin`, `TracedTransaction.Txid`, `TracedAmount.Through`,
     `TraceEnd.Transaction`) får `ChainTransactionRef` och myntet som UTXO-detalj; kontomodellens del av grafen bredvid
-    `UtxoGraph`; en kalkylator för kontomodellen över `IAccountTracingMethod`; heuristikkontraktet för konton
+    `UtxoGraph` (metoderna och kontrollen `AccountChecks.Run` finns sedan etapp 23); heuristikkontraktet för konton
     (`IAccountHeuristic`) när kluster och bevis kan hålla andra adresser än Bitcoins; `ITracingService` med en källa
     per kedja i stället för `IBitcoinSource`; `BlockReference` med en blockhash i kedjans eget format; i appen
     `GraphScene.Shown` (nodernas summor och linjernas tjocklek räknar bara BTC), formuläret Annan kedja
-    (`IncomingCoin` tar bara mynt) och *Kontroll* i inspektören (bara Bitcoins tx). `AccountLedger` ska kontrollera
-    att varje rörelse är i dess tillgång och att bara kedjans eget mynt har avgifter.
+    (`IncomingCoin` tar bara mynt) och *Kontroll* i inspektören (bara Bitcoins tx).
   - **Med TRON:** kontrakt och adresser skrivs både i base58 (`T…`) och hex (`41…`); de görs om till base58 i källan
     eller i `Asset` och `ChainAddress`, så att samma kontrakt aldrig blir två tillgångar.
   - **Med nästa UTXO-kedja (Litecoin, Zcash):** `UtxoGraph` får sin kedja och tillgång (i dag räknar
