@@ -338,7 +338,8 @@ public sealed class ReviewFindingTests : IDisposable
     {
         using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
 
-        opened.Write(transaction =>
+        // The rest of the reader runs when the work ends, as the work, and its refusal fails the work.
+        var error = Record.Exception(() => opened.Write(transaction =>
         {
             var command = transaction.CreateCommand(
                 "SELECT 1; UPDATE chain_head SET sequence = 999 WHERE chain = 'cases.journal'");
@@ -356,8 +357,9 @@ public sealed class ReviewFindingTests : IDisposable
             }
 
             return 0;
-        });
+        }));
 
+        Assert.Equal(23, Assert.IsType<SqliteException>(error).SqliteErrorCode);
         Assert.True(new CaseVerifier(_fixture.Clock).Verify(opened).IsIntact);
     }
 
@@ -427,6 +429,70 @@ public sealed class ReviewFindingTests : IDisposable
         }
 
         Assert.True(nested is null or InvalidOperationException);
+    }
+
+    [Fact]
+    public void A_failed_begin_leaves_the_case_usable_and_closable()
+    {
+        var opened = (Case)_fixture.CreateStore().Create("A1");
+        using (opened.Database.As(GuardMode.Internal))
+        using (opened.Database.Begin())
+        {
+            Assert.ThrowsAny<InvalidOperationException>(() => opened.Write(_ => 0));
+        }
+
+        Assert.Single(opened.ReadJournal());
+        opened.Close();
+        Assert.True(opened.IsClosed);
+    }
+
+    [Fact]
+    public void A_refused_statement_left_in_a_reader_fails_the_work()
+    {
+        using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
+
+        Assert.Throws<SqliteException>(() => opened.Write(transaction =>
+        {
+            var command = transaction.CreateCommand(
+                "SELECT 1; INSERT INTO test_notes (note) VALUES ('x'); UPDATE journal SET summary = 'y'");
+            var reader = command.ExecuteReader();
+            return reader.Read();
+        }));
+
+        var notes = opened.Read(reader =>
+        {
+            using var command = reader.CreateCommand("SELECT count(*) FROM test_notes");
+            return (long)command.ExecuteScalar()!;
+        });
+        Assert.Equal(0, notes);
+    }
+
+    [Fact]
+    public void A_closed_reader_frees_its_command()
+    {
+        using var opened = _fixture.CreateStore().Create("A1");
+
+        var second = opened.Read(transaction =>
+        {
+            using var command = transaction.CreateCommand("SELECT 1");
+            var first = command.ExecuteReader();
+            first.Read();
+            first.Close();
+            Assert.True(first.IsClosed);
+            using var again = command.ExecuteReader();
+            again.Read();
+            return again.GetInt64(0);
+        });
+
+        Assert.Equal(1, second);
+    }
+
+    [Fact]
+    public void A_module_cannot_create_another_modules_sealed_table()
+    {
+        var squatter = new SquatterSchema();
+
+        Assert.Throws<InvalidOperationException>(() => _fixture.CreateStore(squatter, new TestSchema()).Create("A1"));
     }
 
     [Fact]
@@ -614,6 +680,19 @@ public sealed class ReviewFindingTests : IDisposable
     {
         reader.Dispose();
         return false;
+    }
+
+    /// <summary>A module that runs before the test module and tries to create its sealed table.</summary>
+    private sealed class SquatterSchema : ICaseSchemaContributor
+    {
+        public string Module => "a_squatter";
+
+        public IReadOnlyList<CaseSchemaStep> Steps { get; } =
+        [
+            new(1, "Ockupera", "CREATE TABLE test_sealed (sequence INTEGER PRIMARY KEY, hash BLOB NOT NULL) STRICT;"),
+        ];
+
+        public IReadOnlyList<SealedChain> SealedChains { get; } = [];
     }
 
     /// <summary>A contributor that changes its answers after the store has checked them.</summary>

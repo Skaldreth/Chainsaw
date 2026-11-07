@@ -119,14 +119,38 @@ internal sealed class CaseDataReader(DbDataReader inner, Func<bool> isActive) : 
     {
         if (disposing && isActive())
         {
-            inner.Dispose();
+            Release();
         }
 
         base.Dispose(disposing);
     }
 
-    /// <summary>Disposes SQLite's reader; called by the work's end, inside the work's own scope.</summary>
-    internal void Release() => inner.Dispose();
+    /// <summary>Closes SQLite's reader while the work runs, running the rest of its statements as the work.</summary>
+    public override void Close()
+    {
+        if (isActive())
+        {
+            Release();
+        }
+    }
+
+    /// <summary>
+    /// Runs the rest of the command's statements and disposes SQLite's reader, inside the work's own scope; a
+    /// statement the guard refuses throws here, so that it fails the work instead of being dropped silently.
+    /// </summary>
+    internal void Release()
+    {
+        try
+        {
+            while (!inner.IsClosed && inner.NextResult())
+            {
+            }
+        }
+        finally
+        {
+            inner.Dispose();
+        }
+    }
 
     /// <summary>Gives SQLite's reader while the work runs.</summary>
     /// <returns>The reader.</returns>

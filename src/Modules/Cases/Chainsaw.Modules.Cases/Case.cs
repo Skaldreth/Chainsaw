@@ -165,27 +165,22 @@ internal sealed class Case : ICase
         ArgumentNullException.ThrowIfNull(work);
         lock (_gate)
         {
-            var database = EnterWork();
+            using var operation = BeginOperation();
+            var database = Database;
             using var scope = database.As(GuardMode.Internal);
             using var transaction = database.Begin(deferred: true);
             var reader = new CaseTransaction(this, transaction, writable: false);
+
+            // The handle ends inside the work's scope: the rest of a reader the work left open runs with no more
+            // rights than the work had.
+            using var workScope = database.As(GuardMode.Reading);
             try
             {
-                // The handle ends inside the work's scope: disposing a reader the work left open runs the rest of its
-                // statements, which must have no more rights than the work had.
-                using var workScope = database.As(GuardMode.Reading);
-                try
-                {
-                    return work(reader);
-                }
-                finally
-                {
-                    reader.End();
-                }
+                return work(reader);
             }
             finally
             {
-                _inWork = false;
+                reader.End();
             }
         }
     }
@@ -196,33 +191,27 @@ internal sealed class Case : ICase
         ArgumentNullException.ThrowIfNull(work);
         lock (_gate)
         {
-            var database = EnterWork();
+            using var operation = BeginOperation();
+            var database = Database;
             using var scope = database.As(GuardMode.Internal);
             using var transaction = database.Begin();
             var writer = new CaseTransaction(this, transaction, writable: true);
-            try
+            T result;
+            using (database.As(GuardMode.Writing))
             {
-                T result;
-                using (database.As(GuardMode.Writing))
+                // As in Read: the rest of a reader left open runs with the work's rights, before the commit.
+                try
                 {
-                    // As in Read: the rest of a reader left open runs with the work's rights, before the commit.
-                    try
-                    {
-                        result = work(writer);
-                    }
-                    finally
-                    {
-                        writer.End();
-                    }
+                    result = work(writer);
                 }
+                finally
+                {
+                    writer.End();
+                }
+            }
 
-                transaction.Commit();
-                return result;
-            }
-            finally
-            {
-                _inWork = false;
-            }
+            transaction.Commit();
+            return result;
         }
     }
 
@@ -347,6 +336,8 @@ internal sealed class Case : ICase
                 throw new InvalidOperationException("The case cannot be closed from inside a read or a write.");
             }
 
+            // Closing is an operation too, so that nothing can run a read or write in the middle of it.
+            _inWork = true;
             try
             {
                 SaveUnlocked();
@@ -724,15 +715,6 @@ internal sealed class Case : ICase
         EnsureIdle();
         _inWork = true;
         return new Operation(this);
-    }
-
-    /// <summary>Starts another module's work: the case must be open and no other work may be running.</summary>
-    /// <returns>The database.</returns>
-    private CaseDatabase EnterWork()
-    {
-        EnsureIdle();
-        _inWork = true;
-        return Database;
     }
 
     /// <summary>Refuses a closed or closing case and calls made from inside a module's work.</summary>

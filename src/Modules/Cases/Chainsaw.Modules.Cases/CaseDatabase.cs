@@ -114,20 +114,26 @@ internal sealed class CaseDatabase : IDisposable
     /// <param name="mode">Who runs SQL in the scope.</param>
     /// <returns>The scope.</returns>
     /// <exception cref="InvalidOperationException">Another thread holds a scope.</exception>
-    public GuardScope As(GuardMode mode) => Enter(mode, null);
+    public GuardScope As(GuardMode mode) => Enter(new GuardState(mode, 0, null));
+
+    /// <summary>Lets a module's schema step run, creating only its own sealed tables, until disposed.</summary>
+    /// <param name="ownTables">The module's sealed tables.</param>
+    /// <returns>The scope.</returns>
+    /// <exception cref="InvalidOperationException">Another thread holds a scope.</exception>
+    public GuardScope AsMigrating(IReadOnlyCollection<string> ownTables) =>
+        Enter(new GuardState(GuardMode.Migrating, 0, null, ownTables));
 
     /// <summary>Lets the Cases module seal one record in one table, on the calling thread, until disposed.</summary>
     /// <param name="table">The sealed table.</param>
     /// <returns>The scope.</returns>
     /// <exception cref="InvalidOperationException">Another thread holds a scope.</exception>
-    public GuardScope AsSealing(string table) => Enter(GuardMode.Sealing, table);
+    public GuardScope AsSealing(string table) => Enter(new GuardState(GuardMode.Sealing, 0, table));
 
     /// <summary>Sets the guard's state for a scope.</summary>
-    /// <param name="mode">The mode.</param>
-    /// <param name="table">The table for <see cref="GuardMode.Sealing"/>.</param>
+    /// <param name="wanted">The state, with any thread; the calling thread is filled in.</param>
     /// <returns>The scope.</returns>
     /// <exception cref="InvalidOperationException">Another thread holds a scope.</exception>
-    private GuardScope Enter(GuardMode mode, string? table)
+    private GuardScope Enter(GuardState wanted)
     {
         var thread = Environment.CurrentManagedThreadId;
         var previous = _guard.State;
@@ -136,7 +142,7 @@ internal sealed class CaseDatabase : IDisposable
             throw new InvalidOperationException("The case's connection is in use on another thread.");
         }
 
-        var set = new GuardState(mode, thread, table);
+        var set = wanted with { Thread = thread };
         _guard.State = set;
         return new GuardScope(_guard, previous, set);
     }

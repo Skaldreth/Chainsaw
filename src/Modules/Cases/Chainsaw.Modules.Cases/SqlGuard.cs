@@ -88,11 +88,15 @@ internal sealed class SqlGuard
     /// <summary>Gets or sets the sealed table that <see cref="GuardMode.Sealing"/> may insert into.</summary>
     public string? SealingTable { get; set; }
 
+    /// <summary>Gets or sets the sealed tables the migrating module may create.</summary>
+    public IReadOnlyCollection<string>? OwnTables { get; set; }
+
     /// <summary>Gets or sets the whole state at once.</summary>
     public GuardState State
     {
-        get => new(Mode, OwnerThread, SealingTable);
-        set => (Mode, OwnerThread, SealingTable) = (value.Mode, value.Thread, value.SealingTable);
+        get => new(Mode, OwnerThread, SealingTable, OwnTables);
+        set => (Mode, OwnerThread, SealingTable, OwnTables) =
+            (value.Mode, value.Thread, value.SealingTable, value.OwnTables);
     }
 
     /// <summary>Adds sealed tables, for example those of modules this build does not know.</summary>
@@ -166,7 +170,9 @@ internal sealed class SqlGuard
     /// <returns><see langword="true"/> when allowed.</returns>
     private bool AllowsMigrating(SqliteAction action, string? first, string? second) => action switch
     {
-        SqliteAction.CreateTable or SqliteAction.CreateView or SqliteAction.DropView => true,
+        // A protected name may only be created by the module whose sealed table it is.
+        SqliteAction.CreateTable or SqliteAction.CreateView => !IsProtected(first) || IsOwn(first),
+        SqliteAction.DropView => true,
         SqliteAction.Reindex or SqliteAction.Analyze => true,
         SqliteAction.CreateIndex or SqliteAction.DropIndex => !IsProtected(second),
         SqliteAction.DropTable => !IsProtected(first),
@@ -230,6 +236,12 @@ internal sealed class SqlGuard
     /// <returns><see langword="true"/> when only Cases may write it.</returns>
     private bool IsProtected(string? table) =>
         table is not null && (_caseTables.Contains(table) || _sealedTables.Contains(table));
+
+    /// <summary>Checks whether a table is one of the migrating module's own sealed tables.</summary>
+    /// <param name="table">The table name.</param>
+    /// <returns><see langword="true"/> when the module may create it.</returns>
+    private bool IsOwn(string? table) =>
+        table is not null && OwnTables?.Contains(table, StringComparer.OrdinalIgnoreCase) == true;
 
     /// <summary>Checks whether a table is sealed.</summary>
     /// <param name="table">The table name.</param>

@@ -4,4 +4,8 @@ namespace Chainsaw.Modules.Cases;
 /// <param name="Mode">The mode; the default is <see cref="GuardMode.Idle"/>.</param>
 /// <param name="Thread">The managed thread the mode belongs to.</param>
 /// <param name="SealingTable">The sealed table that <see cref="GuardMode.Sealing"/> may insert into.</param>
-internal readonly record struct GuardState(GuardMode Mode, int Thread, string? SealingTable);
+/// <param name="OwnTables">
+/// The sealed tables of the module whose step runs in <see cref="GuardMode.Migrating"/>, which only it may create.
+/// </param>
+internal readonly record struct GuardState(
+    GuardMode Mode, int Thread, string? SealingTable, IReadOnlyCollection<string>? OwnTables = null);

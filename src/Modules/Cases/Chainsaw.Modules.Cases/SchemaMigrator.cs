@@ -95,10 +95,11 @@ internal static class SchemaMigrator
         var newTables = contributor.SealedChains
             .Where(chain => !HashChain.TableExists(database, transaction, chain.Table))
             .ToList();
-        var mode = contributor.IsCases ? GuardMode.Internal : GuardMode.Migrating;
         try
         {
-            using var stepScope = database.As(mode);
+            using var stepScope = contributor.IsCases
+                ? database.As(GuardMode.Internal)
+                : database.AsMigrating([.. contributor.SealedChains.Select(chain => chain.Table)]);
             using var command = database.Command(step.Sql, transaction);
             command.ExecuteNonQuery();
         }
