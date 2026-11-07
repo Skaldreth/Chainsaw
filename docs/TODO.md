@@ -33,6 +33,12 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 ### Polering först (användarens beslut 2026-11-07: inget nytt byggs förrän det som finns känns bra)
 
 Inventeringen av appen mot besluten, i ordning efter vad som gör mest för första intrycket:
+Väntar på val (2026-11-07): **IN2a eller IN2b**, inspektörens åtgärder som ikoner (användaren: rörigt, inte
+professionellt), och **TO1a**, en gemensam toaster nere till höger för fel, varningar, lyckat och information (högst
+fem, staplas uppåt, tonar ut). Toastern ska ta över grafens Notice och sidornas egna felrader. Expansionen av
+`bc1qtm7…3xfz` misslyckas på Windows men inte här (parsern, kontrollen mot bytes och grafen klarar adressens
+coinbase-tx); felet säger nu varför, så orsaken kan läsas nästa gång. *Prova alla nu* kraschade; nu fångas felet och
+sägs på sidan, och inget fel stänger Chainsaw (`crash.log`).
 1. **Felrättningar utan ny form:** inaktuella rader i TESTER-INFOR (väntar tills etapp 27 är inne, som skriver i
    samma fil). (Rättat 2026-11-07: GateView och Windows som utgång, *Kättingen* i stället för *Teckenfältet*, en
    text för offline, *Ctrl+K* ur `ViewTable`, hovring på `Toggle.Switch`, bildspråkets *?* nere till höger.)
