@@ -37,8 +37,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på skiss
 
-- **Nytt fälls ut ur pillret** (skiss PN1 på sidan *Vänsternavigering*, efter Gawks B9): + och menyn som en enda form,
-  med Startpunkt, Etikett, Bevakning, Begäran, Importera sanktionslista … och Ärende (Ctrl+N). Väntar på användarens ok.
 
 
 - Grafen (hjärtat): noder för adress, tx och kluster, expandering, slut på spåret, spårat belopp på kanterna, brus-kontroll.
