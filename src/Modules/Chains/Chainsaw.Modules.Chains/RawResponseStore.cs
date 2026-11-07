@@ -83,19 +83,36 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork net
     }
 
     /// <summary>
-    /// Finds the newest usable response that has a transaction, whether it was asked for alone or came on a page of
-    /// an address's transactions.
+    /// Finds every usable response that has a transaction, newest first, so that a caller can pass over one that
+    /// turns out not to be usable (for example a description that contradicts the transaction's bytes).
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txid">The transaction.</param>
-    /// <returns>The response, or <see langword="null"/> when the case has none.</returns>
-    public StoredResponse? LatestWithTransaction(ICaseReader reader, Txid txid)
+    /// <returns>The responses, read one at a time as they are asked for.</returns>
+    public IEnumerable<StoredResponse> AllWithTransaction(ICaseReader reader, Txid txid)
     {
-        using var command = reader.CreateCommand(
-            "SELECT MAX(sequence) FROM chains_bitcoin_seen WHERE chain = $chain AND txid = $txid");
-        Add(command, "$chain", ChainName);
-        Add(command, "$txid", txid.Value);
-        return command.ExecuteScalar() is long sequence ? Read(reader, sequence, null, null) : null;
+        var sequences = new List<long>();
+        using (var command = reader.CreateCommand(
+            """
+            SELECT sequence FROM chains_bitcoin_seen WHERE chain = $chain AND txid = $txid ORDER BY sequence DESC
+            """))
+        {
+            Add(command, "$chain", ChainName);
+            Add(command, "$txid", txid.Value);
+            using var rows = command.ExecuteReader();
+            while (rows.Read())
+            {
+                sequences.Add(rows.GetInt64(0));
+            }
+        }
+
+        foreach (var sequence in sequences)
+        {
+            if (Read(reader, sequence, null, null) is { } response)
+            {
+                yield return response;
+            }
+        }
     }
 
     /// <summary>

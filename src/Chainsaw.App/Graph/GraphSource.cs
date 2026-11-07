@@ -54,7 +54,7 @@ public interface IGraphSource
     /// <returns>A task that completes when it is stored.</returns>
     Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place);
 
-    /// <summary>Reads how the user left the graph in the case: method, layout, amounts and the part on screen.</summary>
+    /// <summary>Reads how the user left the graph: method, layout, amounts and the part on screen.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The view; the defaults when none is stored.</returns>

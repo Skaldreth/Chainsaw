@@ -184,4 +184,20 @@ public sealed class Stage15Tests : IDisposable
         Assert.Equal(0, _harness.Labels.SingleCalls);
         Assert.Contains(graph.NodeOf(Wpkh("exchange-o"))!.Ends, hint => hint.Reason == TrailEndReason.Exchange);
     }
+
+    [Fact]
+    public async Task Texts_on_current_answers_are_said_but_do_not_make_the_expansion_partial()
+    {
+        var payment = Tx("noted-pay").In(Wpkh("victim-n"), 2_000_000).Out(Wpkh("scammer-n"), 1_900_000).Build();
+        var onward = Tx("noted-onward").Spend(payment, 0).Out(Wpkh("cashout-n"), 1_800_000).Build();
+        _harness.Source.Add(payment, onward);
+        _harness.Source.ProblemOnFetch = "Vilka utgångar som är spenderade är hämtat förut och kan ha ändrats sedan.";
+        _harness.Source.NotesOnFetch = ["Tx:en låg tidigare i ett annat block (en omorganisation)."];
+
+        var result = await _harness.Expand(payment);
+
+        Assert.Equal(ExpansionOutcome.Expanded, result.Outcome);
+        Assert.Contains("omorganisation", result.Problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("kan ha ändrats", result.Problem, StringComparison.Ordinal);
+    }
 }

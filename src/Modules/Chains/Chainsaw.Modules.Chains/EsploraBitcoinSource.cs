@@ -146,11 +146,11 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return CheckedAgainst(lookup, bytes);
         }
 
+        var note = $"Tx:ens egna bytes kunde inte hämtas, så den är inte kontrollerad mot dem. {bytes.Problem}";
         return lookup with
         {
             Origins = [.. lookup.Origins.Concat(bytes.Origins).OrderBy(origin => origin.Sequence)],
-            Problem = Join(lookup.Problem, $"Tx:ens egna bytes kunde inte hämtas, så den är inte kontrollerad mot "
-                + $"dem. {bytes.Problem}".TrimEnd()),
+            Notes = [.. lookup.Notes, note.TrimEnd()],
         };
     }
 
@@ -228,12 +228,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             .OrderBy(origin => origin.Sequence).ToList();
         if (header.Value is null)
         {
-            return lookup with
-            {
-                Origins = origins,
-                Problem = Join(lookup.Problem, $"Blockets huvud kunde inte hämtas, så blocket är inte kontrollerat "
-                    + $"mot det. {header.Problem}".TrimEnd()),
-            };
+            var note = $"Blockets huvud kunde inte hämtas, så blocket är inte kontrollerat mot det. {header.Problem}";
+            return lookup with { Origins = origins, Notes = [.. lookup.Notes, note.TrimEnd()] };
         }
 
         return BlockHeaderReader.Compare(block, header.Value) is null
@@ -411,7 +407,10 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         if (value is not null)
         {
             var change = stored is { } earlier ? query.Changed?.Invoke(earlier.Value, value) : null;
-            return new BitcoinLookup<T>(LookupStatus.Fetched, value, [sealedResponse.Origin], change);
+            return new BitcoinLookup<T>(LookupStatus.Fetched, value, [sealedResponse.Origin], null)
+            {
+                Notes = change is null ? [] : [change],
+            };
         }
 
         if (response.StatusCode == NotFoundStatus && stored is null)
@@ -515,7 +514,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             () => @case.Read(reader =>
             {
                 var stored = query.FindStored(reader);
-                return (stored, stored is { } found ? _store.KnownHeight(reader, found.Response.Origin.Sequence) : null);
+                var counts = stored is not null && !query.NeverChanges;
+                return (stored, counts ? _store.KnownHeight(reader, stored!.Value.Response.Origin.Sequence) : null);
             }),
             cancellationToken);
 
@@ -554,7 +554,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
                 var found = StoredAs(
                     _store.Latest(reader, ResponseKinds.OutputSpends, transaction.Txid.Value),
                     body => EsploraParser.ParseOutputSpends(body));
-                return (found, found is { } spends ? _store.KnownHeight(reader, spends.Response.Origin.Sequence) : null);
+                var height = found is { } spends ? _store.KnownHeight(reader, spends.Response.Origin.Sequence) : null;
+                return (found, height);
             }),
             cancellationToken).ConfigureAwait(false);
         if (stored is not { } spends || spends.Value.Count != transaction.Outputs.Count)
@@ -608,16 +609,22 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <returns>The transaction and its response, or <see langword="null"/>.</returns>
     private (BitcoinTransaction Value, StoredResponse Response)? StoredTransaction(ICaseReader reader, Txid txid)
     {
-        var response = _store.LatestWithTransaction(reader, txid);
-        if (response is null)
+        // A description that contradicts the transaction's sealed bytes is passed over, so that one bad answer from
+        // the source never hides an earlier good one, nor keeps the transaction from being asked for again.
+        var bytes = StoredAs(_store.Latest(reader, ResponseKinds.TransactionHex, txid.Value),
+            body => RawTransactionReader.ParseHex(body, txid))?.Value;
+        foreach (var response in _store.AllWithTransaction(reader, txid))
         {
-            return null;
+            var transaction = StoredAs(response, body => response.Kind == ResponseKinds.Transaction
+                ? _parser.ParseTransaction(body, txid)
+                : _parser.ParseTransactionList(body).FirstOrDefault(candidate => candidate.Txid == txid));
+            if (transaction is { } found && (bytes is null || RawTransactionReader.Compare(found.Value, bytes) is null))
+            {
+                return found;
+            }
         }
 
-        var transaction = StoredAs(response, body => response.Kind == ResponseKinds.Transaction
-            ? _parser.ParseTransaction(body, txid)
-            : _parser.ParseTransactionList(body).FirstOrDefault(candidate => candidate.Txid == txid));
-        return transaction;
+        return null;
     }
 
     /// <summary>

@@ -28,7 +28,8 @@ internal sealed class TestAttribution : IAttributionService
         ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
     {
         BatchCalls++;
-        return addresses.Distinct().Where(Labels.ContainsKey).ToDictionary(address => address, address => Labels[address]);
+        return addresses.Distinct().Where(Labels.ContainsKey)
+            .ToDictionary(address => address, address => Labels[address]);
     }
 
     public LabelEntry Add(ICase @case, LabelDraft draft) => throw new NotSupportedException();

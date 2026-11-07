@@ -89,6 +89,16 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Tx:en i blocket** (etapp 15): bytesen binder beskrivningen till txid, men att tx:en ligger i just det blocket
   vilar på källan. `/tx/:txid/merkle-proof` och blockets merklerot skulle binda dem; och om `bits` är nätets rätta
   svårighet på höjden kontrolleras inte.
+- **Målet i blockhuvudet** (granskningen etapp 15, M2): huvudet måste nå det mål dess egna `bits` anger, men `bits`
+  prövas inte mot nätets gräns (powLimit, `0x1d00ffff` på mainnet), och blockets `bits` och nonce i källans svar
+  jämförs inte med huvudet.
+- **Ett block som en gång motsäger sitt huvud** (granskningen etapp 15, M3): både blocket och huvudet ändras aldrig,
+  så `GetBlockAsync` vägrar för gott. Hämta blockets beskrivning igen i stället (`GetBlockAsync` används inte än).
+- **Svar som hämtades när blocket var grunt** (granskningen etapp 15, M4): de räknas aldrig som säkra vid läsning bara
+  ur ärendet, och står som *kan ha ändrats* tills noden expanderas igen. Fråga om dem i bakgrunden när utgången är
+  ansluten.
+- **Grafens läsning gör om arbete per tx** (granskningen etapp 15, M5): bytesen tolkas och hashas, tx:en tolkas om för
+  OP_RETURN, och `KnownHeight` söker igenom registren per uppslag. Spara tolkningen per bygge och ett index på höjd.
 - **Svaret om spenderade utgångar och omorganisationer** (etapp 15): en tx som bytt block säger det, men ett svar om
   vem som spenderar en output jämförs inte med det förra.
 
@@ -159,7 +169,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   finns i kontraktet.
 - **Sanktionslistan mot grafens adresser** (`CheckSanctions`) och vyn Etiketter (skissas först). Biblioteket är
   kopplat sedan etapp 15: `Absorb` när ett ärende öppnas och innan det stängs, `ShareInto` när grafen läses.
-- **Ett bibliotek som inte går att läsa syns inte** (etapp 15): grafen och ärendet fungerar, men etiketterna från andra
+- **Etiketterna läses två gånger per bygge** (granskningen etapp 15, M6): `LabelTrailEnds` och grafens etiketter läser
+  var för sig, och klustren byggs om för etiketterna. Ett gemensamt underlag per bygge.
+- **Biblioteket vid avslut och låsning** (granskningen etapp 15, M8): `Absorb` körs när ett ärende öppnas och stängs
+  med `/close` eller byts, men inte när Chainsaw avslutas eller låses; etiketterna kommer då in nästa gång ärendet
+  öppnas. `ShareInto` körs vid varje läsning av grafen, och etiketter som bara tagits tillbaka läser inte om grafen.
+- **Ett bibliotek som inte går att läsa syns inte** (etapp 15, granskningen M7): grafen och ärendet fungerar, men etiketterna från andra
   ärenden kommer inte, och inget säger varför. Ett meddelande i statusraden eller i vyn Etiketter behövs.
 - **Slutet *Börs, uttag funnet*** gäller alla blå sorter (också börs utan kundkontroll, P2P, automat och kort), där
   en begäran inte alltid går att göra; sorten står i förklaringen. En egen orsak eller text per sort? (granskningen

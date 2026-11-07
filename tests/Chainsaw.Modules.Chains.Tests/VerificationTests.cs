@@ -72,7 +72,7 @@ public sealed class VerificationTests : IDisposable
 
         Assert.NotNull(lookup.Value);
         Assert.False(lookup.Value.BytesVerified);
-        Assert.Contains("inte kontrollerad", lookup.Problem, StringComparison.Ordinal);
+        Assert.Contains(lookup.Notes, note => note.Contains("inte kontrollerad", StringComparison.Ordinal));
         Assert.Contains(_harness.RawRows(), row => row.Kind == "bitcoin.tx-hex");
     }
 
@@ -86,7 +86,7 @@ public sealed class VerificationTests : IDisposable
 
         Assert.NotNull(lookup.Value);
         Assert.False(lookup.Value.BytesVerified);
-        Assert.Contains("bytes kunde inte hämtas", lookup.Problem, StringComparison.Ordinal);
+        Assert.Contains(lookup.Notes, note => note.Contains("bytes kunde inte hämtas", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class VerificationTests : IDisposable
 
         Assert.NotNull(lookup.Value);
         Assert.False(lookup.Value.HeaderVerified);
-        Assert.Contains("huvud kunde inte hämtas", lookup.Problem, StringComparison.Ordinal);
+        Assert.Contains(lookup.Notes, note => note.Contains("huvud kunde inte hämtas", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public sealed class VerificationTests : IDisposable
 
         Assert.Equal(LookupStatus.Fetched, lookup.Status);
         Assert.False(lookup.Value!.IsConfirmed);
-        Assert.Contains("omorganisation", lookup.Problem, StringComparison.Ordinal);
+        Assert.Contains(lookup.Notes, note => note.Contains("omorganisation", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -278,6 +278,41 @@ public sealed class VerificationTests : IDisposable
         var lookup = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed, LookupMode.CaseOnly);
 
         Assert.Equal(LookupStatus.FromCaseMayBeOutdated, lookup.Status);
+    }
+
+    [Fact]
+    public async Task A_contradicting_answer_never_blocks_the_transaction_once_the_source_is_right_again()
+    {
+        Http.Answer(Fixtures.Url($"tx/{Fixtures.Real}"), "tx-real-forged.json");
+        var refused = await Source.VerifyTransactionAsync(_harness.Case, Fixtures.Real);
+        Http.Answer(Fixtures.Url($"tx/{Fixtures.Real}"), "tx-real.json");
+
+        var later = await Source.GetTransactionAsync(_harness.Case, Fixtures.Real);
+
+        Assert.Equal(LookupStatus.Failed, refused.Status);
+        Assert.Equal(LookupStatus.Fetched, later.Status);
+        Assert.True(later.Value!.BytesVerified);
+    }
+
+    [Fact]
+    public async Task A_contradicting_answer_never_hides_an_earlier_good_one()
+    {
+        await Source.VerifyTransactionAsync(_harness.Case, Fixtures.Real);
+        Http.Answer(Fixtures.Url($"tx/{Fixtures.Real}"), "tx-real-forged.json");
+        var refused = await Source.GetTransactionAsync(_harness.Case, Fixtures.Real);
+
+        var fromCase = await Source.GetTransactionAsync(_harness.Case, Fixtures.Real, LookupMode.CaseOnly);
+
+        Assert.Equal(LookupStatus.Failed, refused.Status);
+        Assert.NotNull(fromCase.Value);
+        Assert.True(fromCase.Value.BytesVerified);
+        Assert.Equal(30_000_000, fromCase.Value.Outputs[0].Amount.Value);
+    }
+
+    [Fact]
+    public void A_target_beyond_256_bits_is_never_met()
+    {
+        Assert.False(BlockHeaderReader.MeetsTarget(Fixtures.RealBlock, 0x2200FFFF));
     }
 
     private static byte[] Hex(string fixture) => Convert.FromHexString(Fixtures.Text(fixture).Trim());

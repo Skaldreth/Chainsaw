@@ -262,7 +262,7 @@ internal static class RawTransactionReader
         }
     }
 
-    /// <summary>Reads Bitcoin's little-endian fields and compact sizes from bytes, refusing to read past the end.</summary>
+    /// <summary>Reads Bitcoin's little-endian fields and compact sizes, refusing to read past the end.</summary>
     private ref struct ByteReader
     {
         /// <summary>The bytes.</summary>

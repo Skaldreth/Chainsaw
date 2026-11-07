@@ -225,7 +225,8 @@ internal sealed class TracingService : ITracingService
             throw new ArgumentException("The tracing method is not registered.", nameof(request));
         }
 
-        return Task.Run(() => TraceCalculator.Trace(graph, method, request.Seeds, cancellationToken), cancellationToken);
+        return Task.Run(
+            () => TraceCalculator.Trace(graph, method, request.Seeds, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -309,7 +310,7 @@ internal sealed class TracingService : ITracingService
         return new ExpansionResult(
             expansion.IsComplete ? ExpansionOutcome.Expanded : ExpansionOutcome.Partly,
             [.. step.Transactions.Where(txid => !before.Contains(txid))],
-            step.Problem,
+            Join(step.Problem, step.Notes),
             Build(@case, data))
         {
             HeldBack = step.HeldBack,
@@ -339,7 +340,7 @@ internal sealed class TracingService : ITracingService
 
             if (page.Status == LookupStatus.FromCaseMayBeOutdated)
             {
-                outdated ??= Note(page);
+                outdated ??= Outdated(page);
             }
 
             var countBefore = found.Count;
@@ -419,15 +420,19 @@ internal sealed class TracingService : ITracingService
         }
 
         var found = new List<Txid> { txid };
-        var problem = Note(lookup);
+        var problem = Outdated(lookup);
+        var notes = WithNotes(null, lookup);
         var spends = await _source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (spends.Value is null)
         {
-            return new StepResult(found, Join(problem, Problem(spends.Status, spends.Problem)), true);
+            return new StepResult(found, Join(problem, Problem(spends.Status, spends.Problem)), true)
+            {
+                Notes = notes,
+            };
         }
 
-        problem = Join(problem, Note(spends));
+        problem = Join(problem, Outdated(spends));
         var spenders = SpendersByAmount(lookup.Value, spends.Value);
         ExpansionHoldBack? heldBack = null;
         if (spenders.Count > maximum)
@@ -449,11 +454,12 @@ internal sealed class TracingService : ITracingService
                 continue;
             }
 
-            problem = Join(problem, Note(next));
+            problem = Join(problem, Outdated(next));
+            notes = WithNotes(notes, next);
             found.Add(spender);
         }
 
-        return new StepResult(found, problem, true, heldBack);
+        return new StepResult(found, problem, true, heldBack) { Notes = notes };
     }
 
     /// <summary>
@@ -615,16 +621,28 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <summary>
-    /// Gives what the user should know about an answer that has a value: that it came from the case and may be
-    /// outdated, that the transaction has left its block, or that it could not be checked against its own bytes.
+    /// Gives why an answer may be outdated, when it came from the case instead of the source; such an answer leaves
+    /// the expansion incomplete. Other texts on a current answer (for example that the case's answer about the spends
+    /// is as of when it was fetched) do not, since the expansion asks about the spends itself.
     /// </summary>
     /// <typeparam name="T">What was looked up.</typeparam>
     /// <param name="lookup">The answer.</param>
-    /// <returns>The text, or <see langword="null"/> when there is nothing to say.</returns>
-    private static string? Note<T>(BitcoinLookup<T> lookup)
+    /// <returns>The text, or <see langword="null"/> when the answer is current.</returns>
+    private static string? Outdated<T>(BitcoinLookup<T> lookup)
         where T : class => lookup.Status == LookupStatus.FromCaseMayBeOutdated
         ? lookup.Problem ?? "Svaret kommer ur ärendet och kan ha ändrats."
-        : lookup.Problem;
+        : null;
+
+    /// <summary>
+    /// Joins an answer's notes (a transaction that left its block, one that could not be checked against its bytes)
+    /// to those already gathered; they are said, but do not make the expansion incomplete.
+    /// </summary>
+    /// <typeparam name="T">What was looked up.</typeparam>
+    /// <param name="notes">The notes so far.</param>
+    /// <param name="lookup">The answer.</param>
+    /// <returns>The notes with the answer's added.</returns>
+    private static string? WithNotes<T>(string? notes, BitcoinLookup<T> lookup)
+        where T : class => lookup.Notes.Aggregate(notes, Join);
 
     /// <summary>Joins two texts for the user, either of which may be missing, each once.</summary>
     /// <param name="first">The first text.</param>
@@ -660,5 +678,12 @@ internal sealed class TracingService : ITracingService
     /// </param>
     /// <param name="HeldBack">What was held back at the limit, if anything.</param>
     private sealed record StepResult(
-        IReadOnlyList<Txid> Transactions, string? Problem, bool Answered, ExpansionHoldBack? HeldBack = null);
+        IReadOnlyList<Txid> Transactions, string? Problem, bool Answered, ExpansionHoldBack? HeldBack = null)
+    {
+        /// <summary>
+        /// Gets what the user should know that does not make the step incomplete (a transaction that left its
+        /// block, one that could not be checked against its bytes), or <see langword="null"/>.
+        /// </summary>
+        public string? Notes { get; init; }
+    }
 }

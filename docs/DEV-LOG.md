@@ -995,3 +995,67 @@ det som inte gick att kontrollera i dokumentationen, perioder före källans his
 datorer, fler källor och tokens, stängnings- eller medelkurs, och ett gemensamt lager för råsvar.
 
 **Återstår:** beloppen i SEK i grafen och inspektören, och valet av valuta i inställningarna.
+## Etapp 15: datalagret och spårningen, 2026-11-07
+
+**Byggt:**
+- **Kontrollen mot kedjan (Chains):**
+  - `VerifyTransactionAsync` hämtar tx:ens bytes (`/tx/:txid/hex`) en gång och förseglar dem. Chainsaw räknar fram
+    txid (dubbel SHA-256 utan vittnet, `RawTransaction.cs`) och jämför källans beskrivning med bytesen i allt som
+    txid binder: version, inputs, sekvenser, outputs och locktime.
+  - En beskrivning som stämmer märks `BytesVerified`, också när den senare läses ur ärendet. En som motsäger bytesen
+    används aldrig och hoppas över när ärendet läses, så att ett tidigare bra svar inte skyms.
+  - `GetBlockAsync` hämtar blockets 80 bytes stora huvud (`BlockHeader.cs`). Huvudet ska ha blockets hash och nå det
+    mål dess egna `bits` anger (`HeaderVerified`).
+- **Omorganisation:** djupet räknas från den höjd ärendet kände till **när svaret förseglades**
+  (`RawResponseStore.KnownHeight(reader, upTo)`), inte från i dag. Ett svar som var grunt när det hämtades hämtas
+  därför om när blocket blivit djupt. Har tx:en då bytt block, eller blivit obekräftad, sägs det (`BitcoinLookup.Notes`).
+- **OP_RETURN:** en utgång som aldrig kan spenderas (OP_RETURN, eller ett skript över 10 000 byte) håller inte längre
+  svaret om spenderade utgångar öppet.
+- **Adressens sammanfattning:** `GetAddressSummaryAsync` (`/address/:a`) ger antalet tx, mottaget och spenderat. Den
+  hämtas varje gång och förseglas.
+- **Spårningen (Tracing):**
+  - `TraceAsync` räknar spårningen utanför den anropande tråden och kan avbrytas mellan stegen.
+  - En expansion håller tillbaka det som skulle svämma över grafen (princip 7) och säger det
+    (`ExpansionResult.HeldBack`): en adress ger sina 50 nyaste tx, och med sammanfattningen sägs hur många den har.
+    En tx ger högst 50 spenderare, de som tar emot mest först.
+  - Expansionen av en tx kontrollerar tx:en och dess spenderare mot deras bytes.
+  - Klustren (`IClusteringService.GetClusters`) och sluten vid adresserna (`ITrailEndClassifier.ClassifyAddresses`)
+    läses en gång per bygge.
+  - Grafens läge (`GetView`/`SaveView`, tabellen `tracing_view`, schemasteg 2) sparar metod, vy, belopp och det som
+    syns. Ett byte av metod får en rad i journalen.
+- **Appen:**
+  - Grafen öppnas som den lämnades. Vyns ändringar sparas en i taget, och det som syns sparas när ett drag slutar.
+  - Etiketterna läses en gång per bygge (`IAttributionService.GetLabels` för många adresser), och spårningen körs
+    med `TraceAsync`.
+  - `ILabelLibrary.ShareInto` körs för grafens adresser, och grafen läses om när etiketter kom in.
+  - `ILabelLibrary.Absorb` körs när ett ärende öppnas eller skapas och innan det stängs.
+  - Inspektören visar på en linje om dess tx är kontrollerade mot sina bytes (*Kontroll*, en rad i den befintliga
+    tabellen).
+- **Guiden:** `kontroll-mot-kedjan.md` (*Hur Chainsaw kontrollerar svaren mot kedjan*).
+
+**Egna beslut:**
+- **Bytesen hämtas bara när en tx expanderas för sig** (och för dess spenderare), inte för tx på en adress sida. Det
+  skulle kosta ett uppslag per tx; i dag syns det i inspektören, och resten står i TODO.
+- **Djupet räknas från när svaret hämtades** i stället för att fråga `/block/:hash/status`. Det kostar ett uppslag
+  till per tx som hämtades grund, men kräver ingen ny sorts svar och fångar också en tx som blivit obekräftad.
+- **Vad som hölls tillbaka visas i den befintliga raden** överst i grafen. Att hämta resten, att vika ihop en
+  batchutbetalning och att märka kontrollerade tx i grafen väntar på skiss (TODO).
+- **Bara bytet av metod skrivs i journalen**, eftersom de spårade beloppen vilar på det. Läge, belopp och zoom är
+  vanlig data som platserna.
+- **Etikettbiblioteket stoppar aldrig ärendet:** ett låst valv, en saknad operatörsprofil eller ett bibliotek som inte
+  går att läsa gör bara att etiketterna kommer senare (TODO: säga det).
+
+**Granskningen:**
+- **Omgång 1:** inga C, tre I och nio M.
+  - **I1:** upplysningar (att svaret om spenderade utgångar var gammalt) gjorde nästan varje expansion *Delvis*. Nu
+    skiljs det som gör expansionen ofullständig från upplysningar (`Notes`).
+  - **I2:** en beskrivning som motsade bytesen spärrade tx:en för gott och skymde ett tidigare bra svar. Nu hoppas den
+    över.
+  - **I3:** att en tx var kontrollerad syntes ingenstans. Nu finns raden *Kontroll* i inspektören.
+  - **M** rättade:
+    - vyn kunde sparas i fel ärende medan det nya ärendets vy lästes;
+    - ett mål över 256 bitar godtas inte;
+    - `KnownHeight` hoppas över för svar som aldrig ändras;
+    - långa rader.
+
+  Övriga M står i TODO.

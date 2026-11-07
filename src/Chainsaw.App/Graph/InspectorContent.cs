@@ -108,10 +108,41 @@ public sealed record InspectorContent(
             new("Spårat", Traced(scene, edge.Traced)),
             new("Tid", model.FirstTime is { } time ? Time(time) : "Obekräftad"),
             new("Tx", transactions.ToString(CultureInfo.InvariantCulture)),
+            new("Kontroll", Checked(scene, model.Transfers.Select(transfer => transfer.Txid).Distinct().ToList())),
         };
         var title = $"{scene.Node(model.From)?.Name ?? model.From} → {scene.Node(model.To)?.Name ?? model.To}";
         return new InspectorContent(
             title, EdgeIcon, edge.Ink, NodeShape.Round, facts, EdgeDetails(model), EdgeWhy(scene, edge), []);
+    }
+
+    /// <summary>What a line says when every transaction on it is checked against its own bytes.</summary>
+    public const string CheckedText = "Mot tx:ens bytes";
+
+    /// <summary>What a line says when no transaction on it is checked against its own bytes yet.</summary>
+    public const string UncheckedText = "Inte mot bytes än";
+
+    /// <summary>
+    /// Says whether a line's transactions are checked against their own bytes (txid as their double SHA-256), or only
+    /// rest on the source; a transaction is checked when it is expanded by itself.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="transactions">The line's transactions.</param>
+    /// <returns>The text for the fact.</returns>
+    public static string Checked(GraphScene scene, IReadOnlyCollection<Txid> transactions)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(transactions);
+        var known = scene.Snapshot.Graph.Transactions;
+        var verified = transactions.Count(txid => known.TryGetValue(txid, out var entry)
+            && entry.Transaction.BytesVerified);
+        if (verified == transactions.Count && verified > 0)
+        {
+            return CheckedText;
+        }
+
+        return verified == 0
+            ? UncheckedText
+            : string.Create(CultureInfo.InvariantCulture, $"{verified} av {transactions.Count} tx mot bytes");
     }
 
     /// <summary>What a traced amount says when there is no trace to read it from.</summary>

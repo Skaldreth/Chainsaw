@@ -69,8 +69,15 @@ internal sealed class TestGraphSource : IGraphSource
     /// <summary>Makes storing the view fail, as without an operator profile.</summary>
     public Exception? ViewFailure { get; set; }
 
-    public Task<GraphViewState> LoadViewAsync(ICase @case, CancellationToken cancellationToken) =>
-        Task.FromResult(View);
+    /// <summary>Makes the next reading of the view wait for (or fail with) what the test gives.</summary>
+    public TaskCompletionSource<GraphViewState>? ViewWaiting { get; set; }
+
+    public Task<GraphViewState> LoadViewAsync(ICase @case, CancellationToken cancellationToken)
+    {
+        var waiting = ViewWaiting;
+        ViewWaiting = null;
+        return waiting?.Task ?? Task.FromResult(View);
+    }
 
     public Task SaveViewAsync(ICase @case, GraphViewState view)
     {

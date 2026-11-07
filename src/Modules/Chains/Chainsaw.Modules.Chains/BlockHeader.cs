@@ -27,6 +27,9 @@ internal static class BlockHeaderReader
     /// <summary>The size of a header.</summary>
     private const int HeaderSize = 80;
 
+    /// <summary>The largest exponent of a compact target that still fits 256 bits.</summary>
+    private const int MaximumExponent = 32;
+
     /// <summary>Reads a header given as hex text (as from <c>/block/:hash/header</c>).</summary>
     /// <param name="body">The response's bytes.</param>
     /// <param name="expected">The block asked for; the header must hash to it.</param>
@@ -105,7 +108,8 @@ internal static class BlockHeaderReader
         ArgumentNullException.ThrowIfNull(hash);
         var exponent = (int)(bits >> 24);
         var mantissa = bits & 0x007F_FFFF;
-        if ((bits & 0x0080_0000) != 0 || mantissa == 0)
+        // A negative target, a zero one, or one beyond 256 bits (Bitcoin Core's overflow rule) is never met.
+        if ((bits & 0x0080_0000) != 0 || mantissa == 0 || exponent > MaximumExponent)
         {
             return false;
         }

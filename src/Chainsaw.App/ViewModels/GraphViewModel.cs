@@ -80,6 +80,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Whether the view changed while it was being stored, so that it is stored once more.</summary>
     private bool _viewChangedMeanwhile;
 
+    /// <summary>Whether the open case's stored view has been read and shown, so that changes may be stored.</summary>
+    private bool _viewLoaded;
+
     /// <summary>Creates the graph for the window's open case.</summary>
     /// <param name="session">The open case.</param>
     /// <param name="workflow">The cases, which say when a start point is added.</param>
@@ -526,8 +529,8 @@ public sealed partial class GraphViewModel : ObservableObject
         var problems = string.Join(" ", result.Problems);
         var text = result.Outcome switch
         {
-            ExpansionOutcome.Expanded when result.NewTransactions == 0 => "Inget nytt att hämta.",
-            ExpansionOutcome.Expanded => $"{result.NewTransactions} nya tx i grafen.",
+            ExpansionOutcome.Expanded when result.NewTransactions == 0 => $"Inget nytt att hämta. {problems}",
+            ExpansionOutcome.Expanded => $"{result.NewTransactions} nya tx i grafen. {problems}",
             ExpansionOutcome.Partly => $"Delvis expanderad: {result.NewTransactions} nya tx. {problems}",
             _ => $"Inte expanderad. {problems}",
         };
@@ -555,6 +558,10 @@ public sealed partial class GraphViewModel : ObservableObject
         _refreshAfterExpansion = false;
         _viewport = null;
         StoredViewport = null;
+        _viewLoaded = false;
+        Method = TracingMethodKind.Fifo;
+        Layout = GraphLayout.Free;
+        Labels = AmountLabelMode.All;
         Scene = null;
         SelectedNode = null;
         SelectedEdge = null;
@@ -570,13 +577,16 @@ public sealed partial class GraphViewModel : ObservableObject
         if (_session.Current is { } openCase)
         {
             var view = GraphViewState.Default;
+            var read = false;
             try
             {
                 view = await _source.LoadViewAsync(openCase, _work.Token);
+                read = true;
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
-                // The defaults hold; the graph is read all the same.
+                // The defaults are shown and the graph is read all the same, but nothing is stored over a view that
+                // could not be read.
             }
 
             if (_session.Current != openCase)
@@ -589,12 +599,7 @@ public sealed partial class GraphViewModel : ObservableObject
             Labels = AmountLabelModes.FromStored(view.AmountLabels);
             StoredViewport = view.Viewport is { } stored ? Viewport.FromStored(stored) : null;
             _viewport = StoredViewport;
-        }
-        else
-        {
-            Method = TracingMethodKind.Fifo;
-            Layout = GraphLayout.Free;
-            Labels = AmountLabelMode.All;
+            _viewLoaded = read;
         }
 
         await ReloadAsync(fit: true);
@@ -605,7 +610,8 @@ public sealed partial class GraphViewModel : ObservableObject
     /// </summary>
     private void SaveView()
     {
-        if (_session.Current is null)
+        // Until the case's own view is read, what is shown is not the case's, and must never be stored in it.
+        if (_session.Current is null || !_viewLoaded)
         {
             return;
         }
@@ -623,10 +629,11 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <returns>A task that completes when the latest view is stored or could not be.</returns>
     private async Task SaveViewAsync()
     {
+        var openCase = _session.Current;
         do
         {
             _viewChangedMeanwhile = false;
-            if (_session.Current is not { } openCase)
+            if (openCase is null || _session.Current != openCase || !_viewLoaded)
             {
                 return;
             }

@@ -208,4 +208,64 @@ public sealed class Stage15Tests
         Assert.False(reply.IsError);
         Assert.NotNull(rig.Session.Current);
     }
+
+    [Fact]
+    public void A_line_says_whether_its_transactions_are_checked_against_their_bytes()
+    {
+        var graph = GraphSamples.Graph();
+        var checkedOne = graph.Transactions[GraphSamples.Tx[1]];
+        var transactions = graph.Transactions.ToDictionary(pair => pair.Key, pair => pair.Value);
+        transactions[GraphSamples.Tx[1]] = checkedOne with
+        {
+            Transaction = checkedOne.Transaction with { BytesVerified = true },
+        };
+        var scene = GraphSamples.Scene(graph: graph with { Transactions = transactions });
+
+        Assert.Equal(InspectorContent.CheckedText, InspectorContent.Checked(scene, [GraphSamples.Tx[1]]));
+        Assert.Equal(InspectorContent.UncheckedText, InspectorContent.Checked(scene, [GraphSamples.Tx[2]]));
+        Assert.Equal("1 av 2 tx mot bytes", InspectorContent.Checked(scene, [GraphSamples.Tx[1], GraphSamples.Tx[2]]));
+        Assert.Equal(InspectorContent.UncheckedText, InspectorContent.Checked(scene, []));
+    }
+
+    [Fact]
+    public void Nothing_is_stored_before_the_case_s_own_view_is_read()
+    {
+        var rig = new Rig(Stored);
+        var waiting = new TaskCompletionSource<GraphViewState>();
+        rig.Source.ViewWaiting = waiting;
+        var next = new TestCase("2026-0016");
+
+        rig.Session.Open(next);
+        rig.Graph.ViewportChanged(new Viewport(5, 5, 1));
+        rig.Graph.ShowLayout(GraphLayout.HopColumns);
+        Assert.Empty(rig.Source.SavedViews);
+        waiting.SetResult(GraphViewState.Default);
+        Assert.Equal(GraphLayout.Free, rig.Graph.Layout); // the case's own view, not the one shown before
+        rig.Graph.ShowLayout(GraphLayout.HopColumns);
+
+        var saved = Assert.Single(rig.Source.SavedViews);
+        Assert.Equal(TracingMethodKind.Fifo, saved.Method);
+    }
+
+    [Fact]
+    public void A_view_that_could_not_be_read_is_never_stored_over()
+    {
+        var rig = new Rig(Stored);
+        var failing = new TaskCompletionSource<GraphViewState>();
+        failing.SetException(new CaseException(CaseError.Closed));
+        rig.Source.ViewWaiting = failing;
+
+        rig.Session.Open(new TestCase("2026-0017"));
+        rig.Graph.ShowLayout(GraphLayout.HopColumns);
+
+        Assert.Empty(rig.Source.SavedViews);
+    }
+
+    [Fact]
+    public void An_expansion_s_notes_are_said_also_when_it_is_whole()
+    {
+        var result = new GraphExpansion(GraphSamples.Scene(), ExpansionOutcome.Expanded, 2, ["Tx:en låg tidigare …"]);
+
+        Assert.Equal("2 nya tx i grafen. Tx:en låg tidigare …", GraphViewModel.ExpansionNotice(result, false));
+    }
 }

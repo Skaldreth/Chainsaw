@@ -63,7 +63,8 @@ public interface IClusteringService
     /// The cluster of each address and of the other members of those clusters; just the address when nothing links
     /// it to another.
     /// </returns>
-    IReadOnlyDictionary<BitcoinAddress, Cluster> GetClusters(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
+    IReadOnlyDictionary<BitcoinAddress, Cluster> GetClusters(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
 
     /// <summary>Explains why two addresses are in the same cluster: the links on the way between them.</summary>
     /// <param name="case">The open case.</param>

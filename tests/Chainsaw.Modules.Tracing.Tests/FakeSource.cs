@@ -95,7 +95,7 @@ internal sealed class FakeSource : IBitcoinSource
         }
 
         _givenTransactions.Add(txid);
-        return Task.FromResult(Answer(LookupStatus.Fetched, transaction, null));
+        return Task.FromResult(Answer(LookupStatus.Fetched, transaction, ProblemOnFetch) with { Notes = NotesOnFetch });
     }
 
     public Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> GetOutputSpendsAsync(
@@ -124,6 +124,12 @@ internal sealed class FakeSource : IBitcoinSource
         _givenSpends[txid] = spends;
         return Task.FromResult(Answer(LookupStatus.Fetched, spends, null));
     }
+
+    /// <summary>A text a fetched transaction carries, as the case's earlier answer about its spends would give.</summary>
+    public string? ProblemOnFetch { get; set; }
+
+    /// <summary>Notes a fetched transaction carries, as a transaction that left its block would.</summary>
+    public IReadOnlyList<string> NotesOnFetch { get; set; } = [];
 
     /// <summary>How many times a transaction was checked against its bytes.</summary>
     public int Verifications { get; private set; }

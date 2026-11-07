@@ -167,7 +167,7 @@ public enum GraphAmountLabels
     None,
 }
 
-/// <summary>The part of the graph's surface on screen: where the surface's origin is and how far it is zoomed.</summary>
+/// <summary>The part of the graph's surface on screen: where its origin is and how far it is zoomed.</summary>
 /// <param name="OffsetX">The surface's origin from the left of the screen, in screen units.</param>
 /// <param name="OffsetY">The surface's origin from the top of the screen, in screen units.</param>
 /// <param name="Zoom">How far it is zoomed; 1 is natural size.</param>
@@ -181,7 +181,7 @@ public sealed record GraphViewport(double OffsetX, double OffsetY, double Zoom);
 public sealed record GraphViewState(
     TracingMethodKind Method, GraphLayout Layout, GraphAmountLabels AmountLabels, GraphViewport? Viewport)
 {
-    /// <summary>Gets the view of a graph the user has not changed: FIFO, the free surface, every amount, fitted.</summary>
+    /// <summary>Gets the view of an unchanged graph: FIFO, the free surface, every amount, fitted.</summary>
     public static GraphViewState Default { get; } =
         new(TracingMethodKind.Fifo, GraphLayout.Free, GraphAmountLabels.All, null);
 }
@@ -231,7 +231,10 @@ public enum ExpansionOutcome
 /// <summary>What an expansion brought in.</summary>
 /// <param name="Outcome">How it went.</param>
 /// <param name="NewTransactions">The transactions that were not in the graph before.</param>
-/// <param name="Problem">What went wrong or was held back, in Swedish, or <see langword="null"/>.</param>
+/// <param name="Problem">
+/// What went wrong or was held back, and what the user should know besides (a transaction that left its block, one
+/// that could not be checked against its bytes), in Swedish; <see langword="null"/> when there is nothing to say.
+/// </param>
 /// <param name="Graph">The graph after the expansion.</param>
 public sealed record ExpansionResult(
     ExpansionOutcome Outcome, IReadOnlyList<Txid> NewTransactions, string? Problem, TraceGraph Graph)

@@ -21,6 +21,13 @@ public sealed record BitcoinLookup<T>(
     string? Problem)
     where T : class
 {
+    /// <summary>
+    /// Gets what the user should know about the value that neither makes it missing nor outdated: that a transaction
+    /// has left the block the case saw it in, or that it could not be checked against its own bytes or header. Empty
+    /// when there is nothing to say.
+    /// </summary>
+    public IReadOnlyList<string> Notes { get; init; } = [];
+
     /// <summary>Gets whether there is a value.</summary>
     public bool HasValue => Value is not null;
 }
