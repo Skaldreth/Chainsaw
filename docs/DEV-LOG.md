@@ -1887,3 +1887,32 @@ och USDC, och sedan kontoheuristikerna och TRON. Det som står i TODO under *Eth
   resten.
 
 **Granskningen:**
+- **Omgång 1:** inga C, fem I och sex M.
+  - **I:** fröväljaren tappade frön vars egna pengar kom tillbaka till avsändaren (och sa då felaktigt att inget fanns
+    att spåra); en adress som bara var delvis läst (hållen vid gränsen) bar pengarna vidare och fick snöflinga trots
+    luckor i historiken; användarens länk till annan kedja följdes inte av Ethereums spårning; att läsa ärendet igen
+    tappade rörelser på senare sidor och tidigare expansioners sidor efter en ny expansion; en bekräftad rörelse utan
+    känd blockhash visades som obekräftad. Alla rättade: tidigaste ankomst per annat frö, `PartlyRead` som inte bär
+    pengar och säger varför, länkade rörelser slutar som *Fortsätter på annan kedja*, läsningen går till slutet av
+    sidorna, och `AssetTransfer.AccountBlock` håller höjd och tid utan hash.
+  - **M rättade:** egen text när Ethereums spårning inte kan räknas, *Varför?* säger att värdet gäller hela linjen,
+    ett frö till sig självt vägras med rätt skäl. **I TODO:** en start-tx som inte finns i ärendet, egna ytor med
+    Ethereum-aktörer, länkens kolumner.
+- **Omgång 2:** inga C, ett I och fyra M. **I:** omexpansionen kunde både läsa för mycket och tappa en tidigare swaps
+  tokenrörelse; nu läser varje historik för sig ner förbi de tidigare tx:ernas lägsta block. **M rättade:** fröernas
+  räckvidd räknas en gång, egen text när inget finns att spåra på Ethereum, Guiden om delvis lästa adresser; resten i
+  TODO.
+- **Omgång 3:** inga C eller I. Tre M (golvet för omexpansionen, kostnaden för en sen omexpansion och golvets läsning)
+  står i TODO.
+
+Bitcoins facit (`GoldenTests`) är oförändrat i varje omgång.
+
+**Tester:** 2 129 gröna i hela lösningen efter rebasen på etapp 25, varav nya: 21 i Tracing (Ethereums graf,
+expansion, läsning ur ärendet, gränsen, swappar, spårning per tillgång, slut, länkar, omexpansion, block utan hash),
+12 i Attribution (etiketter på Ethereum), 39 i Pricing (USDT och USDC) och 18 i appen (märken, värden, pillret,
+saldot och snöflingan, inspektören, frön, formulären, startpunkter, länken och grafkällan med kurser). Bygget är utan
+varningar.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Ethereum, andra delen*); spårning genom en swap, kända
+DEX:ar, tx:ens plats i blocket, aktiva adresser som bara är delvis lästa och resten under *Ethereum efter etapp 23b* i
+TODO; kontoheuristikerna och TRON.

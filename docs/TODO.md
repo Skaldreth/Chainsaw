@@ -121,6 +121,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
     grafen går också igenom alla ärendets sidor för varje expanderad adress (M3); gå bara ner till expansionens
     lägsta block. Fröväljaren lämnar också ett frö när en annan frös pengar når avsändaren genom en adress som inte bär
     pengarna vidare, och säger det inte (M1).
+  - **Omexpansionens golv** (granskningen av etapp 23b, omgång 3): golvet tas ur det ärendets sidor når nu, så tidigare
+    tx som inte längre nås (ett ärende från före rättelsen, eller en läsning som stannade vid 50 sidor) läses inte om;
+    spara höjderna med expansionen. Att expandera en adress igen efter lång tid kan kosta upp till 150 uppslag; visa
+    det som väntan. Golvet räknas med en läsning av hela Ethereum-delen; det räcker att läsa adressens egna sidor.
   - **Egna ytor (Z) och områdena** tar inte Ethereum-noder (`OwnArea` lagrar Bitcoin-adresser och txid;
     `GraphAreas.MembersOf` läser bara `GraphAddresses`), så valda Ethereum-aktörer ger en tom yta (granskningen av
     etapp 23b, M4). Använd `Node.Addresses`, eller säg att det inte går.
