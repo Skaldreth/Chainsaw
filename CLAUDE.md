@@ -176,7 +176,8 @@ den låses upp, och användaren väljer ärende.
 - **.NET 10 (LTS), WPF**, CommunityToolkit.Mvvm, Microsoft.Extensions.Hosting/DI, Microsoft.Data.Sqlite.Core med SQLite3
   Multiple Ciphers. Samma val som Gawk, men **koden kopieras inte** från Gawk (användarens beslut 2026-11-06). Det som tas
   över är designstilen, temat och gränssnittets komponenter (scrubbern, tidslinjen, tavlan med kolumner och
-  kort), skrivna om för Chainsaw.
+  kort), skrivna om för Chainsaw. Undantag: **Gawks Markdown-parser och -visare får tas över** (användarens beslut
+  2026-11-07), för kommentarsnoden i grafen.
 - **Modulär monolit med separation of concerns.** Varje modul består av ett `*.Contracts`-projekt (publika gränssnitt och
   typer) och ett implementationsprojekt med `internal`-typer, och registreras med `services.AddXxxModule()`. Moduler beror
   bara på varandras Contracts. Ingen logik ligger i vyer eller knappar.

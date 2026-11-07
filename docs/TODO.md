@@ -66,6 +66,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     okontrollerat (princip 7). Byggs som en etapp, eftersom urvalet sparas i ärendet.
 23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
     WireGuard-fil* hör hemma i Inställningar, inte där. Skissas om.
+24. **En ren kommentarsnod i grafen** (användarens önskemål 2026-11-07): en nod som bara är en anteckning, skriven i
+    Markdown. Gawks Markdown-parser tas över (`Gawk.SharedKernel/Text/Markdown.cs`, `Views/MarkdownView.cs`,
+    `Views/Editor/MarkdownEditor.cs` och `MarkdownColorizer.cs`). Skissas (KN1a, KN1b); den sparas i ärendet.
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
