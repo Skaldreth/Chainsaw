@@ -324,9 +324,15 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   på en gång. Resten ligger kvar i högen.
 - **Delete slänger** den valda noden, eller de valda, i soptunnan, var som helst i grafen och också i högen
   (användarens beslut 2026-11-07), med samma varning som när man drar dit något som har kopplingar vidare.
-- **Den tomma grafen guidar** (användarens beslut 2026-11-07, GR6b men mer hjälpsam, ritas om som GR6c): utan ärende står
+- **Den tomma grafen guidar, GR6c** (användarens beslut 2026-11-07): utan ärende står
   *Nytt ärende* mitt på ytan med de senaste ärendena som noder runt om, och ett ärende utan startpunkt får en tom,
-  streckad startpunktsnod med ett fält inuti. Grafen är aldrig tom och tyst.
+  streckad startpunktsnod med ett fält inuti, som förklarar vad en startpunkt är, visar formerna som brickor som lyser
+  när texten passar, tar Ctrl+V var som helst på ytan och säger att inget hämtas förrän Enter och genom vilken utgång.
+  Nästa steg står svagt med kortkommandon och förklaras på hovring, *Så spårar man i Chainsaw* öppnar Guiden, första
+  gången förklarar lite mer, och offline sägs ärligt vid noderna. Grafen är aldrig tom och tyst.
+- **Ärendeväljaren är ÄV1a** (användarens beslut 2026-11-07): ett klick på ärendet i titelraden (eller *Inget ärende*)
+  eller Ctrl+O fäller ut en ruta som UT1a: *Öppet nu* med Verifiera och Stäng, ett sökfält på ärendenummer, de senaste
+  ärendena (nummer och senast ändrad, eftersom resten ligger krypterat i filen) och *Nytt ärende … Ctrl+N*.
 - **Startpunkten är neutral** (användarens beslut 2026-11-07): en startpunkt behåller sin sort (okänd, kluster, tjänst)
   och får en egen markering som startpunkt, eftersom den lika gärna kan vara den misstänktes plånbok som offrets. Offret
   är en etikett, inte startpunktens sort. Markeringen är **en liten flagga i hörnet** som de andra markeringarna (skiss GR5
@@ -472,11 +478,12 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b (tom graf med guidenoder) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6b vald, men mer hjälpsam: GR6c ritas |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b (tom graf med guidenoder) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
 | **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten) | BV1a och BV2a valda, med animerade ringar vid träff |
 | **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald |
 | **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | SO1a vald |
+| **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b; byggd i etapp 22 |
