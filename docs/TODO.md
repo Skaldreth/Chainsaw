@@ -43,8 +43,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
    **nästan 6 minuter för 53 uppslag**, vilket är för långsamt (takten per endpoint?).
 5. **Grafens hörn uppe till höger:** *byggt 2026-11-07* som en rad ikoner med prick när något finns.
 6. **Inspektörens skugga** över titelraden: *rättad 2026-11-07* (sidan klipper vid sin kant).
-7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissas om.
-8. **Undermenyn Nytt** i pillret ska animeras när den visas.
+7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissad 2026-11-07: BV3a (bara
+   riktningen syns, resten som tillval) och BV3b (bevakningen som en mening), båda vid noden; **BV3a vald**. *Pågår.*
+8. **Undermenyn Nytt** i pillret: *animerad 2026-11-07* (växer ut ur knappen och tonar in).
 9. **Pillret:** Tidslinje, Flöde, Exponering och Begäran (och de andra som inte är byggda) ska vara nedtonade.
 10. **Byta ärende i titelraden** går inte (ÄV1a, godkänd).
 11. **Grafens ikon i pillret** säger för lite; en mer beskrivande ikon skissas.

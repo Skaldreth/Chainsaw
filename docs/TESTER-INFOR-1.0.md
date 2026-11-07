@@ -961,3 +961,5 @@ ligger bredvid `Chainsaw.exe`.
       fri yta och hoppkolumner (den valda markerad), metoden som text och beloppen på linjerna (nedtonad vid *Inga
       belopp*). Tipsen säger vad varje ikon gör.
 - [ ] Inspektörens skugga syns inte ovanför titelradens underkant.
+- [ ] Klicka på + i pillret: undermenyn växer ut ur knappen åt höger och tonar in, och raderna glider det sista
+      stycket på plats. Med animeringar avstängda i Windows dyker den bara upp.

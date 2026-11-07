@@ -91,8 +91,11 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
     (n:1); en tom lista betyder alla.
   - **Vyn Bevakning är BV1a** (användarens beslut 2026-11-07): en lista med en rad per bevakning (läge, kedja, riktning,
     motparter som brickor, senast kontrollerad, prick för nya träffar), den valda med detaljer och träffar till höger,
-    *Ny bevakning …* med samma formulär som högerklicket i grafen (riktning, mottagare och avsändare som brickor,
-    tillgång, minsta belopp), och bakgrundens läge ärligt i vyns huvud.
+    *Ny bevakning …* med samma formulär som högerklicket i grafen, och bakgrundens läge ärligt i vyns huvud.
+  - **Formuläret Bevaka är BV3a** (användarens beslut 2026-11-07, ersätter det första formuläret): en ruta vid noden
+    som formulären i IN1b, där bara riktningen syns (In, Ut, Båda som tre stora ikoner), en mening säger vad som
+    händer med förvalen ifyllda, och motparter, minsta belopp och hur ofta är små tillval som fäller ut sitt fält.
+    Tillgången väljs av sig själv och visas bara när det finns fler att välja på.
   - **I grafen är bevakningen BV2a**: en bevakad nod har ett öga i hörnet, och en tunn **prickad vaktlinje** i
     bevakningens egen dova ton går till varje vald motpart, med ett litet öga mitt på; linjer i den bevakade riktningen
     får ett mjukt sken, och utan filter står korta prickade strålar vid porten. Vid en träff blir vaktlinjen en riktig
@@ -497,7 +500,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
-| **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten) | BV1a och BV2a valda, med animerade ringar vid träff |
+| **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten); BV3a, BV3b (Bevaka, enklare och vid noden) | BV1a och BV2a valda, med animerade ringar vid träff; BV3a vald |
 | **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald |
 | **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | SO1a vald |
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |

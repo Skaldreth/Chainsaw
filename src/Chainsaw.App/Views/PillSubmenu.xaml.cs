@@ -14,6 +14,15 @@ namespace Chainsaw.App.Views;
 /// </summary>
 public partial class PillSubmenu : UserControl
 {
+    /// <summary>How wide the menu starts as it folds out, as a share of its width.</summary>
+    private const double FoldFrom = 0.9;
+
+    /// <summary>How far the rows glide in from the left as the menu folds out.</summary>
+    private const double RowsGlide = 8;
+
+    /// <summary>How long the menu takes to fold out.</summary>
+    private const double FoldMilliseconds = 180;
+
     /// <summary>Creates the submenu, hidden.</summary>
     public PillSubmenu()
     {
@@ -42,6 +51,7 @@ public partial class PillSubmenu : UserControl
             return;
         }
 
+        var wasHidden = Visibility != Visibility.Visible || DataContext != item;
         DataContext = item;
         var outline = Geometry.Parse(menu.Outline);
         outline.Freeze();
@@ -50,6 +60,11 @@ public partial class PillSubmenu : UserControl
         Canvas.SetLeft(this, at.X);
         Canvas.SetTop(this, at.Y);
         Visibility = Visibility.Visible;
+        if (wasHidden)
+        {
+            FoldOut();
+        }
+
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
         {
             if (Menu?.IsOpen == true)
@@ -57,6 +72,36 @@ public partial class PillSubmenu : UserControl
                 Focus();
             }
         });
+    }
+
+    /// <summary>
+    /// Folds the menu out of its button (the user's wish 2026-11-07): it grows from the tab towards the right and fades
+    /// in, while the rows glide the last bit into place. With Windows' animations off it just appears.
+    /// </summary>
+    private void FoldOut()
+    {
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            return;
+        }
+
+        var time = new Duration(TimeSpan.FromMilliseconds(FoldMilliseconds));
+        var ease = new System.Windows.Media.Animation.CubicEase
+        {
+            EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut,
+        };
+        var grow = new ScaleTransform(FoldFrom, 1);
+        RenderTransformOrigin = new Point(0, 0);
+        RenderTransform = grow;
+        grow.BeginAnimation(
+            ScaleTransform.ScaleXProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(FoldFrom, 1, time) { EasingFunction = ease });
+        BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, time));
+        var glide = new TranslateTransform();
+        Rows.RenderTransform = glide;
+        glide.BeginAnimation(
+            TranslateTransform.XProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(-RowsGlide, 0, time) { EasingFunction = ease });
     }
 
     /// <summary>
