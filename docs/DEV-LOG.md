@@ -2292,3 +2292,56 @@ skissen.
 
 **Tester:** 584 gröna i appens testprojekt efter rebasen på etapp 25, varav 17 nya för figuren och partiklarna. Bygget är utan varningar.
 **Inte provat på Windows** (TESTER-INFOR, *Kättingen som blir DNA*).
+
+## Ledtrådsnoden och samlingsnoden (EX1, EX2b), dolda OP_RETURN och grafen som använder ytan (2026-11-07)
+
+TODO punkt 22, 30 och OP_RETURN-delen av punkt 4. En adress med 1 759 tx ritade 50 tx och ett par hundra motparter i
+en lång kolumn; nu håller grafen sig i schack (princip 7) utan att något lämnar modellen (princip 1).
+
+- **Tracing** (`PileRules`, `GraphPile`, `HeldBackClue`): reglerna räknas ut ur ärendet varje gång grafen byggs. En
+  aktör hör till det som först tog in den (startpunkterna, sedan expansionerna i ordning), så en motpart som redan
+  fanns flyttar aldrig in i en senare hög. Har en expanderad aktör **fler än åtta** (`GraphPile.MostLoose`) nya
+  motparter på en sida läggs de i en hög där; åtta läser fortfarande som en solfjäder, ett par dussin är den långa
+  kolumnen. Sidan avgörs av den första tx:en motparten är med i: *ut* när den expanderade aktören betalar i den,
+  annars *in*. Aldrig i en hög: startpunkter, expanderade aktörer, aktörer där spåret tar slut (börs, mixer, sanktion)
+  och länkar till annan kedja. En plats som användaren gett en aktör håller den inte utanför; det gör utplockningen,
+  så att en utplockad och flyttad nod kan läggas tillbaka.
+- **Det som hölls tillbaka** sparas nu med expansionen (`Expansion.HeldBack`: hur många som togs och hur många det
+  finns), så att ledtråden finns kvar när ärendet öppnas igen. Ledtråden bär uppslaget som hämtar nästa 50
+  (`HeldBackClue.NextPart`).
+- **Urvalet** (`tracing_picked`) och valet att visa utgångarna utan mottagare (`tracing_view.show_unspendable`) är
+  vanlig data som platserna, utan rad i journalen: högen är hur grafen ritas, inte en slutsats. Schemat är version 3;
+  golden-facit ändrades bara i schemaversionen och tabellerna.
+- **Appen** (`GraphFold`): högens medlemmar ritas som en fyrkantig nod (kortlek, *Avsändare* eller *Mottagare*, antal
+  och summa), deras linjer summeras per par, sort och tillgång till en tjock linje med summan. **Egna beslut:** en
+  medlem med etikett eller som spårade pengar når viks aldrig in, vad Tracing än säger (offrets pengar ska alltid
+  synas); det står i stället för sonaren för negativ etikett, som väntar. Ledtråden är en streckad rund nod `+N tx` med
+  en tunn streckad linje utan belopp, i aktörens hopp.
+- **Valvyn** (`PileFanViewModel`, `PileFanLayout`, `GraphCanvas.Fan.cs`): ett klick på högen dimmar grafen och fäller
+  ut korten, i en bred spiral (EX1a, störst närmast) eller i tidsbågar (EX1b, tidigast överst, bort från adressen).
+  Platserna läggs ut så att inga kort överlappar (testat med 300). Listen längst ner har lägena, beloppsreglagen
+  (logaritmiska mellan minsta och största), *Damm* (under 10 000 satoshi), räknaren, *Plocka ut* (Enter) och
+  *Stäng* (Esc). Klick väljer, Shift-klick väljer fler, och ett kort som dras ut på den dimmade grafen plockas ut där
+  det släpps, med de andra valda under. *Lägg tillbaka i högen* finns i ikonlisten för en utplockad nod.
+- **Avsteg:** ett klick på ledtråden hämtar nästa 50 i stället för att fälla ut de tillbakahållna tx:erna, eftersom de
+  inte är hämtade; de nya motparterna hamnar i högen när de är många. *In, ut eller alla* är två högar i stället för
+  ett filter. Fördelningen bakom reglaget, tidsfönstret, motpartens sort, *Bara de som inte finns i grafen* och
+  *Gruppera per motpart* är inte byggda. Allt står i TODO under *Ledtrådsnoden och samlingsnoden*.
+- **OP_RETURN på 0 BTC döljs** (användarens beslut): noden och dess linje ritas inte. Efter en expansion som gav nya
+  sådana säger en toast hur många, med *Visa dem*; den står 20 s (`ToastRequest.Lingers`, `Toaster.TimeLingering`)
+  i stället för 6. Valet följer med grafens läge i ärendet, och *Dölj dem* kommer i en toast när de visas. En
+  OP_RETURN som bränner pengar är ett faktum värt att se och döljs aldrig.
+- **Grafen använder ytan** (punkt 30): ett hopp med fler än åtta aktörer sprids över kolumner sida vid sida, med så
+  många rader att blocket blir ungefär kvadratiskt (`HopLayout.RowsFor`), uppifrån och ned i tidsordning;
+  hoppkolumnens band är lika brett som blocket. Den fria ytan utgår från samma platser. Belopp som skulle hamna på
+  varandra ritas inte; det under pekaren, sedan de nära det valda och de spårade går först, så att inget viktigt
+  försvinner och resten syns på hovring.
+- **Självgranskning** mot principerna: inget hämtat tas bort och inget förseglat ändras; högen och ledtråden är
+  arrangemang, beloppen på linjerna och korten är summor av fakta; bara ikoner och korta ord i listen. Rättat under
+  granskningen: en utplockad nod som också flyttats föll ur högens regel och kunde inte läggas tillbaka.
+
+**Tester:** 11 nya i Tracing (högarna, sidorna, etiketterna, urvalet över omöppning, ledtråden och nästa uppslag,
+valet att visa OP_RETURN), 15 nya i appen (vikningen, ledtråden, OP_RETURN, layouten, valvyn utan överlapp i båda
+lägena, filtren, valet, vymodellen med högen, ledtråden och toasten) och ett för toastern. Tracing 138, Checks 48 och
+appen 716 gröna; bygget är utan varningar. **Inte provat på Windows** (TESTER-INFOR, *Ledtrådsnoden och
+samlingsnoden*, *Utgångar utan mottagare döljs*, *Grafen använder ytan*).

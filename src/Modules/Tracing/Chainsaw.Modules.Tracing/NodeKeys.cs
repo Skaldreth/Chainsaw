@@ -56,4 +56,16 @@ internal static class NodeKeys
     public static string Position(string nodeKey) => nodeKey.StartsWith(ClusterPrefix, StringComparison.Ordinal)
         ? AddressPrefix + nodeKey[ClusterPrefix.Length..]
         : nodeKey;
+
+    /// <summary>
+    /// The keys a node is known by when the case remembers something about it (a place, or that it was picked out of
+    /// a pile): every address of a single address or a cluster on Bitcoin, so that it is found again when the cluster
+    /// grows or another address represents it; otherwise the node's position key.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The keys.</returns>
+    public static IReadOnlyList<string> Members(GraphNode node) =>
+        node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster && node.Accounts.Count == 0
+            ? [.. node.GraphAddresses.Select(Address)]
+            : [Position(node.Key)];
 }

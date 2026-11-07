@@ -93,6 +93,38 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <!--
+          The fan's amount sliders (sketch EX2): a thin track and a round thumb in the accent, nothing else, so that
+          the bar stays quiet.
+        -->
+        <Style x:Key="Slider.Fan" TargetType="Slider">
+            <Setter Property="Width" Value="84" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="1" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Height="18" Background="Transparent">
+                            <Border Height="2" CornerRadius="1" VerticalAlignment="Center"
+                                    Background="{StaticResource Brush.BorderStrong}" />
+                            <Track x:Name="PART_Track">
+                                <Track.Thumb>
+                                    <Thumb Cursor="Hand">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Width="12" Height="12" Fill="{StaticResource Brush.Accent}" />
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <UserControl.InputBindings>
@@ -165,6 +197,85 @@
                     </ItemsControl>
                 </Border>
             </Grid>
+
+            <!--
+              The fanned pile's bar (sketches EX1a, EX1b and EX2): the two modes, the amount between a lowest and a
+              highest, Dölj damm, the counter, Plocka ut (Enter) and close (Esc). The cards themselves are on the canvas.
+            -->
+            <Border x:Name="FanBar" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,64"
+                    CornerRadius="12" Padding="4" BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}"
+                    Background="{StaticResource Brush.SurfaceRaised}"
+                    Visibility="{Binding HasFan, Converter={StaticResource Visible}}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.45" Color="Black" />
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal" DataContext="{Binding Fan}">
+                    <Button ToolTip="Spiral, störst närmast" AutomationProperties.Name="Spiral"
+                            CommandParameter="{x:Static graph:PileFanMode.Spiral}" Command="{Binding ShowModeCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource Button.NodeTool}">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSpiral}" Value="True">
+                                        <Setter Property="Tag" Value="On" />
+                                        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <controls:GridIcon Size="18" Data="{StaticResource Icon.Layers}"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+                    <Button ToolTip="Tidsbåge, tidigast överst" AutomationProperties.Name="Tidsbåge"
+                            CommandParameter="{x:Static graph:PileFanMode.TimeArc}" Command="{Binding ShowModeCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource Button.NodeTool}">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTimeArc}" Value="True">
+                                        <Setter Property="Tag" Value="On" />
+                                        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <controls:GridIcon Size="18" Data="{StaticResource Icon.Clock}"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+                    <Rectangle Width="1.5" Height="20" Margin="5,0" Fill="{StaticResource Brush.BorderStrong}" />
+                    <Slider Style="{StaticResource Slider.Fan}" Value="{Binding LowestShare, Mode=TwoWay}"
+                            AutomationProperties.Name="Lägsta belopp" ToolTip="{Binding LowestText}" />
+                    <Slider Style="{StaticResource Slider.Fan}" Value="{Binding HighestShare, Mode=TwoWay}" Margin="6,0,0,0"
+                            AutomationProperties.Name="Högsta belopp" ToolTip="{Binding HighestText}" />
+                    <Button Width="NaN" Margin="6,0,1,0" ToolTip="Dölj belopp under 0,0001 BTC"
+                            AutomationProperties.Name="Dölj damm" Command="{Binding ToggleDustCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource Button.NodeTool}">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HideDust}" Value="True">
+                                        <Setter Property="Tag" Value="On" />
+                                        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <TextBlock Text="Damm" FontSize="12" Margin="9,0" />
+                    </Button>
+                    <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                               VerticalAlignment="Center" Margin="8,0" />
+                    <Button Style="{StaticResource Button.NodeTool}" Width="NaN" Tag="Main" ToolTip="Enter"
+                            AutomationProperties.Name="Plocka ut" Command="{Binding PickSelectedCommand}"
+                            IsEnabled="{Binding HasSelection}">
+                        <TextBlock Text="Plocka ut" FontSize="12" FontWeight="SemiBold" Margin="10,0" />
+                    </Button>
+                    <Button Style="{StaticResource Button.NodeTool}" ToolTip="Stäng  Esc" AutomationProperties.Name="Stäng"
+                            Command="{Binding CloseCommand}">
+                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Close}"
+                                           Foreground="{StaticResource Brush.TextDim}" />
+                    </Button>
+                </StackPanel>
+            </Border>
 
             <!--
               The open form (Etikett L, Bryt upp U, Annan kedja K) in a panel beside the node (sketch IN1b), to its right,

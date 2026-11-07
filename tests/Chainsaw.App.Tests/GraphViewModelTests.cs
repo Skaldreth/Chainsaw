@@ -98,6 +98,22 @@ internal sealed class TestGraphSource : IGraphSource
         HoldViewSave = null;
         return hold?.Task ?? Task.CompletedTask;
     }
+
+    public List<IReadOnlyCollection<string>> Picked { get; } = [];
+
+    public List<IReadOnlyCollection<string>> Returned { get; } = [];
+
+    public Task PickFromPileAsync(ICase @case, IReadOnlyCollection<string> nodeKeys)
+    {
+        Picked.Add(nodeKeys);
+        return Task.CompletedTask;
+    }
+
+    public Task ReturnToPileAsync(ICase @case, IReadOnlyCollection<string> nodeKeys)
+    {
+        Returned.Add(nodeKeys);
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>The graph's view model (sketch GR4) without WPF.</summary>
@@ -706,5 +722,11 @@ public sealed class GraphViewModelTests
             inner.LoadViewAsync(@case, cancellationToken);
 
         public Task SaveViewAsync(ICase @case, GraphViewState view) => inner.SaveViewAsync(@case, view);
+
+        public Task PickFromPileAsync(ICase @case, IReadOnlyCollection<string> nodeKeys) =>
+            inner.PickFromPileAsync(@case, nodeKeys);
+
+        public Task ReturnToPileAsync(ICase @case, IReadOnlyCollection<string> nodeKeys) =>
+            inner.ReturnToPileAsync(@case, nodeKeys);
     }
 }

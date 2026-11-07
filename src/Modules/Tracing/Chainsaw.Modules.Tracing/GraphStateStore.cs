@@ -33,7 +33,56 @@ internal static class GraphStateStore
     /// <param name="reader">The case's reader.</param>
     /// <returns>The state.</returns>
     public static GraphState Read(ICaseReader reader) =>
-        new(ReadStartPoints(reader), ReadExpansions(reader), ReadLinks(reader), ReadPositions(reader));
+        new(ReadStartPoints(reader), ReadExpansions(reader), ReadLinks(reader), ReadPositions(reader))
+        {
+            Picked = ReadPicked(reader),
+        };
+
+    /// <summary>Remembers that actors were picked out of their piles; one picked already stays as it was.</summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="memberKeys">The actors' member keys (see <see cref="NodeKeys.Members"/>).</param>
+    /// <param name="utc">When.</param>
+    public static void SavePicked(ICaseTransaction transaction, IEnumerable<string> memberKeys, DateTimeOffset utc)
+    {
+        foreach (var key in memberKeys)
+        {
+            using var command = transaction.CreateCommand("""
+                INSERT INTO tracing_picked (member_key, picked_utc) VALUES ($key, $utc)
+                ON CONFLICT (member_key) DO NOTHING
+                """);
+            command.AddParameter("$key", key).AddParameter("$utc", Text(utc));
+            command.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Forgets that actors were picked out of their piles, so that they lie in them again.</summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="memberKeys">The actors' member keys.</param>
+    public static void DeletePicked(ICaseTransaction transaction, IEnumerable<string> memberKeys)
+    {
+        foreach (var key in memberKeys)
+        {
+            using var command = transaction.CreateCommand("DELETE FROM tracing_picked WHERE member_key = $key");
+            command.AddParameter("$key", key);
+            command.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Reads which actors the user picked out of the piles.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>Their member keys.</returns>
+    private static HashSet<string> ReadPicked(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand("SELECT member_key FROM tracing_picked");
+        using var rows = command.ExecuteReader();
+        var picked = new HashSet<string>(StringComparer.Ordinal);
+        while (rows.Read())
+        {
+            picked.Add(rows.GetString(0));
+        }
+
+        return picked;
+    }
 
     /// <summary>Gives a start point's kind and subject as stored.</summary>
     /// <param name="startPoint">The start point.</param>
@@ -124,17 +173,22 @@ internal static class GraphStateStore
             : expansion.Transactions.Select(txid => txid.Value);
 
         using var command = transaction.CreateCommand("""
-            INSERT INTO tracing_expansions (kind, subject, transactions, complete, expanded_utc)
-            VALUES ($kind, $subject, $transactions, $complete, $utc)
+            INSERT INTO tracing_expansions (kind, subject, transactions, complete, expanded_utc, held_back,
+                held_back_taken, held_back_available)
+            VALUES ($kind, $subject, $transactions, $complete, $utc, $held, $taken, $available)
             ON CONFLICT (kind, subject) DO UPDATE SET transactions = excluded.transactions,
-                complete = excluded.complete, expanded_utc = excluded.expanded_utc
+                complete = excluded.complete, expanded_utc = excluded.expanded_utc, held_back = excluded.held_back,
+                held_back_taken = excluded.held_back_taken, held_back_available = excluded.held_back_available
             """);
         command
             .AddParameter("$kind", kind)
             .AddParameter("$subject", expansion.Subject)
             .AddParameter("$transactions", JsonSerializer.Serialize(brought))
             .AddParameter("$complete", expansion.IsComplete ? 1L : 0L)
-            .AddParameter("$utc", Text(expansion.ExpandedUtc));
+            .AddParameter("$utc", Text(expansion.ExpandedUtc))
+            .AddParameter("$held", expansion.HeldBack is null ? 0L : 1L)
+            .AddParameter("$taken", (long?)expansion.HeldBack?.Taken)
+            .AddParameter("$available", expansion.HeldBack?.Available);
         command.ExecuteNonQuery();
         return expansion;
     }
@@ -168,7 +222,10 @@ internal static class GraphStateStore
     public static GraphViewState? ReadView(ICaseReader reader)
     {
         using var command = reader.CreateCommand(
-            "SELECT method, layout, amount_labels, offset_x, offset_y, zoom FROM tracing_view WHERE id = 1");
+            """
+            SELECT method, layout, amount_labels, offset_x, offset_y, zoom, show_unspendable FROM tracing_view
+            WHERE id = 1
+            """);
         using var rows = command.ExecuteReader();
         if (!rows.Read()
             || !Enum.TryParse<TracingMethodKind>(rows.GetString(0), out var method) || !Enum.IsDefined(method)
@@ -185,7 +242,7 @@ internal static class GraphStateStore
             viewport = IsFinite(candidate) ? candidate : null;
         }
 
-        return new GraphViewState(method, layout, labels, viewport);
+        return new GraphViewState(method, layout, labels, viewport) { ShowUnspendable = rows.GetInt64(6) != 0 };
     }
 
     /// <summary>Stores how the user left the graph, replacing what was stored.</summary>
@@ -195,16 +252,18 @@ internal static class GraphStateStore
     public static void SaveView(ICaseTransaction transaction, GraphViewState view, DateTimeOffset utc)
     {
         using var command = transaction.CreateCommand("""
-            INSERT INTO tracing_view (id, method, layout, amount_labels, offset_x, offset_y, zoom, updated_utc)
-            VALUES (1, $method, $layout, $labels, $x, $y, $zoom, $utc)
+            INSERT INTO tracing_view (id, method, layout, amount_labels, offset_x, offset_y, zoom, updated_utc,
+                show_unspendable)
+            VALUES (1, $method, $layout, $labels, $x, $y, $zoom, $utc, $unspendable)
             ON CONFLICT (id) DO UPDATE SET method = excluded.method, layout = excluded.layout,
                 amount_labels = excluded.amount_labels, offset_x = excluded.offset_x, offset_y = excluded.offset_y,
-                zoom = excluded.zoom, updated_utc = excluded.updated_utc
+                zoom = excluded.zoom, updated_utc = excluded.updated_utc, show_unspendable = excluded.show_unspendable
             """);
         command.AddParameter("$method", view.Method.ToString()).AddParameter("$layout", view.Layout.ToString())
             .AddParameter("$labels", view.AmountLabels.ToString())
             .AddParameter("$x", view.Viewport?.OffsetX).AddParameter("$y", view.Viewport?.OffsetY)
-            .AddParameter("$zoom", view.Viewport?.Zoom).AddParameter("$utc", Text(utc));
+            .AddParameter("$zoom", view.Viewport?.Zoom).AddParameter("$utc", Text(utc))
+            .AddParameter("$unspendable", view.ShowUnspendable ? 1L : 0L);
         command.ExecuteNonQuery();
     }
 
@@ -330,7 +389,9 @@ internal static class GraphStateStore
     private static List<Expansion> ReadExpansions(ICaseReader reader)
     {
         using var command = reader.CreateCommand("""
-            SELECT kind, subject, transactions, complete, expanded_utc FROM tracing_expansions
+            SELECT kind, subject, transactions, complete, expanded_utc, held_back, held_back_taken,
+                   held_back_available
+            FROM tracing_expansions
             ORDER BY expanded_utc, kind, subject
             """);
         using var rows = command.ExecuteReader();
@@ -342,7 +403,12 @@ internal static class GraphStateStore
             var transactions = JsonSerializer.Deserialize<List<string>>(rows.GetString(2)) ?? [];
             var complete = rows.GetInt64(3) != 0;
             var utc = Time(rows, 4);
-            expansions.Add(kind switch
+            var heldBack = rows.GetInt64(5) == 0
+                ? null
+                : new ExpansionHoldBack(
+                    rows.IsDBNull(6) ? transactions.Count : checked((int)rows.GetInt64(6)),
+                    rows.IsDBNull(7) ? null : rows.GetInt64(7));
+            expansions.Add((kind switch
             {
                 AddressKind => new Expansion(
                     BitcoinAddress.Parse(subject), null, [.. transactions.Select(Txid.Parse)], complete, utc),
@@ -357,7 +423,7 @@ internal static class GraphStateStore
                     EthereumTransactions = [.. transactions.Select(EthereumTxHash.Parse)],
                 },
                 _ => new Expansion(null, Txid.Parse(subject), [.. transactions.Select(Txid.Parse)], complete, utc),
-            });
+            }) with { HeldBack = heldBack });
         }
 
         return expansions;

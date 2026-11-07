@@ -200,6 +200,49 @@ public sealed record GraphScene(
     private readonly Dictionary<string, EdgeView> _edges =
         Edges.ToDictionary(edge => edge.Key, StringComparer.Ordinal);
 
+    /// <summary>The model's nodes the layout places, when set; otherwise those of the drawn nodes.</summary>
+    private readonly IReadOnlyList<GraphNode>? _layoutNodes;
+
+    /// <summary>Gets the model's nodes the layout places: the actors drawn, and the piles' and clues' nodes.</summary>
+    public IReadOnlyList<GraphNode> LayoutNodes
+    {
+        get => _layoutNodes ?? [.. Nodes.Select(node => node.Node)];
+        init => _layoutNodes = value;
+    }
+
+    /// <summary>Gets the piles drawn (sketch EX2b), by key.</summary>
+    public IReadOnlyDictionary<string, PileView> Piles { get; init; } = new Dictionary<string, PileView>();
+
+    /// <summary>Gets the clues drawn (sketch EX1), by key.</summary>
+    public IReadOnlyDictionary<string, HeldBackClue> Clues { get; init; } = new Dictionary<string, HeldBackClue>();
+
+    /// <summary>
+    /// Gets how many outputs that can never be spent and carry nothing the graph has (OP_RETURN, 0 BTC).
+    /// </summary>
+    public int Unspendable { get; init; }
+
+    /// <summary>
+    /// Gets whether those outputs are drawn; they are hidden by default (the user's decision 2026-11-07).
+    /// </summary>
+    public bool ShowsUnspendable { get; init; }
+
+    /// <summary>Gives the pile a node stands for, when it is one.</summary>
+    /// <param name="key">The node's key.</param>
+    /// <returns>The pile, or <see langword="null"/>.</returns>
+    public PileView? Pile(string? key) => key is not null ? Piles.GetValueOrDefault(key) : null;
+
+    /// <summary>Gives the clue a node stands for, when it is one.</summary>
+    /// <param name="key">The node's key.</param>
+    /// <returns>The clue, or <see langword="null"/>.</returns>
+    public HeldBackClue? Clue(string? key) => key is not null ? Clues.GetValueOrDefault(key) : null;
+
+    /// <summary>
+    /// Gives the scene again with the unspendable outputs shown or hidden; itself when it already is so.
+    /// </summary>
+    /// <param name="show">Whether they are shown.</param>
+    /// <returns>The scene.</returns>
+    public GraphScene WithUnspendable(bool show) => show == ShowsUnspendable ? this : Build(Snapshot, show);
+
     /// <summary>Gets the method the trace was made by, as the user sees it, or the asked method's name.</summary>
     public string MethodText =>
         Snapshot.Trace?.Method.ToString() ?? Snapshot.AccountTrace?.Method.ToString() ?? MethodName(Snapshot.Method);
@@ -225,10 +268,14 @@ public sealed record GraphScene(
     /// </summary>
     public static Asset Shown { get; } = Chain.Bitcoin.NativeAsset();
 
-    /// <summary>Builds the scene from a snapshot.</summary>
+    /// <summary>
+    /// Builds the scene from a snapshot, folded (<see cref="GraphFold"/>): the piles and clues drawn, and the outputs
+    /// that can never be spent hidden unless asked for.
+    /// </summary>
     /// <param name="snapshot">The snapshot.</param>
+    /// <param name="showUnspendable">Whether the outputs that can never be spent and carry nothing are drawn.</param>
     /// <returns>The scene.</returns>
-    public static GraphScene Build(GraphSnapshot snapshot)
+    public static GraphScene Build(GraphSnapshot snapshot, bool showUnspendable = false)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var graph = snapshot.Graph;
@@ -250,8 +297,16 @@ public sealed record GraphScene(
             .Select(edge => edge.Swaps.Count == 0 ? edge : edge with { Swap = SwapText(edge.Swaps) })
             .ToList();
         var nodes = graph.Nodes.Select(node => BuildNode(node, snapshot, edges)).ToList();
-        var (lanes, columns) = HopLayout.Arrange(graph.Nodes);
-        return new GraphScene(snapshot, nodes, edges, lanes, columns);
+        var folding = GraphFold.Apply(graph, nodes, edges, showUnspendable);
+        var (lanes, columns) = HopLayout.Arrange(folding.LayoutNodes);
+        return new GraphScene(snapshot, folding.Nodes, folding.Edges, lanes, columns)
+        {
+            LayoutNodes = folding.LayoutNodes,
+            Piles = folding.Piles,
+            Clues = folding.Clues,
+            Unspendable = folding.HiddenUnspendable,
+            ShowsUnspendable = showUnspendable,
+        };
     }
 
     /// <summary>

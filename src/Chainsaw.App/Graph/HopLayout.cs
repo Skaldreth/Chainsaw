@@ -6,7 +6,11 @@ namespace Chainsaw.App.Graph;
 /// <summary>A hop column (sketch GR4), drawn as a faint band with its name at the top.</summary>
 /// <param name="X">The column's left edge.</param>
 /// <param name="Name">The column's name: <c>Start</c>, <c>+1</c>, <c>−1</c> or <c>Utan hopp</c>.</param>
-public sealed record HopLane(double X, string Name);
+public sealed record HopLane(double X, string Name)
+{
+    /// <summary>Gets the band's width: one node, or more when the hop's actors are spread over several columns.</summary>
+    public double Width { get; init; } = GraphSizes.NodeWidth;
+}
 
 /// <summary>
 /// Places the actors in hop columns (sketch GR4): one column per hop from the start, left to right along the money,
@@ -22,6 +26,12 @@ public static class HopLayout
     /// <summary>The name of the start's column.</summary>
     public const string StartName = "Start";
 
+    /// <summary>
+    /// The most actors one hop stands in, one under the other, before the hop is spread over more columns side by side,
+    /// so that the graph uses the surface instead of one long column (CLAUDE.md, <em>Grafen använder ytan</em>).
+    /// </summary>
+    public const int MostRows = 8;
+
     /// <summary>Gives the columns and every node's place in them.</summary>
     /// <param name="nodes">The nodes in the graph's order.</param>
     /// <returns>The columns from left to right, and each node's top-left corner.</returns>
@@ -35,28 +45,50 @@ public static class HopLayout
         var hasUnordered = nodes.Any(node => node.Hop is null);
         var noHopColumn = lastColumn + 1;
 
+        var byColumn = nodes
+            .GroupBy(node => node.Hop is { } hop ? hop - first : noHopColumn)
+            .ToDictionary(group => group.Key, group => group.ToList());
         var lanes = new List<HopLane>();
-        for (var column = 0; column <= lastColumn; column++)
-        {
-            lanes.Add(new HopLane(ColumnX(column), NameOf(column + first)));
-        }
-
-        if (hasUnordered)
-        {
-            lanes.Add(new HopLane(ColumnX(noHopColumn), NoHopName));
-        }
-
-        var rows = new Dictionary<int, int>();
         var places = new Dictionary<string, GraphPoint>(StringComparer.Ordinal);
-        foreach (var node in nodes)
+        var left = GraphSizes.Left;
+        var last = hasUnordered ? noHopColumn : lastColumn;
+        for (var column = 0; column <= last; column++)
         {
-            var column = node.Hop is { } hop ? hop - first : noHopColumn;
-            var row = rows.GetValueOrDefault(column);
-            rows[column] = row + 1;
-            places[node.Key] = new GraphPoint(ColumnX(column), GraphSizes.Top + (row * GraphSizes.RowSpacing));
+            var actors = byColumn.GetValueOrDefault(column) ?? [];
+            var rows = RowsFor(actors.Count);
+            var spread = Math.Max(1, (actors.Count + rows - 1) / rows);
+            var name = column == noHopColumn && hasUnordered ? NoHopName : NameOf(column + first);
+            lanes.Add(new HopLane(left, name) { Width = ((spread - 1) * GraphSizes.LaneSpacing) + GraphSizes.NodeWidth });
+            for (var index = 0; index < actors.Count; index++)
+            {
+                // Down each column first, so that the order by time still reads from the top.
+                var (sub, row) = Math.DivRem(index, rows);
+                places[actors[index].Key] = new GraphPoint(
+                    left + (sub * GraphSizes.LaneSpacing), GraphSizes.Top + (row * GraphSizes.RowSpacing));
+            }
+
+            left += spread * GraphSizes.LaneSpacing;
         }
 
         return (lanes, places);
+    }
+
+    /// <summary>
+    /// Gives how many actors stand one under the other in a hop: all of them up to <see cref="MostRows"/>, and beyond
+    /// that as many as make the hop's block about as tall as it is wide, so that hundreds of counterparties fill a
+    /// square of the surface rather than a long column or a long row.
+    /// </summary>
+    /// <param name="count">How many actors the hop has.</param>
+    /// <returns>The rows, at least one.</returns>
+    public static int RowsFor(int count)
+    {
+        if (count <= MostRows)
+        {
+            return Math.Max(1, count);
+        }
+
+        var square = Math.Sqrt(count * GraphSizes.LaneSpacing / GraphSizes.RowSpacing);
+        return Math.Max(MostRows, (int)Math.Ceiling(square));
     }
 
     /// <summary>Gives a column's left edge.</summary>

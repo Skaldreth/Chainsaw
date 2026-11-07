@@ -57,6 +57,18 @@ public interface IGraphSource
     /// <returns>A task that completes when it is stored.</returns>
     Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place);
 
+    /// <summary>Picks actors out of their piles (sketch EX2b) and stores it in the case.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="nodeKeys">The actors.</param>
+    /// <returns>A task that completes when it is stored.</returns>
+    Task PickFromPileAsync(ICase @case, IReadOnlyCollection<string> nodeKeys);
+
+    /// <summary>Puts actors that were picked out back in their piles, and stores it in the case.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="nodeKeys">The actors.</param>
+    /// <returns>A task that completes when it is stored.</returns>
+    Task ReturnToPileAsync(ICase @case, IReadOnlyCollection<string> nodeKeys);
+
     /// <summary>Reads how the user left the graph: method, layout, amounts and the part on screen.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="cancellationToken">Stops the work.</param>
@@ -209,6 +221,20 @@ public sealed class GraphSource(
     {
         ArgumentNullException.ThrowIfNull(@case);
         return Task.Run(() => tracing.SavePosition(@case, nodeKey, layout, new NodePosition(place.X, place.Y)));
+    }
+
+    /// <inheritdoc/>
+    public Task PickFromPileAsync(ICase @case, IReadOnlyCollection<string> nodeKeys)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => tracing.PickFromPile(@case, nodeKeys));
+    }
+
+    /// <inheritdoc/>
+    public Task ReturnToPileAsync(ICase @case, IReadOnlyCollection<string> nodeKeys)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => tracing.ReturnToPile(@case, nodeKeys));
     }
 
     /// <inheritdoc/>

@@ -44,8 +44,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
    proxy på det lokala nätet fällde varje uppslag genom Windows; rättat. Långsamheten: de 6 minuterna var provets
    stillastående testklocka (takten 250 ms lades på varje tur), men appen läste också om hela adressidor per tx och
    växelheuristiken var kvadratisk i antal outputs; rättat, och var mynten tog vägen frågas fyra i taget i
-   endpointens takt. Beslut 2026-11-07: OP_RETURN-utgångar på 0 BTC **döljs**, och en toast som ligger kvar extra länge säger
-   hur många som döljs, med en knapp som visar dem. Byggs med ledtrådsnoden och samlingsnoden (punkt 22).
+   endpointens takt. OP_RETURN-utgångar på 0 BTC **döljs** (*byggt 2026-11-07* med samlingsnoden): en toast som
+   ligger kvar 20 s säger hur många, med *Visa dem*; valet sparas med grafens läge.
 5. **Grafens hörn uppe till höger:** *byggt 2026-11-07* som en rad ikoner med prick när något finns.
 6. **Inspektörens skugga** över titelraden: *rättad 2026-11-07* (sidan klipper vid sin kant).
 7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissad 2026-11-07: BV3a (bara
@@ -65,9 +65,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 19. **Sonarpulsen runt *Nytt ärende*:** *omgjord 2026-11-07*, tre tunna ringar ur nodens egen kant.
 20. **Soptunnan (SO1a)** byggs, och finns redan i startvyn: där kan man slänga ärenden.
 21. **Startvyn grupperar ärenden:** *GR8a vald 2026-11-07*, med samma stöt och centrering som i grafen. Byggs.
-22. **En expansion ritar allt rakt ut:** 50 tx och ett par hundra motparter i en lång kolumn (adressen med 1 759 tx).
-    Ledtrådsnoden `+N tx` och samlingsnoden (EX1a, EX1b och EX2b, godkända) byggs, så att grafen aldrig växer
-    okontrollerat (princip 7). Byggs som en etapp, eftersom urvalet sparas i ärendet.
+22. **En expansion ritar allt rakt ut:** *byggt 2026-11-07, väntar på prov på Windows:* ledtrådsnoden `+N tx`,
+    samlingsnoden (EX2b) med valvyn i två lägen (EX1a, EX1b) och filtren, urvalet sparat i ärendet. Det som återstår
+    står under *Spårning (Tracing)*, *Ledtrådsnoden och samlingsnoden*.
 23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
     WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald och byggd 2026-11-07.**
 24. **En ren kommentarsnod i grafen** (användarens önskemål 2026-11-07): en nod som bara är en anteckning, skriven i
@@ -88,9 +88,10 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     visas på noden skissas.
 29. **Panorering:** *byggd 2026-11-07*, höger- och mittknappen panorerar (också över en nod) och ytan glider vidare
     som i Gawk; ett högerklick utan rörelse öppnar nodens meny. Vänsterknappen drar bara noder.
-30. **Använd ytan** (användarens önskemål 2026-11-07, skärmdump): grafen lägger motparterna i en enda lång kolumn och
-    linjerna buntas; den automatiska layouten ska sprida ut dem över ytan (flera kolumner, i en båge eller ett rutnät)
-    när det blir många, i stället för en kolumn. Tas med i etappen för samlingsnoden (punkt 22).
+30. **Använd ytan:** *byggt 2026-11-07, väntar på prov på Windows:* ett hopp med fler än åtta aktörer sprids över
+    kolumner sida vid sida till ett ungefär kvadratiskt block, och belopp som skulle hamna på varandra visas på hovring.
+31. **Sonarn är fel** (användarens synpunkt 2026-11-07): för snabb och för mycket linjer; den ska vara mjuk, behaglig och
+    lugn. Skissas i SN1a och SN1b med reglage för fart och styrka, sedan byggs den valda i `SonarRing`.
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
@@ -438,6 +439,24 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   dragna noden behövs om graferna blir mycket stora.
 - **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
   bryggornas egna händelser. I v1 knyts den för hand.
+
+#### Ledtrådsnoden och samlingsnoden (EX1, EX2b, byggda 2026-11-07)
+- **Ledtrådsnoden fäller inte ut tx:erna:** de som hölls tillbaka är inte hämtade, så ett klick hämtar nästa 50
+  (de nya motparterna hamnar i högen när de är många) i stället för att fälla ut dem runt adressen som i EX1. Att
+  fälla ut kräver att hela historiken hämtas (för 1 759 tx ett par hundra uppslag); det kan göras när takten mot
+  källorna är provad, gärna med ett tidsfönster (se *Tidsfönster för en adress historik*).
+- **Det som återstår av EX2 i valvyn:** sonar för motpart med negativ etikett och för belopp nära det spårade (i dag
+  hålls en motpart med etikett eller spårade pengar alltid utanför högen i stället), fördelningen bakom
+  beloppsreglaget, tidsfönstret ±48 h, motpartens sort, *Bara de som inte finns i grafen* (allt i en hög finns inte
+  i grafen), *Gruppera per motpart*, hörnmärkena för etikett från ett annat ärende, och hovring på korten.
+- **In, ut eller alla** är i dag två högar, en på var sida om adressen, i stället för ett filter i en gemensam hög.
+- **En bevakad aktör kan hamna i en hög** om bevakningen lades från vyn Bevakning; den borde hållas utanför som de
+  med etikett.
+- **Ordningen mellan expansionerna** läses efter senaste expansionstid, så en adress som expanderas igen (ledtråden)
+  kommer efter senare expansioner; en motpart som båda tog in kan då flytta mellan högarna. Spara första tiden.
+- **Ett kluster vars representant byts** efter att en aktör plockats ut: *Lägg tillbaka* tar bort raden under den
+  nya representanten och hittar inte den gamla.
+- **Startvyn grupperar ärenden** (punkt 21) kan använda samma hög och samma valvy.
 
 ### Attribution
 - **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.
