@@ -89,6 +89,12 @@ internal static class RecoveryTool
             console.Error($"Fel: {exception.Message}");
             return ExitCodes.Failed;
         }
+        catch (InvalidOperationException exception)
+        {
+            // The built-in key configuration does not hold; the message names the resource and never a secret.
+            console.Error($"Fel: {exception.Message}");
+            return ExitCodes.Failed;
+        }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // Never a stack trace or an exception's details: only that the command failed.

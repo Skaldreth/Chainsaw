@@ -188,6 +188,13 @@ public sealed class RecoveryKeyTests : IDisposable
     [InlineData("REVOKED\u00A0{0}")]
     [InlineData("- REVOKED {0}")]
     [InlineData("  * revoked:{0}\r")]
+    [InlineData("`REVOKED {0}`")]
+    [InlineData("– REVOKED {0}")]
+    [InlineData("1. REVOKED {0}")]
+    [InlineData("**REVOKED** {0} # röjd 2027")]
+    [InlineData("REVOKED={0}")]
+    [InlineData("REVOKED_KEY {0}")]
+    [InlineData("\uFEFF\u200BREVOKED\u200B {0}")]
     public void Every_spelling_of_a_revocation_is_read(string line)
     {
         var parsed = EmbeddedRecoveryKey.Parse(
@@ -207,15 +214,18 @@ public sealed class RecoveryKeyTests : IDisposable
     }
 
     [Fact]
-    public void A_word_that_only_starts_like_the_keyword_is_no_revocation()
+    public void The_fingerprint_can_be_written_without_groups_and_in_uppercase()
     {
-        Assert.Empty(EmbeddedRecoveryKey.Parse("REVOKEDNESS är inget ord").Revoked);
+        var parsed = EmbeddedRecoveryKey.Parse("REVOKED " + OpenSslFingerprint.ToUpperInvariant());
+
+        Assert.Equal([OpenSslFingerprint], parsed.Revoked);
     }
 
     [Theory]
     [InlineData("REVOKED 1234")]
     [InlineData("revoked")]
     [InlineData("REVOKED: inte ett fingeravtryck")]
+    [InlineData("Revoked keys are listed below.")]
     [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----")]
     public void Built_in_text_that_does_not_hold_stops_the_build_from_running(string line)
     {

@@ -623,6 +623,10 @@ Inget gränssnitt i appen.
   punktlista, CR) ignorerades tyst; nu läses varje rad som börjar med ordet, och en sådan rad utan giltigt
   fingeravtryck stoppar appen. M: två publika nycklar i resursen vägras, förklaringen i resursen innehåller inte
   längre nyckelordet, `check` säger *Nej* för en återkallad nyckel, och DEV-LOG har rätt journalkod.
+- Omgång 4: inga C, ett I och två M, rättade. I: en återkallelse i backticks, efter ett tankstreck, i en numrerad
+  lista eller med `=` ignorerades fortfarande; nu måste varje rad utanför nyckelblocket som nämner ordet ha exakt ett
+  fingeravtryck (64 hexadecimala tecken, i grupper eller inte), annars startar inte appen. M: en kommentar med ordet
+  stoppar appen (står i dokumentet), och verktyget förklarar en ogiltig inbyggd konfiguration.
 
 **Återstår:** gränssnittet som visar nyckelns fingeravtryck och när den saknas, att administratören skapar nyckeln och
 bygger in den, och att byta ärendets filnyckel (för att stänga en röjd nyckel i kopior som redan lämnats ut).

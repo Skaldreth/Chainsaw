@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Chainsaw.Modules.Cases.Contracts;
 
 namespace Chainsaw.Modules.Cases;
@@ -13,25 +14,28 @@ namespace Chainsaw.Modules.Cases;
 /// Envelopes are only ever removed for keys revoked here, never because a key is merely unknown to this build: an
 /// older build, or another organisation's, must not strip the envelope of a newer key from a file it opens.
 /// </remarks>
-internal static class EmbeddedRecoveryKey
+internal static partial class EmbeddedRecoveryKey
 {
     /// <summary>The name of the embedded resource.</summary>
     public const string ResourceName = "Chainsaw.Modules.Cases.organization-recovery-key.pem";
 
-    /// <summary>The keyword that starts a line revoking an earlier key: <c>REVOKED &lt;fingerprint&gt;</c>.</summary>
+    /// <summary>
+    /// The keyword of a line that revokes an earlier key, <c>REVOKED &lt;fingerprint&gt;</c>; every line outside the
+    /// key that mentions it, in any case, must hold exactly one fingerprint.
+    /// </summary>
     public const string RevokedKeyword = "REVOKED";
 
-    /// <summary>The characters that may come before the keyword when the line is written as a list.</summary>
-    private static readonly char[] ListMarkers = ['-', '*', '•'];
+    /// <summary>The first line of a PEM block.</summary>
+    private const string PemBegin = "-----BEGIN ";
+
+    /// <summary>The last line of a PEM block.</summary>
+    private const string PemEnd = "-----END ";
 
     /// <summary>Every kind of line break, so that a file saved with CR, LF or CRLF reads the same.</summary>
     private static readonly char[] LineBreaks = ['\r', '\n'];
 
     /// <summary>The text that marks a private key, which must never be built in.</summary>
     private const string PrivateKeyMarker = "PRIVATE KEY";
-
-    /// <summary>The length of a fingerprint in hexadecimal digits.</summary>
-    private const int FingerprintLength = 64;
 
     /// <summary>Reads the built-in configuration.</summary>
     /// <returns>The key (or none) and the revoked fingerprints.</returns>
@@ -73,9 +77,8 @@ internal static class EmbeddedRecoveryKey
                 $"The resource {ResourceName} does not hold a P-384 public key.", exception);
         }
 
-        var revoked = text.Split(LineBreaks)
-            .Select(RevokedFingerprintText)
-            .OfType<string>()
+        var revoked = OutsidePemBlocks(text.Split(LineBreaks))
+            .Where(line => line.Contains(RevokedKeyword, StringComparison.OrdinalIgnoreCase))
             .Select(ReadFingerprint)
             .ToHashSet(StringComparer.Ordinal);
         if (key is not null && revoked.Contains(key.Fingerprint))
@@ -86,36 +89,51 @@ internal static class EmbeddedRecoveryKey
         return new RecoveryKeyConfiguration(key, revoked);
     }
 
+    /// <summary>Gives the lines that are not inside a PEM block, whose Base64 could hold any letters.</summary>
+    /// <param name="lines">The lines.</param>
+    /// <returns>The lines outside every block.</returns>
+    private static IEnumerable<string> OutsidePemBlocks(IEnumerable<string> lines)
+    {
+        var inside = false;
+        foreach (var line in lines)
+        {
+            if (line.Contains(PemBegin, StringComparison.Ordinal))
+            {
+                inside = true;
+            }
+            else if (line.Contains(PemEnd, StringComparison.Ordinal))
+            {
+                inside = false;
+            }
+            else if (!inside)
+            {
+                yield return line;
+            }
+        }
+    }
+
     /// <summary>
-    /// Gives the text after the keyword when a line is meant as a revocation: its first word is <c>REVOKED</c> in any
-    /// case, after any whitespace or list marker, and followed by any whitespace or a colon. Every such line must then
-    /// hold a fingerprint, so that a revocation can never be ignored because of its spelling.
+    /// Reads the one fingerprint on a line that mentions the keyword, however the line is written (in a list, in
+    /// quotes, after a colon or an equals sign): 64 hexadecimal digits in either case, together or in groups of four.
+    /// A line that mentions the keyword without exactly one fingerprint stops the build from running, so that a
+    /// revocation is never ignored because of how it was written.
     /// </summary>
     /// <param name="line">The line.</param>
-    /// <returns>The text after the keyword, or <see langword="null"/> when the line is no revocation.</returns>
-    private static string? RevokedFingerprintText(string line)
-    {
-        var rest = line.TrimStart().TrimStart(ListMarkers).TrimStart();
-        if (!rest.StartsWith(RevokedKeyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var after = rest[RevokedKeyword.Length..];
-        return after.Length == 0 || char.IsWhiteSpace(after[0]) || after[0] == ':' ? after.TrimStart(':') : null;
-    }
-
-    /// <summary>Reads a fingerprint as written by people: upper or lower case, with or without spaces.</summary>
-    /// <param name="text">The text after the prefix.</param>
     /// <returns>The fingerprint in lowercase without spaces.</returns>
-    /// <exception cref="InvalidOperationException">It is not 64 hexadecimal digits.</exception>
-    private static string ReadFingerprint(string text)
+    /// <exception cref="InvalidOperationException">The line does not hold exactly one fingerprint.</exception>
+    private static string ReadFingerprint(string line)
     {
-        var fingerprint = new string([.. text.Where(character => !char.IsWhiteSpace(character))]).ToLowerInvariant();
-        return fingerprint.Length == FingerprintLength && fingerprint.All(char.IsAsciiHexDigitLower)
-            ? fingerprint
-            : throw new InvalidOperationException($"The resource {ResourceName} has a malformed revoked key.");
+        var matches = Fingerprint().Matches(line);
+        return matches.Count == 1
+            ? new string([.. matches[0].Value.Where(char.IsAsciiHexDigit)]).ToLowerInvariant()
+            : throw new InvalidOperationException(
+                $"The resource {ResourceName} has a line about a revoked key without exactly one fingerprint.");
     }
+
+    /// <summary>A fingerprint: 64 hexadecimal digits, together or in groups of four with whitespace between.</summary>
+    /// <returns>The expression.</returns>
+    [GeneratedRegex(@"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{4}\s*){15}[0-9A-Fa-f]{4}(?![0-9A-Fa-f])")]
+    private static partial Regex Fingerprint();
 }
 
 /// <summary>The recovery key a build has, and the earlier keys it revokes.</summary>

@@ -60,8 +60,9 @@ nyckelns **fingeravtryck** (SHA-256 av den publika nyckeln, sexton grupper om fy
   och lösenordet i ett förseglat kuvert hos en annan person.
 - Byt och återkalla nyckeln om den kan ha röjts: skapa ett nytt par, bygg in den nya publika nyckeln och skriv en
   rad `REVOKED <den gamla nyckelns fingeravtryck>` i `organization-recovery-key.pem` (fingeravtrycket med stora
-  eller små bokstäver, med eller utan mellanslag). En rad som börjar med ordet men inte har ett giltigt fingeravtryck
-  stoppar Chainsaw, så att en återkallelse aldrig tyst blir utan verkan. Varje ärende som öppnas förlorar då kuvertet för den gamla nyckeln, med en rad i journalen.
+  eller små bokstäver, med eller utan mellanslag). Varje rad som nämner ordet `REVOKED` (hur den än är skriven) måste
+  ha exakt ett fingeravtryck, annars startar inte Chainsaw, så att en återkallelse aldrig tyst blir utan verkan.
+  Skriv alltså inte ordet i kommentarer. Varje ärende som öppnas förlorar då kuvertet för den gamla nyckeln, med en rad i journalen.
   Kuvert för nycklar som bara är okända tas aldrig bort, så att en äldre version inte kan ta bort en nyare nyckel.
 - Kopior av ärendefiler som redan har lämnats ut har kvar kuvertet för den återkallade nyckeln, och en äldre version
   av Chainsaw som inte vet om återkallelsen kan lägga tillbaka det. Det stängs först när ärendets filnyckel kan bytas
