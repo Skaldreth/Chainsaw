@@ -359,7 +359,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   som i Gawks Byggare (runda knappar på 38 px, upphöjd yta, skugga, 18 px från kanten och centrerat i höjd; användarens
   beslut 2026-11-07), med namnet på hovring, i ordningen Nytt · Graf, Tidslinje, Flöde, Exponering, Begäran, Bevakning, Etiketter ·
   Guide, Inställningar (`src/Chainsaw.App/Navigation/ViewTable.cs`, som också ger kortkommandona). **Sök och kommandon
-  finns bara i den flytande raden längst ner** (Ctrl+K eller Ctrl+F), aldrig i huvudet eller som egen vy. Antal visas som
+  finns bara i kommandoraden**, som är dold och fälls fram med Ctrl+K eller Ctrl+F som Spotlight i macOS (användarens
+  beslut 2026-11-07), aldrig i huvudet eller som egen vy. Statusraden längst ner finns inte. Antal visas som
   en prick på ikonen, inte som en siffra. **Pillret följer läget** (användarens beslut 2026-11-07): utan öppet ärende
   fälls de vyer som kräver ett ärende bort (animerat in och ut), och vyer som inte är byggda är nedtonade och säger det.
   **Terminal finns inte** (användarens beslut 2026-11-07: Chainsaw har inga power users). **Sidan har ingen egen rubrik** (användarens beslut 2026-11-07): pillrets valda
