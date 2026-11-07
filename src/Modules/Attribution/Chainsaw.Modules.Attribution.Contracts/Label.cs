@@ -17,8 +17,14 @@ public sealed record Label(LabelSubject Subject, LabelKind Kind, string? Name, I
     public IReadOnlyList<LabelOrigin> Origins { get; } =
         [.. Entries.DistinctBy(entry => entry.Origin.OriginId).Select(entry => entry.Origin)];
 
+    /// <summary>
+    /// Gets the number of independent origins: every version of the same sanction list counts once, since a newer
+    /// list repeating an older one confirms nothing.
+    /// </summary>
+    public int IndependentOrigins => Origins.Select(origin => origin.IndependenceKey).Distinct().Count();
+
     /// <summary>Gets whether more than one independent origin says the same.</summary>
-    public bool IsConfirmed => Origins.Count > 1;
+    public bool IsConfirmed => IndependentOrigins > 1;
 
     /// <summary>
     /// Gets whether every origin is another case: the label was not set here (<em>från ett annat ärende</em>).
@@ -47,7 +53,7 @@ public sealed record Label(LabelSubject Subject, LabelKind Kind, string? Name, I
 
         if (IsConfirmed)
         {
-            text.Append(" Bekräftad av ").Append(Origins.Count).Append(" oberoende ursprung.");
+            text.Append(" Bekräftad av ").Append(IndependentOrigins).Append(" oberoende ursprung.");
         }
 
         foreach (var origin in Origins)

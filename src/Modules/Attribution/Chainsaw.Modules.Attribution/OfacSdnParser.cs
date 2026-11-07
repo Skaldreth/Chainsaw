@@ -41,6 +41,7 @@ internal static class OfacSdnParser
             IgnoreComments = true,
             IgnoreWhitespace = true,
             MaxCharactersFromEntities = 0,
+            MaxCharactersInDocument = SanctionLists.MaximumLength,
         };
         try
         {

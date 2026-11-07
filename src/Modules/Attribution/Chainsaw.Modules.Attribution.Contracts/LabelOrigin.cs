@@ -39,6 +39,14 @@ public sealed record LabelOrigin(
     string? Reason,
     string? Note)
 {
+    /// <summary>
+    /// Gets what makes the origin independent of another: its identity, except that every version of one sanction
+    /// list is the same source.
+    /// </summary>
+    public string IndependenceKey => OriginalSource == LabelSource.SanctionList
+        ? $"{LabelSource.SanctionList}/{SourceName}"
+        : OriginId;
+
     /// <summary>Gets whether the label came from another case through the library.</summary>
     public bool IsFromOtherCase => Source == LabelSource.OtherCase;
 

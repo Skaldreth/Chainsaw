@@ -133,14 +133,23 @@ internal sealed record StoredLabels(IReadOnlyList<LabelEntry> All, IReadOnlySet<
     /// <summary>Gets the labels that are not taken back, oldest first.</summary>
     public IReadOnlyList<LabelEntry> Active { get; } = [.. All.Where(label => !Retracted.Contains(label.Sequence))];
 
-    /// <summary>Gets the identities of every label, also those taken back.</summary>
-    private HashSet<LabelKey> Keys { get; } =
-        [.. All.Select(label => LabelStore.Key(label.Origin.OriginId, label.Subject, label.Kind, label.Name))];
+    /// <summary>Gets the identities of every label, also those taken back, with how the case got them.</summary>
+    private HashSet<(LabelKey Key, LabelSource Source)> Keys { get; } =
+    [
+        .. All.Select(label =>
+            (LabelStore.Key(label.Origin.OriginId, label.Subject, label.Kind, label.Name), label.Origin.Source)),
+    ];
 
     /// <summary>Says whether the case has, or has had, a label.</summary>
     /// <param name="key">The label's identity.</param>
     /// <returns><see langword="true"/> when it has, also when it is taken back.</returns>
-    public bool Has(LabelKey key) => Keys.Contains(key);
+    public bool Has(LabelKey key) => Keys.Any(known => known.Key == key);
+
+    /// <summary>Says whether the case has, or has had, a label that it got in a particular way.</summary>
+    /// <param name="key">The label's identity.</param>
+    /// <param name="source">How the case got it.</param>
+    /// <returns><see langword="true"/> when it has, also when it is taken back.</returns>
+    public bool Has(LabelKey key, LabelSource source) => Keys.Contains((key, source));
 }
 
 /// <summary>The identity of a label across cases.</summary>

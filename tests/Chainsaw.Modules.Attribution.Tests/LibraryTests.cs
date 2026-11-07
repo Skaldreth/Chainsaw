@@ -210,22 +210,6 @@ public sealed class LibraryTests : IDisposable
     }
 
     [Fact]
-    public void A_retraction_in_one_case_leaves_the_label_while_another_case_still_holds_it()
-    {
-        var address = Wpkh("still-held");
-        var label = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange);
-        _harness.Library.Absorb(_harness.Case);
-        using var second = _harness.Create(OtherCaseNumber);
-        _harness.Library.ShareInto(second, [address]);
-        _harness.Library.Absorb(second);
-        _harness.Labels.Retract(_harness.Case, label.Sequence, "Fel");
-
-        Assert.Equal(new LibraryAbsorption(0, 0), _harness.Library.Absorb(_harness.Case));
-
-        Assert.Equal([OtherCaseNumber], Assert.Single(_harness.Library.List()).CaseNumbers);
-    }
-
-    [Fact]
     public void A_label_on_a_cluster_spreads_as_a_label_on_a_cluster()
     {
         var address = Wpkh("cluster-spread");

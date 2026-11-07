@@ -4,14 +4,16 @@ using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Security.Contracts;
 
 namespace Chainsaw.Modules.Attribution;
 
 /// <summary>The labels in a case, sealed with their origins (see <see cref="IAttributionService"/>).</summary>
 /// <param name="clustering">Clustering, asked which cluster an address is in for labels on clusters.</param>
 /// <param name="sanctions">The imported sanction lists.</param>
-internal sealed class AttributionService(IClusteringService clustering, ISanctionLists sanctions)
-    : IAttributionService
+/// <param name="profiles">The operator profile, to see whether the operator already set the same label.</param>
+internal sealed class AttributionService(
+    IClusteringService clustering, ISanctionLists sanctions, IOperatorProfileStore profiles) : IAttributionService
 {
     /// <inheritdoc/>
     public LabelEntry Add(ICase @case, LabelDraft draft)
@@ -38,8 +40,21 @@ internal sealed class AttributionService(IClusteringService clustering, ISanctio
                 nameof(draft)),
         };
 
+        var operatorProfile = profiles.Get();
         return @case.Write(transaction =>
         {
+            // The same operator setting the same label again (a double click) is one judgement, not a confirmation.
+            var same = LabelStore.Read(transaction).Active.FirstOrDefault(label => label.Subject == draft.Subject
+                && label.Kind == draft.Kind
+                && LabelStore.NameKey(label.Name) == LabelStore.NameKey(name)
+                && label.Origin.Source == draft.Source
+                && label.Origin.SourceName == sourceName
+                && label.Origin.SetBy == operatorProfile);
+            if (same is not null)
+            {
+                return same;
+            }
+
             var journal = transaction.AppendJournal(new JournalDraft(
                 AttributionJournalKinds.LabelAdded,
                 string.Format(
@@ -131,17 +146,20 @@ internal sealed class AttributionService(IClusteringService clustering, ISanctio
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(addresses);
-        var list = sanctions.Current;
-        if (list is null)
+        // Each hit keeps the list it was found on, so that a list imported meanwhile is never named for it.
+        var matches = addresses.Distinct().Select(address => (Address: address, Match: sanctions.Find(address)))
+            .Where(found => found.Match is not null)
+            .ToList();
+        if (matches.Count == 0)
         {
-            return new SanctionCheck(null, [], 0);
+            return new SanctionCheck(sanctions.Current, [], 0);
         }
 
-        var hits = addresses
-            .Distinct()
-            .SelectMany(address => (sanctions.Find(address)?.Hits ?? [])
+        var list = matches[^1].Match!.List;
+        var hits = matches
+            .SelectMany(found => found.Match!.Hits
                 .Where(hit => hit.Currency == OfacSdnParser.BitcoinCurrency)
-                .Select(hit => (Address: address, Hit: hit)))
+                .Select(hit => (found.Address, Hit: hit, found.Match.List)))
             .ToList();
         if (hits.Count == 0)
         {
@@ -150,11 +168,15 @@ internal sealed class AttributionService(IClusteringService clustering, ISanctio
 
         return @case.Write(transaction =>
         {
+            // Only the case's own checks count: a copy from another case leaves this case's own hit to be sealed.
             var stored = LabelStore.Read(transaction);
             var drafts = hits
-                .Select(found => (found.Address, found.Hit, Origin: SanctionOriginId(list, found.Hit, found.Address)))
-                .Where(found => !stored.Has(LabelStore.Key(
-                    found.Origin, LabelSubject.ForAddress(found.Address), LabelKind.Sanctioned, found.Hit.EntryName)))
+                .Select(found => (found.Address, found.Hit, found.List,
+                    Origin: SanctionOriginId(found.List, found.Hit, found.Address)))
+                .Where(found => !stored.Has(
+                    LabelStore.Key(
+                        found.Origin, LabelSubject.ForAddress(found.Address), LabelKind.Sanctioned, found.Hit.EntryName),
+                    LabelSource.SanctionList))
                 .ToList();
             if (drafts.Count == 0)
             {
@@ -174,11 +196,16 @@ internal sealed class AttributionService(IClusteringService clustering, ISanctio
                     list = list.Name,
                     sha256 = list.Sha256,
                     published = list.PublishDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    hits = drafts.Select(found => new { address = found.Address.Value, uid = found.Hit.EntryUid }),
+                    hits = drafts.Select(found => new
+                    {
+                        address = found.Address.Value,
+                        uid = found.Hit.EntryUid,
+                        sha256 = found.List.Sha256,
+                    }),
                 })));
             var added = drafts
                 .Select(found => LabelStore.Seal(
-                    transaction, SanctionLabel(list, found.Hit, found.Address, found.Origin, journal), journal))
+                    transaction, SanctionLabel(found.List, found.Hit, found.Address, found.Origin, journal), journal))
                 .ToList();
             return new SanctionCheck(list, added, hits.Count - drafts.Count);
         });

@@ -52,7 +52,10 @@ av Chainsaw. Du sparar filen (XML) och importerar den, och Chainsaw:
 
 En träff blir en etikett **Sanktionerad** i ärendet, med namnet på posten i listan, dess uid och program, och listans
 datum och hash som version. Samma träff märks bara en gång per lista. Kommer en nyare lista med samma adress blir det
-ett nytt ursprung, så att båda listorna syns.
+ett nytt ursprung, så att båda listorna syns, men två versioner av samma lista räknas inte som en bekräftelse.
+
+Ärendet sparar listans hash, datum och postens uid, inte hela listan. **Spara listfilen** så länge ärendet lever, så
+att en träff alltid kan kontrolleras mot exakt den fil den kom från.
 
 ## Etiketter smittar
 
@@ -62,17 +65,23 @@ krypterat med en nyckel ur valvet:
 - När ett ärende öppnas läses dess etiketter in i biblioteket, också när det är en kollegas fil.
 - Biblioteket ger tillbaka: adresser i ärendet som har en etikett i biblioteket får den, märkt **från ett annat ärende**.
   När filen lämnas vidare följer kunskapen med.
-- Tas en etikett tillbaka i sitt ärende försvinner den ur biblioteket nästa gång ärendet läses in, om inget annat
-  ärende fortfarande har den. Har du tagit tillbaka en etikett som kom från biblioteket ges den inte igen.
+- Tas en etikett tillbaka i ärendet där den sattes **dras den tillbaka överallt**: den lämnar biblioteket, ges aldrig
+  igen, och kopiorna i andra ärenden tas tillbaka där nästa gång de får etiketter, med en rad i journalen som inte säger
+  något om det första ärendet. Har du tagit tillbaka en etikett som kom från biblioteket ges den inte igen.
 
 **Sekretess.** Ärendenumret, anteckningen och varför etiketten sattes stannar i det ärendet och i ditt eget bibliotek.
 In i ett annat ärende följer bara **vem** som satte etiketten, **när**, **vad** den säger och vilken sorts källa den
 kom från. En etikett kan märkas **Sprid inte**; då lämnar den aldrig sitt ärende. En etikett på ett **offer** sprids
-aldrig, hur den än är märkt.
+aldrig, hur den än är märkt, och inte heller någon annan etikett på offrets adresser eller kluster (till exempel
+offrets eget konto på en börs), eftersom den kan avslöja vem som drabbats.
+
+Etikettens **namn** följer med. Skriv därför aldrig ett ärendenummer eller en misstänkts namn i namnet; det hör hemma
+i anteckningen, som stannar i ärendet.
 
 ## Flera ursprung är en bekräftelse
 
 Samma etikett (samma adress, sort och namn) från flera håll slås ihop till en. Kommer den från **flera oberoende
 ursprung**, till exempel din egen etikett och en kollegas, visas det som en bekräftelse. Samma ursprung som kommer
-tillbaka genom flera ärenden räknas bara en gång. Säger två etiketter olika saker om samma adress visas båda, den med
+tillbaka genom flera ärenden räknas bara en gång, och samma etikett satt två gånger av samma person i samma ärende
+blir bara en. Säger två etiketter olika saker om samma adress visas båda, den med
 flest ursprung först.

@@ -135,7 +135,7 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
         {
             bytes = File.ReadAllBytes(PathFor(info.Sha256, ListExtension));
         }
-        catch (FileNotFoundException exception)
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {
             throw new SanctionListException(SanctionListError.Tampered, exception);
         }

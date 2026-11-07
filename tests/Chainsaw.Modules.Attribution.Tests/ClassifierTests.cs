@@ -106,6 +106,7 @@ public sealed class ClassifierTests : IDisposable
         var address = Wpkh("disagree");
         _harness.Own(LabelSubject.ForAddress(address), LabelKind.Mixer);
         _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB");
+        _harness.Profiles.Profile = new("Kollega Kollegasson", "Analytiker", "Enheten");
         _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB", "Andra svaret");
 
         var hints = _harness.Classifier.ClassifyAddress(_harness.Case, address);

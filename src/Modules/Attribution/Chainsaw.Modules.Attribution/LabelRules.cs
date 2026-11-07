@@ -68,7 +68,7 @@ internal static class LabelRules
         .. entries
             .GroupBy(entry => (entry.Subject, entry.Kind, Name: LabelStore.NameKey(entry.Name)))
             .Select(group => new Label(group.Key.Subject, group.Key.Kind, group.First().Name, [.. group]))
-            .OrderByDescending(label => label.Origins.Count)
+            .OrderByDescending(label => label.IndependentOrigins)
             .ThenBy(label => label.IsOnlyFromOtherCases)
             .ThenBy(label => label.Entries[0].Sequence),
     ];

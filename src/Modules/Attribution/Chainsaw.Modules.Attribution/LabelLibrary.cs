@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 
 namespace Chainsaw.Modules.Attribution;
@@ -16,13 +17,20 @@ namespace Chainsaw.Modules.Attribution;
 /// </summary>
 /// <param name="keys">The vault's purpose keys.</param>
 /// <param name="options">Where the library lives.</param>
-internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options) : ILabelLibrary
+/// <param name="clustering">Clustering, to keep everything near a victim out of the library.</param>
+internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options, IClusteringService clustering)
+    : ILabelLibrary
 {
     /// <summary>The purpose name of the library's key (see <see cref="IPurposeKeys"/>).</summary>
     public const string Purpose = "attribution/library";
 
     /// <summary>The library's file name.</summary>
     private const string FileName = "bibliotek.bin";
+
+    /// <summary>
+    /// Why a copy is taken back when its label was withdrawn where it was set; it says nothing about that case.
+    /// </summary>
+    private const string WithdrawnReason = "Etiketten togs tillbaka i ärendet där den sattes.";
 
     /// <summary>The size of the nonce, in bytes.</summary>
     private const int NonceSize = 12;
@@ -58,15 +66,35 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
     public LibraryAbsorption Absorb(ICase @case)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        var labels = @case.Read(LabelStore.Read).Active.Where(LabelRules.MaySpread).ToList();
+        var inCase = @case.Read(LabelStore.Read);
+        var nearVictim = NearVictim(@case, inCase.Active);
+        var labels = inCase.Active
+            .Where(label => LabelRules.MaySpread(label) && !nearVictim(label))
+            .ToList();
+
+        // A label set here and then taken back, or that now touches a victim, is withdrawn everywhere: the copies
+        // other cases got from the library are taken back there too, and it is never given again.
+        var withdrawn = inCase.All
+            .Where(label => label.Origin.Source is not (LabelSource.OtherCase or LabelSource.SanctionList)
+                && (inCase.Retracted.Contains(label.Sequence) || nearVictim(label)))
+            .Select(label => label.Origin.OriginId)
+            .ToHashSet(StringComparer.Ordinal);
+        labels.RemoveAll(label => withdrawn.Contains(label.Origin.OriginId));
         var caseId = CaseKey(@case);
         lock (_gate)
         {
             var document = Load();
+            document.Withdrawn.UnionWith(withdrawn);
             foreach (var stored in document.Labels)
             {
                 stored.Cases.Remove(caseId);
+                if (document.Withdrawn.Contains(stored.OriginId))
+                {
+                    stored.Cases.Clear();
+                }
             }
+
+            labels.RemoveAll(label => document.Withdrawn.Contains(label.Origin.OriginId));
 
             var byKey = document.Labels.ToDictionary(Key);
             foreach (var label in labels)
@@ -101,23 +129,23 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         var wanted = addresses.Select(address => address.Value).ToHashSet(StringComparer.Ordinal);
         var caseId = CaseKey(@case);
         List<LibraryRecord> candidates;
+        HashSet<string> withdrawn;
         lock (_gate)
         {
+            var document = Load();
+            withdrawn = document.Withdrawn;
             candidates =
             [
-                .. Load().Labels.Where(stored => wanted.Contains(stored.Subject)
-                    && !stored.Cases.ContainsKey(caseId) && stored.Kind != LabelKind.Victim),
+                .. document.Labels.Where(stored => wanted.Contains(stored.Subject)
+                    && !stored.Cases.ContainsKey(caseId) && stored.Kind != LabelKind.Victim
+                    && !withdrawn.Contains(stored.OriginId)),
             ];
-        }
-
-        if (candidates.Count == 0)
-        {
-            return [];
         }
 
         return @case.Write(transaction =>
         {
             var inCase = LabelStore.Read(transaction);
+            TakeBackWithdrawn(transaction, inCase, withdrawn);
             var incoming = candidates.Select(stored => stored.ToCase()).Where(label => !inCase.Has(
                 LabelStore.Key(label.Origin.OriginId, label.Subject, label.Kind, label.Name))).ToList();
             if (incoming.Count == 0)
@@ -159,6 +187,61 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
                     [.. stored.Cases.Values.Distinct().Order(StringComparer.Ordinal)])),
             ];
         }
+    }
+
+    /// <summary>
+    /// Takes back the copies this case got from the library of labels that were withdrawn where they were set, with
+    /// one line in the journal that says no more than that.
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="inCase">The case's labels.</param>
+    /// <param name="withdrawn">The withdrawn origins.</param>
+    private static void TakeBackWithdrawn(
+        ICaseTransaction transaction, StoredLabels inCase, IReadOnlySet<string> withdrawn)
+    {
+        var copies = inCase.Active
+            .Where(label => label.Origin.IsFromOtherCase && withdrawn.Contains(label.Origin.OriginId))
+            .ToList();
+        if (copies.Count == 0)
+        {
+            return;
+        }
+
+        var journal = transaction.AppendJournal(new JournalDraft(
+            AttributionJournalKinds.LabelRetracted,
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} etiketter från andra ärenden togs tillbaka där de sattes",
+                copies.Count),
+            JsonSerializer.Serialize(new { labels = copies.Select(label => label.Sequence) })));
+        foreach (var copy in copies)
+        {
+            LabelStore.SealRetract(transaction, copy, WithdrawnReason, journal);
+        }
+    }
+
+    /// <summary>
+    /// Gives a test for whether a label is near a victim in the case: on an address or a cluster that holds, or
+    /// shares a cluster with, an address labelled as a victim. Such a label never spreads, since it can tell who
+    /// was robbed (for example the victim's own exchange account).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="active">The case's labels that are not taken back.</param>
+    /// <returns>The test.</returns>
+    private Func<LabelEntry, bool> NearVictim(ICase @case, IReadOnlyList<LabelEntry> active)
+    {
+        var victims = active
+            .Where(label => label.Kind == LabelKind.Victim)
+            .SelectMany(label => clustering.GetCluster(@case, label.Subject.Address).Addresses)
+            .ToHashSet();
+        if (victims.Count == 0)
+        {
+            return _ => false;
+        }
+
+        return label => victims.Contains(label.Subject.Address)
+            || (label.Subject.Kind == LabelSubjectKind.Cluster
+                && clustering.GetCluster(@case, label.Subject.Address).Addresses.Any(victims.Contains));
     }
 
     /// <summary>Gives the key a case is known by in the library.</summary>
@@ -264,6 +347,12 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
     {
         /// <summary>Gets or sets the labels.</summary>
         public List<LibraryRecord> Labels { get; set; } = [];
+
+        /// <summary>
+        /// Gets or sets the origins that were taken back where they were set; they are never given again, and
+        /// copies are taken back in the cases that have them.
+        /// </summary>
+        public HashSet<string> Withdrawn { get; set; } = new(StringComparer.Ordinal);
     }
 
     /// <summary>One label in the library, with what stays in the library.</summary>
