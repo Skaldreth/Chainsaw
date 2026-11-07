@@ -635,6 +635,12 @@ public sealed partial class GraphViewModel : ObservableObject
             _viewChangedMeanwhile = false;
             if (openCase is null || _session.Current != openCase || !_viewLoaded)
             {
+                // A change made in the case opened meanwhile is stored on its own, not lost.
+                if (_viewChangedMeanwhile && _viewLoaded && _session.Current is not null)
+                {
+                    _savingView = SaveViewAsync();
+                }
+
                 return;
             }
 
@@ -646,8 +652,11 @@ public sealed partial class GraphViewModel : ObservableObject
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
                 // The case may have closed, or have no operator profile for the journal's line; the view still holds
-                // in this session.
-                Notice = ViewSaveFailedText;
+                // in this session. Said only while that case is still the one shown.
+                if (_session.Current == openCase)
+                {
+                    Notice = ViewSaveFailedText;
+                }
             }
         }
         while (_viewChangedMeanwhile);

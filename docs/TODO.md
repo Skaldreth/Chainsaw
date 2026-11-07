@@ -99,6 +99,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   ansluten.
 - **Grafens läsning gör om arbete per tx** (granskningen etapp 15, M5): bytesen tolkas och hashas, tx:en tolkas om för
   OP_RETURN, och `KnownHeight` söker igenom registren per uppslag. Spara tolkningen per bygge och ett index på höjd.
+- **Bytesen tolkas om vid varje läsning** (granskningen etapp 15, omgång 2, M): `StoredTransaction` tolkar och hashar
+  de förseglade bytesen, och `GetTransactionAsync` gör det igen. Ge tillbaka tolkningen med tx:en.
+- **Omorganisationen sägs bara en gång** (granskningen etapp 15, omgång 2, M): att en tx bytt block står i
+  expansionens rad, men grafen visar det inte när den läses igen. En markering på noden eller linjen (skiss).
 - **Svaret om spenderade utgångar och omorganisationer** (etapp 15): en tx som bytt block säger det, men ett svar om
   vem som spenderar en output jämförs inte med det förra.
 

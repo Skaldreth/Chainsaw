@@ -1059,3 +1059,19 @@ datorer, fler källor och tokens, stängnings- eller medelkurs, och ett gemensam
     - långa rader.
 
   Övriga M står i TODO.
+- **Omgång 2:** inga C eller I. Fyra M:
+  - två rättade: en ändring av vyn i ett nyss öppnat ärende kunde gå förlorad medan förra ärendets sparning pågick,
+    och dess fel kunde visas i det nya ärendet;
+  - två i TODO: bytesen tolkas om vid varje läsning, och en omorganisation sägs bara i expansionens rad.
+
+**Tester:** 1 323 gröna i hela lösningen vid granskningen, varav 42 nya för etappen:
+- 23 i Chains (kontrollen mot bytes och huvud, OP_RETURN, sammanfattningen, omorganisationen);
+- 11 i Tracing;
+- 3 i Attribution;
+- 2 i Clustering;
+- 16 i appen.
+
+Bygget är utan varningar.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Datalagret och spårningen*). Skiss för det som hölls
+tillbaka och för märkningen av kontrollerade tx i grafen (TODO, *Väntar på skiss*).
