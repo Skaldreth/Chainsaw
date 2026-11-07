@@ -498,6 +498,27 @@ public sealed class GraphViewModelTests
             GraphViewModel.BelowStanding(column, [new GraphPoint(16, 36), new GraphPoint(20, 164)]));
     }
 
+    /// <summary>
+    /// On the first reading of a case, a node without a stored place never lands on a node the user stored there
+    /// (regression).
+    /// </summary>
+    [Fact]
+    public void FirstReadingAvoidsStoredPlaces()
+    {
+        var rig = new Rig(open: false);
+        var graph = GraphSamples.Graph();
+        var columns = HopLayout.Arrange(graph.Nodes).Places;
+        var onU = columns[GraphSamples.UKey];
+        var stored = new Dictionary<GraphLayout, NodePosition> { [GraphLayout.Free] = new(onU.X, onU.Y) };
+        var nodes = graph.Nodes.Select(node => node.Key == GraphSamples.EKey ? node with { Positions = stored } : node);
+        rig.Source.Scene = () => GraphSamples.Scene(graph: graph with { Nodes = [.. nodes] });
+
+        rig.Session.Open(rig.Case);
+
+        var e = GraphSizes.NodeFrame(rig.Graph.Places[GraphSamples.EKey]);
+        Assert.False(GraphSizes.NodeFrame(rig.Graph.Places[GraphSamples.UKey]).Intersects(e));
+    }
+
     /// <summary>A graph source whose expansion waits for the test, and otherwise answers as another source.</summary>
     /// <param name="inner">The other source.</param>
     /// <param name="expansion">The expansion's answer.</param>

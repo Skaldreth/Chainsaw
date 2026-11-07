@@ -569,8 +569,8 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>
     /// Remembers the free place of each node that appears for the first time and that the case has no place for, so
-    /// that a later expansion, which moves the hop columns, does not move it on the free surface. A node that comes
-    /// later goes in its column below every node already standing there, never on top of one.
+    /// that a later expansion, which moves the hop columns, does not move it on the free surface. A node goes to its
+    /// column place unless a node already stands there (dragged, kept or stored in the case); then below them all.
     /// </summary>
     /// <param name="scene">The scene.</param>
     private void KeepFirstFreePlaces(GraphScene scene)
@@ -580,11 +580,10 @@ public sealed partial class GraphViewModel : ObservableObject
             .Select(node => FreePlaceOf(node))
             .OfType<GraphPoint>()
             .ToList();
-        var first = _firstFree.Count == 0;
         foreach (var node in nodes.Where(node => FreePlaceOf(node) is null))
         {
             var column = scene.Columns[node.Key];
-            var place = first ? column : BelowStanding(column, standing);
+            var place = BelowStanding(column, standing);
             _firstFree[node.Key] = place;
             standing.Add(place);
         }

@@ -89,6 +89,7 @@ public sealed class GraphCanvas : FrameworkElement
     {
         Focusable = true;
         _hoverTip.PlacementTarget = this;
+        IsVisibleChanged += (_, _) => CloseHoverTip();
         FocusVisualStyle = null;
         ClipToBounds = true;
         SizeChanged += (_, _) => FitIfPending();
@@ -180,6 +181,7 @@ public sealed class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseLeftButtonDown(e);
+        CloseHoverTip();
         Focus();
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
@@ -255,8 +257,7 @@ public sealed class GraphCanvas : FrameworkElement
     {
         base.OnMouseLeave(e);
         _model?.HoverAt(null, Tolerance);
-        _hoverTip.IsOpen = false;
-        _hoverTip.Content = null;
+        CloseHoverTip();
     }
 
     /// <summary>Zooms around the pointer.</summary>
@@ -348,6 +349,13 @@ public sealed class GraphCanvas : FrameworkElement
         _hoverTip.IsOpen = false;
         _hoverTip.Content = text;
         _hoverTip.IsOpen = text is not null;
+    }
+
+    /// <summary>Closes the hovered node's tooltip, when a press starts or the canvas is hidden or left.</summary>
+    private void CloseHoverTip()
+    {
+        _hoverTip.IsOpen = false;
+        _hoverTip.Content = null;
     }
 
     /// <summary>Turns WPF's point into the graph's.</summary>

@@ -885,3 +885,29 @@ när deras gränssnitt finns; fler knappar med undermenyer.
 - **Metod, läge och gallring sparas inte i ärendet** (Tracing sparar bara platserna); står i TODO.
 - **Grafens tangenter** (Esc, E, F, + och −) gäller när ytan har fokus, och står i verktygstipset på *?* i stället för
   på hela ytan, som annars visade ett tips så fort pekaren vilade.
+
+**Granskningen:**
+- Omgång 1: ett C, fem I och tio M.
+  - **C:** ett klick valde aldrig något, eftersom `ReleaseMouseCapture` avslutade trycket innan klicket lästes. Tryck,
+    drag och klick ligger nu i en ren, testad klass (`Graph/GraphGesture`).
+  - **I:** en linje mellan två noder i samma kolumn gick rakt genom den övre (nu en liten båge ut åt höger); ett fel i
+    spårningens räkning (`InvalidOperationException`) tömde hela grafen (nu visas den utan belopp); en expansion kunde
+    avbrytas av metodbytet eller skrivas över av en äldre läsning (nu kan metoden inte bytas under en expansion, en ny
+    startpunkt väntar på den, och en äldre läsning släpps); ett kluster expanderades adress för adress utan gräns (nu
+    högst 100 nya tx per tryck); utan spårning visades *Spårat 0,0000* som om metoden sagt det (nu *Ingen spårning* och
+    skälet).
+  - **M** rättade: inga nästlade ternärer, klustringens mening bara vid ett kluster, UTC med datum, blockhöjd utan
+    mellanslag, död kod borttagen, nodens verktygstips på hovring, platserna på fria ytan står kvar när grafen växer,
+    en tjänst vinner över en offer-etikett, expansionens svar och grafens problem visas båda, Shift med +, radlängder.
+- Omgång 2: ett I och fem M.
+  - **I:** en ny nod kunde hamna exakt ovanpå en gammal på fria ytan; nu går den under dem i sin kolumn.
+  - **M** rättade: verktygstipset styrs av ytan, högst tio uppslag per expansion, bågen i en kolumn stannar i
+    mellanrummet, enum-parametrar före kommandot i XAML, Shift bara för +.
+- Omgång 3: inga C eller I. Två M rättade: första läsningen av ett återöppnat ärende undviker sparade platser, och
+  verktygstipset stängs vid tryck och när ytan döljs.
+
+**Tester:** 327 i appen (83 nya för grafen), 1 227 i hela lösningen. Bygget utan varningar.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Grafen*); tidslinjen under grafen, mixerns kandidater,
+Guiden som vy, formulären för etiketter, länkar och uppbrytning, och att spara metod och läge i ärendet (TODO); besluten
+om vilka mynt som spåras, startpunkten som offer och nodernas namn (TODO, *Väntar på beslut*).
