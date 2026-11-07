@@ -1,3 +1,4 @@
+using Chainsaw.App.Exits;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
@@ -225,15 +226,19 @@ public sealed partial class FirstRunViewModel : ObservableObject
         ErrorText = string.Empty;
         try
         {
-            var name = ExitNameFor(path);
+            var name = ExitNames.FromFile(path);
             var exit = await Task.Run(() =>
             {
-                if (new FileInfo(path).Length > ExitRules.MaximumConfigurationLength * 4L)
+                var text = WireGuardFile.Read(path)
+                    ?? throw new ArgumentException("The file is too large.", "configuration");
+                try
                 {
-                    throw new ArgumentException("The file is too large.", "configuration");
+                    return _exits.Add(name, string.Empty, ExitKind.WireGuard, new string(text));
                 }
-
-                return _exits.Add(name, string.Empty, ExitKind.WireGuard, File.ReadAllText(path));
+                finally
+                {
+                    Secret.Clear(text);
+                }
             });
             ExitName = exit.Name;
             await SelectExitAsync(exit);
@@ -278,20 +283,6 @@ public sealed partial class FirstRunViewModel : ObservableObject
         {
             // Stored but not selected; the exit's settings show it.
         }
-    }
-
-    /// <summary>Gives an exit its name from the file's name, within the limit, or <c>WireGuard</c>.</summary>
-    /// <param name="path">The file.</param>
-    /// <returns>The name.</returns>
-    private static string ExitNameFor(string path)
-    {
-        var name = Path.GetFileNameWithoutExtension(path).Trim();
-        if (name.Length == 0)
-        {
-            return "WireGuard";
-        }
-
-        return name.Length > ExitRules.MaximumNameLength ? name[..ExitRules.MaximumNameLength].Trim() : name;
     }
 
     /// <summary>Checks the name, stores the profile when the vault already exists, and goes on.</summary>

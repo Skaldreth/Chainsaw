@@ -1,0 +1,208 @@
+<UserControl x:Class="Chainsaw.App.Views.ExitPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:exits="clr-namespace:Chainsaw.App.Exits"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:network="clr-namespace:Chainsaw.Modules.Network.Contracts;assembly=Chainsaw.Modules.Network.Contracts"
+             Width="320" Focusable="False" KeyboardNavigation.TabNavigation="Cycle"
+             PreviewKeyDown="OnKey">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- A line of the route: green and whole while lookups can go, red and dashed while they cannot. -->
+        <Style x:Key="RouteLine" TargetType="Line">
+            <Setter Property="X1" Value="0" />
+            <Setter Property="X2" Value="1" />
+            <Setter Property="Stretch" Value="Fill" />
+            <Setter Property="Height" Value="2" />
+            <Setter Property="Margin" Value="4,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="StrokeThickness" Value="1.5" />
+            <Setter Property="StrokeStartLineCap" Value="Round" />
+            <Setter Property="StrokeEndLineCap" Value="Round" />
+            <Setter Property="StrokeDashCap" Value="Round" />
+            <Setter Property="Stroke" Value="{StaticResource Brush.Error}" />
+            <Setter Property="StrokeDashArray" Value="2.7 2.7" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsLive}" Value="True">
+                    <Setter Property="Stroke" Value="{StaticResource Brush.Success}" />
+                    <Setter Property="StrokeDashArray" Value="{x:Null}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+          An exit in the vault: the accent bar when it is the chosen one, the dot of its state, its name, the state or
+          the reason under it, and the power button.
+        -->
+        <DataTemplate x:Key="ExitRow" DataType="{x:Type vm:ExitRowViewModel}">
+            <Border x:Name="Row" Height="44" CornerRadius="6" Background="Transparent" Padding="12,0,8,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="3" CornerRadius="2" Background="{StaticResource Brush.Accent}" Margin="-10,12,0,12"
+                            HorizontalAlignment="Left"
+                            Visibility="{Binding IsChosen, Converter={StaticResource Visible}}" />
+                    <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{StaticResource Brush.TextFaint}" Margin="0,0,10,0" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="Word" Text="{Binding Word}" FontSize="11.5" Margin="0,1,0,0"
+                                   Foreground="{StaticResource Brush.TextDim}"
+                                   Visibility="{Binding HasWord, Converter={StaticResource Visible}}" />
+                    </StackPanel>
+                    <Button x:Name="Power" Grid.Column="2" Style="{StaticResource Button.Power}"
+                            Command="{Binding DataContext.PowerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}" ToolTip="{Binding ActionText}"
+                            AutomationProperties.Name="{Binding ActionName}">
+                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Power}"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SubmenuHover}" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsOn}" Value="True">
+                    <Setter TargetName="Power" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                    <Setter TargetName="Power" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static exits:ExitRowState.Connected}">
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static exits:ExitRowState.Connecting}">
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Pending}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static exits:ExitRowState.Failed}">
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Error}" />
+                    <Setter TargetName="Word" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!--
+      The exits' panel (sketch UT1a), folded out under the exit in the title bar: the route at the top (Chainsaw, the exit,
+      the sources), the exits in the vault, and the step that adds a WireGuard file. The sketch's check of the public
+      address is not built (docs/TODO.md), so it is not shown.
+    -->
+    <Grid>
+        <!-- The shadow lies in a layer of its own, as under the command bar, so that it never blurs the text. -->
+        <Border CornerRadius="10" Background="{StaticResource Brush.Submenu}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="32" ShadowDepth="12" Direction="270" Opacity="0.5" Color="Black" />
+            </Border.Effect>
+        </Border>
+        <Border CornerRadius="10" Background="{StaticResource Brush.Submenu}" BorderBrush="{StaticResource Brush.BorderStrong}"
+                BorderThickness="1">
+            <StackPanel>
+                <!-- The route: the computer, the exit and the sources. -->
+                <Grid Height="54" Margin="14,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="26" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="26" />
+                    </Grid.ColumnDefinitions>
+                    <controls:GridIcon Size="18" Data="{StaticResource Icon.Laptop}" Foreground="{StaticResource Brush.TextMuted}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Chainsaw på den här datorn" />
+                    <Line Grid.Column="1" Style="{StaticResource RouteLine}" />
+                    <Border Grid.Column="2" CornerRadius="13" BorderThickness="1" Padding="6,3,9,3" VerticalAlignment="Center">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Error}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLive}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource Brush.Success}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Globe}" Margin="0,0,6,0"
+                                               Foreground="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=Border}}" />
+                            <TextBlock Text="{Binding RouteText}" FontSize="12" VerticalAlignment="Center"
+                                       MaxWidth="150" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                    <Line Grid.Column="3" Style="{StaticResource RouteLine}" />
+                    <controls:GridIcon Grid.Column="4" Size="18" Data="{StaticResource Icon.Server}"
+                                       Foreground="{StaticResource Brush.TextMuted}" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" ToolTip="Källorna" />
+                </Grid>
+                <Border Height="1" Margin="10,0" Background="{StaticResource Brush.BorderStrong}" />
+
+                <!-- The exits in the vault, and the way to add one. -->
+                <StackPanel Margin="4" Visibility="{Binding IsListing, Converter={StaticResource Visible}}">
+                    <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource ExitRow}" Focusable="False"
+                                  AutomationProperties.Name="Utgångar" />
+                    <TextBlock Text="Inga utgångar i valvet" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                               Margin="12,10,12,6" Visibility="{Binding IsEmpty, Converter={StaticResource Visible}}" />
+                    <Border Height="1" Margin="6,4" Background="{StaticResource Brush.BorderStrong}" />
+                    <Button x:Name="AddButton" Style="{StaticResource Button.MenuItem}" Command="{Binding AddFileCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}" Foreground="{StaticResource Brush.TextMuted}"
+                                               Margin="0,0,10,0" />
+                            <TextBlock Text="Lägg till WireGuard-fil …" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- The step that adds a file: the file and its check, a name, and the vault. -->
+                <StackPanel Margin="14,12" Visibility="{Binding IsAdding, Converter={StaticResource Visible}}">
+                    <Border Height="34" CornerRadius="6" Background="{StaticResource Brush.Floating}"
+                            BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1" Padding="10,0">
+                        <DockPanel VerticalAlignment="Center">
+                            <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.File}"
+                                               Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,8,0" />
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding CheckText}" FontSize="11.5" Margin="8,0,0,0"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsFileValid}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Brush.Success}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding FileName}" FontSize="12.5" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </Border>
+                    <TextBox x:Name="NameBox" Style="{StaticResource TextBox.Field}" Height="34" FontSize="13" Margin="0,10,0,0"
+                             Background="{StaticResource Brush.Background}" AutomationProperties.Name="Namn"
+                             MaxLength="{x:Static network:ExitRules.MaximumNameLength}"
+                             Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <controls:GridIcon Size="12" Data="{StaticResource Icon.Lock}" Foreground="{StaticResource Brush.TextDim}"
+                                           Margin="0,0,6,0" />
+                        <TextBlock Text="Krypteras i valvet" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Style="{StaticResource Button.Secondary}" Height="30" Padding="12,0" FontSize="12.5"
+                                Content="Avbryt" Command="{Binding CancelAddCommand}" ToolTip="Avbryt (Esc)" />
+                        <Button Style="{StaticResource Button.Primary}" Height="30" Padding="12,0" FontSize="12.5" Margin="8,0,0,0"
+                                Content="Spara" Command="{Binding SaveCommand}" ToolTip="Spara (Enter)"
+                                IsEnabled="{Binding CanSave}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- What went wrong last, in plain words. -->
+                <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="12" Margin="14,0,14,12"
+                           TextWrapping="Wrap" Visibility="{Binding HasError, Converter={StaticResource Visible}}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

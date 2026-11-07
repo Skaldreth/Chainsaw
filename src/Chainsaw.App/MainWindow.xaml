@@ -105,23 +105,41 @@
                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </Button>
 
-                        <!-- The exit, honestly: a green dot and its place while it is connected, grey words otherwise. -->
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center"
-                                    ToolTip="{Binding SourceText}">
-                            <Ellipse Width="7" Height="7" Margin="0,0,6,0">
-                                <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="{StaticResource Brush.TextFaint}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsExitConnected}" Value="True">
-                                                <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Ellipse.Style>
-                            </Ellipse>
-                            <TextBlock Text="{Binding ExitText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
-                        </StackPanel>
+                        <!--
+                          The exit, honestly (sketch UT1a): a green dot and its name while it is connected, grey words
+                          otherwise. A click folds out the exits' panel under it.
+                        -->
+                        <Button x:Name="ExitChip" DockPanel.Dock="Right" Margin="0,0,14,0" VerticalAlignment="Center"
+                                Command="{Binding ExitPanel.ToggleCommand}" ToolTip="{Binding SourceText}"
+                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Utgångar">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Button.Chip}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ExitPanel.IsOpen}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource Brush.SubmenuHover}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{StaticResource Brush.TextFaint}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExitConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="{Binding ExitText}" FontSize="12" VerticalAlignment="Center"
+                                           Foreground="{StaticResource Brush.TextDim}" />
+                                <controls:GridIcon Size="12" Data="{StaticResource Icon.ChevronDown}" Margin="6,0,0,0"
+                                                   VerticalAlignment="Center" Foreground="{StaticResource Brush.TextDim}" />
+                            </StackPanel>
+                        </Button>
                     </DockPanel>
                 </Border>
 
@@ -254,6 +272,17 @@
                         <TextBlock Text="{Binding SourceText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
                     </StackPanel>
                 </Border>
+
+                <!--
+                  The exits' panel (sketch UT1a), folded out under the exit in the title bar, its right edge at the chip's.
+                  A click anywhere else under the title bar folds it in, and goes no further.
+                -->
+                <Grid Grid.Row="1" Grid.RowSpan="2"
+                      Visibility="{Binding ExitPanel.IsOpen, Converter={StaticResource VisibleWhen}}">
+                    <Rectangle Fill="Transparent" MouseDown="OnExitPanelOutside" />
+                    <views:ExitPanel x:Name="ExitPanelView" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                     Margin="0,4,152,0" />
+                </Grid>
 
                 <!-- Nytt ärende (NC1a): over everything under the title bar, with the rest darkened. -->
                 <views:NewCasePanel x:Name="NewCasePanel" Grid.Row="1" Grid.RowSpan="2" />

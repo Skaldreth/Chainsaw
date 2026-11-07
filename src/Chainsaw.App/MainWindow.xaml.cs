@@ -54,6 +54,7 @@ public partial class MainWindow : Window
         DataContext = shell;
         Gate.Attach(gate);
         NewCasePanel.Attach(shell.NewCase);
+        ExitPanelView.Attach(shell.ExitPanel);
         GraphPage.Attach(graph);
         graph.GuideWanted += (_, topic) => shell.ShowGuide(topic);
         gate.PropertyChanged += OnGateChanged;
@@ -63,6 +64,7 @@ public partial class MainWindow : Window
         BindCommandKeys();
         BindLockKey();
         WatchSubmenus();
+        WatchExitPanel();
         WatchActivity();
         _idleTimer = new DispatcherTimer(
             IdleCheck, DispatcherPriority.Background, (_, _) => gate.CheckIdle(), Dispatcher);
@@ -102,7 +104,7 @@ public partial class MainWindow : Window
     {
         if (!_gate.IsShellVisible)
         {
-            _shell.DismissSubmenus();
+            _shell.DismissAll();
         }
 
         ShellRoot.Visibility = _gate.IsShellVisible ? Visibility.Visible : Visibility.Collapsed;
@@ -258,6 +260,39 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Follows the exits' panel (sketch UT1a): the keyboard goes into it when it folds out, and back to the exit in the
+    /// title bar when it folds in while the keyboard was in it.
+    /// </summary>
+    private void WatchExitPanel()
+    {
+        _shell.ExitPanel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ExitPanelViewModel.IsOpen))
+            {
+                return;
+            }
+
+            if (_shell.ExitPanel.IsOpen)
+            {
+                ExitPanelView.TakeFocus();
+            }
+            else if (ExitPanelView.IsKeyboardFocusWithin && _gate.IsShellVisible)
+            {
+                ExitChip.Focus();
+            }
+        };
+    }
+
+    /// <summary>A click under the title bar outside the exits' panel folds it in, and goes no further.</summary>
+    /// <param name="sender">The space around the panel.</param>
+    /// <param name="e">The click.</param>
+    private void OnExitPanelOutside(object sender, MouseButtonEventArgs e)
+    {
+        _shell.ExitPanel.Close();
+        e.Handled = true;
     }
 
     /// <summary>Every key, click, wheel and move in the window puts off the automatic lock.</summary>

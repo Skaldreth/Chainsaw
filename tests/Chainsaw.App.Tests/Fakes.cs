@@ -465,7 +465,8 @@ internal sealed class GateRig
             ],
             input);
         Sanctions = new SanctionListImport(SanctionLists, Picker);
-        Shell = new ShellViewModel(Session, Commands, NewCase, Workflow, Exit, Exits, Sanctions, Ui);
+        ExitPanel = new ExitPanelViewModel(Exit, Exits, Picker, Ui);
+        Shell = new ShellViewModel(Session, Commands, NewCase, Workflow, Exit, Exits, Sanctions, ExitPanel, Ui);
         Links = new LinkInbox(Shell);
         LockScreen = new LockViewModel(Vault, Exit, AutoLock, BuildInfo.Parse("0.1.0+abcdef0123456"), Ui);
         FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow);
@@ -512,6 +513,8 @@ internal sealed class GateRig
 
     public AutoLock AutoLock { get; }
 
+    public ExitPanelViewModel ExitPanel { get; }
+
     public ShellViewModel Shell { get; }
 
     public LockViewModel LockScreen { get; }
@@ -528,10 +531,20 @@ internal sealed class TestFilePicker : IFilePicker
 
     public int Asked { get; private set; }
 
+    public string? WireGuardPath { get; set; }
+
+    public int AskedForWireGuard { get; private set; }
+
     public string? PickSanctionList()
     {
         Asked++;
         return Path;
+    }
+
+    public string? PickWireGuardFile()
+    {
+        AskedForWireGuard++;
+        return WireGuardPath;
     }
 }
 

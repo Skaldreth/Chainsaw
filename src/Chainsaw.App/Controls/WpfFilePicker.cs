@@ -15,16 +15,28 @@ namespace Chainsaw.App.Controls;
 /// <param name="vault">The vault, which says whether Chainsaw is still unlocked when the dialog closes.</param>
 public sealed class WpfFilePicker(AutoLock autoLock, IVault vault) : IFilePicker
 {
-    /// <summary>The dialog's filter: the SDN list is XML, and any file can be tried.</summary>
+    /// <summary>The dialog's filter for a sanction list: the SDN list is XML, and any file can be tried.</summary>
     private const string SanctionListFilter = "Sanktionslista (*.xml)|*.xml|Alla filer (*.*)|*.*";
 
+    /// <summary>The dialog's filter for a WireGuard file: a <c>.conf</c>, and any file can be tried.</summary>
+    private const string WireGuardFilter = "WireGuard-konfiguration (*.conf)|*.conf|Alla filer (*.*)|*.*";
+
     /// <inheritdoc />
-    public string? PickSanctionList()
+    public string? PickSanctionList() => Pick("Importera sanktionslista", SanctionListFilter);
+
+    /// <inheritdoc />
+    public string? PickWireGuardFile() => Pick("Lägg till WireGuard-fil", WireGuardFilter);
+
+    /// <summary>Shows Windows' dialog with the lock held, and drops a file chosen after Chainsaw was locked.</summary>
+    /// <param name="title">The dialog's title.</param>
+    /// <param name="filter">The dialog's filter.</param>
+    /// <returns>The file's path, or <see langword="null"/>.</returns>
+    private string? Pick(string title, string filter)
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Importera sanktionslista",
-            Filter = SanctionListFilter,
+            Title = title,
+            Filter = filter,
             CheckFileExists = true,
             Multiselect = false,
         };

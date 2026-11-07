@@ -278,11 +278,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   börjar, men inte på ett anslutningsförsök som lämnar över en tunnel efteråt (den stoppas ändå direkt), och det finns
   ett litet fönster mellan att den anslutna utgången tas och att dess stopp registreras. Viktigt när tunneln är en
   egen process (granskningen etapp 4, omgång 5, M).
-- **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
-  titelraden (skissas först). Felen har egna skäl sedan etapp 13: *filen godtas inte* (`ConfigurationRefused`),
-  *servern svarar inte* (`NoAnswer`), *tunneln finns inte* och *förbindelsen förlorad*.
-  Vilken rad i en vägrad fil som är fel står bara i `ExitConnectException` (hjälpprogrammet nämner rad och nyckel,
-  aldrig ett värde); `ExitStatus` behöver ett fält för det när gränssnittet ska visa det (granskningen etapp 13, M).
+- **Raden i en vägrad WireGuard-fil:** vilken rad som är fel står bara i `ExitConnectException` (hjälpprogrammet nämner
+  rad och nyckel, aldrig ett värde); rutan UT1a säger bara *Filen godtas inte*. `ExitStatus` behöver ett fält för raden
+  om rutan ska visa den (granskningen etapp 13, M).
+- **Ta bort och byta namn på en utgång** (etapp 17): `IExitStore.RemoveAsync` finns, men rutan UT1a har ingen knapp för
+  det, och inget sätt att byta namn eller ange plats (`ExitInfo.Place`, som titelraden visar först). Skissas.
+- **Ett kortkommando för utgångarna** (etapp 17): rutan öppnas bara med musen eller Tab till utgången i titelraden.
 - **Tunnelns hjälpprogram och Go:** `chainsaw-tunnel.exe` är byggd med Go 1.27.3 (låst i `go.mod`) och checkad in
   med sin hash; den byggs om med `tools/Chainsaw.Tunnel/build.sh` (som kör `govulncheck`) när Go eller beroendena får
   säkerhetsrättelser, minst när en Go-version slutar få stöd.
@@ -293,7 +294,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan
   valvet. Hur den får konfigurationen (DPAPI för Windows-användaren) bestäms med bevakningen.
 - **Kontroll av utgången:** fråga en källa vilken offentlig adress uppslagen kommer ifrån, så att användaren ser att
-  utgången verkligen används (till exempel när den ansluts).
+  utgången verkligen används (till exempel när den ansluts). Skissen UT1a har den som sista raden i rutan (*Syns som …*
+  och *Kontrollera igen*); den visas inte förrän den är byggd (etapp 17).
 
 ### Ärenden
 - **Återställningskuvertet kontrolleras bara med fingeravtrycket:** ett skadat kuvert med rätt fingeravtryck räknas
@@ -382,8 +384,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Startpunkt med ett ärende** lägger bara markören i kommandoraden; ett eget fält (som i Nytt ärende) kan skissas.
 - **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser
   (`IAttributionService.CheckSanctions`); det görs när grafen byggs.
-- **Utgångens namn i titelraden** visas som platsen (eller namnet) först när utgången är ansluten; tunneln är inte
-  byggd, så det har inte kunnat provas.
 
 ### Låsskärmen och förstagångsinställningen (etapp 10)
 - **Raden om bevakningen** på låsskärmen (*En bevakning har slagit till*) när Monitoring finns.
@@ -394,7 +394,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   Inställningen kunde återupptas tills den är klar (granskningen, M).
 - **Fältets loop** stannar tyst om en bildruta kastar ett fel; kunde loggas och startas om. Hela bildrutan kopieras på
   UI-tråden varje ruta (cirka 33 MB per ruta i 4K); kunde sänka takten på stora ytor (granskningen, M).
-- **WireGuard-filens text** blir en `string` på vägen till `IExitStore` (samma sak som *Klartext i minnet*).
+- **WireGuard-filens text** läses som fästa tecken som töms (`Exits/WireGuardFile`, etapp 17), men blir en `string`
+  i anropet till `IExitStore.Add`, som tar en (samma sak som *Klartext i minnet*). Kräver ett kontrakt med tecken.
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 
 ### Övrigt

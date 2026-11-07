@@ -153,6 +153,7 @@ public partial class App : Application
                 .AddSingleton<CommandRegistry>()
                 .AddSingleton<IFilePicker, WpfFilePicker>()
                 .AddSingleton<SanctionListImport>()
+                .AddSingleton<ExitPanelViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<GraphViewModel>()
                 .AddSingleton<ShellViewModel>()

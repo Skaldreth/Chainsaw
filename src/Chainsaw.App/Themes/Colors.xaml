@@ -13,6 +13,8 @@
     <SolidColorBrush x:Key="Brush.Floating" Color="#222222" />
     <!-- An open submenu of the pill and its tab (sketch PN1): a step above the pill, so that it reads as on top. -->
     <SolidColorBrush x:Key="Brush.Submenu" Color="#2C2C2C" />
+    <!-- A row of a folded-out panel under the pointer, a step lighter than the panel (sketch UT1a). -->
+    <SolidColorBrush x:Key="Brush.SubmenuHover" Color="#2E2E2E" />
 
     <SolidColorBrush x:Key="Brush.Border" Color="#2A2A2A" />
     <SolidColorBrush x:Key="Brush.BorderStrong" Color="#3A3A3A" />
@@ -32,6 +34,8 @@
 
     <SolidColorBrush x:Key="Brush.Success" Color="#8CC98F" />
     <SolidColorBrush x:Key="Brush.Error" Color="#EC8C8C" />
+    <!-- Something under way, such as an exit being connected (sketch UT1a). -->
+    <SolidColorBrush x:Key="Brush.Pending" Color="#E0B872" />
     <!-- The close button of the window under the pointer, as in Windows. -->
     <SolidColorBrush x:Key="Brush.CloseHover" Color="#C42B1C" />
 

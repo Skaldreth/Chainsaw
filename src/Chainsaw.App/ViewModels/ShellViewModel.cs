@@ -67,6 +67,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="exit">The connection to the exit, shown in the title bar and the status line.</param>
     /// <param name="exits">The exits, for the connected exit's name.</param>
     /// <param name="sanctions">The import of a sanction list, from the menu Nytt.</param>
+    /// <param name="exitPanel">The exits' panel under the exit in the title bar (sketch UT1a).</param>
     /// <param name="ui">The UI thread.</param>
     public ShellViewModel(
         CaseSession session,
@@ -76,6 +77,7 @@ public sealed partial class ShellViewModel : ObservableObject
         IExitConnection exit,
         IExitStore exits,
         SanctionListImport sanctions,
+        ExitPanelViewModel exitPanel,
         IUiThread ui)
     {
         _session = session;
@@ -85,6 +87,14 @@ public sealed partial class ShellViewModel : ObservableObject
         _ui = ui;
         _workflow = workflow;
         NewCase = newCase;
+        ExitPanel = exitPanel;
+        exitPanel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ExitPanelViewModel.IsOpen) && exitPanel.IsOpen)
+            {
+                DismissMenus();
+            }
+        };
         workflow.CasesListed += (_, _) => ui.Post(() => CommandHint = _commands.Hint(CommandText));
         session.Changed += (_, _) => OnCaseChanged();
         newCase.Created += (_, reply) => OnCreated(reply);
@@ -92,7 +102,7 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             if (e.PropertyName == nameof(NewCaseViewModel.IsOpen) && newCase.IsOpen)
             {
-                DismissSubmenus();
+                DismissAll();
             }
         };
         exit.StatusChanged += (_, status) => ui.Post(() => ShowExit(status));
@@ -118,6 +128,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets Nytt ärende, the panel from the right.</summary>
     public NewCaseViewModel NewCase { get; }
+
+    /// <summary>Gets the exits' panel, folded out under the exit in the title bar (sketch UT1a).</summary>
+    public ExitPanelViewModel ExitPanel { get; }
 
     /// <summary>Gets the views at the top of the rail.</summary>
     public IReadOnlyList<RailItemViewModel> Top { get; }
@@ -205,6 +218,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public void Press(RailItemViewModel item)
     {
         ArgumentNullException.ThrowIfNull(item);
+        ExitPanel.Close();
         if (NewCase.IsOpen)
         {
             // The panel lies over the pill: a menu opened behind it would take the keys unseen.
@@ -226,13 +240,17 @@ public sealed partial class ShellViewModel : ObservableObject
         menu.Toggle();
     }
 
-    /// <summary>Closes any open submenu without taking the keyboard back, for example when Chainsaw locks.</summary>
-    public void DismissSubmenus()
+    /// <summary>
+    /// Closes any open submenu without taking the keyboard back, for example when the window is left. The exits'
+    /// panel stays, since Windows' file dialog leaves the window while a WireGuard file is chosen.
+    /// </summary>
+    public void DismissSubmenus() => DismissMenus();
+
+    /// <summary>Closes any open submenu and the exits' panel, for example when Chainsaw locks or a view is shown.</summary>
+    public void DismissAll()
     {
-        foreach (var menu in Submenus)
-        {
-            menu.Dismiss();
-        }
+        DismissMenus();
+        ExitPanel.Close();
     }
 
     /// <summary>
@@ -243,7 +261,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     public void Show(AppView view)
     {
-        DismissSubmenus();
+        DismissAll();
         if (view == AppView.New)
         {
             NewCase.Show();
@@ -442,6 +460,15 @@ public sealed partial class ShellViewModel : ObservableObject
         finally
         {
             _importing = false;
+        }
+    }
+
+    /// <summary>Closes any open submenu of the pill, for example when the exits' panel opens.</summary>
+    private void DismissMenus()
+    {
+        foreach (var menu in Submenus)
+        {
+            menu.Dismiss();
         }
     }
 

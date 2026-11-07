@@ -456,3 +456,38 @@ Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunnel
 - Sätt (när det går) en etikett i ärende A, stäng A, öppna ärende B med samma adress i grafen: etiketten kommer in i B
   som *från ett annat ärende*, och journalen i B har en rad om det.
 - Lås Chainsaw (Ctrl+L) medan ett ärende är öppet och lås upp: grafen visas som förut, utan fel.
+
+## Utgångarna (etapp 17, UT1a)
+
+**Titelraden och statusraden**
+- Utan ansluten utgång står det *Ingen utgång* med en grå prick och en liten pil i titelraden, och statusraden säger
+  *Offline: ingen utgång ansluten, så inget nytt kan hämtas*. Med en ansluten utgång: grön prick och namnet, och
+  statusraden *Uppslag går genom utgången …*.
+- Hovring över utgången visar statusradens text. Fönstret går fortfarande att dra i titelraden runt knappen.
+
+**Rutan**
+- Ett klick på utgången fäller ut rutan under den, med högerkanten mot knappens. Knappen är upplyst medan rutan är ute.
+  Ett nytt klick, Esc eller ett klick någon annanstans under titelraden fäller in den (klicket går inte vidare till
+  grafen). Esc och utfällning med tangentbordet: fokus går in i rutan och tillbaka till knappen.
+- Överst vägen: datorn, en linje, utgången, en linje, källorna. Grön och hel när en utgång är ansluten (med dess
+  namn), röd och streckad med *Ingen* annars, också medan en utgång ansluter.
+- Utgångarna i valvet i namnordning: grå prick (inte ansluten), gul *Ansluter …*, grön *Ansluten*, röd med orsaken
+  (*Tunneln finns inte*, *Gick inte att ansluta*, *Förbindelsen förlorad*, *Filen godtas inte*, *Servern svarar inte*).
+  Den valda utgången har ett magentafärgat streck till vänster. Inga utgångar: *Inga utgångar i valvet*.
+- Strömknappen ansluter (verktygstips *Anslut*) och är upplyst med *Koppla ner* när utgången är ansluten eller
+  ansluter. Anslut en andra utgång medan en är ansluten: den första kopplas ner, bara en är ansluten. Koppla ner medan
+  en utgång ansluter: försöket avbryts. Gränssnittet ska inte frysa medan tunneln startar.
+- Ingen rad om den offentliga adressen (skissens *Syns som …*) finns; den är inte byggd.
+
+**Lägg till WireGuard-fil …**
+- Öppnar Windows filväljare (*.conf*). Rutan står kvar medan filväljaren är öppen. Avbryt ändrar inget.
+- En riktig WireGuard-fil från VPN-tjänsten: filens namn och *Giltig* i grönt, namnet ifyllt ur filnamnet med fokus
+  och markerat, *Krypteras i valvet*. Spara (eller Enter) lägger den i listan, inte vald, och en ansluten utgång står
+  kvar. Avbryt eller Esc går tillbaka till listan.
+- Prova filer som saknar något: utan `DNS =` (eller med ett namn i stället för en adress) står *Saknar DNS = med en
+  IP-adress* i rött och Spara går inte att trycka; två `[Peer]` ger *Ska ha en [Peer]*. En bild eller en tom fil ger
+  ett rött besked, ingen krasch.
+- Ändra filen mellan valet och Spara så att den blir fel: Spara sparar inget och visar vad som saknas.
+- Lås Chainsaw (Ctrl+L) med rutan ute eller under steget: efter upplåsning är rutan stängd och filen glömd. En fil som
+  väljs efter att Chainsaw låsts medan filväljaren var öppen används inte.
+- Anslut den nya utgången: tunneln startar och vägen blir grön (kräver tunneln från etapp 13 och nät).
