@@ -332,6 +332,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   summan. Ett klick fäller ut korten runt högen över en **bakgrund som dimmar ner** resten av grafen och fokuserar på
   dem. Ett kort som dras ut på det nerdimmade singlas ut och blir en egen nod; **Shift-klick** väljer flera att dra ut
   på en gång. Resten ligger kvar i högen.
+- **Utgångar som aldrig kan spenderas** (OP_RETURN, 0 BTC) **döljs** i grafen (användarens beslut 2026-11-07): en toast
+  som ligger kvar längre än vanligt säger hur många som döljs, med en knapp som visar dem.
 - **Delete slänger** den valda noden, eller de valda, i soptunnan, var som helst i grafen och också i högen
   (användarens beslut 2026-11-07), med samma varning som när man drar dit något som har kopplingar vidare.
 - **Den tomma grafen guidar, GR6c** (användarens beslut 2026-11-07): utan ärende står

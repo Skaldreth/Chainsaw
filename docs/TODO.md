@@ -44,7 +44,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
    proxy på det lokala nätet fällde varje uppslag genom Windows; rättat. Långsamheten: de 6 minuterna var provets
    stillastående testklocka (takten 250 ms lades på varje tur), men appen läste också om hela adressidor per tx och
    växelheuristiken var kvadratisk i antal outputs; rättat, och var mynten tog vägen frågas fyra i taget i
-   endpointens takt. Kvar: ska OP_RETURN-utgångar på 0 BTC alls ritas som noder (princip 7)? Skissas om de tas bort.
+   endpointens takt. Beslut 2026-11-07: OP_RETURN-utgångar på 0 BTC **döljs**, och en toast som ligger kvar extra länge säger
+   hur många som döljs, med en knapp som visar dem. Byggs med ledtrådsnoden och samlingsnoden (punkt 22).
 5. **Grafens hörn uppe till höger:** *byggt 2026-11-07* som en rad ikoner med prick när något finns.
 6. **Inspektörens skugga** över titelraden: *rättad 2026-11-07* (sidan klipper vid sin kant).
 7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissad 2026-11-07: BV3a (bara
