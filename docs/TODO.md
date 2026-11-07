@@ -28,7 +28,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 
 ## Bygga härnäst
 
-- **Soptunnan (SO1a)**, se CLAUDE.md *Soptunnan*: byggs som en etapp, eftersom den skriver i ärendet. Sessionens
+- **Soptunnan (SO1a)**, se CLAUDE.md *Soptunnan*, med Delete på valda noder: byggs som en etapp, eftersom den skriver i ärendet. Sessionens
   förslag: en bevakning på något som slängs pausas och går igen när det läggs tillbaka.
 - **Allt följer med en etikett** (CLAUDE.md, *Etiketter smittar*, användarens beslut 2026-11-07): etapp 8 för bara
   vem, när, etiketten och källans sort in i ett annat ärende; ärendenumret, anteckningen, skälet, titeln och enheten
@@ -49,8 +49,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
   en tx:s spenderare efter belopp). Användarens idé 2026-11-07: en **ledtrådsnod** `+243 tx` vid adressen; ett klick
   skickar de andra noderna bort i en cirkulär stöt (en övergång), centrerar på ledtråden, som byts mot alla tx runt
   om, och användaren väljer vilka som plockas ut i den stora vyn. Inspektören bör också visa om en tx är kontrollerad
-  mot sina bytes och om den bytt block (omorganisation). EX1a och EX1b valda som två lägen (CLAUDE.md); filtren och
-  samlingsnoden skissas i EX2.
+  mot sina bytes och om den bytt block (omorganisation). EX1a och EX1b valda som två lägen, med EX2:s filter
+  och samlingsnoden EX2b (CLAUDE.md). Kvar att lösa: tidslisten blir för smal för ±48 h och behöver zoomas runt
+  fönstret.
 - **Tidslinjen under grafen är TL1a** (CLAUDE.md): byggs efter bevakningen.
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.

@@ -314,8 +314,16 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   (användarens beslut 2026-11-07: **EX1a och EX1b båda**, som två lägen i samma vy, spiralen och tidsbågen). Här är bruset
   störst, så vyn har **filter** som rensar: ett reglage för lägsta och högsta belopp, in, ut eller alla, och mer som
   skissas i EX2. Det som är av extra intresse (kommer från eller går till en aktör med negativ etikett) **pulserar med
-  sonar**. Var många utplockade motparter hamnar i grafen skissas i EX2 (användarens idé: en samlingsnod, där grafen
-  delas i två med ett ljusare lager, skugga och en animerad öppning, och en kompakt lista med noderna).
+  sonar**. Valvyns filter och markeringar är EX2 (användarens beslut 2026-11-07): beloppsreglage med fördelningen bakom,
+  in, ut eller alla, tidsfönster (±48 h runt den spårade ankomsten som förval), motpartens sort, *Dölj damm*, *Bara de
+  som inte finns i grafen*, *Gruppera per motpart* och en räknare; sonar för negativ etikett och för belopp nära det
+  spårade, hörnmärken för motpart redan i grafen och etikett från ett annat ärende. **De utplockade hamnar i en
+  samlingsnod, EX2b** (användarens beslut 2026-11-07): en fyrkantig nod som en kortlek vid adressen, med tjock linje och
+  summan. Ett klick fäller ut korten runt högen över en **bakgrund som dimmar ner** resten av grafen och fokuserar på
+  dem. Ett kort som dras ut på det nerdimmade singlas ut och blir en egen nod; **Shift-klick** väljer flera att dra ut
+  på en gång. Resten ligger kvar i högen.
+- **Delete slänger** den valda noden, eller de valda, i soptunnan, var som helst i grafen och också i högen
+  (användarens beslut 2026-11-07), med samma varning som när man drar dit något som har kopplingar vidare.
 - **Startpunkten är neutral** (användarens beslut 2026-11-07): en startpunkt behåller sin sort (okänd, kluster, tjänst)
   och får en egen markering som startpunkt, eftersom den lika gärna kan vara den misstänktes plånbok som offrets. Offret
   är en etikett, inte startpunktens sort. Markeringen är **en liten flagga i hörnet** som de andra markeringarna (skiss GR5
@@ -461,7 +469,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b (tom graf med guidenoder) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2 och GR6 väntar på användaren |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b (tom graf med guidenoder) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6 väntar på användaren |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
