@@ -91,6 +91,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 30. **Använd ytan** (användarens önskemål 2026-11-07, skärmdump): grafen lägger motparterna i en enda lång kolumn och
     linjerna buntas; den automatiska layouten ska sprida ut dem över ytan (flera kolumner, i en båge eller ett rutnät)
     när det blir många, i stället för en kolumn. Tas med i etappen för samlingsnoden (punkt 22).
+31. **Sonarn är fel** (användarens synpunkt 2026-11-07): för snabb och för mycket linjer; den ska vara mjuk, behaglig och
+    lugn. Skissas i SN1a och SN1b med reglage för fart och styrka, sedan byggs den valda i `SonarRing`.
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
