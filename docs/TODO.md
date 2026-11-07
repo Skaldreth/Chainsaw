@@ -41,6 +41,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Bevakning i realtid:** websocket där källan har det (mempool.space har bevakning av adresser), senare ZMQ från egen nod.
 
 ### Klustring och heuristiker
+- **Troliga utgångar ur en mixer** (CLAUDE.md, *Mixers är vanliga*): belopp minus avgift, tidsfönster, adresstyp och kända
+  mönster per mixer. Kandidater som användaren godkänner eller avfärdar. Fråga kryptospåraren vilka mixers som syns oftast.
 - **Common-input-ownership:** alla inputs i en tx har samma ägare, utom i CoinJoin.
 - **Växeladress:** typ av adress, runda belopp, ny adress, optimal växel, samma skripttyp som inputs.
 - **Känna igen mönster:** peel chain, CoinJoin (Wasabi, Whirlpool, JoinMarket), konsolidering, börsens sweep till hot wallet.

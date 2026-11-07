@@ -44,8 +44,10 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
    att något annat ändras. En eventuell modell måste vara lokal. AI som själv driver utredningen släpps inte in.
 6. **Snabbt.** Gränssnittet får aldrig kännas trögt. All I/O och tung beräkning körs utanför UI-tråden, långa listor
    virtualiseras och grafen ritar bara det som syns.
-7. **Så lite brus som möjligt.** Det visuella är det viktigaste. Komplexitet döljs tills den behövs. En graf som växer
-   okontrollerat är ett fel, inte en funktion.
+7. **Så lite brus som möjligt.** Det visuella är det viktigaste. Komplexitet döljs smart men syns ändå, genom **färg, form,
+   ikoner, linjer och små markeringar** i stället för text och förklaringar i grafen och dialogerna (användarens krav
+   2026-11-07). Smakfullt och stilrent, men alltid med en funktion. Text visas på hovring, när något väljs eller i Guiden.
+   En graf som växer okontrollerat är ett fel, inte en funktion.
 8. **Moduler äger inte utredningen.** En datakälla, en heuristik eller en kedja ska kunna bytas utan att ärenden, hämtad
    historik eller slutsatser försvinner.
 9. **Offline fungerar.** Allt som har hämtats ligger i ärendet, så ett ärende kan öppnas och arbetas med utan nät. Det som
@@ -79,6 +81,10 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
   - Aviseringen säger bara att en bevakning har slagit till, inte adressen, beloppet eller ärendet. Detaljerna visas efter
     upplåsning.
 - **Redovisa:** hur rapporten byggs bestäms när vi kommer dit (användarens beslut 2026-11-06).
+
+**Mixers är vanliga** i utredningarna (användarens observation 2026-11-07) och är en egen sort i grafen. Spåret tar slut
+vid en mixer, men Chainsaw kan föreslå **troliga utgångar** ur belopp (minus avgift), tid och adresstyp. De är kandidater,
+alltid streckade och aldrig fakta (princip 2), och användaren godkänner eller avfärdar dem.
 
 **Spåret tar slut** är ett eget, uttalat läge med orsak: privacy coin, mixer eller CoinJoin, brygga eller swap till annan
 kedja, börs (uttag funnet), okänd tjänst. Ett slut är aldrig tyst.
@@ -181,7 +187,13 @@ tests/                      xUnit, ett testprojekt per modul
   Efter GR1 (användarens beslut 2026-11-07): noderna ritas **tunt som i GR1b** (en rund eller fyrkantig ram med sortens färg,
   namn och en svag rad under), **hoppen i tidsordning** från GR1a är bra struktur, men grafen måste tåla **många linjer åt
   alla håll**, som kryptoanalytikerna arbetar i Reactor. Hur de två förenas skissas i GR2a (fri duk som kan ordnas i hopp)
-  och GR2b (hoppen som ryggrad, aktörerna fria i höjdled, pengar som vänder som bågar).
+  och GR2b (hoppen som ryggrad, aktörerna fria i höjdled, pengar som vänder som bågar). **Grafen sorteras naturligt i hopp
+  när det går** (användarens beslut 2026-11-07); att den kan bli rörig var en observation, inte ett önskemål.
+- **Bildspråket** (skiss GR3a): formen säger vad det är (rund = aktör vi inte vet något om, fyrkantig = tjänst eller
+  kluster), färgen vad det betyder (accent = offrens pengar, blått = börs, rött = spåret tar slut eller risk, lila = annan
+  kedja), en ikon per sort, små markeringar i hörnet (bevakad, etikett från ett annat ärende, uttag funnet, sanktionerad),
+  linjens tjocklek är beloppet och **streckat betyder alltid osäkert**. Belopp på linjerna visas på hovring, vid fokus eller
+  när användaren slår på det. Bildspråket finns bakom ett *?* i grafens hörn.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
   Etiketter, Terminal och Guide.
