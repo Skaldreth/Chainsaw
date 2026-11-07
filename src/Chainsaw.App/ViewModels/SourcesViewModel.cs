@@ -49,6 +49,10 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>What the page says when a change could not be written.</summary>
     public const string SaveFailedText = "Källorna gick inte att spara. Ändringen gäller tills Chainsaw stängs.";
 
+    /// <summary>What the switch <em>Lokal</em> in the form means, on hovering.</summary>
+    public const string LocalTip =
+        "Din egen nod på datorn eller ett privat nät. Uppslagen går direkt dit och aldrig genom utgången. Bara https.";
+
     /// <summary>What a round says when nothing could be sent.</summary>
     public const string NotSentText = "Inget provades: utgången tillåter inga uppslag nu";
 
@@ -201,9 +205,18 @@ public sealed partial class SourcesViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(AddressProblem), nameof(HasAddressProblem), nameof(CanAdd), nameof(CanTry))]
     public partial string NewAddress { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets whether the form's endpoint is marked as the user's own node on the computer or a private network
+    /// (the switch <em>Lokal</em>): only then may its address be there, and it is asked straight there, never through
+    /// the exit.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AddressProblem), nameof(HasAddressProblem), nameof(CanAdd), nameof(CanTry))]
+    public partial bool NewLocal { get; set; }
+
     /// <summary>Gets why the address cannot be used (<em>Bara https.</em>), or empty when empty or good.</summary>
     public string AddressProblem =>
-        NewAddress.Trim().Length == 0 || SourceAddress.TryRead(NewAddress, out _, out var problem)
+        NewAddress.Trim().Length == 0 || SourceAddress.TryRead(NewAddress, NewLocal, out _, out var problem)
             ? string.Empty
             : problem!;
 
@@ -211,10 +224,10 @@ public sealed partial class SourcesViewModel : ObservableObject
     public bool HasAddressProblem => AddressProblem.Length > 0;
 
     /// <summary>Gets whether the address can be tried.</summary>
-    public bool CanTry => SourceAddress.TryRead(NewAddress, out _, out _) && !IsTrying;
+    public bool CanTry => SourceAddress.TryRead(NewAddress, NewLocal, out _, out _) && !IsTrying;
 
     /// <summary>Gets whether the endpoint can be added.</summary>
-    public bool CanAdd => SourceAddress.TryRead(NewAddress, out _, out _);
+    public bool CanAdd => SourceAddress.TryRead(NewAddress, NewLocal, out _, out _);
 
     /// <summary>Gets whether <em>Prova</em> is running.</summary>
     [ObservableProperty]
@@ -354,6 +367,7 @@ public sealed partial class SourcesViewModel : ObservableObject
         }
 
         NewAddress = string.Empty;
+        NewLocal = false;
         TryText = string.Empty;
         SettingsChoice.Mark(ApiChoices, ApiChoices.FirstOrDefault()?.Value ?? string.Empty);
         KeyChoices.Clear();
@@ -378,6 +392,10 @@ public sealed partial class SourcesViewModel : ObservableObject
         TryAnswered = false;
     }
 
+    /// <summary>Switches <em>Lokal</em> in the form on or off.</summary>
+    [RelayCommand]
+    public void ToggleLocal() => NewLocal = !NewLocal;
+
     /// <summary>Chooses the sort of API in the form.</summary>
     /// <param name="choice">The sort.</param>
     [RelayCommand]
@@ -396,7 +414,8 @@ public sealed partial class SourcesViewModel : ObservableObject
     [RelayCommand]
     public async Task TryAsync()
     {
-        if (Chip.Chain is not { } chain || !SourceAddress.TryRead(NewAddress, out var address, out _) || IsTrying)
+        if (Chip.Chain is not { } chain || !SourceAddress.TryRead(NewAddress, NewLocal, out var address, out _)
+            || IsTrying)
         {
             return;
         }
@@ -405,7 +424,7 @@ public sealed partial class SourcesViewModel : ObservableObject
         IsTrying = true;
         TryText = "Provar …";
         TryAnswered = false;
-        var probe = await _sources.TryAsync(chain, address!, ChosenApi, ChosenKey).ConfigureAwait(true);
+        var probe = await _sources.TryAsync(chain, address!, ChosenApi, ChosenKey, NewLocal).ConfigureAwait(true);
         if (attempt != _tries)
         {
             return;
@@ -421,12 +440,12 @@ public sealed partial class SourcesViewModel : ObservableObject
     [RelayCommand]
     public async Task AddAsync()
     {
-        if (Chip.Chain is not { } chain || !SourceAddress.TryRead(NewAddress, out var address, out _))
+        if (Chip.Chain is not { } chain || !SourceAddress.TryRead(NewAddress, NewLocal, out var address, out _))
         {
             return;
         }
 
-        var (_, saved) = _sources.Add(chain, address!, ChosenApi, ChosenKey);
+        var (_, saved) = _sources.Add(chain, address!, ChosenApi, ChosenKey, NewLocal);
         CancelAdd();
         await Saved(saved).ConfigureAwait(true);
     }
@@ -561,7 +580,27 @@ public sealed partial class SourcesViewModel : ObservableObject
                 }
             }
 
-            row.Show(endpoint, view.Mode, index, view.Endpoints.Count);
+            row.Show(endpoint, view.Mode, index, view.Endpoints.Count, _timeZone);
+        }
+
+        // A wait the source asked for is shown until it is over; the page is shown again then.
+        if (view.Endpoints.Select(endpoint => endpoint.WaitUntil).Max() is { } until)
+        {
+            _ = ShowAgainAsync(view.Chain, until);
+        }
+    }
+
+    /// <summary>Shows a chain's sources again when an endpoint's wait is over, so that its mark goes.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="until">When the wait is over, in UTC.</param>
+    /// <returns>A task that completes when it is shown.</returns>
+    private async Task ShowAgainAsync(Chain chain, DateTimeOffset until)
+    {
+        var wait = until - DateTimeOffset.UtcNow;
+        if (wait > TimeSpan.Zero && wait <= TimeSpan.FromHours(1))
+        {
+            await Task.Delay(wait + TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
+            _ui.Post(() => ShowChain(chain));
         }
     }
 

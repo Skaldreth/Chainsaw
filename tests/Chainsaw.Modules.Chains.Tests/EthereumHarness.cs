@@ -54,7 +54,8 @@ internal sealed class EthereumHarness : IDisposable
         });
         services.AddChainsModule(
             new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base) },
-            ethereum: new EthereumSourceOptions { DefaultEndpoints = [new Uri(Base)], PageSize = pageSize });
+            options => options.Delay = Clock.Delay,
+            new EthereumSourceOptions { DefaultEndpoints = [new Uri(Base)], PageSize = pageSize });
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(SourceHarness.CaseNumber);
         Source = _provider.GetRequiredService<IEthereumSource>();

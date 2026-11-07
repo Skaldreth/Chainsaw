@@ -24,6 +24,7 @@ internal sealed class SourceHarness : IDisposable
     public SourceHarness()
     {
         Http = new FakeExitHttp(Clock);
+        Local = new FakeLocalHttp(Clock);
         var services = new ServiceCollection();
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
@@ -35,10 +36,10 @@ internal sealed class SourceHarness : IDisposable
             options.Directory = _directory;
             options.AnchorDirectory = Path.Combine(_directory, "anchors");
         });
-        services.AddChainsModule(new BitcoinSourceOptions
-        {
-            EsploraBaseUri = new Uri(Fixtures.Base),
-        });
+        services.AddSingleton<ILocalHttp>(Local);
+        services.AddChainsModule(
+            new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base) },
+            options => options.Delay = Clock.Delay);
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(CaseNumber);
         Source = _provider.GetRequiredService<IBitcoinSource>();
@@ -49,6 +50,9 @@ internal sealed class SourceHarness : IDisposable
     public FakeProfiles Profiles { get; } = new();
 
     public FakeExitHttp Http { get; }
+
+    /// <summary>The way to the user's own node.</summary>
+    public FakeLocalHttp Local { get; }
 
     public ICase Case { get; }
 

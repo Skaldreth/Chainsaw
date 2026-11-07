@@ -14,18 +14,39 @@ internal sealed record PlannedEndpoint(SourceEndpoint Endpoint, ISourceApi Api);
 /// <summary>Which endpoints a lookup asks, in order; none when the chain is off.</summary>
 /// <param name="Off">Whether the chain is <see cref="SourceMode.Off"/>.</param>
 /// <param name="Endpoints">The endpoints to ask, first first; the next is asked when one fails.</param>
-internal sealed record SourcePlan(bool Off, IReadOnlyList<PlannedEndpoint> Endpoints);
+internal sealed record SourcePlan(bool Off, IReadOnlyList<PlannedEndpoint> Endpoints)
+{
+    /// <summary>
+    /// Gets whether endpoints in step with the chain were asked for and some are on, but none is known to be in step.
+    /// </summary>
+    public bool NoneInStep { get; init; }
+}
 
 /// <summary>
 /// The chains' endpoints, their modes and their probes (sketch KL1a), kept in <c>sources.json</c> in the program's
 /// data. Every probe goes through <see cref="IExitHttp"/> and asks only for the chain's height (and, in the form that
 /// adds an endpoint, the hash of the block at that height); nothing is probed while the vault is locked, and a round
-/// in which the exit refused is not kept. The lookups ask the endpoints in the order <see cref="Plan"/> gives.
+/// in which the exit refused is not kept. The lookups ask the endpoints in the order <see cref="Plan"/> gives, each at
+/// its own pace (<see cref="Pacer"/>). An endpoint marked as the user's own node is asked straight in the user's own
+/// network through <see cref="ILocalHttp"/>, and every other through <see cref="IExitHttp"/> (<see cref="SendAsync"/>);
+/// nothing else chooses the way.
 /// </summary>
 internal sealed class ChainSources : IChainSources
 {
     /// <summary>How long an endpoint has to answer a probe; a slower one is not the fastest anyway.</summary>
     public static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// How many blocks below the highest an endpoint may be and still count as answering right: one block behind is
+    /// not behind for an ordinary lookup, since the information comes in step by step (decided 2026-11-07).
+    /// </summary>
+    public const int HeightMargin = 1;
+
+    /// <summary>How long an endpoint that failed a lookup is passed over first; each new failure doubles it.</summary>
+    public static readonly TimeSpan FirstPause = TimeSpan.FromMinutes(1);
+
+    /// <summary>The longest an endpoint that keeps failing is passed over before it is tried in its place again.</summary>
+    public static readonly TimeSpan LongestPause = TimeSpan.FromMinutes(30);
 
     /// <summary>What a probe says when the vault is locked.</summary>
     private const string LockedText = "Valvet är låst. Inget skickades.";
@@ -35,6 +56,15 @@ internal sealed class ChainSources : IChainSources
 
     /// <summary>The only way out.</summary>
     private readonly IExitHttp _http;
+
+    /// <summary>
+    /// The way to the user's own node, or <see langword="null"/> when there is none (an endpoint marked local then
+    /// fails, and nothing goes another way).
+    /// </summary>
+    private readonly ILocalHttp? _local;
+
+    /// <summary>Waits, so that the tests can move the time instead.</summary>
+    private readonly Func<TimeSpan, CancellationToken, Task> _delay;
 
     /// <summary>The API keys, or <see langword="null"/> when there is no vault (a key is then never found).</summary>
     private readonly IApiKeyStore? _keys;
@@ -61,14 +91,20 @@ internal sealed class ChainSources : IChainSources
     /// <param name="vault">The vault, if any.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="options">Where the file is.</param>
+    /// <param name="local">The way to the user's own node, if any.</param>
+    /// <param name="delay">Waits for an endpoint's turn; <see cref="Task.Delay(TimeSpan, CancellationToken)"/> when
+    /// <see langword="null"/>.</param>
     public ChainSources(
         IEnumerable<ISourceApi> apis, IExitHttp http, IApiKeyStore? keys, IVault? vault, IClock clock,
-        ChainSourcesOptions options)
+        ChainSourcesOptions options, ILocalHttp? local = null, Func<TimeSpan, CancellationToken, Task>? delay = null)
     {
         ArgumentNullException.ThrowIfNull(apis);
         ArgumentNullException.ThrowIfNull(options);
         _apis = apis.ToDictionary(api => api.Info.Code, StringComparer.Ordinal);
         _http = http;
+        _local = local;
+        _delay = delay ?? Task.Delay;
+        Pacer = new EndpointPacer(clock);
         _keys = keys;
         _vault = vault;
         _clock = clock;
@@ -91,6 +127,12 @@ internal sealed class ChainSources : IChainSources
     /// <inheritdoc/>
     public IReadOnlyList<Chain> Chains { get; }
 
+    /// <summary>Gets each endpoint's pace and its requests to wait, shared by the lookups and the probes.</summary>
+    public EndpointPacer Pacer { get; }
+
+    /// <summary>Gets the time now.</summary>
+    public DateTimeOffset Now => _clock.UtcNow;
+
     /// <inheritdoc/>
     public IReadOnlyList<SourceApiInfo> Apis(Chain chain) =>
         [.. _apis.Values.Where(api => api.Info.Chain == chain).Select(api => api.Info)];
@@ -106,29 +148,120 @@ internal sealed class ChainSources : IChainSources
             var endpoints = state.Endpoints.Select(endpoint => new EndpointView(
                 endpoint,
                 state.Probes.GetValueOrDefault(endpoint.Id),
-                state.FailedSince.Contains(endpoint.Id),
-                endpoint.Id == first)).ToList();
-            return new ChainSourcesView(chain, state.Mode, endpoints, state.ProbedAt);
+                state.FailedSince.ContainsKey(endpoint.Id),
+                endpoint.Id == first)
+            {
+                WaitUntil = Pacer.WaitUntil(endpoint.Id),
+            }).ToList();
+            var now = _clock.UtcNow;
+            var waiting = state.Waits.Where(until => until > now).DefaultIfEmpty().Max();
+            return new ChainSourcesView(chain, state.Mode, endpoints, state.ProbedAt)
+            {
+                WaitingUntil = waiting == default ? null : waiting,
+            };
         }
     }
 
     /// <summary>Gives the endpoints a lookup on the chain asks, in order.</summary>
     /// <param name="chain">The chain.</param>
+    /// <param name="inStep">
+    /// Whether only endpoints in step with the chain may be asked (<see cref="LookupMode.InStep"/>, for the
+    /// monitoring): those whose latest probe answered with the round's highest height, not even one block behind.
+    /// </param>
     /// <returns>The plan; off, or the endpoints that are on.</returns>
-    public SourcePlan Plan(Chain chain)
+    public SourcePlan Plan(Chain chain, bool inStep = false)
     {
         lock (_gate)
         {
             var state = State(chain);
-            return state.Mode == SourceMode.Off
-                ? new SourcePlan(true, [])
-                : new SourcePlan(false, [.. Order(state).Select(e => new PlannedEndpoint(e, _apis[e.Api]))]);
+            if (state.Mode == SourceMode.Off)
+            {
+                return new SourcePlan(true, []);
+            }
+
+            var order = Order(state);
+            var chosen = inStep ? [.. order.Where(endpoint => InStep(state, endpoint))] : order;
+            return new SourcePlan(false, [.. chosen.Select(e => new PlannedEndpoint(e, _apis[e.Api]))])
+            {
+                NoneInStep = inStep && chosen.Count == 0 && order.Count > 0,
+            };
         }
     }
 
     /// <summary>
+    /// Sends a request to an endpoint the only way it may go: straight to the user's own node when the endpoint is
+    /// marked local, and through the exit for every other. A local endpoint without a way to the own node fails; it
+    /// never goes through the exit, nor another endpoint around it.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="request">The request under its address.</param>
+    /// <param name="cancellationToken">Stops the request.</param>
+    /// <returns>The response.</returns>
+    /// <exception cref="ExitNotConnectedException">Through the exit, and it does not allow lookups now.</exception>
+    /// <exception cref="ExitException">The request failed.</exception>
+    public Task<ExitResponse> SendAsync(
+        SourceEndpoint endpoint, ExitRequest request, CancellationToken cancellationToken) =>
+        endpoint.Local
+            ? _local?.SendAsync(request, cancellationToken)
+                ?? Task.FromException<ExitResponse>(new ExitException(ExitError.RequestFailed))
+            : _http.SendAsync(request, cancellationToken);
+
+    /// <summary>Waits for an endpoint's turn.</summary>
+    /// <param name="wait">How long.</param>
+    /// <param name="cancellationToken">Stops the wait.</param>
+    /// <returns>A task that completes when the turn has come.</returns>
+    public Task DelayAsync(TimeSpan wait, CancellationToken cancellationToken) =>
+        wait <= TimeSpan.Zero ? Task.CompletedTask : _delay(wait, cancellationToken);
+
+    /// <summary>
+    /// Notes that a lookup on the chain waits for an endpoint until a time, so that the settings and the status line
+    /// can say so honestly, and tells the change.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="until">Until when, in UTC.</param>
+    public void Waiting(Chain chain, DateTimeOffset until)
+    {
+        lock (_gate)
+        {
+            State(chain).Waits.Add(until);
+        }
+
+        Tell(chain);
+    }
+
+    /// <summary>Notes that a lookup's wait noted by <see cref="Waiting"/> is over, and tells the change.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="until">The time it was noted with.</param>
+    public void DoneWaiting(Chain chain, DateTimeOffset until)
+    {
+        lock (_gate)
+        {
+            State(chain).Waits.Remove(until);
+        }
+
+        Tell(chain);
+    }
+
+    /// <summary>
+    /// Notes that an endpoint asked Chainsaw to wait (<c>429</c> or <c>Retry-After</c>): the others are asked until
+    /// then, without counting it as failed, and it comes back by itself.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <param name="wait">How long it asked for.</param>
+    /// <returns>Until when it is waited for, in UTC.</returns>
+    public DateTimeOffset AskedToWait(Chain chain, Guid id, TimeSpan wait)
+    {
+        var until = Pacer.AskedToWait(id, wait);
+        Tell(chain);
+        return until;
+    }
+
+    /// <summary>
     /// Notes that a lookup through an endpoint failed or did not answer in time, so that the others are asked before
-    /// it until it is tried again or answers.
+    /// it until it is tried again or answers, or until its pause is over (<see cref="FirstPause"/>, doubled for each
+    /// failure in a row up to <see cref="LongestPause"/>): then it is asked in its place again, so that it comes back
+    /// when it answers again.
     /// </summary>
     /// <param name="chain">The chain.</param>
     /// <param name="id">The endpoint.</param>
@@ -154,7 +287,7 @@ internal sealed class ChainSources : IChainSources
         {
             var state = State(chain);
             var probe = state.Probes.GetValueOrDefault(id);
-            return !state.FailedSince.Contains(id)
+            return !state.FailedSince.ContainsKey(id)
                 && (probe?.Outcome == ProbeOutcome.Answered || (probe is null && state.ProbedAt is null));
         }
     }
@@ -180,14 +313,19 @@ internal sealed class ChainSources : IChainSources
     }
 
     /// <inheritdoc/>
-    public (SourceEndpoint Endpoint, Task Saved) Add(Chain chain, Uri address, string api, string? apiKey)
+    public (SourceEndpoint Endpoint, Task Saved) Add(
+        Chain chain, Uri address, string api, string? apiKey, bool local = false)
     {
-        var (checkedAddress, sort) = Check(chain, address, api);
+        var (checkedAddress, sort) = Check(chain, address, api, local);
         var key = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim();
         var name = SourceAddress.NameOf(checkedAddress);
         var endpoint = new SourceEndpoint(
             Guid.NewGuid(), chain, name[..Math.Min(name.Length, SourceAddress.MaximumNameLength)], checkedAddress,
-            sort.Info.Code, key, Enabled: true);
+            sort.Info.Code, key, Enabled: true)
+        {
+            Local = local,
+            Interval = local ? SourcePace.Local : SourcePace.Public,
+        };
         return (endpoint, Change(chain, state => state.Endpoints.Add(endpoint)));
     }
 
@@ -197,6 +335,7 @@ internal sealed class ChainSources : IChainSources
         state.Endpoints.RemoveAll(endpoint => endpoint.Id == id);
         state.Probes.Remove(id);
         state.FailedSince.Remove(id);
+        Pacer.Forget(id);
     });
 
     /// <inheritdoc/>
@@ -255,8 +394,7 @@ internal sealed class ChainSources : IChainSources
         try
         {
             probes = await Task.WhenAll(endpoints.Select(planned => ProbeOneAsync(
-                planned.Endpoint.Id, planned.Endpoint.Address, planned.Api, planned.Endpoint.ApiKey, withHash: false,
-                cancellationToken))).ConfigureAwait(false);
+                planned.Endpoint, planned.Api, withHash: false, cancellationToken))).ConfigureAwait(false);
         }
         catch (ExitNotConnectedException)
         {
@@ -278,9 +416,10 @@ internal sealed class ChainSources : IChainSources
 
     /// <inheritdoc/>
     public async Task<EndpointProbe> TryAsync(
-        Chain chain, Uri address, string api, string? apiKey, CancellationToken cancellationToken = default)
+        Chain chain, Uri address, string api, string? apiKey, bool local = false,
+        CancellationToken cancellationToken = default)
     {
-        var (checkedAddress, sort) = Check(chain, address, api);
+        var (checkedAddress, sort) = Check(chain, address, api, local);
         if (IsLocked)
         {
             return NotSent(Guid.Empty, LockedText);
@@ -289,8 +428,12 @@ internal sealed class ChainSources : IChainSources
         try
         {
             var key = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim();
-            return await ProbeOneAsync(Guid.Empty, checkedAddress, sort, key, withHash: true, cancellationToken)
-                .ConfigureAwait(false);
+            var candidate = new SourceEndpoint(
+                Guid.Empty, chain, SourceAddress.NameOf(checkedAddress), checkedAddress, sort.Info.Code, key, true)
+            {
+                Local = local,
+            };
+            return await ProbeOneAsync(candidate, sort, withHash: true, cancellationToken).ConfigureAwait(false);
         }
         catch (ExitNotConnectedException exception)
         {
@@ -303,27 +446,42 @@ internal sealed class ChainSources : IChainSources
 
     /// <summary>
     /// Orders a chain's endpoints that are on for a lookup. In Fastest, those that answered right come first, the
-    /// fastest first, then those not tried, then one that lags behind in height (only asked when no other answers, so
-    /// that switching off the one that was highest never leaves the chain without a source), then those that failed
-    /// their probe. In Priority, the user's order, with those that failed their probe after the others. Either way an
-    /// endpoint that failed a lookup since it was tried comes last.
+    /// fastest first, then those not tried, then one that lags behind in height by more than
+    /// <see cref="HeightMargin"/> (only asked when no other answers, so that switching off the one that was highest
+    /// never leaves the chain without a source), then those that failed their probe. In Priority, the user's order,
+    /// with those that failed their probe after the others. Either way an endpoint that failed a lookup since it was
+    /// tried comes last while its pause lasts, and in its place again after it.
     /// </summary>
     /// <param name="state">The chain's state, under the lock.</param>
     /// <returns>The endpoints to ask, first first.</returns>
-    private static IEnumerable<SourceEndpoint> Order(ChainState state)
+    private List<SourceEndpoint> Order(ChainState state)
     {
         if (state.Mode == SourceMode.Off)
         {
             return [];
         }
 
+        var now = _clock.UtcNow;
         var on = state.Endpoints.Where(endpoint => endpoint.Enabled);
         on = state.Mode == SourceMode.Fastest
             ? on.OrderBy(endpoint => Rank(state.Probes.GetValueOrDefault(endpoint.Id)))
                 .ThenBy(endpoint => state.Probes.GetValueOrDefault(endpoint.Id)?.Duration ?? TimeSpan.MaxValue)
             : on.OrderBy(endpoint => state.Probes.GetValueOrDefault(endpoint.Id)?.Outcome == ProbeOutcome.Failed);
-        return on.OrderBy(endpoint => state.FailedSince.Contains(endpoint.Id)).ToList();
+        return [.. on.OrderBy(endpoint =>
+            state.FailedSince.TryGetValue(endpoint.Id, out var failure) && failure.PausedUntil > now)];
     }
+
+    /// <summary>
+    /// Gets whether an endpoint is known to be in step with the chain: its latest probe answered with the highest
+    /// height of its round, and no lookup through it has failed since.
+    /// </summary>
+    /// <param name="state">The chain's state, under the lock.</param>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool InStep(ChainState state, SourceEndpoint endpoint) =>
+        !state.FailedSince.ContainsKey(endpoint.Id)
+        && state.Probes.GetValueOrDefault(endpoint.Id) is { Outcome: ProbeOutcome.Answered } probe
+        && (probe.BlocksBehind ?? 0) == 0;
 
     /// <summary>
     /// Gets whether an endpoint can be shown as the one used (★): it did not fail its probe or a lookup since. An
@@ -333,7 +491,7 @@ internal sealed class ChainSources : IChainSources
     /// <param name="endpoint">The endpoint.</param>
     /// <returns><see langword="true"/> when it is expected to answer.</returns>
     private static bool Usable(ChainState state, SourceEndpoint endpoint) =>
-        !state.FailedSince.Contains(endpoint.Id)
+        !state.FailedSince.ContainsKey(endpoint.Id)
         && state.Probes.GetValueOrDefault(endpoint.Id)?.Outcome is not (ProbeOutcome.Failed or ProbeOutcome.NotSent);
 
     /// <summary>Ranks a probe for Fastest: answered, not tried, behind, failed.</summary>
@@ -348,41 +506,45 @@ internal sealed class ChainSources : IChainSources
     };
 
     /// <summary>
-    /// Marks every answer lower than the highest as behind: such an endpoint has not seen the newest blocks, and a
-    /// lookup through it could miss transactions the others know.
+    /// Marks every answer more than <see cref="HeightMargin"/> blocks lower than the highest as behind: such an
+    /// endpoint has not seen the newest blocks, and a lookup through it could miss transactions the others know. One
+    /// block lower still answers right, with how far behind it was noted, so that only the monitoring passes it over
+    /// (<see cref="LookupMode.InStep"/>).
     /// </summary>
     /// <param name="probes">The round's probes.</param>
     /// <returns>The probes with those behind marked.</returns>
-    private static EndpointProbe[] Ranked(EndpointProbe[] probes)
+    internal static EndpointProbe[] Ranked(EndpointProbe[] probes)
     {
         var highest = probes.Where(p => p.Outcome == ProbeOutcome.Answered).Max(p => p.Height);
         return [.. probes.Select(probe => probe.Outcome == ProbeOutcome.Answered && probe.Height < highest
-            ? probe with
-            {
-                Outcome = ProbeOutcome.Behind,
-                BlocksBehind = highest - probe.Height,
-                Problem = string.Create(CultureInfo.InvariantCulture,
-                        $"Höjd {probe.Height:N0} mot {highest:N0}: {highest - probe.Height} block efter. ")
-                    .Replace(',', ' ') + "Används bara när ingen annan svarar.",
-            }
+            ? highest - probe.Height > HeightMargin
+                ? probe with
+                {
+                    Outcome = ProbeOutcome.Behind,
+                    BlocksBehind = highest - probe.Height,
+                    Problem = string.Create(CultureInfo.InvariantCulture,
+                            $"Höjd {probe.Height:N0} mot {highest:N0}: {highest - probe.Height} block efter. ")
+                        .Replace(',', ' ') + "Används bara när ingen annan svarar.",
+                }
+                : probe with { BlocksBehind = highest - probe.Height }
             : probe)];
     }
 
     /// <summary>
-    /// Tries one endpoint: the chain's height, timed, and when asked the hash of the block at that height. The exit's
-    /// refusal is thrown on, so that a round can be dropped.
+    /// Tries one endpoint: the chain's height, timed, and when asked the hash of the block at that height. An endpoint
+    /// that has been added waits for its turn (<see cref="Pacer"/>); one that asks Chainsaw to wait is not counted as
+    /// failed. The exit's refusal is thrown on, so that a round can be dropped.
     /// </summary>
-    /// <param name="id">The endpoint's id, or <see cref="Guid.Empty"/>.</param>
-    /// <param name="address">Its address.</param>
+    /// <param name="endpoint">The endpoint, with <see cref="Guid.Empty"/> as id when it is not added yet.</param>
     /// <param name="api">Its sort of API.</param>
-    /// <param name="apiKey">The vault's service for its key, or <see langword="null"/>.</param>
     /// <param name="withHash">Whether to ask for the block's hash too.</param>
     /// <param name="cancellationToken">Stops the probe.</param>
     /// <returns>What it answered.</returns>
     /// <exception cref="ExitNotConnectedException">The exit does not allow lookups; nothing was sent.</exception>
     private async Task<EndpointProbe> ProbeOneAsync(
-        Guid id, Uri address, ISourceApi api, string? apiKey, bool withHash, CancellationToken cancellationToken)
+        SourceEndpoint endpoint, ISourceApi api, bool withHash, CancellationToken cancellationToken)
     {
+        var (id, address, apiKey) = (endpoint.Id, endpoint.Address, endpoint.ApiKey);
         var at = _clock.UtcNow;
         if (IsLocked)
         {
@@ -394,8 +556,18 @@ internal sealed class ChainSources : IChainSources
             return NotSent(id, problem!, at);
         }
 
-        var (height, heightProblem) = await AskAsync(heightRequest, api.ReadHeight, cancellationToken)
+        if (!await TurnAsync(endpoint, api, cancellationToken).ConfigureAwait(false))
+        {
+            return NotSent(id, WaitText(Pacer.WaitUntil(id)), at);
+        }
+
+        var (height, heightProblem) = await AskAsync(endpoint, heightRequest, api.ReadHeight, cancellationToken)
             .ConfigureAwait(false);
+        if (Pacer.WaitUntil(id) is { } busy && height is null)
+        {
+            return NotSent(id, WaitText(busy), at);
+        }
+
         if (height is not { } answer)
         {
             return new EndpointProbe(id, ProbeOutcome.Failed, null, null, null, at, heightProblem);
@@ -415,7 +587,7 @@ internal sealed class ChainSources : IChainSources
                 return NotSent(id, hashKeyProblem!, at);
             }
 
-            var (read, hashProblem) = await AskAsync(hashRequest, api.ReadHash, cancellationToken)
+            var (read, hashProblem) = await AskAsync(endpoint, hashRequest, api.ReadHash, cancellationToken)
                 .ConfigureAwait(false);
             if (read is null)
             {
@@ -429,22 +601,58 @@ internal sealed class ChainSources : IChainSources
         return new EndpointProbe(id, ProbeOutcome.Answered, answer.Value, hash, answer.Duration, at, null);
     }
 
-    /// <summary>Sends one request of a probe through the exit and reads its answer.</summary>
+    /// <summary>
+    /// Waits for an added endpoint's turn before a probe asks it, unless its turn is further away than a probe waits.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="api">Its sort of API.</param>
+    /// <param name="cancellationToken">Stops the wait.</param>
+    /// <returns><see langword="true"/> when it may be asked now.</returns>
+    private async Task<bool> TurnAsync(SourceEndpoint endpoint, ISourceApi api, CancellationToken cancellationToken)
+    {
+        if (endpoint.Id == Guid.Empty)
+        {
+            return true;
+        }
+
+        var (turn, _) = Pacer.Take([new PlannedEndpoint(endpoint, api)], ProbeTimeout);
+        if (turn is null)
+        {
+            return false;
+        }
+
+        await DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>Says that an endpoint asked Chainsaw to wait.</summary>
+    /// <param name="until">Until when, or <see langword="null"/>.</param>
+    /// <returns>The words.</returns>
+    private string WaitText(DateTimeOffset? until) =>
+        until is { } time
+            ? $"Bad Chainsaw vänta till {time.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)}."
+            : "Bad Chainsaw vänta.";
+
+    /// <summary>
+    /// Sends one request of a probe the endpoint's way (<see cref="SendAsync"/>) and reads its answer; a source that
+    /// asks Chainsaw to wait is noted (<see cref="EndpointPacer.AskedToWait"/>).
+    /// </summary>
     /// <typeparam name="T">What is read.</typeparam>
+    /// <param name="endpoint">The endpoint.</param>
     /// <param name="request">The request.</param>
     /// <param name="read">Reads a successful body; throws <see cref="FormatException"/> when it cannot.</param>
     /// <param name="cancellationToken">Stops the request.</param>
     /// <returns>The answer and how long it took, or why there is none, in Swedish.</returns>
     /// <exception cref="ExitNotConnectedException">The exit does not allow lookups; nothing was sent.</exception>
     private async Task<((T Value, TimeSpan Duration)? Answer, string? Problem)> AskAsync<T>(
-        ExitRequest request, ReadBody<T> read, CancellationToken cancellationToken)
+        SourceEndpoint endpoint, ExitRequest request, ReadBody<T> read, CancellationToken cancellationToken)
     {
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         limit.CancelAfter(ProbeTimeout);
         ExitResponse response;
         try
         {
-            response = await _http.SendAsync(request, limit.Token).ConfigureAwait(false);
+            response = await SendAsync(endpoint, request, limit.Token).ConfigureAwait(false);
         }
         catch (ExitNotConnectedException)
         {
@@ -457,6 +665,16 @@ internal sealed class ChainSources : IChainSources
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return (null, "Svarade inte i tid.");
+        }
+
+        if (SourceLookups.AsksToWait(response) is { } wait)
+        {
+            if (endpoint.Id != Guid.Empty)
+            {
+                Pacer.AskedToWait(endpoint.Id, wait);
+            }
+
+            return (null, "Bad Chainsaw vänta.");
         }
 
         if (!response.IsSuccess)
@@ -521,12 +739,13 @@ internal sealed class ChainSources : IChainSources
     /// <param name="chain">The chain.</param>
     /// <param name="address">The address.</param>
     /// <param name="api">The sort's code.</param>
+    /// <param name="local">Whether the endpoint is marked as the user's own node.</param>
     /// <returns>The address ending in <c>/</c> and the sort.</returns>
     /// <exception cref="ArgumentException">Either cannot be used.</exception>
-    private (Uri Address, ISourceApi Api) Check(Chain chain, Uri address, string api)
+    private (Uri Address, ISourceApi Api) Check(Chain chain, Uri address, string api, bool local)
     {
         ArgumentNullException.ThrowIfNull(address);
-        if (!SourceAddress.TryRead(address.OriginalString, out var checkedAddress, out var problem))
+        if (!SourceAddress.TryRead(address.OriginalString, local, out var checkedAddress, out var problem))
         {
             throw new ArgumentException(problem, nameof(address));
         }
@@ -590,7 +809,10 @@ internal sealed class ChainSources : IChainSources
         Tell(chain);
     }
 
-    /// <summary>Notes a lookup's outcome through an endpoint, telling only a change.</summary>
+    /// <summary>
+    /// Notes a lookup's outcome through an endpoint, telling only a change. A failure starts or doubles the pause
+    /// in which the endpoint is passed over.
+    /// </summary>
     /// <param name="chain">The chain.</param>
     /// <param name="id">The endpoint.</param>
     /// <param name="failed">Whether it failed.</param>
@@ -599,8 +821,19 @@ internal sealed class ChainSources : IChainSources
         bool changed;
         lock (_gate)
         {
-            var set = State(chain).FailedSince;
-            changed = failed ? set.Add(id) : set.Remove(id);
+            var failures = State(chain).FailedSince;
+            if (failed)
+            {
+                var count = failures.TryGetValue(id, out var earlier) ? earlier.Count + 1 : 1;
+                var pause = TimeSpan.FromTicks(Math.Min(
+                    FirstPause.Ticks * (1L << Math.Min(count - 1, 10)), LongestPause.Ticks));
+                failures[id] = new Failure(count, _clock.UtcNow + pause);
+                changed = count == 1;
+            }
+            else
+            {
+                changed = failures.Remove(id);
+            }
         }
 
         if (changed)
@@ -642,6 +875,11 @@ internal sealed class ChainSources : IChainSources
     /// <returns>What it says.</returns>
     private delegate T ReadBody<out T>(ReadOnlySpan<byte> body);
 
+    /// <summary>The failures in a row of a lookup through an endpoint, and until when it is passed over.</summary>
+    /// <param name="Count">How many lookups in a row have failed through it.</param>
+    /// <param name="PausedUntil">Until when the others are asked before it, in UTC.</param>
+    private sealed record Failure(int Count, DateTimeOffset PausedUntil);
+
     /// <summary>A chain's endpoints, mode and probes.</summary>
     /// <param name="mode">The mode.</param>
     /// <param name="endpoints">The endpoints in the user's order.</param>
@@ -656,8 +894,11 @@ internal sealed class ChainSources : IChainSources
         /// <summary>Gets the latest probe of each endpoint.</summary>
         public Dictionary<Guid, EndpointProbe> Probes { get; } = [];
 
-        /// <summary>Gets the endpoints a lookup failed through since they were tried.</summary>
-        public HashSet<Guid> FailedSince { get; } = [];
+        /// <summary>Gets the endpoints a lookup failed through since they were tried, with their pause.</summary>
+        public Dictionary<Guid, Failure> FailedSince { get; } = [];
+
+        /// <summary>Gets until when each lookup that waits for an endpoint now waits, in UTC.</summary>
+        public List<DateTimeOffset> Waits { get; } = [];
 
         /// <summary>Gets or sets when the endpoints were last tried.</summary>
         public DateTimeOffset? ProbedAt { get; set; }

@@ -103,7 +103,7 @@ public sealed class EthereumModelTests
 
     [Fact]
     public void ARateLimitIsNotAnEmptyHistory() =>
-        Assert.Throws<FormatException>(() => BlockscoutParser.ParseHistory(
+        Assert.Throws<SourceBusyException>(() => BlockscoutParser.ParseHistory(
             Fixtures.Bytes("../Ethereum/rate-limit.json"), EthereumHarness.A, EthereumHistory.Tokens, null, 100));
 
     [Fact]

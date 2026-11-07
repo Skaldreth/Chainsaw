@@ -281,6 +281,9 @@
                             </Ellipse.Style>
                         </Ellipse>
                         <TextBlock Text="{Binding SourceText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                        <TextBlock Text="{Binding WaitText}" FontSize="12" Foreground="{StaticResource Brush.Pending}" Margin="12,0,0,0"
+                                   ToolTip="En källa ber Chainsaw vänta, eller frågas inte fortare än sin takt. Arbetet går vidare."
+                                   Visibility="{Binding IsWaiting, Converter={StaticResource VisibleWhen}}" />
                     </StackPanel>
                 </Border>
 

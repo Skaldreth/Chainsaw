@@ -32,6 +32,9 @@ public enum EndpointDot
 /// <param name="id">The endpoint's id.</param>
 public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
 {
+    /// <summary>The mark of an endpoint that asked Chainsaw to wait.</summary>
+    public const string WaitingText = "Väntar";
+
     /// <summary>The longest time the bar shows; a slower answer fills it.</summary>
     public const int BarMilliseconds = 300;
 
@@ -88,6 +91,13 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     /// <summary>Gets whether the yellow mark is shown.</summary>
     public bool HasNote => Note.Length > 0;
 
+    /// <summary>Gets whether the user marked it as their own node, asked straight there and never through the exit.</summary>
+    [ObservableProperty]
+    public partial bool IsLocal { get; private set; }
+
+    /// <summary>Gets what the mark <em>Lokal</em> means, on hovering.</summary>
+    public string LocalTip => "Egen nod på datorn eller ett privat nät. Uppslagen går direkt dit, aldrig genom utgången.";
+
     /// <summary>Gets whether the endpoint is switched on.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SwitchTip))]
@@ -117,12 +127,14 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     /// <param name="mode">The chain's mode.</param>
     /// <param name="index">Its place in the list, from 0.</param>
     /// <param name="count">How many the list has.</param>
-    public void Show(EndpointView view, SourceMode mode, int index, int count)
+    /// <param name="timeZone">The time zone a wait's end is shown in; the computer's when <see langword="null"/>.</param>
+    public void Show(EndpointView view, SourceMode mode, int index, int count, TimeZoneInfo? timeZone = null)
     {
         ArgumentNullException.ThrowIfNull(view);
         var endpoint = view.Endpoint;
         var probe = view.Probe;
         Name = endpoint.Name;
+        IsLocal = endpoint.Local;
         Address = endpoint.Address.AbsoluteUri.TrimEnd('/');
         IsOn = endpoint.Enabled;
         (Dot, DotTip) = DotFor(view);
@@ -137,6 +149,15 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
         var behind = endpoint.Enabled && probe?.Outcome == ProbeOutcome.Behind && mode == SourceMode.Fastest;
         Note = behind ? BehindText(probe!) : string.Empty;
         NoteTip = behind ? probe!.Problem ?? string.Empty : string.Empty;
+
+        // A source that asked Chainsaw to wait is left for the others until then, honestly marked; it is not failed.
+        if (endpoint.Enabled && view.WaitUntil is { } until)
+        {
+            var local = TimeZoneInfo.ConvertTime(until, timeZone ?? TimeZoneInfo.Local);
+            Note = WaitingText;
+            NoteTip = $"Källan bad Chainsaw vänta till {local.ToString("HH:mm:ss", CultureInfo.InvariantCulture)}. "
+                + "De andra frågas under tiden.";
+        }
         Position = (index + 1).ToString(CultureInfo.InvariantCulture);
         IsPriority = mode == SourceMode.Priority;
         CanMoveUp = index > 0;
@@ -160,6 +181,8 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
 
         return view.Probe?.Outcome switch
         {
+            ProbeOutcome.Answered when view.Probe.BlocksBehind is > 0 =>
+                (EndpointDot.Answered, "Svarar rätt; ett block efter räknas inte som efter"),
             ProbeOutcome.Answered => (EndpointDot.Answered, "Svarar rätt"),
             ProbeOutcome.Behind => (EndpointDot.Behind, "Svarar, men på en lägre höjd"),
             ProbeOutcome.Failed => (EndpointDot.Failed, "Svarade inte rätt: " + view.Probe.Problem),

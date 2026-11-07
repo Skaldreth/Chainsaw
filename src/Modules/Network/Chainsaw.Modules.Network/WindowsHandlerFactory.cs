@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using Chainsaw.Modules.Network.Contracts;
 
 namespace Chainsaw.Modules.Network;
 
@@ -97,7 +98,7 @@ internal sealed class WindowsHandlerFactory(NetworkOptions options) : IWindowsHa
     /// <exception cref="HttpRequestException">None is global.</exception>
     internal static IPAddress[] GlobalOnly(IPAddress[] addresses)
     {
-        var global = addresses.Where(address => !LocalTargets.IsLocal(address)).ToArray();
+        var global = addresses.Where(address => !LocalAddresses.IsLocal(address)).ToArray();
         return global.Length > 0
             ? global
             : throw new HttpRequestException("The source's name points only to the computer or a private network.");

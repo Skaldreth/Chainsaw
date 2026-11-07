@@ -28,7 +28,13 @@ public sealed class ChainSourcesTests : IDisposable
 
     private readonly FakeVault _vault = new();
 
-    public ChainSourcesTests() => _http = new FakeExitHttp(_clock);
+    private readonly FakeLocalHttp _local;
+
+    public ChainSourcesTests()
+    {
+        _http = new FakeExitHttp(_clock);
+        _local = new FakeLocalHttp(_clock);
+    }
 
     public void Dispose()
     {
@@ -437,7 +443,8 @@ public sealed class ChainSourcesTests : IDisposable
     }
 
     private ChainSources Create(BitcoinSourceOptions options, string? directory = null) =>
-        new([new EsploraApi(options)], _http, _keys, _vault, _clock, new ChainSourcesOptions { Directory = directory });
+        new([new EsploraApi(options)], _http, _keys, _vault, _clock, new ChainSourcesOptions { Directory = directory },
+            _local, _clock.Delay);
 
     private static BitcoinSourceOptions Endpoints(params string[] addresses) =>
         new() { DefaultEndpoints = [.. addresses.Select(address => new Uri(address))] };

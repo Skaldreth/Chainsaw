@@ -11,4 +11,10 @@ public sealed class ChainSourcesOptions
     /// application), never next to a case. <see langword="null"/> keeps the endpoints in memory only.
     /// </summary>
     public string? Directory { get; set; }
+
+    /// <summary>
+    /// Gets or sets how an endpoint's turn is waited for; <see langword="null"/> waits for real. Only the tests set
+    /// it, to move their own clock instead of waiting.
+    /// </summary>
+    internal Func<TimeSpan, CancellationToken, Task>? Delay { get; set; }
 }

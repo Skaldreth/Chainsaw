@@ -96,9 +96,10 @@ public sealed class EndpointLookupTests : IDisposable
 
         var lookup = await _harness.Source.GetTipHeightAsync(_harness.Case);
 
+        // The first endpoint asked a moment ago waits for its pace, so the second, free at once, is asked first.
         Assert.Equal(LookupStatus.FromCaseMayBeOutdated, lookup.Status);
         Assert.Equal(3, lookup.Origins.Count);
-        Assert.Contains("503", lookup.Problem, StringComparison.Ordinal);
+        Assert.Contains("500", lookup.Problem, StringComparison.Ordinal);
     }
 
     [Fact]

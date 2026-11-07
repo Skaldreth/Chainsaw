@@ -334,7 +334,9 @@ public sealed class SourcesTests
 
         public EndpointProbe? TryAnswer { get; set; }
 
-        public List<(Uri Address, string Api, string? Key)> Added { get; } = [];
+        public List<(Uri Address, string Api, string? Key, bool Local)> Added { get; } = [];
+
+        public List<bool> TriedLocal { get; } = [];
 
         public IReadOnlyList<Chain> Chains { get; } = [Chain.Bitcoin];
 
@@ -356,10 +358,14 @@ public sealed class SourcesTests
 
         public Task SetModeAsync(Chain chain, SourceMode mode) => Change(() => Mode = mode);
 
-        public (SourceEndpoint Endpoint, Task Saved) Add(Chain chain, Uri address, string api, string? apiKey)
+        public (SourceEndpoint Endpoint, Task Saved) Add(
+            Chain chain, Uri address, string api, string? apiKey, bool local = false)
         {
-            Added.Add((address, api, apiKey));
-            var endpoint = new SourceEndpoint(Guid.NewGuid(), chain, address.Host, address, api, apiKey, true);
+            Added.Add((address, api, apiKey, local));
+            var endpoint = new SourceEndpoint(Guid.NewGuid(), chain, address.Host, address, api, apiKey, true)
+            {
+                Local = local,
+            };
             return (endpoint, Change(() => Endpoints.Add(endpoint)));
         }
 
@@ -386,8 +392,12 @@ public sealed class SourcesTests
         }
 
         public Task<EndpointProbe> TryAsync(
-            Chain chain, Uri address, string api, string? apiKey, CancellationToken cancellationToken = default) =>
-            Task.FromResult(TryAnswer!);
+            Chain chain, Uri address, string api, string? apiKey, bool local = false,
+            CancellationToken cancellationToken = default)
+        {
+            TriedLocal.Add(local);
+            return Task.FromResult(TryAnswer!);
+        }
 
         private Task Change(Action change)
         {

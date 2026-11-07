@@ -17,4 +17,10 @@ public enum ExitError
 
     /// <summary>The exit was disconnected while the request was in flight.</summary>
     ConnectionLost,
+
+    /// <summary>
+    /// A request to the user's own node was refused: its address is not on the computer or a private network, so it
+    /// would have left the computer directly. Nothing was sent.
+    /// </summary>
+    NotLocal,
 }

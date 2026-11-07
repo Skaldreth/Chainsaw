@@ -22,7 +22,7 @@ skriver aldrig till stderr och loggar ingenting.
 ## Vad det vägrar
 
 - Allt utom SOCKS5 med användarnamn och lösenord, och allt utom `CONNECT`.
-- Adresser på datorn, i privata nät och i reserverade nät (samma regler som `LocalTargets` i Chainsaw), också när ett
+- Adresser på datorn, i privata nät och i reserverade nät (samma regler som `LocalAddresses` i Chainsaw), också när ett
   namn pekar dit.
 - En WireGuard-fil utan `DNS =` med en IP-adress under `[Interface]`, med mer än en `[Peer]`, med en okänd nyckel eller
   en trasig nyckel. `PostUp` och de andra kommandona i wg-quick ignoreras och körs aldrig.

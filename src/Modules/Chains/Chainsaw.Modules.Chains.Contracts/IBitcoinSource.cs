@@ -39,6 +39,26 @@ public interface IBitcoinSource
         ICase @case, BitcoinAddress address, Txid? after = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets one page of an address's transactions, newest first, with a choice of how the source may be asked: the
+    /// monitoring asks with <see cref="LookupMode.InStep"/>, so that only an endpoint in step with the chain answers.
+    /// A source that has no such choice answers <see cref="LookupMode.AsNeeded"/> as the overload without it does.
+    /// </summary>
+    /// <param name="case">The open case the responses are sealed in.</param>
+    /// <param name="address">The address; it must be on <see cref="Network"/>.</param>
+    /// <param name="after">
+    /// <see langword="null"/> for the first page, or <see cref="BitcoinAddressPage.NextAfter"/> of the previous page.
+    /// </param>
+    /// <param name="mode">How the source may be asked.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The page.</returns>
+    /// <exception cref="NotSupportedException">The source cannot ask in the mode.</exception>
+    Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
+        ICase @case, BitcoinAddress address, Txid? after, LookupMode mode, CancellationToken cancellationToken = default)
+        => mode == LookupMode.AsNeeded
+            ? GetAddressTransactionsAsync(@case, address, after, cancellationToken)
+            : throw new NotSupportedException("The source cannot ask in that mode.");
+
+    /// <summary>
     /// Gets a transaction. Its outputs say which input spends them when the case has the answer from
     /// <see cref="GetOutputSpendsAsync"/>. When the case has the transaction's own bytes (see
     /// <see cref="VerifyTransactionAsync"/>), the answer is checked against them without asking: it is marked

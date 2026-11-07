@@ -7,7 +7,8 @@ namespace Chainsaw.Modules.Network;
 /// <summary>
 /// Registers the module Network: the exits (VPN) and the way out chosen (<see cref="IExitRoute"/>, VPN or Windows)
 /// through which every request Chainsaw makes leaves the computer, and <see cref="IExitHttp"/>, the only way out for
-/// the other modules. Needs the Security module (the exits are kept in
+/// the other modules; and <see cref="ILocalHttp"/>, which reaches only the user's own node on the computer or a private
+/// network. Needs the Security module (the exits are kept in
 /// the vault) and an <c>IClock</c>.
 /// </summary>
 public static class NetworkModule
@@ -38,6 +39,11 @@ public static class NetworkModule
         services.AddSingleton<ExitRouteChoice>();
         services.AddSingleton<IExitRoute>(provider => provider.GetRequiredService<ExitRouteChoice>());
         services.AddSingleton<IExitHttp, ExitHttp>();
+
+        // The user's own node on the computer or a private network: straight there, never through the way out.
+        services.TryAddSingleton<ILocalHandlerFactory, LocalHandlerFactory>();
+        services.AddSingleton<LocalHttp>();
+        services.AddSingleton<ILocalHttp>(provider => provider.GetRequiredService<LocalHttp>());
 
         // Chainsaw's own WireGuard helper; without it next to the program, connecting fails honestly.
         services.TryAddSingleton<ITunnelProcessStarter, HelperProcessStarter>();

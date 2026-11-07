@@ -26,17 +26,35 @@ public sealed record ExitResponse(
     DateTimeOffset ReceivedAt,
     ExitRoute Route)
 {
+    /// <summary>
+    /// Gets whether the request went straight to the user's own node on the computer or a private network
+    /// (<see cref="ILocalHttp"/>) and never through a way out; <see cref="Route"/> then says nothing.
+    /// </summary>
+    public bool IsLocal { get; init; }
+
+    /// <summary>
+    /// Gets how long the source asked Chainsaw to wait before asking again (the <c>Retry-After</c> header, as a delay
+    /// or a date), or <see langword="null"/> when it did not say.
+    /// </summary>
+    public TimeSpan? RetryAfter { get; init; }
+
     /// <summary>Gets how long the request took.</summary>
     public TimeSpan Duration => ReceivedAt - RequestedAt;
 
     /// <summary>
-    /// Gets the exit's id as it is sealed with a response (<c>D</c> form), or <see langword="null"/> through Windows,
-    /// which is no exit of Chainsaw's.
+    /// Gets the exit's id as it is sealed with a response (<c>D</c> form), or <see langword="null"/> through Windows
+    /// or to the user's own node, which are no exits of Chainsaw's.
     /// </summary>
-    public string? ExitIdText => Route == ExitRoute.Vpn ? ExitId.ToString("D") : null;
+    public string? ExitIdText => Route == ExitRoute.Vpn && !IsLocal ? ExitId.ToString("D") : null;
 
-    /// <summary>Gets the sort of way out as it is sealed with a response: <c>vpn</c> or <c>windows</c>.</summary>
-    public string RouteText => Route.Code();
+    /// <summary>
+    /// Gets the sort of way out as it is sealed with a response: <c>vpn</c>, <c>windows</c>, or <c>local</c> for the
+    /// user's own node on the computer or a private network.
+    /// </summary>
+    public string RouteText => IsLocal ? LocalRouteCode : Route.Code();
+
+    /// <summary>The code sealed with a response from the user's own node, which took no way out.</summary>
+    public const string LocalRouteCode = "local";
 
     /// <summary>Gets whether the status is a success (200–299).</summary>
     public bool IsSuccess => StatusCode is >= 200 and <= 299;

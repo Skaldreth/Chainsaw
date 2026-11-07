@@ -13,7 +13,9 @@ namespace Chainsaw.Modules.Chains;
 /// Blockscout for Ethereum).
 /// </summary>
 /// <remarks>
-/// The module needs the Network module's <c>IExitHttp</c> (its only way out) and the Security module's
+/// The module needs the Network module's <c>IExitHttp</c> (its only way out to the sources), and its
+/// <c>ILocalHttp</c> when an endpoint is marked as the user's own node (without it such an endpoint fails and nothing
+/// goes another way), and the Security module's
 /// <c>IOperatorProfileStore</c>, and adds its tables to every case through an <see cref="ICaseSchemaContributor"/>.
 /// </remarks>
 public static class ChainsModule
@@ -54,17 +56,17 @@ public static class ChainsModule
             provider.GetService<IApiKeyStore>(),
             provider.GetService<IVault>(),
             provider.GetRequiredService<IClock>(),
-            sourcesOptions));
+            sourcesOptions,
+            provider.GetService<ILocalHttp>(),
+            sourcesOptions.Delay));
         services.AddSingleton<IChainSources>(provider => provider.GetRequiredService<ChainSources>());
         services.AddSingleton<IBitcoinSource>(provider => new EsploraBitcoinSource(
-            provider.GetRequiredService<IExitHttp>(),
+            provider.GetRequiredService<ChainSources>(),
             provider.GetRequiredService<IOperatorProfileStore>(),
             provider.GetRequiredService<IClock>(),
             settings,
-            TimeZoneInfo.Local,
-            provider.GetRequiredService<ChainSources>()));
+            TimeZoneInfo.Local));
         services.AddSingleton<IEthereumSource>(provider => new BlockscoutEthereumSource(
-            provider.GetRequiredService<IExitHttp>(),
             provider.GetRequiredService<IOperatorProfileStore>(),
             provider.GetRequiredService<IClock>(),
             ethereumSettings,

@@ -30,15 +30,17 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
     private readonly SourceLookups _lookups;
 
     /// <summary>Creates the source.</summary>
-    /// <param name="http">The only way out.</param>
     /// <param name="operators">The operator profile.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="options">The settings.</param>
     /// <param name="timeZone">The time zone local times are recorded in.</param>
-    /// <param name="sources">The chains' endpoints, of which Ethereum's are asked.</param>
+    /// <param name="sources">
+    /// The chains' endpoints, of which Ethereum's are asked, each the only way it may be: through the exit, or straight
+    /// to the user's own node.
+    /// </param>
     /// <exception cref="ArgumentException">The depth or the page size is less than 1.</exception>
     public BlockscoutEthereumSource(
-        IExitHttp http, IOperatorProfileStore operators, IClock clock, EthereumSourceOptions options,
+        IOperatorProfileStore operators, IClock clock, EthereumSourceOptions options,
         TimeZoneInfo timeZone, ChainSources sources)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -50,7 +52,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         _clock = clock;
         _options = options;
         _lookups = new SourceLookups(
-            Chain.Ethereum, "Ethereum", http, operators, sources, new RawResponseStore(timeZone, ChainName),
+            Chain.Ethereum, "Ethereum", operators, sources, new RawResponseStore(timeZone, ChainName),
             options.SafeConfirmations,
             async (_, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
                 .ConfigureAwait(false));

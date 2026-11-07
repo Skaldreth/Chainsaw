@@ -9,21 +9,38 @@ namespace Chainsaw.Modules.Chains;
 
 /// <summary>
 /// How every chain's source answers a lookup, written once: from the case when the answer cannot have changed,
-/// otherwise from the chain's endpoints in the order of its mode, through <see cref="IExitHttp"/> only, each response
-/// sealed in the case with its endpoint before it is used (principle 1), and from the case again, saying so, when no
-/// endpoint can be asked (principle 9). A chain's source says what to ask and how to read it (<see
-/// cref="LookupQuery{T}"/>).
+/// otherwise from the chain's endpoints in the order of its mode, each at its own pace and spread over them, through
+/// <see cref="IExitHttp"/> only (or straight to the user's own node when the endpoint is marked local, see
+/// <see cref="ChainSources.SendAsync"/>), each response sealed in the case with its endpoint before it is used
+/// (principle 1), and from the case again, saying so, when no endpoint can be asked (principle 9). An endpoint that
+/// fails, does not answer or asks Chainsaw to wait is left quietly for the others (decided 2026-11-07). A chain's source
+/// says what to ask and how to read it (<see cref="LookupQuery{T}"/>).
 /// </summary>
 internal sealed class SourceLookups
 {
     /// <summary>The HTTP status for something the source does not know.</summary>
     private const int NotFoundStatus = 404;
 
+    /// <summary>The HTTP status of a source that is asked too fast.</summary>
+    private const int TooManyRequestsStatus = 429;
+
+    /// <summary>The HTTP status of a source that cannot answer now.</summary>
+    private const int UnavailableStatus = 503;
+
+    /// <summary>How long an endpoint that says it is asked too fast, without saying for how long, is waited for.</summary>
+    public static readonly TimeSpan DefaultBusyWait = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The longest a lookup waits for an endpoint's turn; when every endpoint's turn is further away the lookup gives
+    /// up, says so, and answers from the case.
+    /// </summary>
+    public static readonly TimeSpan LongestWait = TimeSpan.FromMinutes(2);
+
+    /// <summary>A wait shorter than this is not told: the pace alone often waits a moment.</summary>
+    public static readonly TimeSpan NoticeableWait = TimeSpan.FromSeconds(1);
+
     /// <summary>The chain whose endpoints are asked.</summary>
     private readonly Chain _chain;
-
-    /// <summary>The only way out.</summary>
-    private readonly IExitHttp _http;
 
     /// <summary>Who fetches, recorded with every response.</summary>
     private readonly IOperatorProfileStore _operators;
@@ -47,12 +64,14 @@ internal sealed class SourceLookups
     /// <summary>What a lookup says when no endpoint of the chain is on.</summary>
     private readonly string _noneOnText;
 
+    /// <summary>What a lookup that needs an endpoint in step says when none is known to be.</summary>
+    private readonly string _noneInStepText;
+
     /// <summary>Creates the lookups of one chain.</summary>
     /// <param name="chain">The chain.</param>
     /// <param name="chainName">The chain's name in the texts for the user, for example <c>Bitcoin</c>.</param>
-    /// <param name="http">The only way out.</param>
     /// <param name="operators">The operator profile.</param>
-    /// <param name="sources">The chains' endpoints.</param>
+    /// <param name="sources">The chains' endpoints, which also say the way to each (<see cref="ChainSources.SendAsync"/>).</param>
     /// <param name="store">The chain's sealed responses.</param>
     /// <param name="safeConfirmations">How deep an answer's block must be before it is never fetched again.</param>
     /// <param name="refreshHeight">
@@ -61,7 +80,7 @@ internal sealed class SourceLookups
     /// </param>
     /// <exception cref="ArgumentException">The depth is less than 1.</exception>
     public SourceLookups(
-        Chain chain, string chainName, IExitHttp http, IOperatorProfileStore operators, ChainSources sources,
+        Chain chain, string chainName, IOperatorProfileStore operators, ChainSources sources,
         RawResponseStore store, int safeConfirmations,
         Func<SourceLookups, ICase, CancellationToken, Task> refreshHeight)
     {
@@ -70,10 +89,12 @@ internal sealed class SourceLookups
             throw new ArgumentException("The depth must be at least 1.", nameof(safeConfirmations));
         }
 
-        (_chain, _http, _operators, _sources, _store) = (chain, http, operators, sources, store);
+        (_chain, _operators, _sources, _store) = (chain, operators, sources, store);
         (_safeConfirmations, _refreshHeight) = (safeConfirmations, refreshHeight);
         _sourcesOffText = $"Källorna för {chainName} är avstängda i inställningarna (Av). Inget skickades.";
         _noneOnText = $"Ingen källa för {chainName} är påslagen i inställningarna. Inget skickades.";
+        _noneInStepText = $"Ingen källa för {chainName} är känd i fas med kedjans högsta höjd; prova källorna. "
+            + "Inget skickades.";
     }
 
     /// <summary>Gets the chain's sealed responses.</summary>
@@ -112,21 +133,29 @@ internal sealed class SourceLookups
             await _refreshHeight(this, @case, cancellationToken).ConfigureAwait(false);
         }
 
-        return await FetchAsync(@case, query, stored, cancellationToken).ConfigureAwait(false);
+        return await FetchAsync(@case, query, stored, cancellationToken, mode == LookupMode.InStep)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Asks the source, seals the response and reads it; falls back on the case's answer when it must.
+    /// Asks the source, seals the response and reads it; falls back on the case's answer when it must. The endpoints
+    /// are asked in the plan's order, each in its turn: the one whose turn comes first is asked, so that a lookup
+    /// never waits for one endpoint's pace while another is free, and the next is asked when one fails, does not answer
+    /// in time, asks Chainsaw to wait or gives an answer that cannot be used. Every response, also one that cannot be
+    /// used, is sealed with the endpoint it came from (principle 1).
     /// </summary>
     /// <typeparam name="T">What is looked up.</typeparam>
     /// <param name="case">The open case.</param>
     /// <param name="query">The lookup.</param>
     /// <param name="stored">The case's newest answer, if any.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <param name="inStep">
+    /// Whether only an endpoint in step with the chain may be asked (<see cref="LookupMode.InStep"/>).
+    /// </param>
     /// <returns>The answer.</returns>
     public async Task<BitcoinLookup<T>> FetchAsync<T>(
         ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool inStep = false)
         where T : class
     {
         var fetchedBy = CurrentOperator(out var noOperator);
@@ -135,7 +164,7 @@ internal sealed class SourceLookups
             return Fallback(stored, LookupStatus.Failed, noOperator!);
         }
 
-        var plan = _sources.Plan(_chain);
+        var plan = _sources.Plan(_chain, inStep);
         if (plan.Off)
         {
             return Fallback(stored, LookupStatus.Offline, _sourcesOffText);
@@ -143,18 +172,27 @@ internal sealed class SourceLookups
 
         if (plan.Endpoints.Count == 0)
         {
-            return Fallback(stored, LookupStatus.Failed, _noneOnText);
+            return Fallback(stored, LookupStatus.Failed, plan.NoneInStep ? _noneInStepText : _noneOnText);
         }
 
-        // The endpoints are asked in the plan's order; the next is asked when one fails, does not answer in time or
-        // gives an answer that cannot be used. Every response is sealed with the endpoint it came from (principle 1).
         var failures = new List<ResponseOrigin>();
         var problem = _noneOnText;
         string? notFound = null;
         var trustedNotFound = false;
         var onlyNotFound = true;
-        foreach (var planned in plan.Endpoints)
+        var exitClosed = false;
+        var remaining = plan.Endpoints.ToList();
+        while (remaining.Count > 0)
         {
+            var (planned, waitProblem) = await TurnAsync(remaining, cancellationToken).ConfigureAwait(false);
+            if (planned is null)
+            {
+                problem = waitProblem!;
+                onlyNotFound = false;
+                break;
+            }
+
+            remaining.Remove(planned);
             var endpoint = planned.Endpoint;
             var unkeyed = planned.Api.Request(endpoint.Address, query.Path);
             if (_sources.WithKey(endpoint, planned.Api, unkeyed, out var keyProblem) is not { } request)
@@ -168,12 +206,15 @@ internal sealed class SourceLookups
             ExitResponse response;
             try
             {
-                response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                response = await _sources.SendAsync(endpoint, request, cancellationToken).ConfigureAwait(false);
             }
             catch (ExitNotConnectedException)
             {
-                return Fallback(stored, LookupStatus.Offline, "Ingen utgång är ansluten, och inget skickades.",
-                    failures);
+                // Nothing was sent, and nothing more goes through the exit; the user's own node is still asked, since
+                // it is reached in the user's own network.
+                exitClosed = true;
+                remaining.RemoveAll(other => !other.Endpoint.Local);
+                continue;
             }
             catch (ExitException exception)
             {
@@ -183,7 +224,7 @@ internal sealed class SourceLookups
                 continue;
             }
 
-            var (value, interpretProblem, saysNotFound) = Interpret(query, response);
+            var (value, interpretProblem, outcome) = Interpret(query, response);
             var sealedResponse = await Task.Run(
                 () => @case.Write(transaction => _store.Append(
                     transaction, query.Kind, query.Subject, response, endpoint, fetchedBy,
@@ -199,12 +240,12 @@ internal sealed class SourceLookups
                 };
             }
 
-            if (saysNotFound)
+            failures.Add(sealedResponse.Origin);
+            if (outcome == Outcome.NotFound)
             {
                 // The source says it does not know it. From an endpoint whose probe did not fail that is an answer,
                 // and no other endpoint is asked; from one that failed its probe or lags behind (a wrong path, a node
                 // still syncing), the next is asked, so that one broken endpoint never says that a tx does not exist.
-                failures.Add(sealedResponse.Origin);
                 notFound = interpretProblem;
                 if (_sources.TrustsNotFound(_chain, endpoint.Id))
                 {
@@ -215,8 +256,17 @@ internal sealed class SourceLookups
                 continue;
             }
 
-            _sources.Failed(_chain, endpoint.Id);
-            failures.Add(sealedResponse.Origin);
+            if (outcome == Outcome.Wait)
+            {
+                // Asked too fast: it is waited for as long as it asks, and the others are asked meanwhile. It has not
+                // failed, so it comes back by itself when the wait is over.
+                _sources.AskedToWait(_chain, endpoint.Id, AsksToWait(response) ?? DefaultBusyWait);
+            }
+            else
+            {
+                _sources.Failed(_chain, endpoint.Id);
+            }
+
             problem = interpretProblem!;
             onlyNotFound = false;
         }
@@ -228,7 +278,72 @@ internal sealed class SourceLookups
             return new BitcoinLookup<T>(LookupStatus.NotFound, null, failures, notFound);
         }
 
+        if (exitClosed && !isNotFound)
+        {
+            return Fallback(stored, LookupStatus.Offline, "Ingen utgång är ansluten, och inget skickades.", failures);
+        }
+
         return Fallback(stored, LookupStatus.Failed, isNotFound ? notFound! : problem, failures);
+    }
+
+    /// <summary>
+    /// Waits for the turn that comes first among the endpoints still to ask, saying so while the wait is noticeable,
+    /// and gives that endpoint. After the wait, an endpoint that has since asked Chainsaw to wait is passed over.
+    /// </summary>
+    /// <param name="remaining">The endpoints still to ask, in the plan's order.</param>
+    /// <param name="cancellationToken">Stops the wait.</param>
+    /// <returns>The endpoint to ask now, or <see langword="null"/> and why none is asked, in Swedish.</returns>
+    private async Task<(PlannedEndpoint? Endpoint, string? Problem)> TurnAsync(
+        List<PlannedEndpoint> remaining, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var (turn, earliest) = _sources.Pacer.Take(remaining, LongestWait);
+            if (turn is null)
+            {
+                var until = earliest is { } time ? $" till {LocalText(time.ToLocalTime())}" : string.Empty;
+                return (null, $"Källorna ber Chainsaw vänta{until}. Inget mer skickades.");
+            }
+
+            if (turn.Wait >= NoticeableWait)
+            {
+                _sources.Waiting(_chain, turn.StartsAt);
+                try
+                {
+                    await _sources.DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _sources.DoneWaiting(_chain, turn.StartsAt);
+                }
+            }
+            else
+            {
+                await _sources.DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (_sources.Pacer.WaitUntil(turn.Endpoint.Endpoint.Id) is null)
+            {
+                return (turn.Endpoint, null);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tells whether a response asks Chainsaw to wait: <c>429</c> (asked too fast), or <c>503</c> with a
+    /// <c>Retry-After</c>.
+    /// </summary>
+    /// <param name="response">The response.</param>
+    /// <returns>How long, <see cref="DefaultBusyWait"/> when a 429 does not say; <see langword="null"/> when it does not ask.</returns>
+    public static TimeSpan? AsksToWait(ExitResponse response)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        return response.StatusCode switch
+        {
+            TooManyRequestsStatus => response.RetryAfter ?? DefaultBusyWait,
+            UnavailableStatus => response.RetryAfter,
+            _ => null,
+        };
     }
 
     /// <summary>Reads a fresh response, or says why it cannot be used.</summary>
@@ -236,33 +351,44 @@ internal sealed class SourceLookups
     /// <param name="query">The lookup.</param>
     /// <param name="response">The response.</param>
     /// <returns>
-    /// The value, or <see langword="null"/> and the problem in Swedish, and whether the source said it does not know
-    /// what was asked: HTTP 404, or a body that says so (<see cref="SourceNotFoundException"/>, as the
-    /// Etherscan-style APIs answer 200 with <c>status 0</c>).
+    /// The value, or <see langword="null"/> and the problem in Swedish, and what the source said when there is no
+    /// value: that it does not know what was asked (HTTP 404, or a body that says so, <see
+    /// cref="SourceNotFoundException"/>, as the Etherscan-style APIs answer 200 with <c>status 0</c>), that it is asked
+    /// too fast (<see cref="AsksToWait"/>, or a body that says so, <see cref="SourceBusyException"/>), or that it failed.
     /// </returns>
-    private static (T? Value, string? Problem, bool NotFound) Interpret<T>(
+    private static (T? Value, string? Problem, Outcome Outcome) Interpret<T>(
         LookupQuery<T> query, ExitResponse response)
         where T : class
     {
         const string NotFoundText = "Källan känner inte till det som söktes.";
+        const string BusyText = "Källan bad Chainsaw vänta.";
         if (response.StatusCode == NotFoundStatus)
         {
-            return (null, NotFoundText, true);
+            return (null, NotFoundText, Outcome.NotFound);
+        }
+
+        if (AsksToWait(response) is not null)
+        {
+            return (null, BusyText, Outcome.Wait);
         }
 
         if (!response.IsSuccess)
         {
             return (null, $"Källan svarade med status {response.StatusCode.ToString(CultureInfo.InvariantCulture)}.",
-                false);
+                Outcome.Failed);
         }
 
         try
         {
-            return (query.Parse(response.Body.ToArray()), null, false);
+            return (query.Parse(response.Body.ToArray()), null, Outcome.Answered);
         }
         catch (SourceNotFoundException)
         {
-            return (null, NotFoundText, true);
+            return (null, NotFoundText, Outcome.NotFound);
+        }
+        catch (SourceBusyException)
+        {
+            return (null, BusyText, Outcome.Wait);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -270,7 +396,7 @@ internal sealed class SourceLookups
             // allowed to stop that (principle 1) or to escape as an exception (the chains' contracts).
             return (null,
                 "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.",
-                false);
+                Outcome.Failed);
         }
     }
 
@@ -422,6 +548,35 @@ internal sealed class SourceLookups
             problem = "Valvet är låst. Inget skickades.";
             return null;
         }
+    }
+}
+
+/// <summary>What a response from an endpoint said, when it was read.</summary>
+internal enum Outcome
+{
+    /// <summary>It answered, and the answer can be used.</summary>
+    Answered,
+
+    /// <summary>It does not know what was asked.</summary>
+    NotFound,
+
+    /// <summary>It asked Chainsaw to wait: it is asked too fast.</summary>
+    Wait,
+
+    /// <summary>It failed, or its answer cannot be used.</summary>
+    Failed,
+}
+
+/// <summary>
+/// Thrown by a parser when the source's body says that it is asked too fast (the Etherscan-style APIs answer a rate
+/// limit with 200 and <c>status 0</c>), which the lookups treat as a 429: wait for it and ask the others meanwhile.
+/// </summary>
+internal sealed class SourceBusyException : FormatException
+{
+    /// <summary>Creates the exception.</summary>
+    public SourceBusyException()
+        : base("The source says it is asked too fast.")
+    {
     }
 }
 

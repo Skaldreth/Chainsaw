@@ -5,7 +5,7 @@ import "net/netip"
 // isLocal tells whether an address is anything but a global unicast address: loopback, unspecified, private,
 // shared, link-local, multicast, reserved, documentation, or an IPv6 address that carries such an IPv4 address.
 // A lookup never needs them, and through the tunnel they would reach the exit's own network. The rules are the
-// same as Chainsaw's own check before a request (LocalTargets in the Network module), so that the helper refuses
+// same as Chainsaw's own check before a request (LocalAddresses in the Network module), so that the helper refuses
 // also when a name resolves to such an address.
 func isLocal(address netip.Addr) bool {
 	if !address.IsValid() {

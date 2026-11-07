@@ -39,12 +39,19 @@ public interface IChainSources
 
     /// <summary>Adds an endpoint last in the chain's list, switched on.</summary>
     /// <param name="chain">The chain.</param>
-    /// <param name="address">The address, checked by <see cref="SourceAddress.TryRead"/> (only https).</param>
+    /// <param name="address">
+    /// The address, checked by <see cref="SourceAddress.TryRead(string?, bool, out Uri?, out string?)"/> (only
+    /// https; on the computer or a private network only when <paramref name="local"/>).
+    /// </param>
     /// <param name="api">The sort of API, one of <see cref="Apis"/>.</param>
     /// <param name="apiKey">The vault's service for the key, or <see langword="null"/> for none.</param>
+    /// <param name="local">
+    /// Whether the user marked it as their own node on the computer or a private network, asked straight there and
+    /// never through the exit.
+    /// </param>
     /// <returns>The endpoint, and a task that completes when it is written.</returns>
     /// <exception cref="ArgumentException">The address, the sort or the key's name cannot be used.</exception>
-    (SourceEndpoint Endpoint, Task Saved) Add(Chain chain, Uri address, string api, string? apiKey);
+    (SourceEndpoint Endpoint, Task Saved) Add(Chain chain, Uri address, string api, string? apiKey, bool local = false);
 
     /// <summary>Removes an endpoint. An endpoint that is not there is ignored.</summary>
     /// <param name="chain">The chain.</param>
@@ -77,15 +84,19 @@ public interface IChainSources
 
     /// <summary>
     /// Tries an address before it is added: the chain's height, the hash of the block at that height and how long the
-    /// height took, through the exit. Nothing is kept.
+    /// height took, through the exit, or straight to the user's own node when it is marked local. Nothing is kept.
     /// </summary>
     /// <param name="chain">The chain.</param>
-    /// <param name="address">The address, checked by <see cref="SourceAddress.TryRead"/> (only https).</param>
+    /// <param name="address">
+    /// The address, checked by <see cref="SourceAddress.TryRead(string?, bool, out Uri?, out string?)"/>.
+    /// </param>
     /// <param name="api">The sort of API.</param>
     /// <param name="apiKey">The vault's service for the key, or <see langword="null"/>.</param>
+    /// <param name="local">Whether it is marked as the user's own node on the computer or a private network.</param>
     /// <param name="cancellationToken">Stops the attempt.</param>
     /// <returns>What it answered.</returns>
     /// <exception cref="ArgumentException">The address or the sort cannot be used.</exception>
     Task<EndpointProbe> TryAsync(
-        Chain chain, Uri address, string api, string? apiKey, CancellationToken cancellationToken = default);
+        Chain chain, Uri address, string api, string? apiKey, bool local = false,
+        CancellationToken cancellationToken = default);
 }

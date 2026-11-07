@@ -118,10 +118,14 @@ internal sealed class SourcesFile(string? directory)
     [
         .. chain.Endpoints.Select(endpoint => new EndpointDto(
             endpoint.Id, endpoint.Name, endpoint.Address.AbsoluteUri, endpoint.Api, endpoint.ApiKey,
-            endpoint.Enabled)),
+            endpoint.Enabled, endpoint.Local, (int)endpoint.Interval.TotalMilliseconds)),
     ]);
 
-    /// <summary>Makes an endpoint of a saved one, or nothing when it cannot be used.</summary>
+    /// <summary>
+    /// Makes an endpoint of a saved one, or nothing when it cannot be used. An address on the computer or a private
+    /// network is kept only for an endpoint marked local, and a local one only without a global IP address; a pace
+    /// that is missing is the default of its kind, and one outside the limits is brought within them.
+    /// </summary>
     /// <param name="saved">The saved endpoint.</param>
     /// <param name="chain">The chain it is saved under.</param>
     /// <param name="apis">The sorts of API Chainsaw speaks.</param>
@@ -131,16 +135,23 @@ internal sealed class SourcesFile(string? directory)
     {
         if (saved is null || saved.Id == Guid.Empty
             || saved.Api is null || !apis.TryGetValue(saved.Api, out var api) || api.Info.Chain != chain
-            || !SourceAddress.TryRead(saved.Address, out var address, out _))
+            || !SourceAddress.TryRead(saved.Address, saved.Local, out var address, out _))
         {
             return null;
         }
 
         var name = string.IsNullOrWhiteSpace(saved.Name) ? SourceAddress.NameOf(address!) : saved.Name.Trim();
         var key = string.IsNullOrWhiteSpace(saved.ApiKey) ? null : saved.ApiKey.Trim();
+        var pace = saved.IntervalMilliseconds is { } milliseconds
+            ? TimeSpan.FromMilliseconds(Math.Clamp(milliseconds, 0, SourcePace.Maximum.TotalMilliseconds))
+            : saved.Local ? SourcePace.Local : SourcePace.Public;
         return new SourceEndpoint(
             saved.Id, chain, name[..Math.Min(name.Length, SourceAddress.MaximumNameLength)], address!, api.Info.Code,
-            key, saved.Enabled);
+            key, saved.Enabled)
+        {
+            Local = saved.Local,
+            Interval = pace,
+        };
     }
 
     /// <summary>The file.</summary>
@@ -160,6 +171,11 @@ internal sealed class SourcesFile(string? directory)
     /// <param name="Api">Its sort of API.</param>
     /// <param name="ApiKey">The vault's service for its key, or <see langword="null"/>.</param>
     /// <param name="Enabled">Whether it is on.</param>
+    /// <param name="Local">Whether the user marked it as their own node on the computer or a private network.</param>
+    /// <param name="IntervalMilliseconds">
+    /// Its pace, the shortest time between two requests, or <see langword="null"/> for the default of its kind.
+    /// </param>
     private sealed record EndpointDto(
-        Guid Id, string? Name, string? Address, string? Api, string? ApiKey, bool Enabled);
+        Guid Id, string? Name, string? Address, string? Api, string? ApiKey, bool Enabled, bool Local = false,
+        int? IntervalMilliseconds = null);
 }

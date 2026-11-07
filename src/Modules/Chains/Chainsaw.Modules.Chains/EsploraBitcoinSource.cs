@@ -48,21 +48,24 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     public EsploraBitcoinSource(
         IExitHttp http, IOperatorProfileStore operators, IClock clock, BitcoinSourceOptions options,
         TimeZoneInfo timeZone)
-        : this(http, operators, clock, options, timeZone,
-            new ChainSources([new EsploraApi(options)], http, null, null, clock, new ChainSourcesOptions()))
+        : this(
+            new ChainSources([new EsploraApi(options)], http, null, null, clock, new ChainSourcesOptions()), operators,
+            clock, options, timeZone)
     {
     }
 
     /// <summary>Creates the source.</summary>
-    /// <param name="http">The only way out.</param>
+    /// <param name="sources">
+    /// The chains' endpoints, of which Bitcoin's are asked, each the only way it may be: through the exit, or straight to
+    /// the user's own node.
+    /// </param>
     /// <param name="operators">The operator profile.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="options">The settings.</param>
     /// <param name="timeZone">The time zone local times are recorded in.</param>
-    /// <param name="sources">The chains' endpoints, of which Bitcoin's are asked.</param>
     public EsploraBitcoinSource(
-        IExitHttp http, IOperatorProfileStore operators, IClock clock, BitcoinSourceOptions options,
-        TimeZoneInfo timeZone, ChainSources sources)
+        ChainSources sources, IOperatorProfileStore operators, IClock clock, BitcoinSourceOptions options,
+        TimeZoneInfo timeZone)
     {
         _clock = clock;
         _options = options;
@@ -74,7 +77,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         }
 
         _lookups = new SourceLookups(
-            Chain.Bitcoin, "Bitcoin", http, operators, sources, _store, options.SafeConfirmations,
+            Chain.Bitcoin, "Bitcoin", operators, sources, _store, options.SafeConfirmations,
             async (_, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
                 .ConfigureAwait(false));
     }
@@ -84,7 +87,12 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
-        ICase @case, BitcoinAddress address, Txid? after = null, CancellationToken cancellationToken = default)
+        ICase @case, BitcoinAddress address, Txid? after = null, CancellationToken cancellationToken = default) =>
+        GetAddressTransactionsAsync(@case, address, after, LookupMode.AsNeeded, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
+        ICase @case, BitcoinAddress address, Txid? after, LookupMode mode, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(address);
@@ -106,7 +114,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.AddressTransactions, subject),
                 body => Page(address, after, _parser.ParseAddressTransactions(body, address))),
             page => after is null || page.Transactions.Count == 0 ? null : Shallowest(page.Transactions));
-        return _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
+        return _lookups.LookupAsync(@case, query, mode, cancellationToken);
     }
 
     /// <inheritdoc/>

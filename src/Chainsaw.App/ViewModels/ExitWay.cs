@@ -17,6 +17,9 @@ public sealed class ExitWay
     /// <summary>The chains whose sources are off.</summary>
     private readonly HashSet<Chain> _off = [];
 
+    /// <summary>The chains whose lookups wait for a source now.</summary>
+    private readonly HashSet<Chain> _waiting = [];
+
     /// <summary>Creates the way and follows the choice and the exit.</summary>
     /// <param name="route">The way chosen in the settings.</param>
     /// <param name="connection">The connection to the exit (VPN).</param>
@@ -74,6 +77,12 @@ public sealed class ExitWay
     /// <summary>Gets the chains whose sources are off (<see cref="SourceMode.Off"/>), as last told.</summary>
     public IReadOnlySet<Chain> ChainsOff => _off;
 
+    /// <summary>
+    /// Gets the chains whose lookups wait for a source now (its pace, or a wait it asked for), as last told, so that
+    /// the wait is shown honestly while the UI goes on.
+    /// </summary>
+    public IReadOnlySet<Chain> ChainsWaiting => _waiting;
+
     /// <summary>Gets whether lookups can go now: through Windows, or through a connected exit.</summary>
     public bool IsLive => IsWindows || Status.State == ExitState.Connected;
 
@@ -92,10 +101,15 @@ public sealed class ExitWay
         }
     }
 
-    /// <summary>Reads whether a chain's sources are off.</summary>
+    /// <summary>Reads whether a chain's sources are off, and whether its lookups wait for a source.</summary>
     /// <param name="sources">The chains' endpoints.</param>
     /// <param name="chain">The chain.</param>
-    /// <returns><see langword="true"/> when that changed.</returns>
-    private bool Follow(IChainSources sources, Chain chain) =>
-        sources.Get(chain).Mode == SourceMode.Off ? _off.Add(chain) : _off.Remove(chain);
+    /// <returns><see langword="true"/> when either changed.</returns>
+    private bool Follow(IChainSources sources, Chain chain)
+    {
+        var view = sources.Get(chain);
+        var off = view.Mode == SourceMode.Off ? _off.Add(chain) : _off.Remove(chain);
+        var waiting = view.WaitingUntil is not null ? _waiting.Add(chain) : _waiting.Remove(chain);
+        return off || waiting;
+    }
 }

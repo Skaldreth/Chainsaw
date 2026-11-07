@@ -445,6 +445,8 @@ internal static class BlockscoutParser
             return result;
         }
 
+        ThrowIfBusy(root);
+
         // Etherscan-style APIs answer an unknown transaction or token with 200, status 0 and no result.
         var empty = !root.TryGetProperty("result", out var missing) || missing.ValueKind == JsonValueKind.Null;
         throw empty && OptionalString(root, "status") == "0"
@@ -467,10 +469,29 @@ internal static class BlockscoutParser
         if (!root.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.Array
             || status is not ("0" or "1" or "2") || (status == "0" && result.GetArrayLength() > 0))
         {
+            ThrowIfBusy(root);
             throw new FormatException("The source did not answer: " + OptionalString(root, "message"));
         }
 
         return ([.. result.EnumerateArray()], status == "2");
+    }
+
+    /// <summary>
+    /// Throws when an Etherscan-style answer says that the source is asked too fast: status 0, and a message or a
+    /// result that says <em>rate limit</em> (for example <c>Max rate limit reached</c>).
+    /// </summary>
+    /// <param name="root">The answer.</param>
+    /// <exception cref="SourceBusyException">It says so.</exception>
+    private static void ThrowIfBusy(JsonElement root)
+    {
+        var said = (OptionalString(root, "message") ?? string.Empty) + " "
+            + (root.TryGetProperty("result", out var result) && result.ValueKind == JsonValueKind.String
+                ? result.GetString()
+                : string.Empty);
+        if (OptionalString(root, "status") == "0" && said.Contains("rate limit", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new SourceBusyException();
+        }
     }
 
     /// <summary>Gives an entry's transaction, which Blockscout and Etherscan name differently.</summary>

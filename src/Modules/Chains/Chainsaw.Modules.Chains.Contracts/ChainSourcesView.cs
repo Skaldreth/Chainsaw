@@ -9,7 +9,14 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// Whether a lookup through it failed since it was last tried, so that the others are asked before it.
 /// </param>
 /// <param name="InUse">Whether it is the one the next lookup asks first.</param>
-public sealed record EndpointView(SourceEndpoint Endpoint, EndpointProbe? Probe, bool FailedSince, bool InUse);
+public sealed record EndpointView(SourceEndpoint Endpoint, EndpointProbe? Probe, bool FailedSince, bool InUse)
+{
+    /// <summary>
+    /// Gets until when it asked Chainsaw to wait (<c>429</c> or <c>Retry-After</c>), in UTC, or
+    /// <see langword="null"/>. Until then the others are asked, and it comes back by itself.
+    /// </summary>
+    public DateTimeOffset? WaitUntil { get; init; }
+}
 
 /// <summary>A chain's sources: its mode, its endpoints in the user's order and when they were last tried.</summary>
 /// <param name="Chain">The chain.</param>
@@ -19,6 +26,12 @@ public sealed record EndpointView(SourceEndpoint Endpoint, EndpointProbe? Probe,
 public sealed record ChainSourcesView(
     Chain Chain, SourceMode Mode, IReadOnlyList<EndpointView> Endpoints, DateTimeOffset? ProbedAt)
 {
+    /// <summary>
+    /// Gets until when a lookup on the chain waits for an endpoint now (its pace or its <c>Retry-After</c>), in UTC,
+    /// or <see langword="null"/> when none waits noticeably; a short wait for the pace is not told.
+    /// </summary>
+    public DateTimeOffset? WaitingUntil { get; init; }
+
     /// <summary>Gets the endpoint the next lookup asks first, or <see langword="null"/> when none is asked.</summary>
     public EndpointView? InUse => Endpoints.FirstOrDefault(endpoint => endpoint.InUse);
 }

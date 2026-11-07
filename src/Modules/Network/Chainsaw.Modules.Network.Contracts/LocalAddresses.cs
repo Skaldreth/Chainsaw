@@ -1,19 +1,21 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace Chainsaw.Modules.Network;
+namespace Chainsaw.Modules.Network.Contracts;
 
 /// <summary>
-/// Recognises addresses on the computer or on a private network. A lookup never needs them, and a tunnel could reach
-/// them on its own side, so they are refused before anything is sent.
+/// Recognises addresses on the computer or on a private network. A lookup through the exit never needs them, and a
+/// tunnel could reach them on its own side, so they are refused there before anything is sent; only a request to the
+/// user's own node (<see cref="ILocalHttp"/>) may go to them, and it may go nowhere else.
 /// </summary>
-internal static class LocalTargets
+public static class LocalAddresses
 {
     /// <summary>Tells whether an address names the computer itself or any address that is not global.</summary>
     /// <param name="uri">The absolute address.</param>
     /// <returns><see langword="true"/> when the host is local.</returns>
     public static bool IsLocal(Uri uri)
     {
+        ArgumentNullException.ThrowIfNull(uri);
         var host = uri.IdnHost.TrimEnd('.');
         if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
             || host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
@@ -30,8 +32,10 @@ internal static class LocalTargets
     /// </summary>
     /// <param name="address">The address.</param>
     /// <returns><see langword="true"/> when the address is not global.</returns>
-    internal static bool IsLocal(IPAddress address)
+    /// <exception cref="ArgumentNullException">The address is null.</exception>
+    public static bool IsLocal(IPAddress address)
     {
+        ArgumentNullException.ThrowIfNull(address);
         var bytes = address.GetAddressBytes();
         if (address.AddressFamily == AddressFamily.InterNetwork)
         {
