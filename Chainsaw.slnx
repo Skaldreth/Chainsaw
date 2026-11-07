@@ -1,0 +1,60 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Chainsaw.App/Chainsaw.App.csproj" />
+    <Project Path="src/Chainsaw.SharedKernel/Chainsaw.SharedKernel.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Cases/">
+    <Project Path="src/Modules/Cases/Chainsaw.Modules.Cases.Contracts/Chainsaw.Modules.Cases.Contracts.csproj" />
+    <Project Path="src/Modules/Cases/Chainsaw.Modules.Cases/Chainsaw.Modules.Cases.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Security/">
+    <Project Path="src/Modules/Security/Chainsaw.Modules.Security.Contracts/Chainsaw.Modules.Security.Contracts.csproj" />
+    <Project Path="src/Modules/Security/Chainsaw.Modules.Security/Chainsaw.Modules.Security.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Network/">
+    <Project Path="src/Modules/Network/Chainsaw.Modules.Network.Contracts/Chainsaw.Modules.Network.Contracts.csproj" />
+    <Project Path="src/Modules/Network/Chainsaw.Modules.Network/Chainsaw.Modules.Network.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Chains/">
+    <Project Path="src/Modules/Chains/Chainsaw.Modules.Chains.Contracts/Chainsaw.Modules.Chains.Contracts.csproj" />
+    <Project Path="src/Modules/Chains/Chainsaw.Modules.Chains/Chainsaw.Modules.Chains.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Clustering/">
+    <Project Path="src/Modules/Clustering/Chainsaw.Modules.Clustering.Contracts/Chainsaw.Modules.Clustering.Contracts.csproj" />
+    <Project Path="src/Modules/Clustering/Chainsaw.Modules.Clustering/Chainsaw.Modules.Clustering.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Attribution/">
+    <Project Path="src/Modules/Attribution/Chainsaw.Modules.Attribution.Contracts/Chainsaw.Modules.Attribution.Contracts.csproj" />
+    <Project Path="src/Modules/Attribution/Chainsaw.Modules.Attribution/Chainsaw.Modules.Attribution.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Tracing/">
+    <Project Path="src/Modules/Tracing/Chainsaw.Modules.Tracing.Contracts/Chainsaw.Modules.Tracing.Contracts.csproj" />
+    <Project Path="src/Modules/Tracing/Chainsaw.Modules.Tracing/Chainsaw.Modules.Tracing.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Pricing/">
+    <Project Path="src/Modules/Pricing/Chainsaw.Modules.Pricing.Contracts/Chainsaw.Modules.Pricing.Contracts.csproj" />
+    <Project Path="src/Modules/Pricing/Chainsaw.Modules.Pricing/Chainsaw.Modules.Pricing.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Monitoring/">
+    <Project Path="src/Modules/Monitoring/Chainsaw.Modules.Monitoring.Contracts/Chainsaw.Modules.Monitoring.Contracts.csproj" />
+    <Project Path="src/Modules/Monitoring/Chainsaw.Modules.Monitoring/Chainsaw.Modules.Monitoring.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Requests/">
+    <Project Path="src/Modules/Requests/Chainsaw.Modules.Requests.Contracts/Chainsaw.Modules.Requests.Contracts.csproj" />
+    <Project Path="src/Modules/Requests/Chainsaw.Modules.Requests/Chainsaw.Modules.Requests.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Chainsaw.SharedKernel.Tests/Chainsaw.SharedKernel.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Cases.Tests/Chainsaw.Modules.Cases.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Security.Tests/Chainsaw.Modules.Security.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Network.Tests/Chainsaw.Modules.Network.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Chains.Tests/Chainsaw.Modules.Chains.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Clustering.Tests/Chainsaw.Modules.Clustering.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Attribution.Tests/Chainsaw.Modules.Attribution.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Tracing.Tests/Chainsaw.Modules.Tracing.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Pricing.Tests/Chainsaw.Modules.Pricing.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Monitoring.Tests/Chainsaw.Modules.Monitoring.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Requests.Tests/Chainsaw.Modules.Requests.Tests.csproj" />
+  </Folder>
+</Solution>

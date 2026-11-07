@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Every public member is documented; a missing comment fails the build (CS1591 as an error). -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Symbols inside each assembly give line numbers in crash reports without separate .pdb files. -->
+    <DebugType>embedded</DebugType>
+    <Company>Chainsaw</Company>
+    <Product>Chainsaw</Product>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

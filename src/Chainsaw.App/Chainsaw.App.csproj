@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- Allows the solution to be built (not run) on non-Windows machines, such as the cloud environment. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>Chainsaw</AssemblyName>
+    <RootNamespace>Chainsaw.App</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Chainsaw.SharedKernel\Chainsaw.SharedKernel.csproj" />
+    <ProjectReference Include="..\Modules\Cases\Chainsaw.Modules.Cases\Chainsaw.Modules.Cases.csproj" />
+    <ProjectReference Include="..\Modules\Security\Chainsaw.Modules.Security\Chainsaw.Modules.Security.csproj" />
+    <ProjectReference Include="..\Modules\Network\Chainsaw.Modules.Network\Chainsaw.Modules.Network.csproj" />
+    <ProjectReference Include="..\Modules\Chains\Chainsaw.Modules.Chains\Chainsaw.Modules.Chains.csproj" />
+    <ProjectReference Include="..\Modules\Clustering\Chainsaw.Modules.Clustering\Chainsaw.Modules.Clustering.csproj" />
+    <ProjectReference Include="..\Modules\Attribution\Chainsaw.Modules.Attribution\Chainsaw.Modules.Attribution.csproj" />
+    <ProjectReference Include="..\Modules\Tracing\Chainsaw.Modules.Tracing\Chainsaw.Modules.Tracing.csproj" />
+    <ProjectReference Include="..\Modules\Pricing\Chainsaw.Modules.Pricing\Chainsaw.Modules.Pricing.csproj" />
+    <ProjectReference Include="..\Modules\Monitoring\Chainsaw.Modules.Monitoring\Chainsaw.Modules.Monitoring.csproj" />
+    <ProjectReference Include="..\Modules\Requests\Chainsaw.Modules.Requests\Chainsaw.Modules.Requests.csproj" />
+  </ItemGroup>
+</Project>
