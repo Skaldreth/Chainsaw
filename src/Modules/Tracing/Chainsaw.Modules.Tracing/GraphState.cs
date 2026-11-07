@@ -15,6 +15,11 @@ internal sealed record GraphState(
     IReadOnlyDictionary<string, IReadOnlyDictionary<GraphLayout, StoredPosition>> Positions)
 {
     /// <summary>
+    /// Gets the member keys the user picked out of the piles (see <see cref="NodeKeys.Members"/>); empty when none.
+    /// </summary>
+    public IReadOnlySet<string> Picked { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>
     /// Gets every transaction the graph holds: the start points' transactions and those the expansions brought in,
     /// each once, in the order they came.
     /// </summary>

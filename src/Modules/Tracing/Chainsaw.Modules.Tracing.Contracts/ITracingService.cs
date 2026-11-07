@@ -135,6 +135,22 @@ public interface ITracingService
     void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position);
 
     /// <summary>
+    /// Picks actors out of their piles (sketch EX2b), so that the graph draws them as nodes of their own; they stay
+    /// picked when the case is opened again. Ordinary data like the places, with no line in the journal: the pile is
+    /// arrangement, and every fact stays in the graph whatever is picked (principle 1).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="nodeKeys">The actors' node keys, from <see cref="GraphPile.Members"/>.</param>
+    void PickFromPile(ICase @case, IReadOnlyCollection<string> nodeKeys);
+
+    /// <summary>
+    /// Puts actors that were picked out back in their piles; an actor that was never picked is left as it is.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="nodeKeys">The actors' node keys, from <see cref="GraphPile.PickedOut"/>.</param>
+    void ReturnToPile(ICase @case, IReadOnlyCollection<string> nodeKeys);
+
+    /// <summary>
     /// Traces money through the graph by a method: from the seeds, through every transaction in the graph, to where
     /// it stops. Every traced unit ends somewhere, with a reason.
     /// </summary>

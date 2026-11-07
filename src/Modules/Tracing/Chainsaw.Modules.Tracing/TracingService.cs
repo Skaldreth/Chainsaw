@@ -273,6 +273,59 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
+    public void PickFromPile(ICase @case, IReadOnlyCollection<string> nodeKeys)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var keys = MemberKeys(nodeKeys);
+        if (keys.Count == 0)
+        {
+            return;
+        }
+
+        var utc = _clock.UtcNow;
+        @case.Write(transaction =>
+        {
+            GraphStateStore.SavePicked(transaction, keys, utc);
+            return true;
+        });
+    }
+
+    /// <inheritdoc/>
+    public void ReturnToPile(ICase @case, IReadOnlyCollection<string> nodeKeys)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var keys = MemberKeys(nodeKeys);
+        if (keys.Count == 0)
+        {
+            return;
+        }
+
+        @case.Write(transaction =>
+        {
+            GraphStateStore.DeletePicked(transaction, keys);
+            return true;
+        });
+    }
+
+    /// <summary>
+    /// Gives the keys the case remembers picked actors by: a cluster under its representative address, as its place,
+    /// and read back from any of its addresses (<see cref="PileRules"/>).
+    /// </summary>
+    /// <param name="nodeKeys">The actors' node keys.</param>
+    /// <returns>The member keys, each once.</returns>
+    /// <exception cref="ArgumentException">A key is empty.</exception>
+    private static List<string> MemberKeys(IReadOnlyCollection<string> nodeKeys)
+    {
+        ArgumentNullException.ThrowIfNull(nodeKeys);
+        if (nodeKeys.Any(string.IsNullOrEmpty))
+        {
+            throw new ArgumentException("A node's key is never empty.", nameof(nodeKeys));
+        }
+
+        return [.. nodeKeys.Select(NodeKeys.Position).Distinct(StringComparer.Ordinal)];
+    }
+
+    /// <inheritdoc/>
     public TraceResult Trace(TraceGraph graph, TraceRequest request)
     {
         ArgumentNullException.ThrowIfNull(graph);
@@ -405,7 +458,10 @@ internal sealed class TracingService : ITracingService
         }
 
         var expansion = new Expansion(
-            request.Address, request.Txid, step.Transactions, step.Problem is null, _clock.UtcNow);
+            request.Address, request.Txid, step.Transactions, step.Problem is null, _clock.UtcNow)
+        {
+            HeldBack = step.HeldBack,
+        };
         @case.Write(transaction => GraphStateStore.SaveExpansion(transaction, expansion));
         // The expanded transaction's own spends were asked for in the step.
         var unasked = step.Transactions.Where(txid => txid != request.Txid).ToList();
@@ -461,6 +517,7 @@ internal sealed class TracingService : ITracingService
             EthereumAddress = request.EthereumAddress,
             EthereumTransaction = request.EthereumTransaction,
             EthereumTransactions = step.Transactions,
+            HeldBack = step.HeldBack,
         };
         @case.Write(transaction => GraphStateStore.SaveExpansion(transaction, expansion));
         var data = await ReadDataAsync(@case, cancellationToken).ConfigureAwait(false);

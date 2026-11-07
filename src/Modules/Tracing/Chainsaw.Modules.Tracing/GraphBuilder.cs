@@ -88,7 +88,7 @@ internal sealed class GraphBuilder
             .ThenBy(edge => edge.Key, StringComparer.Ordinal)
             .ToList();
         var account = _data.Account;
-        return new TraceGraph(
+        var graph = new TraceGraph(
             _data.State.StartPoints,
             nodes,
             edges,
@@ -104,6 +104,8 @@ internal sealed class GraphBuilder
                 PartlyRead = account.PartlyRead,
             },
         };
+        var (piles, clues) = PileRules.Arrange(graph, _data.State);
+        return graph with { Piles = piles, HeldBack = clues };
     }
 
     /// <summary>
