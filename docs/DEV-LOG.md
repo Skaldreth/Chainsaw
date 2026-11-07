@@ -570,3 +570,50 @@ Alla C och I är rättade och har regressionstester: 86 tester i Attribution och
 **Återstår:** vyn Etiketter och etiketterna i grafen (skissas först), och att appen läser in och ger tillbaka etiketter
 när ett ärende öppnas.
 
+
+## Etapp 9 (2026-11-07): organisationens återställningsnyckel
+
+Ett kuvert i varje ärendefil för organisationens publika nyckel, och administratörens verktyg `tools/Chainsaw.Recovery`.
+Inget gränssnitt i appen.
+
+- **Konstruktionen** (`RecoveryEnvelopes`): ECIES på P-384 med .NET:s egna primitiver. Ett nytt tillfälligt nyckelpar
+  per kuvert; ECDH mot den publika nyckeln (x-koordinaten, 48 byte); HKDF-SHA384 till en 32-byte nyckel; AES-256-GCM
+  lindar filnyckeln under en slumpad nonce. Samma kontext är HKDF-info och associerad data: format, sort, algoritm,
+  ärendets id, nyckelns fingeravtryck och den tillfälliga publika nyckeln som den står i filen. ECDH-hemligheten och
+  AES-nyckeln nollställs direkt. **Varför ECIES P-384:** beprövat (SEC 1, ISO 18033-2), finns i .NET på Windows och
+  Linux utan nya paket, ger en kort publik nyckel att bygga in, och appen kan lägga till kuvert utan att någonsin ha
+  den privata nyckeln. RSA-OAEP hade fungerat men ger större nycklar och kuvert; HPKE finns inte i .NET 10.
+- **Den publika nyckeln** (`RecoveryPublicKey` i Contracts): bara P-384 och okomprimerad punkt, läst strikt ur DER och
+  importerad (punkten kontrolleras mot kurvan) och sparad i kanonisk form. Fingeravtrycket är SHA-256 av den formen,
+  samma som OpenSSL räknar ut (testat med en nyckel gjord av OpenSSL). Den byggs in som resursen
+  `organization-recovery-key.pem`; utan nyckel i filen är ingen konfigurerad, och en ogiltig nyckel eller en privat
+  nyckel i filen stoppar appen.
+- **När kuvertet läggs till:** när ärendet skapas, och när ett ärende som saknar kuvert för den inbyggda nyckeln öppnas
+  (journalen `case.recovery-access-added`, sparad med huvudet). `ICaseStore.OpenWithRecoveryKey` öppnar med den
+  privata nyckeln och journalför `case.opened-with-recovery-key` med administratörens namn och fingeravtrycket.
+- **Verktyget:** `keygen` (privata nyckeln som krypterad PKCS #8 med PBKDF2-HMAC-SHA512, 600 000 iterationer och
+  AES-256-CBC, lösenord minst 16 tecken två gånger, aldrig överskrivning, aldrig i ett git-repo, 0600 på Unix, läses
+  tillbaka med lösenordet), `fingerprint`, `check` (läser bara huvudet) och `open --share | --vault`.
+
+**Egna beslut:**
+- **Utan nyckel säger journalen det:** journalens första rad har `recoveryKey` med fingeravtrycket eller `null`, och
+  `ICaseStore.RecoveryKey` är `null`. Arbetet stoppas inte, eftersom ingen nyckel är skapad än.
+- **Byts nyckeln tas kuverten för den gamla bort** när det nya läggs till (granskningen omgång 1, I2), så att en röjd
+  nyckel inte öppnar senare kopior. Kopior gjorda före bytet och ärenden som inte öppnats sedan har kvar den gamla.
+  Det går längre än uppdraget (*ett nytt kuvert läggs till*) men är det säkraste; står i TODO under *Väntar på beslut*.
+- **`open` ger en ny väg in på två sätt:** `--share` sätter ett delningslösenord från ett tillfälligt valv där
+  administratören är operatör (valvet har en slumpad huvudnyckel och tas bort efteråt); `--vault` låser upp
+  operatörens nya valv med huvudnyckeln operatören skriver och lägger till ett kuvert för det. Administratörens namn
+  står i journalen i båda fallen.
+- Lösenord och huvudnycklar tas aldrig från kommandoraden, och verktyget visar aldrig ett undantags detaljer.
+- Ett test letar efter privata nycklar i hela repot och `.gitignore` utesluter `*.private.pem`.
+
+**Granskningen:**
+- Omgång 1: inga C, två I och nio M. I1: ett återställningskuvert i ett senare format eller skadat stoppade öppningen
+  av hela ärendet; nu sparas det orört och hoppas över. I2: en bytt nyckel öppnade alla senare kopior för alltid; nu
+  tas dess kuvert bort. M rättade: gränsen på 64 kuvert, privat nyckel i resursen, stackspår från verktyget, kontroll
+  av namnet och `--org`, konstanter. M i TODO: kuvertet kontrolleras bara med fingeravtrycket, ACL på Windows,
+  lösenord från omdirigerad indata, egen kontroll av punkten.
+
+**Återstår:** gränssnittet som visar nyckelns fingeravtryck och när den saknas, att administratören skapar nyckeln och
+bygger in den, och att byta ärendets filnyckel (för att stänga en röjd nyckel i kopior som redan lämnats ut).

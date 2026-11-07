@@ -34,6 +34,9 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
   OFAC SDN ur en sparad fil med hash och datum, det krypterade etikettbiblioteket som smittar mellan ärenden utan
   ärendenummer, anteckning eller skäl, och etiketter som avslutar spåret. Guiden har fått *Etiketter och varifrån de
   kommer*. Inget gränssnitt.
+- **Etapp 9, återställningsnyckeln** (2026-11-07, DEV-LOG): ECIES P-384-kuvert i varje ärendefil för den inbyggda
+  publika nyckeln (ingen nyckel är inbyggd än), och `tools/Chainsaw.Recovery` för administratören
+  (`docs/ATERSTALLNINGSNYCKEL.md`). Inget gränssnitt.
 
 ## Nattkörningen 2026-11-07 (klar)
 
@@ -73,7 +76,7 @@ form (godkänd), FS1a och NC1a (valda), SH1b, GR3a, GR3c och GR4.
 
 | Etapp | Innehåll | Läge |
 | --- | --- | --- |
-| 9 | **Organisationens återställningsnyckel:** kuvert i varje ärendefil (ECIES P-384 eller motsvarande) för en inbyggd publik nyckel, och verktyget `tools/Chainsaw.Recovery` (skapa nyckelpar, fingeravtryck, kontrollera, öppna ett ärende) | Väntar |
+| 9 | **Organisationens återställningsnyckel:** kuvert i varje ärendefil (ECIES P-384 eller motsvarande) för en inbyggd publik nyckel, och verktyget `tools/Chainsaw.Recovery` (skapa nyckelpar, fingeravtryck, kontrollera, öppna ett ärende) | Klar |
 | 10 | **Låsskärmen och förstagångsinställningen** (ID7, FS1a): teckenfältet och kättingen i tecken, upplåsning och låsning genom Security, automatisk låsning, förstagångsinställningens fyra steg | Väntar |
 | 11 | **Ärenden i appen** (NC1a): Nytt ärende som panel, öppna ärende och kommandon i kommandoraden (`/new`, `/open`, `/verify`, `/lock`), ärendet i titelraden, startpunkter som känns igen | Väntar |
 | 12 | **Grafen** (GR4, GR3a, GR3c): Tracing-modellen ritad som fri yta med växel till hoppkolumner, bildspråket, belopp på linjerna, expansion, FIFO/haircut, inspektören med *Varför?* | Väntar |

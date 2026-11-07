@@ -5,6 +5,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på beslut
 
+- **En bytt återställningsnyckel tas bort ur ärendena** (etapp 9, det säkraste valet): när en ny nyckel byggs in får
+  varje ärende som öppnas ett nytt kuvert, och kuvertet för den gamla tas bort. Den gamla privata nyckeln öppnar då
+  bara äldre kopior och ärenden som inte öppnats sedan bytet. Alternativet är att låta gamla kuvert ligga kvar.
 - **Ordningen bland uttagen** (CLAUDE.md, *Sorterna efter vad som händer med pengarna*): fråga kryptospåraren vilka uttag
   som är vanligast i de svenska ärendena, och om några sorter kan slås ihop.
 
