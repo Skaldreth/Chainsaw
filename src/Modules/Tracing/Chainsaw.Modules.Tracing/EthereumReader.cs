@@ -32,14 +32,17 @@ internal sealed class EthereumReader(IEthereumSource source)
     /// <param name="case">The open case.</param>
     /// <param name="address">The address.</param>
     /// <param name="maximum">The most transactions.</param>
-    /// <param name="earlier">What earlier expansions of the address brought in, whose pages are read again.</param>
+    /// <param name="earlier">
+    /// The lowest block of what earlier expansions of the address brought in, or <see langword="null"/>; every history
+    /// is read down past it again, so that the case's pages reach those movements from the newest page.
+    /// </param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The transactions it brought in, newest first, and what went wrong.</returns>
     public async Task<EthereumStep> ExpandAddressAsync(
         ICase @case,
         EthereumAddress address,
         int maximum,
-        IReadOnlySet<EthereumTxHash> earlier,
+        long? earlier,
         CancellationToken cancellationToken)
     {
         var walk = await WalkAsync(@case, address, LookupMode.AsNeeded, maximum, earlier, cancellationToken)
@@ -187,15 +190,15 @@ internal sealed class EthereumReader(IEthereumSource source)
 
     /// <summary>
     /// Goes through an address's three histories, page by page from the newest. On expansion it stops a history once
-    /// it holds more than the limit of transactions and every earlier transaction (<paramref name="wanted"/>) has been
-    /// seen; when reading the case it goes on until the case has no further page, so that no movement of a wanted
+    /// it holds more than the limit of transactions and has gone below the earlier expansions' lowest block (each history
+    /// for itself); when reading the case it goes on until the case has no further page, so that no movement of a wanted
     /// transaction on a later page is lost.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="address">The address.</param>
     /// <param name="mode">Whether the source may be asked.</param>
     /// <param name="maximum">The limit on expansion, or <see langword="null"/> when reading.</param>
-    /// <param name="wanted">On expansion, what earlier expansions brought in, or <see langword="null"/>.</param>
+    /// <param name="floor">On expansion, the lowest block earlier expansions brought in, or <see langword="null"/>.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The movements and fees, each once, and what was said.</returns>
     private async Task<HistoryWalk> WalkAsync(
@@ -203,7 +206,7 @@ internal sealed class EthereumReader(IEthereumSource source)
         EthereumAddress address,
         LookupMode mode,
         int? maximum,
-        IReadOnlySet<EthereumTxHash>? wanted,
+        long? floor,
         CancellationToken cancellationToken)
     {
         var walk = new HistoryWalk();
@@ -235,7 +238,7 @@ internal sealed class EthereumReader(IEthereumSource source)
 
                 // An expansion goes on past its limit until it has also read the pages that hold what earlier
                 // expansions brought in, so that the case's pages reach them from the newest page again.
-                if (maximum is { } limit && hashes.Count > limit && (wanted is null || wanted.All(walk.Has)))
+                if (maximum is { } limit && hashes.Count > limit && (floor is not { } lowest || next < lowest))
                 {
                     walk.MoreThanRead = true;
                     break;
@@ -329,11 +332,6 @@ internal sealed class EthereumReader(IEthereumSource source)
 
         /// <summary>Gets the fees, each once.</summary>
         public IReadOnlyList<EthereumFee> Fees => [.. _fees.Values];
-
-        /// <summary>Says whether a transaction has been seen.</summary>
-        /// <param name="hash">The transaction.</param>
-        /// <returns>Whether it has.</returns>
-        public bool Has(EthereumTxHash hash) => _seen.Contains(hash);
 
         /// <summary>Takes in a page, and says what it could not count.</summary>
         /// <param name="page">The page.</param>

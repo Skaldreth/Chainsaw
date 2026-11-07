@@ -445,8 +445,7 @@ internal sealed class TracingService : ITracingService
                     @case,
                     address,
                     request.MaximumTransactions,
-                    state.EthereumHistories.Where(expansion => expansion.EthereumAddress == address)
-                        .SelectMany(expansion => expansion.EthereumTransactions).ToHashSet(),
+                    await LowestEarlierBlockAsync(@case, state, address, cancellationToken).ConfigureAwait(false),
                     cancellationToken)
                 .ConfigureAwait(false)
             : await _ethereum.ExpandTransactionAsync(@case, request.EthereumTransaction!, cancellationToken)
@@ -474,6 +473,34 @@ internal sealed class TracingService : ITracingService
             HeldBack = step.HeldBack,
             NewEthereumTransactions = [.. step.Transactions.Where(hash => !before.Contains(hash))],
         };
+    }
+
+    /// <summary>
+    /// Gives the lowest block among what earlier expansions of an Ethereum address brought in, read from the case, so
+    /// that expanding it again reads every history down past it.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="state">The graph's state.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The block, or <see langword="null"/> when the address was not expanded before.</returns>
+    private async Task<long?> LowestEarlierBlockAsync(
+        ICase @case, GraphState state, EthereumAddress address, CancellationToken cancellationToken)
+    {
+        var earlier = state.EthereumHistories.Where(expansion => expansion.EthereumAddress == address)
+            .SelectMany(expansion => expansion.EthereumTransactions).ToHashSet();
+        if (earlier.Count == 0)
+        {
+            return null;
+        }
+
+        var data = await _ethereum.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false);
+        var heights = data.Transfers.Where(transfer => earlier.Contains(transfer.Transaction))
+            .Select(transfer => transfer.Block?.Height)
+            .Concat(data.Fees.Where(fee => earlier.Contains(fee.Transaction)).Select(fee => fee.Block?.Height))
+            .OfType<long>()
+            .ToList();
+        return heights.Count == 0 ? null : heights.Min();
     }
 
     /// <summary>Brings in an address's history, newest first, up to the limit.</summary>

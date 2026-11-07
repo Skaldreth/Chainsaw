@@ -57,6 +57,11 @@ signerade den. Pengarna förs vidare bara genom adresser vars historik är expan
 där som *inte expanderad än*, och når de en börs eller en annan etikett som avslutar spåret stannar de där. Startpunkter
 som ligger i varandras flöde spåras inte alls, hellre än att samma pengar räknas två gånger.
 
+En adress vars historik bara är **delvis** läst (fler tx än gränsen på 50, eller ett svar som inte var komplett) för
+inte pengarna vidare, eftersom det kan saknas rörelser mellan det lästa och det spårade; spåret stannar där och säger
+varför, och saldot visas inte. Det är en gräns i Chainsaw just nu, inte i kedjan: för en mycket aktiv adress får
+pengarna följas för hand från linjerna tills historiken kan läsas längre bakåt.
+
 Kedjan säger inte i vilken ordning två tx i samma block kom, i den lästa historiken. Chainsaw ordnar dem då efter
 hashen, vilket bara spelar roll för FIFO när en adress både tar emot och betalar i samma block.
 

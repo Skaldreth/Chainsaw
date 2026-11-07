@@ -39,9 +39,10 @@ public static class AccountSeedPicker
         }
 
         var distinct = chosen.Distinct().ToList();
+        var arrivals = distinct.ToDictionary(seed => seed, seed => Arrival(transfers, seed));
         var kept = distinct.Where(seed => !distinct.Any(other => other != seed
                 && other.Amount.Asset == seed.Amount.Asset
-                && Arrival(transfers, other).TryGetValue(seed.From, out var arrived)
+                && arrivals[other].TryGetValue(seed.From, out var arrived)
                 && arrived.CompareTo(AccountGraph.ChainOrder(seed)) < 0))
             .ToList();
         return [.. kept.Select(AccountSeed.Of)];

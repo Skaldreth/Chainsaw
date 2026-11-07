@@ -327,6 +327,24 @@ public sealed class EthereumGraphTests : IDisposable
     }
 
     [Fact]
+    public async Task Expanding_again_after_many_token_receipts_keeps_an_earlier_swaps_token_movement()
+    {
+        Chain();
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer, 4));
+        var receipts = Enumerable.Range(0, 8).Select(index => Tx(
+            "receipt-" + index, 300 + index, Victim, 0.001m, Token(Victim, Scammer, Usdt(1)))).ToArray();
+        _harness.Ethereum.Add(receipts);
+
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer, 2));
+        var graph = await _harness.Load();
+
+        Assert.Contains(graph.Account.Transfers, transfer => transfer.Transaction == Hash("swap")
+            && transfer.Kind == EthereumTransferKind.Token);
+        Assert.Single(graph.Account.Swaps);
+    }
+
+    [Fact]
     public async Task A_movement_whose_block_hash_is_unknown_is_still_confirmed_with_its_height_and_time()
     {
         _harness.Ethereum.Add(Tx("internal", 100, Victim, 0.001m,

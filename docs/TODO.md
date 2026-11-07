@@ -115,6 +115,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   - **Kurs per överföring:** varje rörelse värderas vid sitt blocks tid med Pricings förvalda upplösning; en expansion
     ber om högst 30 kurser, resten hämtas vid nästa. Värdet visas bara för linjer på Ethereum (Bitcoins linjer har inget
     värde än, TODO under *Kurser*).
+  - **En aktiv adress för inte pengarna vidare:** en expansion som hölls tillbaka vid 50 tx gör adressen delvis läst,
+    och spårningen stannar där (granskningen av etapp 23b, M2). En regel om täckning (adressen bär när det lästa når
+    bakom den första spårade ankomsten och saldot före är känt) eller en högre gräns för startadressen behövs. Att läsa
+    grafen går också igenom alla ärendets sidor för varje expanderad adress (M3); gå bara ner till expansionens
+    lägsta block. Fröväljaren lämnar också ett frö när en annan frös pengar når avsändaren genom en adress som inte bär
+    pengarna vidare, och säger det inte (M1).
   - **Egna ytor (Z) och områdena** tar inte Ethereum-noder (`OwnArea` lagrar Bitcoin-adresser och txid;
     `GraphAreas.MembersOf` läser bara `GraphAddresses`), så valda Ethereum-aktörer ger en tom yta (granskningen av
     etapp 23b, M4). Använd `Node.Addresses`, eller säg att det inte går.

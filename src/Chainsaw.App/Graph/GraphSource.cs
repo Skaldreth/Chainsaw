@@ -122,6 +122,10 @@ public sealed class GraphSource(
         "Spårningen på Ethereum kunde inte räknas: startpunkternas rörelser ligger i varandras flöde, så samma pengar "
         + "skulle räknas två gånger. Ethereums linjer visas utan spårade belopp.";
 
+    /// <summary>What the trace says when the graph does not yet show a movement on Ethereum to start in.</summary>
+    public const string NothingToTraceOnEthereumText =
+        "Inget att spåra än: grafen visar ingen rörelse till startpunkten. Välj startpunkten och expandera den.";
+
     /// <summary>What the trace says when the graph does not yet show a coin to start in.</summary>
     public const string NothingToTraceText =
         "Inget att spåra än: startpunktens mynt finns inte i grafen. Välj startpunkten och expandera den.";
@@ -362,7 +366,14 @@ public sealed class GraphSource(
         var accountSeeds = AccountSeedPicker.Pick(graph);
         TraceResult? trace = null;
         AccountTraceResult? accountTrace = null;
-        var problem = seeds.Count + accountSeeds.Count == 0 && graph.StartPoints.Count > 0 ? NothingToTraceText : null;
+        string? problem = null;
+        if (seeds.Count + accountSeeds.Count == 0 && graph.StartPoints.Count > 0)
+        {
+            problem = graph.StartPoints.All(start => start.Chain == Chain.Ethereum)
+                ? NothingToTraceOnEthereumText
+                : NothingToTraceText;
+        }
+
         if (accountSeeds.Count > 0)
         {
             try
