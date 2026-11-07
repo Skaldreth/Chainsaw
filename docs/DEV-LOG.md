@@ -2345,3 +2345,58 @@ valet att visa OP_RETURN), 15 nya i appen (vikningen, ledtråden, OP_RETURN, lay
 lägena, filtren, valet, vymodellen med högen, ledtråden och toasten) och ett för toastern. Tracing 138, Checks 48 och
 appen 716 gröna; bygget är utan varningar. **Inte provat på Windows** (TESTER-INFOR, *Ledtrådsnoden och
 samlingsnoden*, *Utgångar utan mottagare döljs*, *Grafen använder ytan*).
+
+## Testärendet /testdata (TODO punkt 27, 2026-11-07)
+
+Användarens önskemål: ett testärende där all funktionalitet syns utan att leta upp en adress. `/testdata` finns bara i
+Debug (`#if DEBUG`, registrerat med `AddTestData()` sist i `App.xaml.cs`), och `/help` listar bara registrerade
+kommandon, så det syns inte i Release.
+
+- **Den påhittade källan (eget val och skäl):** en egen `ISourceApi` i Chains (`TestData/TestDataApi.cs`, kod
+  `testdata`, endpointen *testdata (påhittade data, bara Debug)* på `https://testdata.invalid/esplora/`, utan takt) och
+  fabriken `TestDataBitcoin.Create`, båda bara i Debug. Under den ligger den **riktiga** `EsploraBitcoinSource` med en
+  egen `ChainSources`, och i stället för utgången en `IExitHttp` i appen (`TestChainHttp`) som svarar Esplora-JSON ur en
+  påhittad kedja i processen. Så går testärendet genom samma läsning, försegling och kontroller som ett riktigt ärende
+  (tx mot sina egna bytes, block mot sina huvuden, sidor, utgångarnas spenderingar, höjden och provet för bevakningen),
+  och varje förseglat råsvar säger källan `testdata` och den endpointen (princip 1 ljuger inte). Den påhittade
+  `ChainSources` registreras inte, så den syns aldrig i Källor och provas aldrig vid start. Valet framför en
+  `IBitcoinSource` på modellnivå (som testernas): den skulle inte försegla något, och testärendet skulle då inte ha sina
+  data i filen.
+- **Bara i testärendet:** `TestDataBitcoinRouter` ersätter `IBitcoinSource` i Debug och väljer per ärende. Ett ärende är
+  ett testärende bara om journalen har raden `testdata.created`, som `/testdata` skriver direkt efter att ärendet
+  skapats och innan något slås upp; journalen kan bara fyllas på, så ett riktigt ärende kan aldrig bli ett. Testärendet
+  frågar aldrig den riktiga källan, och ett riktigt ärende aldrig den påhittade. Adresserna är SHA-256 av en etikett med
+  prefixet `chainsaw-testdata:` (giltiga mainnet-adresser, eftersom `BitcoinAddress` kräver det, men som ingen använt).
+  `TestDataBackgroundWatches` håller testärendets bevakningar utanför bakgrundens plan, så att bakgrundsprocessen aldrig
+  frågar de riktiga källorna efter en påhittad adress.
+- **Kedjan** (`TestChain`, `TestTransaction`, `EsploraJson`): tx skrivna som på kedjan (utan witness), txid som dubbel
+  SHA-256 av bytes, block för varje höjd med riktiga huvuden (lättaste målet, som regtest) och merkle-rot. Pengarna
+  kommer från coinbase-tx i egna block före berättelsen.
+- **Berättelsen som data** (`TestStory`, `TestStoryChain`, `TestSteps`): ett steg per handling genom modulernas
+  kontrakt (startpunkt, expansion, etikett, biblioteket, länk till annan kedja, bevakning, kontroller, egen yta). Offret
+  betalar bedragaren (startpunkten), tre offers pengar konsolideras (klustras med *Varför?*), en betalning med växel
+  (tre tecken, slås ihop), en gruvbelöning med P2PK och OP_RETURN som spenderas i en delad tx, en fördelning till en
+  mixer (troliga utgångar 2 % och 5 % lägre), en Whirlpool-CoinJoin, en peel chain genom spel, handel, presentkort,
+  automat och kort till Nordbörsen (uttag funnet), en börs utan KYC, Navet med 66 tx och många motparter som betalar
+  darknet (också sanktionerad), garanti, OTC, nästlad tjänst, swap (länkad till en Ethereum-tx) och en sanktionerad
+  aktör, och ett nytt offer i det nyaste blocket som bevakningen fångar. Etiketterna är märkta med den öppna källan
+  *testdata (påhittad)* och *Sprid inte*, utom offret och bedragarens plånbok, som är egna. Etiketten *från ett annat
+  ärende* sätts i kollegans ärende `TEST-NNNN-KOLLEGA` och kommer in genom etikettbiblioteket.
+- **Bevakningens träff:** `MonitoringService.CheckAsync` körs vid höjden före den nyaste (bevakningen börjar) och vid den
+  nyaste (träffen), och träffen lämnas osedd. För att det ska gå också utan ansluten utgång öppnar `TestDataWatchGate`
+  grinden bara i det flöde som bygger testärendet (`AsyncLocal`); allt annat ser den riktiga grinden.
+- **Lämnat för användaren att expandera:** Navet (hålls tillbaka), mixerns utgång (vidare till Sydbörsen), offrets adress,
+  Whirlpool-utgångarna och bedragarens andra plånbok.
+- **Rör inte grafen:** inget i `GraphView`, `GraphViewModel`, `GraphCanvas` eller `ExitPanel` är ändrat; allt ligger i nya
+  filer utom registreringen i `App.xaml.cs` och testprojektet i `Chainsaw.slnx`.
+
+**Tester:** nytt testprojekt `tests/Chainsaw.App.TestData.Tests` (de riktiga modulerna, eftersom testärendet byggs genom
+dem; `Chainsaw.App.Tests` håller sig till kontrakten), 10 gröna: kedjan går ihop och varje txid är sina bytes hash,
+scenariot byggs utan problem och verifieras, varje sort och markering i `VisualLanguage` finns i grafen (utom *Kan
+frysas*, se TODO; startpunkt och bevakning prövas för sig), träffen väntar, ett förslag och en egen yta finns, klustret
+har *Varför?*, varje råsvar är märkt `testdata` och inget gick ut, ett riktigt ärende frågar aldrig den påhittade källan,
+testärendet aldrig den riktiga och bevakningarna hålls ur bakgrunden, Navet håller tillbaka, nästa nummer, och
+etiketten från kollegans ärende. Bygget är utan varningar i Debug och Release.
+
+**Återstår (TODO, *Testärendet*):** Ethereum och *Kan frysas*, påhittade kurser, ett steg för uppbrytning och avgjort
+förslag, att rensa kollegans etiketter ur biblioteket. **Inte provat på Windows** (TESTER-INFOR, *Testärendet*).
