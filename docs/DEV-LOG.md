@@ -283,6 +283,7 @@ Modulen `Chains` utan gränssnitt: modellen för Bitcoin i Contracts, `IBitcoinS
   - sidstorleken avgjorde var historiken slutade;
   - ett odokumenterat undantag.
 - **Omgång 2:** inga C eller I. Tre M (undantag vid läsning ur ärendet, 2xx som inte var 200, långa rader) är rättade.
+- **Omgång 3:** inga fynd.
 
 Alla C och I är rättade och har regressionstester: 133 tester i Chains, 564 i hela lösningen.
 
