@@ -48,7 +48,9 @@ public sealed record TracedAmount(Satoshi Amount, TracingMethodId Method, IReadO
 /// <param name="Explanation">Why, in plain Swedish.</param>
 /// <param name="Basis">The hints the end rests on; empty when the trace itself decided.</param>
 /// <param name="Continuations">The user's links to another chain from this coin; empty otherwise.</param>
-/// <param name="MayBeOutdated">Whether what the end rests on may have changed since the case asked.</param>
+/// <param name="MayBeOutdated">
+/// Whether what the end rests on may have changed since the case asked, here or on the way to it.
+/// </param>
 public sealed record TraceEnd(
     TrailEndReason Reason,
     TracedAmount Amount,
@@ -66,10 +68,16 @@ public sealed record TraceEnd(
 /// <param name="NodeKey">The node it belongs to.</param>
 /// <param name="Taint">Which of its satoshi are traced.</param>
 /// <param name="Amount">How much, as a conclusion.</param>
+/// <param name="MayBeOutdated">
+/// Whether a step on the way to it may change (an unconfirmed transaction, or an answer the case could not renew).
+/// </param>
 public sealed record TracedCoin(
-    Outpoint Coin, BitcoinAddress? Address, string NodeKey, TaintSet Taint, TracedAmount Amount);
+    Outpoint Coin, BitcoinAddress? Address, string NodeKey, TaintSet Taint, TracedAmount Amount, bool MayBeOutdated);
 
-/// <summary>How the traced money went through one transaction.</summary>
+/// <summary>
+/// How the traced money went through one transaction. The amounts are conclusions by the result's
+/// <see cref="TraceResult.Method"/>, which is always shown with them.
+/// </summary>
 /// <param name="Txid">The transaction.</param>
 /// <param name="In">The traced amount that went in.</param>
 /// <param name="Outputs">The traced amount of each output, in order (zero where none).</param>
@@ -87,7 +95,7 @@ public sealed record TracedEdge(string EdgeKey, TracedAmount Amount);
 /// </summary>
 /// <param name="Method">The method and its version.</param>
 /// <param name="Seeds">The coins the money starts in.</param>
-/// <param name="Traced">How much was traced from the seeds.</param>
+/// <param name="Traced">How much was traced from the seeds (what the user chose, not a conclusion).</param>
 /// <param name="Coins">The coins that hold traced money, in the order they were reached.</param>
 /// <param name="Transactions">The transactions the money went through, in the order they were counted.</param>
 /// <param name="Edges">The traced money per edge of the graph; only edges with some.</param>

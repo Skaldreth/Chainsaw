@@ -24,6 +24,9 @@ internal sealed class FakeSource : IBitcoinSource
 
     public int Lookups { get; private set; }
 
+    /// <summary>How many times the spends were asked for from the source (not from the case).</summary>
+    public int SpendLookups { get; private set; }
+
     /// <summary>Makes every address page point back at itself, as a misbehaving source might.</summary>
     public bool RepeatPages { get; set; }
 
@@ -99,6 +102,7 @@ internal sealed class FakeSource : IBitcoinSource
         ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
     {
         Lookups += mode == LookupMode.CaseOnly ? 0 : 1;
+        SpendLookups += mode == LookupMode.CaseOnly ? 0 : 1;
         if (!Online || mode == LookupMode.CaseOnly)
         {
             return Task.FromResult(_givenSpends.TryGetValue(txid, out var given)

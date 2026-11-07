@@ -15,7 +15,8 @@ internal static class PureGraph
         var spentBy = list.SelectMany(tx => tx.Inputs.Where(input => !input.IsCoinbase).Select(input =>
                 (Coin: new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value),
                     Spend: new BitcoinSpend(tx.Txid, input.Index, tx.Block))))
-            .ToDictionary(pair => pair.Coin, pair => pair.Spend);
+            .GroupBy(pair => pair.Coin)
+            .ToDictionary(group => group.Key, group => group.OrderBy(pair => pair.Spend.Block is null).First().Spend);
         var data = new GraphData(
             new GraphState(starts, [], [], new Dictionary<string, IReadOnlyDictionary<GraphLayout, StoredPosition>>()),
             list.ToDictionary(tx => tx.Txid, tx => new GraphTransaction(tx, LookupStatus.FromCase, null)),

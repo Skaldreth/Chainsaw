@@ -15,7 +15,8 @@ internal static class Synthetic
         BitcoinAddress.FromWitness(0, Hash(label).AsSpan(0, 20), BitcoinNetwork.Mainnet);
 
     public static BitcoinAddress Pkh(string label) =>
-        BitcoinAddress.FromHash(BitcoinScriptType.PayToPublicKeyHash, Hash(label).AsSpan(0, 20), BitcoinNetwork.Mainnet);
+        BitcoinAddress.FromHash(
+            BitcoinScriptType.PayToPublicKeyHash, Hash(label).AsSpan(0, 20), BitcoinNetwork.Mainnet);
 
     public static BitcoinAddress Tr(string label) =>
         BitcoinAddress.FromWitness(1, Hash(label), BitcoinNetwork.Mainnet);

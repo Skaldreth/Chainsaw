@@ -5,7 +5,7 @@ ihop alla slut, så får du det du började spåra.
 
 ## Inte slut än
 
-Två orsaker betyder att pengarna **går att följa vidare**:
+Tre orsaker betyder att pengarna **går att följa vidare**:
 
 - **Inte expanderad ännu.** Nästa steg finns inte i grafen. Antingen vet ärendet inte vart myntet tog vägen, eller så
   vet det vilken tx som spenderar myntet men har inte hämtat den. Expandera noden, så går spåret vidare. Utan nät
@@ -13,6 +13,10 @@ Två orsaker betyder att pengarna **går att följa vidare**:
 - **Ligger kvar (ospenderad).** Myntet var ospenderat när ärendet senast frågade. Pengarna står alltså kvar på
   adressen, vilket är viktigt inför ett beslag. Har frågan inte kunnat ställas om nyligen står det att pengarna kan ha
   flyttats sedan.
+- **Uppgifterna går inte ihop.** Källan säger att en viss tx spenderar myntet, men tx:en själv säger något annat.
+  Chainsaw gissar inte vilken som har rätt och stannar här. Att expandera igen, eller en annan källa, kan reda ut det.
+
+Ett slut som bygger på en obekräftad tx, eller på ett svar som inte kunde frågas om, säger att det **kan ha ändrats**.
 
 ## Riktiga slut
 

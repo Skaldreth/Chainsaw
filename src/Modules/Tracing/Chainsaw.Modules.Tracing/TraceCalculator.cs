@@ -57,7 +57,9 @@ internal sealed class TraceCalculator
         {
             var output = Output(seed.Coin);
             _holdings.Add(seed.Coin, new Holding(
-                TaintSet.FirstPart(seed.Amount ?? output.Amount), new SortedSet<string>(StringComparer.Ordinal)));
+                TaintSet.FirstPart(seed.Amount ?? output.Amount),
+                new SortedSet<string>(StringComparer.Ordinal),
+                MayChange(seed.Coin.Txid)));
         }
 
         var ends = new List<TraceEnd>();
@@ -250,7 +252,7 @@ internal sealed class TraceCalculator
             return Step.Ends(new Ending(hints[0].Reason, spender, hints[0].Explanation, hints));
         }
 
-        return new Step(spender, null);
+        return new Step(spender, null, spend.MayBeOutdated || MayChange(spender));
     }
 
     /// <summary>
@@ -314,6 +316,7 @@ internal sealed class TraceCalculator
         var transaction = _graph.Transactions[txid].Transaction;
         var inputs = new List<TaintSet>(transaction.Inputs.Count);
         var through = new SortedSet<string>(StringComparer.Ordinal) { txid.Value };
+        var mayChange = false;
         foreach (var input in transaction.Inputs)
         {
             var coin = new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value);
@@ -322,6 +325,7 @@ internal sealed class TraceCalculator
             if (goesOn)
             {
                 through.UnionWith(holding!.Through);
+                mayChange |= holding.MayBeOutdated || _steps[coin].MayBeOutdated;
             }
         }
 
@@ -344,14 +348,14 @@ internal sealed class TraceCalculator
                 $"Avgiften i tx {txid} gick till mineraren.",
                 [],
                 [],
-                false));
+                mayChange));
         }
 
         for (var i = 0; i < taint.Outputs.Count; i++)
         {
             if (!taint.Outputs[i].IsEmpty)
             {
-                _holdings.Add(new Outpoint(txid, i), new Holding(taint.Outputs[i], through));
+                _holdings.Add(new Outpoint(txid, i), new Holding(taint.Outputs[i], through, mayChange));
             }
         }
 
@@ -394,7 +398,19 @@ internal sealed class TraceCalculator
             ending.Explanation,
             ending.Basis,
             ending.Continuations,
-            ending.MayBeOutdated);
+            ending.MayBeOutdated || holding.MayBeOutdated);
+    }
+
+    /// <summary>
+    /// Says whether a transaction in the graph may change: it is not in a block yet, or the case's answer for it may
+    /// be outdated.
+    /// </summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>Whether it may.</returns>
+    private bool MayChange(Txid txid)
+    {
+        var entry = _graph.Transactions[txid];
+        return entry.Transaction.Block is null || entry.Status == LookupStatus.FromCaseMayBeOutdated;
     }
 
     /// <summary>Gives a coin that holds traced money, as the result shows it.</summary>
@@ -409,7 +425,8 @@ internal sealed class TraceCalculator
             output.Address,
             NodeOf(coin, output)?.Key ?? NodeKeys.Coin(coin),
             holding.Taint,
-            Amount(holding.Taint.Amount, holding.Through));
+            Amount(holding.Taint.Amount, holding.Through),
+            holding.MayBeOutdated);
     }
 
     /// <summary>
@@ -451,7 +468,8 @@ internal sealed class TraceCalculator
     /// <param name="step">What happens to the coin.</param>
     /// <param name="txid">The transaction.</param>
     /// <returns>Whether it does.</returns>
-    private static bool IntoTransaction(Step step, Txid txid) => step.Spender == txid || step.End?.Transaction == txid;
+    private static bool IntoTransaction(Step step, Txid txid) =>
+        step.Spender == txid || step.End is { Transaction: { } at } end && at == txid && end.Reason.EndsTrail();
 
     /// <summary>Gives the node a coin belongs to.</summary>
     /// <param name="coin">The coin.</param>
@@ -475,7 +493,10 @@ internal sealed class TraceCalculator
     /// <summary>What happens to a coin: the transaction it goes on into, or how it ends.</summary>
     /// <param name="Spender">The transaction in the graph it goes on into, or <see langword="null"/>.</param>
     /// <param name="End">How it ends, or <see langword="null"/>.</param>
-    private sealed record Step(Txid? Spender, Ending? End)
+    /// <param name="MayBeOutdated">
+    /// Whether going on into <paramref name="Spender"/> may change: the spend or the transaction is not settled.
+    /// </param>
+    private sealed record Step(Txid? Spender, Ending? End, bool MayBeOutdated = false)
     {
         /// <summary>Gives a step that ends.</summary>
         /// <param name="ending">How.</param>
@@ -501,5 +522,6 @@ internal sealed class TraceCalculator
     /// <summary>The traced money a coin holds and the transactions it was counted through.</summary>
     /// <param name="Taint">Which satoshi.</param>
     /// <param name="Through">The transactions, by txid.</param>
-    private sealed record Holding(TaintSet Taint, IReadOnlySet<string> Through);
+    /// <param name="MayBeOutdated">Whether a step on the way to it may change.</param>
+    private sealed record Holding(TaintSet Taint, IReadOnlySet<string> Through, bool MayBeOutdated);
 }

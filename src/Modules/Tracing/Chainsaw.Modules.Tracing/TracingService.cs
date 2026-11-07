@@ -154,7 +154,10 @@ internal sealed class TracingService : ITracingService
         CheckReason(reason);
         return @case.Write(transaction =>
         {
-            if (!GraphStateStore.Read(transaction).Links.Any(current => current.Sequence == link.Sequence))
+            // The stored link is what is taken back, whatever the caller's copy says.
+            var stored = GraphStateStore.Read(transaction).Links
+                .FirstOrDefault(current => current.Sequence == link.Sequence);
+            if (stored is null)
             {
                 return false;
             }
@@ -164,10 +167,10 @@ internal sealed class TracingService : ITracingService
                 string.Format(
                     CultureInfo.InvariantCulture,
                     "Länken till annan kedja togs tillbaka: {0} → {1}",
-                    link.From,
-                    link.To),
-                JsonSerializer.Serialize(new { link = link.Sequence, reason })));
-            GraphStateStore.SealUnlink(transaction, link, reason, journal);
+                    stored.From,
+                    stored.To),
+                JsonSerializer.Serialize(new { link = stored.Sequence, reason })));
+            GraphStateStore.SealUnlink(transaction, stored, reason, journal);
             return true;
         });
     }
@@ -225,7 +228,9 @@ internal sealed class TracingService : ITracingService
         var expansion = new Expansion(
             request.Address, request.Txid, step.Transactions, step.Problem is null, _clock.UtcNow);
         @case.Write(transaction => GraphStateStore.SaveExpansion(transaction, expansion));
-        await FetchSpendsAsync(@case, step.Transactions, cancellationToken).ConfigureAwait(false);
+        // The expanded transaction's own spends were asked for in the step.
+        var unasked = step.Transactions.Where(txid => txid != request.Txid).ToList();
+        await FetchSpendsAsync(@case, unasked, cancellationToken).ConfigureAwait(false);
         var data = await ReadDataAsync(@case, cancellationToken).ConfigureAwait(false);
         if (data.Transactions.Count > 0)
         {
@@ -249,6 +254,7 @@ internal sealed class TracingService : ITracingService
         ICase @case, BitcoinAddress address, int maximum, CancellationToken cancellationToken)
     {
         var found = new List<Txid>();
+        string? outdated = null;
         Txid? after = null;
         while (true)
         {
@@ -276,9 +282,13 @@ internal sealed class TracingService : ITracingService
                 found.Add(transaction.Txid);
             }
 
+            if (page.Status == LookupStatus.FromCaseMayBeOutdated)
+            {
+                outdated ??= page.Problem;
+            }
+
             if (page.Value.NextAfter is null)
             {
-                var outdated = page.Status == LookupStatus.FromCaseMayBeOutdated ? page.Problem : null;
                 return new StepResult(found, outdated, true);
             }
 

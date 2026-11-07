@@ -151,4 +151,79 @@ public sealed class ReviewTests : IDisposable
         Assert.Empty(graph.Problems);
         Assert.True(graph.NodeOf(Wpkh("miner"))!.IsStartPoint);
     }
+
+    [Fact]
+    public void A_replaced_unconfirmed_spender_gives_way_to_the_confirmed_one()
+    {
+        var pay = Tx("pay").In(Wpkh("a"), 1_000_000).Out(Wpkh("b"), 990_000).Build();
+        var stale = Tx("stale", null).Spend(pay, 0).Out(Wpkh("c"), 985_000).Build();
+        var real = Tx("real", 900_001).Spend(pay, 0).Out(Wpkh("d"), 980_000).Build();
+
+        var graph = PureGraph.Of([pay, stale, real]);
+        var result = TraceCalculator.Trace(graph, new FifoMethod(), [new TraceSeed(new Outpoint(pay.Txid, 0))]);
+
+        Assert.Equal(real.Txid, graph.Spends[new Outpoint(pay.Txid, 0)].SpentBy!.Txid);
+        Assert.False(graph.Spends[new Outpoint(pay.Txid, 0)].MayBeOutdated);
+        Assert.Equal(real.Txid, Assert.Single(result.Transactions).Txid);
+    }
+
+    [Fact]
+    public void What_rests_on_an_unconfirmed_transaction_says_it_may_change()
+    {
+        var pay = Tx("pay").In(Wpkh("a"), 1_000_000).Out(Wpkh("b"), 990_000).Build();
+        var pending = Tx("pending", null).Spend(pay, 0).Out(Wpkh("c"), 980_000).Build();
+        var graph = PureGraph.Of([pay, pending]);
+
+        var result = TraceCalculator.Trace(graph, new FifoMethod(), [new TraceSeed(new Outpoint(pay.Txid, 0))]);
+
+        Assert.All(result.Ends, end => Assert.True(end.MayBeOutdated));
+        Assert.True(Assert.Single(result.Coins, coin => coin.Coin.Txid == pending.Txid).MayBeOutdated);
+    }
+
+    [Fact]
+    public void The_line_into_a_transaction_carries_nothing_when_the_spend_record_conflicts()
+    {
+        var pay = Tx("pay").In(Wpkh("a"), 1_000_000).Out(Wpkh("b"), 990_000).Build();
+        var other = Tx("other", 900_001).In(Wpkh("c"), 500_000).In(Wpkh("e"), 400_000).Out(Wpkh("d"), 890_000).Build();
+        var graph = PureGraph.Of([pay, other]);
+        var coin = new Outpoint(pay.Txid, 0);
+        var wrong = graph with
+        {
+            Spends = new Dictionary<Outpoint, CoinSpend>(graph.Spends)
+            {
+                [coin] = new CoinSpend(SpendState.Spent, new BitcoinSpend(other.Txid, 0, other.Block), false),
+            },
+        };
+
+        var result = TraceCalculator.Trace(wrong, new FifoMethod(), [new TraceSeed(coin)]);
+
+        Assert.DoesNotContain(result.Edges, edge => edge.EdgeKey.Contains("tx:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_transaction_expansion_asks_for_its_spends_once()
+    {
+        _harness.Source.Add([.. _flows.All]);
+        var before = _harness.Source.SpendLookups;
+
+        await _harness.Expand(_flows.Peel1);
+
+        // Peel 1 itself, and the two transactions it brought in: Onward and Peel 2.
+        Assert.Equal(before + 3, _harness.Source.SpendLookups);
+    }
+
+    [Fact]
+    public async Task Taking_a_link_back_seals_the_stored_link_whatever_the_copy_says()
+    {
+        await _flows.ExpandInto(_harness);
+        var ethereum = new ChainTransactionRef(Chain.Ethereum, "0x" + new string('c', 64));
+        var link = _harness.Service.LinkCrossChain(_harness.Case, new Outpoint(_flows.Peel3.Txid, 1), ethereum, "Ja.");
+        var forged = link with { From = new Outpoint(_flows.Pay.Txid, 0) };
+
+        Assert.True(_harness.Service.UnlinkCrossChain(_harness.Case, forged, "Fel."));
+
+        var journal = _harness.Case.ReadJournal().Last();
+        Assert.Contains(_flows.Peel3.Txid.Value, journal.Summary, StringComparison.Ordinal);
+        Assert.True(_harness.Verify().IsIntact);
+    }
 }

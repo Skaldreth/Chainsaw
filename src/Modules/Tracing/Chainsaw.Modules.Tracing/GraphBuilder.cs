@@ -294,7 +294,7 @@ internal sealed class GraphBuilder
                 var senders = entry.Transaction.Inputs.Select(Sender).Distinct(StringComparer.Ordinal).ToList();
                 starts.AddRange(senders.Count == 1 ? senders : [NodeKeys.Transaction(start.Txid!)]);
             }
-            else
+            else if (!problems.Any(problem => problem.Contains(start.Txid!.Value, StringComparison.Ordinal)))
             {
                 problems.Add($"Startpunkten {start.Txid} finns inte i ärendet än; den visas när den har hämtats.");
             }
@@ -361,14 +361,18 @@ internal sealed class GraphBuilder
     /// <returns>The spends by coin.</returns>
     private Dictionary<Outpoint, CoinSpend> Spends(List<BitcoinTransaction> transactions)
     {
-        // A transaction in the graph that spends a coin is the surest answer: it is on the chain.
+        // A confirmed transaction in the graph that spends a coin is the surest answer: it is in a block. An
+        // unconfirmed one may have been replaced, so a confirmed spender always wins over it.
         var spentInGraph = new Dictionary<Outpoint, BitcoinSpend>();
         foreach (var transaction in transactions.Where(tx => !tx.IsCoinbase))
         {
             foreach (var input in transaction.Inputs)
             {
-                spentInGraph[new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value)] =
-                    new BitcoinSpend(transaction.Txid, input.Index, transaction.Block);
+                var coin = new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value);
+                if (!spentInGraph.TryGetValue(coin, out var earlier) || earlier.Block is null)
+                {
+                    spentInGraph[coin] = new BitcoinSpend(transaction.Txid, input.Index, transaction.Block);
+                }
             }
         }
 
@@ -382,8 +386,13 @@ internal sealed class GraphBuilder
                 var asked = answer?.Spends.FirstOrDefault(spend => spend.Index == output.Index);
                 spends[coin] = (spentInGraph.GetValueOrDefault(coin), asked) switch
                 {
-                    // A spender that is not in a block yet can still be replaced by another.
-                    ({ } inGraph, _) => new CoinSpend(SpendState.Spent, inGraph, inGraph.Block is null),
+                    ({ Block: not null } confirmed, _) => new CoinSpend(SpendState.Spent, confirmed, false),
+
+                    // An unconfirmed spender can be replaced; the source's newest answer wins when it names
+                    // another, and either way the answer may change.
+                    ({ } pending, { SpentBy: { } named }) when named.Txid != pending.Txid =>
+                        new CoinSpend(SpendState.Spent, named, true),
+                    ({ } pending, _) => new CoinSpend(SpendState.Spent, pending, true),
                     (null, { } spend) => Asked(spend, answer!.MayBeOutdated),
                     _ => Known(output),
                 };
