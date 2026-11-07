@@ -124,33 +124,22 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 
 ## Nästa steg
 
-Överlämnat 2026-11-07 sent på kvällen, till en ny huvudsession.
+Uppdaterat 2026-11-07 sent på kvällen. Etapp 27 är inne och hela sviten är grön (2 281 tester). De fem felen på
+Windows är rättade och användaren har kört sviten utan fel. Felrättningarna utan ny form och GR6c (utan läget
+*Startpunkten tillagd*, se TODO) är byggda.
 
-1. **Etapp 27 (bakgrundsprocessen) pågår** i sessionen `session_013CLefsNUTWiS1FLqvboDDe` och rapporterar till den
-   huvudsessionen `session_013CLefr2kGog3dCFdfqN1yx` (efter `/clear` kan rapporten komma utan sammanhang, eller till en
-   session som inte längre finns). Kontrollera själv med
-   `get_session` och `list_events`, eller på grenen: när rad 27 ovan står Klar och sista commit inte är WIP, hämta,
-   bygg och kör hela sviten (`dotnet test Chainsaw.slnx`), och rapportera till användaren. En påminnelse
-   (`trig_01PWoydNnzJroHhnDt8JsMFs`) går 2026-11-07 22:30 UTC till samma session; ta bort den
-   (`delete_trigger`) eller låt den vara.
-2. **Fem test fel på Windows** som inte syns i Linux (användaren körde hela sviten: 2 249 tester, 7 fel; de två i
-   guldtestet var tidszonen och är rättade i 01ada69). Be användaren om raderna med `[FAIL]` och rätta dem; troligen
-   sökvägar, radslut eller DPAPI från etapp 27.
-3. **Polering först** (användarens beslut: inget nytt byggs förrän det som finns känns bra). Listan står överst i
-   `docs/TODO.md` under *Polering först*. Huvudsessionen bygger själv (rena gränssnittsändringar), i den här ordningen,
-   efter att etapp 27 är inne:
-   - **Felrättningarna utan ny form** (punkt 1 i listan).
-   - **GR6c**, den tomma grafen med guidenoder, och **ÄV1a**, ärendeväljaren (båda valda, CLAUDE.md).
-   - **Det som saknar knapp:** tona de obyggda vyerna i pillret, Bevaka och Kopiera i inspektören, zoom och passa in i
-     grafens hörn, dubbelklick som expanderar.
-   - Sedan en kort testrunda av användaren på Windows (starta, ärende, startpunkt, expandera, etikett, bevaka) och
-     rättelser i omgångar.
-4. **Godkänt men inte byggt, efter poleringen:** EX1/EX2b (det som hölls tillbaka, med filter och samlingsnod), SO1a
-   (soptunnan, Delete), TL1a (tidslinjen), BG1b (begäran som Markdown), att allt följer med en etikett, Windows som
-   utgång utan nät. Allt står i CLAUDE.md och TODO.
-5. **Öppna frågor till användaren:** etapp 26:s tre val (pausen, starten från en höjd, CoinJoin-taket, TODO
-   *Bevakning (etapp 26)*), endpointarnas takt (TODO *Väntar på beslut*), Guiden från spårningsmetoden, och frågorna
-   till kryptospåraren i `docs/KRYPTOSPARAREN.md`.
+1. **Accentfärgen:** användaren är inte nöjd med Magenta och skickade tre varma paletter (terrakotta med kräm och en
+   mörk ton). De ligger som ID9a–c på sidan *Stil och ikoner*. Väntar på val: bara accenten, eller också de varma
+   neutralerna. Terrakotta ligger nära risk (rött), spenderas (gult) och Gawks orange; väljs den behöver risk bli
+   kallare. Byts accenten: `Themes/Colors.xaml` (Color.Accent, Brush.AccentHover, Brush.OnAccent), loggan i
+   `assets/logo/` och CLAUDE.md *Färger*.
+2. **Polering först**, i ordning (`docs/TODO.md`, *Polering först*): **ÄV1a**, ärendeväljaren; sedan det som saknar
+   knapp (tona de obyggda vyerna i pillret, Bevaka och Kopiera i inspektören, zoom och passa in i grafens hörn,
+   dubbelklick som expanderar); sedan en kort testrunda av användaren på Windows.
+3. **Godkänt men inte byggt, efter poleringen:** EX1/EX2b, SO1a (soptunnan, Delete), TL1a, BG1b, att allt följer med
+   en etikett, Windows som utgång utan nät. Allt står i CLAUDE.md och TODO.
+4. **Öppna frågor till användaren:** etapp 26:s tre val (TODO *Bevakning (etapp 26)*), endpointarnas takt (TODO
+   *Väntar på beslut*), Guiden från spårningsmetoden, och frågorna till kryptospåraren i `docs/KRYPTOSPARAREN.md`.
 
 **Canvasen:** läs alltid in den levande `project/canvas.json` (Artifact `read` med `path`) innan något läggs ut, och
 slå ihop; användaren kan ha flyttat tavlor. Sidorna och skisserna står i CLAUDE.md under *Skisserna*.
