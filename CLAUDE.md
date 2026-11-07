@@ -159,6 +159,10 @@ tests/                      xUnit, ett testprojekt per modul
 
 - **En fil per ärende:** `<ärendenummer>.cut`, krypterad och lösenordsskyddad på samma sätt som Gawks ärenden (huvudnyckeln
   låser upp). Allt ligger i filen: hämtade svar, kluster, etiketter, grafens läge, bevakningar och journal.
+  Varje ärende har en **egen slumpad filnyckel** i nyckelkuvert i filens okrypterade huvud: ett för operatörens valv och
+  ett valfritt **delningskuvert** med ett ärendelösenord som kan lämnas till en kollega (orkestrerarens beslut
+  2026-11-07, väntar på användarens bekräftelse; TODO). Medan ärendet är öppet arbetar SQLite i en krypterad arbetskopia
+  bredvid filen, som skrivs tillbaka vid sparning och tas tillbaka efter en krasch.
 - **Appdata** i `%LOCALAPPDATA%\Chainsaw\`: valv, inställningar, delade listor (sanktionslistor, öppna etikettkällor) och
   etikettbiblioteket.
 - **Etiketter smittar** (användarens beslut 2026-11-07). En etikett hör hemma i ärendet där den sattes, men det finns också

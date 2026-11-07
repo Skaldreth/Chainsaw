@@ -17,11 +17,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   ska kunna frågas oftare.
 - **Rapporten:** hur redovisningen byggs (som i Gawk med bilagor, eller enklare underlag för underrättelse). Bestäms när vi
   kommer dit.
-- **Ärendefilens nyckel och kollegans fil** (etapp 2, inför etapp 3): valvet ger nu nycklar per syfte ur datanyckeln
-  (`IPurposeKeys`), men datanyckeln är personlig för datorn. Ett ärende som bara låses med en sådan nyckel går inte att
-  öppna hos en kollega (CLAUDE.md, *Etiketter smittar*: "också när det är en kollegas fil") och går förlorat om
-  huvudnyckeln glöms. Säkraste förslaget till etapp 3: varje ärende får en egen slumpad nyckel som lindas in med
-  syftesnyckeln och dessutom med ett ärendelösenord som kan lämnas vidare. Bekräfta modellen med användaren.
+- **Ärendefilens nyckel och kollegans fil** (byggd i etapp 3 efter orkestrerarens beslut, bekräfta med användaren):
+  varje ärende har en egen slumpad filnyckel i kuvert i filens huvud, ett för operatörens valv och ett valfritt
+  delningskuvert med ett ärendelösenord som kan lämnas till en kollega. Kollegan kan lägga till ett eget kuvert. Är det
+  rätt modell, och ska ett delningslösenord krävas eller föreslås när ett ärende skapas?
+- **Återställningsnyckel för ett ärende:** formatet har plats för fler sorters kuvert. Ska varje ärende (eller enheten)
+  ha en återställningsnyckel, så att ärendet inte går förlorat om valvet går förlorat och inget delningslösenord finns?
 - **Glömd huvudnyckel:** valvet går inte att återställa (det är meningen). Ska det finnas en återställningsnyckel att
   skriva ut vid förstagångsinställningen, eller räcker det att valvet skapas på nytt och API-nycklarna matas in igen?
 - **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Användaren frågar kryptospåraren vilken som används i praktiken (planerat 2026-11-08).
@@ -85,6 +86,16 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   inmatningsmetoder ger samma resultat.
 - **DPAPI för bevakningsprocessen** (CLAUDE.md, *Bevaka*): bevakningens adresser krypteras för Windows-användaren, utanför
   valvet. Byggs med bevakningen.
+
+### Ärenden
+- **Spara ofta:** ett öppet ärende arbetar i en krypterad arbetskopia och `.cut` skrivs vid sparning och stängning.
+  Appen bör spara efter skrivningar när det är lugnt (till exempel efter några sekunder utan nya), så att `.cut` som
+  lämnas vidare är färsk. Arbetskopian tas tillbaka efter en krasch, så inget går förlorat.
+- **Ankra hashkedjan utanför ärendet:** verifieringen ger varje kedjas sista hash. Den bör stå i rapporter och underlag
+  (och kanske i en egen logg utanför ärendet), så att den som har filnyckeln inte kan skriva om hela kedjan oupptäckt.
+- **Stora ärenden:** att öppna och spara kopierar hela databasen. Mät när ärendena blir stora (hundratals MB) och
+  överväg att spara bara när något ändrats, eller ett eget VFS med huvudet i filen.
+- **Unicode-normalisering av delningslösenordet** (NFC), som för huvudnyckeln.
 
 ### Övrigt
 - **Länken `chainsaw:`** registrerad för användaren, ett exemplar av Chainsaw som tar emot länkar, och vänta på upplåsning.
