@@ -70,6 +70,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     Markdown. Gawks Markdown-parser tas över (`Gawk.SharedKernel/Text/Markdown.cs`, `Views/MarkdownView.cs`,
     `Views/Editor/MarkdownEditor.cs` och `MarkdownColorizer.cs`). Kommentaren skrivs **direkt i noden** ute i grafen, inte i en
     panel. Skissas (KN1a, KN1b); den sparas i ärendet.
+25. **Ändra storlek på noder** (användarens önskemål 2026-11-07): vissa noder ska kunna dras till egen storlek,
+    först kommentarsnoden (handtagen skissas i KN1); vilka fler (samlingsnoden?) avgörs med skissen. Storleken sparas
+    med grafens läge.
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
