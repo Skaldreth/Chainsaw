@@ -189,7 +189,7 @@ public sealed class CaseStoreTests : IDisposable
         {
             opened.AppendJournal(new JournalDraft("test.note", Marker, Marker));
             opened.Save();
-            AssertHasNoPlaintext(File.ReadAllBytes(_fixture.CaseFile("K-1234") + ".work"), Marker);
+            AssertHasNoPlaintext(ReadShared(_fixture.CaseFile("K-1234") + ".work"), Marker);
         }
 
         var bytes = File.ReadAllBytes(_fixture.CaseFile("K-1234"));
@@ -337,5 +337,17 @@ public sealed class CaseStoreTests : IDisposable
     {
         Assert.Equal(-1, bytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(text)));
         Assert.Equal(-1, bytes.AsSpan().IndexOf(Encoding.Unicode.GetBytes(text)));
+    }
+
+    /// <summary>
+    /// Reads a file that SQLite still has open for writing; on Windows <see cref="File.ReadAllBytes"/> asks the
+    /// writer to share read only and is refused.
+    /// </summary>
+    private static byte[] ReadShared(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var copy = new MemoryStream();
+        stream.CopyTo(copy);
+        return copy.ToArray();
     }
 }

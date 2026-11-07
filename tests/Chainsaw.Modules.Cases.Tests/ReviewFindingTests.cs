@@ -579,8 +579,9 @@ public sealed class ReviewFindingTests : IDisposable
         File.Delete(path);
         Directory.CreateDirectory(path);
         File.WriteAllText(Path.Combine(path, "hinder"), "x");
-        Assert.ThrowsAny<IOException>(opened.Save);
-        Assert.ThrowsAny<IOException>(opened.Save);
+        // Linux says IOException and Windows UnauthorizedAccessException when a folder stands in the file's place.
+        AssertFileError(Record.Exception(opened.Save));
+        AssertFileError(Record.Exception(opened.Save));
         Directory.Delete(path, recursive: true);
         File.WriteAllBytes(path, original);
         opened.Abandon();
@@ -778,4 +779,8 @@ public sealed class ReviewFindingTests : IDisposable
 
         public IReadOnlyList<SealedChain> SealedChains { get; } = [new("real.values", "real_values", ["value"])];
     }
+
+    /// <summary>Asserts that a save failed as the file system fails, whichever way the platform says it.</summary>
+    private static void AssertFileError(Exception? exception) =>
+        Assert.True(exception is IOException or UnauthorizedAccessException, exception?.ToString() ?? "No exception.");
 }
