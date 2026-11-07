@@ -291,18 +291,24 @@ Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i et
 - Tab till *Nytt* och Enter (eller Space) fäller ut menyn; Startpunkt är markerad. ↓ och ↑ hoppar över linjer och
   tonade rader och går runt; Home och End går till första och sista. Enter väljer.
 - Medan menyn är öppen väljer S, I direkt; E, B och R gör inget. Ctrl+N öppnar Nytt ärende och stänger menyn.
-- Esc och ← stänger, och fokus står på *Nytt* igen (Enter öppnar igen). Tab lämnar inte menyn.
+  S med ett öppet ärende skriver inte *s* i kommandoraden.
+- Esc och ← stänger, och fokus står på *Nytt* igen (Enter öppnar igen). Tab, Shift+Tab och → lämnar inte menyn.
+- Håll Enter nedtryckt på *Nytt*: menyn öppnas, men ingen rad väljs av att tangenten upprepas.
+- Med Nytt ärende öppet: Tab går runt i panelen och når aldrig pillret bakom den.
 - Ctrl+1 … Ctrl+7 stänger menyn och visar vyn. Ctrl+K stänger menyn och lägger markören i kommandoraden.
 - Ctrl+L med menyn öppen: låsskärmen visas, och efter upplåsning är menyn stängd.
 
 **Musen**
 - Ett klick utanför menyn stänger den; ett klick på en annan knapp i pillret stänger menyn och visar den vyn.
-- Ett klick på fliken stänger menyn. Byt till ett annat fönster (Alt+Tab): menyn är stängd när du kommer tillbaka.
+- Ett klick på fliken stänger menyn. Byt till ett annat fönster (Alt+Tab): menyn är stängd när du kommer tillbaka,
+  och fokus står på *Nytt* (Enter öppnar menyn igen).
+- Med menyn öppen: maximera med Win+↑ eller ändra fönstrets storlek. Fliken följer med och ligger kvar över knappen.
+- Ligg kvar i filväljaren längre än tiden för automatisk låsning: Chainsaw låses inte bakom den.
 
 **Raderna**
 - *Startpunkt* utan ärende öppnar Nytt ärende. Med ett ärende öppet står markören i kommandoraden och ovanför står
   *Skriv en adress eller en tx och tryck Enter, så blir den en startpunkt i …*; står det redan text i raden lämnas den.
 - *Importera sanktionslista …* öppnar Windows filväljare (XML). Välj en sparad SDN-lista från OFAC: svaret ovanför
   raden säger *OFAC SDN publicerad … är importerad: n adresser, m för Bitcoin.* En annan XML-fil ger *Filen är inte en
-  SDN-lista i XML.* Avbryt säger inget. Listan ligger i `%LOCALAPPDATA%\Chainsaw` (etapp 8).
+  SDN-lista i XML.* Samma lista igen säger *… fanns redan: …*. Avbryt säger inget. Listan ligger i `%LOCALAPPDATA%\Chainsaw` (etapp 8).
 - *Ärende* öppnar Nytt ärende.

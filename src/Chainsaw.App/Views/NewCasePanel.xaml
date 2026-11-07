@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Chainsaw.App.Controls"
              xmlns:cases="clr-namespace:Chainsaw.Modules.Cases.Contracts;assembly=Chainsaw.Modules.Cases.Contracts"
-             Focusable="False" Visibility="Collapsed">
+             Focusable="False" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Cycle">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
     </UserControl.Resources>

@@ -450,7 +450,7 @@ internal sealed class TestSanctionLists : ISanctionLists
 {
     public List<byte[]> Imported { get; } = [];
 
-    public SanctionListException? Failure { get; set; }
+    public Exception? Failure { get; set; }
 
     public SanctionListInfo Info { get; set; } = new(
         "OFAC SDN",

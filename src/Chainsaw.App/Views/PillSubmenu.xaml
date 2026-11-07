@@ -14,20 +14,27 @@
       all come here.
     -->
     <Grid x:Name="Shape" HorizontalAlignment="Left" VerticalAlignment="Top">
-        <!-- The outline, half a pixel in so that its 1 px edge is sharp, with the shadow in its own element. -->
+        <!--
+          The shadow in a layer of its own, as under the pill and the command bar, and the outline over it, half a pixel
+          in so that its 1 px edge is sharp. Neither has a size of its own: each is as large as its geometry with the
+          pen, so that nothing of the edge or the shadow is clipped.
+        -->
+        <Path x:Name="Shadow" Fill="{StaticResource Brush.Submenu}" HorizontalAlignment="Left" VerticalAlignment="Top">
+            <Path.Effect>
+                <DropShadowEffect BlurRadius="24" ShadowDepth="10" Direction="270" Opacity="0.5" Color="Black" />
+            </Path.Effect>
+        </Path>
         <Path x:Name="Outline" Fill="{StaticResource Brush.Submenu}" Stroke="{StaticResource Brush.BorderStrong}"
               StrokeThickness="1" HorizontalAlignment="Left" VerticalAlignment="Top">
             <Path.RenderTransform>
                 <TranslateTransform X="0.5" Y="0.5" />
             </Path.RenderTransform>
-            <Path.Effect>
-                <DropShadowEffect BlurRadius="24" ShadowDepth="10" Direction="270" Opacity="0.5" Color="Black" />
-            </Path.Effect>
         </Path>
 
         <!-- The tab: the button's icon where the button is; a click folds the menu in. -->
         <Border Width="38" Height="38" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent"
-                Cursor="Hand" ToolTip="{Binding Entry.ToolTip}" MouseLeftButtonUp="OnTabClicked">
+                Cursor="Hand" ToolTip="{Binding Entry.ToolTip}" ToolTipService.Placement="Left"
+                MouseLeftButtonUp="OnTabClicked">
             <controls:GridIcon Size="20" Foreground="{StaticResource Brush.Text}" HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                Data="{Binding Entry.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
@@ -62,10 +69,9 @@
                         <DataTrigger Binding="{Binding IsMarked}" Value="True">
                             <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
                         </DataTrigger>
-                        <!-- A row that cannot be chosen is toned down, with its key, and never looks clickable. -->
+                        <!-- A row that cannot be chosen is toned down, as in PN1, and never looks clickable. -->
                         <DataTrigger Binding="{Binding IsEnabled}" Value="False">
                             <Setter TargetName="Name" Property="Foreground" Value="{StaticResource Brush.TextDim}" />
-                            <Setter TargetName="Key" Property="Foreground" Value="{StaticResource Brush.TextFaint}" />
                             <Setter TargetName="Row" Property="Cursor" Value="Arrow" />
                         </DataTrigger>
                     </DataTemplate.Triggers>

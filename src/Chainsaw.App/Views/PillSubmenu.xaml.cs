@@ -18,7 +18,6 @@ public partial class PillSubmenu : UserControl
     public PillSubmenu()
     {
         InitializeComponent();
-        Outline.Width = SubmenuShape.Width;
         Rows.Margin = new Thickness(SubmenuShape.TabWidth, SubmenuShape.Padding, 0, SubmenuShape.Padding);
         Rows.Width = SubmenuShape.MenuWidth;
         Rows.Padding = new Thickness(SubmenuShape.Padding, 0, SubmenuShape.Padding, 0);
@@ -44,10 +43,10 @@ public partial class PillSubmenu : UserControl
         }
 
         DataContext = item;
-        Outline.Data = Geometry.Parse(menu.Outline);
-        Outline.Height = menu.Height;
-        Shape.Width = SubmenuShape.Width;
-        Shape.Height = menu.Height;
+        var outline = Geometry.Parse(menu.Outline);
+        outline.Freeze();
+        Outline.Data = outline;
+        Shadow.Data = outline;
         Canvas.SetLeft(this, at.X);
         Canvas.SetTop(this, at.Y);
         Visibility = Visibility.Visible;
@@ -60,27 +59,43 @@ public partial class PillSubmenu : UserControl
         });
     }
 
-    /// <summary>Closes the menu when the keyboard leaves it, without taking the keyboard back.</summary>
+    /// <summary>
+    /// Closes the menu when the keyboard leaves it for something else in the window, without taking the keyboard back.
+    /// When it leaves for nowhere, the window is being left, and the window closes the menu and gives the keyboard
+    /// back to the button when it is active again.
+    /// </summary>
     /// <param name="e">Where the keyboard went.</param>
     protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e)
     {
         base.OnLostKeyboardFocus(e);
-        if (e.NewFocus is not DependencyObject next || !IsAncestorOf(next))
+        if (e.NewFocus is DependencyObject next && next != this && !IsAncestorOf(next))
         {
             Menu?.Dismiss();
         }
     }
 
     /// <summary>
-    /// The menu's keys: the arrows, Home and End move the mark, Enter and Space choose it, a letter in the key column
-    /// chooses its row, and Esc or ← closes. Tab stays in the menu. Shortcuts with a modifier go on to the window, where
-    /// Ctrl+N opens Nytt ärende and every view's shortcut closes the menu.
+    /// The menu's keys: the arrows, Home, End, Page Up and Page Down move the mark, Enter and Space choose it (not when
+    /// held from opening the menu), a letter in the key column chooses its row, and Esc or ← closes. Tab, Shift+Tab
+    /// and → stay in the menu. Shortcuts with Ctrl or Alt go on to the window, where Ctrl+N opens Nytt ärende and every
+    /// view's shortcut closes the menu.
     /// </summary>
     /// <param name="sender">The control.</param>
     /// <param name="e">The key.</param>
     private void OnKey(object sender, KeyEventArgs e)
     {
-        if (Menu is not { IsOpen: true } menu || Keyboard.Modifiers != ModifierKeys.None)
+        if (Menu is not { IsOpen: true } menu)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Tab && (Keyboard.Modifiers & ~ModifierKeys.Shift) == ModifierKeys.None)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.Modifiers != ModifierKeys.None)
         {
             return;
         }
@@ -94,19 +109,19 @@ public partial class PillSubmenu : UserControl
             case Key.Up:
                 menu.MovePrevious();
                 break;
-            case Key.Home:
+            case Key.Home or Key.PageUp:
                 menu.MoveFirst();
                 break;
-            case Key.End:
+            case Key.End or Key.PageDown:
                 menu.MoveLast();
                 break;
-            case Key.Enter or Key.Space:
+            case Key.Enter or Key.Space when !e.IsRepeat:
                 menu.ChooseMarked();
                 break;
             case Key.Escape or Key.Left:
                 menu.Close();
                 break;
-            case Key.Tab:
+            case Key.Right or Key.Enter or Key.Space:
                 break;
             case >= Key.A and <= Key.Z:
                 e.Handled = menu.ChooseLetter((char)('A' + (e.Key - Key.A)));

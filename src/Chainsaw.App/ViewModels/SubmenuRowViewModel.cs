@@ -3,7 +3,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Chainsaw.App.ViewModels;
 
-/// <summary>A row of an open submenu: whether it can be chosen now, whether it is marked, and its honest tooltip.</summary>
+/// <summary>
+/// A row of an open submenu: whether it can be chosen now, whether it is marked, and its honest tooltip.
+/// </summary>
 public sealed partial class SubmenuRowViewModel : ObservableObject
 {
     /// <summary>Creates the row, toned down until the menu says what it may do.</summary>

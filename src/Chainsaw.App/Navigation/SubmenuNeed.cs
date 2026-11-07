@@ -9,6 +9,8 @@ public enum SubmenuNeed
     /// <summary>An open case: without one the row is toned down.</summary>
     OpenCase,
 
-    /// <summary>The row's function is not built yet: it is always toned down, and its tooltip says so honestly.</summary>
+    /// <summary>
+    /// The row's function is not built yet: it is always toned down, and its tooltip says so honestly.
+    /// </summary>
     NotBuilt,
 }

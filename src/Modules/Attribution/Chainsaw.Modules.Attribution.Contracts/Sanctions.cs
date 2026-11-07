@@ -37,6 +37,13 @@ public interface ISanctionLists
     SanctionMatch? Find(BitcoinAddress address);
 }
 
+/// <summary>The currency codes a sanction list writes, as Chainsaw reads them.</summary>
+public static class SanctionCurrency
+{
+    /// <summary>The code OFAC's SDN list gives Bitcoin addresses.</summary>
+    public const string Bitcoin = "XBT";
+}
+
 /// <summary>An imported sanction list.</summary>
 /// <param name="Name">The list's name, <c>OFAC SDN</c>.</param>
 /// <param name="Sha256">The SHA-256 of the file's bytes, in lower-case hex.</param>

@@ -524,7 +524,8 @@ public sealed class ShellSubmenuTests
             "OFAC SDN", "ab", new DateOnly(2026, 1, 2), DateTimeOffset.UnixEpoch, new Dictionary<string, int>(), 2);
 
         Assert.Equal(
-            "OFAC SDN publicerad 2026-01-02 är importerad: 0 adresser, 0 för Bitcoin. 2 ogiltiga adresser hoppades över.",
+            "OFAC SDN publicerad 2026-01-02 är importerad: 0 adresser, 0 för Bitcoin. "
+                + "2 ogiltiga adresser hoppades över.",
             SanctionListImport.Describe(list));
     }
 
@@ -556,6 +557,69 @@ public sealed class ShellSubmenuTests
         }
     }
 
+    [Fact]
+    public void Pressing_Nytt_behind_the_open_panel_opens_no_hidden_menu()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Shell.ShowCommand.Execute(AppView.New);
+
+        rig.Shell.PressCommand.Execute(rig.Shell.Top.Single());
+
+        Assert.Null(rig.Shell.OpenSubmenu);
+    }
+
+    [Fact]
+    public void Opening_the_panel_any_way_closes_the_menu()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Shell.PressCommand.Execute(rig.Shell.Top.Single());
+
+        rig.NewCase.Show();
+
+        Assert.Null(rig.Shell.OpenSubmenu);
+    }
+
+    [Fact]
+    public async Task The_same_list_again_says_that_Chainsaw_already_had_it()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var file = Path.GetTempFileName();
+        try
+        {
+            rig.Picker.Path = file;
+            await rig.Sanctions.ImportAsync();
+
+            var reply = await rig.Sanctions.ImportAsync();
+
+            Assert.StartsWith("OFAC SDN publicerad 2026-11-01 fanns redan:", reply!.Text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task A_failure_Attribution_did_not_name_is_still_said()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var file = Path.GetTempFileName();
+        try
+        {
+            rig.Picker.Path = file;
+            rig.SanctionLists.Failure = new InvalidOperationException("x");
+
+            var reply = await rig.Sanctions.ImportAsync();
+
+            Assert.True(reply!.IsError);
+            Assert.Equal(SanctionListImport.FailedText, reply.Text);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
     private static void Choose(GateRig rig, char letter)
     {
         rig.Shell.PressCommand.Execute(rig.Shell.Top.Single());
@@ -568,5 +632,26 @@ public sealed class ShellSubmenuTests
         {
             await Task.Delay(10);
         }
+    }
+}
+
+public sealed class AutoLockHoldTests
+{
+    [Fact]
+    public void A_dialog_holds_the_automatic_lock_and_the_time_starts_again_after_it()
+    {
+        var clock = new TestClock();
+        var autoLock = new AutoLock(clock, TimeSpan.FromMinutes(15));
+        var hold = autoLock.Hold();
+
+        clock.UtcNow += TimeSpan.FromMinutes(30);
+        Assert.False(autoLock.IsDue());
+
+        hold.Dispose();
+        hold.Dispose();
+        Assert.False(autoLock.IsDue());
+
+        clock.UtcNow += TimeSpan.FromMinutes(15);
+        Assert.True(autoLock.IsDue());
     }
 }

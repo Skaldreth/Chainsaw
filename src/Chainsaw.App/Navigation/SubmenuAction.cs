@@ -6,7 +6,9 @@ public enum SubmenuAction
     /// <summary>Nothing: the row is a line between groups of rows.</summary>
     None,
 
-    /// <summary>Adds a start point: the cursor goes to the command bar, or Nytt ärende opens when no case is open.</summary>
+    /// <summary>
+    /// Adds a start point: the cursor goes to the command bar, or Nytt ärende opens when no case is open.
+    /// </summary>
     StartPoint,
 
     /// <summary>Sets a label on an address or a cluster.</summary>

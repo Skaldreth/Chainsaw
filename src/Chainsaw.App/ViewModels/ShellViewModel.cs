@@ -25,6 +25,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>What the status line says while no exit is connected: nothing can be looked up (principle 9).</summary>
     public const string OfflineText = "Offline: ingen utgång ansluten, så inget nytt kan hämtas";
 
+    /// <summary>What the bar says when a sanction list is chosen while one is being imported.</summary>
+    public const string ImportRunningText = "En sanktionslista importeras redan.";
+
     /// <summary>The window's open case, named in the title bar.</summary>
     private readonly CaseSession _session;
 
@@ -84,6 +87,13 @@ public sealed partial class ShellViewModel : ObservableObject
         workflow.CasesListed += (_, _) => ui.Post(() => CommandHint = _commands.Hint(CommandText));
         session.Changed += (_, _) => OnCaseChanged();
         newCase.Created += (_, reply) => OnCreated(reply);
+        newCase.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(NewCaseViewModel.IsOpen) && newCase.IsOpen)
+            {
+                DismissSubmenus();
+            }
+        };
         exit.StatusChanged += (_, status) => ui.Post(() => ShowExit(status));
         Top = ViewTable.In(RailGroup.Top).Select(e => new RailItemViewModel(e)).ToList();
         Work = ViewTable.In(RailGroup.Work).Select(e => new RailItemViewModel(e)).ToList();
@@ -191,6 +201,13 @@ public sealed partial class ShellViewModel : ObservableObject
     public void Press(RailItemViewModel item)
     {
         ArgumentNullException.ThrowIfNull(item);
+        if (NewCase.IsOpen)
+        {
+            // The panel lies over the pill: a menu opened behind it would take the keys unseen.
+            DismissSubmenus();
+            return;
+        }
+
         if (item.Submenu is not { } menu)
         {
             Show(item.Entry.View);
@@ -394,6 +411,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         if (_importing)
         {
+            Answer(CommandReply.Done(ImportRunningText));
             return;
         }
 

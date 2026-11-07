@@ -23,7 +23,7 @@ internal static class OfacSdnParser
     private const string CurrencyPrefix = "Digital Currency Address - ";
 
     /// <summary>The currency code of Bitcoin.</summary>
-    public const string BitcoinCurrency = "XBT";
+    public const string BitcoinCurrency = SanctionCurrency.Bitcoin;
 
     /// <summary>The form of the publish date on the list.</summary>
     private const string DateFormat = "MM/dd/yyyy";

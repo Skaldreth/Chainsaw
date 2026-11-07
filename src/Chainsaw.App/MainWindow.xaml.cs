@@ -33,6 +33,12 @@ public partial class MainWindow : Window
     /// <summary>The gate in front of the shell.</summary>
     private readonly GateViewModel _gate;
 
+    /// <summary>
+    /// The icon whose submenu was open when the window was left, so that its button gets the keyboard back when the
+    /// window is active again; <see langword="null"/> otherwise.
+    /// </summary>
+    private RailItemViewModel? _leftWithSubmenu;
+
     /// <summary>Asks the gate now and then whether the automatic lock is due.</summary>
     private readonly DispatcherTimer _idleTimer;
 
@@ -141,7 +147,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Follows the pill's submenus (sketch PN1): the open one is shown over its button, the keyboard goes back to the
     /// button when a menu closes by Esc, a click outside or a choice, a click outside closes it, and so does leaving
-    /// the window. An action that wants the command bar gets it.
+    /// the window, whose return gives the keyboard back to the button. The menu follows its button when the window
+    /// changes size. An action that wants the command bar gets it.
     /// </summary>
     private void WatchSubmenus()
     {
@@ -168,7 +175,28 @@ public partial class MainWindow : Window
 
         _shell.CommandBarWanted += (_, _) => FocusCommandBar();
         PreviewMouseDown += OnPreviewMouseDown;
-        Deactivated += (_, _) => _shell.DismissSubmenus();
+        SubmenuLayer.SizeChanged += (_, _) => ShowSubmenu();
+        Deactivated += (_, _) =>
+        {
+            _leftWithSubmenu = _shell.OpenSubmenu;
+            _shell.DismissSubmenus();
+        };
+        Activated += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Input, ReturnFromElsewhere);
+    }
+
+    /// <summary>
+    /// Gives the keyboard back to the button whose menu was open when the window was left, unless something else in
+    /// the window already has it: Windows would give it back to the closed menu, where it would be lost.
+    /// </summary>
+    private void ReturnFromElsewhere()
+    {
+        var item = _leftWithSubmenu;
+        _leftWithSubmenu = null;
+        if (item is not null && _gate.IsShellVisible
+            && Keyboard.FocusedElement is not UIElement { IsVisible: true })
+        {
+            ButtonOf(item)?.Focus();
+        }
     }
 
     /// <summary>Shows the open submenu with its tab over its button, or hides it when none is open.</summary>
@@ -185,13 +213,15 @@ public partial class MainWindow : Window
         Submenu.Show(item, button.TranslatePoint(default, SubmenuLayer));
     }
 
-    /// <summary>Closes an open submenu when the pointer presses outside it, before the press reaches its target.</summary>
+    /// <summary>
+    /// Closes an open submenu when the pointer presses outside it, before the press reaches its target.
+    /// </summary>
     /// <param name="sender">The window.</param>
     /// <param name="e">The press.</param>
     private void OnPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (_shell.OpenSubmenu?.Submenu is { } menu
-            && !(e.OriginalSource is DependencyObject target && (target == Submenu || Submenu.IsAncestorOf(target))))
+        var inside = e.OriginalSource is DependencyObject target && (target == Submenu || Submenu.IsAncestorOf(target));
+        if (_shell.OpenSubmenu?.Submenu is { } menu && !inside)
         {
             menu.Close();
         }

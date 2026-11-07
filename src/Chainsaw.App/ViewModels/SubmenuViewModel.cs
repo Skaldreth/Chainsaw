@@ -92,7 +92,9 @@ public sealed partial class SubmenuViewModel : ObservableObject
     /// <summary>Marks the last row that can be chosen (End).</summary>
     public void MoveLast() => Mark(Choosable().LastOrDefault());
 
-    /// <summary>Marks a row, as the pointer does when it rests on it; a row that cannot be chosen is not marked.</summary>
+    /// <summary>
+    /// Marks a row, as the pointer does when it rests on it; a row that cannot be chosen is not marked.
+    /// </summary>
     /// <param name="row">The row.</param>
     public void Point(SubmenuRowViewModel row)
     {
@@ -129,11 +131,13 @@ public sealed partial class SubmenuViewModel : ObservableObject
         Chosen?.Invoke(this, row.Row.Action);
     }
 
-    /// <summary>Chooses the row whose key is a letter, as the letters in the key column do while the menu is open.</summary>
+    /// <summary>
+    /// Chooses the row whose key is a letter, as the letters in the key column do while the menu is open.
+    /// </summary>
     /// <param name="letter">The letter typed.</param>
     /// <returns>
-    /// <see langword="true"/> when a row has the letter, chosen or not (a toned-down row swallows its letter, so that it
-    /// never reaches anything behind the menu); <see langword="false"/> when none has it.
+    /// <see langword="true"/> when a row has the letter, chosen or not (a toned-down row swallows its letter, so
+    /// that it never reaches anything behind the menu); <see langword="false"/> when none has it.
     /// </returns>
     public bool ChooseLetter(char letter)
     {
