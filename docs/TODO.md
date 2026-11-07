@@ -72,9 +72,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   stor graf (en prick per tx blir för många) behöver bestämmas.
 - **Mixerns troliga utgångar** i grafen (GR3a: streckad linje och streckad nod, *Kandidat*), med godkänn och avfärda.
   Kräver analysen som föreslår dem (belopp minus avgift, tid, adresstyp).
-- **Länka till en annan kedja och etiketter i grafen:** inspektören visar länkar och etiketter men kan inte sätta dem
-  än (Tracing och Attribution har stödet). Behöver skiss för formulären.
-- **Bryta upp ett kluster** från inspektören (Clustering har `Split`). Behöver skiss.
+- **Ta tillbaka i grafen** (etapp 16): en etikett (`IAttributionService.Retract`) och en länk till en annan kedja
+  (`ITracingService.UnlinkCrossChain`) kan bara tas tillbaka i modulerna, inte i inspektören; en uppbrytning kan inte
+  tas tillbaka alls (se *Klustring*). IN1a har inga knappar för det. Behöver skiss.
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.
 - **Guidens figurer** (GD1b och GD1a): skisserna har små figurer i avsnitten (UTXO, common-input-ownership, växeln,
@@ -235,6 +235,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Samma person på två datorer:** en egen etikett räknas som oberoende per operatörsprofil (namn, titel, enhet). En
   profil som ändras räknas som en annan person; ett stabilt operatörs-id i Security vore bättre.
 - **Etiketter på tx** (till exempel en känd brygga eller swap): `ClassifyTransaction` ger inget från etiketter än.
+- **Källorna *Beställningen* och *Svar från börs*** (etapp 16, valt av sessionen): formuläret sparar dem som egna
+  etiketter (`LabelSource.Own`) med *Ur beställningen:* eller *Ur svar från börs:* först i skälet, och en öppen källa
+  med användarens namn på källan och *läst åååå-mm-dd* som version. Egna värden i `LabelSource` (och kanske en
+  hänvisning till dokumentet) vore tydligare i *Varför?* och i rapporten.
 
 ### Kurser (etapp 14)
 - **Kurserna i gränssnittet:** beloppen i SEK på grafens linjer och i inspektören, stegen bakom *Varför?*, och valet av
@@ -406,7 +410,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
 
 ### Undermenyer i pillret (etapp 11b)
-- **Nytt → Etikett, Bevakning och Begäran** är tonade som inte byggda; ändra `SubmenuNeed` i
+- **Nytt → Etikett, Bevakning och Begäran** är tonade som inte byggda (en etikett sätts sedan etapp 16 i inspektören med
+  L); ändra `SubmenuNeed` i
   `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när gränssnittet finns.
 - **Startpunkt med ett ärende** lägger bara markören i kommandoraden; ett eget fält (som i Nytt ärende) kan skissas.
 - **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser

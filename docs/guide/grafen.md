@@ -25,7 +25,7 @@ pekaren över något eller väljer det. Hela bildspråket finns också bakom *?*
 - **Grått:** okänd adress, kluster utan etikett och tx med flera ägare.
 
 Sorten kommer från **etiketterna** (avsnittet [Etiketter](etiketter.md)). En etikett är en bedömning, aldrig ett faktum. Utan
-är en adress okänd och ett kluster ett kluster, också startpunkten.
+etikett är en adress okänd och ett kluster ett kluster, också startpunkten.
 
 ## Startpunkten är neutral
 

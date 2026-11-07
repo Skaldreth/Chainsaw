@@ -372,7 +372,8 @@ offline och se att det sägs ärligt). Grafen är förstavyn.
 **Tomt och läsning**
 - Utan ärende: mitt på sidan står *Inget ärende öppet. Ctrl+N skapar ett, och /open öppnar ett.*; ingen graf ritas.
 - Ett ärende utan startpunkter: *Inga startpunkter än. Skriv en adress …*. Skriv en adress i kommandoraden och tryck
-  Enter: grafen läses om och visar startpunkten som en rund magenta nod (*Offer*), blek eftersom den inte är expanderad,
+  Enter: grafen läses om och visar startpunkten som en rund grå nod (*Okänd*) med en ljus flagga uppe till vänster
+  (etapp 16, GR5), blek eftersom den inte är expanderad,
   och överst till vänster *Inget att spåra än: … Välj startpunkten och expandera den.*
 - Inget hackar medan grafen läses eller expanderas: pillret, kommandoraden och fönstret svarar hela tiden.
 
@@ -533,3 +534,51 @@ Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunnel
   i markerad yta, och texten i läsbredd (högst 620 px) till höger. Kommandoraden täcker inte textens slut.
 - *Öppna i Guide* i panelen: vyn Guide visas vid samma avsnitt och rubrik, med *Tillbaka till grafen* överst, som går
   tillbaka till grafen. Panelen är stängd.
+
+## Startpunkten, namnen och inspektörens formulär (etapp 16, GR5 och IN1a)
+
+Förberedelse: ett ärende med en Bitcoin-adress som startpunkt, expanderad några steg (kräver utgång, eller ett ärende
+som redan har det), så att grafen har ett kluster och några okända adresser.
+
+**Startpunkten och namnen (GR5)**
+- Startpunkten har sin egen sort (rund grå om den är okänd, fyrkantig om den är ett kluster) och en liten ljus flagga
+  uppe till vänster. Flaggan krockar aldrig med markeringarna uppe till höger (till exempel *Uttag funnet*). Pekaren
+  över noden säger *… · Startpunkt*. Inspektören har *Startpunkt* med flaggan under rubriken. Legenden bakom *?* har
+  flaggan först bland markeringarna.
+- En nod utan namn visar adressen i ljusgrått, förkortad i mitten (`bc1qdlm…37yr`) bara så mycket som behövs. Zooma: på
+  alla nivåer står början och de fyra sista tecknen kvar.
+- En nod med namn (sätt en etikett med namn) visar namnet i vitt och adressen under i nedtonat grått, förkortad bara när
+  den inte får plats. Båda raderna ryms i noden utan att klippas.
+
+**Etikett (L)**
+- Välj en okänd adress. Under fakta finns *Etikett L*, *Bryt upp U* (tonad, *Bara på ett kluster*) och *Annan kedja K*.
+  Tryck L i grafen: formuläret fälls ut och markören står i *Namn*. Esc stänger det utan att något sparas; L igen eller
+  knappen igen stänger också.
+- Fyll i namn, välj en sort i ikonrutnätet (sortens namn står till höger om *Sort*), välj källa (*Öppen källa* ger fältet
+  *Vilken källa*), skriv skäl och tryck Enter. Formuläret stängs, grafen ritas om och noden har sortens färg och form och
+  namnet med adressen under. *Varför?* visar etiketten med ursprung och skäl (*Ur beställningen: …* för beställningen).
+- *Sätt etikett* är tonad tills skälet är ifyllt (och källans namn vid öppen källa).
+- Sätt etiketten *Offer* på startpunkten: den blir magenta och behåller flaggan.
+- *Sprid inte*: sätt en etikett med *Sprid inte*, stäng ärendet och öppna ett annat med samma adress: etiketten kommer
+  inte dit. Utan *Sprid inte* kommer den (*från ett annat ärende*).
+- Utan operatörsprofil (om det går att prova): formuläret står kvar och säger *Det kunde inte sparas i ärendet:
+  operatörsprofilen saknas …*.
+- `/verify` är grönt efteråt, och journalen har en rad för etiketten.
+
+**Bryt upp (U)**
+- Välj ett kluster och tryck U: adresserna listas med heuristiken till höger (*CIO v1*; den första, som klustret lästes
+  från, utan). Pekaren över en rad visar hela adressen och tx:en. Bocka för en eller flera: *n av m ut* och knappen *Bryt
+  ut n* följer med. Alla kan inte bockas för (knappen tonas).
+- Skriv skäl och tryck Enter: grafen ritas om, och de utbrutna adresserna är inte längre i klustret. *Varför?* på klustret
+  säger att användaren har brutit upp sammanslagningar. Expandera igen: samma heuristik slår inte ihop dem på nytt.
+- `/verify` är grönt, och journalen har en rad per uppbrytning.
+
+**Annan kedja (K)**
+- Välj en adress som tagit emot pengar (helst en swap) och tryck K: Ethereum är valt, Litecoin och Solana är tonade med
+  *Inte byggt än*. Klistra in en Ethereum-tx (`0x` och 64 hex): en grön bock visas i fältet. Klistra in 64 hex utan
+  `0x`: TRON väljs av sig själv och rubriken blir *TRON-tx*.
+- Kom flera mynt in till adressen listas de (största först) och ett måste väljas.
+- Skriv skäl och tryck Enter: en lila streckad linje går till en lila nod med kedjans namn under hörnet. Myntet erbjuds
+  inte igen i formuläret.
+- Fokus: efter Enter eller Esc, klicka i grafen igen för att använda grafens tangenter (E, F, L, U, K).
+
