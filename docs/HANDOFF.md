@@ -124,11 +124,32 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 
 ## Nästa steg
 
-1. **Användarens val:** FS1a eller FS1b, NC1a eller NC1b, låsskärmens kätting (två varianter, TODO), och besluten i TODO
-   under *Väntar på beslut* (nycklarna och kollegans fil, återställningsnyckel, var ärendena ligger, tröskelvärden m.fl.).
-2. **Koppla in modulerna i appen** efter de valda skisserna: förstagångsinställningen och upplåsningen (Security),
-   Nytt ärende och att öppna ett ärende (Cases), startpunkter i kommandoraden (Chains), grafen enligt GR4 (Tracing,
-   Clustering, Attribution).
-3. **WireGuard-tunneln** (Chainsaws eget hjälpprogram), så att något kan hämtas på riktigt.
-4. **Prova på Windows** efter `docs/TESTER-INFOR-1.0.md`.
-5. Senare moduler: Pricing (kurser), Monitoring (bevakning, också när appen är stängd), Requests (begäran till börser).
+Överlämnat 2026-11-07 sent på kvällen, till en ny huvudsession.
+
+1. **Etapp 27 (bakgrundsprocessen) pågår** i sessionen `session_013CLefsNUTWiS1FLqvboDDe` och rapporterar till den
+   gamla huvudsessionen (`session_013CLefr2kGog3dCFdfqN1yx`), som inte längre lyssnar. Kontrollera själv med
+   `get_session` och `list_events`, eller på grenen: när rad 27 ovan står Klar och sista commit inte är WIP, hämta,
+   bygg och kör hela sviten (`dotnet test Chainsaw.slnx`), och rapportera till användaren. En påminnelse
+   (`trig_01PWoydNnzJroHhnDt8JsMFs`) går 2026-11-07 22:30 UTC till den gamla sessionen; ta bort den
+   (`delete_trigger`) eller låt den vara.
+2. **Fem test fel på Windows** som inte syns i Linux (användaren körde hela sviten: 2 249 tester, 7 fel; de två i
+   guldtestet var tidszonen och är rättade i 01ada69). Be användaren om raderna med `[FAIL]` och rätta dem; troligen
+   sökvägar, radslut eller DPAPI från etapp 27.
+3. **Polering först** (användarens beslut: inget nytt byggs förrän det som finns känns bra). Listan står överst i
+   `docs/TODO.md` under *Polering först*. Huvudsessionen bygger själv (rena gränssnittsändringar), i den här ordningen,
+   efter att etapp 27 är inne:
+   - **Felrättningarna utan ny form** (punkt 1 i listan).
+   - **GR6c**, den tomma grafen med guidenoder, och **ÄV1a**, ärendeväljaren (båda valda, CLAUDE.md).
+   - **Det som saknar knapp:** tona de obyggda vyerna i pillret, Bevaka och Kopiera i inspektören, zoom och passa in i
+     grafens hörn, dubbelklick som expanderar.
+   - Sedan en kort testrunda av användaren på Windows (starta, ärende, startpunkt, expandera, etikett, bevaka) och
+     rättelser i omgångar.
+4. **Godkänt men inte byggt, efter poleringen:** EX1/EX2b (det som hölls tillbaka, med filter och samlingsnod), SO1a
+   (soptunnan, Delete), TL1a (tidslinjen), BG1b (begäran som Markdown), att allt följer med en etikett, Windows som
+   utgång utan nät. Allt står i CLAUDE.md och TODO.
+5. **Öppna frågor till användaren:** etapp 26:s tre val (pausen, starten från en höjd, CoinJoin-taket, TODO
+   *Bevakning (etapp 26)*), endpointarnas takt (TODO *Väntar på beslut*), Guiden från spårningsmetoden, och frågorna
+   till kryptospåraren i `docs/KRYPTOSPARAREN.md`.
+
+**Canvasen:** läs alltid in den levande `project/canvas.json` (Artifact `read` med `path`) innan något läggs ut, och
+slå ihop; användaren kan ha flyttat tavlor. Sidorna och skisserna står i CLAUDE.md under *Skisserna*.
