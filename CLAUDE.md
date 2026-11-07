@@ -315,7 +315,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   en hand, handel och betalning en butik), små markeringar i hörnet (bevakad, etikett från ett annat ärende, uttag funnet, sanktionerad),
   linjens tjocklek är beloppet och **streckat betyder alltid osäkert**. **Viktig information får stå kvar** (användarens
   beslut 2026-11-07): beloppet står alltid på linjerna, och användaren kan gallra till bara de spårade eller inga när grafen
-  blir stor. Bildspråket finns bakom ett *?* i grafens hörn.
+  blir stor. Bildspråket finns bakom ett *?* i grafens hörn. **Rutan är GR7a** (användarens beslut 2026-11-07): större,
+  ordnad efter vad färgen betyder, en rad per färg (Offrens pengar, Uttag, Spenderas, Risk och slut, Annan kedja, Okänt)
+  med sorterna som små noder i rätt form och färg, under en tunn linje Form, Markering och Linje som tre luftiga
+  kolumner, och längst ner en rad med regeln som byter till förklaringen för det man hovrar, och *Guiden F1*.
 - **Tidslinjen under grafen är TL1a** (användarens beslut 2026-11-07): tunna prickade tidsband mellan dygnen över hela
   ytan, som tonar in och ut i ändarna och böjer sig runt aktörer som dragits ur sitt dygn (raka i hoppkolumnerna och den
   automatiska layouten), och en list längst ner med ett streck per tx. Ett klick ger en hel linje vid tiden med en
@@ -351,6 +354,11 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   när texten passar, tar Ctrl+V var som helst på ytan och säger att inget hämtas förrän Enter och genom vilken utgång.
   Nästa steg står svagt med kortkommandon och förklaras på hovring, *Så spårar man i Chainsaw* öppnar Guiden, första
   gången förklarar lite mer, och offline sägs ärligt vid noderna. Grafen är aldrig tom och tyst.
+- **Startvyn lägger ärenden i högar, GR8a** (användarens beslut 2026-11-07): användaren gör egna högar genom att släppa
+  ett ärende på ett annat och namnge högen; en hög är en fyrkantig kortlek med antalet. Ett klick på en hög gör **samma
+  sak som i grafen**: ytan skickas ut i en cirkulär stöt, högen centreras och korten fälls ut runt den över en bakgrund
+  som dimmar ner resten (som EX1 och EX2b). Ett kort som dras ut hamnar på startsidan; Shift-klick väljer flera. Ett
+  ärende som lyfts får soptunnan att växa nere till vänster (SO1a). Högarna sparas på datorn, inte i ärendena.
 - **Ärendeväljaren är ÄV1a** (användarens beslut 2026-11-07): ett klick på ärendet i titelraden (eller *Inget ärende*)
   eller Ctrl+O fäller ut en ruta som UT1a: *Öppet nu* med Verifiera och Stäng, ett sökfält på ärendenummer, de senaste
   ärendena (nummer och senast ändrad, eftersom resten ligger krypterat i filen) och *Nytt ärende … Ctrl+N*.
@@ -515,7 +523,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald; GR7a vald; GR8a vald, med grafens stöt och centrering |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret); UT2a, UT2b (lättare att läsa) | UT2b vald (ersätter UT1a) |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |

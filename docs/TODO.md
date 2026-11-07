@@ -60,12 +60,11 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 14. **Bevakningens högra panel:** *klart 2026-11-07*, syns bara när en bevakning är vald.
 15. **Statusraden längst ner:** *borttagen 2026-11-07*; väntan är en gul prick vid utgången.
 16. **Pillret efter läget:** *klart 2026-11-07*, och bildspråkets *?* syns bara med ett ärende.
-17. **Bildspråkets ruta** bakom *?* är stökig och designas om; den får ta större plats.
+17. **Bildspråkets ruta:** *GR7a vald 2026-11-07*, byggs efter samlingsnoden (samma fil, GraphView).
 18. **Kommandoraden:** *dold 2026-11-07*, fälls fram med Ctrl+K som Spotlight; svar när den är dold blir en toast.
 19. **Sonarpulsen runt *Nytt ärende*:** *omgjord 2026-11-07*, tre tunna ringar ur nodens egen kant.
 20. **Soptunnan (SO1a)** byggs, och finns redan i startvyn: där kan man slänga ärenden.
-21. **Startvyn grupperar ärenden** som grafen grupperar tx (samlingsnoden, EX2b); ett ärende som dras ut hamnar på
-    startsidan. Skissas.
+21. **Startvyn grupperar ärenden:** *GR8a vald 2026-11-07*, med samma stöt och centrering som i grafen. Byggs.
 22. **En expansion ritar allt rakt ut:** 50 tx och ett par hundra motparter i en lång kolumn (adressen med 1 759 tx).
     Ledtrådsnoden `+N tx` och samlingsnoden (EX1a, EX1b och EX2b, godkända) byggs, så att grafen aldrig växer
     okontrollerat (princip 7). Byggs som en etapp, eftersom urvalet sparas i ärendet.
