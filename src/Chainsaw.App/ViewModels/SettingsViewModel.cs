@@ -91,6 +91,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <param name="vault">The vault.</param>
     /// <param name="cases">The cases, for the recovery key built in.</param>
     /// <param name="build">The build, for the version.</param>
+    /// <param name="sources">The page Källor (sketch KL1a), or <see langword="null"/> where there is none.</param>
     public SettingsViewModel(
         AppSettings settings,
         AppSettingsStore store,
@@ -101,7 +102,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         IOperatorProfileStore profiles,
         IVault vault,
         ICaseStore cases,
-        BuildInfo build)
+        BuildInfo build,
+        SourcesViewModel? sources = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(cases);
@@ -114,6 +116,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _profiles = profiles;
         _vault = vault;
         Exits = exits;
+        Sources = sources;
         Menu = SettingsMenu.Groups
             .Select(group => new SettingsMenuGroup(group.Name, [.. group.Entries.Select(e => new SettingsMenuItem(e))]))
             .ToList();
@@ -138,6 +141,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets the exits under VPN, the same view model as the exits' panel in the title bar.</summary>
     public ExitPanelViewModel Exits { get; }
+
+    /// <summary>Gets the page Källor, or <see langword="null"/> where there is none.</summary>
+    public SourcesViewModel? Sources { get; }
 
     /// <summary>Gets the automatic lock's times.</summary>
     public IReadOnlyList<SettingsChoice> LockChoices { get; }
@@ -166,8 +172,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets the page shown.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Title), nameof(Lead), nameof(HasLead), nameof(IsNetworkPage), nameof(IsLockPage),
-        nameof(IsLookPage), nameof(IsLinksPage), nameof(IsPricingPage), nameof(IsProfilePage), nameof(IsAboutPage))]
+    [NotifyPropertyChangedFor(nameof(Title), nameof(Lead), nameof(HasLead), nameof(IsNetworkPage), nameof(IsSourcesPage),
+        nameof(IsLockPage), nameof(IsLookPage), nameof(IsLinksPage), nameof(IsPricingPage), nameof(IsProfilePage), nameof(IsAboutPage))]
     public partial SettingsPage Page { get; private set; }
 
     /// <summary>Gets the page's title.</summary>
@@ -181,6 +187,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets whether Nätverk is shown.</summary>
     public bool IsNetworkPage => Page == SettingsPage.Network;
+
+    /// <summary>Gets whether Källor is shown.</summary>
+    public bool IsSourcesPage => Page == SettingsPage.Sources;
 
     /// <summary>Gets whether Låsning is shown.</summary>
     public bool IsLockPage => Page == SettingsPage.Lock;
@@ -307,6 +316,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ProfileName = ProfileTitle = ProfileUnit = string.Empty;
         _savedProfile = null;
         Exits.LeaveSettings();
+        Sources?.CancelAdd();
     }
 
     /// <summary>Shows a page of the menu.</summary>

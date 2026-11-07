@@ -6,6 +6,9 @@ public enum SettingsPage
     /// <summary>How Chainsaw reaches the sources: Windows or VPN, and the exits.</summary>
     Network,
 
+    /// <summary>Where Chainsaw asks the chains, per chain (sketch KL1a).</summary>
+    Sources,
+
     /// <summary>When Chainsaw locks itself.</summary>
     Lock,
 

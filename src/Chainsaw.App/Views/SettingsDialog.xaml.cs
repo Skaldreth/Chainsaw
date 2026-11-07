@@ -43,6 +43,68 @@ public partial class SettingsDialog : UserControl
         DataContext = settings;
         settings.PropertyChanged += OnSettingsChanged;
         settings.Exits.PropertyChanged += OnExitsChanged;
+        if (settings.Sources is { } sources)
+        {
+            sources.PropertyChanged += OnSourcesChanged;
+        }
+    }
+
+    /// <summary>Puts the focus in the address when the form that adds an endpoint folds out, and back after.</summary>
+    /// <param name="sender">The page Källor.</param>
+    /// <param name="e">The property that changed.</param>
+    private void OnSourcesChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(SourcesViewModel.IsAdding) || _settings is not { IsOpen: true } settings
+            || settings.Sources is not { } sources)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            if (sources.IsAdding)
+            {
+                EndpointAddressBox.Focus();
+            }
+            else if (settings.IsOpen && settings.IsSourcesPage)
+            {
+                AddEndpointButton.Focus();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Moves the endpoint whose row has the focus with Alt+↑ or Alt+↓ in Prioriterad, and keeps the focus on its
+    /// handle.
+    /// </summary>
+    /// <param name="e">The key.</param>
+    /// <returns><see langword="true"/> when the key moved an endpoint.</returns>
+    private bool MoveFocusedEndpoint(KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (Keyboard.Modifiers != ModifierKeys.Alt || key is not (Key.Up or Key.Down)
+            || _settings?.Sources is not { IsPriority: true } sources
+            || (Keyboard.FocusedElement as FrameworkElement)?.DataContext is not EndpointRowViewModel row)
+        {
+            return false;
+        }
+
+        var moving = key == Key.Up ? sources.MoveUpAsync(row) : sources.MoveDownAsync(row);
+        moving.ContinueWith(
+            _ => Dispatcher.BeginInvoke(DispatcherPriority.Input, () => FocusHandle(row)),
+            CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+        return true;
+    }
+
+    /// <summary>Puts the focus on an endpoint's handle after its row moved.</summary>
+    /// <param name="row">The endpoint.</param>
+    private void FocusHandle(EndpointRowViewModel row)
+    {
+        if (SourceRows.ItemContainerGenerator.ContainerFromItem(row) is ContentPresenter presenter
+            && presenter.ContentTemplate?.FindName("Handle", presenter) is Button handle)
+        {
+            handle.Focus();
+        }
     }
 
     /// <summary>
@@ -123,12 +185,27 @@ public partial class SettingsDialog : UserControl
     /// <param name="e">The key.</param>
     private void OnKey(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || _settings is not { IsOpen: true } settings)
+        if (_settings is not { IsOpen: true } settings)
         {
             return;
         }
 
-        if (settings.Exits.IsAdding)
+        if (MoveFocusedEndpoint(e))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key != Key.Escape)
+        {
+            return;
+        }
+
+        if (settings.Sources is { IsAdding: true } sources)
+        {
+            sources.CancelAdd();
+        }
+        else if (settings.Exits.IsAdding)
         {
             settings.Exits.CancelAdd();
         }

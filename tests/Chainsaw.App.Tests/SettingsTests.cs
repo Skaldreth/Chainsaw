@@ -36,7 +36,7 @@ public sealed class SettingsTests : IDisposable
     {
         Assert.Equal(["Den här datorn", "Arbetet", "Du", string.Empty], SettingsMenu.Groups.Select(g => g.Name));
         Assert.Equal(
-            ["Nätverk", "Låsning", "Utseende", "Länkar", "Kurser", "Profil", "Om Chainsaw"],
+            ["Nätverk", "Källor", "Låsning", "Utseende", "Länkar", "Kurser", "Profil", "Om Chainsaw"],
             SettingsMenu.Groups.SelectMany(g => g.Entries).Select(e => e.Name));
         Assert.All(Enum.GetValues<SettingsPage>(), page => Assert.Equal(page, SettingsMenu.For(page).Page));
         Assert.Equal("Hur Chainsaw når källorna. Bara https, alltid.", SettingsMenu.For(SettingsPage.Network).Lead);

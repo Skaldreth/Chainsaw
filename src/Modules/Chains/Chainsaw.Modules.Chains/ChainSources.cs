@@ -319,6 +319,7 @@ internal sealed class ChainSources : IChainSources
             ? probe with
             {
                 Outcome = ProbeOutcome.Behind,
+                BlocksBehind = highest - probe.Height,
                 Problem = string.Create(CultureInfo.InvariantCulture,
                     $"Höjd {probe.Height:N0} mot {highest:N0}: {highest - probe.Height} block efter. Används inte.")
                     .Replace(',', ' '),

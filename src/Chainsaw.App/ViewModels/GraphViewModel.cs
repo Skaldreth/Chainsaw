@@ -47,6 +47,10 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>What an expansion adds while no exit is connected (principle 9).</summary>
     public const string OfflineText = "Offline: ingen utgång ansluten, så bara det ärendet redan har kan visas.";
 
+    /// <summary>What the graph says when Bitcoin's sources are off in the settings (principle 9, sketch KL1a).</summary>
+    public const string SourcesOffText =
+        "Av: källorna för Bitcoin är avstängda i inställningarna, så bara det ärendet redan har kan visas.";
+
     /// <summary>The open case.</summary>
     private readonly CaseSession _session;
 
@@ -124,8 +128,8 @@ public sealed partial class GraphViewModel : ObservableObject
         };
         session.Changed += (_, _) => OnCaseChanged();
         workflow.StartPointAdded += (_, _) => ui.Post(() => _ = RefreshAsync());
-        exit.Changed += (_, _) => IsOffline = !exit.IsLive;
-        IsOffline = !exit.IsLive;
+        exit.Changed += (_, _) => ShowWay(exit);
+        ShowWay(exit);
         OnCaseChanged();
     }
 
@@ -271,7 +275,22 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets whether no exit is connected, so that nothing new can be fetched.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsOffline))]
     public partial bool IsOffline { get; private set; }
+
+    /// <summary>Gets whether Bitcoin's sources are off in the settings (Av, sketch KL1a).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsOffline), nameof(OfflineWord), nameof(OfflineTip))]
+    public partial bool IsSourcesOff { get; private set; }
+
+    /// <summary>Gets whether the graph's corner says that nothing new can be fetched.</summary>
+    public bool ShowsOffline => IsOffline || IsSourcesOff;
+
+    /// <summary>Gets the corner's word: <em>Av</em> when the sources are off, else <em>Offline</em>.</summary>
+    public string OfflineWord => IsSourcesOff ? "Av" : "Offline";
+
+    /// <summary>Gets what the corner's word means, on hovering.</summary>
+    public string OfflineTip => IsSourcesOff ? SourcesOffText : OfflineText;
 
     /// <summary>Gets a short notice: what an expansion brought, or what could not be read; empty when none.</summary>
     [ObservableProperty]
@@ -622,6 +641,14 @@ public sealed partial class GraphViewModel : ObservableObject
             _ => $"Inte expanderad. {problems}",
         };
         return (offline && result.Outcome != ExpansionOutcome.Expanded ? $"{text} {OfflineText}" : text).Trim();
+    }
+
+    /// <summary>Shows whether lookups can go now, and whether Bitcoin's sources are off.</summary>
+    /// <param name="exit">The way out.</param>
+    private void ShowWay(ExitWay exit)
+    {
+        IsOffline = !exit.IsLive;
+        IsSourcesOff = exit.ChainsOff.Contains(Chain.Bitcoin);
     }
 
     /// <summary>Says whether the method can be changed now: not while an expansion runs.</summary>

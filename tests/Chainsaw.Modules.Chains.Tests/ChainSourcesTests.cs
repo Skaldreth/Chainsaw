@@ -75,6 +75,7 @@ public sealed class ChainSourcesTests : IDisposable
         Assert.Equal(921_402, behind.Height);
         Assert.Equal(TimeSpan.FromMilliseconds(38), behind.Duration);
         Assert.Contains("2 block efter", behind.Problem, StringComparison.Ordinal);
+        Assert.Equal(2, behind.BlocksBehind);
         Assert.Equal([Fast, Slow], sources.Plan(Chain.Bitcoin).Endpoints.Select(p => p.Endpoint.Address.AbsoluteUri));
         Assert.Equal(_clock.UtcNow, view.ProbedAt);
     }

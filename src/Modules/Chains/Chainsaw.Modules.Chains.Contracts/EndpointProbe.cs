@@ -36,4 +36,11 @@ public sealed record EndpointProbe(
     string? BlockHash,
     TimeSpan? Duration,
     DateTimeOffset At,
-    string? Problem);
+    string? Problem)
+{
+    /// <summary>
+    /// Gets how many blocks lower its height was than the highest answer of the round, when it is
+    /// <see cref="ProbeOutcome.Behind"/>.
+    /// </summary>
+    public long? BlocksBehind { get; init; }
+}
