@@ -97,8 +97,9 @@
                     </StackPanel>
                 </Button>
                 <!-- Områden i grafen (sketch KF1b): which sorts of areas are drawn behind the actors. -->
-                <Grid Margin="0,0,10,0">
-                    <Button Style="{StaticResource Button.Graph}" Command="{Binding Checks.ToggleMenuCommand}"
+                <Grid Margin="0,0,10,0" VerticalAlignment="Top">
+                    <Button x:Name="AreasButton" Style="{StaticResource Button.Graph}" Command="{Binding Checks.ToggleMenuCommand}"
+                            IsHitTestVisible="{Binding IsOpen, ElementName=AreasMenu, Converter={x:Static controls:InvertConverter.Instance}}"
                             ToolTip="Områden i grafen. Z ritar en egen yta runt valda aktörer (Ctrl+klick)."
                             AutomationProperties.Name="Områden i grafen">
                         <StackPanel Orientation="Horizontal">
@@ -107,10 +108,16 @@
                             <TextBlock Text="{Binding Checks.AreaCountText}" Margin="6,0,0,0" />
                         </StackPanel>
                     </Button>
-                    <Border Margin="0,36,0,0" Width="210" Padding="8" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    <!--
+                      The menu hangs under the button in a popup of its own, so that it never stretches the corner's row,
+                      and a click anywhere else closes it.
+                    -->
+                    <Popup x:Name="AreasMenu" PlacementTarget="{Binding ElementName=AreasButton}" Placement="Bottom"
+                           VerticalOffset="6" AllowsTransparency="True" StaysOpen="False" Focusable="False"
+                           IsOpen="{Binding Checks.IsMenuOpen, Mode=OneWay}" Closed="OnAreasMenuClosed">
+                    <Border Margin="16,0,16,24" Width="210" Padding="8"
                             CornerRadius="10" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"
-                            Background="{StaticResource Brush.Floating}"
-                            Visibility="{Binding Checks.IsMenuOpen, Converter={StaticResource Visible}}">
+                            Background="{StaticResource Brush.Floating}">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="24" ShadowDepth="8" Direction="270" Opacity="0.4" Color="Black" />
                         </Border.Effect>
@@ -148,8 +155,10 @@
                             </ItemsControl>
                         </StackPanel>
                     </Border>
+                    </Popup>
                 </Grid>
-                <Border BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
+                <Border BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0"
+                        VerticalAlignment="Top">
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="FreeButton" ToolTip="Fri yta"
                                 AutomationProperties.Name="Fri yta" CommandParameter="{x:Static contracts:GraphLayout.Free}"
@@ -312,6 +321,16 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <!--
+          The inspector's shadow over the graph, in a layer of its own as under the pill, so that the inspector's text is
+          never drawn through the effect and stays sharp.
+        -->
+        <Border x:Name="InspectorShadow" Grid.Column="1" Background="{StaticResource Brush.Surface}" IsHitTestVisible="False">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="28" ShadowDepth="6" Direction="180" Opacity="0.4" Color="Black" />
+            </Border.Effect>
+        </Border>
 
         <!-- ===== The inspector (sketch GR4): what is chosen, its facts, Varför? and the Guide ===== -->
         <Border x:Name="Inspector" Grid.Column="1" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
@@ -520,9 +539,18 @@
                         <ItemsControl ItemsSource="{Binding Details}" Focusable="False" Margin="0,14,0,0">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBox Text="{Binding Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
-                                             Foreground="{StaticResource Brush.TextMuted}" FontFamily="{StaticResource Font.Mono}"
-                                             FontSize="12" TextWrapping="Wrap" Padding="0" Margin="0,0,0,4" />
+                                    <DockPanel Margin="0,0,0,6">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Width="26" Height="26"
+                                                Margin="6,-4,0,0" VerticalAlignment="Top" AutomationProperties.Name="Kopiera"
+                                                ToolTip="Kopiera" CommandParameter="{Binding}"
+                                                Command="{Binding DataContext.CopyTextCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Copy}" />
+                                        </Button>
+                                        <TextBox Text="{Binding Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                                                 Foreground="{StaticResource Brush.TextMuted}" FontFamily="{StaticResource Font.Mono}"
+                                                 SelectionBrush="{StaticResource Brush.Accent}" CaretBrush="{StaticResource Brush.Text}"
+                                                 FontSize="12" TextWrapping="Wrap" Padding="0" />
+                                    </DockPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -540,5 +568,11 @@
                                    Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
             </Grid>
         </Border>
+
+        <!-- The inspector's left edge is dragged to make it wider or narrower; the width is kept while Chainsaw runs. -->
+        <GridSplitter x:Name="InspectorEdge" Grid.Column="1" Width="6" HorizontalAlignment="Left" Margin="-3,0,0,0"
+                      Background="Transparent" ResizeDirection="Columns" ResizeBehavior="PreviousAndCurrent"
+                      Cursor="SizeWE" Focusable="False" DragCompleted="OnInspectorResized"
+                      ToolTip="Dra för att ändra inspektörens bredd" />
     </Grid>
 </UserControl>

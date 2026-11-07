@@ -24,6 +24,15 @@ public partial class GraphView : UserControl
     /// <summary>The inspector's width in sketch GR4, in device-independent pixels.</summary>
     private const double InspectorWidth = 280;
 
+    /// <summary>The narrowest the inspector can be dragged to.</summary>
+    private const double NarrowestInspector = 240;
+
+    /// <summary>The widest the inspector can be dragged to, as a share of the page.</summary>
+    private const double WidestInspectorShare = 0.5;
+
+    /// <summary>The inspector's width as the user last dragged it, kept while Chainsaw runs.</summary>
+    private double _inspectorWidth = InspectorWidth;
+
     /// <summary>
     /// Moves the graph's corner (the switch, the method and the amounts) out from under a panel that lies over the
     /// page's right side, such as the Guide's (sketch GD1b), so that it can still be seen and used.
@@ -93,8 +102,36 @@ public partial class GraphView : UserControl
     /// <param name="shown">Whether the inspector is shown.</param>
     private void ShowInspector(bool shown)
     {
-        InspectorColumn.Width = new GridLength(shown ? InspectorWidth : 0);
-        Inspector.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        InspectorColumn.MinWidth = shown ? NarrowestInspector : 0;
+        InspectorColumn.MaxWidth = shown ? Math.Max(NarrowestInspector, ActualWidth * WidestInspectorShare) : 0;
+        InspectorColumn.Width = new GridLength(shown ? _inspectorWidth : 0);
+        var visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        Inspector.Visibility = visibility;
+        InspectorShadow.Visibility = visibility;
+        InspectorEdge.Visibility = visibility;
+    }
+
+    /// <summary>
+    /// Tells the model that the menu of areas closed, after a click outside it or Esc, so that the next click on its
+    /// button opens it again.
+    /// </summary>
+    /// <param name="sender">The menu.</param>
+    /// <param name="e">Nothing.</param>
+    private void OnAreasMenuClosed(object? sender, EventArgs e)
+    {
+        if (DataContext is GraphViewModel model)
+        {
+            model.Checks.CloseMenu();
+        }
+    }
+
+    /// <summary>Keeps the width the inspector was dragged to, so that it comes back when the inspector is shown.</summary>
+    /// <param name="sender">The inspector's edge.</param>
+    /// <param name="e">The drag.</param>
+    private void OnInspectorResized(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        _inspectorWidth = InspectorColumn.ActualWidth;
+        Canvas.InvalidateVisual();
     }
 
     /// <summary>

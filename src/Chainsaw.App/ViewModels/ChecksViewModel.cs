@@ -409,6 +409,9 @@ public sealed partial class ChecksViewModel : ObservableObject
     [RelayCommand]
     public void ToggleMenu() => IsMenuOpen = !IsMenuOpen;
 
+    /// <summary>Closes the menu of areas, for example after a click outside it.</summary>
+    public void CloseMenu() => IsMenuOpen = false;
+
     /// <summary>Shows or hides a sort's areas.</summary>
     /// <param name="sort">The sort.</param>
     [RelayCommand]

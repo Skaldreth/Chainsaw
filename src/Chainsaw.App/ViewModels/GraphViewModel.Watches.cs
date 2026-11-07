@@ -157,6 +157,17 @@ public sealed partial class GraphViewModel
         }
     }
 
+    /// <summary>Copies a text from the inspector: an address, a txid or a block, in full.</summary>
+    /// <param name="text">The text.</param>
+    [RelayCommand]
+    private void CopyText(string? text)
+    {
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            CopyWanted?.Invoke(this, text);
+        }
+    }
+
     /// <summary>Copies the chosen node's address (Ctrl+C).</summary>
     public void CopyAddress()
     {
