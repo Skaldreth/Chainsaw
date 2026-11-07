@@ -58,7 +58,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:TintChoice}">
-                            <Button Focusable="False" Cursor="Hand" Margin="0,0,8,0" ToolTip="{Binding Tint}"
+                            <Button Focusable="False" Cursor="Hand" Margin="0,0,8,0" ToolTip="{Binding Name}"
                                     Command="{Binding DataContext.ChooseTintCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding Tint}">
                                 <Button.Template>

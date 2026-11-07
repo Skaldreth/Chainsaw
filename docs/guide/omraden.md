@@ -18,8 +18,8 @@ Menyn *Områden i grafen* i grafens hörn väljer vilka sorter som ritas:
 
 ## Kanten
 
-- **Streckad** kant: ett förslag som väntar på beslut.
-- **Hel** kant: en kontroll, ett avgjort förslag eller en egen yta.
+- **Streckad** kant: ett förslag, också när det är avgjort, eftersom det är en bedömning.
+- **Hel** kant: en kontroll eller en egen yta.
 - **Prickad** kant: tid.
 
 En aktör har **högst en fyllning**. Ett område vars aktörer redan ligger i ett annat ritas bara som kant, så att

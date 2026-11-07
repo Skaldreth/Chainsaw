@@ -113,6 +113,69 @@ public sealed class ChecksViewModelTests
     }
 
     [Fact]
+    public async Task Enter_and_X_are_ignored_until_the_decision_is_stored_and_read_again()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.Toggle();
+        var hold = new TaskCompletionSource();
+        rig.Source.HoldDecision = hold;
+
+        var first = rig.Checks.ApproveAsync();
+        await rig.Checks.DismissAsync();
+        await rig.Checks.ApproveAsync();
+        hold.SetResult();
+        await first;
+
+        Assert.Single(rig.Source.Decisions);
+        Assert.False(rig.Checks.IsBusy);
+    }
+
+    [Fact]
+    public async Task An_answer_about_an_earlier_graph_is_dropped()
+    {
+        var rig = new Rig();
+        var hold = new TaskCompletionSource();
+        rig.Source.HoldRun = hold;
+        var late = rig.Checks.FollowAsync(Scene());
+        rig.Source.Checks.RemoveAt(0);
+
+        await rig.Checks.FollowAsync(Scene());
+        hold.SetResult();
+        await late;
+
+        Assert.Empty(rig.Checks.ToDecide);
+        Assert.Equal("Förslag · 0", rig.Checks.ButtonText);
+    }
+
+    [Fact]
+    public async Task A_hidden_sort_leaves_its_fill_to_the_areas_shown()
+    {
+        var rig = await new Rig().Follow();
+        Assert.False(rig.Checks.Areas.Single(area => area.Sort == AreaSort.Wallet).IsFilled);
+
+        rig.Checks.ToggleSort(AreaSort.Obfuscation);
+
+        Assert.True(rig.Checks.Areas.Single(area => area.Sort == AreaSort.Wallet).IsFilled);
+    }
+
+    [Fact]
+    public async Task Renaming_an_area_that_is_gone_says_so()
+    {
+        var rig = new Rig();
+        rig.Source.Areas.Add(Own("Säljaren", U));
+        rig.Source.RenameFindsNothing = true;
+        await rig.Follow();
+        var key = rig.Checks.AllAreas.Single(area => area.IsOwn).Key;
+
+        rig.Checks.OpenRename(key);
+        rig.Checks.FormName = "Kontot";
+        await rig.Checks.SaveFormAsync();
+
+        Assert.Equal(ChecksViewModel.GoneText, rig.Checks.FormProblem);
+        Assert.True(rig.Checks.IsFormOpen);
+    }
+
+    [Fact]
     public async Task A_decided_candidate_cannot_be_chosen_again()
     {
         var rig = await new Rig().Follow();

@@ -26,7 +26,7 @@ public sealed class AreaTests
     }
 
     [Fact]
-    public void A_dismissed_candidate_leaves_the_area_and_a_decided_suggestion_is_whole()
+    public void A_dismissed_candidate_leaves_the_area_and_a_decided_suggestion_stays_dashed()
     {
         var u = Candidate(U, 1, 0.8).Key;
         var e = Candidate(E, 2, 0.5).Key;
@@ -35,7 +35,21 @@ public sealed class AreaTests
             a => a.CheckKey is not null);
 
         Assert.Equal([VKey, EKey], area.Nodes);
-        Assert.Equal(AreaLine.Solid, area.Line);
+        Assert.Equal(AreaLine.Dashed, area.Line);
+    }
+
+    [Fact]
+    public void An_address_stays_while_one_of_its_candidates_waits()
+    {
+        var first = Candidate(U, 1, 0.8);
+        var second = Candidate(U, 3, 0.6);
+        var check = Mixer(Decision(first.Key, CheckVerdict.Dismissed)) is var m
+            ? m with { Finding = m.Finding with { Candidates = [first, second], Addresses = [V, U] } }
+            : null;
+
+        var area = Assert.Single(Build(checks: [check!]), a => a.CheckKey is not null);
+
+        Assert.Equal([VKey, UKey], area.Nodes);
     }
 
     [Fact]

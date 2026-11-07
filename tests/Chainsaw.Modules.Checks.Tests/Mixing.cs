@@ -61,6 +61,13 @@ internal static class Mixing
     /// <summary>A payment into another of the mixer's addresses: the mixer's own, never a candidate.</summary>
     public static BitcoinTransaction ToMixer() => Payout("to-mixer", MixerOther, 14_600_000, 5);
 
+    /// <summary>Many likely payouts, each a little smaller and later than the one before.</summary>
+    public static IReadOnlyList<BitcoinTransaction> Many(int count) =>
+    [
+        .. Enumerable.Range(1, count)
+            .Select(i => Payout($"many-{i}", Wpkh($"many-out-{i}"), 14_600_000 - (i * 10_000), 2 + (i * 30))),
+    ];
+
     /// <summary>Everything above, in a mixed order.</summary>
     public static IReadOnlyList<BitcoinTransaction> All()
     {

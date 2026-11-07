@@ -175,7 +175,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawNode(drawingContext, node, _model.Places[node.Key], nearNodes);
         }
 
-        DrawCandidates(drawingContext);
+        DrawCandidates(drawingContext, visible);
         DrawAreaChips(drawingContext, visible);
         drawingContext.Pop();
     }

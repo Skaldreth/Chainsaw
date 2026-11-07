@@ -89,26 +89,47 @@ internal sealed class TestCheckSource : ICheckSource
 
     public Exception? RunFailure { get; set; }
 
+    /// <summary>Holds the next decision until the test lets it go.</summary>
+    public TaskCompletionSource? HoldDecision { get; set; }
+
+    /// <summary>Holds the next run until the test lets it go.</summary>
+    public TaskCompletionSource? HoldRun { get; set; }
+
+    public bool RenameFindsNothing { get; set; }
+
     public int Runs { get; private set; }
 
-    public Task<CheckRun> RunAsync(ICase @case, TraceGraph graph, CancellationToken cancellationToken)
+    public async Task<CheckRun> RunAsync(ICase @case, TraceGraph graph, CancellationToken cancellationToken)
     {
         Runs++;
+        var checks = Checks.ToList();
+        if (HoldRun is { } hold)
+        {
+            HoldRun = null;
+            await hold.Task;
+        }
+
         return RunFailure is { } failure
-            ? Task.FromException<CheckRun>(failure)
-            : Task.FromResult(new CheckRun(
-                [.. Checks], 0, graph.Transactions.Count, new DateTimeOffset(2026, 11, 7, 13, 2, 0, TimeSpan.Zero), []));
+            ? throw failure
+            : new CheckRun(
+                checks, 0, graph.Transactions.Count, new DateTimeOffset(2026, 11, 7, 13, 2, 0, TimeSpan.Zero), []);
     }
 
-    public Task<CheckDecision> DecideAsync(ICase @case, DecisionRequest request)
+    public async Task<CheckDecision> DecideAsync(ICase @case, DecisionRequest request)
     {
         Decisions.Add(request);
+        if (HoldDecision is { } hold)
+        {
+            HoldDecision = null;
+            await hold.Task;
+        }
+
         var decision = new CheckDecision(
             Decisions.Count, request.Analysis, request.FindingKey, request.CandidateKey, request.Verdict, request.Reason,
             CheckSamples.Who, DateTimeOffset.UnixEpoch, 10);
         var index = Checks.FindIndex(check => check.Finding.Key == request.FindingKey);
         Checks[index] = Checks[index] with { Decisions = [.. Checks[index].Decisions, decision] };
-        return Task.FromResult(decision);
+        return decision;
     }
 
     public Task<IReadOnlyList<OwnArea>> GetAreasAsync(ICase @case, CancellationToken cancellationToken) =>
@@ -127,6 +148,11 @@ internal sealed class TestCheckSource : ICheckSource
     public Task<OwnArea?> RenameAreaAsync(ICase @case, string id, string name)
     {
         Renamed.Add((id, name));
+        if (RenameFindsNothing)
+        {
+            return Task.FromResult<OwnArea?>(null);
+        }
+
         var index = Areas.FindIndex(area => area.Id == id);
         Areas[index] = Areas[index] with { Name = name };
         return Task.FromResult<OwnArea?>(Areas[index]);

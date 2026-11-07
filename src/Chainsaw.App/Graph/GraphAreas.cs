@@ -157,12 +157,12 @@ public static class GraphAreas
     private static AreaView? OfCheck(GraphScene scene, StoredCheck check)
     {
         var finding = check.Finding;
-        var dismissed = finding.Candidates
-            .Where(c => check.DecisionFor(c.Key)?.Verdict == CheckVerdict.Dismissed)
-            .Select(c => c.Address)
+        bool Dismissed(CheckCandidate c) => check.DecisionFor(c.Key)?.Verdict == CheckVerdict.Dismissed;
+        var kept = finding.Candidates.Where(c => !Dismissed(c)).Select(c => c.Address).ToHashSet();
+        var dismissed = finding.Candidates.Where(Dismissed).Select(c => c.Address).Where(a => !kept.Contains(a))
             .ToHashSet();
         var allDismissed = finding.Candidates.Count > 0
-            ? dismissed.Count == finding.Candidates.Select(c => c.Address).Distinct().Count()
+            ? finding.Candidates.All(Dismissed)
             : check.DecisionFor(null)?.Verdict == CheckVerdict.Dismissed;
         if (finding.Kind == CheckKind.Suggestion && allDismissed)
         {
@@ -176,7 +176,8 @@ public static class GraphAreas
             return null;
         }
 
-        var line = check.Waiting > 0 ? AreaLine.Dashed : AreaLine.Solid;
+        // A suggestion stays dashed also when decided: an approved candidate is the user's judgement, never a fact.
+        var line = finding.Kind == CheckKind.Suggestion ? AreaLine.Dashed : AreaLine.Solid;
         return new AreaView(
             KeyOf(check),
             finding.Area,

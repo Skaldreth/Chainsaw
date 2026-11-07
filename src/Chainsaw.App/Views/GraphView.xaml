@@ -442,7 +442,7 @@
 
                 <!-- The checks and suggestions (sketch KF1a) fold out where the inspector stands, over it. -->
                 <views:ChecksPanel DataContext="{Binding Checks}"
-                                   Visibility="{Binding Checks.IsOpen, Converter={StaticResource Visible}}" />
+                                   Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
             </Grid>
         </Border>
     </Grid>

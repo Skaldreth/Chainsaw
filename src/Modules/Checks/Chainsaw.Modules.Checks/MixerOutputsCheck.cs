@@ -29,9 +29,6 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
     /// <summary>The lowest score a candidate is kept at.</summary>
     public const double LowestScore = 0.4;
 
-    /// <summary>The most candidates per deposit, best first.</summary>
-    public const int MostCandidates = 5;
-
     /// <summary>The weight of the amount in the score.</summary>
     private const double AmountWeight = 0.5;
 
@@ -160,7 +157,6 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
         var best = candidates
             .OrderByDescending(item => item.Candidate.Score)
             .ThenBy(item => item.Candidate.Key, StringComparer.Ordinal)
-            .Take(MostCandidates)
             .ToList();
         if (best.Count == 0)
         {
@@ -210,7 +206,8 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
             return null;
         }
 
-        if (mixer.Contains(address) || depositors.Contains(address) || paid.Amount.Value > output.Amount.Value)
+        if (mixer.Contains(address) || depositors.Contains(address) || output.Amount.Value <= 0
+            || paid.Amount.Value > output.Amount.Value)
         {
             return null;
         }

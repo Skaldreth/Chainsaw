@@ -49,6 +49,41 @@ public sealed class CheckServiceTests
     }
 
     [Fact]
+    public void At_most_five_candidates_wait_and_a_dismissed_one_frees_its_place()
+    {
+        using var harness = new Harness();
+        var graph = (IReadOnlyList<BitcoinTransaction>)[Mixing.Deposit(), .. Mixing.Many(8)];
+        var check = Mixer(harness.Run(graph, Mixing.Mixer));
+        Assert.Equal(CheckRules.MostWaitingCandidates, check.Finding.Candidates.Count);
+        var sixth = Mixer(harness.Run(graph, Mixing.Mixer)).Finding.Candidates;
+
+        harness.Service.Decide(harness.Case, new DecisionRequest(
+            check.Analysis, check.Finding.Key, check.Finding.Candidates[0].Key, CheckVerdict.Dismissed));
+        var after = Mixer(harness.Run(graph, Mixing.Mixer));
+
+        Assert.Equal(6, after.Finding.Candidates.Count);
+        Assert.Equal(5, after.Waiting);
+        Assert.Contains(after.Finding.Candidates, c => sixth.All(old => old.Key != c.Key));
+    }
+
+    [Fact]
+    public void An_approved_candidate_stays_when_better_ones_come()
+    {
+        using var harness = new Harness();
+        var check = Mixer(harness.Run([Mixing.Deposit(), Mixing.Third()], Mixing.Mixer));
+        var third = Assert.Single(check.Finding.Candidates);
+        harness.Service.Decide(harness.Case, new DecisionRequest(
+            check.Analysis, check.Finding.Key, third.Key, CheckVerdict.Approved));
+
+        var after = Mixer(harness.Run([Mixing.Deposit(), Mixing.Third(), .. Mixing.Many(6)], Mixing.Mixer));
+
+        Assert.Contains(after.Finding.Candidates, c => c.Key == third.Key);
+        Assert.Contains(third.Address, after.Finding.Addresses);
+        Assert.Equal(CheckVerdict.Approved, after.DecisionFor(third.Key)!.Verdict);
+        Assert.Equal(CheckRules.MostWaitingCandidates, after.Waiting);
+    }
+
+    [Fact]
     public void A_suggestion_waits_for_one_decision_per_candidate()
     {
         using var harness = new Harness();

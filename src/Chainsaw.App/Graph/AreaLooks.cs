@@ -71,6 +71,19 @@ public static class AreaLooks
     public static IReadOnlyList<AreaTint> OwnTints { get; } =
         [AreaTint.Green, AreaTint.Grey, AreaTint.Sand, AreaTint.Blue, AreaTint.Lila];
 
+    /// <summary>Gives a tint's name, in Swedish.</summary>
+    /// <param name="tint">The tint.</param>
+    /// <returns>For example <c>Grön</c>.</returns>
+    public static string TintName(AreaTint tint) => tint switch
+    {
+        AreaTint.Grey => "Grå",
+        AreaTint.Sand => "Sand",
+        AreaTint.Blue => "Blå",
+        AreaTint.Lila => "Lila",
+        AreaTint.Red => "Röd",
+        _ => "Grön",
+    };
+
     /// <summary>Gives a tint's resource key.</summary>
     /// <param name="tint">The tint.</param>
     /// <returns>For example <c>Brush.Area.Green</c>.</returns>

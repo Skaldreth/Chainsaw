@@ -47,7 +47,11 @@ public sealed record SortChoice(AreaSort Sort, string Name);
 /// <param name="Tint">The tint.</param>
 /// <param name="TintKey">Its resource key.</param>
 /// <param name="IsChosen">Whether it is the form's colour now.</param>
-public sealed record TintChoice(AreaTint Tint, string TintKey, bool IsChosen);
+public sealed record TintChoice(AreaTint Tint, string TintKey, bool IsChosen)
+{
+    /// <summary>Gets the colour's name, in Swedish.</summary>
+    public string Name => AreaLooks.TintName(Tint);
+}
 
 /// <summary>What the small form beside the graph does (sketch KF1b).</summary>
 public enum AreaFormMode
@@ -85,6 +89,9 @@ public sealed partial class ChecksViewModel : ObservableObject
 
     /// <summary>What the list says when a decision or an area could not be stored.</summary>
     public const string SaveFailedText = "Det kunde inte sparas i ärendet.";
+
+    /// <summary>What the form says when the own area it renames or removes is gone already.</summary>
+    public const string GoneText = "Ytan finns inte längre i ärendet.";
 
     /// <summary>What the form says when no actor is chosen.</summary>
     public const string PickFirstText = "Välj aktörer först: Ctrl+klick, sedan Z.";
@@ -518,9 +525,17 @@ public sealed partial class ChecksViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            await StoreAsync(openCase, scene, mode);
+            var stored = await StoreAsync(openCase, scene, mode);
             if (_session.Current != openCase)
             {
+                return;
+            }
+
+            if (!stored)
+            {
+                FormProblem = GoneText;
+                _own = await _source.GetAreasAsync(openCase, CancellationToken.None);
+                Rebuild();
                 return;
             }
 
@@ -533,8 +548,12 @@ public sealed partial class ChecksViewModel : ObservableObject
             FormProblem = string.Empty;
             _formArea = null;
             ChosenArea = null;
-            _own = await _source.GetAreasAsync(openCase, CancellationToken.None);
-            Rebuild();
+            var own = await _source.GetAreasAsync(openCase, CancellationToken.None);
+            if (_session.Current == openCase)
+            {
+                _own = own;
+                Rebuild();
+            }
         }
         catch (ArgumentException exception)
         {
@@ -653,43 +672,54 @@ public sealed partial class ChecksViewModel : ObservableObject
         }
 
         var key = Selected.Key;
+
+        // Busy until the checks are read again, so that a second Enter or X never decides the same candidate twice
+        // or overturns the decision just made.
         IsBusy = true;
         try
         {
-            await _source.DecideAsync(openCase, request);
-            Problem = string.Empty;
-        }
-        catch (Exception exception) when (exception is not OutOfMemoryException)
-        {
-            Problem = SaveFailedText;
-            return;
+            try
+            {
+                await _source.DecideAsync(openCase, request);
+                Problem = string.Empty;
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                Problem = SaveFailedText;
+                return;
+            }
+
+            await FollowAsync(_scene);
+            var again = Rows().FirstOrDefault(row => row.Key == key);
+            Select(again is { CanDecide: true } ? again : ToDecide.FirstOrDefault() ?? again);
         }
         finally
         {
             IsBusy = false;
         }
-
-        await FollowAsync(_scene);
-        var again = Rows().FirstOrDefault(row => row.Key == key);
-        Select(again is { CanDecide: true } ? again : ToDecide.FirstOrDefault() ?? again);
     }
 
     /// <summary>Stores what the form says through the module.</summary>
     /// <param name="openCase">The open case.</param>
     /// <param name="scene">The graph.</param>
     /// <param name="mode">What the form does.</param>
-    /// <returns>A task that completes when it is stored.</returns>
-    private Task StoreAsync(ICase openCase, GraphScene scene, AreaFormMode mode)
+    /// <returns><see langword="false"/> when the area is gone already.</returns>
+    private async Task<bool> StoreAsync(ICase openCase, GraphScene scene, AreaFormMode mode)
     {
         var note = string.IsNullOrWhiteSpace(FormNote) ? null : FormNote.Trim();
-        return mode switch
+        switch (mode)
         {
-            AreaFormMode.Create => _source.AddAreaAsync(openCase, new OwnAreaDraft(
-                FormName.Trim(), FormSort, FormTint, FormSameActor, note, GraphAreas.MembersOf(scene, _picked))),
-            AreaFormMode.Rename when _formArea is { } area => _source.RenameAreaAsync(openCase, area.Id, FormName.Trim()),
-            AreaFormMode.Remove when _formArea is { } area => _source.RemoveAreaAsync(openCase, area.Id, note),
-            _ => Task.CompletedTask,
-        };
+            case AreaFormMode.Create:
+                await _source.AddAreaAsync(openCase, new OwnAreaDraft(
+                    FormName.Trim(), FormSort, FormTint, FormSameActor, note, GraphAreas.MembersOf(scene, _picked)));
+                return true;
+            case AreaFormMode.Rename when _formArea is { } area:
+                return await _source.RenameAreaAsync(openCase, area.Id, FormName.Trim()) is not null;
+            case AreaFormMode.Remove when _formArea is { } area:
+                return await _source.RemoveAreaAsync(openCase, area.Id, note);
+            default:
+                return false;
+        }
     }
 
     /// <summary>Opens the form about an own area.</summary>
@@ -838,7 +868,7 @@ public sealed partial class ChecksViewModel : ObservableObject
             ];
         }
 
-        return [.. AllAreas.Where(area => _shown.Contains(area.Sort))];
+        return GraphAreas.Fill(AllAreas.Where(area => _shown.Contains(area.Sort)));
     }
 
     /// <summary>Works out the dashed lines to the candidates of the suggestions whose areas are drawn.</summary>

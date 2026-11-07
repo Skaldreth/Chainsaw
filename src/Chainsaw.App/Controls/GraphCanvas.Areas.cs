@@ -74,13 +74,15 @@ public sealed partial class GraphCanvas
 
     /// <summary>Draws the dashed lines to a mixer's candidates, with the score on each.</summary>
     /// <param name="dc">Where to draw.</param>
-    private void DrawCandidates(DrawingContext dc)
+    /// <param name="visible">The visible part of the surface.</param>
+    private void DrawCandidates(DrawingContext dc, GraphRect visible)
     {
         var model = _model!;
         var accent = GraphPalette.Find(this, "Brush.Accent");
         foreach (var line in model.Checks.CandidateLines)
         {
-            if (!model.Places.TryGetValue(line.From, out var from) || !model.Places.TryGetValue(line.To, out var to))
+            if (!model.Places.TryGetValue(line.From, out var from) || !model.Places.TryGetValue(line.To, out var to)
+                || !GraphSizes.NodeFrame(from).Union(GraphSizes.NodeFrame(to)).Intersects(visible))
             {
                 continue;
             }

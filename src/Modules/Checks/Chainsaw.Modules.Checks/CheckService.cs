@@ -59,30 +59,31 @@ internal sealed class CheckService : ICheckService
         var input = InputOf(@case, graph);
         var problems = new List<string>();
         var found = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding, string Content)>();
+        var (results, decisions) = @case.Read(
+            reader => (CheckStore.ReadResults(reader), CheckStore.ReadDecisions(reader)));
         foreach (var analysis in _analyses)
         {
-            IReadOnlyList<CheckFinding> findings;
             try
             {
-                findings = analysis.Run(input);
+                var mine = new List<(ICheckAnalysis, ResultKey, CheckFinding, string)>();
+                foreach (var finding in analysis.Run(input).DistinctBy(finding => finding.Key, StringComparer.Ordinal))
+                {
+                    var key = new ResultKey(analysis.Id.Name, analysis.Id.Version, finding.Key);
+                    var kept = KeepCandidates(finding, decisions.GetValueOrDefault(key) ?? []);
+                    mine.Add((analysis, key, kept, FindingCodec.Encode(kept)));
+                }
+
+                found.AddRange(mine);
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
-                // One analysis that fails must not keep the others' findings from being sealed and shown.
+                // One analysis that fails, or gives a finding that cannot be sealed, must not keep the others'
+                // findings from being sealed and shown.
                 problems.Add(string.Format(CultureInfo.InvariantCulture, FailedText, analysis.Id));
-                continue;
-            }
-
-            foreach (var finding in findings.DistinctBy(finding => finding.Key, StringComparer.Ordinal))
-            {
-                var key = new ResultKey(analysis.Id.Name, analysis.Id.Version, finding.Key);
-                found.Add((analysis, key, finding, FindingCodec.Encode(finding)));
             }
         }
 
         var sealedCount = 0;
-        var (results, decisions) = @case.Read(
-            reader => (CheckStore.ReadResults(reader), CheckStore.ReadDecisions(reader)));
         if (found.Any(item => !Same(results, item.Key, item.Content)))
         {
             (results, sealedCount) = @case.Write(transaction => SealNew(transaction, found, input));
@@ -307,6 +308,44 @@ internal sealed class CheckService : ICheckService
         return (results, fresh.Count);
     }
 
+    /// <summary>
+    /// Keeps a suggestion's candidates the way the list shows them: every candidate the user has decided, so that a
+    /// decision never disappears with a better candidate, and the best of the rest up to
+    /// <see cref="CheckRules.MostWaitingCandidates"/>, so that a dismissed candidate frees its place. What only the
+    /// dropped candidates rested on leaves the area and the basis.
+    /// </summary>
+    /// <param name="finding">What the analysis found, with all its candidates.</param>
+    /// <param name="decisions">The decisions about it in this version.</param>
+    /// <returns>The finding with the candidates kept, best first.</returns>
+    internal static CheckFinding KeepCandidates(CheckFinding finding, IReadOnlyList<CheckDecision> decisions)
+    {
+        if (finding.Candidates.Count == 0)
+        {
+            return finding;
+        }
+
+        var decided = decisions
+            .Select(decision => decision.CandidateKey)
+            .OfType<string>()
+            .ToHashSet(StringComparer.Ordinal);
+        var waiting = finding.Candidates.Where(c => !decided.Contains(c.Key)).Take(CheckRules.MostWaitingCandidates);
+        var kept = finding.Candidates
+            .Where(c => decided.Contains(c.Key))
+            .Concat(waiting)
+            .OrderByDescending(c => c.Score)
+            .ThenBy(c => c.Key, StringComparer.Ordinal)
+            .ToList();
+        var dropped = finding.Candidates.Except(kept).ToList();
+        var droppedAddresses = dropped.Select(c => c.Address).Except(kept.Select(c => c.Address)).ToHashSet();
+        var droppedTxids = dropped.Select(c => c.Txid).Except(kept.Select(c => c.Txid)).ToHashSet();
+        return finding with
+        {
+            Addresses = [.. finding.Addresses.Where((a, index) => index == 0 || !droppedAddresses.Contains(a))],
+            Basis = [.. finding.Basis.Where((b, index) => index == 0 || !droppedTxids.Contains(b.Txid))],
+            Candidates = kept,
+        };
+    }
+
     /// <summary>Says whether a finding is sealed as it is now.</summary>
     /// <param name="results">The latest records.</param>
     /// <param name="key">The finding's key.</param>
@@ -325,7 +364,8 @@ internal sealed class CheckService : ICheckService
         var distinct = (members ?? []).Distinct(StringComparer.Ordinal).ToList();
         if (distinct.Count == 0 || distinct.Count > CheckRules.MaximumMembers)
         {
-            throw new ArgumentException("An own area holds at least one actor and not too many.", parameter);
+            throw new ArgumentException(
+                $"En egen yta har minst en och högst {CheckRules.MaximumMembers} adresser.", parameter);
         }
 
         foreach (var member in distinct)
@@ -336,7 +376,7 @@ internal sealed class CheckService : ICheckService
                     && Txid.TryParse(member[CheckRules.TransactionMember.Length..], out _);
             if (!valid)
             {
-                throw new ArgumentException("An own area's actor is an address or a txid.", parameter);
+                throw new ArgumentException("En egen yta håller adresser och tx, inget annat.", parameter);
             }
         }
 
@@ -350,7 +390,7 @@ internal sealed class CheckService : ICheckService
     /// <returns>The text, trimmed.</returns>
     /// <exception cref="ArgumentException">It is empty, too long or has control characters.</exception>
     private static string Required(string? text, int maximum, string parameter) =>
-        Optional(text, maximum, parameter) ?? throw new ArgumentException("The text is required.", parameter);
+        Optional(text, maximum, parameter) ?? throw new ArgumentException("Texten behövs.", parameter);
 
     /// <summary>Checks an optional text.</summary>
     /// <param name="text">The text.</param>
@@ -368,7 +408,8 @@ internal sealed class CheckService : ICheckService
 
         if (trimmed.Length > maximum || trimmed.Any(c => char.IsControl(c) && c is not '\n' and not '\r'))
         {
-            throw new ArgumentException("The text is too long or has control characters.", parameter);
+            throw new ArgumentException(
+                $"Texten är för lång (högst {maximum} tecken) eller har otillåtna tecken.", parameter);
         }
 
         return trimmed;

@@ -72,8 +72,11 @@ public static class CheckRules
     /// <summary>The longest note or reason.</summary>
     public const int MaximumTextLength = 1_000;
 
-    /// <summary>The most actors an own area holds.</summary>
-    public const int MaximumMembers = 500;
+    /// <summary>The most addresses and transactions an own area holds; a cluster brings all its addresses.</summary>
+    public const int MaximumMembers = 10_000;
+
+    /// <summary>The most candidates of a suggestion that wait at once; the decided ones are kept besides.</summary>
+    public const int MostWaitingCandidates = 5;
 
     /// <summary>The prefix of an address member.</summary>
     public const string AddressMember = "address:";

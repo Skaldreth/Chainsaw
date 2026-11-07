@@ -111,14 +111,19 @@ public sealed class MixerOutputsTests
     }
 
     [Fact]
-    public void At_most_five_candidates_are_kept()
+    public void The_analysis_gives_every_candidate_and_leaves_the_cut_to_the_service()
     {
-        var payouts = Enumerable.Range(1, 8)
-            .Select(i => Mixing.Payout($"many-{i}", Wpkh($"many-out-{i}"), 14_600_000 - (i * 10_000), 2 + i));
+        var finding = Assert.Single(Run([Mixing.Deposit(), .. Mixing.Many(8)]));
 
-        var finding = Assert.Single(Run([Mixing.Deposit(), .. payouts]));
+        Assert.Equal(8, finding.Candidates.Count);
+    }
 
-        Assert.Equal(MixerOutputsCheck.MostCandidates, finding.Candidates.Count);
+    [Fact]
+    public void A_deposit_of_nothing_gives_no_candidate_and_no_failure()
+    {
+        var empty = Tx("empty", Mixing.DepositHeight).In(Mixing.Victim, 10_000).Out(Mixing.Mixer, 0).Build();
+
+        Assert.Empty(Run([empty, Mixing.Best()]));
     }
 
     [Theory]
