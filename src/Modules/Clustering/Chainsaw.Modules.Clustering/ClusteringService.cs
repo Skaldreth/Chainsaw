@@ -127,7 +127,61 @@ internal sealed class ClusteringService : IClusteringService
     /// <inheritdoc/>
     public ClusterSplit Split(ICase @case, SplitRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        return Split(@case, [request])[0];
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<ClusterSplit> Split(ICase @case, IReadOnlyList<SplitRequest> requests)
+    {
         ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(requests);
+        if (requests.Count == 0)
+        {
+            throw new ArgumentException("A breaking out has at least one split.", nameof(requests));
+        }
+
+        foreach (var request in requests)
+        {
+            CheckRequest(request);
+        }
+
+        return @case.Write(transaction =>
+        {
+            var journal = transaction.AppendJournal(new JournalDraft(
+                ClusteringJournalKinds.Split,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Uppbrytning: {0}.",
+                    string.Join(
+                        "; ",
+                        requests.Select(request => string.Format(
+                            CultureInfo.InvariantCulture,
+                            "{0} och {1} har inte samma ägare ({2})",
+                            request.First.Value,
+                            request.Second.Value,
+                            request.Heuristic)))),
+                JsonSerializer.Serialize(requests.Select(request => new
+                {
+                    first = request.First.Value,
+                    second = request.Second.Value,
+                    heuristic = request.Heuristic,
+                    reason = request.Reason,
+                }))));
+            return (IReadOnlyList<ClusterSplit>)
+            [
+                .. requests.Select(request => EvidenceStore.AppendSplit(transaction, request, journal)),
+            ];
+        });
+    }
+
+    /// <summary>Checks a split before anything is stored.</summary>
+    /// <param name="request">The split.</param>
+    /// <exception cref="ArgumentException">
+    /// The addresses are the same, the heuristic is not one that runs, or the reason is empty or too long.
+    /// </exception>
+    private void CheckRequest(SplitRequest request)
+    {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.First);
         ArgumentNullException.ThrowIfNull(request.Second);
@@ -145,26 +199,6 @@ internal sealed class ClusteringService : IClusteringService
         {
             throw new ArgumentException("A split needs a reason of at most 1 000 characters.", nameof(request));
         }
-
-        return @case.Write(transaction =>
-        {
-            var journal = transaction.AppendJournal(new JournalDraft(
-                ClusteringJournalKinds.Split,
-                string.Format(
-                    CultureInfo.InvariantCulture,
-                    "Uppbrytning: {0} och {1} har inte samma ägare ({2}).",
-                    request.First.Value,
-                    request.Second.Value,
-                    request.Heuristic),
-                JsonSerializer.Serialize(new
-                {
-                    first = request.First.Value,
-                    second = request.Second.Value,
-                    heuristic = request.Heuristic,
-                    reason = request.Reason,
-                })));
-            return EvidenceStore.AppendSplit(transaction, request, journal);
-        });
     }
 
     /// <inheritdoc/>

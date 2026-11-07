@@ -109,15 +109,18 @@ public sealed class InspectorHistoryTests
     }
 
     /// <summary>
-    /// The splits of one breaking out are one row with Ångra and all their sequences; an undone breaking out is struck
-    /// through, and its undoing is a row of its own.
+    /// The splits of one breaking out (one journal entry) are one row with Ångra and all their sequences, whatever
+    /// their heuristics; an undone breaking out is struck through, keeps its count, and its undoing is a row.
     /// </summary>
     [Fact]
     public void ABreakingOutIsOneRowAndItsUndoingAnother()
     {
-        var first = Split(1, GraphSamples.K1, GraphSamples.Address(20), Morning, 5);
-        var second = Split(2, GraphSamples.K2, GraphSamples.Address(20), Morning.AddSeconds(2), 6);
-        var later = Split(3, GraphSamples.K1, GraphSamples.Address(21), Morning.AddHours(1), 7);
+        var first = Split(1, GraphSamples.Address(20), GraphSamples.K1, Morning, 5);
+        var second = Split(2, GraphSamples.Address(20), GraphSamples.K2, Morning, 5) with
+        {
+            Heuristic = HeuristicNames.CommonInputOwnership,
+        };
+        var later = Split(3, GraphSamples.Address(21), GraphSamples.K1, Morning.AddHours(1), 7);
         var undo = new ClusterSplitUndo(4, 3, null, 8, Morning.AddHours(2));
         var data = Data(
             splits: [new(first, null), new(second, null), new(later, undo)],
@@ -129,26 +132,43 @@ public sealed class InspectorHistoryTests
             ["Uppbruten · 1 ut", "Uppbruten · 1 ut", "Ångrad: uppbrytningen"], rows.Select(row => row.Text));
         Assert.Equal([1L, 2L], rows[0].SplitSequences);
         Assert.Equal(NodeHistory.UndoText, rows[0].UndoText);
-        Assert.Equal("Max · change-address", rows[0].Sub);
+        Assert.Equal("Max · Växel, CIO", rows[0].Sub);
         Assert.True(rows[1].IsWithdrawn);
         Assert.False(rows[1].CanUndo);
         Assert.Equal("Kim", rows[2].Sub);
     }
 
-    /// <summary>Splits far apart in time, or with another reason, are separate decisions.</summary>
+    /// <summary>A breaking out reads the same from the address that went out, before and after an undo.</summary>
     [Fact]
-    public void SplitsFarApartAreSeparateBreakingsOut()
+    public void ABreakingOutReadsTheSameFromItsOtherSide()
     {
-        var first = Split(1, GraphSamples.K1, GraphSamples.Address(20), Morning, 5);
-        var late = Split(2, GraphSamples.K1, GraphSamples.Address(21), Morning.AddMinutes(5), 6);
-        var other = Split(3, GraphSamples.K1, GraphSamples.Address(22), Morning.AddMinutes(5).AddSeconds(1), 7) with
-        {
-            Reason = "Annat skäl",
-        };
+        var first = Split(1, GraphSamples.U, GraphSamples.K1, Morning, 5);
+        var second = Split(2, GraphSamples.U, GraphSamples.K2, Morning, 5);
+        var undo = new ClusterSplitUndo(3, 1, "Fel", 6, Morning.AddHours(1));
 
-        var groups = NodeHistory.BreakingsOut([new(first, null), new(late, null), new(other, null)]);
+        var before = NodeHistory.Build(
+            GraphSamples.Scene(), Node(GraphSamples.UKey), Data(splits: [new(first, null), new(second, null)]));
+        var after = NodeHistory.Build(
+            GraphSamples.Scene(), Node(GraphSamples.UKey),
+            Data(splits: [new(first, undo), new(second, undo with { Sequence = 4, SplitSequence = 2 })]));
 
-        Assert.Equal(3, groups.Count);
+        Assert.Equal("Uppbruten · 1 ut", Assert.Single(before).Text);
+        Assert.Equal("Uppbruten · 1 ut", after[0].Text);
+        Assert.True(after[0].IsWithdrawn);
+        Assert.Equal("Ångrad: uppbrytningen", Assert.Single(after, row => row.Kind == HistoryKind.Withdrawal).Text);
+    }
+
+    /// <summary>Splits stored under different journal entries are separate breakings out.</summary>
+    [Fact]
+    public void SplitsUnderDifferentJournalEntriesAreSeparate()
+    {
+        var first = Split(1, GraphSamples.Address(20), GraphSamples.K1, Morning, 5);
+        var second = Split(2, GraphSamples.Address(21), GraphSamples.K1, Morning, 6);
+        var third = Split(3, GraphSamples.Address(22), GraphSamples.K1, Morning, 6);
+
+        var groups = NodeHistory.BreakingsOut([new(third, null), new(first, null), new(second, null)]);
+
+        Assert.Equal([[1L], [2L, 3L]], groups.Select(group => group.Select(entry => entry.Split.Sequence).ToList()));
     }
 
     /// <summary>
@@ -269,8 +289,8 @@ public sealed class InspectorHistoryTests
         var rig = new Rig();
         rig.Editor.History = Data(splits:
         [
-            new(Split(1, GraphSamples.K1, GraphSamples.Address(20), Morning, 5), null),
-            new(Split(2, GraphSamples.K2, GraphSamples.Address(20), Morning, 6), null),
+            new(Split(1, GraphSamples.Address(20), GraphSamples.K1, Morning, 5), null),
+            new(Split(2, GraphSamples.Address(20), GraphSamples.K2, Morning, 5), null),
         ]);
         var link = InspectorFormsTests.SampleCluster().Links[0];
         rig.Editor.Preview = new UndoSplitPreview(
@@ -292,6 +312,39 @@ public sealed class InspectorHistoryTests
         await rig.History.SubmitCommand.ExecuteAsync(null);
 
         Assert.Equal(("split", "1,2", (string?)null), Assert.Single(rig.Editor.Undone));
+    }
+
+    /// <summary>
+    /// A large cluster's confirmation lists the first addresses and counts the rest; reading the graph again keeps the
+    /// open form and its reason and reads the confirmation again.
+    /// </summary>
+    [Fact]
+    public void ALongConfirmationIsCountedAndARefreshKeepsTheForm()
+    {
+        var rig = new Rig();
+        var split = Split(1, GraphSamples.Address(20), GraphSamples.K1, Morning, 5);
+        rig.Editor.History = Data(splits: [new(split, null)]);
+        var link = InspectorFormsTests.SampleCluster().Links[0];
+        rig.Editor.Preview = new UndoSplitPreview(
+            [split],
+            [.. Enumerable.Range(30, 15)
+                .Select(i => new ClusterMember(GraphSamples.Address(i), link, GraphSamples.K1))],
+            [link.Evidence.Heuristic]);
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        rig.History.Toggle(rig.History.Rows[0]);
+
+        Assert.Equal(InspectorHistoryViewModel.MostRejoinRows, rig.History.Rejoined.Count);
+        Assert.Equal("+3 till", rig.History.RejoinMore);
+
+        rig.History.Reason = "Fel av mig";
+        rig.Editor.Preview = new UndoSplitPreview([split], [], []);
+        rig.Graph.Choose(GraphSamples.KKey, null);
+
+        Assert.True(rig.History.IsSplitOpen);
+        Assert.Equal("Fel av mig", rig.History.Reason);
+        Assert.Empty(rig.History.Rejoined);
+        Assert.Equal(string.Empty, rig.History.RejoinMore);
+        Assert.Equal(InspectorHistoryViewModel.NothingRejoinsText, rig.History.RejoinNotice);
     }
 
     /// <summary>When nothing would merge again, or the splits are already undone, the confirmation says so.</summary>

@@ -28,8 +28,8 @@ public interface IGraphEditor
     Task AddLabelAsync(ICase @case, LabelDraft draft);
 
     /// <summary>
-    /// Stores the user's splits one after the other, each sealed with a line in the journal, and stops at the first
-    /// that fails; those stored before it hold, since each is a decision of its own.
+    /// Stores the splits of one breaking out, all or none, each sealed, under one line in the journal, so that the
+    /// history can show and undo them as one (sketch AN1b).
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="splits">The splits.</param>
@@ -142,22 +142,20 @@ public sealed class GraphEditor(
         ArgumentNullException.ThrowIfNull(splits);
         return Task.Run(() =>
         {
-            var stored = 0;
-            foreach (var split in splits)
+            if (splits.Count == 0)
             {
-                try
-                {
-                    clustering.Split(@case, split);
-                }
-                catch (Exception exception) when (exception is not OutOfMemoryException)
-                {
-                    return new SplitOutcome(stored, exception);
-                }
-
-                stored++;
+                return new SplitOutcome(0, null);
             }
 
-            return new SplitOutcome(stored, null);
+            try
+            {
+                // One breaking out is one decision: all its splits under one journal entry, undone as one.
+                return new SplitOutcome(clustering.Split(@case, splits).Count, null);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                return new SplitOutcome(0, exception);
+            }
         });
     }
 
@@ -186,7 +184,7 @@ public sealed class GraphEditor(
                     ? node.GraphAddresses
                     : [.. cluster.Addresses.Union(node.GraphAddresses)];
                 var labels = attribution.GetHistory(@case, addresses);
-                var splits = clustering.GetSplitHistory(@case, addresses);
+                var splits = WholeBreakingsOut(@case, clustering.GetSplitHistory(@case, addresses));
                 var links = tracing.GetCrossChainHistory(@case);
                 cancellationToken.ThrowIfCancellationRequested();
                 var operators = new Dictionary<long, string>();
@@ -250,5 +248,28 @@ public sealed class GraphEditor(
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(link);
         return Task.Run(() => new UndoOutcome(tracing.UnlinkCrossChain(@case, link, reason)));
+    }
+
+    /// <summary>
+    /// Widens the splits that touch a node to the whole breakings out they belong to (the splits stored under the same
+    /// journal entry), so that a breaking out is shown and undone as one from any of its addresses.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="touching">The splits that touch the node.</param>
+    /// <returns>Every split of those breakings out, oldest first.</returns>
+    private IReadOnlyList<SplitHistoryEntry> WholeBreakingsOut(ICase @case, IReadOnlyList<SplitHistoryEntry> touching)
+    {
+        if (touching.Count == 0)
+        {
+            return touching;
+        }
+
+        var journals = touching.Select(entry => entry.Split.JournalSequence).ToHashSet();
+        var addresses = touching.SelectMany(entry => new[] { entry.Split.First, entry.Split.Second }).ToHashSet();
+        return
+        [
+            .. clustering.GetSplitHistory(@case, addresses)
+                .Where(entry => journals.Contains(entry.Split.JournalSequence)),
+        ];
     }
 }

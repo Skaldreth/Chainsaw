@@ -169,12 +169,6 @@ public static class NodeHistory
     /// <summary>Who wrote a journal entry the case could not name.</summary>
     public const string UnknownOperator = "Okänd";
 
-    /// <summary>
-    /// How far apart in time the splits of one breaking out may be stored: the inspector stores them one after the
-    /// other, so splits further apart are separate decisions.
-    /// </summary>
-    public static readonly TimeSpan SameBreakingOut = TimeSpan.FromMinutes(1);
-
     /// <summary>The months as the rows write them, in Swedish, whatever the computer's language.</summary>
     private static readonly string[] Months =
         ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
@@ -213,7 +207,7 @@ public static class NodeHistory
         AddFirstReceived(scene, node, rows);
         AddClustered(data, rows);
         AddLabels(data, rows);
-        AddSplits(node, data, rows);
+        AddSplits(data, rows);
         AddLinks(scene, node, data, rows);
 
         // In time order; what happened at the same moment keeps the order above, a taking back after what it concerns.
@@ -313,27 +307,24 @@ public static class NodeHistory
     /// <summary>
     /// Adds every breaking out, the splits stored together in one row, and every undoing of one.
     /// </summary>
-    /// <param name="node">The node.</param>
     /// <param name="data">What the modules read.</param>
     /// <param name="rows">The rows.</param>
-    private static void AddSplits(NodeView node, NodeHistoryData data, List<HistoryEvent> rows)
+    private static void AddSplits(NodeHistoryData data, List<HistoryEvent> rows)
     {
-        var members = data.Cluster?.Addresses.ToHashSet() ?? [.. node.Node.GraphAddresses];
         foreach (var group in BreakingsOut(data.Splits))
         {
             var first = group[0];
             var key = "split/" + first.Split.Sequence.ToString(CultureInfo.InvariantCulture);
             var undone = group.All(entry => entry.IsUndone);
-            var outside = group.SelectMany(entry => new[] { entry.Split.First, entry.Split.Second })
-                .Where(address => !members.Contains(address))
-                .Distinct()
-                .Count();
-            var count = outside > 0 ? outside : group.Count;
-            var heuristic = string.Join(", ", group.Select(entry => entry.Split.Heuristic).Distinct());
+
+            // The first address of each split is the one that went out (InspectorForms.BreakOut), so the count is
+            // the same from any node and before and after an undoing.
+            var count = group.Select(entry => entry.Split.First).Distinct().Count();
+            var heuristics = string.Join(", ", group.Select(entry => ShortName(entry.Split.Heuristic)).Distinct());
             rows.Add(new HistoryEvent(
                 key, HistoryKind.Split, first.Split.RecordedUtc,
                 string.Create(CultureInfo.InvariantCulture, $"Uppbruten · {count} ut"),
-                $"{Who(data, first.Split.JournalSequence)} · {heuristic}", "Icon.Split", GraphInk.Cluster,
+                $"{Who(data, first.Split.JournalSequence)} · {heuristics}", "Icon.Split", GraphInk.Cluster,
                 IsDashed: false, IsFact: false, undone, HistoryUndo.UndoSplit)
             {
                 SplitSequences = [.. group.Where(entry => !entry.IsUndone).Select(entry => entry.Split.Sequence)],
@@ -348,33 +339,29 @@ public static class NodeHistory
     }
 
     /// <summary>
-    /// Groups the splits stored one after the other by one breaking out: the same heuristic and reason, consecutive,
-    /// and close in time. A split undone on its own starts a group of its own.
+    /// Groups the splits by breaking out: the splits stored under one journal entry are one decision
+    /// (<see cref="IClusteringService.Split(Modules.Cases.Contracts.ICase, IReadOnlyList{SplitRequest})"/>).
     /// </summary>
-    /// <param name="splits">The splits, oldest first.</param>
-    /// <returns>The groups.</returns>
+    /// <param name="splits">The splits.</param>
+    /// <returns>The groups, oldest first, each in sequence order.</returns>
     public static IReadOnlyList<IReadOnlyList<SplitHistoryEntry>> BreakingsOut(IReadOnlyList<SplitHistoryEntry> splits)
     {
         ArgumentNullException.ThrowIfNull(splits);
-        var groups = new List<List<SplitHistoryEntry>>();
-        foreach (var entry in splits.OrderBy(entry => entry.Split.Sequence))
-        {
-            var last = groups.Count > 0 ? groups[^1][^1] : null;
-            if (last is not null
-                && last.Split.Heuristic == entry.Split.Heuristic
-                && last.Split.Reason == entry.Split.Reason
-                && entry.Split.RecordedUtc - last.Split.RecordedUtc <= SameBreakingOut
-                && last.Undo?.JournalSequence == entry.Undo?.JournalSequence)
-            {
-                groups[^1].Add(entry);
-            }
-            else
-            {
-                groups.Add([entry]);
-            }
-        }
+        return
+        [
+            .. splits.OrderBy(entry => entry.Split.Sequence)
+                .GroupBy(entry => entry.Split.JournalSequence)
+                .Select(group => (IReadOnlyList<SplitHistoryEntry>)[.. group]),
+        ];
+    }
 
-        return groups;
+    /// <summary>Gives a heuristic's short name without its version, as the history writes it.</summary>
+    /// <param name="name">The heuristic's name.</param>
+    /// <returns>For example <c>CIO</c> or <c>Växel</c>.</returns>
+    private static string ShortName(string name)
+    {
+        var shortName = InspectorForms.ShortName(new HeuristicId(name, 1));
+        return shortName[..shortName.LastIndexOf(" v", StringComparison.Ordinal)];
     }
 
     /// <summary>

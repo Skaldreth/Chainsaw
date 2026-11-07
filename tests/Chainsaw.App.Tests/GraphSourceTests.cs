@@ -80,6 +80,9 @@ internal sealed class TestClustering : IClusteringService
 
     public ClusterSplit Split(ICase @case, SplitRequest request) => throw new NotSupportedException();
 
+    public IReadOnlyList<ClusterSplit> Split(ICase @case, IReadOnlyList<SplitRequest> requests) =>
+        throw new NotSupportedException();
+
     public int UndoSplits(ICase @case, IReadOnlyCollection<long> splitSequences, string? reason) =>
         throw new NotSupportedException();
 

@@ -47,6 +47,23 @@ public interface IClusteringService
     ClusterSplit Split(ICase @case, SplitRequest request);
 
     /// <summary>
+    /// Stores the splits of one breaking out, all or none, each sealed, under one journal entry, so that the breaking
+    /// out can be told apart and undone as one (sketch AN1b).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="requests">The splits; at least one.</param>
+    /// <returns>
+    /// The stored splits, in the order given; they share their <see cref="ClusterSplit.JournalSequence"/>.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// There is no split, or one is not valid (see <see cref="Split(ICase, SplitRequest)"/>).
+    /// </exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    IReadOnlyList<ClusterSplit> Split(ICase @case, IReadOnlyList<SplitRequest> requests);
+
+    /// <summary>
     /// Undoes splits (sketch AN1b), all or none: a new sealed record per split, under one journal entry, says that it
     /// no longer holds, and the heuristics may merge the addresses again from now on. Nothing is removed; the splits
     /// stay readable in <see cref="GetSplitHistory"/>. An undone split cannot be undone again; the addresses are split

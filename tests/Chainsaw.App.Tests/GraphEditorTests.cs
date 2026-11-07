@@ -51,4 +51,17 @@ public sealed class GraphEditorTests
         Assert.False(outcome.Done);
         Assert.Empty(_library.Absorbed);
     }
+
+    /// <summary>A breaking out is stored as one; when the case refuses it, nothing is stored.</summary>
+    [Fact]
+    public async Task ABreakingOutIsStoredAsOne()
+    {
+        var failure = await Editor.SplitAsync(
+            _case,
+            [new Modules.Clustering.Contracts.SplitRequest(GraphSamples.K1, GraphSamples.K2, "change-address", "Två")]);
+
+        Assert.Equal(0, failure.Stored);
+        Assert.IsType<NotSupportedException>(failure.Failure);
+        Assert.Equal(new SplitOutcome(0, null), await Editor.SplitAsync(_case, []));
+    }
 }

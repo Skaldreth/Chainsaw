@@ -134,6 +134,8 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
+                                        <TextBlock Text="{Binding RejoinMore}" Style="{StaticResource Text.Notice}"
+                                                   Margin="19,2,0,0" FontSize="11" />
                                     </StackPanel>
 
                                     <DockPanel Margin="0,12,0,5">

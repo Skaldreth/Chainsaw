@@ -137,6 +137,44 @@ public sealed class UndoSplitTests : IDisposable
     }
 
     [Fact]
+    public void A_breaking_out_is_stored_as_one_under_one_journal_line_and_undone_as_one()
+    {
+        var before = _harness.Case.ReadJournal().Count;
+
+        var splits = _harness.Service.Split(
+            _harness.Case,
+            [
+                new SplitRequest(Wpkh("payer-change"), Wpkh("payer-1"), HeuristicNames.ChangeAddress, "Annan ägare."),
+                new SplitRequest(
+                    Wpkh("payer-change"), Wpkh("payer-2"), HeuristicNames.CommonInputOwnership, "Annan ägare."),
+            ]);
+
+        Assert.Equal(before + 1, _harness.Case.ReadJournal().Count);
+        Assert.Single(splits.Select(split => split.JournalSequence).Distinct());
+        AssertMembers(_harness.ClusterOf(Wpkh("payer-1")), "payer-1", "payer-2");
+        var preview = _harness.Service.PreviewUndoSplits(
+            _harness.Case, [.. splits.Select(split => split.Sequence)], Wpkh("payer-1"));
+        Assert.Equal(Wpkh("payer-change"), Assert.Single(preview!.Rejoined).Address);
+        Assert.Equal(2, _harness.Service.UndoSplits(_harness.Case, [.. splits.Select(split => split.Sequence)], null));
+        AssertMembers(_harness.ClusterOf(Wpkh("payer-1")), "payer-1", "payer-2", "payer-change");
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public void A_breaking_out_with_one_bad_split_stores_nothing()
+    {
+        Assert.Throws<ArgumentException>(() => _harness.Service.Split(
+            _harness.Case,
+            [
+                new SplitRequest(Wpkh("payer-change"), Wpkh("payer-1"), HeuristicNames.ChangeAddress, "Skäl."),
+                new SplitRequest(Wpkh("payer-change"), Wpkh("payer-change"), HeuristicNames.ChangeAddress, "Skäl."),
+            ]));
+        Assert.Throws<ArgumentException>(() => _harness.Service.Split(_harness.Case, []));
+
+        Assert.Equal(0, _harness.Count("clustering_splits"));
+    }
+
+    [Fact]
     public void The_splits_of_one_breaking_out_are_undone_together_under_one_journal_line()
     {
         var first = Split();

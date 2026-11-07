@@ -60,6 +60,12 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     public const string NothingRejoinsText =
         "Inget slås ihop igen just nu: ingen heuristik binder dem, eller en annan uppbrytning håller dem isär.";
 
+    /// <summary>
+    /// The most addresses the confirmation lists; the rest are counted, so that a large cluster does not fill the
+    /// inspector (principle 7).
+    /// </summary>
+    public const int MostRejoinRows = 12;
+
     /// <summary>What the form says when the row was already taken back, for example in another window.</summary>
     public const string AlreadyText = "Det var redan tillbakataget; historiken läses om.";
 
@@ -159,6 +165,10 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     /// <summary>Gets what the confirmation says while it reads, when it failed or when nothing merges again.</summary>
     [ObservableProperty]
     public partial string RejoinNotice { get; private set; } = string.Empty;
+
+    /// <summary>Gets how many more addresses merge again than are listed (<c>+40 till</c>), or empty.</summary>
+    [ObservableProperty]
+    public partial string RejoinMore { get; private set; } = string.Empty;
 
     /// <summary>Gets the heuristics that merge again, as the confirmation's heading writes them.</summary>
     [ObservableProperty]
@@ -337,6 +347,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         Rejoined.Clear();
         RejoinNotice = string.Empty;
         RejoinHeuristics = string.Empty;
+        RejoinMore = string.Empty;
         _previewRead = false;
         Error = string.Empty;
     }
@@ -383,9 +394,8 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     {
         var openKey = OpenRow?.Event.Key;
         var reopen = events.FirstOrDefault(found => found.Key == openKey && found.CanUndo);
-        if (openKey is not null && (reopen is null || reopen.Undo == HistoryUndo.UndoSplit))
+        if (openKey is not null && reopen is null)
         {
-            // A breaking out read again may have other splits in force; its confirmation is read again from scratch.
             Close();
         }
 
@@ -404,6 +414,15 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
 
         CountText = events.Count.ToString(CultureInfo.InvariantCulture);
         Notice = events.Count == 0 ? EmptyText : string.Empty;
+
+        // A breaking out read again may have other splits in force: its confirmation is read again, the reason kept.
+        if (OpenRow is { Event.Undo: HistoryUndo.UndoSplit } open)
+        {
+            _opened++;
+            _previewRead = false;
+            OnPropertyChanged(nameof(CanSubmit));
+            _ = PreviewAsync(open.Event, _opened);
+        }
     }
 
     /// <summary>Reads what undoing a breaking out merges again, for the confirmation.</summary>
@@ -444,16 +463,20 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     private void ShowPreview(UndoSplitPreview? preview)
     {
         Rejoined.Clear();
+        RejoinMore = string.Empty;
         if (preview is not { IsInForce: true })
         {
             RejoinNotice = AlreadyText;
             return;
         }
 
-        foreach (var member in preview.Rejoined)
+        foreach (var member in preview.Rejoined.Take(MostRejoinRows))
         {
             Rejoined.Add(RowOf(member));
         }
+
+        var more = preview.Rejoined.Count - MostRejoinRows;
+        RejoinMore = more > 0 ? string.Create(CultureInfo.InvariantCulture, $"+{more} till") : string.Empty;
 
         RejoinHeuristics = string.Join(", ", preview.Heuristics.Select(InspectorForms.ShortName));
         RejoinNotice = preview.Rejoined.Count == 0 ? NothingRejoinsText : string.Empty;
