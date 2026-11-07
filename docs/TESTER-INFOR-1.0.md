@@ -46,3 +46,16 @@ Valvet har inget gränssnitt än; det provas när förstagångsinställningen oc
   och stängs i bakgrunden.
 - Antivirus som låser `.cut` medan den sparas: sparningen misslyckas utan att filen förstörs, och
   arbetskopian tas tillbaka nästa gång ärendet öppnas.
+
+## Utgångarna (etapp 4, Network)
+
+Utgångarna har inget gränssnitt än, och tunneln (Chainsaws eget exemplar av hjälpprogrammet för WireGuard) är inte
+byggd. Det provas när tunneln och inställningarna för utgångar byggs.
+
+- `vault.json` innehåller inget om utgångarna i klartext: inte namnet, platsen, id:t eller WireGuard-filens text.
+- Att ansluta en utgång utan tunnel ger *misslyckades* (tunneln finns inte), och ett uppslag ger *Ingen utgång är
+  ansluten* utan att något går ut på nätet (kontrollera med Resursövervakaren eller Wireshark att Chainsaw inte öppnar
+  någon anslutning).
+- När tunneln finns: med en ansluten utgång går uppslaget bara till tunnelns SOCKS5-port på `127.0.0.1`, och datorn
+  gör ingen DNS-fråga om källans namn (Wireshark på det vanliga nätkortet visar ingenting från Chainsaw).
+- En proxy i Windows inställningar eller i `HTTPS_PROXY` påverkar inte Chainsaws uppslag.

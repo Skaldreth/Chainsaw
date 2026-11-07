@@ -28,6 +28,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   ha en återställningsnyckel, så att ärendet inte går förlorat om valvet går förlorat och inget delningslösenord finns?
 - **Glömd huvudnyckel:** valvet går inte att återställa (det är meningen). Ska det finnas en återställningsnyckel att
   skriva ut vid förstagångsinställningen, eller räcker det att valvet skapas på nytt och API-nycklarna matas in igen?
+- **Utgången när valvet låses** (etapp 4): en ansluten utgång står kvar när valvet låses, eftersom tunneln bara är en
+  väg ut och inga uppslag görs medan Chainsaw är låst. Ska låsningen också koppla ner utgången?
+- **Bara https** (etapp 4): `IExitHttp` vägrar `http`, så att utgången aldrig ser innehållet. En egen Esplora i ett
+  lokalt nät över `http` går då inte att nå. Räcker det, eller ska `http` tillåtas för en uttryckligen betrodd källa?
 - **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Användaren frågar kryptospåraren vilken som används i praktiken (planerat 2026-11-08).
 
 ## Väntar på skiss
@@ -89,6 +93,19 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   inmatningsmetoder ger samma resultat.
 - **DPAPI för bevakningsprocessen** (CLAUDE.md, *Bevaka*): bevakningens adresser krypteras för Windows-användaren, utanför
   valvet. Byggs med bevakningen.
+
+### Utgångar (Network)
+- **Tunneln:** Chainsaws eget exemplar av hjälpprogrammet för WireGuard (CLAUDE.md, *Säkerhet*), kopplat in bakom
+  `IExitConnector`. Det ska köra WireGuard i användarläge (som wireguard-go med en SOCKS5-port, i stil med wireproxy),
+  lyssna bara på `127.0.0.1`, ta konfigurationen ur valvet utan att skriva den till disk, säga till genom
+  `IExitTunnel.Stopped` när tunneln faller, och skickas med Chainsaw i stället för att hämtas. Tills dess misslyckas
+  varje anslutning ärligt med *TunnelUnavailable*. Välj implementation och granska licensen.
+- **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
+  titelraden (skissas först).
+- **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan
+  valvet. Hur den får konfigurationen (DPAPI för Windows-användaren) bestäms med bevakningen.
+- **Kontroll av utgången:** fråga en källa vilken offentlig adress uppslagen kommer ifrån, så att användaren ser att
+  utgången verkligen används (till exempel när den ansluts).
 
 ### Ärenden
 - **Spara ofta:** ett öppet ärende arbetar i en krypterad arbetskopia och `.cut` skrivs vid sparning och stängning.
