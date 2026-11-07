@@ -54,7 +54,13 @@
                     <ControlTemplate TargetType="Button">
                         <Grid>
                             <Border x:Name="Frame" CornerRadius="10" Background="{StaticResource Brush.Surface}"
-                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.5" />
+                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.5">
+                                <!-- A faint accent glow, so the node the sonar grows from feels lit, not outlined. -->
+                                <Border.Effect>
+                                    <DropShadowEffect Color="{StaticResource Color.Accent}" ShadowDepth="0"
+                                                      BlurRadius="18" Opacity="0.22" />
+                                </Border.Effect>
+                            </Border>
                             <ContentPresenter Margin="10,0,12,0" VerticalAlignment="Center" />
                         </Grid>
                         <ControlTemplate.Triggers>
@@ -145,11 +151,10 @@
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
                         Visibility="{Binding IsFirstTime, Converter={StaticResource Visible}}">
                 <Grid HorizontalAlignment="Center">
-                    <controls:SonarRing Width="248" Height="82" CornerRadius="18" BorderThickness="1.5"
-                                        BorderBrush="{StaticResource Brush.Accent}" />
+                    <controls:SonarRing CornerRadius="10" Stroke="{StaticResource Brush.Accent}" />
                     <ContentControl x:Name="FirstNewCase" Focusable="False" />
                 </Grid>
-                <TextBlock Margin="0,26,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="13.5"
+                <TextBlock Margin="0,40,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="13.5"
                            LineHeight="19" Foreground="{StaticResource Brush.TextMuted}"
                            Text="Ett ärende är en krypterad fil på den här datorn, en per utredning. Allt du hämtar sparas i den, med källa, tid och hash, så att det går att kontrollera i efterhand." />
                 <TextBlock Margin="0,8,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
@@ -182,9 +187,8 @@
                            Text="Där spåret börjar: en adress eller en tx. Den kan lika gärna vara den misstänktes som offrets." />
 
                 <!-- The empty start point: a dashed node with the flag, the field and Enter, with sonar around it. -->
-                <Grid Margin="0,26,0,0" HorizontalAlignment="Center">
-                    <controls:SonarRing x:Name="StartSonar" Width="488" Height="100" CornerRadius="22"
-                                        BorderThickness="1.5" BorderBrush="{StaticResource Brush.Accent}" />
+                <Grid Margin="0,40,0,0" HorizontalAlignment="Center">
+                    <controls:SonarRing x:Name="StartSonar" CornerRadius="12" Stroke="{StaticResource Brush.Accent}" />
                     <Grid Width="460" Height="72">
                         <Rectangle x:Name="StartFrame" RadiusX="12" RadiusY="12" Fill="{StaticResource Brush.Surface}"
                                    Stroke="{StaticResource Brush.Accent}" StrokeThickness="1.5" StrokeDashArray="3 3" />
@@ -239,7 +243,7 @@
                     </Grid>
                 </Grid>
 
-                <ItemsControl Margin="0,22,0,0" HorizontalAlignment="Center" Focusable="False"
+                <ItemsControl Margin="0,36,0,0" HorizontalAlignment="Center" Focusable="False"
                               ItemsSource="{Binding FormsShown}" ItemTemplate="{StaticResource FormChip}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
