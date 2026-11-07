@@ -826,6 +826,7 @@ med lösenord, ändra titeln i ett gränssnitt, sökning i kommandoraden, och pu
 - Omgång 2: inga C, ett I och tre M, rättade: fokus efter Alt+Tab ges till knappen också när Windows lämnat det på
   fönstret, en fil som väljs medan Chainsaw är låst importeras inte, *importeras redan* visas som ett fel, en rad i
   testplanen.
+- Omgång 3: inga C eller I.
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Undermenyer i pillret*); Etikett, Bevakning och Begäran
 när deras gränssnitt finns; fler knappar med undermenyer.
