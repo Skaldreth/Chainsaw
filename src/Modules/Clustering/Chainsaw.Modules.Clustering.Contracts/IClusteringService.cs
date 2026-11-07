@@ -66,8 +66,8 @@ public interface IClusteringService
     /// <summary>
     /// Undoes splits (sketch AN1b), all or none: a new sealed record per split, under one journal entry, says that it
     /// no longer holds, and the heuristics may merge the addresses again from now on. Nothing is removed; the splits
-    /// stay readable in <see cref="GetSplitHistory"/>. An undone split cannot be undone again; the addresses are split
-    /// anew instead.
+    /// stay readable in <see cref="GetSplitHistory(ICase)"/>. An undone split cannot be undone again; the addresses
+    /// are split anew instead.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="splitSequences">
@@ -104,6 +104,11 @@ public interface IClusteringService
     /// <param name="addresses">The addresses, for a cluster all of its addresses.</param>
     /// <returns>The splits and their undoing.</returns>
     IReadOnlyList<SplitHistoryEntry> GetSplitHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
+
+    /// <summary>Reads every split in the case, also those undone, each with its undoing, oldest first.</summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The splits and their undoing.</returns>
+    IReadOnlyList<SplitHistoryEntry> GetSplitHistory(ICase @case);
 
     /// <summary>Builds the cluster an address belongs to, explained from that address.</summary>
     /// <param name="case">The open case.</param>

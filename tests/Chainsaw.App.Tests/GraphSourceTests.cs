@@ -48,7 +48,7 @@ internal sealed class TestAttribution : IAttributionService
     }
 
     public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
-        throw new NotSupportedException();
+        [];
 
     public IReadOnlyList<LabelEntry> GetEntries(ICase @case) => throw new NotSupportedException();
 
@@ -90,8 +90,17 @@ internal sealed class TestClustering : IClusteringService
         ICase @case, IReadOnlyCollection<long> splitSequences, BitcoinAddress? from) =>
         throw new NotSupportedException();
 
+    /// <summary>Gets the splits the case holds.</summary>
+    public List<SplitHistoryEntry> SplitHistory { get; } = [];
+
     public IReadOnlyList<SplitHistoryEntry> GetSplitHistory(
-        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) => throw new NotSupportedException();
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
+        [
+            .. SplitHistory.Where(entry =>
+                addresses.Contains(entry.Split.First) || addresses.Contains(entry.Split.Second)),
+        ];
+
+    public IReadOnlyList<SplitHistoryEntry> GetSplitHistory(ICase @case) => SplitHistory;
 
     public IReadOnlyList<ClusterLink>? ExplainConnection(ICase @case, BitcoinAddress from, BitcoinAddress to) =>
         throw new NotSupportedException();

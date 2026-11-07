@@ -99,9 +99,9 @@ public interface IGraphEditor
 /// </param>
 public sealed record UndoOutcome(bool Done, string? LibraryProblem = null);
 
-/// <summary>How a breaking out went: the splits stored, and what stopped the rest.</summary>
-/// <param name="Stored">How many splits were stored.</param>
-/// <param name="Failure">What stopped the rest, or <see langword="null"/> when every split was stored.</param>
+/// <summary>How a breaking out went: the splits stored, and why they were not.</summary>
+/// <param name="Stored">How many splits were stored: all, or none when the case refused the breaking out.</param>
+/// <param name="Failure">Why nothing was stored, or <see langword="null"/> when every split was.</param>
 public sealed record SplitOutcome(int Stored, Exception? Failure);
 
 /// <summary>The inspector's way into the modules for its forms (<see cref="IGraphEditor"/>).</summary>
@@ -265,11 +265,6 @@ public sealed class GraphEditor(
         }
 
         var journals = touching.Select(entry => entry.Split.JournalSequence).ToHashSet();
-        var addresses = touching.SelectMany(entry => new[] { entry.Split.First, entry.Split.Second }).ToHashSet();
-        return
-        [
-            .. clustering.GetSplitHistory(@case, addresses)
-                .Where(entry => journals.Contains(entry.Split.JournalSequence)),
-        ];
+        return [.. clustering.GetSplitHistory(@case).Where(entry => journals.Contains(entry.Split.JournalSequence))];
     }
 }

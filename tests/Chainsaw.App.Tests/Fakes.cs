@@ -263,8 +263,7 @@ internal sealed class TestCase(string caseNumber) : ICase
         return null!;
     }
 
-    public IReadOnlyList<JournalEntry> ReadJournal(long fromSequence = 1, int maximumCount = int.MaxValue) =>
-        throw new NotSupportedException();
+    public IReadOnlyList<JournalEntry> ReadJournal(long fromSequence = 1, int maximumCount = int.MaxValue) => [];
 
     public bool SetTitle(string title)
     {
@@ -424,8 +423,7 @@ internal sealed class TestTracing : ITracingService
     public bool UnlinkCrossChain(ICase @case, CrossChainLink link, string? reason) =>
         throw new NotSupportedException();
 
-    public IReadOnlyList<CrossChainLinkHistoryEntry> GetCrossChainHistory(ICase @case) =>
-        throw new NotSupportedException();
+    public IReadOnlyList<CrossChainLinkHistoryEntry> GetCrossChainHistory(ICase @case) => [];
 
     public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position) =>
         throw new NotSupportedException();

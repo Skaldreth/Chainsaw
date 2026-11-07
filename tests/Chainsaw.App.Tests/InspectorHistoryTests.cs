@@ -365,6 +365,7 @@ public sealed class InspectorHistoryTests
         rig.Editor.Preview = null;
         rig.History.Toggle(rig.History.Rows[0]);
         Assert.Equal(InspectorHistoryViewModel.AlreadyText, rig.History.RejoinNotice);
+        Assert.Equal(string.Empty, rig.History.RejoinHeuristics);
         Assert.False(rig.History.CanSubmit);
     }
 

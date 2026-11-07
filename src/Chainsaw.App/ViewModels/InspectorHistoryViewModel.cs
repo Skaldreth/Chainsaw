@@ -87,6 +87,12 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     /// <summary>Counts the forms opened, so that an answer for an earlier one is dropped.</summary>
     private int _opened;
 
+    /// <summary>
+    /// Counts the readings of a confirmation, so that only the latest is shown; separate from the form's number, so
+    /// that a confirmation read again after a refresh never mistakes a store under way for another form's.
+    /// </summary>
+    private int _previews;
+
     /// <summary>Whether the confirmation has read what merges again, so that a breaking out can be undone.</summary>
     private bool _previewRead;
 
@@ -264,7 +270,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         OpenRow = row;
         if (row.Event.Undo == HistoryUndo.UndoSplit)
         {
-            _ = PreviewAsync(row.Event, _opened);
+            _ = PreviewAsync(row.Event);
         }
     }
 
@@ -337,6 +343,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     private void Close()
     {
         _opened++;
+        _previews++;
         if (OpenRow is { } row)
         {
             row.IsOpen = false;
@@ -418,31 +425,34 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         // A breaking out read again may have other splits in force: its confirmation is read again, the reason kept.
         if (OpenRow is { Event.Undo: HistoryUndo.UndoSplit } open)
         {
-            _opened++;
             _previewRead = false;
             OnPropertyChanged(nameof(CanSubmit));
-            _ = PreviewAsync(open.Event, _opened);
+            _ = PreviewAsync(open.Event);
         }
     }
 
     /// <summary>Reads what undoing a breaking out merges again, for the confirmation.</summary>
     /// <param name="event">The breaking out.</param>
-    /// <param name="opened">The form's number, so that an answer for an earlier form is dropped.</param>
     /// <returns>A task that completes when it is shown or could not be read.</returns>
-    private async Task PreviewAsync(HistoryEvent @event, int opened)
+    private async Task PreviewAsync(HistoryEvent @event)
     {
         if (_session.Current is not { } openCase)
         {
             return;
         }
 
+        // What an earlier reading said is cleared, so that it is never shown as this one's answer.
+        var opened = ++_previews;
+        Rejoined.Clear();
+        RejoinMore = string.Empty;
+        RejoinHeuristics = string.Empty;
         RejoinNotice = ReadingRejoinText;
         try
         {
             var from = _node?.Node.GraphAddresses.FirstOrDefault();
             var preview = await _editor.PreviewUndoSplitsAsync(
                 openCase, @event.SplitSequences, from, CancellationToken.None);
-            if (opened != _opened)
+            if (opened != _previews)
             {
                 return;
             }
@@ -451,7 +461,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            if (opened == _opened)
+            if (opened == _previews)
             {
                 RejoinNotice = RejoinFailedText;
             }

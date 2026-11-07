@@ -1,4 +1,5 @@
 using Chainsaw.App.Graph;
+using Chainsaw.Modules.Chains.Contracts;
 
 namespace Chainsaw.App.Tests;
 
@@ -14,8 +15,11 @@ public sealed class GraphEditorTests
     /// <summary>The case.</summary>
     private readonly TestCase _case = new("2026-0001");
 
+    /// <summary>The clustering.</summary>
+    private readonly TestClustering _clustering = new();
+
     /// <summary>Gives the editor over the fakes.</summary>
-    private GraphEditor Editor => new(new TestTracing(), _attribution, new TestClustering(), _library);
+    private GraphEditor Editor => new(new TestTracing(), _attribution, _clustering, _library);
 
     /// <summary>A label taken back is taken in by the library at once, so that its copies are withdrawn.</summary>
     [Fact]
@@ -63,5 +67,27 @@ public sealed class GraphEditorTests
         Assert.Equal(0, failure.Stored);
         Assert.IsType<NotSupportedException>(failure.Failure);
         Assert.Equal(new SplitOutcome(0, null), await Editor.SplitAsync(_case, []));
+    }
+
+    /// <summary>
+    /// A breaking out is read whole from any of its addresses, also when its splits share no address (A and B broken
+    /// out of a cluster where each was joined to a different address that stayed).
+    /// </summary>
+    [Fact]
+    public async Task ABreakingOutIsReadWholeFromAnyOfItsAddresses()
+    {
+        var at = DateTimeOffset.UnixEpoch;
+        var a = GraphSamples.Address(40);
+        var b = GraphSamples.Address(41);
+        Modules.Clustering.Contracts.SplitHistoryEntry Entry(
+            long sequence, BitcoinAddress from, BitcoinAddress to, long journal) =>
+            new(new(sequence, from, to, "change-address", "Två", journal, at), null);
+        _clustering.SplitHistory.AddRange(
+            [Entry(1, a, GraphSamples.K1, 5), Entry(2, b, GraphSamples.K2, 5), Entry(3, b, GraphSamples.K2, 9)]);
+        var node = GraphSamples.Node("address:a", Modules.Tracing.Contracts.GraphNodeKind.Address, [a], hop: 1);
+
+        var data = await Editor.ReadHistoryAsync(_case, node, CancellationToken.None);
+
+        Assert.Equal([1L, 2L], data.Splits.Select(entry => entry.Split.Sequence));
     }
 }

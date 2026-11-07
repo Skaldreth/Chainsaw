@@ -280,6 +280,13 @@ internal sealed class ClusteringService : IClusteringService
     }
 
     /// <inheritdoc/>
+    public IReadOnlyList<SplitHistoryEntry> GetSplitHistory(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(EvidenceStore.ReadSplitHistory);
+    }
+
+    /// <inheritdoc/>
     public IReadOnlyList<SplitHistoryEntry> GetSplitHistory(
         ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
     {
