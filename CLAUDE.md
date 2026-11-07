@@ -188,9 +188,11 @@ tests/                      xUnit, ett testprojekt per modul
   Efter GR1 (användarens beslut 2026-11-07): noderna ritas **tunt som i GR1b** (en rund eller fyrkantig ram med sortens färg,
   namn och en svag rad under), **hoppen i tidsordning** från GR1a är bra struktur, men grafen måste tåla **många linjer åt
   alla håll**, som kryptoanalytikerna arbetar i Reactor. Hur de två förenas skissas i GR2a (fri duk som kan ordnas i hopp)
-  och GR2b (hoppen som ryggrad, aktörerna fria i höjdled, pengar som vänder som bågar). **Grafen sorteras naturligt i hopp
-  när det går** (användarens beslut 2026-11-07); att den kan bli rörig var en observation, inte ett önskemål.
-- **Bildspråket** (skiss GR3a): formen säger vad det är (rund = aktör vi inte vet något om, fyrkantig = tjänst eller
+  och GR2b (hoppen som ryggrad, aktörerna fria i höjdled, pengar som vänder som bågar). **Grafen är en fri yta med en växel
+  till hoppkolumner** (användarens beslut 2026-11-07, skiss GR4): aktörerna läggs först ut ungefär i hoppens ordning och står
+  sedan där användaren drar dem, åt alla håll. Växeln (två ikoner i grafens huvud) sorterar allt i kolumner per hopp, där
+  aktörerna dras upp och ner och pengar som vänder ritas som bågar. Båda lägena kommer ihåg sina platser.
+- **Bildspråket** (skiss GR3a, användarens beslut 2026-11-07: godkänt): formen säger vad det är (rund = aktör vi inte vet något om, fyrkantig = tjänst eller
   kluster), färgen vad det betyder (accent = offrens pengar, blått = börs, rött = spåret tar slut eller risk, lila = annan
   kedja), en ikon per sort, små markeringar i hörnet (bevakad, etikett från ett annat ärende, uttag funnet, sanktionerad),
   linjens tjocklek är beloppet och **streckat betyder alltid osäkert**. **Viktig information får stå kvar** (användarens
