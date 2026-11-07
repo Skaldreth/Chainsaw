@@ -48,7 +48,10 @@ Små runda tecken i nodens övre hörn, aldrig text:
 - **Etikett från ett annat ärende** (grå etikett): etiketten satt i ett annat ärende och kom hit genom biblioteket.
 - **Sanktionerad** (röd): adressen står på en sanktionslista, när en annan etikett säger vad det är.
 
-*Bevakad* och *Kan frysas* kommer när bevakningen och kedjorna med USDT finns.
+- **Kan frysas** (en ljusblå snöflinga): USDT eller USDC ligger kvar på adressen enligt historiken i ärendet, och
+  utgivaren kan frysa det. Se [Kan frysas](kan-frysas.md).
+
+*Bevakad* kommer med bevakningen.
 
 En nod som **inte är expanderad** är blek: det som går vidare därifrån finns inte i grafen än.
 
@@ -62,6 +65,8 @@ En nod som **inte är expanderad** är blek: det som går vidare därifrån finn
 - **Beloppet står på linjen.** Knappen i hörnet växlar mellan *Alla belopp*, *Spårade belopp* och *Inga belopp* när
   grafen blir stor. Står det *0,1570 av 0,2400* gick 0,2400 BTC på kedjan, och 0,1570 av dem räknas som offrets
   pengar enligt spårningsmetoden.
+- **Tokens** står som ett märke först i beloppet (**₮** USDT, **$** USDC, **Ξ** ether) med värdet i kronor litet under
+  när ärendet har kursen, och en swap är ett litet piller på linjen (**₮ → Ξ**). Se [ERC-20 och tokens](erc-20.md).
 
 ## Fri yta och hoppkolumner
 

@@ -10,7 +10,10 @@ En adress där USDT eller USDC **ligger kvar** får en liten **snöflinga** i h�
 och säger vem som är utgivare. Har adressen skickat vidare allt finns det inget att frysa, och då står ingen
 snöflinga.
 
-> Grafen för Ethereum är inte byggd än; snöflingan och saldot per token syns där när den är det.
+Saldot räknas bara för en adress vars historik är **expanderad**. För en adress som bara syns för att pengar gick
+dit vet ärendet inte vad den har skickat vidare, så raden säger *Inte expanderad: saldot är okänt* och ingen snöflinga
+sätts, eftersom den då skulle vila på en gissning. Ligger något kvar visar inspektören en ruta med vem som kan frysa
+det.
 
 ## Vad snöflingan inte säger
 

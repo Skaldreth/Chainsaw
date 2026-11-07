@@ -335,6 +335,15 @@ public sealed class EthereumGraphTests
     }
 
     [Fact]
+    public void A_chainsaw_link_to_ethereum_names_a_start_point_that_can_be_traced()
+    {
+        Assert.True(Links.ChainsawLink.TryParse("chainsaw:ethereum/" + EthSamples.M.Checksummed, out var startPoint));
+
+        Assert.True(startPoint.IsSupported);
+        Assert.Equal(TraceStartPoint.ForEthereumAddress(EthSamples.M), CaseWorkflow.ToTrace(startPoint));
+    }
+
+    [Fact]
     public void The_checks_say_honestly_that_they_do_not_run_on_ethereum()
     {
         Assert.Contains(

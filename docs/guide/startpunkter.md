@@ -11,12 +11,13 @@ exempel offrets betalning). Chainsaw känner igen vad du har skrivit på formen,
   En TRON-tx är 64 hexadecimala tecken, precis som en Bitcoin-tx. Därför går den inte att skilja från en Bitcoin-tx på
   formen; den känns igen som TRON bara när kedjan står utskriven, som i länken `chainsaw:tron/<tx>`.
 
-Bara Bitcoin går att spåra än. En startpunkt på en annan kedja visas tonad med *inte byggt än*, och skrivs den i ett nytt
+Bitcoin och Ethereum går att spåra. En startpunkt på TRON visas tonad med *inte byggt än*, och skrivs den i ett nytt
 ärende sparas den i journalen så att den inte tappas bort.
 
 En startpunkt läggs till i ärendet med en rad i journalen. Grafen börjar där, och det som går vidare därifrån hämtas
 först när startpunkten expanderas.
 
-**Länken `chainsaw:`** låter ett annat program öppna Chainsaw med en startpunkt: `chainsaw:bitcoin/<adress eller tx>`.
+**Länken `chainsaw:`** låter ett annat program öppna Chainsaw med en startpunkt: `chainsaw:bitcoin/<adress eller tx>`
+eller `chainsaw:ethereum/<adress eller tx>`.
 Länken gör aldrig något själv. Är Chainsaw låst väntar den tills det låses upp; sedan fyller den i Nytt ärende, eller
 står i kommandoraden tills du trycker Enter.

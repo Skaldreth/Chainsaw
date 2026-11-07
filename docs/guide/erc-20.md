@@ -35,4 +35,16 @@ Linjerna ser ut som för Bitcoin: accenten är offrens pengar och tjockleken bel
 först i beloppet, **₮** för USDT, **$** för USDC och **Ξ** för ether, med värdet i kronor litet under när det finns en
 kurs. En token utan känt märke står med sin symbol. Se också [Kan frysas](kan-frysas.md).
 
-> Grafen för Ethereum är inte byggd än; snöflingan och saldot per token syns där när den är det.
+Värdet i kronor räknas för varje överföring vid dess blocks tid, ur kursen för just den tillgången (ether, eller
+USDT och USDC igenkända på kontraktet). Saknar ärendet kursen för någon överföring på linjen står inget värde, hellre
+än ett påhittat; kurserna hämtas när grafen expanderas. En stablecoin räknas aldrig som en dollar av sig själv.
+
+## Swap
+
+När adressen som signerade en tx skickar **en** tillgång och får **en annan** tillbaka i samma tx (till exempel USDT in
+till en DEX och ether tillbaka) har den bytt token. Det ritas som ett litet piller på linjen, **₮ → Ξ**, och är inget
+slut på spåret: pengarna bytte token men inte ägare. Pillret sätts bara när tx:en själv visar bytet; skickar eller får
+adressen flera tillgångar går det inte att läsa vad som byttes mot vad, och då står inget piller.
+
+Spårningen räknar än så länge varje tillgång för sig, så de spårade USDT:na blir inte spårad ether i bytet. Det står i
+*Varför?* på linjen.

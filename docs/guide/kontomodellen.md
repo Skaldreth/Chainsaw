@@ -41,9 +41,27 @@ Ett konto spåras per tillgång: ett saldo i ether och ett per token, aldrig bla
 - **Haircut** låter varje överföring ut ta den spårade andelen av saldot just då. De spårade pengarna tunnas ut över
   allt som går ut efteråt.
 
-Varje uträkning kontrolleras (när grafen för Ethereum är byggd): det som kom in spårat ska vara exakt det som gick ut,
-till avgifter och det som ligger kvar. Går det mer ut än den lästa historiken visar kom in, räknas resten som ospårat;
+Varje uträkning kontrolleras: det som kom in spårat ska vara exakt det som gick ut, till avgifter och det som ligger
+kvar. Går det mer ut än den lästa historiken visar kom in, räknas resten som ospårat;
 en metod hittar aldrig på pengar.
+
+## I grafen
+
+Varje Ethereum-adress är en egen aktör (rund), eftersom kontomodellens heuristiker för plånböcker inte är byggda än.
+Att expandera en adress hämtar dess tre historiker (tx, interna tx och tokenöverföringar) sida för sida, de nyaste
+först upp till gränsen; att expandera en tx hämtar alla rörelser i den. Linjerna summerar per par av aktörer och per
+tillgång, så USDT och ether mellan samma två adresser är två linjer.
+
+Spårningen börjar i det som kom in till en startadress, eller i en start-tx:s rörelser till andra än den som
+signerade den. Pengarna förs vidare bara genom adresser vars historik är expanderad; når de en annan adress stannar de
+där som *inte expanderad än*, och når de en börs eller en annan etikett som avslutar spåret stannar de där. Startpunkter
+som ligger i varandras flöde spåras inte alls, hellre än att samma pengar räknas två gånger.
+
+Kedjan säger inte i vilken ordning två tx i samma block kom, i den lästa historiken. Chainsaw ordnar dem då efter
+hashen, vilket bara spelar roll för FIFO när en adress både tar emot och betalar i samma block.
+
+Kontrollerna och förslagen (CoinJoin, peel chain, mixerns kandidater, plånböcker) gäller UTXO-modellen och körs inte på
+Ethereum; listan säger det.
 
 ## Var svaren kommer ifrån
 
