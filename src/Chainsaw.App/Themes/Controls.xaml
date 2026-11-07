@@ -3,6 +3,67 @@
                     xmlns:controls="clr-namespace:Chainsaw.App.Controls"
                     xmlns:vm="clr-namespace:Chainsaw.App.ViewModels">
 
+    <!-- ===== Scroll bars: thin and dark, as in Gawk ===== -->
+
+    <Style x:Key="ScrollBarThumb" TargetType="Thumb">
+        <Setter Property="Background" Value="{StaticResource Brush.BorderStrong}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="{TemplateBinding Background}" CornerRadius="3" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#4A4A4A" />
+            </Trigger>
+            <Trigger Property="IsDragging" Value="True">
+                <Setter Property="Background" Value="#5A5A5A" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="ScrollBar">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Width" Value="10" />
+        <Setter Property="MinWidth" Value="10" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="{TemplateBinding Background}">
+                        <Track x:Name="PART_Track" Margin="2" Orientation="Vertical" IsDirectionReversed="True">
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource ScrollBarThumb}" />
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="Height" Value="10" />
+                <Setter Property="MinHeight" Value="10" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Grid Background="{TemplateBinding Background}">
+                                <Track x:Name="PART_Track" Margin="2" Orientation="Horizontal">
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource ScrollBarThumb}" />
+                                    </Track.Thumb>
+                                </Track>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- An icon: its geometry on the 24 grid, scaled to its size, the line in the control's foreground. -->
     <Style TargetType="controls:GridIcon">
         <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />

@@ -152,15 +152,15 @@
 
                         <!-- The graph (sketch GR4). -->
                         <views:GraphView x:Name="GraphPage"
-                                         Visibility="{Binding IsGraphShown, Converter={StaticResource VisibleWhen}}" />
+                                         Visibility="{Binding DataContext.IsGraphShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
 
                         <!-- Bevakning (sketch BV1a). -->
                         <views:MonitoringView x:Name="MonitoringPage"
-                                              Visibility="{Binding IsMonitoringShown, Converter={StaticResource VisibleWhen}}" />
+                                              Visibility="{Binding DataContext.IsMonitoringShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
 
                         <!-- The Guide (F1, sketch GD1a in a simple form). -->
                         <views:GuideView x:Name="GuidePage"
-                                         Visibility="{Binding IsGuideShown, Converter={StaticResource VisibleWhen}}" />
+                                         Visibility="{Binding DataContext.IsGuideShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
 
                         <!-- A view that is not built yet: the page says so, with the view's icon, and never shows made-up data. -->
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80"
