@@ -11,7 +11,8 @@ namespace Chainsaw.Modules.Chains;
 /// How every chain's source answers a lookup, written once: from the case when the answer cannot have changed,
 /// otherwise from the chain's endpoints in the order of its mode, through <see cref="IExitHttp"/> only, each response
 /// sealed in the case with its endpoint before it is used (principle 1), and from the case again, saying so, when no
-/// endpoint can be asked (principle 9). A chain's source says what to ask and how to read it (<see cref="LookupQuery{T}"/>).
+/// endpoint can be asked (principle 9). A chain's source says what to ask and how to read it (<see
+/// cref="LookupQuery{T}"/>).
 /// </summary>
 internal sealed class SourceLookups
 {
@@ -36,7 +37,8 @@ internal sealed class SourceLookups
     /// <summary>How many blocks deep an answer's block must be before it is never fetched again.</summary>
     private readonly int _safeConfirmations;
 
-    /// <summary>Asks for the chain's height when the newest known one is old, before a shallow answer is asked again.</summary>
+    /// <summary>Asks for the chain's height when the newest known one is old, before a shallow answer is asked
+    /// again.</summary>
     private readonly Func<SourceLookups, ICase, CancellationToken, Task> _refreshHeight;
 
     /// <summary>What a lookup says when the chain's sources are off in the settings.</summary>
@@ -60,7 +62,8 @@ internal sealed class SourceLookups
     /// <exception cref="ArgumentException">The depth is less than 1.</exception>
     public SourceLookups(
         Chain chain, string chainName, IExitHttp http, IOperatorProfileStore operators, ChainSources sources,
-        RawResponseStore store, int safeConfirmations, Func<SourceLookups, ICase, CancellationToken, Task> refreshHeight)
+        RawResponseStore store, int safeConfirmations,
+        Func<SourceLookups, ICase, CancellationToken, Task> refreshHeight)
     {
         if (safeConfirmations < 1)
         {
@@ -153,8 +156,8 @@ internal sealed class SourceLookups
         foreach (var planned in plan.Endpoints)
         {
             var endpoint = planned.Endpoint;
-            if (_sources.WithKey(endpoint, planned.Api, planned.Api.Request(endpoint.Address, query.Path), out var keyProblem)
-                is not { } request)
+            var unkeyed = planned.Api.Request(endpoint.Address, query.Path);
+            if (_sources.WithKey(endpoint, planned.Api, unkeyed, out var keyProblem) is not { } request)
             {
                 _sources.Failed(_chain, endpoint.Id);
                 problem = keyProblem!;

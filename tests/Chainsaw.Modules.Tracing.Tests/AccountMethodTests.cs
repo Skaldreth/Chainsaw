@@ -69,7 +69,8 @@ public sealed class AccountMethodTests
     [Fact]
     public void AnEntryInAnotherAssetIsRefused()
     {
-        var ledger = new AccountLedger(Account, Usdt, AssetAmount.Zero(Usdt), [Entry(Asset.Ether, 5, TransferDirection.In, 5)]);
+        var ledger = new AccountLedger(
+            Account, Usdt, AssetAmount.Zero(Usdt), [Entry(Asset.Ether, 5, TransferDirection.In, 5)]);
         Assert.Throws<ArgumentException>(() => new AccountHaircutMethod().Propagate(ledger));
     }
 
@@ -79,7 +80,8 @@ public sealed class AccountMethodTests
 
     [Fact]
     public void AMethodThatCreatesMoneyIsRefused() =>
-        Assert.Throws<InvalidOperationException>(() => AccountChecks.Run(new Generous(), Ledger(Usdt, 0, In(5, 5), Out(5))));
+        Assert.Throws<InvalidOperationException>(
+            () => AccountChecks.Run(new Generous(), Ledger(Usdt, 0, In(5, 5), Out(5))));
 
     [Fact]
     public void BothMethodsKeepEveryUnitOverRandomLedgers()

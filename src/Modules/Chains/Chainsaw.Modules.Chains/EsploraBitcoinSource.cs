@@ -224,7 +224,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
                 body => EsploraParser.ParseBlock(body, hash)),
             block => block.Height,
             NeverChanges: true);
-        var lookup = await _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken).ConfigureAwait(false);
+        var lookup = await _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
         if (lookup.Value is not { } block)
         {
             return lookup;

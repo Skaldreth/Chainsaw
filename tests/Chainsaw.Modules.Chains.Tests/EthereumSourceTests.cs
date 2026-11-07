@@ -54,8 +54,9 @@ public sealed class EthereumSourceTests
             });
 
         // USDT is known by its contract, so only the unknown token's decimals were asked for.
-        Assert.DoesNotContain(harness.Http.Sent, request => request.Uri.Query.Contains(KnownTokens.EthereumUsdt.Contract!,
-            StringComparison.Ordinal) && request.Uri.Query.Contains("getToken", StringComparison.Ordinal));
+        var usdt = KnownTokens.EthereumUsdt.Contract!;
+        Assert.DoesNotContain(harness.Http.Sent, request => request.Uri.Query.Contains(usdt, StringComparison.Ordinal)
+            && request.Uri.Query.Contains("getToken", StringComparison.Ordinal));
         Assert.All(harness.Rows(), row =>
         {
             Assert.Equal("ethereum-mainnet", row.Chain);
@@ -133,7 +134,8 @@ public sealed class EthereumSourceTests
     {
         using var harness = new EthereumHarness();
         harness.AnswerTransaction();
-        harness.Answer(EthereumHarness.Url("?module=token&action=getToken&contractaddress=" + EthereumHarness.Foo.Value),
+        harness.Answer(
+            EthereumHarness.Url("?module=token&action=getToken&contractaddress=" + EthereumHarness.Foo.Value),
             "rate-limit.json");
 
         var lookup = await harness.Source.GetTransactionAsync(harness.Case, EthereumHarness.H1);

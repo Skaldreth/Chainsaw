@@ -15,7 +15,8 @@ internal sealed class EsploraApi : ISourceApi
     /// <summary>The sort's code, as it is saved and sealed (the column <c>source</c> has always said it).</summary>
     public const string Code = "esplora";
 
-    /// <summary>The default endpoints' fixed ids, so that the same default is the same endpoint in every file.</summary>
+    /// <summary>The default endpoints' fixed ids, so that the same default is the same endpoint in every
+    /// file.</summary>
     private static readonly IReadOnlyDictionary<Uri, (Guid Id, string Name)> Known = new Dictionary<Uri, (Guid, string)>
     {
         [BitcoinSourceOptions.MempoolSpace] = (Guid.Parse("6d0a2f0e-7e1b-4c55-9d0b-8b1f2c4a0001"), "mempool.space"),

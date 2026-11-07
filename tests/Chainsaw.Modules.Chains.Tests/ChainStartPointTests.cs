@@ -96,7 +96,8 @@ public sealed class ChainStartPointTests
     {
         var right = ChainStartPoint.Recognise("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed");
         Assert.Equal((Chain.Ethereum, "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"), (right.Chain, right.Value));
-        Assert.Equal(StartPointKind.Unknown, ChainStartPoint.Recognise("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD").Kind);
+        Assert.Equal(StartPointKind.Unknown,
+            ChainStartPoint.Recognise("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD").Kind);
         Assert.Equal(StartPointKind.Unknown,
             ChainStartPoint.Recognise(Chain.Ethereum, "0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed").Kind);
     }

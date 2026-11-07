@@ -87,7 +87,8 @@ internal sealed class EthereumHarness : IDisposable
         + (below is null ? string.Empty : "&endblock=" + below);
 
     /// <summary>Answers a URL from a fixture in <c>Ethereum/</c>.</summary>
-    public void Answer(string url, string fixture, int status = 200) => Http.Answer(url, "../Ethereum/" + fixture, status);
+    public void Answer(string url, string fixture, int status = 200) =>
+        Http.Answer(url, "../Ethereum/" + fixture, status);
 
     /// <summary>Answers the transaction with everything in it, its block and the chain's height.</summary>
     public void AnswerTransaction()

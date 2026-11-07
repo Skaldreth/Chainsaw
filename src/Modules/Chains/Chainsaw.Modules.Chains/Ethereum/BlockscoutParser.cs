@@ -15,7 +15,8 @@ namespace Chainsaw.Modules.Chains;
 internal sealed record TokenLog(EthereumAddress Contract, EthereumAddress From, EthereumAddress To, BigInteger Units,
     long Position);
 
-/// <summary>A transaction as Blockscout's <c>gettxinfo</c> gives it, before its block's hash and tokens are read.</summary>
+/// <summary>A transaction as Blockscout's <c>gettxinfo</c> gives it, before its block's hash and tokens are
+/// read.</summary>
 /// <param name="Hash">The transaction.</param>
 /// <param name="Height">The block's number, or <see langword="null"/> while unconfirmed.</param>
 /// <param name="Time">The block's time, or <see langword="null"/>.</param>
@@ -52,7 +53,8 @@ internal sealed record TokenInfo(Asset Asset);
 /// </summary>
 internal static class BlockscoutParser
 {
-    /// <summary>The Keccak-256 of <c>Transfer(address,address,uint256)</c>, the first topic of an ERC-20 transfer.</summary>
+    /// <summary>The Keccak-256 of <c>Transfer(address,address,uint256)</c>, the first topic of an ERC-20
+    /// transfer.</summary>
     public static readonly string TransferTopic =
         "0x" + Convert.ToHexStringLower(Keccak256.Hash("Transfer(address,address,uint256)"));
 
@@ -278,7 +280,8 @@ internal static class BlockscoutParser
         }
     }
 
-    /// <summary>Reads an ERC-20 <c>Transfer</c> from a log, or gives <see langword="null"/> for any other event.</summary>
+    /// <summary>Reads an ERC-20 <c>Transfer</c> from a log, or gives <see langword="null"/> for any other
+    /// event.</summary>
     /// <param name="log">The log.</param>
     /// <returns>The transfer, or <see langword="null"/>.</returns>
     private static TokenLog? TransferOf(JsonElement log)
@@ -419,7 +422,8 @@ internal static class BlockscoutParser
             ? index
             : ordinal;
 
-    /// <summary>Gives a token transfer's log index, or its order on the page when the source does not give it.</summary>
+    /// <summary>Gives a token transfer's log index, or its order on the page when the source does not give
+    /// it.</summary>
     /// <param name="item">The entry.</param>
     /// <param name="ordinal">Its order among the transaction's entries.</param>
     /// <returns>The position.</returns>

@@ -64,7 +64,8 @@ public sealed record EthereumAddress
         var mixed = digits.Any(char.IsLower) && digits.Any(char.IsUpper);
         if (mixed && !string.Equals(Checksum(lower), trimmed, StringComparison.Ordinal))
         {
-            problem = "Adressens kontrollsumma (EIP-55, stora och små bokstäver) stämmer inte. Ett tecken kan vara fel.";
+            problem = "Adressens kontrollsumma (EIP-55, stora och små bokstäver) stämmer inte. "
+                + "Ett tecken kan vara fel.";
             return false;
         }
 
@@ -85,7 +86,8 @@ public sealed record EthereumAddress
     public override string ToString() => Checksummed;
 
     /// <summary>
-    /// Gives the EIP-55 form: the Keccak-256 of the lower-case hex (without <c>0x</c>) decides each letter's case, upper
+    /// Gives the EIP-55 form: the Keccak-256 of the lower-case hex (without <c>0x</c>) decides each letter's case,
+    /// upper
     /// where the hash's matching nibble is 8 or more.
     /// </summary>
     /// <param name="lower">The address in lower case with <c>0x</c>.</param>

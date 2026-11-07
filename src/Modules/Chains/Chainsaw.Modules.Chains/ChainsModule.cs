@@ -9,7 +9,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Chainsaw.Modules.Chains;
 
 /// <summary>
-/// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora for Bitcoin, Blockscout for
+/// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora for Bitcoin,
+/// Blockscout for
 /// Ethereum).
 /// </summary>
 /// <remarks>

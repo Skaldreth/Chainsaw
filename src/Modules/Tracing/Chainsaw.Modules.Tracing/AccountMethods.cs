@@ -45,7 +45,8 @@ internal sealed class AccountFifoMethod : IAccountTracingMethod
         }
 
         var remaining = queue.Where(lot => lot.Traced).Aggregate(BigInteger.Zero, (sum, lot) => sum + lot.Units);
-        return new AccountTaint(outgoing, new AssetAmount(ledger.Asset, fees), new AssetAmount(ledger.Asset, remaining));
+        return new AccountTaint(
+            outgoing, new AssetAmount(ledger.Asset, fees), new AssetAmount(ledger.Asset, remaining));
     }
 
     /// <summary>Adds a lot at the end of the queue, unless it is empty.</summary>
@@ -154,7 +155,8 @@ internal static class AccountChecks
         ArgumentNullException.ThrowIfNull(ledger);
         if (ledger.Opening.Asset != ledger.Asset || ledger.Opening.Units < 0)
         {
-            throw new ArgumentException("The opening balance is in the ledger's asset and not negative.", nameof(ledger));
+            throw new ArgumentException(
+                "The opening balance is in the ledger's asset and not negative.", nameof(ledger));
         }
 
         foreach (var entry in ledger.Entries)

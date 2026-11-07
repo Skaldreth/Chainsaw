@@ -17,7 +17,8 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
     /// <summary>The chain and network in the sealed table.</summary>
     public const string ChainName = "ethereum-mainnet";
 
-    /// <summary>How old the newest known height may be before a lookup that depends on depth asks for a new one.</summary>
+    /// <summary>How old the newest known height may be before a lookup that depends on depth asks for a new
+    /// one.</summary>
     private static readonly TimeSpan TipFreshness = TimeSpan.FromMinutes(1);
 
     /// <summary>The time now, to decide whether the known height is fresh.</summary>
@@ -160,13 +161,15 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             BlockscoutApi.BlockPath(height),
             Parse,
             block => new ResponseIndex([], block.Height),
-            reader => SourceLookups.StoredAs(_lookups.Store.Latest(reader, EthereumResponseKinds.Block, subject), Parse),
+            reader => SourceLookups.StoredAs(
+                _lookups.Store.Latest(reader, EthereumResponseKinds.Block, subject), Parse),
             block => block.Height);
         return _lookups.LookupAsync(@case, query, mode, cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default)
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
         return _lookups.LookupAsync(@case, TipQuery(), LookupMode.AsNeeded, cancellationToken);
@@ -231,7 +234,8 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             info => info.Height);
     }
 
-    /// <summary>The lookup of a transaction's internal transactions, which cannot change once its block is final.</summary>
+    /// <summary>The lookup of a transaction's internal transactions, which cannot change once its block is
+    /// final.</summary>
     /// <param name="hash">The transaction.</param>
     /// <param name="height">Its block, or <see langword="null"/> while unconfirmed.</param>
     /// <returns>The query.</returns>

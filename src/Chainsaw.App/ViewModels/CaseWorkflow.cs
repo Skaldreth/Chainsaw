@@ -4,6 +4,7 @@ using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 using Chainsaw.SharedKernel.Commands;
 
 namespace Chainsaw.App.ViewModels;
@@ -272,13 +273,20 @@ public sealed class CaseWorkflow
         }
     }
 
-    /// <summary>Says that a start point's chain is not built yet.</summary>
+    /// <summary>
+    /// Says that a start point's chain cannot be traced yet. Ethereum's source is built, but its graph comes in the
+    /// next
+    /// part of the stage, which the text says honestly.
+    /// </summary>
     /// <param name="startPoint">The start point.</param>
     /// <returns>The text.</returns>
-    public static string NotBuiltText(ChainStartPoint startPoint) =>
-        startPoint.Chain is { } chain
-            ? $"{CaseTexts.ChainName(chain)} är inte byggt än, så det kan inte bli en startpunkt."
-            : "Det känns inte igen som en adress eller en tx.";
+    public static string NotBuiltText(ChainStartPoint startPoint) => startPoint.Chain switch
+    {
+        Chain.Ethereum =>
+            "Ethereum känns igen, men grafen för Ethereum är inte byggd än, så det kan inte bli en startpunkt.",
+        { } chain => $"{CaseTexts.ChainName(chain)} är inte byggt än, så det kan inte bli en startpunkt.",
+        _ => "Det känns inte igen som en adress eller en tx.",
+    };
 
     /// <summary>Gives the Tracing start point for a Bitcoin start point.</summary>
     /// <param name="startPoint">The recognised start point.</param>

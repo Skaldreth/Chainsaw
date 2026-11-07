@@ -22,6 +22,7 @@ public sealed class GuideLibrary
     public static readonly IReadOnlyList<(string Group, IReadOnlyList<string> Sections)> Index =
     [
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan"]),
+        ("Ethereum", ["kontomodellen", "erc-20", "interna-tx", "kan-frysas"]),
         ("Klustring", ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin"]),
         ("Spårning", ["grafen", "sparningsmetoder", "sparet-tar-slut", "kurser"]),
         ("Etiketter", ["etiketter"]),
