@@ -34,6 +34,9 @@ internal sealed class CaseFixture : IDisposable
     /// <summary>The recovery key the stores get; none unless the test sets one.</summary>
     public RecoveryPublicKey? RecoveryKey { get; set; }
 
+    /// <summary>The revoked recovery keys the stores get; none unless the test sets them.</summary>
+    public IReadOnlySet<string> Revoked { get; set; } = new HashSet<string>();
+
     public static TimeZoneInfo TimeZone { get; } =
         TimeZoneInfo.CreateCustomTimeZone("Chainsaw/Test", TimeSpan.FromHours(1), "Test", "Test");
 
@@ -46,6 +49,7 @@ internal sealed class CaseFixture : IDisposable
             SharingIterations = 1_000,
             TimeZone = TimeZone,
             RecoveryKey = RecoveryKey,
+            RevokedRecoveryKeys = Revoked,
         };
         var store = new CaseStore(
             Vault, PurposeKeys, Profiles, Clock, options, [new CasesSchema(), .. contributors]);

@@ -12,6 +12,9 @@ namespace Chainsaw.Recovery;
 /// </summary>
 internal sealed class CaseSession : IDisposable
 {
+    /// <summary>The start of a temporary folder's name.</summary>
+    private const string TemporaryPrefix = "chainsaw-recovery-";
+
     /// <summary>The length of the temporary vault's random master key.</summary>
     private const int TemporaryMasterKeyLength = 32;
 
@@ -53,7 +56,7 @@ internal sealed class CaseSession : IDisposable
     /// <returns>The session.</returns>
     public static CaseSession WithoutVault()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "chainsaw-recovery-" + Guid.NewGuid().ToString("N"));
+        var directory = NewTemporaryDirectory();
         return new CaseSession(directory, directory);
     }
 
@@ -65,7 +68,7 @@ internal sealed class CaseSession : IDisposable
     /// <returns>The session; disposing it removes the vault.</returns>
     public static CaseSession ForAdministrator(OperatorProfile administrator)
     {
-        var directory = Path.Combine(Path.GetTempPath(), "chainsaw-recovery-" + Guid.NewGuid().ToString("N"));
+        var directory = NewTemporaryDirectory();
         var session = new CaseSession(directory, directory);
         var masterKey = new char[TemporaryMasterKeyLength];
         try
@@ -106,6 +109,11 @@ internal sealed class CaseSession : IDisposable
             throw;
         }
     }
+
+    /// <summary>Gives a new, unused temporary folder for one run.</summary>
+    /// <returns>The folder's path; it is created when the vault is first written.</returns>
+    private static string NewTemporaryDirectory() =>
+        Path.Combine(Path.GetTempPath(), TemporaryPrefix + Guid.NewGuid().ToString("N"));
 
     /// <summary>Closes the modules (locking the vault) and removes a temporary vault.</summary>
     public void Dispose()

@@ -5,9 +5,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på beslut
 
-- **En bytt återställningsnyckel tas bort ur ärendena** (etapp 9, det säkraste valet): när en ny nyckel byggs in får
-  varje ärende som öppnas ett nytt kuvert, och kuvertet för den gamla tas bort. Den gamla privata nyckeln öppnar då
-  bara äldre kopior och ärenden som inte öppnats sedan bytet. Alternativet är att låta gamla kuvert ligga kvar.
+- **Återkallade återställningsnycklar** (etapp 9): en bytt nyckels kuvert ligger kvar, och tas bort först när nyckeln
+  återkallas med en rad `REVOKED` i `organization-recovery-key.pem`. Att ta bort alla andra nycklars kuvert vid ett
+  byte prövades men vägrades i granskningen: en äldre version eller en annan organisations Chainsaw tog då bort den
+  nyare nyckelns kuvert. Bekräfta att återkallelse för hand räcker.
 - **Ordningen bland uttagen** (CLAUDE.md, *Sorterna efter vad som händer med pengarna*): fråga kryptospåraren vilka uttag
   som är vanligast i de svenska ärendena, och om några sorter kan slås ihop.
 

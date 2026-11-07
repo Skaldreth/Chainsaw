@@ -33,7 +33,19 @@ public sealed class CasesOptions
     /// <see langword="null"/> when none is configured. The application uses the key built into the module (see
     /// <see cref="EmbeddedRecoveryKey"/>); only tests set their own, through the internal setter.
     /// </summary>
-    public Contracts.RecoveryPublicKey? RecoveryKey { get; internal set; } = EmbeddedRecoveryKey.Load();
+    public Contracts.RecoveryPublicKey? RecoveryKey { get; internal set; } = BuiltIn.Key;
+
+    /// <summary>
+    /// Gets the fingerprints of earlier recovery keys that are revoked: their envelopes are removed from every case
+    /// that is opened. Envelopes for keys that are merely unknown are never removed. Only tests set their own.
+    /// </summary>
+    internal IReadOnlySet<string> RevokedRecoveryKeys { get; set; } = BuiltIn.Revoked;
+
+    /// <summary>The configuration built into the module, read once.</summary>
+    private static RecoveryKeyConfiguration BuiltIn => BuiltInConfiguration.Value;
+
+    /// <summary>Reads the built-in configuration the first time it is needed.</summary>
+    private static readonly Lazy<RecoveryKeyConfiguration> BuiltInConfiguration = new(EmbeddedRecoveryKey.Load);
 
     /// <summary>
     /// Gets or sets the iterations used when a sharing password is set. Only tests lower it, to stay fast; the count

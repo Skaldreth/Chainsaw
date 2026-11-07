@@ -273,7 +273,9 @@ internal static class RecoveryTool
 
         try
         {
-            using var session = CaseSession.ForAdministrator(administrator);
+            // The session (and its temporary vault) is gone before success is reported, so that a failure to clean
+            // up is never reported after the case was changed.
+            using (var session = CaseSession.ForAdministrator(administrator))
             using (var opened = session.Store.OpenWithRecoveryKey(casePath, privateKey, administrator.Name))
             {
                 opened.SetSharingPassword(password);
@@ -306,10 +308,10 @@ internal static class RecoveryTool
         var masterKey = console.ReadSecret("Operatörens huvudnyckel");
         try
         {
-            using var session = CaseSession.ForOperator(vault, masterKey);
-            Array.Clear(masterKey);
-            using (var opened = session.Store.OpenWithRecoveryKey(casePath, privateKey, administrator))
+            using (var session = CaseSession.ForOperator(vault, masterKey))
             {
+                Array.Clear(masterKey);
+                using var opened = session.Store.OpenWithRecoveryKey(casePath, privateKey, administrator);
                 opened.AddOperatorAccess();
                 opened.Close();
             }

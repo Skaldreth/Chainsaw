@@ -407,7 +407,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 })));
         }
 
-        var recoveryAdded = opened.AddMissingRecoveryEnvelope();
+        var recoveryAdded = opened.UpdateRecoveryEnvelopes();
         if (recovered || applied.Count > 0 || opening.Kind != OpeningKind.Vault || anchorsJournalled || recoveryAdded)
         {
             opened.SaveUnlocked();

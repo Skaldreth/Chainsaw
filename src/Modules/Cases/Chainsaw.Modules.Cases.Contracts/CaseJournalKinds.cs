@@ -31,10 +31,11 @@ public static class CaseJournalKinds
     public const string AnchorsReplaced = "case.anchors-replaced";
 
     /// <summary>
-    /// An envelope for the organisation's recovery key was added: to an older case, or because the key built into
-    /// Chainsaw was replaced. The details give the key's fingerprint.
+    /// The recovery envelopes changed when the case was opened: an envelope for the organisation's key was added (to
+    /// an older case, or because the key built into Chainsaw was replaced), and envelopes for revoked keys were
+    /// removed. The details give the added key's fingerprint and the removed ones.
     /// </summary>
-    public const string RecoveryAccessAdded = "case.recovery-access-added";
+    public const string RecoveryAccessChanged = "case.recovery-access-changed";
 
     /// <summary>
     /// The case was opened with the organisation's private recovery key; the details name the administrator and the

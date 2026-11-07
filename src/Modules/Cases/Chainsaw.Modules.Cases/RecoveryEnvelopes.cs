@@ -136,16 +136,16 @@ internal static class RecoveryEnvelopes
         [.. Readable(header).Select(item => item.Fingerprint).Distinct(StringComparer.Ordinal)];
 
     /// <summary>
-    /// Gives the header without the envelopes of this construction for other keys than the given one, so that a
-    /// replaced (perhaps compromised) key no longer opens later copies of the file.
+    /// Gives the header's envelopes without those of this construction for revoked keys, so that a compromised key
+    /// no longer opens later copies of the file.
     /// </summary>
     /// <param name="header">The header.</param>
-    /// <param name="fingerprint">The fingerprint of the key that stays.</param>
+    /// <param name="revoked">The fingerprints of the revoked keys.</param>
     /// <returns>The envelopes that stay, and the fingerprints of those removed.</returns>
-    public static (IReadOnlyList<JsonObject> Kept, IReadOnlyList<string> Removed) WithoutOtherKeys(
-        CaseHeader header, string fingerprint)
+    public static (IReadOnlyList<JsonObject> Kept, IReadOnlyList<string> Removed) Without(
+        CaseHeader header, IReadOnlySet<string> revoked)
     {
-        var removed = Readable(header).Where(item => item.Fingerprint != fingerprint).ToList();
+        var removed = Readable(header).Where(item => revoked.Contains(item.Fingerprint)).ToList();
         var kept = header.Envelopes.Where(envelope => !removed.Any(item => ReferenceEquals(item.Envelope, envelope)));
         return ([.. kept], [.. removed.Select(item => item.Fingerprint).Distinct(StringComparer.Ordinal)]);
     }

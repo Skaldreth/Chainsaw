@@ -97,31 +97,42 @@ public sealed class RecoveryKeyTests : IDisposable
         {
             Assert.Equal([key.Fingerprint], opened.RecoveryFingerprints);
             var entry = opened.ReadJournal()[^1];
-            Assert.Equal(CaseJournalKinds.RecoveryAccessAdded, entry.Kind);
+            Assert.Equal(CaseJournalKinds.RecoveryAccessChanged, entry.Kind);
             Assert.Contains(key.Fingerprint, entry.Details, StringComparison.Ordinal);
         }
 
         Assert.Equal([key.Fingerprint], _owner.CreateStore().ReadRecoveryFingerprints(_owner.CaseFile("A1")));
         using var again = _owner.CreateStore().Open("A1");
-        Assert.Single(again.ReadJournal(), entry => entry.Kind == CaseJournalKinds.RecoveryAccessAdded);
+        Assert.Single(again.ReadJournal(), entry => entry.Kind == CaseJournalKinds.RecoveryAccessChanged);
     }
 
     [Fact]
-    public void A_replaced_key_gets_a_new_envelope_and_the_old_one_is_removed()
+    public void A_replaced_key_gets_a_new_envelope_and_the_old_one_stays_until_it_is_revoked()
     {
         var oldKey = _owner.RecoveryKey!;
         using (_owner.CreateStore().Create("A1"))
         {
         }
 
+        _owner.RecoveryKey = RecoveryPublicKey.FromPrivateKey(_otherKey);
+        using (var opened = _owner.CreateStore().Open("A1"))
+        {
+            Assert.Equal([oldKey.Fingerprint, _owner.RecoveryKey.Fingerprint], opened.RecoveryFingerprints);
+            Assert.Equal(CaseJournalKinds.RecoveryAccessChanged, opened.ReadJournal()[^1].Kind);
+        }
+
+        using (_administrator.CreateStore().OpenWithRecoveryKey(_owner.CaseFile("A1"), _privateKey, Administrator))
+        {
+        }
+
         var copyBefore = _owner.CaseFile("A1") + ".kopia";
         File.Copy(_owner.CaseFile("A1"), copyBefore);
-        _owner.RecoveryKey = RecoveryPublicKey.FromPrivateKey(_otherKey);
+        _owner.Revoked = new HashSet<string>([oldKey.Fingerprint]);
         using (var opened = _owner.CreateStore().Open("A1"))
         {
             Assert.Equal([_owner.RecoveryKey.Fingerprint], opened.RecoveryFingerprints);
             var entry = opened.ReadJournal()[^1];
-            Assert.Equal(CaseJournalKinds.RecoveryAccessAdded, entry.Kind);
+            Assert.Equal(CaseJournalKinds.RecoveryAccessChanged, entry.Kind);
             Assert.Contains(oldKey.Fingerprint, entry.Details, StringComparison.Ordinal);
         }
 
@@ -132,9 +143,58 @@ public sealed class RecoveryKeyTests : IDisposable
         {
         }
 
-        // A copy made before the key was replaced still opens with the old key.
+        // A copy made before the key was revoked still opens with the old key.
         using var old = _administrator.CreateStore().OpenWithRecoveryKey(copyBefore, _privateKey, Administrator);
         Assert.Equal("A1", old.Info.CaseNumber);
+    }
+
+    [Fact]
+    public void An_older_or_foreign_build_never_removes_the_envelope_of_a_key_it_does_not_know()
+    {
+        _owner.RecoveryKey = RecoveryPublicKey.FromPrivateKey(_otherKey);
+        using (_owner.CreateStore().Create("A1"))
+        {
+        }
+
+        _owner.RecoveryKey = RecoveryPublicKey.FromPrivateKey(_privateKey);
+        using (var opened = _owner.CreateStore().Open("A1"))
+        {
+            Assert.Contains(RecoveryPublicKey.FromPrivateKey(_otherKey).Fingerprint, opened.RecoveryFingerprints);
+        }
+
+        using var newer = _administrator.CreateStore()
+            .OpenWithRecoveryKey(_owner.CaseFile("A1"), _otherKey, Administrator);
+        Assert.Equal("A1", newer.Info.CaseNumber);
+    }
+
+    [Fact]
+    public void The_built_in_text_gives_the_key_and_the_revoked_keys()
+    {
+        var key = RecoveryPublicKey.FromPrivateKey(_privateKey);
+        var text = "Förklaring\n" + key.ExportPem() + "\nREVOKED " + RecoveryPublicKey.FormatFingerprint(
+            OpenSslFingerprint) + "\n";
+
+        var parsed = EmbeddedRecoveryKey.Parse(text);
+
+        Assert.Equal(key, parsed.Key);
+        Assert.Equal([OpenSslFingerprint], parsed.Revoked);
+    }
+
+    [Theory]
+    [InlineData("REVOKED 1234")]
+    [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----")]
+    public void Built_in_text_that_does_not_hold_stops_the_build_from_running(string line)
+    {
+        Assert.Throws<InvalidOperationException>(() => EmbeddedRecoveryKey.Parse("Förklaring\n" + line));
+    }
+
+    [Fact]
+    public void A_build_cannot_revoke_its_own_key()
+    {
+        var key = RecoveryPublicKey.FromPrivateKey(_privateKey);
+
+        Assert.Throws<InvalidOperationException>(
+            () => EmbeddedRecoveryKey.Parse(key.ExportPem() + "\nREVOKED " + key.Fingerprint));
     }
 
     [Fact]
@@ -155,7 +215,7 @@ public sealed class RecoveryKeyTests : IDisposable
 
         using (var opened = _owner.CreateStore().Open("A1"))
         {
-            Assert.Equal([_owner.RecoveryKey.Fingerprint], opened.RecoveryFingerprints);
+            Assert.Contains(_owner.RecoveryKey.Fingerprint, opened.RecoveryFingerprints);
         }
 
         using var stream = File.OpenRead(_owner.CaseFile("A1"));
@@ -423,7 +483,7 @@ public sealed class RecoveryKeyTests : IDisposable
     [Fact]
     public void The_built_in_key_is_either_absent_or_a_valid_p384_key()
     {
-        var key = EmbeddedRecoveryKey.Load();
+        var key = EmbeddedRecoveryKey.Load().Key;
 
         if (key is not null)
         {

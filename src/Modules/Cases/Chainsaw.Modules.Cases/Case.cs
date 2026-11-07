@@ -522,41 +522,49 @@ internal sealed class Case : ICase
     }
 
     /// <summary>
-    /// Adds an envelope for the organisation's recovery key when one is configured and the file has none for it (an
-    /// older case, or a key that has been replaced), with an entry in the journal. Envelopes for earlier keys are
-    /// removed at the same time, so that a replaced key, which may have been compromised, does not open later copies
-    /// of the file; copies made before still hold them. The caller saves.
+    /// Brings the recovery envelopes up to date when the case is opened, with one entry in the journal: removes the
+    /// envelopes for keys this build revokes (so that a compromised key does not open later copies; copies made
+    /// before still hold them), and adds one for the configured key when the file has none (an older case, or a key
+    /// that has been replaced). Envelopes for keys that are merely unknown here (a newer key, or another
+    /// organisation's) stay. The caller saves.
     /// </summary>
-    /// <returns><see langword="true"/> when an envelope was added.</returns>
-    internal bool AddMissingRecoveryEnvelope()
+    /// <returns><see langword="true"/> when the envelopes changed.</returns>
+    internal bool UpdateRecoveryEnvelopes()
     {
-        if (_services.Options.RecoveryKey is not { } recoveryKey
-            || RecoveryEnvelopes.Fingerprints(_header).Contains(recoveryKey.Fingerprint, StringComparer.Ordinal))
+        var recoveryKey = _services.Options.RecoveryKey;
+        var (kept, removed) = RecoveryEnvelopes.Without(_header, _services.Options.RevokedRecoveryKeys);
+        var add = recoveryKey is not null
+            && !RecoveryEnvelopes.Fingerprints(_header).Contains(recoveryKey.Fingerprint, StringComparer.Ordinal)
+            && kept.Count < CaseContainer.MaximumEnvelopes;
+        if (!add && removed.Count == 0)
         {
+            // At the limit a header with one more envelope would not be read again; the file keeps its ways in.
             return false;
         }
 
-        var (kept, removed) = RecoveryEnvelopes.WithoutOtherKeys(_header, recoveryKey.Fingerprint);
-        if (kept.Count >= CaseContainer.MaximumEnvelopes)
-        {
-            // A header with more envelopes would not be read again; the file keeps the ways in it has.
-            return false;
-        }
-
-        var envelope = RecoveryEnvelopes.Create(Info.Id, _fileKey, recoveryKey);
+        var envelopes = add ? kept.Append(RecoveryEnvelopes.Create(Info.Id, _fileKey, recoveryKey!)) : kept;
         AppendOwnJournal(new JournalDraft(
-            CaseJournalKinds.RecoveryAccessAdded,
-            removed.Count == 0
-                ? "Ärendet fick ett kuvert för organisationens återställningsnyckel"
-                : "Ärendet fick ett kuvert för organisationens nya återställningsnyckel, och de gamla togs bort",
-            JsonSerializer.Serialize(new Dictionary<string, object>
+            CaseJournalKinds.RecoveryAccessChanged,
+            RecoverySummary(add, removed.Count > 0),
+            JsonSerializer.Serialize(new Dictionary<string, object?>
             {
-                [RecoveryDetails.Fingerprint] = recoveryKey.Fingerprint,
+                [RecoveryDetails.Fingerprint] = add ? recoveryKey!.Fingerprint : null,
                 [RecoveryDetails.Removed] = removed,
             })));
-        _header = _header.WithEnvelopes(kept.Append(envelope));
+        _header = _header.WithEnvelopes(envelopes);
         return true;
     }
+
+    /// <summary>The journal's line for a change of the recovery envelopes.</summary>
+    /// <param name="added">Whether an envelope for the configured key was added.</param>
+    /// <param name="removed">Whether envelopes for revoked keys were removed.</param>
+    /// <returns>The line.</returns>
+    private static string RecoverySummary(bool added, bool removed) => (added, removed) switch
+    {
+        (true, false) => "Ärendet fick ett kuvert för organisationens återställningsnyckel",
+        (true, true) => "Ärendet fick ett kuvert för organisationens nya återställningsnyckel; återkallade togs bort",
+        _ => "Kuverten för återkallade återställningsnycklar togs bort ur ärendet",
+    };
 
     /// <summary>Derives a key from the vault, giving a locked vault the case's own error.</summary>
     /// <param name="purposeKeys">The vault's keys per purpose.</param>
