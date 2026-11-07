@@ -15,8 +15,11 @@ namespace Chainsaw.App.Views;
 /// </summary>
 public partial class GraphStartView : UserControl
 {
-    /// <summary>How far below the sonar's ring the line under Nytt ärende stands.</summary>
-    private const double HintBelowRing = 30;
+    /// <summary>How far below Nytt ärende the line under it stands, clear of the sonar's rings.</summary>
+    private const double HintBelowRing = 44;
+
+    /// <summary>The corner radius of Nytt ärende's frame, which the sonar's rings start from.</summary>
+    private const double NewCaseCornerRadius = 10;
 
     /// <summary>The model shown.</summary>
     private GraphStartViewModel? _model;
@@ -92,11 +95,7 @@ public partial class GraphStartView : UserControl
     {
         Ring.Children.Clear();
         var middle = new Grid();
-        middle.Children.Add(new SonarRing
-        {
-            Width = 248, Height = 82, CornerRadius = new CornerRadius(18), BorderThickness = new Thickness(1.5),
-            BorderBrush = Brush("Brush.Accent"),
-        });
+        middle.Children.Add(new SonarRing { CornerRadius = NewCaseCornerRadius, Stroke = Brush("Brush.Accent") });
         middle.Children.Add(NewCaseNode());
         var hint = new TextBlock
         {
@@ -104,7 +103,7 @@ public partial class GraphStartView : UserControl
             Foreground = Brush("Brush.TextMuted"), HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false,
 
-            // Below the sonar's ring, moved only where it is drawn, so that the node stays the ring's middle.
+            // Below the node and its rings, moved only where it is drawn, so that the node stays the ring's middle.
             RenderTransform = new TranslateTransform(0, HintBelowRing),
         };
         middle.Children.Add(hint);
@@ -129,7 +128,7 @@ public partial class GraphStartView : UserControl
         FootLine.Foreground = text;
         SendLine.Foreground = text;
         var ring = model.IsOnline ? Brush("Brush.Accent") : Brush("Brush.BorderHover");
-        StartSonar.BorderBrush = ring;
+        StartSonar.Stroke = ring;
         StartFrame.Stroke = ring;
         FootLine.ToolTip = model.IsOnline
             ? "Alla uppslag går genom den här utgången"
