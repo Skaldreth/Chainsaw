@@ -315,6 +315,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **En länk medan raden har text** (granskningen etapp 11, omgång 2): länken läggs inte in och svaret försvinner vid
   nästa tangent. Spara den som ett väntande förslag (i ledtråden) tills raden är tom.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
+
+### Undermenyer i pillret (etapp 11b)
+- **Nytt → Etikett, Bevakning och Begäran** är tonade som inte byggda; ändra `SubmenuNeed` i
+  `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när gränssnittet finns.
+- **Startpunkt med ett ärende** lägger bara markören i kommandoraden; ett eget fält (som i Nytt ärende) kan skissas.
+- **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser
+  (`IAttributionService.CheckSanctions`); det görs när grafen byggs.
 - **Utgångens namn i titelraden** visas som platsen (eller namnet) först när utgången är ansluten; tunneln är inte
   byggd, så det har inte kunnat provas.
 

@@ -781,3 +781,51 @@ Byggt efter skissen NC1a och skalet som det ser ut i koden (SH1b med pillret, si
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`), registrera länken i Inställningar, öppna en kollegas fil
 med lösenord, ändra titeln i ett gränssnitt, sökning i kommandoraden, och punkterna under *Ärenden i appen* i TODO.
+
+## Etapp 11b: undermenyer i pillret (PN1), 2026-11-07
+
+**Byggt:**
+- **En allmän undermeny för pillret** (skiss PN1, efter Gawks B9): en knapp med en rad i `Navigation/SubmenuTable.cs`
+  fäller ut sin undermeny i stället för att visa en vy. Raderna (namn, kortkommando, vad raden behöver och ett ärligt
+  verktygstips) ligger i tabellen utan WPF, så att fler knappar får undermenyer utan ny kod i vyn.
+- **Formen** (`Navigation/SubmenuShape.cs`): flik och meny som en enda kontur, ritad som sökvägsdata ur skissens
+  `shape` (fliken 51 px, 6 px förbi pillret, menyn 230 px, hörn 8 px, rader 30 px, linjer 9 px), och i
+  `Views/PillSubmenu` ytan, kanten och skuggan (skuggan i ett eget lager) med fliken exakt över knappen.
+- **Vymodellen** (`SubmenuViewModel`, `SubmenuRowViewModel`): öppna och stänga, markeringen som hoppar över linjer och
+  tonade rader och går runt, Enter, bokstäverna, Esc och vart tangentbordet går när menyn stängs.
+- **Tangentbordet och fokus:** Enter eller klick på knappen öppnar, ↑ ↓ Home End PgUp PgDn flyttar, Enter och Space
+  väljer (inte en upprepad tangent), bokstäverna väljer direkt, Esc och ← stänger med fokus tillbaka på knappen, Tab
+  och → stannar i menyn. Ett klick utanför stänger med fokus på knappen; tangentbordet till något annat i fönstret
+  (Ctrl+K, en vy, låsningen) stänger utan att ta tillbaka det. Ett annat fönster stänger menyn, och fokus kommer
+  tillbaka till knappen när fönstret blir aktivt. Menyn följer knappen när fönstret ändrar storlek.
+- **Nytt:** Startpunkt (S) lägger markören i kommandoraden med en rad om vad som ska skrivas, eller öppnar Nytt ärende
+  utan ärende; Importera sanktionslista … (I) öppnar Windows filväljare och importerar genom `ISanctionLists`
+  (`SanctionListImport`, utanför UI-tråden, med svar för varje fel och *fanns redan* för samma fil); Ärende (Ctrl+N)
+  öppnar panelen. Etikett, Bevakning och Begäran står tonade med *Inte byggt än: …*. Ctrl+N öppnar panelen direkt.
+- **Automatisk låsning** hålls medan filväljaren är öppen (`AutoLock.Hold`), och en fil som väljs medan Chainsaw är
+  låst släpps.
+- `SanctionCurrency.Bitcoin` (`XBT`) i Attributions kontrakt, så att koden finns på ett ställe.
+
+**Egna beslut och avsteg från skissen:**
+- **Startpunkt är inte tonad utan ärende** (skissen tonar den): orkestrerarens uppdrag säger att den öppnar Nytt ärende
+  utan ärende, eftersom en startpunkt startar ett ärende. Tabellen har ändå `SubmenuNeed.OpenCase` för rader som kräver
+  ett ärende.
+- **Etikett är tonad också med ett ärende,** eftersom inget gränssnitt för etiketter finns (grafen och vyn Etiketter
+  är inte byggda).
+- **Markören hoppar över tonade rader** med piltangenterna, och en tonad rads bokstav sväljs utan att något händer.
+- **Esc, ← och ett klick utanför** lämnar fokus på knappen; Tab, Shift+Tab och → stannar i menyn.
+- **Knappen under menyn döljs av den täckande formen,** inte med genomskinlighet som i skissen.
+- **Fliken i en kortare meny:** konturen blir aldrig lägre än fliken och två hörn.
+
+**Granskningen:**
+- Omgång 1: inga C, fyra I och tio M. I rättade: en meny kunde öppnas osynligt bakom Nytt ärende (pillret nåddes med Tab
+  genom panelen), menyn stod kvar när fönstret ändrade storlek, fokus försvann efter Alt+Tab, konturens kant och skugga
+  klipptes. M rättade: Shift+Tab och → släppte ut fokus, en nedhållen Enter valde en rad, automatisk låsning bakom
+  filväljaren, import som misslyckades tyst, *fanns redan*, `XBT` på två ställen, tonade raders färg, verktygstipsets
+  plats, radlängder och testplanen.
+- Omgång 2: inga C, ett I och tre M, rättade: fokus efter Alt+Tab ges till knappen också när Windows lämnat det på
+  fönstret, en fil som väljs medan Chainsaw är låst importeras inte, *importeras redan* visas som ett fel, en rad i
+  testplanen.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Undermenyer i pillret*); Etikett, Bevakning och Begäran
+när deras gränssnitt finns; fler knappar med undermenyer.

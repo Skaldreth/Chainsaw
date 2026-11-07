@@ -411,7 +411,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         if (_importing)
         {
-            Answer(CommandReply.Done(ImportRunningText));
+            Answer(CommandReply.Failed(ImportRunningText));
             return;
         }
 

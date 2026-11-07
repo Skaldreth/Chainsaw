@@ -186,14 +186,16 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Gives the keyboard back to the button whose menu was open when the window was left, unless something else in
-    /// the window already has it: Windows would give it back to the closed menu, where it would be lost.
+    /// the window already has it: Windows would give it back to the closed menu, where it would be lost, or to the
+    /// window itself.
     /// </summary>
     private void ReturnFromElsewhere()
     {
         var item = _leftWithSubmenu;
         _leftWithSubmenu = null;
         if (item is not null && _gate.IsShellVisible
-            && Keyboard.FocusedElement is not UIElement { IsVisible: true })
+            && (Keyboard.FocusedElement is not UIElement { IsVisible: true } focused
+                || ReferenceEquals(focused, this) || ReferenceEquals(focused, Submenu)))
         {
             ButtonOf(item)?.Focus();
         }

@@ -310,5 +310,7 @@ Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i et
   *Skriv en adress eller en tx och tryck Enter, så blir den en startpunkt i …*; står det redan text i raden lämnas den.
 - *Importera sanktionslista …* öppnar Windows filväljare (XML). Välj en sparad SDN-lista från OFAC: svaret ovanför
   raden säger *OFAC SDN publicerad … är importerad: n adresser, m för Bitcoin.* En annan XML-fil ger *Filen är inte en
-  SDN-lista i XML.* Samma lista igen säger *… fanns redan: …*. Avbryt säger inget. Listan ligger i `%LOCALAPPDATA%\Chainsaw` (etapp 8).
+  SDN-lista i XML.* Samma lista igen säger *… fanns redan: …*. Avbryt säger inget.
+  Listan ligger i `%LOCALAPPDATA%\Chainsaw` (etapp 8). Tryck Ctrl+L … (eller lås Windows) medan filväljaren är öppen
+  och välj en fil medan Chainsaw är låst: inget importeras.
 - *Ärende* öppnar Nytt ärende.
