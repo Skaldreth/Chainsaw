@@ -119,8 +119,6 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
   vem, när, etiketten och källans sort in i ett annat ärende; ärendenumret, anteckningen, skälet, titeln och enheten
   ska också följa med. Sessionens egen regel att en etikett på ett offer aldrig sprids står kvar tills användaren säger
   annat. Om *Sprid inte* också ska gå att sätta för ett helt ärende är inte bestämt.
-- **Windows som utgång utan nät** (CLAUDE.md, *Windows som utgång*): grönt så länge datorn når internet, *Offline*
-  annars (`NetworkChange` säger när datorn saknar nät).
 - **Bevakningens aviseringar** (etapp 27, CLAUDE.md *Bevaka*): sätten i inställningarna (avisering i Windows, ljud,
   meddelande mitt på skärmen överst) och hur ofta per bevakning. Ljudet behöver en fri licens eller göras själv.
 

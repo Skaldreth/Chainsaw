@@ -205,6 +205,16 @@ internal sealed class RecordingLocalHandlerFactory : ILocalHandlerFactory
     }
 }
 
+/// <summary>Whether the computer has a network, as the test says; online at first.</summary>
+internal sealed class FakePresence : INetworkPresence
+{
+    public bool IsAvailable { get; set; } = true;
+
+    public event EventHandler<bool>? Changed;
+
+    public void Raise() => Changed?.Invoke(this, IsAvailable);
+}
+
 /// <summary>A clock that moves only when told to.</summary>
 internal sealed class FakeClock : IClock
 {
@@ -223,7 +233,7 @@ internal sealed class NetworkHarness
         Connection = new ExitConnection(Records, Connector, handlers ?? Handlers);
         Store = new ExitStore(Records, Connection);
         Route = new ExitRouteChoice(Options, WindowsHandlers);
-        Http = new ExitHttp(Connection, Route, Options, Clock);
+        Http = new ExitHttp(Connection, Route, Presence, Options, Clock);
         Connection.StatusChanged += (_, status) =>
         {
             lock (_events)
@@ -247,6 +257,8 @@ internal sealed class NetworkHarness
     public ExitRouteChoice Route { get; }
 
     public FakeClock Clock { get; } = new();
+
+    public FakePresence Presence { get; } = new();
 
     public NetworkOptions Options { get; }
 

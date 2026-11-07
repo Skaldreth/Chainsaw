@@ -159,6 +159,20 @@ internal sealed class TestExitRoute : IExitRoute
     }
 }
 
+/// <summary>Whether the computer has a network, as the test says; online at first.</summary>
+internal sealed class TestNetwork : INetworkPresence
+{
+    public bool IsAvailable { get; private set; } = true;
+
+    public event EventHandler<bool>? Changed;
+
+    public void Set(bool available)
+    {
+        IsAvailable = available;
+        Changed?.Invoke(this, available);
+    }
+}
+
 /// <summary>Builds the way out for a test, as the program wires it, on the test's own thread.</summary>
 internal static class TestWays
 {
@@ -544,7 +558,7 @@ internal sealed class GateRig
             ],
             input);
         Sanctions = new SanctionListImport(SanctionLists, Picker);
-        Way = new ExitWay(Route, Exit, Ui);
+        Way = new ExitWay(Route, Exit, Ui, network: Network);
         ExitPanel = new ExitPanelViewModel(Exit, Way, Exits, Picker, Ui);
         Settings = new SettingsViewModel(
             new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build);
@@ -573,6 +587,8 @@ internal sealed class GateRig
     public TestExitConnection Exit { get; } = new();
 
     public TestExitRoute Route { get; } = new();
+
+    public TestNetwork Network { get; } = new();
 
     public ExitWay Way { get; }
 

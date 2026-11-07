@@ -5,9 +5,9 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.App.ViewModels;
 
 /// <summary>
-/// The way lookups leave the computer as the shell shows it: the way chosen in the settings (VPN or Windows) and the
-/// exit's status, which together say whether anything can be looked up now (principle 9), and the chains whose sources
-/// are off in the settings (sketch KL1a). Changes are told on the UI thread. It knows nothing of WPF.
+/// The way lookups leave the computer as the shell shows it: the way chosen in the settings (VPN or Windows), the
+/// exit's status and whether the computer has a network, which together say whether anything can be looked up now
+/// (principle 9), and the chains whose sources are off in the settings (sketch KL1a). Changes are told on the UI thread. It knows nothing of WPF.
 /// </summary>
 public sealed class ExitWay
 {
@@ -31,7 +31,16 @@ public sealed class ExitWay
     /// The chains' endpoints, whose mode Av and whose waits for a source are followed; none when
     /// <see langword="null"/>.
     /// </param>
-    public ExitWay(IExitRoute route, IExitConnection connection, IUiThread ui, IChainSources? sources = null)
+    /// <param name="network">
+    /// Whether the computer has a network, which Windows as the way out needs; always online when
+    /// <see langword="null"/>.
+    /// </param>
+    public ExitWay(
+        IExitRoute route,
+        IExitConnection connection,
+        IUiThread ui,
+        IChainSources? sources = null,
+        INetworkPresence? network = null)
     {
         ArgumentNullException.ThrowIfNull(route);
         ArgumentNullException.ThrowIfNull(connection);
@@ -49,6 +58,18 @@ public sealed class ExitWay
             Route = _route.Current;
             Changed?.Invoke(this, EventArgs.Empty);
         });
+        if (network is not null)
+        {
+            network.Changed += (_, available) => ui.Post(() =>
+            {
+                if (IsOnline != available)
+                {
+                    IsOnline = available;
+                    Changed?.Invoke(this, EventArgs.Empty);
+                }
+            });
+        }
+
         if (sources is not null)
         {
             sources.Changed += (_, chain) => ui.Post(() =>
@@ -66,6 +87,7 @@ public sealed class ExitWay
 
         Status = connection.Status;
         Route = route.Current;
+        IsOnline = network?.IsAvailable ?? true;
     }
 
     /// <summary>Raised on the UI thread after the way or the exit's status has changed.</summary>
@@ -79,6 +101,14 @@ public sealed class ExitWay
 
     /// <summary>Gets whether Windows is the way out.</summary>
     public bool IsWindows => Route == ExitRoute.Windows;
+
+    /// <summary>Gets whether the computer has a network, as last told on the UI thread.</summary>
+    public bool IsOnline { get; private set; }
+
+    /// <summary>
+    /// Gets whether Windows is the way out and the computer has no network, so that it is shown as <em>Offline</em>.
+    /// </summary>
+    public bool IsWindowsOffline => IsWindows && !IsOnline;
 
     /// <summary>Gets the chains whose sources are off (<see cref="SourceMode.Off"/>), as last told.</summary>
     public IReadOnlySet<Chain> ChainsOff => _off;
@@ -97,8 +127,10 @@ public sealed class ExitWay
         ? string.Empty
         : WaitingText + " · " + string.Join(", ", _waiting.Order().Select(ChainName));
 
-    /// <summary>Gets whether lookups can go now: through Windows, or through a connected exit.</summary>
-    public bool IsLive => IsWindows || Status.State == ExitState.Connected;
+    /// <summary>
+    /// Gets whether lookups can go now: through Windows while the computer has a network, or through a connected exit.
+    /// </summary>
+    public bool IsLive => IsWindows ? IsOnline : Status.State == ExitState.Connected;
 
     /// <summary>
     /// Chooses the way out in Network at once, so that the next lookup takes it, and tells the change. Leaving Windows
