@@ -65,6 +65,19 @@ länkar som hakar i varandra, `assets/logo/`).
    antal tester, granskningens resultat och commit. Stötte etappen på ett beslut som bara användaren kan ta: välj det
    säkraste, skriv det i TODO under *Väntar på beslut* och säg det i rapporten.
 
+## Dagkörningen 2026-11-07
+
+Samma arbetssätt som nattkörningen (*Så byggs etapperna*): en etapp i taget, var och en i en ny session, orkestrerad av
+huvudsessionen (`session_013CLefr2kGog3dCFdfqN1yx`). Gränssnitt byggs efter godkända skisser: ID7 med kättingen i loggans
+form (godkänd), FS1a och NC1a (valda), SH1b, GR3a, GR3c och GR4.
+
+| Etapp | Innehåll | Läge |
+| --- | --- | --- |
+| 9 | **Organisationens återställningsnyckel:** kuvert i varje ärendefil (ECIES P-384 eller motsvarande) för en inbyggd publik nyckel, och verktyget `tools/Chainsaw.Recovery` (skapa nyckelpar, fingeravtryck, kontrollera, öppna ett ärende) | Väntar |
+| 10 | **Låsskärmen och förstagångsinställningen** (ID7, FS1a): teckenfältet och kättingen i tecken, upplåsning och låsning genom Security, automatisk låsning, förstagångsinställningens fyra steg | Väntar |
+| 11 | **Ärenden i appen** (NC1a): Nytt ärende som panel, öppna ärende och kommandon i kommandoraden (`/new`, `/open`, `/verify`, `/lock`), ärendet i titelraden, startpunkter som känns igen | Väntar |
+| 12 | **Grafen** (GR4, GR3a, GR3c): Tracing-modellen ritad som fri yta med växel till hoppkolumner, bildspråket, belopp på linjerna, expansion, FIFO/haircut, inspektören med *Varför?* | Väntar |
+
 ## Nästa steg
 
 1. **Användarens val:** FS1a eller FS1b, NC1a eller NC1b, låsskärmens kätting (två varianter, TODO), och besluten i TODO
