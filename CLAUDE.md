@@ -85,7 +85,8 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
     upplåsning.
   - **En bevakning läggs till** (användarens beslut 2026-11-07) för hand i vyn Bevakning, eller i grafen genom att
     högerklicka på en nod och välja *Bevaka …*. Den gäller **inkommande, utgående eller båda**, och kan **filtreras på
-    en motpart**: bara pengar till en viss mottagare eller från en viss avsändare. Formen skissas som BV1.
+    motparter**: utgående till någon av flera valda mottagare (1:n) och inkommande från någon av flera valda avsändare
+    (n:1); en tom lista betyder alla. Formen skissas som BV1.
 - **Redovisa:** hur rapporten byggs bestäms när vi kommer dit (användarens beslut 2026-11-06).
 
 **Mixers är vanliga** i utredningarna (användarens observation 2026-11-07) och är en egen sort i grafen. Spåret tar slut
