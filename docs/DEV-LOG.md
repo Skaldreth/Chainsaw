@@ -1916,3 +1916,128 @@ varningar.
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Ethereum, andra delen*); spårning genom en swap, kända
 DEX:ar, tx:ens plats i blocket, aktiva adresser som bara är delvis lästa och resten under *Ethereum efter etapp 23b* i
 TODO; kontoheuristikerna och TRON.
+
+## Etapp 25 (2026-11-07): endpointarna, andra delen
+
+**Byggt:**
+- **Takt per endpoint** (Chains, `EndpointPacer`):
+  - Varje endpoint har en egen takt (`SourceEndpoint.Interval`). Förvalen står i `SourcePace`:
+    - högst fyra uppslag i sekunden per endpoint på internet (mempool.space, Blockstream, eth.blockscout.com och de
+      användaren lägger till);
+    - ingen paus för en egen nod.
+  - Förvalen är **Chainsaws eget försiktiga val**, inte källornas publicerade gränser, och dokumenteras så.
+  - Takten sparas i `sources.json` bara när den skiljer sig från förvalet. En endpoint på internet frågas aldrig fortare
+    än förvalet, vad filen än säger.
+- **Turer i förväg:** ett uppslag tar en tur, så att uppslag som körs samtidigt ställer sig i kö i stället för att
+  fråga på en gång. En tur som inte används lämnas tillbaka, till exempel när uppslaget avbryts före sändningen, när
+  nyckeln saknas, när utgången vägrar eller när källan bett om väntan under tiden.
+- **Spridning:**
+  - Ett uppslag tar den endpoint vars tur kommer först, men bara inom den bästa gruppen (`PlannedEndpoint.Tier`).
+  - I Snabbast är grupperna, i ordning: de som svarat rätt, de som inte är provade, de som ligger efter, de vars prov
+    misslyckades, och sist samma grupper igen för endpoints i paus.
+  - I Prioriterad är varje endpoint en egen grupp, så användarens ordning gäller.
+  - En sämre grupp tas bara när den bästas tur ligger mer än fem sekunder bort, till exempel när den bett om väntan.
+- **`429` och `Retry-After`** (Network och Chains):
+  - `ExitResponse.RetryAfter` läses som fördröjning eller datum, högst en timme. `ExitHttp` och `LocalHttp` sätter
+    det.
+  - Följande räknas som att källan ber om väntan:
+    - `429`, med `Retry-After`, annars 30 sekunder och alltid minst en sekund;
+    - `503` med en `Retry-After` på minst en sekund;
+    - Blockscouts *rate limit* i en kropp med status 200 (`SourceBusyException`).
+  - En endpoint som bett om väntan räknas inte som misslyckad. Den lämnas tyst för de andra och kommer tillbaka när
+    tiden gått.
+  - Ett uppslag som inte kan få en tur inom två minuter ger upp och svarar ur ärendet. Texten säger om en källa bett
+    om väntan eller om Chainsaws egen kö är full.
+- **Snygg reserv:** en endpoint som ett uppslag misslyckades genom får en paus. Pausen är en minut och fördubblas för
+  varje misslyckande i rad, upp till 30 minuter. Under pausen frågas de andra först. Efter pausen frågas den på sin plats
+  igen, och kommer tillbaka när den svarar. Varje försök förseglas som förut, också `429`.
+- **Väntan syns ärligt, utan att UI-tråden väntar:**
+  - `ChainSourcesView.WaitingUntil` och `EndpointView.WaitUntil`.
+  - `ExitWay.ChainsWaiting` och `WaitText` ger statusraden *Väntar på källan · Bitcoin* medan ett uppslag väntar mer än
+    en sekund.
+  - Raden i Källor får den gula markeringen *Väntar* med tiden på hovring, och sidan visas igen när den första väntan
+    är över.
+- **Ett blocks marginal:**
+  - En endpoint ett block under den högsta räknas som att den svarar rätt (`ChainSources.HeightMargin`), med
+    `BlocksBehind` = 1.
+  - **`LookupMode.InStep`** är bevakningens val i kontraktet: bara endpoints vars senaste prov svarade på den högsta
+    höjden och som inte misslyckats sedan. Finns ingen skickas inget, och uppslaget säger det.
+  - Bitcoins adresshistorik har fått en överlagring med läge (`IBitcoinSource`, med ett förval i gränssnittet som
+    vägrar `InStep`, så att andra källor inte behöver ändras). Ethereums historik hade redan läget.
+- **Egen nod på det lokala nätet:**
+  - **Märkningen:** `SourceEndpoint.Local`, `IChainSources.Add`/`TryAsync` med `local`, och `SourceAddress.TryRead(text,
+    local, …)`.
+  - **Adressen:**
+    - En adress på datorn eller ett privat nät kräver märkningen.
+    - En lokal endpoint får inte ha en IP-adress utanför det egna nätet (`LocalAddresses.IsOwnNetwork`: loopback,
+      10/8, 172.16/12, 192.168/16, länklokala och `fc00::/7`).
+    - Bara https.
+  - **Vägen:**
+    - `ILocalHttp` (Network: `LocalHttp`, `LocalHandlerFactory`) går direkt, utan proxy. Den vägrar http och IP-adresser
+      utanför det egna nätet innan något byggs, och slår upp ett namn och ansluter bara till dess adresser i det egna
+      nätet.
+    - `ChainSources.SendAsync` är det enda som väljer väg: `ILocalHttp` för en lokal endpoint, `IExitHttp` för alla
+      andra. Utan `ILocalHttp` misslyckas en lokal endpoint och går aldrig genom utgången.
+    - `ExitHttp` vägrar fortfarande privata adresser.
+  - **Förseglingen:** råsvaret förseglas med `exit_route` = `local` och utan `exit_id` (`ExitResponse.IsLocal`).
+  - **Utan ansluten utgång** frågas bara den egna noden. Det som frågades förut ger *Offline* som förut.
+  - **Källor (KL1a):** brytaren *Lokal* i *Lägg till endpoint …* och märket *Lokal* på raden, i samma stil.
+- `LocalTargets` har flyttats till Network.Contracts som `LocalAddresses`, så att Chains kan pröva adresser.
+
+**Egna beslut:**
+- **Siffrorna** för takten är Chainsaws egna och sägs aldrig vara källornas. `429` rättar dem.
+- **Grupper för spridningen** i stället för fri spridning (granskningen): en endpoint som ligger efter eller är i paus
+  frågas inte bara för att den bästa väntar på sin takt.
+- **Ingen spridning i Prioriterad:** användarens ordning gäller. Nästa endpoint tas när den första ber om väntan eller
+  har mer än fem sekunders kö. Står under *Väntar på beslut*.
+- **100.64/10 räknas inte som eget nät** (CGNAT, Tailscale). Står under *Väntar på beslut*.
+- **Ett prov som bara väntade** (källan bad om väntan, eller Chainsaws egen takt gav ingen plats inom provets tio
+  sekunder):
+  - Det säger inget om endpointen, så det förra provet står kvar, med pausen.
+  - Alla prov mäts mot den högsta höjden, också den höjd ett behållet prov mättes mot, så att inget prov blir bättre
+    än det var.
+- **Väntan syns i statusraden**, inte i grafens hörn: grafen byggdes om i etapp 23b samtidigt.
+- **Den egna nodens namn** slås upp av datorn. Certifikatet kontrolleras mot de installerade rötterna (TODO).
+
+**Granskningen:** fem omgångar.
+- **Omgång 1:** inga C, fem I och åtta M.
+  - **I:**
+    - Den egna noden tog emot allt som inte är globalt, också Teredo, 6to4, NAT64 och 100.64/10, som nås över
+      internet. Nu används en positiv lista över det egna nätet.
+    - En otrodd 404 med stängd utgång gav *finns inte*.
+    - Spridningen valde endpoints som låg efter eller var i paus.
+    - Bokade turer lämnades aldrig tillbaka, och texten sa att källan bett om väntan när kön var full.
+    - Ett prov som bara väntade raderade ett bra prov.
+  - **M rättade:** `503` utan väntan, takten noll i filen, en timer per kedja, dokumentation och radlängder.
+  - **M i TODO:** den egna noden provas inte utan utgång, och dess namn och certifikat.
+- **Omgång 2:** inga C, ett I och sex M.
+  - **I:** ett behållet prov mättes inte mot den nya omgångens höjd.
+  - **M rättade:**
+    - Prov följer en väntan som noterats under deras tur och lämnar tillbaka turer.
+    - En tur som skickats lämnas inte tillbaka.
+    - Sidan visas igen vid den första väntan.
+    - Ordalydelsen *eget nät*.
+  - **M i TODO:** NotFound när alla tillfrågade är otrodda (etapp 24:s regel), och att *Prova* inte följer takten.
+- **Omgång 3:** inga C, ett I och två M.
+  - **I:** en ny lägre höjd mättes inte mot ett behållet högre prov.
+  - **M:** en avbruten väntan och pausen för ett prov som bara väntade. Båda rättade.
+- **Omgång 4:** inga C, ett I och inga M.
+  - **I:** ett behållet prov kunde bli bättre än det var när inget högre svarade. Nu är dess gamla referenshöjd med.
+- **Omgång 5:** inga C eller I. Tre M.
+  - **Rättat:** ett mönster som inte användes, och ett test för ett behållet prov inom marginalen.
+  - **I TODO:** att ett behållet prov åldras, och att en referenshöjd följer med.
+
+Bitcoins facit (`GoldenTests`) är oförändrat.
+
+**Tester:** 2 133 gröna i hela lösningen efter rebasen på etapp 23b. Av dem är 100 nya:
+- 51 i Chains: takten, spridningen, `429` med och utan `Retry-After`, `503`, Blockscouts *rate limit*, reserven med
+  pausen, avbrutna väntor, full kö, marginalen, `InStep`, behållna prov, den egna noden (adresserna, vägen, förseglingen,
+  utan utgång, filen);
+- 45 i Network: `LocalHttp`, det egna nätet (också Teredo, 6to4, NAT64 och 100.64/10), `Retry-After`, privata adresser genom
+  utgången;
+- 4 i appen: *Lokal* i formuläret, märket, *Väntar*, marginalen i pricken och väntan i `ExitWay`.
+
+Bygget är utan varningar. Nätet används aldrig i testerna.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Endpointarna, andra delen*), bevakningen (Monitoring)
+som ska använda `LookupMode.InStep`, och punkterna i TODO under *Bitcoin-källan* och *Utgångar*.

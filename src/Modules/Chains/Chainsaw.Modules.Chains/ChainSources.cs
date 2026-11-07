@@ -886,7 +886,7 @@ internal sealed class ChainSources : IChainSources
                 ? Unranked(found)
                 : probe);
             var references = kept
-                .Where(probe => probe is { Height: { } height, BlocksBehind: > 0 })
+                .Where(probe => probe is { Height: not null, BlocksBehind: > 0 })
                 .Select(probe => new EndpointProbe(Guid.Empty, ProbeOutcome.Answered,
                     probe.Height + probe.BlocksBehind, null, null, probe.At, null));
             state.Probes.Clear();

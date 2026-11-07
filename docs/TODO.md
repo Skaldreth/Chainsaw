@@ -264,6 +264,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   sökväg ändrats). Kunde i stället ge *misslyckades* med texten att källan inte känner till det.
 - ***Prova* i formuläret följer inte takten** (granskningen av etapp 25, omgång 2, M): en adress som prövas innan den
   lagts till har ingen takt, också om samma adress redan finns som endpoint. Två frågor per tryck.
+- **Ett behållet prov åldras** (granskningen av etapp 25, omgång 5, M): ett prov som behålls när endpointen bara väntade
+  mäts mot den nya omgångens höjd, så block som kommit sedan räknas mot den. På Ethereum (block var tolfte sekund) blir
+  ett behållet prov äldre än en halv minut *efter*, tills nästa *Prova alla nu*. Försiktigt för bevakningen, men kunde
+  i stället bara ta bort *i fas* och behålla *svarar rätt*. Och en referenshöjd ur ett behållet prov följer med så länge
+  endpointen fortsätter be om väntan, också om höjden var fel.
 - **Spridningen i Prioriterad** (etapp 25): varje endpoint är en egen grupp, så användarens ordning gäller och nästa tas
   först när den första bett om väntan eller dess kö är längre än fem sekunder. I Snabbast sprids uppslagen inom den bästa
   gruppen (de som svarat rätt). Ändras om användaren vill ha spridning också i Prioriterad.

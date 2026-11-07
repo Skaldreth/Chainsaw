@@ -117,7 +117,7 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 | 23 | **Ethereum och ERC-20 (TK1a), första delen:** kontraktet `IEthereumSource` och Blockscout-källan (EIP-55, ETH, interna tx, ERC-20 med kontrakt och decimaler, förseglat och offline), USDT och USDC med *Kan frysas*, FIFO och haircut för konton, kurser för ETH, tokenmärkena, Källor och Guiden | Klar |
 | 23b | **Ethereum och ERC-20 (TK1a), andra delen:** grafen och inspektören för Ethereum (noder som `ChainAddress`, expansion genom `IEthereumSource`, spårning per tillgång med kontometoderna, märket och SEK i beloppet, swap-pillret, saldo per token och snöflingan), startpunkter för Ethereum, kurser för USDT och USDC. Kontoheuristiker och TRON efter den | Klar |
 | 24 | **Källornas endpoints (KL1a):** sidan Källor i ST1a, lägga till, prioritera och ta bort endpoints per kedja, lägena Snabbast (prov vid start genom utgången), Prioriterad och Av, endpointen i varje förseglat råsvar. Startad när 20 var klar | Klar |
-| 25 | **Endpointarna, andra delen:** rate limit per endpoint (egen takt, `429` och `Retry-After`, uppslagen spridda), snygg reserv mot de andra, ett blocks marginal utom för bevakningen, egen nod på det lokala nätet (märkt lokal, bara https). Startad när 23 var klar | Pågår |
+| 25 | **Endpointarna, andra delen:** rate limit per endpoint (egen takt, `429` och `Retry-After`, uppslagen spridda), snygg reserv mot de andra, ett blocks marginal utom för bevakningen, egen nod på det lokala nätet (märkt lokal, bara https). Startad när 23 var klar | Klar |
 
 ## Nästa steg
 
