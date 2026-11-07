@@ -16,6 +16,6 @@
     <ProjectReference Include="..\..\src\Modules\Cases\Chainsaw.Modules.Cases\Chainsaw.Modules.Cases.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Esplora\*.json;Esplora\*.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Esplora\*.json;Esplora\*.txt;Ethereum\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

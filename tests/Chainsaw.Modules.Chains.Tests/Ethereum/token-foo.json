@@ -1,0 +1,11 @@
+{
+ "status": "1",
+ "message": "OK",
+ "result": {
+  "contractAddress": "0x4444444444444444444444444444444444444444",
+  "decimals": "18",
+  "symbol": "FOO",
+  "name": "Foo",
+  "type": "ERC-20"
+ }
+}
