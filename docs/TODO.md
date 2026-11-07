@@ -21,6 +21,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   varje ärende har en egen slumpad filnyckel i kuvert i filens huvud, ett för operatörens valv och ett valfritt
   delningskuvert med ett ärendelösenord som kan lämnas till en kollega. Kollegan kan lägga till ett eget kuvert. Är det
   rätt modell, och ska ett delningslösenord krävas eller föreslås när ett ärende skapas?
+- **Var ärendena ligger:** etapp 3 lägger dem i `%LOCALAPPDATA%\Chainsaw\Ärenden` i stället för `Dokument`, eftersom
+  Dokument ofta synkas till OneDrive (princip 4, granskningen). Ska användaren kunna välja en annan mapp, och ska
+  Chainsaw varna om den valda mappen synkas till molnet?
 - **Återställningsnyckel för ett ärende:** formatet har plats för fler sorters kuvert. Ska varje ärende (eller enheten)
   ha en återställningsnyckel, så att ärendet inte går förlorat om valvet går förlorat och inget delningslösenord finns?
 - **Glömd huvudnyckel:** valvet går inte att återställa (det är meningen). Ska det finnas en återställningsnyckel att
@@ -96,6 +99,19 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Stora ärenden:** att öppna och spara kopierar hela databasen. Mät när ärendena blir stora (hundratals MB) och
   överväg att spara bara när något ändrats, eller ett eget VFS med huvudet i filen.
 - **Unicode-normalisering av delningslösenordet** (NFC), som för huvudnyckeln.
+- **Hela filen autentiserad:** varje sida i databasen är autentiserad (Poly1305), men inte vilken version av sidan.
+  Den som saknar nyckeln kan i princip byta in en äldre sida ur samma ärende, och huvudet med okända kuvert är inte
+  autentiserat. En HMAC över huvudet och databasen vid varje sparning, med en nyckel ur filnyckeln, skulle stänga det
+  (granskningen etapp 3, M).
+- **Vem har tillgång:** operatörens kuvert bär inget namn (så att filen inte visar vems den är), okända kuvert sparas
+  orörda, och att ta bort delningslösenordet byter inte filnyckeln. Den som en gång haft lösenordet och en kopia av
+  filen kan alltså läsa den kopian. Ett *byt filnyckel* (nyckelrotation) behövs om tillgång ska kunna dras tillbaka.
+- **Konflikt med arbetskopian:** när en arbetskopia inte hör till ärendefilen (filen har bytts ut) vägras öppningen och
+  båda lämnas orörda. Gränssnittet behöver visa det och låta användaren välja (öppna filen, eller spara arbetskopian
+  som ett eget ärende).
+- **Ankarna och flera datorer:** ankarna är per valv och dator. Ett ärende som arbetats med på en annan dator och sedan
+  kopieras tillbaka är fortfarande en förlängning av kedjan och godtas, men ett ärende som två datorer ändrat
+  parallellt visar *Tillbakarullat* på den ena. Hur det ska förklaras i gränssnittet bestäms med `/verify`.
 
 ### Övrigt
 - **Länken `chainsaw:`** registrerad för användaren, ett exemplar av Chainsaw som tar emot länkar, och vänta på upplåsning.

@@ -33,13 +33,16 @@ Valvet har inget gränssnitt än; det provas när förstagångsinställningen oc
 
 Ärendena har inget gränssnitt än; det provas när *Nytt ärende* och öppna ärende byggs.
 
-- Ett nytt ärende hamnar i `Dokument\Chainsaw\Ärenden\<ärendenummer>.cut`. Medan det är öppet ligger
-  `<ärendenummer>.cut.work` (krypterad arbetskopia) och `<ärendenummer>.cut.lock` bredvid; båda försvinner när ärendet
-  stängs.
+- Ett nytt ärende hamnar i `%LOCALAPPDATA%\Chainsaw\Ärenden\<ärendenummer>.cut`. Medan det är öppet ligger
+  `<ärendenummer>.cut.work` (krypterad arbetskopia), `.cut.work.base` och `.cut.lock` bredvid; alla försvinner när
+  ärendet stängs.
+- Ankarna hamnar i `%LOCALAPPDATA%\Chainsaw\Ankare\`, en fil per ärende med ett namn som inte visar ärendet.
 - Filen börjar med `CHSWCASE` och ett kort JSON-huvud med ärendets id och kuverten (Base64). Inget annat i filen går att
   läsa: inte ärendenumret, operatörens namn eller ordet `SQLite`.
 - Ett ärende går inte att öppna i två Chainsaw samtidigt (*Används redan*).
 - SQLite3 Multiple Ciphers (`SQLite3MC.PCLRaw.bundle`) laddar sitt inbyggda bibliotek för win-x64 utan fel.
 - En `.cut` som kopieras till en annan dator och öppnas med delningslösenordet går att läsa där.
-- Antivirus eller OneDrive som låser `.cut` medan den sparas: sparningen misslyckas utan att filen förstörs, och
+- Låsning av valvet (Ctrl+L, Windows låses) medan ett ärende är öppet: låsskärmen kommer direkt, och ärendet sparas
+  och stängs i bakgrunden.
+- Antivirus som låser `.cut` medan den sparas: sparningen misslyckas utan att filen förstörs, och
   arbetskopian tas tillbaka nästa gång ärendet öppnas.
