@@ -5,6 +5,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på beslut
 
+Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står användarens egna beslut.
+
 - **Återkallade återställningsnycklar** (etapp 9): en bytt nyckels kuvert ligger kvar, och tas bort först när nyckeln
   återkallas med en rad `REVOKED` i `organization-recovery-key.pem`. Att ta bort alla andra nycklars kuvert vid ett
   byte prövades men vägrades i granskningen: en äldre version eller en annan organisations Chainsaw tog då bort den
@@ -13,8 +15,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   fyra uppslag i sekunden per endpoint på internet), inte källornas publicerade gränser; leverantörens delade adresser
   (100.64/10, CGNAT och Tailscale) räknas inte som eget nät för en lokal nod; i Prioriterad sprids uppslagen inte, utan
   nästa tas när den första ber om väntan. Bekräfta eller ändra.
-- **Ordningen bland uttagen** (CLAUDE.md, *Sorterna efter vad som händer med pengarna*): fråga kryptospåraren vilka uttag
-  som är vanligast i de svenska ärendena, och om några sorter kan slås ihop.
 
 - **Vad av ett annat ärende som följer med en etikett** (CLAUDE.md, *Etiketter smittar*; byggt i etapp 8 efter
   förslaget, bekräfta med användaren): ärendenumret, anteckningen och skälet följer med till biblioteket men inte vidare
@@ -23,26 +23,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   etikett på offrets adresser eller kluster, sprids aldrig; en etikett som tas tillbaka där den sattes dras tillbaka ur
   alla kopior. Ska *Sprid inte* också gå att sätta för ett helt ärende? Ska titel och enhet följa med?
 - **Hur bevakningen säger till** (den går också när Chainsaw är stängt, CLAUDE.md *Bevaka*): bara en avisering i Windows,
-  eller också ljud, e-post eller telefon? Hur ofta källan frågas (var femte minut, varje block) och om en viktig bevakning
-  ska kunna frågas oftare.
+  eller också ljud, e-post eller telefon? (Hur ofta källan frågas: `docs/KRYPTOSPARAREN.md`, fråga 12.)
 - **Rapporten:** hur redovisningen byggs (som i Gawk med bilagor, eller enklare underlag för underrättelse). Bestäms när vi
   kommer dit.
-- **Tröskelvärdena i klustringen** (etapp 6, valda av sessionen): växeln slås ihop automatiskt vid minst tre tecken
-  och inget emot, i en tx med två outputs; en peel chain kräver tre kända hopp och att det som går vidare är minst fyra
-  gånger det som skalas av; ett jämnt belopp är en multipel av 0,001 BTC; en möjlig CoinJoin (två lika stora outputs,
-  eller lika jämna belopp utan känt mönster) gör allt i tx:en till förslag. Pröva med kryptospåraren.
-- **Tröskelvärdena för mixerns kandidater** (etapp 22, valda av sessionen): avgiften 0–10 % (full poäng mellan 0,5 och
-  5 %), högst 7 dygn efter insättningen, poängen väger belopp 0,5, tid 0,3 och adresstyp 0,2, kandidater under 0,4
-  visas inte och högst fem per insättning. Tidsområden samlar pengar som rört sig inom två timmar. Pröva med
-  kryptospåraren.
-- **Peel chain slår inte ihop** (etapp 6, granskningen): formen räcker inte för att se var ägaren byter (ett offers
-  vanliga betalningar ser ut som hopp), så `peel-chain v1` bara föreslår. Fråga kryptospåraren vad som skiljer en
-  riktig peel chain: samma skripttyp i varje hopp, liknande andel som skalas av, kort tid mellan hoppen?
-- **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Användaren frågar kryptospåraren vilken som används i praktiken (planerat 2026-11-08).
-- **Vilka mynt spåret startar i** (etapp 12, valt av sessionen): grafen spårar från alla mynt som en startadress tagit
-  emot i grafen, och från en startpunkts-tx:s betalningar till andra än betalarna; ett mynt längre fram i samma flöde
-  tas bort. Ska användaren välja mynten själv (till exempel offrets betalningar, eller ett belopp av ett mynt), och hur
-  ska det se ut? Behöver en skiss.
 - **Bitstamp som kurskälla i tjänsten** (etapp 14, valt av sessionen): öppen historik utan nyckel, men villkoren för
   kommersiellt bruk är oklara (se *Kurser*). Bekräfta att Bitstamp får användas, eller välj en annan källa; källan kan
   bytas utan att något annat ändras.
@@ -59,17 +42,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   grafen säger inte *Offline*, också när datorn saknar nät. Chainsaw kan inte veta om Windows når källorna förrän ett
   uppslag görs; `NetworkChange` kunde säga när datorn inte har något nät alls. Bekräfta eller välj.
 
-
 ## Bygga härnäst
-
 
 ## Väntar på skiss
 
 - **Förstagångsinställningens steg Utgång** (etapp 19): erbjuder bara en WireGuard-fil eller *Senare*, och VPN är
   förvalt. Valet *Windows* eller *VPN* där, som de två korten i ST1a, behöver en ändring av FS1a.
-
-
-
 
 - **Det som hölls tillbaka och det som kontrollerats** (etapp 15): en expansion tar högst 50 tx (en adress nyaste,
   en tx:s spenderare efter belopp) och säger i raden längst upp hur många som hölls tillbaka. Grafen behöver ett sätt
@@ -368,7 +346,7 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 ### Spårning (Tracing)
 - **LIFO och poison** (etapp 7): kontraktet `ITracingMethod` tar emot fler metoder, men LIFO behöver en definition
   (inom en tx är ordningen redan FIFO:s; LIFO handlar om en adress saldo över tid), och poison ger inga belopp som går
-  jämnt ut, så den behöver visas som *berört* i stället för ett belopp. Fråga kryptospåraren vad som används.
+  jämnt ut, så den behöver visas som *berört* i stället för ett belopp. Se `docs/KRYPTOSPARAREN.md`, fråga 1.
 - **Fråga om det som kan ha ändrats** (etapp 7): grafen visas bara ur ärendet (`LookupMode.CaseOnly`). Ett mynt som
   låg kvar visas som *kan ha flyttats* tills noden expanderas igen. En knapp eller ett kommando som frågar om alla
   sådana mynt på en gång, och bevakningen som gör det i bakgrunden, behövs.
@@ -459,8 +437,6 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   kontraktet och aldrig som en dollar av sig själv; TRON:s USDT har ingen källa än); en
   andra kryptokälla att jämföra med (till exempel Kraken eller Coinbase för nyare perioder); Riksbankens nyckel (200
   anrop i minuten) i valvet om gränsen på 5 i minuten blir ett problem.
-- **Medelkurs eller stängningskurs:** Chainsaw tar sista priset i perioden. Fråga kryptospåraren om rapporterna brukar
-  använda dagens stängning, medelpris eller något annat.
 - **Ett gemensamt lager för råsvar:** Chains och Pricing har var sin likadan tabell och kod för förseglade råsvar. Kan
   bli ett kontrakt i Cases när en tredje modul behöver det.
 

@@ -83,6 +83,9 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
   - Det den ser sparas i en kö och förs in i ärendet, med journal och hash, först när ärendet öppnas.
   - Aviseringen säger bara att en bevakning har slagit till, inte adressen, beloppet eller ärendet. Detaljerna visas efter
     upplåsning.
+  - **En bevakning läggs till** (användarens beslut 2026-11-07) för hand i vyn Bevakning, eller i grafen genom att
+    högerklicka på en nod och välja *Bevaka …*. Den gäller **inkommande, utgående eller båda**, och kan **filtreras på
+    en motpart**: bara pengar till en viss mottagare eller från en viss avsändare. Formen skissas som BV1.
 - **Redovisa:** hur rapporten byggs bestäms när vi kommer dit (användarens beslut 2026-11-06).
 
 **Mixers är vanliga** i utredningarna (användarens observation 2026-11-07) och är en egen sort i grafen. Spåret tar slut
@@ -382,6 +385,7 @@ Varje uppgift står på ett ställe. Historiken finns i git.
 | `CLAUDE.md` | Specifikation, arkitektur, gränssnitt och arbetssätt | Alltid (automatiskt) |
 | `docs/HANDOFF.md` | Läget nu och nästa steg, kort | I början av varje session |
 | `docs/TODO.md` | Backloggen: önskemål, öppna frågor och idéer som inte är byggda | När nästa uppgift väljs |
+| `docs/KRYPTOSPARAREN.md` | Frågorna till kryptospåraren, med vad Chainsaw gör i dag | När kryptospåraren tittar på systemet |
 | `docs/DEV-LOG.md` | En post per byggd etapp: egna beslut, avsteg och det som återstår | När en etapp byggs eller granskas |
 | `docs/TESTER-INFOR-1.0.md` | Det som ska provas på Windows före 1.0 | När det fylls på eller när användaren testar |
 | `docs/ATERSTALLNINGSNYCKEL.md` | För administratören: återställningsnyckeln skapas, förvaras och används | När nyckeln skapas eller ett ärende ska öppnas |
@@ -412,4 +416,5 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
+| **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser) | Skissas |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b; byggd i etapp 22 |
