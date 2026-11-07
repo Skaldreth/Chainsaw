@@ -288,6 +288,21 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   koppla ner, *Lägg till WireGuard-fil …* och vägen till källorna. **Guiden är GD1b**: en panel från höger bredvid
   arbetet, öppnad från *Varför?*, *?* och spårningsmetoden, med svaret för det valda överst och *Öppna i Guide* till
   hela vyn (F1).
+- **Kontroller och förslag är KF1a** (användarens beslut 2026-11-07): knappen *Förslag · N* i grafens huvud (Ctrl+J)
+  fäller ut en lista där inspektören står, i grupperna *Att avgöra* och *Gjort av sig självt*. J och K stegar, Enter
+  godkänner, X avfärdar och ? visar *Varför?*. Den valda raden tonar ned resten av grafen och visar sitt **område**
+  svagt bakom aktörerna. Områdena från KF1b följer med (användarens önskemål 2026-11-07): ett allmänt verktyg för
+  förvirring, plånböcker, tjänster, annan kedja och tid, valda i en meny i grafens huvud, högst en fyllning per aktör,
+  streckad kant för förslag; användaren lägger till **egna ytor** (välj aktörer, Z), med hel kant och en person-markering,
+  sparade i ärendet med vem, när och varför som en etikett.
+- **Ta tillbaka och ångra är AN1b** (användarens beslut 2026-11-07): inspektören har fliken *Historik* med nodens
+  händelser i tidsordning. Användarens egna (etikett, uppbrytning, länk till annan kedja, egen yta) kan tas tillbaka eller
+  ångras; det sparas som en ny förseglad post, och det gamla står kvar överstruket. **Skälet är frivilligt.** En
+  tillbakatagen etikett tas tillbaka också i **etikettbiblioteket**. En ångrad uppbrytning låter klustringen slå ihop
+  adresserna igen, **efter en bekräftelse** som visar vad som slås ihop.
+- **Tokens är TK1a** (användarens beslut 2026-11-07): linjerna behåller bildspråket (accent och tjocklek), tokenen står
+  som ett litet märke först i beloppet (₮, Ξ) med SEK litet under, en swap är ett litet piller på linjen (₮ → Ξ), och
+  inspektören listar saldot per token med utgivaren och snöflingan *Kan frysas*.
 - **Inställningarna är ST1a** (användarens beslut 2026-11-07): en dialog mitt i fönstret över mörkad bakgrund, som i Gawk,
   öppnad med Ctrl+, eller kugghjulet i pillret, med menyn till vänster (Nätverk, Låsning, Utseende, Länkar, Kurser,
   Profil, Om Chainsaw) och rader med titel och förklaring till vänster och valet till höger. Nätverk har *Windows* eller
@@ -371,8 +386,8 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas) | GR4 godkänd, förlagan för grafen; GR5 variant A och IN1a valda; AN1 och TK1 väntar på val |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy) | ST1a vald |
-| **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | Väntar på val |
+| **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b |
