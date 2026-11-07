@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Attribution.Contracts;
 
@@ -20,11 +21,12 @@ namespace Chainsaw.Modules.Attribution.Contracts;
 public interface ILabelLibrary
 {
     /// <summary>
-    /// Takes in the labels of an open case that may spread, replacing what the library had from that case. A label
-    /// on or near an address labelled as a victim stays out. A label the user set in this case (own or from an open
-    /// source) and then took back is withdrawn: it leaves the library, is never given again, and its copies in other
-    /// cases are taken back there the next time those cases are given labels (<see cref="ShareInto"/>). Any other
-    /// label taken back here (a copy, a sanction hit, an analysis's label) only leaves the library from this case.
+    /// Takes in the labels of an open case that may spread, on any chain, replacing what the library had from that
+    /// case. A label on or near an address labelled as a victim stays out. A label the user set in this case (own or
+    /// from an open source) and then took back is withdrawn: it leaves the library, is never given again, and its
+    /// copies in other cases are taken back there the next time those cases are given labels
+    /// (<see cref="ShareInto(ICase, IReadOnlyCollection{ChainAddress})"/>). Any other label taken back here (a copy,
+    /// a sanction hit, an analysis's label) only leaves the library from this case.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <returns>What changed.</returns>
@@ -42,6 +44,17 @@ public interface ILabelLibrary
     /// <returns>The labels that came in.</returns>
     /// <exception cref="Security.Contracts.VaultException">The vault is locked.</exception>
     IReadOnlyList<LabelEntry> ShareInto(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
+
+    /// <summary>
+    /// Gives the case the library's labels for addresses on any chain (Bitcoin addresses and Ethereum accounts), as
+    /// <see cref="ShareInto(ICase, IReadOnlyCollection{BitcoinAddress})"/> does for Bitcoin. The same text on two
+    /// chains is two addresses.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The case's addresses, each with its chain.</param>
+    /// <returns>The labels that came in.</returns>
+    /// <exception cref="Security.Contracts.VaultException">The vault is locked.</exception>
+    IReadOnlyList<LabelEntry> ShareInto(ICase @case, IReadOnlyCollection<ChainAddress> addresses);
 
     /// <summary>Lists the library's labels, for the operator's own view of it.</summary>
     /// <returns>The labels.</returns>

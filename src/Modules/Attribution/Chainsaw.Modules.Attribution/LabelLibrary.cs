@@ -7,6 +7,7 @@ using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Attribution;
 
@@ -128,9 +129,17 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
     /// <inheritdoc/>
     public IReadOnlyList<LabelEntry> ShareInto(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
     {
+        ArgumentNullException.ThrowIfNull(addresses);
+        return ShareInto(@case, [.. addresses.Select(address => address.ToChainAddress())]);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<LabelEntry> ShareInto(ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(addresses);
-        var wanted = addresses.Select(address => address.Value).ToHashSet(StringComparer.Ordinal);
+        var wanted = addresses.ToHashSet();
+        var texts = wanted.Select(address => address.Value).ToHashSet(StringComparer.Ordinal);
         var caseId = CaseKey(@case);
         List<LibraryRecord> candidates;
         HashSet<string> withdrawn;
@@ -140,9 +149,10 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
             withdrawn = document.Withdrawn;
             candidates =
             [
-                .. document.Labels.Where(stored => wanted.Contains(stored.Subject)
+                .. document.Labels.Where(stored => texts.Contains(stored.Subject)
                     && !stored.Cases.ContainsKey(caseId) && stored.Kind != LabelKind.Victim
-                    && !withdrawn.Contains(stored.OriginId)),
+                    && !withdrawn.Contains(stored.OriginId)
+                    && wanted.Contains(stored.SubjectOf().Target)),
             ];
         }
 
@@ -168,7 +178,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
                 string.Format(CultureInfo.InvariantCulture, "{0} etiketter från andra ärenden", incoming.Count),
                 JsonSerializer.Serialize(incoming.Select(label => new
                 {
-                    subject = label.Subject.Address.Value,
+                    subject = label.Subject.Target.Value,
                     subjectKind = label.Subject.Kind.ToString(),
                     kind = label.Kind.ToString(),
                     name = label.Name,
@@ -253,16 +263,32 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
     {
         var victims = active
             .Where(label => label.Kind == LabelKind.Victim)
-            .SelectMany(label => clustering.GetCluster(@case, label.Subject.Address).Addresses)
+            .SelectMany(label => Near(@case, label.Subject))
             .ToHashSet();
         if (victims.Count == 0)
         {
             return _ => false;
         }
 
-        return subject => victims.Contains(subject.Address)
-            || (subject.Kind == LabelSubjectKind.Cluster
-                && clustering.GetCluster(@case, subject.Address).Addresses.Any(victims.Contains));
+        return subject => victims.Contains(subject.Target)
+            || (subject.Kind == LabelSubjectKind.Cluster && Near(@case, subject).Any(victims.Contains));
+    }
+
+    /// <summary>
+    /// Gives the addresses that share an owner with a subject: a Bitcoin address's cluster, or an account on another
+    /// chain alone, since only Bitcoin is clustered.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="subject">What a label is on.</param>
+    /// <returns>The addresses, the subject's own among them.</returns>
+    private IEnumerable<ChainAddress> Near(ICase @case, LabelSubject subject)
+    {
+        if (subject.Address is not { } address)
+        {
+            return [subject.Target];
+        }
+
+        return clustering.GetCluster(@case, address).Addresses.Select(member => member.ToChainAddress());
     }
 
     /// <summary>Gives the key a case is known by in the library.</summary>
@@ -385,7 +411,10 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         /// <summary>Gets or sets whether the label is on an address or a cluster.</summary>
         public required LabelSubjectKind SubjectKind { get; set; }
 
-        /// <summary>Gets or sets the address.</summary>
+        /// <summary>
+        /// Gets or sets the address as <see cref="LabelSubject.Target"/> gives it; its form says its chain
+        /// (<see cref="LabelStore.Subject"/>).
+        /// </summary>
         public required string Subject { get; set; }
 
         /// <summary>Gets or sets what the label says.</summary>
@@ -425,7 +454,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         {
             OriginId = label.Origin.OriginId,
             SubjectKind = label.Subject.Kind,
-            Subject = label.Subject.Address.Value,
+            Subject = label.Subject.Target.Value,
             Kind = label.Kind,
             Name = label.Name,
             Source = label.Origin.OriginalSource,
@@ -439,7 +468,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
 
         /// <summary>Gives what the label is on.</summary>
         /// <returns>The subject.</returns>
-        public LabelSubject SubjectOf() => new(SubjectKind, BitcoinAddress.Parse(Subject));
+        public LabelSubject SubjectOf() => LabelStore.Subject(SubjectKind, Subject);
 
         /// <summary>Gives the label's origin as seen from somewhere.</summary>
         /// <param name="source">How it got there.</param>

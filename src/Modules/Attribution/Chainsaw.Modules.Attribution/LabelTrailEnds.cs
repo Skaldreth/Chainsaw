@@ -3,6 +3,7 @@ using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Attribution;
 
@@ -37,6 +38,18 @@ internal sealed class LabelTrailEnds(IAttributionService attribution) : ITrailEn
     /// <inheritdoc/>
     public IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<TrailEndHint>> ClassifyAddresses(
         ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
+        attribution.GetLabels(@case, addresses)
+            .Select(pair => (pair.Key, Hints: Hints(pair.Value)))
+            .Where(pair => pair.Hints.Count > 0)
+            .ToDictionary(pair => pair.Key, pair => pair.Hints);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The same rules as for Bitcoin (<see cref="EndFor"/>), on the labels of each address read from the case once;
+    /// an Ethereum account is not clustered, so only the labels on the account itself count.
+    /// </remarks>
+    public IReadOnlyDictionary<ChainAddress, IReadOnlyList<TrailEndHint>> ClassifyAccounts(
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
         attribution.GetLabels(@case, addresses)
             .Select(pair => (pair.Key, Hints: Hints(pair.Value)))
             .Where(pair => pair.Hints.Count > 0)

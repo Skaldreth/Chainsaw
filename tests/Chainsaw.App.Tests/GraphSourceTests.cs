@@ -4,6 +4,7 @@ using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Tests;
 
@@ -32,6 +33,9 @@ internal sealed class TestAttribution : IAttributionService
             .ToDictionary(address => address, address => Labels[address]);
     }
 
+    public IReadOnlyDictionary<ChainAddress, IReadOnlyList<Label>> GetLabels(
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses) => throw new NotSupportedException();
+
     public LabelEntry Add(ICase @case, LabelDraft draft) => throw new NotSupportedException();
 
     /// <summary>Gets or sets what taking a label back answers; unset, it is not supported.</summary>
@@ -48,6 +52,9 @@ internal sealed class TestAttribution : IAttributionService
     }
 
     public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
+        [];
+
+    public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
         [];
 
     public IReadOnlyList<LabelEntry> GetEntries(ICase @case) => throw new NotSupportedException();

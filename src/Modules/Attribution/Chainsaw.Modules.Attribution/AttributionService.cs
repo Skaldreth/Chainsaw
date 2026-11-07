@@ -5,6 +5,7 @@ using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Attribution;
 
@@ -70,7 +71,7 @@ internal sealed class AttributionService(
                     name is null ? string.Empty : $" ({name})"),
                 JsonSerializer.Serialize(new
                 {
-                    subject = draft.Subject.Address.Value,
+                    subject = draft.Subject.Target.Value,
                     subjectKind = draft.Subject.Kind.ToString(),
                     kind = draft.Kind.ToString(),
                     name,
@@ -124,6 +125,13 @@ internal sealed class AttributionService(
     /// <inheritdoc/>
     public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
     {
+        ArgumentNullException.ThrowIfNull(addresses);
+        return GetHistory(@case, OnChain(addresses));
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(addresses);
         var wanted = addresses.ToHashSet();
@@ -135,7 +143,7 @@ internal sealed class AttributionService(
         var stored = @case.Read(LabelStore.Read);
         return
         [
-            .. stored.All.Where(label => wanted.Contains(label.Subject.Address))
+            .. stored.All.Where(label => wanted.Contains(label.Subject.Target))
                 .Select(label => new LabelHistoryEntry(
                     label, stored.Retractions.TryGetValue(label.Sequence, out var retraction) ? retraction : null)),
         ];
@@ -155,15 +163,16 @@ internal sealed class AttributionService(
     public IReadOnlyList<Label> GetLabels(ICase @case, BitcoinAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
+        var target = address.ToChainAddress();
         var active = GetEntries(@case);
         var onClusters = active
-            .Where(label => label.Subject.Kind == LabelSubjectKind.Cluster && label.Subject.Address != address)
+            .Where(label => label.Subject.Kind == LabelSubjectKind.Cluster && label.Subject.Target != target)
             .ToList();
-        IReadOnlySet<BitcoinAddress> cluster = onClusters.Count == 0
-            ? new HashSet<BitcoinAddress>()
-            : clustering.GetCluster(@case, address).Addresses.ToHashSet();
-        return LabelRules.Merge(active.Where(label => label.Subject.Address == address
-            || (label.Subject.Kind == LabelSubjectKind.Cluster && cluster.Contains(label.Subject.Address))));
+        IReadOnlySet<ChainAddress> cluster = onClusters.Count == 0
+            ? new HashSet<ChainAddress>()
+            : OnChain(clustering.GetCluster(@case, address).Addresses);
+        return LabelRules.Merge(active.Where(label => label.Subject.Target == target
+            || (label.Subject.Kind == LabelSubjectKind.Cluster && cluster.Contains(label.Subject.Target))));
     }
 
     /// <inheritdoc/>
@@ -171,25 +180,41 @@ internal sealed class AttributionService(
         ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        var active = GetEntries(@case);
+        var onChain = GetLabels(@case, OnChain(addresses));
         var labelled = new Dictionary<BitcoinAddress, IReadOnlyList<Label>>();
+        foreach (var address in addresses.Distinct())
+        {
+            if (onChain.TryGetValue(address.ToChainAddress(), out var labels))
+            {
+                labelled[address] = labels;
+            }
+        }
+
+        return labelled;
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyDictionary<ChainAddress, IReadOnlyList<Label>> GetLabels(
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var active = GetEntries(@case);
+        var labelled = new Dictionary<ChainAddress, IReadOnlyList<Label>>();
         if (active.Count == 0 || addresses.Count == 0)
         {
             return labelled;
         }
 
-        var onAddress = active.ToLookup(label => label.Subject.Address);
+        var onAddress = active.ToLookup(label => label.Subject.Target);
         var onClusters = active.Where(label => label.Subject.Kind == LabelSubjectKind.Cluster).ToList();
-        IReadOnlyDictionary<BitcoinAddress, Cluster> clusters = onClusters.Count == 0
-            ? new Dictionary<BitcoinAddress, Cluster>()
-            : clustering.GetClusters(@case, addresses);
+        var clusters = onClusters.Count == 0
+            ? new Dictionary<ChainAddress, IReadOnlySet<ChainAddress>>()
+            : ClustersOf(@case, addresses);
         foreach (var address in addresses.Distinct())
         {
-            var cluster = clusters.TryGetValue(address, out var found)
-                ? found.Addresses.ToHashSet()
-                : new HashSet<BitcoinAddress>();
+            var cluster = clusters.GetValueOrDefault(address) ?? new HashSet<ChainAddress>();
             var labels = LabelRules.Merge(onAddress[address].Concat(onClusters.Where(label =>
-                label.Subject.Address != address && cluster.Contains(label.Subject.Address))));
+                label.Subject.Target != address && cluster.Contains(label.Subject.Target))));
             if (labels.Count > 0)
             {
                 labelled[address] = labels;
@@ -268,6 +293,48 @@ internal sealed class AttributionService(
                 .ToList();
             return new SanctionCheck(list, added, hits.Count - drafts.Count);
         });
+    }
+
+    /// <summary>Gives Bitcoin addresses as addresses with their chain.</summary>
+    /// <param name="addresses">The addresses.</param>
+    /// <returns>The addresses on Bitcoin.</returns>
+    private static HashSet<ChainAddress> OnChain(IEnumerable<BitcoinAddress> addresses) =>
+        [.. addresses.Select(address => address.ToChainAddress())];
+
+    /// <summary>
+    /// Asks Clustering, once, for the clusters of the Bitcoin addresses among some addresses. Only Bitcoin is
+    /// clustered, so an address on another chain has no cluster.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses on any chain.</param>
+    /// <returns>The cluster's addresses of each Bitcoin address that is in a cluster.</returns>
+    private Dictionary<ChainAddress, IReadOnlySet<ChainAddress>> ClustersOf(
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
+        var bitcoin = new Dictionary<BitcoinAddress, ChainAddress>();
+        foreach (var address in addresses)
+        {
+            if (address.Chain == Chain.Bitcoin && BitcoinAddress.TryParse(address.Value, out var parsed))
+            {
+                bitcoin.TryAdd(parsed, address);
+            }
+        }
+
+        var clusters = new Dictionary<ChainAddress, IReadOnlySet<ChainAddress>>();
+        if (bitcoin.Count == 0)
+        {
+            return clusters;
+        }
+
+        foreach (var (address, cluster) in clustering.GetClusters(@case, bitcoin.Keys))
+        {
+            if (bitcoin.TryGetValue(address, out var asked))
+            {
+                clusters[asked] = OnChain(cluster.Addresses);
+            }
+        }
+
+        return clusters;
     }
 
     /// <summary>Gives the stable origin of a hit: the list's hash, the entry and the address.</summary>

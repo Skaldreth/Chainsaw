@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using static Chainsaw.Modules.Attribution.Tests.Synthetic;
 
 namespace Chainsaw.Modules.Attribution.Tests;
@@ -103,7 +104,7 @@ public sealed class LabelTests : IDisposable
 
         Assert.True(_harness.Labels.Retract(_harness.Case, label.Sequence, reason));
 
-        var entry = Assert.Single(_harness.Labels.GetHistory(_harness.Case, [label.Subject.Address]));
+        var entry = Assert.Single(_harness.Labels.GetHistory(_harness.Case, [label.Subject.Target]));
         Assert.True(entry.IsRetracted);
         Assert.Null(entry.Retraction!.Reason);
         Assert.True(_harness.Verify().IsIntact);
@@ -116,7 +117,7 @@ public sealed class LabelTests : IDisposable
 
         Assert.Throws<ArgumentException>(
             () => _harness.Labels.Retract(_harness.Case, label.Sequence, new string('x', 1_001)));
-        Assert.False(Assert.Single(_harness.Labels.GetHistory(_harness.Case, [label.Subject.Address])).IsRetracted);
+        Assert.False(Assert.Single(_harness.Labels.GetHistory(_harness.Case, [label.Subject.Target])).IsRetracted);
     }
 
     [Fact]
@@ -187,7 +188,7 @@ public sealed class LabelTests : IDisposable
         Assert.True(history.Single(entry => entry.Label.Sequence == open.Sequence).CanRetract);
         Assert.False(history.Single(entry => entry.Label.Sequence == behaviour.Sequence).CanRetract);
         Assert.Empty(_harness.Labels.GetHistory(_harness.Case, [Wpkh("nothing")]));
-        Assert.Empty(_harness.Labels.GetHistory(_harness.Case, []));
+        Assert.Empty(_harness.Labels.GetHistory(_harness.Case, Array.Empty<BitcoinAddress>()));
     }
 
     [Theory]

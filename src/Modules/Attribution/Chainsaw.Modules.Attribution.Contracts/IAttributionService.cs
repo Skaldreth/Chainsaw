@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Attribution.Contracts;
 
@@ -11,7 +12,10 @@ namespace Chainsaw.Modules.Attribution.Contracts;
 /// <remarks>The methods are synchronous and read or write the case; call them off the UI thread.</remarks>
 public interface IAttributionService
 {
-    /// <summary>Sets a label in the case, sealed, with a line in the journal; the operator is who set it.</summary>
+    /// <summary>
+    /// Sets a label in the case, sealed, with a line in the journal; the operator is who set it. The subject can be
+    /// on any chain that carries labels (<see cref="LabelSubject.ForAccount"/>).
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="draft">The label.</param>
     /// <returns>The sealed label.</returns>
@@ -41,6 +45,16 @@ public interface IAttributionService
     /// <param name="addresses">The addresses, for a cluster all of its addresses.</param>
     /// <returns>The labels and their taking back.</returns>
     IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
+
+    /// <summary>
+    /// Reads the history of the labels on some addresses on any chain, as
+    /// <see cref="GetHistory(ICase, IReadOnlyCollection{BitcoinAddress})"/> does for Bitcoin: the same text on two
+    /// chains is two addresses.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses, each with its chain; for a cluster all of its addresses.</param>
+    /// <returns>The labels and their taking back.</returns>
+    IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<ChainAddress> addresses);
 
     /// <summary>Reads every label in the case that is not taken back, oldest first.</summary>
     /// <param name="case">The open case.</param>
@@ -73,10 +87,27 @@ public interface IAttributionService
         ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
 
     /// <summary>
+    /// Reads the labels that apply to many addresses on any chain at once, reading the case only once. A Bitcoin
+    /// address gets the labels on itself and on its cluster, as
+    /// <see cref="GetLabels(ICase, IReadOnlyCollection{BitcoinAddress})"/> gives them; an address on another chain
+    /// (an Ethereum account) is not clustered and gets only the labels on itself. The same text on two chains is two
+    /// addresses.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses, each with its chain.</param>
+    /// <returns>The labels of each address that has any; an address without labels is not in it.</returns>
+    IReadOnlyDictionary<ChainAddress, IReadOnlyList<Label>> GetLabels(
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses);
+
+    /// <summary>
     /// Checks addresses against the current sanction list (<see cref="ISanctionLists.Current"/>) and labels each hit
     /// <see cref="LabelKind.Sanctioned"/> in the case, with the list's hash and date as the origin and one line in the
     /// journal. A hit already labelled from the same list, also one taken back, is not labelled again.
     /// </summary>
+    /// <remarks>
+    /// Bitcoin only so far: the list's Ethereum addresses (<c>Digital Currency Address - ETH</c>) are not checked yet
+    /// (docs/TODO.md).
+    /// </remarks>
     /// <param name="case">The open case.</param>
     /// <param name="addresses">The addresses.</param>
     /// <returns>What was checked and labelled.</returns>

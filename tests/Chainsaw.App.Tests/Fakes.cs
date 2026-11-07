@@ -492,6 +492,9 @@ internal sealed class TestLibrary : ILabelLibrary
         return given;
     }
 
+    public IReadOnlyList<LabelEntry> ShareInto(ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
+        throw new NotSupportedException();
+
     public IReadOnlyList<LibraryLabel> List() => throw new NotSupportedException();
 }
 

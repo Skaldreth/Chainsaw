@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Attribution.Contracts;
 
@@ -15,18 +16,53 @@ public enum LabelSubjectKind
     Cluster,
 }
 
-/// <summary>What a label is on.</summary>
-/// <param name="Kind">The address alone or its cluster.</param>
-/// <param name="Address">The address, or for a cluster the address the label was set on.</param>
-public sealed record LabelSubject(LabelSubjectKind Kind, BitcoinAddress Address)
+/// <summary>
+/// What a label is on: an address on a chain Chainsaw can label (Bitcoin and Ethereum so far), or the Bitcoin cluster
+/// that holds an address. The address always carries its chain (<see cref="Target"/>), so that the same text on two
+/// chains is never taken for one actor.
+/// </summary>
+public sealed record LabelSubject
 {
-    /// <summary>Gets whether the label is on the address alone or on its cluster.</summary>
-    public LabelSubjectKind Kind { get; } = Enum.IsDefined(Kind)
-        ? Kind
-        : throw new ArgumentOutOfRangeException(nameof(Kind), "A label is on an address or a cluster.");
+    /// <summary>Creates a subject on a Bitcoin address or the cluster that holds it.</summary>
+    /// <param name="kind">The address alone or its cluster.</param>
+    /// <param name="address">The address, or for a cluster the address the label was set on.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The kind is not known.</exception>
+    public LabelSubject(LabelSubjectKind kind, BitcoinAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        Kind = Enum.IsDefined(kind)
+            ? kind
+            : throw new ArgumentOutOfRangeException(nameof(kind), "A label is on an address or a cluster.");
+        Address = address;
+        Target = address.ToChainAddress();
+    }
 
-    /// <summary>Gets the address.</summary>
-    public BitcoinAddress Address { get; } = Address ?? throw new ArgumentNullException(nameof(Address));
+    /// <summary>Creates a subject on an Ethereum account alone.</summary>
+    /// <param name="account">The checked account.</param>
+    private LabelSubject(EthereumAddress account)
+    {
+        Kind = LabelSubjectKind.Address;
+        Target = account.ToChainAddress();
+        Display = account.Checksummed;
+    }
+
+    /// <summary>Gets whether the label is on the address alone or on its cluster.</summary>
+    public LabelSubjectKind Kind { get; }
+
+    /// <summary>
+    /// Gets the address with its chain, or for a cluster the address the label was set on. Its value is what is
+    /// stored and compared: for Bitcoin the address as the chain writes it, for Ethereum the hex in lower case.
+    /// </summary>
+    public ChainAddress Target { get; }
+
+    /// <summary>
+    /// Gets the Bitcoin address, or <see langword="null"/> when the subject is on another chain. A cluster is always
+    /// on Bitcoin, so it always has one.
+    /// </summary>
+    public BitcoinAddress? Address { get; }
+
+    /// <summary>Gets how an address on another chain is shown, for Ethereum with its EIP-55 checksum.</summary>
+    private string? Display { get; }
 
     /// <summary>Gives a label's subject that is the address alone.</summary>
     /// <param name="address">The address.</param>
@@ -38,6 +74,35 @@ public sealed record LabelSubject(LabelSubjectKind Kind, BitcoinAddress Address)
     /// <returns>The subject.</returns>
     public static LabelSubject ForCluster(BitcoinAddress address) => new(LabelSubjectKind.Cluster, address);
 
-    /// <inheritdoc/>
-    public override string ToString() => Kind == LabelSubjectKind.Cluster ? $"kluster med {Address}" : Address.Value;
+    /// <summary>
+    /// Gives a label's subject that is an address alone on a chain that can be labelled: a Bitcoin address or an
+    /// Ethereum account. A label on a cluster is for Bitcoin only, since only Bitcoin is clustered (see
+    /// <see cref="ForCluster"/>).
+    /// </summary>
+    /// <param name="address">The address with its chain.</param>
+    /// <returns>The subject.</returns>
+    /// <exception cref="ArgumentException">
+    /// The address is not valid on its chain, or its chain cannot carry labels yet.
+    /// </exception>
+    public static LabelSubject ForAccount(ChainAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return address.Chain switch
+        {
+            Chain.Bitcoin when BitcoinAddress.TryParse(address.Value, out var bitcoin) => ForAddress(bitcoin),
+            Chain.Ethereum when EthereumAddress.TryParse(address.Value, out var account) => new(account),
+            Chain.Bitcoin or Chain.Ethereum => throw new ArgumentException(
+                "The address is not valid on its chain.", nameof(address)),
+            _ => throw new ArgumentException("Labels are on Bitcoin and Ethereum addresses so far.", nameof(address)),
+        };
+    }
+
+    /// <summary>
+    /// Writes the subject as the journal and the explanations show it: the address (an Ethereum account with its
+    /// EIP-55 checksum), or <c>kluster med</c> and the address.
+    /// </summary>
+    /// <returns>The text.</returns>
+    public override string ToString() => Kind == LabelSubjectKind.Cluster
+        ? $"kluster med {Target.Value}"
+        : Display ?? Target.Value;
 }

@@ -4,6 +4,7 @@ using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Attribution;
 
@@ -27,7 +28,7 @@ internal static class LabelStore
         var record = transaction.AppendSealed(
             AttributionSchema.LabelsChain,
             [
-                AddAction, null, origin.OriginId, label.Subject.Kind.ToString(), label.Subject.Address.Value,
+                AddAction, null, origin.OriginId, label.Subject.Kind.ToString(), label.Subject.Target.Value,
                 label.Kind.ToString(), label.Name, origin.Source.ToString(), origin.OriginalSource.ToString(),
                 origin.SourceName, origin.SourceVersion, JsonSerializer.Serialize(origin.SetBy), Text(origin.SetUtc),
                 origin.Reason, origin.Note, label.DoNotSpread ? 1L : 0L, journal.Sequence, Text(journal.Utc),
@@ -50,7 +51,7 @@ internal static class LabelStore
             AttributionSchema.LabelsChain,
             [
                 RetractAction, label.Sequence, label.Origin.OriginId, label.Subject.Kind.ToString(),
-                label.Subject.Address.Value, label.Kind.ToString(), null, null, null, null, null,
+                label.Subject.Target.Value, label.Kind.ToString(), null, null, null, null, null,
                 JsonSerializer.Serialize(journal.Operator), Text(journal.Utc), reason, null, null, journal.Sequence,
                 Text(journal.Utc),
             ]);
@@ -98,8 +99,7 @@ internal static class LabelStore
                 rows.IsDBNull(15) ? null : rows.GetString(15));
             all.Add(new LabelEntry(
                 rows.GetInt64(0),
-                new LabelSubject(
-                    Enum.Parse<LabelSubjectKind>(rows.GetString(4)), BitcoinAddress.Parse(rows.GetString(5))),
+                Subject(Enum.Parse<LabelSubjectKind>(rows.GetString(4)), rows.GetString(5)),
                 Enum.Parse<LabelKind>(rows.GetString(6)),
                 rows.IsDBNull(7) ? null : rows.GetString(7),
                 origin,
@@ -110,6 +110,30 @@ internal static class LabelStore
         return new StoredLabels(all, retractions);
     }
 
+    /// <summary>
+    /// Reads a stored subject. The text is the address as <see cref="LabelSubject.Target"/> gives it: a text that is
+    /// an Ethereum address (<c>0x</c> and 40 hex digits, which no Bitcoin address can be) is an Ethereum account, any
+    /// other a Bitcoin address, so that a Bitcoin label is stored exactly as before Ethereum could be labelled.
+    /// </summary>
+    /// <param name="kind">Address or cluster.</param>
+    /// <param name="text">The stored address.</param>
+    /// <returns>The subject.</returns>
+    /// <exception cref="InvalidDataException">
+    /// An Ethereum account is stored as a cluster, which is never written.
+    /// </exception>
+    /// <exception cref="FormatException">The text is no address.</exception>
+    public static LabelSubject Subject(LabelSubjectKind kind, string text)
+    {
+        if (!EthereumAddress.TryParse(text, out var account))
+        {
+            return new LabelSubject(kind, BitcoinAddress.Parse(text));
+        }
+
+        return kind == LabelSubjectKind.Address
+            ? LabelSubject.ForAccount(account.ToChainAddress())
+            : throw new InvalidDataException("A label on a cluster is on Bitcoin only.");
+    }
+
     /// <summary>Gives the identity of a label across cases: its origin and what it says.</summary>
     /// <param name="originId">The origin.</param>
     /// <param name="subject">What it is on.</param>
@@ -117,7 +141,7 @@ internal static class LabelStore
     /// <param name="name">The name.</param>
     /// <returns>The key.</returns>
     public static LabelKey Key(string originId, LabelSubject subject, LabelKind kind, string? name) =>
-        new(originId, subject.Kind, subject.Address.Value, kind, NameKey(name));
+        new(originId, subject.Kind, subject.Target, kind, NameKey(name));
 
     /// <summary>Gives a name as it is compared: trimmed and in lower case, or empty.</summary>
     /// <param name="name">The name.</param>
@@ -175,8 +199,8 @@ internal sealed record StoredLabels(
 /// <summary>The identity of a label across cases.</summary>
 /// <param name="OriginId">The origin.</param>
 /// <param name="SubjectKind">Address or cluster.</param>
-/// <param name="Address">The address.</param>
+/// <param name="Address">The address with its chain, so that the same text on two chains is two labels.</param>
 /// <param name="Kind">What it says.</param>
 /// <param name="Name">The name as compared.</param>
 internal sealed record LabelKey(
-    string OriginId, LabelSubjectKind SubjectKind, string Address, LabelKind Kind, string Name);
+    string OriginId, LabelSubjectKind SubjectKind, ChainAddress Address, LabelKind Kind, string Name);
