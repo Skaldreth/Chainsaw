@@ -360,6 +360,20 @@ public sealed class GraphViewModelTests
         Assert.Null(rig.Guides[2].Subject);
     }
 
+    /// <summary>Opening or closing a case says so, so that the Guide's panel closes with the old answers.</summary>
+    [Fact]
+    public async Task CaseChangeTellsThePanel()
+    {
+        var rig = new Rig(open: false);
+        var changes = 0;
+        rig.Graph.CaseChanged += (_, _) => changes++;
+
+        rig.Session.Open(rig.Case);
+        await rig.Session.CloseAsync();
+
+        Assert.Equal(2, changes);
+    }
+
     /// <summary>The panel can follow: a new choice, and a cluster's answers when they come, say so.</summary>
     [Fact]
     public void ChoosingTellsThePanel()

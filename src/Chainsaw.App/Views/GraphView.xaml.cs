@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Controls;
 using Chainsaw.App.ViewModels;
 
@@ -9,8 +10,23 @@ namespace Chainsaw.App.Views;
 /// </summary>
 public partial class GraphView : UserControl
 {
+    /// <summary>The corner's space to the inspector when nothing lies over the page.</summary>
+    private static readonly Thickness CornerMargin = new(0, 12, 16, 0);
+
     /// <summary>Creates the page.</summary>
     public GraphView() => InitializeComponent();
+
+    /// <summary>
+    /// Moves the graph's corner (the switch, the method and the amounts) out from under a panel that lies over the
+    /// page's right side, such as the Guide's (sketch GD1b), so that it can still be seen and used.
+    /// </summary>
+    /// <param name="covered">How far from the page's right edge the panel reaches; 0 when none is open.</param>
+    public void MakeRoom(double covered)
+    {
+        var inspector = InspectorColumn.Width.Value;
+        var beyond = Math.Max(0, covered - inspector);
+        Corner.Margin = CornerMargin with { Right = CornerMargin.Right + beyond };
+    }
 
     /// <summary>Attaches the graph's view model to the page and its surface.</summary>
     /// <param name="model">The view model.</param>

@@ -73,6 +73,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Guidens figurer** (GD1b och GD1a): skisserna har små figurer i avsnitten (UTXO, common-input-ownership, växeln,
   peel chain, CoinJoin, spårningsmetoderna) ritade med grafens bildspråk. Inte byggda i etapp 18; texterna står utan
   dem. Behöver ett sätt att skriva en figur i Markdown (till exempel ett eget block som pekar på en ritning).
+- **Guidens panel, det som återstår** (etapp 18, granskningen): välj samma nod igen efter att ha följt en länk, så
+  stannar panelen på länken (det går inte att skilja ett nytt val från ett nytt svar om samma sak); klustrets svar som
+  kommer efter en stund kan byta avsnitt medan man läser; ett nytt *Varför?* börjar historiken om (som i skissen);
+  metodens avsnitt nås bara med högerklick, inte med tangentbordet; tolkaren letar efter en avslutande `*` utan att
+  hoppa över kod (en kursiv start före kod med en stjärna i blir kursiv resten av raden; händer inte i texterna
+  nu). Vid fönstrets minsta bredd (960 px) får kommandoraden inte plats bredvid den öppna panelen och kapas i
+  kanterna, och grafens flyttade hörn kan ligga över raden med det spårade uppe till vänster.
 - **Sök i Guiden:** GD1a har en sökruta i vyn. Sök finns bara i kommandoraden (CLAUDE.md), så sökningen bör gå därifrån
   (till exempel `/guide utxo`). Inte byggt.
 - Begäran om uppgifter till börser: formuläret och mallarna.

@@ -43,6 +43,36 @@ public sealed class GuideDocumentView : StackPanel
     /// <summary>The space kept above the marked heading when it is scrolled to.</summary>
     private const double ScrollMargin = 12;
 
+    /// <summary>The theme's bright text.</summary>
+    private const string TextBrush = "Brush.Text";
+
+    /// <summary>The theme's body text.</summary>
+    private const string MutedBrush = "Brush.TextMuted";
+
+    /// <summary>The theme's dim text.</summary>
+    private const string DimBrush = "Brush.TextDim";
+
+    /// <summary>The theme's accent: links and the marked heading.</summary>
+    private const string AccentBrush = "Brush.Accent";
+
+    /// <summary>The theme's thin lines.</summary>
+    private const string LineBrush = "Brush.Border";
+
+    /// <summary>The theme's strong line, at a quote's left.</summary>
+    private const string StrongLineBrush = "Brush.BorderStrong";
+
+    /// <summary>The theme's surface, under a block of code.</summary>
+    private const string SurfaceBrush = "Brush.Surface";
+
+    /// <summary>The theme's raised surface, under code in the text.</summary>
+    private const string RaisedBrush = "Brush.SurfaceRaised";
+
+    /// <summary>The theme's font for code, addresses and txids.</summary>
+    private const string MonoFont = "Font.Mono";
+
+    /// <summary>Whether a drawing is already asked for, so that several changes at once draw once.</summary>
+    private bool _buildPending;
+
     /// <summary>The marked heading's element, once drawn.</summary>
     private FrameworkElement? _marked;
 
@@ -84,15 +114,23 @@ public sealed class GuideDocumentView : StackPanel
     /// <summary>Gets the body text's size.</summary>
     private double BodySize => Compact ? 13.5 : 14;
 
-    /// <summary>Draws anew when anything changes.</summary>
+    /// <summary>Draws anew when anything changes, once for changes that come together.</summary>
     /// <param name="d">The view.</param>
     /// <param name="e">The change.</param>
-    private static void OnChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
-        ((GuideDocumentView)d).Build();
+    private static void OnChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var view = (GuideDocumentView)d;
+        if (!view._buildPending)
+        {
+            view._buildPending = true;
+            view.Dispatcher.BeginInvoke(DispatcherPriority.DataBind, view.Build);
+        }
+    }
 
     /// <summary>Draws the section and scrolls to its mark.</summary>
     private void Build()
     {
+        _buildPending = false;
         Children.Clear();
         _marked = null;
         if (Section is not { } section)
@@ -105,7 +143,7 @@ public sealed class GuideDocumentView : StackPanel
             Text = section.Title,
             FontSize = Compact ? 20 : 26,
             FontWeight = FontWeights.SemiBold,
-            Foreground = Brush("Brush.Text"),
+            Foreground = Brush(TextBrush),
             TextWrapping = TextWrapping.Wrap,
         });
         foreach (var block in section.Document.Blocks)
@@ -144,14 +182,14 @@ public sealed class GuideDocumentView : StackPanel
         var text = Text(heading.Runs, default);
         text.FontSize = heading.Level == 2 ? BodySize + 1.5 : BodySize + 0.5;
         text.FontWeight = FontWeights.SemiBold;
-        text.Foreground = Brush("Brush.Text");
+        text.Foreground = Brush(TextBrush);
         var border = new Border
         {
             Child = text,
             Margin = new Thickness(0, 26, 0, 0),
             Padding = new Thickness(marked ? 10 : 0, 0, 0, 0),
             BorderThickness = new Thickness(marked ? 2 : 0, 0, 0, 0),
-            BorderBrush = Brush("Brush.Accent"),
+            BorderBrush = Brush(AccentBrush),
         };
         if (marked)
         {
@@ -170,7 +208,7 @@ public sealed class GuideDocumentView : StackPanel
         Margin = new Thickness(0, 12, 0, 0),
         Padding = new Thickness(12, 2, 0, 2),
         BorderThickness = new Thickness(2, 0, 0, 0),
-        BorderBrush = Brush("Brush.BorderStrong"),
+        BorderBrush = Brush(StrongLineBrush),
     };
 
     /// <summary>
@@ -184,8 +222,8 @@ public sealed class GuideDocumentView : StackPanel
         Margin = new Thickness(0, 12, 0, 0),
         Padding = new Thickness(14, 12, 14, 12),
         CornerRadius = new CornerRadius(8),
-        Background = Brush("Brush.Surface"),
-        BorderBrush = Brush("Brush.Border"),
+        Background = Brush(SurfaceBrush),
+        BorderBrush = Brush(LineBrush),
         BorderThickness = new Thickness(1),
         Child = new Viewbox
         {
@@ -195,10 +233,10 @@ public sealed class GuideDocumentView : StackPanel
             Child = new TextBlock
             {
                 Text = code.Text,
-                FontFamily = (FontFamily)FindResource("Font.Mono"),
+                FontFamily = (FontFamily)FindResource(MonoFont),
                 FontSize = 12,
                 LineHeight = 19,
-                Foreground = Brush("Brush.TextMuted"),
+                Foreground = Brush(MutedBrush),
             },
         },
     };
@@ -217,14 +255,14 @@ public sealed class GuideDocumentView : StackPanel
                 {
                     Text = number.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".",
                     FontSize = BodySize,
-                    Foreground = Brush("Brush.TextDim"),
+                    Foreground = Brush(DimBrush),
                     Width = 18,
                 }
                 : new Ellipse
                 {
                     Width = 4,
                     Height = 4,
-                    Fill = Brush("Brush.TextDim"),
+                    Fill = Brush(DimBrush),
                     Margin = new Thickness(0, BodySize * 0.72, 10, 0),
                     VerticalAlignment = VerticalAlignment.Top,
                 };
@@ -259,14 +297,14 @@ public sealed class GuideDocumentView : StackPanel
                 cell.FontSize = BodySize - 1.5;
                 if (at == 0)
                 {
-                    cell.Foreground = Brush("Brush.TextDim");
+                    cell.Foreground = Brush(DimBrush);
                 }
 
                 var frame = new Border
                 {
                     Child = cell,
                     Padding = new Thickness(0, 6, 12, 6),
-                    BorderBrush = Brush("Brush.Border"),
+                    BorderBrush = Brush(LineBrush),
                     BorderThickness = new Thickness(0, 0, 0, 1),
                 };
                 Grid.SetRow(frame, at);
@@ -291,7 +329,7 @@ public sealed class GuideDocumentView : StackPanel
         }
 
         var line = new TextBlock { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, LineHeight = 22 };
-        line.Inlines.Add(new Run("Läs också") { Foreground = Brush("Brush.TextDim") });
+        line.Inlines.Add(new Run("Läs också") { Foreground = Brush(DimBrush) });
         foreach (var id in section.Related)
         {
             line.Inlines.Add(new Run("    "));
@@ -303,7 +341,7 @@ public sealed class GuideDocumentView : StackPanel
             Child = line,
             Margin = new Thickness(0, 28, 0, 0),
             Padding = new Thickness(0, 14, 0, 0),
-            BorderBrush = Brush("Brush.Border"),
+            BorderBrush = Brush(LineBrush),
             BorderThickness = new Thickness(0, 1, 0, 0),
         };
     }
@@ -324,7 +362,7 @@ public sealed class GuideDocumentView : StackPanel
             Margin = margin,
             FontSize = BodySize,
             LineHeight = Math.Round(BodySize * 1.65),
-            Foreground = Brush("Brush.TextMuted"),
+            Foreground = Brush(MutedBrush),
             TextWrapping = TextWrapping.Wrap,
         };
         var i = 0;
@@ -360,7 +398,7 @@ public sealed class GuideDocumentView : StackPanel
         if (run.IsStrong)
         {
             inline.FontWeight = FontWeights.SemiBold;
-            inline.Foreground = Brush("Brush.Text");
+            inline.Foreground = Brush(TextBrush);
         }
 
         if (run.IsEmphasis)
@@ -370,10 +408,10 @@ public sealed class GuideDocumentView : StackPanel
 
         if (run.IsCode)
         {
-            inline.FontFamily = (FontFamily)FindResource("Font.Mono");
+            inline.FontFamily = (FontFamily)FindResource(MonoFont);
             inline.FontSize = BodySize - 1.5;
-            inline.Background = Brush("Brush.SurfaceRaised");
-            inline.Foreground = Brush("Brush.Text");
+            inline.Background = Brush(RaisedBrush);
+            inline.Foreground = Brush(TextBrush);
         }
 
         return inline;
@@ -389,15 +427,14 @@ public sealed class GuideDocumentView : StackPanel
         {
             Command = LinkCommand,
             CommandParameter = link,
-            Foreground = Brush("Brush.Accent"),
+            Foreground = Brush(AccentBrush),
             TextDecorations = null,
             Cursor = Cursors.Hand,
-            FocusVisualStyle = null,
         };
         hyperlink.Inlines.AddRange(inlines);
         foreach (var inline in hyperlink.Inlines.OfType<Run>())
         {
-            inline.Foreground = Brush("Brush.Accent");
+            inline.Foreground = Brush(AccentBrush);
         }
 
         hyperlink.MouseEnter += (_, _) => hyperlink.TextDecorations = TextDecorations.Underline;

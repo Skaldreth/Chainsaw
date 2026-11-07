@@ -12,6 +12,9 @@ public sealed class GuideLibrary
     /// <summary>The start of a text's resource name; the file's name follows.</summary>
     public const string ResourcePrefix = "Chainsaw.App.Guide.";
 
+    /// <summary>The ending of a text's file and resource name.</summary>
+    public const string FileEnding = ".md";
+
     /// <summary>The group a text not in <see cref="Index"/> is listed under, so that no text is ever hidden.</summary>
     public const string OtherGroup = "Övrigt";
 
@@ -76,7 +79,7 @@ public sealed class GuideLibrary
         foreach (var name in assembly.GetManifestResourceNames())
         {
             if (!name.StartsWith(ResourcePrefix, StringComparison.Ordinal)
-                || !name.EndsWith(".md", StringComparison.Ordinal))
+                || !name.EndsWith(FileEnding, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -88,7 +91,7 @@ public sealed class GuideLibrary
             }
 
             using var reader = new StreamReader(stream);
-            texts[name[ResourcePrefix.Length..^".md".Length]] = reader.ReadToEnd();
+            texts[name[ResourcePrefix.Length..^FileEnding.Length]] = reader.ReadToEnd();
         }
 
         return new GuideLibrary(texts);

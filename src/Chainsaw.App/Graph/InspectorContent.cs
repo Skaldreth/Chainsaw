@@ -20,14 +20,7 @@ public sealed record InspectorFact(string Name, string Value);
 /// The heading in the section that answers, as written in the text; <see langword="null"/> for the section's own
 /// choice (<see cref="GuideTopics.DefaultHeading"/>).
 /// </param>
-public sealed record WhyLine(string Text, GuideTopic? Topic, string? Heading = null)
-{
-    /// <summary>Gets whether the line links to the Guide.</summary>
-    public bool HasTopic => Topic is not null;
-
-    /// <summary>Gets the link's text, for example <c>Guiden: Spårningsmetoder</c>; empty without a section.</summary>
-    public string TopicText => Topic is { } topic ? "Guiden: " + topic.Title() : string.Empty;
-}
+public sealed record WhyLine(string Text, GuideTopic? Topic, string? Heading = null);
 
 /// <summary>What the inspector shows for what is chosen (sketch GR4): a node or a line.</summary>
 /// <param name="Title">The heading: the node's name, or the line's two ends.</param>

@@ -94,6 +94,9 @@ public sealed partial class GuideViewModel : ObservableObject
         ShowSection(place.Section, place.Anchor);
     }
 
+    /// <summary>Forgets the way back when the view is left, so that it never points to an old place.</summary>
+    public void Leave() => ReturnTo = null;
+
     /// <summary>Shows a section from the index, at its top.</summary>
     /// <param name="entry">The index's entry.</param>
     [RelayCommand]

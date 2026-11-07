@@ -420,6 +420,10 @@ public sealed class GuideTests
         guide.Return();
         Assert.Equal(AppView.Graph, returned);
         Assert.False(guide.HasReturn);
+
+        guide.Open(new GuidePlace("etiketter", null, null, null), AppView.Graph);
+        guide.Leave();
+        Assert.False(guide.HasReturn);
     }
 
     /// <summary>Without texts the view shows no section and the panel does not open.</summary>

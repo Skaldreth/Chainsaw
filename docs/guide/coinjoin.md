@@ -23,8 +23,8 @@ CoinJoin-analysen (`coinjoin v1`) tittar bara på tx:en själv, utan etiketter:
 ## Vad det betyder i utredningen
 
 - **Känd CoinJoin** (Whirlpool, Wasabi eller JoinMarket):
-  spåret tar slut här med orsaken *CoinJoin*, och **inget** i tx:en slås ihop. Common-input-
-  ownership skulle annars ha slagit ihop främlingar till en plånbok.
+  spåret tar slut här med orsaken *CoinJoin*, och **inget** i tx:en slås ihop.
+  Common-input-ownership skulle annars ha slagit ihop främlingar till en plånbok.
 - **Möjlig CoinJoin** (två lika stora outputs, eller lika belopp utan känt mönster):
   spåret går vidare, men inget i tx:en slås ihop automatiskt; det
   blir förslag som du kan pröva.

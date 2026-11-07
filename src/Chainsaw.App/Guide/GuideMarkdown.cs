@@ -16,9 +16,6 @@ public static partial class GuideMarkdown
     /// <summary>The marker that opens and closes a block of code.</summary>
     private const string Fence = "```";
 
-    /// <summary>The ending of a section's file, which a link to it carries.</summary>
-    private const string FileEnding = ".md";
-
     /// <summary>Reads a section's text.</summary>
     /// <param name="section">The section's id, so that a link inside it (<c>#anchor</c>) knows where it points.</param>
     /// <param name="markdown">The text.</param>
@@ -89,12 +86,13 @@ public static partial class GuideMarkdown
             return anchor is { Length: > 0 } ? new GuideLink(section, anchor) : null;
         }
 
-        if (!file.EndsWith(FileEnding, StringComparison.Ordinal) || !SectionId().IsMatch(file[..^FileEnding.Length]))
+        var ending = GuideLibrary.FileEnding;
+        if (!file.EndsWith(ending, StringComparison.Ordinal) || !SectionId().IsMatch(file[..^ending.Length]))
         {
             return null;
         }
 
-        return new GuideLink(file[..^FileEnding.Length], anchor is { Length: > 0 } ? anchor : null);
+        return new GuideLink(file[..^ending.Length], anchor is { Length: > 0 } ? anchor : null);
     }
 
     /// <summary>
@@ -111,6 +109,7 @@ public static partial class GuideMarkdown
         var buffer = new StringBuilder();
         var style = outer;
 
+        // Adds the text gathered so far as a piece in the style so far, before the style or the link changes.
         void Flush()
         {
             if (buffer.Length > 0)

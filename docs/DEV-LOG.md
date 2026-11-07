@@ -1223,3 +1223,60 @@ inte ändrat.
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Utgångarna*); kontrollen av den offentliga adressen, ta
 bort och byta namn på en utgång, ett kortkommando, raden i en vägrad fil och Windows som utgång i rutan (TODO).
+
+
+## Etapp 18: Guiden (GD1b), 2026-11-07
+
+**Byggt:**
+- **Panelen bredvid arbetet** (`Views/GuidePanel`, `ViewModels/GuidePanelViewModel`): 440 px från höger över
+  inspektören, utan att resten mörkas. Huvudet har pilen tillbaka, *Guide · grupp*, *Öppna i Guide* och ×. Överst
+  står svaret för det valda (*Varför? · namn* och alla förklaringar, var och en med en länk till sitt eget avsnitt när
+  det inte är det som visas). Under det står avsnittet, öppnat vid rubriken som svarar, markerad i accenten.
+- **Varifrån panelen öppnas:**
+  - *Varför?* i inspektören. Avsnittet väljs ur det mest talande svaret: ett slut går före en heuristik, som går före
+    en startpunkt, en etikett och metoden.
+  - Länken *Guiden: Grafen och bildspråket* bakom *?*.
+  - Högerklick på spårningsmetoden, som öppnar vid metodens egen rubrik.
+- **Panelen följer valet:** en annan nod blir ett steg framåt. Klustrets svar som kommer senare ersätter det tidigare
+  svaret om samma sak där det ligger i historiken. Ingenting valt ändrar ingenting. Panelen stängs när ett annat ärende
+  öppnas, när vyn byts, med × och med Esc. F1 med panelen öppen gör samma sak som *Öppna i Guide*.
+- **När panelen är öppen** flyttas grafens hörn åt vänster om den, och kommandoraden centreras i ytan bredvid.
+- **Vyn Guide (F1)** (`Views/GuideView`, `ViewModels/GuideViewModel`): avsnitten i grupperna Bitcoin, Klustring,
+  Spårning och Etiketter, och texten i läsbredd. Från panelen kommer man till samma rubrik, med *Tillbaka till grafen*.
+- **Avsnitten byggs in** ur `docs/guide/*.md` som resurser (`Guide/GuideLibrary`, med indexet). En egen liten
+  Markdown-tolk (`Guide/GuideMarkdown`) läser rubriker med ankare, stycken, listor (också numrerade och inskjutna),
+  citat, kodblock, tabeller, fetstil, kursiv, kod och länkar mellan avsnitt (`[text](fil.md#ankare)`); webblänkar
+  följs aldrig. Renderaren är `Controls/GuideDocumentView`. Kodblock krymper i stället för att brytas, och *Läs också*
+  visar avsnitten som texten länkar till.
+- **Texterna:** hänvisningarna mellan avsnitten är nu länkar. Svaren som förut sa var texten låg är borta, och
+  `ShellViewModel.ShowGuide` och den infällda Varför?-listan i inspektören är borttagna.
+- **Logik utan WPF:** tolken, indexet, ankarna, historiken, förfrågningarna och båda vymodellerna, testade i
+  `GuideTests` och `GraphViewModelTests`. Testerna kontrollerar att varje text är inbyggd och listad, att varje länk
+  och varje rubrik grafen öppnar vid finns, och att inga tecken som `**` blir kvar.
+
+**Egna beslut och avsteg från skissen:**
+- **Metoden:** ett klick byter metod som förut, och ett högerklick öppnar Guiden.
+- ***?*:** visar bildspråket som förut, och dess länk öppnar panelen. I skissen öppnade båda Guiden direkt. Står i TODO
+  under *Väntar på beslut*.
+- **Svaret står fast överst**, utanför avsnittets rullning, så att avsnittet kan öppnas vid rubriken utan att svaret
+  rullar bort. Ett långt svar rullar i sin ruta.
+- **Utan figurerna och sökrutan** ur skisserna (TODO).
+
+**Granskningen:**
+- **Omgång 1:** inga C, fem I och elva M.
+  - Svarsrutan rullades bort.
+  - Panelen behöll förra ärendets svar.
+  - Esc stängde Guiden i stället för utgångarnas ruta.
+  - Panelen täckte grafens hörn och kommandoraden.
+  - F1 tappade platsen.
+  - Rättade M: renderingen byggs en gång per ändring, fokusmarkering på länkar, *Tillbaka till* glöms när vyn lämnas,
+    död kod borttagen, konstanter för resursnycklar och filändelsen, och en radbrytning i `coinjoin.md`.
+  - Övriga M står i TODO.
+- **Omgång 2:** inga C eller I.
+  - Rättade M: inspektörens kolumn läses vid namn, och radlängder.
+  - Kommandoraden vid minsta bredd står i TODO.
+
+**Tester:** 433 i appen. Bygget utan varningar.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Guiden*). Beslutet om metoden och *?* (TODO, *Väntar på
+beslut*). Figurerna, sökningen och det som återstår i panelen (TODO).

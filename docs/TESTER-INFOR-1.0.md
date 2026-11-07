@@ -513,7 +513,13 @@ Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunnel
   vanligt klick byter fortfarande metod. Efter byte till haircut: högerklick öppnar vid *Haircut (andel)*.
 - *?* nere till vänster visar bildspråket; länken *Guiden: Grafen och bildspråket* stänger bildspråket och öppnar
   panelen vid avsnittets början. Med panelen redan öppen blir det ett steg, och pilen går tillbaka.
-- Byt vy i pillret: panelen stängs.
+- Byt vy i pillret: panelen stängs. Öppna eller stäng ett ärende: panelen stängs.
+- Svarsrutan står kvar överst medan avsnittet under den rullar till den markerade rubriken; ett långt svar (ett
+  kluster med många länkar) rullar för sig i rutan.
+- Med panelen öppen flyttar grafens hörn (växeln, metoden, beloppen) åt vänster så att det syns bredvid panelen, och
+  kommandoraden centreras i ytan bredvid. Prova också vid fönstrets minsta bredd (960 px).
+- F1 med panelen öppen: som *Öppna i Guide*. Esc med utgångarnas ruta öppen stänger den rutan, inte Guiden.
+- En länk i texten får en fokusmarkering med Tab.
 
 **Texten**
 - Fetstil i ljus text, kursiv, kod (adresser, `coinjoin v1`) i Cascadia Mono på en upphöjd yta, punktlistor med en

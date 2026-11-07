@@ -60,37 +60,44 @@
                     </DockPanel>
                 </Border>
 
-                <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" Focusable="False">
-                    <StackPanel Margin="26,20,26,40">
-                        <!-- The answer for what is chosen, at the top, with the accent at its left. -->
-                        <Border Padding="14,12" CornerRadius="10" Background="{StaticResource Brush.SurfaceRaised}"
-                                BorderBrush="{StaticResource Brush.Accent}" BorderThickness="2,0,0,0" Margin="0,0,0,20"
-                                Visibility="{Binding Page.HasAnswers, Converter={StaticResource VisibleWhen},
-                                                     FallbackValue=Collapsed}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding Page.Label}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
-                                           Margin="0,0,0,5" TextTrimming="CharacterEllipsis" />
-                                <ItemsControl ItemsSource="{Binding Page.Answers}" Focusable="False">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type guide:GuideAnswer}">
-                                            <StackPanel Margin="0,0,0,8">
-                                                <TextBlock Text="{Binding Text}" FontSize="13" LineHeight="21" TextWrapping="Wrap"
-                                                           Foreground="{StaticResource Brush.Text}" Opacity="0.85" />
-                                                <Button Style="{StaticResource Button.Link}" Content="{Binding LinkText}" Margin="0,2,0,0"
-                                                        Visibility="{Binding HasLink, Converter={StaticResource VisibleWhen}}"
-                                                        Command="{Binding DataContext.GoCommand,
-                                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding Link}" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
+                <!--
+                  The answer for what is chosen, always at the top with the accent at its left, outside the section's
+                  scrolling, so that the section can open at its marked heading while the answer stays in view. A long
+                  answer scrolls on its own.
+                -->
+                <Border DockPanel.Dock="Top" Padding="14,12" CornerRadius="10" Margin="26,20,26,0"
+                        Background="{StaticResource Brush.SurfaceRaised}" BorderBrush="{StaticResource Brush.Accent}"
+                        BorderThickness="2,0,0,0"
+                        Visibility="{Binding Page.HasAnswers, Converter={StaticResource VisibleWhen},
+                                             FallbackValue=Collapsed}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding Page.Label}" FontSize="11.5" Margin="0,0,0,5"
+                                   Foreground="{StaticResource Brush.TextDim}" TextTrimming="CharacterEllipsis" />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" MaxHeight="220">
+                            <ItemsControl ItemsSource="{Binding Page.Answers}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type guide:GuideAnswer}">
+                                        <StackPanel Margin="0,0,0,8">
+                                            <TextBlock Text="{Binding Text}" FontSize="13" LineHeight="21"
+                                                       TextWrapping="Wrap" Foreground="{StaticResource Brush.Text}"
+                                                       Opacity="0.85" />
+                                            <Button Style="{StaticResource Button.Link}" Content="{Binding LinkText}"
+                                                    Margin="0,2,0,0" CommandParameter="{Binding Link}"
+                                                    Visibility="{Binding HasLink, Converter={StaticResource VisibleWhen}}"
+                                                    Command="{Binding DataContext.GoCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
 
-                        <controls:GuideDocumentView Compact="True" Section="{Binding Page.Section}" Anchor="{Binding Page.Anchor}"
-                                                    Library="{Binding Library}" LinkCommand="{Binding GoCommand}" />
-                    </StackPanel>
+                <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <controls:GuideDocumentView Compact="True" Margin="26,20,26,40" Section="{Binding Page.Section}"
+                                                Anchor="{Binding Page.Anchor}" Library="{Binding Library}"
+                                                LinkCommand="{Binding GoCommand}" />
                 </ScrollViewer>
             </DockPanel>
         </Border>

@@ -170,7 +170,8 @@
                         </StackPanel>
 
                         <!-- The command bar: search and commands are here and nowhere else (decided 2026-11-07). -->
-                        <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20">
+                        <StackPanel x:Name="CommandArea" VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                                    Margin="0,0,0,20">
                             <!-- The answer above the bar, or the hint for what is written; an error in the error colour. -->
                             <TextBlock Text="{Binding ShownAbove}" FontSize="12" MaxWidth="560" TextWrapping="Wrap"
                                        HorizontalAlignment="Center" Margin="0,0,0,8" LineHeight="18">

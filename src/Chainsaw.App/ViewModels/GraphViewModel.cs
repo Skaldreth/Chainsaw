@@ -123,6 +123,12 @@ public sealed partial class GraphViewModel : ObservableObject
     /// </summary>
     public event EventHandler<GuideRequest?>? WhyChanged;
 
+    /// <summary>
+    /// Raised when another case, or none, is shown, so that the Guide's panel closes and no answer about the former
+    /// case stays on screen (principle 4).
+    /// </summary>
+    public event EventHandler? CaseChanged;
+
     /// <summary>Gets the graph ready to draw, or <see langword="null"/> when there is none.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MethodText), nameof(TraceText))]
@@ -582,6 +588,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// </summary>
     private void OnCaseChanged()
     {
+        CaseChanged?.Invoke(this, EventArgs.Empty);
         _moved.Clear();
         _firstFree.Clear();
         _refreshAfterExpansion = false;

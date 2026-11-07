@@ -99,6 +99,14 @@ public partial class MainWindow : Window
     {
         graph.GuideWanted += (_, request) => _guidePanel.Ask(request);
         graph.WhyChanged += (_, request) => _guidePanel.Follow(request);
+        graph.CaseChanged += (_, _) => _guidePanel.Close();
+        _guidePanel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GuidePanelViewModel.IsOpen))
+            {
+                MakeRoomForGuide();
+            }
+        };
         _guidePanel.FullGuideWanted += (_, place) =>
         {
             guide.Open(place, _shell.Current);
@@ -107,30 +115,64 @@ public partial class MainWindow : Window
         guide.ReturnWanted += (_, view) => _shell.Show(view);
         _shell.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ShellViewModel.Current) && !_shell.IsGraphShown)
+            if (e.PropertyName != nameof(ShellViewModel.Current))
+            {
+                return;
+            }
+
+            if (!_shell.IsGraphShown)
             {
                 _guidePanel.Close();
+            }
+
+            if (!_shell.IsGuideShown)
+            {
+                guide.Leave();
             }
         };
         PreviewKeyDown += OnGuideEscape;
     }
 
     /// <summary>
-    /// Esc closes the Guide's panel wherever the keyboard is, except in the command bar, Nytt ärende and an open
-    /// submenu, which have their own Esc.
+    /// The keys of the open Guide panel, wherever the keyboard is: Esc closes it, and F1 takes its place to the view
+    /// Guide (as <em>Öppna i Guide</em>). The command bar, Nytt ärende, an open submenu and the exits' panel keep
+    /// their own Esc.
     /// </summary>
     /// <param name="sender">The window.</param>
     /// <param name="e">The key.</param>
     private void OnGuideEscape(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || !_guidePanel.IsOpen || !_gate.IsShellVisible || _shell.NewCase.IsOpen
-            || _shell.OpenSubmenu is not null || CommandBox.IsKeyboardFocusWithin)
+        if (!_guidePanel.IsOpen || !_gate.IsShellVisible || _shell.NewCase.IsOpen)
+        {
+            return;
+        }
+
+        if (e.Key == Key.F1 && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            _guidePanel.OpenInGuide();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key != Key.Escape || _shell.OpenSubmenu is not null || _shell.ExitPanel.IsOpen
+            || CommandBox.IsKeyboardFocusWithin)
         {
             return;
         }
 
         _guidePanel.Close();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Keeps what the Guide's panel would cover in view while it is open: the graph's corner moves left of it, and
+    /// the command bar is centred in the space beside it.
+    /// </summary>
+    private void MakeRoomForGuide()
+    {
+        var covered = _guidePanel.IsOpen ? GuidePanel.Width : 0;
+        GraphPage.MakeRoom(covered);
+        CommandArea.Margin = new Thickness(0, 0, covered, 20);
     }
 
     /// <summary>Stops listening to Windows when the window closes; the static events would otherwise keep it.</summary>
