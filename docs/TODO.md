@@ -44,7 +44,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 5. **Grafens hörn uppe till höger:** *byggt 2026-11-07* som en rad ikoner med prick när något finns.
 6. **Inspektörens skugga** över titelraden: *rättad 2026-11-07* (sidan klipper vid sin kant).
 7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissad 2026-11-07: BV3a (bara
-   riktningen syns, resten som tillval) och BV3b (bevakningen som en mening), båda vid noden; **BV3a vald**. *Pågår.*
+   riktningen syns, resten som tillval) och BV3b (bevakningen som en mening), båda vid noden; **BV3a vald och byggd 2026-11-07**.
 8. **Undermenyn Nytt** i pillret: *animerad 2026-11-07* (växer ut ur knappen och tonar in).
 9. **Pillret:** Tidslinje, Flöde, Exponering och Begäran (och de andra som inte är byggda) ska vara nedtonade.
 10. **Byta ärende i titelraden** går inte (ÄV1a, godkänd).
@@ -63,6 +63,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 20. **Soptunnan (SO1a)** byggs, och finns redan i startvyn: där kan man slänga ärenden.
 21. **Startvyn grupperar ärenden** som grafen grupperar tx (samlingsnoden, EX2b); ett ärende som dras ut hamnar på
     startsidan. Skissas.
+22. **En expansion ritar allt rakt ut:** 50 tx och ett par hundra motparter i en lång kolumn (adressen med 1 759 tx).
+    Ledtrådsnoden `+N tx` och samlingsnoden (EX1a, EX1b och EX2b, godkända) byggs, så att grafen aldrig växer
+    okontrollerat (princip 7). Byggs som en etapp, eftersom urvalet sparas i ärendet.
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
@@ -85,8 +88,8 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
 6. **Tomma lägen:** Bevakning utan ärende ger ingen väg vidare; inget ärende föreslås efter upplåsning.
 7. Därefter det godkända: EX1/EX2b, SO1a med Delete, TL1a, BG1b.
 
-- **Soptunnan (SO1a)**, se CLAUDE.md *Soptunnan*, med Delete på valda noder: byggs som en etapp, eftersom den skriver i ärendet. Sessionens
-  förslag: en bevakning på något som slängs pausas och går igen när det läggs tillbaka.
+- **Soptunnan (SO1a)**, se CLAUDE.md *Soptunnan*, med Delete på valda noder: byggs som en etapp, eftersom den skriver i
+  ärendet. Bevakningar på det som slängs (och längre ner i grenen) avslutas efter en fråga, se CLAUDE.md.
 - **Allt följer med en etikett** (CLAUDE.md, *Etiketter smittar*, användarens beslut 2026-11-07): etapp 8 för bara
   vem, när, etiketten och källans sort in i ett annat ärende; ärendenumret, anteckningen, skälet, titeln och enheten
   ska också följa med. Sessionens egen regel att en etikett på ett offer aldrig sprids står kvar tills användaren säger

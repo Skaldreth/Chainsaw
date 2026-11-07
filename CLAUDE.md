@@ -398,8 +398,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   följde med under, i flera led. Formen är **SO1a** (användarens beslut 2026-11-07): ikonen växer till en rund
   yta i hörnet med en ringvåg när man är framme, varningen är en liten ruta vid soptunnan med trädet, och det som följer
   med blir streckat medan resten tonas ner. Vyn är en indragen trädlista per slängning med *Lägg tillbaka* (grenen eller
-  en del) och *Lägg tillbaka allt*. En linje till något i soptunnan blir en kort stump, en bevakning bland det slängda
-  pausas (ögat grått), och soptunnan använder inte rött, som betyder risk. Bildspråkets *?* flyttas till nedre högra
+  en del) och *Lägg tillbaka allt*. En linje till något i soptunnan blir en kort stump, och soptunnan använder inte
+  rött, som betyder risk. **Bevakat slängs inte i tysthet** (användarens beslut 2026-11-07): ligger det som slängs
+  under bevakning, eller har det bevakningar längre ner i grenen, frågar Chainsaw först om bevakningarna (en eller
+  flera) ska avslutas innan det går i soptunnan. I startvyn kan man slänga ärenden. Bildspråkets *?* flyttas till nedre högra
   hörnet.
 - **Begäran är BG1b** (användarens beslut 2026-11-07, ändrat från BG1a samma dag): vyn Begäran i pillret listar alla
   uttag som spårade pengar nått i ärendet, med den valda begäran som stor förhandsvisning av Markdown-filen till höger,

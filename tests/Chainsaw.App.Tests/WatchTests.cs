@@ -42,6 +42,50 @@ public sealed class WatchFormTests
     }
 
     [Fact]
+    public void Only_the_direction_shows_and_a_sentence_says_what_the_watch_does()
+    {
+        var form = Form(out _);
+
+        form.OpenFor(WatchSamples.Subject(V), _ => "Nod");
+
+        Assert.False(form.ShowsParties);
+        Assert.False(form.ShowsMinimum);
+        Assert.False(form.ShowsPace);
+        Assert.Equal("Säger till när pengar rör sig. Frågar vid varje nytt block.", form.Sentence);
+
+        form.ChooseDirection(WatchDirection.Out);
+        form.ToggleParties();
+        Assert.True(form.Add(WatchSamples.On(E), "Börs A"));
+        form.ToggleMinimum();
+        form.MinimumInput = "0,05";
+
+        Assert.Equal("Säger till när pengar går ut till Börs A över 0,05 BTC. Frågar vid varje nytt block.", form.Sentence);
+    }
+
+    [Fact]
+    public void Folding_the_minimum_in_empties_it()
+    {
+        var form = Form(out _);
+        form.OpenFor(WatchSamples.Subject(V));
+        form.ToggleMinimum();
+        form.MinimumInput = "1";
+
+        form.ToggleMinimum();
+
+        Assert.Equal(string.Empty, form.MinimumInput);
+    }
+
+    [Theory]
+    [InlineData(WatchDirection.In, "kommer in från A eller B")]
+    [InlineData(WatchDirection.Both, "rör sig till C från A eller B")]
+    public void The_sentence_names_the_counterparties_by_direction(WatchDirection direction, string expected)
+    {
+        var text = WatchWords.Sentence(direction, ["C"], ["A", "B"], string.Empty, WatchPace.FiveMinutes);
+
+        Assert.Equal($"Säger till när pengar {expected}. Frågar högst en gång per 5 min.", text);
+    }
+
+    [Fact]
     public void Coming_in_the_picks_go_to_the_senders_and_the_node_itself_is_refused()
     {
         var form = Form(out _);

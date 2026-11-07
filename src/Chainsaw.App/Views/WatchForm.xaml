@@ -3,16 +3,17 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
              xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:monitoring="clr-namespace:Chainsaw.Modules.Monitoring.Contracts;assembly=Chainsaw.Modules.Monitoring.Contracts"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              d:DataContext="{d:DesignInstance Type=vm:WatchFormViewModel}"
              mc:Ignorable="d">
 
     <!--
-      The watch form (sketches BV1a and BV2a), the same for Bevaka … on a node, Ny bevakning … and Ändra: direction,
-      receivers and senders as chips (a typed address or Ctrl+click in the graph), the asset on Ethereum, an optional
-      minimum and the pace from the settings. Esc cancels and Enter saves. Only wiring; what happens lives in
-      WatchFormViewModel.
+      The watch form (sketch BV3a), the same for Bevaka … on a node, Ny bevakning … and Ändra: only the direction shows,
+      as three large icons, a sentence says what the watch does with the defaults filled in, and the counterparties, the
+      minimum and how often are small extras that fold out their field. The asset shows only on Ethereum. Esc cancels
+      and Enter saves. Only wiring; what happens lives in WatchFormViewModel.
     -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
@@ -63,9 +64,32 @@
                 </StackPanel>
             </Border>
         </DataTemplate>
+        <!-- The label before a row of counterparties; a click makes it the row that additions go to. -->
+        <Style x:Key="Button.Bare.Label" TargetType="Button">
+            <Setter Property="Width" Value="76" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <ItemsPanelTemplate x:Key="Wrap">
             <WrapPanel />
         </ItemsPanelTemplate>
+        <!-- An extra under the sentence: + when folded in, a tick and lighter when out. -->
+        <Style x:Key="Extra" TargetType="Button" BasedOn="{StaticResource Button.Chip}">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
         <ItemsPanelTemplate x:Key="Even">
             <UniformGrid Rows="1" />
         </ItemsPanelTemplate>
@@ -75,177 +99,196 @@
         <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
     </UserControl.InputBindings>
 
-    <Border Width="300" Padding="13" CornerRadius="10" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"
-            Background="{StaticResource Brush.SurfaceRaised}">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="34" ShadowDepth="14" Direction="270" Opacity="0.55" Color="Black" />
-        </Border.Effect>
+    <Border Width="340" Padding="18" CornerRadius="14" BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}"
+            Background="{StaticResource Brush.Floating}">
         <StackPanel>
             <DockPanel>
-                <controls:GridIcon Size="16" Data="{StaticResource Icon.Eye}" Foreground="{StaticResource Brush.Accent}"
-                                   DockPanel.Dock="Left" Margin="0,0,8,0" />
-                <Border DockPanel.Dock="Right" CornerRadius="9" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"
-                        Padding="7,1" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding ChainName}" FontSize="12" Foreground="{StaticResource Brush.TextMuted}" />
-                </Border>
-                <TextBlock Text="{Binding Title}" FontSize="14.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                <controls:GridIcon Size="18" Data="{StaticResource Icon.Eye}" Foreground="{StaticResource Brush.Accent}"
+                                   DockPanel.Dock="Left" Margin="0,0,10,0" VerticalAlignment="Center" />
+                <TextBlock DockPanel.Dock="Right" Text="B" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" />
             </DockPanel>
 
             <!-- Ny bevakning: the address, recognised by its form and checksum. -->
-            <TextBox Style="{StaticResource TextBox.Field}" Height="30" Margin="0,11,0,0" FontFamily="{StaticResource Font.Mono}"
-                     FontSize="12.5" Text="{Binding AddressText, UpdateSourceTrigger=PropertyChanged}"
+            <TextBox Style="{StaticResource TextBox.Field}" Height="34" Margin="0,14,0,0" FontFamily="{StaticResource Font.Mono}"
+                     FontSize="13" Text="{Binding AddressText, UpdateSourceTrigger=PropertyChanged}"
                      Visibility="{Binding IsManual, Converter={StaticResource Visible}}"
                      AutomationProperties.Name="Adress att bevaka" />
 
-            <DockPanel Margin="0,11,0,0">
-                <TextBlock Text="Riktning" Style="{StaticResource RowLabel}" />
-                <Border BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}" CornerRadius="6" ClipToBounds="True">
-                    <ItemsControl ItemsSource="{Binding Directions}" ItemsPanel="{StaticResource Even}" Focusable="False">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:WatchChoice}">
-                                <Button Style="{StaticResource Segment}" Content="{Binding Label}"
-                                        Command="{Binding DataContext.ChooseDirectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding Value}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Border>
-            </DockPanel>
+            <!-- The direction as three large icons, the only choice that always shows. -->
+            <Border Margin="0,14,0,0" Padding="4" CornerRadius="10" Background="{StaticResource Brush.Background}">
+                <ItemsControl ItemsSource="{Binding Directions}" ItemsPanel="{StaticResource Even}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:WatchChoice}">
+                            <Button x:Name="Tile" Focusable="False" Cursor="Hand" Height="62" Margin="2,0"
+                                    Foreground="{StaticResource Brush.TextMuted}" Background="Transparent"
+                                    AutomationProperties.Name="{Binding Label}" CommandParameter="{Binding Value}"
+                                    Command="{Binding DataContext.ChooseDirectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="8">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <StackPanel>
+                                    <controls:GridIcon x:Name="Glyph" Size="22" HorizontalAlignment="Center"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    <TextBlock Text="{Binding Label}" FontSize="13" HorizontalAlignment="Center" Margin="0,6,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsChosen}" Value="True">
+                                    <Setter TargetName="Tile" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                                    <Setter TargetName="Tile" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static monitoring:WatchDirection.In}">
+                                    <Setter TargetName="Glyph" Property="Data" Value="{StaticResource Icon.WatchIn}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static monitoring:WatchDirection.Out}">
+                                    <Setter TargetName="Glyph" Property="Data" Value="{StaticResource Icon.WatchOut}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static monitoring:WatchDirection.Both}">
+                                    <Setter TargetName="Glyph" Property="Data" Value="{StaticResource Icon.WatchBoth}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
 
-            <!-- Receivers (1:n) and senders (n:1): empty means all; Ctrl+click in the graph adds to the picked row. -->
-            <DockPanel Margin="0,11,0,0" Visibility="{Binding ShowsReceivers, Converter={StaticResource Visible}}">
-                <TextBlock Text="Mottagare" Style="{StaticResource RowLabel}" VerticalAlignment="Top" Margin="0,4,0,0" />
-                <StackPanel>
-                    <ItemsControl ItemsSource="{Binding Receivers}" ItemTemplate="{StaticResource Chip}"
-                                  ItemsPanel="{StaticResource Wrap}" Focusable="False" />
-                    <Button Style="{StaticResource Button.Chip}" Height="22" HorizontalAlignment="Left"
+            <!-- What the watch does, in a sentence with what is chosen filled in. -->
+            <TextBlock Text="{Binding Sentence}" FontSize="13" Foreground="{StaticResource Brush.TextMuted}" TextWrapping="Wrap"
+                       LineHeight="20" Margin="0,14,0,0" />
+
+            <!-- Bara vissa motparter: receivers (1:n) and senders (n:1), as chips; Ctrl+click in the graph adds. -->
+            <StackPanel Margin="0,12,0,0" Visibility="{Binding ShowsParties, Converter={StaticResource Visible}}">
+                <DockPanel Visibility="{Binding ShowsReceivers, Converter={StaticResource Visible}}" Margin="0,0,0,6">
+                    <Button DockPanel.Dock="Left" Style="{StaticResource Button.Bare.Label}" Content="Bara till"
                             Command="{Binding PickCommand}" CommandParameter="{x:Static vm:WatchPartyList.Receivers}"
-                            ToolTip="Lägg till en adress nedan, eller Ctrl+klick på noder i grafen">
-                        <StackPanel Orientation="Horizontal">
-                            <controls:GridIcon Size="11" Data="{StaticResource Icon.Pick}" Margin="0,0,5,0">
-                                <controls:GridIcon.Style>
-                                    <Style TargetType="controls:GridIcon">
-                                        <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding PicksReceivers}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </controls:GridIcon.Style>
-                            </controls:GridIcon>
-                            <TextBlock FontSize="12" Text="Alla, eller lägg till" Foreground="{StaticResource Brush.TextDim}" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </DockPanel>
-            <DockPanel Margin="0,11,0,0" Visibility="{Binding ShowsSenders, Converter={StaticResource Visible}}">
-                <TextBlock Text="Avsändare" Style="{StaticResource RowLabel}" VerticalAlignment="Top" Margin="0,4,0,0" />
-                <StackPanel>
-                    <ItemsControl ItemsSource="{Binding Senders}" ItemTemplate="{StaticResource Chip}"
-                                  ItemsPanel="{StaticResource Wrap}" Focusable="False" />
-                    <Button Style="{StaticResource Button.Chip}" Height="22" HorizontalAlignment="Left"
+                            ToolTip="En adress nedan, eller Ctrl+klick på noder i grafen, läggs till här" />
+                    <ItemsControl ItemsSource="{Binding Receivers}" ItemTemplate="{StaticResource Chip}"
+                                  ItemsPanel="{StaticResource Wrap}" Focusable="False" VerticalAlignment="Center" />
+                </DockPanel>
+                <DockPanel Visibility="{Binding ShowsSenders, Converter={StaticResource Visible}}" Margin="0,0,0,6">
+                    <Button DockPanel.Dock="Left" Style="{StaticResource Button.Bare.Label}" Content="Bara från"
                             Command="{Binding PickCommand}" CommandParameter="{x:Static vm:WatchPartyList.Senders}"
-                            ToolTip="Lägg till en adress nedan, eller Ctrl+klick på noder i grafen">
-                        <StackPanel Orientation="Horizontal">
-                            <controls:GridIcon Size="11" Data="{StaticResource Icon.Pick}" Margin="0,0,5,0">
-                                <controls:GridIcon.Style>
-                                    <Style TargetType="controls:GridIcon">
-                                        <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding PicksSenders}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </controls:GridIcon.Style>
-                            </controls:GridIcon>
-                            <TextBlock FontSize="12" Text="Alla, eller lägg till" Foreground="{StaticResource Brush.TextDim}" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </DockPanel>
-            <DockPanel Margin="74,6,0,0">
-                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Graph}" Height="26" Padding="9,0" Margin="6,0,0,0"
-                        FontSize="12.5" Content="Lägg till" Command="{Binding AddPartyCommand}" />
-                <TextBox Style="{StaticResource TextBox.Field}" Height="26" FontFamily="{StaticResource Font.Mono}" FontSize="12"
-                         Text="{Binding PartyText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Motpartens adress">
-                    <TextBox.InputBindings>
-                        <KeyBinding Key="Enter" Command="{Binding AddPartyCommand}" />
-                    </TextBox.InputBindings>
-                </TextBox>
-            </DockPanel>
-
-            <DockPanel Margin="0,11,0,0">
-                <TextBlock Text="Tillgång" Style="{StaticResource RowLabel}" />
+                            ToolTip="En adress nedan, eller Ctrl+klick på noder i grafen, läggs till här" />
+                    <ItemsControl ItemsSource="{Binding Senders}" ItemTemplate="{StaticResource Chip}"
+                                  ItemsPanel="{StaticResource Wrap}" Focusable="False" VerticalAlignment="Center" />
+                </DockPanel>
                 <Grid>
-                    <TextBlock Text="BTC, den enda på Bitcoin" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}"
-                               Visibility="{Binding IsBitcoin, Converter={StaticResource Visible}}" />
-                    <Border BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}" CornerRadius="6" ClipToBounds="True"
-                            Visibility="{Binding IsEthereum, Converter={StaticResource Visible}}">
-                        <ItemsControl ItemsSource="{Binding Assets}" ItemsPanel="{StaticResource Even}" Focusable="False">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:WatchChoice}">
-                                    <Button Style="{StaticResource Segment}" Content="{Binding Label}"
-                                            Command="{Binding DataContext.ChooseAssetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding Value}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Border>
+                    <TextBox Style="{StaticResource TextBox.Field}" Height="32" FontFamily="{StaticResource Font.Mono}" FontSize="12.5"
+                             Tag="Klistra in en adress, eller Ctrl+klicka i grafen"
+                             Text="{Binding PartyText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Motpartens adress">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding AddPartyCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
                 </Grid>
+            </StackPanel>
+
+            <!-- The asset, only on Ethereum, where there is more than one. -->
+            <Border Margin="0,12,0,0" BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}" CornerRadius="8"
+                    ClipToBounds="True" Visibility="{Binding ShowsAssets, Converter={StaticResource Visible}}">
+                <ItemsControl ItemsSource="{Binding Assets}" ItemsPanel="{StaticResource Even}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:WatchChoice}">
+                            <Button Style="{StaticResource Segment}" Height="30" Content="{Binding Label}"
+                                    Command="{Binding DataContext.ChooseAssetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding Value}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+
+            <DockPanel Margin="0,12,0,0" Visibility="{Binding ShowsMinimum, Converter={StaticResource Visible}}">
+                <TextBlock Text="Minsta belopp" Style="{StaticResource RowLabel}" Width="100" />
+                <TextBox Style="{StaticResource TextBox.Field}" Height="32" FontSize="13" IsEnabled="{Binding CanHaveMinimum}"
+                         Tag="{Binding MinimumHint}" Text="{Binding MinimumInput, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="Minsta belopp" />
             </DockPanel>
 
-            <DockPanel Margin="0,11,0,0">
-                <TextBlock Text="Minsta belopp" Style="{StaticResource RowLabel}" />
-                <Grid>
-                    <TextBox Style="{StaticResource TextBox.Field}" Height="26" FontSize="12.5" IsEnabled="{Binding CanHaveMinimum}"
-                             Text="{Binding MinimumInput, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Minsta belopp" />
-                    <TextBlock Text="{Binding MinimumHint}" FontSize="12.5" Foreground="{StaticResource Brush.TextFaint}" Margin="9,0,0,0"
-                               VerticalAlignment="Center" IsHitTestVisible="False">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding MinimumInput}" Value="">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Grid>
-            </DockPanel>
+            <Border Margin="0,12,0,0" BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}" CornerRadius="8"
+                    ClipToBounds="True" Visibility="{Binding ShowsPace, Converter={StaticResource Visible}}"
+                    ToolTip="Hur ofta bevakningen frågar källan: vid varje nytt block, eller högst så ofta">
+                <ItemsControl ItemsSource="{Binding Paces}" ItemsPanel="{StaticResource Even}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:WatchChoice}">
+                            <Button Style="{StaticResource Segment}" Height="30" Content="{Binding Label}"
+                                    Command="{Binding DataContext.ChoosePaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding Value}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
 
-            <DockPanel Margin="0,11,0,0">
-                <TextBlock Text="Hur ofta" Style="{StaticResource RowLabel}" />
-                <Border BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}" CornerRadius="6" ClipToBounds="True"
-                        ToolTip="Hur ofta bevakningen frågar källan: vid varje nytt block, eller högst så ofta">
-                    <ItemsControl ItemsSource="{Binding Paces}" ItemsPanel="{StaticResource Even}" Focusable="False">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:WatchChoice}">
-                                <Button Style="{StaticResource Segment}" Content="{Binding Label}"
-                                        Command="{Binding DataContext.ChoosePaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding Value}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Border>
-            </DockPanel>
+            <!-- The extras: each folds out its own field, and the sentence follows. -->
+            <WrapPanel Margin="0,14,0,0">
+                <Button Command="{Binding TogglePartiesCommand}" AutomationProperties.Name="Bara vissa motparter">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource Extra}">
+                            <Setter Property="Content" Value="+ Bara vissa motparter" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowsParties}" Value="True">
+                                    <Setter Property="Content" Value="✓ Bara vissa motparter" />
+                                    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Command="{Binding ToggleMinimumCommand}" AutomationProperties.Name="Minsta belopp">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource Extra}">
+                            <Setter Property="Content" Value="+ Minsta belopp" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowsMinimum}" Value="True">
+                                    <Setter Property="Content" Value="✓ Minsta belopp" />
+                                    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Command="{Binding TogglePaceCommand}" AutomationProperties.Name="Hur ofta">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource Extra}">
+                            <Setter Property="Content" Value="+ Hur ofta" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowsPace}" Value="True">
+                                    <Setter Property="Content" Value="✓ Hur ofta" />
+                                    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </WrapPanel>
 
-            <TextBlock Text="{x:Static vm:WatchWords.FormNote}" FontSize="11.5" Foreground="{StaticResource Brush.TextFaint}"
-                       Margin="0,11,0,0" />
             <TextBlock Text="{Binding Problem}" FontSize="12.5" Foreground="{StaticResource Brush.Error}" TextWrapping="Wrap"
-                       Margin="0,6,0,0" />
+                       Margin="0,4,0,0" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                <Button Style="{StaticResource Button.Graph}" Height="28" Padding="10,0" FontSize="13" Margin="0,0,6,0"
-                        Command="{Binding CancelCommand}" ToolTip="Esc">Avbryt</Button>
-                <Button Style="{StaticResource Button.Primary}" Height="28" Padding="10,0" Command="{Binding SaveCommand}"
+                <Button Style="{StaticResource Button.Graph}" Height="34" Padding="14,0" FontSize="13.5" Margin="0,0,8,0"
+                        Command="{Binding CancelCommand}" ToolTip="Esc">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Avbryt" />
+                        <TextBlock Text="Esc" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="8,0,0,0"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource Button.Primary}" Height="34" Padding="16,0" Command="{Binding SaveCommand}"
                         ToolTip="Enter">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding SaveText}" FontSize="13" FontWeight="SemiBold" />
-                        <TextBlock Text="Enter" FontSize="11.5" Opacity="0.6" Margin="6,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding SaveText}" FontSize="13.5" FontWeight="SemiBold" />
+                        <TextBlock Text="Enter" FontSize="11.5" Opacity="0.75" Margin="8,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>

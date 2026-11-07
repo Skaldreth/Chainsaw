@@ -171,7 +171,8 @@
               or its left when there is no room, with a small arrow pointing at it.
             -->
             <Grid x:Name="NodeForm" HorizontalAlignment="Left" VerticalAlignment="Top" Width="316"
-                  Visibility="{Binding Forms.IsOpen, Converter={StaticResource Visible}}" SizeChanged="OnOverNodeSized">
+                  Visibility="{Binding Forms.IsOpen, Converter={StaticResource Visible}}" SizeChanged="OnOverNodeSized"
+                  IsVisibleChanged="OnBesideNodeShown">
                 <Border CornerRadius="12" Background="{StaticResource Brush.Floating}" IsHitTestVisible="False">
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="36" ShadowDepth="12" Direction="270" Opacity="0.5" Color="Black" />
@@ -369,9 +370,27 @@
             <views:AreaForm DataContext="{Binding Checks}" HorizontalAlignment="Right" VerticalAlignment="Top"
                             Margin="0,56,16,0" Visibility="{Binding IsFormOpen, Converter={StaticResource Visible}}" />
 
-            <!-- The watch form (sketch BV2a): Bevaka … on a node, under the corner, while it is open. -->
-            <views:WatchForm DataContext="{Binding WatchForm}" HorizontalAlignment="Right" VerticalAlignment="Top"
-                             Margin="0,56,16,0" Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
+            <!--
+              The watch form (sketch BV3a) in a panel beside the watched node, as the forms in IN1b, with an arrow at it;
+              it glides in when it opens.
+            -->
+            <Grid x:Name="WatchPanel" HorizontalAlignment="Left" VerticalAlignment="Top" Width="340"
+                  Visibility="{Binding IsWatchFormOpen, Converter={StaticResource Visible}}" SizeChanged="OnOverNodeSized"
+                  IsVisibleChanged="OnBesideNodeShown">
+                <Border CornerRadius="14" Background="{StaticResource Brush.Floating}" IsHitTestVisible="False">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="40" ShadowDepth="14" Direction="270" Opacity="0.5" Color="Black" />
+                    </Border.Effect>
+                </Border>
+                <views:WatchForm DataContext="{Binding WatchForm}" />
+                <Border x:Name="WatchCaret" Width="13" Height="13" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Background="{StaticResource Brush.Floating}" BorderBrush="{StaticResource Brush.BorderStrong}"
+                        BorderThickness="1.5,0,0,1.5" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False">
+                    <Border.RenderTransform>
+                        <RotateTransform x:Name="WatchCaretTurn" Angle="45" />
+                    </Border.RenderTransform>
+                </Border>
+            </Grid>
 
             <!-- The node's menu (right click, sketch BV2a): the forms, Bevaka …, Expandera and Kopiera adress. -->
             <Border x:Name="NodeMenu" HorizontalAlignment="Left" VerticalAlignment="Top" Width="220" Padding="5"

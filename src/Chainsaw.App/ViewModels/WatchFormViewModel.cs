@@ -95,6 +95,8 @@ public sealed partial class WatchFormViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(board);
         _board = board;
+        Receivers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(Sentence));
+        Senders.CollectionChanged += (_, _) => OnPropertyChanged(nameof(Sentence));
         Paces = [.. Enum.GetValues<WatchPace>().Select(pace => new WatchChoice(WatchWords.Pace(pace), pace))];
         Directions =
         [
@@ -148,7 +150,7 @@ public sealed partial class WatchFormViewModel : ObservableObject
 
     /// <summary>Gets the watched direction.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsReceivers), nameof(ShowsSenders))]
+    [NotifyPropertyChangedFor(nameof(ShowsReceivers), nameof(ShowsSenders), nameof(Sentence))]
     public partial WatchDirection Direction { get; private set; } = WatchDirection.Both;
 
     /// <summary>Gets the list a typed address or a Ctrl+click adds to.</summary>
@@ -162,16 +164,79 @@ public sealed partial class WatchFormViewModel : ObservableObject
 
     /// <summary>Gets or sets the minimum as typed; empty for none.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Sentence))]
     public partial string MinimumInput { get; set; } = string.Empty;
 
     /// <summary>Gets the chosen asset on Ethereum, or <see langword="null"/> for all.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanHaveMinimum), nameof(MinimumHint))]
+    [NotifyPropertyChangedFor(nameof(CanHaveMinimum), nameof(MinimumHint), nameof(Sentence), nameof(ShowsAssets))]
     public partial Asset? Asset { get; private set; }
 
     /// <summary>Gets how often the watch asks the source; at every new block by default.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Sentence))]
     public partial WatchPace Pace { get; private set; } = WatchPace.EveryBlock;
+
+    /// <summary>
+    /// Gets whether the counterparties are folded out (sketch BV3a): only when asked for, or when the watch has some.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowsParties { get; private set; }
+
+    /// <summary>Gets whether the minimum is folded out.</summary>
+    [ObservableProperty]
+    public partial bool ShowsMinimum { get; private set; }
+
+    /// <summary>Gets whether how often is folded out.</summary>
+    [ObservableProperty]
+    public partial bool ShowsPace { get; private set; }
+
+    /// <summary>Gets whether there are assets to choose from: only on Ethereum, where there is more than one.</summary>
+    public bool ShowsAssets => IsEthereum;
+
+    /// <summary>
+    /// Gets what the watch does, in one sentence with what is chosen filled in (sketch BV3a), for example
+    /// <em>Säger till när pengar går ut till bc1q…m3pa över 0,05 BTC. Frågar vid varje nytt block.</em>
+    /// </summary>
+    public string Sentence => WatchWords.Sentence(
+        Direction,
+        [.. Receivers.Select(chip => chip.Text)],
+        [.. Senders.Select(chip => chip.Text)],
+        MinimumText(),
+        Pace);
+
+    /// <summary>Folds the counterparties out or in; folding in leaves the chosen ones.</summary>
+    [RelayCommand]
+    public void ToggleParties() => ShowsParties = !ShowsParties;
+
+    /// <summary>Folds the minimum out, or in and empties it.</summary>
+    [RelayCommand]
+    public void ToggleMinimum()
+    {
+        ShowsMinimum = !ShowsMinimum;
+        if (!ShowsMinimum)
+        {
+            MinimumInput = string.Empty;
+        }
+    }
+
+    /// <summary>Folds how often out or in.</summary>
+    [RelayCommand]
+    public void TogglePace() => ShowsPace = !ShowsPace;
+
+    /// <summary>Gives the minimum as the sentence writes it, with its unit; empty when none is typed.</summary>
+    /// <returns>The text.</returns>
+    private string MinimumText()
+    {
+        var typed = MinimumInput.Trim();
+        if (typed.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var unit = IsBitcoin ? "BTC" : Asset?.Symbol;
+        return unit is null ? typed : $"{typed} {unit}";
+    }
 
     /// <summary>Gets what went wrong, or an empty text.</summary>
     [ObservableProperty]
@@ -259,6 +324,9 @@ public sealed partial class WatchFormViewModel : ObservableObject
         ChooseAsset(watch.Filter.Asset);
         ChoosePace(watch.Filter.Pace);
         MinimumInput = watch.Filter.Minimum is { } minimum ? Graph.AmountText.Number(minimum) : string.Empty;
+        ShowsParties = Receivers.Count + Senders.Count > 0;
+        ShowsMinimum = MinimumInput.Length > 0;
+        ShowsPace = Pace != WatchPace.EveryBlock;
     }
 
     /// <summary>Chooses the direction.</summary>
@@ -555,7 +623,11 @@ public sealed partial class WatchFormViewModel : ObservableObject
         Picking = WatchPartyList.Receivers;
         ChooseAsset(null);
         ChoosePace(WatchPace.EveryBlock);
+        ShowsParties = false;
+        ShowsMinimum = false;
+        ShowsPace = false;
         OnPropertyChanged(nameof(Chain));
+        OnPropertyChanged(nameof(ShowsAssets));
         OnPropertyChanged(nameof(ChainName));
         OnPropertyChanged(nameof(IsEthereum));
         OnPropertyChanged(nameof(IsBitcoin));

@@ -171,6 +171,61 @@ public static class WatchWords
         _ => "Varje block",
     };
 
+    /// <summary>
+    /// Says what a watch does in one sentence (sketch BV3a): the direction, the counterparties when there are any, the
+    /// minimum when one is given, and how often the source is asked.
+    /// </summary>
+    /// <param name="direction">The direction.</param>
+    /// <param name="receivers">The receivers' names; empty for all.</param>
+    /// <param name="senders">The senders' names; empty for all.</param>
+    /// <param name="minimum">The minimum with its unit; empty for none.</param>
+    /// <param name="pace">How often the source is asked.</param>
+    /// <returns>The sentence.</returns>
+    public static string Sentence(
+        WatchDirection direction,
+        IReadOnlyList<string> receivers,
+        IReadOnlyList<string> senders,
+        string minimum,
+        WatchPace pace)
+    {
+        ArgumentNullException.ThrowIfNull(receivers);
+        ArgumentNullException.ThrowIfNull(senders);
+        var verb = direction switch
+        {
+            WatchDirection.In => "kommer in",
+            WatchDirection.Out => "går ut",
+            _ => "rör sig",
+        };
+        var text = new System.Text.StringBuilder("Säger till när pengar ").Append(verb);
+        if (direction != WatchDirection.In && receivers.Count > 0)
+        {
+            text.Append(" till ").Append(Names(receivers));
+        }
+
+        if (direction != WatchDirection.Out && senders.Count > 0)
+        {
+            text.Append(" från ").Append(Names(senders));
+        }
+
+        if (minimum.Length > 0)
+        {
+            text.Append(" över ").Append(minimum);
+        }
+
+        var asked = pace == WatchPace.EveryBlock ? "vid varje nytt block" : $"högst en gång per {Pace(pace)}";
+        return text.Append(". Frågar ").Append(asked).Append('.').ToString();
+    }
+
+    /// <summary>Names counterparties in a sentence: one or two by name, more by their number.</summary>
+    /// <param name="names">The names.</param>
+    /// <returns>The words.</returns>
+    private static string Names(IReadOnlyList<string> names) => names.Count switch
+    {
+        1 => names[0],
+        2 => $"{names[0]} eller {names[1]}",
+        _ => $"{names.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} motparter",
+    };
+
     /// <summary>Gives the minimum as the details write it.</summary>
     /// <param name="filter">The filter.</param>
     /// <returns>The amount with its unit, or <c>Inget</c>.</returns>

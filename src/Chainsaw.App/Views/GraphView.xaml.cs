@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Chainsaw.App.ViewModels;
 
@@ -35,6 +36,12 @@ public partial class GraphView : UserControl
 
     /// <summary>The space the arrow keeps from the form's rounded corners.</summary>
     private const double CaretInset = 14;
+
+    /// <summary>How far a panel beside a node glides in from.</summary>
+    private const double GlideFrom = 8;
+
+    /// <summary>How long a panel beside a node takes to glide in.</summary>
+    private const double GlideMilliseconds = 200;
 
     /// <summary>Creates the page.</summary>
     public GraphView()
@@ -93,7 +100,8 @@ public partial class GraphView : UserControl
                     Math.Max(0, Math.Min(at.Y, Canvas.ActualHeight - MenuHeight)), 0, 0);
             }
 
-            if (e.PropertyName is nameof(GraphViewModel.SelectedNode) or nameof(GraphViewModel.HasNodeTools))
+            if (e.PropertyName is nameof(GraphViewModel.SelectedNode) or nameof(GraphViewModel.HasNodeTools)
+                or nameof(GraphViewModel.IsWatchFormOpen))
             {
                 PlaceOverNode();
             }
@@ -152,18 +160,61 @@ public partial class GraphView : UserControl
             0,
             0);
 
-        var formWidth = NodeForm.Width;
-        var formHeight = NodeForm.ActualHeight;
-        var right = node.Right + FormGap + formWidth <= width - EdgeSpace;
+        PlaceBeside(NodeForm, Caret, CaretTurn, node);
+        PlaceBeside(WatchPanel, WatchCaret, WatchCaretTurn, node);
+    }
+
+    /// <summary>
+    /// Puts a panel beside a node, to its right or else to its left, its heading at the node's middle, with its arrow
+    /// pointing at the node (sketch IN1b).
+    /// </summary>
+    /// <param name="panel">The panel.</param>
+    /// <param name="caret">Its arrow.</param>
+    /// <param name="turn">The arrow's turn, which points it left or right.</param>
+    /// <param name="node">The node's frame on the screen.</param>
+    private void PlaceBeside(FrameworkElement panel, FrameworkElement caret, RotateTransform turn, Rect node)
+    {
+        var width = panel.Width;
+        var height = panel.ActualHeight;
+        var right = node.Right + FormGap + width <= Canvas.ActualWidth - EdgeSpace;
         var middle = node.Top + (node.Height / 2);
-        var top = Within(middle - FormLift, EdgeSpace, height - formHeight - EdgeSpace);
-        NodeForm.Margin = new Thickness(right ? node.Right + FormGap : node.Left - FormGap - formWidth, top, 0, 0);
-        Caret.Margin = new Thickness(
-            right ? -CaretHalf - 1 : formWidth - CaretHalf - 1,
-            Within(middle - top - CaretHalf, CaretInset, formHeight - CaretInset - (2 * CaretHalf)),
+        var top = Within(middle - FormLift, EdgeSpace, Canvas.ActualHeight - height - EdgeSpace);
+        panel.Margin = new Thickness(right ? node.Right + FormGap : node.Left - FormGap - width, top, 0, 0);
+        caret.Margin = new Thickness(
+            right ? -CaretHalf - 1 : width - CaretHalf - 1,
+            Within(middle - top - CaretHalf, CaretInset, height - CaretInset - (2 * CaretHalf)),
             0,
             0);
-        CaretTurn.Angle = right ? 45 : 225;
+        turn.Angle = right ? 45 : 225;
+    }
+
+    /// <summary>
+    /// Lets a panel beside a node glide in from the node's side and fade in as it opens; with Windows' animations off it
+    /// just appears.
+    /// </summary>
+    /// <param name="sender">The panel.</param>
+    /// <param name="e">Whether it is shown.</param>
+    private void OnBesideNodeShown(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is not FrameworkElement panel || e.NewValue is not true || !SystemParameters.ClientAreaAnimation)
+        {
+            return;
+        }
+
+        PlaceOverNode();
+        var time = new Duration(TimeSpan.FromMilliseconds(GlideMilliseconds));
+        var glide = new TranslateTransform();
+        panel.RenderTransform = glide;
+        glide.BeginAnimation(
+            TranslateTransform.XProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(-GlideFrom, 0, time)
+            {
+                EasingFunction = new System.Windows.Media.Animation.CubicEase
+                {
+                    EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut,
+                },
+            });
+        panel.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, time));
     }
 
     /// <summary>Keeps a value between two bounds; when they cross, the lower one wins.</summary>

@@ -963,3 +963,9 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Inspektörens skugga syns inte ovanför titelradens underkant.
 - [ ] Klicka på + i pillret: undermenyn växer ut ur knappen åt höger och tonar in, och raderna glider det sista
       stycket på plats. Med animeringar avstängda i Windows dyker den bara upp.
+- [ ] Välj en nod och tryck B (eller ögat i listen): Bevaka glider in i en ruta bredvid noden med en pil mot den. Bara
+      riktningen syns, som tre stora ikoner (In, Ut, Båda), och en mening under säger vad som händer.
+- [ ] *+ Bara vissa motparter*, *+ Minsta belopp* och *+ Hur ofta* fäller ut sitt fält och blir ✓; meningen ändras med
+      det som väljs. Ctrl+klick på noder i grafen lägger till motparter. Tillgången syns bara på Ethereum.
+- [ ] Ändra en bevakning med motparter eller ett minsta belopp: de fälten är redan utfällda.
+- [ ] Tomma textfält visar en svag platshållartext där en sådan finns.

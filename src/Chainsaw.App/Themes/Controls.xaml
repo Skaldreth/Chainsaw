@@ -213,9 +213,19 @@
                 <ControlTemplate TargetType="TextBox">
                     <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1" CornerRadius="4">
-                        <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+                        <Grid>
+                            <!-- The placeholder is the Tag, shown faintly while the field is empty. -->
+                            <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Margin="{TemplateBinding Padding}" Padding="2,0"
+                                       VerticalAlignment="Center" Foreground="{StaticResource Brush.TextFaint}"
+                                       FontFamily="{StaticResource Font.Ui}" IsHitTestVisible="False" Visibility="Collapsed"
+                                       TextTrimming="CharacterEllipsis" />
+                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
+                        </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
                         </Trigger>
