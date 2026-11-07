@@ -401,6 +401,26 @@ public sealed class EndpointPaceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_kept_probe_that_was_behind_stays_behind_when_nothing_higher_answers_this_round()
+    {
+        _harness.AnswerAll();
+        var second = await AddSecondAsync();
+        Height(Tip, 900_000);
+        Height(SecondTip, 899_000);
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        _harness.Sources.AskedToWait(Chain.Bitcoin, second.Id, TimeSpan.FromMinutes(5));
+        _harness.Http.AnswerBytes(Tip, "broken"u8.ToArray(), 500);
+
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+
+        var kept = _harness.Sources.Get(Chain.Bitcoin).Endpoints.Single(e => e.Endpoint.Id == second.Id).Probe!;
+        Assert.Equal(ProbeOutcome.Behind, kept.Outcome);
+        Assert.Equal(1_000, kept.BlocksBehind);
+        Assert.False(_harness.Sources.TrustsNotFound(Chain.Bitcoin, second.Id));
+        Assert.Empty(_harness.Sources.Plan(Chain.Bitcoin, inStep: true).Endpoints);
+    }
+
+    [Fact]
     public async Task A_probe_round_that_only_waited_keeps_a_failed_lookups_pause()
     {
         _harness.AnswerAll();

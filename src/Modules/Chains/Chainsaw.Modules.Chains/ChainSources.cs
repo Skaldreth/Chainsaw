@@ -877,11 +877,20 @@ internal sealed class ChainSources : IChainSources
             // A probe that only waited says nothing about its endpoint: its earlier probe stands, with its pause if a
             // lookup failed through it. Every probe is then measured against the highest height of them all, kept ones
             // too, so that neither a kept one nor a new one counts as in step when another is known to be higher.
+            // A kept probe never comes out better than it was: the height its round was measured against stays a
+            // reference (a stand-in answer that is not kept).
             var earlier = new Dictionary<Guid, EndpointProbe>(state.Probes);
-            var merged = probes.Select(probe =>
-                IsWait(probe) && earlier.TryGetValue(probe.EndpointId, out var kept) ? Unranked(kept) : probe);
+            var kept = probes.Where(IsWait).Select(probe => earlier.GetValueOrDefault(probe.EndpointId))
+                .OfType<EndpointProbe>().ToList();
+            var merged = probes.Select(probe => kept.Find(k => k.EndpointId == probe.EndpointId) is { } found
+                ? Unranked(found)
+                : probe);
+            var references = kept
+                .Where(probe => probe is { Height: { } height, BlocksBehind: > 0 })
+                .Select(probe => new EndpointProbe(Guid.Empty, ProbeOutcome.Answered,
+                    probe.Height + probe.BlocksBehind, null, null, probe.At, null));
             state.Probes.Clear();
-            foreach (var probe in Ranked([.. merged]))
+            foreach (var probe in Ranked([.. merged, .. references]).Where(probe => probe.EndpointId != Guid.Empty))
             {
                 state.Probes[probe.EndpointId] = probe;
             }
