@@ -314,3 +314,56 @@ Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i et
   Listan ligger i `%LOCALAPPDATA%\Chainsaw` (etapp 8). Tryck Ctrl+L … (eller lås Windows) medan filväljaren är öppen
   och välj en fil medan Chainsaw är låst: inget importeras.
 - *Ärende* öppnar Nytt ärende.
+
+## Grafen (etapp 12, GR4, GR3a och GR3c)
+
+Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och en ansluten utgång (utan tunnel: prova det som går
+offline och se att det sägs ärligt). Grafen är förstavyn.
+
+**Tomt och läsning**
+- Utan ärende: mitt på sidan står *Inget ärende öppet. Ctrl+N skapar ett, och /open öppnar ett.*; ingen graf ritas.
+- Ett ärende utan startpunkter: *Inga startpunkter än. Skriv en adress …*. Skriv en adress i kommandoraden och tryck
+  Enter: grafen läses om och visar startpunkten som en rund magenta nod (*Offer*), blek eftersom den inte är expanderad,
+  och överst till vänster *Inget att spåra än: … Välj startpunkten och expandera den.*
+- Inget hackar medan grafen läses eller expanderas: pillret, kommandoraden och fönstret svarar hela tiden.
+
+**Expandera**
+- Klicka på startpunkten: ramen blir magenta, resten bleknar, och inspektören till höger visar namnet, *In*, *Ut*,
+  *Spårat in*, *Sort*, *Hopp* och adressen i sin helhet i Cascadia Mono. Knappen *Expandera* (eller E med fokus i
+  grafen) hämtar ett steg: nya noder och linjer kommer, och överst står *n nya tx i grafen.*
+- Utan utgång: *Offline* står i grafens hörn; *Expandera* på något ärendet inte har säger *Inte expanderad. …* och
+  *Offline: ingen utgång ansluten …*. Ingenting påhittat visas.
+- Överst till vänster står *Spårat x BTC från n mynt · FIFO v1* när startpunktens mynt finns i grafen.
+
+**Bildspråket**
+- Noderna är tunna, 132 × 40, med en ikon i en rund (okänd, offer, CoinJoin, mynt) eller fyrkantig (tjänst, kluster)
+  ram i sortens färg, namnet (förkortad adress, eller etikettens namn) och antalet adresser för ett kluster. Ett
+  kluster har en andra ram bakom sig. Ikonerna är skarpa i alla zoomnivåer (linjen 1,5 px).
+- Sätt etiketter (när det går, eller i ett ärende med etiketter): en börs blir blå och fyrkantig, en mixer röd med
+  streckad ram, spel gult med två spelkort. Börs med spårade pengar får en blå bock i hörnet (*Uttag funnet*), en
+  sanktionerad adress med annan etikett en röd markering, en etikett från ett annat ärende en grå etikettmarkering.
+- Linjerna: spårade pengar i magenta och tjockare ju större belopp, andras pengar tunna och grå, en obekräftad tx
+  streckad. Beloppet står mitt på linjen, *0,1570 av 0,2400* när bara en del är spårad.
+- Knappen *Alla belopp* växlar till *Spårade belopp* (bara magenta linjer har belopp) och *Inga belopp*. Håll pekaren
+  över en linje: beloppet visas ändå. Välj en nod: bara linjerna runt den har belopp.
+- *?* nere till vänster öppnar bildspråket: sorterna med ikon och färg, markeringarna och linjerna, och en länk till
+  Guiden. Hovring över *?* visar grafens tangenter.
+
+**Fri yta och hoppkolumner**
+- Dra noder åt alla håll på den fria ytan. Växla till hoppkolumner (ikonen med fyra streck): noderna glider in i
+  kolumner med namnen *Start*, *+1*, *+2* (och *−1* före startpunkten). Dra en nod: den går bara upp och ner.
+  Pengar som går tillbaka ritas som en båge över noderna.
+- Växla tillbaka: varje nod står där du lämnade den på den fria ytan. Växla igen: kolumnernas höjder är kvar.
+- Stäng och öppna ärendet: platserna i båda lägena är kvar (de sparas i ärendet).
+- Dra den tomma ytan: grafen flyttas. Hjulet zoomar runt pekaren. F passar in hela grafen, + och − zoomar, Esc väljer
+  inget. En stor graf (hundratals noder) ritas och dras utan att det hackar.
+
+**Metoden och Varför?**
+- Knappen *FIFO* i hörnet: verktygstipset säger *Spårningsmetod: FIFO v1. Klicka för haircut. …*. Klicka: knappen säger
+  *haircut*, beloppen räknas om och tjocklekarna ändras.
+- Välj en linje: inspektören visar *Belopp*, *Spårat*, *Tid* (lokal tid och UTC), *Tx*, varje txid i sin helhet och
+  *Block nnn · hash*. Kontrollera en txid och blockhash mot en blockutforskare.
+- *Varför?* visar förklaringarna: för en linje att beloppet är summan av överföringar (fakta) och det spårade beloppet
+  med metod, version och tx (en bedömning); för en nod etiketten och dess ursprung, klustrets heuristiker med version
+  och tx, varför spåret tar slut. Länkarna *Guiden: …* visar vyn Guide (inte byggd än) och svaret ovanför
+  kommandoraden säger var avsnittet finns.

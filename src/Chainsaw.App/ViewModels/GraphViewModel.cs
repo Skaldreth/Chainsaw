@@ -263,9 +263,14 @@ public sealed partial class GraphViewModel : ObservableObject
     {
         if (line?.Topic is { } topic)
         {
-            GuideWanted?.Invoke(this, topic);
+            OpenGuideTopic(topic);
         }
     }
+
+    /// <summary>Asks for a section of the Guide, for example the visual language from the legend.</summary>
+    /// <param name="topic">The section.</param>
+    [RelayCommand]
+    public void OpenGuideTopic(GuideTopic topic) => GuideWanted?.Invoke(this, topic);
 
     /// <summary>Chooses what is under a point on the surface, or nothing over empty surface (a click).</summary>
     /// <param name="point">The point on the surface.</param>

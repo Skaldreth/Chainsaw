@@ -304,8 +304,9 @@ public sealed class GraphViewModelTests
 
         rig.Graph.OpenGuide(new WhyLine("x", GuideTopic.Methods));
         rig.Graph.OpenGuide(new WhyLine("y", null));
+        rig.Graph.OpenGuideTopic(GuideTopic.Graph);
 
-        Assert.Equal([GuideTopic.Methods], rig.Guides);
+        Assert.Equal([GuideTopic.Methods, GuideTopic.Graph], rig.Guides);
     }
 
     /// <summary>Expanding a chosen node asks for its addresses, shows the graph after it and says what came.</summary>

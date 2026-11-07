@@ -830,3 +830,58 @@ med lösenord, ändra titeln i ett gränssnitt, sökning i kommandoraden, och pu
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Undermenyer i pillret*); Etikett, Bevakning och Begäran
 när deras gränssnitt finns; fler knappar med undermenyer.
+
+## Etapp 12: grafen (GR4, GR3a och GR3c), 2026-11-07
+
+**Byggt:**
+- **Vyn Graf** (`Views/GraphView`) i skalet SH1b, utan sidrubrik: ytan, grafens hörn med växeln (fri yta och
+  hoppkolumner), metoden (*FIFO* eller *haircut*, alltid synlig) och gallringen av beloppen (*Alla belopp*, *Spårade
+  belopp*, *Inga belopp*), *?* med bildspråket nere till vänster, och inspektören (280 px) till höger.
+- **Ytan** (`Controls/GraphCanvas`): ritar med `OnRender` bara det som syns (princip 6): hoppkolumnerna, linjerna som
+  Bézierkurvor (framåt från höger sida till vänster, bakåt på fria ytan från vänster sida, och i hoppkolumnerna som en
+  båge över noderna), beloppen mitt på linjerna och noderna (tunn ram, ikon i rund eller fyrkantig ram i sortens färg,
+  namnet, antalet adresser, markeringar i hörnet och kedjans namn under hörnet). Ikonerna ur 24-rutnätet med linjen
+  1,5 px på skärmen i alla zoomnivåer (`GridIcon.StrokeFor`). Klick väljer, drag flyttar en nod eller panorerar,
+  hjulet zoomar runt pekaren; Esc, E, F, + och −.
+- **Bildspråket i en tabell** (`Graph/VisualLanguage`): varje sort (GR3c: uttag blått, spenderat gult, risk rött,
+  offer, kluster, okänd, swap, tx med flera ägare, mynt, annan kedja) med namn, ikon, färg, form och streckad ram, och
+  markeringarna *Uttag funnet*, *Etikett från ett annat ärende* och *Sanktionerad*. Grafen, legenden och inspektören
+  läser samma tabell. Färgerna i `Themes/Colors.xaml`, ikonerna i `Themes/Icons.xaml`.
+- **Rena klasser utan WPF** (`Graph/`), testade i `tests/Chainsaw.App.Tests`: geometri och `Viewport` (panorering,
+  zoom runt en punkt, passa in), `HopLayout` (kolumner per hopp, *Start*, *+1*, *−1*, *Utan hopp*), `GraphPlacement`
+  (varje läge minns sina platser; i kolumnerna bara upp och ner), `EdgeCurve`, `EdgeWidth` (tjocklek ur det spårade
+  beloppet mot det största), `AmountText` (svenska decimaler, minst fyra och aldrig avrundat till noll),
+  `AmountLabelMode` (gallringen), `GraphHitTest` (träff och det som syns), `SeedPicker`, `GraphScene` och
+  `InspectorContent`.
+- **Vymodellen** (`ViewModels/GraphViewModel`): läser grafen ur ärendet genom `IGraphSource` (`Graph/GraphSource`:
+  Tracing, Attribution och Clustering genom sina kontrakt, allt i `Task.Run`), byter metod och räknar om, expanderar
+  den valda noden ett steg (en adress, varje adress i ett kluster, eller en tx), sparar en dragen nods plats i ärendet
+  per läge, och släpper svar som kommer efter att ärendet bytts. Startpunkter från kommandoraden läser grafen på nytt
+  (`CaseWorkflow.StartPointAdded`).
+- **Inspektören och *Varför?*:** fakta (in, ut, spårat in, sort, hopp, tid i lokal tid och UTC), adresser, txid och
+  block (höjd och hash) i sin helhet så att varje steg kan kontrolleras mot kedjan, *Expandera*, och *Varför?* med
+  etikettens ursprung, klustrets länkar (heuristik med version, tx och skäl, ur Clustering), varför spåret tar slut,
+  det spårade beloppet med metod, version och tx, och att en linjes belopp är fakta men aktörerna klustringens
+  slutsats. Varje svar länkar till sitt avsnitt i Guiden.
+- **Ärligt:** utan ärende, utan startpunkter, under läsning, när läsningen misslyckas, när det inte finns något att
+  spåra än och offline säger grafen det i klartext. *Offline* står i hörnet utan utgång.
+- **Guiden:** `grafen.md` (*Grafen och bildspråket*), länkad från legenden.
+
+**Egna beslut och avsteg från skissen:**
+- **Inget huvud med *Graf***: skissens rad med vyns namn finns inte (sidan har ingen rubrik); knapparna står i
+  grafens övre högra hörn, och vad som spårats och det senaste svaret uppe till vänster bredvid pillret.
+- **Vilka mynt som spåras** (skissen visar inte valet): alla mynt en startadress tagit emot i grafen, och en
+  startpunkts-tx:s betalningar till andra än betalarna; ett mynt längre fram i samma flöde tas bort så att inget räknas
+  två gånger. Står i TODO under *Väntar på beslut*.
+- **Startpunkten är *Offer*** (rund, magenta) när ingen etikett säger annat, efter GR3a. I TODO under *Väntar på
+  beslut*.
+- **Namnen** är etikettens namn eller adressen förkortad (`bc1q…x0wl`), inte *K1* och *U2*, eftersom en numrering
+  ändras när grafen växer. I TODO.
+- **Den fria ytan börjar i hoppkolumnernas platser**, så att aktörerna först ligger i hoppens ordning.
+- **Tidslinjen under grafen** i GR4 och **mixerns kandidater** är inte byggda (TODO). Markeringarna *Bevakad* och
+  *Kan frysas* ritas inte och står inte i legenden, eftersom bevakningen och USDT inte finns.
+- **Guiden som vy** finns inte: en länk visar vyn Guide (*Inte byggt än*) och svaret ovanför kommandoraden säger var
+  avsnittet ligger.
+- **Metod, läge och gallring sparas inte i ärendet** (Tracing sparar bara platserna); står i TODO.
+- **Grafens tangenter** (Esc, E, F, + och −) gäller när ytan har fokus, och står i verktygstipset på *?* i stället för
+  på hela ytan, som annars visade ett tips så fort pekaren vilade.

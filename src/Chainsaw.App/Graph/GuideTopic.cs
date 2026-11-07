@@ -31,6 +31,9 @@ public enum GuideTopic
 
     /// <summary><em>UTXO-modellen</em>.</summary>
     Utxo,
+
+    /// <summary><em>Grafen och bildspråket</em>.</summary>
+    Graph,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -49,6 +52,7 @@ public static class GuideTopics
         GuideTopic.ChangeAddress => "vaxeladress",
         GuideTopic.PeelChain => "peel-chain",
         GuideTopic.CoinJoin => "coinjoin",
+        GuideTopic.Graph => "grafen",
         _ => "utxo-modellen",
     };
 
@@ -65,6 +69,7 @@ public static class GuideTopics
         GuideTopic.ChangeAddress => "Växeladress",
         GuideTopic.PeelChain => "Peel chain",
         GuideTopic.CoinJoin => "CoinJoin",
+        GuideTopic.Graph => "Grafen och bildspråket",
         _ => "UTXO-modellen",
     };
 

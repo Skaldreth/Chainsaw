@@ -186,6 +186,8 @@
                             <TextBlock Text="Pengar som vänder" />
                         </StackPanel>
                     </WrapPanel>
+                    <Button Style="{StaticResource Button.Link}" Content="Guiden: Grafen och bildspråket" Margin="0,4,0,0"
+                            Command="{Binding OpenGuideTopicCommand}" CommandParameter="{x:Static graph:GuideTopic.Graph}" />
                 </StackPanel>
             </Border>
         </Grid>

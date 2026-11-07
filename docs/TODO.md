@@ -31,6 +31,15 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   vanliga betalningar ser ut som hopp), så `peel-chain v1` bara föreslår. Fråga kryptospåraren vad som skiljer en
   riktig peel chain: samma skripttyp i varje hopp, liknande andel som skalas av, kort tid mellan hoppen?
 - **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Användaren frågar kryptospåraren vilken som används i praktiken (planerat 2026-11-08).
+- **Vilka mynt spåret startar i** (etapp 12, valt av sessionen): grafen spårar från alla mynt som en startadress tagit
+  emot i grafen, och från en startpunkts-tx:s betalningar till andra än betalarna; ett mynt längre fram i samma flöde
+  tas bort. Ska användaren välja mynten själv (till exempel offrets betalningar, eller ett belopp av ett mynt), och hur
+  ska det se ut? Behöver en skiss.
+- **Startpunkten som offer** (etapp 12, valt av sessionen): en startpunkt utan etikett ritas som *Offer* (rund,
+  magenta) efter GR3a, där offret är *startpunkten*. Ofta är startpunkten bedragarens adress som offret betalade till.
+  Ska startpunkten i stället behålla sin sort (okänd, kluster) med en egen markering, och offret vara en etikett?
+- **Namnen i grafen** (etapp 12, valt av sessionen): noder utan etikett heter efter adressen förkortad
+  (`bc1q…x0wl`), inte *K1*, *U2* som i skissen, eftersom en numrering ändras när grafen växer. Bekräfta.
 
 ## Bygga härnäst
 
@@ -39,7 +48,15 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 
 
-- Grafen (hjärtat): noder för adress, tx och kluster, expandering, slut på spåret, spårat belopp på kanterna, brus-kontroll.
+- **Tidslinjen under grafen** (GR4): prickar per händelse under ytan, där ett klick visar grafen vid en tx (det som
+  kom senare bleknar) och *Till nu* går tillbaka. Inte byggd i etapp 12; skissen finns, men hur händelserna väljs i en
+  stor graf (en prick per tx blir för många) behöver bestämmas.
+- **Mixerns troliga utgångar** i grafen (GR3a: streckad linje och streckad nod, *Kandidat*), med godkänn och avfärda.
+  Kräver analysen som föreslår dem (belopp minus avgift, tid, adresstyp).
+- **Guiden som vy:** *Varför?* och *?* länkar till avsnitten, men vyn Guide är inte byggd; svaret säger var texten finns.
+- **Länka till en annan kedja och etiketter i grafen:** inspektören visar länkar och etiketter men kan inte sätta dem
+  än (Tracing och Attribution har stödet). Behöver skiss för formulären.
+- **Bryta upp ett kluster** från inspektören (Clustering har `Split`). Behöver skiss.
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal, Guide.
 - Begäran om uppgifter till börser: formuläret och mallarna.
@@ -132,8 +149,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   varje gång. Behöver Clusterings register eller cache (se *Klustring och heuristiker*).
 - **Tidsfönster för en adress historik** (etapp 7): expansionen tar de nyaste tx upp till gränsen (50 som förval).
   För en adress med lång historik behövs ett tidsfönster runt händelsen i stället.
-- **Spårningsmetoden i ärendet:** vald metod sparas inte än; gränssnittet håller den. Spara den med grafens läge
-  när grafen byggs.
+- **Spårningsmetoden och läget i ärendet** (etapp 12): grafen håller vald metod (FIFO som förval), läget (fri yta
+  eller hoppkolumner), gallringen av beloppen, zoom och panorering bara medan ärendet är öppet; Tracing sparar bara
+  nodernas platser. Ett eget fält i Tracings lagring för grafens läge behövs.
+- **Markeringarna Bevakad och Kan frysas** (GR3a, GR3c) ritas när Monitoring och kedjorna med USDT/USDC finns.
+- **Grafens prestanda vid tusentals noder** (etapp 12): ytan ritar bara det som syns, men varje drag räknar om alla
+  kurvor och varje hovring prövar alla linjer. Ett rutnät (spatial index) och att bara räkna om linjerna till den
+  dragna noden behövs om graferna blir mycket stora.
 - **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
   bryggornas egna händelser. I v1 knyts den för hand.
 
