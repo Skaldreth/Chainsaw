@@ -99,3 +99,22 @@ kryptospåraren.
 - Jämför några kluster med kryptospårarens verktyg: slår Chainsaw ihop för mycket eller för lite? Skriv ner varje
   skillnad, så att tröskelvärdena kan prövas (TODO, *Väntar på beslut*).
 - `/verify` är grönt efter klustring och uppbrytningar.
+
+## Spårningen (etapp 7, Tracing)
+
+Spårningen har inget gränssnitt än. Det provas när grafen (GR4) är byggd, helst tillsammans med kryptospåraren och ett
+ärende där svaret redan är känt.
+
+- Startpunkten (en tx eller en adress) står i första kolumnen, och varje expansion lägger till ett hopp; inget annat
+  växer i grafen.
+- Att öppna ett ärende och visa grafen skickar ingenting ut på nätet (kontrollera utgångens logg). Ett mynt som låg
+  kvar visas som *kan ha flyttats* tills noden expanderas igen.
+- FIFO och haircut ger samma belopp som kryptospårarens verktyg på samma spår, eller så går skillnaden att förklara
+  (avgifter, ordning av inputs, avrundning). Skriv ner varje skillnad.
+- Summan av alla slut är exakt det spårade beloppet, på satoshin, med avgifterna som eget slut.
+- Spåret slutar vid en känd CoinJoin med orsaken CoinJoin, och linjen in i mixen visar beloppet.
+- En adress utan expansion visas som *Inte expanderad ännu*, aldrig som ett slut.
+- En länk till en tx på Ethereum eller TRON visas som en lila nod och står kvar efter att ärendet stängts och
+  öppnats; tas den tillbaka står den kvar förseglad, och `/verify` är grönt.
+- Nodernas platser i fri yta och i hoppkolumner står kvar efter att ärendet stängts och öppnats.
+

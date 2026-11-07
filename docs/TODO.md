@@ -122,6 +122,27 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   har) eller en cache som byggs om när något nytt förseglas.
 - **Mönsterigenkänning** (kanske en lokal modell senare): läggs till som ännu en analys med namn och version.
 
+### Spårning (Tracing)
+- **LIFO och poison** (etapp 7): kontraktet `ITracingMethod` tar emot fler metoder, men LIFO behöver en definition
+  (inom en tx är ordningen redan FIFO:s; LIFO handlar om en adress saldo över tid), och poison ger inga belopp som går
+  jämnt ut, så den behöver visas som *berört* i stället för ett belopp. Fråga kryptospåraren vad som används.
+- **Hur långt en expansion får breda ut sig** (etapp 7, princip 7): en batchutbetalning eller en börs historik ger en
+  nod per adress. En budget per expansion, eller att många outputs viks ihop i en nod, behöver skissas med grafen.
+- **Fråga om det som kan ha ändrats** (etapp 7): grafen visas bara ur ärendet (`LookupMode.CaseOnly`). Ett mynt som
+  låg kvar visas som *kan ha flyttats* tills noden expanderas igen. En knapp eller ett kommando som frågar om alla
+  sådana mynt på en gång, och bevakningen som gör det i bakgrunden, behövs.
+- **Spårningen i bakgrunden** (etapp 7, princip 6): `ITracingService.Trace` är synkron och snabb för grafer i
+  storleken hundratals tx; gränssnittet anropar den utanför UI-tråden. En `TraceAsync` med avbrytning när grafen blir
+  stor.
+- **Stora grafer** (etapp 7): klustren hämtas en gång per kluster ur Clustering, som bygger om dem ur alla slutsatser
+  varje gång. Behöver Clusterings register eller cache (se *Klustring och heuristiker*).
+- **Tidsfönster för en adress historik** (etapp 7): expansionen tar de nyaste tx upp till gränsen (50 som förval).
+  För en adress med lång historik behövs ett tidsfönster runt händelsen i stället.
+- **Spårningsmetoden i ärendet:** vald metod sparas inte än; gränssnittet håller den. Spara den med grafens läge
+  när grafen byggs.
+- **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
+  bryggornas egna händelser. I v1 knyts den för hand.
+
 ### Attribution
 - **Sanktionslistor:** OFAC SDN (har kryptoadresser), EU:s lista. Hämtas som filer och sparas med hash och datum.
 - **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster),
