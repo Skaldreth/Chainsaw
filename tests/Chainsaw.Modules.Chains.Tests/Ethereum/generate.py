@@ -82,6 +82,10 @@ write("tx-no-success.json", {"status": "1", "message": "OK", "result": {
     "hash": H1, "blockNumber": "900", "timeStamp": TIME, "from": A, "to": B, "value": "1", "gasUsed": "1",
     "gasPrice": "1", "logs": []}})
 write("gateway-not-found.json", {"message": "Not Found"})
+with open("tx-b1.json", encoding="utf-8") as source:
+    paged = json.load(source)
+paged["result"]["next_page_params"] = {"index": 9}
+write("tx-b1-paged.json", paged)
 write("tx-unknown.json", {"status": "0", "message": "Transaction not found", "result": None})
 write("tx-pending.json", {"status": "1", "message": "OK", "result": {
     "hash": H4, "blockNumber": None, "timeStamp": None, "from": A, "to": B, "value": "3", "gasPrice": "1",
@@ -126,5 +130,7 @@ write("history-full.json", {"status": "1", "message": "OK", "result": [
     entry(H1, A, B, 1, 900), entry(H3, A, B, 1, 899)]})
 write("history-pending.json", {"status": "1", "message": "OK", "result": [
     entry(H1, A, B, 1, 900) | {"blockNumber": "", "blockHash": ""}, entry(H3, A, B, 1, 900) | {"blockNumber": ""}]})
+write("history-failed-create.json", {"status": "1", "message": "OK", "result": [
+    entry(H2, A, "", 0, 900, isError="1", txreceipt_status="0", contractAddress="")]})
 write("history-one-block.json", {"status": "1", "message": "OK", "result": [
     entry(H1, A, B, 1, 900), entry(H3, A, B, 1, 900)]})

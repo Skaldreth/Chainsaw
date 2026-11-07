@@ -95,7 +95,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             Parse,
             page => Index(page.Transfers.Select(transfer => transfer.Block?.Height)),
             reader => SourceLookups.StoredAs(_lookups.Store.Latest(reader, kind, subject), Parse),
-            page => atOrBelow is null || page.IsIncomplete || page.IsCutShort ? null : atOrBelow);
+            page => atOrBelow is null || page.IsIncomplete || page.IsCutShort || page.Unread > 0 ? null : atOrBelow);
         return _lookups.LookupAsync(@case, query, mode, cancellationToken);
     }
 
@@ -116,13 +116,20 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         var parts = new TransactionParts(info);
         if (transaction.Outcome == EthereumOutcome.Pending)
         {
-            parts.Missing("Tx:en är obekräftad: om den lyckas och vad den flyttar avgörs först när den körs i ett block.");
+            parts.Missing(
+                "Tx:en är obekräftad: om den lyckas och vad den flyttar avgörs först när den körs i ett block.");
+        }
+
+        if (transaction.LogsCut)
+        {
+            parts.Missing("Källan gav inte alla tx:ens loggar, så tokenöverföringar kan saknas. Tx:en frågas om igen.");
         }
 
         if (transaction.Unread > 0)
         {
             parts.Missing(string.Create(CultureInfo.InvariantCulture,
-                $"{transaction.Unread} Transfer-händelser i tx:ens logg gick inte att läsa som ERC-20; de räknas inte."));
+                $"{transaction.Unread} Transfer-händelser i tx:ens logg gick inte att läsa som ERC-20; ")
+                + "de räknas inte.");
         }
 
         if (transaction.Outcome != EthereumOutcome.Failed && !transaction.Value.IsZero && transaction.Receiver is null)
@@ -256,7 +263,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             info => Index([info.Height]),
             reader => SourceLookups.StoredAs(
                 _lookups.Store.Latest(reader, EthereumResponseKinds.Transaction, hash.Value), Parse),
-            info => info.Height);
+            info => info.LogsCut ? null : info.Height);
     }
 
     /// <summary>The lookup of a transaction's internal transactions, which cannot change once its block is

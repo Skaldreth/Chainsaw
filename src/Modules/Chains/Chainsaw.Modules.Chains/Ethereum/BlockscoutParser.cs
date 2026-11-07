@@ -34,10 +34,14 @@ internal sealed record TokenLog(EthereumAddress Contract, EthereumAddress From, 
 /// How many logs with the <c>Transfer</c> topic could not be read as an ERC-20 transfer (another shape, such as an old
 /// token's, or an address that is not one); the transaction is then incomplete.
 /// </param>
+/// <param name="LogsCut">
+/// Whether the answer did not have all of a successful transaction's logs: the source pages them
+/// (<c>next_page_params</c>) or gave none. The transaction is then incomplete and asked for again.
+/// </param>
 internal sealed record TransactionInfo(
     EthereumTxHash Hash, long? Height, DateTimeOffset? Time, EthereumAddress From, EthereumAddress? To,
     EthereumAddress? Receiver, BigInteger Value, BigInteger Fee, EthereumOutcome Outcome,
-    IReadOnlyList<TokenLog> Tokens, int Unread);
+    IReadOnlyList<TokenLog> Tokens, int Unread, bool LogsCut);
 
 /// <summary>An internal transaction as the source lists it.</summary>
 /// <param name="From">The contract that sent the ether.</param>
@@ -120,8 +124,10 @@ internal static class BlockscoutParser
         var outcome = OutcomeOf(result, height);
         var tokens = new List<TokenLog>();
         var unread = 0;
-        if (outcome == EthereumOutcome.Succeeded && result.TryGetProperty("logs", out var logs)
-            && logs.ValueKind == JsonValueKind.Array)
+        var hasLogs = result.TryGetProperty("logs", out var logs) && logs.ValueKind == JsonValueKind.Array;
+        var morePages = result.TryGetProperty("next_page_params", out var next) && next.ValueKind != JsonValueKind.Null;
+        var logsCut = outcome == EthereumOutcome.Succeeded && (!hasLogs || morePages);
+        if (outcome == EthereumOutcome.Succeeded && hasLogs)
         {
             foreach (var log in logs.EnumerateArray())
             {
@@ -146,7 +152,8 @@ internal static class BlockscoutParser
             outcome == EthereumOutcome.Pending ? BigInteger.Zero : Whole(result, "gasUsed") * Whole(result, "gasPrice"),
             outcome,
             tokens,
-            unread);
+            unread,
+            logsCut);
     });
 
     /// <summary>Reads a transaction's internal transactions from <c>txlistinternal&amp;txhash=</c>.</summary>
@@ -212,6 +219,7 @@ internal static class BlockscoutParser
             var ordinals = new Dictionary<string, int>(StringComparer.Ordinal);
             var heights = new List<long>();
             var skipped = 0;
+            var unread = 0;
             foreach (var item in items)
             {
                 var hash = EthereumTxHash.Parse(TransactionOf(item));
@@ -232,13 +240,32 @@ internal static class BlockscoutParser
                 }
 
                 var from = Address(String(item, "from"));
-                var to = Receiver(item);
+                var to = OptionalReceiver(item);
+                if (to is null && history == EthereumHistory.Transactions && from == address
+                    && (IsError(item) || Whole(item, "value").IsZero))
+                {
+                    // A failed creation can lack a receiver; it moved nothing, but its fee was paid.
+                    AddFee(item, hash, from, block, fees);
+                    continue;
+                }
+
+                if (to is null)
+                {
+                    throw new FormatException("The entry has no receiver.");
+                }
                 if (from != address && to != address)
                 {
                     throw new FormatException("The page has an entry that does not touch the address.");
                 }
 
                 var ordinal = ordinals[hash.Value] = ordinals.GetValueOrDefault(hash.Value, -1) + 1;
+                if (history == EthereumHistory.Tokens && !HasDecimals(item))
+                {
+                    // The source may not have read the token yet: not counted now, and the page is asked for again.
+                    unread++;
+                    continue;
+                }
+
                 skipped += Read(item, history, hash, from, to, block, ordinal, address, transfers, fees) ? 0 : 1;
             }
 
@@ -254,6 +281,7 @@ internal static class BlockscoutParser
             return new EthereumAddressPage(address, history, atOrBelow, transfers, fees, next, cutShort, incomplete)
             {
                 Skipped = skipped,
+                Unread = unread,
             };
         });
 
@@ -288,11 +316,9 @@ internal static class BlockscoutParser
                         new AssetAmount(Asset.Ether, value), 0, block));
                 }
 
-                if (from == address && block is not null)
+                if (from == address)
                 {
-                    // A pending transaction has paid nothing yet; its fee is known once it is in a block.
-                    var fee = Whole(item, "gasUsed") * Whole(item, "gasPrice");
-                    fees.Add(new EthereumFee(hash, from, new AssetAmount(Asset.Ether, fee), succeeded, block));
+                    AddFee(item, hash, from, block, fees);
                 }
 
                 return true;
@@ -372,7 +398,8 @@ internal static class BlockscoutParser
     /// <param name="contract">The contract.</param>
     /// <param name="symbol">The symbol the source gave, if any.</param>
     /// <param name="decimals">The decimals as text, if any.</param>
-    /// <returns>The token, or <see langword="null"/> when the decimals are missing or not ones Chainsaw counts in.</returns>
+    /// <returns>The token, or <see langword="null"/> when the decimals are missing or ones Chainsaw cannot count in.
+    /// </returns>
     private static Asset? Token(EthereumAddress contract, string? symbol, string? decimals)
     {
         if (!int.TryParse(decimals, NumberStyles.None, CultureInfo.InvariantCulture, out var places)
@@ -457,8 +484,13 @@ internal static class BlockscoutParser
     /// <returns>The receiver.</returns>
     /// <exception cref="FormatException">There is none.</exception>
     private static EthereumAddress Receiver(JsonElement item) =>
-        OptionalAddress(item, "to") ?? OptionalAddress(item, "contractAddress")
-        ?? throw new FormatException("The entry has no receiver.");
+        OptionalReceiver(item) ?? throw new FormatException("The entry has no receiver.");
+
+    /// <summary>Gives an entry's receiver, or <see langword="null"/> when it has none.</summary>
+    /// <param name="item">The entry.</param>
+    /// <returns>The receiver, or <see langword="null"/>.</returns>
+    private static EthereumAddress? OptionalReceiver(JsonElement item) =>
+        OptionalAddress(item, "to") ?? OptionalAddress(item, "contractAddress");
 
     /// <summary>Gives an entry's block, with its hash when the entry has it.</summary>
     /// <param name="item">The entry.</param>
@@ -494,7 +526,35 @@ internal static class BlockscoutParser
             ? log
             : ordinal;
 
-    /// <summary>Says how a transaction ended: pending without a block, otherwise by the source's <c>success</c>.</summary>
+    /// <summary>
+    /// Adds the fee an entry of the address's own transactions paid; a pending one has paid nothing yet, and its fee
+    /// is known once it is in a block.
+    /// </summary>
+    /// <param name="item">The entry.</param>
+    /// <param name="hash">Its transaction.</param>
+    /// <param name="payer">The address, which signed it.</param>
+    /// <param name="block">Its block, or <see langword="null"/>.</param>
+    /// <param name="fees">Where the fee is added.</param>
+    private static void AddFee(
+        JsonElement item, EthereumTxHash hash, EthereumAddress payer, EthereumBlockReference? block,
+        List<EthereumFee> fees)
+    {
+        if (block is null)
+        {
+            return;
+        }
+
+        var succeeded = !IsError(item) && OptionalString(item, "txreceipt_status") != "0";
+        var fee = Whole(item, "gasUsed") * Whole(item, "gasPrice");
+        fees.Add(new EthereumFee(hash, payer, new AssetAmount(Asset.Ether, fee), succeeded, block));
+    }
+
+    /// <summary>Says whether a token entry has decimals; without them the source has not read the token.</summary>
+    /// <param name="item">The entry.</param>
+    /// <returns><see langword="true"/> when it has.</returns>
+    private static bool HasDecimals(JsonElement item) => !string.IsNullOrEmpty(OptionalString(item, "tokenDecimal"));
+
+    /// <summary>Says how a transaction ended: pending without a block, otherwise by its <c>success</c>.</summary>
     /// <param name="result">The transaction.</param>
     /// <param name="height">Its block, or <see langword="null"/>.</param>
     /// <returns>The outcome.</returns>

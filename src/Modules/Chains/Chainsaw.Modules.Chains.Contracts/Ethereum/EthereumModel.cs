@@ -179,10 +179,17 @@ public sealed record EthereumAddressPage(
     bool IsIncomplete)
 {
     /// <summary>
-    /// Gets how many entries Chainsaw does not count: an NFT, a token without decimals Chainsaw can count in, and a
-    /// token transfer of zero (address poisoning). They do not keep the page from being final.
+    /// Gets how many entries Chainsaw does not count: a token whose decimals Chainsaw cannot count in (anyone can
+    /// make a contract say 255), an NFT and a token transfer of zero (address poisoning). They do not keep the page from
+    /// being final.
     /// </summary>
     public int Skipped { get; init; }
+
+    /// <summary>
+    /// Gets how many token entries came without decimals, because the source has not read the token yet. They are not
+    /// counted now, and keep the page from being final, so that it is asked for again.
+    /// </summary>
+    public int Unread { get; init; }
 }
 
 /// <summary>The height of Ethereum's newest block.</summary>

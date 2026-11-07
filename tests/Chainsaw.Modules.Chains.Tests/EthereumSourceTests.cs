@@ -190,7 +190,9 @@ public sealed class EthereumSourceTests
         // The NFT, the token claiming 255 decimals and the transfer of zero are not counted, and never spoil the page.
         var usdt = Assert.Single(page.Transfers);
         Assert.Equal(KnownTokens.EthereumUsdt, usdt.Amount.Asset);
-        Assert.Equal(3, page.Skipped);
+        // The NFT came without decimals, which the source may still read: unread, so the page is asked for again.
+        Assert.Equal(2, page.Skipped);
+        Assert.Equal(1, page.Unread);
         Assert.False(page.IsIncomplete);
     }
 
@@ -376,5 +378,49 @@ public sealed class EthereumSourceTests
 
         Assert.Equal(LookupStatus.Failed,
             (await harness.Source.GetTransactionAsync(harness.Case, EthereumHarness.H1)).Status);
+    }
+
+    [Fact]
+    public async Task LogsTheSourcePagedMakeTheTransactionIncompleteAndAskedAgain()
+    {
+        using var harness = new EthereumHarness();
+        harness.AnswerTransaction();
+        harness.Answer(EthereumHarness.TxUrl(EthereumHarness.H1), "tx-b1-paged.json");
+        await harness.Source.GetTipHeightAsync(harness.Case);
+        await harness.Source.GetTransactionAsync(harness.Case, EthereumHarness.H1);
+
+        var again = await harness.Source.GetTransactionAsync(harness.Case, EthereumHarness.H1);
+
+        Assert.Equal(LookupStatus.Fetched, again.Status);
+        Assert.False(again.Value!.IsComplete);
+        Assert.Contains(again.Notes, note => note.Contains("loggar", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnOlderPageWithATokenWithoutDecimalsIsAskedAgain()
+    {
+        using var harness = new EthereumHarness();
+        harness.Answer(EthereumHarness.Url("?module=block&action=eth_block_number"), "tip.json");
+        harness.Answer(EthereumHarness.HistoryUrl("tokentx", EthereumHarness.A, below: 900), "history-tokens.json");
+        await harness.Source.GetTipHeightAsync(harness.Case);
+        await harness.Source.GetAddressHistoryAsync(harness.Case, EthereumHarness.A, EthereumHistory.Tokens, 900);
+
+        var again = await harness.Source.GetAddressHistoryAsync(
+            harness.Case, EthereumHarness.A, EthereumHistory.Tokens, 900);
+
+        Assert.Equal(LookupStatus.Fetched, again.Status);
+    }
+
+    [Fact]
+    public async Task AFailedCreationWithoutAReceiverStillCostsItsFee()
+    {
+        using var harness = new EthereumHarness();
+        harness.Answer(EthereumHarness.HistoryUrl("txlist", EthereumHarness.A), "history-failed-create.json");
+
+        var page = (await harness.Source.GetAddressHistoryAsync(
+            harness.Case, EthereumHarness.A, EthereumHistory.Transactions)).Value!;
+
+        Assert.Empty(page.Transfers);
+        Assert.False(Assert.Single(page.Fees).Succeeded);
     }
 }
