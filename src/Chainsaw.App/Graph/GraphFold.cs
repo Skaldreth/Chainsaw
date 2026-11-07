@@ -5,7 +5,9 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
 
-/// <summary>A card in a pile (sketch EX2b): an actor that lies in it, and what moved between it and the pile's actor.</summary>
+/// <summary>
+/// A card in a pile (sketch EX2b): an actor that lies in it, and what moved between it and the pile's actor.
+/// </summary>
 /// <param name="Node">The actor, as the graph would draw it.</param>
 /// <param name="Amount">
 /// What moved straight between the actor and the pile's actor, in the asset the graph shows (a fact); zero when the
@@ -18,7 +20,9 @@ public sealed record PileCard(NodeView Node, AssetAmount Amount, DateTimeOffset?
     public string Key => Node.Key;
 }
 
-/// <summary>A pile as the graph draws it (sketch EX2b): the pile, its cards and what moved between it and its actor.</summary>
+/// <summary>
+/// A pile as the graph draws it (sketch EX2b): the pile, its cards and what moved between it and its actor.
+/// </summary>
 /// <param name="Pile">The pile in Tracing's model.</param>
 /// <param name="Cards">The actors that lie in it, in the graph's order.</param>
 /// <param name="Sum">What moved between the pile and its actor, in the asset the graph shows.</param>
@@ -164,7 +168,9 @@ public static class GraphFold
         return output.ScriptType == BitcoinScriptType.OpReturn && output.Amount == Satoshi.Zero;
     }
 
-    /// <summary>Says whether an actor may be folded into its pile: not when it is labelled or traced money reaches it.</summary>
+    /// <summary>
+    /// Says whether an actor may be folded into its pile: not when it is labelled or traced money reaches it.
+    /// </summary>
     /// <param name="card">The actor.</param>
     /// <returns><see langword="true"/> when it may.</returns>
     private static bool MayFold(NodeView card) =>

@@ -137,7 +137,12 @@ public sealed class PileTests
         return graph with
         {
             Nodes = [.. graph.Nodes, Coin("coin:empty", 2), Coin("coin:burn", 3)],
-            Edges = [.. graph.Edges, Edge("v-empty", VKey, "coin:empty", 1, 2, 0m), Edge("v-burn", VKey, "coin:burn", 1, 3, 0.00001m)],
+            Edges =
+            [
+                .. graph.Edges,
+                Edge("v-empty", VKey, "coin:empty", 1, 2, 0m),
+                Edge("v-burn", VKey, "coin:burn", 1, 3, 0.00001m),
+            ],
             Transactions = transactions,
         };
     }

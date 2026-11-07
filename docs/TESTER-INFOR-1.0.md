@@ -1038,3 +1038,37 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Vänsterknappen på tom yta panorerar inte längre; den drar noder och väljer.
 - [ ] Med animeringar avstängda i Windows glider ytan inte efter släppet.
 - [ ] Grafens läge (var man panorerat) finns kvar när ärendet öppnas igen.
+
+## Ledtrådsnoden och samlingsnoden (EX1, EX2b)
+- [ ] Expandera en adress med många tx (till exempel en börs eller en pool med över 1 000): grafen får 50 tx, och vid
+      adressen står en streckad rund nod `+1 709 tx` (eller `+ fler tx` när källan inte sa hur många) med en tunn
+      streckad linje till adressen.
+- [ ] Ett klick på `+N tx` hämtar nästa 50; siffran minskar och noden försvinner när allt är hämtat.
+- [ ] Har expansionen fler än åtta nya motparter på en sida ritas de inte var för sig: en fyrkantig nod som en
+      kortlek (*Avsändare* till vänster, *Mottagare* till höger) med antalet och summan, och en tjock linje med summan.
+- [ ] En motpart med etikett (börs, sanktion, offer) eller som spårade pengar når står alltid kvar som egen nod.
+- [ ] Ett klick på högen dimmar resten av grafen och fäller ut korten i en spiral, störst närmast; ikonen med klockan
+      i listen längst ner byter till tidsbågen, tidigast överst. Korten överlappar aldrig, också med hundratals.
+- [ ] Reglagen i listen gallrar på belopp (lägsta och högsta, logaritmiskt), *Damm* döljer belopp under 0,0001 BTC och
+      räknaren säger till exempel `12 av 40`.
+- [ ] Klick väljer ett kort, Shift-klick väljer fler; *Plocka ut* eller Enter plockar ut de valda, som blir egna noder.
+- [ ] Dra ett kort ut på den dimmade grafen och släpp: det blir en egen nod där det släpptes, och de andra valda
+      följer med under det. Resten ligger kvar i högen.
+- [ ] Esc eller ett klick på den dimmade grafen stänger högen.
+- [ ] Stäng ärendet och öppna det igen: de utplockade står kvar som egna noder, högen och `+N tx` finns kvar.
+- [ ] Välj en utplockad nod: ikonlisten har *Lägg tillbaka i högen*, som lägger tillbaka den.
+- [ ] Verifiera ärendet efteråt: inget har ändrats i det förseglade (högen är bara hur grafen ritas).
+
+## Utgångar utan mottagare döljs (OP_RETURN)
+- [ ] Expandera en adress som tillhör en pool (coinbase-tx med OP_RETURN på 0 BTC): noderna för OP_RETURN syns inte,
+      och en toast säger till exempel *49 utgångar utan mottagare döljs.* med *Visa dem*. Toasten står kvar i 20 s
+      (de vanliga 6 s).
+- [ ] *Visa dem* visar dem i grafen, och en ny toast erbjuder *Dölj dem*. Valet finns kvar när ärendet öppnas igen.
+- [ ] En OP_RETURN som bränner pengar (mer än 0 BTC) döljs aldrig.
+
+## Grafen använder ytan
+- [ ] Med många motparter i samma hopp (under gränsen för högen, eller efter att många plockats ut) står de i flera
+      kolumner sida vid sida i ett ungefär kvadratiskt block, inte i en lång kolumn; i hoppkolumnerna är hoppets band
+      lika brett som blocket.
+- [ ] Beloppen på linjerna hamnar aldrig ovanpå varandra: ett belopp som skulle krocka visas när pekaren är över
+      linjen eller när noden är vald.

@@ -120,7 +120,9 @@ public sealed partial class GraphViewModel
     /// with it under it), and the case remembers it, so that the graph looks the same when it is opened again.
     /// </summary>
     /// <param name="nodeKeys">The cards' node keys.</param>
-    /// <param name="droppedAt">Where the first was dropped on the surface, or <see langword="null"/> for its own place.</param>
+    /// <param name="droppedAt">
+    /// Where the first was dropped on the surface, or <see langword="null"/> for its own place.
+    /// </param>
     /// <returns>A task that completes when the graph is shown with them picked out.</returns>
     public async Task PickFromPileAsync(IReadOnlyList<string> nodeKeys, GraphPoint? droppedAt)
     {

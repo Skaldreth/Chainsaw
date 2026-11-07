@@ -46,7 +46,9 @@ public sealed partial class PileFanViewModel : ObservableObject
         Refilter();
     }
 
-    /// <summary>Raised when the cards shown, their places or what is chosen change, so that the surface draws again.</summary>
+    /// <summary>
+    /// Raised when the cards shown, their places or what is chosen change, so that the surface draws again.
+    /// </summary>
     public event EventHandler? Changed;
 
     /// <summary>Raised when the chosen cards are to be picked out; the graph stores it in the case.</summary>
@@ -76,12 +78,16 @@ public sealed partial class PileFanViewModel : ObservableObject
     [ObservableProperty]
     public partial bool HideDust { get; set; }
 
-    /// <summary>Gets or sets the lowest amount shown, as a share of the slider from 0 to 1 on a logarithmic scale.</summary>
+    /// <summary>
+    /// Gets or sets the lowest amount shown, as a share of the slider from 0 to 1 on a logarithmic scale.
+    /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LowestText))]
     public partial double LowestShare { get; set; }
 
-    /// <summary>Gets or sets the highest amount shown, as a share of the slider from 0 to 1 on a logarithmic scale.</summary>
+    /// <summary>
+    /// Gets or sets the highest amount shown, as a share of the slider from 0 to 1 on a logarithmic scale.
+    /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HighestText))]
     public partial double HighestShare { get; set; } = 1;
@@ -241,7 +247,9 @@ public sealed partial class PileFanViewModel : ObservableObject
         return amount >= lowest && amount <= highest;
     }
 
-    /// <summary>Gives the amount at a share of the slider, on a logarithmic scale from the lowest to the highest.</summary>
+    /// <summary>
+    /// Gives the amount at a share of the slider, on a logarithmic scale from the lowest to the highest.
+    /// </summary>
     /// <param name="share">The share, from 0 to 1.</param>
     /// <returns>The amount in whole units of the asset.</returns>
     private decimal AmountAt(double share)

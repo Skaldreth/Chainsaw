@@ -15,8 +15,9 @@ namespace Chainsaw.Modules.Tracing;
 /// </para>
 /// <para>
 /// Some actors never go into a pile, because the user would lose sight of what matters: a start point, an actor that
-/// is expanded or that the user placed, one where the trail ends (an exchange, a mixer, a sanction), and a transaction
-/// on another chain the user linked to.
+/// is expanded, one where the trail ends (an exchange, a mixer, a sanction), and a transaction on another chain the
+/// user linked to. A place the user gave an actor does not keep it out: picking it out of the pile is what does, so
+/// that one picked out and dragged can still be put back.
 /// </para>
 /// </remarks>
 internal static class PileRules
@@ -108,8 +109,7 @@ internal static class PileRules
         node.Kind is not (GraphNodeKind.OtherChain or GraphNodeKind.Pile or GraphNodeKind.HeldBack)
         && !node.IsStartPoint
         && node.Expansion == NodeExpansion.NotExpanded
-        && node.Ends.Count == 0
-        && node.Positions.Count == 0;
+        && node.Ends.Count == 0;
 
     /// <summary>Gives the transactions an expansion brought in, by the id their transfers carry.</summary>
     /// <param name="expansion">The expansion.</param>

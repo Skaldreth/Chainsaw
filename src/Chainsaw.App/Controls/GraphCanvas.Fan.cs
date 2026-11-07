@@ -203,7 +203,9 @@ public sealed partial class GraphCanvas
         }
     }
 
-    /// <summary>Draws a card: a small frame with the sort's colour, its name and the amount between it and the actor.</summary>
+    /// <summary>
+    /// Draws a card: a small frame with the sort's colour, its name and the amount between it and the actor.
+    /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="card">The card.</param>
     /// <param name="place">Its top-left corner.</param>

@@ -216,10 +216,14 @@ public sealed record GraphScene(
     /// <summary>Gets the clues drawn (sketch EX1), by key.</summary>
     public IReadOnlyDictionary<string, HeldBackClue> Clues { get; init; } = new Dictionary<string, HeldBackClue>();
 
-    /// <summary>Gets how many outputs that can never be spent and carry nothing the graph has (OP_RETURN, 0 BTC).</summary>
+    /// <summary>
+    /// Gets how many outputs that can never be spent and carry nothing the graph has (OP_RETURN, 0 BTC).
+    /// </summary>
     public int Unspendable { get; init; }
 
-    /// <summary>Gets whether those outputs are drawn; they are hidden by default (the user's decision 2026-11-07).</summary>
+    /// <summary>
+    /// Gets whether those outputs are drawn; they are hidden by default (the user's decision 2026-11-07).
+    /// </summary>
     public bool ShowsUnspendable { get; init; }
 
     /// <summary>Gives the pile a node stands for, when it is one.</summary>
@@ -232,7 +236,9 @@ public sealed record GraphScene(
     /// <returns>The clue, or <see langword="null"/>.</returns>
     public HeldBackClue? Clue(string? key) => key is not null ? Clues.GetValueOrDefault(key) : null;
 
-    /// <summary>Gives the scene again with the unspendable outputs shown or hidden; itself when it already is so.</summary>
+    /// <summary>
+    /// Gives the scene again with the unspendable outputs shown or hidden; itself when it already is so.
+    /// </summary>
     /// <param name="show">Whether they are shown.</param>
     /// <returns>The scene.</returns>
     public GraphScene WithUnspendable(bool show) => show == ShowsUnspendable ? this : Build(Snapshot, show);

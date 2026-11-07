@@ -173,4 +173,19 @@ public sealed class PileTests : IDisposable
         Assert.True(_harness.Service.GetView(_harness.Case).ShowUnspendable);
         Assert.False(GraphViewState.Default.ShowUnspendable);
     }
+
+    [Fact]
+    public async Task One_picked_out_and_placed_can_still_be_put_back()
+    {
+        var address = Receiving("placed", GraphPile.MostLoose + 2);
+        var graph = (await _harness.Expand(address)).Graph;
+        var picked = graph.NodeOf(Wpkh("placed-payer-1"))!.Key;
+
+        _harness.Service.SavePosition(_harness.Case, picked, GraphLayout.Free, new NodePosition(400, 80));
+        _harness.Service.PickFromPile(_harness.Case, [picked]);
+        Assert.Equal([picked], Assert.Single((await _harness.Load()).Piles).PickedOut);
+
+        _harness.Service.ReturnToPile(_harness.Case, [picked]);
+        Assert.Contains(picked, Assert.Single((await _harness.Load()).Piles).Members);
+    }
 }
