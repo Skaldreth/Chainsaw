@@ -242,10 +242,20 @@ public sealed partial class MonitoringViewModel : ObservableObject
     /// <summary>Gets whether there are watches.</summary>
     public bool HasRows => Rows.Count > 0;
 
-    /// <summary>Gets what the empty view says.</summary>
-    public string EmptyText => HasCase
-        ? "Inga bevakningar än. Högerklicka på en nod i grafen och välj Bevaka …, eller tryck B för en ny."
-        : "Inget ärende öppet.";
+    /// <summary>
+    /// Gets whether the head shows the count and <em>Ny bevakning …</em>: only beside watches, since the empty state
+    /// has its own button and a count of nothing is noise (principle 7).
+    /// </summary>
+    public bool ShowsHead => HasRows;
+
+    /// <summary>Gets whether the empty state offers <em>Ny bevakning …</em>: with a case and no watches.</summary>
+    public bool CanAddFirst => HasCase && !HasRows;
+
+    /// <summary>Gets the empty state's title.</summary>
+    public string EmptyTitle => HasCase ? WatchWords.EmptyTitle : WatchWords.NoCaseTitle;
+
+    /// <summary>Gets the empty state's muted lines under the title.</summary>
+    public string EmptyText => HasCase ? WatchWords.EmptyText : WatchWords.NoCaseText;
 
     /// <summary>Gets whether a watch is chosen.</summary>
     public bool HasSelection => Selected is not null;
@@ -388,6 +398,9 @@ public sealed partial class MonitoringViewModel : ObservableObject
         ShowDetails();
         ShowHead(snapshot);
         OnPropertyChanged(nameof(HasRows));
+        OnPropertyChanged(nameof(ShowsHead));
+        OnPropertyChanged(nameof(CanAddFirst));
+        OnPropertyChanged(nameof(EmptyTitle));
         OnPropertyChanged(nameof(EmptyText));
     }
 

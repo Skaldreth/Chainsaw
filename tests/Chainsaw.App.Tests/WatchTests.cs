@@ -274,6 +274,40 @@ public sealed class MonitoringViewModelTests
         Assert.True(view.Form.IsOpen);
         Assert.True(view.Form.IsManual);
     }
+
+    [Fact]
+    public async Task Without_watches_the_empty_state_offers_the_one_button_and_the_head_and_panel_step_aside()
+    {
+        var view = View(out var board);
+        await board.ReloadAsync();
+
+        Assert.False(view.HasRows);
+        Assert.False(view.ShowsHead);
+        Assert.False(view.HasSelection);
+        Assert.True(view.CanAddFirst);
+        Assert.Equal(WatchWords.EmptyTitle, view.EmptyTitle);
+        Assert.Equal(WatchWords.EmptyText, view.EmptyText);
+
+        _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
+        await board.ReloadAsync();
+
+        Assert.True(view.ShowsHead);
+        Assert.False(view.CanAddFirst);
+        Assert.True(view.HasSelection);
+    }
+
+    [Fact]
+    public async Task Without_a_case_the_empty_state_says_so_and_offers_nothing()
+    {
+        var (_, board) = WatchSamples.Board(_source, open: false);
+        var view = new MonitoringViewModel(board, new WatchFormViewModel(board), new TestClock());
+        await board.ReloadAsync();
+
+        Assert.False(view.ShowsHead);
+        Assert.False(view.CanAddFirst);
+        Assert.Equal(WatchWords.NoCaseTitle, view.EmptyTitle);
+        Assert.Equal(WatchWords.NoCaseText, view.EmptyText);
+    }
 }
 
 /// <summary>The checks while Chainsaw is open (stage 26), without a loop or the network.</summary>

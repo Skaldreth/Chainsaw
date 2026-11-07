@@ -10,6 +10,20 @@ namespace Chainsaw.App.ViewModels;
 /// </summary>
 public static class WatchWords
 {
+    /// <summary>The empty view's title with a case open and no watches.</summary>
+    public const string EmptyTitle = "Inga bevakningar än";
+
+    /// <summary>The empty view's muted lines: what a watch does and how one is added.</summary>
+    public const string EmptyText =
+        "En bevakning säger till när pengarna på en adress eller ett kluster rör sig. " +
+        "Välj en nod i grafen och tryck B, eller lägg till en här.";
+
+    /// <summary>The empty view's title without an open case.</summary>
+    public const string NoCaseTitle = "Inget ärende öppet";
+
+    /// <summary>The empty view's muted line without an open case.</summary>
+    public const string NoCaseText = "Bevakningarna hör till ett ärende. Öppna eller skapa ett för att bevaka adresser.";
+
     /// <summary>The honest state of the watching in the view's head while it runs (stage 26).</summary>
     public const string RunningText = "Bevakar medan Chainsaw är öppet";
 
