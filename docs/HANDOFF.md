@@ -108,7 +108,7 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 | 14 | **Kurser (Pricing):** kursen vid en tidpunkt i vald valuta (SEK som förval) genom `IExitHttp`, med källa och råsvar förseglat i ärendet, offline ur ärendet | Klar |
 | 15 | **Datalagret och spårningen:** txid mot tx:ens bytes, utgångar som aldrig kan spenderas, adressens sammanfattning, spårningen i bakgrunden, gränser för expansionen, spårningsmetod, läge och zoom sparade i ärendet, etikettbiblioteket när ett ärende öppnas | Klar |
 | 16 | **Grafen GR5 och IN1a:** startpunkten neutral med flagga, nodernas namn med adressen nedtonad, formulären Etikett (L), Bryt upp (U) och Annan kedja (K) i inspektören. Startad när 15 var klar | Pågår |
-| 17 | **Utgångarna UT1a:** rutan under utgången i titelraden, anslut och koppla ner, lägg till WireGuard-fil, vägen till källorna | Pågår |
+| 17 | **Utgångarna UT1a:** rutan under utgången i titelraden, anslut och koppla ner, lägg till WireGuard-fil, vägen till källorna | Klar |
 | 18 | **Guiden GD1b:** panelen bredvid arbetet ur `docs/guide/`, öppnad från *Varför?*, *?* och spårningsmetoden, och vyn Guide (F1) | Pågår |
 
 ## Nästa steg

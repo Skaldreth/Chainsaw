@@ -283,6 +283,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   om rutan ska visa den (granskningen etapp 13, M).
 - **Ta bort och byta namn på en utgång** (etapp 17): `IExitStore.RemoveAsync` finns, men rutan UT1a har ingen knapp för
   det, och inget sätt att byta namn eller ange plats (`ExitInfo.Place`, som titelraden visar först). Skissas.
+- **Windows i utgångarnas ruta** (efter skissen ST1): rutan UT1a har vägen och listan var för sig. Det som behövs är
+  ett läge ur Network (Windows eller VPN) i `ExitPanelViewModel` och `ShellViewModel`: med Windows säger vägen och
+  titelraden *Windows* (grön när `IExitHttp` kan gå ut), raderna i listan tonas eller döljs (en `IsVpnMode` på
+  `IsListing`), och strömknappen och *Lägg till WireGuard-fil …* hänvisar till inställningarna.
 - **Ett kortkommando för utgångarna** (etapp 17): rutan öppnas bara med musen eller Tab till utgången i titelraden.
 - **Tunnelns hjälpprogram och Go:** `chainsaw-tunnel.exe` är byggd med Go 1.27.3 (låst i `go.mod`) och checkad in
   med sin hash; den byggs om med `tools/Chainsaw.Tunnel/build.sh` (som kör `govulncheck`) när Go eller beroendena får

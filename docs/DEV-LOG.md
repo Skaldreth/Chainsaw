@@ -1168,3 +1168,50 @@ utan varningar.
 - Skälet till en vägrad fil i `ExitStatus`.
 - Luckan när programmet kraschar.
 - Signering av programmet.
+
+
+## Etapp 17 (2026-11-07): utgångarna (UT1a)
+
+Byggt efter skissen UT1a i appens nuvarande skal, mot Network-kontrakten (`IExitStore`, `IExitConnection`); Network är
+inte ändrat.
+
+- **Utgången i titelraden** är en knapp (`Button.Chip`) med läget som prick, namnet och en liten pil, upplyst medan
+  rutan är ute. Ett klick fäller ut rutan (`Views/ExitPanel`, 320 px) under den med högerkanten mot knappens. Esc, ett
+  nytt klick, ett klick någon annanstans (också i titelraden), Ctrl+K, en annan vy, Nytt ärende och låsning fäller in
+  den; att lämna fönstret (Windows filväljare) gör det inte.
+- **Vägen** överst: datorn, utgången och källorna, grön och hel när en utgång är ansluten (med dess namn), röd och
+  streckad med *Ingen* annars, också medan en utgång ansluter, eftersom inga uppslag går då.
+- **Utgångarna i valvet** (`ExitPanelViewModel`, `ExitRowViewModel`): grå, gul (*Ansluter …*), grön (*Ansluten*) eller
+  röd prick med orsaken ur `ExitFailure` (`Exits/ExitNames`), den valda med accentstrecket. Strömknappen väljer och
+  ansluter, eller kopplar ner; att välja en annan utgång kopplar ner den förra i Network, så bara en är ansluten. Allt
+  mot valvet och tunneln körs på trådpoolen. En senare anslutning eller en nedkoppling avbryter en anslutning som
+  fortfarande startar (en `CancellationTokenSource` per försök, och en grind runt valet), och en äldre läsning av
+  utgångarna ersätter aldrig en nyare.
+- **Lägg till WireGuard-fil …**: Windows filväljare (`IFilePicker.PickWireGuardFile`, med låsningen hållen och en fil
+  vald efter en låsning släppt), en snabb kontroll (`Exits/WireGuardCheck`) med *Giltig* eller vad som är fel, namnet
+  ur filnamnet, *Krypteras i valvet*, Avbryt och Spara. Spara läser och kontrollerar filen igen och lägger den i valvet
+  utan att välja den, så att en ansluten utgång står kvar.
+- **Kontrollen** läser filen som hjälpprogrammet (`tools/Chainsaw.Tunnel/config.go`): rader vid `\n`, kommentarer,
+  kända rubriker och nycklar, upprepade nycklar, en `[Interface]` och en `[Peer]` och de nycklar varje tunnel kräver,
+  med samma regel för DNS-servern som `ExitStore`. Värdena (nycklar, adresser, portar) lämnas till hjälpprogrammet.
+  Förstagångsinställningen använder samma kontroll.
+- **WireGuard-filens text som hemlighet:** den läses utan buffert in i fästa byte och tecken (`Exits/WireGuardFile`)
+  som nollställs direkt efter kontrollen och efter sparandet; rutan håller bara sökvägen mellan valet och Spara. Texten
+  blir en `string` bara i anropet till `IExitStore.Add`, som tar en (TODO). Inga undantag eller filinnehåll visas;
+  rutan har fasta svenska texter.
+
+**Egna beslut och avsteg från skissen:**
+- **Kontrollen av den offentliga adressen** (skissens sista rad, *Syns som …*) visas inte, eftersom den inte är byggd
+  (TODO, *Kontroll av utgången*).
+- **Den nya utgången väljs inte** när den sparas, så att Spara aldrig kopplar ner den som är ansluten.
+- **Namnet i rutan** är utgångens namn; titelraden visar som förut platsen först (som är tom för filer som läggs till
+  här). Ta bort, byta namn och ange plats finns inte i skissen (TODO).
+- **Titelradens prick** är grå också vid fel, som i skissens variant A; orsaken står på raden i rutan.
+- **XAML-raderna** följer projektets XAML, som har långa rader; C#-raderna håller sig kring 120 tecken.
+
+**Granskningen:**
+- Omgång 1: inga C eller I, elva M. Rättade: kontrollen godtog filer som hjälpprogrammet vägrar (okända rubriker och
+  nycklar, rubrik utan `]`, rad utan `=`, nyckel före första rubriken, upprepade nycklar) och delade rader annorlunda
+  (bara `\r`); en anslutning i kö kunde starta efter en nedkoppling; Ctrl+K och klick i titelraden lämnade rutan ute;
+  ett läsfel kunde visas efter stängning och andra fel slapp ut; en magisk sträng; läsningar i fel ordning;
+  förstagångsinställningen kontrollerade inte filen; fler tester. Långa XAML-rader lämnades (projektets stil).
