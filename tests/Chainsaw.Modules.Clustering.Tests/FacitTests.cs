@@ -194,16 +194,19 @@ public sealed class FacitTests : IDisposable
     }
 
     [Fact]
-    public void A_peel_chain_merges_the_inner_holders_but_no_recipient_and_neither_end()
+    public void A_peel_chain_is_recognised_and_proposes_every_holder_but_merges_nothing()
     {
         var chain = Patterns.PeelChain(5);
         _harness.Analyse([.. chain]);
 
         var holder = _harness.ClusterOf(Wpkh("peel-holder-1"));
 
-        AssertMembers(holder, [.. Enumerable.Range(1, 4).Select(i => Wpkh($"peel-holder-{i}"))]);
-        Assert.All(Enumerable.Range(0, 5), i => Assert.False(holder.Contains(Pkh($"peel-recipient-{i}"))));
-        Assert.Equal(2, holder.Suggestions.Count(link => link.Evidence.Heuristic.Name == HeuristicNames.PeelChain));
+        Assert.Single(holder.Members);
+        var proposed = holder.Suggestions.Where(link => link.Evidence.Heuristic.Name == HeuristicNames.PeelChain)
+            .SelectMany(link => link.Evidence.Addresses)
+            .ToHashSet();
+        Assert.Equal(3, proposed.Count);
+        Assert.All(Enumerable.Range(0, 5), i => Assert.DoesNotContain(Pkh($"peel-recipient-{i}"), proposed));
         var hop = _harness.Service.GetConclusions(_harness.Case, chain[2].Txid);
         var peel = Assert.Single(hop.Findings.Select(found => found.Finding).OfType<PeelChainFinding>());
         Assert.Equal((2, 2, 5, 1, 0), (peel.HopsBefore, peel.HopsAfter, peel.ChainLength, peel.ContinuingOutput,
@@ -253,12 +256,31 @@ public sealed class FacitTests : IDisposable
     {
         var chain = Patterns.PeelChain(4);
         _harness.Analyse(chain[0], chain[1]);
-        Assert.Single(_harness.ClusterOf(Wpkh("peel-holder-1")).Members);
+        Assert.Null(PeelFinding(chain[1]));
 
         var run = _harness.Analyse([.. chain]);
 
         Assert.True(run.NewResults > 0);
-        Assert.Equal(3, _harness.ClusterOf(Wpkh("peel-holder-1")).Members.Count);
+        Assert.Equal(4, PeelFinding(chain[1])!.ChainLength);
+    }
+
+    [Fact]
+    public void A_victims_ordinary_payments_before_the_scam_never_merge_the_victim_with_the_scammer()
+    {
+        var earlier = Tx("victim-shop", 900_100).In(Wpkh("victim-0"), 200_000_000)
+            .Out(Pkh("victim-shop"), 31_234_567).Out(Wpkh("victim"), 168_755_433).Build();
+        var scam = Tx("victim-scam", 900_101).Spend(earlier, 1)
+            .Out(Wpkh("scammer-1"), 161_234_567).Out(Wpkh("victim-left"), 7_510_866).Build();
+        var hop1 = Tx("scam-hop-1", 900_102).Spend(scam, 0).Out(Pkh("scam-peel-a"), 2_000_000)
+            .Out(Wpkh("scammer-2"), 159_224_567).Build();
+        var hop2 = Tx("scam-hop-2", 900_103).Spend(hop1, 1).Out(Pkh("scam-peel-b"), 2_000_000)
+            .Out(Wpkh("scammer-3"), 157_214_567).Build();
+
+        _harness.Analyse(earlier, scam, hop1, hop2);
+
+        var scammer = _harness.ClusterOf(Wpkh("scammer-2"));
+        Assert.False(scammer.Contains(Wpkh("victim")));
+        Assert.False(scammer.Contains(Wpkh("victim-0")));
     }
 
     [Fact]
@@ -297,6 +319,10 @@ public sealed class FacitTests : IDisposable
         Assert.Empty(_harness.Service.ExplainConnection(_harness.Case, Wpkh("payer-2"), Wpkh("payer-2"))!);
         Assert.Null(_harness.Service.ExplainConnection(_harness.Case, Wpkh("payer-2"), Pkh("shop")));
     }
+
+    private PeelChainFinding? PeelFinding(BitcoinTransaction hop) =>
+        _harness.Service.GetConclusions(_harness.Case, hop.Txid).Findings
+            .Select(found => found.Finding).OfType<PeelChainFinding>().SingleOrDefault();
 
     private void AssertNothingMerged(string prefix, int first, int count)
     {

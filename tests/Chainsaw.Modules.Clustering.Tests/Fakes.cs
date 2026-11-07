@@ -86,3 +86,15 @@ internal sealed class MalformedHeuristic : IClusteringHeuristic
         new(Id, transaction.Txid,
             [new OwnershipProposal([], EvidenceStrength.Merge, "Fel.")], []);
 }
+
+/// <summary>A finding of a kind the contracts do not declare.</summary>
+internal sealed record UndeclaredFinding(string Reason) : HeuristicFinding(Reason);
+
+/// <summary>An analysis that gives a finding of an undeclared kind.</summary>
+internal sealed class UndeclaredFindingHeuristic : IClusteringHeuristic
+{
+    public HeuristicId Id { get; } = new("undeclared", 1);
+
+    public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
+        new(Id, transaction.Txid, [], [new UndeclaredFinding("Ny sort.")]);
+}

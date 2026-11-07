@@ -16,6 +16,10 @@ namespace Chainsaw.Modules.Clustering.Contracts;
 /// <param name="Failed">
 /// The transactions where an analysis failed; nothing about them was stored, and what was stored before stands.
 /// </param>
+/// <param name="HeldBack">
+/// The transactions whose stored conclusions rest on transactions this run did not know; their new results were not
+/// stored, so that a narrower run never takes back what a wider one concluded. Analyse them with the whole case.
+/// </param>
 public sealed record ClusteringRun(
     JournalEntry? Journal,
     int TransactionsAnalysed,
@@ -24,7 +28,8 @@ public sealed record ClusteringRun(
     int Suggestions,
     int Stopped,
     IReadOnlyList<Txid> CoinJoins,
-    IReadOnlyList<Txid> Failed);
+    IReadOnlyList<Txid> Failed,
+    IReadOnlyList<Txid> HeldBack);
 
 /// <summary>Everything the analyses concluded about one transaction, as stored in the case.</summary>
 /// <param name="Txid">The transaction.</param>

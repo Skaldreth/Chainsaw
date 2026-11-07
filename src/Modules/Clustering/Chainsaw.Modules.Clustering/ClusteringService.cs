@@ -43,13 +43,12 @@ internal sealed class ClusteringService : IClusteringService
         ArgumentNullException.ThrowIfNull(transactions);
         var known = new KnownTransactions(transactions);
         var failed = new List<Txid>();
-        var weighed = new List<(WeighedResult Result, string Fingerprint)>();
+        var analysed = new List<(Txid Txid, List<(WeighedResult Result, string Fingerprint)> Results)>();
         foreach (var transaction in known.All)
         {
-            if (AnalyseOne(transaction, known) is { } results)
+            if (AnalyseOne(transaction, known) is { } results && Fingerprinted(results) is { } fingerprinted)
             {
-                weighed.AddRange(ResultWeighing.Weigh(results)
-                    .Select(result => (result, EvidenceStore.Fingerprint(result))));
+                analysed.Add((transaction.Txid, fingerprinted));
             }
             else
             {
@@ -62,10 +61,16 @@ internal sealed class ClusteringService : IClusteringService
         return @case.Write(transaction =>
         {
             var latest = EvidenceStore.LatestResults(transaction, txids);
-            var changed = weighed.Where(entry => Replaces(entry.Result, entry.Fingerprint, latest, txids)).ToList();
-            if (changed.Count == 0 && failed.Count == 0)
+            var heldBack = analysed.Where(entry => !KnowsBasis(entry.Txid, latest, txids))
+                .Select(entry => entry.Txid)
+                .ToList();
+            var changed = analysed.Where(entry => !heldBack.Contains(entry.Txid))
+                .SelectMany(entry => entry.Results)
+                .Where(entry => Replaces(entry.Result, entry.Fingerprint, latest))
+                .ToList();
+            if (changed.Count == 0 && failed.Count == 0 && heldBack.Count == 0)
             {
-                return new ClusteringRun(null, known.Count, 0, 0, 0, 0, [], failed);
+                return new ClusteringRun(null, known.Count, 0, 0, 0, 0, [], failed, heldBack);
             }
 
             var proposals = changed.SelectMany(entry => entry.Result.Proposals).ToList();
@@ -90,6 +95,7 @@ internal sealed class ClusteringService : IClusteringService
                     stopped,
                     coinJoins = coinJoins.Select(txid => txid.Value),
                     failed = failed.Select(txid => txid.Value),
+                    heldBack = heldBack.Select(txid => txid.Value),
                 })));
             foreach (var (result, fingerprint) in changed)
             {
@@ -97,7 +103,7 @@ internal sealed class ClusteringService : IClusteringService
             }
 
             return new ClusteringRun(
-                journal, known.Count, changed.Count, merges, suggestions, stopped, coinJoins, failed);
+                journal, known.Count, changed.Count, merges, suggestions, stopped, coinJoins, failed, heldBack);
         });
     }
 
@@ -204,7 +210,8 @@ internal sealed class ClusteringService : IClusteringService
     /// <summary>
     /// Checks what an analysis gave before anything is sealed, since a sealed record can never be taken back: the
     /// right analysis and transaction, proposals of two or more different addresses that all appear in the
-    /// transaction, change outputs that exist, reasons that are not empty, and a basis the case knows of.
+    /// transaction, change outputs that exist, reasons that are not empty, a basis the case knows of, and a veto of a
+    /// known kind with a reason.
     /// </summary>
     /// <param name="result">The result.</param>
     /// <param name="heuristic">The analysis that gave it.</param>
@@ -237,31 +244,61 @@ internal sealed class ClusteringService : IClusteringService
             && !string.IsNullOrWhiteSpace(finding.Reason)
             && ValidOutput(finding.ChangeOutput));
         var basis = result.Basis.All(txid => txid is not null && known.Find(txid) is not null);
-        return proposals && findings && basis;
+        var veto = result.Veto is null
+            || (Enum.IsDefined(result.Veto.Kind) && !string.IsNullOrWhiteSpace(result.Veto.Reason));
+        return proposals && findings && basis && veto;
     }
 
     /// <summary>
+    /// Weighs the results of one transaction and fingerprints them. A finding that cannot be stored (a kind not
+    /// declared on <see cref="HeuristicFinding"/>) fails the transaction, not the run.
+    /// </summary>
+    /// <param name="results">Every analysis's result of the transaction.</param>
+    /// <returns>The weighed results with their fingerprints, or <see langword="null"/> when one cannot be stored.</returns>
+    private static List<(WeighedResult Result, string Fingerprint)>? Fingerprinted(List<HeuristicResult> results)
+    {
+        try
+        {
+            return [.. ResultWeighing.Weigh(results).Select(result => (result, EvidenceStore.Fingerprint(result)))];
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Says whether the run knows every transaction that any stored result of a transaction rests on. The results of
+    /// a transaction are weighed together, so they are replaced together or not at all: a narrower run never takes
+    /// back what a wider one concluded.
+    /// </summary>
+    /// <param name="txid">The transaction.</param>
+    /// <param name="latest">What is stored.</param>
+    /// <param name="known">The transactions the run knows.</param>
+    /// <returns><see langword="true"/> when the run may replace the transaction's results.</returns>
+    private static bool KnowsBasis(
+        Txid txid, Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest, HashSet<Txid> known) =>
+        latest.Where(entry => entry.Key.Txid == txid)
+            .SelectMany(entry => entry.Value.Basis)
+            .All(known.Contains);
+
+    /// <summary>
     /// Decides whether a new result is stored: when nothing is stored it must conclude something; when something is
-    /// stored it must differ, and the run must know every transaction the stored result rests on, so that a narrower
-    /// run never takes back what a wider one concluded.
+    /// stored it must differ.
     /// </summary>
     /// <param name="result">The new result.</param>
     /// <param name="fingerprint">Its fingerprint.</param>
     /// <param name="latest">What is stored.</param>
-    /// <param name="known">The transactions the run knows.</param>
     /// <returns><see langword="true"/> when it is stored.</returns>
     private static bool Replaces(
-        WeighedResult result,
-        string fingerprint,
-        Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest,
-        HashSet<Txid> known)
+        WeighedResult result, string fingerprint, Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest)
     {
         if (!latest.TryGetValue((result.Result.Txid, result.Result.Heuristic), out var stored))
         {
             return result.Proposals.Count > 0 || result.Result.Findings.Count > 0;
         }
 
-        return stored.Fingerprint != fingerprint && stored.Basis.All(known.Contains);
+        return stored.Fingerprint != fingerprint;
     }
 
     /// <summary>Builds the clusters from what the case has stored.</summary>

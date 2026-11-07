@@ -68,11 +68,34 @@ public sealed class StorageTests : IDisposable
 
         var run = _harness.Analyse(chain[1]);
 
-        Assert.Null(run.Journal);
+        Assert.Equal([chain[1].Txid], run.HeldBack);
+        Assert.Equal(ClusteringJournalKinds.Analysed, run.Journal!.Kind);
         Assert.Equal(before, _harness.Count("clustering_evidence"));
         Assert.Contains(
             _harness.Service.GetConclusions(_harness.Case, chain[1].Txid).Findings,
             found => found.Finding is PeelChainFinding);
+    }
+
+    [Fact]
+    public void A_narrower_run_never_takes_back_a_disagreement_and_restores_a_merge()
+    {
+        var seen = Tx("seen-earlier", 800_000).In(Wpkh("elsewhere"), 9_000_000).Out(Wpkh("bulk"), 8_000_000).Build();
+        var payment = Tx("disagree", 900_000)
+            .In(Wpkh("payer-x"), 10_000_000)
+            .Out(Wpkh("payer-x"), 1_234_567)
+            .Out(Wpkh("bulk"), 8_700_000)
+            .Build();
+        _harness.Analyse(seen, payment);
+        var wide = _harness.Service.GetConclusions(_harness.Case, Txid("disagree"));
+        Assert.Contains(Txid("seen-earlier").Value,
+            wide.Findings.Select(found => found.Finding).OfType<ChangeFinding>().Single().SeenIn);
+
+        var run = _harness.Analyse(payment);
+
+        Assert.Equal([Txid("disagree")], run.HeldBack);
+        var after = _harness.Service.GetConclusions(_harness.Case, Txid("disagree"));
+        Assert.Equal(wide.Findings.Select(found => found.Sequence), after.Findings.Select(found => found.Sequence));
+        Assert.Equal(wide.Evidence.Select(found => found.Sequence), after.Evidence.Select(found => found.Sequence));
     }
 
     [Fact]
@@ -158,6 +181,18 @@ public sealed class StorageTests : IDisposable
         Assert.Equal([Txid("payment")], run.Failed);
         Assert.Equal(0, harness.Count("clustering_evidence"));
         Assert.Single(harness.ClusterOf(Wpkh("payer-1")).Members);
+    }
+
+    [Fact]
+    public void A_new_kind_of_finding_fails_its_transaction_and_not_the_run()
+    {
+        using var harness = new CaseHarness(services =>
+            services.AddSingleton<IClusteringHeuristic, UndeclaredFindingHeuristic>());
+
+        var run = harness.Analyse(Patterns.PaymentWithChange(), Patterns.Consolidation());
+
+        Assert.Equal(2, run.Failed.Count);
+        Assert.Equal(0, harness.Count("clustering_evidence"));
     }
 
     [Fact]

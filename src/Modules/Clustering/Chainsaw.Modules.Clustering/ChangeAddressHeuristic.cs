@@ -77,7 +77,8 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
     /// <param name="outputs">All outputs with an address.</param>
     /// <param name="context">What the case knows around the transaction.</param>
     /// <returns>
-    /// The signs, in the order of <see cref="ChangeSign"/>, and the earlier transactions a fresh-address sign rests on.
+    /// The signs, in the order of <see cref="ChangeSign"/>, and the earlier transactions where any output's address
+    /// was seen, which the signs rest on.
     /// </returns>
     private static (List<ChangeSign> Signs, List<Txid> SeenIn) Signs(
         BitcoinTransaction transaction,
@@ -122,9 +123,13 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
             signs.Add(ChangeSign.BackToInput);
         }
 
-        var basis = signs.Contains(ChangeSign.FreshAddress)
-            ? seenIn.Select(seen => seen!.Txid).Distinct().ToList()
-            : [];
+        // Every earlier sighting counts as basis, also of the outputs that did not get the sign: without one of them
+        // the signs could tie, and a narrower run must not take the conclusion back.
+        var basis = outputs.Select(output => context.SeenBefore(output.Address!, transaction))
+            .OfType<BitcoinTransaction>()
+            .Select(seen => seen.Txid)
+            .Distinct()
+            .ToList();
         return (signs, basis);
     }
 

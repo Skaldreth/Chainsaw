@@ -7,13 +7,15 @@ namespace Chainsaw.Modules.Clustering;
 /// <summary>
 /// Peel chain v1: recognises a chain of transactions where each one has one input and two outputs, a small one that
 /// is peeled off (a payment) and a large one that goes on to the next hop of the same shape (the change). When the
-/// case knows of at least <see cref="MinimumChainLength"/> hops in a row, it is a peel chain. The continuing output
-/// is merged with the hop's input only in an inner hop, one with a known hop on both sides; at the ends it is only a
-/// suggestion, and the peeled-off outputs are never merged.
+/// case knows of at least <see cref="MinimumChainLength"/> hops in a row, it is a peel chain, and the continuing
+/// output is proposed as the hop's change. Version 1 only proposes; it never merges, and the peeled-off outputs are
+/// never part of a proposal.
 /// </summary>
 /// <remarks>
-/// The ends are where strangers meet the chain: the first hop may be a victim paying most of a single output into it,
-/// and the last may send the bulk on to an exchange's deposit address. Neither is the chain holder's change.
+/// Many ordinary payments have the same shape (one input, a small payment, the bulk back as change), so the shape
+/// alone cannot tell where the owner changes: a victim's own earlier payments make a payment into a scam look like an
+/// inner hop, and the last hop may send the bulk to an exchange. Until the tracer has tried it, a peel chain is only a
+/// suggestion (TODO, *Väntar på beslut*).
 /// </remarks>
 internal sealed class PeelChainHeuristic : IClusteringHeuristic
 {
@@ -50,18 +52,14 @@ internal sealed class PeelChainHeuristic : IClusteringHeuristic
             return HeuristicResult.Nothing(Identity, transaction.Txid);
         }
 
-        var inner = before.Count > 0 && after.Count > 0;
         var reason = string.Format(
             CultureInfo.InvariantCulture,
             "Hopp {0} av {1} kända i en peel chain: output {2} skalas av och output {3} går vidare till nästa hopp "
-                + "av samma form, så den är växeln. {4}",
+                + "av samma form, så den är trolig växel. Formen räcker inte för att slå ihop, så det är ett förslag.",
             before.Count + 1,
             length,
             hop.Peel.Index,
-            hop.Continuing.Index,
-            inner
-                ? "Hoppet ligger inne i kedjan, så växeln slås ihop med hoppets input."
-                : "Hoppet ligger i kedjans ände, där främlingar möts, så det är bara ett förslag.");
+            hop.Continuing.Index);
         var basis = before.Concat(after).ToList();
         var finding = new PeelChainFinding(
             reason, hop.Continuing.Index, hop.Peel.Index, before.Count, after.Count,
@@ -73,7 +71,7 @@ internal sealed class PeelChainHeuristic : IClusteringHeuristic
             [
                 new OwnershipProposal(
                     [sender, hop.Continuing.Address!],
-                    inner ? EvidenceStrength.Merge : EvidenceStrength.Suggestion,
+                    EvidenceStrength.Suggestion,
                     reason,
                     hop.Continuing.Index),
             ];

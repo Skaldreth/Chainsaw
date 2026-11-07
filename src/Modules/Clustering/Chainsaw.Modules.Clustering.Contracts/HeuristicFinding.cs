@@ -7,6 +7,10 @@ namespace Chainsaw.Modules.Clustering.Contracts;
 /// Something an analysis recognised in a transaction besides who owns what: a CoinJoin, the change, a hop in a peel
 /// chain. A finding is a conclusion, never a fact (principle 2), and says why.
 /// </summary>
+/// <remarks>
+/// Findings are sealed as JSON with their kind, so only the kinds declared here can be stored. A new analysis with a
+/// new kind of finding declares it here too; until then its results fail on their own and nothing is stored.
+/// </remarks>
 /// <param name="Reason">Why, in plain Swedish.</param>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(CoinJoinFinding), "coinjoin")]
@@ -87,7 +91,7 @@ public enum CoinJoinCertainty
 /// How many kinds of sign the version checks, so that the score can be read (for example 3 of 5).
 /// </param>
 /// <param name="SeenIn">
-/// The txids of the earlier transactions where the addresses that made a fresh-address sign were seen.
+/// The txids of the earlier transactions where the outputs' addresses were seen; the fresh-address sign rests on them.
 /// </param>
 public sealed record ChangeFinding(
     string Reason,
