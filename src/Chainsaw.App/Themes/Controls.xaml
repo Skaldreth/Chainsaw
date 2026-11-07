@@ -64,25 +64,9 @@
         </Style.Triggers>
     </Style>
 
-    <!-- An icon: its geometry on the 24 grid, scaled to its size, the line in the control's foreground. -->
+    <!-- An icon: it draws its geometry itself, snapped to the screen's pixels; the line in its foreground. -->
     <Style TargetType="controls:GridIcon">
         <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
-        <Setter Property="Focusable" Value="False" />
-        <Setter Property="IsHitTestVisible" Value="False" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="controls:GridIcon">
-                    <Viewbox Width="{TemplateBinding Size}" Height="{TemplateBinding Size}">
-                        <Canvas Width="24" Height="24">
-                            <Path Data="{TemplateBinding Data}"
-                                  Stroke="{TemplateBinding Foreground}"
-                                  StrokeThickness="{Binding Stroke, RelativeSource={RelativeSource TemplatedParent}}"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
-                        </Canvas>
-                    </Viewbox>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
     </Style>
 
     <!-- The tooltip: a small dark box, the name and the shortcut. -->
@@ -91,7 +75,7 @@
         <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
         <Setter Property="FontFamily" Value="{StaticResource Font.Ui}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="Padding" Value="8,4" />
         <Setter Property="Template">
             <Setter.Value>
@@ -191,7 +175,7 @@
         <Setter Property="SelectionBrush" Value="{StaticResource Brush.Accent}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">
             <Setter.Value>
@@ -229,7 +213,7 @@
                 <ControlTemplate TargetType="TextBox">
                     <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1" CornerRadius="4">
-                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                        <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocused" Value="True">
@@ -257,7 +241,7 @@
                 <ControlTemplate TargetType="PasswordBox">
                     <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1" CornerRadius="4">
-                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                        <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocused" Value="True">
@@ -353,7 +337,7 @@
     <Style x:Key="Button.About" TargetType="Button">
         <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="Padding" Value="8,4" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -379,14 +363,14 @@
 
     <!-- The label above a field. -->
     <Style x:Key="Text.Label" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="Margin" Value="0,0,0,6" />
     </Style>
 
     <!-- The explaining line under a heading. -->
     <Style x:Key="Text.Lead" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="LineHeight" Value="21" />
@@ -394,7 +378,7 @@
 
     <!-- Why a step did not go on: in the error colour, hidden while empty. -->
     <Style x:Key="Text.Error" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontSize" Value="13.5" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
         <Setter Property="TextWrapping" Value="Wrap" />
         <Style.Triggers>
@@ -411,7 +395,7 @@
         <Setter Property="Height" Value="74" />
         <Setter Property="Padding" Value="10,6" />
         <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
-        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontSize" Value="13.5" />
         <Setter Property="AcceptsReturn" Value="True" />
         <Setter Property="TextWrapping" Value="NoWrap" />
         <Setter Property="VerticalContentAlignment" Value="Top" />
@@ -426,12 +410,12 @@
         <StackPanel x:Name="Line" Orientation="Horizontal" Margin="0,6,0,0">
             <Border x:Name="Tag" BorderBrush="{StaticResource Brush.BorderHover}" BorderThickness="1" CornerRadius="6"
                     Padding="6,1" MinWidth="34" VerticalAlignment="Center">
-                <TextBlock x:Name="Chain" Text="{Binding ChainLabel}" FontSize="10.5" FontWeight="SemiBold"
+                <TextBlock x:Name="Chain" Text="{Binding ChainLabel}" FontSize="11.5" FontWeight="SemiBold"
                            Foreground="{StaticResource Brush.Text}" HorizontalAlignment="Center" />
             </Border>
-            <TextBlock Text="{Binding Short}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5"
+            <TextBlock Text="{Binding Short}" FontFamily="{StaticResource Font.Mono}" FontSize="13.5"
                        Foreground="{StaticResource Brush.TextMuted}" Margin="8,0,0,0" VerticalAlignment="Center" />
-            <TextBlock x:Name="Kind" Text="{Binding KindText}" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}"
+            <TextBlock x:Name="Kind" Text="{Binding KindText}" FontSize="13.5" Foreground="{StaticResource Brush.TextDim}"
                        Margin="8,0,0,0" VerticalAlignment="Center" />
         </StackPanel>
         <DataTemplate.Triggers>
@@ -494,7 +478,7 @@
     <Style x:Key="Button.Graph" TargetType="Button">
         <Setter Property="Height" Value="30" />
         <Setter Property="Padding" Value="12,0" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
         <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
@@ -533,7 +517,7 @@
         <Setter Property="Height" Value="30" />
         <Setter Property="Padding" Value="2,0" />
         <Setter Property="Margin" Value="0,0,16,0" />
-        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontSize" Value="13.5" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
         <Setter Property="BorderBrush" Value="Transparent" />
@@ -595,7 +579,7 @@
     <!-- A link in the inspector, to the Guide or to Varför?: small accent text, underlined on hover. -->
     <Style x:Key="Button.Link" TargetType="Button">
         <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="HorizontalAlignment" Value="Left" />

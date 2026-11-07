@@ -99,9 +99,9 @@
                                            VerticalAlignment="Center" />
                     </Grid>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding CaseNumber}" FontSize="12.5" FontWeight="SemiBold"
+                        <TextBlock Text="{Binding CaseNumber}" FontSize="13.5" FontWeight="SemiBold"
                                    Foreground="{StaticResource Brush.Text}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding ChangedText}" FontSize="11" Foreground="{StaticResource Brush.TextDim}"
+                        <TextBlock Text="{Binding ChangedText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </DockPanel>
@@ -116,9 +116,9 @@
                 <StackPanel Orientation="Horizontal">
                     <Ellipse x:Name="Dot" Width="6" Height="6" Fill="{StaticResource Brush.BorderHover}"
                              VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBlock x:Name="Name" Text="{Binding Name}" FontSize="11.5" VerticalAlignment="Center"
+                    <TextBlock x:Name="Name" Text="{Binding Name}" FontSize="12.5" VerticalAlignment="Center"
                                Foreground="{StaticResource Brush.TextMuted}" />
-                    <TextBlock x:Name="Form" Text="{Binding Form}" FontFamily="{StaticResource Font.Mono}" FontSize="10.5"
+                    <TextBlock x:Name="Form" Text="{Binding Form}" FontFamily="{StaticResource Font.Mono}" FontSize="11.5"
                                VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{StaticResource Brush.TextFaint}" />
                 </StackPanel>
             </Border>
@@ -149,10 +149,10 @@
                                         BorderBrush="{StaticResource Brush.Accent}" />
                     <ContentControl x:Name="FirstNewCase" Focusable="False" />
                 </Grid>
-                <TextBlock Margin="0,26,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="12.5"
+                <TextBlock Margin="0,26,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="13.5"
                            LineHeight="19" Foreground="{StaticResource Brush.TextMuted}"
                            Text="Ett ärende är en krypterad fil på den här datorn, en per utredning. Allt du hämtar sparas i den, med källa, tid och hash, så att det går att kontrollera i efterhand." />
-                <TextBlock Margin="0,8,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="12"
+                <TextBlock Margin="0,8,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
                            Foreground="{StaticResource Brush.TextDim}"
                            Text="Inget skickas till molnet. Uppslag går bara genom den utgång du har valt." />
                 <ItemsControl x:Name="Course" Margin="0,40,0,0" HorizontalAlignment="Center" Focusable="False"
@@ -177,7 +177,7 @@
 
             <StackPanel Grid.Row="1" HorizontalAlignment="Center" Width="640">
                 <TextBlock Text="Första startpunkten" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Margin="0,6,0,0" FontSize="12" Foreground="{StaticResource Brush.TextMuted}"
+                <TextBlock Margin="0,6,0,0" FontSize="13" Foreground="{StaticResource Brush.TextMuted}"
                            TextAlignment="Center" TextWrapping="Wrap"
                            Text="Där spåret börjar: en adress eller en tx. Den kan lika gärna vara den misstänktes som offrets." />
 
@@ -195,7 +195,7 @@
                                                    Foreground="{StaticResource Brush.Accent}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
-                            <Button DockPanel.Dock="Right" Margin="12,0,0,0" Height="30" Padding="10,0" FontSize="12"
+                            <Button DockPanel.Dock="Right" Margin="12,0,0,0" Height="30" Padding="10,0" FontSize="13"
                                     Content="Enter" Command="{Binding AddCommand}"
                                     ToolTip="Lägg till startpunkten · Enter">
                                 <Button.Style>
@@ -211,7 +211,7 @@
                             </Button>
                             <Grid>
                                 <TextBox x:Name="StartPointBox" Style="{StaticResource TextBox.Field}" Height="34"
-                                         FontFamily="{StaticResource Font.Mono}" FontSize="12"
+                                         FontFamily="{StaticResource Font.Mono}" FontSize="13"
                                          Background="{StaticResource Brush.Background}"
                                          MaxLength="{x:Static vm:GraphStartViewModel.MaximumInput}"
                                          AutomationProperties.Name="Startpunkt"
@@ -220,8 +220,8 @@
                                         <KeyBinding Key="Enter" Command="{Binding AddCommand}" />
                                     </TextBox.InputBindings>
                                 </TextBox>
-                                <TextBlock Text="{x:Static vm:GraphStartViewModel.Placeholder}" FontSize="12"
-                                           Margin="11,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                <TextBlock Text="{x:Static vm:GraphStartViewModel.Placeholder}" FontSize="13"
+                                           Margin="13,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
                                            Foreground="{StaticResource Brush.TextFaint}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -247,15 +247,15 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
-                <TextBlock Margin="0,12,0,0" HorizontalAlignment="Center" FontSize="11.5"
+                <TextBlock Margin="0,12,0,0" HorizontalAlignment="Center" FontSize="12.5"
                            Foreground="{StaticResource Brush.TextDim}"
                            Text="Klistra in med Ctrl+V var som helst på ytan, så hamnar det här." />
                 <StackPanel Margin="0,12,0,0" Orientation="Horizontal" HorizontalAlignment="Center">
                     <Ellipse x:Name="SendDot" Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" />
-                    <TextBlock x:Name="SendLine" Text="{Binding SendText}" FontSize="11.5" TextWrapping="Wrap"
+                    <TextBlock x:Name="SendLine" Text="{Binding SendText}" FontSize="12.5" TextWrapping="Wrap"
                                MaxWidth="600" />
                 </StackPanel>
-                <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center" FontSize="12" Text="{Binding ErrorText}"
+                <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center" FontSize="13" Text="{Binding ErrorText}"
                            Foreground="{StaticResource Brush.Error}" TextWrapping="Wrap" TextAlignment="Center" />
             </StackPanel>
 
@@ -278,7 +278,7 @@
             <Rectangle Width="1" Height="12" Margin="18,0" Fill="{StaticResource Brush.BorderStrong}"
                        VerticalAlignment="Center" />
             <Ellipse x:Name="FootDot" Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" />
-            <TextBlock x:Name="FootLine" Text="{Binding FootText}" FontSize="12" VerticalAlignment="Center" />
+            <TextBlock x:Name="FootLine" Text="{Binding FootText}" FontSize="13" VerticalAlignment="Center" />
         </StackPanel>
     </Grid>
 </UserControl>

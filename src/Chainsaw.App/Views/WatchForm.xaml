@@ -18,13 +18,13 @@
         <BooleanToVisibilityConverter x:Key="Visible" />
         <Style x:Key="RowLabel" TargetType="TextBlock">
             <Setter Property="Width" Value="74" />
-            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontSize" Value="12.5" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style x:Key="Segment" TargetType="Button">
             <Setter Property="Height" Value="26" />
-            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontSize" Value="12.5" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
@@ -50,7 +50,7 @@
                     BorderBrush="{StaticResource Brush.Accent}" Background="{StaticResource Brush.Surface}"
                     ToolTip="{Binding ToolTip}">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" />
                     <Button Focusable="False" Cursor="Hand" Margin="4,0,0,0" ToolTip="Ta bort" Background="Transparent"
                             Command="{Binding DataContext.RemovePartyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding}">
@@ -86,15 +86,15 @@
                                    DockPanel.Dock="Left" Margin="0,0,8,0" />
                 <Border DockPanel.Dock="Right" CornerRadius="9" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"
                         Padding="7,1" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding ChainName}" FontSize="11" Foreground="{StaticResource Brush.TextMuted}" />
+                    <TextBlock Text="{Binding ChainName}" FontSize="12" Foreground="{StaticResource Brush.TextMuted}" />
                 </Border>
-                <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                <TextBlock Text="{Binding Title}" FontSize="14.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" />
             </DockPanel>
 
             <!-- Ny bevakning: the address, recognised by its form and checksum. -->
             <TextBox Style="{StaticResource TextBox.Field}" Height="30" Margin="0,11,0,0" FontFamily="{StaticResource Font.Mono}"
-                     FontSize="11.5" Text="{Binding AddressText, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="12.5" Text="{Binding AddressText, UpdateSourceTrigger=PropertyChanged}"
                      Visibility="{Binding IsManual, Converter={StaticResource Visible}}"
                      AutomationProperties.Name="Adress att bevaka" />
 
@@ -135,7 +135,7 @@
                                     </Style>
                                 </controls:GridIcon.Style>
                             </controls:GridIcon>
-                            <TextBlock FontSize="11" Text="Alla, eller lägg till" Foreground="{StaticResource Brush.TextDim}" />
+                            <TextBlock FontSize="12" Text="Alla, eller lägg till" Foreground="{StaticResource Brush.TextDim}" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -161,15 +161,15 @@
                                     </Style>
                                 </controls:GridIcon.Style>
                             </controls:GridIcon>
-                            <TextBlock FontSize="11" Text="Alla, eller lägg till" Foreground="{StaticResource Brush.TextDim}" />
+                            <TextBlock FontSize="12" Text="Alla, eller lägg till" Foreground="{StaticResource Brush.TextDim}" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
             </DockPanel>
             <DockPanel Margin="74,6,0,0">
                 <Button DockPanel.Dock="Right" Style="{StaticResource Button.Graph}" Height="26" Padding="9,0" Margin="6,0,0,0"
-                        FontSize="11.5" Content="Lägg till" Command="{Binding AddPartyCommand}" />
-                <TextBox Style="{StaticResource TextBox.Field}" Height="26" FontFamily="{StaticResource Font.Mono}" FontSize="11"
+                        FontSize="12.5" Content="Lägg till" Command="{Binding AddPartyCommand}" />
+                <TextBox Style="{StaticResource TextBox.Field}" Height="26" FontFamily="{StaticResource Font.Mono}" FontSize="12"
                          Text="{Binding PartyText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Motpartens adress">
                     <TextBox.InputBindings>
                         <KeyBinding Key="Enter" Command="{Binding AddPartyCommand}" />
@@ -180,7 +180,7 @@
             <DockPanel Margin="0,11,0,0">
                 <TextBlock Text="Tillgång" Style="{StaticResource RowLabel}" />
                 <Grid>
-                    <TextBlock Text="BTC, den enda på Bitcoin" FontSize="11.5" Foreground="{StaticResource Brush.TextMuted}"
+                    <TextBlock Text="BTC, den enda på Bitcoin" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}"
                                Visibility="{Binding IsBitcoin, Converter={StaticResource Visible}}" />
                     <Border BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}" CornerRadius="6" ClipToBounds="True"
                             Visibility="{Binding IsEthereum, Converter={StaticResource Visible}}">
@@ -200,9 +200,9 @@
             <DockPanel Margin="0,11,0,0">
                 <TextBlock Text="Minsta belopp" Style="{StaticResource RowLabel}" />
                 <Grid>
-                    <TextBox Style="{StaticResource TextBox.Field}" Height="26" FontSize="11.5" IsEnabled="{Binding CanHaveMinimum}"
+                    <TextBox Style="{StaticResource TextBox.Field}" Height="26" FontSize="12.5" IsEnabled="{Binding CanHaveMinimum}"
                              Text="{Binding MinimumInput, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Minsta belopp" />
-                    <TextBlock Text="{Binding MinimumHint}" FontSize="11.5" Foreground="{StaticResource Brush.TextFaint}" Margin="9,0,0,0"
+                    <TextBlock Text="{Binding MinimumHint}" FontSize="12.5" Foreground="{StaticResource Brush.TextFaint}" Margin="9,0,0,0"
                                VerticalAlignment="Center" IsHitTestVisible="False">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -234,18 +234,18 @@
                 </Border>
             </DockPanel>
 
-            <TextBlock Text="{x:Static vm:WatchWords.FormNote}" FontSize="10.5" Foreground="{StaticResource Brush.TextFaint}"
+            <TextBlock Text="{x:Static vm:WatchWords.FormNote}" FontSize="11.5" Foreground="{StaticResource Brush.TextFaint}"
                        Margin="0,11,0,0" />
-            <TextBlock Text="{Binding Problem}" FontSize="11.5" Foreground="{StaticResource Brush.Error}" TextWrapping="Wrap"
+            <TextBlock Text="{Binding Problem}" FontSize="12.5" Foreground="{StaticResource Brush.Error}" TextWrapping="Wrap"
                        Margin="0,6,0,0" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                <Button Style="{StaticResource Button.Graph}" Height="28" Padding="10,0" FontSize="12" Margin="0,0,6,0"
+                <Button Style="{StaticResource Button.Graph}" Height="28" Padding="10,0" FontSize="13" Margin="0,0,6,0"
                         Command="{Binding CancelCommand}" ToolTip="Esc">Avbryt</Button>
                 <Button Style="{StaticResource Button.Primary}" Height="28" Padding="10,0" Command="{Binding SaveCommand}"
                         ToolTip="Enter">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding SaveText}" FontSize="12" FontWeight="SemiBold" />
-                        <TextBlock Text="Enter" FontSize="10.5" Opacity="0.6" Margin="6,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding SaveText}" FontSize="13" FontWeight="SemiBold" />
+                        <TextBlock Text="Enter" FontSize="11.5" Opacity="0.6" Margin="6,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>

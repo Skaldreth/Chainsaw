@@ -24,12 +24,12 @@
                 <DockPanel>
                     <Border x:Name="Bar" DockPanel.Dock="Left" Width="{Binding BarWidth}" Height="4" CornerRadius="2"
                             Background="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
-                    <TextBlock DockPanel.Dock="Left" Text="{Binding ScoreText}" FontSize="11.5" Margin="6,0,8,0"
+                    <TextBlock DockPanel.Dock="Left" Text="{Binding ScoreText}" FontSize="12.5" Margin="6,0,8,0"
                                Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
-                    <TextBlock x:Name="State" DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"
+                    <TextBlock x:Name="State" DockPanel.Dock="Right" FontSize="12" VerticalAlignment="Center"
                                Foreground="{StaticResource Brush.TextDim}" />
                     <TextBlock x:Name="Address" Text="{Binding ShortAddress}" FontFamily="{StaticResource Font.Mono}"
-                               FontSize="11" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                               FontSize="12" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
                 </DockPanel>
             </Button>
             <DataTemplate.Triggers>
@@ -65,11 +65,11 @@
                                                    Foreground="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
                                                    Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
                             </Grid>
-                            <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Top"
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="13" VerticalAlignment="Top"
                                        Foreground="{StaticResource Brush.Accent}" Margin="6,2,0,0" />
                             <StackPanel>
-                                <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding Summary}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Summary}" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}"
                                            TextWrapping="Wrap" Margin="0,2,0,0" />
                             </StackPanel>
                         </DockPanel>
@@ -77,7 +77,7 @@
                     <StackPanel x:Name="Open" Visibility="Collapsed" Margin="33,8,0,0">
                         <ItemsControl ItemsSource="{Binding Candidates}" ItemTemplate="{StaticResource Candidate}" Focusable="False" />
                         <TextBox x:Name="Reason" Style="{StaticResource TextBox.Field}" Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}"
-                                 Margin="0,6,0,0" Height="28" FontSize="12" ToolTip="Skäl, valfritt"
+                                 Margin="0,6,0,0" Height="28" FontSize="13" ToolTip="Skäl, valfritt"
                                  Visibility="{Binding CanDecide, Converter={StaticResource Visible}}"
                                  AutomationProperties.Name="Skäl, valfritt">
                             <TextBox.InputBindings>
@@ -85,15 +85,15 @@
                             </TextBox.InputBindings>
                         </TextBox>
                         <DockPanel Margin="0,8,0,0">
-                            <TextBlock DockPanel.Dock="Left" Text="{Binding AnalysisText}" FontSize="11" VerticalAlignment="Center"
+                            <TextBlock DockPanel.Dock="Left" Text="{Binding AnalysisText}" FontSize="12" VerticalAlignment="Center"
                                        Foreground="{StaticResource Brush.TextDim}" />
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Style="{StaticResource Button.Graph}" Height="26" Padding="9,0" Margin="0,0,6,0"
                                         Focusable="False" ToolTip="Enter"
                                         Command="{Binding DataContext.ApproveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding GoText}" FontSize="12" />
-                                        <TextBlock Text="Enter" FontSize="10.5" Margin="6,1,0,0" Foreground="{StaticResource Brush.TextDim}" />
+                                        <TextBlock Text="{Binding GoText}" FontSize="13" />
+                                        <TextBlock Text="Enter" FontSize="11.5" Margin="6,1,0,0" Foreground="{StaticResource Brush.TextDim}" />
                                     </StackPanel>
                                 </Button>
                                 <Button Style="{StaticResource Button.Graph}" Height="26" Padding="9,0" Margin="0,0,6,0"
@@ -101,8 +101,8 @@
                                         Visibility="{Binding CanDecide, Converter={StaticResource Visible}}"
                                         Command="{Binding DataContext.DismissCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Avfärda" FontSize="12" />
-                                        <TextBlock Text="X" FontSize="10.5" Margin="6,1,0,0" Foreground="{StaticResource Brush.TextDim}" />
+                                        <TextBlock Text="Avfärda" FontSize="13" />
+                                        <TextBlock Text="X" FontSize="11.5" Margin="6,1,0,0" Foreground="{StaticResource Brush.TextDim}" />
                                     </StackPanel>
                                 </Button>
                                 <Button Style="{StaticResource Button.Icon}" Width="26" Height="26" Focusable="False"
@@ -129,7 +129,7 @@
 
         <!-- A group's heading: a dashed or whole dot, the name and the count. -->
         <Style x:Key="GroupName" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontSize" Value="12.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
             <Setter Property="Margin" Value="8,0,0,6" />
@@ -140,9 +140,9 @@
         <!-- The keys, at the bottom. -->
         <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0" Padding="16,9">
             <StackPanel>
-                <TextBlock FontSize="11" Foreground="{StaticResource Brush.TextDim}"
+                <TextBlock FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                            Text="J K stega · Enter godkänn · X avfärda · ? varför" />
-                <TextBlock FontSize="11" Foreground="{StaticResource Brush.TextDim}" Margin="0,4,0,0"
+                <TextBlock FontSize="12" Foreground="{StaticResource Brush.TextDim}" Margin="0,4,0,0"
                            Text="{Binding StatusText}" TextWrapping="Wrap" />
             </StackPanel>
         </Border>
@@ -157,7 +157,7 @@
                     </Button>
                     <TextBlock Text="Kontroller och förslag" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </DockPanel>
-                <TextBlock Text="{Binding Problem}" FontSize="11.5" Foreground="{StaticResource Brush.Error}" TextWrapping="Wrap"
+                <TextBlock Text="{Binding Problem}" FontSize="12.5" Foreground="{StaticResource Brush.Error}" TextWrapping="Wrap"
                            Margin="8,0,0,10">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
@@ -176,7 +176,7 @@
                     <TextBlock Style="{StaticResource GroupName}" Text="{Binding ToDecide.Count}" Foreground="{StaticResource Brush.TextDim}" />
                 </StackPanel>
                 <ItemsControl ItemsSource="{Binding ToDecide}" ItemTemplate="{StaticResource Row}" Focusable="False" />
-                <TextBlock Text="Inget väntar på beslut." FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="8,0,0,8">
+                <TextBlock Text="Inget väntar på beslut." FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" Margin="8,0,0,8">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Setter Property="Visibility" Value="Collapsed" />

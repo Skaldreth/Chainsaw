@@ -19,7 +19,7 @@
         <BooleanToVisibilityConverter x:Key="Visible" />
         <controls:InvertVisibility x:Key="Hidden" />
         <Style x:Key="Head" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextFaint}" />
         </Style>
         <Style x:Key="Dot" TargetType="Ellipse">
@@ -50,8 +50,8 @@
                         ToolTip="Ny bevakning · B" IsEnabled="{Binding HasCase}" Margin="10,0,0,0">
                     <StackPanel Orientation="Horizontal">
                         <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}" Margin="0,0,7,0" />
-                        <TextBlock Text="Ny bevakning …" FontSize="12.5" Foreground="{StaticResource Brush.Text}" />
-                        <TextBlock Text="B" FontSize="10.5" Foreground="{StaticResource Brush.TextFaint}" Margin="7,0,0,0"
+                        <TextBlock Text="Ny bevakning …" FontSize="13.5" Foreground="{StaticResource Brush.Text}" />
+                        <TextBlock Text="B" FontSize="11.5" Foreground="{StaticResource Brush.TextFaint}" Margin="7,0,0,0"
                                    VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
@@ -106,7 +106,7 @@
                                 </Style>
                             </Ellipse.Style>
                         </Ellipse>
-                        <TextBlock Text="{Binding BackgroundText}" FontSize="12" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding BackgroundText}" FontSize="13" VerticalAlignment="Center">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
@@ -123,10 +123,10 @@
                         </TextBlock>
                     </StackPanel>
                 </Grid>
-                <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                <TextBlock Text="{Binding Summary}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
                            VerticalAlignment="Center" />
             </DockPanel>
-            <TextBlock DockPanel.Dock="Top" Text="{Binding Problem}" FontSize="12" Foreground="{StaticResource Brush.Error}"
+            <TextBlock DockPanel.Dock="Top" Text="{Binding Problem}" FontSize="13" Foreground="{StaticResource Brush.Error}"
                        Margin="0,0,0,8" TextWrapping="Wrap" />
 
             <Grid DockPanel.Dock="Top" Margin="12,0,12,4" Visibility="{Binding HasRows, Converter={StaticResource Visible}}">
@@ -146,7 +146,7 @@
                 <TextBlock Grid.Column="5" Text="Senast kontrollerad" Style="{StaticResource Head}" />
             </Grid>
 
-            <TextBlock DockPanel.Dock="Top" Text="{Binding EmptyText}" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}"
+            <TextBlock DockPanel.Dock="Top" Text="{Binding EmptyText}" FontSize="13.5" Foreground="{StaticResource Brush.TextDim}"
                        Margin="12,24,0,0" TextWrapping="Wrap"
                        Visibility="{Binding HasRows, Converter={StaticResource Hidden}}" />
 
@@ -219,14 +219,14 @@
                                                                Foreground="{StaticResource Brush.TextMuted}" />
                                         </Border>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold"
+                                            <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding Short}" FontSize="11" Foreground="{StaticResource Brush.TextFaint}" />
+                                            <TextBlock Text="{Binding Short}" FontSize="12" Foreground="{StaticResource Brush.TextFaint}" />
                                         </StackPanel>
                                     </DockPanel>
                                     <Border Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Center" CornerRadius="9"
                                             BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}" Padding="7,1">
-                                        <TextBlock Text="{Binding ChainName}" FontSize="11" Foreground="{StaticResource Brush.TextMuted}" />
+                                        <TextBlock Text="{Binding ChainName}" FontSize="12" Foreground="{StaticResource Brush.TextMuted}" />
                                     </Border>
                                     <StackPanel Grid.Column="3" Orientation="Horizontal" ToolTip="{Binding DirectionText}"
                                                 VerticalAlignment="Center" Background="Transparent">
@@ -249,17 +249,17 @@
                                                 <DataTemplate DataType="{x:Type vm:WatchRowParty}">
                                                     <Border Height="20" Padding="7,0" Margin="0,0,4,0" CornerRadius="10" BorderThickness="1"
                                                             BorderBrush="{StaticResource Brush.BorderStrong}">
-                                                        <TextBlock Text="{Binding Text}" FontSize="11.5" VerticalAlignment="Center"
+                                                        <TextBlock Text="{Binding Text}" FontSize="12.5" VerticalAlignment="Center"
                                                                    Foreground="{StaticResource Brush.TextMuted}" />
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                        <TextBlock Text="Alla motparter" FontSize="11.5" Foreground="{StaticResource Brush.TextFaint}"
+                                        <TextBlock Text="Alla motparter" FontSize="12.5" Foreground="{StaticResource Brush.TextFaint}"
                                                    Margin="0,0,4,0" Visibility="{Binding AllParties, Converter={StaticResource Visible}}" />
-                                        <TextBlock Text="{Binding AssetText}" FontSize="11.5" Foreground="{StaticResource Brush.TextFaint}" />
+                                        <TextBlock Text="{Binding AssetText}" FontSize="12.5" Foreground="{StaticResource Brush.TextFaint}" />
                                     </StackPanel>
-                                    <TextBlock Grid.Column="5" Text="{Binding LastText}" FontSize="11.5" VerticalAlignment="Center"
+                                    <TextBlock Grid.Column="5" Text="{Binding LastText}" FontSize="12.5" VerticalAlignment="Center"
                                                Foreground="{StaticResource Brush.TextDim}" TextTrimming="CharacterEllipsis" />
                                     <Ellipse Grid.Column="6" Width="9" Height="9" Fill="{StaticResource Brush.Accent}"
                                              HorizontalAlignment="Right" ToolTip="{Binding NewTip}"
@@ -285,10 +285,10 @@
                         <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                             <Ellipse DataContext="{Binding Selected}" Style="{StaticResource Dot}" Width="7" Height="7"
                                      Margin="0,0,6,0" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding Selected.StateText}" FontSize="12" Foreground="{StaticResource Brush.TextMuted}" />
+                            <TextBlock Text="{Binding Selected.StateText}" FontSize="13" Foreground="{StaticResource Brush.TextMuted}" />
                         </StackPanel>
                         <TextBlock Text="{Binding Selected.Watch.Subject.Anchor.Value}" FontFamily="{StaticResource Font.Mono}"
-                                   FontSize="11.5" Foreground="{StaticResource Brush.TextMuted}" TextWrapping="Wrap" Margin="0,14,0,0" />
+                                   FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}" TextWrapping="Wrap" Margin="0,14,0,0" />
                         <ItemsControl ItemsSource="{Binding Facts}" Margin="0,12,0,0" Focusable="False">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -298,8 +298,8 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:WatchFact}">
                                     <StackPanel Margin="0,0,12,10">
-                                        <TextBlock Text="{Binding Key}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
-                                        <TextBlock Text="{Binding Value}" FontSize="12.5" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Key}" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" />
+                                        <TextBlock Text="{Binding Value}" FontSize="13.5" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -309,7 +309,7 @@
                     <StackPanel DockPanel.Dock="Bottom">
                         <!-- Ta bort is a sealed taking back (sketch AN1b): the reason is optional, and the old stays. -->
                         <StackPanel Visibility="{Binding IsRemoving, Converter={StaticResource Visible}}" Margin="0,0,0,10">
-                            <TextBlock Text="Skäl (valfritt)" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,4" />
+                            <TextBlock Text="Skäl (valfritt)" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,4" />
                             <TextBox Style="{StaticResource TextBox.Field}" Height="28" AutomationProperties.Name="Skäl"
                                      Text="{Binding RemoveReason, UpdateSourceTrigger=PropertyChanged}">
                                 <TextBox.InputBindings>
@@ -318,23 +318,23 @@
                                 </TextBox.InputBindings>
                             </TextBox>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                                <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="12" Margin="0,0,6,0"
+                                <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="13" Margin="0,0,6,0"
                                         Command="{Binding CancelRemoveCommand}" ToolTip="Esc">Avbryt</Button>
                                 <Button Style="{StaticResource Button.Primary}" Height="28" Padding="10,0" Command="{Binding RemoveCommand}"
                                         ToolTip="Enter" Content="Ta tillbaka" />
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="12" Padding="10,0" Margin="0,0,6,0"
+                            <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="13" Padding="10,0" Margin="0,0,6,0"
                                     Command="{Binding OpenInGraphCommand}">
                                 <StackPanel Orientation="Horizontal">
                                     <controls:GridIcon Size="14" Data="{StaticResource Icon.Graph}" Margin="0,0,6,0" />
                                     <TextBlock Text="Öppna i grafen" />
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="12" Padding="10,0" Margin="0,0,6,0"
+                            <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="13" Padding="10,0" Margin="0,0,6,0"
                                     Command="{Binding ChangeCommand}" Content="Ändra" />
-                            <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="12" Padding="10,0" Margin="0,0,6,0"
+                            <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="13" Padding="10,0" Margin="0,0,6,0"
                                     Command="{Binding TogglePauseCommand}" Content="{Binding PauseText}" />
                             <Button Style="{StaticResource Button.Graph}" Width="30" Height="28" Padding="0"
                                     Command="{Binding AskRemoveCommand}" ToolTip="Avsluta bevakningen"
@@ -347,9 +347,9 @@
                     <DockPanel Margin="0,4,0,12">
                         <Border DockPanel.Dock="Top" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0"
                                 Padding="0,12,0,6">
-                            <TextBlock Text="{Binding HitsTitle}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                            <TextBlock Text="{Binding HitsTitle}" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" />
                         </Border>
-                        <TextBlock DockPanel.Dock="Top" Text="Inga träffar än." FontSize="12" Foreground="{StaticResource Brush.TextFaint}"
+                        <TextBlock DockPanel.Dock="Top" Text="Inga träffar än." FontSize="13" Foreground="{StaticResource Brush.TextFaint}"
                                    Visibility="{Binding HasNoHits, Converter={StaticResource Visible}}" />
                         <ItemsControl ItemsSource="{Binding Hits}" Focusable="False" VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.ScrollUnit="Pixel">
@@ -386,9 +386,9 @@
                                                     <DockPanel>
                                                         <controls:GridIcon x:Name="Arrow" Size="14" Data="{StaticResource Icon.Dir.In}"
                                                                            Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,7,0" />
-                                                        <TextBlock Text="{Binding Text}" FontSize="12.5" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Text}" FontSize="13.5" TextWrapping="Wrap" />
                                                     </DockPanel>
-                                                    <TextBlock Text="{Binding When}" FontSize="11" Foreground="{StaticResource Brush.TextFaint}"
+                                                    <TextBlock Text="{Binding When}" FontSize="12" Foreground="{StaticResource Brush.TextFaint}"
                                                                Margin="21,3,0,0" ToolTip="{Binding Hit.Match.Block.Hash}" />
                                                 </StackPanel>
                                             </Grid>

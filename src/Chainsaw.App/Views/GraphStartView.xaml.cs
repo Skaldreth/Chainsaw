@@ -15,6 +15,9 @@ namespace Chainsaw.App.Views;
 /// </summary>
 public partial class GraphStartView : UserControl
 {
+    /// <summary>How far below the sonar's ring the line under Nytt ärende stands.</summary>
+    private const double HintBelowRing = 30;
+
     /// <summary>The model shown.</summary>
     private GraphStartViewModel? _model;
 
@@ -97,9 +100,12 @@ public partial class GraphStartView : UserControl
         middle.Children.Add(NewCaseNode());
         var hint = new TextBlock
         {
-            Text = "Börja en ny spårning, eller öppna ett ärende runt om.", FontSize = 12,
+            Text = "Börja en ny spårning, eller öppna ett ärende runt om.", FontSize = 13,
             Foreground = Brush("Brush.TextMuted"), HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 62, 0, -62), IsHitTestVisible = false,
+            VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false,
+
+            // Below the sonar's ring, moved only where it is drawn, so that the node stays the ring's middle.
+            RenderTransform = new TranslateTransform(0, HintBelowRing),
         };
         middle.Children.Add(hint);
         Ring.Children.Add(middle);
@@ -208,12 +214,12 @@ public partial class GraphStartView : UserControl
         var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         words.Children.Add(new TextBlock
         {
-            Text = title, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Brush("Brush.Text"),
+            Text = title, FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = Brush("Brush.Text"),
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
         words.Children.Add(new TextBlock
         {
-            Text = line, FontSize = 11, Foreground = Brush("Brush.TextDim"), TextTrimming = TextTrimming.CharacterEllipsis,
+            Text = line, FontSize = 12, Foreground = Brush("Brush.TextDim"), TextTrimming = TextTrimming.CharacterEllipsis,
         });
         var panel = new DockPanel();
         panel.Children.Add(iconFrame);
@@ -247,7 +253,7 @@ public partial class GraphStartView : UserControl
             });
             dot.Children.Add(new TextBlock
             {
-                Text = GraphStartViewModel.Course[index], FontSize = 10.5, Margin = new Thickness(0, 6, 0, 0),
+                Text = GraphStartViewModel.Course[index], FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = current ? Brush("Brush.Text") : Brush("Brush.TextDim"),
             });

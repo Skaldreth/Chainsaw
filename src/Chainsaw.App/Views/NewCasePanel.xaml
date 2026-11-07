@@ -12,7 +12,8 @@
       Nytt ärende (sketch NC1a): the rest of the window darkens, and the panel comes in from the right, 470 px wide.
       A click on the dark part closes the panel, as Avbryt and Esc do.
     -->
-    <Grid>
+    <!-- Clipped, so that the panel's shadow falls on the darkened work only and never over the title bar. -->
+    <Grid ClipToBounds="True">
         <Rectangle Fill="#8C000000" MouseLeftButtonDown="OnDimClicked" />
         <Border HorizontalAlignment="Right" Width="470" Background="{StaticResource Brush.Surface}"
                 BorderBrush="{StaticResource Brush.Border}" BorderThickness="1,0,0,0">
@@ -29,7 +30,7 @@
                             <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" StrokeThickness="1"
                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </Button>
-                        <TextBlock DockPanel.Dock="Right" Text="Ctrl+N" FontSize="11" Foreground="{StaticResource Brush.TextDim}"
+                        <TextBlock DockPanel.Dock="Right" Text="Ctrl+N" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                                    VerticalAlignment="Center" Margin="0,0,12,0" />
                         <TextBlock Text="Nytt ärende" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
                     </DockPanel>
@@ -45,7 +46,7 @@
                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="38" Padding="14,0"
                                 Content="Avbryt" Click="OnCancel" ToolTip="Avbryt (Esc)"
                                 IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}" />
-                        <TextBlock Text="Ctrl+Enter skapar" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                        <TextBlock Text="Ctrl+Enter skapar" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}"
                                    VerticalAlignment="Center" />
                     </DockPanel>
                 </Border>
@@ -74,9 +75,9 @@
                         <ToggleButton Style="{StaticResource Toggle.Switch}" IsChecked="{Binding IsShared}"
                                       AutomationProperties.Name="Kan öppnas av en kollega">
                             <StackPanel>
-                                <TextBlock Text="Kan öppnas av en kollega" FontSize="13" />
-                                <TextBlock Text="Ett ärendelösenord som du ger kollegan" FontSize="12"
-                                           Foreground="{StaticResource Brush.TextDim}" />
+                                <TextBlock Text="Kan öppnas av en kollega" FontSize="14" />
+                                <TextBlock Text="Ett ärendelösenord som du ger kollegan" FontSize="13.5"
+                                           Foreground="{StaticResource Brush.TextMuted}" Margin="0,2,0,0" />
                             </StackPanel>
                         </ToggleButton>
                         <Grid Margin="0,12,0,0" Visibility="{Binding IsShared, Converter={StaticResource Visible}}">

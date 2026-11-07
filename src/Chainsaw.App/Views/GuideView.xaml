@@ -25,12 +25,12 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:GuideIndexGroup}">
                             <StackPanel Margin="0,0,0,16">
-                                <TextBlock Text="{Binding Name}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}"
                                            Margin="10,0,0,6" />
                                 <ItemsControl ItemsSource="{Binding Entries}" Focusable="False">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type vm:GuideIndexEntry}">
-                                            <Button x:Name="Row" Style="{StaticResource Button.GuideRow}" FontSize="13"
+                                            <Button x:Name="Row" Style="{StaticResource Button.GuideRow}" FontSize="14"
                                                     Content="{Binding Title}" Margin="0,0,0,1"
                                                     Command="{Binding DataContext.ShowCommand,
                                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -59,11 +59,11 @@
                 <Button Style="{StaticResource Button.Link}" Margin="0,0,0,14" Foreground="{StaticResource Brush.TextMuted}"
                         Content="{Binding ReturnText}" Command="{Binding ReturnCommand}"
                         Visibility="{Binding HasReturn, Converter={StaticResource VisibleWhen}}" />
-                <TextBlock Text="{Binding Section.Group}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                <TextBlock Text="{Binding Section.Group}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
                            Margin="0,0,0,2" />
                 <controls:GuideDocumentView Section="{Binding Section}" Anchor="{Binding Anchor}" Library="{Binding Library}"
                                             LinkCommand="{Binding GoCommand}" />
-                <TextBlock Text="Guidens texter saknas i den här versionen." FontSize="13"
+                <TextBlock Text="Guidens texter saknas i den här versionen." FontSize="14"
                            Foreground="{StaticResource Brush.TextDim}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">

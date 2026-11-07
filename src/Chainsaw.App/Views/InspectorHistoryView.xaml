@@ -24,13 +24,13 @@
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Height" Value="24" />
             <Setter Property="Padding" Value="8,0" />
-            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontSize" Value="12.5" />
             <Setter Property="VerticalAlignment" Value="Top" />
         </Style>
 
         <!-- A quiet line in the form: what storing it means. -->
         <Style x:Key="Text.Note" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontSize" Value="12.5" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="6,0,0,0" />
@@ -39,7 +39,7 @@
 
         <!-- A text that is hidden while empty. -->
         <Style x:Key="Text.Notice" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Style.Triggers>
@@ -90,12 +90,12 @@
                                         <TextBlock Text="{Binding Event.UndoText}" Margin="5,0,0,0" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <TextBlock Text="{Binding Event.TimeText}" DockPanel.Dock="Right" FontSize="11"
+                                <TextBlock Text="{Binding Event.TimeText}" DockPanel.Dock="Right" FontSize="12"
                                            Foreground="{StaticResource Brush.TextDim}" Margin="6,3,0,0" />
                                 <StackPanel>
-                                    <TextBlock x:Name="Title" Text="{Binding Event.Text}" FontSize="12.5"
+                                    <TextBlock x:Name="Title" Text="{Binding Event.Text}" FontSize="13.5"
                                                TextTrimming="CharacterEllipsis" Foreground="{StaticResource Brush.Text}" />
-                                    <TextBlock x:Name="Sub" Text="{Binding Event.Sub}" FontSize="11" Margin="0,2,0,0"
+                                    <TextBlock x:Name="Sub" Text="{Binding Event.Sub}" FontSize="12" Margin="0,2,0,0"
                                                TextTrimming="CharacterEllipsis" Foreground="{StaticResource Brush.TextDim}" />
                                 </StackPanel>
                             </DockPanel>
@@ -113,9 +113,9 @@
                                     <!-- Undoing a breaking out: the confirmation of what merges again. -->
                                     <StackPanel Visibility="{Binding IsSplitOpen, Converter={StaticResource Visible}}">
                                         <DockPanel Margin="0,10,0,5">
-                                            <TextBlock Text="{Binding RejoinHeuristics}" DockPanel.Dock="Right" FontSize="11"
+                                            <TextBlock Text="{Binding RejoinHeuristics}" DockPanel.Dock="Right" FontSize="12"
                                                        Foreground="{StaticResource Brush.TextMuted}" />
-                                            <TextBlock Text="Slås ihop igen" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                                            <TextBlock Text="Slås ihop igen" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" />
                                         </DockPanel>
                                         <TextBlock Text="{Binding RejoinNotice}" Style="{StaticResource Text.Notice}" />
                                         <ItemsControl ItemsSource="{Binding Rejoined}" Focusable="False">
@@ -125,9 +125,9 @@
                                                         <controls:GridIcon Size="12" DockPanel.Dock="Left" VerticalAlignment="Center"
                                                                            Data="{StaticResource Icon.Join}"
                                                                            Foreground="{StaticResource Brush.TextMuted}" />
-                                                        <TextBlock Text="{Binding Heuristic}" DockPanel.Dock="Right" FontSize="11"
+                                                        <TextBlock Text="{Binding Heuristic}" DockPanel.Dock="Right" FontSize="12"
                                                                    Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding ShortAddress}" FontSize="11.5" Margin="7,0,6,0"
+                                                        <TextBlock Text="{Binding ShortAddress}" FontSize="12.5" Margin="7,0,6,0"
                                                                    FontFamily="{StaticResource Font.Mono}" VerticalAlignment="Center"
                                                                    Foreground="{StaticResource Brush.Text}" TextTrimming="CharacterEllipsis" />
                                                     </DockPanel>
@@ -135,16 +135,16 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                         <TextBlock Text="{Binding RejoinMore}" Style="{StaticResource Text.Notice}"
-                                                   Margin="19,2,0,0" FontSize="11" />
+                                                   Margin="19,2,0,0" FontSize="12" />
                                     </StackPanel>
 
                                     <DockPanel Margin="0,12,0,5">
-                                        <TextBlock Text="frivilligt" DockPanel.Dock="Right" FontSize="11"
+                                        <TextBlock Text="frivilligt" DockPanel.Dock="Right" FontSize="12"
                                                    Foreground="{StaticResource Brush.TextDim}" />
-                                        <TextBlock Text="Skäl" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                                        <TextBlock Text="Skäl" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" />
                                     </DockPanel>
                                     <TextBox Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Skäl" Height="Auto"
-                                             MinHeight="48" Padding="8,6" FontSize="12.5" TextWrapping="Wrap" AcceptsReturn="False"
+                                             MinHeight="48" Padding="8,6" FontSize="13.5" TextWrapping="Wrap" AcceptsReturn="False"
                                              VerticalContentAlignment="Top"
                                              MaxLength="{x:Static graph:InspectorForms.MostReasonLength}"
                                              IsVisibleChanged="OnReasonVisibleChanged"
@@ -172,14 +172,14 @@
                                     <TextBlock Text="{Binding Error}" Style="{StaticResource Text.Error}" Margin="0,10,0,0" />
                                     <DockPanel Margin="0,12,0,0" LastChildFill="False">
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="30" Padding="10,0"
-                                                FontSize="12" Command="{Binding SubmitCommand}" IsEnabled="{Binding CanSubmit}">
+                                                FontSize="13" Command="{Binding SubmitCommand}" IsEnabled="{Binding CanSubmit}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding SubmitText}" />
                                                 <TextBlock Text="Enter" Margin="7,0,0,0" FontWeight="Normal" Opacity="0.6" />
                                             </StackPanel>
                                         </Button>
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="30" Padding="10,0"
-                                                FontSize="12" Margin="0,0,8,0" Command="{Binding CancelCommand}">
+                                                FontSize="13" Margin="0,0,8,0" Command="{Binding CancelCommand}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="Avbryt" />
                                                 <TextBlock Text="Esc" Margin="7,0,0,0" Foreground="{StaticResource Brush.TextDim}" />

@@ -21,7 +21,7 @@
 
         <!-- A line under the lock screen's form: a small icon and a sentence. -->
         <Style x:Key="Text.Note" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="14" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -87,7 +87,7 @@
                             Content="{Binding UnlockLabel}"
                             IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}" />
                     <TextBlock Text="Nyckeln låser upp valvet och ärendena. Den lagras aldrig, och utan den går ärendena inte att läsa."
-                               FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" TextWrapping="Wrap"
+                               FontSize="13.5" Foreground="{StaticResource Brush.TextDim}" TextWrapping="Wrap"
                                LineHeight="19" Margin="0,14,0,0" />
 
                     <StackPanel Margin="0,26,0,0">
@@ -137,7 +137,7 @@
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
-                    <TextBlock Text="{Binding StepLabel}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                    <TextBlock Text="{Binding StepLabel}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
                                Margin="0,16,0,0" />
 
                     <!-- Step 1: Welcome -->
@@ -167,13 +167,13 @@
                             <TextBlock Text="Huvudnyckel" Style="{StaticResource Text.Label}" Margin="0,16,0,6" />
                             <PasswordBox x:Name="FirstKey" Style="{StaticResource PasswordBox.Field}"
                                          AutomationProperties.Name="Huvudnyckel" />
-                            <TextBlock Text="Minst 12 tecken. En mening är lättare att minnas än ett lösenord." FontSize="12"
+                            <TextBlock Text="Minst 12 tecken. En mening är lättare att minnas än ett lösenord." FontSize="13"
                                        Foreground="{StaticResource Brush.TextDim}" Margin="0,6,0,0" />
                             <TextBlock Text="Upprepa" Style="{StaticResource Text.Label}" Margin="0,16,0,6" />
                             <PasswordBox x:Name="RepeatKey" Style="{StaticResource PasswordBox.Field}"
                                          AutomationProperties.Name="Upprepa huvudnyckeln" />
                         </StackPanel>
-                        <TextBlock Text="Huvudnyckeln är vald och valvet är skapat." FontSize="13"
+                        <TextBlock Text="Huvudnyckeln är vald och valvet är skapat." FontSize="14"
                                    Foreground="{StaticResource Brush.Success}" Margin="0,16,0,0"
                                    Visibility="{Binding IsMasterKeyChosen, Converter={StaticResource Visible}}" />
                     </StackPanel>
@@ -190,7 +190,7 @@
                                                    Data="{StaticResource Icon.Download}" />
                                 <StackPanel>
                                     <TextBlock Text="Lägg till en WireGuard-fil" Foreground="{StaticResource Brush.Text}" />
-                                    <TextBlock Text="Konfigurationen sparas krypterad i valvet" FontSize="12"
+                                    <TextBlock Text="Konfigurationen sparas krypterad i valvet" FontSize="13"
                                                Foreground="{StaticResource Brush.TextDim}" />
                                 </StackPanel>
                             </StackPanel>
@@ -199,7 +199,7 @@
                                 IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}">
                             <StackPanel>
                                 <TextBlock Text="Senare" Foreground="{StaticResource Brush.Text}" />
-                                <TextBlock Text="Chainsaw arbetar offline tills en utgång finns" FontSize="12"
+                                <TextBlock Text="Chainsaw arbetar offline tills en utgång finns" FontSize="13"
                                            Foreground="{StaticResource Brush.TextDim}" />
                             </StackPanel>
                         </Button>
@@ -210,7 +210,7 @@
                         <TextBlock Text="Ditt första ärende" FontSize="24" FontWeight="SemiBold" Margin="0,16,0,0" />
                         <TextBlock Style="{StaticResource Text.Lead}" Margin="0,16,0,0"
                                    Text="Ärendet blir en krypterad fil med ärendenumret som namn. Det går att hoppa över och skapa senare." />
-                        <TextBlock FontSize="13" Foreground="{StaticResource Brush.Success}" Margin="0,10,0,0"
+                        <TextBlock FontSize="14" Foreground="{StaticResource Brush.Success}" Margin="0,10,0,0"
                                    Visibility="{Binding HasExit, Converter={StaticResource Visible}}">
                             <Run Text="Utgången" /> <Run Text="{Binding ExitName, Mode=OneWay}" /> <Run Text="är sparad i valvet." />
                         </TextBlock>
@@ -223,7 +223,7 @@
                                  Text="{Binding CaseTitle, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBlock Text="Startpunkt" Style="{StaticResource Text.Label}" Margin="0,14,0,6" />
                         <TextBox Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Startpunkt"
-                                 FontFamily="{StaticResource Font.Mono}" FontSize="12.5"
+                                 FontFamily="{StaticResource Font.Mono}" FontSize="13.5"
                                  Text="{Binding StartPointText, UpdateSourceTrigger=PropertyChanged}" />
                         <ContentControl Content="{Binding StartPoint}" ContentTemplate="{StaticResource StartPointLine}"
                                         Focusable="False" Visibility="{Binding HasStartPoint, Converter={StaticResource Visible}}" />
@@ -253,7 +253,7 @@
                    StaysOpen="False" AllowsTransparency="True" VerticalOffset="-6">
                 <Border Background="{StaticResource Brush.Floating}" BorderBrush="{StaticResource Brush.BorderStrong}"
                         BorderThickness="1" CornerRadius="8" Padding="12,10" MaxWidth="320">
-                    <TextBlock Text="{Binding LockScreen.AboutDetails}" FontSize="12" TextWrapping="Wrap"
+                    <TextBlock Text="{Binding LockScreen.AboutDetails}" FontSize="13" TextWrapping="Wrap"
                                Foreground="{StaticResource Brush.TextMuted}" LineHeight="18" />
                 </Border>
             </Popup>

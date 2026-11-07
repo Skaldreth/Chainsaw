@@ -43,7 +43,7 @@
                                                Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </Button>
                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.Graph}" Height="28" Padding="10,0"
-                                FontSize="12" Background="Transparent" Command="{Binding OpenInGuideCommand}"
+                                FontSize="13" Background="Transparent" Command="{Binding OpenInGuideCommand}"
                                 ToolTip="Öppna i Guide (F1)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Öppna i Guide" VerticalAlignment="Center" />
@@ -54,7 +54,7 @@
                         </Button>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
                             <controls:GridIcon Size="14" Data="{StaticResource Icon.Guide}" Foreground="{StaticResource Brush.TextDim}" />
-                            <TextBlock Text="{Binding HeaderText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                            <TextBlock Text="{Binding HeaderText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
                                        Margin="6,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </DockPanel>
@@ -71,14 +71,14 @@
                         Visibility="{Binding Page.HasAnswers, Converter={StaticResource VisibleWhen},
                                              FallbackValue=Collapsed}">
                     <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="{Binding Page.Label}" FontSize="11.5" Margin="0,0,0,5"
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding Page.Label}" FontSize="12.5" Margin="0,0,0,5"
                                    Foreground="{StaticResource Brush.TextDim}" TextTrimming="CharacterEllipsis" />
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" MaxHeight="220">
                             <ItemsControl ItemsSource="{Binding Page.Answers}" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type guide:GuideAnswer}">
                                         <StackPanel Margin="0,0,0,8">
-                                            <TextBlock Text="{Binding Text}" FontSize="13" LineHeight="21"
+                                            <TextBlock Text="{Binding Text}" FontSize="14" LineHeight="21"
                                                        TextWrapping="Wrap" Foreground="{StaticResource Brush.Text}"
                                                        Opacity="0.85" />
                                             <Button Style="{StaticResource Button.Link}" Content="{Binding LinkText}"
