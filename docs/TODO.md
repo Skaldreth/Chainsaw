@@ -81,6 +81,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 26. **Sidan Källor i inställningarna** (KL1a) ser stökig ut (användarens skärmdump 2026-11-07): kedjebrickorna,
     lägesväljaren med förklaring, raderna med adress, stapel, ms, brytare och kryss, och *Prova alla nu* syns på en
     gång. Komplexiteten döljs där det går men ingen information tappas. Skissas om (KL2a, KL2b).
+27. **Ett testärende med allt** (användarens önskemål 2026-11-07): `/testdata` i Debug-bygget, som i Gawk, skapar ett
+    påhittat ärende där all funktionalitet syns utan att leta upp en riktig adress. Kedjedata kommer från en påhittad
+    källa som bara finns i Debug, så expansionerna fungerar offline. Fylls på när något nytt byggs.
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
