@@ -246,4 +246,4 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` (UTXO, adresstyper, common-input-ownership,
   växeladress, CoinJoin och peel chain finns; kvar är spårningsmetoderna och varför ett spår tar slut).
 - **Testdata:** `/testdata` med påhittade ärenden och syntetiska tx-mönster, bara i Debug.
-- **Låsskärmens kätting (ID7)** är omritad i loggans form på canvasen (skarven ur loggan upprepad, `assets/logo/chainsaw-chain-joint.svg`). Väntar på användarens ok innan låsskärmen byggs.
+- **Låsskärmens kätting (ID7a rak, ID7b på snedden)** är omritad i loggans form på canvasen: skarven ur loggan (`assets/logo/chainsaw-chain-joint.svg`) med 90 enheter rak länk mellan skarvarna, annars läses kättingen som en stege. Väntar på användarens val innan låsskärmen byggs.
