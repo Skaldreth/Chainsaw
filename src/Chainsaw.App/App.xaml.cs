@@ -21,6 +21,9 @@ using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
 using Chainsaw.SharedKernel;
 using Chainsaw.SharedKernel.Commands;
+#if DEBUG
+using Chainsaw.App.TestData;
+#endif
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -210,7 +213,13 @@ public partial class App : Application
                 .AddSingleton<LockViewModel>()
                 .AddSingleton<FirstRunViewModel>()
                 .AddSingleton<GateViewModel>()
-                .AddSingleton<MainWindow>())
+                .AddSingleton<MainWindow>()
+#if DEBUG
+                // /testdata and its made-up source exist only in a Debug build; they wrap the modules' services, so
+                // they come last.
+                .AddTestData()
+#endif
+                )
             .Build();
     }
 

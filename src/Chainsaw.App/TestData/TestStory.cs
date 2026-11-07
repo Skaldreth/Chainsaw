@@ -1,0 +1,116 @@
+#if DEBUG
+using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Monitoring.Contracts;
+
+namespace Chainsaw.App.TestData;
+
+/// <summary>
+/// The test case's story as data: the steps that build it, in order. Fill it in when something new is built, so that
+/// all of Chainsaw can be seen in one case without looking for an address that has everything.
+/// </summary>
+/// <remarks>
+/// Some parts are expanded from the start and some are left for the user to expand: the hub (more than 50
+/// transactions, so some are held back, and many counterparties), the mixer's likely way out (on to another
+/// exchange), the victim's address (paid out from an exchange), the CoinJoin's outputs and the scammer's second
+/// wallet (the new victim's payment that the watch caught).
+/// </remarks>
+public static class TestStory
+{
+    /// <summary>The story's version, in the journal and as the made-up labels' source version.</summary>
+    public const string Version = "1";
+
+    /// <summary>The made-up open source the test case's labels come from.</summary>
+    public const string LabelSource = "testdata (påhittad)";
+
+    /// <summary>Why every made-up label, link and area was made.</summary>
+    public const string LabelReason = "Påhittad i testärendet (/testdata), bara för att visa funktionen.";
+
+    /// <summary>The test case's title.</summary>
+    public const string Title = "Testärende: påhittade data";
+
+    /// <summary>The colleague's case's title.</summary>
+    public const string ColleagueTitle = "Kollegans ärende: påhittade data";
+
+    /// <summary>The output of the hub's payment that goes to the swap service.</summary>
+    private const int SwapOutput = 4;
+
+    /// <summary>Gives the steps the colleague's case is built with: the labels that come to the test case from it.</summary>
+    /// <param name="actors">The actors.</param>
+    /// <returns>The steps.</returns>
+    public static IReadOnlyList<ITestStep> ColleagueSteps(TestActors actors)
+    {
+        ArgumentNullException.ThrowIfNull(actors);
+        return
+        [
+            new LabelStep(actors.Escrow, LabelKind.EscrowMarket, "Garantitorget") { Own = true, Spreads = true },
+            new LabelStep(actors.Exchange, LabelKind.Exchange, "Nordbörsen") { Own = true, Spreads = true },
+        ];
+    }
+
+    /// <summary>Gives the steps the test case is built with.</summary>
+    /// <param name="actors">The actors.</param>
+    /// <returns>The steps, in order.</returns>
+    public static IReadOnlyList<ITestStep> Steps(TestActors actors)
+    {
+        ArgumentNullException.ThrowIfNull(actors);
+        return
+        [
+            new StartPointStep(TestStoryChain.VictimPayment),
+            .. Labels(actors),
+            .. Expansions(),
+            new ShareLabelsStep(),
+            new LinkOtherChainStep(TestStoryChain.HubPayment, SwapOutput, "eth:bytarens-swap"),
+            new WatchStep(actors.Consolidated, "Bedragarens andra plånbok", WatchDirection.In),
+            new WatchCheckStep(),
+            new ChecksStep(),
+            new OwnAreaStep(
+                "Uttagsvägar", [actors.Exchange, actors.NoKycExchange],
+                "Påhittad egen yta: börserna där pengarna kan ha tagits ut."),
+        ];
+    }
+
+    /// <summary>
+    /// Gives the labels: one of every sort in the graph's visual language, a darknet market that is also sanctioned
+    /// (the mark), and the scammer's wallet by name.
+    /// </summary>
+    /// <param name="actors">The actors.</param>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> Labels(TestActors actors) =>
+    [
+        new LabelStep(actors.Victim, LabelKind.Victim, "Offret") { Own = true },
+        new LabelStep(actors.Scammer, LabelKind.Unknown, "Bedragarens plånbok") { OnCluster = true, Own = true },
+        new LabelStep(actors.ExchangeHot, LabelKind.Exchange, "Nordbörsen (het plånbok)"),
+        new LabelStep(actors.Exchange, LabelKind.Exchange, "Nordbörsen"),
+        new LabelStep(actors.SouthExchange, LabelKind.Exchange, "Sydbörsen"),
+        new LabelStep(actors.NoKycExchange, LabelKind.NoKycExchange, "Snabbväxlaren"),
+        new LabelStep(actors.Nested, LabelKind.NestedService, "Inbäddade tjänsten"),
+        new LabelStep(actors.Otc, LabelKind.OtcP2P, "Torgväxlaren"),
+        new LabelStep(actors.Atm, LabelKind.CryptoAtm, "Automaten Centralen"),
+        new LabelStep(actors.Card, LabelKind.CryptoCard, "Kryptokortet"),
+        new LabelStep(actors.Gambling, LabelKind.Gambling, "Lyckohjulet"),
+        new LabelStep(actors.Merchant, LabelKind.Merchant, "Elbutiken"),
+        new LabelStep(actors.GiftCard, LabelKind.GiftCard, "Kortkungen"),
+        new LabelStep(actors.Darknet, LabelKind.Darknet, "Skuggtorget"),
+        new LabelStep(actors.Darknet, LabelKind.Sanctioned, "Skuggtorget"),
+        new LabelStep(actors.Mixer, LabelKind.Mixer, "Blandaren"),
+        new LabelStep(actors.Sanctioned, LabelKind.Sanctioned, "Sanktionerad aktör"),
+        new LabelStep(actors.Swap, LabelKind.SwapBridge, "Bytaren"),
+    ];
+
+    /// <summary>
+    /// Gives the expansions made from the start: the money from the victim through the consolidation, the change, the
+    /// distribution (which brings the mixer's payout, the CoinJoin and the hub's payment) and the whole peel chain, and
+    /// the miner's reward with the shared transaction.
+    /// </summary>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> Expansions() =>
+    [
+        new ExpandStep(TestStoryChain.VictimPayment),
+        new ExpandStep(TestStoryChain.Consolidation),
+        new ExpandStep(TestStoryChain.ChangePayment),
+        new ExpandStep(TestStoryChain.Distribution),
+        .. TestStoryChain.PeelHops.SkipLast(1).Select(hop => new ExpandStep(hop)),
+        new ExpandStep(TestStoryChain.MinerReward),
+    ];
+}
+#endif

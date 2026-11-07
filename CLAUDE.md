@@ -468,6 +468,8 @@ Samma arbetssätt som Gawk (användarens beslut 2026-11-06):
   på Windows. Det som ska provas där skrivs i `docs/TESTER-INFOR-1.0.md`.
 - **Heuristiker testas mot ett facit:** syntetiska tx-mönster (peel chain, CoinJoin, konsolidering, börsens sweep) som
   testdata, så att varje heuristik har tester som visar vad den slår ihop och vad den låter bli.
+- **Testärendet `/testdata`** (bara Debug) fylls på när något nytt byggs, så att allt går att se i det
+  (`src/Chainsaw.App/TestData/TestStory.cs`).
 - **.NET i molnmiljön:** `apt-get update && apt-get install -y dotnet-sdk-10.0`. Bygg och testa med `dotnet build` och `dotnet test` i roten.
 
 ## Dokumentation

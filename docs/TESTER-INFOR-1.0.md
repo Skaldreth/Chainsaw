@@ -1014,3 +1014,14 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
 - [ ] *Nytt ärende … Ctrl+N* stänger rutan och öppnar panelen Nytt ärende.
 - [ ] Ärendeväljaren, utgångarnas ruta och kommandoraden är aldrig öppna samtidigt, och ärendeväljaren stängs när Chainsaw låses.
+
+## Testärendet (/testdata)
+- [ ] Bygg och kör i Debug (`dotnet run --project src/Chainsaw.App`), lås upp och skriv `/testdata` i kommandoraden (Ctrl+K). Efter några sekunder står *Testärendet TEST-0001 skapades med påhittade data och är öppet*, och grafen visar det; ett andra `/testdata` ger TEST-0002. I ett Release-bygge finns kommandot inte, och `/help` visar det bara i Debug.
+- [ ] Ärendeväljaren visar också TEST-0001-KOLLEGA, kollegans ärende där etiketten från ett annat ärende sattes.
+- [ ] Grafen har startpunktens flagga (offrets betalning till bedragaren är startpunkten), och varje sort i bildspråket finns: offer, kluster, okänd, börs (Nordbörsen med *Uttag funnet*), utan KYC (Snabbväxlaren, streckad), nästlad, OTC, automat, kort, spel, handel, presentkort, darknet (Skuggtorget med sanktionsmärket), garanti (Garantitorget med märket *från ett annat ärende*), mixer, CoinJoin (Whirlpool-tx:en), sanktion, swap, delad tx (gruvbelöningens mynt och en annan ägare), mynt (gruvbelöningens P2PK och OP_RETURN) och annan kedja (lila, från Bytaren). *Kan frysas* saknas (kräver Ethereum, se TODO).
+- [ ] *Varför?* på *Bedragarens plånbok* förklarar konsolideringen (common-input-ownership); klustret med växeladressen förklarar växeln med tre tecken.
+- [ ] *Förslag · N* har *Troliga utgångar ur mixern* att avgöra (två kandidater), och områden för CoinJoin, peel chain och föreslagna plånböcker; den egna ytan *Uttagsvägar* ligger runt börserna.
+- [ ] Bevakningen *Bedragarens andra plånbok* har ett öga i grafen och en träff som väntar (ett nytt offer betalar in) med animerade ringar; vyn Bevakning visar träffen. Inget av testärendet hamnar i bakgrundsprocessens plan.
+- [ ] Expandera själv: *Navet* (fler än 50 tx, så resten hålls tillbaka, och många motparter), mixerns troliga utgång (går vidare till Sydbörsen), *Offret* (utbetalat från Nordbörsens heta plånbok), en av Whirlpool-utgångarna och bedragarens andra plånbok (det nya offrets betalning).
+- [ ] Allt fungerar med VPN valt och ingen utgång ansluten: testärendet frågar aldrig nätet efter kedjedata. Ett riktigt ärende som öppnas samtidigt frågar som vanligt genom utgången.
+- [ ] `/verify` på testärendet säger att inget har ändrats, och en tx i inspektören visar källan *testdata* och endpointen *testdata (påhittade data, bara Debug)*.

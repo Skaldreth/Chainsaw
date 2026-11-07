@@ -81,11 +81,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 26. **Sidan Källor i inställningarna** (KL1a) ser stökig ut (användarens skärmdump 2026-11-07): kedjebrickorna,
     lägesväljaren med förklaring, raderna med adress, stapel, ms, brytare och kryss, och *Prova alla nu* syns på en
     gång. Komplexiteten döljs där det går men ingen information tappas. Skissas om (KL2a, KL2b).
-27. **Ett testärende med allt** (användarens önskemål 2026-11-07): `/testdata` i Debug-bygget, som i Gawk, skapar ett
-    påhittat ärende där all funktionalitet syns utan att leta upp en riktig adress. Kedjedata kommer från en påhittad
-    källa som bara finns i Debug, så expansionerna fungerar offline. Fylls på när något nytt byggs.
 
-Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
+Klart ur listan 2026-11-07: testärendet `/testdata` (punkt 27, se *Testärendet* nedan);
+*Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
 bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje vid hovring; piller med 1,5 px kant.
 
@@ -761,6 +759,20 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **Test saknas** för en omläsning av grafen medan en ångring sparas (granskningen omgång 3, M4).
 - En adressnod visar inte en klusteretikett som sitter på en annan adress i ett kluster den inte är en del av i grafen
   (granskningen omgång 1, M5).
+
+### Testärendet (/testdata)
+
+- **Kan frysas** syns inte i testärendet: det kräver USDT eller USDC på Ethereum, och Blockscout-källan går inte lika
+  lätt att fejka som Esplora (tx, kvitton med Transfer-loggar, tokenuppgifter). En påhittad Ethereum-källa på samma sätt
+  (en egen `ISourceApi` i Debug) och en del av berättelsen på Ethereum fyller luckan; TRON när den kedjan byggs.
+- **Kurser** för testärendets tider hämtas från Bitstamp som i ett riktigt ärende (bara tiden skickas, aldrig
+  adresserna). En påhittad kurskälla i Debug skulle göra testärendet helt fritt från nätet.
+- **Uppbrytning** och **ett avgjort förslag** finns inte från början; användaren provar dem själv. Lägg gärna till ett
+  steg för var och en, så att historiken (AN1b) har något att visa direkt.
+- **Kollegans etiketter** (Garantitorget, Nordbörsen) ligger kvar i etikettbiblioteket på datorn efter `/testdata`. De
+  gäller bara påhittade adresser och kan aldrig träffa en riktig, men biblioteket saknar ännu ett sätt att rensa dem.
+- **Ledtrådsnoden, samlingsnoden och dolda OP_RETURN** byggs av en annan agent; Navet (66 tx, många motparter) och
+  gruvbelöningens OP_RETURN finns i testärendet för dem.
 
 ### Övrigt
 - **Registrera länken `chainsaw:`** för användaren (HKCU\Software\Classes\chainsaw med `URL Protocol` och

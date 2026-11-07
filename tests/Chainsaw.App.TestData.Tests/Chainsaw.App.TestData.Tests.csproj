@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <!--
+    The test case (/testdata, Debug only) is built through the real modules, as the program builds it, so this project
+    references their implementations; tests/Chainsaw.App.Tests keeps to the contracts, as the view models do.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Chainsaw.SharedKernel\Chainsaw.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Cases\Chainsaw.Modules.Cases\Chainsaw.Modules.Cases.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Chains\Chainsaw.Modules.Chains\Chainsaw.Modules.Chains.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Clustering\Chainsaw.Modules.Clustering\Chainsaw.Modules.Clustering.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Attribution\Chainsaw.Modules.Attribution\Chainsaw.Modules.Attribution.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tracing\Chainsaw.Modules.Tracing\Chainsaw.Modules.Tracing.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Checks\Chainsaw.Modules.Checks\Chainsaw.Modules.Checks.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Monitoring\Chainsaw.Modules.Monitoring\Chainsaw.Modules.Monitoring.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Pricing\Chainsaw.Modules.Pricing.Contracts\Chainsaw.Modules.Pricing.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Network\Chainsaw.Modules.Network.Contracts\Chainsaw.Modules.Network.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Security\Chainsaw.Modules.Security.Contracts\Chainsaw.Modules.Security.Contracts.csproj" />
+  </ItemGroup>
+  <!-- The parts of Chainsaw.App without WPF, as tests/Chainsaw.App.Tests compiles them, and the test case. -->
+  <ItemGroup>
+    <Compile Include="..\..\src\Chainsaw.App\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\ViewModels\*.cs" Link="ViewModels\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Figure\*.cs" Link="Figure\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Settings\*.cs" Link="Settings\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Commands\*.cs" Link="Commands\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Links\*.cs" Link="Links\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Graph\*.cs" Link="Graph\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Exits\*.cs" Link="Exits\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Guide\*.cs" Link="Guide\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\TestData\*.cs" Link="TestData\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
