@@ -124,33 +124,47 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 
 ## Nästa steg
 
-**Läget 2026-11-07 sent (före compact):** användarens polerlista står i `docs/TODO.md` under *Polering först*, punkt
-1–23, och tas i tur och ordning. Klart: 1–9, 12, 16 (toastern, IN2b, IN1b, hörnet, skuggan, BV3a, undermenyn, pillret,
-Terminal borta). **Agenter i bakgrunden** (var sin worktree under `.claude/worktrees/`, committar men pushar inte;
-huvudsessionen slår ihop, lägger in deras TESTER-INFOR-rader och pushar):
-- mempool: *Inget nytt att hämta* och 6 minuter för 53 uppslag (punkt 4);
-- ÄV1a, ärendeväljaren (punkt 10);
-- Bevakningens tomma läge, huvud och högra panel (punkt 13 och 14);
-- statusraden bort och kommandoraden som Spotlight med Ctrl+K (punkt 15 och 18);
-- sonarpulsen runt *Nytt ärende* (punkt 19).
-Kvar för huvudsessionen: skisser för punkt 11 (grafens ikon), 17 (bildspråket), 21 (gruppera ärenden i startvyn) och
-23 (utgångsrutan); etapperna 20 (soptunnan, också för ärenden i startvyn) och 22 (samlingsnoden vid expansion).
-Kör bara de tester som berör ändringen (användarens önskemål).
+**Läget 2026-11-07 natt (före clear).** Användarens polerlista står i `docs/TODO.md` under *Polering först*, punkt
+1–31, och tas i tur och ordning. Inget har högre prioritet. Kör bara de tester som berör ändringen (användarens önskemål).
 
+**Klart och pushat i den här omgången** (rader att prova i `docs/TESTER-INFOR-1.0.md`):
+- toastern TO1a, ikonlisten IN2b, formulären IN1b och BV3a;
+- pillret följer ärendet, Terminal borta, ÄV1a med Ctrl+O, Spotlight-kommandoraden (Ctrl+K), statusraden borta;
+- Bevakningens tomma läge, UT2b, grafens ikon IK1 *Förgrening*;
+- Windows utan nät och utan internet: ett https-prov genom proxyn, inte ping;
+- mempool-rättelsen och panorering med höger- och mittknappen som i Gawk (`Motion/`);
+- ikonlisten krymper vid zoom;
+- **etappen EX1/EX2b**: ledtrådsnoden, samlingsnoden med valvyn, dolda OP_RETURN med en kvardröjande toast, och att
+  grafen använder ytan.
 
-Uppdaterat 2026-11-07 sent på kvällen. Etapp 27 är inne och hela sviten är grön (2 281 tester). De fem felen på
-Windows är rättade och användaren har kört sviten utan fel. Felrättningarna utan ny form och GR6c (utan läget
-*Startpunkten tillagd*, se TODO) är byggda.
+**Agenter som arbetade när sessionen rensades.** De ligger i worktrees under `.claude/worktrees/`, committar men pushar inte.
+Finns en commit på grenen, slå ihop den med `git merge worktree-agent-<id>`, behåll båda sidor i dokumenten, kör de
+berörda testerna och pusha. Saknas en commit, eller är arbetet halvfärdigt, gör om uppgiften.
+- `agent-acb8dc3c7028fbf03`: **testärendet `/testdata`** (punkt 27), bara i Debug, med en påhittad kedjekälla.
+  Det var ännu inte committat.
+- `agent-a590e627fec3f3248`: **startvyns högar GR8a** (punkt 21), med högen ritad som grafens samlingsnod och samma
+  stöt och centrering. Den fick besked om att återanvända `PileFanLayout`.
+- **Oberoende granskning** av EX1/EX2b-etappen (merge `3e27ee1`). Den rapporterar fynd men ändrar inget. Kör om den
+  om rapporten saknas.
+- **Skissen IN4** (`HoldingsFlip.dc.html` i scratchpadens `canvas/project/`): innehavet vänds med Alt + klick. Den är
+  inte publicerad. Gör om den om filen saknas.
 
-1. **Färgerna ID9b** är bytta (accenten terrakotta och skiffer som botten) och loggan i `assets/logo/` med dem.
-   Provas på Windows.
-2. **Polering först**, i ordning (`docs/TODO.md`, *Polering först*): **ÄV1a**, ärendeväljaren; sedan det som saknar
-   knapp (tona de obyggda vyerna i pillret, Bevaka och Kopiera i inspektören, zoom och passa in i grafens hörn,
-   dubbelklick som expanderar); sedan en kort testrunda av användaren på Windows.
-3. **Godkänt men inte byggt, efter poleringen:** EX1/EX2b, SO1a (soptunnan, Delete), TL1a, BG1b, att allt följer med
-   en etikett, Windows som utgång utan nät. Allt står i CLAUDE.md och TODO.
-4. **Öppna frågor till användaren:** etapp 26:s tre val (TODO *Bevakning (etapp 26)*), endpointarnas takt (TODO
-   *Väntar på beslut*), Guiden från spårningsmetoden, och frågorna till kryptospåraren i `docs/KRYPTOSPARAREN.md`.
+**Val som väntar på användaren** (skisserna ligger på canvasen):
+- **KL2a eller KL2b**: sidan Källor (punkt 26), under Inställningar.
+- **SN1a eller SN1b**: sonarn (punkt 31), under Grafen, omgång 17. Användarens reglagevärden förs in i `SonarRing`.
+- **IN4**: innehavet (punkt 28) när skissen är publicerad.
 
-**Canvasen:** läs alltid in den levande `project/canvas.json` (Artifact `read` med `path`) innan något läggs ut, och
-slå ihop; användaren kan ha flyttat tavlor. Sidorna och skisserna står i CLAUDE.md under *Skisserna*.
+**Godkänt och inte byggt.** Bygg i den här ordningen, en etapp i taget i grafen eftersom filerna är gemensamma:
+1. **Bildspråkets ruta GR7a** (punkt 17).
+2. **Kommentarsnoden KN1a**, med Gawks Markdown-parser, storlekshandtag och sparad i ärendet (punkt 24–25).
+3. **Soptunnan SO1a**, också för ärenden i startvyn, med frågan om bevakningar (punkt 20).
+4. **Det som återstår av EX2** (TODO, *Ledtrådsnoden och samlingsnoden*).
+5. Grafens offlinetext säger *ingen utgång ansluten* också när Windows saknar nät. Den ska rättas.
+
+**Erbjudet, inte svarat:** Ctrl+W som stänger ärendet och går till start.
+
+**Canvasen:** läs alltid in den levande `project/canvas.json` med Artifact `read` och `path` innan något läggs ut, och
+slå ihop. Användaren kan ha flyttat tavlor. Lokala kopior av tavlorna och canvas.json ligger i
+`/tmp/claude-0/-home-user/bca05bd4-48dc-4768-aef6-4ae127968446/scratchpad/canvas/project/`. För att provrendera: lägg
+`dc-runtime.js` som `support.js` i `scratchpad/preview/` och servera mappen över http. Skisserna står i CLAUDE.md under
+*Skisserna*.
