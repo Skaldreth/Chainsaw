@@ -83,9 +83,11 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 27. **Ett testärende med allt** (användarens önskemål 2026-11-07): `/testdata` i Debug-bygget, som i Gawk, skapar ett
     påhittat ärende där all funktionalitet syns utan att leta upp en riktig adress. Kedjedata kommer från en påhittad
     källa som bara finns i Debug, så expansionerna fungerar offline. Fylls på när något nytt byggs.
-28. **Innehav per adress** (användarens önskemål 2026-11-07): adressens saldo och totala summa (in och ut), som
-    fakta från kedjan vid en blockhöjd (Esplora ger `chain_stats`), i inspektören och kanske svagt på noden. Hur det
-    visas på noden skissas.
+28. **Innehav per adress** (användarens beslut 2026-11-07, efter IN3a–d som inte blev rätt): innehavet är **dolt** på
+    noden. **Alt + klick** på en nod vänder den som ett kort, och baksidan visar beloppen: det som ligger kvar i rätt
+    tecken (₿, Ξ, ₮; inte ett B) och samma belopp i inställd valuta (SEK) till dagens kurs. **Inspektören** visar allt
+    som passerat adressen, hur mycket som ligger kvar och hur mycket som gått ut. Fakta från kedjan vid en blockhöjd
+    (Esplora `chain_stats`); kursen med källa. Vändningen skissas (IN4) innan den byggs.
 29. **Panorering:** *byggd 2026-11-07*, höger- och mittknappen panorerar (också över en nod) och ytan glider vidare
     som i Gawk; ett högerklick utan rörelse öppnar nodens meny. Vänsterknappen drar bara noder.
 30. **Använd ytan:** *byggt 2026-11-07, väntar på prov på Windows:* ett hopp med fler än åtta aktörer sprids över

@@ -341,6 +341,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   på en gång. Resten ligger kvar i högen.
 - **Utgångar som aldrig kan spenderas** (OP_RETURN, 0 BTC) **döljs** i grafen (användarens beslut 2026-11-07): en toast
   som ligger kvar längre än vanligt säger hur många som döljs, med en knapp som visar dem.
+- **Innehavet per adress** (användarens beslut 2026-11-07): dolt på noden; **Alt + klick** vänder noden som ett kort,
+  och baksidan visar det som ligger kvar i rätt tecken (₿, Ξ, ₮) och i inställd valuta (SEK) till dagens kurs.
+  Inspektören visar allt som passerat, hur mycket som ligger kvar och hur mycket som gått ut, vid en blockhöjd.
 - **Kommentarsnoden är KN1a** (användarens beslut 2026-11-07): en nod som bara är en kommentar, en lapp på ytan i en
   svag varm ton med ett vikt hörn, skriven i Markdown **direkt i noden** (tecknen dämpade medan man skriver, renderat när
   man lämnar). Den växer med texten och har ett handtag i nedre högra hörnet (vid hovring eller val) som drar den till
