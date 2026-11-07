@@ -412,10 +412,9 @@ offline och se att det sägs ärligt). Grafen är förstavyn.
   *haircut*, beloppen räknas om och tjocklekarna ändras.
 - Välj en linje: inspektören visar *Belopp*, *Spårat*, *Tid* (lokal tid och UTC), *Tx*, varje txid i sin helhet och
   *Block nnn · hash*. Kontrollera en txid och blockhash mot en blockutforskare.
-- *Varför?* visar förklaringarna: för en linje att beloppet är summan av överföringar (fakta) och det spårade beloppet
-  med metod, version och tx (en bedömning); för en nod etiketten och dess ursprung, klustrets heuristiker med version
-  och tx, varför spåret tar slut. Länkarna *Guiden: …* visar vyn Guide (inte byggd än) och svaret ovanför
-  kommandoraden säger var avsnittet finns.
+- *Varför?* öppnar Guidens panel (etapp 18) med förklaringarna överst: för en linje att beloppet är summan av
+  överföringar (fakta) och det spårade beloppet med metod, version och tx (en bedömning); för en nod etiketten och
+  dess ursprung, klustrets heuristiker med version och tx, varför spåret tar slut.
 
 **Efter granskningen**
 - Ett klick på en nod eller linje väljer den (inspektören fylls); ett drag flyttar noden och sparas en gång.
@@ -491,3 +490,40 @@ Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunnel
 - Lås Chainsaw (Ctrl+L) med rutan ute eller under steget: efter upplåsning är rutan stängd och filen glömd. En fil som
   väljs efter att Chainsaw låsts medan filväljaren var öppen används inte.
 - Anslut den nya utgången: tunneln startar och vägen blir grön (kräver tunneln från etapp 13 och nät).
+
+## Guiden (etapp 18, GD1b)
+
+**Panelen bredvid grafen**
+- Välj en nod och klicka *Varför?*: en panel (440 px) glider inte in utan står direkt till höger, över inspektören, med
+  skugga mot grafen. Grafen mörkas inte och går att panorera, zooma och klicka i medan panelen är öppen.
+- Överst en ruta med magenta kant till vänster: *Varför? · nodens namn* och alla förklaringar. En förklaring som hör till
+  ett annat avsnitt har en länk under sig med avsnittets titel.
+- Under rutan avsnittet: titeln, och den rubrik som svarar har en magenta linje till vänster och står överst i den
+  synliga ytan. Prova: ett kluster öppnar *Common-input-ownership* vid *Idén* (när klustrets länkar kommit), en börs
+  eller en adress med etikett *Etiketter* vid *En etikett är alltid en bedömning*, en mixer *Varför ett spår tar slut*
+  vid *Riktiga slut*, en startpunkt utan annat *Startpunkter*.
+- Välj en annan nod med panelen öppen: panelen följer med och visar den nya nodens svar. Pilen uppe till vänster går
+  tillbaka till den förra. Pilen är tonad när det inte finns något att gå tillbaka till.
+- Klicka på en länk i texten (magenta, understruken på hovring), till exempel *Adresstyper* i *Startpunkter*: avsnittet
+  byts, och pilen går tillbaka.
+- Längst ner *Läs också* med avsnitten texten länkar till.
+- × stänger, och Esc stänger var tangentbordet än är (utom i kommandoraden och i Nytt ärende). Ett andra Esc i grafen
+  väljer inget, som förut.
+- Högerklicka på *FIFO* i grafens hörn: panelen öppnas vid *FIFO (först in, först ut)* med det spårade överst. Ett
+  vanligt klick byter fortfarande metod. Efter byte till haircut: högerklick öppnar vid *Haircut (andel)*.
+- *?* nere till vänster visar bildspråket; länken *Guiden: Grafen och bildspråket* stänger bildspråket och öppnar
+  panelen vid avsnittets början. Med panelen redan öppen blir det ett steg, och pilen går tillbaka.
+- Byt vy i pillret: panelen stängs.
+
+**Texten**
+- Fetstil i ljus text, kursiv, kod (adresser, `coinjoin v1`) i Cascadia Mono på en upphöjd yta, punktlistor med en
+  liten prick, numrerade listor (*Kurser*), inskjutna listor (*CoinJoin*: Whirlpool, Wasabi, JoinMarket), citat med en
+  linje till vänster (*UTXO-modellen*: summan av inputs …), kodblock (*Peel chain*, *Kurser*) som krymper i stället för
+  att brytas om panelen är smal, och tabeller (*Adresstyper*, *Växeladress*) med kolumner som delar bredden.
+- Inga tecken som `**`, `` ` `` eller `](` syns någonstans.
+
+**Vyn Guide (F1)**
+- F1 eller Guide i pillret: avsnitten i fyra grupper (Bitcoin, Klustring, Spårning, Etiketter) till vänster, det valda
+  i markerad yta, och texten i läsbredd (högst 620 px) till höger. Kommandoraden täcker inte textens slut.
+- *Öppna i Guide* i panelen: vyn Guide visas vid samma avsnitt och rubrik, med *Tillbaka till grafen* överst, som går
+  tillbaka till grafen. Panelen är stängd.

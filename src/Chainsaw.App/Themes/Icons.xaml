@@ -16,6 +16,10 @@
     <Geometry x:Key="Icon.Tag">M3.5 12V3.5H12l8.5 8.5-8.5 8.5z M8 8h.01</Geometry>
     <Geometry x:Key="Icon.Terminal">M4 6l5 5-5 5 M11 17h9</Geometry>
     <Geometry x:Key="Icon.Guide">M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5</Geometry>
+    <!-- The Guide's panel (sketch GD1b): back through what was read, close, and open in the view Guide. -->
+    <Geometry x:Key="Icon.Back">M15 18l-6-6 6-6</Geometry>
+    <Geometry x:Key="Icon.Close">M6 6l12 12 M18 6L6 18</Geometry>
+    <Geometry x:Key="Icon.Open">M14 4h6v6 M20 4l-9 9 M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5</Geometry>
     <Geometry x:Key="Icon.Settings">M4 7h9 M17 7h3 M4 17h3 M11 17h9 M15 5v4 M9 15v4</Geometry>
 
     <!-- The lock screen and the first-run setup (sketches ID7 and FS1a). -->

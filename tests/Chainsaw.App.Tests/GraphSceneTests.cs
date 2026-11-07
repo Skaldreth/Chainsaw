@@ -466,7 +466,7 @@ public sealed partial class GraphSceneTests
 
     /// <summary>Finds the repository's root, where <c>Chainsaw.slnx</c> lies.</summary>
     /// <returns>The root.</returns>
-    private static string Root()
+    internal static string Root()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Chainsaw.slnx")))

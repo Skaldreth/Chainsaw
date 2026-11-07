@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.App.Graph;
 
@@ -39,6 +40,15 @@ public enum GuideTopic
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
 public static class GuideTopics
 {
+    /// <summary>The graph's heading that explains the inspector and <em>Varför?</em>.</summary>
+    public const string InspectorHeading = "Inspektören och Varför?";
+
+    /// <summary>The heading of the ends that can still be followed.</summary>
+    public const string OpenEndsHeading = "Inte slut än";
+
+    /// <summary>The heading of the real ends of a trail.</summary>
+    public const string RealEndsHeading = "Riktiga slut";
+
     /// <summary>Gives the section's file in <c>docs/guide</c>, without <c>.md</c>.</summary>
     /// <param name="topic">The section.</param>
     /// <returns>The file's name.</returns>
@@ -65,7 +75,7 @@ public static class GuideTopics
         GuideTopic.Methods => "Spårningsmetoder",
         GuideTopic.TrailEnds => "Varför ett spår tar slut",
         GuideTopic.Labels => "Etiketter",
-        GuideTopic.CommonInputOwnership => "Gemensamma inputs",
+        GuideTopic.CommonInputOwnership => "Common-input-ownership",
         GuideTopic.ChangeAddress => "Växeladress",
         GuideTopic.PeelChain => "Peel chain",
         GuideTopic.CoinJoin => "CoinJoin",
@@ -84,4 +94,38 @@ public static class GuideTopics
         HeuristicNames.CoinJoin => GuideTopic.CoinJoin,
         _ => null,
     };
+
+    /// <summary>
+    /// Gives the heading that answers best when a section is opened from <em>Varför?</em>: for a heuristic the
+    /// heading that says what it looks for, for a label that a label is a judgement.
+    /// </summary>
+    /// <param name="topic">The section.</param>
+    /// <returns>The heading as written in the text, or <see langword="null"/> to open the section at its top.</returns>
+    public static string? DefaultHeading(this GuideTopic topic) => topic switch
+    {
+        GuideTopic.CommonInputOwnership => "Idén",
+        GuideTopic.ChangeAddress => "När slås växeln ihop?",
+        GuideTopic.PeelChain => "Hur Chainsaw känner igen den",
+        GuideTopic.CoinJoin => "Vad Chainsaw tittar efter",
+        GuideTopic.Labels => "En etikett är alltid en bedömning",
+        GuideTopic.Graph => InspectorHeading,
+        _ => null,
+    };
+
+    /// <summary>Gives the heading in <em>Spårningsmetoder</em> that explains a method.</summary>
+    /// <param name="method">The method.</param>
+    /// <returns>The heading as written in the text.</returns>
+    public static string MethodHeading(TracingMethodKind method) =>
+        method == TracingMethodKind.Haircut ? "Haircut (andel)" : "FIFO (först in, först ut)";
+
+    /// <summary>
+    /// Gives the heading in <em>Varför ett spår tar slut</em> for an end: the ends that can still be followed (not
+    /// expanded, unspent, conflicting) or the real ones.
+    /// </summary>
+    /// <param name="reason">The end's reason.</param>
+    /// <returns>The heading as written in the text.</returns>
+    public static string EndHeading(TrailEndReason reason) =>
+        reason is TrailEndReason.NotExpanded or TrailEndReason.Unspent or TrailEndReason.Conflicting
+            ? OpenEndsHeading
+            : RealEndsHeading;
 }

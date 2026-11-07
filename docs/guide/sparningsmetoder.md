@@ -43,7 +43,7 @@ Oavsett metod går summan alltid jämnt ut, på satoshin:
   *Avgift till minerare*.
 - Haircut räknar i hela satoshi. Varje del avrundas först nedåt, och de satoshi som blir över delas ut en i taget till
   de delar som hade störst rest. Därför blir summan aldrig en satoshi för mycket eller för lite.
-- Allt som spårats slutar någonstans med en orsak (se *Varför ett spår tar slut*). Summan av sluten är alltid det man
+- Allt som spårats slutar någonstans med en orsak (se [Varför ett spår tar slut](sparet-tar-slut.md)). Summan av sluten är alltid det man
   började spåra. Chainsaw kontrollerar det och vägrar visa ett spår som inte går ihop.
 
 ## Vilken ska jag välja?

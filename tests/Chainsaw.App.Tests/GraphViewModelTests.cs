@@ -1,4 +1,5 @@
 using Chainsaw.App.Graph;
+using Chainsaw.App.Guide;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
@@ -105,7 +106,8 @@ public sealed class GraphViewModelTests
             Workflow = new CaseWorkflow(new TestCaseStore(), Tracing, new TestVault(VaultState.Unlocked), Session);
             Graph = new GraphViewModel(Session, Workflow, Source, Exit, new InlineUi());
             Graph.FitWanted += (_, _) => Fits++;
-            Graph.GuideWanted += (_, topic) => Guides.Add(topic);
+            Graph.GuideWanted += (_, request) => Guides.Add(request);
+            Graph.WhyChanged += (_, request) => Followed.Add(request);
             if (open)
             {
                 Session.Open(Case);
@@ -128,7 +130,9 @@ public sealed class GraphViewModelTests
 
         public int Fits { get; set; }
 
-        public List<GuideTopic> Guides { get; } = [];
+        public List<GuideRequest> Guides { get; } = [];
+
+        public List<GuideRequest?> Followed { get; } = [];
     }
 
     /// <summary>Without a case the graph says so, and reads nothing.</summary>
@@ -329,19 +333,47 @@ public sealed class GraphViewModelTests
         Assert.True(rig.Graph.Why.Count > rig.Graph.Inspection!.Why.Count);
     }
 
-    /// <summary>Varför? opens and closes, and a section of the Guide is asked for.</summary>
+    /// <summary>
+    /// Varför? asks for the Guide with the chosen thing's answers on top, and nothing chosen asks for nothing; the
+    /// legend's ? and the method ask for their sections.
+    /// </summary>
     [Fact]
-    public void WhyLinksToTheGuide()
+    public void WhyAsksForTheGuide()
     {
         var rig = new Rig();
-        rig.Graph.ToggleWhy();
-        Assert.True(rig.Graph.IsWhyOpen);
+        rig.Graph.AskWhy();
+        Assert.Empty(rig.Guides);
 
-        rig.Graph.OpenGuide(new WhyLine("x", GuideTopic.Methods));
-        rig.Graph.OpenGuide(new WhyLine("y", null));
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.Graph.AskWhy();
         rig.Graph.OpenGuideTopic(GuideTopic.Graph);
+        rig.Graph.OpenMethodGuide();
 
-        Assert.Equal([GuideTopic.Methods, GuideTopic.Graph], rig.Guides);
+        var why = rig.Guides[0];
+        Assert.Equal(GraphSamples.UKey, why.Subject);
+        Assert.Equal("Varför? · " + rig.Graph.Inspection!.Title, why.Context!.Label);
+        Assert.Equal(rig.Graph.Why.Select(line => line.Text), why.Context.Lines.Select(line => line.Text));
+        Assert.Equal(GuideRequest.ForTopic(GuideTopic.Graph), rig.Guides[1]);
+        Assert.False(rig.Graph.IsLegendOpen);
+        Assert.Equal(GuideTopic.Methods, rig.Guides[2].Topic);
+        Assert.Equal("FIFO (först in, först ut)", rig.Guides[2].Heading);
+        Assert.Null(rig.Guides[2].Subject);
+    }
+
+    /// <summary>The panel can follow: a new choice, and a cluster's answers when they come, say so.</summary>
+    [Fact]
+    public void ChoosingTellsThePanel()
+    {
+        var rig = new Rig();
+
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        rig.Graph.Choose(null, null);
+
+        Assert.True(rig.Followed.Count >= 2);
+        Assert.All(
+            rig.Followed.Take(rig.Followed.Count - 1), request => Assert.Equal(GraphSamples.KKey, request!.Subject));
+        Assert.Contains("Länk", rig.Followed[^2]!.Context!.Lines.Select(line => line.Text));
+        Assert.Null(rig.Followed[^1]);
     }
 
     /// <summary>Expanding a chosen node asks for its addresses, shows the graph after it and says what came.</summary>

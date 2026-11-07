@@ -150,13 +150,17 @@
                     -->
                     <Grid>
 
-                        <!-- The graph (sketch GR4), the one view that is built. -->
+                        <!-- The graph (sketch GR4). -->
                         <views:GraphView x:Name="GraphPage"
                                          Visibility="{Binding IsGraphShown, Converter={StaticResource VisibleWhen}}" />
 
+                        <!-- The Guide (F1, sketch GD1a in a simple form). -->
+                        <views:GuideView x:Name="GuidePage"
+                                         Visibility="{Binding IsGuideShown, Converter={StaticResource VisibleWhen}}" />
+
                         <!-- A view that is not built yet: the page says so, with the view's icon, and never shows made-up data. -->
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80"
-                                    Visibility="{Binding IsGraphShown, Converter={x:Static controls:InvertVisibility.Instance}}">
+                                    Visibility="{Binding IsPlaceholderShown, Converter={StaticResource VisibleWhen}}">
                             <controls:GridIcon Size="40" Foreground="{StaticResource Brush.TextFaint}" HorizontalAlignment="Center"
                                                Data="{Binding CurrentEntry.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
                             <TextBlock Text="{Binding CurrentEntry.Name}" FontSize="14" Foreground="{StaticResource Brush.TextDim}"
@@ -222,6 +226,12 @@
                             </Grid>
                         </StackPanel>
                     </Grid>
+
+                    <!--
+                      ===== The Guide beside the work (sketch GD1b): a panel from the right over the inspector, without
+                      darkening the rest. Its data context is the panel's own view model. ===== -->
+                    <views:GuidePanel x:Name="GuidePanel"
+                                      Visibility="{Binding IsOpen, Converter={StaticResource VisibleWhen}}" />
 
                     <!--
                       ===== The pill (decided 2026-11-07, after Gawk's Byggare): the views as round icons, the name on hover,

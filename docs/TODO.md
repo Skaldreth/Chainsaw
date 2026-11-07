@@ -39,6 +39,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   kommersiellt bruk är oklara (se *Kurser*). Bekräfta att Bitstamp får användas, eller välj en annan källa; källan kan
   bytas utan att något annat ändras.
 
+- **Guiden från spårningsmetoden och *?*** (etapp 18, valt av sessionen): ett klick på metoden byter metod som förut,
+  och ett **högerklick** öppnar Guiden vid metoden (verktygstipset säger det). *?* visar bildspråket som förut, och
+  dess länk *Guiden: Grafen och bildspråket* öppnar panelen. I GD1b öppnade ett klick på metoden och på *?* Guiden
+  direkt; då behövs en annan väg att byta metod och se bildspråket. Bekräfta eller välj.
+
 ## Bygga härnäst
 
 
@@ -60,12 +65,16 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   stor graf (en prick per tx blir för många) behöver bestämmas.
 - **Mixerns troliga utgångar** i grafen (GR3a: streckad linje och streckad nod, *Kandidat*), med godkänn och avfärda.
   Kräver analysen som föreslår dem (belopp minus avgift, tid, adresstyp).
-- **Guiden som vy:** *Varför?* och *?* länkar till avsnitten, men vyn Guide är inte byggd; svaret säger var texten finns.
 - **Länka till en annan kedja och etiketter i grafen:** inspektören visar länkar och etiketter men kan inte sätta dem
   än (Tracing och Attribution har stödet). Behöver skiss för formulären.
 - **Bryta upp ett kluster** från inspektören (Clustering har `Split`). Behöver skiss.
 - Skalet: sidopanelen och vyernas ordning.
-- Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal, Guide.
+- Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.
+- **Guidens figurer** (GD1b och GD1a): skisserna har små figurer i avsnitten (UTXO, common-input-ownership, växeln,
+  peel chain, CoinJoin, spårningsmetoderna) ritade med grafens bildspråk. Inte byggda i etapp 18; texterna står utan
+  dem. Behöver ett sätt att skriva en figur i Markdown (till exempel ett eget block som pekar på en ritning).
+- **Sök i Guiden:** GD1a har en sökruta i vyn. Sök finns bara i kommandoraden (CLAUDE.md), så sökningen bör gå därifrån
+  (till exempel `/guide utxo`). Inte byggt.
 - Begäran om uppgifter till börser: formuläret och mallarna.
 
 ## Senare (efter MVP:n)
@@ -406,6 +415,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Registrera länken `chainsaw:`** för användaren (HKCU\Software\Classes\chainsaw med `URL Protocol` och
   `shell\open\command` till `Chainsaw.exe "%1"`), som ett val i vyn Inställningar, och ta bort registreringen där.
   Mottagandet är byggt i etapp 11 (ett exemplar per användare, named pipe, väntar på upplåsning).
-- **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` (UTXO, adresstyper, common-input-ownership,
-  växeladress, CoinJoin och peel chain finns; kvar är spårningsmetoderna och varför ett spår tar slut).
+- **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` och byggs in i programmet. Ett nytt avsnitt
+  läggs i indexet i `src/Chainsaw.App/Guide/GuideLibrary.cs` (annars hamnar det under *Övrigt*), och länkar mellan
+  avsnitten skrivs `[text](fil.md)` eller `[text](fil.md#ankare)`. Kvar att skriva: begrepp som saknar avsnitt (mixer,
+  brygga och swap, kryptoautomat, kan frysas).
 - **Testdata:** `/testdata` med påhittade ärenden och syntetiska tx-mönster, bara i Debug.

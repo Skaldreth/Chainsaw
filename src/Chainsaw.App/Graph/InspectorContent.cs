@@ -16,7 +16,11 @@ public sealed record InspectorFact(string Name, string Value);
 /// </summary>
 /// <param name="Text">The answer.</param>
 /// <param name="Topic">The Guide's section, or <see langword="null"/>.</param>
-public sealed record WhyLine(string Text, GuideTopic? Topic)
+/// <param name="Heading">
+/// The heading in the section that answers, as written in the text; <see langword="null"/> for the section's own
+/// choice (<see cref="GuideTopics.DefaultHeading"/>).
+/// </param>
+public sealed record WhyLine(string Text, GuideTopic? Topic, string? Heading = null)
 {
     /// <summary>Gets whether the line links to the Guide.</summary>
     public bool HasTopic => Topic is not null;
@@ -244,9 +248,8 @@ public sealed record InspectorContent(
             why.Add(new WhyLine("Ingen etikett: ärendet vet inte vem som äger adressen.", GuideTopic.Labels));
         }
 
-        why.AddRange(model.Ends.Select(end => new WhyLine(
-            $"{end.Reason.Describe()}: {end.Explanation} ({end.Source})",
-            end.Reason == TrailEndReason.CoinJoin ? GuideTopic.CoinJoin : GuideTopic.TrailEnds)));
+        why.AddRange(model.Ends.Select(end =>
+            EndLine($"{end.Reason.Describe()}: {end.Explanation} ({end.Source})", end.Reason)));
         why.AddRange(TraceWhy(scene, node));
         why.AddRange(ExpansionWhy(model));
         if (model.Hop is { } hop)
@@ -257,6 +260,17 @@ public sealed record InspectorContent(
 
         return why;
     }
+
+    /// <summary>
+    /// Answers why a trail ends at a node, linked to the Guide: a CoinJoin to its own section, any other end to the
+    /// heading for its kind of end.
+    /// </summary>
+    /// <param name="text">The answer.</param>
+    /// <param name="reason">The end's reason.</param>
+    /// <returns>The answer with its section.</returns>
+    private static WhyLine EndLine(string text, TrailEndReason reason) => reason == TrailEndReason.CoinJoin
+        ? new WhyLine(text, GuideTopic.CoinJoin)
+        : new WhyLine(text, GuideTopic.TrailEnds, GuideTopics.EndHeading(reason));
 
     /// <summary>Answers what the trace says about a node: how much reached it and where the money stops there.</summary>
     /// <param name="scene">The scene.</param>
@@ -289,7 +303,8 @@ public sealed record InspectorContent(
             yield return new WhyLine(
                 $"{end.Key.Describe()}: {AmountText.BtcWithUnit(amount)} stannar här. {end.First().Explanation}"
                 + outdated,
-                GuideTopic.TrailEnds);
+                GuideTopic.TrailEnds,
+                GuideTopics.EndHeading(end.Key));
         }
     }
 

@@ -114,8 +114,13 @@
                         </Button>
                     </StackPanel>
                 </Border>
+                <!-- A click switches the method; a right click opens the Guide at the method (sketch GD1b). -->
                 <Button Style="{StaticResource Button.Graph}" Content="{Binding MethodText}" ToolTip="{Binding MethodToolTip}"
-                        Command="{Binding ToggleMethodCommand}" AutomationProperties.Name="Spårningsmetod" Margin="0,0,10,0" />
+                        Command="{Binding ToggleMethodCommand}" AutomationProperties.Name="Spårningsmetod" Margin="0,0,10,0">
+                    <Button.InputBindings>
+                        <MouseBinding Gesture="RightClick" Command="{Binding OpenMethodGuideCommand}" />
+                    </Button.InputBindings>
+                </Button>
                 <Button Style="{StaticResource Button.Graph}" Content="{Binding LabelsText}" ToolTip="Belopp på linjerna"
                         Command="{Binding CycleLabelsCommand}" AutomationProperties.Name="Belopp på linjerna" />
             </StackPanel>
@@ -268,28 +273,10 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!-- Varför? opens the Guide beside the graph with the answers on top (sketch GD1b). -->
                         <Button Style="{StaticResource Button.Link}" Content="Varför?" Margin="0,10,0,0"
-                                Command="{Binding DataContext.ToggleWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                AutomationProperties.Name="Varför?" />
-                        <ItemsControl Focusable="False" Margin="0,10,0,0"
-                                      ItemsSource="{Binding DataContext.Why, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                      Visibility="{Binding DataContext.IsWhyOpen,
-                                                           RelativeSource={RelativeSource AncestorType=UserControl},
-                                                           Converter={StaticResource Visible}}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type graph:WhyLine}">
-                                    <StackPanel Margin="0,0,0,12">
-                                        <TextBlock Text="{Binding Text}" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}"
-                                                   TextWrapping="Wrap" LineHeight="19" />
-                                        <Button Style="{StaticResource Button.Link}" Content="{Binding TopicText}" Margin="0,4,0,0"
-                                                Visibility="{Binding HasTopic, Converter={StaticResource Visible}}"
-                                                Command="{Binding DataContext.OpenGuideCommand,
-                                                                  RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                Command="{Binding DataContext.AskWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                AutomationProperties.Name="Varför?" ToolTip="Förklaringen i Guiden, bredvid grafen" />
                     </StackPanel>
                 </ScrollViewer>
             </Grid>

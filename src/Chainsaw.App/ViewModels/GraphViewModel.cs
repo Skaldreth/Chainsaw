@@ -1,4 +1,5 @@
 using Chainsaw.App.Graph;
+using Chainsaw.App.Guide;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
@@ -110,8 +111,17 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Raised when the places or the drawing change, so that the view draws again.</summary>
     public event EventHandler? Redraw;
 
-    /// <summary>Raised when a <em>Varför?</em> asks for a section of the Guide.</summary>
-    public event EventHandler<GuideTopic>? GuideWanted;
+    /// <summary>
+    /// Raised when <em>Varför?</em>, the <em>?</em> or the method asks for the Guide (sketch GD1b); a request about
+    /// what is chosen carries its <see cref="GuideRequest.Subject"/>.
+    /// </summary>
+    public event EventHandler<GuideRequest>? GuideWanted;
+
+    /// <summary>
+    /// Raised when the answers to <em>Varför?</em> change: something else is chosen, or a cluster's answers came. The
+    /// request is <see langword="null"/> when nothing is chosen. The open Guide panel follows it.
+    /// </summary>
+    public event EventHandler<GuideRequest?>? WhyChanged;
 
     /// <summary>Gets the graph ready to draw, or <see langword="null"/> when there is none.</summary>
     [ObservableProperty]
@@ -154,7 +164,8 @@ public sealed partial class GraphViewModel : ObservableObject
         {
             var other = GraphScene.MethodName(Other(Method));
             var used = Scene?.Snapshot.Trace?.Method.ToString() ?? MethodText;
-            return $"Spårningsmetod: {used}. Klicka för {other}. Ett spårat belopp är en bedömning enligt metoden.";
+            return $"Spårningsmetod: {used}. Klicka för {other}, högerklicka för Guiden. Ett spårat belopp är en "
+                + "bedömning enligt metoden.";
         }
     }
 
@@ -202,10 +213,6 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Gets the answers to <em>Varför?</em> for what is chosen, the cluster's added when they come.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<WhyLine> Why { get; private set; } = [];
-
-    /// <summary>Gets whether the answers to <em>Varför?</em> are shown.</summary>
-    [ObservableProperty]
-    public partial bool IsWhyOpen { get; private set; }
 
     /// <summary>Gets whether the legend behind the <em>?</em> is shown.</summary>
     [ObservableProperty]
@@ -332,25 +339,47 @@ public sealed partial class GraphViewModel : ObservableObject
     [RelayCommand]
     public void ToggleLegend() => IsLegendOpen = !IsLegendOpen;
 
-    /// <summary>Shows or hides the answers to <em>Varför?</em>.</summary>
+    /// <summary>
+    /// <em>Varför?</em>: asks for the Guide with the answers for what is chosen at the top, opened at the section and
+    /// heading of the most telling answer (sketch GD1b).
+    /// </summary>
     [RelayCommand]
-    public void ToggleWhy() => IsWhyOpen = !IsWhyOpen;
-
-    /// <summary>Asks for a section of the Guide, from a <em>Varför?</em>.</summary>
-    /// <param name="line">The answer whose section is wanted.</param>
-    [RelayCommand]
-    public void OpenGuide(WhyLine? line)
+    public void AskWhy()
     {
-        if (line?.Topic is { } topic)
+        if (WhyRequest() is { } request)
         {
-            OpenGuideTopic(topic);
+            GuideWanted?.Invoke(this, request);
         }
     }
 
     /// <summary>Asks for a section of the Guide, for example the visual language from the legend.</summary>
     /// <param name="topic">The section.</param>
     [RelayCommand]
-    public void OpenGuideTopic(GuideTopic topic) => GuideWanted?.Invoke(this, topic);
+    public void OpenGuideTopic(GuideTopic topic)
+    {
+        IsLegendOpen = false;
+        GuideWanted?.Invoke(this, GuideRequest.ForTopic(topic));
+    }
+
+    /// <summary>
+    /// Asks for the Guide on the method the graph traces with, at the method's own heading, with what it traced.
+    /// </summary>
+    [RelayCommand]
+    public void OpenMethodGuide()
+    {
+        var answer = TraceText.Length > 0 ? TraceText : $"Grafen spårar med {MethodText}. Inget är spårat än.";
+        GuideWanted?.Invoke(this, GuideRequest.ForMethod(Method, answer));
+    }
+
+    /// <summary>Gives the Guide's request for what is chosen, or <see langword="null"/> when nothing is.</summary>
+    /// <returns>The request.</returns>
+    private GuideRequest? WhyRequest() => Inspection is { } shown && (SelectedNode ?? SelectedEdge) is { } key
+        ? GuideRequest.ForWhy(key, shown.Title, Why, Method)
+        : null;
+
+    /// <summary>Tells the Guide's panel that the answers changed, so that it can follow.</summary>
+    /// <param name="value">The new answers.</param>
+    partial void OnWhyChanged(IReadOnlyList<WhyLine> value) => WhyChanged?.Invoke(this, WhyRequest());
 
     /// <summary>Chooses what is under a point on the surface, or nothing over empty surface (a click).</summary>
     /// <param name="point">The point on the surface.</param>

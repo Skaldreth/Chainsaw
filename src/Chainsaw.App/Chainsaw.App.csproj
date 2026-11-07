@@ -25,6 +25,10 @@
           CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The Guide's texts (docs/guide), built in so that the Guide works without the repository and offline. -->
+    <EmbeddedResource Include="..\..\docs\guide\*.md" LogicalName="Chainsaw.App.Guide.%(Filename).md" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>

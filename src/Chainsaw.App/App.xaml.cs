@@ -12,6 +12,7 @@ using Chainsaw.Modules.Requests;
 using Chainsaw.App.Commands;
 using Chainsaw.App.Controls;
 using Chainsaw.App.Graph;
+using Chainsaw.App.Guide;
 using Chainsaw.App.Interop;
 using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
@@ -156,6 +157,9 @@ public partial class App : Application
                 .AddSingleton<ExitPanelViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<GraphViewModel>()
+                .AddSingleton(_ => GuideLibrary.Load())
+                .AddSingleton<GuidePanelViewModel>()
+                .AddSingleton<GuideViewModel>()
                 .AddSingleton<ShellViewModel>()
                 .AddSingleton<LinkInbox>()
                 .AddSingleton<LockViewModel>()

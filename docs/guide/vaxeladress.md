@@ -1,6 +1,6 @@
 # Växeladress
 
-En output spenderas alltid helt (se *UTXO-modellen*). Den som betalar 0,3 BTC från en output på 1 BTC får därför
+En output spenderas alltid helt (se [UTXO-modellen](utxo-modellen.md)). Den som betalar 0,3 BTC från en output på 1 BTC får därför
 tillbaka resten som **växel**, oftast till en ny adress i samma plånbok. Att hitta växeln är att hitta var avsändarens
 pengar fortsätter.
 

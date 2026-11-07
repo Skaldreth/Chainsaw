@@ -4,7 +4,7 @@ En utredning börjar i en **startpunkt**: en adress (till exempel den offret bet
 exempel offrets betalning). Chainsaw känner igen vad du har skrivit på formen, utan att fråga någon källa:
 
 - **Bitcoin-adress:** `1…` och `3…` (Base58Check) eller `bc1…` (Bech32 och Bech32m). Formen har en kontrollsumma, så ett
-  felskrivet tecken upptäcks nästan alltid. Se *Adresstyper*.
+  felskrivet tecken upptäcks nästan alltid. Se [Adresstyper](adresstyper.md).
 - **Bitcoin-tx:** 64 hexadecimala tecken (0–9, a–f), tx:ens id (txid).
 - **Ethereum:** `0x` och 40 hexadecimala tecken är en adress, `0x` och 64 en transaktion.
 - **TRON:** en adress börjar med `T` och är Base58Check, som Bitcoins äldre adresser, men med versionsbyten `0x41`.

@@ -1,0 +1,81 @@
+<UserControl x:Class="Chainsaw.App.Views.GuideView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels">
+
+    <!--
+      The view Guide (F1, after sketch GD1a in a simple form): the sections in groups to the left of the pill's column,
+      and the chosen section in reading width. The page has no header of its own.
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleWhen" />
+    </UserControl.Resources>
+
+    <Grid Margin="84,0,0,0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="232" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- The index: the groups and their sections, the one shown in the selected surface. -->
+        <Border Grid.Column="0" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,1,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                <ItemsControl ItemsSource="{Binding Groups}" Focusable="False" Margin="12,26,12,26">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:GuideIndexGroup}">
+                            <StackPanel Margin="0,0,0,16">
+                                <TextBlock Text="{Binding Name}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                           Margin="10,0,0,6" />
+                                <ItemsControl ItemsSource="{Binding Entries}" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:GuideIndexEntry}">
+                                            <Button x:Name="Row" Style="{StaticResource Button.GuideRow}" FontSize="13"
+                                                    Content="{Binding Title}" Margin="0,0,0,1"
+                                                    Command="{Binding DataContext.ShowCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}" />
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                    <Setter TargetName="Row" Property="Background"
+                                                            Value="{StaticResource Brush.SurfaceSelected}" />
+                                                    <Setter TargetName="Row" Property="Foreground"
+                                                            Value="{StaticResource Brush.Text}" />
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <!-- The section in reading width; room at the bottom for the command bar. -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Focusable="False">
+            <StackPanel Margin="64,34,40,110" MaxWidth="620" HorizontalAlignment="Left">
+                <Button Style="{StaticResource Button.Link}" Margin="0,0,0,14" Foreground="{StaticResource Brush.TextMuted}"
+                        Content="{Binding ReturnText}" Command="{Binding ReturnCommand}"
+                        Visibility="{Binding HasReturn, Converter={StaticResource VisibleWhen}}" />
+                <TextBlock Text="{Binding Section.Group}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                           Margin="0,0,0,2" />
+                <controls:GuideDocumentView Section="{Binding Section}" Anchor="{Binding Anchor}" Library="{Binding Library}"
+                                            LinkCommand="{Binding GoCommand}" />
+                <TextBlock Text="Guidens texter saknas i den här versionen." FontSize="13"
+                           Foreground="{StaticResource Brush.TextDim}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasSection}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

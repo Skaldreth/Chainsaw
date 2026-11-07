@@ -17,7 +17,7 @@ Chainsaw slår ihop sådana adresser **automatiskt**, och varje sammanslagning s
 
 - **CoinJoin.** Flera personer bygger en tx tillsammans och signerar var och en sin egen input. Då är det just *inte*
   samma ägare. Därför körs CoinJoin-analysen först, och känner den igen en CoinJoin stoppas sammanslagningen för hela
-  tx:en (se *CoinJoin*).
+  tx:en (se [CoinJoin](coinjoin.md)).
 - **PayJoin.** Mottagaren lägger till en egen input i betalningen. Det syns inte på kedjan och är det kända hålet i
   heuristiken; ett kluster som plötsligt växer kraftigt genom en enda tx är värt att titta på.
 - **Delade tjänster.** En börs äger sina kunders insättningsadresser. När börsen samlar ihop dem (en *sweep*) slås de

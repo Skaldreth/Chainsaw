@@ -42,7 +42,7 @@ Slutet är en **bedömning**, inte ett faktum, och säger alltid vad det bygger 
 
 - CoinJoin kommer från klustringens analys (`coinjoin v1`) av just den tx:en.
 - Börs (och andra uttag), tjänst, mixer och brygga kommer från etiketter: egna etiketter, sanktionslistor, öppna
-  källor och etikettbiblioteket. Se *Etiketter och varifrån de kommer*. En etikett på ett offer, en sanktionerad ägare
+  källor och etikettbiblioteket. Se [Etiketter och varifrån de kommer](etiketter.md). En etikett på ett offer, en sanktionerad ägare
   eller något okänt avslutar inte spåret: pengarna går att följa vidare.
 - *Inte expanderad ännu*, *Ligger kvar*, *Uppgifterna går inte ihop*, *Avgift* och *Kan aldrig spenderas* avgör
   spåret självt ur kedjan.

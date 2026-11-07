@@ -23,7 +23,7 @@ pekaren över något eller väljer det. Hela bildspråket finns också bakom *?*
 - **Lila: annan kedja.** En swap eller brygga, och tx:en på den andra kedjan med kedjans namn under hörnet.
 - **Grått:** okänd adress, kluster utan etikett och tx med flera ägare.
 
-Sorten kommer från **etiketterna** (avsnittet *Etiketter*). En etikett är en bedömning, aldrig ett faktum. Utan etikett
+Sorten kommer från **etiketterna** (avsnittet [Etiketter](etiketter.md)). En etikett är en bedömning, aldrig ett faktum. Utan etikett
 är startpunkten ett offer och resten okänt.
 
 ## Markeringar i hörnet
@@ -65,7 +65,7 @@ zoomar, **Esc** väljer inget och **E** expanderar det valda.
 Knappen *FIFO* eller *haircut* i hörnet visar alltid vilken metod de spårade beloppen bygger på, och växlar metod.
 Överst till vänster står hur mycket som spårades, från hur många mynt och med vilken metod och version. Spåret räknas
 från de mynt som startpunkten tog emot (eller från en startpunkts-tx:s betalningar till andra än betalarna). Se
-avsnittet *Spårningsmetoder*.
+avsnittet [Spårningsmetoder](sparningsmetoder.md).
 
 ## Inspektören och Varför?
 

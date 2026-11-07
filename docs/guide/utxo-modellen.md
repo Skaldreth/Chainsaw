@@ -12,7 +12,7 @@ dess UTXO:er; saldot finns inte på kedjan utan räknas fram.
 ## En output spenderas alltid helt
 
 En input tar hela outputen. Vill avsändaren betala 0,3 BTC från en output på 1 BTC skapas två outputs: 0,3 BTC till
-mottagaren och resten som **växel** tillbaka till avsändaren, ofta till en ny adress. Därför har de flesta tx minst
+mottagaren och resten som **[växel](vaxeladress.md)** tillbaka till avsändaren, ofta till en ny adress. Därför har de flesta tx minst
 två outputs, och därför är det en slutsats, aldrig ett faktum, vilken output som är växeln.
 
 ## Avgiften står inte i någon output

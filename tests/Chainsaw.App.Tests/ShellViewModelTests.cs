@@ -16,6 +16,21 @@ public sealed class ShellViewModelTests
         Assert.Equal([AppView.Graph], shell.Items.Where(i => i.IsSelected).Select(i => i.Entry.View));
     }
 
+    /// <summary>F1 shows the view Guide, which is built; the placeholder is only for the views that are not.</summary>
+    [Fact]
+    public void The_guide_is_a_built_view()
+    {
+        var shell = Shell();
+        Assert.False(shell.IsPlaceholderShown);
+
+        shell.ShowCommand.Execute(AppView.Guide);
+        Assert.True(shell.IsGuideShown);
+        Assert.False(shell.IsPlaceholderShown);
+
+        shell.ShowCommand.Execute(AppView.Labels);
+        Assert.True(shell.IsPlaceholderShown);
+    }
+
     [Fact]
     public void Showing_a_view_moves_the_choice_in_the_rail()
     {

@@ -39,6 +39,9 @@ public partial class MainWindow : Window
     /// </summary>
     private RailItemViewModel? _leftWithSubmenu;
 
+    /// <summary>The Guide's panel beside the work (sketch GD1b).</summary>
+    private readonly GuidePanelViewModel _guidePanel;
+
     /// <summary>Asks the gate now and then whether the automatic lock is due.</summary>
     private readonly DispatcherTimer _idleTimer;
 
@@ -46,17 +49,27 @@ public partial class MainWindow : Window
     /// <param name="shell">The shell's view model.</param>
     /// <param name="gate">The gate's view model.</param>
     /// <param name="graph">The graph's view model (sketch GR4).</param>
-    public MainWindow(ShellViewModel shell, GateViewModel gate, GraphViewModel graph)
+    /// <param name="guidePanel">The Guide's panel (sketch GD1b).</param>
+    /// <param name="guide">The view Guide (F1).</param>
+    public MainWindow(
+        ShellViewModel shell,
+        GateViewModel gate,
+        GraphViewModel graph,
+        GuidePanelViewModel guidePanel,
+        GuideViewModel guide)
     {
         InitializeComponent();
         _shell = shell;
         _gate = gate;
+        _guidePanel = guidePanel;
         DataContext = shell;
         Gate.Attach(gate);
         NewCasePanel.Attach(shell.NewCase);
         ExitPanelView.Attach(shell.ExitPanel);
         GraphPage.Attach(graph);
-        graph.GuideWanted += (_, topic) => shell.ShowGuide(topic);
+        GuidePage.Attach(guide);
+        GuidePanel.Attach(guidePanel);
+        WireGuide(graph, guide);
         gate.PropertyChanged += OnGateChanged;
         ShowGate();
 
@@ -73,6 +86,51 @@ public partial class MainWindow : Window
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SourceInitialized += (_, _) => WindowFrame.ApplyRoundedDarkFrame(new WindowInteropHelper(this).Handle);
         StateChanged += (_, _) => Frame.Margin = WindowState == WindowState.Maximized ? MaximizedInset : default;
+    }
+
+    /// <summary>
+    /// Wires the Guide (sketch GD1b): the graph's <em>Varför?</em>, <em>?</em> and method open the panel, the panel
+    /// follows what is chosen, <em>Öppna i Guide</em> shows the view Guide with a way back, and the panel closes when
+    /// another view is shown. Esc closes the panel before it reaches the graph.
+    /// </summary>
+    /// <param name="graph">The graph's view model.</param>
+    /// <param name="guide">The view Guide's view model.</param>
+    private void WireGuide(GraphViewModel graph, GuideViewModel guide)
+    {
+        graph.GuideWanted += (_, request) => _guidePanel.Ask(request);
+        graph.WhyChanged += (_, request) => _guidePanel.Follow(request);
+        _guidePanel.FullGuideWanted += (_, place) =>
+        {
+            guide.Open(place, _shell.Current);
+            _shell.Show(AppView.Guide);
+        };
+        guide.ReturnWanted += (_, view) => _shell.Show(view);
+        _shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.Current) && !_shell.IsGraphShown)
+            {
+                _guidePanel.Close();
+            }
+        };
+        PreviewKeyDown += OnGuideEscape;
+    }
+
+    /// <summary>
+    /// Esc closes the Guide's panel wherever the keyboard is, except in the command bar, Nytt ärende and an open
+    /// submenu, which have their own Esc.
+    /// </summary>
+    /// <param name="sender">The window.</param>
+    /// <param name="e">The key.</param>
+    private void OnGuideEscape(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || !_guidePanel.IsOpen || !_gate.IsShellVisible || _shell.NewCase.IsOpen
+            || _shell.OpenSubmenu is not null || CommandBox.IsKeyboardFocusWithin)
+        {
+            return;
+        }
+
+        _guidePanel.Close();
+        e.Handled = true;
     }
 
     /// <summary>Stops listening to Windows when the window closes; the static events would otherwise keep it.</summary>

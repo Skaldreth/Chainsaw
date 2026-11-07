@@ -20,7 +20,7 @@ Den stora outputen är **växeln**: samma ägare som hoppets input. De små är 
 lilla. När ärendet känner till **minst tre hopp i rad**, där den stora outputen i ett hopp är inputen i nästa, är det
 en peel chain:
 
-- den stora outputen i varje hopp **föreslås** som hoppets växel, men slås inte ihop automatiskt i version 1. Formen
+- den stora outputen i varje hopp **föreslås** som hoppets [växel](vaxeladress.md), men slås inte ihop automatiskt i version 1. Formen
   räcker inte: många vanliga betalningar ser likadana ut, så ett offers egna betalningar kan få betalningen till
   bedragaren att se ut som ett hopp mitt i en kedja, och det sista hoppet kan skicka huvuddelen till en börs. Du
   godkänner förslagen när du har sett kedjan (godkännandet byggs med gränssnittet);
