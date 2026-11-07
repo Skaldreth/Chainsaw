@@ -77,11 +77,26 @@ internal static class GraphStateStore
         command.ExecuteNonQuery();
     }
 
-    /// <summary>Stores an expansion, replacing an earlier one of the same address or transaction.</summary>
+    /// <summary>
+    /// Stores an expansion. An earlier expansion of the same address or transaction keeps what it brought in: the
+    /// graph only grows when the user expands, and expanding again with a lower limit or after newer history never
+    /// takes transactions out of it. Whether it is complete is what the newest expansion says.
+    /// </summary>
     /// <param name="transaction">The case's transaction.</param>
     /// <param name="expansion">The expansion.</param>
-    public static void SaveExpansion(ICaseTransaction transaction, Expansion expansion)
+    /// <returns>The expansion as stored, with the earlier transactions after the new.</returns>
+    public static Expansion SaveExpansion(ICaseTransaction transaction, Expansion expansion)
     {
+        var earlier = ReadExpansions(transaction).FirstOrDefault(stored =>
+            stored.Address == expansion.Address && stored.Txid == expansion.Txid);
+        if (earlier is not null)
+        {
+            expansion = expansion with
+            {
+                Transactions = [.. expansion.Transactions.Concat(earlier.Transactions).Distinct()],
+            };
+        }
+
         using var command = transaction.CreateCommand("""
             INSERT INTO tracing_expansions (kind, subject, transactions, complete, expanded_utc)
             VALUES ($kind, $subject, $transactions, $complete, $utc)
@@ -95,6 +110,7 @@ internal static class GraphStateStore
             .AddParameter("$complete", expansion.IsComplete ? 1L : 0L)
             .AddParameter("$utc", Text(expansion.ExpandedUtc));
         command.ExecuteNonQuery();
+        return expansion;
     }
 
     /// <summary>Stores a node's place in a layout, replacing the earlier one.</summary>

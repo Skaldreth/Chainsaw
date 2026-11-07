@@ -25,6 +25,12 @@ public enum LookupStatus
     NotFound,
 
     /// <summary>
+    /// The lookup was to be answered from the case only (<see cref="LookupMode.CaseOnly"/>), and the case has no
+    /// answer; nothing was sent.
+    /// </summary>
+    NotInCase,
+
+    /// <summary>
     /// The lookup failed and the case has no answer; <see cref="BitcoinLookup{T}.Problem"/> says why.
     /// </summary>
     Failed,

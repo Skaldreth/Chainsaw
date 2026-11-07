@@ -28,24 +28,48 @@ public sealed record TraceGraph(
     IReadOnlyList<Expansion> Expansions,
     IReadOnlyList<string> Problems)
 {
-    /// <summary>The nodes by key.</summary>
-    private readonly Dictionary<string, GraphNode> _byKey =
-        Nodes.ToDictionary(node => node.Key, StringComparer.Ordinal);
-
-    /// <summary>The nodes by the addresses they hold.</summary>
-    private readonly Dictionary<BitcoinAddress, GraphNode> _byAddress = Nodes
-        .SelectMany(node => node.GraphAddresses.Select(address => (address, node)))
-        .ToDictionary(pair => pair.address, pair => pair.node);
+    /// <summary>
+    /// The lookups and the node list they were built from; a copy made with <c>with</c> and other nodes builds its
+    /// own instead of answering from the old ones.
+    /// </summary>
+    private NodeIndex? _index;
 
     /// <summary>Gives a node by its key.</summary>
     /// <param name="key">The key.</param>
     /// <returns>The node, or <see langword="null"/>.</returns>
-    public GraphNode? Node(string key) => _byKey.GetValueOrDefault(key);
+    public GraphNode? Node(string key) => Index().ByKey.GetValueOrDefault(key);
 
     /// <summary>Gives the node an address belongs to in the graph.</summary>
     /// <param name="address">The address.</param>
     /// <returns>The node, or <see langword="null"/> when the address is not in the graph.</returns>
-    public GraphNode? NodeOf(BitcoinAddress address) => _byAddress.GetValueOrDefault(address);
+    public GraphNode? NodeOf(BitcoinAddress address) => Index().ByAddress.GetValueOrDefault(address);
+
+    /// <summary>Gives the lookups for the current nodes, building them when the nodes are new.</summary>
+    /// <returns>The lookups.</returns>
+    private NodeIndex Index()
+    {
+        var index = _index;
+        if (index is null || !ReferenceEquals(index.Nodes, Nodes))
+        {
+            index = new NodeIndex(
+                Nodes,
+                Nodes.ToDictionary(node => node.Key, StringComparer.Ordinal),
+                Nodes.SelectMany(node => node.GraphAddresses.Select(address => (address, node)))
+                    .ToDictionary(pair => pair.address, pair => pair.node));
+            _index = index;
+        }
+
+        return index;
+    }
+
+    /// <summary>The graph's lookups.</summary>
+    /// <param name="Nodes">The node list they were built from.</param>
+    /// <param name="ByKey">The nodes by key.</param>
+    /// <param name="ByAddress">The nodes by the addresses they hold.</param>
+    private sealed record NodeIndex(
+        IReadOnlyList<GraphNode> Nodes,
+        Dictionary<string, GraphNode> ByKey,
+        Dictionary<BitcoinAddress, GraphNode> ByAddress);
 }
 
 /// <summary>What kind of actor a node is; the graph draws the kind as its shape (skiss GR3a).</summary>
@@ -162,7 +186,10 @@ public enum EdgeDirection
     Unordered,
 }
 
-/// <summary>The transfers from one actor to another, summed (facts from the chain).</summary>
+/// <summary>
+/// The transfers from one actor to another, summed. Each transfer and its amount is a fact from the chain; which
+/// actor an address belongs to is Clustering's conclusion, so the sum per pair of actors rests on it.
+/// </summary>
 /// <param name="Key">The edge's key: the kind and the two nodes' keys.</param>
 /// <param name="From">The sending node's key.</param>
 /// <param name="To">The receiving node's key.</param>

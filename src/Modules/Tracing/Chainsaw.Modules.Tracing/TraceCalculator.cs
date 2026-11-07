@@ -239,7 +239,7 @@ internal sealed class TraceCalculator
             || inputs[index].PreviousIndex != coin.Index || inputs[index].Amount != output.Amount)
         {
             return Step.Ends(new Ending(
-                TrailEndReason.NotExpanded,
+                TrailEndReason.Conflicting,
                 spender,
                 $"Uppgiften om att tx {spender} spenderar myntet går inte ihop med tx:en; spåret följs inte.",
                 []));
@@ -266,25 +266,42 @@ internal sealed class TraceCalculator
                 .Where(input => input.PreviousTxid is { } previous && reached.Contains(previous))
                 .Select(input => input.PreviousTxid!)
                 .ToHashSet());
-        var order = new List<Txid>(reached.Count);
-        while (waitingOn.Count > 0)
+        var followers = waitingOn
+            .SelectMany(pair => pair.Value.Select(previous => (Previous: previous, Next: pair.Key)))
+            .ToLookup(pair => pair.Previous, pair => pair.Next);
+        var ready = new PriorityQueue<Txid, (long Height, string Txid)>(
+            Comparer<(long Height, string Txid)>.Create((a, b) => a.Height != b.Height
+                ? a.Height.CompareTo(b.Height)
+                : string.CompareOrdinal(a.Txid, b.Txid)));
+        foreach (var txid in waitingOn.Where(pair => pair.Value.Count == 0).Select(pair => pair.Key))
         {
-            var ready = waitingOn.Where(pair => pair.Value.Count == 0).Select(pair => pair.Key)
-                .OrderBy(txid => _graph.Transactions[txid].Transaction.Block?.Height ?? long.MaxValue)
-                .ThenBy(txid => txid.Value, StringComparer.Ordinal)
-                .FirstOrDefault()
-                ?? throw new InvalidOperationException("The graph's transactions spend each other in a ring.");
-            waitingOn.Remove(ready);
-            foreach (var waiting in waitingOn.Values)
-            {
-                waiting.Remove(ready);
-            }
-
-            order.Add(ready);
+            ready.Enqueue(txid, Priority(txid));
         }
 
-        return order;
+        var order = new List<Txid>(reached.Count);
+        while (ready.TryDequeue(out var next, out _))
+        {
+            order.Add(next);
+            foreach (var follower in followers[next])
+            {
+                var waiting = waitingOn[follower];
+                if (waiting.Remove(next) && waiting.Count == 0)
+                {
+                    ready.Enqueue(follower, Priority(follower));
+                }
+            }
+        }
+
+        return order.Count == reached.Count
+            ? order
+            : throw new InvalidOperationException("The graph's transactions spend each other in a ring.");
     }
+
+    /// <summary>Gives a transaction's place among those ready to be counted: by block, then by txid.</summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The priority; an unconfirmed transaction comes last.</returns>
+    private (long Height, string Txid) Priority(Txid txid) =>
+        (_graph.Transactions[txid].Transaction.Block?.Height ?? long.MaxValue, txid.Value);
 
     /// <summary>
     /// Counts the traced money through one transaction, adds its fee as an end, and gives its outputs their share.
@@ -411,7 +428,7 @@ internal sealed class TraceCalculator
             {
                 var paidOut = transfer.Coin.Txid == transfer.Txid;
                 if (_holdings.TryGetValue(transfer.Coin, out var holding)
-                    && (paidOut || _steps[transfer.Coin].Spender == transfer.Txid))
+                    && (paidOut || IntoTransaction(_steps[transfer.Coin], transfer.Txid)))
                 {
                     sum += holding.Taint.Amount;
                     through.UnionWith(holding.Through);
@@ -426,6 +443,15 @@ internal sealed class TraceCalculator
 
         return edges;
     }
+
+    /// <summary>
+    /// Says whether a coin's money goes into a transaction: on into it, or ending at it (for example a CoinJoin), so
+    /// that the line into a mixer carries the amount that ends there.
+    /// </summary>
+    /// <param name="step">What happens to the coin.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>Whether it does.</returns>
+    private static bool IntoTransaction(Step step, Txid txid) => step.Spender == txid || step.End?.Transaction == txid;
 
     /// <summary>Gives the node a coin belongs to.</summary>
     /// <param name="coin">The coin.</param>

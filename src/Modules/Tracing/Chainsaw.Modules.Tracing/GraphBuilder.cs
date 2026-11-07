@@ -23,6 +23,12 @@ internal sealed class GraphBuilder
     /// <summary>The nodes by key, in the order they were made.</summary>
     private readonly Dictionary<string, NodeDraft> _nodes = new(StringComparer.Ordinal);
 
+    /// <summary>The time money first came to each node, filled when the edges are done.</summary>
+    private Dictionary<string, DateTimeOffset> _firstReceived = new(StringComparer.Ordinal);
+
+    /// <summary>The expansions by address and by transaction.</summary>
+    private Dictionary<string, Expansion> _expansions = new(StringComparer.Ordinal);
+
     /// <summary>The edges' transfers by kind, sender and receiver.</summary>
     private readonly Dictionary<(GraphEdgeKind Kind, string From, string To), List<EdgeTransfer>> _edges = [];
 
@@ -55,6 +61,14 @@ internal sealed class GraphBuilder
         AddCrossChainLinks();
         var starts = StartNodes(problems);
         var hops = Hops(starts);
+        _firstReceived = _edges
+            .SelectMany(pair => pair.Value.Select(transfer => (pair.Key.To, transfer.Block?.Time)))
+            .Where(pair => pair.Time is not null)
+            .GroupBy(pair => pair.To, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Min(pair => pair.Time!.Value), StringComparer.Ordinal);
+        _expansions = _data.State.Expansions
+            .GroupBy(expansion => expansion.Address?.Value ?? expansion.Txid!.Value, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
         var transactionEnds = transactions
             .Select(tx => (tx.Txid, Ends: _knowledge.TransactionEnds(tx)))
             .Where(pair => pair.Ends.Count > 0)
@@ -270,7 +284,12 @@ internal sealed class GraphBuilder
             {
                 starts.Add(_byAddress[address].Key);
             }
-            else if (_data.Transactions.TryGetValue(start.Txid!, out var entry) && !entry.Transaction.IsCoinbase)
+            else if (_data.Transactions.TryGetValue(start.Txid!, out var entry) && entry.Transaction.IsCoinbase)
+            {
+                // New coins have no sender; the trace starts at the actors the coinbase pays.
+                starts.AddRange(entry.Transaction.Outputs.Select(output => Receiver(entry.Transaction, output)));
+            }
+            else if (entry is not null)
             {
                 var senders = entry.Transaction.Inputs.Select(Sender).Distinct(StringComparer.Ordinal).ToList();
                 starts.AddRange(senders.Count == 1 ? senders : [NodeKeys.Transaction(start.Txid!)]);
@@ -363,7 +382,8 @@ internal sealed class GraphBuilder
                 var asked = answer?.Spends.FirstOrDefault(spend => spend.Index == output.Index);
                 spends[coin] = (spentInGraph.GetValueOrDefault(coin), asked) switch
                 {
-                    ({ } inGraph, _) => new CoinSpend(SpendState.Spent, inGraph, false),
+                    // A spender that is not in a block yet can still be replaced by another.
+                    ({ } inGraph, _) => new CoinSpend(SpendState.Spent, inGraph, inGraph.Block is null),
                     (null, { } spend) => Asked(spend, answer!.MayBeOutdated),
                     _ => Known(output),
                 };
@@ -400,13 +420,7 @@ internal sealed class GraphBuilder
         Dictionary<string, int> hops,
         Dictionary<Txid, IReadOnlyList<TrailEndHint>> transactionEnds)
     {
-        var firstReceived = _edges.Where(pair => pair.Key.To == draft.Key)
-            .SelectMany(pair => pair.Value)
-            .Select(transfer => transfer.Block?.Time)
-            .OfType<DateTimeOffset>()
-            .Order()
-            .Cast<DateTimeOffset?>()
-            .FirstOrDefault();
+        DateTimeOffset? firstReceived = _firstReceived.TryGetValue(draft.Key, out var first) ? first : null;
         IReadOnlyList<TrailEndHint> ends = draft.Kind switch
         {
             GraphNodeKind.Address or GraphNodeKind.Cluster =>
@@ -435,12 +449,11 @@ internal sealed class GraphBuilder
     /// <returns>How far.</returns>
     private NodeExpansion Expansion(NodeDraft draft)
     {
-        var expansions = _data.State.Expansions;
         switch (draft.Kind)
         {
             case GraphNodeKind.Address or GraphNodeKind.Cluster:
                 var states = draft.Addresses
-                    .Select(address => expansions.FirstOrDefault(expansion => expansion.Address == address))
+                    .Select(address => _expansions.GetValueOrDefault(address.Value))
                     .ToList();
                 if (states.All(state => state is { IsComplete: true }))
                 {
@@ -449,7 +462,7 @@ internal sealed class GraphBuilder
 
                 return states.Any(state => state is not null) ? NodeExpansion.Partly : NodeExpansion.NotExpanded;
             case GraphNodeKind.Transaction:
-                var expanded = expansions.FirstOrDefault(expansion => expansion.Txid == draft.Transaction);
+                var expanded = _expansions.GetValueOrDefault(draft.Transaction!.Value);
                 return expanded switch
                 {
                     null => NodeExpansion.NotExpanded,

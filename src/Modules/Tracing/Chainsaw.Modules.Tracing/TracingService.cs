@@ -216,7 +216,7 @@ internal sealed class TracingService : ITracingService
             ? await ExpandAddressAsync(@case, address, request.MaximumTransactions, cancellationToken)
                 .ConfigureAwait(false)
             : await ExpandTransactionAsync(@case, request.Txid!, cancellationToken).ConfigureAwait(false);
-        if (step.Transactions.Count == 0)
+        if (!step.Answered)
         {
             var unchanged = await LoadAsync(@case, cancellationToken).ConfigureAwait(false);
             return new ExpansionResult(ExpansionOutcome.NotExpanded, [], step.Problem, unchanged);
@@ -224,13 +224,14 @@ internal sealed class TracingService : ITracingService
 
         var expansion = new Expansion(
             request.Address, request.Txid, step.Transactions, step.Problem is null, _clock.UtcNow);
-        @case.Write(transaction =>
-        {
-            GraphStateStore.SaveExpansion(transaction, expansion);
-            return true;
-        });
+        @case.Write(transaction => GraphStateStore.SaveExpansion(transaction, expansion));
+        await FetchSpendsAsync(@case, step.Transactions, cancellationToken).ConfigureAwait(false);
         var data = await ReadDataAsync(@case, cancellationToken).ConfigureAwait(false);
-        _clustering.Analyse(@case, [.. data.Transactions.Values.Select(entry => entry.Transaction)]);
+        if (data.Transactions.Count > 0)
+        {
+            _clustering.Analyse(@case, [.. data.Transactions.Values.Select(entry => entry.Transaction)]);
+        }
+
         return new ExpansionResult(
             expansion.IsComplete ? ExpansionOutcome.Expanded : ExpansionOutcome.Partly,
             [.. step.Transactions.Where(txid => !before.Contains(txid))],
@@ -255,17 +256,21 @@ internal sealed class TracingService : ITracingService
                 .ConfigureAwait(false);
             if (page.Value is null)
             {
-                return new StepResult(found, Problem(page.Status, page.Problem));
+                return new StepResult(found, Problem(page.Status, page.Problem), found.Count > 0);
             }
 
+            var countBefore = found.Count;
             foreach (var transaction in page.Value.Transactions.Where(tx => !found.Contains(tx.Txid)))
             {
                 if (found.Count == maximum)
                 {
-                    return new StepResult(found, string.Format(
-                        CultureInfo.InvariantCulture,
-                        "Adressen har fler än {0} tx; de nyaste {0} togs med.",
-                        maximum));
+                    return new StepResult(
+                        found,
+                        string.Format(
+                            CultureInfo.InvariantCulture,
+                            "Adressen har fler än {0} tx; de nyaste {0} togs med.",
+                            maximum),
+                        true);
                 }
 
                 found.Add(transaction.Txid);
@@ -273,7 +278,15 @@ internal sealed class TracingService : ITracingService
 
             if (page.Value.NextAfter is null)
             {
-                return new StepResult(found, page.Status == LookupStatus.FromCaseMayBeOutdated ? page.Problem : null);
+                var outdated = page.Status == LookupStatus.FromCaseMayBeOutdated ? page.Problem : null;
+                return new StepResult(found, outdated, true);
+            }
+
+            if (page.Value.NextAfter == after || found.Count == countBefore)
+            {
+                // A source that does not move on would otherwise be asked for ever.
+                return new StepResult(
+                    found, "Källan gav samma sida igen; historiken togs med så långt den gick.", true);
             }
 
             after = page.Value.NextAfter;
@@ -287,23 +300,26 @@ internal sealed class TracingService : ITracingService
     /// <returns>The transactions and what went wrong.</returns>
     private async Task<StepResult> ExpandTransactionAsync(ICase @case, Txid txid, CancellationToken cancellationToken)
     {
-        var lookup = await _source.GetTransactionAsync(@case, txid, cancellationToken).ConfigureAwait(false);
+        var lookup = await _source.GetTransactionAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
         if (lookup.Value is null)
         {
-            return new StepResult([], Problem(lookup.Status, lookup.Problem));
+            return new StepResult([], Problem(lookup.Status, lookup.Problem), false);
         }
 
         var found = new List<Txid> { txid };
-        var spends = await _source.GetOutputSpendsAsync(@case, txid, cancellationToken).ConfigureAwait(false);
+        var spends = await _source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
         if (spends.Value is null)
         {
-            return new StepResult(found, Problem(spends.Status, spends.Problem));
+            return new StepResult(found, Problem(spends.Status, spends.Problem), true);
         }
 
         string? problem = spends.Status == LookupStatus.FromCaseMayBeOutdated ? spends.Problem : null;
         foreach (var spender in spends.Value.Select(spend => spend.SpentBy?.Txid).OfType<Txid>().Distinct())
         {
-            var next = await _source.GetTransactionAsync(@case, spender, cancellationToken).ConfigureAwait(false);
+            var next = await _source.GetTransactionAsync(@case, spender, LookupMode.AsNeeded, cancellationToken)
+                .ConfigureAwait(false);
             if (next.Value is null)
             {
                 problem ??= Problem(next.Status, next.Problem);
@@ -313,10 +329,31 @@ internal sealed class TracingService : ITracingService
             found.Add(spender);
         }
 
-        return new StepResult(found, problem);
+        return new StepResult(found, problem, true);
     }
 
-    /// <summary>Reads the state and asks the source for every transaction in it and where its outputs went.</summary>
+    /// <summary>
+    /// Asks where the outputs of the transactions an expansion brought in went, so that the graph knows which coins
+    /// are spent and which are still there. A failure here is not an error: those coins stay not expanded yet.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="transactions">The transactions.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>A task that completes when every answer is in the case.</returns>
+    private async Task FetchSpendsAsync(
+        ICase @case, IReadOnlyList<Txid> transactions, CancellationToken cancellationToken)
+    {
+        foreach (var txid in transactions)
+        {
+            await _source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Reads the state and every transaction in it and where its outputs went, from the case only: showing the graph
+    /// again never sends anything (principles 4 and 6). What may have changed says so; expanding asks again.
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The data.</returns>
@@ -328,7 +365,8 @@ internal sealed class TracingService : ITracingService
         var problems = new List<string>();
         foreach (var txid in state.Transactions)
         {
-            var lookup = await _source.GetTransactionAsync(@case, txid, cancellationToken).ConfigureAwait(false);
+            var lookup = await _source.GetTransactionAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
+                .ConfigureAwait(false);
             if (lookup.Value is null)
             {
                 problems.Add($"Tx {txid}: {Problem(lookup.Status, lookup.Problem)}");
@@ -336,10 +374,11 @@ internal sealed class TracingService : ITracingService
             }
 
             transactions.Add(txid, new GraphTransaction(lookup.Value, lookup.Status, lookup.Problem));
-            var answer = await _source.GetOutputSpendsAsync(@case, txid, cancellationToken).ConfigureAwait(false);
+            var answer = await _source.GetOutputSpendsAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
+                .ConfigureAwait(false);
             if (answer.Value is null)
             {
-                problems.Add($"Vart utgångarna i tx {txid} gick: {Problem(answer.Status, answer.Problem)}");
+                // Not asked yet: its coins are not expanded yet, which the trace says where it matters.
                 continue;
             }
 
@@ -391,6 +430,7 @@ internal sealed class TracingService : ITracingService
     private static string Problem(LookupStatus status, string? problem) => problem ?? status switch
     {
         LookupStatus.Offline => "Offline: ingen utgång är ansluten och ärendet har inte uppgiften.",
+        LookupStatus.NotInCase => "Ärendet har inte uppgiften; expandera för att hämta den.",
         LookupStatus.NotFound => "Källan känner inte till den.",
         _ => "Uppslaget misslyckades.",
     };
@@ -398,5 +438,8 @@ internal sealed class TracingService : ITracingService
     /// <summary>What one expansion step brought in.</summary>
     /// <param name="Transactions">The transactions.</param>
     /// <param name="Problem">What went wrong, or <see langword="null"/> when it is complete.</param>
-    private sealed record StepResult(IReadOnlyList<Txid> Transactions, string? Problem);
+    /// <param name="Answered">
+    /// Whether the source answered at all; an address with no history is answered with no transactions.
+    /// </param>
+    private sealed record StepResult(IReadOnlyList<Txid> Transactions, string? Problem, bool Answered);
 }

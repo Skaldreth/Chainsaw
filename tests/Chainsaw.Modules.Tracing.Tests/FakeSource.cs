@@ -24,6 +24,9 @@ internal sealed class FakeSource : IBitcoinSource
 
     public int Lookups { get; private set; }
 
+    /// <summary>Makes every address page point back at itself, as a misbehaving source might.</summary>
+    public bool RepeatPages { get; set; }
+
     public void Add(params BitcoinTransaction[] transactions)
     {
         foreach (var transaction in transactions)
@@ -51,15 +54,30 @@ internal sealed class FakeSource : IBitcoinSource
             .ToList();
         var start = after is null ? 0 : history.FindIndex(tx => tx.Txid == after) + 1;
         var transactions = history.Skip(start).Take(PageSize).ToList();
-        var result = new BitcoinAddressPage(
-            address, after, transactions, transactions.Count == PageSize ? transactions[^1].Txid : null);
+        var next = transactions.Count == PageSize ? transactions[^1].Txid : null;
+        if (RepeatPages)
+        {
+            next = transactions.FirstOrDefault()?.Txid;
+        }
+
+        var result = new BitcoinAddressPage(address, after, transactions, next);
         _givenPages[(address, after)] = result;
+
+        // As in Chains, a transaction seen on an address page is in the case.
+        _givenTransactions.UnionWith(transactions.Select(tx => tx.Txid));
         return Task.FromResult(Answer(LookupStatus.Fetched, result, null));
     }
 
     public Task<BitcoinLookup<BitcoinTransaction>> GetTransactionAsync(
-        ICase @case, Txid txid, CancellationToken cancellationToken = default)
+        ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
     {
+        if (mode == LookupMode.CaseOnly)
+        {
+            return Task.FromResult(_givenTransactions.Contains(txid)
+                ? Answer(LookupStatus.FromCase, _chain[txid], null)
+                : Answer<BitcoinTransaction>(LookupStatus.NotInCase, null, null));
+        }
+
         Lookups++;
         if (!Online)
         {
@@ -78,14 +96,15 @@ internal sealed class FakeSource : IBitcoinSource
     }
 
     public Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> GetOutputSpendsAsync(
-        ICase @case, Txid txid, CancellationToken cancellationToken = default)
+        ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
     {
-        Lookups++;
-        if (!Online)
+        Lookups += mode == LookupMode.CaseOnly ? 0 : 1;
+        if (!Online || mode == LookupMode.CaseOnly)
         {
             return Task.FromResult(_givenSpends.TryGetValue(txid, out var given)
                 ? Answer(LookupStatus.FromCaseMayBeOutdated, given, "Hämtad tidigare; kan ha ändrats.")
-                : Answer<IReadOnlyList<BitcoinOutputSpend>>(LookupStatus.Offline, null, null));
+                : Answer<IReadOnlyList<BitcoinOutputSpend>>(
+                    Online ? LookupStatus.NotInCase : LookupStatus.Offline, null, null));
         }
 
         if (!_chain.TryGetValue(txid, out var transaction))

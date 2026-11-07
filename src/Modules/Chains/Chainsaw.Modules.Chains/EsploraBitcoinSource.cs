@@ -95,12 +95,12 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             reader => StoredAs(_store.Latest(reader, ResponseKinds.AddressTransactions, subject),
                 body => Page(address, after, _parser.ParseAddressTransactions(body, address))),
             page => after is null || page.Transactions.Count == 0 ? null : Shallowest(page.Transactions));
-        return LookupAsync(@case, query, cancellationToken);
+        return LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
     }
 
     /// <inheritdoc/>
     public async Task<BitcoinLookup<BitcoinTransaction>> GetTransactionAsync(
-        ICase @case, Txid txid, CancellationToken cancellationToken = default)
+        ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
@@ -112,7 +112,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             transaction => IndexOf([transaction]),
             reader => StoredTransaction(reader, txid),
             transaction => transaction.Block?.Height);
-        var lookup = await LookupAsync(@case, query, cancellationToken).ConfigureAwait(false);
+        var lookup = await LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
         return lookup.Value is null
             ? lookup
             : await WithSpendsAsync(@case, lookup, cancellationToken).ConfigureAwait(false);
@@ -120,7 +120,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> GetOutputSpendsAsync(
-        ICase @case, Txid txid, CancellationToken cancellationToken = default)
+        ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
@@ -133,7 +133,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             reader => StoredAs(_store.Latest(reader, ResponseKinds.OutputSpends, txid.Value),
                 body => EsploraParser.ParseOutputSpends(body)),
             SettledAt);
-        return LookupAsync(@case, query, cancellationToken);
+        return LookupAsync(@case, query, mode, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -152,14 +152,14 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
                 body => EsploraParser.ParseBlock(body, hash)),
             block => block.Height,
             NeverChanges: true);
-        return LookupAsync(@case, query, cancellationToken);
+        return LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
     }
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        return LookupAsync(@case, TipQuery(), cancellationToken);
+        return LookupAsync(@case, TipQuery(), LookupMode.AsNeeded, cancellationToken);
     }
 
     /// <summary>The lookup of the chain's height, which always changes.</summary>
@@ -181,13 +181,21 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <typeparam name="T">What is looked up.</typeparam>
     /// <param name="case">The open case.</param>
     /// <param name="query">The lookup.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The answer.</returns>
     private async Task<BitcoinLookup<T>> LookupAsync<T>(
-        ICase @case, LookupQuery<T> query, CancellationToken cancellationToken)
+        ICase @case, LookupQuery<T> query, LookupMode mode, CancellationToken cancellationToken)
         where T : class
     {
         var (stored, knownHeight) = await ReadCaseAsync(@case, query, cancellationToken).ConfigureAwait(false);
+        if (mode == LookupMode.CaseOnly)
+        {
+            return stored is { } kept && IsSettled(query, kept.Value, knownHeight)
+                ? new BitcoinLookup<T>(LookupStatus.FromCase, kept.Value, [kept.Response.Origin], null)
+                : Fallback(stored, LookupStatus.NotInCase, "Läst bara ur ärendet; inget skickades.");
+        }
+
         if (stored is { } found && !IsSettled(query, found.Value, knownHeight)
             && query.SettledAt(found.Value) is not null
             && await RefreshHeightAsync(@case, cancellationToken).ConfigureAwait(false))
@@ -319,7 +327,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <param name="status">The status.</param>
     /// <param name="reason">Why the source could not answer.</param>
     /// <returns>The text for the user.</returns>
-    private static string NoAnswer(LookupStatus status, string reason) => status == LookupStatus.Offline
+    private static string NoAnswer(LookupStatus status, string reason) =>
+        status is LookupStatus.Offline or LookupStatus.NotInCase
         ? $"{reason} Ärendet har inget sparat svar."
         : reason;
 

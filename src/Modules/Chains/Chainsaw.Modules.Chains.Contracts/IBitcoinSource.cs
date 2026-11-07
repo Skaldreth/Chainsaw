@@ -44,20 +44,22 @@ public interface IBitcoinSource
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="txid">The transaction's id.</param>
+    /// <param name="mode">Whether the source may be asked; <see cref="LookupMode.CaseOnly"/> sends nothing.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The transaction.</returns>
     Task<BitcoinLookup<BitcoinTransaction>> GetTransactionAsync(
-        ICase @case, Txid txid, CancellationToken cancellationToken = default);
+        ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets which transactions spend a transaction's outputs, which is how the money is followed forward.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="txid">The transaction's id.</param>
+    /// <param name="mode">Whether the source may be asked; <see cref="LookupMode.CaseOnly"/> sends nothing.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>One entry per output, in order.</returns>
     Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> GetOutputSpendsAsync(
-        ICase @case, Txid txid, CancellationToken cancellationToken = default);
+        ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default);
 
     /// <summary>Gets a block's header.</summary>
     /// <param name="case">The open case.</param>

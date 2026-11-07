@@ -22,6 +22,12 @@ public enum TrailEndReason
     /// </summary>
     Unspent,
 
+    /// <summary>
+    /// Not an end: what the source says about where the coin went does not agree with the transaction it names, so
+    /// the trace stops here rather than guess. Expanding again, or another source, may settle it.
+    /// </summary>
+    Conflicting,
+
     /// <summary>The money went to the miner as the transaction's fee.</summary>
     MinerFee,
 
@@ -56,13 +62,14 @@ public enum TrailEndReason
 public static class TrailEndReasons
 {
     /// <summary>
-    /// Says whether the trail really ends: <see langword="false"/> for <see cref="TrailEndReason.NotExpanded"/> and
-    /// <see cref="TrailEndReason.Unspent"/>, where the money can still be followed.
+    /// Says whether the trail really ends: <see langword="false"/> for <see cref="TrailEndReason.NotExpanded"/>,
+    /// <see cref="TrailEndReason.Unspent"/> and <see cref="TrailEndReason.Conflicting"/>, where the money can still
+    /// be followed.
     /// </summary>
     /// <param name="reason">The reason.</param>
     /// <returns>Whether the trail ends.</returns>
     public static bool EndsTrail(this TrailEndReason reason) =>
-        reason is not (TrailEndReason.NotExpanded or TrailEndReason.Unspent);
+        reason is not (TrailEndReason.NotExpanded or TrailEndReason.Unspent or TrailEndReason.Conflicting);
 
     /// <summary>Gives the reason as the user reads it, in Swedish.</summary>
     /// <param name="reason">The reason.</param>
@@ -71,6 +78,7 @@ public static class TrailEndReasons
     {
         TrailEndReason.NotExpanded => "Inte expanderad ännu",
         TrailEndReason.Unspent => "Ligger kvar (ospenderad)",
+        TrailEndReason.Conflicting => "Uppgifterna går inte ihop",
         TrailEndReason.MinerFee => "Avgift till minerare",
         TrailEndReason.Unspendable => "Kan aldrig spenderas",
         TrailEndReason.CoinJoin => "CoinJoin",
@@ -87,15 +95,14 @@ public static class TrailEndReasons
 /// That the trail ends at an address or a transaction, and why: a conclusion from an analysis or a label, never a
 /// fact (principle 2).
 /// </summary>
-/// <param name="Reason">Why the trail ends; never <see cref="TrailEndReason.NotExpanded"/> or
-/// <see cref="TrailEndReason.Unspent"/>, which the trace itself decides.</param>
+/// <param name="Reason">Why the trail ends; never a reason that does not end it (see
+/// <see cref="TrailEndReasons.EndsTrail"/>), which the trace itself decides.</param>
 /// <param name="Source">What says so, with its version, for example <c>coinjoin v1</c> or a label's source.</param>
 /// <param name="Explanation">Why, in plain Swedish.</param>
 public sealed record TrailEndHint(TrailEndReason Reason, string Source, string Explanation)
 {
     /// <summary>Gets why the trail ends.</summary>
-    public TrailEndReason Reason { get; } = Reason is TrailEndReason.NotExpanded or TrailEndReason.Unspent
-        || !Enum.IsDefined(Reason)
+    public TrailEndReason Reason { get; } = !Reason.EndsTrail() || !Enum.IsDefined(Reason)
         ? throw new ArgumentOutOfRangeException(nameof(Reason), "A hint names a real end of the trail.")
         : Reason;
 

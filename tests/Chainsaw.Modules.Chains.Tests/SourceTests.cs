@@ -136,6 +136,34 @@ public sealed class SourceTests : IDisposable
     }
 
     [Fact]
+    public async Task Case_only_never_asks_the_source_and_says_what_is_missing()
+    {
+        var missing = await Source.GetTransactionAsync(_harness.Case, Fixtures.Unconfirmed, LookupMode.CaseOnly);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Unconfirmed);
+        var kept = await Source.GetTransactionAsync(_harness.Case, Fixtures.Unconfirmed, LookupMode.CaseOnly);
+
+        Assert.Equal(LookupStatus.NotInCase, missing.Status);
+        Assert.Null(missing.Value);
+        Assert.Equal(LookupStatus.FromCaseMayBeOutdated, kept.Status);
+        Assert.Contains("kan ha ändrats", kept.Problem, StringComparison.Ordinal);
+        Assert.Single(Http.Sent);
+    }
+
+    [Fact]
+    public async Task Case_only_gives_a_settled_answer_without_a_warning()
+    {
+        // The second lookup asks for the height once and finds the transaction deep enough.
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var sent = Http.Sent.Count;
+
+        var lookup = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed, LookupMode.CaseOnly);
+
+        Assert.Equal(LookupStatus.FromCase, lookup.Status);
+        Assert.Equal(sent, Http.Sent.Count);
+    }
+
+    [Fact]
     public async Task Without_an_exit_and_without_an_answer_in_the_case_nothing_is_made_up()
     {
         Http.Connected = false;
