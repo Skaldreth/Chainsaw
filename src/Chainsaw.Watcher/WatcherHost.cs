@@ -89,7 +89,6 @@ internal static class WatcherServices
     public static ServiceProvider Build(string appData, Action<IServiceCollection>? configure = null)
     {
         var services = new ServiceCollection();
-        configure?.Invoke(services);
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<IOperatorProfileStore, BackgroundOperator>();
         services.AddSingleton<IVaultSecrets, LockedSecrets>();
@@ -103,7 +102,7 @@ internal static class WatcherServices
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlertChannel, WindowsNotification>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlertChannel, CoinSound>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlertChannel, ScreenMessage>());
-        services.TryAddSingleton<IAlerts, Alerts>();
+        services.AddSingleton<IAlerts, Alerts>();
         services.AddSingleton(provider => new WatcherParts(
             provider.GetRequiredService<IBackgroundPlan>(),
             provider.GetRequiredService<IBackgroundProgressFile>(),
@@ -118,18 +117,22 @@ internal static class WatcherServices
             provider.GetRequiredService<IResponseTransfer>(),
             provider.GetRequiredService<IAlerts>(),
             provider.GetRequiredService<IClock>()));
-        services.AddSingleton(provider =>
+        services.AddSingleton<Func<ScratchCase>>(provider =>
         {
             // Only the chains' tables: the round's case in memory holds the raw responses and nothing else.
             var tables = provider.GetServices<Modules.Cases.Contracts.ICaseSchemaContributor>()
                 .Where(each => each.SealedChains.Any(chain => chain.Name == SealedResponses.Chain))
                 .ToList();
-            return new WatcherLoop(
-                provider.GetRequiredService<WatcherParts>(),
-                provider.GetRequiredService<IExitRoute>(),
-                provider.GetRequiredService<WatcherGate>(),
-                () => new ScratchCase(tables));
+            return () => new ScratchCase(tables);
         });
+        services.AddSingleton(provider => new WatcherLoop(
+            provider.GetRequiredService<WatcherParts>(),
+            provider.GetRequiredService<IExitRoute>(),
+            provider.GetRequiredService<WatcherGate>(),
+            provider.GetRequiredService<Func<ScratchCase>>()));
+
+        // Last, so that what a test puts in place wins.
+        configure?.Invoke(services);
         return services.BuildServiceProvider();
     }
 }

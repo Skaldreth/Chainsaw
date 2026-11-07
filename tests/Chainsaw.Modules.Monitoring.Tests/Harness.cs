@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Cases;
+using Chainsaw.Modules.Chains;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering;
@@ -26,6 +27,9 @@ internal sealed class Harness : IDisposable
     public Harness()
     {
         var services = new ServiceCollection();
+
+        // The chains' tables and the transfer of raw responses; the synthetic sources below take the sources' place.
+        services.AddChainsModule();
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(Profiles);
@@ -40,6 +44,8 @@ internal sealed class Harness : IDisposable
         });
         services.AddClusteringModule();
         services.AddMonitoringModule();
+        services.AddSingleton<IUserDataProtector>(Protector);
+        services.AddBackgroundWatchFiles(Path.Combine(_directory, "Bevakning"));
         _provider = services.BuildServiceProvider();
         Store = _provider.GetRequiredService<ICaseStore>();
         Case = Store.Create(CaseNumber);
@@ -48,6 +54,13 @@ internal sealed class Harness : IDisposable
     }
 
     public FakeProfiles Profiles { get; } = new();
+
+    public FakeProtector Protector { get; } = new();
+
+    public string BackgroundDirectory => Path.Combine(_directory, "Bevakning");
+
+    public T Get<T>()
+        where T : notnull => _provider.GetRequiredService<T>();
 
     public FakeClock Clock { get; } = new();
 

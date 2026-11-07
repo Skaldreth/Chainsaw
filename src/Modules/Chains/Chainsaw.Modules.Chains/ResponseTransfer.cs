@@ -93,12 +93,14 @@ internal sealed class ResponseTransfer : IResponseTransfer
     private static (Uri Url, OperatorProfile FetchedBy, DateTimeOffset Received, DateTimeOffset Local) Checked(
         SealedResponse response)
     {
+        // The subject (the chain's height has none) and the endpoint's name may be empty, never missing.
         string[] required =
         [
-            response.Chain, response.Source, response.EndpointName, response.Kind, response.Subject,
-            response.RequestedUtc, response.TimeZone, response.ExitRoute,
+            response.Chain, response.Source, response.Kind, response.RequestedUtc, response.TimeZone,
+            response.ExitRoute,
         ];
-        if (required.Any(string.IsNullOrEmpty) || response.Body is null || response.Sha256 is null)
+        if (required.Any(string.IsNullOrEmpty) || response.Subject is null || response.EndpointName is null
+            || response.Body is null || response.Sha256 is null)
         {
             throw new ArgumentException("The response lacks a value.", nameof(response));
         }

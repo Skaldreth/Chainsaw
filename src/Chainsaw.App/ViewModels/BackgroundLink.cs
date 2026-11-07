@@ -118,18 +118,23 @@ public sealed class BackgroundLink : IDisposable
         _session.Changed += (_, _) => HoldOpenCase();
         _board.Changed += (_, _) => WriteCaseSoon();
         HoldOpenCase();
-        Apply(_settings);
+        _ = WriteAsync(_session.Current);
         _ = Task.Run(() => LoopAsync(_stop.Token));
     }
 
     /// <summary>Takes changed settings: the plan gets them, and the background is started or stopped.</summary>
     /// <param name="settings">The settings.</param>
-    public void Apply(AppSettings settings)
+    /// <returns>A task that completes when the plan is written.</returns>
+    public Task ApplyAsync(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
-        _ = WriteAsync(null);
+        return WriteAsync(null);
     }
+
+    /// <summary>Writes the open case's active watches into the plan now, off the UI thread.</summary>
+    /// <returns>A task that completes when the plan is written.</returns>
+    public Task WriteCaseAsync() => _board.Case is { } openCase ? WriteAsync(openCase) : WriteAsync(null);
 
     /// <summary>
     /// Brings what the background saw into the open case, off the UI thread; the window is told of the hits. Called by
@@ -251,9 +256,9 @@ public sealed class BackgroundLink : IDisposable
     /// <summary>Writes the open case's watches into the plan soon, off the UI thread.</summary>
     private void WriteCaseSoon()
     {
-        if (_board.Case is { } openCase)
+        if (_board.Case is not null)
         {
-            _ = WriteAsync(openCase);
+            _ = WriteCaseAsync();
         }
     }
 

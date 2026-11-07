@@ -228,3 +228,45 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
             sent.AddMilliseconds(50), ExitRoute.Vpn));
     }
 }
+
+/// <summary>
+/// DPAPI's stand-in: XOR with a key from the purpose and a check sum, so that a file is unreadable as text, another
+/// purpose or a changed byte fails as DPAPI does.
+/// </summary>
+internal sealed class FakeProtector : IUserDataProtector
+{
+    public byte[] Protect(ReadOnlySpan<byte> data, string purpose)
+    {
+        var key = SHA256.HashData(Encoding.UTF8.GetBytes(purpose));
+        var output = new byte[data.Length + 32];
+        for (var index = 0; index < data.Length; index++)
+        {
+            output[index] = (byte)(data[index] ^ key[index % key.Length]);
+        }
+
+        SHA256.HashData([.. data, .. key]).CopyTo(output, data.Length);
+        return output;
+    }
+
+    public byte[] Unprotect(ReadOnlySpan<byte> protectedData, string purpose)
+    {
+        if (protectedData.Length < 32)
+        {
+            throw new CryptographicException("Too short.");
+        }
+
+        var key = SHA256.HashData(Encoding.UTF8.GetBytes(purpose));
+        var data = new byte[protectedData.Length - 32];
+        for (var index = 0; index < data.Length; index++)
+        {
+            data[index] = (byte)(protectedData[index] ^ key[index % key.Length]);
+        }
+
+        if (!SHA256.HashData([.. data, .. key]).AsSpan().SequenceEqual(protectedData[data.Length..]))
+        {
+            throw new CryptographicException("Not this user's, or changed.");
+        }
+
+        return data;
+    }
+}

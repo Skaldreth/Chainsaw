@@ -83,7 +83,7 @@ public partial class MainWindow : Window
         WireGuide(graph, guide);
         WireWatches(shell, graph, monitoring);
         watchRunner.Start();
-        shell.Settings.SettingsChanged += (_, settings) => background.Apply(settings);
+        shell.Settings.SettingsChanged += (_, settings) => _ = background.ApplyAsync(settings);
         background.Start();
         gate.PropertyChanged += OnGateChanged;
         ShowGate();

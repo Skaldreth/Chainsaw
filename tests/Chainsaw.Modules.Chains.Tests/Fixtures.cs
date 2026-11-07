@@ -56,4 +56,19 @@ internal static class Fixtures
         JsonSerializer.Deserialize<Dictionary<string, string>>(Text("ids.json"))!;
 
     private static string PathOf(string name) => Path.Combine(AppContext.BaseDirectory, "Esplora", name);
+
+    /// <summary>Gives a response with another body (and its own hash), to seal before the one under test.</summary>
+    /// <param name="response">The response.</param>
+    /// <param name="sequence">The number it had.</param>
+    /// <returns>The other response.</returns>
+    public static Contracts.SealedResponse Seal(Contracts.SealedResponse response, long sequence)
+    {
+        byte[] body = [.. "first"u8];
+        return response with
+        {
+            Sequence = sequence,
+            Body = body,
+            Sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(body)),
+        };
+    }
 }

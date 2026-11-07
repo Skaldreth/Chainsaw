@@ -64,6 +64,7 @@
     <Project Path="tests/Chainsaw.Modules.Pricing.Tests/Chainsaw.Modules.Pricing.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Monitoring.Tests/Chainsaw.Modules.Monitoring.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Requests.Tests/Chainsaw.Modules.Requests.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Watcher.Tests/Chainsaw.Watcher.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Chainsaw.Recovery/Chainsaw.Recovery.csproj" />

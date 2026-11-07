@@ -60,6 +60,12 @@ internal sealed class SourceHarness : IDisposable
 
     public CaseVerification Verify() => _provider.GetRequiredService<ICaseVerifier>().Verify(Case);
 
+    public CaseVerification Verify(ICase other) => _provider.GetRequiredService<ICaseVerifier>().Verify(other);
+
+    public IResponseTransfer Transfer => _provider.GetRequiredService<IResponseTransfer>();
+
+    public ICase CreateCase(string number) => _provider.GetRequiredService<ICaseStore>().Create(number);
+
     /// <summary>Answers the usual requests from the fixtures.</summary>
     public void AnswerAll()
     {

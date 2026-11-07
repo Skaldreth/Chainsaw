@@ -269,6 +269,28 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void The_watching_when_closed_and_its_ways_of_telling_are_switched_saved_and_told()
+    {
+        AppSettings? told = null;
+        Settings.SettingsChanged += (_, settings) => told = settings;
+        Assert.True(Settings.WatchesInBackground);
+        Assert.True(Settings.AlertsInWindows);
+        Assert.True(Settings.AlertsWithSound);
+
+        Settings.ToggleWatchInBackground();
+        Settings.ToggleAlertInWindows();
+        Settings.ToggleAlertWithSound();
+
+        Assert.False(Settings.WatchesInBackground);
+        Assert.False(Settings.AlertsInWindows);
+        Assert.False(Settings.AlertsWithSound);
+        Assert.Equal(Settings.Current, told);
+        Assert.Equal(Chainsaw.Modules.Monitoring.Contracts.WatchAlerts.None, told!.Alerts);
+        Assert.True(SpinWait.SpinUntil(() => File.Exists(_rig.SettingsStore.FilePath)
+            && !_rig.SettingsStore.Load().WatchInBackground && !_rig.SettingsStore.Load().AlertWithSound, Wait));
+    }
+
+    [Fact]
     public void Without_the_lock_with_windows_windows_lock_leaves_chainsaw_open_but_sleep_still_locks()
     {
         Assert.True(Settings.LocksWithWindows);
