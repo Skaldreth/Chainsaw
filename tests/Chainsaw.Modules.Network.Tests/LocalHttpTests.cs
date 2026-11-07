@@ -64,7 +64,7 @@ public sealed class LocalHttpTests
     }
 
     [Fact]
-    public void A_name_is_connected_only_to_its_addresses_that_are_not_global()
+    public void A_name_is_connected_only_to_its_addresses_in_the_own_network()
     {
         var kept = LocalHandlerFactory.LocalOnly(
             [IPAddress.Parse("93.184.216.34"), IPAddress.Parse("192.168.1.20"), IPAddress.Parse("fd00::20")]);

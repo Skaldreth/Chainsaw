@@ -224,11 +224,6 @@ internal sealed class SourceLookups
                 remaining.RemoveAll(other => !other.Endpoint.Local);
                 continue;
             }
-            catch (OperationCanceledException)
-            {
-                _sources.Pacer.Release(turn);
-                throw;
-            }
             catch (ExitException exception)
             {
                 _sources.Failed(_chain, endpoint.Id);
@@ -330,11 +325,6 @@ internal sealed class SourceLookups
             try
             {
                 await _sources.DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                _sources.Pacer.Release(turn);
-                throw;
             }
             finally
             {

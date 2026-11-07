@@ -356,6 +356,42 @@ public sealed class EndpointPaceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_kept_probe_is_measured_against_the_new_rounds_height_and_is_not_in_step_when_left_behind()
+    {
+        _harness.AnswerAll();
+        var second = await AddSecondAsync();
+        Height(Tip, 800_010);
+        Height(SecondTip, 800_010);
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        var first = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Id;
+        _harness.Sources.AskedToWait(Chain.Bitcoin, first, TimeSpan.FromMinutes(5));
+        Height(SecondTip, 800_013);
+
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+
+        var kept = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Probe!;
+        Assert.Equal(ProbeOutcome.Behind, kept.Outcome);
+        Assert.Equal(3, kept.BlocksBehind);
+        Assert.Equal(second.Id, Assert.Single(_harness.Sources.Plan(Chain.Bitcoin, inStep: true).Endpoints).Endpoint.Id);
+        Assert.False(_harness.Sources.TrustsNotFound(Chain.Bitcoin, first));
+    }
+
+    [Fact]
+    public async Task A_probe_is_not_sent_when_the_endpoint_asked_to_wait_while_the_probe_waited_for_its_turn()
+    {
+        _harness.AnswerAll();
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+        var id = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Id;
+        _harness.Clock.OnDelay = () => _harness.Sources.AskedToWait(Chain.Bitcoin, id, TimeSpan.FromSeconds(60));
+        _harness.Http.Sent.Clear();
+
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+
+        Assert.Empty(_harness.Http.Sent);
+        Assert.Equal(ProbeOutcome.NotSent, _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Probe!.Outcome);
+    }
+
+    [Fact]
     public async Task A_503_that_asks_for_no_wait_is_a_failure_and_the_endpoint_is_paused()
     {
         _harness.AnswerAll();

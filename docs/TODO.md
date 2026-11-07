@@ -241,6 +241,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Den egna noden provas inte utan utgång** (etapp 25, granskningen M1): ett prov där utgången vägrar sparas inte, också
   när den egna noden svarade, och provet vid start väntar på en ansluten utgång (eller Windows). Uppslagen går ändå till
   noden, men den kan inte bli *i fas* för bevakningen förrän ett prov med utgång gjorts. Prova lokala endpoints för sig.
+- **NotFound när alla tillfrågade är otrodda** (granskningen av etapp 25, omgång 2, M; regeln är etapp 24:s): sa varje
+  endpoint som frågades 404, ges *finns inte* också när ingen av dem kunde tros (till exempel en enda Blockscout vars
+  sökväg ändrats). Kunde i stället ge *misslyckades* med texten att källan inte känner till det.
+- ***Prova* i formuläret följer inte takten** (granskningen av etapp 25, omgång 2, M): en adress som prövas innan den
+  lagts till har ingen takt, också om samma adress redan finns som endpoint. Två frågor per tryck.
 - **Spridningen i Prioriterad** (etapp 25): varje endpoint är en egen grupp, så användarens ordning gäller och nästa tas
   först när den första bett om väntan eller dess kö är längre än fem sekunder. I Snabbast sprids uppslagen inom den bästa
   gruppen (de som svarat rätt). Ändras om användaren vill ha spridning också i Prioriterad.

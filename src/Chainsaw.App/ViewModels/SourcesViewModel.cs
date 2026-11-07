@@ -590,8 +590,9 @@ public sealed partial class SourcesViewModel : ObservableObject
             row.Show(endpoint, view.Mode, index, view.Endpoints.Count, _timeZone);
         }
 
-        // A wait the source asked for is shown until it is over; the page is shown again then.
-        if (view.Endpoints.Select(endpoint => endpoint.WaitUntil).Max() is { } until)
+        // A wait the source asked for is shown until it is over: the page is shown again when the first wait still
+        // ahead is over, and plans the next then.
+        if (view.Endpoints.Select(endpoint => endpoint.WaitUntil).Min() is { } until)
         {
             _ = ShowAgainAsync(view.Chain, until);
         }

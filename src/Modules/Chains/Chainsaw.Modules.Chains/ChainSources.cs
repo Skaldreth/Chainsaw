@@ -589,13 +589,29 @@ internal sealed class ChainSources : IChainSources
             return NotSent(id, problem!, at);
         }
 
-        if (!await TurnAsync(endpoint, api, cancellationToken).ConfigureAwait(false))
+        var (mayAsk, turn) = await TurnAsync(endpoint, api, cancellationToken).ConfigureAwait(false);
+        if (!mayAsk)
         {
             return NotSent(id, Pacer.WaitUntil(id) is { } until ? WaitText(until) : PacedText, at);
         }
 
-        var (height, heightProblem) = await AskAsync(endpoint, heightRequest, api.ReadHeight, cancellationToken)
-            .ConfigureAwait(false);
+        ((long Value, TimeSpan Duration)? Answer, string? Problem) asked;
+        try
+        {
+            asked = await AskAsync(endpoint, heightRequest, api.ReadHeight, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ExitNotConnectedException)
+        {
+            // Nothing was sent: the turn goes back.
+            if (turn is not null)
+            {
+                Pacer.Release(turn);
+            }
+
+            throw;
+        }
+
+        var (height, heightProblem) = asked;
         if (Pacer.WaitUntil(id) is { } busy && height is null)
         {
             return NotSent(id, WaitText(busy), at);
@@ -635,23 +651,27 @@ internal sealed class ChainSources : IChainSources
     }
 
     /// <summary>
-    /// Waits for an added endpoint's turn before a probe asks it, unless its turn is further away than a probe waits.
+    /// Waits for an added endpoint's turn before a probe asks it, unless its turn is further away than a probe waits
+    /// or the endpoint asked Chainsaw to wait meanwhile; a turn not used is given back.
     /// </summary>
     /// <param name="endpoint">The endpoint.</param>
     /// <param name="api">Its sort of API.</param>
     /// <param name="cancellationToken">Stops the wait.</param>
-    /// <returns><see langword="true"/> when it may be asked now.</returns>
-    private async Task<bool> TurnAsync(SourceEndpoint endpoint, ISourceApi api, CancellationToken cancellationToken)
+    /// <returns>
+    /// Whether it may be asked now, and the turn taken (<see langword="null"/> for an address not yet added).
+    /// </returns>
+    private async Task<(bool MayAsk, EndpointTurn? Turn)> TurnAsync(
+        SourceEndpoint endpoint, ISourceApi api, CancellationToken cancellationToken)
     {
         if (endpoint.Id == Guid.Empty)
         {
-            return true;
+            return (true, null);
         }
 
         var (turn, _) = Pacer.Take([new PlannedEndpoint(endpoint, api)], ProbeTimeout);
         if (turn is null)
         {
-            return false;
+            return (false, null);
         }
 
         try
@@ -664,7 +684,13 @@ internal sealed class ChainSources : IChainSources
             throw;
         }
 
-        return true;
+        if (Pacer.WaitUntil(endpoint.Id) is not null)
+        {
+            Pacer.Release(turn);
+            return (false, null);
+        }
+
+        return (true, turn);
     }
 
     /// <summary>Says that an endpoint asked Chainsaw to wait.</summary>
@@ -848,13 +874,15 @@ internal sealed class ChainSources : IChainSources
                 return;
             }
 
-            // A probe that only waited says nothing about its endpoint: the earlier probe stands.
+            // A probe that only waited says nothing about its endpoint: the earlier probe stands, measured against this
+            // round's highest height, so that an endpoint left behind since is never counted as in step.
             var earlier = new Dictionary<Guid, EndpointProbe>(state.Probes);
+            var highest = probes.Where(p => p.Outcome == ProbeOutcome.Answered).Max(p => p.Height);
             state.Probes.Clear();
             foreach (var probe in probes)
             {
                 state.Probes[probe.EndpointId] = IsWait(probe) && earlier.TryGetValue(probe.EndpointId, out var kept)
-                    ? kept
+                    ? Against(kept, highest)
                     : probe;
             }
 
@@ -863,6 +891,25 @@ internal sealed class ChainSources : IChainSources
         }
 
         Tell(chain);
+    }
+
+    /// <summary>
+    /// Measures a probe kept from an earlier round against a newer round's highest height: lower by more than
+    /// <see cref="HeightMargin"/> is behind, and lower at all is not in step.
+    /// </summary>
+    /// <param name="kept">The earlier probe.</param>
+    /// <param name="highest">The newer round's highest height, or <see langword="null"/> when none answered.</param>
+    /// <returns>The probe as it stands now.</returns>
+    private static EndpointProbe Against(EndpointProbe kept, long? highest)
+    {
+        if (kept.Height is not { } height || highest is not { } top || height >= top
+            || kept.Outcome is not (ProbeOutcome.Answered or ProbeOutcome.Behind))
+        {
+            return kept;
+        }
+
+        return Ranked([kept with { Outcome = ProbeOutcome.Answered, BlocksBehind = null, Problem = null },
+            new EndpointProbe(Guid.Empty, ProbeOutcome.Answered, top, null, null, kept.At, null)])[0];
     }
 
     /// <summary>
