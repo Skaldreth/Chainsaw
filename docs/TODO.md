@@ -149,6 +149,19 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 ### Bitcoin-källan (Chains)
 - **Svarshuvuden som ursprung:** se *Utgångar*. Behövs om källans `Date` ska stå bredvid Chainsaws egen tid.
 - **Flera källor att jämföra:** samma tx från två Esplora-källor, och en varning om de skiljer sig.
+- **Endpointarna provas bara vid start och med *Prova alla nu*** (etapp 24): i Snabbast provas de inte om under dagen.
+  En endpoint som blir långsam eller börjar ligga efter märks först när ett uppslag misslyckas (den läggs då sist) eller
+  vid nästa prov. Prova igen efter en tid (till exempel en gång i timmen när utgången är ansluten)?
+- **Efter i höjd räknas strikt** (etapp 24): en endpoint med lägre höjd än den högsta i provet räknas som efter, också
+  ett enda block (ett nytt block kan just ha kommit). Behövs en marginal, eller ett nytt prov av den som ligger efter?
+- **Egen Esplora på det lokala nätet** (etapp 24): adresser på datorn eller ett privat nät vägras av utgången (både
+  genom tunneln och genom Windows vid direkt anslutning), så en Esplora på `esplora.lan` går inte att nå. Ska en egen
+  nod på det lokala nätet tillåtas, och i så fall bara med Windows som utgång?
+- **Endpointens namn** (etapp 24): namnet tas ur adressens värd och kan inte ändras i sidan Källor. Handtaget flyttar
+  bara med pilarna och Alt+↑/↓; att dra raden med musen är inte byggt.
+- **Nyckeln som huvud** (etapp 24): Esplora skickar nyckeln som `Authorization: Bearer`. Huvudena som tillåts är
+  `Authorization` och `X-Api-Key` (`ExitCredential`); en källa som vill ha något annat lägger till det i Network.
+- **Solana i sidan Källor** (etapp 24): chipet står tonat, men `Chain` har inget värde för Solana än.
 - **Tx på en adress sida kontrolleras inte mot sina bytes** (etapp 15): bara tx som expanderas för sig (och deras
   spenderare) hämtar `/tx/:txid/hex`. En adress historik med 50 tx skulle kosta 50 uppslag till. Kontrollera dem när
   de visas i inspektören, eller i bakgrunden?

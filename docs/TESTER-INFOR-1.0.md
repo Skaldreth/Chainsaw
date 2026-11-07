@@ -663,3 +663,37 @@ och K först).
 - Lås valvet medan ett ärende är öppet (eller gör biblioteket oläsbart) och ta tillbaka en etikett: den tas tillbaka i
   ärendet, och grafens rad säger att biblioteket följer med när ärendet öppnas eller stängs.
 - `/verify` efter allt detta: hashkedjorna är hela.
+
+## Källornas endpoints (etapp 24, KL1a)
+
+**Sidan Källor**
+- Ctrl+, → *Källor* (efter Nätverk): chipsen Bitcoin, Ethereum, TRON och Solana; de tre sista tonade med *Inte byggt
+  än*, och ett klick på dem säger att kedjan får sina källor när den byggs.
+- Bitcoin har mempool.space och Blockstream som förval, i läget *Snabbast*. Raderna har prick, namn, adress (Cascadia
+  Mono), stapel och millisekunder, ★ på den som används, brytare och ×.
+- *Prova alla nu*: båda provas genom utgången (kontrollera med Wireshark eller utgångens logg att uppslaget bara är
+  `blocks/tip/height`, och att inget går ut på det vanliga nätkortet med VPN valt). *Provade hh:mm* visar tiden.
+- Utan ansluten utgång (VPN valt): *Prova alla nu* säger *Inget provades: utgången tillåter inga uppslag nu*, och inget
+  skickas. Låst Chainsaw: inget provas.
+- Vid start: lås upp med en ansluten utgång (eller Windows) och kontrollera att endpointarna provas en gång; ansluter
+  utgången först senare provas de då.
+- *Prioriterad*: platsnummer och handtag syns, pilarna och Alt+↑/Alt+↓ på en rad med fokus flyttar endpointen och
+  fokus följer med. Stäng av den första (brytaren) eller lägg in en som inte svarar först: expandera i grafen och se att
+  nästa tas, och att den döda får röd prick.
+- *Av*: listan tonas, raden *Inga uppslag för Bitcoin …* syns, grafens hörn säger *Av* (med förklaring på hovring), och
+  en expansion visar bara det ärendet har, utan att något skickas.
+- Lägg till en egen Esplora som ligger efter (till exempel en nod som synkar): gul markering *N block efter*, och den
+  används inte i Snabbast.
+
+**Lägg till endpoint …**
+- `http://…` säger *Bara https.* och *Lägg till* är tonad. `https://user:pw@…`, `?` och `#` vägras också.
+- *Prova* visar *Höjd 921 404 · 00000000…xxxx · NN ms* i grönt, eller varför inte. Inget läggs till av *Prova*.
+- API-nyckel ur valvet: välj en nyckel (lagd i valvet), lägg till och prova. Kontrollera i `sources.json` att bara
+  nyckelns namn står där, aldrig nyckeln, och att nyckeln går som `Authorization: Bearer` (inte i adressen).
+- Esc fäller in formuläret före dialogen; Enter i adressen lägger till.
+
+**Ärendet och filen**
+- Efter en expansion: `/verify` är grön, och varje råsvar i ärendet har `endpoint_id` och `endpoint_name` (till exempel
+  med en SQLite-läsare på arbetskopian i ett testärende).
+- Valen ligger kvar efter omstart i `%LOCALAPPDATA%\Chainsaw\sources.json`. En trasig fil ger förvalen; en endpoint med
+  `http://` som skrivits in för hand används aldrig.
