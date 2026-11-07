@@ -96,6 +96,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 ### Kedjor och data
 - **Ethereum och ERC-20:** native ETH, interna tx (traces) och tokenöverföringar (Transfer-eventet). Kräver en källa med
   adresshistorik och traces.
+- **Tornado Cash** (användarens fråga 2026-11-07) kommer med Ethereum: kontrakten känns igen som mixer och blir *Spåret
+  tar slut här*. Poolerna har fasta belopp (0,1, 1, 10 och 100 ETH), så beloppet säger inget, och de troliga utgångarna
+  kräver egna heuristiker ur forskningen: samma adress in och ut, ovanligt gaspris, adresser som betalar varandras gas,
+  flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater som mixerns.
 - **TRON och USDT (TRC-20).**
 - **Fler kedjor** efter behov: Litecoin, BSC, Solana.
 - **Zcash** (användarens fråga 2026-11-07): den genomskinliga delen (t-adresser) är en UTXO-kedja som Bitcoin och
