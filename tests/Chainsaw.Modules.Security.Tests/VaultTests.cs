@@ -345,6 +345,49 @@ public sealed class VaultTests : IDisposable
     }
 
     [Fact]
+    public void A_throwing_event_handler_leaves_the_data_key_intact()
+    {
+        _fixture.Created();
+        _fixture.Vault.Lock();
+        _fixture.Vault.StateChanged += (_, _) => throw new InvalidOperationException("handler failed");
+
+        Assert.Throws<InvalidOperationException>(() => _fixture.Vault.Unlock(VaultFixture.MasterKey));
+
+        Assert.Equal(VaultState.Unlocked, _fixture.Vault.State);
+        Assert.Contains(VaultFixture.DataKeyOf(_fixture.Vault)!, value => value != 0);
+        new OperatorProfileStore(_fixture.Vault).Save(new OperatorProfile("Test Operator", "", ""));
+        using var restarted = _fixture.NewVault();
+        restarted.Unlock(VaultFixture.MasterKey);
+        Assert.Equal("Test Operator", new OperatorProfileStore(restarted).Get()?.Name);
+    }
+
+    [Fact]
+    public void The_state_follows_a_file_removed_outside_the_vault()
+    {
+        _fixture.Created();
+        _fixture.Vault.Lock();
+        File.Delete(_fixture.FilePath);
+        var states = new List<VaultState>();
+        _fixture.Vault.StateChanged += (_, state) => states.Add(state);
+
+        VaultFixture.AssertFails(VaultError.NotCreated, () => _fixture.Vault.Unlock(VaultFixture.MasterKey));
+
+        Assert.Equal(VaultState.NotCreated, _fixture.Vault.State);
+        Assert.Equal([VaultState.NotCreated], states);
+    }
+
+    [Fact]
+    public void The_state_follows_a_file_created_outside_the_vault()
+    {
+        var stale = _fixture.NewVault();
+        _fixture.Created();
+
+        VaultFixture.AssertFails(VaultError.AlreadyCreated, () => stale.Create(VaultFixture.OtherMasterKey));
+
+        Assert.Equal(VaultState.Locked, stale.State);
+    }
+
+    [Fact]
     public void An_oversized_file_is_refused_before_it_is_read()
     {
         System.IO.Directory.CreateDirectory(_fixture.Directory);
