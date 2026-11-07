@@ -10,7 +10,8 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// <param name="Script">The locking script (scriptPubKey) as lower-case hex.</param>
 /// <param name="SpentBy">
 /// The input that spends this output, when Chainsaw has asked the source (see
-/// <see cref="IBitcoinSource.GetOutputSpendsAsync"/>); <see langword="null"/> when it is not known or unspent.
+/// <see cref="IBitcoinSource.GetOutputSpendsAsync"/>); <see langword="null"/> when it is not known or was unspent when
+/// asked. The lookup's problem text says when the answer may have changed since.
 /// </param>
 public sealed record BitcoinOutput(
     int Index,

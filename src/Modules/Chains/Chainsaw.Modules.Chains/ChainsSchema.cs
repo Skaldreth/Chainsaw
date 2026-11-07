@@ -54,12 +54,13 @@ internal sealed class ChainsSchema : ICaseSchemaContributor
             PRIMARY KEY (chain, kind, subject, sequence)
         ) STRICT, WITHOUT ROWID;
         CREATE TABLE chains_bitcoin_seen (
+            chain TEXT NOT NULL,
             txid TEXT NOT NULL,
             sequence INTEGER NOT NULL,
             block_height INTEGER,
-            PRIMARY KEY (txid, sequence)
+            PRIMARY KEY (chain, txid, sequence)
         ) STRICT, WITHOUT ROWID;
-        CREATE INDEX chains_bitcoin_seen_height ON chains_bitcoin_seen (block_height);
+        CREATE INDEX chains_bitcoin_seen_height ON chains_bitcoin_seen (chain, block_height);
         """;
 
     /// <inheritdoc/>

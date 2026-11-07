@@ -16,8 +16,10 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// </para>
 /// <para>
 /// The methods do the case's work off the calling thread and never throw for a failed lookup; the answer's
-/// <see cref="BitcoinLookup{T}.Status"/> says what happened. They throw only for invalid arguments, a closed case
-/// (<see cref="CaseException"/>) or cancellation.
+/// <see cref="BitcoinLookup{T}.Status"/> says what happened. They throw only for invalid arguments, cancellation, or
+/// a <see cref="CaseException"/>: <see cref="CaseError.Closed"/> for a closed case, and
+/// <see cref="CaseError.Corrupt"/> when a sealed response no longer matches its SHA-256 (the case has been changed
+/// outside Chainsaw; <c>/verify</c> says where).
 /// </para>
 /// </remarks>
 public interface IBitcoinSource

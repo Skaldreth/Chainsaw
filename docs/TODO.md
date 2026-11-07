@@ -68,6 +68,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Adressens sammanfattning** (`/address/:a`: antal tx, mottaget och spenderat), så att sidbläddringen kan visa hur
   mycket som återstår.
 - **Svarshuvuden som ursprung:** se *Utgångar*. Behövs om källans `Date` ska stå bredvid Chainsaws egen tid.
+- **Utgångar som aldrig kan spenderas** (granskningen etapp 5, M): en tx med en OP_RETURN-output får aldrig alla
+  utgångar spenderade, så dess `/outspends` hämtas om varje gång. Bortse från OP_RETURN när det avgörs om svaret kan
+  ändras (kräver tx:ens skripttyper bredvid svaret).
 - **Flera källor att jämföra:** samma tx från två Esplora-källor, och en varning om de skiljer sig.
 
 ### Klustring och heuristiker

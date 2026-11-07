@@ -30,7 +30,7 @@ public sealed class SourceTests : IDisposable
         var raw = Fixtures.Bytes("tx-confirmed.json");
         Assert.Equal(raw, row.Body);
         Assert.Equal(SHA256.HashData(raw), row.Sha256);
-        Assert.Equal("bitcoin", row.Chain);
+        Assert.Equal("bitcoin-mainnet", row.Chain);
         Assert.Equal("esplora", row.Source);
         Assert.Equal(Fixtures.Url($"tx/{Fixtures.Confirmed}"), row.Url);
         Assert.Equal("bitcoin.tx", row.Kind);
@@ -179,22 +179,30 @@ public sealed class SourceTests : IDisposable
     }
 
     [Fact]
-    public async Task Address_pages_follow_one_another_until_a_page_is_not_full()
+    public async Task Address_pages_follow_one_another_until_a_page_is_empty()
     {
         var first = await Source.GetAddressTransactionsAsync(_harness.Case, Fixtures.WitnessKeyHash);
         var second = await Source.GetAddressTransactionsAsync(
             _harness.Case, Fixtures.WitnessKeyHash, first.Value!.NextAfter);
+        var third = await Source.GetAddressTransactionsAsync(
+            _harness.Case, Fixtures.WitnessKeyHash, second.Value!.NextAfter);
 
         Assert.Equal(LookupStatus.Fetched, first.Status);
         Assert.Equal(3, first.Value.Transactions.Count);
         Assert.Equal(Fixtures.Confirmed, first.Value.NextAfter);
         Assert.Null(first.Value.After);
-        Assert.Equal(Fixtures.Older, Assert.Single(second.Value!.Transactions).Txid);
+        Assert.Equal(Fixtures.Older, Assert.Single(second.Value.Transactions).Txid);
         Assert.Equal(Fixtures.Confirmed, second.Value.After);
-        Assert.Null(second.Value.NextAfter);
+        Assert.Equal(Fixtures.Older, second.Value.NextAfter);
+        Assert.Empty(third.Value!.Transactions);
+        Assert.Null(third.Value.NextAfter);
         var address = Fixtures.AddressText("wpkh");
         Assert.Equal(
-            [Fixtures.Url($"address/{address}/txs"), Fixtures.Url($"address/{address}/txs/chain/{Fixtures.Confirmed}")],
+            [
+                Fixtures.Url($"address/{address}/txs"),
+                Fixtures.Url($"address/{address}/txs/chain/{Fixtures.Confirmed}"),
+                Fixtures.Url($"address/{address}/txs/chain/{Fixtures.Older}"),
+            ],
             Http.Sent.Select(request => request.Uri.AbsoluteUri));
     }
 
@@ -351,6 +359,7 @@ public sealed class SourceTests : IDisposable
         Assert.Null(lookup.Value!.Outputs[0].SpentBy);
         Assert.Equal(Fixtures.Unconfirmed, lookup.Value.Outputs[1].SpentBy!.Txid);
         Assert.Equal([1L, 2L], lookup.Origins.Select(origin => origin.Sequence));
+        Assert.NotNull(lookup.Problem);
     }
 
     [Fact]
@@ -413,6 +422,111 @@ public sealed class SourceTests : IDisposable
             Assert.DoesNotContain(SourceHarness.CaseNumber, request.Uri.AbsoluteUri, StringComparison.Ordinal);
             Assert.Empty(request.Uri.Query);
         });
+    }
+
+    [Theory]
+    [InlineData("\"sequence\": 4294967293", "\"sequence\": -1")]
+    [InlineData("\"locktime\": 799999", "\"locktime\": 5000000000")]
+    [InlineData("\"size\": 400", "\"size\": 5000000000")]
+    [InlineData("\"vout\": 1,", "\"vout\": 3000000000,")]
+    public async Task A_number_out_of_range_is_sealed_and_refused_without_throwing(string from, string to)
+    {
+        var body = Fixtures.Text("tx-confirmed.json").Replace(from, to, StringComparison.Ordinal);
+        Assert.NotEqual(Fixtures.Text("tx-confirmed.json"), body);
+        Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}"), Encoding.UTF8.GetBytes(body), 200);
+
+        var lookup = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Failed, lookup.Status);
+        Assert.Equal(Encoding.UTF8.GetBytes(body), Assert.Single(_harness.RawRows()).Body);
+    }
+
+    [Fact]
+    public async Task An_address_that_is_not_text_is_sealed_and_refused_without_throwing()
+    {
+        var address = Fixtures.AddressText("wsh");
+        var body = Fixtures.Text("tx-confirmed.json")
+            .Replace($"\"scriptpubkey_address\": \"{address}\"", "\"scriptpubkey_address\": 1", StringComparison.Ordinal);
+        Assert.NotEqual(Fixtures.Text("tx-confirmed.json"), body);
+        Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}"), Encoding.UTF8.GetBytes(body), 200);
+
+        var lookup = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Failed, lookup.Status);
+        Assert.Single(_harness.RawRows());
+    }
+
+    [Fact]
+    public async Task A_bad_request_is_a_failure_and_not_a_missing_transaction()
+    {
+        Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}"), Encoding.ASCII.GetBytes("Too many"), 400);
+
+        var lookup = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Failed, lookup.Status);
+        Assert.Contains("400", lookup.Problem, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(400)]
+    [InlineData(404)]
+    public async Task An_error_does_not_hide_what_the_case_already_has(int status)
+    {
+        await Source.GetAddressTransactionsAsync(_harness.Case, Fixtures.WitnessKeyHash);
+        var address = Fixtures.AddressText("wpkh");
+        Http.AnswerBytes(Fixtures.Url($"address/{address}/txs"), Encoding.ASCII.GetBytes("error"), status);
+
+        var lookup = await Source.GetAddressTransactionsAsync(_harness.Case, Fixtures.WitnessKeyHash);
+
+        Assert.Equal(LookupStatus.FromCaseMayBeOutdated, lookup.Status);
+        Assert.Equal(3, lookup.Value!.Transactions.Count);
+        Assert.Equal([1L, 2L], lookup.Origins.Select(origin => origin.Sequence));
+    }
+
+    [Fact]
+    public async Task Answers_from_another_network_are_never_used()
+    {
+        var testnet = new EsploraBitcoinSource(
+            Http, _harness.Profiles, _harness.Clock,
+            new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base), Network = BitcoinNetwork.Testnet },
+            TimeZoneInfo.Utc);
+        Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("4800000"), 200);
+        await testnet.GetTipHeightAsync(_harness.Case);
+        Http.Connected = false;
+
+        var mainnet = await Source.GetTipHeightAsync(_harness.Case);
+        var stillTestnet = await testnet.GetTipHeightAsync(_harness.Case);
+
+        Assert.Equal(LookupStatus.Offline, mainnet.Status);
+        Assert.Equal(4_800_000, stillTestnet.Value!.Height);
+    }
+
+    [Fact]
+    public async Task An_index_that_points_at_another_response_is_not_believed()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        _harness.Case.Write(transaction =>
+        {
+            using var command = transaction.CreateCommand(
+                $"INSERT INTO chains_lookup VALUES ('bitcoin-mainnet', 'bitcoin.outspends', '{Fixtures.Confirmed}', 1, NULL)");
+            return command.ExecuteNonQuery();
+        });
+        Http.Connected = false;
+
+        var spends = await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Offline, spends.Status);
+    }
+
+    [Fact]
+    public async Task Spends_that_can_still_change_are_marked_on_the_transaction()
+    {
+        await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);
+
+        var lookup = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Fetched, lookup.Status);
+        Assert.Contains("spenderade", lookup.Problem, StringComparison.Ordinal);
     }
 
     [Fact]

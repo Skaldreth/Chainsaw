@@ -61,7 +61,7 @@ w('tx-confirmed.json',t1); w('tx-unconfirmed.json',t2); w('tx-coinbase.json',t3)
 bad=json.loads(json.dumps(t1)); bad['fee']=9_999; w('tx-bad-fee.json',bad)
 bad=json.loads(json.dumps(t1)); bad['vout'][0]['scriptpubkey_address']=S['tr'][1]; w('tx-bad-address.json',bad)
 bad=json.loads(json.dumps(t1)); bad['vout'][1]['value']=21_000_000*100_000_000+1; w('tx-bad-amount.json',bad)
-w('address-page-first.json',[t2,t3,t1]); w('address-page-after.json',[t0])
+w('address-page-first.json',[t2,t3,t1]); w('address-page-after.json',[t0]); w('address-page-empty.json',[])
 w('outspends-open.json',[{"spent":False},{"spent":True,"txid":T2,"vin":0,"status":{"confirmed":False}},{"spent":False}])
 sp=lambda txid,vin,hgt: {"spent":True,"txid":txid,"vin":vin,"status":status(hgt)}
 w('outspends-settled.json',[sp('c1'*32,0,800001),sp(T2,0,800003),sp('c2'*32,3,800001)])

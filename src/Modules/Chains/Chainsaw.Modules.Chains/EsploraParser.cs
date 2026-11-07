@@ -118,7 +118,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
             root.TryGetProperty("mediantime", out _) ? UnixTime(root, "mediantime") : null,
             previous,
             root32.Value,
-            checked((int)Positive(root, "tx_count")),
+            PositiveInt32(root, "tx_count"),
             Positive(root, "size"),
             Positive(root, "weight"),
             Integer(root, "version"));
@@ -158,9 +158,9 @@ internal sealed class EsploraParser(BitcoinNetwork network)
 
         var fee = new Satoshi(Amount(root, "fee"));
         CheckFee(inputs, outputs, fee, isCoinbase);
-        var size = checked((int)Positive(root, "size"));
-        var weight = checked((int)Positive(root, "weight"));
-        if (weight < size || weight > size * WitnessScaleFactor)
+        var size = PositiveInt32(root, "size");
+        var weight = PositiveInt32(root, "weight");
+        if (weight < size || weight > (long)size * WitnessScaleFactor)
         {
             throw new EsploraFormatException("The weight does not fit the size.");
         }
@@ -174,7 +174,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
             size,
             weight,
             Integer(root, "version"),
-            checked((uint)Integer(root, "locktime")));
+            UInt32(root, "locktime"));
     }
 
     /// <summary>Checks that the inputs are the outputs plus the fee; a coinbase has no fee of its own.</summary>
@@ -184,7 +184,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     /// <param name="isCoinbase">Whether the transaction is a coinbase.</param>
     private static void CheckFee(List<BitcoinInput> inputs, List<BitcoinOutput> outputs, Satoshi fee, bool isCoinbase)
     {
-        var totalOut = outputs.Aggregate(Satoshi.Zero, (sum, output) => sum + output.Amount);
+        var totalOut = Total(outputs.Select(output => output.Amount));
         if (totalOut.Value > MaximumSatoshi)
         {
             throw new EsploraFormatException("The outputs exceed Bitcoin's supply.");
@@ -200,11 +200,29 @@ internal sealed class EsploraParser(BitcoinNetwork network)
             return;
         }
 
-        var totalIn = inputs.Aggregate(Satoshi.Zero, (sum, input) => sum + input.Amount!.Value);
-        if (totalIn - totalOut != fee)
+        var totalIn = Total(inputs.Select(input => input.Amount!.Value));
+        if (totalIn.Value > MaximumSatoshi || totalIn - totalOut != fee)
         {
             throw new EsploraFormatException("The fee is not the inputs minus the outputs.");
         }
+    }
+
+    /// <summary>Adds amounts, refusing a sum that cannot be on the chain instead of overflowing.</summary>
+    /// <param name="amounts">The amounts, each within Bitcoin's supply.</param>
+    /// <returns>The sum.</returns>
+    private static Satoshi Total(IEnumerable<Satoshi> amounts)
+    {
+        var total = Satoshi.Zero;
+        foreach (var amount in amounts)
+        {
+            total += amount;
+            if (total.Value > MaximumSatoshi)
+            {
+                throw new EsploraFormatException("The amounts exceed Bitcoin's supply.");
+            }
+        }
+
+        return total;
     }
 
     /// <summary>Reads an input; a non-coinbase input must name the output it spends.</summary>
@@ -214,11 +232,11 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     private BitcoinInput ReadInput(JsonElement element, int index)
     {
         var input = Object(element);
-        var sequence = checked((uint)Integer(input, "sequence"));
+        var sequence = UInt32(input, "sequence");
         if (Boolean(input, "is_coinbase"))
         {
             var hasPrevout = input.TryGetProperty("prevout", out var prevout) && prevout.ValueKind != JsonValueKind.Null;
-            if (hasPrevout || Integer(input, "vout") != CoinbaseIndex)
+            if (hasPrevout || UInt32(input, "vout") != CoinbaseIndex)
             {
                 throw new EsploraFormatException("A coinbase input spends nothing.");
             }
@@ -229,7 +247,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
         var spent = Object(Property(input, "prevout"));
         var (type, address) = ReadScript(spent);
         var previousIndex = Integer(input, "vout");
-        if (previousIndex is < 0 or >= CoinbaseIndex)
+        if (previousIndex is < 0 or > int.MaxValue)
         {
             throw new EsploraFormatException("The spent output's index is out of range.");
         }
@@ -271,7 +289,8 @@ internal sealed class EsploraParser(BitcoinNetwork network)
         var (type, address) = ScriptClassifier.Classify(script, network);
         if (holder.TryGetProperty("scriptpubkey_address", out var reported) && reported.ValueKind != JsonValueKind.Null)
         {
-            if (address is null || !string.Equals(reported.GetString(), address.Value, StringComparison.OrdinalIgnoreCase))
+            var text = reported.ValueKind == JsonValueKind.String ? reported.GetString() : null;
+            if (address is null || !string.Equals(text, address.Value, StringComparison.OrdinalIgnoreCase))
             {
                 throw new EsploraFormatException("The source's address does not match the script.");
             }
@@ -410,6 +429,30 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     {
         var number = Integer(holder, name);
         return number > 0 ? number : throw new EsploraFormatException($"The property {name} is not positive.");
+    }
+
+    /// <summary>Reads a whole number that fits an unsigned 32-bit field, such as a sequence or a lock time.</summary>
+    /// <param name="holder">The object.</param>
+    /// <param name="name">The property.</param>
+    /// <returns>The number.</returns>
+    private static uint UInt32(JsonElement holder, string name)
+    {
+        var number = Integer(holder, name);
+        return number is >= 0 and <= uint.MaxValue
+            ? (uint)number
+            : throw new EsploraFormatException($"The property {name} is out of range.");
+    }
+
+    /// <summary>Reads a whole number from one up to the largest 32-bit integer, such as a size.</summary>
+    /// <param name="holder">The object.</param>
+    /// <param name="name">The property.</param>
+    /// <returns>The number.</returns>
+    private static int PositiveInt32(JsonElement holder, string name)
+    {
+        var number = Positive(holder, name);
+        return number <= int.MaxValue
+            ? (int)number
+            : throw new EsploraFormatException($"The property {name} is out of range.");
     }
 
     /// <summary>Reads an amount in satoshi, within Bitcoin's supply. Esplora writes amounts as whole satoshi.</summary>

@@ -10,8 +10,8 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// </param>
 /// <param name="Transactions">The transactions on the page.</param>
 /// <param name="NextAfter">
-/// The txid to ask for the next page with, or <see langword="null"/> when the page was not full and the history ends
-/// here.
+/// The txid to ask for the next page with: the last confirmed transaction on the page. <see langword="null"/> when the
+/// page has no confirmed transaction, which is where the history ends.
 /// </param>
 public sealed record BitcoinAddressPage(
     BitcoinAddress Address,

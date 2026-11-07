@@ -17,6 +17,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <summary>How old the newest known height may be before a lookup that depends on depth asks for a new one.</summary>
     private static readonly TimeSpan TipFreshness = TimeSpan.FromMinutes(1);
 
+    /// <summary>The HTTP status for something the source does not know.</summary>
+    private const int NotFoundStatus = 404;
+
     /// <summary>The only way out.</summary>
     private readonly IExitHttp _http;
 
@@ -55,10 +58,10 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         _options = options;
         _baseUri = CheckBaseUri(options.EsploraBaseUri);
         _parser = new EsploraParser(options.Network);
-        _store = new RawResponseStore(timeZone);
-        if (options.SafeConfirmations < 1 || options.ConfirmedPageSize < 1)
+        _store = new RawResponseStore(timeZone, options.Network);
+        if (options.SafeConfirmations < 1)
         {
-            throw new ArgumentException("The depth and the page size must be at least 1.", nameof(options));
+            throw new ArgumentException("The depth must be at least 1.", nameof(options));
         }
     }
 
@@ -86,8 +89,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             path,
             body => Page(address, after, _parser.ParseAddressTransactions(body, address)),
             page => IndexOf(page.Transactions),
-            reader => StoredAs(RawResponseStore.Latest(reader, ResponseKinds.AddressTransactions, subject),
-                body => Page(address, after, _parser.ParseTransactionList(body))),
+            reader => StoredAs(_store.Latest(reader, ResponseKinds.AddressTransactions, subject),
+                body => Page(address, after, _parser.ParseAddressTransactions(body, address))),
             page => after is null || page.Transactions.Count == 0 ? null : Shallowest(page.Transactions));
         return LookupAsync(@case, query, cancellationToken);
     }
@@ -122,7 +125,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"tx/{txid.Value}/outspends",
             body => EsploraParser.ParseOutputSpends(body),
             _ => ResponseIndex.None,
-            reader => StoredAs(RawResponseStore.Latest(reader, ResponseKinds.OutputSpends, txid.Value),
+            reader => StoredAs(_store.Latest(reader, ResponseKinds.OutputSpends, txid.Value),
                 body => EsploraParser.ParseOutputSpends(body)),
             SettledAt);
         return LookupAsync(@case, query, cancellationToken);
@@ -140,7 +143,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"block/{hash.Value}",
             body => EsploraParser.ParseBlock(body, hash),
             _ => ResponseIndex.None,
-            reader => StoredAs(RawResponseStore.Latest(reader, ResponseKinds.Block, hash.Value),
+            reader => StoredAs(_store.Latest(reader, ResponseKinds.Block, hash.Value),
                 body => EsploraParser.ParseBlock(body, hash)),
             block => block.Height,
             NeverChanges: true);
@@ -156,13 +159,13 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
     /// <summary>The lookup of the chain's height, which always changes.</summary>
     /// <returns>The query.</returns>
-    private static LookupQuery<BitcoinTip> TipQuery() => new(
+    private LookupQuery<BitcoinTip> TipQuery() => new(
         ResponseKinds.TipHeight,
         string.Empty,
         "blocks/tip/height",
         body => EsploraParser.ParseTipHeight(body),
         tip => new ResponseIndex([], tip.Height),
-        reader => StoredAs(RawResponseStore.Latest(reader, ResponseKinds.TipHeight, string.Empty),
+        reader => StoredAs(_store.Latest(reader, ResponseKinds.TipHeight, string.Empty),
             body => EsploraParser.ParseTipHeight(body)),
         _ => null);
 
@@ -238,7 +241,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return new BitcoinLookup<T>(LookupStatus.Fetched, value, [sealedResponse.Origin], null);
         }
 
-        if (response.StatusCode is 400 or 404)
+        if (response.StatusCode == NotFoundStatus && stored is null)
         {
             return new BitcoinLookup<T>(LookupStatus.NotFound, null, [sealedResponse.Origin], problem);
         }
@@ -254,7 +257,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     private static (T? Value, string? Problem) Interpret<T>(LookupQuery<T> query, ExitResponse response)
         where T : class
     {
-        if (response.StatusCode is 400 or 404)
+        if (response.StatusCode == NotFoundStatus)
         {
             return (null, "Källan känner inte till det som söktes.");
         }
@@ -268,8 +271,10 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         {
             return (query.Parse(response.Body.ToArray()), null);
         }
-        catch (EsploraFormatException)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            // Whatever the source sent, the response is sealed afterwards; a body that cannot be read is never
+            // allowed to stop that (principle 1) or to escape as an exception (the contract of IBitcoinSource).
             return (null, "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.");
         }
     }
@@ -294,7 +299,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return new BitcoinLookup<T>(withoutAnswer, null, origins, NoAnswer(withoutAnswer, reason));
         }
 
-        var fetchedAt = found.Response.Origin.ReceivedLocal.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        var fetchedAt = LocalText(found.Response.Origin.ReceivedLocal);
         var problem = $"{reason} Svaret kommer ur ärendet, hämtat {fetchedAt}, och kan ha ändrats sedan.";
         ResponseOrigin[] used = failedResponse is null
             ? [found.Response.Origin]
@@ -324,11 +329,11 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <param name="query">The lookup.</param>
     /// <param name="cancellationToken">Stops the lookup before it starts.</param>
     /// <returns>The answer, if any, and the height.</returns>
-    private static Task<((T Value, StoredResponse Response)? Stored, long? KnownHeight)> ReadCaseAsync<T>(
+    private Task<((T Value, StoredResponse Response)? Stored, long? KnownHeight)> ReadCaseAsync<T>(
         ICase @case, LookupQuery<T> query, CancellationToken cancellationToken)
         where T : class =>
         Task.Run(
-            () => @case.Read(reader => (query.FindStored(reader), RawResponseStore.KnownHeight(reader))),
+            () => @case.Read(reader => (query.FindStored(reader), _store.KnownHeight(reader))),
             cancellationToken);
 
     /// <summary>
@@ -356,14 +361,16 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <param name="lookup">The transaction's lookup.</param>
     /// <param name="cancellationToken">Stops the lookup before it starts.</param>
     /// <returns>The lookup with the spends and their origin, or the same lookup when the case has none.</returns>
-    private static async Task<BitcoinLookup<BitcoinTransaction>> WithSpendsAsync(
+    private async Task<BitcoinLookup<BitcoinTransaction>> WithSpendsAsync(
         ICase @case, BitcoinLookup<BitcoinTransaction> lookup, CancellationToken cancellationToken)
     {
         var transaction = lookup.Value!;
-        var stored = await Task.Run(
-            () => @case.Read(reader => StoredAs(
-                RawResponseStore.Latest(reader, ResponseKinds.OutputSpends, transaction.Txid.Value),
-                body => EsploraParser.ParseOutputSpends(body))),
+        var (stored, knownHeight) = await Task.Run(
+            () => @case.Read(reader => (
+                StoredAs(
+                    _store.Latest(reader, ResponseKinds.OutputSpends, transaction.Txid.Value),
+                    body => EsploraParser.ParseOutputSpends(body)),
+                _store.KnownHeight(reader))),
             cancellationToken).ConfigureAwait(false);
         if (stored is not { } spends || spends.Value.Count != transaction.Outputs.Count)
         {
@@ -375,8 +382,36 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         {
             Value = transaction with { Outputs = [.. outputs] },
             Origins = [.. lookup.Origins.Append(spends.Response.Origin).OrderBy(origin => origin.Sequence)],
+            Problem = Join(lookup.Problem, SpendsProblem(spends.Value, spends.Response, knownHeight)),
         };
     }
+
+    /// <summary>
+    /// Says that the spends are as of when they were fetched, unless every output is spent deep in the chain: an
+    /// output shown as unspent may have been spent since.
+    /// </summary>
+    /// <param name="spends">The spends.</param>
+    /// <param name="response">The response they come from.</param>
+    /// <param name="knownHeight">The highest block the case knows of.</param>
+    /// <returns>The text for the user, or <see langword="null"/> when the spends cannot have changed.</returns>
+    private string? SpendsProblem(
+        IReadOnlyList<BitcoinOutputSpend> spends, StoredResponse response, long? knownHeight)
+    {
+        if (SettledAt(spends) is { } height && Confirmations(height, knownHeight) >= _options.SafeConfirmations)
+        {
+            return null;
+        }
+
+        var fetchedAt = LocalText(response.Origin.ReceivedLocal);
+        return $"Vilka utgångar som är spenderade är hämtat {fetchedAt} och kan ha ändrats sedan.";
+    }
+
+    /// <summary>Joins two texts for the user, either of which may be missing.</summary>
+    /// <param name="first">The first text.</param>
+    /// <param name="second">The second text.</param>
+    /// <returns>Both, one, or <see langword="null"/>.</returns>
+    private static string? Join(string? first, string? second) =>
+        first is null || second is null ? first ?? second : $"{first} {second}";
 
     /// <summary>Finds a transaction in the case, alone or on an address's page.</summary>
     /// <param name="reader">The case's reader.</param>
@@ -384,7 +419,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <returns>The transaction and its response, or <see langword="null"/>.</returns>
     private (BitcoinTransaction Value, StoredResponse Response)? StoredTransaction(ICaseReader reader, Txid txid)
     {
-        var response = RawResponseStore.LatestWithTransaction(reader, txid);
+        var response = _store.LatestWithTransaction(reader, txid);
         if (response is null)
         {
             return null;
@@ -441,9 +476,21 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return false;
         }
 
-        var confirmations = Math.Max(knownHeight ?? height, height) - height + 1;
-        return confirmations >= _options.SafeConfirmations;
+        return Confirmations(height, knownHeight) >= _options.SafeConfirmations;
     }
+
+    /// <summary>Counts a block's confirmations from the highest block the case knows of.</summary>
+    /// <param name="height">The block's height.</param>
+    /// <param name="knownHeight">The highest known block; never lower than the block itself.</param>
+    /// <returns>The number of confirmations, at least 1.</returns>
+    private static long Confirmations(long height, long? knownHeight) =>
+        Math.Max(knownHeight ?? height, height) - height + 1;
+
+    /// <summary>Writes a local time for the user.</summary>
+    /// <param name="time">The time.</param>
+    /// <returns>For example <c>2026-11-07 02:02</c>.</returns>
+    private static string LocalText(DateTimeOffset time) =>
+        time.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
 
     /// <summary>Gives the height of the shallowest of some transactions, when they are all confirmed.</summary>
     /// <param name="transactions">The transactions.</param>
@@ -480,16 +527,19 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         return spends.Max(spend => spend.SpentBy!.Block!.Height);
     }
 
-    /// <summary>Makes a page of an address's transactions and works out where the next page starts.</summary>
+    /// <summary>
+    /// Makes a page of an address's transactions and works out where the next page starts: after the last confirmed
+    /// transaction, as long as the page has one. The page size is the source's own, so only an empty page ends the
+    /// history; a short page could just be a source with smaller pages.
+    /// </summary>
     /// <param name="address">The address.</param>
     /// <param name="after">The txid the page continues after.</param>
     /// <param name="transactions">The transactions on the page.</param>
     /// <returns>The page.</returns>
-    private BitcoinAddressPage Page(BitcoinAddress address, Txid? after, List<BitcoinTransaction> transactions)
+    private static BitcoinAddressPage Page(BitcoinAddress address, Txid? after, List<BitcoinTransaction> transactions)
     {
-        var confirmed = transactions.Where(transaction => transaction.IsConfirmed).ToList();
-        var next = confirmed.Count >= _options.ConfirmedPageSize ? confirmed[^1].Txid : null;
-        return new BitcoinAddressPage(address, after, transactions, next);
+        var lastConfirmed = transactions.LastOrDefault(transaction => transaction.IsConfirmed);
+        return new BitcoinAddressPage(address, after, transactions, lastConfirmed?.Txid);
     }
 
     /// <summary>Gives what some transactions add to the indexes.</summary>

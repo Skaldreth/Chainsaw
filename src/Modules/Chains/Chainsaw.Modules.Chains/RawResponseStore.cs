@@ -15,10 +15,14 @@ namespace Chainsaw.Modules.Chains;
 /// SHA-256 of its bytes and the bytes themselves; the indexes beside it only say where to look.
 /// </summary>
 /// <param name="timeZone">The time zone the local time is written in.</param>
-internal sealed class RawResponseStore(TimeZoneInfo timeZone)
+/// <param name="network">
+/// The network the source answers for. It is part of the chain's name in the tables, so that answers from the test
+/// network are never found as answers for the real chain, nor count towards its height.
+/// </param>
+internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork network)
 {
-    /// <summary>The chain's name in the tables.</summary>
-    public const string ChainName = "bitcoin";
+    /// <summary>Gets the chain's name in the tables, for example <c>bitcoin-mainnet</c>.</summary>
+    public string ChainName { get; } = "bitcoin-" + network.ToString().ToLowerInvariant();
 
     /// <summary>The source's name in the tables.</summary>
     public const string SourceName = "esplora";
@@ -68,14 +72,14 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone)
     /// <param name="kind">What was asked.</param>
     /// <param name="subject">What it was asked about.</param>
     /// <returns>The response, or <see langword="null"/> when the case has none.</returns>
-    public static StoredResponse? Latest(ICaseReader reader, string kind, string subject)
+    public StoredResponse? Latest(ICaseReader reader, string kind, string subject)
     {
         using var command = reader.CreateCommand(
             "SELECT MAX(sequence) FROM chains_lookup WHERE chain = $chain AND kind = $kind AND subject = $subject");
         Add(command, "$chain", ChainName);
         Add(command, "$kind", kind);
         Add(command, "$subject", subject);
-        return command.ExecuteScalar() is long sequence ? Read(reader, sequence) : null;
+        return command.ExecuteScalar() is long sequence ? Read(reader, sequence, kind, subject) : null;
     }
 
     /// <summary>
@@ -85,11 +89,13 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone)
     /// <param name="reader">The case's reader.</param>
     /// <param name="txid">The transaction.</param>
     /// <returns>The response, or <see langword="null"/> when the case has none.</returns>
-    public static StoredResponse? LatestWithTransaction(ICaseReader reader, Txid txid)
+    public StoredResponse? LatestWithTransaction(ICaseReader reader, Txid txid)
     {
-        using var command = reader.CreateCommand("SELECT MAX(sequence) FROM chains_bitcoin_seen WHERE txid = $txid");
+        using var command = reader.CreateCommand(
+            "SELECT MAX(sequence) FROM chains_bitcoin_seen WHERE chain = $chain AND txid = $txid");
+        Add(command, "$chain", ChainName);
         Add(command, "$txid", txid.Value);
-        return command.ExecuteScalar() is long sequence ? Read(reader, sequence) : null;
+        return command.ExecuteScalar() is long sequence ? Read(reader, sequence, null, null) : null;
     }
 
     /// <summary>
@@ -98,30 +104,43 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone)
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>The height, or <see langword="null"/> when the case knows of no block.</returns>
-    public static long? KnownHeight(ICaseReader reader)
+    public long? KnownHeight(ICaseReader reader)
     {
         using var command = reader.CreateCommand(
             """
             SELECT MAX(height) FROM (
                 SELECT MAX(height) AS height FROM chains_lookup WHERE chain = $chain
-                UNION ALL SELECT MAX(block_height) FROM chains_bitcoin_seen)
+                UNION ALL SELECT MAX(block_height) FROM chains_bitcoin_seen WHERE chain = $chain)
             """);
         Add(command, "$chain", ChainName);
         return command.ExecuteScalar() as long?;
     }
 
-    /// <summary>Reads one sealed response and checks its bytes against their SHA-256.</summary>
+    /// <summary>
+    /// Reads one sealed response and checks its bytes against their SHA-256. The indexes are not sealed, so the
+    /// response must also be on this chain and, when given, of the kind and subject the index named; otherwise it
+    /// counts as no answer.
+    /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="sequence">The response's number.</param>
-    /// <returns>The response, or <see langword="null"/> when there is none with that number.</returns>
+    /// <param name="kind">The kind it must have, or <see langword="null"/> for any.</param>
+    /// <param name="subject">The subject it must have, or <see langword="null"/> for any.</param>
+    /// <returns>The response, or <see langword="null"/> when there is no such response.</returns>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.Corrupt"/> when the bytes do not match their SHA-256.
     /// </exception>
-    private static StoredResponse? Read(ICaseReader reader, long sequence)
+    private StoredResponse? Read(ICaseReader reader, long sequence, string? kind, string? subject)
     {
         using var command = reader.CreateCommand(
-            $"SELECT {SelectColumns} FROM {ChainsSchema.RawResponsesTable} WHERE sequence = $sequence");
+            $"""
+            SELECT {SelectColumns} FROM {ChainsSchema.RawResponsesTable}
+            WHERE sequence = $sequence AND chain = $chain AND status_code = 200
+                AND ($kind IS NULL OR kind = $kind) AND ($subject IS NULL OR subject = $subject)
+            """);
         Add(command, "$sequence", sequence);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", kind);
+        Add(command, "$subject", subject);
         using var row = command.ExecuteReader();
         if (!row.Read())
         {
@@ -155,7 +174,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone)
     /// <param name="subject">What it was asked about.</param>
     /// <param name="sequence">The response's number.</param>
     /// <param name="index">What it adds.</param>
-    private static void AddToIndexes(
+    private void AddToIndexes(
         ICaseTransaction transaction, string kind, string subject, long sequence, ResponseIndex index)
     {
         using (var command = transaction.CreateCommand(
@@ -176,9 +195,10 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone)
         {
             using var command = transaction.CreateCommand(
                 """
-                INSERT OR IGNORE INTO chains_bitcoin_seen (txid, sequence, block_height)
-                VALUES ($txid, $sequence, $height)
+                INSERT OR IGNORE INTO chains_bitcoin_seen (chain, txid, sequence, block_height)
+                VALUES ($chain, $txid, $sequence, $height)
                 """);
+            Add(command, "$chain", ChainName);
             Add(command, "$txid", txid.Value);
             Add(command, "$sequence", sequence);
             Add(command, "$height", height);

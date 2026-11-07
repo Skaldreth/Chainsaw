@@ -21,7 +21,7 @@ internal sealed class SourceHarness : IDisposable
     private readonly string _directory =
         Path.Combine(Path.GetTempPath(), "chainsaw-chains-" + Guid.NewGuid().ToString("N"));
 
-    public SourceHarness(int confirmedPageSize = 2)
+    public SourceHarness()
     {
         Http = new FakeExitHttp(Clock);
         var services = new ServiceCollection();
@@ -38,7 +38,6 @@ internal sealed class SourceHarness : IDisposable
         services.AddChainsModule(new BitcoinSourceOptions
         {
             EsploraBaseUri = new Uri(Fixtures.Base),
-            ConfirmedPageSize = confirmedPageSize,
         });
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(CaseNumber);
@@ -70,6 +69,7 @@ internal sealed class SourceHarness : IDisposable
         var address = Fixtures.AddressText("wpkh");
         Http.Answer(Fixtures.Url($"address/{address}/txs"), "address-page-first.json");
         Http.Answer(Fixtures.Url($"address/{address}/txs/chain/{Fixtures.Confirmed}"), "address-page-after.json");
+        Http.Answer(Fixtures.Url($"address/{address}/txs/chain/{Fixtures.Older}"), "address-page-empty.json");
     }
 
     /// <summary>Reads the sealed raw responses, in order.</summary>

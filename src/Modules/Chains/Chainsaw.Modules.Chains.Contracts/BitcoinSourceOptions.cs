@@ -23,10 +23,4 @@ public sealed record BitcoinSourceOptions
     /// the custom; a reorganisation deeper than that has not happened in practice.
     /// </summary>
     public int SafeConfirmations { get; init; } = 6;
-
-    /// <summary>
-    /// Gets how many confirmed transactions the source gives per page of an address; a page with fewer is the last.
-    /// Esplora gives 25.
-    /// </summary>
-    public int ConfirmedPageSize { get; init; } = 25;
 }
