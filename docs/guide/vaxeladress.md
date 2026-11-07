@@ -26,3 +26,6 @@ En **batchutbetalning** (en börs betalar många kunder i samma tx) slås aldrig
 tecknen svagare, och varje fel skulle göra en kund till en del av börsen.
 
 Pekar två analyser ut olika outputs som växel i samma tx (till exempel växeln och peel chain) slås ingen av dem ihop.
+
+*Ny adress* betyder *inte sedd tidigare i ärendet*: Chainsaw vet bara om de tx som har hämtats, och slutsatsen säger i
+vilken tx den andra adressen sågs.

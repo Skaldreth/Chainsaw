@@ -96,6 +96,30 @@ public sealed class FacitTests : IDisposable
     }
 
     [Fact]
+    public void Equal_round_withdrawals_from_several_inputs_are_only_a_possible_coinjoin()
+    {
+        var batch = Tx("withdrawals")
+            .In(Pkh("hot-a"), 20_000_000)
+            .In(Pkh("hot-b"), 20_000_000)
+            .In(Pkh("hot-c"), 20_000_000)
+            .Out(Wpkh("withdrawal-1"), 1_000_000)
+            .Out(Wpkh("withdrawal-2"), 1_000_000)
+            .Out(Wpkh("withdrawal-3"), 1_000_000)
+            .Out(Pkh("hot-change"), 56_990_000)
+            .Build();
+
+        _harness.Analyse(batch);
+
+        var conclusions = _harness.Service.GetConclusions(_harness.Case, Txid("withdrawals"));
+        var coinJoin = Assert.IsType<CoinJoinFinding>(Assert.Single(conclusions.Findings,
+            found => found.Finding is CoinJoinFinding).Finding);
+        Assert.Equal((CoinJoinPattern.Generic, CoinJoinCertainty.Possible), (coinJoin.Pattern, coinJoin.Certainty));
+        Assert.Null(conclusions.TrailEnd);
+        Assert.Single(_harness.ClusterOf(Pkh("hot-a")).Members);
+        Assert.NotEmpty(_harness.ClusterOf(Pkh("hot-a")).Suggestions);
+    }
+
+    [Fact]
     public void A_whirlpool_mix_is_recognised_ends_the_trail_and_merges_nothing()
     {
         var run = _harness.Analyse(Patterns.Whirlpool());
@@ -170,19 +194,47 @@ public sealed class FacitTests : IDisposable
     }
 
     [Fact]
-    public void A_peel_chain_merges_every_holder_but_no_recipient()
+    public void A_peel_chain_merges_the_inner_holders_but_no_recipient_and_neither_end()
     {
         var chain = Patterns.PeelChain(5);
         _harness.Analyse([.. chain]);
 
-        var holder = _harness.ClusterOf(Wpkh("peel-holder-0"));
+        var holder = _harness.ClusterOf(Wpkh("peel-holder-1"));
 
-        AssertMembers(holder, [.. Enumerable.Range(0, 6).Select(i => Wpkh($"peel-holder-{i}"))]);
+        AssertMembers(holder, [.. Enumerable.Range(1, 4).Select(i => Wpkh($"peel-holder-{i}"))]);
         Assert.All(Enumerable.Range(0, 5), i => Assert.False(holder.Contains(Pkh($"peel-recipient-{i}"))));
+        Assert.Equal(2, holder.Suggestions.Count(link => link.Evidence.Heuristic.Name == HeuristicNames.PeelChain));
         var hop = _harness.Service.GetConclusions(_harness.Case, chain[2].Txid);
         var peel = Assert.Single(hop.Findings.Select(found => found.Finding).OfType<PeelChainFinding>());
         Assert.Equal((2, 2, 5, 1, 0), (peel.HopsBefore, peel.HopsAfter, peel.ChainLength, peel.ContinuingOutput,
             peel.PeelOutput));
+        Assert.Equal([chain[1].Txid.Value, chain[0].Txid.Value, chain[3].Txid.Value, chain[4].Txid.Value], peel.Hops);
+    }
+
+    [Fact]
+    public void A_peel_chain_never_merges_the_victim_who_paid_into_it_or_the_exchange_it_pays_out_to()
+    {
+        var victim = Tx("victim-pays", 900_100)
+            .In(Wpkh("victim"), 100_000_000)
+            .Out(Wpkh("scammer-1"), 95_000_000)
+            .Out(Wpkh("victim-change"), 4_990_000)
+            .Build();
+        var hop1 = Tx("scam-1", 900_101).Spend(victim, 0).Out(Pkh("scam-peel-1"), 2_000_000)
+            .Out(Wpkh("scammer-2"), 92_990_000).Build();
+        var hop2 = Tx("scam-2", 900_102).Spend(hop1, 1).Out(Pkh("scam-peel-2"), 2_000_000)
+            .Out(Wpkh("scammer-3"), 90_980_000).Build();
+        var cashOut = Tx("scam-out", 900_103).Spend(hop2, 1).Out(Wpkh("exchange-deposit"), 85_123_456)
+            .Out(Wpkh("scammer-4"), 5_846_544).Build();
+        var sweep = Tx("exchange-sweep", 900_104).Spend(cashOut, 0).In(Wpkh("stranger-deposit"), 10_000_000)
+            .Out(Pkh("exchange-hot"), 95_000_000).Build();
+
+        _harness.Analyse(victim, hop1, hop2, cashOut, sweep);
+
+        var scammer = _harness.ClusterOf(Wpkh("scammer-1"));
+        Assert.False(scammer.Contains(Wpkh("victim")));
+        Assert.False(scammer.Contains(Wpkh("exchange-deposit")));
+        Assert.False(scammer.Contains(Wpkh("stranger-deposit")));
+        Assert.False(_harness.ClusterOf(Wpkh("victim")).Contains(Wpkh("stranger-deposit")));
     }
 
     [Fact]
@@ -201,12 +253,12 @@ public sealed class FacitTests : IDisposable
     {
         var chain = Patterns.PeelChain(4);
         _harness.Analyse(chain[0], chain[1]);
-        Assert.Single(_harness.ClusterOf(Wpkh("peel-holder-0")).Members);
+        Assert.Single(_harness.ClusterOf(Wpkh("peel-holder-1")).Members);
 
         var run = _harness.Analyse([.. chain]);
 
         Assert.True(run.NewResults > 0);
-        Assert.Equal(5, _harness.ClusterOf(Wpkh("peel-holder-0")).Members.Count);
+        Assert.Equal(3, _harness.ClusterOf(Wpkh("peel-holder-1")).Members.Count);
     }
 
     [Fact]

@@ -97,6 +97,21 @@ public sealed class SplitTests : IDisposable
     }
 
     [Fact]
+    public void Analysing_again_with_new_results_never_changes_which_link_gives_way_to_a_split()
+    {
+        _harness.Service.Split(_harness.Case, new SplitRequest(
+            Wpkh("payer-2"), Wpkh("payer-change"), HeuristicNames.CommonInputOwnership, "Två personer."));
+        var before = _harness.ClusterOf(Wpkh("payer-1")).Addresses.Select(address => address.Value).Order().ToList();
+
+        // A known earlier use of the shop's address adds a sign, so the change result is sealed again, later.
+        var earlier = Tx("shop-earlier", 899_000).In(Wpkh("someone"), 9_000_000).Out(Pkh("shop"), 8_000_000).Build();
+        var run = _harness.Analyse(earlier, Patterns.PaymentWithChange());
+
+        Assert.True(run.NewResults > 0);
+        Assert.Equal(before, _harness.ClusterOf(Wpkh("payer-1")).Addresses.Select(address => address.Value).Order());
+    }
+
+    [Fact]
     public void A_split_holds_after_the_case_is_closed_and_opened()
     {
         Split();
@@ -131,6 +146,8 @@ public sealed class SplitTests : IDisposable
             Wpkh("payer-1"), Wpkh("payer-1"), HeuristicNames.ChangeAddress, "Skäl")));
         Assert.Throws<ArgumentException>(() => service.Split(@case, new SplitRequest(
             Wpkh("payer-1"), Wpkh("payer-change"), "Not A Name", "Skäl")));
+        Assert.Throws<ArgumentException>(() => service.Split(@case, new SplitRequest(
+            Wpkh("payer-1"), Wpkh("payer-change"), "change-adress", "Skäl")));
         Assert.Throws<ArgumentException>(() => service.Split(@case, new SplitRequest(
             Wpkh("payer-1"), Wpkh("payer-change"), HeuristicNames.ChangeAddress, " ")));
         Assert.Throws<ArgumentException>(() => service.Split(@case, new SplitRequest(

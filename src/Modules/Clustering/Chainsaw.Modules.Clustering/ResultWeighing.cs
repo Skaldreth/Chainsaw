@@ -4,7 +4,8 @@ namespace Chainsaw.Modules.Clustering;
 
 /// <summary>
 /// Weighs the analyses of one transaction against each other before anything is stored: a CoinJoin lowers every
-/// other proposal, and two analyses that point out different change outputs cancel each other's merges.
+/// other proposal, and two analyses that point out different change outputs (in a proposal or only in a finding)
+/// cancel each other's merges.
 /// </summary>
 internal static class ResultWeighing
 {
@@ -17,8 +18,8 @@ internal static class ResultWeighing
     public static IReadOnlyList<WeighedResult> Weigh(IReadOnlyList<HeuristicResult> results)
     {
         ArgumentNullException.ThrowIfNull(results);
-        var changeOutputs = results.SelectMany(result => result.Proposals)
-            .Select(proposal => proposal.ChangeOutput)
+        var changeOutputs = results.SelectMany(result => result.Proposals.Select(proposal => proposal.ChangeOutput)
+                .Concat(result.Findings.Select(finding => finding.ChangeOutput)))
             .OfType<int>()
             .Distinct()
             .Count();

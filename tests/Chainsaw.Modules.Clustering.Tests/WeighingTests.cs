@@ -23,6 +23,17 @@ public sealed class WeighingTests
     }
 
     [Fact]
+    public void A_change_named_only_in_a_finding_still_disagrees()
+    {
+        var change = new HeuristicResult(Second, Txid("t"), [],
+            [new ChangeFinding("Tillbaka.", 1, [ChangeSign.BackToInput], 0, 5, [])]);
+
+        var weighed = ResultWeighing.Weigh([Result(First, change: 0), change]);
+
+        Assert.Equal(EvidenceStrength.Suggestion, Assert.Single(weighed[0].Proposals).Strength);
+    }
+
+    [Fact]
     public void The_same_change_output_is_no_disagreement()
     {
         var weighed = ResultWeighing.Weigh([Result(First, change: 1), Result(Second, change: 1)]);

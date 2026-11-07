@@ -40,8 +40,8 @@ internal sealed class CoinJoinHeuristic : IClusteringHeuristic
     /// <summary>The fewest inputs and outputs a Wasabi round has in version 1's reading.</summary>
     public const int WasabiMinimumParticipants = 20;
 
-    /// <summary>The fewest equal outputs that make a CoinJoin recognised rather than possible.</summary>
-    public const int RecognisedEqualOutputs = 3;
+    /// <summary>The fewest equal outputs a JoinMarket round has in version 1's reading.</summary>
+    public const int JoinMarketMinimumEqualOutputs = 3;
 
     /// <inheritdoc/>
     public HeuristicId Id => Identity;
@@ -70,11 +70,9 @@ internal sealed class CoinJoinHeuristic : IClusteringHeuristic
         var reason = Reason(pattern, certainty, denomination, equal, transaction.Inputs.Count);
         var finding = new CoinJoinFinding(
             reason, pattern, certainty, denomination, equal, transaction.Inputs.Count);
-        var veto = new OwnershipVeto(
-            certainty == CoinJoinCertainty.Recognised ? VetoKind.Stop : VetoKind.Suggest,
-            certainty == CoinJoinCertainty.Recognised
-                ? "Tx:en är en CoinJoin; dess inputs har många ägare."
-                : "Tx:en kan vara en liten CoinJoin; därför slås inget ihop automatiskt.");
+        var veto = certainty == CoinJoinCertainty.Recognised
+            ? new OwnershipVeto(VetoKind.Stop, "Tx:en är en CoinJoin; dess inputs har många ägare.")
+            : new OwnershipVeto(VetoKind.Suggest, "Tx:en kan vara en CoinJoin; därför slås inget ihop automatiskt.");
         return new HeuristicResult(Identity, transaction.Txid, [], [finding], veto);
     }
 
@@ -114,19 +112,20 @@ internal sealed class CoinJoinHeuristic : IClusteringHeuristic
             return (CoinJoinPattern.Whirlpool, CoinJoinCertainty.Recognised);
         }
 
-        if (equal < RecognisedEqualOutputs || inputAddresses < equal)
-        {
-            return (CoinJoinPattern.Generic, CoinJoinCertainty.Possible);
-        }
-
         if (IsWasabi(transaction, outputs))
         {
             return (CoinJoinPattern.Wasabi, CoinJoinCertainty.Recognised);
         }
 
-        return outputs.Count <= 2 * equal
+        // JoinMarket picks unround amounts; equal round amounts from several inputs are just as likely a batch of
+        // withdrawals or structuring, so they are only possible CoinJoins that never end the trail.
+        var joinMarket = equal >= JoinMarketMinimumEqualOutputs
+            && inputAddresses >= equal
+            && outputs.Count <= 2 * equal
+            && !TransactionShape.IsRound(denomination);
+        return joinMarket
             ? (CoinJoinPattern.JoinMarket, CoinJoinCertainty.Recognised)
-            : (CoinJoinPattern.Generic, CoinJoinCertainty.Recognised);
+            : (CoinJoinPattern.Generic, CoinJoinCertainty.Possible);
     }
 
     /// <summary>
@@ -182,12 +181,12 @@ internal sealed class CoinJoinHeuristic : IClusteringHeuristic
         var verdict = (pattern, certainty) switch
         {
             (_, CoinJoinCertainty.Possible) =>
-                "kan vara en liten CoinJoin mellan två eller fler ägare, eller en slump",
+                "kan vara en CoinJoin mellan flera ägare, men också en batchutbetalning eller en slump",
             (CoinJoinPattern.Whirlpool, _) => "samma form som en Whirlpool-mix (fem deltagare, en av poolernas belopp)",
             (CoinJoinPattern.Wasabi, _) => "samma form som en Wasabi-runda (många deltagare, grupper av lika belopp)",
             (CoinJoinPattern.JoinMarket, _) =>
                 "samma form som JoinMarket (lika stora outputs och högst en växel per deltagare)",
-            _ => "lika stora outputs till olika adresser från inputs från olika håll",
+            _ => throw new ArgumentOutOfRangeException(nameof(pattern)),
         };
         return shape + ": " + verdict + ". Vem som äger vilken output går inte att läsa ut.";
     }

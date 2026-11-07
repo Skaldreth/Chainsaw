@@ -28,7 +28,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
     public static readonly IReadOnlyList<string> EvidenceColumns =
     [
         "record_kind", "heuristic", "heuristic_version", "txid", "addresses", "strength", "change_output", "reason",
-        "adjustment", "finding", "fingerprint", "journal_sequence", "recorded_utc",
+        "adjustment", "finding", "basis", "fingerprint", "journal_sequence", "recorded_utc",
     ];
 
     /// <summary>The sealed columns of a split, in order.</summary>
@@ -51,6 +51,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
             reason TEXT,
             adjustment TEXT,
             finding TEXT,
+            basis TEXT NOT NULL,
             fingerprint TEXT NOT NULL,
             journal_sequence INTEGER NOT NULL,
             recorded_utc TEXT NOT NULL,

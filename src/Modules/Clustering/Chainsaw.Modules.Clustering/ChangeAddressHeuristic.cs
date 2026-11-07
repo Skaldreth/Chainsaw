@@ -25,9 +25,6 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
     /// </summary>
     public const int AutomaticMergeOutputs = 2;
 
-    /// <summary>A round amount is a whole multiple of this many satoshi (0.001 BTC).</summary>
-    public const long RoundUnit = 100_000;
-
     /// <summary>How many kinds of sign there are, to show the score against.</summary>
     private static readonly int SignKinds = Enum.GetValues<ChangeSign>().Length;
 
@@ -46,11 +43,11 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
         }
 
         var scored = outputs.Select(output => (Output: output, Signs: Signs(transaction, output, outputs, context)))
-            .OrderByDescending(entry => entry.Signs.Count)
+            .OrderByDescending(entry => entry.Signs.Signs.Count)
             .ThenBy(entry => entry.Output.Index)
             .ToList();
-        var (change, signs) = scored[0];
-        var against = scored.Skip(1).Max(entry => entry.Signs.Count);
+        var (change, (signs, seenIn)) = scored[0];
+        var against = scored.Skip(1).Max(entry => entry.Signs.Signs.Count);
         if (signs.Count == 0 || signs.Count <= against)
         {
             return HeuristicResult.Nothing(Identity, transaction.Txid);
@@ -58,7 +55,8 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
 
         var merge = outputs.Count <= AutomaticMergeOutputs && signs.Count >= AutomaticMergeSigns && against == 0;
         var reason = Reason(change.Index, signs, against, merge, outputs.Count);
-        var finding = new ChangeFinding(reason, change.Index, signs, against, SignKinds);
+        var finding = new ChangeFinding(
+            reason, change.Index, signs, against, SignKinds, [.. seenIn.Select(txid => txid.Value)]);
         var sender = transaction.InputAddresses().FirstOrDefault();
         IReadOnlyList<OwnershipProposal> proposals = sender is null || sender == change.Address
             ? []
@@ -70,7 +68,7 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
                     reason,
                     change.Index),
             ];
-        return new HeuristicResult(Identity, transaction.Txid, proposals, [finding]);
+        return new HeuristicResult(Identity, transaction.Txid, proposals, [finding]) { Basis = seenIn };
     }
 
     /// <summary>Gives the signs that hold for one output and for none of the others.</summary>
@@ -78,8 +76,10 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
     /// <param name="candidate">The output that may be change.</param>
     /// <param name="outputs">All outputs with an address.</param>
     /// <param name="context">What the case knows around the transaction.</param>
-    /// <returns>The signs, in the order of <see cref="ChangeSign"/>.</returns>
-    private static List<ChangeSign> Signs(
+    /// <returns>
+    /// The signs, in the order of <see cref="ChangeSign"/>, and the earlier transactions a fresh-address sign rests on.
+    /// </returns>
+    private static (List<ChangeSign> Signs, List<Txid> SeenIn) Signs(
         BitcoinTransaction transaction,
         BitcoinOutput candidate,
         IReadOnlyList<BitcoinOutput> outputs,
@@ -101,9 +101,10 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
             signs.Add(ChangeSign.OthersRound);
         }
 
+        var seenIn = others.Select(output => context.SeenBefore(output.Address!, transaction)).ToList();
         if (!inputAddresses.Contains(candidate.Address!)
-            && !context.SeenBefore(candidate.Address!, transaction)
-            && others.All(output => context.SeenBefore(output.Address!, transaction)))
+            && context.SeenBefore(candidate.Address!, transaction) is null
+            && seenIn.All(seen => seen is not null))
         {
             signs.Add(ChangeSign.FreshAddress);
         }
@@ -121,13 +122,16 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
             signs.Add(ChangeSign.BackToInput);
         }
 
-        return signs;
+        var basis = signs.Contains(ChangeSign.FreshAddress)
+            ? seenIn.Select(seen => seen!.Txid).Distinct().ToList()
+            : [];
+        return (signs, basis);
     }
 
-    /// <summary>Says whether an output's amount is round: a whole multiple of <see cref="RoundUnit"/>.</summary>
+    /// <summary>Says whether an output's amount is round (<see cref="TransactionShape.IsRound"/>).</summary>
     /// <param name="output">The output.</param>
     /// <returns><see langword="true"/> when it is.</returns>
-    private static bool IsRound(BitcoinOutput output) => output.Amount.Value % RoundUnit == 0;
+    private static bool IsRound(BitcoinOutput output) => TransactionShape.IsRound(output.Amount);
 
     /// <summary>Writes the reason in plain Swedish.</summary>
     /// <param name="index">The change output's index.</param>

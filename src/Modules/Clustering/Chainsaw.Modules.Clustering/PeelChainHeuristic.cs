@@ -7,9 +7,14 @@ namespace Chainsaw.Modules.Clustering;
 /// <summary>
 /// Peel chain v1: recognises a chain of transactions where each one has one input and two outputs, a small one that
 /// is peeled off (a payment) and a large one that goes on to the next hop of the same shape (the change). When the
-/// case knows of at least <see cref="MinimumChainLength"/> hops in a row, the continuing output is merged with the
-/// hop's input; the peeled-off outputs are never merged.
+/// case knows of at least <see cref="MinimumChainLength"/> hops in a row, it is a peel chain. The continuing output
+/// is merged with the hop's input only in an inner hop, one with a known hop on both sides; at the ends it is only a
+/// suggestion, and the peeled-off outputs are never merged.
 /// </summary>
+/// <remarks>
+/// The ends are where strangers meet the chain: the first hop may be a victim paying most of a single output into it,
+/// and the last may send the bulk on to an exchange's deposit address. Neither is the chain holder's change.
+/// </remarks>
 internal sealed class PeelChainHeuristic : IClusteringHeuristic
 {
     /// <summary>The heuristic's name and version.</summary>
@@ -39,29 +44,40 @@ internal sealed class PeelChainHeuristic : IClusteringHeuristic
 
         var before = HopsBefore(transaction, context);
         var after = HopsAfter(transaction, hop.Continuing, context);
-        if (before + 1 + after < MinimumChainLength)
+        var length = before.Count + 1 + after.Count;
+        if (length < MinimumChainLength)
         {
             return HeuristicResult.Nothing(Identity, transaction.Txid);
         }
 
+        var inner = before.Count > 0 && after.Count > 0;
         var reason = string.Format(
             CultureInfo.InvariantCulture,
             "Hopp {0} av {1} kända i en peel chain: output {2} skalas av och output {3} går vidare till nästa hopp "
-                + "av samma form, så den är växeln.",
-            before + 1,
-            before + 1 + after,
+                + "av samma form, så den är växeln. {4}",
+            before.Count + 1,
+            length,
             hop.Peel.Index,
-            hop.Continuing.Index);
-        var finding = new PeelChainFinding(reason, hop.Continuing.Index, hop.Peel.Index, before, after);
+            hop.Continuing.Index,
+            inner
+                ? "Hoppet ligger inne i kedjan, så växeln slås ihop med hoppets input."
+                : "Hoppet ligger i kedjans ände, där främlingar möts, så det är bara ett förslag.");
+        var basis = before.Concat(after).ToList();
+        var finding = new PeelChainFinding(
+            reason, hop.Continuing.Index, hop.Peel.Index, before.Count, after.Count,
+            [.. basis.Select(txid => txid.Value)]);
         var sender = transaction.InputAddresses().FirstOrDefault();
         IReadOnlyList<OwnershipProposal> proposals = sender is null || sender == hop.Continuing.Address
             ? []
             :
             [
                 new OwnershipProposal(
-                    [sender, hop.Continuing.Address!], EvidenceStrength.Merge, reason, hop.Continuing.Index),
+                    [sender, hop.Continuing.Address!],
+                    inner ? EvidenceStrength.Merge : EvidenceStrength.Suggestion,
+                    reason,
+                    hop.Continuing.Index),
             ];
-        return new HeuristicResult(Identity, transaction.Txid, proposals, [finding]);
+        return new HeuristicResult(Identity, transaction.Txid, proposals, [finding]) { Basis = basis };
     }
 
     /// <summary>
@@ -86,44 +102,45 @@ internal sealed class PeelChainHeuristic : IClusteringHeuristic
             : null;
     }
 
-    /// <summary>Counts the hops before a transaction: each one's continuing output is the next one's input.</summary>
+    /// <summary>Finds the hops before a transaction: each one's continuing output is the next one's input.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="context">What the case knows.</param>
-    /// <returns>How many hops in a row come before it.</returns>
-    private static int HopsBefore(BitcoinTransaction transaction, IHeuristicContext context)
+    /// <returns>The hops in a row before it, nearest first.</returns>
+    private static List<Txid> HopsBefore(BitcoinTransaction transaction, IHeuristicContext context)
     {
-        var count = 0;
+        var hops = new List<Txid>();
         var current = transaction;
-        while (count < context.Count
+        while (hops.Count < context.Count
             && current.Inputs[0] is { PreviousTxid: { } previousTxid, PreviousIndex: { } previousIndex }
             && context.Find(previousTxid) is { } previous
             && Hop(previous) is { } hop
             && hop.Continuing.Index == previousIndex)
         {
-            count++;
+            hops.Add(previous.Txid);
             current = previous;
         }
 
-        return count;
+        return hops;
     }
 
-    /// <summary>Counts the hops after a transaction, following the continuing output.</summary>
+    /// <summary>Finds the hops after a transaction, following the continuing output.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="continuing">Its continuing output.</param>
     /// <param name="context">What the case knows.</param>
-    /// <returns>How many hops in a row come after it.</returns>
-    private static int HopsAfter(BitcoinTransaction transaction, BitcoinOutput continuing, IHeuristicContext context)
+    /// <returns>The hops in a row after it, nearest first.</returns>
+    private static List<Txid> HopsAfter(
+        BitcoinTransaction transaction, BitcoinOutput continuing, IHeuristicContext context)
     {
-        var count = 0;
+        var hops = new List<Txid>();
         var (txid, index) = (transaction.Txid, continuing.Index);
-        while (count < context.Count
+        while (hops.Count < context.Count
             && context.FindSpender(txid, index) is { } next
             && Hop(next) is { } hop)
         {
-            count++;
+            hops.Add(next.Txid);
             (txid, index) = (next.Txid, hop.Continuing.Index);
         }
 
-        return count;
+        return hops;
     }
 }

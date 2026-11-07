@@ -61,11 +61,9 @@ internal sealed class ClusteringService : IClusteringService
 
         return @case.Write(transaction =>
         {
-            var latest = EvidenceStore.LatestFingerprints(transaction, txids);
-            var changed = weighed.Where(entry =>
-                !(latest.TryGetValue((entry.Result.Result.Txid, entry.Result.Result.Heuristic), out var stored)
-                    && stored == entry.Fingerprint)).ToList();
-            if (changed.Count == 0)
+            var latest = EvidenceStore.LatestResults(transaction, txids);
+            var changed = weighed.Where(entry => Replaces(entry.Result, entry.Fingerprint, latest, txids)).ToList();
+            if (changed.Count == 0 && failed.Count == 0)
             {
                 return new ClusteringRun(null, known.Count, 0, 0, 0, 0, [], failed);
             }
@@ -115,7 +113,11 @@ internal sealed class ClusteringService : IClusteringService
             throw new ArgumentException("An address cannot be split from itself.", nameof(request));
         }
 
-        _ = new HeuristicId(request.Heuristic, 1);
+        if (!Heuristics.Any(heuristic => heuristic.Name == request.Heuristic))
+        {
+            throw new ArgumentException("A split names one of the analyses that run.", nameof(request));
+        }
+
         if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Length > MaximumReasonLength)
         {
             throw new ArgumentException("A split needs a reason of at most 1 000 characters.", nameof(request));
@@ -181,7 +183,7 @@ internal sealed class ClusteringService : IClusteringService
             try
             {
                 var result = heuristic.Analyse(transaction, known);
-                if (result.Heuristic != heuristic.Id || result.Txid != transaction.Txid)
+                if (!IsWellFormed(result, heuristic.Id, transaction, known))
                 {
                     return null;
                 }
@@ -199,6 +201,69 @@ internal sealed class ClusteringService : IClusteringService
         return results;
     }
 
+    /// <summary>
+    /// Checks what an analysis gave before anything is sealed, since a sealed record can never be taken back: the
+    /// right analysis and transaction, proposals of two or more different addresses that all appear in the
+    /// transaction, change outputs that exist, reasons that are not empty, and a basis the case knows of.
+    /// </summary>
+    /// <param name="result">The result.</param>
+    /// <param name="heuristic">The analysis that gave it.</param>
+    /// <param name="transaction">The transaction it is about.</param>
+    /// <param name="known">What the case knows.</param>
+    /// <returns><see langword="true"/> when it can be stored.</returns>
+    private static bool IsWellFormed(
+        HeuristicResult? result, HeuristicId heuristic, BitcoinTransaction transaction, KnownTransactions known)
+    {
+        if (result is null || result.Heuristic != heuristic || result.Txid != transaction.Txid
+            || result.Proposals is null || result.Findings is null || result.Basis is null)
+        {
+            return false;
+        }
+
+        var addresses = transaction.Inputs.Select(input => input.Address)
+            .Concat(transaction.Outputs.Select(output => output.Address))
+            .OfType<BitcoinAddress>()
+            .ToHashSet();
+        bool ValidOutput(int? index) => index is null || (index >= 0 && index < transaction.Outputs.Count);
+        var proposals = result.Proposals.All(proposal => proposal is not null
+            && proposal.Addresses is not null
+            && proposal.Addresses.Distinct().Count() == proposal.Addresses.Count
+            && proposal.Addresses.Count >= 2
+            && proposal.Addresses.All(address => address is not null && addresses.Contains(address))
+            && Enum.IsDefined(proposal.Strength)
+            && !string.IsNullOrWhiteSpace(proposal.Reason)
+            && ValidOutput(proposal.ChangeOutput));
+        var findings = result.Findings.All(finding => finding is not null
+            && !string.IsNullOrWhiteSpace(finding.Reason)
+            && ValidOutput(finding.ChangeOutput));
+        var basis = result.Basis.All(txid => txid is not null && known.Find(txid) is not null);
+        return proposals && findings && basis;
+    }
+
+    /// <summary>
+    /// Decides whether a new result is stored: when nothing is stored it must conclude something; when something is
+    /// stored it must differ, and the run must know every transaction the stored result rests on, so that a narrower
+    /// run never takes back what a wider one concluded.
+    /// </summary>
+    /// <param name="result">The new result.</param>
+    /// <param name="fingerprint">Its fingerprint.</param>
+    /// <param name="latest">What is stored.</param>
+    /// <param name="known">The transactions the run knows.</param>
+    /// <returns><see langword="true"/> when it is stored.</returns>
+    private static bool Replaces(
+        WeighedResult result,
+        string fingerprint,
+        Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest,
+        HashSet<Txid> known)
+    {
+        if (!latest.TryGetValue((result.Result.Txid, result.Result.Heuristic), out var stored))
+        {
+            return result.Proposals.Count > 0 || result.Result.Findings.Count > 0;
+        }
+
+        return stored.Fingerprint != fingerprint && stored.Basis.All(known.Contains);
+    }
+
     /// <summary>Builds the clusters from what the case has stored.</summary>
     /// <param name="case">The open case.</param>
     /// <returns>The clusters.</returns>
@@ -206,7 +271,7 @@ internal sealed class ClusteringService : IClusteringService
     {
         ArgumentNullException.ThrowIfNull(@case);
         var (evidence, splits) = @case.Read(reader =>
-            (EvidenceStore.ReadLatest(reader).Evidence, EvidenceStore.ReadSplits(reader)));
+            (EvidenceStore.ReadLatest(reader, withFindings: false).Evidence, EvidenceStore.ReadSplits(reader)));
         return new ClusterGraph(evidence, splits);
     }
 

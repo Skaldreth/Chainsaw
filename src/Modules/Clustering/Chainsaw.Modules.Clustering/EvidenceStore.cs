@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
@@ -12,7 +13,8 @@ namespace Chainsaw.Modules.Clustering;
 /// <summary>
 /// Seals the analyses' conclusions and the user's splits in the case and reads them back. Each result (one analysis
 /// of one transaction) is stored as one or more records that share a fingerprint and the run's journal entry; the
-/// newest run's records of a result replace the older ones only by being newer, and the older stay sealed.
+/// newest run's records of a result replace the older ones only by being newer, and the older stay sealed. A newer
+/// version of an analysis replaces an older version's results of the same transaction in the same way.
 /// </summary>
 /// <remarks>
 /// Everything is read from the sealed tables themselves, without indexes of its own, so that what counts can always
@@ -34,14 +36,18 @@ internal static class EvidenceStore
     /// <summary>The columns read back from the conclusions, in order.</summary>
     private const string EvidenceSelect = """
         SELECT sequence, record_kind, heuristic, heuristic_version, txid, addresses, strength, change_output, reason,
-               adjustment, finding, fingerprint, journal_sequence, recorded_utc
+               adjustment, finding, basis, fingerprint, journal_sequence, recorded_utc
         FROM clustering_evidence
         """;
 
     /// <summary>
     /// How findings and address lists are written as JSON; the same everywhere so fingerprints are stable.
     /// </summary>
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.General);
+    /// <remarks>Enums are written by name, so that reordering an enum never changes a sealed record.</remarks>
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.General)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
 
     /// <summary>Gives the fingerprint of a weighed result: the SHA-256 of everything it would store.</summary>
     /// <param name="result">The weighed result.</param>
@@ -62,21 +68,26 @@ internal static class EvidenceStore
                 change = weighed.Proposal.ChangeOutput,
             }),
             findings = result.Result.Findings.Select(finding => JsonSerializer.Serialize(finding, Json)),
+            basis = result.Result.Basis.Select(txid => txid.Value),
         };
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(content, Json));
         return Convert.ToHexStringLower(SHA256.HashData(bytes));
     }
 
-    /// <summary>Reads the fingerprint of the newest stored result for every analysis of the given transactions.</summary>
+    /// <summary>
+    /// Reads the fingerprint and basis of the newest stored result for every analysis (name and version) of the given
+    /// transactions.
+    /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txids">The transactions.</param>
-    /// <returns>The fingerprints by transaction and analysis.</returns>
-    public static Dictionary<(Txid Txid, HeuristicId Heuristic), string> LatestFingerprints(
+    /// <returns>The stored results by transaction and analysis.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> LatestResults(
         ICaseReader reader, IReadOnlySet<Txid> txids)
     {
-        var latest = new Dictionary<(Txid, HeuristicId), (long Journal, string Fingerprint)>();
+        var latest = new Dictionary<(Txid, HeuristicId), (long Journal, StoredResult Result)>();
         using var command = reader.CreateCommand(
-            "SELECT txid, heuristic, heuristic_version, journal_sequence, fingerprint FROM clustering_evidence");
+            "SELECT txid, heuristic, heuristic_version, journal_sequence, fingerprint, basis FROM clustering_evidence");
         using var row = command.ExecuteReader();
         while (row.Read())
         {
@@ -90,11 +101,12 @@ internal static class EvidenceStore
             var journal = row.GetInt64(3);
             if (!latest.TryGetValue(key, out var known) || journal > known.Journal)
             {
-                latest[key] = (journal, row.GetString(4));
+                var basis = Deserialize<List<string>>(row.GetString(5)).Select(ParseTxid).ToList();
+                latest[key] = (journal, new StoredResult(row.GetString(4), basis));
             }
         }
 
-        return latest.ToDictionary(entry => entry.Key, entry => entry.Value.Fingerprint);
+        return latest.ToDictionary(entry => entry.Key, entry => entry.Value.Result);
     }
 
     /// <summary>Seals one weighed result as records under a run's journal entry.</summary>
@@ -108,11 +120,12 @@ internal static class EvidenceStore
         var heuristic = result.Result.Heuristic;
         var txid = result.Result.Txid.Value;
         var recorded = journal.Utc.ToString("O", CultureInfo.InvariantCulture);
+        var basis = JsonSerializer.Serialize(result.Result.Basis.Select(txid => txid.Value), Json);
         object?[] Row(string kind, string? addresses, string? strength, int? change, string? reason,
             string? adjustment, string? finding) =>
         [
             kind, heuristic.Name, (long)heuristic.Version, txid, addresses, strength, (long?)change, reason,
-            adjustment, finding, fingerprint, journal.Sequence, recorded,
+            adjustment, finding, basis, fingerprint, journal.Sequence, recorded,
         ];
 
         if (result.Proposals.Count == 0 && result.Result.Findings.Count == 0)
@@ -138,14 +151,17 @@ internal static class EvidenceStore
     }
 
     /// <summary>
-    /// Reads the records of the newest stored result of every analysis, optionally only for one transaction.
+    /// Reads the records that count now: for every transaction and analysis name, the newest result of the highest
+    /// version stored. Each record keeps the order of its result's first appearance, so that analysing again never
+    /// changes which of two proposals came first.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txid">The transaction, or <see langword="null"/> for all.</param>
-    /// <returns>The proposals and findings that count now, in sequence order.</returns>
+    /// <param name="withFindings">Whether to read the findings too (the clusters need only the proposals).</param>
+    /// <returns>The proposals and findings that count now, in the order of first appearance.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
     public static (List<ClusterEvidence> Evidence, List<StoredFinding> Findings) ReadLatest(
-        ICaseReader reader, Txid? txid = null)
+        ICaseReader reader, Txid? txid = null, bool withFindings = true)
     {
         using var command = reader.CreateCommand(
             EvidenceSelect + " WHERE $txid IS NULL OR txid = $txid ORDER BY sequence");
@@ -159,11 +175,24 @@ internal static class EvidenceStore
             }
         }
 
-        var newest = rows.GroupBy(row => (row.Txid, row.Heuristic))
-            .ToDictionary(group => group.Key, group => group.Max(row => row.JournalSequence));
-        var current = rows.Where(row => row.JournalSequence == newest[(row.Txid, row.Heuristic)]).ToList();
+        var byName = rows.GroupBy(row => (row.Txid, row.Heuristic.Name)).ToDictionary(
+            group => group.Key,
+            group =>
+            {
+                var version = group.Max(row => row.Heuristic.Version);
+                var journal = group.Where(row => row.Heuristic.Version == version).Max(row => row.JournalSequence);
+                return (Version: version, Journal: journal, First: group.Min(row => row.Sequence));
+            });
+        var current = rows.Where(row => byName[(row.Txid, row.Heuristic.Name)] is var counting
+                && row.Heuristic.Version == counting.Version
+                && row.JournalSequence == counting.Journal)
+            .OrderBy(row => byName[(row.Txid, row.Heuristic.Name)].First)
+            .ThenBy(row => row.Sequence)
+            .ToList();
         var evidence = current.Where(row => row.Kind == ProposalKind).Select(ToEvidence).ToList();
-        var findings = current.Where(row => row.Kind == FindingKind).Select(ToFinding).ToList();
+        var findings = withFindings
+            ? current.Where(row => row.Kind == FindingKind).Select(ToFinding).ToList()
+            : [];
         return (evidence, findings);
     }
 
@@ -222,8 +251,8 @@ internal static class EvidenceStore
         row.IsDBNull(8) ? null : row.GetString(8),
         row.IsDBNull(9) ? null : row.GetString(9),
         row.IsDBNull(10) ? null : row.GetString(10),
-        row.GetInt64(12),
-        ParseTime(row.GetString(13)));
+        row.GetInt64(13),
+        ParseTime(row.GetString(14)));
 
     /// <summary>Turns a proposal record into evidence.</summary>
     /// <param name="row">The record.</param>
@@ -332,3 +361,8 @@ internal static class EvidenceStore
         long JournalSequence,
         DateTimeOffset RecordedUtc);
 }
+
+/// <summary>What is stored of a result: enough to tell whether a new result differs, and what it rests on.</summary>
+/// <param name="Fingerprint">The result's fingerprint.</param>
+/// <param name="Basis">The other transactions the result rests on.</param>
+internal sealed record StoredResult(string Fingerprint, IReadOnlyList<Txid> Basis);

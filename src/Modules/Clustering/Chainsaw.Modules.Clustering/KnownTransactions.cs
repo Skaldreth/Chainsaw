@@ -68,8 +68,12 @@ internal sealed class KnownTransactions : IHeuristicContext
         _spenders.GetValueOrDefault((txid, outputIndex));
 
     /// <inheritdoc/>
-    public bool SeenBefore(BitcoinAddress address, BitcoinTransaction transaction) =>
-        _byAddress.TryGetValue(address, out var list) && list.Any(other => IsBefore(other, transaction));
+    public BitcoinTransaction? SeenBefore(BitcoinAddress address, BitcoinTransaction transaction) =>
+        _byAddress.GetValueOrDefault(address)?
+            .Where(other => IsBefore(other, transaction))
+            .OrderBy(other => other.Block!.Height)
+            .ThenBy(other => other.Txid.Value, StringComparer.Ordinal)
+            .FirstOrDefault();
 
     /// <summary>
     /// Says whether one transaction certainly came before another: confirmed in a lower block, or confirmed while the

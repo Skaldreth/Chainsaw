@@ -12,7 +12,16 @@ namespace Chainsaw.Modules.Clustering.Contracts;
 [JsonDerivedType(typeof(CoinJoinFinding), "coinjoin")]
 [JsonDerivedType(typeof(ChangeFinding), "change")]
 [JsonDerivedType(typeof(PeelChainFinding), "peel-chain")]
-public abstract record HeuristicFinding(string Reason);
+public abstract record HeuristicFinding(string Reason)
+{
+    /// <summary>
+    /// Gets the output the finding takes to be the sender's change, or <see langword="null"/> when it says nothing
+    /// about change. Two findings or proposals of the same transaction that name different change cancel each other's
+    /// merges.
+    /// </summary>
+    [JsonIgnore]
+    public virtual int? ChangeOutput => null;
+}
 
 /// <summary>
 /// The transaction is a CoinJoin: many owners pay into it together, so that whose output is whose cannot be read.
@@ -32,14 +41,17 @@ public sealed record CoinJoinFinding(
     int EqualOutputs,
     int Inputs) : HeuristicFinding(Reason)
 {
-    /// <summary>Gets whether the trail ends here: only a recognised CoinJoin ends it.</summary>
+    /// <summary>Gets whether the trail ends here: only a recognised CoinJoin (a known pattern) ends it.</summary>
     public bool EndsTrail => Certainty == CoinJoinCertainty.Recognised;
 }
 
 /// <summary>The known kinds of CoinJoin, as far as they can be told apart without labels.</summary>
 public enum CoinJoinPattern
 {
-    /// <summary>Equal outputs and inputs from many places, without a known pattern.</summary>
+    /// <summary>
+    /// Equal outputs and inputs from many places, without a known pattern; it may be a CoinJoin but also a batch of
+    /// equal withdrawals, so it is never more than possible.
+    /// </summary>
     Generic,
 
     /// <summary>Whirlpool (Samourai and its successors): five inputs, five equal outputs of a pool's amount.</summary>
@@ -55,10 +67,14 @@ public enum CoinJoinPattern
 /// <summary>How sure the CoinJoin analysis is.</summary>
 public enum CoinJoinCertainty
 {
-    /// <summary>The pattern is clear; the trail ends and nothing in the transaction is merged.</summary>
+    /// <summary>
+    /// A known pattern (Whirlpool, Wasabi, JoinMarket); the trail ends and nothing in the transaction is merged.
+    /// </summary>
     Recognised,
 
-    /// <summary>It may be a small CoinJoin; nothing in the transaction is merged automatically, only proposed.</summary>
+    /// <summary>
+    /// It may be a CoinJoin; the trail goes on, and nothing in the transaction is merged automatically, only proposed.
+    /// </summary>
     Possible,
 }
 
@@ -70,15 +86,22 @@ public enum CoinJoinCertainty
 /// <param name="SignsChecked">
 /// How many kinds of sign the version checks, so that the score can be read (for example 3 of 5).
 /// </param>
+/// <param name="SeenIn">
+/// The txids of the earlier transactions where the addresses that made a fresh-address sign were seen.
+/// </param>
 public sealed record ChangeFinding(
     string Reason,
     int OutputIndex,
     IReadOnlyList<ChangeSign> Signs,
     int SignsAgainst,
-    int SignsChecked) : HeuristicFinding(Reason)
+    int SignsChecked,
+    IReadOnlyList<string> SeenIn) : HeuristicFinding(Reason)
 {
     /// <summary>Gets how many signs point at the output.</summary>
     public int Score => Signs.Count;
+
+    /// <inheritdoc/>
+    public override int? ChangeOutput => OutputIndex;
 }
 
 /// <summary>A sign that an output is the sender's change. A sign only counts when it tells the outputs apart.</summary>
@@ -111,13 +134,21 @@ public enum ChangeSign
 /// <param name="PeelOutput">The output that is peeled off: a payment.</param>
 /// <param name="HopsBefore">How many peel hops the case knows of before this one.</param>
 /// <param name="HopsAfter">How many peel hops the case knows of after this one.</param>
+/// <param name="Hops">The txids of the other hops, the ones before first (nearest first), then the ones after.</param>
 public sealed record PeelChainFinding(
     string Reason,
     int ContinuingOutput,
     int PeelOutput,
     int HopsBefore,
-    int HopsAfter) : HeuristicFinding(Reason)
+    int HopsAfter,
+    IReadOnlyList<string> Hops) : HeuristicFinding(Reason)
 {
+    /// <summary>Gets whether the hop is inside the chain, with a known hop on both sides.</summary>
+    public bool IsInner => HopsBefore > 0 && HopsAfter > 0;
+
     /// <summary>Gets how long the known chain is, this hop included.</summary>
     public int ChainLength => HopsBefore + 1 + HopsAfter;
+
+    /// <inheritdoc/>
+    public override int? ChangeOutput => ContinuingOutput;
 }

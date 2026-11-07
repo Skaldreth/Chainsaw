@@ -3,9 +3,17 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Clustering;
 
-/// <summary>Small readings of a transaction's shape that several analyses share, so each rule is written once.</summary>
+/// <summary>Readings of a transaction's shape that several analyses share, so each rule is written once.</summary>
 internal static class TransactionShape
 {
+    /// <summary>A round amount is a whole multiple of this many satoshi (0.001 BTC).</summary>
+    public const long RoundUnit = 100_000;
+
+    /// <summary>Says whether an amount is round: a whole multiple of <see cref="RoundUnit"/>.</summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public static bool IsRound(Satoshi amount) => amount.Value % RoundUnit == 0;
+
     /// <summary>
     /// Gives the outputs that pay an address: the ones money can be followed through. OP_RETURN, bare multisig and
     /// non-standard outputs have no address and are left out.

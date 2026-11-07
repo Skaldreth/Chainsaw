@@ -17,6 +17,13 @@ public sealed record HeuristicResult(
     IReadOnlyList<HeuristicFinding> Findings,
     OwnershipVeto? Veto = null)
 {
+    /// <summary>
+    /// Gets the other transactions the conclusion rests on (for example the other hops of a peel chain). A later run
+    /// whose context lacks any of them cannot replace the stored result, so that a narrower call never takes back
+    /// what a wider one concluded.
+    /// </summary>
+    public IReadOnlyList<Txid> Basis { get; init; } = [];
+
     /// <summary>Gives a result where nothing was concluded.</summary>
     /// <param name="heuristic">The analysis.</param>
     /// <param name="txid">The transaction.</param>

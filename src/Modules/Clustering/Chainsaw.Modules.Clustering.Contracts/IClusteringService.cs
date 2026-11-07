@@ -52,7 +52,7 @@ public interface IClusteringService
     /// <returns>The cluster; just the address when nothing links it to another.</returns>
     Cluster GetCluster(ICase @case, BitcoinAddress address);
 
-    /// <summary>Explains why two addresses are in the same cluster: the links on the way from one to the other.</summary>
+    /// <summary>Explains why two addresses are in the same cluster: the links on the way between them.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="from">One address.</param>
     /// <param name="to">The other address.</param>

@@ -4,7 +4,7 @@ using Chainsaw.Modules.Clustering.Contracts;
 namespace Chainsaw.Modules.Clustering;
 
 /// <summary>
-/// The clusters as they stand: built from the stored proposals in the order they were sealed, with the user's splits
+/// The clusters as they stand: built from the stored proposals in the order they first appeared, with the user's splits
 /// applied to every one of them, whenever the splits were made. A proposal that would bring two split addresses into
 /// the same cluster merges nothing: it is refused when it comes from the heuristic the split names, and shown as a
 /// suggestion when it comes from another.
@@ -28,12 +28,15 @@ internal sealed class ClusterGraph
     private readonly IReadOnlyList<ClusterSplit> _splits;
 
     /// <summary>Builds the clusters.</summary>
-    /// <param name="evidence">The proposals that count now, in sequence order.</param>
+    /// <param name="evidence">
+    /// The proposals that count now, in the order their results first appeared; one with fewer than two different
+    /// addresses links nothing and is left out.
+    /// </param>
     /// <param name="splits">The user's splits, in sequence order.</param>
     public ClusterGraph(IEnumerable<ClusterEvidence> evidence, IReadOnlyList<ClusterSplit> splits)
     {
         _splits = splits;
-        foreach (var item in evidence.OrderBy(item => item.Sequence))
+        foreach (var item in evidence.Where(item => item.Addresses.Distinct().Count() >= 2))
         {
             var link = Place(item);
             _links.Add(link);
@@ -64,9 +67,9 @@ internal sealed class ClusterGraph
         var addresses = members.Select(member => member.Address).ToHashSet();
         var links = _links.Where(link => link.State == LinkState.Merged && Touches(link, addresses)).ToList();
         var suggestions = _links.Where(link =>
-            link.State is LinkState.Suggested or LinkState.SuggestedAfterSplit && Touches(link, addresses)).ToList();
+            (link.State is LinkState.Suggested or LinkState.SuggestedAfterSplit) && Touches(link, addresses)).ToList();
         var refused = _links.Where(link =>
-            link.State is LinkState.Stopped or LinkState.RefusedBySplit && Touches(link, addresses)).ToList();
+            (link.State is LinkState.Stopped or LinkState.RefusedBySplit) && Touches(link, addresses)).ToList();
         var splits = _splits.Where(split => addresses.Contains(split.First) || addresses.Contains(split.Second))
             .ToList();
         return new Cluster(start, members, links, suggestions, refused, splits);
@@ -75,7 +78,7 @@ internal sealed class ClusterGraph
     /// <summary>Gives the links on the way from one address to another in the same cluster.</summary>
     /// <param name="from">One address.</param>
     /// <param name="to">The other address.</param>
-    /// <returns>The links in order from <paramref name="from"/>, or <see langword="null"/> when not connected.</returns>
+    /// <returns>The links in order from <paramref name="from"/>, or <see langword="null"/> if not connected.</returns>
     public IReadOnlyList<ClusterLink>? Path(BitcoinAddress from, BitcoinAddress to)
     {
         var (_, byAddress) = Walk(from);

@@ -20,11 +20,14 @@ Den stora outputen är **växeln**: samma ägare som hoppets input. De små är 
 lilla. När ärendet känner till **minst tre hopp i rad**, där den stora outputen i ett hopp är inputen i nästa, är det
 en peel chain:
 
-- den stora outputen i varje hopp slås ihop med hoppets input, så att hela kedjan av innehavare blir ett kluster;
+- den stora outputen slås ihop med hoppets input i varje hopp **inne i kedjan**, så att innehavarna blir ett kluster;
+- i kedjans **ändar** blir det bara ett förslag. Det första hoppet kan vara ett offer som betalar nästan allt till
+  bedragaren, och det sista kan skicka huvuddelen till en börs insättningsadress. Ingen av dem är kedjans växel, och
+  att slå ihop dem skulle göra offret eller börsens alla kunder till en del av bedragarens plånbok;
 - de avskalade outputarna slås **aldrig** ihop; de är mottagare och ofta det intressanta: där kan en börs ta emot.
 
 Två hopp räcker inte. Kedjan känns igen först när fler hopp har hämtats, och då kör Chainsaw analysen igen och sparar
-den nya slutsatsen bredvid den gamla.
+den nya slutsatsen bredvid den gamla. Slutsatsen säger vilka andra hopp (tx) den bygger på.
 
 ## I utredningen
 

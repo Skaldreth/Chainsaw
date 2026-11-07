@@ -23,14 +23,14 @@ public interface IHeuristicContext
     BitcoinTransaction? FindSpender(Txid txid, int outputIndex);
 
     /// <summary>
-    /// Says whether an address appears in a transaction the case knows of that came before the given one: confirmed
-    /// in a lower block, or confirmed when the given one is not.
+    /// Finds a transaction the case knows of that came before the given one and has the address (as input or
+    /// output): confirmed in a lower block, or confirmed when the given one is not.
     /// </summary>
     /// <param name="address">The address.</param>
     /// <param name="transaction">The transaction to look before.</param>
     /// <returns>
-    /// <see langword="true"/> when it does. <see langword="false"/> means only that the case knows of no such
-    /// transaction; the address may still have been used.
+    /// The earliest such transaction, or <see langword="null"/>; that means only that the case knows of none, the
+    /// address may still have been used.
     /// </returns>
-    bool SeenBefore(BitcoinAddress address, BitcoinTransaction transaction);
+    BitcoinTransaction? SeenBefore(BitcoinAddress address, BitcoinTransaction transaction);
 }

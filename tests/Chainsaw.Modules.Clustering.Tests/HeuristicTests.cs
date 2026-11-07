@@ -139,6 +139,26 @@ public sealed class HeuristicTests
     }
 
     [Fact]
+    public void A_wasabi_round_with_more_equal_outputs_than_input_addresses_is_still_recognised()
+    {
+        var tx = Tx("wasabi-dense");
+        for (var i = 0; i < 20; i++)
+        {
+            tx.In(Wpkh($"dense-in-{i}"), 6_000_000);
+        }
+
+        for (var i = 0; i < 24; i++)
+        {
+            tx.Out(Tr($"dense-out-{i}"), 5_000_000);
+        }
+
+        var finding = Assert.IsType<CoinJoinFinding>(
+            Assert.Single(new CoinJoinHeuristic().Analyse(tx.Build(), Nothing).Findings));
+
+        Assert.Equal((CoinJoinPattern.Wasabi, true), (finding.Pattern, finding.EndsTrail));
+    }
+
+    [Fact]
     public void Equal_outputs_to_the_same_address_are_no_coinjoin()
     {
         var same = Tx("same").In(Wpkh("s-1"), 3_000_000).In(Wpkh("s-2"), 3_000_000)
@@ -197,10 +217,10 @@ public sealed class HeuristicTests
         var subject = Tx("subject", 11).In(Wpkh("q"), 2_000_000).Out(Wpkh("seen"), 1_000).Build();
         var known = new KnownTransactions([early, same, pending, subject]);
 
-        Assert.True(known.SeenBefore(Wpkh("seen"), subject));
-        Assert.False(known.SeenBefore(Wpkh("same"), subject));
-        Assert.False(known.SeenBefore(Wpkh("late"), subject));
-        Assert.True(known.SeenBefore(Wpkh("seen"), pending));
+        Assert.Equal(early, known.SeenBefore(Wpkh("seen"), subject));
+        Assert.Null(known.SeenBefore(Wpkh("same"), subject));
+        Assert.Null(known.SeenBefore(Wpkh("late"), subject));
+        Assert.Equal(early, known.SeenBefore(Wpkh("seen"), pending));
         Assert.Equal(subject, known.FindSpender(Txid("subject:funding:0"), 0));
     }
 

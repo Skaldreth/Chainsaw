@@ -62,3 +62,27 @@ internal sealed class FailingHeuristic : IClusteringHeuristic
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
         throw new InvalidOperationException("The analysis failed.");
 }
+
+/// <summary>
+/// A second version of the CoinJoin analysis that only ever sees a possible CoinJoin, to show that it replaces
+/// version 1 in what counts.
+/// </summary>
+internal sealed class SilentCoinJoinV2 : IClusteringHeuristic
+{
+    public HeuristicId Id { get; } = new(HeuristicNames.CoinJoin, 2);
+
+    public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
+        new(Id, transaction.Txid, [],
+            [new CoinJoinFinding("Kanske.", CoinJoinPattern.Generic, CoinJoinCertainty.Possible,
+                Chainsaw.SharedKernel.Satoshi.Zero, 2, transaction.Inputs.Count)]);
+}
+
+/// <summary>An analysis that gives a proposal it must not: one address only.</summary>
+internal sealed class MalformedHeuristic : IClusteringHeuristic
+{
+    public HeuristicId Id { get; } = new("malformed", 1);
+
+    public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
+        new(Id, transaction.Txid,
+            [new OwnershipProposal([], EvidenceStrength.Merge, "Fel.")], []);
+}

@@ -60,16 +60,47 @@ public sealed class StorageTests : IDisposable
     }
 
     [Fact]
-    public void A_result_that_finds_nothing_any_more_replaces_one_that_did()
+    public void A_narrower_run_never_takes_back_what_a_wider_one_concluded()
     {
         var chain = Patterns.PeelChain(3);
         _harness.Analyse([.. chain]);
+        var before = _harness.Count("clustering_evidence");
 
-        _harness.Analyse(chain[0]);
+        var run = _harness.Analyse(chain[1]);
 
-        Assert.DoesNotContain(
-            _harness.Service.GetConclusions(_harness.Case, chain[0].Txid).Findings,
+        Assert.Null(run.Journal);
+        Assert.Equal(before, _harness.Count("clustering_evidence"));
+        Assert.Contains(
+            _harness.Service.GetConclusions(_harness.Case, chain[1].Txid).Findings,
             found => found.Finding is PeelChainFinding);
+    }
+
+    [Fact]
+    public void A_result_that_concludes_nothing_is_not_stored_the_first_time()
+    {
+        var run = _harness.Analyse(Patterns.Consolidation());
+
+        Assert.Equal(1, run.NewResults);
+        Assert.Equal(1, _harness.Count("clustering_evidence"));
+    }
+
+    [Fact]
+    public void A_newer_version_replaces_an_older_versions_results_which_stay_sealed()
+    {
+        using var harness = new CaseHarness(services =>
+            services.AddSingleton<IClusteringHeuristic, SilentCoinJoinV2>());
+        harness.Analyse(Patterns.Whirlpool());
+        var conclusions = harness.Service.GetConclusions(harness.Case, Txid("whirlpool"));
+
+        Assert.Null(conclusions.TrailEnd);
+        var coinJoin = Assert.Single(conclusions.Findings, found => found.Heuristic.Name == HeuristicNames.CoinJoin);
+        Assert.Equal(2, coinJoin.Heuristic.Version);
+        Assert.Equal(1L, harness.Case.Read(reader =>
+        {
+            using var command = reader.CreateCommand(
+                "SELECT COUNT(*) FROM clustering_evidence WHERE heuristic = 'coinjoin' AND heuristic_version = 1");
+            return (long)command.ExecuteScalar()!;
+        }));
     }
 
     [Theory]
@@ -110,9 +141,39 @@ public sealed class StorageTests : IDisposable
         var run = harness.Analyse(Patterns.Whirlpool());
 
         Assert.Equal([Txid("whirlpool")], run.Failed);
-        Assert.Null(run.Journal);
+        Assert.Contains(Txid("whirlpool").Value, run.Journal!.Details!,
+            StringComparison.Ordinal);
         Assert.Equal(0, harness.Count("clustering_evidence"));
         Assert.Single(harness.ClusterOf(Wpkh("whirl-in-1")).Members);
+    }
+
+    [Fact]
+    public void A_malformed_proposal_is_never_sealed_and_the_clusters_still_work()
+    {
+        using var harness = new CaseHarness(services =>
+            services.AddSingleton<IClusteringHeuristic, MalformedHeuristic>());
+
+        var run = harness.Analyse(Patterns.PaymentWithChange());
+
+        Assert.Equal([Txid("payment")], run.Failed);
+        Assert.Equal(0, harness.Count("clustering_evidence"));
+        Assert.Single(harness.ClusterOf(Wpkh("payer-1")).Members);
+    }
+
+    [Fact]
+    public void Findings_are_sealed_with_their_enums_by_name()
+    {
+        _harness.Analyse(Patterns.Whirlpool());
+
+        var finding = _harness.Case.Read(reader =>
+        {
+            using var command = reader.CreateCommand(
+                "SELECT finding FROM clustering_evidence WHERE record_kind = 'finding'");
+            return (string)command.ExecuteScalar()!;
+        });
+
+        Assert.Contains("\"Whirlpool\"", finding, StringComparison.Ordinal);
+        Assert.Contains("\"Recognised\"", finding, StringComparison.Ordinal);
     }
 
     [Fact]
