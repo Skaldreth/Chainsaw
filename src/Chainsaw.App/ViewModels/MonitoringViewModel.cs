@@ -357,6 +357,13 @@ public sealed partial class MonitoringViewModel : ObservableObject
         }
 
         var selected = Rows.FirstOrDefault(row => row.Id == chosen) ?? Rows.FirstOrDefault();
+        if (selected?.Id != chosen)
+        {
+            // A removal's confirmation belongs to the watch it was opened for, never to the next one.
+            IsRemoving = false;
+            RemoveReason = string.Empty;
+        }
+
         Selected = selected;
         if (selected is not null)
         {

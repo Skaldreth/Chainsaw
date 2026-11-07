@@ -140,10 +140,19 @@ public sealed record WatchRun(
 
 /// <summary>When a watch was last checked, kept beside the sealed records as plain data.</summary>
 /// <param name="CheckedUtc">When.</param>
-/// <param name="Height">The chain's height at the check.</param>
+/// <param name="Height">
+/// The block the watch is read through: the next check reads back to it (less <see cref="WatchRules.Lookback"/>).
+/// </param>
 /// <param name="Status">How it went.</param>
 /// <param name="Problem">What went wrong, in Swedish, or <see langword="null"/>.</param>
-public sealed record WatchChecked(DateTimeOffset CheckedUtc, long Height, WatchFeedStatus Status, string? Problem);
+public sealed record WatchChecked(DateTimeOffset CheckedUtc, long Height, WatchFeedStatus Status, string? Problem)
+{
+    /// <summary>
+    /// Gets the chain's height when the watch was checked, so that a check that could not read through to it waits
+    /// for a new block instead of reading the same pages every minute; the read-through height when not stored.
+    /// </summary>
+    public long Tip { get; init; } = Height;
+}
 
 /// <summary>
 /// The watches of a case (CLAUDE.md, <em>Bevaka</em>, sketches BV1a and BV2a): made, changed, paused and taken back as

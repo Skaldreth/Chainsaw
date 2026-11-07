@@ -68,6 +68,7 @@ internal sealed class MonitoringSchema : ICaseSchemaContributor
             watch_id TEXT PRIMARY KEY,
             checked_utc TEXT NOT NULL,
             height INTEGER NOT NULL,
+            tip INTEGER NOT NULL,
             status TEXT NOT NULL,
             problem TEXT
         ) STRICT;

@@ -269,6 +269,22 @@ public sealed class MonitoringServiceTests : IDisposable
     }
 
     [Fact]
+    public void A_cluster_watch_refuses_its_own_addresses_as_counterparties()
+    {
+        var spender = Synthetic.Wpkh("together");
+        var merge = Synthetic.Tx("merge", 899_000).In(Node, 5_000).In(spender, 5_000).Out(Exchange, 9_000).Build();
+        _harness.Clustering.Analyse(_harness.Case, [merge]);
+        var subject = new WatchSubject(WatchSubjectKind.Cluster, Btc(Node), "Kluster 7");
+        var watch = _harness.Service.Add(_harness.Case, subject,
+            new WatchFilter(Chain.Bitcoin, WatchDirection.Out, [Btc(Exchange)], [], null, null));
+
+        Assert.Throws<ArgumentException>(() => _harness.Service.Change(_harness.Case, watch.Id,
+            watch.Filter with { Receivers = [Btc(spender)] }));
+        Assert.Throws<ArgumentException>(() => _harness.Service.Add(_harness.Case, subject,
+            new WatchFilter(Chain.Bitcoin, WatchDirection.In, [], [Btc(spender)], null, null)));
+    }
+
+    [Fact]
     public void Seen_hits_are_noted_and_never_move_back()
     {
         _harness.Service.MarkSeen(_harness.Case, "w", 5);

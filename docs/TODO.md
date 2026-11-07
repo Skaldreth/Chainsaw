@@ -636,7 +636,9 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **Ringarna** ritas genom att grafen ritas om (15 gånger i sekunden medan en osedd träff syns). Ett eget lager för
   ringarna skulle bara rita dem; pennorna skapas per bildruta.
 - **Pengar ut ur en CoinJoin** räknas högst till det de bevakade adresserna satte in, minus växeln; vem av utgångarna
-  som är deras säger kedjan inte, och linjen får inget belopp när träffen har flera motparter.
+  som är deras säger kedjan inte, och linjen får inget belopp när träffen har flera motparter. Det taket är en
+  övre gräns, inte ett faktum (granskningen omgång 3, M4): träffen borde bära en markering och visas som *högst …*
+  (streckat) i stället för som fakta i historiken och listan.
 - **Varje råsvar förseglas** också för bevakningen: höjden en gång i minuten och adressernas första sida vid varje nytt
   block. Ärendet växer med bevakningar som går länge; att slå ihop lika svar (samma hash) vore en ändring i Chains.
 

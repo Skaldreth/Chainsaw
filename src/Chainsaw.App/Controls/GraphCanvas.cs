@@ -96,6 +96,11 @@ public sealed partial class GraphCanvas : FrameworkElement
             {
                 KeepRings(false);
             }
+            else
+            {
+                // Drawn again when shown, so that rings that moved before move on.
+                InvalidateVisual();
+            }
         };
         FocusVisualStyle = null;
         ClipToBounds = true;

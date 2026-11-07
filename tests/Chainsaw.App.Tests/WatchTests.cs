@@ -199,6 +199,22 @@ public sealed class MonitoringViewModelTests
     }
 
     [Fact]
+    public async Task A_removal_asked_for_one_watch_never_falls_to_the_next()
+    {
+        var first = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
+        _source.Add(WatchSamples.Subject(U, "U"), WatchSamples.Filter());
+        var view = View(out var board);
+        await board.ReloadAsync();
+        view.AskRemove();
+
+        await _source.RemoveAsync(new TestCase("x"), first.Id, null);
+        await board.ReloadAsync();
+
+        Assert.False(view.IsRemoving);
+        Assert.Equal("U", view.Selected!.Name);
+    }
+
+    [Fact]
     public async Task Open_in_graph_and_new_are_asked_for()
     {
         var watch = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());

@@ -11,7 +11,7 @@ internal static class FeedTexts
 {
     /// <summary>When a check stopped before it reached back to where it was.</summary>
     public const string CutShort =
-        "{0} hade fler nya tx än en kontroll läser ({1} sidor); tx i block {2}–{3} lästes inte och kan ha missats.";
+        "{0} hade fler nya tx än en kontroll läser ({1} sidor); tx under block {3} kan ha missats.";
 
     /// <summary>When the source cannot page further back than a block, or has not read a history yet.</summary>
     public const string Incomplete =
@@ -25,9 +25,9 @@ internal static class FeedTexts
         "Blockets hash för block {0} kunde inte hämtas; träffen tas med nästa kontroll.";
 
     /// <summary>
-    /// Gives the status of a lookup as a feed reports it: read when it was answered, failed when a source was asked and
-    /// failed (also when the case's older answer stood in), and not asked when nothing was sent (no exit, the chain
-    /// off, no endpoint in step).
+    /// Gives the status of a lookup as a feed reports it: read when it was answered, failed when it failed (also when
+    /// the case's older answer stood in, and when no endpoint was in step: the problem says which), and not asked when
+    /// the source said it was offline or answered only from the case.
     /// </summary>
     /// <typeparam name="T">What was looked up.</typeparam>
     /// <param name="lookup">The lookup.</param>
@@ -36,10 +36,9 @@ internal static class FeedTexts
         where T : class => lookup.Status switch
     {
         LookupStatus.Fetched or LookupStatus.FromCase or LookupStatus.NotFound => WatchFeedStatus.Read,
-        LookupStatus.Failed when lookup.Origins.Count > 0 => WatchFeedStatus.Failed,
-
-        // The source was asked and failed, and the case's older answer stands in: the lookup failed.
-        LookupStatus.FromCaseMayBeOutdated => WatchFeedStatus.Failed,
+        // Failed, with or without a sealed answer (a timeout seals nothing), and failed with the case's older answer
+        // standing in, are both failed lookups; the lookup's problem says why, also when no endpoint was in step.
+        LookupStatus.Failed or LookupStatus.FromCaseMayBeOutdated => WatchFeedStatus.Failed,
         _ => WatchFeedStatus.NotAsked,
     };
 
@@ -77,8 +76,14 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
         {
             var lookup = await source.GetAddressTransactionsAsync(
                 @case, bitcoin, after, LookupMode.InStep, cancellationToken).ConfigureAwait(false);
-            origins.AddRange(lookup.Origins.Select(origin => origin.Sequence));
             var status = FeedTexts.StatusOf(lookup);
+
+            // Only an answer the check rests on is cited; a failed or stood-in response is not (principle 1).
+            if (status == WatchFeedStatus.Read)
+            {
+                origins.AddRange(lookup.Origins.Select(origin => origin.Sequence));
+            }
+
             if (status != WatchFeedStatus.Read || lookup.Value is not { } read)
             {
                 return new WatchFeedPage(
@@ -148,6 +153,7 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         var problems = new List<string>();
         var status = WatchFeedStatus.Read;
         long? completeAbove = null;
+        var unknown = false;
         foreach (var history in HistoriesFor(asset))
         {
             var (read, above) = await ReadHistoryAsync(ethereum, history, downTo, transfers, origins, problems,
@@ -157,6 +163,9 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
             {
                 completeAbove = Math.Max(completeAbove ?? height, height);
             }
+
+            // A partial history with no block it is complete above keeps the whole check where it was.
+            unknown |= read == WatchFeedStatus.Partial && above is null;
         }
 
         var hashes = await BlockHashesAsync(transfers.Values, downTo, origins, problems, cancellationToken)
@@ -175,6 +184,11 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         if (completeAbove is not null && status == WatchFeedStatus.Read)
         {
             status = WatchFeedStatus.Partial;
+        }
+
+        if (unknown)
+        {
+            completeAbove = null;
         }
 
         var transactions = transfers.Values
@@ -229,8 +243,14 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         {
             var lookup = await source.GetAddressHistoryAsync(
                 @case, address, history, atOrBelow, LookupMode.InStep, cancellationToken).ConfigureAwait(false);
-            origins.AddRange(lookup.Origins.Select(origin => origin.Sequence));
             var status = FeedTexts.StatusOf(lookup);
+
+            // Only an answer the check rests on is cited; a failed or stood-in response is not (principle 1).
+            if (status == WatchFeedStatus.Read)
+            {
+                origins.AddRange(lookup.Origins.Select(origin => origin.Sequence));
+            }
+
             if (status != WatchFeedStatus.Read || lookup.Value is not { } read)
             {
                 if (lookup.Problem is { } problem && status != WatchFeedStatus.Read)
@@ -306,9 +326,9 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         {
             var lookup = await source.GetBlockAsync(@case, height, LookupMode.InStep, cancellationToken)
                 .ConfigureAwait(false);
-            origins.AddRange(lookup.Origins.Select(origin => origin.Sequence));
             if (lookup.Value?.Hash is { } hash)
             {
+                origins.AddRange(lookup.Origins.Select(origin => origin.Sequence));
                 hashes[height] = hash;
             }
             else

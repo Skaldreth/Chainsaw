@@ -167,7 +167,7 @@ internal static class WatchStore
     public static IReadOnlyDictionary<string, WatchChecked> ReadChecked(ICaseReader reader)
     {
         using var command = reader.CreateCommand(
-            "SELECT watch_id, checked_utc, height, status, problem FROM monitoring_checked");
+            "SELECT watch_id, checked_utc, height, status, problem, tip FROM monitoring_checked");
         using var rows = command.ExecuteReader();
         var all = new Dictionary<string, WatchChecked>(StringComparer.Ordinal);
         while (rows.Read())
@@ -176,7 +176,10 @@ internal static class WatchStore
                 WatchCodec.Time(rows.GetString(1)),
                 rows.GetInt64(2),
                 Enum.Parse<WatchFeedStatus>(rows.GetString(3)),
-                rows.IsDBNull(4) ? null : rows.GetString(4));
+                rows.IsDBNull(4) ? null : rows.GetString(4))
+            {
+                Tip = rows.GetInt64(5),
+            };
         }
 
         return all;
@@ -189,14 +192,15 @@ internal static class WatchStore
     public static void WriteChecked(ICaseTransaction transaction, string watchId, WatchChecked checkedAt)
     {
         using var command = transaction.CreateCommand("""
-            INSERT INTO monitoring_checked (watch_id, checked_utc, height, status, problem)
-            VALUES ($id, $utc, $height, $status, $problem)
-            ON CONFLICT (watch_id) DO UPDATE SET checked_utc = $utc, height = $height, status = $status,
+            INSERT INTO monitoring_checked (watch_id, checked_utc, height, tip, status, problem)
+            VALUES ($id, $utc, $height, $tip, $status, $problem)
+            ON CONFLICT (watch_id) DO UPDATE SET checked_utc = $utc, height = $height, tip = $tip, status = $status,
                 problem = $problem
             """);
         Add(command, "$id", watchId);
         Add(command, "$utc", WatchCodec.Text(checkedAt.CheckedUtc));
         Add(command, "$height", checkedAt.Height);
+        Add(command, "$tip", checkedAt.Tip);
         Add(command, "$status", checkedAt.Status.ToString());
         Add(command, "$problem", checkedAt.Problem);
         command.ExecuteNonQuery();

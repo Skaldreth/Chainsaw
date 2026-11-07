@@ -93,6 +93,7 @@ internal sealed class MonitoringService(
         ArgumentNullException.ThrowIfNull(filter);
         var checkedFilter = Checked(filter);
         var checkedSubject = Checked(subject, checkedFilter.Chain);
+        RefuseOwn(@case, checkedSubject, checkedFilter);
         var id = Guid.NewGuid().ToString("N");
         return @case.Write(transaction =>
         {
@@ -120,6 +121,13 @@ internal sealed class MonitoringService(
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(filter);
         var checkedFilter = Checked(filter);
+
+        // The clustering is read outside the case's write, which allows no other read inside it.
+        if (GetWatches(@case).FirstOrDefault(watch => watch.Id == id) is { } current)
+        {
+            RefuseOwn(@case, current.Subject, checkedFilter);
+        }
+
         return Update(@case, id, WatchAction.Changed, null, watch =>
         {
             if (watch.Chain != checkedFilter.Chain)
@@ -220,8 +228,8 @@ internal sealed class MonitoringService(
     }
 
     /// <summary>
-    /// Says whether a watch is due: a new block has come since it was last read through, and its pace's time has passed
-    /// since it was last checked. A watch never checked, or whose last check failed, is read again.
+    /// Says whether a watch is due: a new block has come since it was last checked, and its pace's time has passed
+    /// since then. A watch never checked, or whose last check failed or could not ask, is read again.
     /// </summary>
     /// <param name="watch">The watch.</param>
     /// <param name="last">When it was last checked, or <see langword="null"/>.</param>
@@ -236,7 +244,7 @@ internal sealed class MonitoringService(
             return true;
         }
 
-        var newBlock = height > last.Height || last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
+        var newBlock = height > last.Tip || last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
         return newBlock && now - last.CheckedUtc >= watch.Filter.Pace.Interval() - Tolerance;
     }
 
@@ -363,7 +371,10 @@ internal sealed class MonitoringService(
                 WatchFeedStatus.Partial when result.CompleteAbove is { } above => Math.Max(previous, above),
                 _ => previous,
             };
-            WatchStore.WriteChecked(transaction, watch.Id, new WatchChecked(started, kept, result.Status, problem));
+            WatchStore.WriteChecked(
+                transaction,
+                watch.Id,
+                new WatchChecked(started, kept, result.Status, problem) { Tip = Math.Max(height, kept) });
             if (fresh.Count == 0)
             {
                 return (IReadOnlyList<WatchHit>)[];
@@ -416,6 +427,35 @@ internal sealed class MonitoringService(
             WatchStore.Seal(transaction, action, changed, reason, journal);
             return changed;
         });
+    }
+
+    /// <summary>
+    /// Refuses counterparties that are the watched node itself: its address, or for a cluster any address the
+    /// clustering puts in it now, since money between them is never money in or out.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="subject">The node.</param>
+    /// <param name="filter">The filter.</param>
+    /// <exception cref="ArgumentException">A counterparty is the node.</exception>
+    private void RefuseOwn(ICase @case, WatchSubject subject, WatchFilter filter)
+    {
+        var parties = filter.Receivers.Concat(filter.Senders).ToHashSet();
+        if (parties.Count == 0)
+        {
+            return;
+        }
+
+        IEnumerable<ChainAddress> own = [subject.Anchor];
+        if (subject.Kind == WatchSubjectKind.Cluster && BitcoinAddress.TryParse(subject.Anchor.Value, out var start))
+        {
+            own = clustering.GetCluster(@case, start).Addresses
+                .Select(member => new ChainAddress(Chain.Bitcoin, member.Value));
+        }
+
+        if (own.Any(parties.Contains))
+        {
+            throw new ArgumentException("A counterparty is the watched node itself.", nameof(filter));
+        }
     }
 
     /// <summary>Gives the journal code of a record.</summary>

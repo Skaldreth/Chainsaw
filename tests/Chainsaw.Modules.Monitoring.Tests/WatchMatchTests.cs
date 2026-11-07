@@ -210,6 +210,38 @@ public sealed class WatchCoinJoinTests
         Assert.Equal(5, run.Hits.Count());
         var checkedAt = harness.Service.GetChecked(harness.Case).Values.Single();
         Assert.Equal(900_096, checkedAt.Height);
-        Assert.Contains("900001–900096", checkedAt.Problem, StringComparison.Ordinal);
+        Assert.Contains("under block 900096", checkedAt.Problem, StringComparison.Ordinal);
+        Assert.False(MonitoringService.IsDue(
+            harness.Service.GetWatches(harness.Case).Single(), checkedAt, 900_100, checkedAt.CheckedUtc.AddHours(1)));
+    }
+
+    [Fact]
+    public void With_chosen_senders_only_they_are_named()
+    {
+        var victim = Synthetic.Wpkh("victim");
+        var tx = Synthetic.Tx("in").In(victim, 5_000).In(Synthetic.Wpkh("other"), 5_000).Out(Node, 9_000).Build();
+        var filter = new WatchFilter(
+            Chain.Bitcoin, WatchDirection.In, [], [new ChainAddress(Chain.Bitcoin, victim.Value)], null, null);
+
+        var match = Assert.Single(new WatchCheck().Match(
+            new HashSet<ChainAddress> { Synthetic.Btc("node") }, filter, BitcoinCaseFeed.Of(tx)));
+
+        Assert.Equal([new ChainAddress(Chain.Bitcoin, victim.Value)], match.Counterparties);
+    }
+
+    [Fact]
+    public async Task An_address_read_partly_without_a_known_floor_keeps_the_whole_check_where_it_was()
+    {
+        var feed = new FakeFeed();
+        var a = Synthetic.Btc("a");
+        var b = Synthetic.Btc("b");
+        feed.Pages[a] = new WatchFeedPage(WatchFeedStatus.Partial, [], [], true, "x") { CompleteAbove = 140 };
+        feed.Pages[b] = new WatchFeedPage(WatchFeedStatus.Partial, [], [], true, "y");
+
+        var result = await new WatchCheck().CheckAsync(
+            [a, b], new WatchFilter(Chain.Bitcoin, WatchDirection.Both, [], [], null, null), feed, 100, 94);
+
+        Assert.Equal(WatchFeedStatus.Partial, result.Status);
+        Assert.Null(result.CompleteAbove);
     }
 }

@@ -41,7 +41,10 @@ internal sealed class WatchCheck : IWatchCheck
             }
             else if (!spends && filter.WatchesIn && FromWanted(flow, filter))
             {
-                var senders = flow.From.Select(leg => leg.Address).OfType<ChainAddress>().Distinct().ToList();
+                // With chosen senders only they are named, as only chosen receivers are for money out.
+                var senders = flow.From.Select(leg => leg.Address).OfType<ChainAddress>().Distinct()
+                    .Where(sender => filter.Senders.Count == 0 || filter.Senders.Contains(sender))
+                    .ToList();
                 foreach (var leg in flow.To.Where(leg => Watched(addresses, leg)))
                 {
                     Count(sums, WatchDirection.In, leg, senders, filter);
@@ -81,6 +84,7 @@ internal sealed class WatchCheck : IWatchCheck
         var status = WatchFeedStatus.Read;
         long? highest = null;
         long? completeAbove = null;
+        var unknown = false;
         foreach (var address in addresses)
         {
             var page = await feed.ReadAsync(address, filter.Asset, downTo, cancellationToken).ConfigureAwait(false);
@@ -89,6 +93,9 @@ internal sealed class WatchCheck : IWatchCheck
             {
                 completeAbove = Math.Max(completeAbove ?? above, above);
             }
+
+            // An address read partly without a block it is complete above keeps the whole check where it was.
+            unknown |= page.Status == WatchFeedStatus.Partial && page.CompleteAbove is null;
 
             status = Worse(status, page.Status);
             if (page.Problem is { } problem)
@@ -122,7 +129,7 @@ internal sealed class WatchCheck : IWatchCheck
             highest,
             [.. problems.Distinct(StringComparer.Ordinal)])
         {
-            CompleteAbove = completeAbove,
+            CompleteAbove = unknown ? null : completeAbove,
         };
     }
 

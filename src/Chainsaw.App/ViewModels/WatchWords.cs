@@ -36,8 +36,8 @@ public static class WatchWords
         "Källan svarade inte, eller svarade fel, vid senaste kontrollen. Bevakningen frågar igen vid nästa kontroll; " +
         "se Inställningar → Källor.";
 
-    /// <summary>The head when the last check found no endpoint in step with the chain.</summary>
-    public const string NoSourceText = "Väntar på en endpoint i fas · inga uppslag görs";
+    /// <summary>The head when the last check could not ask the source (it was offline, or only the case answered).</summary>
+    public const string NoSourceText = "Kunde inte fråga källan · försöker igen";
 
     /// <summary>The head's tooltip when no endpoint is in step.</summary>
     public const string NoSourceTip =
