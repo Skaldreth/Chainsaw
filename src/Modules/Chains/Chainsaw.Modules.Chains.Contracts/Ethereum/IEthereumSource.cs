@@ -1,0 +1,87 @@
+using Chainsaw.Modules.Cases.Contracts;
+
+namespace Chainsaw.Modules.Chains.Contracts;
+
+/// <summary>
+/// Ethereum's facts for a case, in the account model: an address's history (its transactions, internal transactions
+/// and ERC-20 transfers), a transaction with every movement of value in it (ether, internal and tokens with their
+/// contract and decimals), a block and the chain's height. One contract for the kind of chain, not per source
+/// (principle 8); the first sort of API is Blockscout's, which can also be run in-house.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Every response is sealed in the case with its endpoint, exit, time, who fetched it and its SHA-256 before it is used
+/// (principle 1). Requests go only through the exit and carry only what the lookup needs (principle 4); what cannot
+/// have changed is never fetched again; and without an exit the case answers and says what is missing (principle 9).
+/// Nothing is calculated and given as a fact: the fee is the chain's gas used times its price, and a token's decimals
+/// come from the source.
+/// </para>
+/// <para>
+/// The methods never throw for a failed lookup; the answer's <see cref="BitcoinLookup{T}.Status"/> says what
+/// happened (the type is shared by every chain). They throw only for invalid arguments, cancellation, or a
+/// <see cref="CaseException"/> (a closed case, or a sealed response that no longer matches its SHA-256).
+/// </para>
+/// </remarks>
+public interface IEthereumSource
+{
+    /// <summary>Gets one page of an address's history of one kind, newest first.</summary>
+    /// <param name="case">The open case the responses are sealed in.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="history">Which history.</param>
+    /// <param name="atOrBelow">
+    /// <see langword="null"/> for the first page, or <see cref="EthereumAddressPage.NextAtOrBelow"/> of the previous.
+    /// </param>
+    /// <param name="mode">Whether the source may be asked; <see cref="LookupMode.CaseOnly"/> sends nothing.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The page.</returns>
+    Task<BitcoinLookup<EthereumAddressPage>> GetAddressHistoryAsync(
+        ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow = null,
+        LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a transaction with every movement of value in it: its ether, its internal transactions and its token
+    /// transfers (read from the logs' <c>Transfer</c> events, with each token's decimals), and its block with the hash.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="hash">The transaction's hash.</param>
+    /// <param name="mode">Whether the source may be asked; <see cref="LookupMode.CaseOnly"/> sends nothing.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The transaction.</returns>
+    Task<BitcoinLookup<EthereumTransaction>> GetTransactionAsync(
+        ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the block at a height: its hash and time.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="height">The block's number.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The block.</returns>
+    Task<BitcoinLookup<EthereumBlockReference>> GetBlockAsync(
+        ICase @case, long height, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the height of the newest block.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The height.</returns>
+    Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default);
+}
+
+/// <summary>The settings of the Ethereum source.</summary>
+public sealed record EthereumSourceOptions
+{
+    /// <summary>Blockscout's API for Ethereum, the default: open without a key, and it can be run in-house.</summary>
+    public static readonly Uri Blockscout = new("https://eth.blockscout.com/api/");
+
+    /// <summary>Gets Ethereum's endpoints until the user changes them in the settings (sketch KL1a).</summary>
+    public IReadOnlyList<Uri> DefaultEndpoints { get; init; } = [Blockscout];
+
+    /// <summary>
+    /// Gets how many blocks deep a block must be before what rests on it is never fetched again. Ethereum's blocks are
+    /// final after two epochs (64 blocks, about 13 minutes); a reorganisation deeper than that cannot happen.
+    /// </summary>
+    public int SafeConfirmations { get; init; } = 64;
+
+    /// <summary>Gets how many entries a page of an address's history asks for.</summary>
+    public int PageSize { get; init; } = 100;
+}

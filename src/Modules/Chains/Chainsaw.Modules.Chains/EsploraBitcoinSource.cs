@@ -22,35 +22,20 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <summary>The longest script that can run, in hex characters (10 000 bytes).</summary>
     private const int MaximumScriptHex = 20_000;
 
-    /// <summary>What a lookup says when Bitcoin's sources are off in the settings (principle 9).</summary>
-    private const string SourcesOffText = "Källorna för Bitcoin är avstängda i inställningarna (Av). Inget skickades.";
-
-    /// <summary>What a lookup says when no endpoint of Bitcoin is on.</summary>
-    private const string NoneOnText = "Ingen källa för Bitcoin är påslagen i inställningarna. Inget skickades.";
-
-    /// <summary>The HTTP status for something the source does not know.</summary>
-    private const int NotFoundStatus = 404;
-
-    /// <summary>The only way out.</summary>
-    private readonly IExitHttp _http;
-
-    /// <summary>Who fetches, recorded with every response.</summary>
-    private readonly IOperatorProfileStore _operators;
-
     /// <summary>The time now, to decide whether the known height is fresh.</summary>
     private readonly IClock _clock;
 
     /// <summary>The settings.</summary>
     private readonly BitcoinSourceOptions _options;
 
-    /// <summary>The endpoints to ask, in the order the chosen mode gives.</summary>
-    private readonly ChainSources _sources;
-
     /// <summary>Reads Esplora's JSON.</summary>
     private readonly EsploraParser _parser;
 
     /// <summary>Seals and finds the raw responses.</summary>
     private readonly RawResponseStore _store;
+
+    /// <summary>Answers the lookups through the endpoints and the case.</summary>
+    private readonly SourceLookups _lookups;
 
     /// <summary>Creates the source with the default endpoints in memory only, as a test or a tool does.</summary>
     /// <param name="http">The only way out.</param>
@@ -79,17 +64,19 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         IExitHttp http, IOperatorProfileStore operators, IClock clock, BitcoinSourceOptions options,
         TimeZoneInfo timeZone, ChainSources sources)
     {
-        _http = http;
-        _operators = operators;
         _clock = clock;
         _options = options;
-        _sources = sources;
         _parser = new EsploraParser(options.Network);
         _store = new RawResponseStore(timeZone, options.Network);
         if (options.SafeConfirmations < 1)
         {
             throw new ArgumentException("The depth must be at least 1.", nameof(options));
         }
+
+        _lookups = new SourceLookups(
+            Chain.Bitcoin, "Bitcoin", http, operators, sources, _store, options.SafeConfirmations,
+            async (lookups, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
+                .ConfigureAwait(false));
     }
 
     /// <inheritdoc/>
@@ -103,7 +90,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         ArgumentNullException.ThrowIfNull(address);
         if (address.Network != Network)
         {
-            return Task.FromResult(Refused<BitcoinAddressPage>(
+            return Task.FromResult(SourceLookups.Refused<BitcoinAddressPage>(
                 "Adressen hör till ett annat Bitcoin-nät än källan. Inget skickades."));
         }
 
@@ -116,10 +103,10 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             path,
             body => Page(address, after, _parser.ParseAddressTransactions(body, address)),
             page => IndexOf(page.Transactions),
-            reader => StoredAs(_store.Latest(reader, ResponseKinds.AddressTransactions, subject),
+            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.AddressTransactions, subject),
                 body => Page(address, after, _parser.ParseAddressTransactions(body, address))),
             page => after is null || page.Transactions.Count == 0 ? null : Shallowest(page.Transactions));
-        return LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
+        return _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -137,14 +124,14 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             reader => StoredTransaction(reader, txid),
             transaction => transaction.Block?.Height,
             Changed: BlockChange);
-        var lookup = await LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
+        var lookup = await _lookups.LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
         if (lookup.Value is null)
         {
             return lookup;
         }
 
         var withSpends = await WithSpendsAsync(@case, lookup, cancellationToken).ConfigureAwait(false);
-        var bytes = await LookupAsync(@case, HexQuery(txid), LookupMode.CaseOnly, cancellationToken)
+        var bytes = await _lookups.LookupAsync(@case, HexQuery(txid), LookupMode.CaseOnly, cancellationToken)
             .ConfigureAwait(false);
         return bytes.Value is null ? withSpends : CheckedAgainst(withSpends, bytes);
     }
@@ -160,7 +147,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return lookup;
         }
 
-        var bytes = await LookupAsync(@case, HexQuery(txid), LookupMode.AsNeeded, cancellationToken)
+        var bytes = await _lookups.LookupAsync(@case, HexQuery(txid), LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (bytes.Value is not null)
         {
@@ -183,7 +170,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         ArgumentNullException.ThrowIfNull(address);
         if (address.Network != Network)
         {
-            return Task.FromResult(Refused<BitcoinAddressSummary>(
+            return Task.FromResult(SourceLookups.Refused<BitcoinAddressSummary>(
                 "Adressen hör till ett annat Bitcoin-nät än källan. Inget skickades."));
         }
 
@@ -193,10 +180,10 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"address/{Uri.EscapeDataString(address.Value)}",
             body => EsploraParser.ParseAddressSummary(body, address),
             _ => ResponseIndex.None,
-            reader => StoredAs(_store.Latest(reader, ResponseKinds.AddressSummary, address.Value),
+            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.AddressSummary, address.Value),
                 body => EsploraParser.ParseAddressSummary(body, address)),
             _ => null);
-        return LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
+        return _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -215,10 +202,10 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"tx/{txid.Value}/outspends",
             body => EsploraParser.ParseOutputSpends(body),
             _ => ResponseIndex.None,
-            reader => StoredAs(_store.Latest(reader, ResponseKinds.OutputSpends, txid.Value),
+            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.OutputSpends, txid.Value),
                 body => EsploraParser.ParseOutputSpends(body)),
             spends => SettledAt(spends, transaction));
-        return await LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
+        return await _lookups.LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -233,17 +220,17 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"block/{hash.Value}",
             body => EsploraParser.ParseBlock(body, hash),
             _ => ResponseIndex.None,
-            reader => StoredAs(_store.Latest(reader, ResponseKinds.Block, hash.Value),
+            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.Block, hash.Value),
                 body => EsploraParser.ParseBlock(body, hash)),
             block => block.Height,
             NeverChanges: true);
-        var lookup = await LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken).ConfigureAwait(false);
+        var lookup = await _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken).ConfigureAwait(false);
         if (lookup.Value is not { } block)
         {
             return lookup;
         }
 
-        var header = await LookupAsync(@case, HeaderQuery(hash), LookupMode.AsNeeded, cancellationToken)
+        var header = await _lookups.LookupAsync(@case, HeaderQuery(hash), LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         var origins = lookup.Origins.Concat(header.Origins).DistinctBy(origin => origin.Sequence)
             .OrderBy(origin => origin.Sequence).ToList();
@@ -264,7 +251,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        return LookupAsync(@case, TipQuery(), LookupMode.AsNeeded, cancellationToken);
+        return _lookups.LookupAsync(@case, TipQuery(), LookupMode.AsNeeded, cancellationToken);
     }
 
     /// <summary>The lookup of a transaction's own bytes, which never change in the parts its txid commits to.</summary>
@@ -276,7 +263,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         $"tx/{txid.Value}/hex",
         body => RawTransactionReader.ParseHex(body, txid),
         _ => ResponseIndex.None,
-        reader => StoredAs(_store.Latest(reader, ResponseKinds.TransactionHex, txid.Value),
+        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.TransactionHex, txid.Value),
             body => RawTransactionReader.ParseHex(body, txid)),
         _ => null,
         NeverChanges: true);
@@ -290,7 +277,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         $"block/{hash.Value}/header",
         body => BlockHeaderReader.ParseHex(body, hash),
         _ => ResponseIndex.None,
-        reader => StoredAs(_store.Latest(reader, ResponseKinds.BlockHeader, hash.Value),
+        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.BlockHeader, hash.Value),
             body => BlockHeaderReader.ParseHex(body, hash)),
         _ => null,
         NeverChanges: true);
@@ -345,257 +332,16 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         "blocks/tip/height",
         body => EsploraParser.ParseTipHeight(body),
         tip => new ResponseIndex([], tip.Height),
-        reader => StoredAs(_store.Latest(reader, ResponseKinds.TipHeight, string.Empty),
+        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.TipHeight, string.Empty),
             body => EsploraParser.ParseTipHeight(body)),
         _ => null);
 
-    /// <summary>
-    /// Answers a lookup: from the case when the answer cannot have changed, otherwise from the source through the
-    /// exit, sealed in the case before it is used, and from the case again when the source cannot be asked.
-    /// </summary>
-    /// <typeparam name="T">What is looked up.</typeparam>
-    /// <param name="case">The open case.</param>
-    /// <param name="query">The lookup.</param>
-    /// <param name="mode">Whether the source may be asked.</param>
-    /// <param name="cancellationToken">Stops the lookup.</param>
-    /// <returns>The answer.</returns>
-    private async Task<BitcoinLookup<T>> LookupAsync<T>(
-        ICase @case, LookupQuery<T> query, LookupMode mode, CancellationToken cancellationToken)
-        where T : class
-    {
-        var (stored, heightThen) = await ReadCaseAsync(@case, query, cancellationToken).ConfigureAwait(false);
-        if (stored is { } found && IsSettled(query, found.Value, heightThen))
-        {
-            return new BitcoinLookup<T>(LookupStatus.FromCase, found.Value, [found.Response.Origin], null);
-        }
 
-        if (mode == LookupMode.CaseOnly)
-        {
-            return Fallback(stored, LookupStatus.NotInCase, "Läst bara ur ärendet; inget skickades.");
-        }
 
-        // An answer in a block that was not yet deep when it was fetched is fetched again, so that a block that has
-        // fallen out of the chain since is noticed (a reorganisation). The height is refreshed first, so that the new
-        // answer can count as settled once its block is deep enough.
-        if (stored is { } shallow && query.SettledAt(shallow.Value) is not null)
-        {
-            await RefreshHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-        }
 
-        return await FetchAsync(@case, query, stored, cancellationToken).ConfigureAwait(false);
-    }
 
-    /// <summary>
-    /// Asks the source, seals the response and reads it; falls back on the case's answer when it must.
-    /// </summary>
-    /// <typeparam name="T">What is looked up.</typeparam>
-    /// <param name="case">The open case.</param>
-    /// <param name="query">The lookup.</param>
-    /// <param name="stored">The case's newest answer, if any.</param>
-    /// <param name="cancellationToken">Stops the lookup.</param>
-    /// <returns>The answer.</returns>
-    private async Task<BitcoinLookup<T>> FetchAsync<T>(
-        ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
-        CancellationToken cancellationToken)
-        where T : class
-    {
-        var fetchedBy = CurrentOperator(out var noOperator);
-        if (fetchedBy is null)
-        {
-            return Fallback(stored, LookupStatus.Failed, noOperator!);
-        }
 
-        var plan = _sources.Plan(Chain.Bitcoin);
-        if (plan.Off)
-        {
-            return Fallback(stored, LookupStatus.Offline, SourcesOffText);
-        }
 
-        if (plan.Endpoints.Count == 0)
-        {
-            return Fallback(stored, LookupStatus.Failed, NoneOnText);
-        }
-
-        // The endpoints are asked in the plan's order; the next is asked when one fails, does not answer in time or
-        // gives an answer that cannot be used. Every response is sealed with the endpoint it came from (principle 1).
-        var failures = new List<ResponseOrigin>();
-        var problem = NoneOnText;
-        string? notFound = null;
-        var trustedNotFound = false;
-        var onlyNotFound = true;
-        foreach (var planned in plan.Endpoints)
-        {
-            var endpoint = planned.Endpoint;
-            if (_sources.WithKey(endpoint, planned.Api, Request(endpoint.Address, query.Path), out var keyProblem)
-                is not { } request)
-            {
-                _sources.Failed(Chain.Bitcoin, endpoint.Id);
-                problem = keyProblem!;
-                onlyNotFound = false;
-                continue;
-            }
-
-            ExitResponse response;
-            try
-            {
-                response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            }
-            catch (ExitNotConnectedException)
-            {
-                return Fallback(stored, LookupStatus.Offline, "Ingen utgång är ansluten, och inget skickades.",
-                    failures);
-            }
-            catch (ExitException exception)
-            {
-                _sources.Failed(Chain.Bitcoin, endpoint.Id);
-                problem = exception.Message;
-                onlyNotFound = false;
-                continue;
-            }
-
-            var (value, interpretProblem) = Interpret(query, response);
-            var sealedResponse = await Task.Run(
-                () => @case.Write(transaction => _store.Append(
-                    transaction, query.Kind, query.Subject, response, endpoint, fetchedBy,
-                    value is null ? null : query.Index(value))),
-                CancellationToken.None).ConfigureAwait(false);
-            if (value is not null)
-            {
-                _sources.Answered(Chain.Bitcoin, endpoint.Id);
-                var change = stored is { } earlier ? query.Changed?.Invoke(earlier.Value, value) : null;
-                return new BitcoinLookup<T>(LookupStatus.Fetched, value, [.. failures, sealedResponse.Origin], null)
-                {
-                    Notes = change is null ? [] : [change],
-                };
-            }
-
-            if (response.StatusCode == NotFoundStatus)
-            {
-                // The source says it does not know it. From an endpoint whose probe did not fail that is an answer,
-                // and no other endpoint is asked; from one that failed its probe or lags behind (a wrong path, a node
-                // still syncing), the next is asked, so that one broken endpoint never says that a tx does not exist.
-                failures.Add(sealedResponse.Origin);
-                notFound = interpretProblem;
-                if (_sources.TrustsNotFound(Chain.Bitcoin, endpoint.Id))
-                {
-                    trustedNotFound = true;
-                    break;
-                }
-
-                continue;
-            }
-
-            _sources.Failed(Chain.Bitcoin, endpoint.Id);
-            failures.Add(sealedResponse.Origin);
-            problem = interpretProblem!;
-            onlyNotFound = false;
-        }
-
-        // Not found is said only when an endpoint that can be believed said it, or every endpoint asked said it.
-        var isNotFound = notFound is not null && (trustedNotFound || onlyNotFound);
-        if (isNotFound && stored is null)
-        {
-            return new BitcoinLookup<T>(LookupStatus.NotFound, null, failures, notFound);
-        }
-
-        return Fallback(stored, LookupStatus.Failed, isNotFound ? notFound! : problem, failures);
-    }
-
-    /// <summary>Reads a fresh response, or says why it cannot be used.</summary>
-    /// <typeparam name="T">What is looked up.</typeparam>
-    /// <param name="query">The lookup.</param>
-    /// <param name="response">The response.</param>
-    /// <returns>The value, or <see langword="null"/> and the problem in Swedish.</returns>
-    private static (T? Value, string? Problem) Interpret<T>(LookupQuery<T> query, ExitResponse response)
-        where T : class
-    {
-        if (response.StatusCode == NotFoundStatus)
-        {
-            return (null, "Källan känner inte till det som söktes.");
-        }
-
-        if (!response.IsSuccess)
-        {
-            return (null, $"Källan svarade med status {response.StatusCode.ToString(CultureInfo.InvariantCulture)}.");
-        }
-
-        try
-        {
-            return (query.Parse(response.Body.ToArray()), null);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            // Whatever the source sent, the response is sealed afterwards; a body that cannot be read is never
-            // allowed to stop that (principle 1) or to escape as an exception (the contract of IBitcoinSource).
-            return (null,
-                "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.");
-        }
-    }
-
-    /// <summary>
-    /// Gives the case's answer, marked as possibly outdated, when there is one; otherwise says that there is no answer.
-    /// </summary>
-    /// <typeparam name="T">What is looked up.</typeparam>
-    /// <param name="stored">The case's newest answer, if any.</param>
-    /// <param name="withoutAnswer">The status when the case has no answer.</param>
-    /// <param name="reason">Why the source could not answer, in Swedish.</param>
-    /// <param name="failedResponses">The sealed responses that could not be used, if any.</param>
-    /// <returns>The answer.</returns>
-    private static BitcoinLookup<T> Fallback<T>(
-        (T Value, StoredResponse Response)? stored, LookupStatus withoutAnswer, string reason,
-        IReadOnlyList<ResponseOrigin>? failedResponses = null)
-        where T : class
-    {
-        var failed = failedResponses ?? [];
-        if (stored is not { } found)
-        {
-            return new BitcoinLookup<T>(withoutAnswer, null, failed, NoAnswer(withoutAnswer, reason));
-        }
-
-        var fetchedAt = LocalText(found.Response.Origin.ReceivedLocal);
-        var problem = $"{reason} Svaret kommer ur ärendet, hämtat {fetchedAt}, och kan ha ändrats sedan.";
-        return new BitcoinLookup<T>(
-            LookupStatus.FromCaseMayBeOutdated, found.Value, [found.Response.Origin, .. failed], problem);
-    }
-
-    /// <summary>Says that there is no answer, and why.</summary>
-    /// <param name="status">The status.</param>
-    /// <param name="reason">Why the source could not answer.</param>
-    /// <returns>The text for the user.</returns>
-    private static string NoAnswer(LookupStatus status, string reason) =>
-        status is LookupStatus.Offline or LookupStatus.NotInCase
-        ? $"{reason} Ärendet har inget sparat svar."
-        : reason;
-
-    /// <summary>An answer refused before anything was asked.</summary>
-    /// <typeparam name="T">What is looked up.</typeparam>
-    /// <param name="problem">Why, in Swedish.</param>
-    /// <returns>The answer.</returns>
-    private static BitcoinLookup<T> Refused<T>(string problem)
-        where T : class =>
-        new(LookupStatus.Failed, null, [], problem);
-
-    /// <summary>
-    /// Reads the case's newest answer and the highest block the case knew of when that answer was sealed, off the
-    /// calling thread. The depth counts from then, not from now: an answer whose block was shallow when it was fetched
-    /// may have left the chain since, which only asking again shows.
-    /// </summary>
-    /// <typeparam name="T">What is looked up.</typeparam>
-    /// <param name="case">The open case.</param>
-    /// <param name="query">The lookup.</param>
-    /// <param name="cancellationToken">Stops the lookup before it starts.</param>
-    /// <returns>The answer, if any, and the height then.</returns>
-    private Task<((T Value, StoredResponse Response)? Stored, long? HeightThen)> ReadCaseAsync<T>(
-        ICase @case, LookupQuery<T> query, CancellationToken cancellationToken)
-        where T : class =>
-        Task.Run(
-            () => @case.Read(reader =>
-            {
-                var stored = query.FindStored(reader);
-                var counts = stored is not null && !query.NeverChanges;
-                return (stored, counts ? _store.KnownHeight(reader, stored!.Value.Response.Origin.Sequence) : null);
-            }),
-            cancellationToken);
 
     /// <summary>
     /// Asks for the chain's height when the newest known one is older than <see cref="TipFreshness"/>, so that an
@@ -607,13 +353,13 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     private async Task<bool> RefreshHeightAsync(ICase @case, CancellationToken cancellationToken)
     {
         var tip = TipQuery();
-        var (stored, _) = await ReadCaseAsync(@case, tip, cancellationToken).ConfigureAwait(false);
+        var (stored, _) = await _lookups.ReadCaseAsync(@case, tip, cancellationToken).ConfigureAwait(false);
         if (stored is { } known && _clock.UtcNow - known.Response.Origin.ReceivedUtc < TipFreshness)
         {
             return false;
         }
 
-        var fresh = await FetchAsync(@case, tip, stored, cancellationToken).ConfigureAwait(false);
+        var fresh = await _lookups.FetchAsync(@case, tip, stored, cancellationToken).ConfigureAwait(false);
         return fresh.Status == LookupStatus.Fetched;
     }
 
@@ -629,7 +375,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         var (stored, heightThen) = await Task.Run(
             () => @case.Read(reader =>
             {
-                var found = StoredAs(
+                var found = SourceLookups.StoredAs(
                     _store.Latest(reader, ResponseKinds.OutputSpends, transaction.Txid.Value),
                     body => EsploraParser.ParseOutputSpends(body));
                 var height = found is { } spends ? _store.KnownHeight(reader, spends.Response.Origin.Sequence) : null;
@@ -665,12 +411,12 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         long? heightThen)
     {
         if (SettledAt(spends, transaction) is { } height
-            && Confirmations(height, heightThen) >= _options.SafeConfirmations)
+            && SourceLookups.Confirmations(height, heightThen) >= _options.SafeConfirmations)
         {
             return null;
         }
 
-        var fetchedAt = LocalText(response.Origin.ReceivedLocal);
+        var fetchedAt = SourceLookups.LocalText(response.Origin.ReceivedLocal);
         return $"Vilka utgångar som är spenderade är hämtat {fetchedAt} och kan ha ändrats sedan.";
     }
 
@@ -689,11 +435,11 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     {
         // A description that contradicts the transaction's sealed bytes is passed over, so that one bad answer from
         // the source never hides an earlier good one, nor keeps the transaction from being asked for again.
-        var bytes = StoredAs(_store.Latest(reader, ResponseKinds.TransactionHex, txid.Value),
+        var bytes = SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.TransactionHex, txid.Value),
             body => RawTransactionReader.ParseHex(body, txid))?.Value;
         foreach (var response in _store.AllWithTransaction(reader, txid))
         {
-            var transaction = StoredAs(response, body => response.Kind == ResponseKinds.Transaction
+            var transaction = SourceLookups.StoredAs(response, body => response.Kind == ResponseKinds.Transaction
                 ? _parser.ParseTransaction(body, txid)
                 : _parser.ParseTransactionList(body).FirstOrDefault(candidate => candidate.Txid == txid));
             if (transaction is { } found && (bytes is null || RawTransactionReader.Compare(found.Value, bytes) is null))
@@ -705,66 +451,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         return null;
     }
 
-    /// <summary>
-    /// Reads a stored response with a parser, when there is one. A response that this build can no longer read (or
-    /// an index that points at the wrong response) counts as no answer, so the source is asked again.
-    /// </summary>
-    /// <typeparam name="T">What is read.</typeparam>
-    /// <param name="response">The response, or <see langword="null"/>.</param>
-    /// <param name="parse">The parser; it may give <see langword="null"/> when the response lacks the value.</param>
-    /// <returns>The value and the response, or <see langword="null"/>.</returns>
-    private static (T Value, StoredResponse Response)? StoredAs<T>(StoredResponse? response, Func<byte[], T?> parse)
-        where T : class
-    {
-        if (response is null)
-        {
-            return null;
-        }
 
-        try
-        {
-            return parse(response.Body) is { } value ? (value, response) : null;
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            return null;
-        }
-    }
 
-    /// <summary>Decides whether an answer can no longer change.</summary>
-    /// <typeparam name="T">What is looked up.</typeparam>
-    /// <param name="query">The lookup.</param>
-    /// <param name="value">The answer.</param>
-    /// <param name="knownHeight">The highest block the case knows of.</param>
-    /// <returns><see langword="true"/> when it is never fetched again.</returns>
-    private bool IsSettled<T>(LookupQuery<T> query, T value, long? knownHeight)
-        where T : class
-    {
-        if (query.NeverChanges)
-        {
-            return true;
-        }
 
-        if (query.SettledAt(value) is not { } height)
-        {
-            return false;
-        }
-
-        return Confirmations(height, knownHeight) >= _options.SafeConfirmations;
-    }
-
-    /// <summary>Counts a block's confirmations from the highest block the case knows of.</summary>
-    /// <param name="height">The block's height.</param>
-    /// <param name="knownHeight">The highest known block; never lower than the block itself.</param>
-    /// <returns>The number of confirmations, at least 1.</returns>
-    private static long Confirmations(long height, long? knownHeight) =>
-        Math.Max(knownHeight ?? height, height) - height + 1;
-
-    /// <summary>Writes a local time for the user.</summary>
-    /// <param name="time">The time.</param>
-    /// <returns>For example <c>2026-11-07 02:02</c>.</returns>
-    private static string LocalText(DateTimeOffset time) =>
-        time.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
 
     /// <summary>Gives the height of the shallowest of some transactions, when they are all confirmed.</summary>
     /// <param name="transactions">The transactions.</param>
@@ -854,34 +543,4 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <returns>The index entry.</returns>
     private static ResponseIndex IndexOf(IEnumerable<BitcoinTransaction> transactions) =>
         new([.. transactions.Select(transaction => (transaction.Txid, transaction.Block?.Height))], null);
-
-    /// <summary>Gets the operator who fetches, or says why there is none.</summary>
-    /// <param name="problem">Why there is no operator, in Swedish.</param>
-    /// <returns>The operator, or <see langword="null"/>.</returns>
-    private OperatorProfile? CurrentOperator(out string? problem)
-    {
-        problem = null;
-        try
-        {
-            var profile = _operators.Get();
-            if (profile is null)
-            {
-                problem =
-                    "Ingen operatörsprofil är sparad. Chainsaw hämtar inget utan att kunna säga vem som hämtade.";
-            }
-
-            return profile;
-        }
-        catch (VaultException)
-        {
-            problem = "Valvet är låst. Inget skickades.";
-            return null;
-        }
-    }
-
-    /// <summary>Builds a GET request under an endpoint's address.</summary>
-    /// <param name="address">The endpoint's address, ending in <c>/</c>.</param>
-    /// <param name="path">The path, which never names the case.</param>
-    /// <returns>The request, without a key.</returns>
-    private static ExitRequest Request(Uri address, string path) => EsploraApi.Get(address, path);
 }

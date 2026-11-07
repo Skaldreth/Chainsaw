@@ -39,6 +39,12 @@ internal interface ISourceApi
     /// <exception cref="FormatException">The body is not a hash.</exception>
     string ReadHash(ReadOnlySpan<byte> body);
 
+    /// <summary>Builds a lookup's request under an endpoint's address.</summary>
+    /// <param name="address">The endpoint's base address, ending in <c>/</c>.</param>
+    /// <param name="path">The path and query under it, which never name a case.</param>
+    /// <returns>The request, without a key.</returns>
+    ExitRequest Request(Uri address, string path);
+
     /// <summary>Gives the header a key from the vault is sent in.</summary>
     /// <param name="secret">The key.</param>
     /// <returns>The header.</returns>

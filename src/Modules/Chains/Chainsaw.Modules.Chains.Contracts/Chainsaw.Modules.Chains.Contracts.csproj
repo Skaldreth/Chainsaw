@@ -8,6 +8,7 @@
     <ProjectReference Include="..\..\Security\Chainsaw.Modules.Security.Contracts\Chainsaw.Modules.Security.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Chainsaw.Modules.Chains" />
     <InternalsVisibleTo Include="Chainsaw.Modules.Chains.Tests" />
   </ItemGroup>
 </Project>

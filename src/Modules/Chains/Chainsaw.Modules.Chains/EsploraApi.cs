@@ -60,6 +60,9 @@ internal sealed class EsploraApi : ISourceApi
             : throw new FormatException("The hash is not 64 hex characters.");
 
     /// <inheritdoc/>
+    public ExitRequest Request(Uri address, string path) => Get(address, path);
+
+    /// <inheritdoc/>
     public ExitCredential Credential(string secret) => new("Authorization", "Bearer " + secret);
 
     /// <summary>Builds a GET under an endpoint's address.</summary>

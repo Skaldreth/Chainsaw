@@ -16,14 +16,22 @@ namespace Chainsaw.Modules.Chains;
 /// and the bytes themselves; the indexes beside it only say where to look.
 /// </summary>
 /// <param name="timeZone">The time zone the local time is written in.</param>
-/// <param name="network">
-/// The network the source answers for. It is part of the chain's name in the tables, so that answers from the test
-/// network are never found as answers for the real chain, nor count towards its height.
+/// <param name="chainName">
+/// The chain and network in the tables, for example <c>bitcoin-mainnet</c>, so that answers from a test network or
+/// another chain are never found as answers for this one, nor count towards its height.
 /// </param>
-internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork network)
+internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
 {
+    /// <summary>Creates the store of a Bitcoin network.</summary>
+    /// <param name="timeZone">The time zone the local time is written in.</param>
+    /// <param name="network">The network the source answers for.</param>
+    public RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork network)
+        : this(timeZone, "bitcoin-" + network.ToString().ToLowerInvariant())
+    {
+    }
+
     /// <summary>Gets the chain's name in the tables, for example <c>bitcoin-mainnet</c>.</summary>
-    public string ChainName { get; } = "bitcoin-" + network.ToString().ToLowerInvariant();
+    public string ChainName { get; } = chainName;
 
     /// <summary>The columns read back, in order.</summary>
     private const string SelectColumns =
