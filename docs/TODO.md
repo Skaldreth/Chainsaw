@@ -101,7 +101,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   kräver egna heuristiker ur forskningen: samma adress in och ut, ovanligt gaspris, adresser som betalar varandras gas,
   flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater som mixerns.
 - **TRON och USDT (TRC-20).**
-- **Fler kedjor** efter behov: Litecoin, BSC, Solana.
+- **Fler kedjor** efter behov: Litecoin, BSC.
+- **Solana och SOL** (användarens fråga 2026-11-07), efter Ethereum (uppskattningsvis 3–4 etapper): kontomodellen från
+  etapp 20 och Ethereum, men tokens (SPL, Token-2022) ligger i egna tokenkonton som måste knytas till ägaren, en tx har
+  många instruktioner som läses per program (System, Token, DEX-swappar som Jupiter och Raydium), och historiken kräver
+  en arkiverande RPC-källa med API-nyckel i valvet. USDC och USDT på Solana får *Kan frysas*. Swappar mellan tokens och
+  bryggor (Wormhole, deBridge, Mayan) är vanlig förvirring och hör till *Förvirringstekniker*.
 - **Zcash** (användarens fråga 2026-11-07): den genomskinliga delen (t-adresser) är en UTXO-kedja som Bitcoin och
   passar efter etapp 20 som de andra UTXO-kedjorna, men Esplora finns inte för Zcash, så källan blir en annan (en
   tjänst med API-nyckel eller egen nod med Zebra). Tx som går in i den skyddade poolen (Sapling, Orchard) blir *Spåret
