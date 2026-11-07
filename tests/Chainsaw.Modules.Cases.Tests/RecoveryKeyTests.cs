@@ -6,7 +6,7 @@ namespace Chainsaw.Modules.Cases.Tests;
 
 public sealed class RecoveryKeyTests : IDisposable
 {
-    /// <summary>A P-384 public key made by OpenSSL, and the SHA-256 of its DER encoding as OpenSSL computes it.</summary>
+    /// <summary>A P-384 public key made by OpenSSL, and the SHA-256 of its DER as OpenSSL computes it.</summary>
     private const string OpenSslPublicKey = """
         -----BEGIN PUBLIC KEY-----
         MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAENNvuKFSD8sfn9Pflyhz00eA6Hcv2/Psb

@@ -400,8 +400,10 @@ internal static class RecoveryTool
     private static int Usage(IToolConsole console)
     {
         console.Error("Chainsaw.Recovery: organisationens återställningsnyckel");
-        console.Error($"  {KeygenCommand} <mapp>                          skapa ett nyckelpar (utanför alla git-repon)");
-        console.Error($"  {FingerprintCommand} [publik.pem]               visa fingeravtrycket (förval: den inbyggda nyckeln)");
+        console.Error($"  {KeygenCommand} <mapp>                          "
+            + "skapa ett nyckelpar (utanför alla git-repon)");
+        console.Error($"  {FingerprintCommand} [publik.pem]               "
+            + "visa fingeravtrycket (förval: den inbyggda nyckeln)");
         console.Error($"  {CheckCommand} <ärende.cut> [--public <fil>]    har ärendet ett kuvert för nyckeln?");
         console.Error($"  {OpenCommand} <ärende.cut> --key <privat.pem> --admin <namn> [--org <enhet>] --share");
         console.Error("                                         öppna och sätt ett nytt delningslösenord");

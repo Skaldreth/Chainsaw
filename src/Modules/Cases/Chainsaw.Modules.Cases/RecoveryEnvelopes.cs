@@ -262,7 +262,9 @@ internal static class RecoveryEnvelopes
     /// <param name="name">The field.</param>
     /// <param name="size">The size it must have, or <see langword="null"/> for any size up to a limit.</param>
     /// <returns>The bytes.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is missing or has another size.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/> when it is missing or has another size.
+    /// </exception>
     private static byte[] ReadBytes(JsonObject envelope, string name, int? size = null)
     {
         try
