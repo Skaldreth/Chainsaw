@@ -43,10 +43,11 @@ const maxCredentialBytes = 255
 // handshakeWait is how long the helper waits for the peer to answer the first handshake.
 const handshakeWait = 15 * time.Second
 
-// staleHandshake is how long the helper may go without seeing a new handshake before the tunnel counts as fallen. WireGuard rekeys at
-// least every two minutes while traffic flows, and the helper always keeps the tunnel alive with keepalives
-// (longestKeepalive), so a working tunnel never comes near it; 180 seconds is WireGuard's own reject-after time.
-const staleHandshake = 180*time.Second + 30*time.Second
+// staleHandshake is how long the helper may go without seeing a new handshake before the tunnel counts as fallen.
+// The helper always sends keepalives (longestKeepalive), so a working tunnel makes a new handshake at the latest
+// when its keys expire after 180 seconds (WireGuard's reject-after time) and the next keepalive goes out: about 205
+// seconds when the server began the session, plus a few retries of 5 seconds. 270 seconds leaves room for that.
+const staleHandshake = 270 * time.Second
 
 // healthInterval is how often the helper looks at the latest handshake.
 const healthInterval = 5 * time.Second
@@ -96,11 +97,15 @@ func (r *reporter) fail(code string, err error) {
 }
 
 func main() {
-	os.Exit(run(os.Stdin, os.Stdout))
+	// The listener is never closed: the port is released only when the process ends, so it is never free while
+	// Chainsaw may still count the helper as running (see listenLoopback).
+	os.Exit(run(os.Stdin, os.Stdout, func(net.Listener) {}))
 }
 
-// run starts the tunnel and serves until stdin closes or the tunnel falls. It returns the exit code.
-func run(stdin io.Reader, stdout io.Writer) int {
+// run starts the tunnel and serves until stdin closes or the tunnel falls. It returns the exit code. The proxy's
+// listener is handed to keep instead of being closed, since closing it before the process ends would free the port
+// while the helper still lives; only the tests close it.
+func run(stdin io.Reader, stdout io.Writer, keep func(net.Listener)) int {
 	out := &reporter{out: stdout}
 	input := bufio.NewReaderSize(stdin, 4096)
 	start, err := readStart(input)
@@ -158,7 +163,7 @@ func run(stdin io.Reader, stdout io.Writer) int {
 		out.fail(codeListen, err)
 		return 3
 	}
-	defer listener.Close()
+	defer keep(listener)
 
 	proxy := newSocksServer(start.Username, start.Password, (&dialer{tnet: tnet}).dial)
 	serveFailed := make(chan struct{})

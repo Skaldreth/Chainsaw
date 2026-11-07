@@ -29,10 +29,13 @@ func startLine(t *testing.T, configuration string) string {
 	return string(line) + "\n"
 }
 
+// closeListener closes the proxy's listener when a test's helper ends; the real helper leaves it to the process.
+func closeListener(listener net.Listener) { _ = listener.Close() }
+
 // runWith runs the helper with a fixed stdin and gives its exit code and stdout.
 func runWith(stdin string) (int, string) {
 	var out strings.Builder
-	code := run(strings.NewReader(stdin), &out)
+	code := run(strings.NewReader(stdin), &out, closeListener)
 	return code, out.String()
 }
 
@@ -239,8 +242,9 @@ func TestTunnelThroughALocalPeer(t *testing.T) {
 	stdinReader, stdinWriter := io.Pipe()
 	stdoutReader, stdoutWriter := io.Pipe()
 	exited := make(chan int, 1)
+	kept := make(chan net.Listener, 1)
 	go func() {
-		exited <- run(stdinReader, stdoutWriter)
+		exited <- run(stdinReader, stdoutWriter, func(listener net.Listener) { kept <- listener })
 		stdoutWriter.Close()
 	}()
 	if _, err := stdinWriter.Write([]byte(startLine(t, file))); err != nil {
@@ -279,6 +283,14 @@ func TestTunnelThroughALocalPeer(t *testing.T) {
 	case code := <-exited:
 		if code != 0 {
 			t.Errorf("exit code %d after stdin closed", code)
+		}
+		// The helper never frees its port itself; only the end of the process does.
+		listener := <-kept
+		defer listener.Close()
+		if probe, err := net.Dial("tcp4", proxy); err != nil {
+			t.Errorf("the port was freed before the process ended: %v", err)
+		} else {
+			probe.Close()
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("the helper did not stop when stdin closed")

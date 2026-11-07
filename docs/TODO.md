@@ -253,6 +253,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
   titelraden (skissas först). Felen har egna skäl sedan etapp 13: *filen godtas inte* (`ConfigurationRefused`),
   *servern svarar inte* (`NoAnswer`), *tunneln finns inte* och *förbindelsen förlorad*.
+  Vilken rad i en vägrad fil som är fel står bara i `ExitConnectException` (hjälpprogrammet nämner rad och nyckel,
+  aldrig ett värde); `ExitStatus` behöver ett fält för det när gränssnittet ska visa det (granskningen etapp 13, M).
 - **Tunnelns hjälpprogram och Go:** `chainsaw-tunnel.exe` är byggd med Go 1.27.3 (låst i `go.mod`) och checkad in
   med sin hash; den byggs om med `tools/Chainsaw.Tunnel/build.sh` (som kör `govulncheck`) när Go eller beroendena får
   säkerhetsrättelser, minst när en Go-version slutar få stöd.

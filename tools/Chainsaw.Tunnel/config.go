@@ -36,6 +36,12 @@ var ignoredInterfaceKeys = map[string]bool{
 	"preup": true, "postup": true, "predown": true, "postdown": true,
 }
 
+// knownKeys are the keys the helper reads; only these are ever named in an error.
+var knownKeys = map[string]bool{
+	"privatekey": true, "address": true, "dns": true, "mtu": true,
+	"publickey": true, "presharedkey": true, "endpoint": true, "allowedips": true, "persistentkeepalive": true,
+}
+
 // key is a WireGuard key.
 type key [keyLength]byte
 
@@ -143,8 +149,9 @@ func parseConfig(text string) (*config, error) {
 			continue // Reported after the loop.
 		}
 
+		// Only a known key is named; anything else could be part of a value, such as a pasted key.
 		repeatable := name == "address" || name == "dns" || name == "allowedips"
-		if seen[name] && !repeatable {
+		if seen[name] && !repeatable && knownKeys[name] {
 			return nil, refuse(line, "%s is given twice", name)
 		}
 		seen[name] = true

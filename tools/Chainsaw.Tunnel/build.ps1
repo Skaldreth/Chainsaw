@@ -13,7 +13,9 @@ try {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     go test ./...
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+    go mod tidy -diff
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     $env:GOOS = 'windows'; $env:GOARCH = 'amd64'; $env:CGO_ENABLED = '0'

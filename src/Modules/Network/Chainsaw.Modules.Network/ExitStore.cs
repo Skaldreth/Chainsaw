@@ -133,8 +133,9 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
     }
 
     /// <summary>
-    /// Tells whether a text is an IP address in the forms the helper accepts: four dotted numbers for IPv4 (not the
-    /// old short forms such as <c>10</c> or <c>1.2.3</c>, which the helper refuses), or IPv6.
+    /// Tells whether a text is an IP address in the forms the helper accepts: four plain decimal numbers for IPv4 (not
+    /// the old short, octal or hex forms such as <c>10</c>, <c>010.0.0.1</c> or <c>0x0a.0.0.1</c>, which the helper
+    /// ignores), or IPv6.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <returns><see langword="true"/> when it is an address.</returns>
@@ -146,6 +147,6 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
         }
 
         return address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork
-            || text.Count(character => character == '.') == 3;
+            || address.ToString() == text;
     }
 }

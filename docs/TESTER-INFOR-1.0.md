@@ -99,7 +99,7 @@ $p.StandardInput.Close()              # programmet ska avslutas inom någon seku
 - `netstat -ano | findstr NNNNN` visar att porten bara lyssnar på `127.0.0.1`.
 - Programmet har inget fönster, skriver ingenting på stderr och skapar inga filer (Process Monitor).
 - Avsluta PowerShell-fönstret i stället för att stänga stdin: programmet ska avslutas av sig självt.
-- Dra ur nätkabeln medan tunneln är uppe: inom ungefär tre och en halv minut skriver programmet
+- Dra ur nätkabeln medan tunneln är uppe: inom ungefär fem minuter skriver programmet
   `{"stopped":"lost"}` och avslutas.
 - Byt ut `chainsaw-tunnel.exe` mot en annan fil med samma namn: Chainsaw vägrar starta den (*tunneln finns inte*) när
   anslutningen byggs i appen. Prova också att filen inte kan skrivas över medan Chainsaw startar den.
