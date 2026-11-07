@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Chainsaw.App.Controls;
 using Chainsaw.App.Interop;
@@ -14,8 +15,8 @@ using Microsoft.Win32;
 namespace Chainsaw.App;
 
 /// <summary>
-/// The main window (sketch SH1b): the title bar, the rail, the page and the command bar, behind the gate (sketches ID7
-/// and FS1a) that shows the lock screen or the first-run setup in their place. The window only wires keys, window
+/// The main window (sketch SH1b): the title bar, the rail, the page and the hidden command bar, behind the gate
+/// (sketches ID7 and FS1a) that shows the lock screen or the first-run setup in their place. The window only wires keys, window
 /// buttons and Windows' own events; what happens lives in <see cref="ShellViewModel"/> and
 /// <see cref="GateViewModel"/>.
 /// </summary>
@@ -23,6 +24,15 @@ public partial class MainWindow : Window
 {
     /// <summary>The space a maximised window with its own chrome reaches past the screen's edge.</summary>
     private static readonly Thickness MaximizedInset = new(7);
+
+    /// <summary>How long the command bar takes to come up.</summary>
+    private static readonly Duration CommandBarRise = new(TimeSpan.FromMilliseconds(160));
+
+    /// <summary>How far above its place the command bar starts as it comes up, in pixels.</summary>
+    private const double CommandBarDrop = -10;
+
+    /// <summary>How small the command bar starts as it comes up, against its full size.</summary>
+    private const double CommandBarStartScale = 0.97;
 
     /// <summary>How often the window asks whether the automatic lock is due.</summary>
     private static readonly TimeSpan IdleCheck = TimeSpan.FromSeconds(5);
@@ -38,6 +48,12 @@ public partial class MainWindow : Window
     /// window is active again; <see langword="null"/> otherwise.
     /// </summary>
     private RailItemViewModel? _leftWithSubmenu;
+
+    /// <summary>
+    /// What had the keyboard before the command bar came up, so that it gets it back when the bar is hidden; or
+    /// <see langword="null"/>.
+    /// </summary>
+    private IInputElement? _beforeCommandBar;
 
     /// <summary>The Guide's panel beside the work (sketch GD1b).</summary>
     private readonly GuidePanelViewModel _guidePanel;
@@ -109,6 +125,7 @@ public partial class MainWindow : Window
 
         BindViewKeys();
         BindCommandKeys();
+        WatchCommandBar();
         BindLockKey();
         WatchSubmenus();
         WatchExitPanel();
@@ -134,7 +151,7 @@ public partial class MainWindow : Window
         start.AllCasesWanted += (_, _) =>
         {
             shell.CommandText = OpenCommandText;
-            FocusCommandBar();
+            shell.OpenCommandBar();
             CommandBox.CaretIndex = CommandBox.Text.Length;
         };
         shell.PropertyChanged += (_, e) =>
@@ -239,7 +256,7 @@ public partial class MainWindow : Window
         }
 
         if (e.Key != Key.Escape || _shell.OpenSubmenu is not null || _shell.ExitPanel.IsOpen
-            || CommandBox.IsKeyboardFocusWithin || _graph.Forms.IsOpen || _graph.History.IsOpen)
+            || _shell.IsCommandBarOpen || _graph.Forms.IsOpen || _graph.History.IsOpen)
         {
             return;
         }
@@ -250,13 +267,13 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Keeps what the Guide's panel would cover in view while it is open: the graph's corner moves left of it, and
-    /// the command bar is centred in the space beside it.
+    /// the command bar comes up centred in the space beside it.
     /// </summary>
     private void MakeRoomForGuide()
     {
         var covered = _guidePanel.IsOpen ? GuidePanel.Width : 0;
         GraphPage.MakeRoom(covered);
-        CommandArea.Margin = new Thickness(0, 0, covered, 20);
+        CommandPanel.Margin = new Thickness(0, 0, covered, 0);
     }
 
     /// <summary>Stops listening to Windows when the window closes; the static events would otherwise keep it.</summary>
@@ -309,12 +326,12 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Ctrl+K and Ctrl+F put the cursor in the command bar, where search and commands are.</summary>
+    /// <summary>Ctrl+K and Ctrl+F bring up the command bar, where search and commands are, like Spotlight.</summary>
     private void BindCommandKeys()
     {
         var focus = new RoutedCommand();
         CommandBindings.Add(new CommandBinding(
-            focus, (_, _) => FocusCommandBar(), (_, e) => e.CanExecute = _gate.IsShellVisible));
+            focus, (_, _) => _shell.OpenCommandBar(), (_, e) => e.CanExecute = _gate.IsShellVisible));
         foreach (var text in new[] { ViewTable.CommandGesture, ViewTable.SearchGesture })
         {
             if (Shortcuts.TryParse(text) is { } gesture)
@@ -322,6 +339,96 @@ public partial class MainWindow : Window
                 InputBindings.Add(new KeyBinding(focus, gesture));
             }
         }
+    }
+
+    /// <summary>Shows the command bar when the shell brings it up, and hides it when the shell lets it go.</summary>
+    private void WatchCommandBar()
+    {
+        _shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.IsCommandBarOpen))
+            {
+                ShowCommandBar(_shell.IsCommandBarOpen);
+            }
+        };
+    }
+
+    /// <summary>
+    /// Brings the command bar up, faded in and lifted slightly into place unless Windows has animations off, or hides
+    /// it and gives the keyboard back to what had it before.
+    /// </summary>
+    /// <param name="open">Whether the bar comes up.</param>
+    private void ShowCommandBar(bool open)
+    {
+        if (!open)
+        {
+            var hadKeyboard = CommandLayer.IsKeyboardFocusWithin;
+            CommandLayer.Visibility = Visibility.Collapsed;
+            if (hadKeyboard && _gate.IsShellVisible)
+            {
+                ReturnKeyboard();
+            }
+
+            _beforeCommandBar = null;
+            return;
+        }
+
+        if (!CommandLayer.IsKeyboardFocusWithin)
+        {
+            _beforeCommandBar = Keyboard.FocusedElement;
+        }
+
+        CommandLayer.Visibility = Visibility.Visible;
+        var animate = SystemParameters.ClientAreaAnimation;
+        Rise(CommandPanel, OpacityProperty, 0, 1, animate);
+        Rise(CommandDim, OpacityProperty, 0, 1, animate);
+        Rise(CommandScale, ScaleTransform.ScaleXProperty, CommandBarStartScale, 1, animate);
+        Rise(CommandScale, ScaleTransform.ScaleYProperty, CommandBarStartScale, 1, animate);
+        Rise(CommandSlide, TranslateTransform.YProperty, CommandBarDrop, 0, animate);
+    }
+
+    /// <summary>Gives the keyboard back to what had it before the command bar came up, or to the window.</summary>
+    private void ReturnKeyboard()
+    {
+        if (_beforeCommandBar is UIElement { IsVisible: true } before && before.Focus())
+        {
+            return;
+        }
+
+        Focus();
+    }
+
+    /// <summary>
+    /// Moves a value of the command bar from where it starts to where it rests, or puts it there at once.
+    /// </summary>
+    /// <param name="target">The element or transform.</param>
+    /// <param name="property">The value.</param>
+    /// <param name="from">Where it starts.</param>
+    /// <param name="to">Where it rests.</param>
+    /// <param name="animate">Whether it moves; when not, it is put where it rests.</param>
+    private static void Rise(IAnimatable target, DependencyProperty property, double from, double to, bool animate)
+    {
+        if (!animate)
+        {
+            target.BeginAnimation(property, null);
+            ((DependencyObject)target).SetValue(property, to);
+            return;
+        }
+
+        var rise = new DoubleAnimation(from, to, CommandBarRise)
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        target.BeginAnimation(property, rise);
+    }
+
+    /// <summary>A click on the darkening outside the command bar hides the bar, and goes no further.</summary>
+    /// <param name="sender">The darkening.</param>
+    /// <param name="e">The click.</param>
+    private void OnCommandOutside(object sender, MouseButtonEventArgs e)
+    {
+        _shell.CloseCommandBar();
+        e.Handled = true;
     }
 
     /// <summary>Ctrl+L locks Chainsaw at once.</summary>
@@ -412,8 +519,8 @@ public partial class MainWindow : Window
         target is Visual visual && (visual == part || part.IsAncestorOf(visual));
 
     /// <summary>
-    /// Closes an open submenu, or the exits' panel, when the pointer presses outside it, before the press reaches its
-    /// target.
+    /// Closes an open submenu, the exits' panel or the command bar, when the pointer presses outside it, before the
+    /// press reaches its target.
     /// </summary>
     /// <param name="sender">The window.</param>
     /// <param name="e">The press.</param>
@@ -429,6 +536,11 @@ public partial class MainWindow : Window
         if (_shell.ExitPanel.IsOpen && !IsWithin(target, ExitPanelView) && !IsWithin(target, ExitChip))
         {
             _shell.ExitPanel.Close();
+        }
+
+        if (_shell.IsCommandBarOpen && !IsWithin(target, CommandPanel))
+        {
+            _shell.CloseCommandBar();
         }
     }
 
@@ -559,7 +671,7 @@ public partial class MainWindow : Window
         }
 
         Activate();
-        if (_gate.IsShellVisible && !_shell.NewCase.IsOpen && !_shell.Settings.IsOpen && _shell.CommandText.Length > 0)
+        if (_gate.IsShellVisible && !_shell.NewCase.IsOpen && !_shell.Settings.IsOpen && _shell.IsCommandBarOpen)
         {
             FocusCommandBar();
         }
@@ -583,7 +695,9 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>Moves the keyboard to the command bar, closing what lies over it, and selects what is written.</summary>
+    /// <summary>
+    /// Moves the keyboard to the command bar once it is up, closing what lies over it, and selects what is written.
+    /// </summary>
     private void FocusCommandBar()
     {
         _shell.ExitPanel.Close();

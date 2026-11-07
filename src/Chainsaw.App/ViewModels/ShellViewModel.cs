@@ -12,8 +12,8 @@ namespace Chainsaw.App.ViewModels;
 
 /// <summary>
 /// The shell (sketch SH1b): the rail of views, the view shown, the open case and the way out in the title bar, the
-/// command bar at the bottom with its commands, Nytt ärende (NC1a), the settings (ST1a) and the status line. It knows
-/// nothing of WPF, so that it is tested in Chainsaw.App.Tests.
+/// command bar with its commands, hidden until Ctrl+K or Ctrl+F brings it up as a Spotlight, Nytt ärende (NC1a) and
+/// the settings (ST1a). It knows nothing of WPF, so that it is tested in Chainsaw.App.Tests.
 /// </summary>
 public sealed partial class ShellViewModel : ObservableObject
 {
@@ -29,11 +29,11 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>What the title bar says when lookups go through Windows.</summary>
     public const string WindowsText = "Windows";
 
-    /// <summary>What the status line says when lookups go through Windows.</summary>
+    /// <summary>What the exit's tooltip says when lookups go through Windows.</summary>
     public const string WindowsSourceText = "Uppslag går genom Windows";
 
     /// <summary>
-    /// What Chainsaw says while no exit is connected (principle 9), in the status line and in the graph alike, so
+    /// What Chainsaw says while no exit is connected (principle 9), in the exit's tooltip and in the graph alike, so
     /// that offline is said one way only.
     /// </summary>
     public const string OfflineText =
@@ -57,11 +57,16 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The UI thread, where the exit's name is shown.</summary>
     private readonly IUiThread _ui;
 
-    /// <summary>The way out and the exit, shown in the title bar and the status line.</summary>
+    /// <summary>The way out and the exit, shown in the title bar.</summary>
     private readonly ExitWay _way;
 
     /// <summary>The import of a sanction list, from the menu Nytt.</summary>
     private readonly SanctionListImport _sanctions;
+
+    /// <summary>
+    /// The toaster, for an answer that comes while the command bar is hidden; or <see langword="null"/>.
+    /// </summary>
+    private readonly Toaster? _toaster;
 
     /// <summary>Whether a sanction list is being imported, so that a second import waits for the first.</summary>
     private bool _importing;
@@ -80,7 +85,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="commands">The command bar's commands.</param>
     /// <param name="newCase">Nytt ärende.</param>
     /// <param name="workflow">The cases, whose list is read anew when the shell is shown.</param>
-    /// <param name="exit">The way out and the exit, shown in the title bar and the status line.</param>
+    /// <param name="exit">The way out and the exit, shown in the title bar.</param>
     /// <param name="exits">The exits, for the connected exit's name.</param>
     /// <param name="sanctions">The import of a sanction list, from the menu Nytt.</param>
     /// <param name="exitPanel">The exits' panel under the exit in the title bar (sketch UT1a).</param>
@@ -89,6 +94,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="monitoring">The view Bevakning (sketch BV1a), or <see langword="null"/>.</param>
     /// <param name="watches">
     /// The watches, whose unseen hits put a dot on the pill's eye; or <see langword="null"/>.
+    /// </param>
+    /// <param name="toaster">
+    /// The toaster, which says an answer that comes while the command bar is hidden; or <see langword="null"/>.
     /// </param>
     public ShellViewModel(
         CaseSession session,
@@ -102,8 +110,10 @@ public sealed partial class ShellViewModel : ObservableObject
         SettingsViewModel settings,
         IUiThread ui,
         MonitoringViewModel? monitoring = null,
-        WatchBoard? watches = null)
+        WatchBoard? watches = null,
+        Toaster? toaster = null)
     {
+        _toaster = toaster;
         Monitoring = monitoring;
         _way = exit;
         Settings = settings;
@@ -184,8 +194,18 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets the icon whose submenu is open, or <see langword="null"/> when none is.</summary>
     public RailItemViewModel? OpenSubmenu => Items.FirstOrDefault(item => item.Submenu?.IsOpen == true);
 
-    /// <summary>Raised when an action wants the keyboard in the command bar, for example Nytt → Startpunkt.</summary>
+    /// <summary>
+    /// Raised when the command bar is brought up and wants the keyboard: Ctrl+K, Ctrl+F, or an action such as Nytt →
+    /// Startpunkt.
+    /// </summary>
     public event EventHandler? CommandBarWanted;
+
+    /// <summary>
+    /// Gets whether the command bar is up. It is hidden by default and comes up like Spotlight (Ctrl+K or Ctrl+F);
+    /// Esc, a click outside or a command that did what it was asked hides it again.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsCommandBarOpen { get; private set; }
 
     /// <summary>Gets the view shown.</summary>
     [ObservableProperty]
@@ -215,7 +235,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     public partial string CommandText { get; set; } = string.Empty;
 
-    /// <summary>Gets the short answer above the command bar, or an empty text when there is none.</summary>
+    /// <summary>Gets the short answer under the command bar's field, or an empty text when there is none.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShownAbove), nameof(IsShowingError))]
     public partial string CommandAnswer { get; private set; } = string.Empty;
@@ -225,7 +245,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsShowingError))]
     public partial bool IsAnswerError { get; private set; }
 
-    /// <summary>Gets whether an error is shown above the bar (in the error colour).</summary>
+    /// <summary>Gets whether an error is shown under the bar's field (in the error colour).</summary>
     public bool IsShowingError => IsAnswerError && CommandAnswer.Length > 0;
 
     /// <summary>Gets the hint for what is written, for example what Tab fills in; empty when there is none.</summary>
@@ -233,7 +253,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShownAbove))]
     public partial string CommandHint { get; private set; } = string.Empty;
 
-    /// <summary>Gets what is shown above the bar: the answer, or else the hint.</summary>
+    /// <summary>Gets what is shown under the bar's field: the answer, or else the hint.</summary>
     public string ShownAbove => CommandAnswer.Length > 0 ? CommandAnswer : CommandHint;
 
     /// <summary>Gets whether a command runs.</summary>
@@ -253,13 +273,13 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsExitLive { get; private set; }
 
-    /// <summary>Gets what the status line says about where lookups go.</summary>
+    /// <summary>Gets what the exit's tooltip in the title bar says about where lookups go.</summary>
     [ObservableProperty]
     public partial string SourceText { get; private set; } = OfflineText;
 
     /// <summary>
-    /// Gets what the status line says while a lookup waits for a source (its pace or a wait it asked for), such as
-    /// <c>Väntar på källan · Bitcoin</c>; empty otherwise.
+    /// Gets what the amber dot by the exit in the title bar says on hover while a lookup waits for a source (its pace
+    /// or a wait it asked for), such as <c>Väntar på källan · Bitcoin</c>; empty otherwise.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWaiting))]
@@ -310,10 +330,12 @@ public sealed partial class ShellViewModel : ObservableObject
     public void DismissSubmenus() => DismissMenus();
 
     /// <summary>
-    /// Closes any open submenu, the exits' panel and the settings, for example when Chainsaw locks or a view is shown.
+    /// Closes the command bar, any open submenu, the exits' panel and the settings, for example when Chainsaw locks or
+    /// a view is shown.
     /// </summary>
     public void DismissAll()
     {
+        CloseCommandBar();
         DismissMenus();
         ExitPanel.Close();
         Settings.Close();
@@ -371,8 +393,9 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Runs what is written in the command bar (Enter). A command that did what it was asked empties the bar; one
-    /// that could not keeps the text, so that it can be corrected.
+    /// Runs what is written in the command bar (Enter). A command that did what it was asked empties the bar and hides
+    /// it, its answer said by the toaster; one that could not keeps the bar up with the text, so that it can be
+    /// corrected.
     /// </summary>
     /// <returns>A task that completes when the answer is shown.</returns>
     [RelayCommand]
@@ -398,6 +421,7 @@ public sealed partial class ShellViewModel : ObservableObject
         if (!reply.IsError && CommandText == text)
         {
             CommandText = string.Empty;
+            CloseCommandBar();
         }
 
         Answer(reply);
@@ -430,7 +454,7 @@ public sealed partial class ShellViewModel : ObservableObject
         CommandText = chosen;
     }
 
-    /// <summary>Clears the command bar and its answer, as Esc does.</summary>
+    /// <summary>Clears the command bar and its answer, for example when Chainsaw locks.</summary>
     [RelayCommand]
     public void ClearCommand()
     {
@@ -440,8 +464,47 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Brings up the command bar (Ctrl+K or Ctrl+F) and asks for the keyboard there. What was written stays, so that
+    /// it can be run again or written over; an old answer from while it was hidden does not. Nytt ärende lies over the
+    /// page, so the bar stays hidden while it is open.
+    /// </summary>
+    [RelayCommand]
+    public void OpenCommandBar()
+    {
+        if (NewCase.IsOpen)
+        {
+            return;
+        }
+
+        if (!IsCommandBarOpen)
+        {
+            CommandAnswer = string.Empty;
+            IsCommandBarOpen = true;
+        }
+
+        CommandBarWanted?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Hides the command bar (Esc, a click outside, or a command that did what it was asked). What is written stays
+    /// for the next time; the answer goes.
+    /// </summary>
+    [RelayCommand]
+    public void CloseCommandBar()
+    {
+        if (!IsCommandBarOpen)
+        {
+            return;
+        }
+
+        IsCommandBarOpen = false;
+        CommandAnswer = string.Empty;
+        _completed = null;
+    }
+
+    /// <summary>
     /// Offers a start point from a <c>chainsaw:</c> link. Nothing is written: with Nytt ärende shown it is added as a
-    /// line there; with a case open it is put in an empty bar, for Enter to add; with none it fills in Nytt ärende.
+    /// line there; with a case open the bar comes up with it, for Enter to add; with none it fills in Nytt ärende.
     /// The value is written with its chain when it is not Bitcoin (<see cref="StartPointText"/>), so that a TRON tx is
     /// never read as a Bitcoin txid. What the user is writing in the bar is never replaced.
     /// </summary>
@@ -456,6 +519,7 @@ public sealed partial class ShellViewModel : ObservableObject
             return;
         }
 
+        OpenCommandBar();
         if (CommandText.Length > 0)
         {
             Answer(CommandReply.Done($"Från en länk: {text}. Raden har redan text, så den lades inte in."));
@@ -528,7 +592,7 @@ public sealed partial class ShellViewModel : ObservableObject
             return;
         }
 
-        CommandBarWanted?.Invoke(this, EventArgs.Empty);
+        OpenCommandBar();
         if (CommandText.Length == 0)
         {
             Answer(CommandReply.Done(
@@ -591,12 +655,19 @@ public sealed partial class ShellViewModel : ObservableObject
         OnPropertyChanged(nameof(CaseTitle));
     }
 
-    /// <summary>Shows an answer above the bar.</summary>
+    /// <summary>
+    /// Shows an answer under the bar's field, and through the toaster as well while the bar is hidden, so that an
+    /// answer is never lost.
+    /// </summary>
     /// <param name="reply">The answer.</param>
     private void Answer(CommandReply reply)
     {
         CommandAnswer = reply.Text;
         IsAnswerError = reply.IsError;
+        if (!IsCommandBarOpen && reply.Text.Length > 0)
+        {
+            _toaster?.Show(reply.IsError ? ToastKind.Error : ToastKind.Information, reply.Text);
+        }
     }
 
     /// <summary>Shows the new case: the graph, where the work starts, and the answer from the creation.</summary>
