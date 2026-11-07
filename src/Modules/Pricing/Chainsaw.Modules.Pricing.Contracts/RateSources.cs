@@ -42,6 +42,62 @@ public interface ICryptoRateSource
     RateCandle? ReadCandle(
         ReadOnlySpan<byte> body, Chain chain, FiatCurrency quote, PriceResolution resolution,
         DateTimeOffset periodStart);
+
+    /// <summary>
+    /// Gets whether the source has a market for an asset in a currency. A token is recognised by its chain and
+    /// contract (<see cref="Asset"/> equality), never by its symbol. By default only a chain's own coin is, as
+    /// <see cref="Supports(Chain, FiatCurrency)"/> says.
+    /// </summary>
+    /// <param name="asset">The asset: a chain's own coin or a token.</param>
+    /// <param name="quote">The currency.</param>
+    /// <returns><see langword="true"/> when it can be asked.</returns>
+    /// <exception cref="ArgumentNullException">The asset is null.</exception>
+    bool Supports(Asset asset, FiatCurrency quote)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return asset.Kind == AssetKind.Native && Supports(asset.Chain, quote);
+    }
+
+    /// <summary>
+    /// Gives the address that asks for one period of an asset's market. It names only the market, the length and the
+    /// time. By default only a chain's own coin can be asked for.
+    /// </summary>
+    /// <param name="asset">The asset, one the source supports.</param>
+    /// <param name="quote">The currency.</param>
+    /// <param name="resolution">The length of the period.</param>
+    /// <param name="periodStart">The period's start, aligned to the resolution.</param>
+    /// <returns>The absolute <c>https</c> address.</returns>
+    /// <exception cref="ArgumentNullException">The asset is null.</exception>
+    /// <exception cref="NotSupportedException">The source has no market for the asset.</exception>
+    Uri RequestUri(Asset asset, FiatCurrency quote, PriceResolution resolution, DateTimeOffset periodStart)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return asset.Kind == AssetKind.Native
+            ? RequestUri(asset.Chain, quote, resolution, periodStart)
+            : throw new NotSupportedException($"The source has no market for {asset}.");
+    }
+
+    /// <summary>
+    /// Reads the period of an asset's market from a response. By default only a chain's own coin can be read.
+    /// </summary>
+    /// <param name="body">The response's raw bytes.</param>
+    /// <param name="asset">The asset asked about.</param>
+    /// <param name="quote">The currency asked about.</param>
+    /// <param name="resolution">The length asked about.</param>
+    /// <param name="periodStart">The period asked about.</param>
+    /// <returns>The period, or <see langword="null"/> when the response does not have it.</returns>
+    /// <exception cref="ArgumentNullException">The asset is null.</exception>
+    /// <exception cref="NotSupportedException">The source has no market for the asset.</exception>
+    /// <exception cref="RateFormatException">The response cannot be read or does not add up.</exception>
+    RateCandle? ReadCandle(
+        ReadOnlySpan<byte> body, Asset asset, FiatCurrency quote, PriceResolution resolution,
+        DateTimeOffset periodStart)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return asset.Kind == AssetKind.Native
+            ? ReadCandle(body, asset.Chain, quote, resolution, periodStart)
+            : throw new NotSupportedException($"The source has no market for {asset}.");
+    }
 }
 
 /// <summary>One period of a price history as a source gives it.</summary>
@@ -50,7 +106,7 @@ public interface ICryptoRateSource
 /// <param name="High">The highest price.</param>
 /// <param name="Low">The lowest price.</param>
 /// <param name="Close">The last price.</param>
-/// <param name="Volume">How much was traded, in the chain's currency.</param>
+/// <param name="Volume">How much was traded, in the asset priced.</param>
 public sealed record RateCandle(string Market, decimal Open, decimal High, decimal Low, decimal Close, decimal Volume);
 
 /// <summary>

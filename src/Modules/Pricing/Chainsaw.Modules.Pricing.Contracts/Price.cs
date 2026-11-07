@@ -4,9 +4,9 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Pricing.Contracts;
 
 /// <summary>
-/// The price of one unit of a chain's currency at a time in a currency: a calculation from one or two rates, each a
-/// fact from a named source (principle 2). <see cref="Steps"/> shows how it was worked out, in Swedish, so that a user
-/// can ask <i>why?</i> and redo it with any calculator (principle 3).
+/// The price of one unit of an asset (a chain's own coin or a token on it) at a time in a currency: a calculation
+/// from one or two rates, each a fact from a named source (principle 2). <see cref="Steps"/> shows how it was worked
+/// out, in Swedish, so that a user can ask <i>why?</i> and redo it with any calculator (principle 3).
 /// </summary>
 public sealed record Price
 {
@@ -27,10 +27,17 @@ public sealed record Price
     /// The rate that converts the crypto rate's currency into <paramref name="currency"/>, or <see langword="null"/>
     /// when the crypto rate is already in it.
     /// </param>
-    /// <exception cref="ArgumentException">The rates do not fit together or with the currency.</exception>
+    /// <exception cref="ArgumentException">
+    /// The rates do not fit together or with the currency, or the crypto rate's asset is not on its chain.
+    /// </exception>
     public Price(DateTimeOffset at, FiatCurrency currency, CryptoRate cryptoRate, FiatRate? fiatRate)
     {
         ArgumentNullException.ThrowIfNull(cryptoRate);
+        if (cryptoRate.Asset.Chain != cryptoRate.Chain)
+        {
+            throw new ArgumentException("The rate's asset is not on its chain.", nameof(cryptoRate));
+        }
+
         if (fiatRate is null ? cryptoRate.Quote != currency
             : fiatRate.Currency != cryptoRate.Quote || fiatRate.Base != currency)
         {
@@ -44,8 +51,11 @@ public sealed record Price
         UnitPrice = fiatRate is null ? cryptoRate.Close : cryptoRate.Close * fiatRate.PerUnit;
     }
 
-    /// <summary>Gets the chain whose currency is priced.</summary>
+    /// <summary>Gets the chain the priced asset lives on.</summary>
     public Chain Chain => CryptoRate.Chain;
+
+    /// <summary>Gets the asset priced: the chain's own coin, or a token on it such as USDT.</summary>
+    public Asset Asset => CryptoRate.Asset;
 
     /// <summary>Gets the time asked about.</summary>
     public DateTimeOffset At { get; }
@@ -71,7 +81,7 @@ public sealed record Price
     {
         get
         {
-            var asset = Chain.Code();
+            var asset = Symbol;
             var crypto = CryptoRate;
             var noTrade = crypto.Volume == 0 ? " Ingen handel under perioden." : string.Empty;
             var cryptoSource = crypto.SourceName ?? crypto.Origin.Source;
@@ -104,27 +114,37 @@ public sealed record Price
     /// <exception cref="InvalidOperationException">The price is not for Bitcoin.</exception>
     public Valuation ValueOf(Satoshi amount) => ValueOf(amount.ToAmount());
 
-    /// <summary>Values an amount of the chain's own coin at this price (bitcoin, ether).</summary>
-    /// <param name="amount">The amount, in the chain's own coin.</param>
+    /// <summary>
+    /// Values an amount of the asset this price is for: the chain's own coin (bitcoin, ether) or a token (USDT, USDC
+    /// with 6 decimals). The amount must be in the same asset (the same chain and contract), whatever its symbol says.
+    /// </summary>
+    /// <param name="amount">The amount, in the priced asset's smallest unit.</param>
     /// <returns>The value with its steps.</returns>
-    /// <exception cref="InvalidOperationException">The amount is not in the coin the price is for.</exception>
+    /// <exception cref="InvalidOperationException">The amount is not in the asset the price is for.</exception>
     /// <exception cref="OverflowException">
     /// The amount is too large to value: more than about 7.9 × 10^28 of its smallest unit (about 79 billion ether).
     /// </exception>
     public Valuation ValueOf(AssetAmount amount)
     {
-        if (amount.Asset != Chain.NativeAsset())
+        if (amount.Asset != Asset)
         {
-            throw new InvalidOperationException($"Only an amount of {Chain.Code()} is valued at this price.");
+            throw new InvalidOperationException($"Only an amount of {Asset} is valued at this price.");
         }
 
-        var coins = (decimal)amount.Units / Pow10(amount.Asset.Decimals);
+        // The priced asset's decimals: for a known token Chainsaw's own, not what a source said.
+        var coins = (decimal)amount.Units / Pow10(Asset.Decimals);
         var value = coins * UnitPrice;
         var rounded = Math.Round(value, 2, MidpointRounding.AwayFromZero);
-        var line = $"{Exact(coins)} {Chain.Code()} × {Exact(UnitPrice)} = {Exact(value)} {Currency.Code()}, " +
+        var line = $"{Exact(coins)} {Symbol} × {Exact(UnitPrice)} = {Exact(value)} {Currency.Code()}, " +
             $"avrundat {rounded.ToString(MoneyFormat, Swedish)} {Currency.Code()}.";
         return new Valuation(this, coins, value, rounded, [.. Steps, line]);
     }
+
+    /// <summary>
+    /// Gets how the priced asset is written in the steps: the chain's code for its own coin (<c>BTC</c>), the token's
+    /// symbol for a token (<c>USDT</c>).
+    /// </summary>
+    private string Symbol => Asset.Kind == AssetKind.Native ? Chain.Code() : Asset.Symbol;
 
     /// <summary>Gives ten to a power exactly, as a decimal.</summary>
     /// <param name="power">The power, at most 28.</param>
@@ -165,7 +185,7 @@ public sealed record Price
 
 /// <summary>An amount valued at a price, with the steps that lead there (principle 3).</summary>
 /// <param name="Price">The price.</param>
-/// <param name="Amount">The amount in the chain's currency.</param>
+/// <param name="Amount">The amount in the priced asset, for example 0,512 BTC or 1 250,5 USDT.</param>
 /// <param name="Value">The value, exact.</param>
 /// <param name="Rounded">The value rounded to two decimals (half away from zero), as shown.</param>
 /// <param name="Steps">How it was worked out, one line per step, in Swedish.</param>

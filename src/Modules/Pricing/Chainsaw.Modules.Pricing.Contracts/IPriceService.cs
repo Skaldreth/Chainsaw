@@ -3,9 +3,10 @@ using Chainsaw.Modules.Cases.Contracts;
 namespace Chainsaw.Modules.Pricing.Contracts;
 
 /// <summary>
-/// The price of a chain's currency at a time, in the chosen currency. Every rate is a fact from a named source, sealed
-/// in the case with its raw response the first time it is fetched and never fetched again (principle 1); the
-/// conversion between them is a calculation that shows its steps (principle 2). Requests go only through the exit
+/// The price of a chain's coin or a token at a time, in the chosen currency. Every rate is a fact from a named
+/// source, sealed in the case with its raw response the first time it is fetched and never fetched again
+/// (principle 1); the conversion between them is a calculation that shows its steps (principle 2). Requests go only
+/// through the exit
 /// and carry only the market and the time, never anything about the case (principle 4). Without an exit the case
 /// answers, or the answer honestly says <see cref="PriceLookupStatus.Offline"/> (principle 9).
 /// </summary>
@@ -15,7 +16,11 @@ namespace Chainsaw.Modules.Pricing.Contracts;
 /// </remarks>
 public interface IPriceService
 {
-    /// <summary>Gives the price of one unit of a chain's currency at a time.</summary>
+    /// <summary>
+    /// Gives the price of one unit of a chain's own coin, or of a token on it (<see cref="PriceRequest.Asset"/>), at
+    /// a time. A token no source prices is answered with <see cref="PriceLookupStatus.Unsupported"/>; a stablecoin is
+    /// never assumed to be worth its peg.
+    /// </summary>
     /// <param name="case">The open case the rates are kept in.</param>
     /// <param name="request">What to price, when and in which currency.</param>
     /// <param name="mode">Whether the sources may be asked.</param>

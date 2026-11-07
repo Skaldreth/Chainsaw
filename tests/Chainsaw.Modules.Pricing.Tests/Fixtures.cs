@@ -20,6 +20,12 @@ internal static class Fixtures
 
     public static readonly string BitstampEurHour = $"{Bitstamp}ohlc/btceur/?step=3600&limit=1&start={HourStart}";
 
+    public static readonly string BitstampUsdtHour = $"{Bitstamp}ohlc/usdtusd/?step=3600&limit=1&start={HourStart}";
+
+    public static readonly string BitstampUsdcHour = $"{Bitstamp}ohlc/usdcusd/?step=3600&limit=1&start={HourStart}";
+
+    public static readonly string BitstampEthHour = $"{Bitstamp}ohlc/ethusd/?step=3600&limit=1&start={HourStart}";
+
     /// <summary>The Riksbank request for 2023-11-14: 14 days before and 31 days after.</summary>
     public static readonly string RiksbankUsdNovember = $"{Riksbank}Observations/SEKUSDPMI/2023-10-31/2023-12-15";
 

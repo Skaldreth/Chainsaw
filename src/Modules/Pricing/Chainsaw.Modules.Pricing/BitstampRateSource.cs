@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -7,8 +8,9 @@ namespace Chainsaw.Modules.Pricing;
 
 /// <summary>
 /// Bitstamp's public price history (<c>GET /api/v2/ohlc/{market}/</c>), open without an API key, with candles of a
-/// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR. One request asks for one candle:
-/// <c>step</c> is the length in seconds, <c>limit=1</c> and <c>start</c> the candle's start as Unix time.
+/// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, USDT and USDC (on Ethereum) in dollars
+/// and euro. One request asks for one candle: <c>step</c> is the length in seconds, <c>limit=1</c> and <c>start</c>
+/// the candle's start as Unix time.
 /// </summary>
 /// <param name="baseUri">The API's base address, for example <c>https://www.bitstamp.net/api/v2/</c>.</param>
 internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
@@ -25,30 +27,103 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
     /// <inheritdoc/>
     public string DisplayName => "Bitstamp";
 
-    /// <inheritdoc/>
-    public bool Supports(Chain chain, FiatCurrency quote) =>
-        chain is Chain.Bitcoin or Chain.Ethereum && quote is FiatCurrency.Usd or FiatCurrency.Eur;
+    /// <summary>
+    /// The tokens Bitstamp has markets for, recognised by chain and contract (never by symbol), with Bitstamp's code
+    /// for each: USDT and USDC on Ethereum, the stablecoins it lists against dollars and euro
+    /// (<c>usdtusd</c>, <c>usdteur</c>, <c>usdcusd</c>, <c>usdceur</c>).
+    /// </summary>
+    private static readonly Dictionary<Asset, string> Tokens = new()
+    {
+        [KnownTokens.EthereumUsdt] = "USDT",
+        [KnownTokens.EthereumUsdc] = "USDC",
+    };
 
     /// <inheritdoc/>
-    public Uri RequestUri(Chain chain, FiatCurrency quote, PriceResolution resolution, DateTimeOffset periodStart)
+    public bool Supports(Chain chain, FiatCurrency quote) =>
+        chain is Chain.Bitcoin or Chain.Ethereum && HasQuote(quote);
+
+    /// <inheritdoc/>
+    public bool Supports(Asset asset, FiatCurrency quote)
     {
-        var market = Uri.EscapeDataString(Symbol(chain, quote));
+        ArgumentNullException.ThrowIfNull(asset);
+        return asset.Kind == AssetKind.Native
+            ? Supports(asset.Chain, quote)
+            : Tokens.ContainsKey(asset) && HasQuote(quote);
+    }
+
+    /// <inheritdoc/>
+    public Uri RequestUri(Chain chain, FiatCurrency quote, PriceResolution resolution, DateTimeOffset periodStart) =>
+        Ask(chain.Code(), quote, resolution, periodStart);
+
+    /// <inheritdoc/>
+    public Uri RequestUri(Asset asset, FiatCurrency quote, PriceResolution resolution, DateTimeOffset periodStart) =>
+        Ask(CodeOf(asset), quote, resolution, periodStart);
+
+    /// <inheritdoc/>
+    public RateCandle? ReadCandle(
+        ReadOnlySpan<byte> body, Chain chain, FiatCurrency quote, PriceResolution resolution,
+        DateTimeOffset periodStart) =>
+        Read(body, chain.Code(), quote, periodStart);
+
+    /// <inheritdoc/>
+    public RateCandle? ReadCandle(
+        ReadOnlySpan<byte> body, Asset asset, FiatCurrency quote, PriceResolution resolution,
+        DateTimeOffset periodStart) =>
+        Read(body, CodeOf(asset), quote, periodStart);
+
+    /// <summary>Gets whether Bitstamp quotes its markets in a currency: dollars and euro.</summary>
+    /// <param name="quote">The currency.</param>
+    /// <returns><see langword="true"/> for USD and EUR.</returns>
+    private static bool HasQuote(FiatCurrency quote) => quote is FiatCurrency.Usd or FiatCurrency.Eur;
+
+    /// <summary>Gives Bitstamp's code for an asset: the chain's code for its coin, its own code for a token.</summary>
+    /// <param name="asset">The asset.</param>
+    /// <returns>For example <c>BTC</c> or <c>USDT</c>.</returns>
+    /// <exception cref="ArgumentNullException">The asset is null.</exception>
+    /// <exception cref="NotSupportedException">Bitstamp has no market for the token.</exception>
+    private static string CodeOf(Asset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (asset.Kind == AssetKind.Native)
+        {
+            return asset.Chain.Code();
+        }
+
+        return Tokens.TryGetValue(asset, out var code)
+            ? code
+            : throw new NotSupportedException($"Bitstamp has no market for {asset}.");
+    }
+
+    /// <summary>Gives the address that asks for one candle of a market.</summary>
+    /// <param name="code">Bitstamp's code for the asset, for example <c>BTC</c>.</param>
+    /// <param name="quote">The currency.</param>
+    /// <param name="resolution">The length of the period.</param>
+    /// <param name="periodStart">The period's start.</param>
+    /// <returns>For example <c>…/ohlc/btcusd/?step=3600&amp;limit=1&amp;start=1699999200</c>.</returns>
+    private Uri Ask(string code, FiatCurrency quote, PriceResolution resolution, DateTimeOffset periodStart)
+    {
+        var market = Uri.EscapeDataString(Symbol(code, quote));
         var step = resolution.Seconds().ToString(CultureInfo.InvariantCulture);
         var start = periodStart.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
         return new Uri(_baseUri, $"ohlc/{market}/?step={step}&limit=1&start={start}");
     }
 
-    /// <inheritdoc/>
-    public RateCandle? ReadCandle(
-        ReadOnlySpan<byte> body, Chain chain, FiatCurrency quote, PriceResolution resolution,
-        DateTimeOffset periodStart)
+    /// <summary>Reads the candle that starts a period, after checking that the response is for the market.</summary>
+    /// <param name="body">The response's raw bytes.</param>
+    /// <param name="code">Bitstamp's code for the asset, for example <c>USDT</c>.</param>
+    /// <param name="quote">The currency.</param>
+    /// <param name="periodStart">The period.</param>
+    /// <returns>The candle, or <see langword="null"/> when the response does not have it.</returns>
+    /// <exception cref="RateFormatException">The response cannot be read or does not add up.</exception>
+    private static RateCandle? Read(
+        ReadOnlySpan<byte> body, string code, FiatCurrency quote, DateTimeOffset periodStart)
     {
         try
         {
             using var document = JsonDocument.Parse(body.ToArray());
             var data = Property(document.RootElement, "data", JsonValueKind.Object);
             var market = MarketOf(data);
-            var expected = $"{chain.Code()}/{quote.Code()}";
+            var expected = $"{code}/{quote.Code()}";
             if (!string.Equals(market, expected, StringComparison.Ordinal))
             {
                 throw new RateFormatException($"The market is {market}, not {expected}.");
@@ -81,11 +156,11 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
     }
 
     /// <summary>Gives Bitstamp's symbol for a market.</summary>
-    /// <param name="chain">The chain.</param>
+    /// <param name="code">Bitstamp's code for the asset, for example <c>BTC</c>.</param>
     /// <param name="quote">The currency.</param>
-    /// <returns>For example <c>btcusd</c>.</returns>
-    private static string Symbol(Chain chain, FiatCurrency quote) =>
-        (chain.Code() + quote.Code()).ToLowerInvariant();
+    /// <returns>For example <c>btcusd</c> or <c>usdtusd</c>.</returns>
+    private static string Symbol(string code, FiatCurrency quote) =>
+        (code + quote.Code()).ToLowerInvariant();
 
     /// <summary>Reads the market's name; the API documents both <c>pair</c> and <c>market</c>.</summary>
     /// <param name="data">The response's <c>data</c>.</param>

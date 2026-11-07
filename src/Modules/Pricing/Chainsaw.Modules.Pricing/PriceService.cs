@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
 using System.Globalization;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Security.Contracts;
@@ -137,7 +138,8 @@ internal sealed class PriceService : IPriceService
             return new PriceLookup<Price>(PriceLookupStatus.Unsupported, null, [], refusal);
         }
 
-        var crypto = await CryptoRateAsync(@case, request.Chain, quote, resolution, request.At, mode, cancellationToken)
+        var asset = AssetOf(request);
+        var crypto = await CryptoRateAsync(@case, asset, quote, resolution, request.At, mode, cancellationToken)
             .ConfigureAwait(false);
         if (crypto.Value is not { } cryptoRate)
         {
@@ -180,6 +182,11 @@ internal sealed class PriceService : IPriceService
             return "Kedjan, valutan eller upplösningen är okänd. Inget skickades.";
         }
 
+        if (request.Asset is { } given && given.Chain != request.Chain)
+        {
+            return $"{given.Symbol} finns inte på kedjan {request.Chain}. Inget skickades.";
+        }
+
         if (request.At > _clock.UtcNow)
         {
             return "Tidpunkten ligger i framtiden, och ingen kurs är satt för den. Inget skickades.";
@@ -190,17 +197,38 @@ internal sealed class PriceService : IPriceService
             return $"Det finns ingen källa som räknar om {quote.Code()} till {currency.Code()}. Inget skickades.";
         }
 
-        return _crypto.Supports(request.Chain, quote)
-            ? null
-            : $"Källan har ingen kurs för {request.Chain.Code()} i {quote.Code()}. Inget skickades.";
+        var asset = AssetOf(request);
+        if (_crypto.Supports(asset, quote))
+        {
+            return null;
+        }
+
+        if (asset.Kind == AssetKind.Native)
+        {
+            return $"Källan har ingen kurs för {request.Chain.Code()} i {quote.Code()}. Inget skickades.";
+        }
+
+        // A token is never taken to be worth its peg: without a market for it there is no price at all.
+        return Enum.GetValues<FiatCurrency>().Any(other => _crypto.Supports(asset, other))
+            ? $"Källan har ingen kurs för {asset.Symbol} i {quote.Code()}. Inget skickades."
+            : $"Ingen kurs: ingen källa anger kursen för {asset.Symbol} ({asset.Contract}). Inget skickades.";
     }
+
+    /// <summary>
+    /// Gives the asset a request prices: the chain's own coin when it names none, and a token Chainsaw knows with its
+    /// own symbol and decimals (by contract), so that a source's spelling never shows in the steps.
+    /// </summary>
+    /// <param name="request">The request, with a known chain.</param>
+    /// <returns>The asset.</returns>
+    private static Asset AssetOf(PriceRequest request) =>
+        request.Asset is { } given ? KnownTokens.Canonical(given) : request.Chain.NativeAsset();
 
     /// <summary>
     /// Gives the crypto rate for the period that holds a time: from the case, or from the source. Lookups of the same
     /// period at once share one request.
     /// </summary>
     /// <param name="case">The open case.</param>
-    /// <param name="chain">The chain.</param>
+    /// <param name="asset">The asset: a chain's own coin or a token.</param>
     /// <param name="quote">The currency.</param>
     /// <param name="resolution">The length of the period.</param>
     /// <param name="at">The time.</param>
@@ -208,10 +236,10 @@ internal sealed class PriceService : IPriceService
     /// <param name="cancellationToken">Stops the wait; a request that is already shared runs to its end.</param>
     /// <returns>The rate, or why there is none.</returns>
     private async Task<PriceLookup<CryptoRate>> CryptoRateAsync(
-        ICase @case, Chain chain, FiatCurrency quote, PriceResolution resolution, DateTimeOffset at,
+        ICase @case, Asset asset, FiatCurrency quote, PriceResolution resolution, DateTimeOffset at,
         PriceLookupMode mode, CancellationToken cancellationToken)
     {
-        var query = new CandleQuery(chain, quote, resolution, resolution.PeriodStart(at));
+        var query = new CandleQuery(asset, quote, resolution, resolution.PeriodStart(at));
         if (await StoredCryptoRateAsync(@case, query, cancellationToken).ConfigureAwait(false) is { } kept)
         {
             return new PriceLookup<CryptoRate>(PriceLookupStatus.FromCase, kept, [kept.Origin], null);
@@ -275,7 +303,7 @@ internal sealed class PriceService : IPriceService
         // The index is not sealed: a stored candle counts only when its own sealed time shows it was final.
         CryptoRate? Read(StoredRateResponse response) =>
             response.Origin.ReceivedUtc >= query.SettlesAt
-            && _crypto.ReadCandle(response.Body, query.Chain, query.Quote, query.Resolution, query.Start)
+            && _crypto.ReadCandle(response.Body, query.Asset, query.Quote, query.Resolution, query.Start)
                 is { } candle
                 ? Rate(query, candle, response.Origin)
                 : null;
@@ -295,7 +323,7 @@ internal sealed class PriceService : IPriceService
     private async Task<PriceLookup<CryptoRate>> FetchCryptoRateAsync(ICase @case, CandleQuery query)
     {
         var sent = await SendAsync(
-            () => _crypto.RequestUri(query.Chain, query.Quote, query.Resolution, query.Start),
+            () => _crypto.RequestUri(query.Asset, query.Quote, query.Resolution, query.Start),
             null, CancellationToken.None).ConfigureAwait(false);
         if (sent.Response is not { } response)
         {
@@ -310,7 +338,7 @@ internal sealed class PriceService : IPriceService
             try
             {
                 candle = _crypto.ReadCandle(
-                    response.Body.Span, query.Chain, query.Quote, query.Resolution, query.Start);
+                    response.Body.Span, query.Asset, query.Quote, query.Resolution, query.Start);
                 if (candle is null || query.SettlesAt > response.ReceivedAt)
                 {
                     // A period that may not have ended at the source can still change, so it is never kept.
@@ -345,12 +373,15 @@ internal sealed class PriceService : IPriceService
         : Lazy<Task<PriceLookup<CryptoRate>>>(fetch);
 
     /// <summary>One period of a crypto price history to look up.</summary>
-    /// <param name="Chain">The chain.</param>
+    /// <param name="Asset">The asset: a chain's own coin or a token.</param>
     /// <param name="Quote">The currency.</param>
     /// <param name="Resolution">The length of the period.</param>
     /// <param name="Start">The period's start.</param>
-    private sealed record CandleQuery(Chain Chain, FiatCurrency Quote, PriceResolution Resolution, DateTimeOffset Start)
+    private sealed record CandleQuery(Asset Asset, FiatCurrency Quote, PriceResolution Resolution, DateTimeOffset Start)
     {
+        /// <summary>Gets the chain the asset lives on.</summary>
+        public Chain Chain => Asset.Chain;
+
         /// <summary>Gets the period's end.</summary>
         public DateTimeOffset End => Start.AddSeconds(Resolution.Seconds());
 
@@ -358,11 +389,17 @@ internal sealed class PriceService : IPriceService
         public DateTimeOffset SettlesAt => End + SettleMargin;
 
         /// <summary>
-        /// Gets the subject the response is stored under, for example <c>BTC-USD/3600/1699999200</c>.
+        /// Gets the subject the response is stored under, for example <c>BTC-USD/3600/1699999200</c> for a chain's
+        /// coin, as before tokens could be priced, and
+        /// <c>Ethereum:0xdac17f958d2ee523a2206206994597c13d831ec7-USD/3600/1699999200</c> for a token, named by its
+        /// chain and contract so that it can never be mistaken for the coin or for a token with the same symbol.
         /// </summary>
         public string Subject =>
-            $"{Chain.Code()}-{Quote.Code()}/{Resolution.Seconds().ToString(CultureInfo.InvariantCulture)}/" +
+            $"{AssetKey}-{Quote.Code()}/{Resolution.Seconds().ToString(CultureInfo.InvariantCulture)}/" +
             Start.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>Gets the asset as the subject names it: the chain's code, or the chain and the contract.</summary>
+        private string AssetKey => Asset.Kind == AssetKind.Native ? Chain.Code() : $"{Chain}:{Asset.Contract}";
 
         /// <summary>Gets the period for the user, for example <c>2023-11-14 22:00–2023-11-14 23:00 UTC</c>.</summary>
         public string Period => $"{Time(Start)}–{Time(End)} UTC";
@@ -649,12 +686,17 @@ internal sealed class PriceService : IPriceService
     /// <param name="candle">The period as the source gave it.</param>
     /// <param name="origin">The sealed response.</param>
     /// <returns>The rate.</returns>
-    private CryptoRate Rate(CandleQuery query, RateCandle candle, RateOrigin origin) =>
-        new(query.Chain, query.Quote, query.Resolution, query.Start, query.End, candle.Market, candle.Open,
-            candle.High, candle.Low, candle.Close, candle.Volume, origin)
+    private CryptoRate Rate(CandleQuery query, RateCandle candle, RateOrigin origin)
+    {
+        var rate = new CryptoRate(query.Chain, query.Quote, query.Resolution, query.Start, query.End, candle.Market,
+            candle.Open, candle.High, candle.Low, candle.Close, candle.Volume, origin)
         {
             SourceName = _crypto.DisplayName,
         };
+
+        // A chain's coin is the rate's default asset, so its rate stays exactly as before tokens could be priced.
+        return query.Asset.Kind == AssetKind.Native ? rate : rate with { Asset = query.Asset };
+    }
 
     /// <summary>The text for a response that cannot be read.</summary>
     private const string UnreadableProblem =
