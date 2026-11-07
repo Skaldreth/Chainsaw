@@ -36,7 +36,7 @@ Inventeringen av appen mot besluten, i ordning efter vad som gör mest för för
    GraphViewModel); *Ctrl+K* hårdkodat i kommandoraden; `Toggle.Switch` saknar hovring; bildspråkets *?* kan krocka med
    pillret vid 600 px höjd; inaktuella rader i TESTER-INFOR och HANDOFF *Nästa steg*. (Grafens hörn utan ärende och
    Nytt → Etikett-tipset är rättade.)
-2. **GR6, tom graf med guidenoder** (väntar på val).
+2. **GR6b, tom graf med guidenoder**, mer hjälpsam (GR6c ritas).
 3. **Öppna ett ärende** går bara med `/open`: ingen lista över senaste ärenden, inget Ctrl+O, ärendet i titelraden går
    inte att klicka, `/close` och `/verify` saknar knapp. Skissas (ÄV1).
 4. **Sex vyer är platshållare** (Tidslinje, Flöde, Exponering, Begäran, Etiketter, Terminal) men syns som byggda i
