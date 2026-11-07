@@ -71,9 +71,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   stor graf (en prick per tx blir för många) behöver bestämmas.
 - **Mixerns troliga utgångar** i grafen (GR3a: streckad linje och streckad nod, *Kandidat*), med godkänn och avfärda.
   Kräver analysen som föreslår dem (belopp minus avgift, tid, adresstyp).
-- **Ta tillbaka i grafen** (etapp 16): en etikett (`IAttributionService.Retract`) och en länk till en annan kedja
-  (`ITracingService.UnlinkCrossChain`) kan bara tas tillbaka i modulerna, inte i inspektören; en uppbrytning kan inte
-  tas tillbaka alls (se *Klustring*). IN1a har inga knappar för det. Behöver skiss.
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.
 - **Guidens figurer** (GD1b och GD1a): skisserna har små figurer i avsnitten (UTXO, common-input-ownership, växeln,
@@ -176,9 +173,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   mönster per mixer. Kandidater som användaren godkänner eller avfärdar. Fråga kryptospåraren vilka mixers som syns oftast.
 - **Tjänster ur beteende:** en börs insättningsadresser (många insättningar som sveps till samma hot wallet),
   utbetalningar i batch, konsolidering. Etapp 6 slår ihop insättningsadresserna i en sweep men säger inte *börs*.
-- **Godkänna ett förslag och ångra en uppbrytning** (etapp 6): förslag syns men kan inte göras till en
-  sammanslagning, och en uppbrytning kan inte tas tillbaka. Båda behöver en egen förseglad post med vem och varför
-  (en manuell sammanslagning som en egen *analys*, `user v1`). Byggs med gränssnittet för kluster.
+- **Godkänna ett förslag** (etapp 6): förslag syns men kan inte göras till en sammanslagning. Det behöver en egen
+  förseglad post med vem och varför (en manuell sammanslagning som en egen *analys*, `user v1`), och kommer med
+  kontrollerna och förslagen (KF1a, etapp 22). Att ångra en uppbrytning byggdes i etapp 21.
 - **Fler tecken för växeln:** jämna belopp i SEK eller USD vid tx:ens tid (kräver kurser), plånbokens fingeravtryck
   (tx-version, locktime, RBF, ordningen på outputs), och adressens hela historik från källan i stället för bara det
   ärendet känner till (*ny adress* är nu *inte sedd i ärendet*).

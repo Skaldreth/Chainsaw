@@ -634,3 +634,32 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
   fäller ut licenserna ur `THIRD_PARTY.md`.
 - När `settings.json` inte går att skriva (till exempel skrivskyddad) säger dialogen det, och valet gäller tills
   Chainsaw stängs.
+
+## Historik, ta tillbaka och ångra (etapp 21, AN1b)
+
+Ett ärende med en startpunkt, ett kluster, en egen etikett, en uppbrytning och en länk till Ethereum (gör dem med L, U
+och K först).
+
+- Välj en nod: under rubriken står flikarna **Fakta** och **Historik · N**, med accentlinjen under den valda. En linje
+  har inga flikar. L, U eller K när Historik är vald byter till Fakta och öppnar formuläret där.
+- Historiken står i tidsordning på en tunn linje: *Först in* (block och på kedjan) tonad, *Klustrad* med streckad ram,
+  etiketter med sortens ikon och färg, *Uppbruten · N ut* och *Länk till annan kedja* (lila, streckad). Tiden står kort
+  till höger; hovra raden för lokal tid och UTC.
+- *Ta tillbaka* på en egen etikett fäller ut **Skäl** (frivilligt), *Biblioteket får veta* och *Står kvar, överstruket*.
+  Skälets fält har tangentbordet direkt; **Enter** sparar utan skäl, **Esc** avbryter (också när fokus står i grafen).
+  Raden står kvar överstruken och tonad, och en ny rad *Tillbakatagen: …* med vem och skäl kommer efter. Etiketten
+  försvinner ur grafen.
+- Öppna ett annat ärende som fått etiketten ur biblioteket: kopian är tillbakatagen där (en rad i journalen som inte
+  säger något om det första ärendet).
+- En etikett från ett annat ärende, en sanktionsträff och *Klustrad* har ingen knapp.
+- *Ångra* på en uppbrytning visar **Slås ihop igen** med adresserna (förkortade, hela på hovring), heuristiken på varje
+  rad och i rubriken. *Ångra* går inte att trycka förrän listan är läst. Efter Enter slås adresserna ihop i grafen igen,
+  och raden *Ångrad: uppbrytningen* kommer i historiken. Bryt ut två adresser med två olika länkar: de står som en rad
+  och ångras tillsammans.
+- Bryt upp två gånger så att två uppbrytningar håller isär samma adress, och ångra den ena: formuläret säger att inget
+  slås ihop just nu.
+- *Ta tillbaka* på en länk säger *Den streckade länken tonas bort ur grafen*; efter Enter slutar spåret vid swappen igen.
+- Ett skäl längre än 1 000 tecken går inte att skriva. Utan operatörsprofil säger formuläret varför det inte sparades.
+- Lås valvet medan ett ärende är öppet (eller gör biblioteket oläsbart) och ta tillbaka en etikett: den tas tillbaka i
+  ärendet, och grafens rad säger att biblioteket följer med när ärendet öppnas eller stängs.
+- `/verify` efter allt detta: hashkedjorna är hela.
