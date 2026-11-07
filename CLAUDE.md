@@ -251,7 +251,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   finns bara i den flytande raden längst ner** (Ctrl+K eller Ctrl+F), aldrig i huvudet eller som egen vy. Antal visas som
   en prick på ikonen, inte som en siffra. **Sidan har ingen egen rubrik** (användarens beslut 2026-11-07): pillrets valda
   ikon säger vilken vy det är, och ytan är vyns.
-  **Nytt fälls ut ur pillret** (skiss PN1, användarens beslut 2026-11-07, efter Gawks B9): + och menyn är en enda form.
+  **Undermenyer fälls ut ur pillret** (skiss PN1, användarens beslut 2026-11-07, efter Gawks B9): pillret är huvudmenyn,
+  och en knapp i det kan ha en **undermeny** som fälls ut som en del av knappen: knappen växer till en flik förbi pillrets
+  kant och går över i menyn, en enda form med samma yta, kant och skugga och ett rundat inre hörn. Det är det allmänna
+  sättet att visa undermenyer i pillret; Nytt är den första.
   **Fönstret har runda hörn som Gawk** (Windows 11 ritar dem, `Interop/WindowFrame.cs`; användarens beslut 2026-11-07).
 - **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, på låsskärmens fält) och
   **Nytt ärende är NC1a** (en panel från höger som mörkar resten, som kan bli ärendets egenskaper senare). Användaren lät
