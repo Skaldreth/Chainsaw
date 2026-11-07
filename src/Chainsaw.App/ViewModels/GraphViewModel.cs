@@ -621,7 +621,10 @@ public sealed partial class GraphViewModel : ObservableObject
         {
             if (version == _version)
             {
-                Notice = ExpandFailedText;
+                // Say why, so that the user can tell a source that refused from a fault (a cancelled one says nothing).
+                Notice = exception is OperationCanceledException
+                    ? ExpandFailedText
+                    : $"{ExpandFailedText} {exception.Message}";
             }
         }
         finally

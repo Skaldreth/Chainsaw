@@ -351,6 +351,11 @@ public sealed partial class SourcesViewModel : ObservableObject
                 ProbeText = NotSentText;
             }
         }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // A round that fails is said on the page, never left to close Chainsaw.
+            ProbeText = $"Provet misslyckades: {exception.Message}";
+        }
         finally
         {
             IsProbing = false;

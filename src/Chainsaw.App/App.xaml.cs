@@ -49,6 +49,7 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        CrashGuard.Guard(this);
         var argument = e.Args.Length > 0 ? e.Args[0] : string.Empty;
         _instance = SingleInstance.TryAcquire();
         if (_instance is null)
