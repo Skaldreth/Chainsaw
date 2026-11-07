@@ -17,6 +17,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   ska kunna frågas oftare.
 - **Rapporten:** hur redovisningen byggs (som i Gawk med bilagor, eller enklare underlag för underrättelse). Bestäms när vi
   kommer dit.
+- **Ärendefilens nyckel och kollegans fil** (etapp 2, inför etapp 3): valvet ger nu nycklar per syfte ur datanyckeln
+  (`IPurposeKeys`), men datanyckeln är personlig för datorn. Ett ärende som bara låses med en sådan nyckel går inte att
+  öppna hos en kollega (CLAUDE.md, *Etiketter smittar*: "också när det är en kollegas fil") och går förlorat om
+  huvudnyckeln glöms. Säkraste förslaget till etapp 3: varje ärende får en egen slumpad nyckel som lindas in med
+  syftesnyckeln och dessutom med ett ärendelösenord som kan lämnas vidare. Bekräfta modellen med användaren.
+- **Glömd huvudnyckel:** valvet går inte att återställa (det är meningen). Ska det finnas en återställningsnyckel att
+  skriva ut vid förstagångsinställningen, eller räcker det att valvet skapas på nytt och API-nycklarna matas in igen?
 - **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Användaren frågar kryptospåraren vilken som används i praktiken (planerat 2026-11-08).
 
 ## Väntar på skiss
@@ -67,6 +74,15 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Mallar** för en begäran till börser, på svenska och engelska, med tx, tider, belopp och insättningsadresser.
 - **Börsernas kontaktvägar** för brottsbekämpande myndigheter (portaler och adresser). Varje uppgift ska verifieras och ha en
   källa och ett datum; inga påhittade kontaktvägar.
+
+### Säkerhet
+- **Klartext i minnet:** API-nycklarnas hemligheter och profilen ligger som `string` medan valvet är upplåst och kan inte
+  nollställas, och JSON-bufferten vid kryptering är inte fäst (pinned). Kan skärpas med en egen serialisering till en
+  fäst buffert och `char[]` för hemligheterna (granskningen etapp 2, M).
+- **Unicode-normalisering av huvudnyckeln** (NFC) innan den härleds, så att samma nyckel skriven med olika
+  inmatningsmetoder ger samma resultat.
+- **DPAPI för bevakningsprocessen** (CLAUDE.md, *Bevaka*): bevakningens adresser krypteras för Windows-användaren, utanför
+  valvet. Byggs med bevakningen.
 
 ### Övrigt
 - **Länken `chainsaw:`** registrerad för användaren, ett exemplar av Chainsaw som tar emot länkar, och vänta på upplåsning.

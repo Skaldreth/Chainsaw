@@ -18,3 +18,13 @@ Det som är byggt men inte kan provas i molnmiljön (Linux), per område: vad ma
 - Ctrl+K och Ctrl+F lägger markören i kommandoraden längst ner; ramen blir magenta.
 - Text i kommandoraden och Enter: *Kommandon och sökning är inte byggda än* visas ovanför raden; Esc tömmer allt.
 - Kommandoradens text är skarp (skuggan får inte göra den suddig).
+
+## Valvet (etapp 2, Security)
+
+Valvet har inget gränssnitt än; det provas när förstagångsinställningen och låsskärmen byggs.
+
+- Valvet hamnar i `%LOCALAPPDATA%\Chainsaw\vault.json` och innehåller bara format, version, salt, iterationer och
+  krypterade fält (Base64), inga namn eller nycklar i klartext.
+- Att låsa upp tar under ungefär en sekund på en vanlig arbetsstation (PBKDF2-SHA512, 600 000 iterationer), och
+  gränssnittet fryser inte under tiden.
+- Ingen `vault.json.tmp` ligger kvar efter att valvet sparats.

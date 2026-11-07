@@ -10,6 +10,8 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
   testprojekt per modul.
 - **Etapp 1, skalet SH1b och temat** (2026-11-07, DEV-LOG): titelraden, ikonlisten, tomma sidor per vy, kommandoraden
   längst ner och statusraden. 41 tester gröna. **Inte provat på Windows**, se `docs/TESTER-INFOR-1.0.md`.
+- **Etapp 2, Security** (2026-11-07, DEV-LOG): valvet med huvudnyckel, inlindad datanyckel, API-nycklar,
+  operatörsprofilen och nycklar per syfte (`IPurposeKeys`) till etapp 3. Inget gränssnitt.
 
 ## Nattkörningen 2026-11-07
 
@@ -18,7 +20,7 @@ session. Etapperna i ordning; en etapp som är klar markeras här av huvudsessio
 
 | Etapp | Innehåll | Läge |
 | --- | --- | --- |
-| 2 | **Security:** huvudnyckeln (PBKDF2-SHA512, 600 000 iterationer), datanyckeln (AES-256-GCM) som lindas in, valvet i `%LOCALAPPDATA%\Chainsaw\` för API-nycklar, operatörsprofilen, låst och upplåst läge | Väntar |
+| 2 | **Security:** huvudnyckeln (PBKDF2-SHA512, 600 000 iterationer), datanyckeln (AES-256-GCM) som lindas in, valvet i `%LOCALAPPDATA%\Chainsaw\` för API-nycklar, operatörsprofilen, låst och upplåst läge | Klar |
 | 3 | **Cases:** ärendefilen `.cut` (SQLite3 Multiple Ciphers, nyckel ur valvet), schemamigreringar per modul, journalen och hashkedjan som bara fylls på, `/verify` som tjänst | Väntar |
 | 4 | **Network:** utgångarna som modell och `IExitHttp`, som **vägrar** när ingen utgång är ansluten (princip 4); WireGuard-tunneln själv senare | Väntar |
 | 5 | **Chains:** Bitcoin-modellen (block, tx, inputs, outputs, adresser i `Satoshi`), `IBitcoinSource`, Esplora-källan genom `IExitHttp`, varje råsvar sparat med SHA-256 och blockhöjd i ärendet, offline ur ärendet; tester mot syntetiska svar | Väntar |
