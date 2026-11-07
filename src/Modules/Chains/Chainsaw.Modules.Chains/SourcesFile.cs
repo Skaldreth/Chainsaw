@@ -19,7 +19,7 @@ internal sealed record SavedChain(Chain Chain, SourceMode Mode, IReadOnlyList<So
 /// <param name="directory">The folder, or <see langword="null"/> to keep everything in memory.</param>
 internal sealed class SourcesFile(string? directory)
 {
-    /// <summary>How the file is written: indented and with the choices as words, so that it can be read by hand.</summary>
+    /// <summary>How the file is written: indented and with the choices as words, readable by hand.</summary>
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,

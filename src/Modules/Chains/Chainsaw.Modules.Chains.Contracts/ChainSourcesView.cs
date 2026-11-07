@@ -2,7 +2,7 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains.Contracts;
 
-/// <summary>An endpoint as the settings show it: its latest probe, whether it failed since and whether it is used.</summary>
+/// <summary>An endpoint as the settings show it: its latest probe, whether it failed since and is used.</summary>
 /// <param name="Endpoint">The endpoint.</param>
 /// <param name="Probe">Its latest probe, or <see langword="null"/> when it has not been tried.</param>
 /// <param name="FailedSince">

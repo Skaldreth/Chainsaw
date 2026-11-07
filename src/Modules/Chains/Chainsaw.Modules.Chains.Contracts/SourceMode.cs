@@ -1,6 +1,8 @@
 namespace Chainsaw.Modules.Chains.Contracts;
 
-/// <summary>How Chainsaw chooses among a chain's endpoints (CLAUDE.md, <em>Källornas adresser hanteras per kedja</em>).</summary>
+/// <summary>
+/// How Chainsaw chooses among a chain's endpoints (CLAUDE.md, <em>Källornas adresser hanteras per kedja</em>).
+/// </summary>
 public enum SourceMode
 {
     /// <summary>
@@ -9,7 +11,7 @@ public enum SourceMode
     /// </summary>
     Fastest,
 
-    /// <summary>The endpoints in the user's order; the next is taken when one fails or does not answer in time.</summary>
+    /// <summary>The endpoints in the user's order; the next is taken when one fails or is too slow.</summary>
     Priority,
 
     /// <summary>No lookups for the chain: the case answers, and the graph says <em>Av</em>.</summary>

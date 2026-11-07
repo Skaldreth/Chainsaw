@@ -71,7 +71,7 @@ public sealed class ExitWay
     /// <summary>Gets whether Windows is the way out.</summary>
     public bool IsWindows => Route == ExitRoute.Windows;
 
-    /// <summary>Gets the chains whose sources are off (<see cref="SourceMode.Off"/>), as last told on the UI thread.</summary>
+    /// <summary>Gets the chains whose sources are off (<see cref="SourceMode.Off"/>), as last told.</summary>
     public IReadOnlySet<Chain> ChainsOff => _off;
 
     /// <summary>Gets whether lookups can go now: through Windows, or through a connected exit.</summary>

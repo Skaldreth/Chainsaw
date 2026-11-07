@@ -20,8 +20,8 @@ internal sealed class ChainsSchema : ICaseSchemaContributor
     /// <summary>The columns of a raw response that are sealed, in order.</summary>
     public static readonly IReadOnlyList<string> RawResponseColumns =
     [
-        "chain", "source", "endpoint_id", "endpoint_name", "url", "kind", "subject", "status_code", "media_type", "requested_utc", "received_utc",
-        "received_local", "time_zone", "exit_id", "exit_route", "fetched_by", "sha256", "body",
+        "chain", "source", "endpoint_id", "endpoint_name", "url", "kind", "subject", "status_code", "media_type",
+        "requested_utc", "received_utc", "received_local", "time_zone", "exit_id", "exit_route", "fetched_by", "sha256", "body",
     ];
 
     /// <summary>The first version of the tables.</summary>

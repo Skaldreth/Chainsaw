@@ -176,7 +176,8 @@ public sealed class SourcesTests
         await page.AddAsync();
 
         var added = Assert.Single(_sources.Added);
-        Assert.Equal(("https://esplora.lan/api/", "esplora", "esplora-lan"), (added.Address.AbsoluteUri, added.Api, added.Key));
+        Assert.Equal(
+            ("https://esplora.lan/api/", "esplora", "esplora-lan"), (added.Address.AbsoluteUri, added.Api, added.Key));
         Assert.False(page.IsAdding);
         Assert.Equal(3, page.Rows.Count);
     }

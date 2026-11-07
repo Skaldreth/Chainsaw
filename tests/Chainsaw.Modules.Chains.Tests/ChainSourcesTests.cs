@@ -94,7 +94,8 @@ public sealed class ChainSourcesTests : IDisposable
         Assert.Equal(ProbeOutcome.Failed, view.Endpoints[1].Probe!.Outcome);
         Assert.Equal(ProbeOutcome.Failed, view.Endpoints[2].Probe!.Outcome);
         Assert.Equal(Slow, view.InUse!.Endpoint.Address.AbsoluteUri);
-        Assert.Equal([Slow, Fast, Lagging], sources.Plan(Chain.Bitcoin).Endpoints.Select(p => p.Endpoint.Address.AbsoluteUri));
+        Assert.Equal(
+            [Slow, Fast, Lagging], sources.Plan(Chain.Bitcoin).Endpoints.Select(p => p.Endpoint.Address.AbsoluteUri));
     }
 
     [Fact]

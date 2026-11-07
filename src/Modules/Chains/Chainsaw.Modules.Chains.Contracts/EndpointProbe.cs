@@ -25,7 +25,7 @@ public enum ProbeOutcome
 /// <param name="EndpointId">The endpoint tried, or <see cref="Guid.Empty"/> for an address not yet added.</param>
 /// <param name="Outcome">What it answered.</param>
 /// <param name="Height">The height it answered, or <see langword="null"/>.</param>
-/// <param name="BlockHash">The hash of the block at that height when it was asked for, or <see langword="null"/>.</param>
+/// <param name="BlockHash">The hash of the block at that height when asked for, or <see langword="null"/>.</param>
 /// <param name="Duration">How long the height took to come, or <see langword="null"/> when it did not.</param>
 /// <param name="At">When it was tried, in UTC.</param>
 /// <param name="Problem">Why it failed or was not sent, in Swedish, or <see langword="null"/>.</param>

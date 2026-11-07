@@ -11,9 +11,9 @@ namespace Chainsaw.Modules.Chains;
 
 /// <summary>
 /// Seals raw responses in the case and finds them again (principles 1 and 9). Every response is sealed with its
-/// sort of API and the endpoint it came from (id and name), address, status, times (UTC and local with the time zone), the exit it left through and the sort of way
-/// out (VPN or Windows), who fetched it, the SHA-256 of its bytes and the bytes themselves; the indexes beside it only
-/// say where to look.
+/// sort of API and the endpoint it came from (id and name), address, status, times (UTC and local with the time
+/// zone), the exit it left through and the sort of way out (VPN or Windows), who fetched it, the SHA-256 of its bytes
+/// and the bytes themselves; the indexes beside it only say where to look.
 /// </summary>
 /// <param name="timeZone">The time zone the local time is written in.</param>
 /// <param name="network">
@@ -51,7 +51,8 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork net
         var local = TimeZoneInfo.ConvertTime(response.ReceivedAt, timeZone);
         object?[] values =
         [
-            ChainName, endpoint.Api, endpoint.Id.ToString("D"), endpoint.Name, response.Uri.AbsoluteUri, kind, subject, (long)response.StatusCode,
+            ChainName, endpoint.Api, endpoint.Id.ToString("D"), endpoint.Name, response.Uri.AbsoluteUri, kind, subject,
+            (long)response.StatusCode,
             response.ContentType, Text(response.RequestedAt), Text(response.ReceivedAt), Text(local), timeZone.Id,
             response.ExitIdText, response.RouteText, JsonSerializer.Serialize(fetchedBy), sha256, body,
         ];

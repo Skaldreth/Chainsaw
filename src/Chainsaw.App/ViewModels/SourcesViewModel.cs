@@ -201,7 +201,7 @@ public sealed partial class SourcesViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(AddressProblem), nameof(HasAddressProblem), nameof(CanAdd), nameof(CanTry))]
     public partial string NewAddress { get; set; } = string.Empty;
 
-    /// <summary>Gets why the address cannot be used (<em>Bara https.</em>), or empty while it is empty or good.</summary>
+    /// <summary>Gets why the address cannot be used (<em>Bara https.</em>), or empty when empty or good.</summary>
     public string AddressProblem =>
         NewAddress.Trim().Length == 0 || SourceAddress.TryRead(NewAddress, out _, out var problem)
             ? string.Empty
@@ -431,7 +431,7 @@ public sealed partial class SourcesViewModel : ObservableObject
         await Saved(saved).ConfigureAwait(true);
     }
 
-    /// <summary>Says what a right answer to <em>Prova</em> was: <c>Höjd 921 404 · 00000000…3f2a · 38 ms</c>.</summary>
+    /// <summary>Says what a right answer to <em>Prova</em> was: <c>Höjd 921 404 · 0000…3f2a · 38 ms</c>.</summary>
     /// <param name="probe">The answer.</param>
     /// <returns>The words.</returns>
     public static string AnswerText(EndpointProbe probe)

@@ -173,7 +173,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Gets the page shown.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Title), nameof(Lead), nameof(HasLead), nameof(IsNetworkPage), nameof(IsSourcesPage),
-        nameof(IsLockPage), nameof(IsLookPage), nameof(IsLinksPage), nameof(IsPricingPage), nameof(IsProfilePage), nameof(IsAboutPage))]
+        nameof(IsLockPage), nameof(IsLookPage), nameof(IsLinksPage), nameof(IsPricingPage), nameof(IsProfilePage),
+        nameof(IsAboutPage))]
     public partial SettingsPage Page { get; private set; }
 
     /// <summary>Gets the page's title.</summary>

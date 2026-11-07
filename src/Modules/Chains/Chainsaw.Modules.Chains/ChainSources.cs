@@ -267,7 +267,7 @@ internal sealed class ChainSources : IChainSources
         }
     }
 
-    /// <summary>Gets whether the vault is locked, so that nothing may be asked (CLAUDE.md, <em>Säkerhet</em>).</summary>
+    /// <summary>Gets whether the vault is locked, so that nothing may be asked (CLAUDE.md, Säkerhet).</summary>
     private bool IsLocked => _vault is not null && _vault.State != VaultState.Unlocked;
 
     /// <summary>
