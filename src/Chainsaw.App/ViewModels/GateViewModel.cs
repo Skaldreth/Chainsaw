@@ -112,13 +112,11 @@ public sealed partial class GateViewModel : ObservableObject
     /// <summary>
     /// Locks because Windows was locked, the session was disconnected or the computer is going to sleep.
     /// </summary>
-    public void OnWindowsLocked()
-    {
-        if (_vault.State == VaultState.Unlocked)
-        {
-            Lock();
-        }
-    }
+    /// <remarks>
+    /// The vault is locked whenever it exists, also when it already reads as locked: an unlock that is still deriving
+    /// its key then fails, so that Chainsaw never opens behind Windows' lock screen or while the computer sleeps.
+    /// </remarks>
+    public void OnWindowsLocked() => Lock();
 
     /// <summary>Tells whether there is anything to lock.</summary>
     /// <returns><see langword="true"/> unless the lock screen is already shown.</returns>
@@ -131,7 +129,13 @@ public sealed partial class GateViewModel : ObservableObject
     /// <param name="reported">The state the event reported; only a lock is acted on without reading again.</param>
     private void OnVaultChanged(VaultState reported)
     {
-        if (reported == VaultState.Locked || _vault.State == VaultState.Locked)
+        if (_vault.State == VaultState.NotCreated)
+        {
+            // The vault file went away: only a new setup can make one, so the setup is shown.
+            HideEverything();
+            Mode = GateMode.FirstRun;
+        }
+        else if (reported == VaultState.Locked || _vault.State == VaultState.Locked)
         {
             HideEverything();
         }

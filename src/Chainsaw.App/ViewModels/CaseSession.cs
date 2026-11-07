@@ -41,7 +41,7 @@ public sealed class CaseSession
 
     /// <summary>Disposes a case; a failure to save keeps its working copy, which the next opening recovers.</summary>
     /// <param name="openCase">The case.</param>
-    private static void DisposeQuietly(ICase openCase)
+    public static void DisposeQuietly(ICase openCase)
     {
         try
         {

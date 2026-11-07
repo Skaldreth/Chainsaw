@@ -115,6 +115,27 @@ public sealed class GateViewModelTests
     }
 
     [Fact]
+    public void Windows_locking_during_an_unlock_still_locks_the_vault()
+    {
+        var rig = new GateRig(VaultState.Locked);
+
+        rig.Gate.OnWindowsLocked();
+
+        Assert.Equal(1, rig.Vault.LockCalls);
+    }
+
+    [Fact]
+    public void A_vault_that_disappears_brings_back_the_setup()
+    {
+        var rig = new GateRig(VaultState.Locked);
+
+        rig.Vault.Set(VaultState.NotCreated);
+
+        Assert.Equal(GateMode.FirstRun, rig.Gate.Mode);
+        Assert.False(rig.Gate.IsShellVisible);
+    }
+
+    [Fact]
     public void Before_the_vault_exists_there_is_nothing_to_lock()
     {
         var rig = new GateRig(VaultState.NotCreated);

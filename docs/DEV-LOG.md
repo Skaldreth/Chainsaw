@@ -696,6 +696,10 @@ på låsskärmen annars; skalet syns bara medan valvet är upplåst.
   att krascha, kättingen hålls fri från formuläret, sökvägsläsaren stänger ringen vid Z och vägrar felaktig data, långa
   rader. M i TODO: låsning mitt i inställningen avslutar den, fältets loop stannar tyst vid ett fel, hel kopia av
   bildrutan per ruta på stora skärmar, inställningen bara i filen.
+- Omgång 2: inga C eller I, fem M, alla rättade: Windows låsning eller viloläge under en pågående upplåsning låser nu
+  valvet ändå (upplåsningen misslyckas), valet av utgång skriver valvet utanför UI-tråden och ett fel där ger aldrig en
+  andra kopia, ett ärende som skapats under en låsning stängs på samma tysta sätt som annars, och ett valv som
+  försvinner medan Chainsaw är låst visar förstagångsinställningen.
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`), titel och startpunkt i första ärendet (etapp 11), vyn
 Inställningar för låsningens tid och fältets scen, raden om bevakningen när Monitoring finns.

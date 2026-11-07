@@ -247,9 +247,9 @@ public sealed partial class FirstRunViewModel : ObservableObject
     {
         try
         {
-            await _exits.SelectAsync(exit.Id);
+            await Task.Run(() => _exits.SelectAsync(exit.Id));
         }
-        catch (Exception exception) when (exception is ArgumentException or VaultException)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             // Stored but not selected; the exit's settings show it.
         }
@@ -420,7 +420,7 @@ public sealed partial class FirstRunViewModel : ObservableObject
             if (_vault.State != VaultState.Unlocked)
             {
                 // Locked while the case was created: Cases has closed it, and the lock screen stays.
-                _ = Task.Run(created.Dispose);
+                _ = Task.Run(() => CaseSession.DisposeQuietly(created));
                 return;
             }
 
