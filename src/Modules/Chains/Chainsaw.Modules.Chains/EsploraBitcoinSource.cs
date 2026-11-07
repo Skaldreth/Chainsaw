@@ -14,7 +14,9 @@ namespace Chainsaw.Modules.Chains;
 /// </summary>
 internal sealed class EsploraBitcoinSource : IBitcoinSource
 {
-    /// <summary>How old the newest known height may be before a lookup that depends on depth asks for a new one.</summary>
+    /// <summary>
+    /// How old the newest known height may be before a lookup that depends on depth asks for a new one.
+    /// </summary>
     private static readonly TimeSpan TipFreshness = TimeSpan.FromMinutes(1);
 
     /// <summary>The HTTP status for something the source does not know.</summary>
@@ -47,7 +49,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <param name="clock">The clock.</param>
     /// <param name="options">The settings.</param>
     /// <param name="timeZone">The time zone local times are recorded in.</param>
-    /// <exception cref="ArgumentException">The base address is not an absolute <c>https</c> address of its own.</exception>
+    /// <exception cref="ArgumentException">The base address is not an absolute <c>https</c> address of its
+    /// own.</exception>
     public EsploraBitcoinSource(
         IExitHttp http, IOperatorProfileStore operators, IClock clock, BitcoinSourceOptions options,
         TimeZoneInfo timeZone)
@@ -110,7 +113,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             reader => StoredTransaction(reader, txid),
             transaction => transaction.Block?.Height);
         var lookup = await LookupAsync(@case, query, cancellationToken).ConfigureAwait(false);
-        return lookup.Value is null ? lookup : await WithSpendsAsync(@case, lookup, cancellationToken).ConfigureAwait(false);
+        return lookup.Value is null
+            ? lookup
+            : await WithSpendsAsync(@case, lookup, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -198,7 +203,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         return await FetchAsync(@case, query, stored, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Asks the source, seals the response and reads it; falls back on the case's answer when it must.</summary>
+    /// <summary>
+    /// Asks the source, seals the response and reads it; falls back on the case's answer when it must.
+    /// </summary>
     /// <typeparam name="T">What is looked up.</typeparam>
     /// <param name="case">The open case.</param>
     /// <param name="query">The lookup.</param>
@@ -275,7 +282,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         {
             // Whatever the source sent, the response is sealed afterwards; a body that cannot be read is never
             // allowed to stop that (principle 1) or to escape as an exception (the contract of IBitcoinSource).
-            return (null, "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.");
+            return (null,
+                "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.");
         }
     }
 
@@ -377,7 +385,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return lookup;
         }
 
-        var outputs = transaction.Outputs.Select(output => output with { SpentBy = spends.Value[output.Index].SpentBy });
+        var outputs = transaction.Outputs.Select(
+            output => output with { SpentBy = spends.Value[output.Index].SpentBy });
         return lookup with
         {
             Value = transaction with { Outputs = [.. outputs] },
@@ -451,7 +460,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         {
             return parse(response.Body) is { } value ? (value, response) : null;
         }
-        catch (EsploraFormatException)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             return null;
         }
@@ -559,7 +568,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             var profile = _operators.Get();
             if (profile is null)
             {
-                problem = "Ingen operatörsprofil är sparad. Chainsaw hämtar inget utan att kunna säga vem som hämtade.";
+                problem =
+                    "Ingen operatörsprofil är sparad. Chainsaw hämtar inget utan att kunna säga vem som hämtade.";
             }
 
             return profile;
@@ -580,14 +590,16 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <summary>Checks the base address and makes it end in <c>/</c>.</summary>
     /// <param name="uri">The base address.</param>
     /// <returns>The checked address.</returns>
-    /// <exception cref="ArgumentException">It is not an absolute <c>https</c> address without user, query or fragment.</exception>
+    /// <exception cref="ArgumentException">It is not an absolute <c>https</c> address without user, query or
+    /// fragment.</exception>
     private static Uri CheckBaseUri(Uri uri)
     {
         ArgumentNullException.ThrowIfNull(uri);
         if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps || uri.UserInfo.Length > 0
             || uri.Query.Length > 0 || uri.Fragment.Length > 0)
         {
-            throw new ArgumentException("The Esplora base address must be https without user, query or fragment.", nameof(uri));
+            throw new ArgumentException(
+                "The Esplora base address must be https without user, query or fragment.", nameof(uri));
         }
 
         return uri.AbsoluteUri.EndsWith('/') ? uri : new Uri(uri.AbsoluteUri + "/");

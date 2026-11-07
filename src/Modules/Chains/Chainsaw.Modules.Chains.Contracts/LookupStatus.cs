@@ -24,6 +24,8 @@ public enum LookupStatus
     /// <summary>The source answered that it does not exist (or that the request was invalid).</summary>
     NotFound,
 
-    /// <summary>The lookup failed and the case has no answer; <see cref="BitcoinLookup{T}.Problem"/> says why.</summary>
+    /// <summary>
+    /// The lookup failed and the case has no answer; <see cref="BitcoinLookup{T}.Problem"/> says why.
+    /// </summary>
     Failed,
 }

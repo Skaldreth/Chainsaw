@@ -49,7 +49,9 @@ public interface IBitcoinSource
     Task<BitcoinLookup<BitcoinTransaction>> GetTransactionAsync(
         ICase @case, Txid txid, CancellationToken cancellationToken = default);
 
-    /// <summary>Gets which transactions spend a transaction's outputs, which is how the money is followed forward.</summary>
+    /// <summary>
+    /// Gets which transactions spend a transaction's outputs, which is how the money is followed forward.
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="txid">The transaction's id.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>

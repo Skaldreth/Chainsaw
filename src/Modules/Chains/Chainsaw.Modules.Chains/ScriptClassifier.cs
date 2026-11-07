@@ -115,7 +115,9 @@ internal static class ScriptClassifier
         script.Length >= 2 && script[^1] == OpCheckSig && script[0] is CompressedKeyLength or UncompressedKeyLength
         && script.Length == script[0] + 2;
 
-    /// <summary>Checks for <c>OP_m &lt;keys&gt; OP_n OP_CHECKMULTISIG</c>, roughly: a small number first and last.</summary>
+    /// <summary>
+    /// Checks for <c>OP_m &lt;keys&gt; OP_n OP_CHECKMULTISIG</c>, roughly: a small number first and last.
+    /// </summary>
     /// <param name="script">The script.</param>
     /// <returns><see langword="true"/> for bare multisig.</returns>
     private static bool IsBareMultisig(ReadOnlySpan<byte> script) =>

@@ -108,7 +108,8 @@ public sealed class ParserTests
     [InlineData("tx-bad-amount.json")]
     public void A_transaction_that_does_not_add_up_is_refused(string fixture)
     {
-        Assert.Throws<EsploraFormatException>(() => _parser.ParseTransaction(Fixtures.Bytes(fixture), Fixtures.Confirmed));
+        Assert.Throws<EsploraFormatException>(
+            () => _parser.ParseTransaction(Fixtures.Bytes(fixture), Fixtures.Confirmed));
     }
 
     [Fact]
@@ -132,7 +133,8 @@ public sealed class ParserTests
     [Fact]
     public void A_negative_amount_is_refused()
     {
-        var body = Fixtures.Text("tx-unconfirmed.json").Replace("\"value\": 20000000", "\"value\": -20000000", StringComparison.Ordinal);
+        var body = Fixtures.Text("tx-unconfirmed.json")
+            .Replace("\"value\": 20000000", "\"value\": -20000000", StringComparison.Ordinal);
 
         Assert.Throws<EsploraFormatException>(() =>
             _parser.ParseTransaction(Encoding.UTF8.GetBytes(body), Fixtures.Unconfirmed));
@@ -141,7 +143,8 @@ public sealed class ParserTests
     [Fact]
     public void A_fractional_amount_is_refused()
     {
-        var body = Fixtures.Text("tx-unconfirmed.json").Replace("\"value\": 20000000", "\"value\": 0.2", StringComparison.Ordinal);
+        var body = Fixtures.Text("tx-unconfirmed.json")
+            .Replace("\"value\": 20000000", "\"value\": 0.2", StringComparison.Ordinal);
 
         Assert.Throws<EsploraFormatException>(() =>
             _parser.ParseTransaction(Encoding.UTF8.GetBytes(body), Fixtures.Unconfirmed));
@@ -211,7 +214,8 @@ public sealed class ParserTests
     [Fact]
     public void Only_the_first_block_lacks_a_previous_block()
     {
-        var body = Fixtures.Text("block.json").Replace("\"previousblockhash\"", "\"ignored\"", StringComparison.Ordinal);
+        var body = Fixtures.Text("block.json")
+            .Replace("\"previousblockhash\"", "\"ignored\"", StringComparison.Ordinal);
 
         Assert.Throws<EsploraFormatException>(() =>
             EsploraParser.ParseBlock(Encoding.UTF8.GetBytes(body), Fixtures.Block));

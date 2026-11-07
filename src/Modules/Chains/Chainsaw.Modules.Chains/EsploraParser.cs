@@ -78,7 +78,11 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     public static IReadOnlyList<BitcoinOutputSpend> ParseOutputSpends(ReadOnlySpan<byte> body)
     {
         using var document = Open(body);
-        return [.. Array(document.RootElement).Select((element, index) => new BitcoinOutputSpend(index, ReadSpend(element)))];
+        return
+        [
+            .. Array(document.RootElement)
+                .Select((element, index) => new BitcoinOutputSpend(index, ReadSpend(element))),
+        ];
     }
 
     /// <summary>Reads a block, as from <c>/block/:hash</c>.</summary>
@@ -96,9 +100,9 @@ internal sealed class EsploraParser(BitcoinNetwork network)
             throw new EsploraFormatException("The response is another block than the one asked for.");
         }
 
-        var previous = root.TryGetProperty("previousblockhash", out var element) && element.ValueKind != JsonValueKind.Null
-            ? Hash(root, "previousblockhash")
-            : null;
+        var hasPrevious = root.TryGetProperty("previousblockhash", out var element)
+            && element.ValueKind != JsonValueKind.Null;
+        var previous = hasPrevious ? Hash(root, "previousblockhash") : null;
         var height = NonNegative(root, "height");
         if ((previous is null) != (height == 0))
         {
@@ -235,7 +239,8 @@ internal sealed class EsploraParser(BitcoinNetwork network)
         var sequence = UInt32(input, "sequence");
         if (Boolean(input, "is_coinbase"))
         {
-            var hasPrevout = input.TryGetProperty("prevout", out var prevout) && prevout.ValueKind != JsonValueKind.Null;
+            var hasPrevout = input.TryGetProperty("prevout", out var prevout)
+                && prevout.ValueKind != JsonValueKind.Null;
             if (hasPrevout || UInt32(input, "vout") != CoinbaseIndex)
             {
                 throw new EsploraFormatException("A coinbase input spends nothing.");
@@ -306,7 +311,8 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     {
         var status = Object(element);
         return Boolean(status, "confirmed")
-            ? new BlockReference(NonNegative(status, "block_height"), Hash(status, "block_hash"), UnixTime(status, "block_time"))
+            ? new BlockReference(
+                NonNegative(status, "block_height"), Hash(status, "block_hash"), UnixTime(status, "block_time"))
             : null;
     }
 

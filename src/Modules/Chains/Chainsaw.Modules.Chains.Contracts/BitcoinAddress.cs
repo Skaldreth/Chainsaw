@@ -84,7 +84,8 @@ public sealed record BitcoinAddress
         TryParse(text, out var address) ? address : throw new FormatException("Not a valid Bitcoin address.");
 
     /// <summary>Writes the address of a key hash or a script hash in Base58Check.</summary>
-    /// <param name="type"><see cref="BitcoinScriptType.PayToPublicKeyHash"/> or <see cref="BitcoinScriptType.PayToScriptHash"/>.</param>
+    /// <param name="type"><see cref="BitcoinScriptType.PayToPublicKeyHash"/> or <see
+    /// cref="BitcoinScriptType.PayToScriptHash"/>.</param>
     /// <param name="hash">The 20-byte hash.</param>
     /// <param name="network">The network.</param>
     /// <returns>The address.</returns>

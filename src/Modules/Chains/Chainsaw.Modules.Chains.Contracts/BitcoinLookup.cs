@@ -12,7 +12,8 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// The sealed raw responses the answer is built on, oldest first, and a response that was sealed but could not be
 /// used (an error status or a body that did not add up); empty when nothing was read or fetched.
 /// </param>
-/// <param name="Problem">Why there is no value or why it may be outdated, for the user; otherwise <see langword="null"/>.</param>
+/// <param name="Problem">Why there is no value or why it may be outdated, for the user; otherwise <see
+/// langword="null"/>.</param>
 public sealed record BitcoinLookup<T>(
     LookupStatus Status,
     T? Value,

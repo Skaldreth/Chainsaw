@@ -117,7 +117,8 @@ public sealed class SourceTests : IDisposable
         Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("800010"), 200);
         var settled = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
 
-        Assert.Equal(2, Http.Sent.Count(request => request.Uri.AbsolutePath.EndsWith("/tip/height", StringComparison.Ordinal)));
+        Assert.Equal(
+            2, Http.Sent.Count(request => request.Uri.AbsolutePath.EndsWith("/tip/height", StringComparison.Ordinal)));
         Assert.Equal(LookupStatus.FromCase, settled.Status);
     }
 
@@ -223,7 +224,8 @@ public sealed class SourceTests : IDisposable
         await Source.GetTipHeightAsync(_harness.Case);
         await Source.GetAddressTransactionsAsync(_harness.Case, Fixtures.WitnessKeyHash, Fixtures.Confirmed);
 
-        var again = await Source.GetAddressTransactionsAsync(_harness.Case, Fixtures.WitnessKeyHash, Fixtures.Confirmed);
+        var again = await Source.GetAddressTransactionsAsync(
+            _harness.Case, Fixtures.WitnessKeyHash, Fixtures.Confirmed);
 
         Assert.Equal(LookupStatus.FromCase, again.Status);
         Assert.Equal(2, Http.Sent.Count);
@@ -446,7 +448,8 @@ public sealed class SourceTests : IDisposable
     {
         var address = Fixtures.AddressText("wsh");
         var body = Fixtures.Text("tx-confirmed.json")
-            .Replace($"\"scriptpubkey_address\": \"{address}\"", "\"scriptpubkey_address\": 1", StringComparison.Ordinal);
+            .Replace(
+                $"\"scriptpubkey_address\": \"{address}\"", "\"scriptpubkey_address\": 1", StringComparison.Ordinal);
         Assert.NotEqual(Fixtures.Text("tx-confirmed.json"), body);
         Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}"), Encoding.UTF8.GetBytes(body), 200);
 
@@ -508,7 +511,8 @@ public sealed class SourceTests : IDisposable
         _harness.Case.Write(transaction =>
         {
             using var command = transaction.CreateCommand(
-                $"INSERT INTO chains_lookup VALUES ('bitcoin-mainnet', 'bitcoin.outspends', '{Fixtures.Confirmed}', 1, NULL)");
+                "INSERT INTO chains_lookup VALUES ('bitcoin-mainnet', 'bitcoin.outspends', "
+                + $"'{Fixtures.Confirmed}', 1, NULL)");
             return command.ExecuteNonQuery();
         });
         Http.Connected = false;

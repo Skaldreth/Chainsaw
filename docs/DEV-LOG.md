@@ -207,3 +207,90 @@ Alla C och I är rättade och har regressionstester: 155 tester i Network och 93
 
 **Återstår:** tunneln, gränssnittet och att Chains (etapp 5) gör sina uppslag genom `IExitHttp`.
 
+
+## Etapp 5 (2026-11-07): Chains, Bitcoin
+
+Modulen `Chains` utan gränssnitt: modellen för Bitcoin i Contracts, `IBitcoinSource` och Esplora-källan, registrerade i
+`AddChainsModule`.
+
+- **Modellen (fakta, princip 2):** `BitcoinTransaction` (txid, block eller obekräftad, inputs, outputs, avgift, storlek,
+  vikt, version, locktime), `BitcoinInput` (föregående txid och vout, adress, skripttyp, belopp, coinbase, sequence),
+  `BitcoinOutput` (index, skripttyp, adress, belopp, skriptet, spenderad av), `BitcoinBlock`, `BlockReference` (höjd,
+  hash, tid) som följer med allt som bygger på en bekräftad tx, och belopp alltid i `Satoshi`.
+- **Adresser och txid:** `BitcoinAddress` kan bara skapas genom kontroll: Base58Check med kontrollsumma och känd
+  versionsbyte, Bech32 för SegWit version 0 och Bech32m från version 1 (BIP 173 och 350), mainnet och testnet.
+  `Txid`, `BlockHash` och `BitcoinStartPoint` (känner igen en startpunkt i kommandoraden eller en `chainsaw:`-länk).
+- **Skripttypen läses ur skriptets byte** (P2PK, P2PKH, P2SH, P2WPKH, P2WSH, P2TR, okänd witness-version, bar multisig,
+  OP_RETURN, icke-standard), inte ur källans etikett. Chainsaw räknar fram adressen ur skriptet och vägrar svaret om
+  källans adress inte stämmer.
+- **Tolkningen kontrollerar att svaret går ihop:**
+  - inputs = outputs + avgift, och en coinbase har ingen avgift;
+  - varje belopp och varje summa ryms i 21 miljoner BTC;
+  - vikten passar storleken;
+  - en bekräftad tx har höjd, hash och tid;
+  - sidan för en adress har bara tx som rör adressen;
+  - svaret är den tx eller det block som efterfrågades.
+- **Esplora genom `IExitHttp`, bara den vägen ut.** Bas-URL i `BitcoinSourceOptions`: mempool.space som förval,
+  blockstream.info som val, och bara `https`. Förfrågan har bara sökvägen (tx, adress, block), aldrig något om ärendet.
+- **Varje råsvar förseglas** i `chains.raw_responses` innan något byggs på det, med dessa uppgifter:
+  - kedja och nät, källa, URL, sort och ämne;
+  - status och medietyp;
+  - tid för förfrågan och svar i UTC, lokal tid med tidszon;
+  - utgångens id och vem som hämtade (operatörsprofilen);
+  - SHA-256 och de råa byten.
+
+  Också svar med felstatus och svar som inte går att tolka förseglas, men de används aldrig. Två register bredvid
+  (som inte är förseglade) säger var svaren finns. Ett svar som läses tillbaka kontrolleras mot sin SHA-256, och mot den
+  sort och det ämne registret pekade på.
+- **Det som inte kan ha ändrats hämtas aldrig igen:**
+  - en tx med minst sex bekräftelser;
+  - ett block (efter hash);
+  - svaret om vem som spenderar utgångarna, när varje utgång är spenderad djupt i kedjan;
+  - en äldre sida för en adress, när alla dess tx är djupa.
+
+  Djupet räknas mot den högsta höjd ärendet känner till. Höjden hämtas högst en gång i minuten när den behövs för att
+  avgöra djupet. Adressens första sida, obekräftade tx och höjden hämtas alltid om.
+- **Offline (princip 9):** utan utgång svarar ärendet. Det som kan ha ändrats får läget *FromCaseMayBeOutdated* och en
+  text om när det hämtades, och det som saknas får *Offline* utan värde. Inget hittas på, och inget skickas.
+- **Guiden:** `docs/guide/utxo-modellen.md` och `docs/guide/adresstyper.md`.
+
+**Egna beslut:**
+- **Ingen rad i journalen per uppslag.** Den förseglade tabellen har redan vem, när och vad, och en rad per uppslag
+  skulle dränka journalen.
+- **Inget hämtas utan operatörsprofil** eller med låst valv: det måste gå att säga vem som hämtade.
+- **`IBitcoinSource` tar ärendet som argument** i varje anrop, i stället för att hålla ett *aktuellt ärende*.
+- **`/tx/:txid/outspends` är med**, fast uppdraget inte nämnde den, eftersom kedjan själv inte säger vem som spenderar
+  en output och spårning framåt behöver det. En tx får uppgiften ur ärendet (utan nytt uppslag), och en varning när
+  den kan ha ändrats.
+- **Sidbläddringen går tills en sida är tom**, i stället för att lita på källans sidstorlek (25 hos Esplora). Det
+  kostar ett uppslag till per adress men skär aldrig av historiken.
+- **404 med ett svar i ärendet** ger ärendets svar med en varning, inte *finns inte*. En tx som fallit ur mempoolen
+  syns då som "kan ha ändrats".
+- **Testdatan** görs av `tests/Chainsaw.Modules.Chains.Tests/Esplora/generate.py`, som har en egen Bech32 och Base58
+  i Python. Det gör att testerna också jämför C#-koden mot en oberoende implementation. Hasharna är påhittade.
+
+**Granskningen:** tre omgångar.
+- **Omgång 1** gav två I:
+  - Ett svar med ett tal utanför sitt intervall (till exempel `sequence: -1`) gav ett annat undantag än tolkningens
+    eget. Undantaget gick ut ur källan, och svaret förseglades aldrig.
+  - HTTP 400 lästes som *finns inte* och dolde ärendets svar.
+
+  Den gav också sex M:
+  - nätet saknades i registren;
+  - ett sparat svar kontrollerades inte mot det registret pekade på;
+  - gamla uppgifter om spenderade utgångar visades utan varning;
+  - en tx med OP_RETURN får aldrig alla utgångar spenderade (står i TODO);
+  - sidstorleken avgjorde var historiken slutade;
+  - ett odokumenterat undantag.
+- **Omgång 2:** inga C eller I. Tre M (undantag vid läsning ur ärendet, 2xx som inte var 200, långa rader) är rättade.
+
+Alla C och I är rättade och har regressionstester: 133 tester i Chains, 564 i hela lösningen.
+
+**Kvar i TODO:**
+- txid räknat ur tx:ens egna bytes och blockets huvud mot dess hash;
+- omorganisation av kedjan;
+- adressens sammanfattning;
+- utgångar som aldrig kan spenderas;
+- att jämföra flera källor.
+
+**Återstår:** att kommandoraden och grafen använder källan, kurserna och den riktiga tunneln.

@@ -109,7 +109,8 @@ public static class Bech32
     /// <param name="text">The text.</param>
     /// <param name="humanReadablePart">The prefix in lower case.</param>
     /// <param name="data">The five-bit values between the separator and the checksum.</param>
-    /// <param name="constant">Which checksum held: <see cref="Bech32Constant"/> or <see cref="Bech32mConstant"/>.</param>
+    /// <param name="constant">Which checksum held: <see cref="Bech32Constant"/> or <see
+    /// cref="Bech32mConstant"/>.</param>
     /// <returns><see langword="true"/> when the text is well formed and one of the checksums holds.</returns>
     private static bool TryDecode(string text, out string humanReadablePart, out byte[] data, out uint constant)
     {
@@ -172,7 +173,9 @@ public static class Bech32
         return lower && upper;
     }
 
-    /// <summary>Expands the prefix for the checksum: the high bits of each character, a zero, then the low bits.</summary>
+    /// <summary>
+    /// Expands the prefix for the checksum: the high bits of each character, a zero, then the low bits.
+    /// </summary>
     /// <param name="part">The prefix.</param>
     /// <returns>The values that go into the checksum.</returns>
     private static byte[] ExpandPart(string part) =>
@@ -204,7 +207,8 @@ public static class Bech32
     /// <param name="data">The values to regroup.</param>
     /// <param name="fromBits">The bits per value in.</param>
     /// <param name="toBits">The bits per value out.</param>
-    /// <param name="pad">Whether to pad the last value with zeros; when not, leftover bits must be zero and few.</param>
+    /// <param name="pad">Whether to pad the last value with zeros; when not, leftover bits must be zero and
+    /// few.</param>
     /// <returns>The regrouped values, or <see langword="null"/> when the input does not regroup cleanly.</returns>
     private static byte[]? ConvertBits(ReadOnlySpan<byte> data, int fromBits, int toBits, bool pad)
     {

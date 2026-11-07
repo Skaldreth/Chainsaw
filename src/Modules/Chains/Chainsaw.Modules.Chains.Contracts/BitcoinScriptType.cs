@@ -9,25 +9,35 @@ public enum BitcoinScriptType
     /// <summary>A script that matches no known pattern; it has no address.</summary>
     NonStandard,
 
-    /// <summary>P2PK: pay to a public key written in the script (the oldest kind); it has no address of its own.</summary>
+    /// <summary>
+    /// P2PK: pay to a public key written in the script (the oldest kind); it has no address of its own.
+    /// </summary>
     PayToPublicKey,
 
     /// <summary>P2PKH: pay to the hash of a public key; addresses start with <c>1</c>.</summary>
     PayToPublicKeyHash,
 
-    /// <summary>P2SH: pay to the hash of a script, often multisig or wrapped SegWit; addresses start with <c>3</c>.</summary>
+    /// <summary>
+    /// P2SH: pay to the hash of a script, often multisig or wrapped SegWit; addresses start with <c>3</c>.
+    /// </summary>
     PayToScriptHash,
 
-    /// <summary>P2WPKH: SegWit version 0, pay to a key hash; addresses start with <c>bc1q</c> and are 42 characters.</summary>
+    /// <summary>
+    /// P2WPKH: SegWit version 0, pay to a key hash; addresses start with <c>bc1q</c> and are 42 characters.
+    /// </summary>
     PayToWitnessPublicKeyHash,
 
-    /// <summary>P2WSH: SegWit version 0, pay to a script hash; addresses start with <c>bc1q</c> and are 62 characters.</summary>
+    /// <summary>
+    /// P2WSH: SegWit version 0, pay to a script hash; addresses start with <c>bc1q</c> and are 62 characters.
+    /// </summary>
     PayToWitnessScriptHash,
 
     /// <summary>P2TR: Taproot (SegWit version 1); addresses start with <c>bc1p</c>.</summary>
     PayToTaproot,
 
-    /// <summary>A SegWit version that is not in use yet (2–16, or 1 with another length); it has a Bech32m address.</summary>
+    /// <summary>
+    /// A SegWit version that is not in use yet (2–16, or 1 with another length); it has a Bech32m address.
+    /// </summary>
     WitnessUnknown,
 
     /// <summary>Bare multisig: the public keys are written in the script; it has no address.</summary>

@@ -23,11 +23,16 @@ public sealed class AddressTests
 
     [Theory]
     [InlineData("1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH", BitcoinScriptType.PayToPublicKeyHash, BitcoinNetwork.Mainnet)]
-    [InlineData("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", BitcoinScriptType.PayToWitnessPublicKeyHash, BitcoinNetwork.Mainnet)]
-    [InlineData("BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4", BitcoinScriptType.PayToWitnessPublicKeyHash, BitcoinNetwork.Mainnet)]
-    [InlineData("tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7", BitcoinScriptType.PayToWitnessScriptHash, BitcoinNetwork.Testnet)]
-    [InlineData("bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0", BitcoinScriptType.PayToTaproot, BitcoinNetwork.Mainnet)]
-    [InlineData("bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y", BitcoinScriptType.WitnessUnknown, BitcoinNetwork.Mainnet)]
+    [InlineData("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+        BitcoinScriptType.PayToWitnessPublicKeyHash, BitcoinNetwork.Mainnet)]
+    [InlineData("BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
+        BitcoinScriptType.PayToWitnessPublicKeyHash, BitcoinNetwork.Mainnet)]
+    [InlineData("tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7",
+        BitcoinScriptType.PayToWitnessScriptHash, BitcoinNetwork.Testnet)]
+    [InlineData("bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
+        BitcoinScriptType.PayToTaproot, BitcoinNetwork.Mainnet)]
+    [InlineData("bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y",
+        BitcoinScriptType.WitnessUnknown, BitcoinNetwork.Mainnet)]
     [InlineData("BC1SW50QGDZ25J", BitcoinScriptType.WitnessUnknown, BitcoinNetwork.Mainnet)]
     [InlineData("bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs", BitcoinScriptType.WitnessUnknown, BitcoinNetwork.Mainnet)]
     public void Test_vectors_from_BIP_173_and_350_are_valid(string text, BitcoinScriptType type, BitcoinNetwork network)
@@ -109,7 +114,8 @@ public sealed class AddressTests
             BitcoinAddress.FromHash(BitcoinScriptType.PayToPublicKeyHash, hash, BitcoinNetwork.Mainnet));
         Assert.Equal(Fixtures.Taproot, BitcoinAddress.FromWitness(1, program, BitcoinNetwork.Mainnet));
         Assert.Equal(BitcoinNetwork.Testnet,
-            BitcoinAddress.Parse(BitcoinAddress.FromHash(BitcoinScriptType.PayToScriptHash, hash, BitcoinNetwork.Testnet).Value).Network);
+            BitcoinAddress.Parse(
+                BitcoinAddress.FromHash(BitcoinScriptType.PayToScriptHash, hash, BitcoinNetwork.Testnet).Value).Network);
     }
 
     [Fact]

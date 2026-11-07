@@ -15,7 +15,8 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// <param name="Size">The size in bytes, witness data included.</param>
 /// <param name="Weight">The weight in weight units (four per byte outside the witness, one per byte inside it).</param>
 /// <param name="Version">The transaction's version field.</param>
-/// <param name="LockTime">The lock time: a block height (below 500 000 000) or a Unix time before which it is invalid.</param>
+/// <param name="LockTime">The lock time: a block height (below 500 000 000) or a Unix time before which it is
+/// invalid.</param>
 public sealed record BitcoinTransaction(
     Txid Txid,
     BlockReference? Block,
@@ -33,7 +34,9 @@ public sealed record BitcoinTransaction(
     /// <summary>Gets whether this is a coinbase transaction, which creates new coins.</summary>
     public bool IsCoinbase => Inputs.Count == 1 && Inputs[0].IsCoinbase;
 
-    /// <summary>Gets the virtual size in vbytes (the weight divided by four, rounded up), which fees are priced in.</summary>
+    /// <summary>
+    /// Gets the virtual size in vbytes (the weight divided by four, rounded up), which fees are priced in.
+    /// </summary>
     public int VirtualSize => (Weight + 3) / 4;
 
     /// <summary>Gets the sum of the outputs.</summary>

@@ -134,7 +134,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork net
         using var command = reader.CreateCommand(
             $"""
             SELECT {SelectColumns} FROM {ChainsSchema.RawResponsesTable}
-            WHERE sequence = $sequence AND chain = $chain AND status_code = 200
+            WHERE sequence = $sequence AND chain = $chain AND status_code BETWEEN 200 AND 299
                 AND ($kind IS NULL OR kind = $kind) AND ($subject IS NULL OR subject = $subject)
             """);
         Add(command, "$sequence", sequence);
