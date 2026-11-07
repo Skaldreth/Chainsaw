@@ -57,11 +57,11 @@ public partial class App : Application
     private IHost BuildHost() =>
         Host.CreateDefaultBuilder()
             .ConfigureServices(services => services
-                    .AddSingleton<IClock, SystemClock>()
-                    .AddSingleton<IUiThread>(new WpfUiThread(Dispatcher))
-                    .AddSingleton(new AppSettingsStore().Load())
-                    .AddSingleton(BuildInfo.From(typeof(App).Assembly))
-                    .AddSingleton(provider => new AutoLock(
+                .AddSingleton<IClock, SystemClock>()
+                .AddSingleton<IUiThread>(new WpfUiThread(Dispatcher))
+                .AddSingleton(new AppSettingsStore().Load())
+                .AddSingleton(BuildInfo.From(typeof(App).Assembly))
+                .AddSingleton(provider => new AutoLock(
                         provider.GetRequiredService<IClock>(),
                         provider.GetRequiredService<AppSettings>().AutoLockTimeout))
                 .AddCasesModule()
@@ -74,11 +74,11 @@ public partial class App : Application
                 .AddPricingModule()
                 .AddMonitoringModule()
                 .AddRequestsModule()
-                    .AddSingleton<CaseSession>()
-                    .AddSingleton<ShellViewModel>()
-                    .AddSingleton<LockViewModel>()
-                    .AddSingleton<FirstRunViewModel>()
-                    .AddSingleton<GateViewModel>()
+                .AddSingleton<CaseSession>()
+                .AddSingleton<ShellViewModel>()
+                .AddSingleton<LockViewModel>()
+                .AddSingleton<FirstRunViewModel>()
+                .AddSingleton<GateViewModel>()
                 .AddSingleton<MainWindow>())
             .Build();
 }

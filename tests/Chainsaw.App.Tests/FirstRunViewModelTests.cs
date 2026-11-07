@@ -225,7 +225,8 @@ public sealed class FirstRunViewModelTests
         var names = typeof(FirstRunViewModel).GetProperties().Select(p => p.Name).ToList();
 
         Assert.DoesNotContain(names, n => n.Contains("Password", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(["IsMasterKey", "IsMasterKeyChosen"], names.Where(n => n.Contains("Key", StringComparison.Ordinal)).Order());
+        var keyNames = names.Where(n => n.Contains("Key", StringComparison.Ordinal)).Order();
+        Assert.Equal(["IsMasterKey", "IsMasterKeyChosen"], keyNames);
     }
 
     private static async Task<GateRig> AtMasterKey()

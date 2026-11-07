@@ -38,7 +38,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 ## Väntar på skiss
 
 
-- Identiteten: loggan, accentfärgen, låsskärmen och förstagångsinställningen med teckenfältet.
 - Grafen (hjärtat): noder för adress, tx och kluster, expandering, slut på spåret, spårat belopp på kanterna, brus-kontroll.
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal, Guide.
@@ -285,6 +284,20 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   kopieras tillbaka är fortfarande en förlängning av kedjan och godtas, men ett ärende som två datorer ändrat
   parallellt får en rad *case.anchors-replaced* i journalen på den ena när det öppnas, med de ankare som inte nåddes.
   Hur det ska förklaras i gränssnittet bestäms med `/verify`.
+
+### Låsskärmen och förstagångsinställningen (etapp 10)
+- **Titel och startpunkt i första ärendet** (FS1a): kopplas i etapp 11, när Cases har ärendets titel och Chains
+  känner igen startpunkten.
+- **Raden om bevakningen** på låsskärmen (*En bevakning har slagit till*) när Monitoring finns.
+- **Vyn Inställningar:** låsningens tid (nu bara `AutoLockMinutes` i `settings.json`, läst vid start) och fältets
+  scen och rörelse (skissens val; nu Drift och stilla kätting).
+- **Låsning mitt i inställningen** avslutar den: efter upplåsning visas skalet, och utgången och första ärendet erbjuds
+  inte igen. En krasch mellan valvet och profilen ger ett valv utan profil, så att ärenden inte går att skapa.
+  Inställningen kunde återupptas tills den är klar (granskningen, M).
+- **Fältets loop** stannar tyst om en bildruta kastar ett fel; kunde loggas och startas om. Hela bildrutan kopieras på
+  UI-tråden varje ruta (cirka 33 MB per ruta i 4K); kunde sänka takten på stora ytor (granskningen, M).
+- **WireGuard-filens text** blir en `string` på vägen till `IExitStore` (samma sak som *Klartext i minnet*).
+- **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 
 ### Övrigt
 - **Länken `chainsaw:`** registrerad för användaren, ett exemplar av Chainsaw som tar emot länkar, och vänta på upplåsning.

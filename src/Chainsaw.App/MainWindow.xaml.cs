@@ -49,7 +49,8 @@ public partial class MainWindow : Window
         BindCommandKeys();
         BindLockKey();
         WatchActivity();
-        _idleTimer = new DispatcherTimer(IdleCheck, DispatcherPriority.Background, (_, _) => gate.CheckIdle(), Dispatcher);
+        _idleTimer = new DispatcherTimer(
+            IdleCheck, DispatcherPriority.Background, (_, _) => gate.CheckIdle(), Dispatcher);
         _idleTimer.Start();
         SystemEvents.SessionSwitch += OnSessionSwitch;
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -142,7 +143,7 @@ public partial class MainWindow : Window
         if (e.Reason is SessionSwitchReason.SessionLock or SessionSwitchReason.ConsoleDisconnect
             or SessionSwitchReason.RemoteDisconnect)
         {
-            Dispatcher.BeginInvoke(_gate.OnWindowsLocked);
+            LockFromWindows();
         }
     }
 
@@ -152,6 +153,22 @@ public partial class MainWindow : Window
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
         if (e.Mode == PowerModes.Suspend)
+        {
+            LockFromWindows();
+        }
+    }
+
+    /// <summary>
+    /// Locks at once when Windows' event comes on the UI thread (as it normally does), so that the lock is in place
+    /// before the computer sleeps; otherwise it is posted there.
+    /// </summary>
+    private void LockFromWindows()
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            _gate.OnWindowsLocked();
+        }
+        else
         {
             Dispatcher.BeginInvoke(_gate.OnWindowsLocked);
         }

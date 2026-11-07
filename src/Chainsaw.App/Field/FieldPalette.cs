@@ -1,6 +1,8 @@
 namespace Chainsaw.App.Field;
 
-/// <summary>The field's colours as 0xRRGGBB, after the sketch: grey characters on the page, the chain in the accent.</summary>
+/// <summary>
+/// The field's colours as 0xRRGGBB, after the sketch: grey characters on the page, the chain in the accent.
+/// </summary>
 /// <param name="Page">The page behind the field, the theme's background.</param>
 /// <param name="Field">The field's characters.</param>
 /// <param name="FieldAlpha">How strongly the field's characters show.</param>

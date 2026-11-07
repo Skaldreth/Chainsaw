@@ -66,7 +66,7 @@
             <!-- The lock screen (sketch ID7): the form where the sketch has it on a 1440 px page. -->
             <Grid Visibility="{Binding IsLockVisible, Converter={StaticResource Visible}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="760*" />
+                    <ColumnDefinition Width="760*" MinWidth="420" />
                     <ColumnDefinition Width="380" />
                     <ColumnDefinition Width="300*" />
                 </Grid.ColumnDefinitions>
@@ -107,7 +107,8 @@
             <!-- The first-run setup (sketch FS1a): one step at a time on the same field. -->
             <Grid Visibility="{Binding IsFirstRunVisible, Converter={StaticResource Visible}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="700*" />
+                    <!-- At least clear of the chain (x 275-385) and its quiet margin, also in a narrow window. -->
+                    <ColumnDefinition Width="700*" MinWidth="420" />
                     <ColumnDefinition Width="440" />
                     <ColumnDefinition Width="300*" />
                 </Grid.ColumnDefinitions>

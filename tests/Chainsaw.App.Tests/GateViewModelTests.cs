@@ -144,12 +144,51 @@ public sealed class GateViewModelTests
     }
 
     [Fact]
+    public async Task A_lock_while_the_first_case_is_created_keeps_the_lock_screen()
+    {
+        var rig = new GateRig(VaultState.NotCreated);
+        rig.FirstRun.Name = "Anna";
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+        await rig.FirstRun.NextAsync(new TestEntry("correct horse battery"), new TestEntry("correct horse battery"));
+        rig.FirstRun.Later();
+        rig.FirstRun.CaseNumber = "5000-K9-26";
+        rig.Cases.DuringCreate = () => rig.Vault.Lock();
+
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+
+        Assert.Equal(GateMode.Locked, rig.Gate.Mode);
+        Assert.False(rig.Gate.IsShellVisible);
+        Assert.Null(rig.Session.Current);
+    }
+
+    [Fact]
+    public async Task A_stale_unlock_after_a_lock_does_not_show_the_shell()
+    {
+        var rig = new GateRig(VaultState.Locked);
+        var posted = new List<Action>();
+        var gate = new GateViewModel(
+            rig.Vault, rig.LockScreen, rig.FirstRun, rig.Shell, rig.Session, rig.AutoLock, new QueueUi(posted));
+
+        await rig.LockScreen.UnlockAsync(new TestEntry("correct horse battery"));
+        rig.Vault.Lock();
+        posted[0]();
+
+        Assert.Equal(GateMode.Locked, gate.Mode);
+        Assert.False(gate.IsShellVisible);
+    }
+
+    [Fact]
     public void The_shell_keys_wait_while_locked_but_the_lock_key_does_not_repeat()
     {
         var rig = new GateRig(VaultState.Locked);
 
         Assert.False(rig.Gate.IsShellVisible);
         Assert.False(rig.Gate.LockCommand.CanExecute(null));
+    }
+
+    private sealed class QueueUi(List<Action> posted) : IUiThread
+    {
+        public void Post(Action work) => posted.Add(work);
     }
 
     private static async Task<GateRig> Unlocked()

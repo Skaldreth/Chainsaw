@@ -198,6 +198,13 @@ public sealed class PathPolygonsTests
         Assert.True(both.Contains(12, 12));
     }
 
+    [Theory]
+    [InlineData("H10")]
+    [InlineData("M0 0 10 0 10 10Z 20 0 30 0 30 10Z")]
+    [InlineData("M0 0 1 x")]
+    public void Path_data_that_is_not_well_formed_is_refused(string data) =>
+        Assert.Throws<FormatException>(() => PathPolygons.Parse(data));
+
     [Fact]
     public void Curves_are_refused_rather_than_drawn_wrong()
     {
@@ -467,6 +474,7 @@ public sealed class FieldRasterizerTests
         var characters = GlyphAtlas.Characters;
 
         Assert.Equal(characters.Length, characters.Distinct().Count());
-        Assert.All(FieldScene.All.SelectMany(s => s.Ramp).Concat(FieldEngine.ChainRamp), c => Assert.Contains(c, characters));
+        var used = FieldScene.All.SelectMany(s => s.Ramp).Concat(FieldEngine.ChainRamp);
+        Assert.All(used, c => Assert.Contains(c, characters));
     }
 }

@@ -12,10 +12,14 @@ namespace Chainsaw.App.ViewModels;
 public sealed partial class LockViewModel : ObservableObject
 {
     /// <summary>What the lock screen says when no exit is connected.</summary>
-    public const string ExitWaitsText = "Utgången ansluts efter upplåsning. Chainsaw slår inte upp något innan dess.";
+    public const string ExitWaitsText =
+        "Utgången ansluts efter upplåsning. Chainsaw slår inte upp något innan dess.";
 
     /// <summary>What the lock screen says when an exit stays connected while Chainsaw is locked (2026-11-07).</summary>
     public const string ExitStaysText = "Utgången står kvar, men Chainsaw slår inte upp något medan det är låst.";
+
+    /// <summary>What the lock screen says when the vault did not open for a reason it does not name.</summary>
+    public const string UnknownFailureText = "Valvet gick inte att öppna.";
 
     /// <summary>What the lock screen says when the field was empty.</summary>
     public const string EmptyKeyText = "Skriv huvudnyckeln.";
@@ -108,6 +112,12 @@ public sealed partial class LockViewModel : ObservableObject
             ErrorText = "Valvet gick inte att läsa. Kontrollera att mappen finns och går att läsa.";
             return false;
         }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Nothing unexpected may take the lock screen down; the message is never shown, it could name a path.
+            ErrorText = UnknownFailureText;
+            return false;
+        }
         finally
         {
             Secret.Clear(masterKey);
@@ -134,6 +144,6 @@ public sealed partial class LockViewModel : ObservableObject
         VaultError.UnsupportedVersion => "Valvet är skrivet av en nyare version av Chainsaw.",
         VaultError.NotCreated => "Det finns inget valv på den här datorn.",
         VaultError.Locked => string.Empty,
-        _ => "Valvet gick inte att öppna.",
+        _ => UnknownFailureText,
     };
 }

@@ -10,11 +10,14 @@ public static class FieldRasterizer
     /// <param name="frame">The frame.</param>
     /// <param name="atlas">The characters' masks, made for the same cell size.</param>
     /// <param name="palette">The colours.</param>
-    /// <param name="pixels">The buffer, row by row; at least <paramref name="width"/> times <paramref name="height"/>.</param>
+    /// <param name="pixels">
+    /// The buffer, row by row; at least <paramref name="width"/> times <paramref name="height"/>.
+    /// </param>
     /// <param name="width">The buffer's width, in device pixels.</param>
     /// <param name="height">The buffer's height, in device pixels.</param>
     /// <exception cref="ArgumentException">The buffer is too small.</exception>
-    public static void Draw(FieldFrame frame, GlyphAtlas atlas, FieldPalette palette, int[] pixels, int width, int height)
+    public static void Draw(
+        FieldFrame frame, GlyphAtlas atlas, FieldPalette palette, int[] pixels, int width, int height)
     {
         if (pixels.Length < width * height)
         {

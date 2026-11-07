@@ -127,7 +127,7 @@ public sealed class FieldScene
         return (1 - FieldNoise.Smooth(0.35, 1.25 - major * 0.25, distance)) * (0.55 + 0.45 * major);
     }
 
-    /// <summary>The landscape of the contour scene: three octaves of noise and a slow sway, thirteen lines high.</summary>
+    /// <summary>The contour scene's landscape: three octaves of noise and a slow sway, thirteen lines high.</summary>
     /// <param name="x">The horizontal position.</param>
     /// <param name="y">The vertical position.</param>
     /// <param name="t">The time.</param>

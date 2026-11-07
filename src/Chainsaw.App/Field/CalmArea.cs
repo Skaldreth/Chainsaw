@@ -2,7 +2,8 @@ namespace Chainsaw.App.Field;
 
 /// <summary>
 /// The quiet area around the form (sketch ID7): the field fades out towards the form, so that the characters never
-/// stand behind what the user reads or writes. The chain and the lantern's light fade with it.
+/// stand behind what the user reads or writes. The lantern's light fades with it; the chain stands where it is, and
+/// the forms are laid out clear of it.
 /// </summary>
 public static class CalmArea
 {

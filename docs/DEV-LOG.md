@@ -645,3 +645,58 @@ Inget gränssnitt i appen.
 
 **Återstår:** gränssnittet som visar nyckelns fingeravtryck och när den saknas, att administratören skapar nyckeln och
 bygger in den, och att byta ärendets filnyckel (för att stänga en röjd nyckel i kopior som redan lämnats ut).
+
+## Etapp 10 (2026-11-07): låsskärmen och förstagångsinställningen
+
+Byggt efter skisserna ID7a (rak kätting) och FS1a. Appen startar i förstagångsinställningen när inget valv finns och
+på låsskärmen annars; skalet syns bara medan valvet är upplåst.
+
+- **Teckenfältet** (`src/Chainsaw.App/Field/`, utan WPF): omskrivet efter asciify-engine (MIT, `THIRD_PARTY.md`) och
+  skissens JavaScript: brus och fraktalt brus, scenerna Swell, Drift, Contour och Mesh, lyktan med spår medan Ctrl
+  hålls, tyst runt formuläret (32 px marginal, 140 px övergång). Varje bildruta räknas ut och ritas till pixlar på
+  trådpoolen (`FieldEngine`, `FieldRasterizer`, tecknen som masker i `GlyphAtlas`); UI-tråden tar bara musen och
+  kopierar pixlarna. Med Windows animeringar avstängda står fältet still och ritas om bara när sidan, formuläret eller
+  lyktan ändras; dolt eller minimerat vilar det.
+- **Kättingen** (`ChainShape`): skarven ur `assets/logo/chainsaw-chain-joint.svg` (ett test håller dem lika) och
+  länkens två raka stänger, 40 enheter, upprepad rakt ner vid x 330 i skala 0,9, stilla, i magenta som är lite mörkare
+  till vänster och ljusare till höger, som i skissen. Täckningen räknas ut en gång per storlek med nio punkter per cell.
+- **Låsskärmen** (`LockViewModel`, `Views/GateView`): titelraden med loggan, *Chainsaw* och fönsterknapparna,
+  huvudnyckeln i en `PasswordBox`, fel huvudnyckel och andra fel i klartext, raderna om utgången och den automatiska
+  låsningen, *Om Chainsaw · commit* (ur `AssemblyInformationalVersion`) med version, commit och fältets ursprung.
+- **Huvudnyckeln** blir aldrig en sträng eller en egenskap: `PasswordEntry` läser `SecurePassword` rakt in i en fäst
+  `char[]`, tömmer rutan, och vymodellen ger tecknen till `IVault` på trådpoolen och nollställer dem i `finally`. Dolda
+  rutor töms när steget eller läget byts.
+- **Förstagångsinställningen** (`FirstRunViewModel`): Välkommen (namn krävs), Huvudnyckel (minst 12 tecken, två gånger;
+  skapar valvet och sparar profilen), Utgång (WireGuard-filen sparas genom `IExitStore` och väljs, eller *Senare*),
+  Första ärendet (skapas genom `ICaseStore.Create` och blir det öppna ärendet, eller *Hoppa över*).
+- **Låsning** (`GateViewModel`): Ctrl+L, efter inaktivitet (`AutoLock`, tiden i `settings.json`, förval 15 minuter),
+  när Windows låses, sessionen kopplas från eller datorn går i viloläge. Skalet döljs först, kommandoraden töms, det
+  öppna ärendet glöms och valvet låses. Skalets kortkommandon går bara när skalet visas (`WhenShown`).
+
+**Egna beslut och avsteg från skisserna:**
+- **Första ärendet har bara ärendenummer.** Cases har inget fält för titel, och startpunkten känns igen först med
+  Chains i etapp 11; skissens *Titel* och *Startpunkt* (BTC) och raden om startpunkten är utelämnade (TODO).
+- **Raden om bevakningen** (*En bevakning har slagit till*) visas inte, eftersom bevakningen inte finns.
+- **Raden om utgången** säger skissens text när ingen utgång är ansluten, och *Utgången står kvar, men Chainsaw slår
+  inte upp något medan det är låst* när den är ansluten (beslutet att en utgång står kvar vid låsning).
+- **FS1a med ID7a:s kätting:** skissen FS1a har den äldre kättingen med ögat; samma fält och kätting används i båda.
+- **Scenen är Drift**, som skissen visar först; skissens val av scen och rörelse finns inte i appen än (TODO).
+- **En minsta bredd** på kolumnen till vänster om formulären, så att kättingen aldrig hamnar bakom formuläret i ett
+  smalt fönster (kättingen tonar inte bort som fältet).
+- **Ärendet i titelraden:** ett minimalt `CaseSession` håller det öppna ärendet och namnger det; att öppna och stänga
+  ärenden kommer i etapp 11.
+- **Inställningen för låsningen** ligger i `%LOCALAPPDATA%\Chainsaw\settings.json` (`AutoLockMinutes`, 1–480) och läses
+  vid start; vyn Inställningar är inte byggd.
+
+**Granskningen:**
+- Omgång 1: inga C, ett I och tio M. I: inställningen kunde visa skalet med låst valv om en låsning kom medan första
+  ärendet skapades; nu öppnas skalet bara om inställningen visas och valvet är upplåst, och ett ärende som skapats under
+  en låsning stängs. M rättade: ett gammalt händelseanrop läser valvets läge igen, låsningen vid viloläge sker direkt
+  på UI-tråden, ett misslyckat val av utgång rapporteras inte som en dålig fil, oväntade fel ger en text i stället för
+  att krascha, kättingen hålls fri från formuläret, sökvägsläsaren stänger ringen vid Z och vägrar felaktig data, långa
+  rader. M i TODO: låsning mitt i inställningen avslutar den, fältets loop stannar tyst vid ett fel, hel kopia av
+  bildrutan per ruta på stora skärmar, inställningen bara i filen.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`), titel och startpunkt i första ärendet (etapp 11), vyn
+Inställningar för låsningens tid och fältets scen, raden om bevakningen när Monitoring finns.
+

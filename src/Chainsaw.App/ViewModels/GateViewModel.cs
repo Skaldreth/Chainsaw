@@ -53,7 +53,7 @@ public sealed partial class GateViewModel : ObservableObject
             _ => GateMode.Locked,
         };
         vault.StateChanged += (_, state) => ui.Post(() => OnVaultChanged(state));
-        firstRun.Completed += (_, _) => Open();
+        firstRun.Completed += (_, _) => OnSetupCompleted();
     }
 
     /// <summary>Gets the lock screen.</summary>
@@ -109,7 +109,9 @@ public sealed partial class GateViewModel : ObservableObject
         }
     }
 
-    /// <summary>Locks because Windows was locked, the session was disconnected or the computer is going to sleep.</summary>
+    /// <summary>
+    /// Locks because Windows was locked, the session was disconnected or the computer is going to sleep.
+    /// </summary>
     public void OnWindowsLocked()
     {
         if (_vault.State == VaultState.Unlocked)
@@ -122,15 +124,30 @@ public sealed partial class GateViewModel : ObservableObject
     /// <returns><see langword="true"/> unless the lock screen is already shown.</returns>
     private bool CanLock() => Mode != GateMode.Locked;
 
-    /// <summary>Shows what the vault's new state allows.</summary>
-    /// <param name="state">The vault's state.</param>
-    private void OnVaultChanged(VaultState state)
+    /// <summary>
+    /// Shows what the vault's state allows. The state is read again here rather than taken from the event, since a
+    /// lock may have come between the event and this post, and a stale event must never show the shell.
+    /// </summary>
+    /// <param name="reported">The state the event reported; only a lock is acted on without reading again.</param>
+    private void OnVaultChanged(VaultState reported)
     {
-        if (state == VaultState.Locked)
+        if (reported == VaultState.Locked || _vault.State == VaultState.Locked)
         {
             HideEverything();
         }
-        else if (state == VaultState.Unlocked && Mode == GateMode.Locked)
+        else if (_vault.State == VaultState.Unlocked && Mode == GateMode.Locked)
+        {
+            Open();
+        }
+    }
+
+    /// <summary>
+    /// Shows the shell when the setup is done, but only if the setup is still shown and the vault still open: a lock
+    /// while the last step worked has already shown the lock screen, and it stays.
+    /// </summary>
+    private void OnSetupCompleted()
+    {
+        if (Mode == GateMode.FirstRun && _vault.State == VaultState.Unlocked)
         {
             Open();
         }

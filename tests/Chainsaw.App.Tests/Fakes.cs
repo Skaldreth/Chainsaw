@@ -18,7 +18,7 @@ internal sealed class TestClock : IClock
     public DateTimeOffset UtcNow { get; set; } = new(2026, 11, 7, 12, 0, 0, TimeSpan.Zero);
 }
 
-/// <summary>A secret field that hands out what the test wrote, and keeps the array to check that it was cleared.</summary>
+/// <summary>A secret field that hands out what the test wrote, keeping the array to check it was cleared.</summary>
 internal sealed class TestEntry(string text) : ISecretEntry
 {
     public List<char[]> Taken { get; } = [];
@@ -206,6 +206,9 @@ internal sealed class TestCase(string caseNumber) : ICase
 
 internal sealed class TestCaseStore : ICaseStore
 {
+    /// <summary>When set, <see cref="Create"/> runs this first, so a test can lock while a case is created.</summary>
+    public Action? DuringCreate { get; set; }
+
     public List<string> Created { get; } = [];
 
     public Exception? Failure { get; set; }
@@ -223,6 +226,7 @@ internal sealed class TestCaseStore : ICaseStore
             throw Failure;
         }
 
+        DuringCreate?.Invoke();
         Created.Add(caseNumber);
         return new TestCase(caseNumber);
     }

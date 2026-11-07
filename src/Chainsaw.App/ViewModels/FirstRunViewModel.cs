@@ -210,8 +210,8 @@ public sealed partial class FirstRunViewModel : ObservableObject
 
                 return _exits.Add(name, string.Empty, ExitKind.WireGuard, File.ReadAllText(path));
             });
-            await _exits.SelectAsync(exit.Id);
             ExitName = exit.Name;
+            await SelectExitAsync(exit);
             Step = FirstRunStep.FirstCase;
         }
         catch (ArgumentException)
@@ -227,9 +227,31 @@ public sealed partial class FirstRunViewModel : ObservableObject
         {
             ErrorText = "Filen gick inte att läsa.";
         }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            ErrorText = "Utgången gick inte att spara.";
+        }
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Selects the stored exit. A failure here is not the file's fault: the exit is stored, and is chosen later in
+    /// the settings, so the setup goes on rather than inviting a second copy.
+    /// </summary>
+    /// <param name="exit">The stored exit.</param>
+    /// <returns>A task that completes when the exit is selected or the failure is passed over.</returns>
+    private async Task SelectExitAsync(ExitInfo exit)
+    {
+        try
+        {
+            await _exits.SelectAsync(exit.Id);
+        }
+        catch (Exception exception) when (exception is ArgumentException or VaultException)
+        {
+            // Stored but not selected; the exit's settings show it.
         }
     }
 
@@ -334,6 +356,11 @@ public sealed partial class FirstRunViewModel : ObservableObject
             ErrorText = "Valvet gick inte att spara. Kontrollera att mappen går att skriva i.";
             return false;
         }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            ErrorText = "Valvet gick inte att skapa.";
+            return false;
+        }
     }
 
     /// <summary>Stores the operator profile in the vault, off the UI thread.</summary>
@@ -353,6 +380,11 @@ public sealed partial class FirstRunViewModel : ObservableObject
             return false;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            ErrorText = "Profilen gick inte att spara i valvet.";
+            return false;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             ErrorText = "Profilen gick inte att spara i valvet.";
             return false;
@@ -385,6 +417,13 @@ public sealed partial class FirstRunViewModel : ObservableObject
         try
         {
             var created = await Task.Run(() => _cases.Create(number));
+            if (_vault.State != VaultState.Unlocked)
+            {
+                // Locked while the case was created: Cases has closed it, and the lock screen stays.
+                _ = Task.Run(created.Dispose);
+                return;
+            }
+
             _session.Open(created);
         }
         catch (CaseException exception)
@@ -395,6 +434,11 @@ public sealed partial class FirstRunViewModel : ObservableObject
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             ErrorText = "Ärendet gick inte att spara i ärendemappen.";
+            return;
+        }
+        catch (Exception exception) when (exception is not (OperationCanceledException or ArgumentException))
+        {
+            ErrorText = "Ärendet gick inte att skapa.";
             return;
         }
         finally

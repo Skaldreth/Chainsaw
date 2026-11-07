@@ -29,8 +29,18 @@ public sealed class PathPolygons
         var rings = new List<double[]>();
         var current = new List<double>();
         var command = ' ';
-        while (reader.Next(ref command) is { } token)
+        while (reader.Next(ref command, out var closed) is { } token)
         {
+            if (closed)
+            {
+                Close(rings, current);
+            }
+
+            if (command != 'M' && current.Count == 0)
+            {
+                throw new FormatException("A path must start with M.");
+            }
+
             switch (command)
             {
                 case 'M':
@@ -129,13 +139,15 @@ public sealed class PathPolygons
         private int _position;
 
         /// <summary>
-        /// Reads the next number, after any command letters; a Z closes nothing here (every ring is closed) and is
-        /// skipped. A command letter changes <paramref name="command"/>.
+        /// Reads the next number, after any command letters. A Z is told through <paramref name="closed"/>; another
+        /// command letter changes <paramref name="command"/>.
         /// </summary>
         /// <param name="command">The command in force; changed when a letter is read.</param>
+        /// <param name="closed">Whether a Z came before the number, which ends the ring being read.</param>
         /// <returns>The number, or <see langword="null"/> at the end.</returns>
-        public double? Next(ref char command)
+        public double? Next(ref char command, out bool closed)
         {
+            closed = false;
             while (true)
             {
                 SkipSeparators();
@@ -151,7 +163,11 @@ public sealed class PathPolygons
                 }
 
                 _position++;
-                if (character is not ('Z' or 'z'))
+                if (character is 'Z' or 'z')
+                {
+                    closed = true;
+                }
+                else
                 {
                     command = character;
                 }
@@ -175,7 +191,13 @@ public sealed class PathPolygons
                 _position++;
             }
 
-            return double.Parse(data.AsSpan(start, _position - start), NumberStyles.Float, CultureInfo.InvariantCulture);
+            if (!double.TryParse(
+                data.AsSpan(start, _position - start), NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+            {
+                throw new FormatException($"No number stands at position {start} of the path.");
+            }
+
+            return value;
         }
 
         /// <summary>Skips spaces and commas.</summary>
