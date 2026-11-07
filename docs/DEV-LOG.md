@@ -1420,3 +1420,71 @@ Annan kedja (K). Allt som skrivs går genom modulerna (Attribution `Add`, Cluste
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Inställningarna och Windows som utgång*), Utseende och
 Länkar, valet i förstagångsinställningen, och besluten i TODO.
+
+## Etapp 20 (2026-11-07): grafen och spårningen oberoende av kedjan
+
+**Byggt:**
+- **Tillgångar och belopp (SharedKernel):**
+  - `Asset` är en kedjas eget mynt (BTC, ETH, TRX) eller en token med kontrakt eller mint och decimaler. Två
+    tillgångar är samma när kedjan, sorten och kontraktet är det, aldrig efter symbolen. Ethereums kontrakt jämförs med
+    små bokstäver; TRON och Solana skrivs som de är (base58 skiljer på stora och små).
+  - `AssetAmount` är ett belopp i minsta enhet som `BigInteger` (wei kräver mer än 64 bitar). Belopp av olika
+    tillgångar kan aldrig adderas, jämföras eller blandas; det kastar. `Satoshi` finns kvar för Bitcoin, med
+    `ToAmount()` och `ToSatoshi()`.
+  - `LedgerModel` (UTXO eller konton), `Chain.Model()` och `Chain.NativeAsset()`, `ChainAddress` (adress med kedja)
+    och `ChainScope` (en modell och alla eller några av dess kedjor).
+- **Grafen (Tracing):**
+  - Kanterna är överföringar av en tillgång (`AssetTransfer`: tx som `ChainTransactionRef`, belopp, block och, på en
+    UTXO-kedja, myntet som kedjans egen detalj). En kant summerar per par, sort och tillgång.
+  - Det som bara UTXO-modellen har ligger i `TraceGraph.Utxo` (`UtxoGraph`: tx, spenderade mynt och slut vid tx).
+    `Transactions`, `Spends` och `TransactionEnds` finns kvar på grafen och pekar dit.
+  - Kantens nyckel är densamma som förut för bitcoin. Ett annat mynt lägger till kedjan, och en token kedjan och
+    kontraktet.
+  - Spårningens belopp (`TracedAmount`, `TraceResult.Traced`, `TracedTransaction`, `TraceSeed.Amount`) är
+    `AssetAmount`.
+- **Ett kontrakt per sorts kedja:**
+  - `ITracingMethod` har namn, version och `Scope`. `IUtxoTracingMethod` (FIFO och haircut, för alla UTXO-kedjor)
+    får bara beloppen (`UtxoFlow`). `IAccountTracingMethod` får ett kontos rörelser i en tillgång (in, ut och avgift)
+    och ger det spårade i varje utgående överföring, i avgifter och det som ligger kvar.
+  - `IClusteringHeuristic` har namn, version och `Scope`. `IUtxoHeuristic` har `Analyse` som förut. De fyra
+    heuristikerna är registrerade för Bitcoin.
+  - Varje kedja får de metoder och heuristiker som täcker den. En metod eller heuristik för en annan modell körs
+    aldrig på Bitcoin och nämns inte i dess journal.
+- **Appen** visar beloppen ur tillgångens egna decimaler och symbol (`AmountText.Number`, `WithUnit`). För BTC är
+  texten exakt som förut. Nodernas summor och linjernas tjocklek räknas i Bitcoins mynt (`GraphScene.Shown`) tills
+  tokens byggs efter TK1a.
+
+**Bitcoin oförändrat:** ett facit spelades in **före** omskrivningen (commiten *Record Bitcoin's graph, traces and
+sealed rows*). Det skriver ut skissernas påhittade ärende i sin helhet: grafen, FIFO och haircut med varje mynt, tx,
+kant, slut och *Varför?*, journalen och varje rad i ärendet. Ärendets slumpade id och hashkedjans hashar maskeras.
+`GoldenTests` jämför med facit, en gång som det är och en gång med en kontometod och en kontoheuristik med samma namn
+som Bitcoins registrerade bredvid. Båda är lika. Inga förseglade källor eller scheman är ändrade.
+
+**Egna beslut:**
+- **`UtxoGraph` håller Bitcoins typer** (`Txid`, `Outpoint`, `BitcoinTransaction`), och `TraceCalculator` räknar i
+  BTC. Spårningens resultat (`TraceEnd`, `TracedCoin`, `TracedTransaction`) och grafens noder har kvar `Txid` och
+  `BitcoinAddress`. Att göra dem neutrala nu hade ändrat det mesta av appen och testerna utan att någon kedja kunde
+  använda det. Det som återstår, och vid vilken kedja det behövs, står i TODO under *Kedjor och data*.
+- **UTXO-heuristikerna läser `BitcoinTransaction`**. Nästa UTXO-kedja ger kontraktet en egen tx och egna adresser.
+- **Kontomodellens heuristikkontrakt** byggs med Ethereum, när kluster och bevis kan hålla andra adresser.
+- **En tillgång i grafen** visas: nodernas in och ut summerar bara Bitcoins mynt tills tokens byggs.
+- **`UtxoFlow` vägrar outputs som är större än inputs.** Förut gav FIFO avgiften 0 för sådana uppgifter. Det kan
+  inte hända på kedjan, bara i ett trasigt svar, och spårningen vägras då med ett fel i stället för att räknas.
+- **Metoder och heuristiker kontrolleras för den kedja de täcker.** En felregistrerad metod för Ethereum stoppar
+  inte Bitcoin.
+
+**Granskningen:**
+- **Omgång 1:** inga C, tre I och tio M. Inget ändrade Bitcoins resultat, texter, förseglade rader eller journal.
+  - **I:**
+    - `Asset` jämfördes också på symbolen, så samma token med två stavningar gav två kanter med samma nyckel.
+    - Kontokontraktet saknade avgifter (gas, bränd energi).
+    - Det som fortfarande är bundet till Bitcoin stod inte nedskrivet.
+  - **M rättade:**
+    - Kantens nyckel för ett annat mynt än bitcoin får kedjan.
+    - `default(AssetAmount)` säger tydligt att den saknar tillgång.
+    - Felet när en metod ger belopp som inte ryms.
+    - Metoderna kontrolleras per kedja, som heuristikerna.
+    - `ChainScope.Chains` går inte att ändra utifrån.
+    - Radlängder.
+  - **M i DEV-LOG eller TODO:** `UtxoFlow` som vägrar, ett negativt belopp i `Parse` (bara som skillnad, nu
+    dokumenterat), facit med fler fall och ett reguljärt uttryck per överföring.

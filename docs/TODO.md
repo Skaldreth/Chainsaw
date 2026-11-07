@@ -52,13 +52,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   uppslag görs; `NetworkChange` kunde säga när datorn inte har något nät alls. Bekräfta eller välj.
 
 ## Bygga härnäst
-- **Etapp 20, grafen och spårningen oberoende av kedjan** (användarens beslut 2026-11-07, startas när 16 och 19 är klara):
-  belopp som vet sin kedja och tillgång (coin eller token med decimaler), kanter som överföringar i stället för mynt
-  (`Outpoint`), spårningsmetoderna och heuristikerna bakom ett kontrakt per sorts kedja (UTXO eller konton). Bitcoin
-  ska fungera precis som nu, utan ändring i gränssnittet. Därefter, i ordning: Ethereum med ERC-20 (4–6 etapper, källan
-  med API-nyckel i valvet, saldobaserad spårning, egna heuristiker som insättningsadresser som töms till samma
-  plånbok), TRON med USDT (2–3 etapper, återanvänder kontomodellen) och UTXO-kedjor som Litecoin efter behov (en etapp
-  var). Hur tokens och *Kan frysas* visas i grafen och inspektören skissas innan Ethereum byggs.
 
 
 ## Väntar på skiss
@@ -108,6 +101,26 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater som mixerns.
 - **TRON och USDT (TRC-20).**
 - **Fler kedjor** efter behov: Litecoin, BSC.
+- **Efter etapp 20, i ordning:** Ethereum med ERC-20 (4–6 etapper, källan med API-nyckel i valvet, saldobaserad
+  spårning, egna heuristiker som insättningsadresser som töms till samma plånbok), TRON med USDT (2–3 etapper,
+  återanvänder kontomodellen) och UTXO-kedjor som Litecoin efter behov (en etapp var). Tokens visas enligt TK1a.
+- **Det som fortfarande är bundet till Bitcoin efter etapp 20** (står i DEV-LOG, etapp 20):
+  - **Med den första kontokedjan (Ethereum):** grafens noder och adresser (`GraphNode.GraphAddresses`, `NodeOf`) blir
+    `ChainAddress`; spårningens resultat (`TraceSeed`, `TracedCoin`, `TracedTransaction.Txid`, `TracedAmount.Through`,
+    `TraceEnd.Transaction`) får `ChainTransactionRef` och myntet som UTXO-detalj; kontomodellens del av grafen bredvid
+    `UtxoGraph`; en kalkylator för kontomodellen över `IAccountTracingMethod`; heuristikkontraktet för konton
+    (`IAccountHeuristic`) när kluster och bevis kan hålla andra adresser än Bitcoins; `ITracingService` med en källa
+    per kedja i stället för `IBitcoinSource`; `BlockReference` med en blockhash i kedjans eget format.
+  - **Med nästa UTXO-kedja (Litecoin, Zcash):** `UtxoGraph` får sin kedja och tillgång (i dag räknar
+    `TraceCalculator` alltid i BTC), och UTXO-kontraktet en egen tx och egna adresser (eller `BitcoinTransaction` och
+    `BitcoinAddress` en kedja), eftersom `BitcoinAddress` inte tar `ltc1` eller `t1`. `CrossChainLink.From` blir ett
+    mynt på vilken UTXO-kedja som helst.
+- **Facit för Bitcoin (granskningen av etapp 20, M):** utöka `Flows` med en länk till annan kedja, en startpunkt med del
+  av ett mynt, en adress som får två betalningar och en obekräftad tx, och spela in facit på nytt mot koden före
+  etapp 20 (commiten med facit).
+- **`ChainTransactionRef.Of(Txid)`** kontrollerar en txid som redan är kontrollerad med ett reguljärt uttryck, för varje
+  överföring i varje bygge av grafen (granskningen av etapp 20, M). Billigt, men kan tas bort med en konstruktor som
+  litar på `Txid`.
 - **Solana och SOL** (användarens fråga 2026-11-07), efter Ethereum (uppskattningsvis 3–4 etapper): kontomodellen från
   etapp 20 och Ethereum, men tokens (SPL, Token-2022) ligger i egna tokenkonton som måste knytas till ägaren, en tx har
   många instruktioner som läses per program (System, Token, DEX-swappar som Jupiter och Raydium), och historiken kräver
