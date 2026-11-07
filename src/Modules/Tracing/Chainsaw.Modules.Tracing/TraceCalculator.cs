@@ -24,20 +24,29 @@ internal sealed class TraceCalculator
     /// <summary>The coins that hold traced money, in the order they were reached.</summary>
     private readonly Dictionary<Outpoint, Holding> _holdings = [];
 
+    /// <summary>Stops the trace between steps.</summary>
+    private readonly CancellationToken _cancellationToken;
+
     /// <summary>Creates a calculator.</summary>
     /// <param name="graph">The graph.</param>
     /// <param name="method">The method.</param>
-    private TraceCalculator(TraceGraph graph, ITracingMethod method) => (_graph, _method) = (graph, method);
+    /// <param name="cancellationToken">Stops the trace between steps.</param>
+    private TraceCalculator(TraceGraph graph, ITracingMethod method, CancellationToken cancellationToken) =>
+        (_graph, _method, _cancellationToken) = (graph, method, cancellationToken);
 
     /// <summary>Traces money through a graph.</summary>
     /// <param name="graph">The graph.</param>
     /// <param name="method">The method.</param>
     /// <param name="seeds">The coins the money starts in.</param>
+    /// <param name="cancellationToken">Stops the trace between steps; a large graph can take a while.</param>
     /// <returns>The result.</returns>
     /// <exception cref="ArgumentException">A seed is not valid (see <see cref="ITracingService.Trace"/>).</exception>
     /// <exception cref="InvalidOperationException">The method created or lost money.</exception>
-    public static TraceResult Trace(TraceGraph graph, ITracingMethod method, IReadOnlyList<TraceSeed> seeds) =>
-        new TraceCalculator(graph, method).Run(seeds);
+    /// <exception cref="OperationCanceledException">The trace was stopped.</exception>
+    public static TraceResult Trace(
+        TraceGraph graph, ITracingMethod method, IReadOnlyList<TraceSeed> seeds,
+        CancellationToken cancellationToken = default) =>
+        new TraceCalculator(graph, method, cancellationToken).Run(seeds);
 
     /// <summary>Runs the trace.</summary>
     /// <param name="seeds">The seeds.</param>
@@ -66,6 +75,7 @@ internal sealed class TraceCalculator
         var counted = new List<TracedTransaction>();
         foreach (var txid in InOrder(reached))
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             if (Count(txid, ends) is { } transaction)
             {
                 counted.Add(transaction);
@@ -142,6 +152,7 @@ internal sealed class TraceCalculator
         var pending = new Stack<Outpoint>(coins);
         while (pending.TryPop(out var coin))
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             if (_steps.ContainsKey(coin))
             {
                 continue;

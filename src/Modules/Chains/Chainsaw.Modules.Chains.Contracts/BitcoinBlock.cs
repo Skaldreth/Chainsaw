@@ -21,4 +21,12 @@ public sealed record BitcoinBlock(
     int TransactionCount,
     long Size,
     long Weight,
-    long Version);
+    long Version)
+{
+    /// <summary>
+    /// Gets whether Chainsaw has checked this description against the block's own 80-byte header, sealed in the case:
+    /// the header hashes to the block's hash, meets the target its own bits name, and has this version, previous
+    /// block, merkle root and time.
+    /// </summary>
+    public bool HeaderVerified { get; init; }
+}

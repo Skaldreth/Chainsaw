@@ -15,6 +15,10 @@ namespace Chainsaw.Modules.Chains;
 /// deep enough the answer cannot change. <see langword="null"/> when it can still change.
 /// </param>
 /// <param name="NeverChanges">Whether the answer can never change (a block by its hash).</param>
+/// <param name="Changed">
+/// Says what differs in a fresh answer from the case's earlier one when that matters to the user (a transaction
+/// that has left its block), or gives <see langword="null"/>; <see langword="null"/> when nothing is compared.
+/// </param>
 internal sealed record LookupQuery<T>(
     string Kind,
     string Subject,
@@ -23,5 +27,6 @@ internal sealed record LookupQuery<T>(
     Func<T, ResponseIndex> Index,
     Func<ICaseReader, (T Value, StoredResponse Response)?> FindStored,
     Func<T, long?> SettledAt,
-    bool NeverChanges = false)
+    bool NeverChanges = false,
+    Func<T, T, string?>? Changed = null)
     where T : class;

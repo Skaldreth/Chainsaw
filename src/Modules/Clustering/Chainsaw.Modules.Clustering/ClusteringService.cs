@@ -158,6 +158,30 @@ internal sealed class ClusteringService : IClusteringService
     }
 
     /// <inheritdoc/>
+    public IReadOnlyDictionary<BitcoinAddress, Cluster> GetClusters(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var graph = Graph(@case);
+        var clusters = new Dictionary<BitcoinAddress, Cluster>();
+        foreach (var address in addresses.Where(address => address is not null))
+        {
+            if (clusters.ContainsKey(address))
+            {
+                continue;
+            }
+
+            var cluster = graph.ClusterOf(address);
+            foreach (var member in cluster.Addresses)
+            {
+                clusters.TryAdd(member, cluster);
+            }
+        }
+
+        return clusters;
+    }
+
+    /// <inheritdoc/>
     public IReadOnlyList<ClusterLink>? ExplainConnection(ICase @case, BitcoinAddress from, BitcoinAddress to)
     {
         ArgumentNullException.ThrowIfNull(from);

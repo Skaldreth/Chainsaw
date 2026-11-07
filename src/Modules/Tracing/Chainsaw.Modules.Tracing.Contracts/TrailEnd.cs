@@ -138,6 +138,31 @@ public interface ITrailEndClassifier
     /// <returns>The hints; empty when the classifier knows nothing.</returns>
     IReadOnlyList<TrailEndHint> ClassifyAddress(ICase @case, BitcoinAddress address);
 
+    /// <summary>
+    /// Says for many addresses at once whether money that reaches them has reached the end of the trail, so that a
+    /// graph is classified once per build. By default it asks <see cref="ClassifyAddress"/> for each address; a
+    /// classifier that reads the case overrides it to read once.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses.</param>
+    /// <returns>The hints of each address that has any.</returns>
+    IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<TrailEndHint>> ClassifyAddresses(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var hints = new Dictionary<BitcoinAddress, IReadOnlyList<TrailEndHint>>();
+        foreach (var address in addresses.Distinct())
+        {
+            var found = ClassifyAddress(@case, address);
+            if (found.Count > 0)
+            {
+                hints[address] = found;
+            }
+        }
+
+        return hints;
+    }
+
     /// <summary>Says whether money that is spent into a transaction has reached the end of the trail.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="transaction">The transaction.</param>

@@ -1,3 +1,5 @@
+using Chainsaw.Modules.Tracing.Contracts;
+
 namespace Chainsaw.App.Graph;
 
 /// <summary>
@@ -26,6 +28,19 @@ public sealed record Viewport(double OffsetX, double OffsetY, double Zoom)
 
     /// <summary>Gets the zoom, kept within <see cref="MinimumZoom"/> and <see cref="MaximumZoom"/>.</summary>
     public double Zoom { get; } = Math.Clamp(Zoom, MinimumZoom, MaximumZoom);
+
+    /// <summary>Gives the viewport as the case stores it with the graph's view.</summary>
+    /// <returns>The stored part on screen.</returns>
+    public GraphViewport ToStored() => new(OffsetX, OffsetY, Zoom);
+
+    /// <summary>Reads a viewport the case stores with the graph's view.</summary>
+    /// <param name="stored">The stored part on screen.</param>
+    /// <returns>The viewport, its zoom kept within the limits.</returns>
+    public static Viewport FromStored(GraphViewport stored)
+    {
+        ArgumentNullException.ThrowIfNull(stored);
+        return new Viewport(stored.OffsetX, stored.OffsetY, stored.Zoom);
+    }
 
     /// <summary>Gives where a point of the surface is on screen.</summary>
     /// <param name="point">The point on the surface.</param>

@@ -52,6 +52,19 @@ public interface IClusteringService
     /// <returns>The cluster; just the address when nothing links it to another.</returns>
     Cluster GetCluster(ICase @case, BitcoinAddress address);
 
+    /// <summary>
+    /// Builds the clusters of many addresses at once, reading the case's conclusions once, so that a large graph is
+    /// not rebuilt address by address. Addresses in the same cluster share one <see cref="Cluster"/>, explained from
+    /// the first of them in the order given.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses.</param>
+    /// <returns>
+    /// The cluster of each address and of the other members of those clusters; just the address when nothing links
+    /// it to another.
+    /// </returns>
+    IReadOnlyDictionary<BitcoinAddress, Cluster> GetClusters(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
+
     /// <summary>Explains why two addresses are in the same cluster: the links on the way between them.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="from">One address.</param>

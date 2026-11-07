@@ -147,6 +147,39 @@ internal sealed class AttributionService(
     }
 
     /// <inheritdoc/>
+    public IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Label>> GetLabels(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var active = GetEntries(@case);
+        var labelled = new Dictionary<BitcoinAddress, IReadOnlyList<Label>>();
+        if (active.Count == 0 || addresses.Count == 0)
+        {
+            return labelled;
+        }
+
+        var onAddress = active.ToLookup(label => label.Subject.Address);
+        var onClusters = active.Where(label => label.Subject.Kind == LabelSubjectKind.Cluster).ToList();
+        IReadOnlyDictionary<BitcoinAddress, Cluster> clusters = onClusters.Count == 0
+            ? new Dictionary<BitcoinAddress, Cluster>()
+            : clustering.GetClusters(@case, addresses);
+        foreach (var address in addresses.Distinct())
+        {
+            var cluster = clusters.TryGetValue(address, out var found)
+                ? found.Addresses.ToHashSet()
+                : new HashSet<BitcoinAddress>();
+            var labels = LabelRules.Merge(onAddress[address].Concat(onClusters.Where(label =>
+                label.Subject.Address != address && cluster.Contains(label.Subject.Address))));
+            if (labels.Count > 0)
+            {
+                labelled[address] = labels;
+            }
+        }
+
+        return labelled;
+    }
+
+    /// <inheritdoc/>
     public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
     {
         ArgumentNullException.ThrowIfNull(@case);

@@ -32,8 +32,22 @@ internal sealed class LabelTrailEnds(IAttributionService attribution) : ITrailEn
 
     /// <inheritdoc/>
     public IReadOnlyList<TrailEndHint> ClassifyAddress(ICase @case, BitcoinAddress address) =>
+        Hints(attribution.GetLabels(@case, address));
+
+    /// <inheritdoc/>
+    public IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<TrailEndHint>> ClassifyAddresses(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
+        attribution.GetLabels(@case, addresses)
+            .Select(pair => (pair.Key, Hints: Hints(pair.Value)))
+            .Where(pair => pair.Hints.Count > 0)
+            .ToDictionary(pair => pair.Key, pair => pair.Hints);
+
+    /// <summary>Gives the ends of the trail that some labels name.</summary>
+    /// <param name="labels">The labels of one address.</param>
+    /// <returns>The hints; empty when none ends the trail.</returns>
+    private static IReadOnlyList<TrailEndHint> Hints(IEnumerable<Label> labels) =>
     [
-        .. attribution.GetLabels(@case, address)
+        .. labels
             .Select(label => (Label: label, Reason: EndFor(label.Kind)))
             .Where(pair => pair.Reason is not null)
             .Select(pair => new TrailEndHint(pair.Reason!.Value, Source(pair.Label), pair.Label.Explain())),

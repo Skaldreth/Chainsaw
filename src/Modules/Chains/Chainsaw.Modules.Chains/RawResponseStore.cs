@@ -103,16 +103,23 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork net
     /// transaction is in, whichever is higher. The chain is at least this high.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
+    /// <param name="upTo">
+    /// The last response to count, so that the height the case knew when a response was sealed can be read; every
+    /// response when <see langword="null"/>.
+    /// </param>
     /// <returns>The height, or <see langword="null"/> when the case knows of no block.</returns>
-    public long? KnownHeight(ICaseReader reader)
+    public long? KnownHeight(ICaseReader reader, long? upTo = null)
     {
         using var command = reader.CreateCommand(
             """
             SELECT MAX(height) FROM (
-                SELECT MAX(height) AS height FROM chains_lookup WHERE chain = $chain
-                UNION ALL SELECT MAX(block_height) FROM chains_bitcoin_seen WHERE chain = $chain)
+                SELECT MAX(height) AS height FROM chains_lookup
+                WHERE chain = $chain AND ($upTo IS NULL OR sequence <= $upTo)
+                UNION ALL SELECT MAX(block_height) FROM chains_bitcoin_seen
+                WHERE chain = $chain AND ($upTo IS NULL OR sequence <= $upTo))
             """);
         Add(command, "$chain", ChainName);
+        Add(command, "$upTo", upTo);
         return command.ExecuteScalar() as long?;
     }
 

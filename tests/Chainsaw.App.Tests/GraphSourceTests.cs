@@ -12,7 +12,24 @@ internal sealed class TestAttribution : IAttributionService
 {
     public Dictionary<BitcoinAddress, IReadOnlyList<Label>> Labels { get; } = [];
 
-    public IReadOnlyList<Label> GetLabels(ICase @case, BitcoinAddress address) => Labels.GetValueOrDefault(address) ?? [];
+    /// <summary>How many times one address was asked about.</summary>
+    public int SingleCalls { get; private set; }
+
+    /// <summary>How many times many addresses were asked about at once.</summary>
+    public int BatchCalls { get; private set; }
+
+    public IReadOnlyList<Label> GetLabels(ICase @case, BitcoinAddress address)
+    {
+        SingleCalls++;
+        return Labels.GetValueOrDefault(address) ?? [];
+    }
+
+    public IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Label>> GetLabels(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        BatchCalls++;
+        return addresses.Distinct().Where(Labels.ContainsKey).ToDictionary(address => address, address => Labels[address]);
+    }
 
     public LabelEntry Add(ICase @case, LabelDraft draft) => throw new NotSupportedException();
 
@@ -38,6 +55,10 @@ internal sealed class TestClustering : IClusteringService
         Asked.Add(address);
         return new Cluster(address, [new ClusterMember(address, null, null)], [], [], [], []);
     }
+
+    public IReadOnlyDictionary<BitcoinAddress, Cluster> GetClusters(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
+        addresses.Distinct().ToDictionary(address => address, address => GetCluster(@case, address));
 
     public ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions) =>
         throw new NotSupportedException();

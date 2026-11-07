@@ -133,6 +133,65 @@ internal static class GraphStateStore
         command.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Reads how the user left the graph. A stored value this build does not know (an unknown method or layout, or a
+    /// part on screen that is not finite) counts as not stored, so the default holds.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The view, or <see langword="null"/> when none is stored.</returns>
+    public static GraphViewState? ReadView(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            "SELECT method, layout, amount_labels, offset_x, offset_y, zoom FROM tracing_view WHERE id = 1");
+        using var rows = command.ExecuteReader();
+        if (!rows.Read()
+            || !Enum.TryParse<TracingMethodKind>(rows.GetString(0), out var method) || !Enum.IsDefined(method)
+            || !Enum.TryParse<GraphLayout>(rows.GetString(1), out var layout) || !Enum.IsDefined(layout)
+            || !Enum.TryParse<GraphAmountLabels>(rows.GetString(2), out var labels) || !Enum.IsDefined(labels))
+        {
+            return null;
+        }
+
+        GraphViewport? viewport = null;
+        if (!rows.IsDBNull(3) && !rows.IsDBNull(4) && !rows.IsDBNull(5))
+        {
+            var candidate = new GraphViewport(rows.GetDouble(3), rows.GetDouble(4), rows.GetDouble(5));
+            viewport = IsFinite(candidate) ? candidate : null;
+        }
+
+        return new GraphViewState(method, layout, labels, viewport);
+    }
+
+    /// <summary>Stores how the user left the graph, replacing what was stored.</summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="view">The view.</param>
+    /// <param name="utc">When.</param>
+    public static void SaveView(ICaseTransaction transaction, GraphViewState view, DateTimeOffset utc)
+    {
+        using var command = transaction.CreateCommand("""
+            INSERT INTO tracing_view (id, method, layout, amount_labels, offset_x, offset_y, zoom, updated_utc)
+            VALUES (1, $method, $layout, $labels, $x, $y, $zoom, $utc)
+            ON CONFLICT (id) DO UPDATE SET method = excluded.method, layout = excluded.layout,
+                amount_labels = excluded.amount_labels, offset_x = excluded.offset_x, offset_y = excluded.offset_y,
+                zoom = excluded.zoom, updated_utc = excluded.updated_utc
+            """);
+        command.AddParameter("$method", view.Method.ToString()).AddParameter("$layout", view.Layout.ToString())
+            .AddParameter("$labels", view.AmountLabels.ToString())
+            .AddParameter("$x", view.Viewport?.OffsetX).AddParameter("$y", view.Viewport?.OffsetY)
+            .AddParameter("$zoom", view.Viewport?.Zoom).AddParameter("$utc", Text(utc));
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>Says whether a part on screen has finite numbers and a zoom above zero.</summary>
+    /// <param name="viewport">The part on screen.</param>
+    /// <returns><see langword="true"/> when it can be used.</returns>
+    public static bool IsFinite(GraphViewport viewport)
+    {
+        ArgumentNullException.ThrowIfNull(viewport);
+        return double.IsFinite(viewport.OffsetX) && double.IsFinite(viewport.OffsetY)
+            && double.IsFinite(viewport.Zoom) && viewport.Zoom > 0;
+    }
+
     /// <summary>Seals a link to another chain.</summary>
     /// <param name="transaction">The case's transaction.</param>
     /// <param name="from">The coin.</param>

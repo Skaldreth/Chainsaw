@@ -32,6 +32,10 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>What the graph says when it could not be read.</summary>
     public const string LoadFailedText = "Grafen kunde inte läsas ur ärendet.";
 
+    /// <summary>What the graph says when the method, layout, amounts or zoom could not be stored.</summary>
+    public const string ViewSaveFailedText =
+        "Grafens läge kunde inte sparas i ärendet; det gäller tills ärendet stängs.";
+
     /// <summary>What the graph says when a place could not be stored.</summary>
     public const string SaveFailedText = "Platsen kunde inte sparas i ärendet; den gäller tills ärendet stängs.";
 
@@ -66,6 +70,15 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Stops the reading or expansion under way when the case changes.</summary>
     private CancellationTokenSource _work = new();
+
+    /// <summary>The part of the surface on screen, once the user has panned or zoomed; stored with the view.</summary>
+    private Viewport? _viewport;
+
+    /// <summary>The storing of the view under way, so that stores are made one at a time.</summary>
+    private Task _savingView = Task.CompletedTask;
+
+    /// <summary>Whether the view changed while it was being stored, so that it is stored once more.</summary>
+    private bool _viewChangedMeanwhile;
 
     /// <summary>Creates the graph for the window's open case.</summary>
     /// <param name="session">The open case.</param>
@@ -105,6 +118,12 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Gets what the page says in place of the graph; empty while a graph is shown.</summary>
     [ObservableProperty]
     public partial string EmptyText { get; private set; } = NoCaseText;
+
+    /// <summary>
+    /// Gets the part of the surface on screen that the case had stored, to be shown instead of fitting the graph the
+    /// first time it is shown after the case opened; <see langword="null"/> when there is none.
+    /// </summary>
+    public Viewport? StoredViewport { get; private set; }
 
     /// <summary>Gets the layout: the free surface or the hop columns.</summary>
     [ObservableProperty]
@@ -234,6 +253,7 @@ public sealed partial class GraphViewModel : ObservableObject
 
         Layout = layout;
         Arrange();
+        SaveView();
     }
 
     /// <summary>
@@ -250,6 +270,7 @@ public sealed partial class GraphViewModel : ObservableObject
         }
 
         Method = Other(Method);
+        SaveView();
         return ReloadAsync(fit: false);
     }
 
@@ -275,6 +296,33 @@ public sealed partial class GraphViewModel : ObservableObject
     {
         Labels = Labels.Next();
         Redraw?.Invoke(this, EventArgs.Empty);
+        SaveView();
+    }
+
+    /// <summary>
+    /// Gives the stored part of the surface on screen once, to be shown instead of fitting the graph when the case
+    /// opens; afterwards a new graph is fitted as before.
+    /// </summary>
+    /// <returns>The stored viewport, or <see langword="null"/> when the graph should be fitted.</returns>
+    public Viewport? TakeStoredViewport()
+    {
+        var stored = StoredViewport;
+        StoredViewport = null;
+        return stored;
+    }
+
+    /// <summary>Remembers where the user panned or zoomed to, and stores it with the view in the case.</summary>
+    /// <param name="viewport">The part of the surface on screen.</param>
+    public void ViewportChanged(Viewport viewport)
+    {
+        ArgumentNullException.ThrowIfNull(viewport);
+        if (viewport == _viewport)
+        {
+            return;
+        }
+
+        _viewport = viewport;
+        SaveView();
     }
 
     /// <summary>Shows or hides the legend behind the <em>?</em>.</summary>
@@ -496,18 +544,106 @@ public sealed partial class GraphViewModel : ObservableObject
     private static TracingMethodKind Other(TracingMethodKind method) =>
         method == TracingMethodKind.Fifo ? TracingMethodKind.Haircut : TracingMethodKind.Fifo;
 
-    /// <summary>Starts over for the case now open: nothing chosen, nothing moved, and the graph read anew.</summary>
+    /// <summary>
+    /// Starts over for the case now open: nothing chosen, nothing moved, the view as the case stored it (method,
+    /// layout, amounts and the part on screen), and the graph read anew.
+    /// </summary>
     private void OnCaseChanged()
     {
         _moved.Clear();
         _firstFree.Clear();
         _refreshAfterExpansion = false;
+        _viewport = null;
+        StoredViewport = null;
         Scene = null;
         SelectedNode = null;
         SelectedEdge = null;
         Inspect();
         Notice = string.Empty;
-        _ = ReloadAsync(fit: true);
+        _ = OpenAsync();
+    }
+
+    /// <summary>Reads the case's stored view off the UI thread, then the graph by its method.</summary>
+    /// <returns>A task that completes when the graph is shown or could not be read.</returns>
+    private async Task OpenAsync()
+    {
+        if (_session.Current is { } openCase)
+        {
+            var view = GraphViewState.Default;
+            try
+            {
+                view = await _source.LoadViewAsync(openCase, _work.Token);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // The defaults hold; the graph is read all the same.
+            }
+
+            if (_session.Current != openCase)
+            {
+                return;
+            }
+
+            Method = view.Method;
+            Layout = view.Layout;
+            Labels = AmountLabelModes.FromStored(view.AmountLabels);
+            StoredViewport = view.Viewport is { } stored ? Viewport.FromStored(stored) : null;
+            _viewport = StoredViewport;
+        }
+        else
+        {
+            Method = TracingMethodKind.Fifo;
+            Layout = GraphLayout.Free;
+            Labels = AmountLabelMode.All;
+        }
+
+        await ReloadAsync(fit: true);
+    }
+
+    /// <summary>
+    /// Stores the view in the case off the UI thread, one store at a time; a change made meanwhile is stored after.
+    /// </summary>
+    private void SaveView()
+    {
+        if (_session.Current is null)
+        {
+            return;
+        }
+
+        if (!_savingView.IsCompleted)
+        {
+            _viewChangedMeanwhile = true;
+            return;
+        }
+
+        _savingView = SaveViewAsync();
+    }
+
+    /// <summary>Stores the view, and again as long as it changed while it was stored.</summary>
+    /// <returns>A task that completes when the latest view is stored or could not be.</returns>
+    private async Task SaveViewAsync()
+    {
+        do
+        {
+            _viewChangedMeanwhile = false;
+            if (_session.Current is not { } openCase)
+            {
+                return;
+            }
+
+            var view = new GraphViewState(Method, Layout, Labels.ToStored(), _viewport?.ToStored());
+            try
+            {
+                await _source.SaveViewAsync(openCase, view);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // The case may have closed, or have no operator profile for the journal's line; the view still holds
+                // in this session.
+                Notice = ViewSaveFailedText;
+            }
+        }
+        while (_viewChangedMeanwhile);
     }
 
     /// <summary>Shows a new graph, keeping what is chosen when it is still there.</summary>

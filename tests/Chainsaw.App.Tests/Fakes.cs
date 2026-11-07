@@ -322,8 +322,14 @@ internal sealed class TestTracing : ITracingService
 
     public IReadOnlyList<Txid> NewPerExpansion { get; set; } = [];
 
-    public Task<TraceGraph> LoadAsync(ICase @case, CancellationToken cancellationToken = default) =>
-        Graph is { } graph ? Task.FromResult(graph) : throw new NotSupportedException();
+    /// <summary>How many times the graph was read.</summary>
+    public int Loads { get; private set; }
+
+    public Task<TraceGraph> LoadAsync(ICase @case, CancellationToken cancellationToken = default)
+    {
+        Loads++;
+        return Graph is { } graph ? Task.FromResult(graph) : throw new NotSupportedException();
+    }
 
     public bool AddStartPoint(ICase @case, TraceStartPoint startPoint)
     {
@@ -368,6 +374,66 @@ internal sealed class TestTracing : ITracingService
         Traced.Add(request);
         return Tracer is { } tracer ? tracer(graph, request) : throw new NotSupportedException();
     }
+
+    /// <summary>The tokens the asynchronous trace was given.</summary>
+    public List<CancellationToken> TraceTokens { get; } = [];
+
+    public Task<TraceResult> TraceAsync(
+        TraceGraph graph, TraceRequest request, CancellationToken cancellationToken = default)
+    {
+        TraceTokens.Add(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(Trace(graph, request));
+    }
+
+    /// <summary>The view the case holds.</summary>
+    public GraphViewState View { get; set; } = GraphViewState.Default;
+
+    /// <summary>The views stored, in order.</summary>
+    public List<GraphViewState> SavedViews { get; } = [];
+
+    public GraphViewState GetView(ICase @case) => View;
+
+    public bool SaveView(ICase @case, GraphViewState view)
+    {
+        SavedViews.Add(view);
+        var changed = view.Method != View.Method;
+        View = view;
+        return changed;
+    }
+}
+
+/// <summary>The label library as the window uses it: what was taken in and given, and a failure on demand.</summary>
+internal sealed class TestLibrary : ILabelLibrary
+{
+    public List<ICase> Absorbed { get; } = [];
+
+    public List<IReadOnlyCollection<BitcoinAddress>> Shared { get; } = [];
+
+    public IReadOnlyList<LabelEntry> ToShare { get; set; } = [];
+
+    public Exception? Failure { get; set; }
+
+    public LibraryAbsorption Absorb(ICase @case)
+    {
+        Absorbed.Add(@case);
+        return Failure is null ? new LibraryAbsorption(0, 0) : throw Failure;
+    }
+
+    public IReadOnlyList<LabelEntry> ShareInto(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        Shared.Add(addresses);
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
+
+        var given = ToShare;
+        ToShare = [];
+        return given;
+    }
+
+    public IReadOnlyList<LibraryLabel> List() => throw new NotSupportedException();
 }
 
 /// <summary>A verifier that gives what the test set.</summary>
@@ -386,7 +452,7 @@ internal sealed class GateRig
     {
         Vault = new TestVault(state);
         AutoLock = new AutoLock(Clock, TimeSpan.FromMinutes(15));
-        Workflow = new CaseWorkflow(Cases, Tracing, Vault, Session);
+        Workflow = new CaseWorkflow(Cases, Tracing, Vault, Session, Library);
         NewCase = new NewCaseViewModel(Workflow);
         var input = new StartPointInput(Workflow, Session, NewCase);
         Commands = new CommandRegistry(
@@ -407,6 +473,8 @@ internal sealed class GateRig
     }
 
     public InlineUi Ui { get; } = new();
+
+    public TestLibrary Library { get; } = new();
 
     public TestClock Clock { get; } = new();
 

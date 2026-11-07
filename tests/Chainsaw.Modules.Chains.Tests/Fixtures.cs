@@ -21,6 +21,12 @@ internal static class Fixtures
 
     public static readonly BlockHash Block = BlockHash.Parse("00000000000000000001" + Repeat("a0", 22));
 
+    /// <summary>A transaction whose txid is the double SHA-256 of its bytes in <c>tx-real-hex.txt</c>.</summary>
+    public static readonly Txid Real = Txid.Parse(Ids()["real"]);
+
+    /// <summary>A block whose hash is the double SHA-256 of its header in <c>block-real-header.txt</c>.</summary>
+    public static readonly BlockHash RealBlock = BlockHash.Parse(Ids()["block"]);
+
     private static readonly Dictionary<string, string> AddressTable =
         JsonSerializer.Deserialize<Dictionary<string, string>>(Text("addresses.json"))!;
 
@@ -45,6 +51,9 @@ internal static class Fixtures
     public static string Url(string path) => Base + path;
 
     public static string Repeat(string text, int count) => string.Concat(Enumerable.Repeat(text, count));
+
+    private static Dictionary<string, string> Ids() =>
+        JsonSerializer.Deserialize<Dictionary<string, string>>(Text("ids.json"))!;
 
     private static string PathOf(string name) => Path.Combine(AppContext.BaseDirectory, "Esplora", name);
 }

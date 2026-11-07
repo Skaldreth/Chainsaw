@@ -28,6 +28,13 @@ public sealed record BitcoinTransaction(
     long Version,
     uint LockTime)
 {
+    /// <summary>
+    /// Gets whether Chainsaw has checked this description against the transaction's own bytes, sealed in the case:
+    /// the bytes hash (double SHA-256) to the txid, and the version, inputs, outputs and lock time are the bytes'.
+    /// What the bytes do not hold, the spent outputs' amounts and addresses and the block, rests on the source.
+    /// </summary>
+    public bool BytesVerified { get; init; }
+
     /// <summary>Gets whether the transaction is in a block.</summary>
     public bool IsConfirmed => Block is not null;
 

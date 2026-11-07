@@ -85,6 +85,46 @@ internal sealed class EsploraParser(BitcoinNetwork network)
         ];
     }
 
+    /// <summary>Reads what the source says about an address as a whole, as from <c>/address/:address</c>.</summary>
+    /// <param name="body">The response's bytes.</param>
+    /// <param name="expected">The address asked for; the response must be about it.</param>
+    /// <returns>The summary.</returns>
+    /// <exception cref="EsploraFormatException">The response cannot be read or does not add up.</exception>
+    public static BitcoinAddressSummary ParseAddressSummary(ReadOnlySpan<byte> body, BitcoinAddress expected)
+    {
+        using var document = Open(body);
+        var root = Object(document.RootElement);
+        if (!string.Equals(String(root, "address"), expected.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new EsploraFormatException("The response is about another address than the one asked for.");
+        }
+
+        var confirmed = ReadStats(Property(root, "chain_stats"));
+        if (confirmed.SpentOutputs > confirmed.FundedOutputs || confirmed.Spent.Value > confirmed.Funded.Value)
+        {
+            throw new EsploraFormatException("An address cannot have spent more in blocks than it received there.");
+        }
+
+        return new BitcoinAddressSummary(expected, confirmed, ReadStats(Property(root, "mempool_stats")));
+    }
+
+    /// <summary>
+    /// Reads an address's counts and sums. The sums are not held to Bitcoin's supply, since money that passes an
+    /// address many times can add up to more than exists.
+    /// </summary>
+    /// <param name="element">The stats object.</param>
+    /// <returns>The stats.</returns>
+    private static BitcoinAddressStats ReadStats(JsonElement element)
+    {
+        var stats = Object(element);
+        return new BitcoinAddressStats(
+            NonNegative(stats, "tx_count"),
+            NonNegative(stats, "funded_txo_count"),
+            new Satoshi(NonNegative(stats, "funded_txo_sum")),
+            NonNegative(stats, "spent_txo_count"),
+            new Satoshi(NonNegative(stats, "spent_txo_sum")));
+    }
+
     /// <summary>Reads a block, as from <c>/block/:hash</c>.</summary>
     /// <param name="body">The response's bytes.</param>
     /// <param name="expected">The hash asked for; the response must be that block.</param>

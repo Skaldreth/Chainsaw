@@ -49,6 +49,17 @@ public interface IAttributionService
     IReadOnlyList<Label> GetLabels(ICase @case, BitcoinAddress address);
 
     /// <summary>
+    /// Reads the labels that apply to many addresses at once, as <see cref="GetLabels(ICase, BitcoinAddress)"/> does
+    /// for one, but reading the case's labels and clusters only once, so that a large graph is not read address by
+    /// address.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses.</param>
+    /// <returns>The labels of each address that has any; an address without labels is not in it.</returns>
+    IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Label>> GetLabels(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
+
+    /// <summary>
     /// Checks addresses against the current sanction list (<see cref="ISanctionLists.Current"/>) and labels each hit
     /// <see cref="LabelKind.Sanctioned"/> in the case, with the list's hash and date as the origin and one line in the
     /// journal. A hit already labelled from the same list, also one taken back, is not labelled again.

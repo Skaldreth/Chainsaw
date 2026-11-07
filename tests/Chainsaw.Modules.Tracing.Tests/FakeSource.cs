@@ -125,6 +125,45 @@ internal sealed class FakeSource : IBitcoinSource
         return Task.FromResult(Answer(LookupStatus.Fetched, spends, null));
     }
 
+    /// <summary>How many times a transaction was checked against its bytes.</summary>
+    public int Verifications { get; private set; }
+
+    /// <summary>The transactions whose bytes contradict their description, as a forged source's would.</summary>
+    public HashSet<Txid> Forged { get; } = [];
+
+    /// <summary>The address summaries the source gives; an address without one is not found.</summary>
+    public Dictionary<BitcoinAddress, long> TransactionCounts { get; } = [];
+
+    public async Task<BitcoinLookup<BitcoinTransaction>> VerifyTransactionAsync(
+        ICase @case, Txid txid, CancellationToken cancellationToken = default)
+    {
+        Verifications++;
+        var lookup = await GetTransactionAsync(@case, txid, LookupMode.AsNeeded, cancellationToken);
+        if (lookup.Value is null)
+        {
+            return lookup;
+        }
+
+        return Forged.Contains(txid)
+            ? Answer<BitcoinTransaction>(LookupStatus.Failed, null, "Stämmer inte med tx:ens bytes.")
+            : lookup with { Value = lookup.Value with { BytesVerified = true } };
+    }
+
+    public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
+        ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default)
+    {
+        Lookups++;
+        if (!Online || !TransactionCounts.TryGetValue(address, out var count))
+        {
+            return Task.FromResult(Answer<BitcoinAddressSummary>(
+                Online ? LookupStatus.NotFound : LookupStatus.Offline, null, null));
+        }
+
+        var stats = new BitcoinAddressStats(count, count, default, 0, default);
+        var empty = new BitcoinAddressStats(0, 0, default, 0, default);
+        return Task.FromResult(Answer(LookupStatus.Fetched, new BitcoinAddressSummary(address, stats, empty), null));
+    }
+
     public Task<BitcoinLookup<BitcoinBlock>> GetBlockAsync(
         ICase @case, BlockHash hash, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
@@ -157,7 +196,26 @@ internal sealed class FakeLabels : ITrailEndClassifier
 {
     public Dictionary<BitcoinAddress, TrailEndReason> Addresses { get; } = [];
 
-    public IReadOnlyList<TrailEndHint> ClassifyAddress(ICase @case, BitcoinAddress address) =>
+    /// <summary>How many times one address was asked about.</summary>
+    public int SingleCalls { get; private set; }
+
+    /// <summary>How many times many addresses were asked about at once.</summary>
+    public int BatchCalls { get; private set; }
+
+    public IReadOnlyList<TrailEndHint> ClassifyAddress(ICase @case, BitcoinAddress address)
+    {
+        SingleCalls++;
+        return Hints(address);
+    }
+
+    public IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<TrailEndHint>> ClassifyAddresses(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        BatchCalls++;
+        return addresses.Distinct().Where(Addresses.ContainsKey).ToDictionary(address => address, Hints);
+    }
+
+    private IReadOnlyList<TrailEndHint> Hints(BitcoinAddress address) =>
         Addresses.TryGetValue(address, out var reason)
             ? [new TrailEndHint(reason, "test-labels v1", $"Märkt i testet som {reason.Describe()}.")]
             : [];

@@ -117,14 +117,81 @@ public interface ITracingService
     /// amount is not within the coin, or a seed lies downstream of another seed.
     /// </exception>
     TraceResult Trace(TraceGraph graph, TraceRequest request);
+
+    /// <summary>
+    /// Traces money through the graph as <see cref="Trace"/> does, off the calling thread and stoppable between
+    /// steps, so that a large graph never holds up the interface (principle 6).
+    /// </summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="request">The method and the seeds.</param>
+    /// <param name="cancellationToken">Stops the trace.</param>
+    /// <returns>The traced amounts and the ends.</returns>
+    /// <exception cref="ArgumentException">As for <see cref="Trace"/>.</exception>
+    /// <exception cref="OperationCanceledException">The trace was stopped.</exception>
+    Task<TraceResult> TraceAsync(
+        TraceGraph graph, TraceRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads how the user left the graph: the tracing method, the layout, which amounts the lines carry and the part
+    /// of the surface on screen, so that the graph opens as it was left.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The view, or the defaults (FIFO, the free surface, every amount, fitted) when none is stored.</returns>
+    GraphViewState GetView(ICase @case);
+
+    /// <summary>
+    /// Stores how the user left the graph. The layout, the amounts and the part on screen are ordinary data like the
+    /// places; a change of tracing method also gets a line in the journal, since the traced amounts the user sees
+    /// rest on it (principle 2).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="view">The view.</param>
+    /// <returns><see langword="true"/> when the tracing method changed (and the journal has a line).</returns>
+    /// <exception cref="ArgumentException">A value is not known or not finite.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> when the method changed, or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    bool SaveView(ICase @case, GraphViewState view);
+}
+
+/// <summary>Which amounts the graph's lines carry (principle 7: the user can thin them out when it grows).</summary>
+public enum GraphAmountLabels
+{
+    /// <summary>Every line carries its amount.</summary>
+    All,
+
+    /// <summary>Only the lines that carry traced money.</summary>
+    Traced,
+
+    /// <summary>No line; the amount shows on hover and when something is chosen.</summary>
+    None,
+}
+
+/// <summary>The part of the graph's surface on screen: where the surface's origin is and how far it is zoomed.</summary>
+/// <param name="OffsetX">The surface's origin from the left of the screen, in screen units.</param>
+/// <param name="OffsetY">The surface's origin from the top of the screen, in screen units.</param>
+/// <param name="Zoom">How far it is zoomed; 1 is natural size.</param>
+public sealed record GraphViewport(double OffsetX, double OffsetY, double Zoom);
+
+/// <summary>How the user left the graph.</summary>
+/// <param name="Method">The tracing method the amounts are counted by.</param>
+/// <param name="Layout">The free surface or the hop columns.</param>
+/// <param name="AmountLabels">Which amounts the lines carry.</param>
+/// <param name="Viewport">The part on screen, or <see langword="null"/> to fit the graph to the screen.</param>
+public sealed record GraphViewState(
+    TracingMethodKind Method, GraphLayout Layout, GraphAmountLabels AmountLabels, GraphViewport? Viewport)
+{
+    /// <summary>Gets the view of a graph the user has not changed: FIFO, the free surface, every amount, fitted.</summary>
+    public static GraphViewState Default { get; } =
+        new(TracingMethodKind.Fifo, GraphLayout.Free, GraphAmountLabels.All, null);
 }
 
 /// <summary>What to expand.</summary>
 /// <param name="Address">The address whose history to bring in, or <see langword="null"/>.</param>
 /// <param name="Txid">The transaction to follow forward, or <see langword="null"/>.</param>
 /// <param name="MaximumTransactions">
-/// The most transactions an address's history may bring in, so that an exchange's address does not flood the graph
-/// (principle 7); the newest come first.
+/// The most transactions one expansion may bring in, so that an exchange's address or a batch payout does not flood
+/// the graph (principle 7): an address's newest first, and of a transaction's spenders those that receive the most.
 /// </param>
 public sealed record ExpansionRequest(BitcoinAddress? Address, Txid? Txid, int MaximumTransactions = 50)
 {
@@ -149,7 +216,8 @@ public enum ExpansionOutcome
     Expanded,
 
     /// <summary>
-    /// Some of it: an address's history was cut at the limit, or a lookup on the way failed; the problem says which.
+    /// Some of it: an address's history or a transaction's spenders were held back at the limit, or a lookup on the
+    /// way failed; the problem says which.
     /// </summary>
     Partly,
 
@@ -163,10 +231,25 @@ public enum ExpansionOutcome
 /// <summary>What an expansion brought in.</summary>
 /// <param name="Outcome">How it went.</param>
 /// <param name="NewTransactions">The transactions that were not in the graph before.</param>
-/// <param name="Problem">What went wrong, in Swedish, or <see langword="null"/>.</param>
+/// <param name="Problem">What went wrong or was held back, in Swedish, or <see langword="null"/>.</param>
 /// <param name="Graph">The graph after the expansion.</param>
 public sealed record ExpansionResult(
-    ExpansionOutcome Outcome, IReadOnlyList<Txid> NewTransactions, string? Problem, TraceGraph Graph);
+    ExpansionOutcome Outcome, IReadOnlyList<Txid> NewTransactions, string? Problem, TraceGraph Graph)
+{
+    /// <summary>
+    /// Gets what the expansion held back so that the graph does not flood (principle 7), or <see langword="null"/>
+    /// when it brought in everything it found.
+    /// </summary>
+    public ExpansionHoldBack? HeldBack { get; init; }
+}
+
+/// <summary>What an expansion held back at its limit, said honestly (principles 7 and 9).</summary>
+/// <param name="Taken">How many transactions it brought in.</param>
+/// <param name="Available">
+/// How many there are in all, when the source says (an address's summary, or the spenders of a transaction's
+/// outputs); <see langword="null"/> when it is only known that there are more.
+/// </param>
+public sealed record ExpansionHoldBack(int Taken, long? Available);
 
 /// <summary>The journal codes the Tracing module writes.</summary>
 public static class TracingJournalKinds
@@ -182,4 +265,7 @@ public static class TracingJournalKinds
 
     /// <summary>The user took back a link to another chain.</summary>
     public const string CrossChainUnlinked = "tracing.cross-chain-unlinked";
+
+    /// <summary>The user changed the tracing method the graph's amounts are counted by.</summary>
+    public const string MethodChanged = "tracing.method-changed";
 }

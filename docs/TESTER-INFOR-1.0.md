@@ -412,3 +412,32 @@ offline och se att det sägs ärligt). Grafen är förstavyn.
 - Två noder i samma kolumn med en linje mellan sig: linjen går som en liten båge ut till höger, inte genom noderna.
 - Expandera ett kluster med många adresser: högst tio uppslag och högst 100 nya tx per tryck, och svaret säger att
   gränsen nåddes.
+
+## Datalagret och spårningen (etapp 15)
+
+Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunneln finns, en ansluten utgång.
+
+**Grafen öppnas som den lämnades**
+- Byt till *haircut*, växla till hoppkolumner, välj *Spårade belopp*, zooma och panorera. Stäng ärendet (`/close`) och
+  öppna det igen (`/open`): metoden, läget, beloppen och det som syns på skärmen är som när du lämnade det. Grafen
+  passas inte in på nytt; F gör det fortfarande.
+- Öppna ett annat ärende: det har sitt eget läge (FIFO, fri yta och inpassad graf om du aldrig ändrat något där).
+- `/verify` är grönt efter bytet av metod, och journalen har en rad *Spårningsmetod: haircut v1 i stället för FIFO v1*.
+  Zoom, läge och belopp ger ingen rad i journalen.
+
+**Det som hölls tillbaka**
+- Expandera en adress med många tx (en börs): högst 50 tx kommer in, och överst står *Delvis expanderad: … Adressen
+  har N tx; de nyaste 50 togs med och resten hölls tillbaka.* (eller *fler än 50* utan källans sammanfattning).
+- Expandera en batchutbetalning (en tx med många outputs som spenderats vidare): högst 50 spenderande tx kommer in, de
+  som tar emot mest först, och överst står hur många som hölls tillbaka.
+- Grafen svarar hela tiden medan den läses och spåras; en stor graf hackar inte när metoden byts.
+
+**Kontrollen mot kedjan** (kräver utgång)
+- Expandera en tx. I ärendet ligger nu också tx:ens bytes (`bitcoin.tx-hex`); `/verify` är grönt.
+- Inget syns ännu i gränssnittet om att tx:en är kontrollerad (väntar på skiss), men ett svar som inte stämmer med
+  bytesen ska aldrig synas i grafen.
+
+**Etikettbiblioteket**
+- Sätt (när det går) en etikett i ärende A, stäng A, öppna ärende B med samma adress i grafen: etiketten kommer in i B
+  som *från ett annat ärende*, och journalen i B har en rad om det.
+- Lås Chainsaw (Ctrl+L) medan ett ärende är öppet och lås upp: grafen visas som förut, utan fel.

@@ -40,7 +40,10 @@ public interface IBitcoinSource
 
     /// <summary>
     /// Gets a transaction. Its outputs say which input spends them when the case has the answer from
-    /// <see cref="GetOutputSpendsAsync"/>.
+    /// <see cref="GetOutputSpendsAsync"/>. When the case has the transaction's own bytes (see
+    /// <see cref="VerifyTransactionAsync"/>), the answer is checked against them without asking: it is marked
+    /// <see cref="BitcoinTransaction.BytesVerified"/>, or refused (<see cref="LookupStatus.Failed"/>) when it
+    /// contradicts them. A transaction that has left the block the case saw it in says so in the problem.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="txid">The transaction's id.</param>
@@ -49,6 +52,34 @@ public interface IBitcoinSource
     /// <returns>The transaction.</returns>
     Task<BitcoinLookup<BitcoinTransaction>> GetTransactionAsync(
         ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a transaction and checks it against its own bytes (<c>/tx/:txid/hex</c>, fetched once and sealed): the
+    /// bytes must hash (double SHA-256) to the txid, and the description must be the bytes' in every part the txid
+    /// commits to. Then <see cref="BitcoinTransaction.BytesVerified"/> is set, and every later lookup of the
+    /// transaction is checked against the same bytes without asking again.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txid">The transaction's id.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>
+    /// The transaction as <see cref="GetTransactionAsync"/> gives it, checked when the bytes could be had; when they
+    /// could not, unchecked with the reason in the problem. A description that contradicts the bytes is never given:
+    /// the answer is <see cref="LookupStatus.Failed"/>.
+    /// </returns>
+    Task<BitcoinLookup<BitcoinTransaction>> VerifyTransactionAsync(
+        ICase @case, Txid txid, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets what the source says about an address as a whole: its number of transactions and what it has received
+    /// and spent. It always changes, so it is fetched anew (and sealed) every time; offline the case answers.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address; it must be on <see cref="Network"/>.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The summary.</returns>
+    Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
+        ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets which transactions spend a transaction's outputs, which is how the money is followed forward.
@@ -61,7 +92,11 @@ public interface IBitcoinSource
     Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> GetOutputSpendsAsync(
         ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default);
 
-    /// <summary>Gets a block's header.</summary>
+    /// <summary>
+    /// Gets a block's header. A block is checked against its own 80-byte header (<c>/block/:hash/header</c>, fetched
+    /// once and sealed) when the case has it or it can be fetched; see <see cref="BitcoinBlock.HeaderVerified"/>. A
+    /// description that contradicts the header is never given: the answer is <see cref="LookupStatus.Failed"/>.
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="hash">The block's hash.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>

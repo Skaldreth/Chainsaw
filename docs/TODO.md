@@ -46,6 +46,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 
 
+- **Det som hölls tillbaka och det som kontrollerats** (etapp 15): en expansion tar högst 50 tx (en adress nyaste,
+  en tx:s spenderare efter belopp) och säger i raden längst upp hur många som hölls tillbaka. Grafen behöver ett sätt
+  att hämta resten, och kanske att vika ihop en batchutbetalnings många outputs i en nod. Inspektören bör visa om en
+  tx är kontrollerad mot sina bytes och om den bytt block (omorganisation). Skissas.
 - **Tidslinjen under grafen** (GR4): prickar per händelse under ytan, där ett klick visar grafen vid en tx (det som
   kom senare bleknar) och *Till nu* går tillbaka. Inte byggd i etapp 12; skissen finns, men hur händelserna väljs i en
   stor graf (en prick per tx blir för många) behöver bestämmas.
@@ -76,18 +80,16 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Bevakning i realtid:** websocket där källan har det (mempool.space har bevakning av adresser), senare ZMQ från egen nod.
 
 ### Bitcoin-källan (Chains)
-- **Kontrollera txid mot tx:ens bytes:** hämta `/tx/:txid/hex` och räkna dubbel SHA-256, så att Chainsaw själv vet att
-  svaret är den tx som efterfrågades, och kontrollera blockets huvud (`/block/:hash/header`) mot dess hash. Då vilar
-  också `/verify` av ett spår på kedjans egen kryptografi, inte bara på källan.
-- **Omorganisation av kedjan:** en tx under sex bekräftelser hämtas om, men en tx som en gång setts i ett block som
-  sedan föll bort märks först när den hämtas om. Blockets plats i kedjan (`/block/:hash/status`) kan kontrolleras.
-- **Adressens sammanfattning** (`/address/:a`: antal tx, mottaget och spenderat), så att sidbläddringen kan visa hur
-  mycket som återstår.
 - **Svarshuvuden som ursprung:** se *Utgångar*. Behövs om källans `Date` ska stå bredvid Chainsaws egen tid.
-- **Utgångar som aldrig kan spenderas** (granskningen etapp 5, M): en tx med en OP_RETURN-output får aldrig alla
-  utgångar spenderade, så dess `/outspends` hämtas om varje gång. Bortse från OP_RETURN när det avgörs om svaret kan
-  ändras (kräver tx:ens skripttyper bredvid svaret).
 - **Flera källor att jämföra:** samma tx från två Esplora-källor, och en varning om de skiljer sig.
+- **Tx på en adress sida kontrolleras inte mot sina bytes** (etapp 15): bara tx som expanderas för sig (och deras
+  spenderare) hämtar `/tx/:txid/hex`. En adress historik med 50 tx skulle kosta 50 uppslag till. Kontrollera dem när
+  de visas i inspektören, eller i bakgrunden?
+- **Tx:en i blocket** (etapp 15): bytesen binder beskrivningen till txid, men att tx:en ligger i just det blocket
+  vilar på källan. `/tx/:txid/merkle-proof` och blockets merklerot skulle binda dem; och om `bits` är nätets rätta
+  svårighet på höjden kontrolleras inte.
+- **Svaret om spenderade utgångar och omorganisationer** (etapp 15): en tx som bytt block säger det, men ett svar om
+  vem som spenderar en output jämförs inte med det förra.
 
 ### Klustring och heuristiker
 - **Troliga utgångar ur en mixer** (CLAUDE.md, *Mixers är vanliga*): belopp minus avgift, tidsfönster, adresstyp och kända
@@ -135,21 +137,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **LIFO och poison** (etapp 7): kontraktet `ITracingMethod` tar emot fler metoder, men LIFO behöver en definition
   (inom en tx är ordningen redan FIFO:s; LIFO handlar om en adress saldo över tid), och poison ger inga belopp som går
   jämnt ut, så den behöver visas som *berört* i stället för ett belopp. Fråga kryptospåraren vad som används.
-- **Hur långt en expansion får breda ut sig** (etapp 7, princip 7): en batchutbetalning eller en börs historik ger en
-  nod per adress. En budget per expansion, eller att många outputs viks ihop i en nod, behöver skissas med grafen.
 - **Fråga om det som kan ha ändrats** (etapp 7): grafen visas bara ur ärendet (`LookupMode.CaseOnly`). Ett mynt som
   låg kvar visas som *kan ha flyttats* tills noden expanderas igen. En knapp eller ett kommando som frågar om alla
   sådana mynt på en gång, och bevakningen som gör det i bakgrunden, behövs.
-- **Spårningen i bakgrunden** (etapp 7, princip 6): `ITracingService.Trace` är synkron och snabb för grafer i
-  storleken hundratals tx; gränssnittet anropar den utanför UI-tråden. En `TraceAsync` med avbrytning när grafen blir
-  stor.
-- **Stora grafer** (etapp 7): klustren hämtas en gång per kluster ur Clustering, som bygger om dem ur alla slutsatser
-  varje gång. Behöver Clusterings register eller cache (se *Klustring och heuristiker*).
 - **Tidsfönster för en adress historik** (etapp 7): expansionen tar de nyaste tx upp till gränsen (50 som förval).
   För en adress med lång historik behövs ett tidsfönster runt händelsen i stället.
-- **Spårningsmetoden och läget i ärendet** (etapp 12): grafen håller vald metod (FIFO som förval), läget (fri yta
-  eller hoppkolumner), gallringen av beloppen, zoom och panorering bara medan ärendet är öppet; Tracing sparar bara
-  nodernas platser. Ett eget fält i Tracings lagring för grafens läge behövs.
 - **Markeringarna Bevakad och Kan frysas** (GR3a, GR3c) ritas när Monitoring och kedjorna med USDT/USDC finns.
 - **Grafens prestanda vid tusentals noder** (etapp 12): ytan ritar bara det som syns, men varje drag räknar om alla
   kurvor och varje hovring prövar alla linjer. Ett rutnät (spatial index) och att bara räkna om linjerna till den
@@ -164,8 +156,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster),
   Chainabuse (kräver nyckel). Varje källa granskas för licens och kvalitet innan den byggs in. `LabelSource.OpenSource`
   finns i kontraktet.
-- **Appen kopplar ihop det** (etapp 8 har inget gränssnitt): när ett ärende öppnas `ILabelLibrary.Absorb`, när grafen
-  har adresser `ShareInto` och `CheckSanctions`, och vyn Etiketter (skissas först).
+- **Sanktionslistan mot grafens adresser** (`CheckSanctions`) och vyn Etiketter (skissas först). Biblioteket är
+  kopplat sedan etapp 15: `Absorb` när ett ärende öppnas och innan det stängs, `ShareInto` när grafen läses.
+- **Ett bibliotek som inte går att läsa syns inte** (etapp 15): grafen och ärendet fungerar, men etiketterna från andra
+  ärenden kommer inte, och inget säger varför. Ett meddelande i statusraden eller i vyn Etiketter behövs.
 - **Slutet *Börs, uttag funnet*** gäller alla blå sorter (också börs utan kundkontroll, P2P, automat och kort), där
   en begäran inte alltid går att göra; sorten står i förklaringen. En egen orsak eller text per sort? (granskningen
   etapp 8, M1).
@@ -180,8 +174,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   först vid omstart (granskningen etapp 8, M5).
 - **Minnet vid import:** en `sdnEntry` läses in hel; en konstruerad fil med miljontals `id` i en post kan ta mycket
   minne. Läs id:n strömmande eller sätt ett tak per post (granskningen etapp 8, M6).
-- **Etiketterna läses en gång per adress** när grafen byggs (O(adresser × etiketter)). Läs dem en gång per bygge
-  (granskningen etapp 8, M7).
 - **Biblioteket:** ärenden som tagits bort ligger kvar som innehavare, två kopior av samma ärende (samma id) skriver
   över varandra, och ett bibliotek som inte går att läsa (skadat eller från ett annat valv) stoppar varje inläsning
   tills det byggs om. Bygg om biblioteket ur ärendena, och ta bort ett ärendes etiketter (granskningen etapp 8, M8).
@@ -309,8 +301,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Öppna en kollegas fil** med ärendelösenordet (`ICaseStore.OpenWithPassword`) och lägga till ett eget kuvert
   (`AddOperatorAccess`): ett kommando eller en filväljare, och NC1a som ärendets egenskaper (titel, delning). Ändra
   titeln går i Cases men har inget gränssnitt än.
-- **Etikettbiblioteket när ett ärende öppnas** (`ILabelLibrary.Absorb` och `ShareInto`, etapp 8) kopplas när vyn
-  Etiketter eller grafen byggs.
 - **Sökning i kommandoraden** (etiketter, adresser i ärendet, kluster): text som inte är en adress eller tx svarar nu
   *Sökning är inte byggd än*.
 - **Moduler som bidrar med kommandon:** `IShellCommand` ligger i SharedKernel, men ett kommando som behöver det öppna

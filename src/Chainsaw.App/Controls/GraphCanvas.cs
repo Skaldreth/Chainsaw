@@ -131,6 +131,7 @@ public sealed class GraphCanvas : FrameworkElement
     public void ZoomBy(double factor)
     {
         _viewport = _viewport.ZoomAt(new GraphPoint(ActualWidth / 2, ActualHeight / 2), factor);
+        _model?.ViewportChanged(_viewport);
         InvalidateVisual();
     }
 
@@ -269,6 +270,7 @@ public sealed class GraphCanvas : FrameworkElement
         var at = e.GetPosition(this);
         var factor = e.Delta > 0 ? Viewport.WheelStep : 1 / Viewport.WheelStep;
         _viewport = _viewport.ZoomAt(new GraphPoint(at.X, at.Y), factor);
+        _model?.ViewportChanged(_viewport);
         InvalidateVisual();
         e.Handled = true;
     }
@@ -297,6 +299,7 @@ public sealed class GraphCanvas : FrameworkElement
                 break;
             case Key.F:
                 Fit();
+                _model.ViewportChanged(_viewport);
                 break;
             case Key.OemPlus or Key.Add:
                 ZoomBy(Viewport.WheelStep);
@@ -321,6 +324,8 @@ public sealed class GraphCanvas : FrameworkElement
             return;
         }
 
+        // A pan is stored when the press ends, not on every move.
+        _model.ViewportChanged(_viewport);
         if (end == GestureEnd.DropNode && node is not null)
         {
             _ = _model.DropNodeAsync(node);
@@ -375,12 +380,22 @@ public sealed class GraphCanvas : FrameworkElement
     /// <summary>Gets how close to a line the pointer must be, in the surface's units at the current zoom.</summary>
     private double Tolerance => GraphHitTest.LineTolerance / _viewport.Zoom;
 
-    /// <summary>Fits the graph if a fit waits and the surface has a size.</summary>
+    /// <summary>
+    /// Fits the graph if a fit waits and the surface has a size; the first time after a case opens, the part on screen
+    /// the case stored is shown instead, so that the graph opens as it was left.
+    /// </summary>
     private void FitIfPending()
     {
         if (_fitPending && ActualWidth > 0 && ActualHeight > 0)
         {
             _fitPending = false;
+            if (_model?.TakeStoredViewport() is { } stored)
+            {
+                _viewport = stored;
+                InvalidateVisual();
+                return;
+            }
+
             Fit();
         }
     }

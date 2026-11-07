@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Security.Contracts;
@@ -48,6 +49,15 @@ public sealed class CaseWorkflow
     /// <summary>The window's open case.</summary>
     private readonly CaseSession _session;
 
+    /// <summary>
+    /// The label library, which takes in the labels of every case that is opened (CLAUDE.md, <em>Etiketter
+    /// smittar</em>); <see langword="null"/> where there is none.
+    /// </summary>
+    private readonly ILabelLibrary? _library;
+
+    /// <summary>The taking in of the open case's labels under way, waited for before the case is closed.</summary>
+    private Task _absorbing = Task.CompletedTask;
+
     /// <summary>Keeps two openings, creations or closings from running at once.</summary>
     private bool _busy;
 
@@ -62,12 +72,15 @@ public sealed class CaseWorkflow
     /// <param name="tracing">Where start points are added.</param>
     /// <param name="vault">The vault.</param>
     /// <param name="session">The window's open case.</param>
-    public CaseWorkflow(ICaseStore cases, ITracingService tracing, IVault vault, CaseSession session)
+    /// <param name="library">The label library, or <see langword="null"/> where there is none.</param>
+    public CaseWorkflow(
+        ICaseStore cases, ITracingService tracing, IVault vault, CaseSession session, ILabelLibrary? library = null)
     {
         _cases = cases;
         _tracing = tracing;
         _vault = vault;
         _session = session;
+        _library = library;
     }
 
     /// <summary>Gets whether an opening, creation or closing runs.</summary>
@@ -151,6 +164,7 @@ public sealed class CaseWorkflow
             }
 
             _session.Open(opened);
+            _absorbing = AbsorbAsync(opened);
             return CommandReply.Done($"{closed.Prefix}Ärendet {CaseSession.NameOf(opened)} är öppet.");
         });
     }
@@ -215,6 +229,7 @@ public sealed class CaseWorkflow
             }
 
             _session.Open(created.Case);
+            _absorbing = AbsorbAsync(created.Case);
             isCreated = true;
             var text = $"{closed.Prefix}Ärendet {CaseSession.NameOf(created.Case)} skapades.";
             return created.Missed.Count == 0
@@ -405,11 +420,38 @@ public sealed class CaseWorkflow
         }
 
         var name = CaseSession.NameOf(current);
+        // The labels set while it was open go into the library before it closes, so that the next case gets them.
+        await _absorbing;
+        await AbsorbAsync(current);
         var saved = await _session.CloseAsync();
         return saved
             ? (name, true, string.Empty)
             : (name, false, $"Ärendet {name} gick inte att spara; arbetskopian finns kvar och tas tillbaka "
                 + "nästa gång. ");
+    }
+
+    /// <summary>
+    /// Takes the case's labels into the label library off the UI thread (CLAUDE.md, <em>Etiketter smittar</em>). A
+    /// locked vault or a library that cannot be read never keeps the case from being worked with; the labels are
+    /// taken in the next time the case is opened or closed.
+    /// </summary>
+    /// <param name="openCase">The case.</param>
+    /// <returns>A task that completes when the labels are taken in or could not be.</returns>
+    private async Task AbsorbAsync(ICase openCase)
+    {
+        if (_library is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Run(() => _library.Absorb(openCase));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // See the summary: the library is a help, never a condition for the case.
+        }
     }
 
     /// <summary>Runs work unless other work runs; unexpected failures become a short answer, never a crash.</summary>

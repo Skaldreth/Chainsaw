@@ -62,7 +62,7 @@ public sealed class SourceTests : IDisposable
 
         Assert.True(verification.IsIntact);
         var chain = Assert.Single(verification.Chains, chain => chain.Chain == "chains.raw_responses");
-        Assert.Equal(2, chain.RecordCount);
+        Assert.Equal(3, chain.RecordCount); // the transaction, the block and its header (which the fake lacks)
         Assert.ThrowsAny<Exception>(() => _harness.Case.Write(transaction =>
         {
             using var command = transaction.CreateCommand("UPDATE chains_raw_responses SET body = x'00'");
@@ -73,24 +73,28 @@ public sealed class SourceTests : IDisposable
             using var command = transaction.CreateCommand("DELETE FROM chains_raw_responses");
             return command.ExecuteNonQuery();
         }));
-        Assert.Equal(2, _harness.RawRows().Count);
+        Assert.Equal(3, _harness.RawRows().Count);
     }
 
     [Fact]
-    public async Task A_deep_confirmed_transaction_is_never_fetched_again()
+    public async Task A_transaction_deep_when_it_was_fetched_is_never_fetched_again()
     {
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
 
-        // The case only knows block 800 000, so the height is asked for once; 800 010 makes it 11 blocks deep.
+        // When it was fetched the case only knew block 800 000, so it is fetched once more after the height (800 010,
+        // 11 blocks deep): a block that was shallow then may have left the chain since.
         var second = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         var third = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var fourth = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
 
-        Assert.Equal(LookupStatus.FromCase, second.Status);
+        Assert.Equal(LookupStatus.Fetched, second.Status);
         Assert.Equal(LookupStatus.FromCase, third.Status);
+        Assert.Equal(LookupStatus.FromCase, fourth.Status);
         Assert.Equal(
-            [Fixtures.Url($"tx/{Fixtures.Confirmed}"), Fixtures.Url("blocks/tip/height")],
+            [Fixtures.Url($"tx/{Fixtures.Confirmed}"), Fixtures.Url("blocks/tip/height"),
+                Fixtures.Url($"tx/{Fixtures.Confirmed}")],
             Http.Sent.Select(request => request.Uri.AbsoluteUri));
-        Assert.Equal(1, third.Origins[0].Sequence);
+        Assert.Equal(3, fourth.Origins[0].Sequence);
     }
 
     [Fact]
@@ -115,6 +119,7 @@ public sealed class SourceTests : IDisposable
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         _harness.Clock.UtcNow += TimeSpan.FromMinutes(2);
         Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("800010"), 200);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         var settled = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
 
         Assert.Equal(
@@ -196,8 +201,8 @@ public sealed class SourceTests : IDisposable
     [Fact]
     public async Task Without_an_exit_a_settled_answer_comes_from_the_case_without_a_warning()
     {
-        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         await Source.GetTipHeightAsync(_harness.Case);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         Http.Connected = false;
 
         var lookup = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
@@ -401,23 +406,29 @@ public sealed class SourceTests : IDisposable
         await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);
         var sent = Http.Sent.Count;
 
+        // Fetched when the case knew no height: asked once more after the height, then never again.
+        var deep = await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);
         var settled = await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);
 
         Assert.Equal(LookupStatus.Fetched, open.Status);
+        Assert.Equal(LookupStatus.Fetched, deep.Status);
         Assert.Equal(LookupStatus.FromCase, settled.Status);
-        Assert.Equal(sent + 1, Http.Sent.Count); // the height, once
+        Assert.Equal(sent + 2, Http.Sent.Count); // the height and the spends, once each
     }
 
     [Fact]
-    public async Task A_block_is_never_fetched_again()
+    public async Task A_block_and_its_header_are_never_fetched_again()
     {
-        var first = await Source.GetBlockAsync(_harness.Case, Fixtures.Block);
-        var second = await Source.GetBlockAsync(_harness.Case, Fixtures.Block);
+        _harness.AnswerReal();
+        var first = await Source.GetBlockAsync(_harness.Case, Fixtures.RealBlock);
+        var second = await Source.GetBlockAsync(_harness.Case, Fixtures.RealBlock);
 
         Assert.Equal(LookupStatus.Fetched, first.Status);
         Assert.Equal(LookupStatus.FromCase, second.Status);
-        Assert.Equal(800_000, second.Value!.Height);
-        Assert.Single(Http.Sent);
+        Assert.Equal(800_005, second.Value!.Height);
+        Assert.True(first.Value!.HeaderVerified);
+        Assert.True(second.Value.HeaderVerified);
+        Assert.Equal(2, Http.Sent.Count);
     }
 
     [Fact]
@@ -443,7 +454,7 @@ public sealed class SourceTests : IDisposable
         await Source.GetBlockAsync(_harness.Case, Fixtures.Block);
         await Source.GetTipHeightAsync(_harness.Case);
 
-        Assert.Equal(5, Http.Sent.Count);
+        Assert.Equal(6, Http.Sent.Count); // the block's header too
         Assert.All(Http.Sent, request =>
         {
             Assert.Equal(ExitMethod.Get, request.Method);

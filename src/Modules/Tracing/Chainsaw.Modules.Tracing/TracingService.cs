@@ -214,6 +214,66 @@ internal sealed class TracingService : ITracingService
         return TraceCalculator.Trace(graph, method, request.Seeds);
     }
 
+    /// <inheritdoc/>
+    public Task<TraceResult> TraceAsync(
+        TraceGraph graph, TraceRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(request);
+        if (!_methods.TryGetValue(request.Method, out var method))
+        {
+            throw new ArgumentException("The tracing method is not registered.", nameof(request));
+        }
+
+        return Task.Run(() => TraceCalculator.Trace(graph, method, request.Seeds, cancellationToken), cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public GraphViewState GetView(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(GraphStateStore.ReadView) ?? GraphViewState.Default;
+    }
+
+    /// <inheritdoc/>
+    public bool SaveView(ICase @case, GraphViewState view)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(view);
+        if (!Enum.IsDefined(view.Method) || !Enum.IsDefined(view.Layout) || !Enum.IsDefined(view.AmountLabels)
+            || (view.Viewport is { } viewport && !GraphStateStore.IsFinite(viewport)))
+        {
+            throw new ArgumentException("A view is known values and a finite part on screen.", nameof(view));
+        }
+
+        var utc = _clock.UtcNow;
+        return @case.Write(transaction =>
+        {
+            var before = (GraphStateStore.ReadView(transaction) ?? GraphViewState.Default).Method;
+            var changed = before != view.Method;
+            if (changed)
+            {
+                transaction.AppendJournal(new JournalDraft(
+                    TracingJournalKinds.MethodChanged,
+                    string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Spårningsmetod: {0} i stället för {1}",
+                        MethodName(view.Method),
+                        MethodName(before)),
+                    JsonSerializer.Serialize(new { method = MethodName(view.Method), before = MethodName(before) })));
+            }
+
+            GraphStateStore.SaveView(transaction, view, utc);
+            return changed;
+        });
+    }
+
+    /// <summary>Names a method with the version that counts by it, for example <c>FIFO v1</c>.</summary>
+    /// <param name="kind">The method.</param>
+    /// <returns>The name.</returns>
+    private string MethodName(TracingMethodKind kind) =>
+        _methods.TryGetValue(kind, out var method) ? method.Id.ToString() : new TracingMethodId(kind, 1).Name;
+
     /// <summary>Expands the graph, records what came in, runs the analyses and builds the graph.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="request">What to expand.</param>
@@ -226,7 +286,8 @@ internal sealed class TracingService : ITracingService
         var step = request.Address is { } address
             ? await ExpandAddressAsync(@case, address, request.MaximumTransactions, cancellationToken)
                 .ConfigureAwait(false)
-            : await ExpandTransactionAsync(@case, request.Txid!, cancellationToken).ConfigureAwait(false);
+            : await ExpandTransactionAsync(@case, request.Txid!, request.MaximumTransactions, cancellationToken)
+                .ConfigureAwait(false);
         if (!step.Answered)
         {
             var unchanged = await LoadAsync(@case, cancellationToken).ConfigureAwait(false);
@@ -249,7 +310,10 @@ internal sealed class TracingService : ITracingService
             expansion.IsComplete ? ExpansionOutcome.Expanded : ExpansionOutcome.Partly,
             [.. step.Transactions.Where(txid => !before.Contains(txid))],
             step.Problem,
-            Build(@case, data));
+            Build(@case, data))
+        {
+            HeldBack = step.HeldBack,
+        };
     }
 
     /// <summary>Brings in an address's history, newest first, up to the limit.</summary>
@@ -273,26 +337,21 @@ internal sealed class TracingService : ITracingService
                 return new StepResult(found, Problem(page.Status, page.Problem), found.Count > 0);
             }
 
+            if (page.Status == LookupStatus.FromCaseMayBeOutdated)
+            {
+                outdated ??= Note(page);
+            }
+
             var countBefore = found.Count;
             foreach (var transaction in page.Value.Transactions.Where(tx => !found.Contains(tx.Txid)))
             {
                 if (found.Count == maximum)
                 {
-                    return new StepResult(
-                        found,
-                        string.Format(
-                            CultureInfo.InvariantCulture,
-                            "Adressen har fler än {0} tx; de nyaste {0} togs med.",
-                            maximum),
-                        true);
+                    return await HeldBackAtAddressAsync(@case, address, found, outdated, cancellationToken)
+                        .ConfigureAwait(false);
                 }
 
                 found.Add(transaction.Txid);
-            }
-
-            if (page.Status == LookupStatus.FromCaseMayBeOutdated)
-            {
-                outdated ??= page.Problem;
             }
 
             if (page.Value.NextAfter is null)
@@ -311,46 +370,113 @@ internal sealed class TracingService : ITracingService
         }
     }
 
-    /// <summary>Brings in a transaction and the transactions that spend its outputs.</summary>
+    /// <summary>
+    /// Says that an address's history was held back at the limit, with how many transactions it has in all when the
+    /// source's summary of the address can say (principle 7: honestly, not silently).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="found">The transactions brought in, as many as the limit.</param>
+    /// <param name="outdated">Why a page came from the case, if one did.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The step's result.</returns>
+    private async Task<StepResult> HeldBackAtAddressAsync(
+        ICase @case, BitcoinAddress address, List<Txid> found, string? outdated, CancellationToken cancellationToken)
+    {
+        var summary = await _source.GetAddressSummaryAsync(@case, address, cancellationToken).ConfigureAwait(false);
+        var fresh = summary is { Status: LookupStatus.Fetched, Value: { } value } ? value : null;
+        long? total = fresh?.TransactionCount > found.Count ? fresh.TransactionCount : null;
+        var text = total is { } all
+            ? string.Format(
+                CultureInfo.InvariantCulture,
+                "Adressen har {0} tx; de nyaste {1} togs med och resten hölls tillbaka.",
+                all,
+                found.Count)
+            : string.Format(
+                CultureInfo.InvariantCulture,
+                "Adressen har fler än {0} tx; de nyaste {0} togs med och resten hölls tillbaka.",
+                found.Count);
+        return new StepResult(found, Join(text, outdated), true, new ExpansionHoldBack(found.Count, total));
+    }
+
+    /// <summary>
+    /// Brings in a transaction, checked against its own bytes, and the transactions that spend its outputs, up to the
+    /// limit: a batch payout's spenders are taken by how much they receive, the most first, and the rest is held back
+    /// and said (principle 7).
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="txid">The transaction.</param>
+    /// <param name="maximum">The most spending transactions.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The transactions and what went wrong.</returns>
-    private async Task<StepResult> ExpandTransactionAsync(ICase @case, Txid txid, CancellationToken cancellationToken)
+    private async Task<StepResult> ExpandTransactionAsync(
+        ICase @case, Txid txid, int maximum, CancellationToken cancellationToken)
     {
-        var lookup = await _source.GetTransactionAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
-            .ConfigureAwait(false);
+        var lookup = await _source.VerifyTransactionAsync(@case, txid, cancellationToken).ConfigureAwait(false);
         if (lookup.Value is null)
         {
             return new StepResult([], Problem(lookup.Status, lookup.Problem), false);
         }
 
         var found = new List<Txid> { txid };
-        string? problem = Outdated(lookup);
+        var problem = Note(lookup);
         var spends = await _source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (spends.Value is null)
         {
-            return new StepResult(found, Problem(spends.Status, spends.Problem), true);
+            return new StepResult(found, Join(problem, Problem(spends.Status, spends.Problem)), true);
         }
 
-        problem ??= Outdated(spends);
-        foreach (var spender in spends.Value.Select(spend => spend.SpentBy?.Txid).OfType<Txid>().Distinct())
+        problem = Join(problem, Note(spends));
+        var spenders = SpendersByAmount(lookup.Value, spends.Value);
+        ExpansionHoldBack? heldBack = null;
+        if (spenders.Count > maximum)
         {
-            var next = await _source.GetTransactionAsync(@case, spender, LookupMode.AsNeeded, cancellationToken)
-                .ConfigureAwait(false);
+            heldBack = new ExpansionHoldBack(maximum, spenders.Count);
+            problem = Join(problem, string.Format(
+                CultureInfo.InvariantCulture,
+                "Tx:ens utgångar spenderas i {0} tx; de {1} som tar emot mest togs med och resten hölls tillbaka.",
+                spenders.Count,
+                maximum));
+        }
+
+        foreach (var spender in spenders.Take(maximum))
+        {
+            var next = await _source.VerifyTransactionAsync(@case, spender, cancellationToken).ConfigureAwait(false);
             if (next.Value is null)
             {
-                problem ??= Problem(next.Status, next.Problem);
+                problem = Join(problem, Problem(next.Status, next.Problem));
                 continue;
             }
 
-            problem ??= Outdated(next);
+            problem = Join(problem, Note(next));
             found.Add(spender);
         }
 
-        return new StepResult(found, problem, true);
+        return new StepResult(found, problem, true, heldBack);
     }
+
+    /// <summary>
+    /// Orders the transactions that spend a transaction's outputs by how much of it each receives, the most first,
+    /// and then by txid, so that a limit keeps where most of the money went.
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="spends">Who spends each output.</param>
+    /// <returns>The spending transactions, each once.</returns>
+    private static List<Txid> SpendersByAmount(
+        BitcoinTransaction transaction, IReadOnlyList<BitcoinOutputSpend> spends) =>
+    [
+        .. spends
+            .Where(spend => spend.SpentBy is not null)
+            .GroupBy(spend => spend.SpentBy!.Txid)
+            .Select(group => (Txid: group.Key, Amount: group.Sum(spend =>
+                spend.Index >= 0 && spend.Index < transaction.Outputs.Count
+                    ? transaction.Outputs[spend.Index].Amount.Value
+                    : 0)))
+            .OrderByDescending(spender => spender.Amount)
+            .ThenBy(spender => spender.Txid.Value, StringComparer.Ordinal)
+            .Select(spender => spender.Txid),
+    ];
 
     /// <summary>
     /// Asks where the outputs of the transactions an expansion brought in went, so that the graph knows which coins
@@ -413,10 +539,55 @@ internal sealed class TracingService : ITracingService
     /// <param name="case">The open case.</param>
     /// <param name="data">The data.</param>
     /// <returns>The graph.</returns>
-    private TraceGraph Build(ICase @case, GraphData data) => GraphBuilder.Build(data, new GraphKnowledge(
-        address => [.. _clustering.GetCluster(@case, address).Addresses],
-        address => [.. _classifiers.SelectMany(classifier => classifier.ClassifyAddress(@case, address))],
-        transaction => [.. _classifiers.SelectMany(classifier => classifier.ClassifyTransaction(@case, transaction))]));
+    /// <remarks>
+    /// The clusters and the ends at the graph's addresses are read once per build (each read goes through the whole
+    /// case's conclusions and labels), not once per address; an address the builder asks about outside the graph is
+    /// still answered, one at a time.
+    /// </remarks>
+    private TraceGraph Build(ICase @case, GraphData data)
+    {
+        var addresses = GraphAddresses(data);
+        var clusters = _clustering.GetClusters(@case, addresses);
+        var ends = AddressEnds(@case, addresses);
+        return GraphBuilder.Build(data, new GraphKnowledge(
+            address => clusters.TryGetValue(address, out var cluster)
+                ? [.. cluster.Addresses]
+                : [.. _clustering.GetCluster(@case, address).Addresses],
+            address => addresses.Contains(address)
+                ? ends.GetValueOrDefault(address) ?? []
+                : [.. _classifiers.SelectMany(classifier => classifier.ClassifyAddress(@case, address))],
+            transaction => [.. _classifiers.SelectMany(
+                classifier => classifier.ClassifyTransaction(@case, transaction))]));
+    }
+
+    /// <summary>Gives every address the graph shows: the start addresses and those its transactions touch.</summary>
+    /// <param name="data">The data.</param>
+    /// <returns>The addresses.</returns>
+    private static HashSet<BitcoinAddress> GraphAddresses(GraphData data) =>
+    [
+        .. data.State.StartPoints.Select(start => start.Address).OfType<BitcoinAddress>(),
+        .. data.Transactions.Values.SelectMany(entry => entry.Transaction.Inputs.Select(input => input.Address)
+            .Concat(entry.Transaction.Outputs.Select(output => output.Address))).OfType<BitcoinAddress>(),
+    ];
+
+    /// <summary>Asks every classifier once about all the addresses, and joins their hints per address.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses.</param>
+    /// <returns>The hints of each address that has any, in the classifiers' order.</returns>
+    private Dictionary<BitcoinAddress, IReadOnlyList<TrailEndHint>> AddressEnds(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        var ends = new Dictionary<BitcoinAddress, IReadOnlyList<TrailEndHint>>();
+        foreach (var classifier in _classifiers)
+        {
+            foreach (var (address, hints) in classifier.ClassifyAddresses(@case, addresses))
+            {
+                ends[address] = ends.TryGetValue(address, out var earlier) ? [.. earlier, .. hints] : hints;
+            }
+        }
+
+        return ends;
+    }
 
     /// <summary>Gives the journal draft for a start point.</summary>
     /// <param name="kind">The journal code.</param>
@@ -443,14 +614,31 @@ internal sealed class TracingService : ITracingService
         }
     }
 
-    /// <summary>Gives why an answer may be outdated, when it came from the case instead of the source.</summary>
+    /// <summary>
+    /// Gives what the user should know about an answer that has a value: that it came from the case and may be
+    /// outdated, that the transaction has left its block, or that it could not be checked against its own bytes.
+    /// </summary>
     /// <typeparam name="T">What was looked up.</typeparam>
     /// <param name="lookup">The answer.</param>
-    /// <returns>The text, or <see langword="null"/> when the answer is current.</returns>
-    private static string? Outdated<T>(BitcoinLookup<T> lookup)
+    /// <returns>The text, or <see langword="null"/> when there is nothing to say.</returns>
+    private static string? Note<T>(BitcoinLookup<T> lookup)
         where T : class => lookup.Status == LookupStatus.FromCaseMayBeOutdated
         ? lookup.Problem ?? "Svaret kommer ur ärendet och kan ha ändrats."
-        : null;
+        : lookup.Problem;
+
+    /// <summary>Joins two texts for the user, either of which may be missing, each once.</summary>
+    /// <param name="first">The first text.</param>
+    /// <param name="second">The second text.</param>
+    /// <returns>Both, one, or <see langword="null"/>.</returns>
+    private static string? Join(string? first, string? second)
+    {
+        if (first is null || second is null || first.Contains(second, StringComparison.Ordinal))
+        {
+            return first ?? second;
+        }
+
+        return $"{first} {second}";
+    }
 
     /// <summary>Says what went wrong with a lookup, for the user.</summary>
     /// <param name="status">How it was answered.</param>
@@ -470,5 +658,7 @@ internal sealed class TracingService : ITracingService
     /// <param name="Answered">
     /// Whether the source answered at all; an address with no history is answered with no transactions.
     /// </param>
-    private sealed record StepResult(IReadOnlyList<Txid> Transactions, string? Problem, bool Answered);
+    /// <param name="HeldBack">What was held back at the limit, if anything.</param>
+    private sealed record StepResult(
+        IReadOnlyList<Txid> Transactions, string? Problem, bool Answered, ExpansionHoldBack? HeldBack = null);
 }

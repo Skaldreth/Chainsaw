@@ -1,4 +1,5 @@
 using System.Globalization;
+using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
@@ -79,6 +80,26 @@ public static class AmountLabelModes
         AmountLabelMode.All => "Alla belopp",
         AmountLabelMode.Traced => "Spårade belopp",
         _ => "Inga belopp",
+    };
+
+    /// <summary>Gives the mode as the case stores it with the graph's view.</summary>
+    /// <param name="mode">The mode.</param>
+    /// <returns>The stored value.</returns>
+    public static GraphAmountLabels ToStored(this AmountLabelMode mode) => mode switch
+    {
+        AmountLabelMode.Traced => GraphAmountLabels.Traced,
+        AmountLabelMode.None => GraphAmountLabels.None,
+        _ => GraphAmountLabels.All,
+    };
+
+    /// <summary>Reads the mode the case stores with the graph's view.</summary>
+    /// <param name="stored">The stored value.</param>
+    /// <returns>The mode.</returns>
+    public static AmountLabelMode FromStored(GraphAmountLabels stored) => stored switch
+    {
+        GraphAmountLabels.Traced => AmountLabelMode.Traced,
+        GraphAmountLabels.None => AmountLabelMode.None,
+        _ => AmountLabelMode.All,
     };
 
     /// <summary>

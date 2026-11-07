@@ -66,12 +66,32 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The second version: how the user left the graph (method, layout, amounts and the part on screen), one row.
+    /// Ordinary data like the places; a change of method also gets a line in the journal.
+    /// </summary>
+    private const string Version2 = """
+        CREATE TABLE tracing_view (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            method TEXT NOT NULL,
+            layout TEXT NOT NULL,
+            amount_labels TEXT NOT NULL,
+            offset_x REAL,
+            offset_y REAL,
+            zoom REAL,
+            updated_utc TEXT NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
     /// <inheritdoc/>
     public IReadOnlyList<CaseSchemaStep> Steps { get; } =
-        [new(1, "Spårningens graf (start, expanderat, platser) och länkar till andra kedjor", Version1)];
+    [
+        new(1, "Spårningens graf (start, expanderat, platser) och länkar till andra kedjor", Version1),
+        new(2, "Grafens läge: spårningsmetod, vy, belopp och det som syns", Version2),
+    ];
 
     /// <inheritdoc/>
     public IReadOnlyList<SealedChain> SealedChains { get; } =

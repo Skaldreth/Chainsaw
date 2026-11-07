@@ -33,6 +33,15 @@ internal static class ResponseKinds
     /// <summary>A block, <c>/block/:hash</c>.</summary>
     public const string Block = "bitcoin.block";
 
+    /// <summary>A transaction's own bytes as hex, <c>/tx/:txid/hex</c>.</summary>
+    public const string TransactionHex = "bitcoin.tx-hex";
+
+    /// <summary>A block's 80-byte header as hex, <c>/block/:hash/header</c>.</summary>
+    public const string BlockHeader = "bitcoin.block-header";
+
+    /// <summary>What the source says about an address as a whole, <c>/address/:address</c>.</summary>
+    public const string AddressSummary = "bitcoin.address";
+
     /// <summary>The chain's height, <c>/blocks/tip/height</c>.</summary>
     public const string TipHeight = "bitcoin.tip-height";
 }

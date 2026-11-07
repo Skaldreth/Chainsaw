@@ -68,3 +68,40 @@ w('outspends-settled.json',[sp('c1'*32,0,800001),sp(T2,0,800003),sp('c2'*32,3,80
 w('block.json',{"id":H[800000],"height":800000,"version":536870912,"timestamp":1700000000,"tx_count":3000,"size":1600000,"weight":3993000,"merkle_root":"5e"*32,"previousblockhash":'00000000000000000001'+'9f'*22,"mediantime":1699998000,"nonce":12345,"bits":386089497,"difficulty":1.0})
 with open(os.path.join(OUT,'tip-height.txt'),'w') as f: f.write('800010')
 json.dump({k:v[1] for k,v in S.items() if v[1]},open(os.path.join(OUT,'addresses.json'),'w'),indent=1)
+# Stage 15: a transaction with its real bytes (so the txid is the double SHA-256 of them), a forged description of
+# it, a block with a real header that meets its own (easy) target, and an address summary.
+import struct
+def cs(n):
+    if n<0xfd: return bytes([n])
+    if n<=0xffff: return b'\xfd'+struct.pack('<H',n)
+    return b'\xfe'+struct.pack('<I',n)
+def dsha(b): return hashlib.sha256(hashlib.sha256(b).digest()).digest()
+def serialize(version,ins,outs,locktime,witness):
+    body=cs(len(ins))+b''.join(bytes.fromhex(t)[::-1]+struct.pack('<I',v)+cs(0)+struct.pack('<I',q) for t,v,q in ins)
+    body+=cs(len(outs))+b''.join(struct.pack('<q',val)+cs(len(bytes.fromhex(s)))+bytes.fromhex(s) for s,val in outs)
+    base=struct.pack('<i',version)+body+struct.pack('<I',locktime)
+    wit=b''.join(cs(len(w))+b''.join(cs(len(i))+i for i in w) for w in witness)
+    full=struct.pack('<i',version)+b'\x00\x01'+body+wit+struct.pack('<I',locktime)
+    return base,full
+H[800004]='00000000000000000001'+'a4'*22
+rins=[(T0,1,4294967293)]
+routs=[(S['wsh'][0],30_000_000),(S['opret'][0],0),(S['pkh'][0],9_990_000)]
+base,full=serialize(2,rins,routs,0,[[bytes(72),bytes(33)]])
+TR=dsha(base)[::-1].hex()
+treal=tx(TR,[vin(T0,1,'wpkh',40_000_000)],[spk('wsh',30_000_000),spk('opret',0),spk('pkh',9_990_000)],800003,size=len(full),weight=len(base)*3+len(full))
+w('tx-real.json',treal)
+with open(os.path.join(OUT,'tx-real-hex.txt'),'w') as f: f.write(full.hex())
+forged=json.loads(json.dumps(treal)); forged['vout'][2]['value']=9_980_000; forged['fee']+=10_000; w('tx-real-forged.json',forged)
+w('outspends-real.json',[sp('c3'*32,0,800004),{"spent":False},sp('c4'*32,1,800004)])
+prev='00000000000000000001'+'a4'*22; merkle='5e'*32; bits=0x207fffff; t=1700003000
+n=0
+while True:
+    hdr=struct.pack('<i',536870912)+bytes.fromhex(prev)[::-1]+bytes.fromhex(merkle)[::-1]+struct.pack('<III',t,bits,n)
+    bh=dsha(hdr)[::-1].hex()
+    if int(bh,16) <= (bits&0x7fffff)<<(8*((bits>>24)-3)): break
+    n+=1
+w('block-real.json',{"id":bh,"height":800005,"version":536870912,"timestamp":t,"tx_count":2,"size":500,"weight":2000,"merkle_root":merkle,"previousblockhash":prev,"mediantime":t-600,"nonce":n,"bits":bits,"difficulty":0.0})
+with open(os.path.join(OUT,'block-real-header.txt'),'w') as f: f.write(hdr.hex())
+w('address-summary.json',{"address":S['wpkh'][1],"chain_stats":{"funded_txo_count":3,"funded_txo_sum":49_985_000,"spent_txo_count":1,"spent_txo_sum":40_000_000,"tx_count":3},"mempool_stats":{"funded_txo_count":1,"funded_txo_sum":9_985_000,"spent_txo_count":0,"spent_txo_sum":0,"tx_count":1}})
+with open(os.path.join(OUT,'ids.json'),'w') as f: json.dump({"real":TR,"block":bh},f,indent=1)
+with open(os.path.join(OUT,'tx-real-base-hex.txt'),'w') as f: f.write(base.hex())

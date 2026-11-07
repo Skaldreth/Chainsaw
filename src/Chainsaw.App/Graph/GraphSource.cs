@@ -53,14 +53,33 @@ public interface IGraphSource
     /// <param name="place">The place.</param>
     /// <returns>A task that completes when it is stored.</returns>
     Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place);
+
+    /// <summary>Reads how the user left the graph in the case: method, layout, amounts and the part on screen.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The view; the defaults when none is stored.</returns>
+    Task<GraphViewState> LoadViewAsync(ICase @case, CancellationToken cancellationToken);
+
+    /// <summary>Stores how the user left the graph; a change of method gets a line in the journal.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="view">The view.</param>
+    /// <returns>A task that completes when it is stored.</returns>
+    Task SaveViewAsync(ICase @case, GraphViewState view);
 }
 
 /// <summary>The graph view's way into the modules (<see cref="IGraphSource"/>).</summary>
 /// <param name="tracing">The graph and the trace.</param>
 /// <param name="attribution">The labels.</param>
 /// <param name="clustering">The clusters, for <em>Varför?</em>.</param>
+/// <param name="library">
+/// The label library, which gives the graph's addresses the labels set in other cases (CLAUDE.md, <em>Etiketter
+/// smittar</em>); <see langword="null"/> where there is none.
+/// </param>
 public sealed class GraphSource(
-    ITracingService tracing, IAttributionService attribution, IClusteringService clustering) : IGraphSource
+    ITracingService tracing,
+    IAttributionService attribution,
+    IClusteringService clustering,
+    ILabelLibrary? library = null) : IGraphSource
 {
     /// <summary>The most links of a cluster that <em>Varför?</em> writes out.</summary>
     public const int MostClusterLinks = 12;
@@ -96,7 +115,8 @@ public sealed class GraphSource(
             async () =>
             {
                 var graph = await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
-                return Compose(@case, graph, method);
+                graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
+                return await ComposeAsync(@case, graph, method, cancellationToken).ConfigureAwait(false);
             },
             cancellationToken);
     }
@@ -138,7 +158,9 @@ public sealed class GraphSource(
                 }
 
                 graph ??= await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
-                return new GraphExpansion(Compose(@case, graph, method), Combine(outcomes), added, problems);
+                graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
+                var scene = await ComposeAsync(@case, graph, method, cancellationToken).ConfigureAwait(false);
+                return new GraphExpansion(scene, Combine(outcomes), added, problems);
             },
             cancellationToken);
     }
@@ -162,6 +184,57 @@ public sealed class GraphSource(
     {
         ArgumentNullException.ThrowIfNull(@case);
         return Task.Run(() => tracing.SavePosition(@case, nodeKey, layout, new NodePosition(place.X, place.Y)));
+    }
+
+    /// <inheritdoc/>
+    public Task<GraphViewState> LoadViewAsync(ICase @case, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => tracing.GetView(@case), cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task SaveViewAsync(ICase @case, GraphViewState view)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(view);
+        return Task.Run(() => tracing.SaveView(@case, view));
+    }
+
+    /// <summary>
+    /// Gives the graph's addresses the label library's labels from other cases, sealed in this case with a line in
+    /// the journal, and reads the graph again when any came in, so that its ends of the trail include them. Without a
+    /// library, with a locked vault, without an operator profile or with a library that cannot be read, the graph
+    /// stays as it is: the labels come the next time it is read.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The graph, read again when labels came in.</returns>
+    private async Task<TraceGraph> WithSharedLabelsAsync(
+        ICase @case, TraceGraph graph, CancellationToken cancellationToken)
+    {
+        var addresses = graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList();
+        if (library is null || addresses.Count == 0)
+        {
+            return graph;
+        }
+
+        try
+        {
+            if (library.ShareInto(@case, addresses).Count == 0)
+            {
+                return graph;
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException and not OperationCanceledException)
+        {
+            // A locked vault, no operator profile or a library that cannot be read must never keep the case's own
+            // graph from being shown; the labels from other cases come the next time it can be read.
+            return graph;
+        }
+
+        return await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -226,18 +299,25 @@ public sealed class GraphSource(
         return why;
     }
 
-    /// <summary>Gives the scene for a graph: its labels, the seeds and the trace by the method.</summary>
+    /// <summary>
+    /// Gives the scene for a graph: its labels (read once for all its addresses), the seeds and the trace by the
+    /// method, counted off the calling thread and stopped when the work is.
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="graph">The graph.</param>
     /// <param name="method">The tracing method.</param>
+    /// <param name="cancellationToken">Stops the trace.</param>
     /// <returns>The scene.</returns>
-    private GraphScene Compose(ICase @case, TraceGraph graph, TracingMethodKind method)
+    private async Task<GraphScene> ComposeAsync(
+        ICase @case, TraceGraph graph, TracingMethodKind method, CancellationToken cancellationToken)
     {
+        var byAddress = attribution.GetLabels(
+            @case, graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList());
         var labels = new Dictionary<string, IReadOnlyList<Label>>(StringComparer.Ordinal);
         foreach (var node in graph.Nodes.Where(node => node.GraphAddresses.Count > 0))
         {
             var found = node.GraphAddresses
-                .SelectMany(address => attribution.GetLabels(@case, address))
+                .SelectMany(address => byAddress.GetValueOrDefault(address) ?? [])
                 .DistinctBy(label => (label.Subject, label.Kind, label.Name))
                 .OrderByDescending(label => label.IndependentOrigins)
                 .ToList();
@@ -254,7 +334,8 @@ public sealed class GraphSource(
         {
             try
             {
-                trace = tracing.Trace(graph, new TraceRequest(method, seeds));
+                trace = await tracing.TraceAsync(graph, new TraceRequest(method, seeds), cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
             {

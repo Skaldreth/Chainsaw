@@ -56,6 +56,35 @@ internal sealed class TestGraphSource : IGraphSource
         Saved.Add((nodeKey, layout, place));
         return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
     }
+
+    /// <summary>The view the case holds.</summary>
+    public GraphViewState View { get; set; } = GraphViewState.Default;
+
+    /// <summary>The views stored, in order.</summary>
+    public List<GraphViewState> SavedViews { get; } = [];
+
+    /// <summary>Holds the next store of the view until the test lets it go.</summary>
+    public TaskCompletionSource? HoldViewSave { get; set; }
+
+    /// <summary>Makes storing the view fail, as without an operator profile.</summary>
+    public Exception? ViewFailure { get; set; }
+
+    public Task<GraphViewState> LoadViewAsync(ICase @case, CancellationToken cancellationToken) =>
+        Task.FromResult(View);
+
+    public Task SaveViewAsync(ICase @case, GraphViewState view)
+    {
+        SavedViews.Add(view);
+        if (ViewFailure is not null)
+        {
+            return Task.FromException(ViewFailure);
+        }
+
+        View = view;
+        var hold = HoldViewSave;
+        HoldViewSave = null;
+        return hold?.Task ?? Task.CompletedTask;
+    }
 }
 
 /// <summary>The graph's view model (sketch GR4) without WPF.</summary>
@@ -539,5 +568,10 @@ public sealed class GraphViewModelTests
 
         public Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place) =>
             inner.SavePositionAsync(@case, nodeKey, layout, place);
+
+        public Task<GraphViewState> LoadViewAsync(ICase @case, CancellationToken cancellationToken) =>
+            inner.LoadViewAsync(@case, cancellationToken);
+
+        public Task SaveViewAsync(ICase @case, GraphViewState view) => inner.SaveViewAsync(@case, view);
     }
 }

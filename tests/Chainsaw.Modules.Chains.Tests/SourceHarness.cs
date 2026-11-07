@@ -72,6 +72,17 @@ internal sealed class SourceHarness : IDisposable
         Http.Answer(Fixtures.Url($"address/{address}/txs/chain/{Fixtures.Older}"), "address-page-empty.json");
     }
 
+    /// <summary>Answers the transaction and block whose bytes are real, and the address summary.</summary>
+    public void AnswerReal()
+    {
+        Http.Answer(Fixtures.Url($"tx/{Fixtures.Real}"), "tx-real.json");
+        Http.Answer(Fixtures.Url($"tx/{Fixtures.Real}/hex"), "tx-real-hex.txt");
+        Http.Answer(Fixtures.Url($"tx/{Fixtures.Real}/outspends"), "outspends-real.json");
+        Http.Answer(Fixtures.Url($"block/{Fixtures.RealBlock}"), "block-real.json");
+        Http.Answer(Fixtures.Url($"block/{Fixtures.RealBlock}/header"), "block-real-header.txt");
+        Http.Answer(Fixtures.Url($"address/{Fixtures.AddressText("wpkh")}"), "address-summary.json");
+    }
+
     /// <summary>Reads the sealed raw responses, in order.</summary>
     public List<RawRow> RawRows() => Case.Read(reader =>
     {
