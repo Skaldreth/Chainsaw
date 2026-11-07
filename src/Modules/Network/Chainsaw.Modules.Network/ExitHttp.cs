@@ -8,15 +8,19 @@ namespace Chainsaw.Modules.Network;
 /// <summary>
 /// Sends requests the way out chosen in the settings and nowhere else. With VPN chosen, a request goes through the
 /// connected exit, and without one it is refused before anything is built or sent; it never falls back to Windows.
-/// With Windows chosen it goes through the computer's own network. Only the address, the method, a neutral User-Agent
+/// With Windows chosen it goes through the computer's own network, and while the computer has no network it is refused
+/// the same way, before anything is built, so that every caller that waits for an exit waits for the network too and
+/// no source is marked as failing for a fault of the computer's. Only the address, the method, a neutral User-Agent
 /// and, when asked, <c>Accept</c>, a source's API key and a body are sent: the pipeline keeps no cookies, follows no
 /// redirects and adds no referer.
 /// </summary>
 /// <param name="connection">The connection that holds the pipeline through the exit (VPN).</param>
 /// <param name="route">The way out chosen, which holds the pipeline through Windows.</param>
+/// <param name="presence">Whether the computer has a network, which the way through Windows needs.</param>
 /// <param name="options">The limits on requests.</param>
 /// <param name="clock">The clock for the request's times.</param>
-internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route, NetworkOptions options, IClock clock)
+internal sealed class ExitHttp(
+    ExitConnection connection, ExitRouteChoice route, INetworkPresence presence, NetworkOptions options, IClock clock)
     : IExitHttp
 {
     /// <summary>The size of each read from the response body.</summary>
@@ -33,6 +37,11 @@ internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route,
         if (!TryLease(out var lease))
         {
             throw new ExitNotConnectedException();
+        }
+
+        if (lease.Route == ExitRoute.Windows && !presence.IsAvailable)
+        {
+            throw ExitNotConnectedException.Offline();
         }
 
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lease.Stopping);

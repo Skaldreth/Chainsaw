@@ -23,4 +23,9 @@ public enum ExitError
     /// would have left the computer directly. Nothing was sent.
     /// </summary>
     NotLocal,
+
+    /// <summary>
+    /// Windows is the way out and the computer has no network (<see cref="INetworkPresence"/>), so nothing was sent.
+    /// </summary>
+    Offline,
 }

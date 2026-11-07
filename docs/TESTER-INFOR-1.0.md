@@ -1038,3 +1038,19 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Vänsterknappen på tom yta panorerar inte längre; den drar noder och väljer.
 - [ ] Med animeringar avstängda i Windows glider ytan inte efter släppet.
 - [ ] Grafens läge (var man panorerat) finns kvar när ärendet öppnas igen.
+
+## Windows som utgång utan nät
+
+- [ ] Välj *Windows* i Inställningar › Nätverk med nät: titelradens utgång säger *Windows* i grönt.
+- [ ] Dra ur nätverkskabeln och stäng av Wi-Fi (eller slå på flygplansläge): inom någon sekund säger titelraden
+      *Offline* i rött, och verktygstipset säger att datorn inte har något nät.
+- [ ] Öppna utgångsrutan utan nät: mittringen och skärmikonen är röda, det står *Offline* under, och båda linjerna är
+      röda och streckade.
+- [ ] Expandera en ny adress utan nät: grafen säger offline ärligt, inget uppslag görs och ingen endpoint märks som
+      trasig i Inställningar › Källor.
+- [ ] Koppla in nätet igen: titelraden och utgångsrutan blir gröna och säger *Windows* utan att Chainsaw startas om, och
+      källorna provas igen.
+- [ ] Med *VPN* valt och en ansluten utgång ändrar en kort nätförlust inte titelraden till *Offline* av sig själv
+      (tunnelns eget läge gäller).
+- [ ] Ett nät som finns men inte når internet (till exempel ett Wi-Fi med inloggningssida) visas fortfarande grönt;
+      uppslagen misslyckas då på vägen och sägs som fel. Notera om det känns fel.

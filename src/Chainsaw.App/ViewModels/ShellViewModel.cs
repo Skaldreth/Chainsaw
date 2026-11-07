@@ -32,6 +32,13 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>What the exit's tooltip says when lookups go through Windows.</summary>
     public const string WindowsSourceText = "Uppslag går genom Windows";
 
+    /// <summary>What the title bar says when Windows is the way out and the computer has no network.</summary>
+    public const string WindowsOfflineText = "Offline";
+
+    /// <summary>What the exit's tooltip says when Windows is the way out and the computer has no network.</summary>
+    public const string WindowsOfflineSourceText =
+        "Offline: datorn har inget nät. Det ärendet redan har visas, men inget nytt hämtas.";
+
     /// <summary>
     /// What Chainsaw says while no exit is connected (principle 9), in the exit's tooltip and in the graph alike, so
     /// that offline is said one way only.
@@ -729,12 +736,19 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Shows the way out honestly: Windows, or the exit connected with its name, connecting, or not connected.
+    /// Shows the way out honestly: Windows, or offline when the computer has no network, or the exit connected with
+    /// its name, connecting, or not connected.
     /// </summary>
     private void ShowExit()
     {
         IsExitLive = _way.IsLive;
         WaitText = _way.WaitText;
+        if (_way.IsWindowsOffline)
+        {
+            (ExitText, SourceText) = (WindowsOfflineText, WindowsOfflineSourceText);
+            return;
+        }
+
         if (_way.IsWindows)
         {
             (ExitText, SourceText) = (WindowsText, WindowsSourceText);

@@ -17,7 +17,10 @@ namespace Chainsaw.App.ViewModels;
 /// </summary>
 public sealed partial class ExitPanelViewModel : ObservableObject
 {
-    /// <summary>What the middle of the route says while no lookups can go: no exit is connected.</summary>
+    /// <summary>
+    /// What the middle of the route says while no lookups can go: no exit is connected, or Windows is the way out and
+    /// the computer has no network.
+    /// </summary>
     public const string NoRouteText = "Offline";
 
     /// <summary>What the route says when lookups go through Windows.</summary>
@@ -139,7 +142,10 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// <summary>Gets whether the list of exits is shown.</summary>
     public bool IsListing => !IsAdding;
 
-    /// <summary>Gets whether lookups can go now: through Windows, or a connected exit (the route is green).</summary>
+    /// <summary>
+    /// Gets whether lookups can go now: through Windows while the computer has a network, or a connected exit (the
+    /// route is green).
+    /// </summary>
     [ObservableProperty]
     public partial bool IsLive { get; private set; }
 
@@ -509,16 +515,16 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Makes the route green through Windows or with the connected exit's name, or red and dashed with
-    /// <em>Offline</em>.
+    /// Makes the route green through Windows while the computer has a network or with the connected exit's name, or
+    /// red and dashed with <em>Offline</em>.
     /// </summary>
     private void ShowRoute()
     {
         IsVpnMode = !_way.IsWindows;
         if (_way.IsWindows)
         {
-            IsLive = true;
-            RouteText = WindowsRouteText;
+            IsLive = _way.IsOnline;
+            RouteText = IsLive ? WindowsRouteText : NoRouteText;
             return;
         }
 
