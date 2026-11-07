@@ -9,8 +9,8 @@ namespace Chainsaw.Modules.Network;
 /// Sends requests the way out chosen in the settings and nowhere else. With VPN chosen, a request goes through the
 /// connected exit, and without one it is refused before anything is built or sent; it never falls back to Windows.
 /// With Windows chosen it goes through the computer's own network. Only the address, the method, a neutral User-Agent
-/// and, when asked, <c>Accept</c> and a body are sent: the pipeline keeps no cookies, follows no redirects and adds no
-/// referer.
+/// and, when asked, <c>Accept</c>, a source's API key and a body are sent: the pipeline keeps no cookies, follows no
+/// redirects and adds no referer.
 /// </summary>
 /// <param name="connection">The connection that holds the pipeline through the exit (VPN).</param>
 /// <param name="route">The way out chosen, which holds the pipeline through Windows.</param>
@@ -126,6 +126,11 @@ internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route,
         {
             throw new ArgumentException("The media type asked for is not valid.", nameof(request));
         }
+
+        if (request.Credential is { IsWellFormed: false })
+        {
+            throw new ArgumentException("The key's header is not allowed or its value cannot be sent.", nameof(request));
+        }
     }
 
     /// <summary>Gives the response's media type exactly as the server wrote it.</summary>
@@ -153,6 +158,11 @@ internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route,
         if (request.Accept is not null)
         {
             message.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse(request.Accept));
+        }
+
+        if (request.Credential is { } credential)
+        {
+            message.Headers.TryAddWithoutValidation(credential.Header, credential.Value);
         }
 
         if (request.Method == ExitMethod.Post)

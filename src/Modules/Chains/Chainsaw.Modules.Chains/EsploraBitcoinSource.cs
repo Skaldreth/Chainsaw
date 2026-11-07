@@ -22,6 +22,12 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <summary>The longest script that can run, in hex characters (10 000 bytes).</summary>
     private const int MaximumScriptHex = 20_000;
 
+    /// <summary>What a lookup says when Bitcoin's sources are off in the settings (principle 9).</summary>
+    private const string SourcesOffText = "Källorna för Bitcoin är avstängda i inställningarna (Av). Inget skickades.";
+
+    /// <summary>What a lookup says when no endpoint of Bitcoin is on.</summary>
+    private const string NoneOnText = "Ingen källa för Bitcoin är påslagen i inställningarna. Inget skickades.";
+
     /// <summary>The HTTP status for something the source does not know.</summary>
     private const int NotFoundStatus = 404;
 
@@ -37,8 +43,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <summary>The settings.</summary>
     private readonly BitcoinSourceOptions _options;
 
-    /// <summary>The base address, checked and ending in <c>/</c>.</summary>
-    private readonly Uri _baseUri;
+    /// <summary>The endpoints to ask, in the order the chosen mode gives.</summary>
+    private readonly ChainSources _sources;
 
     /// <summary>Reads Esplora's JSON.</summary>
     private readonly EsploraParser _parser;
@@ -46,23 +52,38 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <summary>Seals and finds the raw responses.</summary>
     private readonly RawResponseStore _store;
 
+    /// <summary>Creates the source with the default endpoints in memory only, as a test or a tool does.</summary>
+    /// <param name="http">The only way out.</param>
+    /// <param name="operators">The operator profile.</param>
+    /// <param name="clock">The clock.</param>
+    /// <param name="options">The settings, with the default endpoints.</param>
+    /// <param name="timeZone">The time zone local times are recorded in.</param>
+    /// <exception cref="ArgumentException">A default endpoint is not an absolute <c>https</c> address of its
+    /// own.</exception>
+    public EsploraBitcoinSource(
+        IExitHttp http, IOperatorProfileStore operators, IClock clock, BitcoinSourceOptions options,
+        TimeZoneInfo timeZone)
+        : this(http, operators, clock, options, timeZone,
+            new ChainSources([new EsploraApi(options)], http, null, null, clock, new ChainSourcesOptions()))
+    {
+    }
+
     /// <summary>Creates the source.</summary>
     /// <param name="http">The only way out.</param>
     /// <param name="operators">The operator profile.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="options">The settings.</param>
     /// <param name="timeZone">The time zone local times are recorded in.</param>
-    /// <exception cref="ArgumentException">The base address is not an absolute <c>https</c> address of its
-    /// own.</exception>
+    /// <param name="sources">The chains' endpoints, of which Bitcoin's are asked.</param>
     public EsploraBitcoinSource(
         IExitHttp http, IOperatorProfileStore operators, IClock clock, BitcoinSourceOptions options,
-        TimeZoneInfo timeZone)
+        TimeZoneInfo timeZone, ChainSources sources)
     {
         _http = http;
         _operators = operators;
         _clock = clock;
         _options = options;
-        _baseUri = CheckBaseUri(options.EsploraBaseUri);
+        _sources = sources;
         _parser = new EsploraParser(options.Network);
         _store = new RawResponseStore(timeZone, options.Network);
         if (options.SafeConfirmations < 1)
@@ -384,41 +405,79 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return Fallback(stored, LookupStatus.Failed, noOperator!);
         }
 
-        ExitResponse response;
-        try
+        var plan = _sources.Plan(Chain.Bitcoin);
+        if (plan.Off)
         {
-            response = await _http.SendAsync(Request(query.Path), cancellationToken).ConfigureAwait(false);
-        }
-        catch (ExitNotConnectedException)
-        {
-            return Fallback(stored, LookupStatus.Offline, "Ingen utgång är ansluten, och inget skickades.");
-        }
-        catch (ExitException exception)
-        {
-            return Fallback(stored, LookupStatus.Failed, exception.Message);
+            return Fallback(stored, LookupStatus.Offline, SourcesOffText);
         }
 
-        var (value, problem) = Interpret(query, response);
-        var sealedResponse = await Task.Run(
-            () => @case.Write(transaction => _store.Append(
-                transaction, query.Kind, query.Subject, response, fetchedBy,
-                value is null ? null : query.Index(value))),
-            CancellationToken.None).ConfigureAwait(false);
-        if (value is not null)
+        if (plan.Endpoints.Count == 0)
         {
-            var change = stored is { } earlier ? query.Changed?.Invoke(earlier.Value, value) : null;
-            return new BitcoinLookup<T>(LookupStatus.Fetched, value, [sealedResponse.Origin], null)
+            return Fallback(stored, LookupStatus.Failed, NoneOnText);
+        }
+
+        // The endpoints are asked in the plan's order; the next is asked when one fails, does not answer in time or
+        // gives an answer that cannot be used. Every response is sealed with the endpoint it came from (principle 1).
+        var failures = new List<ResponseOrigin>();
+        var problem = NoneOnText;
+        foreach (var planned in plan.Endpoints)
+        {
+            var endpoint = planned.Endpoint;
+            if (_sources.WithKey(endpoint, planned.Api, Request(endpoint.Address, query.Path), out var keyProblem)
+                is not { } request)
             {
-                Notes = change is null ? [] : [change],
-            };
+                problem = keyProblem!;
+                continue;
+            }
+
+            ExitResponse response;
+            try
+            {
+                response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+            catch (ExitNotConnectedException)
+            {
+                return Fallback(stored, LookupStatus.Offline, "Ingen utgång är ansluten, och inget skickades.",
+                    failures);
+            }
+            catch (ExitException exception)
+            {
+                _sources.Failed(Chain.Bitcoin, endpoint.Id);
+                problem = exception.Message;
+                continue;
+            }
+
+            var (value, interpretProblem) = Interpret(query, response);
+            var sealedResponse = await Task.Run(
+                () => @case.Write(transaction => _store.Append(
+                    transaction, query.Kind, query.Subject, response, endpoint, fetchedBy,
+                    value is null ? null : query.Index(value))),
+                CancellationToken.None).ConfigureAwait(false);
+            if (value is not null)
+            {
+                _sources.Answered(Chain.Bitcoin, endpoint.Id);
+                var change = stored is { } earlier ? query.Changed?.Invoke(earlier.Value, value) : null;
+                return new BitcoinLookup<T>(LookupStatus.Fetched, value, [.. failures, sealedResponse.Origin], null)
+                {
+                    Notes = change is null ? [] : [change],
+                };
+            }
+
+            if (response.StatusCode == NotFoundStatus)
+            {
+                // The source says it does not know it: an answer, not a failure, so no other endpoint is asked.
+                failures.Add(sealedResponse.Origin);
+                return stored is null
+                    ? new BitcoinLookup<T>(LookupStatus.NotFound, null, failures, interpretProblem)
+                    : Fallback(stored, LookupStatus.Failed, interpretProblem!, failures);
+            }
+
+            _sources.Failed(Chain.Bitcoin, endpoint.Id);
+            failures.Add(sealedResponse.Origin);
+            problem = interpretProblem!;
         }
 
-        if (response.StatusCode == NotFoundStatus && stored is null)
-        {
-            return new BitcoinLookup<T>(LookupStatus.NotFound, null, [sealedResponse.Origin], problem);
-        }
-
-        return Fallback(stored, LookupStatus.Failed, problem!, sealedResponse.Origin);
+        return Fallback(stored, LookupStatus.Failed, problem, failures);
     }
 
     /// <summary>Reads a fresh response, or says why it cannot be used.</summary>
@@ -459,25 +518,23 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <param name="stored">The case's newest answer, if any.</param>
     /// <param name="withoutAnswer">The status when the case has no answer.</param>
     /// <param name="reason">Why the source could not answer, in Swedish.</param>
-    /// <param name="failedResponse">The sealed response that could not be used, if there was one.</param>
+    /// <param name="failedResponses">The sealed responses that could not be used, if any.</param>
     /// <returns>The answer.</returns>
     private static BitcoinLookup<T> Fallback<T>(
         (T Value, StoredResponse Response)? stored, LookupStatus withoutAnswer, string reason,
-        ResponseOrigin? failedResponse = null)
+        IReadOnlyList<ResponseOrigin>? failedResponses = null)
         where T : class
     {
+        var failed = failedResponses ?? [];
         if (stored is not { } found)
         {
-            var origins = failedResponse is null ? Array.Empty<ResponseOrigin>() : [failedResponse];
-            return new BitcoinLookup<T>(withoutAnswer, null, origins, NoAnswer(withoutAnswer, reason));
+            return new BitcoinLookup<T>(withoutAnswer, null, failed, NoAnswer(withoutAnswer, reason));
         }
 
         var fetchedAt = LocalText(found.Response.Origin.ReceivedLocal);
         var problem = $"{reason} Svaret kommer ur ärendet, hämtat {fetchedAt}, och kan ha ändrats sedan.";
-        ResponseOrigin[] used = failedResponse is null
-            ? [found.Response.Origin]
-            : [found.Response.Origin, failedResponse];
-        return new BitcoinLookup<T>(LookupStatus.FromCaseMayBeOutdated, found.Value, used, problem);
+        return new BitcoinLookup<T>(
+            LookupStatus.FromCaseMayBeOutdated, found.Value, [found.Response.Origin, .. failed], problem);
     }
 
     /// <summary>Says that there is no answer, and why.</summary>
@@ -801,27 +858,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         }
     }
 
-    /// <summary>Builds a GET request under the base address.</summary>
+    /// <summary>Builds a GET request under an endpoint's address.</summary>
+    /// <param name="address">The endpoint's address, ending in <c>/</c>.</param>
     /// <param name="path">The path, which never names the case.</param>
-    /// <returns>The request.</returns>
-    private ExitRequest Request(string path) =>
-        ExitRequest.Get(new Uri(_baseUri, path)) with { Accept = "application/json, text/plain" };
-
-    /// <summary>Checks the base address and makes it end in <c>/</c>.</summary>
-    /// <param name="uri">The base address.</param>
-    /// <returns>The checked address.</returns>
-    /// <exception cref="ArgumentException">It is not an absolute <c>https</c> address without user, query or
-    /// fragment.</exception>
-    private static Uri CheckBaseUri(Uri uri)
-    {
-        ArgumentNullException.ThrowIfNull(uri);
-        if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps || uri.UserInfo.Length > 0
-            || uri.Query.Length > 0 || uri.Fragment.Length > 0)
-        {
-            throw new ArgumentException(
-                "The Esplora base address must be https without user, query or fragment.", nameof(uri));
-        }
-
-        return uri.AbsoluteUri.EndsWith('/') ? uri : new Uri(uri.AbsoluteUri + "/");
-    }
+    /// <returns>The request, without a key.</returns>
+    private static ExitRequest Request(Uri address, string path) => EsploraApi.Get(address, path);
 }

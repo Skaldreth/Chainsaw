@@ -6,10 +6,10 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains.Tests;
 
-/// <summary>A vault that is always unlocked.</summary>
+/// <summary>A vault that is unlocked unless the test locks it.</summary>
 internal sealed class FakeVault : IVault
 {
-    public VaultState State => VaultState.Unlocked;
+    public VaultState State { get; set; } = VaultState.Unlocked;
 
     public event EventHandler<VaultState>? StateChanged
     {
@@ -71,6 +71,12 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
 
     public ExitError? Failure { get; set; }
 
+    /// <summary>The time each host takes to answer, in milliseconds; 120 when not given.</summary>
+    public Dictionary<string, int> Milliseconds { get; } = [];
+
+    /// <summary>Hosts whose requests fail on the way, as a dead endpoint's do.</summary>
+    public HashSet<string> FailingHosts { get; } = [];
+
     public List<ExitRequest> Sent { get; } = [];
 
     public int Refused { get; private set; }
@@ -95,6 +101,11 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
             throw new ExitException(failure);
         }
 
+        if (FailingHosts.Contains(request.Uri.Host))
+        {
+            throw new ExitException(ExitError.RequestFailed);
+        }
+
         var url = request.Uri.AbsoluteUri;
         var (status, body, contentType) = _answers.TryGetValue(url, out var answer)
             ? answer
@@ -102,6 +113,23 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
         var sent = clock.UtcNow;
         return Task.FromResult(new ExitResponse(
             request.Uri, Route == ExitRoute.Vpn ? ExitId : Guid.Empty, status, contentType, body, sent,
-            sent.AddMilliseconds(120), Route));
+            sent.AddMilliseconds(Milliseconds.GetValueOrDefault(request.Uri.Host, 120)), Route));
     }
+}
+
+/// <summary>API keys in memory, or a locked vault.</summary>
+internal sealed class FakeKeys : IApiKeyStore
+{
+    public Dictionary<string, ApiKey> Keys { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool Locked { get; set; }
+
+    public IReadOnlyList<ApiKeyInfo> List() => throw new NotSupportedException();
+
+    public ApiKey? Find(string service) =>
+        Locked ? throw new VaultException(VaultError.Locked) : Keys.GetValueOrDefault(service);
+
+    public void Save(ApiKey key) => Keys[key.Service] = key;
+
+    public bool Remove(string service) => Keys.Remove(service);
 }

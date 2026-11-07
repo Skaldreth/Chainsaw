@@ -83,6 +83,24 @@ internal sealed class SourceHarness : IDisposable
         Http.Answer(Fixtures.Url($"address/{Fixtures.AddressText("wpkh")}"), "address-summary.json");
     }
 
+    /// <summary>The chains' endpoints behind the source.</summary>
+    public ChainSources Sources => _provider.GetRequiredService<ChainSources>();
+
+    /// <summary>Reads the sealed sort of API and endpoint of every raw response, in order.</summary>
+    public List<(string Source, string Id, string Name, string Url)> EndpointColumns() => Case.Read(reader =>
+    {
+        using var command = reader.CreateCommand(
+            "SELECT source, endpoint_id, endpoint_name, url FROM chains_raw_responses ORDER BY sequence");
+        using var row = command.ExecuteReader();
+        var rows = new List<(string, string, string, string)>();
+        while (row.Read())
+        {
+            rows.Add((row.GetString(0), row.GetString(1), row.GetString(2), row.GetString(3)));
+        }
+
+        return rows;
+    });
+
     /// <summary>Reads the sealed exit and way out of every raw response, in order.</summary>
     public List<(string? ExitId, string Route)> ExitColumns() => Case.Read(reader =>
     {

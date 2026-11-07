@@ -10,10 +10,19 @@ public sealed record BitcoinSourceOptions
     public static readonly Uri Blockstream = new("https://blockstream.info/api/");
 
     /// <summary>
-    /// Gets the Esplora API's base address, <c>https</c> and ending in <c>/</c>. A self-hosted Esplora later is only
-    /// another address here.
+    /// Gets Bitcoin's endpoints until the user changes them in the settings (sketch KL1a): Esplora at mempool.space and
+    /// at Blockstream, in that order. Each is <c>https</c>; a self-hosted Esplora is only another endpoint.
     /// </summary>
-    public Uri EsploraBaseUri { get; init; } = MempoolSpace;
+    public IReadOnlyList<Uri> DefaultEndpoints { get; init; } = [MempoolSpace, Blockstream];
+
+    /// <summary>
+    /// Gets the first default endpoint, or sets it as the only one (as a test or a single in-house Esplora does).
+    /// </summary>
+    public Uri EsploraBaseUri
+    {
+        get => DefaultEndpoints[0];
+        init => DefaultEndpoints = [value];
+    }
 
     /// <summary>Gets the network the source answers for; addresses from another network are refused.</summary>
     public BitcoinNetwork Network { get; init; } = BitcoinNetwork.Mainnet;

@@ -19,22 +19,44 @@ public static class ChainsModule
 {
     /// <summary>Adds the module's services to the container.</summary>
     /// <param name="services">The container to add to.</param>
-    /// <param name="options">The Bitcoin source's settings; by default Esplora at mempool.space.</param>
+    /// <param name="options">
+    /// The Bitcoin source's settings; by default Esplora at mempool.space and Blockstream as Bitcoin's endpoints until
+    /// the user changes them.
+    /// </param>
+    /// <param name="sources">
+    /// Sets where the endpoints are kept (sketch KL1a); by default in memory only. The application keeps them in its
+    /// data.
+    /// </param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
     public static IServiceCollection AddChainsModule(
-        this IServiceCollection services, BitcoinSourceOptions? options = null)
+        this IServiceCollection services, BitcoinSourceOptions? options = null,
+        Action<ChainSourcesOptions>? sources = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         var settings = options ?? new BitcoinSourceOptions();
+        var sourcesOptions = new ChainSourcesOptions();
+        sources?.Invoke(sourcesOptions);
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<ICaseSchemaContributor, ChainsSchema>();
+
+        // Each sort of API is registered here; another chain (Ethereum, TRON) only adds its own.
+        services.AddSingleton<ISourceApi>(new EsploraApi(settings));
+        services.AddSingleton(provider => new ChainSources(
+            provider.GetServices<ISourceApi>(),
+            provider.GetRequiredService<IExitHttp>(),
+            provider.GetService<IApiKeyStore>(),
+            provider.GetService<IVault>(),
+            provider.GetRequiredService<IClock>(),
+            sourcesOptions));
+        services.AddSingleton<IChainSources>(provider => provider.GetRequiredService<ChainSources>());
         services.AddSingleton<IBitcoinSource>(provider => new EsploraBitcoinSource(
             provider.GetRequiredService<IExitHttp>(),
             provider.GetRequiredService<IOperatorProfileStore>(),
             provider.GetRequiredService<IClock>(),
             settings,
-            TimeZoneInfo.Local));
+            TimeZoneInfo.Local,
+            provider.GetRequiredService<ChainSources>()));
         return services;
     }
 }

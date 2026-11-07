@@ -138,6 +138,39 @@ public sealed class ExitHttpTests
         Assert.Equal(["Accept", "User-Agent"], request.Headers.NonValidated.Select(h => h.Key).Order());
     }
 
+    [Fact]
+    public async Task A_sources_key_goes_only_in_its_header()
+    {
+        await _harness.ConnectedExitAsync();
+
+        await _harness.Http.SendAsync(ExitRequest.Get(Address) with
+        {
+            Credential = new ExitCredential("Authorization", "Bearer s3cret"),
+        });
+
+        var request = Assert.Single(_harness.Handlers.Handlers[0].Requests);
+        Assert.Equal(["Authorization", "User-Agent"], request.Headers.NonValidated.Select(h => h.Key).Order());
+        Assert.Equal("Bearer s3cret", request.Headers.NonValidated["Authorization"].ToString());
+        Assert.DoesNotContain("s3cret", request.RequestUri!.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Cookie", "a=b")]
+    [InlineData("Referer", "https://case.example/")]
+    [InlineData("Authorization", "Bearer a\r\nX-Case: 1")]
+    [InlineData("Authorization", "")]
+    public async Task A_key_that_would_set_another_header_is_refused_before_anything_is_sent(string header, string value)
+    {
+        await _harness.ConnectedExitAsync();
+        var credential = new ExitCredential(header, value);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _harness.Http.SendAsync(ExitRequest.Get(Address) with { Credential = credential }));
+
+        Assert.Empty(_harness.Handlers.Handlers[0].Requests);
+        Assert.EndsWith("Value = *** }", credential.ToString(), StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("http://chain.example/tx")]
     [InlineData("ftp://chain.example/tx")]

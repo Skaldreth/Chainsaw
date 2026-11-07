@@ -17,6 +17,12 @@ public sealed record ExitRequest(ExitMethod Method, Uri Uri)
     /// <summary>Gets the media type asked for (the <c>Accept</c> header), or <see langword="null"/> for none.</summary>
     public string? Accept { get; init; }
 
+    /// <summary>
+    /// Gets a source's API key to send as a header, or <see langword="null"/> for none. It is never part of the
+    /// address, so it is never sealed with the response.
+    /// </summary>
+    public ExitCredential? Credential { get; init; }
+
     /// <summary>Creates a GET request.</summary>
     /// <param name="uri">The address.</param>
     /// <returns>The request.</returns>

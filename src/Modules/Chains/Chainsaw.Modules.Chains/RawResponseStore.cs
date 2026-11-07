@@ -11,7 +11,7 @@ namespace Chainsaw.Modules.Chains;
 
 /// <summary>
 /// Seals raw responses in the case and finds them again (principles 1 and 9). Every response is sealed with its
-/// source, address, status, times (UTC and local with the time zone), the exit it left through and the sort of way
+/// sort of API and the endpoint it came from (id and name), address, status, times (UTC and local with the time zone), the exit it left through and the sort of way
 /// out (VPN or Windows), who fetched it, the SHA-256 of its bytes and the bytes themselves; the indexes beside it only
 /// say where to look.
 /// </summary>
@@ -25,18 +25,17 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork net
     /// <summary>Gets the chain's name in the tables, for example <c>bitcoin-mainnet</c>.</summary>
     public string ChainName { get; } = "bitcoin-" + network.ToString().ToLowerInvariant();
 
-    /// <summary>The source's name in the tables.</summary>
-    public const string SourceName = "esplora";
-
     /// <summary>The columns read back, in order.</summary>
     private const string SelectColumns =
-        "sequence, url, kind, subject, status_code, received_utc, received_local, fetched_by, sha256, body";
+        "sequence, source, endpoint_id, endpoint_name, url, kind, subject, status_code, received_utc, received_local, "
+        + "fetched_by, sha256, body";
 
     /// <summary>Seals a response and adds it to the indexes, in the caller's transaction.</summary>
     /// <param name="transaction">The case's write transaction.</param>
     /// <param name="kind">What was asked.</param>
     /// <param name="subject">What it was asked about (a txid, an address, a block hash).</param>
     /// <param name="response">The response.</param>
+    /// <param name="endpoint">The endpoint it came from (principle 1).</param>
     /// <param name="fetchedBy">Who fetched it.</param>
     /// <param name="index">
     /// What the response adds to the indexes, or <see langword="null"/> when it is not a usable answer (an error
@@ -44,15 +43,15 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork net
     /// </param>
     /// <returns>The sealed response.</returns>
     public StoredResponse Append(
-        ICaseTransaction transaction, string kind, string subject, ExitResponse response, OperatorProfile fetchedBy,
-        ResponseIndex? index)
+        ICaseTransaction transaction, string kind, string subject, ExitResponse response, SourceEndpoint endpoint,
+        OperatorProfile fetchedBy, ResponseIndex? index)
     {
         var body = response.Body.ToArray();
         var sha256 = SHA256.HashData(body);
         var local = TimeZoneInfo.ConvertTime(response.ReceivedAt, timeZone);
         object?[] values =
         [
-            ChainName, SourceName, response.Uri.AbsoluteUri, kind, subject, (long)response.StatusCode,
+            ChainName, endpoint.Api, endpoint.Id.ToString("D"), endpoint.Name, response.Uri.AbsoluteUri, kind, subject, (long)response.StatusCode,
             response.ContentType, Text(response.RequestedAt), Text(response.ReceivedAt), Text(local), timeZone.Id,
             response.ExitIdText, response.RouteText, JsonSerializer.Serialize(fetchedBy), sha256, body,
         ];
@@ -63,8 +62,12 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork net
         }
 
         var origin = new ResponseOrigin(
-            record.Sequence, SourceName, response.Uri, response.StatusCode, response.ReceivedAt, local, fetchedBy,
-            Convert.ToHexStringLower(sha256));
+            record.Sequence, endpoint.Api, response.Uri, response.StatusCode, response.ReceivedAt, local, fetchedBy,
+            Convert.ToHexStringLower(sha256))
+        {
+            EndpointId = endpoint.Id,
+            Endpoint = endpoint.Name,
+        };
         return new StoredResponse(kind, subject, origin, body);
     }
 
@@ -181,14 +184,18 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork net
 
         var origin = new ResponseOrigin(
             row.GetInt64(row.GetOrdinal("sequence")),
-            SourceName,
+            row.GetString(row.GetOrdinal("source")),
             new Uri(row.GetString(row.GetOrdinal("url"))),
             checked((int)row.GetInt64(row.GetOrdinal("status_code"))),
             ParseTime(row.GetString(row.GetOrdinal("received_utc"))),
             ParseTime(row.GetString(row.GetOrdinal("received_local"))),
             JsonSerializer.Deserialize<OperatorProfile>(row.GetString(row.GetOrdinal("fetched_by")))
                 ?? throw new CaseException(CaseError.Corrupt),
-            Convert.ToHexStringLower(sha256));
+            Convert.ToHexStringLower(sha256))
+        {
+            EndpointId = Guid.Parse(row.GetString(row.GetOrdinal("endpoint_id"))),
+            Endpoint = row.GetString(row.GetOrdinal("endpoint_name")),
+        };
         return new StoredResponse(
             row.GetString(row.GetOrdinal("kind")), row.GetString(row.GetOrdinal("subject")), origin, body);
     }

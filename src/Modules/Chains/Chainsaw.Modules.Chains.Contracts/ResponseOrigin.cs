@@ -8,7 +8,7 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// <see cref="Sequence"/>.
 /// </summary>
 /// <param name="Sequence">The response's number in the sealed table.</param>
-/// <param name="Source">The source's name, for example <c>esplora</c>.</param>
+/// <param name="Source">The sort of API the endpoint speaks, for example <c>esplora</c>.</param>
 /// <param name="Url">The address that was asked.</param>
 /// <param name="StatusCode">The HTTP status of the response.</param>
 /// <param name="ReceivedUtc">When the response arrived, in UTC.</param>
@@ -23,4 +23,11 @@ public sealed record ResponseOrigin(
     DateTimeOffset ReceivedUtc,
     DateTimeOffset ReceivedLocal,
     OperatorProfile FetchedBy,
-    string Sha256);
+    string Sha256)
+{
+    /// <summary>Gets the id of the endpoint the response came from (sketch KL1a, principle 1).</summary>
+    public Guid EndpointId { get; init; }
+
+    /// <summary>Gets the endpoint's name when the response came, for example <c>mempool.space</c>.</summary>
+    public string Endpoint { get; init; } = string.Empty;
+}
