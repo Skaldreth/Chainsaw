@@ -20,12 +20,16 @@ public enum AreaLine
 }
 
 /// <summary>An area behind the actors (sketch KF1b).</summary>
-/// <param name="Key">The area's stable key: the check's, <c>own:</c> and the area's id, or the sort and its actors.</param>
+/// <param name="Key">
+/// The area's stable key: the check's, <c>own:</c> and the area's id, or the sort and its actors.
+/// </param>
 /// <param name="Sort">The sort the menu shows it under.</param>
 /// <param name="Look">Its icon and tint.</param>
 /// <param name="Nodes">The actors it is drawn around, in the graph's order.</param>
 /// <param name="Line">How its edge is drawn.</param>
-/// <param name="IsFilled">Whether it is filled; an area whose actors already sit on another's fill is only an edge.</param>
+/// <param name="IsFilled">
+/// Whether it is filled; an area whose actors already sit on another's fill is only an edge.
+/// </param>
 /// <param name="Label">Its name, shown on hover and when it is chosen.</param>
 /// <param name="Own">The own area it is, or <see langword="null"/>.</param>
 /// <param name="CheckKey">The check or suggestion it belongs to, or <see langword="null"/>.</param>
@@ -147,7 +151,9 @@ public static class GraphAreas
     /// <summary>Gives a check's area: around its actors, without the candidates the user dismissed.</summary>
     /// <param name="scene">The graph.</param>
     /// <param name="check">The check.</param>
-    /// <returns>The area, or <see langword="null"/> when it has no actor in the graph or the user dismissed it all.</returns>
+    /// <returns>
+    /// The area, or <see langword="null"/> when it has no actor in the graph or the user dismissed it all.
+    /// </returns>
     private static AreaView? OfCheck(GraphScene scene, StoredCheck check)
     {
         var finding = check.Finding;

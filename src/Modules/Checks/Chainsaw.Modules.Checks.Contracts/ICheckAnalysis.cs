@@ -11,7 +11,9 @@ namespace Chainsaw.Modules.Checks.Contracts;
 /// <remarks>An analysis must be deterministic: the same input gives the same findings, in the same order.</remarks>
 public interface ICheckAnalysis
 {
-    /// <summary>Gets the analysis's stable name and version; raise the version whenever it may find differently.</summary>
+    /// <summary>
+    /// Gets the analysis's stable name and version; raise the version whenever it may find differently.
+    /// </summary>
     HeuristicId Id { get; }
 
     /// <summary>Gets the analysis's name as the user reads it, in Swedish, for example <c>Mixerutgångar</c>.</summary>

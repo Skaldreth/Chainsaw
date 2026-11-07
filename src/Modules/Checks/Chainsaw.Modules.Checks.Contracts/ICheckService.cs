@@ -49,7 +49,9 @@ public interface ICheckService
     /// <param name="case">The open case.</param>
     /// <param name="draft">The area.</param>
     /// <returns>The sealed area.</returns>
-    /// <exception cref="ArgumentException">The name is empty or too long, the note too long, or the members wrong.</exception>
+    /// <exception cref="ArgumentException">
+    /// The name is empty or too long, the note too long, or the members wrong.
+    /// </exception>
     OwnArea AddArea(ICase @case, OwnAreaDraft draft);
 
     /// <summary>Renames an own area, sealed with a line in the journal; the old name stays sealed.</summary>

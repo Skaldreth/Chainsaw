@@ -10,7 +10,9 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Chainsaw.App.ViewModels;
 
-/// <summary>A sort in the menu <em>Områden i grafen</em> (sketch KF1b): its name, tint, count and whether it shows.</summary>
+/// <summary>
+/// A sort in the menu <em>Områden i grafen</em> (sketch KF1b): its name, tint, count and whether it shows.
+/// </summary>
 /// <param name="Sort">The sort.</param>
 /// <param name="Name">Its name.</param>
 /// <param name="TintKey">Its tint's resource key.</param>
@@ -125,6 +127,15 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>The own area the form renames or removes.</summary>
     private OwnArea? _formArea;
 
+    /// <summary>The actor the inspector shows, whose <em>Här</em> follows the checks.</summary>
+    private string? _inspected;
+
+    /// <summary>The areas drawn now, worked out when something changes rather than on every drawing.</summary>
+    private IReadOnlyList<AreaView> _areas = [];
+
+    /// <summary>The candidates' lines drawn now, worked out with the areas.</summary>
+    private IReadOnlyList<CandidateLine> _lines = [];
+
     /// <summary>Creates the checks for the window's open case.</summary>
     /// <param name="session">The open case.</param>
     /// <param name="source">The Checks module.</param>
@@ -188,58 +199,17 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>
     /// Gets the areas drawn now: the chosen row's alone while the list is open, else those of the sorts shown.
     /// </summary>
-    public IReadOnlyList<AreaView> Areas
-    {
-        get
-        {
-            if (IsOpen && Selected is { } row)
-            {
-                return [.. AllAreas.Where(area => area.CheckKey == row.Key).Select(area => area with { IsFilled = true })];
-            }
-
-            return [.. AllAreas.Where(area => _shown.Contains(area.Sort))];
-        }
-    }
+    public IReadOnlyList<AreaView> Areas => _areas;
 
     /// <summary>Gets the dashed lines to the candidates of the suggestions whose areas are drawn.</summary>
-    public IReadOnlyList<CandidateLine> CandidateLines
-    {
-        get
-        {
-            if (_scene is not { } scene)
-            {
-                return [];
-            }
-
-            var graph = scene.Snapshot.Graph;
-            var lines = new List<CandidateLine>();
-            foreach (var area in Areas.Where(area => area.CheckKey is not null))
-            {
-                var check = _checks.FirstOrDefault(c => GraphAreas.KeyOf(c) == area.CheckKey);
-                if (check is null || check.Finding.Candidates.Count == 0 || check.Finding.Addresses.Count == 0
-                    || graph.NodeOf(check.Finding.Addresses[0]) is not { } from)
-                {
-                    continue;
-                }
-
-                foreach (var row in new CheckRowViewModel(check, null, []).Candidates.Where(c => !c.IsDismissed))
-                {
-                    if (graph.NodeOf(row.Candidate.Address) is { } to && to.Key != from.Key)
-                    {
-                        lines.Add(new CandidateLine(from.Key, to.Key, row.Candidate.Score, row.ScoreText, row.IsApproved));
-                    }
-                }
-            }
-
-            return lines;
-        }
-    }
+    public IReadOnlyList<CandidateLine> CandidateLines => _lines;
 
     /// <summary>
     /// Gets the actors the chosen row is about, which the graph draws clearly while it tones down the rest; null
     /// when the list is closed or no row is chosen.
     /// </summary>
-    public IReadOnlySet<string>? Focus => IsOpen && Selected is { } row ? row.Nodes.ToHashSet(StringComparer.Ordinal) : null;
+    public IReadOnlySet<string>? Focus =>
+        IsOpen && Selected is { } row ? row.Nodes.ToHashSet(StringComparer.Ordinal) : null;
 
     /// <summary>Gets the actors chosen with Ctrl+click, for an own area.</summary>
     public IReadOnlyList<string> Picked => _picked;
@@ -632,6 +602,7 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <param name="node">The chosen actor, or <see langword="null"/>.</param>
     public void Inspect(string? node)
     {
+        _inspected = node;
         Here = node is null
             ? []
             : [.. Rows().Where(row => row.Nodes.Contains(node)).Select(row => new HereLine(
@@ -795,6 +766,7 @@ public sealed partial class ChecksViewModel : ObservableObject
             ChosenArea = null;
         }
 
+        Inspect(_inspected);
         Sorts =
         [
             .. AreaLooks.Sorts.Select(entry =>
@@ -850,13 +822,63 @@ public sealed partial class ChecksViewModel : ObservableObject
         ChosenArea = null;
         StatusText = NotRunText;
         Problem = string.Empty;
-        Here = [];
+        _inspected = null;
         Rebuild();
+    }
+
+    /// <summary>Works out the areas drawn: the chosen row's alone while the list is open, else the sorts shown.</summary>
+    /// <returns>The areas.</returns>
+    private IReadOnlyList<AreaView> ShownAreas()
+    {
+        if (IsOpen && Selected is { } row)
+        {
+            return
+            [
+                .. AllAreas.Where(area => area.CheckKey == row.Key).Select(area => area with { IsFilled = true }),
+            ];
+        }
+
+        return [.. AllAreas.Where(area => _shown.Contains(area.Sort))];
+    }
+
+    /// <summary>Works out the dashed lines to the candidates of the suggestions whose areas are drawn.</summary>
+    /// <returns>The lines.</returns>
+    private IReadOnlyList<CandidateLine> ShownLines()
+    {
+        if (_scene is not { } scene)
+        {
+            return [];
+        }
+
+        var graph = scene.Snapshot.Graph;
+        var lines = new List<CandidateLine>();
+        foreach (var area in _areas.Where(area => area.CheckKey is not null))
+        {
+            var check = _checks.FirstOrDefault(c => GraphAreas.KeyOf(c) == area.CheckKey);
+            if (check is null || check.Finding.Candidates.Count == 0 || check.Finding.Addresses.Count == 0
+                || graph.NodeOf(check.Finding.Addresses[0]) is not { } from)
+            {
+                continue;
+            }
+
+            foreach (var row in new CheckRowViewModel(check, null, []).Candidates.Where(c => !c.IsDismissed))
+            {
+                if (graph.NodeOf(row.Candidate.Address) is { } to && to.Key != from.Key)
+                {
+                    lines.Add(new CandidateLine(
+                        from.Key, to.Key, row.Candidate.Score, row.ScoreText, row.IsApproved));
+                }
+            }
+        }
+
+        return lines;
     }
 
     /// <summary>Says that the areas, the focus or the picked actors changed.</summary>
     private void RaiseChanged()
     {
+        _areas = ShownAreas();
+        _lines = ShownLines();
         OnPropertyChanged(nameof(Areas));
         OnPropertyChanged(nameof(Focus));
         OnPropertyChanged(nameof(AreaCountText));

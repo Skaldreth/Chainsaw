@@ -95,7 +95,9 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
         return findings;
     }
 
-    /// <summary>Gives the score of a fee, from 0 to 1: full for a usual fee, less towards none and the highest.</summary>
+    /// <summary>
+    /// Gives the score of a fee, from 0 to 1: full for a usual fee, less towards none and the highest.
+    /// </summary>
     /// <param name="fee">The share of the deposit that did not come out, from 0 to <see cref="MostFee"/>.</param>
     /// <returns>The score.</returns>
     public static double FeeScore(double fee)
@@ -113,7 +115,9 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
         return fee <= UsualFeeHigh ? 1 : 1 - ((fee - UsualFeeHigh) / (MostFee - UsualFeeHigh));
     }
 
-    /// <summary>Gives the score of the time after the deposit, from 1 at once to a fifth at the end of the window.</summary>
+    /// <summary>
+    /// Gives the score of the time after the deposit, from 1 at once to a fifth at the end of the window.
+    /// </summary>
     /// <param name="after">The time after the deposit; positive.</param>
     /// <returns>The score, or 0 outside the window.</returns>
     public static double TimeScore(TimeSpan after) => after <= TimeSpan.Zero || after > Window

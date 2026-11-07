@@ -81,7 +81,8 @@ internal sealed class CheckService : ICheckService
         }
 
         var sealedCount = 0;
-        var (results, decisions) = @case.Read(reader => (CheckStore.ReadResults(reader), CheckStore.ReadDecisions(reader)));
+        var (results, decisions) = @case.Read(
+            reader => (CheckStore.ReadResults(reader), CheckStore.ReadDecisions(reader)));
         if (found.Any(item => !Same(results, item.Key, item.Content)))
         {
             (results, sealedCount) = @case.Write(transaction => SealNew(transaction, found, input));

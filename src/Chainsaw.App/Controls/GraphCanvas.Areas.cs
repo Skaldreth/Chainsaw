@@ -282,7 +282,9 @@ public sealed partial class GraphCanvas
     private bool LeftForText(Key key) =>
         key is Key.OemPlus && _model?.Checks.IsOpen == true && (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
 
-    /// <summary>The question mark asks <em>Varför?</em> about the chosen row while the list is open (sketch KF1a).</summary>
+    /// <summary>
+    /// The question mark asks <em>Varför?</em> about the chosen row while the list is open (sketch KF1a).
+    /// </summary>
     /// <param name="e">The text.</param>
     protected override void OnTextInput(TextCompositionEventArgs e)
     {

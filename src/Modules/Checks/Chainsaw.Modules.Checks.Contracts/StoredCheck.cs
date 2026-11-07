@@ -3,14 +3,18 @@ using Chainsaw.Modules.Security.Contracts;
 
 namespace Chainsaw.Modules.Checks.Contracts;
 
-/// <summary>A finding as it is sealed in the case, with the analysis that found it and the decisions about it.</summary>
+/// <summary>
+/// A finding as it is sealed in the case, with the analysis that found it and the decisions about it.
+/// </summary>
 /// <param name="Sequence">The record's number in the sealed chain <c>checks.results</c>.</param>
 /// <param name="Analysis">The analysis and its version.</param>
 /// <param name="AnalysisName">The analysis's name as the user reads it.</param>
 /// <param name="Finding">What it found.</param>
 /// <param name="JournalSequence">The journal entry of the run that sealed it: who ran it and when.</param>
 /// <param name="RecordedUtc">When it was sealed.</param>
-/// <param name="Decisions">The user's decisions about it in this version, oldest first; the latest per subject counts.</param>
+/// <param name="Decisions">
+/// The user's decisions about it in this version, oldest first; the latest per subject counts.
+/// </param>
 public sealed record StoredCheck(
     long Sequence,
     HeuristicId Analysis,

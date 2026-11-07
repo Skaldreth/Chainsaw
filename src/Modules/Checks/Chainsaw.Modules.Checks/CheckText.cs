@@ -10,7 +10,9 @@ internal static class CheckText
     /// <summary>Swedish, for the decimal comma.</summary>
     private static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
 
-    /// <summary>Writes an amount in bitcoin with at least four decimals, never rounded, for example <c>0,1462</c>.</summary>
+    /// <summary>
+    /// Writes an amount in bitcoin with at least four decimals, never rounded, for example <c>0,1462</c>.
+    /// </summary>
     /// <param name="amount">The amount.</param>
     /// <returns>The text, without the unit.</returns>
     public static string Btc(Satoshi amount) => amount.ToBitcoin().ToString("0.0000####", Swedish);

@@ -34,7 +34,9 @@ internal static class LatestFindings
         }
     }
 
-    /// <summary>Keeps, of items from several versions of the same heuristics, those of each one's highest version.</summary>
+    /// <summary>
+    /// Keeps, of items from several versions of the same heuristics, those of each one's highest version.
+    /// </summary>
     /// <typeparam name="T">The kind of item.</typeparam>
     /// <param name="items">The items.</param>
     /// <param name="heuristic">The heuristic of an item.</param>
@@ -43,7 +45,8 @@ internal static class LatestFindings
     {
         var highest = items
             .GroupBy(item => heuristic(item).Name, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.Max(item => heuristic(item).Version), StringComparer.Ordinal);
+            .ToDictionary(
+                group => group.Key, group => group.Max(item => heuristic(item).Version), StringComparer.Ordinal);
         return items.Where(item => heuristic(item).Version == highest[heuristic(item).Name]);
     }
 }

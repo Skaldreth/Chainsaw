@@ -114,7 +114,8 @@ internal sealed class Harness : IDisposable
             []);
     }
 
-    private static GraphNode Node(string key, IReadOnlyList<BitcoinAddress> addresses, IReadOnlyList<TrailEndHint> ends) =>
+    private static GraphNode Node(
+        string key, IReadOnlyList<BitcoinAddress> addresses, IReadOnlyList<TrailEndHint> ends) =>
         new(
             key,
             addresses.Count > 1 ? GraphNodeKind.Cluster : GraphNodeKind.Address,

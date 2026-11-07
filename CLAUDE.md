@@ -171,6 +171,7 @@ src/
     Pricing/                Kurser vid en tidpunkt, med källa, sparade i ärendet
     Monitoring/             Bevakning av adresser och kluster
     Requests/               Begäran om uppgifter till börser, mallar
+    Checks/                 Kontroller och förslag (analyser med namn och version), beslut och egna ytor i grafen
 tools/Chainsaw.Recovery/    Administratörens verktyg för organisationens återställningsnyckel (konsolprogram)
 tools/Chainsaw.Tunnel/      Chainsaws hjälpprogram för WireGuard (Go, wireguard-go och gVisor), byggt till dist/ och skickat med appen
 tests/                      xUnit, ett testprojekt per modul och ett för verktyget
@@ -398,4 +399,4 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
-| **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b |
+| **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b; byggd i etapp 22 |

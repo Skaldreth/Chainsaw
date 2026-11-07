@@ -697,3 +697,40 @@ och K först).
   med en SQLite-läsare på arbetskopian i ett testärende).
 - Valen ligger kvar efter omstart i `%LOCALAPPDATA%\Chainsaw\sources.json`. En trasig fil ger förvalen; en endpoint med
   `http://` som skrivits in för hand används aldrig.
+
+## Kontroller, förslag och områden (etapp 22, KF1a och KF1b)
+
+Gör ett ärende med en etikett *Mixer* på en adress som tar emot pengar, och expandera några aktörer efter den, så att
+mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
+
+**Listan (KF1a)**
+- *Förslag · N* står i grafens hörn, och N är antalet kandidater som väntar. Ctrl+J och knappen fäller ut listan där
+  inspektören står och fäller in den igen; krysset i listan stänger den.
+- Grupperna *Att avgöra* (streckad ring), *Gjort av sig självt* (hel ring) och *Avgjort* (bara när något är avgjort).
+  Längst ner står tangenterna och när kontrollerna kördes, på hur många tx.
+- Den valda raden fälls ut, resten av grafen tonas ned, och bara radens område syns. J och K stegar, Enter godkänner
+  (*Godkänn bästa* först), X avfärdar, ? öppnar Guiden med *Varför?*. Tangenterna fungerar när grafen har fokus, också
+  direkt efter ett klick på *Förslag · N*. Med svenskt tangentbord ska ? (Shift och +) inte zooma medan listan är öppen.
+- Klicka på en annan kandidat och tryck Enter: den godkänns. Skriv ett skäl i fältet och tryck Enter: skälet sparas
+  (kontrollera i journalen). En avfärdad kandidat är överstruken och dess linje försvinner ur grafen.
+- Stäng och öppna ärendet: besluten står kvar, och en avfärdad kandidat kommer inte tillbaka.
+- På en kontroll visar Enter (*Visa i grafen*) dess aktörer och zoomar dit; X gör ingenting.
+- Inspektören visar under *Här* vilka kontroller och förslag som gäller den valda aktören.
+
+**Områdena (KF1b)**
+- Svaga ytor bakom aktörerna: rött för mixer och CoinJoin, sand för peel chain, grått för plånböcker, prickat för tid.
+  Ett förslag som väntar har streckad kant. Ingen aktör har två fyllningar; ett inre område syns bara som kant.
+- Brickan på kanten visar ikonen; namnet syns på brickan när den väljs. Ett klick på en kontrolls bricka öppnar listan
+  vid dess rad.
+- Menyn bredvid *Förslag · N* (lagerikonen och antalet områden) visar sorterna med antal; en bock döljer och visar
+  sortens områden.
+- Linjerna från mixern till kandidaterna är streckade i accentfärgen med poängen på, svagare ju lägre poäng.
+- Grafen ska vara lika snabb med områdena på; panorera och zooma i en stor graf.
+
+**Egna ytor**
+- Ctrl+klicka två aktörer (accentram), tryck Z: formuläret visar *2 valda · Ny yta*. Skriv namn, välj sort och färg,
+  kryssa *Samma aktör?*, skriv en anteckning och tryck Enter. Ytan har hel kant och en liten person på brickan.
+- Z utan valda aktörer tar den valda aktören; utan någon säger formuläret hur man väljer.
+- Klicka på ytans bricka: namnet, pennan och korgen syns. Pennan byter namn, korgen tar bort ytan (med valfritt skäl).
+  Journalen har en rad för varje.
+- Esc stänger formuläret, sedan menyn, sedan listan, sedan valet av aktörer.

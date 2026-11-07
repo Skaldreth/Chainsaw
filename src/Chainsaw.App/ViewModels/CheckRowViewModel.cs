@@ -176,7 +176,9 @@ public sealed partial class CheckRowViewModel : ObservableObject
         OnPropertyChanged(nameof(GoText));
     }
 
-    /// <summary>Gives the decision Enter or X makes, or <see langword="null"/> when the row has nothing to decide.</summary>
+    /// <summary>
+    /// Gives the decision Enter or X makes, or <see langword="null"/> when the row has nothing to decide.
+    /// </summary>
     /// <param name="verdict">Approve or dismiss.</param>
     /// <returns>The request.</returns>
     public DecisionRequest? Request(CheckVerdict verdict)

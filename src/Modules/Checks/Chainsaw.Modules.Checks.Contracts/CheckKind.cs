@@ -6,7 +6,9 @@ namespace Chainsaw.Modules.Checks.Contracts;
 /// </summary>
 public enum CheckKind
 {
-    /// <summary>A check that has done its work by itself (<em>Gjort av sig självt</em>); nothing waits for a decision.</summary>
+    /// <summary>
+    /// A check that has done its work by itself (<em>Gjort av sig självt</em>); nothing waits for a decision.
+    /// </summary>
     Check,
 
     /// <summary>A suggestion that the user approves or dismisses (<em>Att avgöra</em>).</summary>

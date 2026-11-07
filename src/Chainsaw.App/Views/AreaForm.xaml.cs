@@ -18,7 +18,9 @@ public partial class AreaForm : UserControl
         {
             if (e.NewValue is true)
             {
-                Dispatcher.BeginInvoke(DispatcherPriority.Input, () => MoveFocus(new TraversalRequest(FocusNavigationDirection.First)));
+                Dispatcher.BeginInvoke(
+                    DispatcherPriority.Input,
+                    () => MoveFocus(new TraversalRequest(FocusNavigationDirection.First)));
             }
         };
     }

@@ -27,6 +27,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   och inget emot, i en tx med två outputs; en peel chain kräver tre kända hopp och att det som går vidare är minst fyra
   gånger det som skalas av; ett jämnt belopp är en multipel av 0,001 BTC; en möjlig CoinJoin (två lika stora outputs,
   eller lika jämna belopp utan känt mönster) gör allt i tx:en till förslag. Pröva med kryptospåraren.
+- **Tröskelvärdena för mixerns kandidater** (etapp 22, valda av sessionen): avgiften 0–10 % (full poäng mellan 0,5 och
+  5 %), högst 7 dygn efter insättningen, poängen väger belopp 0,5, tid 0,3 och adresstyp 0,2, kandidater under 0,4
+  visas inte och högst fem per insättning. Tidsområden samlar pengar som rört sig inom två timmar. Pröva med
+  kryptospåraren.
 - **Peel chain slår inte ihop** (etapp 6, granskningen): formen räcker inte för att se var ägaren byter (ett offers
   vanliga betalningar ser ut som hopp), så `peel-chain v1` bara föreslår. Fråga kryptospåraren vad som skiljer en
   riktig peel chain: samma skripttyp i varje hopp, liknande andel som skalas av, kort tid mellan hoppen?
@@ -73,8 +77,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Tidslinjen under grafen** (GR4): prickar per händelse under ytan, där ett klick visar grafen vid en tx (det som
   kom senare bleknar) och *Till nu* går tillbaka. Inte byggd i etapp 12; skissen finns, men hur händelserna väljs i en
   stor graf (en prick per tx blir för många) behöver bestämmas.
-- **Mixerns troliga utgångar** i grafen (GR3a: streckad linje och streckad nod, *Kandidat*), med godkänn och avfärda.
-  Kräver analysen som föreslår dem (belopp minus avgift, tid, adresstyp).
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.
 - **Guidens figurer** (GD1b och GD1a): skisserna har små figurer i avsnitten (UTXO, common-input-ownership, växeln,
@@ -189,8 +191,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   vem som spenderar en output jämförs inte med det förra.
 
 ### Klustring och heuristiker
-- **Troliga utgångar ur en mixer** (CLAUDE.md, *Mixers är vanliga*): belopp minus avgift, tidsfönster, adresstyp och kända
-  mönster per mixer. Kandidater som användaren godkänner eller avfärdar. Fråga kryptospåraren vilka mixers som syns oftast.
 - **Tjänster ur beteende:** en börs insättningsadresser (många insättningar som sveps till samma hot wallet),
   utbetalningar i batch, konsolidering. Etapp 6 slår ihop insättningsadresserna i en sweep men säger inte *börs*.
 - **Godkänna ett förslag** (etapp 6): förslag syns men kan inte göras till en sammanslagning. Det behöver en egen
@@ -251,7 +251,25 @@ förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Katalogen, med det 
 - **Damm och adressförgiftning** (dusting, address poisoning): små belopp som skickas för att förvirra eller lura;
   kontroll som tonar ner dem så att de inte drar spåret fel.
 - **Jämna belopp i fiat och tidsmönster** (tidszon ur aktiva timmar): stöd för växeln och för vem som står bakom.
-Hur kontrollerna och förslagen visas samlat (en lista att gå igenom, markeringar i grafen) **väntar på skiss**.
+Ramverket, listan (KF1a) och områdena (KF1b) är byggda i etapp 22 med CoinJoin, peel chain, plånböcker och mixerns
+kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalysis`) med namn och version.
+
+### Kontroller, förslag och områden (etapp 22)
+- **Mixerns kandidater ur kedjan:** `mixer-outputs v1` prövar bara det som finns i grafen. Att söka igenom blocken i
+  tidsfönstret efter insättningen (genom utgången, med gränser) behövs för att hitta kandidater som inte är hämtade.
+  Också kända avgifter och belopp per mixer, och en insättning som betalas ut i flera delar.
+- **En godkänd kandidat i spårningen:** att godkänna en kandidat förseglar beslutet men gör den inte till en
+  startpunkt eller en kant i spåret. Ska en godkänd kandidat kunna bli en ny startpunkt (med beloppet), och hur visas det?
+- **Godkänna en plånbok:** plånböckernas områden (`wallet-proposals v1`) är bara kontroller, eftersom en sammanslagning
+  av användaren inte finns i Clustering (se *Godkänna ett förslag och ångra en uppbrytning* ovan).
+- **Lasso** för att välja aktörer till en egen yta (KF1b): bara Ctrl+klick är byggt.
+- **Formuläret för en egen yta** står under grafens hörn, inte vid de valda aktörerna som i skissen.
+- **Menyns val sparas inte** i ärendet; alla sorter visas när ärendet öppnas.
+- **Kontrollerna körs vid varje läsning av grafen**, och varje körning frågar Clustering om varje tx
+  (`GetConclusions`). Det räcker för hundratals tx; för stora ärenden behövs en fråga för alla tx på en gång och att
+  bara köra om när grafen ändrats.
+- **Historiken (AN1b, etapp 21)** bör visa beslut om förslag och egna ytor. `ICheckService.RemoveArea` tar bort en yta
+  förseglat, och ett nytt beslut om samma kandidat ersätter det förra.
 
 ### Spårning (Tracing)
 - **LIFO och poison** (etapp 7): kontraktet `ITracingMethod` tar emot fler metoder, men LIFO behöver en definition

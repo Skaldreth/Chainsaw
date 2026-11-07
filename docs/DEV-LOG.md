@@ -1667,3 +1667,56 @@ Bygget är utan varningar.
 - Prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Källornas endpoints*).
 - Nytt prov under dagen, marginal för *efter* och en egen nod på det lokala nätet (TODO, *Bitcoin-källan*).
 - Ethereums sort av API i etapp 23.
+
+## Etapp 22 (2026-11-07): kontroller och förslag (KF1a) med områdena (KF1b)
+
+**Byggt:**
+- **Modulen Checks** (ny, `src/Modules/Checks`): `ICheckAnalysis` är en kontroll eller ett förslag som en analys med
+  namn och version (`HeuristicId`), räckvidd per kedja och ett svenskt namn, som heuristikerna (princip 5).
+  `ICheckService` kör analyserna på grafen ur ärendet, förseglar det som är nytt eller ändrat, förseglar användarens
+  beslut och håller de egna ytorna. Registreras med `AddChecksModule`.
+  - **Förseglat** i tre kedjor: `checks.results` (analys, version, nyckel, sort, fyndet som JSON med underlaget: tx med
+    blockhöjd, blockhash och tid, och ett fingeravtryck), `checks.decisions` (godkänt eller avfärdat, kandidat, valfritt
+    skäl, vem och när) och `checks.areas` (egna ytor: rita, byta namn, ta bort med valfritt skäl).
+  - En körning som hittar något nytt ger **en rad i journalen** (`checks.ran`); ett resultat som inte ändrats förseglas
+    inte igen. Ett beslut och varje ändring av en yta får sin egen rad.
+  - **Ett beslut gäller sin version:** det nyckeln är analysens namn, version och fyndets nyckel. Ett avfärdat förslag
+    kommer inte tillbaka i samma version; en ny version frågar igen. Det senaste beslutet om samma kandidat gäller.
+  - En analys som misslyckas säger det i körningens problem, och de andras resultat förseglas ändå.
+- **Fyra analyser** (facit med syntetiska tx i `tests/Chainsaw.Modules.Checks.Tests`):
+  - `mixer-outputs v1` (förslag): för varje insättning till en adress som en etikett säger är en mixer prövas varje
+    senare utbetalning i grafen. Avgiften 0–10 % (full poäng 0,5–5 %), högst 7 dygn senare, inte insättarens egna
+    pengar och inte mixerns egna adresser. Poäng 0–1: beloppet 0,5, tiden 0,3, adresstypen 0,2; under 0,4 visas inte,
+    högst fem per insättning. Varje kandidat har sitt skäl i klartext.
+  - `coinjoin-area v1` och `peel-chain-area v1` (kontroller): klustringens CoinJoin- och peel chain-fynd, den högsta
+    versionen, som kontroller med område; en peel chains hopp slås ihop till en kedja.
+  - `wallet-proposals v1` (kontroll, bara område): klustringens förslag om samma ägare som inte slogs ihop.
+- **Listan KF1a** (`ViewModels/ChecksViewModel`, `CheckRowViewModel`, `Views/ChecksPanel`): *Förslag · N* i grafens
+  hörn och Ctrl+J fäller ut listan där inspektören står, i grupperna *Att avgöra*, *Gjort av sig självt* och *Avgjort*.
+  J och K stegar, Enter godkänner (*Godkänn bästa* först, eller den kandidat man klickat på), X avfärdar, ? öppnar
+  Guiden med *Varför?* (analysens förklaring, varje kandidats skäl och när det förseglades). Ett valfritt skäl skrivs i
+  raden. Den valda raden tonar ned resten av grafen och visar bara sitt område. Inspektören visar *Här*.
+- **Områdena KF1b** (`Graph/GraphAreas`, `AreaGeometry`, `AreaLooks`, `Controls/GraphCanvas.Areas.cs`): förvirring
+  (rött för mixer och CoinJoin, sand för peel chain), plånböcker (grått), tjänster (blått, när samma tjänsts etikett
+  sitter på flera aktörer), annan kedja (lila, användarens länkar) och tid (prickat, pengar inom två timmar). Menyn
+  *Områden i grafen* väljer sorterna. Högst en fyllning per aktör; ett område på en fyllning ritas som kant närmare
+  aktörerna. Streckad kant för ett förslag som väntar. Brickan på kanten har ikonen; namnet syns när den väljs.
+  Streckade linjer i accentfärgen från mixern till kandidaterna, med poängen. Ytan ritar bara det som syns.
+- **Egna ytor:** Ctrl+klick väljer aktörer (accentram), Z öppnar formuläret (`Views/AreaForm`) med namn, sort, färg,
+  *Samma aktör?* och anteckning. Ytan har hel kant och en person på brickan, sparas med vem och när, och följer
+  adresserna (inte noderna). Pennan och korgen på en vald egen ytas bricka byter namn och tar bort.
+- **Guiden:** *Kontroller och förslag*, *Mixerns troliga utgångar* och *Områden i grafen*, i en ny grupp *Förvirring*.
+
+**Egna beslut och avsteg från skissen:**
+- **En egen modul** (Checks) i stället för att lägga kontrollerna i Clustering eller Tracing: de läser båda, och
+  etapperna 21 och 24 arbetar i de modulerna samtidigt. CLAUDE.md:s träd har fått modulen.
+- **Gruppen *Avgjort*** finns inte i skissen. Ett avgjort förslag försvinner annars ur listan, och beslutet ska kunna
+  ses; den visas bara när något är avgjort.
+- **Plånböckerna** listas inte (skissen har dem bara som område) och kan inte godkännas, eftersom en sammanslagning av
+  användaren inte finns i Clustering (TODO).
+- **Mixern** känns igen på att spåret tar slut vid en mixer (en etikett). Radens rad under titeln får mixerns namn när
+  aktören har ett.
+- **Ett godkänt förslag** står kvar streckat (*streckat betyder alltid osäkert*); det blir inte en del av spåret (TODO).
+- **Formuläret** står under grafens hörn, inte vid aktörerna som i skissen, och **lasso** är inte byggt (TODO).
+- **Menyns val** sparas inte i ärendet.
+- **Tröskelvärdena** för mixerns kandidater och tidsområdet är valda av sessionen (TODO, *Väntar på beslut*).
