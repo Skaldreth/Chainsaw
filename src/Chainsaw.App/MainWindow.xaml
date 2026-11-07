@@ -29,6 +29,14 @@
           press shows the view, or folds out the icon's submenu (sketch PN1).
         -->
         <DataTemplate x:Key="RailItem" DataType="{x:Type vm:RailItemViewModel}">
+            <!--
+              The icon's slot folds away when its view cannot be used (no case open) and folds back when it can: it shrinks
+              in height and fades, so that the pill grows and shrinks smoothly (the user's wish 2026-11-07).
+            -->
+            <Border x:Name="Slot">
+                <Border.LayoutTransform>
+                    <ScaleTransform x:Name="Fold" ScaleY="1" />
+                </Border.LayoutTransform>
             <Button x:Name="Item" Style="{StaticResource Button.Rail}"
                     Command="{Binding DataContext.PressCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     CommandParameter="{Binding}" ToolTip="{Binding Entry.ToolTip}"
@@ -43,7 +51,43 @@
                              Visibility="Collapsed" />
                 </Grid>
             </Button>
+            </Border>
             <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Entry.IsBuilt}" Value="False">
+                    <Setter TargetName="Icon" Property="Opacity" Value="0.4" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsShown}" Value="False">
+                    <Setter TargetName="Slot" Property="IsHitTestVisible" Value="False" />
+                    <Setter TargetName="Item" Property="Focusable" Value="False" />
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="Fold" Storyboard.TargetProperty="ScaleY" To="0"
+                                                 Duration="0:0:0.22">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseInOut" />
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetName="Slot" Storyboard.TargetProperty="Opacity" To="0"
+                                                 Duration="0:0:0.15" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="Fold" Storyboard.TargetProperty="ScaleY" To="1"
+                                                 Duration="0:0:0.22">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseInOut" />
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetName="Slot" Storyboard.TargetProperty="Opacity" To="1"
+                                                 BeginTime="0:0:0.07" Duration="0:0:0.15" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                     <Setter TargetName="Item" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
                     <Setter TargetName="Item" Property="Foreground" Value="{StaticResource Brush.Text}" />

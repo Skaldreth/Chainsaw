@@ -37,6 +37,12 @@ public sealed partial class RailItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasWaiting))]
     public partial int Waiting { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether the icon stands in the rail: one whose view needs a case folds away without one.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsShown { get; set; } = true;
+
     /// <summary>Gets whether the dot is shown.</summary>
     public bool HasWaiting => Waiting > 0;
 }

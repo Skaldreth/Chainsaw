@@ -427,6 +427,7 @@
               The visual language behind the ? (sketches GR3a and GR3c), in the lower right corner (sketch SO1a), where
               it never meets the pill at the left edge however low the window is. -->
             <Button Style="{StaticResource Button.Help}" HorizontalAlignment="Right"
+                    Visibility="{Binding HasCase, Converter={StaticResource Visible}}"
                     VerticalAlignment="Bottom" Margin="0,0,18,18" AutomationProperties.Name="Bildspråket"
                     ToolTip="Bildspråket. I grafen: Esc väljer inget, E expanderar, F passar in, + och − zoomar."
                     Command="{Binding ToggleLegendCommand}" />

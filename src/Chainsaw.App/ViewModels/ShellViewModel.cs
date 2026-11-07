@@ -357,6 +357,12 @@ public sealed partial class ShellViewModel : ObservableObject
             return;
         }
 
+        if (ViewTable.For(view).NeedsCase && _session.Current is null)
+        {
+            // A view that needs a case is folded away without one; its shortcut does nothing.
+            return;
+        }
+
         Current = view;
         foreach (var item in Items)
         {
@@ -570,6 +576,16 @@ public sealed partial class ShellViewModel : ObservableObject
         foreach (var menu in Submenus)
         {
             menu.Update(hasCase);
+        }
+
+        foreach (var item in Top.Concat(Work).Concat(Bottom))
+        {
+            item.IsShown = hasCase || !item.Entry.NeedsCase;
+        }
+
+        if (!hasCase && CurrentEntry.NeedsCase)
+        {
+            Show(ViewTable.Start);
         }
 
         OnPropertyChanged(nameof(CaseTitle));

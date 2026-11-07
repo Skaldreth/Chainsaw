@@ -969,3 +969,7 @@ ligger bredvid `Chainsaw.exe`.
       det som väljs. Ctrl+klick på noder i grafen lägger till motparter. Tillgången syns bara på Ethereum.
 - [ ] Ändra en bevakning med motparter eller ett minsta belopp: de fälten är redan utfällda.
 - [ ] Tomma textfält visar en svag platshållartext där en sådan finns.
+- [ ] Utan öppet ärende har pillret bara Nytt, Graf, Guide och Inställningar; öppna ett ärende och de andra vyerna
+      fälls in animerat, stäng det och de fälls bort (en vy som kräver ett ärende byter då till grafen).
+- [ ] Tidslinje, Flöde, Exponering, Begäran och Etiketter är nedtonade, och tipset säger *Inte byggt än*. Terminal
+      finns inte längre.

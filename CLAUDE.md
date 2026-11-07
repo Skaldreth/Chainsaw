@@ -356,10 +356,12 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   utgivaren kan frysa dem på begäran.
 - **Skalet är SH1b** (användarens beslut 2026-11-07, byggt): vyernas ikoner i ett **flytande piller** vid vänsterkanten,
   som i Gawks Byggare (runda knappar på 38 px, upphöjd yta, skugga, 18 px från kanten och centrerat i höjd; användarens
-  beslut 2026-11-07), med namnet på hovring, i ordningen Nytt · Graf, Tidslinje, Flöde, Exponering, Begäran, Bevakning, Etiketter · Terminal,
+  beslut 2026-11-07), med namnet på hovring, i ordningen Nytt · Graf, Tidslinje, Flöde, Exponering, Begäran, Bevakning, Etiketter ·
   Guide, Inställningar (`src/Chainsaw.App/Navigation/ViewTable.cs`, som också ger kortkommandona). **Sök och kommandon
   finns bara i den flytande raden längst ner** (Ctrl+K eller Ctrl+F), aldrig i huvudet eller som egen vy. Antal visas som
-  en prick på ikonen, inte som en siffra. **Sidan har ingen egen rubrik** (användarens beslut 2026-11-07): pillrets valda
+  en prick på ikonen, inte som en siffra. **Pillret följer läget** (användarens beslut 2026-11-07): utan öppet ärende
+  fälls de vyer som kräver ett ärende bort (animerat in och ut), och vyer som inte är byggda är nedtonade och säger det.
+  **Terminal finns inte** (användarens beslut 2026-11-07: Chainsaw har inga power users). **Sidan har ingen egen rubrik** (användarens beslut 2026-11-07): pillrets valda
   ikon säger vilken vy det är, och ytan är vyns.
   **Undermenyer fälls ut ur pillret** (skiss PN1, användarens beslut 2026-11-07, efter Gawks B9): pillret är huvudmenyn,
   och en knapp i det kan ha en **undermeny** som fälls ut som en del av knappen: knappen växer till en flik förbi pillrets
@@ -418,7 +420,7 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   Claude välja (2026-11-07); valen följer Gawks form.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
-  Etiketter, Terminal och Guide.
+  Etiketter och Guide (Terminal är borttagen).
 - **Guiden** (användarens önskemål 2026-11-06): förklaringar inne i programmet, som avsnitt man kan läsa, i stil med de
   förklarande anteckningarna till höger i skisserna. En heuristik, ett slut på spåret eller ett begrepp (UTXO, växeladress,
   CoinJoin, peel chain) har ett *?* som öppnar rätt avsnitt. Texterna ligger i repot och skrivs medan funktionerna byggs.

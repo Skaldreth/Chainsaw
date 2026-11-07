@@ -13,7 +13,7 @@ public sealed partial class ViewTableTests
 
         Assert.Equal(
             ["Nytt", "Graf", "Tidslinje", "Flöde", "Exponering", "Begäran", "Bevakning", "Etiketter",
-             "Terminal", "Guide", "Inställningar"],
+             "Guide", "Inställningar"],
             names);
     }
 

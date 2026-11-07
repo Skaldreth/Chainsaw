@@ -20,7 +20,6 @@
     <Geometry x:Key="Icon.Dir.Both">M4 12h16 M8 8l-4 4 4 4 M16 8l4 4-4 4</Geometry>
     <Geometry x:Key="Icon.Pick">M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</Geometry>
     <Geometry x:Key="Icon.Tag">M3.5 12V3.5H12l8.5 8.5-8.5 8.5z M8 8h.01</Geometry>
-    <Geometry x:Key="Icon.Terminal">M4 6l5 5-5 5 M11 17h9</Geometry>
     <Geometry x:Key="Icon.Guide">M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5</Geometry>
     <!-- The Guide's panel (sketch GD1b): back through what was read, close, and open in the view Guide. -->
     <Geometry x:Key="Icon.Back">M15 18l-6-6 6-6</Geometry>

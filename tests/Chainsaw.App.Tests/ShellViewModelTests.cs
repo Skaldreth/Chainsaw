@@ -20,7 +20,9 @@ public sealed class ShellViewModelTests
     [Fact]
     public void The_guide_is_a_built_view()
     {
-        var shell = Shell();
+        var rig = new GateRig(VaultState.Unlocked);
+        var shell = rig.Shell;
+        rig.Session.Open(new TestCase("2026-0117"));
         Assert.False(shell.IsPlaceholderShown);
 
         shell.ShowCommand.Execute(AppView.Guide);
@@ -31,10 +33,31 @@ public sealed class ShellViewModelTests
         Assert.True(shell.IsPlaceholderShown);
     }
 
+    /// <summary>Without a case, the views that need one fold away and their shortcuts do nothing.</summary>
+    [Fact]
+    public void Without_a_case_the_views_that_need_one_fold_away()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var shell = rig.Shell;
+
+        Assert.Equal(["Graf"], shell.Work.Where(i => i.IsShown).Select(i => i.Entry.Name));
+        shell.ShowCommand.Execute(AppView.Monitoring);
+        Assert.Equal(AppView.Graph, shell.Current);
+
+        rig.Session.Open(new TestCase("2026-0117"));
+        Assert.All(shell.Work, item => Assert.True(item.IsShown));
+        shell.ShowCommand.Execute(AppView.Monitoring);
+        rig.Session.Forget();
+
+        Assert.Equal(AppView.Graph, shell.Current);
+    }
+
     [Fact]
     public void Showing_a_view_moves_the_choice_in_the_rail()
     {
-        var shell = Shell();
+        var rig = new GateRig(VaultState.Unlocked);
+        var shell = rig.Shell;
+        rig.Session.Open(new TestCase("2026-0117"));
 
         shell.ShowCommand.Execute(AppView.Labels);
 
@@ -48,7 +71,7 @@ public sealed class ShellViewModelTests
         var shell = Shell();
 
         Assert.Equal(["Nytt"], shell.Top.Select(i => i.Entry.Name));
-        Assert.Equal(["Terminal", "Guide", "Inställningar"], shell.Bottom.Select(i => i.Entry.Name));
+        Assert.Equal(["Guide", "Inställningar"], shell.Bottom.Select(i => i.Entry.Name));
         Assert.Equal(ViewTable.All.Count, shell.Items.Count());
     }
 

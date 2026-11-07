@@ -27,9 +27,6 @@ public enum AppView
     /// <summary>The case's labels and those of the label library.</summary>
     Labels,
 
-    /// <summary>The command line and the journal, for power users.</summary>
-    Terminal,
-
     /// <summary>The explanations: concepts, heuristics and the visual language.</summary>
     Guide,
 

@@ -46,17 +46,15 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissad 2026-11-07: BV3a (bara
    riktningen syns, resten som tillval) och BV3b (bevakningen som en mening), båda vid noden; **BV3a vald och byggd 2026-11-07**.
 8. **Undermenyn Nytt** i pillret: *animerad 2026-11-07* (växer ut ur knappen och tonar in).
-9. **Pillret:** Tidslinje, Flöde, Exponering och Begäran (och de andra som inte är byggda) ska vara nedtonade.
+9. **Pillret:** *klart 2026-11-07*, vyer som inte är byggda är nedtonade.
 10. **Byta ärende i titelraden** går inte (ÄV1a, godkänd).
 11. **Grafens ikon i pillret** säger för lite; en mer beskrivande ikon skissas.
-12. **Terminal tas bort** (användarens beslut 2026-11-07: programmet har inga power users). CLAUDE.md och pillret
-    ändras.
+12. **Terminal:** *borttagen 2026-11-07*.
 13. **Bevakningens tomma läge** ser inte professionellt ut: en större ikon i mitten med en förklarande text under att
     det är tomt; knapparna och pillret uppe till höger (*Bevakar medan Chainsaw är öppet*, *Ny bevakning …*) görs om.
 14. **Bevakningens högra panel** står kvar när den är tom; den ska bara synas när en bevakning är vald.
 15. **Statusraden längst ner** (*Uppslag går genom Windows*) upprepar titelraden och tas bort.
-16. **Pillret efter läget:** utan öppet ärende visas bara det som går att använda där, och knappar som kommer och går
-    animeras in och ut. Bildspråkets *?* behövs inte heller på den tomma grafen.
+16. **Pillret efter läget:** *klart 2026-11-07*, och bildspråkets *?* syns bara med ett ärende.
 17. **Bildspråkets ruta** bakom *?* är stökig och designas om; den får ta större plats.
 18. **Kommandoraden längst ner** behövs i princip aldrig: den döljs och fälls fram med Ctrl+K, som Spotlight i macOS.
 19. **Sonarpulsen runt *Nytt ärende*** i den tomma grafen känns ofärdig och arbetas om.
@@ -66,6 +64,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 22. **En expansion ritar allt rakt ut:** 50 tx och ett par hundra motparter i en lång kolumn (adressen med 1 759 tx).
     Ledtrådsnoden `+N tx` och samlingsnoden (EX1a, EX1b och EX2b, godkända) byggs, så att grafen aldrig växer
     okontrollerat (princip 7). Byggs som en etapp, eftersom urvalet sparas i ärendet.
+23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
+    WireGuard-fil* hör hemma i Inställningar, inte där. Skissas om.
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
