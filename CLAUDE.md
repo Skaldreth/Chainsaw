@@ -180,7 +180,8 @@ tests/                      xUnit, ett testprojekt per modul
 - **Samma stil som Gawk, egen identitet** (användarens beslut 2026-11-06): mörkt tema i neutrala gråtoner, tangentbordsfokus,
   en flytande kommandorad för power users, svenska i gränssnittet. Loggan är **en kätting** (användarens beslut 2026-11-07, skiss
   ID5): **Chainsaw är blockkedjan som såg**, en ordlek. Länkar som går i varandra, varannan framifrån och varannan från
-  kanten; i variant B är en länk ett brett, lågt öga. Bitcoin-myntet (ID1) och sågkedjan (ID3) är avvisade. Låsskärmen och
+  kanten; loggan är **variant B**, där en länk är ett brett, lågt öga
+  (användarens beslut 2026-11-07). Bitcoin-myntet (ID1) och sågkedjan (ID3) är avvisade. Låsskärmen och
   förstagångsinställningen har teckenfältet i ASCII-stil, som i Gawk, och på låsskärmen **löper kättingen uppifrån och ner
   i vänsterdelen**, skriven i tecken, ganska stor men inte överdriven, och **står still** (användarens beslut
   2026-11-07); bara teckenfältet bakom lever (skiss ID7).
@@ -196,10 +197,12 @@ tests/                      xUnit, ett testprojekt per modul
   och GR2b (hoppen som ryggrad, aktörerna fria i höjdled, pengar som vänder som bågar). **Grafen är en fri yta med en växel
   till hoppkolumner** (användarens beslut 2026-11-07, skiss GR4): aktörerna läggs först ut ungefär i hoppens ordning och står
   sedan där användaren drar dem, åt alla håll. Växeln (två ikoner i grafens huvud) sorterar allt i kolumner per hopp, där
-  aktörerna dras upp och ner och pengar som vänder ritas som bågar. Båda lägena kommer ihåg sina platser.
+  aktörerna dras upp och ner och pengar som vänder ritas som bågar. Båda lägena kommer ihåg sina platser. GR4 är godkänd
+  (användarens beslut 2026-11-07) och är förlagan när grafen byggs.
 - **Bildspråket** (skiss GR3a, användarens beslut 2026-11-07: godkänt): formen säger vad det är (rund = aktör vi inte vet något om, fyrkantig = tjänst eller
   kluster), färgen vad det betyder (accent = offrens pengar, blått = börs, rött = spåret tar slut eller risk, lila = annan
-  kedja), en ikon per sort, små markeringar i hörnet (bevakad, etikett från ett annat ärende, uttag funnet, sanktionerad),
+  kedja), en ikon per sort (spelsajt och casino är **två spelkort** som hålls i
+  en hand, handel och betalning en butik), små markeringar i hörnet (bevakad, etikett från ett annat ärende, uttag funnet, sanktionerad),
   linjens tjocklek är beloppet och **streckat betyder alltid osäkert**. **Viktig information får stå kvar** (användarens
   beslut 2026-11-07): beloppet står alltid på linjerna, och användaren kan gallra till bara de spårade eller inga när grafen
   blir stor. Bildspråket finns bakom ett *?* i grafens hörn.
