@@ -137,3 +137,22 @@ Etiketterna har inget gränssnitt än. Det provas när grafen och vyn Etiketter 
   ärenden med samma adresser.
 - `%LOCALAPPDATA%\Chainsaw\Etiketter\bibliotek.bin` går inte att läsa i en texteditor (krypterad).
 - `/verify` är grönt efter etiketter, tillbakatagningar och etiketter från andra ärenden.
+
+## Återställningsnyckeln (etapp 9)
+
+Verktyget `tools/Chainsaw.Recovery` körs på Windows; appen har inget gränssnitt för nyckeln än. Se
+`docs/ATERSTALLNINGSNYCKEL.md`.
+
+- `keygen` till ett USB-minne: lösenordet syns inte när det skrivs, båda filerna skapas, och ett nytt `keygen` till
+  samma mapp vägrar. `keygen` till en mapp i repot vägrar.
+- Den privata nyckelns fil går att läsa med `openssl pkey -in chainsaw-recovery.private.pem` och lösenordet (samma
+  format som andra verktyg), och vem som får läsa filen följer mappens rättigheter (på Windows ärvs de; på ett
+  USB-minne med FAT finns inga).
+- `fingerprint` utan fil säger ärligt att ingen nyckel är inbyggd. När den publika nyckeln är inklistrad i
+  `organization-recovery-key.pem` och appen byggd visar `fingerprint` samma fingeravtryck som `keygen`.
+- Ett ärende som skapas efter det har kuvertet (`check` säger *Ja*); ett äldre ärende får det när det öppnas.
+- `open --share` på ett ärende som är öppet i Chainsaw vägrar (*öppet i Chainsaw*). På ett stängt ärende: operatören
+  öppnar det med det nya delningslösenordet, och journalen visar administratörens namn och nyckelns fingeravtryck.
+- `open --vault %LOCALAPPDATA%\Chainsaw` på operatörens dator, efter ett nytt valv: operatören öppnar sedan ärendet
+  med sin nya huvudnyckel.
+- Inmatning med åäö i lösenorden (konsolens teckentabell) fungerar i både `keygen` och `open`.

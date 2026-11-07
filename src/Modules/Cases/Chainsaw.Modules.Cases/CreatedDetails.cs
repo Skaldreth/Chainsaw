@@ -14,4 +14,9 @@ internal static class CreatedDetails
 
     /// <summary>The schema versions the case was created with.</summary>
     public const string Schema = "schema";
+
+    /// <summary>
+    /// The fingerprint of the recovery key the case got an envelope for, or null when no key was configured.
+    /// </summary>
+    public const string RecoveryKey = "recoveryKey";
 }

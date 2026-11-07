@@ -30,9 +30,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Bygga härnäst
 
-- **Organisationens återställningsnyckel** (användarens beslut 2026-11-07, CLAUDE.md *Säkerhet*): ett kuvert i varje
-  ärendefil för organisationens publika nyckel, och ett verktyg för administratören (skapa nyckelpar, fingeravtryck,
-  kontrollera, öppna ett ärende med den privata nyckeln). Den privata nyckeln finns aldrig i repot.
 
 ## Väntar på skiss
 

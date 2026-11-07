@@ -59,4 +59,39 @@ public interface ICaseStore
     /// <returns>The open case; the caller disposes it.</returns>
     /// <exception cref="CaseException">The same reasons as <see cref="Open"/>.</exception>
     ICase OpenWithPassword(string path, ReadOnlySpan<char> password);
+
+    /// <summary>
+    /// Gets the organisation's public recovery key built into this Chainsaw, or <see langword="null"/> when none is
+    /// configured. Every case created or opened while a key is configured gets an envelope for it; without one, cases
+    /// can only be opened with their own envelopes, and the user interface says so.
+    /// </summary>
+    RecoveryPublicKey? RecoveryKey { get; }
+
+    /// <summary>
+    /// Opens a case file anywhere with the organisation's private recovery key, for the administrator's tool, when
+    /// the operator has lost the master key. The vault must still be unlocked, since the journal records the
+    /// opening; the entry also names the administrator and the key's fingerprint.
+    /// </summary>
+    /// <param name="path">The path of the <c>.cut</c> file.</param>
+    /// <param name="privateKey">The private P-384 key; the caller keeps and disposes it.</param>
+    /// <param name="administrator">The name of the administrator who opens the case, for the journal.</param>
+    /// <returns>The open case; the caller disposes it.</returns>
+    /// <exception cref="CaseException">
+    /// The same reasons as <see cref="Open"/>; <see cref="CaseError.NoAccess"/> when the file has no envelope that
+    /// the key opens.
+    /// </exception>
+    /// <exception cref="System.Security.Cryptography.CryptographicException">The key is not a P-384 key.</exception>
+    ICase OpenWithRecoveryKey(
+        string path, System.Security.Cryptography.ECDiffieHellman privateKey, string administrator);
+
+    /// <summary>
+    /// Reads which recovery keys a case file has envelopes for, from its unencrypted header, without opening it and
+    /// without the vault.
+    /// </summary>
+    /// <param name="path">The path of the <c>.cut</c> file.</param>
+    /// <returns>The fingerprints (see <see cref="RecoveryPublicKey.Fingerprint"/>), in file order.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NotFound"/>, <see cref="CaseError.Corrupt"/> or <see cref="CaseError.UnsupportedVersion"/>.
+    /// </exception>
+    IReadOnlyList<string> ReadRecoveryFingerprints(string path);
 }

@@ -46,6 +46,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Chainsaw.App.Tests/Chainsaw.App.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Recovery.Tests/Chainsaw.Recovery.Tests.csproj" />
     <Project Path="tests/Chainsaw.SharedKernel.Tests/Chainsaw.SharedKernel.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Cases.Tests/Chainsaw.Modules.Cases.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Security.Tests/Chainsaw.Modules.Security.Tests.csproj" />
@@ -57,5 +58,8 @@
     <Project Path="tests/Chainsaw.Modules.Pricing.Tests/Chainsaw.Modules.Pricing.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Monitoring.Tests/Chainsaw.Modules.Monitoring.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Requests.Tests/Chainsaw.Modules.Requests.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Chainsaw.Recovery/Chainsaw.Recovery.csproj" />
   </Folder>
 </Solution>

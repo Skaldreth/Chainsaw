@@ -31,6 +31,9 @@ internal sealed class CaseFixture : IDisposable
 
     public FakeClock Clock { get; } = new();
 
+    /// <summary>The recovery key the stores get; none unless the test sets one.</summary>
+    public RecoveryPublicKey? RecoveryKey { get; set; }
+
     public static TimeZoneInfo TimeZone { get; } =
         TimeZoneInfo.CreateCustomTimeZone("Chainsaw/Test", TimeSpan.FromHours(1), "Test", "Test");
 
@@ -42,6 +45,7 @@ internal sealed class CaseFixture : IDisposable
             AnchorDirectory = AnchorDirectory,
             SharingIterations = 1_000,
             TimeZone = TimeZone,
+            RecoveryKey = RecoveryKey,
         };
         var store = new CaseStore(
             Vault, PurposeKeys, Profiles, Clock, options, [new CasesSchema(), .. contributors]);

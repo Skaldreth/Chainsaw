@@ -156,6 +156,10 @@ internal sealed class Case : ICase
     /// <remarks>Reads the header the last operation left, without waiting for one that runs.</remarks>
     public bool HasSharingPassword => HasSharingPasswordUnlocked();
 
+    /// <inheritdoc />
+    /// <remarks>Reads the header the last operation left, without waiting for one that runs.</remarks>
+    public IReadOnlyList<string> RecoveryFingerprints => RecoveryEnvelopes.Fingerprints(_header);
+
     /// <summary>Gets the open database, for <see cref="CaseTransaction"/> and the tests.</summary>
     internal CaseDatabase Database => _database ?? throw new CaseException(CaseError.Closed);
 
@@ -515,6 +519,32 @@ internal sealed class Case : ICase
         CaseFileHash = saved;
         CaseFiles.WriteBase(_paths, [saved]);
         WriteAnchors();
+    }
+
+    /// <summary>
+    /// Adds an envelope for the organisation's recovery key when one is configured and the file has none for it (an
+    /// older case, or a key that has been replaced; envelopes for earlier keys stay), with an entry in the journal.
+    /// The caller saves.
+    /// </summary>
+    /// <returns><see langword="true"/> when an envelope was added.</returns>
+    internal bool AddMissingRecoveryEnvelope()
+    {
+        if (_services.Options.RecoveryKey is not { } recoveryKey
+            || RecoveryEnvelopes.Fingerprints(_header).Contains(recoveryKey.Fingerprint, StringComparer.Ordinal))
+        {
+            return false;
+        }
+
+        var envelope = RecoveryEnvelopes.Create(Info.Id, _fileKey, recoveryKey);
+        AppendOwnJournal(new JournalDraft(
+            CaseJournalKinds.RecoveryAccessAdded,
+            "Ärendet fick ett kuvert för organisationens återställningsnyckel",
+            JsonSerializer.Serialize(new Dictionary<string, string>
+            {
+                [RecoveryDetails.Fingerprint] = recoveryKey.Fingerprint,
+            })));
+        _header = _header.WithEnvelopes(_header.Envelopes.Append(envelope));
+        return true;
     }
 
     /// <summary>Derives a key from the vault, giving a locked vault the case's own error.</summary>

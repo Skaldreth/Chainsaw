@@ -29,4 +29,16 @@ public static class CaseJournalKinds
     /// Chainsaw, or anchors that were missing or unreadable); the details say what, and the anchors were replaced.
     /// </summary>
     public const string AnchorsReplaced = "case.anchors-replaced";
+
+    /// <summary>
+    /// An envelope for the organisation's recovery key was added: to an older case, or because the key built into
+    /// Chainsaw was replaced. The details give the key's fingerprint.
+    /// </summary>
+    public const string RecoveryAccessAdded = "case.recovery-access-added";
+
+    /// <summary>
+    /// The case was opened with the organisation's private recovery key; the details name the administrator and the
+    /// key's fingerprint.
+    /// </summary>
+    public const string OpenedWithRecoveryKey = "case.opened-with-recovery-key";
 }

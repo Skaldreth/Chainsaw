@@ -6,3 +6,6 @@ obj/
 *.suo
 TestResults/
 *.cut
+
+# The organisation's private recovery key never belongs in the repository.
+*.private.pem

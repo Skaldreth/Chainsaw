@@ -29,6 +29,13 @@ public sealed class CasesOptions
     public string AnchorDirectory { get; set; } = DefaultDirectory(AnchorsFolder);
 
     /// <summary>
+    /// Gets or sets the organisation's public recovery key that every case gets an envelope for, or
+    /// <see langword="null"/> when none is configured. The application uses the key built into the module (see
+    /// <see cref="EmbeddedRecoveryKey"/>); only tests set their own.
+    /// </summary>
+    public Contracts.RecoveryPublicKey? RecoveryKey { get; internal set; } = EmbeddedRecoveryKey.Load();
+
+    /// <summary>
     /// Gets or sets the iterations used when a sharing password is set. Only tests lower it, to stay fast; the count
     /// is stored in the envelope, so a file always opens with the count it was written with.
     /// </summary>

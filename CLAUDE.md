@@ -152,7 +152,8 @@ src/
     Pricing/                Kurser vid en tidpunkt, med källa, sparade i ärendet
     Monitoring/             Bevakning av adresser och kluster
     Requests/               Begäran om uppgifter till börser, mallar
-tests/                      xUnit, ett testprojekt per modul
+tools/Chainsaw.Recovery/    Administratörens verktyg för organisationens återställningsnyckel (konsolprogram)
+tests/                      xUnit, ett testprojekt per modul och ett för verktyget
 assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG i 256 px, programikonen chainsaw.ico och
                             kättingens skarv (chainsaw-chain-joint.svg) för låsskärmen
 ```
@@ -186,6 +187,17 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   organisationens publika nyckel, som är inbyggd i Chainsaw. Den privata nyckeln har bara administratören, och den finns
   aldrig i repot. Glöms huvudnyckeln går valvet inte att återställa (det skapas på nytt), men ärendena kan öppnas av
   administratören.
+  - **Konstruktionen:** ECIES på P-384. Ett nytt tillfälligt nyckelpar per kuvert, ECDH mot den publika nyckeln,
+    HKDF-SHA384 till en AES-256-GCM-nyckel som lindar filnyckeln. Ärendets id, nyckelns fingeravtryck (SHA-256 av den
+    publika nyckeln i kanonisk DER-form) och den tillfälliga nyckeln är bundna som HKDF-info och associerad data.
+  - **Den publika nyckeln** ligger i `src/Modules/Cases/Chainsaw.Modules.Cases/organization-recovery-key.pem`, en
+    inbyggd resurs. Utan nyckel i filen skapas ärenden utan kuvert, och journalens första rad säger det; en ogiltig
+    nyckel stoppar appen. Kuvertet läggs till när ett ärende skapas, och när ett ärende som saknar kuvert för den
+    inbyggda nyckeln öppnas (äldre ärenden och bytt nyckel; gamla kuvert ligger kvar).
+  - **Verktyget** `tools/Chainsaw.Recovery` (`keygen`, `fingerprint`, `check`, `open`) är administratörens. Den
+    privata nyckeln skyddas med lösenord (krypterad PKCS #8, PBKDF2-HMAC-SHA512 med 600 000 iterationer och
+    AES-256), skrivs aldrig över och aldrig i ett git-repo. Hur nyckeln skapas, förvaras och används står i
+    `docs/ATERSTALLNINGSNYCKEL.md`.
 - **Låsning** automatiskt efter inaktivitet, när Windows låses och med Ctrl+L. En ansluten utgång står kvar när valvet
   låses, eftersom inga uppslag görs medan Chainsaw är låst (användarens beslut 2026-11-07).
 - **Bara https ut** (användarens beslut 2026-11-07): `IExitHttp` vägrar `http`, så att utgången aldrig ser innehållet.
@@ -288,6 +300,7 @@ Varje uppgift står på ett ställe. Historiken finns i git.
 | `docs/TODO.md` | Backloggen: önskemål, öppna frågor och idéer som inte är byggda | När nästa uppgift väljs |
 | `docs/DEV-LOG.md` | En post per byggd etapp: egna beslut, avsteg och det som återstår | När en etapp byggs eller granskas |
 | `docs/TESTER-INFOR-1.0.md` | Det som ska provas på Windows före 1.0 | När det fylls på eller när användaren testar |
+| `docs/ATERSTALLNINGSNYCKEL.md` | För administratören: återställningsnyckeln skapas, förvaras och används | När nyckeln skapas eller ett ärende ska öppnas |
 
 - **HANDOFF hålls kort.** Det som är klart tas bort. Ett beslut som ska gälla framåt flyttas hit.
 - **En punkt i TODO som byggs** tas bort därifrån.

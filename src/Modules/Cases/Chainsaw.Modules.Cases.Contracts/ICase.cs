@@ -30,6 +30,13 @@ public interface ICase : IDisposable
     bool HasSharingPassword { get; }
 
     /// <summary>
+    /// Gets the fingerprints of the recovery keys the file has envelopes for (see
+    /// <see cref="RecoveryPublicKey.Fingerprint"/>); empty when no recovery key has been configured since the case
+    /// was created.
+    /// </summary>
+    IReadOnlyList<string> RecoveryFingerprints { get; }
+
+    /// <summary>
     /// Runs work that only reads, in one read transaction; any attempt to write is refused by SQLite.
     /// </summary>
     /// <typeparam name="T">What the work returns.</typeparam>
@@ -86,7 +93,9 @@ public interface ICase : IDisposable
     /// Adds an envelope for this vault, so that a case opened with its sharing password can later be opened without
     /// it, and saves the file. Nothing happens when this vault already has one.
     /// </summary>
-    /// <exception cref="CaseException"><see cref="CaseError.VaultLocked"/> or <see cref="CaseError.Closed"/>.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.VaultLocked"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
     void AddOperatorAccess();
 
     /// <summary>Writes the working copy back into the case file, atomically.</summary>

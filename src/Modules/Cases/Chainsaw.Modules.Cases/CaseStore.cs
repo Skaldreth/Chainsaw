@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.SharedKernel;
@@ -52,6 +53,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
     /// <inheritdoc />
     public string Directory => _services.Options.Directory;
+
+    /// <inheritdoc />
+    public RecoveryPublicKey? RecoveryKey => _services.Options.RecoveryKey;
 
     /// <summary>Gets the schema catalog, for the verifier.</summary>
     internal SchemaCatalog Catalog => _services.Catalog;
@@ -158,7 +162,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 throw new CaseException(CaseError.NoAccess);
             }
 
-            return OpenLocked(paths, lockFile, header, fileKey, (false, locks));
+            return OpenLocked(paths, lockFile, header, fileKey, new Opening(OpeningKind.Vault, locks));
         }
         catch
         {
@@ -190,7 +194,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 throw new CaseException(CaseError.NoAccess);
             }
 
-            return OpenLocked(paths, lockFile, header, fileKey, (true, locks));
+            return OpenLocked(paths, lockFile, header, fileKey, new Opening(OpeningKind.Password, locks));
         }
         catch
         {
@@ -198,6 +202,47 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             lockFile.Dispose();
             throw;
         }
+    }
+
+    /// <inheritdoc />
+    public ICase OpenWithRecoveryKey(string path, ECDiffieHellman privateKey, string administrator)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(privateKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(administrator);
+        var fingerprint = RecoveryPublicKey.FromPrivateKey(privateKey).Fingerprint;
+        var locks = LockCount();
+        var paths = new CasePaths(System.IO.Path.GetFullPath(path));
+        RequireExists(paths);
+        RequireUnlocked();
+        var lockFile = AcquireLock(paths);
+        var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
+        {
+            var header = ReadHeader(paths);
+            if (!RecoveryEnvelopes.TryOpen(header, privateKey, fileKey))
+            {
+                throw new CaseException(CaseError.NoAccess);
+            }
+
+            var opening = new Opening(OpeningKind.Recovery, locks, administrator.Trim(), fingerprint);
+            return OpenLocked(paths, lockFile, header, fileKey, opening);
+        }
+        catch
+        {
+            Clear(fileKey);
+            lockFile.Dispose();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> ReadRecoveryFingerprints(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var paths = new CasePaths(System.IO.Path.GetFullPath(path));
+        RequireExists(paths);
+        return RecoveryEnvelopes.Fingerprints(ReadHeader(paths));
     }
 
     /// <summary>Stops following the vault and closes every open case.</summary>
@@ -227,16 +272,14 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="lockFile">The held lock; the case takes it over, a failure leaves it to the caller.</param>
     /// <param name="header">The header the key was opened from.</param>
     /// <param name="fileKey">The file key; the case takes it over, a failure leaves it to the caller.</param>
-    /// <param name="opening">
-    /// Whether the sharing password was used (for the journal) and the count of vault locks when the opening began.
-    /// </param>
+    /// <param name="opening">How the file key was opened (for the journal) and the count of vault locks then.</param>
     /// <returns>The open case.</returns>
     private Case OpenLocked(
         CasePaths paths,
         FileStream lockFile,
         CaseHeader header,
         byte[] fileKey,
-        (bool WithPassword, long Locks) opening)
+        Opening opening)
     {
         var recovering = File.Exists(paths.WorkingCopy);
         CaseDatabase? database = null;
@@ -266,7 +309,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 },
                 recovering);
             (database, anchorKey) = (null, null);
-            FinishOpening(opened, () => JournalOpening(opened, recovering, applied, opening.WithPassword));
+            FinishOpening(opened, () => JournalOpening(opened, recovering, applied, opening));
             return opened;
         }
         catch
@@ -322,14 +365,14 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     }
 
     /// <summary>
-    /// Journals what opening the case did (and what does not match this computer's anchors), and saves when anything
-    /// was journalled.
+    /// Journals what opening the case did (and what does not match this computer's anchors), adds an envelope for the
+    /// recovery key when the file lacks one, and saves when anything was journalled.
     /// </summary>
     /// <param name="opened">The open case.</param>
     /// <param name="recovered">Whether a working copy was recovered.</param>
     /// <param name="applied">The schema steps that ran.</param>
-    /// <param name="withPassword">Whether the sharing password was used.</param>
-    private static void JournalOpening(Case opened, bool recovered, IReadOnlyList<string> applied, bool withPassword)
+    /// <param name="opening">How the file key was opened.</param>
+    private static void JournalOpening(Case opened, bool recovered, IReadOnlyList<string> applied, Opening opening)
     {
         var anchorsJournalled = opened.ReconcileAnchors();
         if (recovered)
@@ -346,13 +389,26 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 JsonSerializer.Serialize(applied)));
         }
 
-        if (withPassword)
+        if (opening.Kind == OpeningKind.Password)
         {
             opened.AppendOwnJournal(new JournalDraft(
                 CaseJournalKinds.OpenedWithPassword, "Ärendet öppnades med delningslösenordet"));
         }
 
-        if (recovered || applied.Count > 0 || withPassword || anchorsJournalled)
+        if (opening.Kind == OpeningKind.Recovery)
+        {
+            opened.AppendOwnJournal(new JournalDraft(
+                CaseJournalKinds.OpenedWithRecoveryKey,
+                $"Ärendet öppnades med organisationens återställningsnyckel av administratören {opening.Administrator}",
+                JsonSerializer.Serialize(new Dictionary<string, string?>
+                {
+                    [RecoveryDetails.Administrator] = opening.Administrator,
+                    [RecoveryDetails.Fingerprint] = opening.Fingerprint,
+                })));
+        }
+
+        var recoveryAdded = opened.AddMissingRecoveryEnvelope();
+        if (recovered || applied.Count > 0 || opening.Kind != OpeningKind.Vault || anchorsJournalled || recoveryAdded)
         {
             opened.SaveUnlocked();
         }
@@ -568,7 +624,10 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         }
     }
 
-    /// <summary>Makes the header of a new case with an envelope for this vault.</summary>
+    /// <summary>
+    /// Makes the header of a new case with an envelope for this vault and, when one is configured, one for the
+    /// organisation's recovery key.
+    /// </summary>
     /// <param name="fileKey">The new file key.</param>
     /// <returns>The header.</returns>
     private CaseHeader NewHeader(byte[] fileKey)
@@ -578,7 +637,13 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             Case.DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
-            return new CaseHeader(caseId, [KeyEnvelopes.CreateOperator(caseId, fileKey, wrappingKey)]);
+            List<JsonObject> envelopes = [KeyEnvelopes.CreateOperator(caseId, fileKey, wrappingKey)];
+            if (_services.Options.RecoveryKey is { } recoveryKey)
+            {
+                envelopes.Add(RecoveryEnvelopes.Create(caseId, fileKey, recoveryKey));
+            }
+
+            return new CaseHeader(caseId, envelopes);
         }
         finally
         {
@@ -626,17 +691,21 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         return new CaseInfo(id, reader.GetString(1), created);
     }
 
-    /// <summary>The details of the first journal entry: the case and the schema it was created with.</summary>
+    /// <summary>
+    /// The details of the first journal entry: the case, the schema it was created with and the recovery key it got
+    /// an envelope for (<see langword="null"/> when none was configured, so that the journal says so).
+    /// </summary>
     /// <param name="info">The case information.</param>
     /// <param name="opened">The new case.</param>
     /// <returns>The JSON.</returns>
-    private static string CreationDetails(CaseInfo info, Case opened) =>
-        JsonSerializer.Serialize(new Dictionary<string, object>
+    private string CreationDetails(CaseInfo info, Case opened) =>
+        JsonSerializer.Serialize(new Dictionary<string, object?>
         {
             [CreatedDetails.CaseId] = info.Id.ToString("D"),
             [CreatedDetails.CaseNumber] = info.CaseNumber,
             [CreatedDetails.CreatedUtc] = info.CreatedUtc.ToString("O", CultureInfo.InvariantCulture),
             [CreatedDetails.Schema] = Case.SchemaDetails(opened.Database),
+            [CreatedDetails.RecoveryKey] = _services.Options.RecoveryKey?.Fingerprint,
         });
 
     /// <summary>Gives the number of locks of the vault so far.</summary>
@@ -728,4 +797,25 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             }
         }
     }
+
+    /// <summary>How a case's file key was opened.</summary>
+    private enum OpeningKind
+    {
+        /// <summary>With this vault's envelope.</summary>
+        Vault,
+
+        /// <summary>With the sharing password.</summary>
+        Password,
+
+        /// <summary>With the organisation's private recovery key.</summary>
+        Recovery,
+    }
+
+    /// <summary>How a case is being opened, for the journal, and the count of vault locks when it began.</summary>
+    /// <param name="Kind">How the file key was opened.</param>
+    /// <param name="Locks">The count of vault locks when the opening began.</param>
+    /// <param name="Administrator">The administrator, for an opening with the recovery key.</param>
+    /// <param name="Fingerprint">The recovery key's fingerprint, for an opening with it.</param>
+    private sealed record Opening(
+        OpeningKind Kind, long Locks, string? Administrator = null, string? Fingerprint = null);
 }

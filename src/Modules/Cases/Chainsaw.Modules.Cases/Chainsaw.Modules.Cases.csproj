@@ -11,6 +11,11 @@
     <ProjectReference Include="..\Chainsaw.Modules.Cases.Contracts\Chainsaw.Modules.Cases.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The organisation's public recovery key (see EmbeddedRecoveryKey); never the private key. -->
+    <EmbeddedResource Include="organization-recovery-key.pem" LogicalName="Chainsaw.Modules.Cases.organization-recovery-key.pem" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Chainsaw.Modules.Cases.Tests" />
+    <InternalsVisibleTo Include="Chainsaw.Recovery.Tests" />
   </ItemGroup>
 </Project>
