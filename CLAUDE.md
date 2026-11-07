@@ -178,8 +178,10 @@ tests/                      xUnit, ett testprojekt per modul
 ## Gränssnitt
 
 - **Samma stil som Gawk, egen identitet** (användarens beslut 2026-11-06): mörkt tema i neutrala gråtoner, tangentbordsfokus,
-  en flytande kommandorad för power users, svenska i gränssnittet. Loggan är Bitcoin-loggan med kedjesågens tänder (skissas).
-  Låsskärmen och förstagångsinställningen har teckenfältet i ASCII-stil, som i Gawk.
+  en flytande kommandorad för power users, svenska i gränssnittet. Loggan är **en sågkedja** (användarens önskemål 2026-11-07, skiss
+  ID3): länkar med nitar, skärtänder utåt och drivtappar inåt; Bitcoin-myntet (ID1) är avvisat. Låsskärmen och
+  förstagångsinställningen har teckenfältet i ASCII-stil, som i Gawk, och på låsskärmen **löper kedjan uppifrån och ner i
+  vänsterdelen**, skriven i tecken, ganska stor men inte överdriven, och rör sig sakta (skiss ID4).
 - **Färger:** Gawks gråskala (bakgrund `#191919`, paneler `#1F1F1F`, upphöjt `#262626`, markerat `#333333`, text `#EFEFEF` /
   `#B4B4B4` / `#8F8F8F`, lyckat `#8CC98F`, fel `#EC8C8C`) med en **egen accentfärg** som bestäms i skisserna.
 - **Typsnitt:** Segoe UI Variable, Cascadia Mono bara för hashar, txid och adresser i inspektören samt terminalen.

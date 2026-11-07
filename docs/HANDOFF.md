@@ -12,8 +12,8 @@ bestämts eller byggts står i `docs/TODO.md`.
 ## Nästa steg
 
 1. **Skisserna väntar på användarens val** (canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h):
-   - **ID1 Identitet:** loggan A Sågklinga (förslag) eller B Kedja, och accentfärgen Stål `#4FBFA8` (förslag), Violett eller Bitcoin.
-   - **ID2 Låsskärmen:** teckenfältet med loggan i tecken nere till vänster och en avisering om bevakning utan detaljer.
+   - **Identiteten:** loggan är en sågkedja. **ID3** väntar på val mellan A (tre länkar på snedden) och B (stående), och
+     **ID4** visar låsskärmen med kedjan längs vänsterkanten. Accentfärgen är inte vald (Stål `#4FBFA8` är förslaget).
    - **Grafen:** bildspråket (GR3a) är godkänt, och grafen är en fri yta med växel till hoppkolumner. **GR4** visar dem
      tillsammans och väntar på ett sista ok innan grafen byggs.
    - Därefter: skalet (sidopanelen och vyernas ordning) och resten av vyerna.
