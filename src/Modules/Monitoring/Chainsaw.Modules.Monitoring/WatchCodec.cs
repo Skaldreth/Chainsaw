@@ -40,7 +40,8 @@ internal static class WatchCodec
         [.. filter.Receivers.Select(party => party.Value)],
         [.. filter.Senders.Select(party => party.Value)],
         filter.Asset is { } asset ? AssetOf(asset) : null,
-        filter.Minimum is { } minimum ? Units(minimum) : null));
+        filter.Minimum is { } minimum ? Units(minimum) : null,
+        filter.Pace.ToString()));
 
     /// <summary>Reads a filter.</summary>
     /// <param name="json">The JSON.</param>
@@ -60,7 +61,10 @@ internal static class WatchCodec
             [.. text.Receivers.Select(value => new ChainAddress(chain, value))],
             [.. text.Senders.Select(value => new ChainAddress(chain, value))],
             asset,
-            minimum);
+            minimum)
+        {
+            Pace = text.Pace is { } pace ? Enum.Parse<WatchPace>(pace) : WatchPace.EveryBlock,
+        };
     }
 
     /// <summary>Writes an asset.</summary>
@@ -165,9 +169,10 @@ internal static class WatchCodec
     /// <param name="Senders">The senders.</param>
     /// <param name="Asset">The asset, or none for all.</param>
     /// <param name="Minimum">The minimum's units, or none.</param>
+    /// <param name="Pace">How often it asks the source; none means every block.</param>
     private sealed record FilterText(
         string Chain, string Direction, List<string> Receivers, List<string> Senders, AssetText? Asset,
-        string? Minimum);
+        string? Minimum, string? Pace);
 
     /// <summary>An asset as stored.</summary>
     /// <param name="Chain">The chain.</param>

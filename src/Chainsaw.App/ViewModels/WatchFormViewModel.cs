@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using Chainsaw.App.Settings;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.SharedKernel;
@@ -43,7 +42,8 @@ public sealed partial class WatchChoice(string label, object? value) : Observabl
 /// The form of a watch (sketches BV1a and BV2a): the same for <em>Bevaka …</em> on a node in the graph, <em>Ny
 /// bevakning …</em> in the view (with an address of its own) and <em>Ändra</em>. Direction in, out or both; receivers
 /// (1:n) and senders (n:1) as chips, added by address or with Ctrl+click in the graph, where an empty list means all;
-/// the asset on Ethereum; an optional minimum. Enter saves, Esc cancels. It knows nothing of WPF.
+/// the asset on Ethereum; an optional minimum; and how often the watch asks the source. Enter saves, Esc cancels. It
+/// knows nothing of WPF.
 /// </summary>
 public sealed partial class WatchFormViewModel : ObservableObject
 {
@@ -62,9 +62,6 @@ public sealed partial class WatchFormViewModel : ObservableObject
     /// <summary>The watches.</summary>
     private readonly WatchBoard _board;
 
-    /// <summary>The pace chosen in the settings.</summary>
-    private readonly Func<WatchPace> _pace;
-
     /// <summary>The node being watched, or <see langword="null"/> while the address is typed.</summary>
     private WatchSubject? _subject;
 
@@ -76,13 +73,11 @@ public sealed partial class WatchFormViewModel : ObservableObject
 
     /// <summary>Creates the form.</summary>
     /// <param name="board">The watches.</param>
-    /// <param name="pace">The pace chosen in the settings.</param>
-    public WatchFormViewModel(WatchBoard board, Func<WatchPace> pace)
+    public WatchFormViewModel(WatchBoard board)
     {
         ArgumentNullException.ThrowIfNull(board);
-        ArgumentNullException.ThrowIfNull(pace);
         _board = board;
-        _pace = pace;
+        Paces = [.. Enum.GetValues<WatchPace>().Select(pace => new WatchChoice(WatchWords.Pace(pace), pace))];
         Directions =
         [
             new WatchChoice("In", WatchDirection.In),
@@ -103,6 +98,9 @@ public sealed partial class WatchFormViewModel : ObservableObject
 
     /// <summary>Gets the directions to choose from.</summary>
     public IReadOnlyList<WatchChoice> Directions { get; }
+
+    /// <summary>Gets how often the watch can ask the source.</summary>
+    public IReadOnlyList<WatchChoice> Paces { get; }
 
     /// <summary>Gets the assets to choose from on Ethereum.</summary>
     public IReadOnlyList<WatchChoice> Assets { get; }
@@ -153,6 +151,10 @@ public sealed partial class WatchFormViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanHaveMinimum), nameof(MinimumHint))]
     public partial Asset? Asset { get; private set; }
 
+    /// <summary>Gets how often the watch asks the source; at every new block by default.</summary>
+    [ObservableProperty]
+    public partial WatchPace Pace { get; private set; } = WatchPace.EveryBlock;
+
     /// <summary>Gets what went wrong, or an empty text.</summary>
     [ObservableProperty]
     public partial string Problem { get; private set; } = string.Empty;
@@ -190,9 +192,6 @@ public sealed partial class WatchFormViewModel : ObservableObject
 
     /// <summary>Gets the minimum's placeholder.</summary>
     public string MinimumHint => CanHaveMinimum ? "Valfritt" : MinimumNeedsAssetText;
-
-    /// <summary>Gets what the row Hur ofta says.</summary>
-    public string PaceText => $"{_pace().Label()}, som i Inställningar";
 
     /// <summary>Gets the save button's text.</summary>
     public string SaveText => _changing is null ? "Bevaka" : "Spara";
@@ -237,6 +236,7 @@ public sealed partial class WatchFormViewModel : ObservableObject
         }
 
         ChooseAsset(watch.Filter.Asset);
+        ChoosePace(watch.Filter.Pace);
         MinimumInput = watch.Filter.Minimum is { } minimum ? Graph.AmountText.Number(minimum) : string.Empty;
     }
 
@@ -262,6 +262,15 @@ public sealed partial class WatchFormViewModel : ObservableObject
         {
             MinimumInput = string.Empty;
         }
+    }
+
+    /// <summary>Chooses how often the watch asks the source.</summary>
+    /// <param name="pace">The pace.</param>
+    [RelayCommand]
+    public void ChoosePace(WatchPace pace)
+    {
+        Pace = pace;
+        WatchChoiceMark(Paces, pace);
     }
 
     /// <summary>Makes a list the one a typed address or a Ctrl+click adds to.</summary>
@@ -420,7 +429,10 @@ public sealed partial class WatchFormViewModel : ObservableObject
             ShowsReceivers ? [.. Receivers.Select(chip => chip.Address)] : [],
             ShowsSenders ? [.. Senders.Select(chip => chip.Address)] : [],
             asset,
-            minimum);
+            minimum)
+        {
+            Pace = Pace,
+        };
     }
 
     /// <summary>Gives the chain an address is on, by its form and checksum.</summary>
@@ -497,12 +509,12 @@ public sealed partial class WatchFormViewModel : ObservableObject
         ChooseDirection(WatchDirection.Both);
         Picking = WatchPartyList.Receivers;
         ChooseAsset(null);
+        ChoosePace(WatchPace.EveryBlock);
         OnPropertyChanged(nameof(Chain));
         OnPropertyChanged(nameof(ChainName));
         OnPropertyChanged(nameof(IsEthereum));
         OnPropertyChanged(nameof(IsBitcoin));
         OnPropertyChanged(nameof(SaveText));
-        OnPropertyChanged(nameof(PaceText));
         OnPropertyChanged(nameof(Subject));
         IsOpen = true;
     }

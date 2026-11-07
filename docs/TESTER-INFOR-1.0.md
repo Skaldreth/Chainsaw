@@ -821,3 +821,50 @@ Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *S
   inte (inga kluster på Ethereum). Annan kedja (K): välj en rörelse som kom in till adressen (till exempel en brygga),
   välj TRON och klistra in en tx; en lila streckad linje går till den andra kedjans nod, och länken syns i Historik.
 - *Förslag · N* (Ctrl+J): statusraden säger att kontrollerna gäller UTXO och inte körs på Ethereum.
+
+## Bevakningen, första delen (etapp 26, BV1a och BV2a)
+
+Kräver en ansluten utgång (eller Windows som utgång), ett ärende med en graf, och att endpointarna har provats vid
+start (en endpoint måste vara *i fas* för att bevakningen ska fråga).
+
+**Högerklick och formuläret (BV2a)**
+- Högerklicka på en adress eller ett kluster i grafen: menyn har Etikett (L), Bryt upp (U, bara kluster), Annan kedja
+  (K), **Bevaka … (B)**, Expandera (E) och Kopiera adress (Ctrl+C). En tx-nod har Bevaka tonad. Klick utanför eller Esc
+  stänger menyn.
+- *Bevaka …* (eller B på en vald nod) fäller ut formuläret under grafens hörn: riktning In/Ut/Båda, Mottagare och
+  Avsändare som brickor, Tillgång (bara Ethereum: Alla, ETH, USDT, USDC), Minsta belopp och *Hur ofta* (Varje block,
+  1, 5 eller 15 min). Håll Ctrl och
+  klicka på noder: de läggs som brickor i den rad vars sikte är rosa (klicka *Alla, eller lägg till* för att byta rad).
+  Noden själv vägras. Ctrl+klick utan öppet formulär väljer fortfarande aktörer för en egen yta (Z).
+- Enter sparar, Esc avbryter. Noden får ett **rosa öga** i hörnet.
+
+**I grafen**
+- En bevakning med mottagare: en tunn **prickad** linje i en dov turkos ton från noden till varje mottagare som inga
+  pengar gått till, med ett litet öga mitt på. Till en mottagare som redan har en linje: linjen får ett mjukt turkost
+  sken i stället. Avsändare: linjerna går in till noden.
+- Utan motparter: korta prickade strålar vid porten (höger för ut, vänster för in) med ett litet öga.
+- Koppla ner utgången: ögonen blir ihåliga och grå, linjerna och strålarna grå. Anslut igen: färgerna kommer tillbaka.
+- Vid en träff (vänta på ett nytt block med en bevakning på en aktiv adress, eller ett testärende): en rosa linje med
+  beloppet till motparten om den finns i grafen, och **ringar som rör sig** runt mitten tills du väljer noden. Med
+  *Visa animeringar i Windows* avstängt står ringarna stilla. Grafens rad säger *Bevakning slog till · …*.
+- Pillrets öga får en rosa prick vid nya träffar; den försvinner när träffarna är sedda.
+
+**Vyn Bevakning (BV1a, Ctrl+6)**
+- En rad per bevakning: läge som prick (grön aktiv, gul väntar, grå pausad), namn, kedja, pilar för riktningen,
+  motparterna som brickor, tillgången, *Senast kontrollerad* med block och en rosa prick för nya träffar.
+- Huvudet säger ärligt *Bevakar medan Chainsaw är öppet* (hovra för förklaringen), eller *Väntar på utgången · inga
+  uppslag görs* utan utgång.
+- Den valda bevakningen till höger: adressen, fakta (också *Räknas från: efter block N*), träffarna med block, och
+  knapparna Öppna i grafen, Ändra, Pausa/Fortsätt och papperskorgen (skäl valfritt, Enter tar tillbaka).
+- *Ny bevakning …* (B, eller Nytt → Bevakning i pillret): skriv en Bitcoin- eller Ethereum-adress; kedjan känns igen.
+- *Hur ofta* står bland den valda bevakningens fakta och kan ändras med Ändra.
+
+**Historiken (AN1b)**
+- Inspektörens Historik för en bevakad nod har *Bevakning · ut · 1 mottagare* med *Ta tillbaka*, ändringar och pauser,
+  träffarna som fakta, och efter borttagning raden överstruken med *Tillbakatagen: bevakningen*.
+
+**Att kontrollera**
+- `/verify` är grönt efter att bevakningar lagts till, ändrats, pausats, tagits bort och slagit till.
+- Lås Chainsaw (Ctrl+L) och vänta på ett block: inga uppslag görs (utgångens trafik står still); efter upplåsning
+  fortsätter bevakningen.
+- Ett stort Ethereum-ärende med bevakning: grafen ska inte kännas trög medan ringarna rör sig.

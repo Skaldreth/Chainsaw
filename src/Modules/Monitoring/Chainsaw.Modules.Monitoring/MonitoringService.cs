@@ -192,7 +192,10 @@ internal sealed class MonitoringService(
             .ToHashSet(StringComparer.Ordinal);
         var checkedBefore = GetChecked(@case);
         var outcomes = new List<WatchOutcome>();
-        foreach (var watch in watches.Where(watch => watch.StartHeight is not null))
+        var now = clock.UtcNow;
+        var due = watches.Where(watch => watch.StartHeight is not null
+            && IsDue(watch, checkedBefore.GetValueOrDefault(watch.Id), height, now));
+        foreach (var watch in due)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var start = watch.StartHeight!.Value;
@@ -208,6 +211,27 @@ internal sealed class MonitoringService(
         }
 
         return new WatchRun(chain, open, height, outcomes, clock.UtcNow);
+    }
+
+    /// <summary>
+    /// Says whether a watch is due: a new block has come since it was last read through, and its pace's time has passed
+    /// since it was last checked. A watch never checked, or whose last check failed, is read again.
+    /// </summary>
+    /// <param name="watch">The watch.</param>
+    /// <param name="last">When it was last checked, or <see langword="null"/>.</param>
+    /// <param name="height">The chain's height now.</param>
+    /// <param name="now">Now.</param>
+    /// <returns><see langword="true"/> when it is checked now.</returns>
+    public static bool IsDue(Watch watch, WatchChecked? last, long height, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(watch);
+        if (last is null)
+        {
+            return true;
+        }
+
+        var newBlock = height > last.Height || last.Status != WatchFeedStatus.Read;
+        return newBlock && now - last.CheckedUtc >= watch.Filter.Pace.Interval();
     }
 
     /// <summary>Gives the feed that reads a chain through the case's sources.</summary>

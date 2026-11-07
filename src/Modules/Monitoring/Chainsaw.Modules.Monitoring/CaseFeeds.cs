@@ -143,6 +143,14 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
 
         var hashes = await BlockHashesAsync(transfers.Values, origins, problems, cancellationToken)
             .ConfigureAwait(false);
+
+        // A block whose hash could not be had keeps the check from moving on, so that the next check reads its
+        // transactions again however long it takes.
+        var hashless = transfers.Values.Any(transfer => transfer.Block is { } block && !hashes.ContainsKey(block.Height));
+        if (hashless)
+        {
+            status = WatchFeedStatus.Failed;
+        }
         var transactions = transfers.Values
             .GroupBy(transfer => transfer.Transaction.Value, StringComparer.Ordinal)
             .Select(group => Of(group.Key, [.. group.OrderBy(t => t.Kind).ThenBy(t => t.Position)], hashes))

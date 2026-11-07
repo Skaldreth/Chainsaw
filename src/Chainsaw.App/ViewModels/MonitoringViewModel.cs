@@ -429,6 +429,7 @@ public sealed partial class MonitoringViewModel : ObservableObject
             new("Motparter", row.PartiesText),
             new("Tillgång", WatchWords.Asset(watch.Filter)),
             new("Minsta belopp", WatchWords.Minimum(watch.Filter)),
+            new("Hur ofta", WatchWords.Pace(watch.Filter.Pace)),
             new("Senast kontrollerad", checkedText),
             new("Startad", $"{watch.CreatedBy.Name} {WatchWords.When(watch.CreatedUtc, _clock.UtcNow)}"),
             new("Räknas från", watch.StartHeight is { } start

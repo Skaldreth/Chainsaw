@@ -348,7 +348,6 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   sådana mynt på en gång, och bevakningen som gör det i bakgrunden, behövs.
 - **Tidsfönster för en adress historik** (etapp 7): expansionen tar de nyaste tx upp till gränsen (50 som förval).
   För en adress med lång historik behövs ett tidsfönster runt händelsen i stället.
-- **Markeringarna Bevakad och Kan frysas** (GR3a, GR3c) ritas när Monitoring och kedjorna med USDT/USDC finns.
 - **Grafens prestanda vid tusentals noder** (etapp 12): ytan ritar bara det som syns, men varje drag räknar om alla
   kurvor och varje hovring prövar alla linjer. Ett rutnät (spatial index) och att bara räkna om linjerna till den
   dragna noden behövs om graferna blir mycket stora.
@@ -600,8 +599,8 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
 
 ### Undermenyer i pillret (etapp 11b)
-- **Nytt → Etikett, Bevakning och Begäran** är tonade som inte byggda (en etikett sätts sedan etapp 16 i inspektören med
-  L); ändra `SubmenuNeed` i
+- **Nytt → Etikett och Begäran** är tonade som inte byggda (en etikett sätts sedan etapp 16 i inspektören med
+  L; Bevakning öppnar formuläret sedan etapp 26); ändra `SubmenuNeed` i
   `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när gränssnittet finns.
 - **Startpunkt med ett ärende** lägger bara markören i kommandoraden; ett eget fält (som i Nytt ärende) kan skissas.
 - **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser

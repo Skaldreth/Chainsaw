@@ -1,6 +1,5 @@
 using Chainsaw.App.Graph;
 using Chainsaw.App.Navigation;
-using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Security.Contracts;
@@ -25,7 +24,7 @@ public sealed class WatchGraphTests
             session, workflow, new TestGraphSource(), TestWays.For(new TestExitConnection()), new InlineUi(),
             new TestGraphEditor(), new TestClock());
         var board = new WatchBoard(session, _source, new InlineUi());
-        var form = new WatchFormViewModel(board, () => WatchPace.EveryBlock);
+        var form = new WatchFormViewModel(board);
         graph.FollowWatches(board, form);
         session.Open(new TestCase("2026-0026"));
         return (graph, board, form);
@@ -141,7 +140,7 @@ public sealed class WatchGraphTests
         var rig = new GateRig(VaultState.Unlocked);
         var board = new WatchBoard(rig.Session, _source, rig.Ui);
         var monitoring = new MonitoringViewModel(
-            board, new WatchFormViewModel(board, () => WatchPace.Hour), rig.Clock);
+            board, new WatchFormViewModel(board), rig.Clock);
         var shell = new ShellViewModel(
             rig.Session, rig.Commands, rig.NewCase, rig.Workflow, rig.Way, rig.Exits, rig.Sanctions, rig.ExitPanel,
             rig.Settings, rig.Ui, monitoring, board);
@@ -157,20 +156,23 @@ public sealed class WatchGraphTests
         Assert.True(shell.IsMonitoringShown);
         Assert.False(shell.IsPlaceholderShown);
         Assert.True(monitoring.Form.IsOpen);
-        Assert.Equal("Varje timme, som i Inställningar", monitoring.Form.PaceText);
     }
 
     [Fact]
-    public void The_pace_is_chosen_in_the_settings_and_an_unknown_one_is_the_default()
+    public async Task How_often_is_chosen_per_watch_in_the_form_and_kept_by_a_change()
     {
-        var rig = new GateRig(VaultState.Unlocked);
+        var (_, board, form) = Graph();
+        form.OpenFor(WatchSamples.Subject(V));
+        Assert.Equal(WatchPace.EveryBlock, form.Pace);
 
-        var hour = rig.Settings.WatchPaceChoices.Single(choice => Equals(choice.Value, WatchPace.Hour));
-        rig.Settings.ChooseWatchPace(hour);
+        form.ChoosePace(WatchPace.FiveMinutes);
+        await form.SaveAsync();
+        await board.ReloadAsync();
+        form.OpenChange(board.Snapshot.Watches.Single());
 
-        Assert.Equal(WatchPace.Hour, rig.Settings.WatchPace);
-        Assert.True(rig.Settings.WatchPaceChoices.Single(choice => Equals(choice.Value, WatchPace.Hour)).IsSelected);
-        Assert.Equal(WatchPace.EveryBlock, (new AppSettings() with { WatchPace = (WatchPace)42 }).Known().WatchPace);
-        Assert.Equal(TimeSpan.FromMinutes(10), WatchPace.TenMinutes.Interval());
+        Assert.Equal(WatchPace.FiveMinutes, _source.Added.Single().Pace);
+        Assert.Equal(WatchPace.FiveMinutes, form.Pace);
+        Assert.True(form.Paces.Single(choice => Equals(choice.Value, WatchPace.FiveMinutes)).IsChosen);
+        Assert.Equal(["Varje block", "1 min", "5 min", "15 min"], form.Paces.Select(choice => choice.Label));
     }
 }

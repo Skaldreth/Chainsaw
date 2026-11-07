@@ -91,6 +91,17 @@ public static class WatchWords
         };
     }
 
+    /// <summary>Gives how often a watch asks the source, as the form and the details write it.</summary>
+    /// <param name="pace">The pace.</param>
+    /// <returns>For example <c>Varje block</c> or <c>5 min</c>.</returns>
+    public static string Pace(WatchPace pace) => pace switch
+    {
+        WatchPace.OneMinute => "1 min",
+        WatchPace.FiveMinutes => "5 min",
+        WatchPace.FifteenMinutes => "15 min",
+        _ => "Varje block",
+    };
+
     /// <summary>Gives the minimum as the details write it.</summary>
     /// <param name="filter">The filter.</param>
     /// <returns>The amount with its unit, or <c>Inget</c>.</returns>

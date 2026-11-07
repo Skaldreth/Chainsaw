@@ -148,15 +148,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Gets the automatic lock's times.</summary>
     public IReadOnlyList<SettingsChoice> LockChoices { get; }
 
-    /// <summary>
-    /// Gets how often the watches can be checked while Chainsaw is open (Låsning, <em>Hur ofta</em>).
-    /// </summary>
-    public IReadOnlyList<SettingsChoice> WatchPaceChoices { get; } =
-        [.. Enum.GetValues<WatchPace>().Select(pace => new SettingsChoice(pace.Label(), pace))];
-
-    /// <summary>Gets how often the watches are checked, as chosen.</summary>
-    public WatchPace WatchPace => _settings.WatchPace;
-
     /// <summary>Gets the currencies.</summary>
     public IReadOnlyList<SettingsChoice> CurrencyChoices { get; }
 
@@ -369,17 +360,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         var settings = _settings with { AutoLockMinutes = minutes };
         _autoLock.Change(settings.AutoLockTimeout);
         Save(settings);
-    }
-
-    /// <summary>Chooses how often the watches are checked while Chainsaw is open.</summary>
-    /// <param name="choice">The pace's option.</param>
-    [RelayCommand]
-    public void ChooseWatchPace(SettingsChoice choice)
-    {
-        if (choice?.Value is WatchPace pace)
-        {
-            Save(_settings with { WatchPace = pace });
-        }
     }
 
     /// <summary>Turns the lock with Windows on or off (the switch).</summary>
@@ -600,7 +580,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ShowChoices()
     {
         SettingsChoice.Mark(LockChoices, _settings.AutoLockMinutes);
-        SettingsChoice.Mark(WatchPaceChoices, _settings.WatchPace);
         SettingsChoice.Mark(CurrencyChoices, _settings.Currency);
         SettingsChoice.Mark(ResolutionChoices, _settings.Resolution);
         LocksWithWindows = _settings.LockWithWindows;

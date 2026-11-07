@@ -271,3 +271,58 @@ public sealed class MonitoringServiceTests : IDisposable
 
     private static ChainAddress Btc(BitcoinAddress address) => new(Chain.Bitcoin, address.Value);
 }
+
+/// <summary>When a watch is due: a new block, and its own pace (decided 2026-11-07, per watch).</summary>
+public sealed class WatchDueTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 11, 7, 12, 0, 0, TimeSpan.Zero);
+
+    private static Watch Watch(WatchPace pace) => new(
+        "w",
+        new WatchSubject(WatchSubjectKind.Address, Synthetic.Btc("n"), "N"),
+        new WatchFilter(Chain.Bitcoin, WatchDirection.Both, [], [], null, null) { Pace = pace },
+        WatchState.Active,
+        100,
+        new Modules.Security.Contracts.OperatorProfile("T", "T", "T"),
+        Now,
+        Now);
+
+    [Fact]
+    public void Every_block_is_due_at_each_new_block_and_never_on_the_same()
+    {
+        var last = new WatchChecked(Now, 200, WatchFeedStatus.Read, null);
+
+        Assert.True(MonitoringService.IsDue(Watch(WatchPace.EveryBlock), null, 200, Now));
+        Assert.False(MonitoringService.IsDue(Watch(WatchPace.EveryBlock), last, 200, Now.AddHours(1)));
+        Assert.True(MonitoringService.IsDue(Watch(WatchPace.EveryBlock), last, 201, Now.AddSeconds(5)));
+    }
+
+    [Fact]
+    public void A_pace_waits_its_minutes_and_a_failed_check_is_tried_again_at_the_same_height()
+    {
+        var last = new WatchChecked(Now, 200, WatchFeedStatus.Read, null);
+        var failed = last with { Status = WatchFeedStatus.Failed };
+
+        Assert.False(MonitoringService.IsDue(Watch(WatchPace.FiveMinutes), last, 201, Now.AddMinutes(4)));
+        Assert.True(MonitoringService.IsDue(Watch(WatchPace.FiveMinutes), last, 201, Now.AddMinutes(5)));
+        Assert.True(MonitoringService.IsDue(Watch(WatchPace.OneMinute), failed, 200, Now.AddMinutes(1)));
+        Assert.Equal(TimeSpan.FromMinutes(15), WatchPace.FifteenMinutes.Interval());
+    }
+
+    [Fact]
+    public void The_pace_is_sealed_with_the_filter_and_an_old_record_without_it_is_every_block()
+    {
+        var filter = new WatchFilter(Chain.Bitcoin, WatchDirection.Out, [], [], null, null)
+        {
+            Pace = WatchPace.FifteenMinutes,
+        };
+
+        Assert.Equal(WatchPace.FifteenMinutes, WatchCodec.DecodeFilter(WatchCodec.Encode(filter)).Pace);
+        Assert.Equal(
+            WatchPace.EveryBlock,
+            WatchCodec.DecodeFilter(
+                """{"Chain":"Bitcoin","Direction":"Out","Receivers":[],"Senders":[],"Asset":null,"Minimum":null}""")
+                .Pace);
+        Assert.Throws<ArgumentException>(() => (filter with { Pace = (WatchPace)9 }).Checked());
+    }
+}

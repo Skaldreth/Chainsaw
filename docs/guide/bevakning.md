@@ -16,6 +16,7 @@ Formuläret har:
   **från någon av** dem (n:1). Skriv en adress och tryck *Lägg till*, eller håll **Ctrl** och klicka på noder i grafen.
 - **Tillgång** på Ethereum: alla, ETH, USDT eller USDC. På Bitcoin finns bara BTC.
 - **Minsta belopp**, om du vill: mindre rörelser räknas inte. På Ethereum krävs att en tillgång är vald.
+- **Hur ofta** bevakningen frågar källan (se nedan).
 
 Bevakningen förseglas i ärendet med vem och när, och varje ändring, paus och borttagning blir en ny förseglad post. Inget
 tas bort: en borttagen bevakning står kvar i nodens *Historik*, överstruken, med sina träffar.
@@ -35,8 +36,8 @@ En träff är ett faktum från kedjan som bevakningen plockat ut. Vad den betyde
 
 - Bara **medan Chainsaw är öppet och upplåst**. Att bevaka när Chainsaw är stängt är inte byggt än, och vyns huvud säger
   ärligt *Bevakar medan Chainsaw är öppet*.
-- Varje nytt block som förval: kedjans höjd frågas högst en gång i minuten, och adresserna läses när ett nytt block har
-  kommit. *Hur ofta* ställs in under **Inställningar → Låsning**.
+- **Hur ofta** väljs per bevakning i formuläret: *Varje block* (förval) eller högst var 1, 5 eller 15 minut. Kedjans höjd
+  frågas högst en gång i minuten, och en bevakning läser sina adresser när ett nytt block har kommit och dess tid har gått.
 - Bara **genom utgången**. Utan ansluten utgång, när VPN är valt, eller med kedjans källor *Av*, frågas ingenting, och
   grafens markeringar blir grå.
 - Bara mot en endpoint **i fas** med kedjan: en som vid senaste provet svarade med den högsta höjden. En endpoint ett

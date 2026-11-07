@@ -220,8 +220,18 @@
 
             <DockPanel Margin="0,11,0,0">
                 <TextBlock Text="Hur ofta" Style="{StaticResource RowLabel}" />
-                <TextBlock Text="{Binding PaceText}" FontSize="11.5" Foreground="{StaticResource Brush.TextMuted}"
-                           TextWrapping="Wrap" />
+                <Border BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}" CornerRadius="6" ClipToBounds="True"
+                        ToolTip="Hur ofta bevakningen frågar källan: vid varje nytt block, eller högst så ofta">
+                    <ItemsControl ItemsSource="{Binding Paces}" ItemsPanel="{StaticResource Even}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:WatchChoice}">
+                                <Button Style="{StaticResource Segment}" Content="{Binding Label}"
+                                        Command="{Binding DataContext.ChoosePaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding Value}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
             </DockPanel>
 
             <TextBlock Text="{x:Static vm:WatchWords.FormNote}" FontSize="10.5" Foreground="{StaticResource Brush.TextFaint}"

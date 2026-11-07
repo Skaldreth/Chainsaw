@@ -15,6 +15,40 @@ public enum WatchDirection
     Both,
 }
 
+/// <summary>
+/// How often a watch asks the source (decided 2026-11-07, per watch): at every new block by default, or at most every
+/// few minutes. Stage 27's background process uses the same value.
+/// </summary>
+public enum WatchPace
+{
+    /// <summary>At every new block (the default).</summary>
+    EveryBlock,
+
+    /// <summary>At most every minute, when a new block has come.</summary>
+    OneMinute,
+
+    /// <summary>At most every five minutes, when a new block has come.</summary>
+    FiveMinutes,
+
+    /// <summary>At most every fifteen minutes, when a new block has come.</summary>
+    FifteenMinutes,
+}
+
+/// <summary>What the paces mean.</summary>
+public static class WatchPaces
+{
+    /// <summary>Gives the least time between two checks of a watch.</summary>
+    /// <param name="pace">The pace.</param>
+    /// <returns>Zero for every block.</returns>
+    public static TimeSpan Interval(this WatchPace pace) => pace switch
+    {
+        WatchPace.OneMinute => TimeSpan.FromMinutes(1),
+        WatchPace.FiveMinutes => TimeSpan.FromMinutes(5),
+        WatchPace.FifteenMinutes => TimeSpan.FromMinutes(15),
+        _ => TimeSpan.Zero,
+    };
+}
+
 /// <summary>What a watch watches: one address, or a cluster that follows the clustering.</summary>
 public enum WatchSubjectKind
 {
@@ -56,6 +90,9 @@ public sealed record WatchFilter(
     Asset? Asset,
     AssetAmount? Minimum)
 {
+    /// <summary>Gets how often the watch asks the source; at every new block by default.</summary>
+    public WatchPace Pace { get; init; } = WatchPace.EveryBlock;
+
     /// <summary>Gets whether money going out is watched.</summary>
     public bool WatchesOut => Direction != WatchDirection.In;
 
@@ -73,9 +110,9 @@ public sealed record WatchFilter(
     /// <exception cref="ArgumentException">The filter does not hold together; the message says why.</exception>
     public WatchFilter Checked()
     {
-        if (!Enum.IsDefined(Chain) || !Enum.IsDefined(Direction))
+        if (!Enum.IsDefined(Chain) || !Enum.IsDefined(Direction) || !Enum.IsDefined(Pace))
         {
-            throw new ArgumentException("The watch's chain or direction is not known.");
+            throw new ArgumentException("The watch's chain, direction or pace is not known.");
         }
 
         if ((Direction == WatchDirection.In && Receivers.Count > 0)

@@ -1,5 +1,4 @@
 using Chainsaw.App.Graph;
-using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
@@ -16,7 +15,7 @@ public sealed class WatchFormTests
     private WatchFormViewModel Form(out WatchBoard board)
     {
         (_, board) = WatchSamples.Board(_source);
-        return new WatchFormViewModel(board, () => WatchPace.EveryBlock);
+        return new WatchFormViewModel(board);
     }
 
     [Fact]
@@ -131,7 +130,7 @@ public sealed class MonitoringViewModelTests
     private MonitoringViewModel View(out WatchBoard board)
     {
         (_, board) = WatchSamples.Board(_source);
-        var form = new WatchFormViewModel(board, () => WatchPace.EveryBlock);
+        var form = new WatchFormViewModel(board);
         return new MonitoringViewModel(board, form, new TestClock());
     }
 
@@ -224,16 +223,14 @@ public sealed class WatchRunnerTests
 
     private readonly TestClock _clock = new();
 
-    private WatchPace _pace = WatchPace.EveryBlock;
-
     private WatchRunner Runner(out WatchBoard board, bool open = true)
     {
         (_, board) = WatchSamples.Board(_source, open);
-        return new WatchRunner(board, () => _pace, _clock, (_, _) => Task.CompletedTask);
+        return new WatchRunner(board, _clock, (_, _) => Task.CompletedTask);
     }
 
     [Fact]
-    public async Task A_new_watch_starts_at_once_and_then_only_a_new_block_checks()
+    public async Task A_new_watch_starts_at_once_and_then_the_height_is_asked_once_a_minute()
     {
         _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(), start: null);
         var runner = Runner(out var board);
@@ -248,7 +245,8 @@ public sealed class WatchRunnerTests
         _clock.UtcNow += TimeSpan.FromMinutes(1);
         await runner.RunOnceAsync();
 
-        Assert.Equal([(Chain.Bitcoin, 900_000L), (Chain.Bitcoin, 900_001L)], _source.Checks);
+        // The module decides which watches are due at each height (WatchDueTests); the runner only paces the height.
+        Assert.Equal([900_000L, 900_000L, 900_001L], _source.Checks.Select(check => check.Height));
         Assert.Equal(3, _source.HeightsAsked);
     }
 
@@ -266,24 +264,6 @@ public sealed class WatchRunnerTests
 
         Assert.Equal(0, _source.HeightsAsked);
         Assert.Empty(_source.Checks);
-    }
-
-    [Fact]
-    public async Task The_pace_holds_back_a_check_until_its_time()
-    {
-        _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
-        _pace = WatchPace.TenMinutes;
-        var runner = Runner(out var board);
-        await board.ReloadAsync();
-
-        await runner.RunOnceAsync();
-        _source.Height = 900_001;
-        _clock.UtcNow += TimeSpan.FromMinutes(5);
-        await runner.RunOnceAsync();
-        _clock.UtcNow += TimeSpan.FromMinutes(5);
-        await runner.RunOnceAsync();
-
-        Assert.Equal([900_000L, 900_001L], _source.Checks.Select(check => check.Height));
     }
 
     [Fact]

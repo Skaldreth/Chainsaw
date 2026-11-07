@@ -174,14 +174,10 @@ public partial class App : Application
                 .AddSingleton<GraphViewModel>()
                 .AddSingleton<IWatchSource, WatchSource>()
                 .AddSingleton<WatchBoard>()
-                .AddSingleton(provider => new WatchFormViewModel(
-                    provider.GetRequiredService<WatchBoard>(),
-                    () => provider.GetRequiredService<SettingsViewModel>().WatchPace))
+                .AddSingleton<WatchFormViewModel>()
                 .AddSingleton<MonitoringViewModel>()
                 .AddSingleton(provider => new WatchRunner(
-                    provider.GetRequiredService<WatchBoard>(),
-                    () => provider.GetRequiredService<SettingsViewModel>().WatchPace,
-                    provider.GetRequiredService<IClock>()))
+                    provider.GetRequiredService<WatchBoard>(), provider.GetRequiredService<IClock>()))
                 .AddSingleton(_ => GuideLibrary.Load())
                 .AddSingleton<GuidePanelViewModel>()
                 .AddSingleton<GuideViewModel>()

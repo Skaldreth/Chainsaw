@@ -1,4 +1,3 @@
-using Chainsaw.App.Settings;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.SharedKernel;
@@ -8,10 +7,10 @@ namespace Chainsaw.App.ViewModels;
 /// <summary>
 /// Runs the watches in the background while Chainsaw is open and unlocked (CLAUDE.md, <em>Bevaka</em>; the process
 /// that runs when Chainsaw is closed is stage 27). Every few seconds it looks at the open case's active watches; for
-/// each
-/// chain whose gate is open it asks the chain's height at most once a minute, and checks the watches when a new block
-/// has come and the pace allows. A watch without a start is started at once. Locked, without an exit or with the chain
-/// off, nothing is asked (the Monitoring module's gate). It knows nothing of WPF.
+/// each chain whose gate is open it asks the chain's height at most once a minute (at once for a watch without a
+/// start), and the Monitoring module checks the watches that are due: a new block has come and each watch's own pace
+/// allows. Locked, without an exit or with the chain off, nothing is asked (the module's gate). It knows nothing of
+/// WPF.
 /// </summary>
 public sealed class WatchRunner : IDisposable
 {
@@ -23,9 +22,6 @@ public sealed class WatchRunner : IDisposable
 
     /// <summary>The watches.</summary>
     private readonly WatchBoard _board;
-
-    /// <summary>The pace chosen in the settings.</summary>
-    private readonly Func<WatchPace> _pace;
 
     /// <summary>The clock.</summary>
     private readonly IClock _clock;
@@ -44,19 +40,16 @@ public sealed class WatchRunner : IDisposable
 
     /// <summary>Creates the runner; <see cref="Start"/> starts it.</summary>
     /// <param name="board">The watches.</param>
-    /// <param name="pace">The pace chosen in the settings.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="delay">
     /// Waits between rounds; <see cref="Task.Delay(TimeSpan, CancellationToken)"/> when none.
     /// </param>
     public WatchRunner(
-        WatchBoard board, Func<WatchPace> pace, IClock clock, Func<TimeSpan, CancellationToken, Task>? delay = null)
+        WatchBoard board, IClock clock, Func<TimeSpan, CancellationToken, Task>? delay = null)
     {
         ArgumentNullException.ThrowIfNull(board);
-        ArgumentNullException.ThrowIfNull(pace);
         ArgumentNullException.ThrowIfNull(clock);
         _board = board;
-        _pace = pace;
         _clock = clock;
         _delay = delay ?? Task.Delay;
     }
@@ -103,7 +96,7 @@ public sealed class WatchRunner : IDisposable
         }
     }
 
-    /// <summary>Checks one chain's watches when they are due.</summary>
+    /// <summary>Asks one chain's height when it is time, and lets the module check the watches that are due.</summary>
     /// <param name="openCase">The open case.</param>
     /// <param name="chain">The chain.</param>
     /// <param name="unstarted">Whether a watch on it has no start yet.</param>
@@ -125,16 +118,7 @@ public sealed class WatchRunner : IDisposable
             return;
         }
 
-        var newBlock = height > state.Height;
-        var paced = state.Checked is not { } last || now - last >= _pace().Interval();
-        if (!unstarted && !(newBlock && paced))
-        {
-            return;
-        }
-
         var run = await source.CheckAsync(openCase, chain, height, cancellationToken).ConfigureAwait(false);
-        state.Height = Math.Max(state.Height, height);
-        state.Checked = now;
         _board.Checked([.. run.Hits]);
     }
 
@@ -172,12 +156,6 @@ public sealed class WatchRunner : IDisposable
     /// <summary>What the runner knows about one chain.</summary>
     private sealed class ChainState
     {
-        /// <summary>Gets or sets the highest height a check ran at.</summary>
-        public long Height { get; set; } = long.MinValue;
-
-        /// <summary>Gets or sets when the chain was last checked.</summary>
-        public DateTimeOffset? Checked { get; set; }
-
         /// <summary>Gets or sets when the height may be asked next.</summary>
         public DateTimeOffset NextHeight { get; set; } = DateTimeOffset.MinValue;
     }

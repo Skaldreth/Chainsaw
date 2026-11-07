@@ -37,9 +37,6 @@ public sealed record AppSettings
     /// </summary>
     public PriceResolution Resolution { get; init; } = PriceResolution.Hour;
 
-    /// <summary>Gets how often the watches are checked while Chainsaw is open; at every new block by default.</summary>
-    public WatchPace WatchPace { get; init; } = WatchPace.EveryBlock;
-
     /// <summary>Gets the automatic lock's time, kept within the allowed range.</summary>
     public TimeSpan AutoLockTimeout =>
         TimeSpan.FromMinutes(Math.Clamp(AutoLockMinutes, MinimumAutoLockMinutes, MaximumAutoLockMinutes));
@@ -57,7 +54,6 @@ public sealed record AppSettings
             ExitRoute = Enum.IsDefined(ExitRoute) ? ExitRoute : defaults.ExitRoute,
             Currency = Enum.IsDefined(Currency) ? Currency : defaults.Currency,
             Resolution = Enum.IsDefined(Resolution) ? Resolution : defaults.Resolution,
-            WatchPace = Enum.IsDefined(WatchPace) ? WatchPace : defaults.WatchPace,
         };
     }
 }

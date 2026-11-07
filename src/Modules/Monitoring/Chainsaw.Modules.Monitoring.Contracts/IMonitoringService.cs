@@ -234,9 +234,10 @@ public interface IMonitoringService
     Task<long?> GetHeightAsync(ICase @case, Chain chain, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks every active watch on a chain: a watch without a start gets the height as its start; the others read
-    /// their addresses through the source with <c>LookupMode.InStep</c>, and each new hit is sealed, with one line in
-    /// the journal for the check. Nothing is asked when the gate is closed.
+    /// Checks every active watch on a chain that is due: a watch without a start gets the height as its start; the
+    /// others are due when a new block has come since they were read through and their pace (<see cref="WatchPace"/>)
+    /// allows, and then read their addresses through the source with <c>LookupMode.InStep</c>; each new hit is sealed,
+    /// with one line in the journal for the check. Nothing is asked when the gate is closed.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="chain">The chain.</param>
