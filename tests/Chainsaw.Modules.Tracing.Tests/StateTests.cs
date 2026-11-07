@@ -86,14 +86,14 @@ public sealed class StateTests : IDisposable
         var result = Trace(graph);
 
         var end = Assert.Single(result.Ends, end => end.Reason == TrailEndReason.OtherChain);
-        Assert.Equal(new Satoshi(68_995_000), end.Amount.Amount);
+        Assert.Equal(new Satoshi(68_995_000).ToAmount(), end.Amount.Amount);
         Assert.Equal(link, Assert.Single(end.Continuations));
         var other = graph.Node("chain:" + EthereumTx);
         Assert.NotNull(other);
         Assert.Equal(GraphNodeKind.OtherChain, other.Kind);
         var edge = Assert.Single(graph.Edges, edge => edge.Kind == GraphEdgeKind.ContinuesOnOtherChain);
         Assert.Equal(other.Key, edge.To);
-        Assert.Equal(new Satoshi(68_995_000), result.Edges.Single(traced => traced.EdgeKey == edge.Key).Amount.Amount);
+        Assert.Equal(new Satoshi(68_995_000).ToAmount(), result.Edges.Single(traced => traced.EdgeKey == edge.Key).Amount.Amount);
         Assert.Contains(_harness.Case.ReadJournal(), entry => entry.Kind == TracingJournalKinds.CrossChainLinked);
         Assert.True(_harness.Verify().IsIntact);
     }
@@ -110,7 +110,7 @@ public sealed class StateTests : IDisposable
 
         var graph = await _harness.Load();
         Assert.Empty(graph.CrossChainLinks);
-        Assert.Equal(new Satoshi(68_995_000), Trace(graph).EndedBy(TrailEndReason.Unspent));
+        Assert.Equal(new Satoshi(68_995_000).ToAmount(), Trace(graph).EndedBy(TrailEndReason.Unspent));
         Assert.True(_harness.Verify().IsIntact);
     }
 
@@ -148,7 +148,7 @@ public sealed class StateTests : IDisposable
         var result = Trace(graph);
 
         Assert.Equal(
-            new Satoshi(100_000_000), result.Ends.Aggregate(Satoshi.Zero, (sum, end) => sum + end.Amount.Amount));
+            new Satoshi(100_000_000).ToAmount(), result.Ends.Aggregate(AssetAmount.Zero(Asset.Bitcoin), (sum, end) => sum + end.Amount.Amount));
         var notExpanded = Assert.Single(result.Ends, end => end.Reason == TrailEndReason.NotExpanded);
         Assert.Equal(_flows.Further.Txid, notExpanded.Transaction);
         var kept = Assert.Single(result.Ends, end => end.Reason == TrailEndReason.Unspent);

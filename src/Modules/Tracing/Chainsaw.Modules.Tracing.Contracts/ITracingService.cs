@@ -21,7 +21,7 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 /// </remarks>
 public interface ITracingService
 {
-    /// <summary>Gets the registered tracing methods, the newest version of each kind.</summary>
+    /// <summary>Gets the tracing methods for Bitcoin, the newest version of each kind.</summary>
     IReadOnlyList<TracingMethodId> Methods { get; }
 
     /// <summary>Builds the graph from the case: start points, expansions, clusters and the user's links.</summary>
@@ -107,7 +107,7 @@ public interface ITracingService
 
     /// <summary>
     /// Traces money through the graph by a method: from the seeds, through every transaction in the graph, to where
-    /// it stops. Every traced satoshi ends somewhere, with a reason.
+    /// it stops. Every traced unit ends somewhere, with a reason.
     /// </summary>
     /// <param name="graph">The graph, from <see cref="LoadAsync"/> or <see cref="ExpandAsync"/>.</param>
     /// <param name="request">The method and the seeds.</param>

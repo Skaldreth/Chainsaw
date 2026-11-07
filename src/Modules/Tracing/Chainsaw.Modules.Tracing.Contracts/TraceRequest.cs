@@ -12,4 +12,4 @@ public sealed record TraceRequest(TracingMethodKind Method, IReadOnlyList<TraceS
 /// <param name="Amount">
 /// How much of it is traced, counted from the coin's start; <see langword="null"/> for the whole coin.
 /// </param>
-public sealed record TraceSeed(Outpoint Coin, Satoshi? Amount = null);
+public sealed record TraceSeed(Outpoint Coin, AssetAmount? Amount = null);

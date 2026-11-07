@@ -1,11 +1,9 @@
-using Chainsaw.SharedKernel;
-
 namespace Chainsaw.Modules.Tracing.Contracts;
 
 /// <summary>
-/// Which satoshi of one coin are traced: ranges of positions inside the coin, from 0 to its amount. FIFO needs the
-/// positions, so that money that is followed keeps its place through the next transaction; haircut only uses the
-/// amount and always gives a range from 0.
+/// Which units of one coin are traced (satoshi on Bitcoin): ranges of positions inside the coin, from 0 to its
+/// amount. FIFO needs the positions, so that money that is followed keeps its place through the next transaction;
+/// haircut only uses the amount and always gives a range from 0. It belongs to the UTXO model.
 /// </summary>
 /// <remarks>The ranges are sorted, do not overlap and do not touch; an empty set traces nothing.</remarks>
 public sealed class TaintSet : IEquatable<TaintSet>
@@ -18,7 +16,7 @@ public sealed class TaintSet : IEquatable<TaintSet>
     private TaintSet(TaintRange[] ranges)
     {
         _ranges = ranges;
-        Amount = new Satoshi(ranges.Sum(range => range.Length));
+        Units = ranges.Aggregate(0L, (sum, range) => checked(sum + range.Length));
     }
 
     /// <summary>Gets a set that traces nothing.</summary>
@@ -27,23 +25,23 @@ public sealed class TaintSet : IEquatable<TaintSet>
     /// <summary>Gets the ranges, sorted and apart.</summary>
     public IReadOnlyList<TaintRange> Ranges => _ranges;
 
-    /// <summary>Gets how many satoshi are traced.</summary>
-    public Satoshi Amount { get; }
+    /// <summary>Gets how many units are traced.</summary>
+    public long Units { get; }
 
     /// <summary>Gets whether nothing is traced.</summary>
     public bool IsEmpty => _ranges.Length == 0;
 
-    /// <summary>Gets the first position after the last traced satoshi; 0 when nothing is traced.</summary>
+    /// <summary>Gets the first position after the last traced unit; 0 when nothing is traced.</summary>
     public long End => _ranges.Length == 0 ? 0 : _ranges[^1].End;
 
-    /// <summary>Gives a set that traces the first satoshi of a coin.</summary>
-    /// <param name="amount">How many; zero gives <see cref="None"/>.</param>
+    /// <summary>Gives a set that traces the first units of a coin.</summary>
+    /// <param name="units">How many; zero gives <see cref="None"/>.</param>
     /// <returns>The range from 0 to the amount.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The amount is negative.</exception>
-    public static TaintSet FirstPart(Satoshi amount)
+    public static TaintSet FirstPart(long units)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(amount.Value);
-        return amount.Value == 0 ? None : new TaintSet([new TaintRange(0, amount.Value)]);
+        ArgumentOutOfRangeException.ThrowIfNegative(units);
+        return units == 0 ? None : new TaintSet([new TaintRange(0, units)]);
     }
 
     /// <summary>Gives a set of the given ranges, sorted and joined where they overlap or touch.</summary>
@@ -130,7 +128,7 @@ public readonly record struct TaintRange(long Start, long End)
         ? End
         : throw new ArgumentOutOfRangeException(nameof(End), "A range ends after it starts.");
 
-    /// <summary>Gets how many satoshi the range holds.</summary>
+    /// <summary>Gets how many units the range holds.</summary>
     public long Length => End - Start;
 
     /// <summary>Writes the range as <c>[start, end)</c>.</summary>

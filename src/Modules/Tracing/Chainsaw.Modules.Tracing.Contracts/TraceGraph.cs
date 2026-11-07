@@ -4,16 +4,18 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing.Contracts;
 
 /// <summary>
-/// The graph as a model: the actors the money passes and the transfers between them, built from what the user has
-/// expanded (principle 7) and what the case holds. The transactions, amounts and times are facts from the chain;
-/// clusters, ends of the trail and the hops are conclusions or arrangement (principle 2).
+/// The graph as a model: the actors the money passes and the transfers of an asset between them, built from what the
+/// user has expanded (principle 7) and what the case holds. The transfers, amounts and times are facts from the
+/// chain; clusters, ends of the trail and the hops are conclusions or arrangement (principle 2).
 /// </summary>
+/// <remarks>
+/// The actors, the edges and their transfers are the same whatever the chain; what only one kind of chain has sits
+/// in that model's part (<see cref="Utxo"/> for coins; the account model's part comes with the first account chain).
+/// </remarks>
 /// <param name="StartPoints">The trace's start points.</param>
 /// <param name="Nodes">The actors, in a stable order: the start points first, then by hop and time.</param>
-/// <param name="Edges">The transfers between actors, summed per pair and kind.</param>
-/// <param name="Transactions">Every transaction in the graph, with how the case answered for it.</param>
-/// <param name="Spends">Whether each output of each transaction in the graph is spent, and by what.</param>
-/// <param name="TransactionEnds">The transactions where the trail ends, with why (for example a CoinJoin).</param>
+/// <param name="Edges">The transfers between actors, summed per pair, kind and asset.</param>
+/// <param name="Utxo">The UTXO model's part: the transactions, whether their coins are spent, and where they end.</param>
 /// <param name="CrossChainLinks">The user's links to other chains that are in force.</param>
 /// <param name="Expansions">What the user has expanded.</param>
 /// <param name="Problems">What could not be read, in Swedish; empty when everything was there.</param>
@@ -21,9 +23,7 @@ public sealed record TraceGraph(
     IReadOnlyList<TraceStartPoint> StartPoints,
     IReadOnlyList<GraphNode> Nodes,
     IReadOnlyList<GraphEdge> Edges,
-    IReadOnlyDictionary<Txid, GraphTransaction> Transactions,
-    IReadOnlyDictionary<Outpoint, CoinSpend> Spends,
-    IReadOnlyDictionary<Txid, IReadOnlyList<TrailEndHint>> TransactionEnds,
+    UtxoGraph Utxo,
     IReadOnlyList<CrossChainLink> CrossChainLinks,
     IReadOnlyList<Expansion> Expansions,
     IReadOnlyList<string> Problems)
@@ -33,6 +33,35 @@ public sealed record TraceGraph(
     /// own instead of answering from the old ones.
     /// </summary>
     private NodeIndex? _index;
+
+    /// <summary>
+    /// Gets every transaction in the graph, with how the case answered for it; setting it in <c>with</c> sets it in
+    /// <see cref="Utxo"/>.
+    /// </summary>
+    public IReadOnlyDictionary<Txid, GraphTransaction> Transactions
+    {
+        get => Utxo.Transactions;
+        init => Utxo = Utxo with { Transactions = value };
+    }
+
+    /// <summary>
+    /// Gets whether each coin in the graph is spent, and by what; setting it in <c>with</c> sets it in
+    /// <see cref="Utxo"/>.
+    /// </summary>
+    public IReadOnlyDictionary<Outpoint, CoinSpend> Spends
+    {
+        get => Utxo.Spends;
+        init => Utxo = Utxo with { Spends = value };
+    }
+
+    /// <summary>
+    /// Gets the transactions where the trail ends, with why; setting it in <c>with</c> sets it in <see cref="Utxo"/>.
+    /// </summary>
+    public IReadOnlyDictionary<Txid, IReadOnlyList<TrailEndHint>> TransactionEnds
+    {
+        get => Utxo.TransactionEnds;
+        init => Utxo = Utxo with { TransactionEnds = value };
+    }
 
     /// <summary>Gives a node by its key.</summary>
     /// <param name="key">The key.</param>
@@ -187,17 +216,17 @@ public enum EdgeDirection
 }
 
 /// <summary>
-/// The transfers from one actor to another, summed. Each transfer and its amount is a fact from the chain; which
-/// actor an address belongs to is Clustering's conclusion, so the sum per pair of actors rests on it. An edge that
-/// continues on another chain rests on the user's link (a judgement), and its amount is the coin's on Bitcoin, not
-/// what arrived on the other chain.
+/// The transfers of one asset from one actor to another, summed. Each transfer and its amount is a fact from the
+/// chain; which actor an address belongs to is Clustering's conclusion, so the sum per pair of actors rests on it. An
+/// edge that continues on another chain rests on the user's link (a judgement), and its amount is what left on this
+/// chain, not what arrived on the other.
 /// </summary>
 /// <param name="Key">The edge's key: the kind and the two nodes' keys.</param>
 /// <param name="From">The sending node's key.</param>
 /// <param name="To">The receiving node's key.</param>
 /// <param name="Kind">The kind of edge.</param>
-/// <param name="Amount">The sum of the transfers.</param>
-/// <param name="Transfers">The transfers, in time order.</param>
+/// <param name="Amount">The sum of the transfers, in their asset.</param>
+/// <param name="Transfers">The transfers, in time order; all of the same asset.</param>
 /// <param name="FirstTime">The time of the first confirmed transfer, or <see langword="null"/>.</param>
 /// <param name="Direction">Which way the edge runs relative to the hops.</param>
 public sealed record GraphEdge(
@@ -205,20 +234,46 @@ public sealed record GraphEdge(
     string From,
     string To,
     GraphEdgeKind Kind,
-    Satoshi Amount,
-    IReadOnlyList<EdgeTransfer> Transfers,
+    AssetAmount Amount,
+    IReadOnlyList<AssetTransfer> Transfers,
     DateTimeOffset? FirstTime,
     EdgeDirection Direction);
 
-/// <summary>One coin that moved along an edge in one transaction.</summary>
-/// <param name="Txid">The transaction the coin moved in.</param>
+/// <summary>
+/// One transfer of an asset along an edge, in one transaction: a fact from the chain. What only one kind of chain has
+/// is the chain's own detail: on a UTXO chain the coin the money moved as.
+/// </summary>
+/// <param name="Transaction">The transaction the money moved in.</param>
+/// <param name="Amount">The amount and its asset.</param>
+/// <param name="Block">The transaction's block; <see langword="null"/> while it is unconfirmed.</param>
 /// <param name="Coin">
-/// The coin: an output of <see cref="Txid"/> when it is paid out, or the earlier output an input spends when it is
-/// paid into a transaction node.
+/// On a UTXO chain, the coin: an output of <see cref="Transaction"/> when it is paid out, or the earlier output an
+/// input spends when it is paid into a transaction node. <see langword="null"/> on an account chain.
 /// </param>
-/// <param name="Amount">The coin's amount.</param>
-/// <param name="Block">The block of <see cref="Txid"/>; <see langword="null"/> while it is unconfirmed.</param>
-public sealed record EdgeTransfer(Txid Txid, Outpoint Coin, Satoshi Amount, BlockReference? Block);
+public sealed record AssetTransfer(
+    ChainTransactionRef Transaction, AssetAmount Amount, BlockReference? Block, Outpoint? Coin)
+{
+    /// <summary>Gives the transfer of a Bitcoin coin.</summary>
+    /// <param name="txid">The transaction the coin moved in.</param>
+    /// <param name="coin">The coin.</param>
+    /// <param name="amount">The coin's amount.</param>
+    /// <param name="block">The transaction's block, or <see langword="null"/>.</param>
+    /// <returns>The transfer.</returns>
+    public static AssetTransfer OfCoin(Txid txid, Outpoint coin, Satoshi amount, BlockReference? block) =>
+        new(ChainTransactionRef.Of(txid), amount.ToAmount(), block, coin);
+}
+
+/// <summary>
+/// The UTXO model's part of the graph: the transactions as the chain has them, whether each coin is spent, and the
+/// transactions where the trail ends. The tracing methods for coins work on this.
+/// </summary>
+/// <param name="Transactions">Every transaction in the graph, with how the case answered for it.</param>
+/// <param name="Spends">Whether each output of each transaction in the graph is spent, and by what.</param>
+/// <param name="TransactionEnds">The transactions where the trail ends, with why (for example a CoinJoin).</param>
+public sealed record UtxoGraph(
+    IReadOnlyDictionary<Txid, GraphTransaction> Transactions,
+    IReadOnlyDictionary<Outpoint, CoinSpend> Spends,
+    IReadOnlyDictionary<Txid, IReadOnlyList<TrailEndHint>> TransactionEnds);
 
 /// <summary>A transaction in the graph and how the case answered for it.</summary>
 /// <param name="Transaction">The transaction.</param>

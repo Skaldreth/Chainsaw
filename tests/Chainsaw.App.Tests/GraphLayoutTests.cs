@@ -183,13 +183,13 @@ public sealed class GraphLayoutTests
     [Fact]
     public void AmountsAreWrittenHonestly()
     {
-        Assert.Equal("0,5120", AmountText.Btc(GraphSamples.Btc(0.512m)));
-        Assert.Equal("0,00012345", AmountText.Btc(GraphSamples.Btc(0.00012345m)));
+        Assert.Equal("0,5120", AmountText.Number(GraphSamples.Btc(0.512m)));
+        Assert.Equal("0,00012345", AmountText.Number(GraphSamples.Btc(0.00012345m)));
         Assert.Equal("0,00000001", AmountText.Btc(new Satoshi(1)));
-        Assert.EndsWith("250,0000", AmountText.Btc(GraphSamples.Btc(1250m)), StringComparison.Ordinal);
+        Assert.EndsWith("250,0000", AmountText.Number(GraphSamples.Btc(1250m)), StringComparison.Ordinal);
         Assert.Equal("0,1570 av 0,2400", AmountText.OnLine(GraphSamples.Btc(0.24m), GraphSamples.Btc(0.157m)));
         Assert.Equal("0,2400", AmountText.OnLine(GraphSamples.Btc(0.24m), GraphSamples.Btc(0.24m)));
-        Assert.Equal("0,2400", AmountText.OnLine(GraphSamples.Btc(0.24m), Satoshi.Zero));
+        Assert.Equal("0,2400", AmountText.OnLine(GraphSamples.Btc(0.24m), AssetAmount.Zero(Asset.Bitcoin)));
     }
 
     /// <summary>The amounts button steps all, traced, none and back, and each mode shows what it says.</summary>
@@ -216,7 +216,7 @@ public sealed class GraphLayoutTests
     {
         var largest = GraphSamples.Btc(1m);
 
-        Assert.Equal(EdgeWidth.Untraced, EdgeWidth.For(Satoshi.Zero, largest));
+        Assert.Equal(EdgeWidth.Untraced, EdgeWidth.For(AssetAmount.Zero(Asset.Bitcoin), largest));
         Assert.Equal(EdgeWidth.ThinnestTraced + EdgeWidth.TracedSpan, EdgeWidth.For(largest, largest));
         Assert.Equal(EdgeWidth.ThinnestTraced + (EdgeWidth.TracedSpan / 2), EdgeWidth.For(GraphSamples.Btc(0.5m), largest));
         Assert.Equal(EdgeWidth.ThinnestTraced + EdgeWidth.TracedSpan, EdgeWidth.For(GraphSamples.Btc(2m), largest));

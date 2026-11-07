@@ -26,8 +26,8 @@ internal sealed class TracingService : ITracingService
     /// <summary>What recognises the ends of the trail, in registration order.</summary>
     private readonly IReadOnlyList<ITrailEndClassifier> _classifiers;
 
-    /// <summary>The newest version of each tracing method.</summary>
-    private readonly IReadOnlyDictionary<TracingMethodKind, ITracingMethod> _methods;
+    /// <summary>The newest version of each tracing method for Bitcoin's coins.</summary>
+    private readonly IReadOnlyDictionary<TracingMethodKind, IUtxoTracingMethod> _methods;
 
     /// <summary>The clock.</summary>
     private readonly IClock _clock;
@@ -36,8 +36,9 @@ internal sealed class TracingService : ITracingService
     /// <param name="source">Bitcoin's facts.</param>
     /// <param name="clustering">The clusters and the analyses.</param>
     /// <param name="classifiers">What recognises the ends of the trail.</param>
-    /// <param name="methods">The tracing methods.</param>
+    /// <param name="methods">The tracing methods, for every model and chain; Bitcoin's are the UTXO methods that cover it.</param>
     /// <param name="clock">The clock.</param>
+    /// <exception cref="ArgumentException">The methods are not registered properly (see <see cref="TracingMethods"/>).</exception>
     public TracingService(
         IBitcoinSource source,
         IClusteringService clustering,
@@ -48,8 +49,7 @@ internal sealed class TracingService : ITracingService
         _source = source;
         _clustering = clustering;
         _classifiers = [.. classifiers];
-        _methods = methods.GroupBy(method => method.Id.Kind)
-            .ToDictionary(group => group.Key, group => group.MaxBy(method => method.Id.Version)!);
+        _methods = TracingMethods.For<IUtxoTracingMethod>(methods, Chain.Bitcoin);
         _clock = clock;
     }
 

@@ -1,11 +1,12 @@
 using System.Text.RegularExpressions;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Tracing.Contracts;
 
 /// <summary>
-/// A transaction on another chain, named by the chain and its id as that chain writes it. Chainsaw cannot fetch it
-/// yet; it is what the user links by hand.
+/// A transaction on any chain, named by the chain and its id as that chain writes it: the transaction of a transfer
+/// in the graph, or one on another chain that the user links by hand (Chainsaw cannot fetch those yet).
 /// </summary>
 public sealed partial record ChainTransactionRef
 {
@@ -29,6 +30,15 @@ public sealed partial record ChainTransactionRef
         }
 
         (Chain, Id) = (chain, normalised);
+    }
+
+    /// <summary>Gives the reference of a Bitcoin transaction.</summary>
+    /// <param name="txid">The transaction's id.</param>
+    /// <returns>The reference.</returns>
+    public static ChainTransactionRef Of(Txid txid)
+    {
+        ArgumentNullException.ThrowIfNull(txid);
+        return new ChainTransactionRef(Chain.Bitcoin, txid.Value);
     }
 
     /// <summary>Gets the chain.</summary>

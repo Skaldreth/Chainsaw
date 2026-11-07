@@ -4,14 +4,14 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 
 /// <summary>
 /// The tracing methods: rules for how much of the traced money goes on through a transaction. The rules are
-/// conventions, not facts; the chain does not say whose satoshi went where (principle 2), so the method is always
+/// conventions, not facts; the chain does not say whose money went where (principle 2), so the method is always
 /// shown with what it gives.
 /// </summary>
 public enum TracingMethodKind
 {
     /// <summary>
     /// First in, first out: the transaction's inputs are laid end to end in their order and cut into the outputs in
-    /// their order, the fee last. The traced satoshi keep their place, so the money stays together.
+    /// their order, the fee last. The traced units keep their place, so the money stays together.
     /// </summary>
     Fifo,
 

@@ -58,7 +58,7 @@ internal static class GraphSamples
     /// <summary>Bitcoin as satoshi.</summary>
     /// <param name="bitcoin">The amount in bitcoin.</param>
     /// <returns>The amount.</returns>
-    public static Satoshi Btc(decimal bitcoin) => Satoshi.FromBitcoin(bitcoin);
+    public static AssetAmount Btc(decimal bitcoin) => Satoshi.FromBitcoin(bitcoin).ToAmount();
 
     /// <summary>A made-up block.</summary>
     /// <param name="height">Its height.</param>
@@ -102,8 +102,8 @@ internal static class GraphSamples
             Edge(EK, EKey, KKey, 3, 0, 0.02m, EdgeDirection.Back),
         ];
         return new TraceGraph(
-            [TraceStartPoint.ForAddress(V)], nodes, edges, transactions, spends,
-            new Dictionary<Txid, IReadOnlyList<TrailEndHint>>(), [], [], []);
+            [TraceStartPoint.ForAddress(V)], nodes, edges,
+            new UtxoGraph(transactions, spends, new Dictionary<Txid, IReadOnlyList<TrailEndHint>>()), [], [], []);
     }
 
     /// <summary>Gives the made-up trace: all of V's coin, 0.6 to K and 0.5 on to E.</summary>
@@ -198,7 +198,9 @@ internal static class GraphSamples
         var block = confirmed ? Block(100 + tx) : null;
         return new GraphEdge(
             key, from, to, GraphEdgeKind.Transfer, Btc(amount),
-            [new EdgeTransfer(Tx[tx], new Outpoint(Tx[tx], index), Btc(amount), block)], block?.Time, direction);
+            [AssetTransfer.OfCoin(Tx[tx], new Outpoint(Tx[tx], index), Satoshi.FromBitcoin(amount), block)],
+            block?.Time,
+            direction);
     }
 
     /// <summary>A traced line.</summary>
@@ -219,10 +221,10 @@ internal static class GraphSamples
     {
         var ins = inputs.Select((input, index) => new BitcoinInput(
             index, false, TxidOf(90 + number), index, input.Address, BitcoinScriptType.PayToWitnessPublicKeyHash,
-            Btc(input.Amount), 0)).ToList();
+            Satoshi.FromBitcoin(input.Amount), 0)).ToList();
         var outs = outputs.Select((output, index) => new BitcoinOutput(
-            index, BitcoinScriptType.PayToWitnessPublicKeyHash, output.Address, Btc(output.Amount), "", null)).ToList();
-        var fee = Btc(inputs.Sum(input => input.Amount) - outputs.Sum(output => output.Amount));
+            index, BitcoinScriptType.PayToWitnessPublicKeyHash, output.Address, Satoshi.FromBitcoin(output.Amount), "", null)).ToList();
+        var fee = Satoshi.FromBitcoin(inputs.Sum(input => input.Amount) - outputs.Sum(output => output.Amount));
         return new BitcoinTransaction(TxidOf(number), Block(100 + number), ins, outs, fee, 200, 800, 2, 0);
     }
 

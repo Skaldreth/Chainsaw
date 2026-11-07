@@ -1,4 +1,3 @@
-using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -6,31 +5,32 @@ namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
 /// Haircut v1: the traced share of the inputs is spread over the outputs and the fee in proportion to their amounts.
-/// Shares are whole satoshi: each receiver first gets its share rounded down, and the satoshi left over go one each
-/// to the receivers with the largest remainders (the earlier output on a tie, the fee last), so the sum is exact.
+/// Shares are whole units (satoshi on Bitcoin): each receiver first gets its share rounded down, and the units left
+/// over go one each to the receivers with the largest remainders (the earlier output on a tie, the fee last), so the
+/// sum is exact. It only sees amounts, so it serves every UTXO chain.
 /// </summary>
-internal sealed class HaircutMethod : ITracingMethod
+internal sealed class HaircutMethod : IUtxoTracingMethod
 {
     /// <inheritdoc/>
     public TracingMethodId Id { get; } = new(TracingMethodKind.Haircut, 1);
 
     /// <inheritdoc/>
-    public TransactionTaint Propagate(BitcoinTransaction transaction, IReadOnlyList<TaintSet> inputs)
+    public ChainScope Scope { get; } = ChainScope.AllOf(LedgerModel.Utxo);
+
+    /// <inheritdoc/>
+    public TransactionTaint Propagate(UtxoFlow flow, IReadOnlyList<TaintSet> inputs)
     {
-        var amounts = MethodChecks.InputAmounts(transaction, inputs);
-        long totalIn = amounts.Aggregate(0L, (sum, amount) => checked(sum + amount));
-        long traced = inputs.Aggregate(0L, (sum, set) => checked(sum + set.Amount.Value));
+        MethodChecks.CheckInputs(flow, inputs);
+        long traced = inputs.Aggregate(0L, (sum, set) => checked(sum + set.Units));
 
         // The receivers are the outputs in order and then the fee, which is what the inputs leave over.
-        var receivers = transaction.Outputs.Select(output => output.Amount.Value).ToList();
-        receivers.Add(totalIn - receivers.Aggregate(0L, (sum, amount) => checked(sum + amount)));
-        var shares = Shares(traced, totalIn, receivers);
+        List<long> receivers = [.. flow.Outputs, flow.Fee];
+        var shares = Shares(traced, flow.TotalIn, receivers);
         return new TransactionTaint(
-            [.. shares.Take(transaction.Outputs.Count).Select(share => TaintSet.FirstPart(new Satoshi(share)))],
-            new Satoshi(shares[^1]));
+            [.. shares.Take(flow.Outputs.Count).Select(TaintSet.FirstPart)], shares[^1]);
     }
 
-    /// <summary>Splits an amount over receivers in proportion to their amounts, in whole satoshi.</summary>
+    /// <summary>Splits an amount over receivers in proportion to their amounts, in whole units.</summary>
     /// <param name="traced">The amount to split.</param>
     /// <param name="total">The receivers' total; the traced amount is not more.</param>
     /// <param name="receivers">The receivers' amounts.</param>
@@ -54,7 +54,7 @@ internal sealed class HaircutMethod : ITracingMethod
         }
 
         // The remainders add up to (traced - handedOut) × total, and each is below total, so at least that many
-        // receivers have one: a satoshi never goes to a receiver whose share is already its whole amount.
+        // receivers have one: a unit never goes to a receiver whose share is already its whole amount.
         var leftOver = traced - handedOut;
         foreach (var i in Enumerable.Range(0, receivers.Count)
             .OrderByDescending(i => remainders[i])

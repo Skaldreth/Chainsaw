@@ -5,7 +5,7 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 
 /// <summary>
 /// Why the traced money stops where it does. An end is never silent (CLAUDE.md, <em>Spåret tar slut</em>): every
-/// traced satoshi ends in exactly one of these, and the reason says whether the trail really ends or only is not
+/// traced unit ends in exactly one of these, and the reason says whether the trail really ends or only is not
 /// followed further yet.
 /// </summary>
 public enum TrailEndReason

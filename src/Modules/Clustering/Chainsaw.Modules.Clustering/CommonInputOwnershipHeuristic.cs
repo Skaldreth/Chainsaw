@@ -1,6 +1,7 @@
 using System.Globalization;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Clustering;
 
@@ -8,13 +9,16 @@ namespace Chainsaw.Modules.Clustering;
 /// Common-input-ownership v1: whoever spends several outputs in one transaction must hold the keys to all of them,
 /// so the inputs' addresses have the same owner. It does not hold in a CoinJoin, which the CoinJoin analysis stops.
 /// </summary>
-internal sealed class CommonInputOwnershipHeuristic : IClusteringHeuristic
+internal sealed class CommonInputOwnershipHeuristic : IUtxoHeuristic
 {
     /// <summary>The heuristic's name and version.</summary>
     public static readonly HeuristicId Identity = new(HeuristicNames.CommonInputOwnership, 1);
 
     /// <inheritdoc/>
     public HeuristicId Id => Identity;
+
+    /// <inheritdoc/>
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 
     /// <inheritdoc/>
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context)

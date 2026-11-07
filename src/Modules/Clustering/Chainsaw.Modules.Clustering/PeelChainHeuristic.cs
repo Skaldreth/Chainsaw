@@ -1,6 +1,7 @@
 using System.Globalization;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Clustering;
 
@@ -17,7 +18,7 @@ namespace Chainsaw.Modules.Clustering;
 /// inner hop, and the last hop may send the bulk to an exchange. Until the tracer has tried it, a peel chain is only a
 /// suggestion (TODO, *Väntar på beslut*).
 /// </remarks>
-internal sealed class PeelChainHeuristic : IClusteringHeuristic
+internal sealed class PeelChainHeuristic : IUtxoHeuristic
 {
     /// <summary>The heuristic's name and version.</summary>
     public static readonly HeuristicId Identity = new(HeuristicNames.PeelChain, 1);
@@ -33,6 +34,9 @@ internal sealed class PeelChainHeuristic : IClusteringHeuristic
 
     /// <inheritdoc/>
     public HeuristicId Id => Identity;
+
+    /// <inheritdoc/>
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 
     /// <inheritdoc/>
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context)

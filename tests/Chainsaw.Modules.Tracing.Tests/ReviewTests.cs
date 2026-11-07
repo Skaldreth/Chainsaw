@@ -53,10 +53,10 @@ public sealed class ReviewTests : IDisposable
             var intoMix = graph.Edges.Where(edge => edge.To == mix.Key)
                 .Select(edge => result.Edges.SingleOrDefault(traced => traced.EdgeKey == edge.Key))
                 .OfType<TracedEdge>()
-                .Aggregate(Satoshi.Zero, (sum, edge) => sum + edge.Amount.Amount);
+                .Aggregate(AssetAmount.Zero(Asset.Bitcoin), (sum, edge) => sum + edge.Amount.Amount);
 
             Assert.Equal(result.EndedBy(TrailEndReason.CoinJoin), intoMix);
-            Assert.NotEqual(Satoshi.Zero, intoMix);
+            Assert.NotEqual(AssetAmount.Zero(Asset.Bitcoin), intoMix);
         }
     }
 
@@ -265,7 +265,7 @@ public sealed class ReviewTests : IDisposable
         _harness.Service.LinkCrossChain(_harness.Case, coin, second, "Rätt.");
         var graph = await _harness.Load();
         var edge = Assert.Single(graph.Edges, edge => edge.Kind == GraphEdgeKind.ContinuesOnOtherChain);
-        Assert.Equal(new Satoshi(118_945_000), edge.Amount);
+        Assert.Equal(new Satoshi(118_945_000).ToAmount(), edge.Amount);
     }
 
     [Fact]

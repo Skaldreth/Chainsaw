@@ -55,9 +55,11 @@ internal sealed class FakeClock : IClock
 }
 
 /// <summary>An analysis that always fails, to show that a failure stops the whole transaction.</summary>
-internal sealed class FailingHeuristic : IClusteringHeuristic
+internal sealed class FailingHeuristic : IUtxoHeuristic
 {
     public HeuristicId Id { get; } = new("failing", 1);
+
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
         throw new InvalidOperationException("The analysis failed.");
@@ -67,9 +69,11 @@ internal sealed class FailingHeuristic : IClusteringHeuristic
 /// A second version of the CoinJoin analysis that only ever sees a possible CoinJoin, to show that it replaces
 /// version 1 in what counts.
 /// </summary>
-internal sealed class SilentCoinJoinV2 : IClusteringHeuristic
+internal sealed class SilentCoinJoinV2 : IUtxoHeuristic
 {
     public HeuristicId Id { get; } = new(HeuristicNames.CoinJoin, 2);
+
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
         new(Id, transaction.Txid, [],
@@ -78,9 +82,11 @@ internal sealed class SilentCoinJoinV2 : IClusteringHeuristic
 }
 
 /// <summary>An analysis that gives a proposal it must not: one address only.</summary>
-internal sealed class MalformedHeuristic : IClusteringHeuristic
+internal sealed class MalformedHeuristic : IUtxoHeuristic
 {
     public HeuristicId Id { get; } = new("malformed", 1);
+
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
         new(Id, transaction.Txid,
@@ -91,9 +97,11 @@ internal sealed class MalformedHeuristic : IClusteringHeuristic
 internal sealed record UndeclaredFinding(string Reason) : HeuristicFinding(Reason);
 
 /// <summary>An analysis that gives a finding of an undeclared kind.</summary>
-internal sealed class UndeclaredFindingHeuristic : IClusteringHeuristic
+internal sealed class UndeclaredFindingHeuristic : IUtxoHeuristic
 {
     public HeuristicId Id { get; } = new("undeclared", 1);
+
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
         new(Id, transaction.Txid, [], [new UndeclaredFinding("Ny sort.")]);

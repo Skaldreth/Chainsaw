@@ -14,7 +14,7 @@ public sealed class TaintSetTests
             [new TaintRange(10, 20), new TaintRange(0, 5), new TaintRange(5, 8), new TaintRange(15, 30)]);
 
         Assert.Equal([new TaintRange(0, 8), new TaintRange(10, 30)], set.Ranges);
-        Assert.Equal(new Satoshi(28), set.Amount);
+        Assert.Equal(28, set.Units);
         Assert.Equal(30, set.End);
     }
 
@@ -30,7 +30,7 @@ public sealed class TaintSetTests
     [Fact]
     public void Shift_moves_every_range()
     {
-        Assert.Equal([new TaintRange(100, 105)], TaintSet.FirstPart(new Satoshi(5)).Shift(100).Ranges);
+        Assert.Equal([new TaintRange(100, 105)], TaintSet.FirstPart(5).Shift(100).Ranges);
     }
 
     [Fact]
@@ -50,11 +50,11 @@ public sealed class FifoMethodTests
     {
         var tx = Tx("consolidate").In(Wpkh("a"), 300).In(Wpkh("b"), 700).Out(Wpkh("c"), 990).Build();
 
-        var taint = _fifo.Propagate(tx, [TaintSet.None, TaintSet.FirstPart(new Satoshi(700))]);
+        var taint = _fifo.Propagate(MethodChecks.Flow(tx), [TaintSet.None, TaintSet.FirstPart(700)]);
 
         // The traced satoshi are b's, at 300–1 000 on the line; the output is 0–990 and the fee 990–1 000.
         Assert.Equal([new TaintRange(300, 990)], taint.Outputs[0].Ranges);
-        Assert.Equal(new Satoshi(10), taint.Fee);
+        Assert.Equal(10, taint.Fee);
     }
 
     [Fact]
@@ -62,11 +62,11 @@ public sealed class FifoMethodTests
     {
         var tx = Tx("split").In(Wpkh("a"), 1_000).Out(Wpkh("x"), 400).Out(Wpkh("y"), 590).Build();
 
-        var taint = _fifo.Propagate(tx, [TaintSet.Of([new TaintRange(300, 500)])]);
+        var taint = _fifo.Propagate(MethodChecks.Flow(tx), [TaintSet.Of([new TaintRange(300, 500)])]);
 
-        Assert.Equal(new Satoshi(100), taint.Outputs[0].Amount);
+        Assert.Equal(100, taint.Outputs[0].Units);
         Assert.Equal([new TaintRange(0, 100)], taint.Outputs[1].Ranges);
-        Assert.Equal(Satoshi.Zero, taint.Fee);
+        Assert.Equal(0L, taint.Fee);
     }
 
     [Fact]
@@ -74,10 +74,10 @@ public sealed class FifoMethodTests
     {
         var tx = Tx("fee").In(Wpkh("a"), 1_000).Out(Wpkh("x"), 900).Build();
 
-        var taint = _fifo.Propagate(tx, [TaintSet.FirstPart(new Satoshi(1_000))]);
+        var taint = _fifo.Propagate(MethodChecks.Flow(tx), [TaintSet.FirstPart(1_000)]);
 
-        Assert.Equal(new Satoshi(900), taint.Outputs[0].Amount);
-        Assert.Equal(new Satoshi(100), taint.Fee);
+        Assert.Equal(900, taint.Outputs[0].Units);
+        Assert.Equal(100, taint.Fee);
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public sealed class FifoMethodTests
     {
         var tx = Tx("past").In(Wpkh("a"), 100).Out(Wpkh("x"), 90).Build();
 
-        Assert.Throws<ArgumentException>(() => _fifo.Propagate(tx, [TaintSet.FirstPart(new Satoshi(101))]));
-        Assert.Throws<ArgumentException>(() => _fifo.Propagate(tx, []));
+        Assert.Throws<ArgumentException>(() => _fifo.Propagate(MethodChecks.Flow(tx), [TaintSet.FirstPart(101)]));
+        Assert.Throws<ArgumentException>(() => _fifo.Propagate(MethodChecks.Flow(tx), []));
     }
 }
 
@@ -99,12 +99,12 @@ public sealed class HaircutMethodTests
     {
         var tx = Tx("haircut").In(Wpkh("a"), 600).In(Wpkh("b"), 400).Out(Wpkh("x"), 500).Out(Wpkh("y"), 400).Build();
 
-        var taint = _haircut.Propagate(tx, [TaintSet.FirstPart(new Satoshi(600)), TaintSet.None]);
+        var taint = _haircut.Propagate(MethodChecks.Flow(tx), [TaintSet.FirstPart(600), TaintSet.None]);
 
         // 60 % of the money is traced, so 60 % of each receiver: 300, 240 and 60 of the fee of 100.
-        Assert.Equal(new Satoshi(300), taint.Outputs[0].Amount);
-        Assert.Equal(new Satoshi(240), taint.Outputs[1].Amount);
-        Assert.Equal(new Satoshi(60), taint.Fee);
+        Assert.Equal(300, taint.Outputs[0].Units);
+        Assert.Equal(240, taint.Outputs[1].Units);
+        Assert.Equal(60, taint.Fee);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class ConservationTests
         }
 
         var seeds = transactions.SelectMany(tx => tx.Outputs.Take(1).Select(output =>
-            new TraceSeed(new Outpoint(tx.Txid, output.Index), new Satoshi(output.Amount.Value - random.Next(1_000)))))
+            new TraceSeed(new Outpoint(tx.Txid, output.Index), new Satoshi(output.Amount.Value - random.Next(1_000)).ToAmount())))
             .ToList();
         for (var n = 0; n < 40 && unspent.Count > 0; n++)
         {
@@ -178,13 +178,13 @@ public sealed class ConservationTests
         }
 
         var graph = PureGraph.Of(transactions);
-        ITracingMethod method = kind == TracingMethodKind.Fifo ? new FifoMethod() : new HaircutMethod();
+        IUtxoTracingMethod method = kind == TracingMethodKind.Fifo ? new FifoMethod() : new HaircutMethod();
 
         var result = TraceCalculator.Trace(graph, method, seeds);
 
-        var traced = seeds.Aggregate(Satoshi.Zero, (sum, s) => sum + s.Amount!.Value);
+        var traced = seeds.Aggregate(AssetAmount.Zero(Asset.Bitcoin), (sum, s) => sum + s.Amount!.Value);
         Assert.Equal(traced, result.Traced);
-        Assert.Equal(traced, result.Ends.Aggregate(Satoshi.Zero, (sum, end) => sum + end.Amount.Amount));
+        Assert.Equal(traced, result.Ends.Aggregate(AssetAmount.Zero(Asset.Bitcoin), (sum, end) => sum + end.Amount.Amount));
         Assert.All(result.Transactions, tx => Assert.Equal(
             tx.In, tx.Outputs.Aggregate(tx.Fee, (sum, amount) => sum + amount)));
         Assert.All(result.Coins, coin => Assert.True(

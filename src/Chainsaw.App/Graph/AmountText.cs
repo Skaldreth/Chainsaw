@@ -1,12 +1,13 @@
 using System.Globalization;
+using System.Numerics;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
 
 /// <summary>
-/// Writes amounts as the graph shows them, in Swedish: <c>0,5120</c>. At least four decimals, and never fewer than
-/// the amount needs, so that a small amount is never written as zero.
+/// Writes amounts as the graph shows them, in Swedish: <c>0,5120</c>. At least four decimals (or the asset's, when
+/// it has fewer), and never fewer than the amount needs, so that a small amount is never written as zero.
 /// </summary>
 public static class AmountText
 {
@@ -16,34 +17,73 @@ public static class AmountText
     /// <summary>Swedish numbers: a decimal comma and a space between thousands.</summary>
     private static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
 
+    /// <summary>The most significant digits a <see cref="decimal"/> holds exactly.</summary>
+    private const int DecimalDigits = 28;
+
     /// <summary>Writes an amount in bitcoin.</summary>
     /// <param name="amount">The amount.</param>
     /// <returns>For example <c>0,5120</c>, <c>0,00012345</c> or <c>1 250,0000</c>.</returns>
-    public static string Btc(Satoshi amount)
+    public static string Btc(Satoshi amount) => Number(amount.ToAmount());
+
+    /// <summary>Writes an amount of any asset, without its symbol.</summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns>For example <c>0,5120</c> for bitcoin or <c>1,0000</c> for one ether.</returns>
+    public static string Number(AssetAmount amount)
     {
-        var bitcoin = amount.ToBitcoin();
-        var decimals = MinimumDecimals;
-        while (decimals < 8 && decimal.Round(bitcoin, decimals) != bitcoin)
+        var scale = amount.Asset.Decimals;
+        var magnitude = BigInteger.Abs(amount.Units);
+        if (scale > DecimalDigits || magnitude.ToString(CultureInfo.InvariantCulture).Length > DecimalDigits)
+        {
+            return LongNumber(amount);
+        }
+
+        var value = (decimal)amount.Units / (decimal)BigInteger.Pow(10, scale);
+        var decimals = Math.Min(MinimumDecimals, scale);
+        while (decimals < scale && decimal.Round(value, decimals) != value)
         {
             decimals++;
         }
 
-        return bitcoin.ToString("N" + decimals.ToString(CultureInfo.InvariantCulture), Swedish);
+        return value.ToString("N" + decimals.ToString(CultureInfo.InvariantCulture), Swedish);
     }
 
     /// <summary>Writes an amount with its unit, as the inspector does.</summary>
     /// <param name="amount">The amount.</param>
     /// <returns>For example <c>0,5120 BTC</c>.</returns>
-    public static string BtcWithUnit(Satoshi amount) => Btc(amount) + " BTC";
+    public static string BtcWithUnit(Satoshi amount) => WithUnit(amount.ToAmount());
+
+    /// <summary>Writes an amount of any asset with its symbol, as the inspector does.</summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns>For example <c>0,5120 BTC</c> or <c>12,5000 USDT</c>.</returns>
+    public static string WithUnit(AssetAmount amount) => Number(amount) + " " + amount.Asset.Symbol;
 
     /// <summary>
     /// Writes what a line carries: the whole amount, or the traced part of it when only some is traced.
     /// </summary>
     /// <param name="amount">The amount on the chain.</param>
-    /// <param name="traced">The traced part, a conclusion.</param>
+    /// <param name="traced">The traced part, a conclusion; of the same asset, or zero of any.</param>
     /// <returns>For example <c>0,5120</c> or <c>0,1570 av 0,2400</c>.</returns>
-    public static string OnLine(Satoshi amount, Satoshi traced) =>
-        traced.Value > 0 && traced.CompareTo(amount) < 0 ? $"{Btc(traced)} av {Btc(amount)}" : Btc(amount);
+    public static string OnLine(AssetAmount amount, AssetAmount traced) =>
+        traced.Units.Sign > 0 && traced.Asset == amount.Asset && traced < amount
+            ? $"{Number(traced)} av {Number(amount)}"
+            : Number(amount);
+
+    /// <summary>
+    /// Writes an amount too long for a <see cref="decimal"/> (more than 28 digits, as a whale's wei can be) with
+    /// every decimal down to the last that is not zero, and at least four.
+    /// </summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns>The amount in Swedish.</returns>
+    private static string LongNumber(AssetAmount amount)
+    {
+        var scale = amount.Asset.Decimals;
+        var whole = BigInteger.DivRem(BigInteger.Abs(amount.Units), BigInteger.Pow(10, scale), out var rest);
+        var fraction = rest.ToString(CultureInfo.InvariantCulture).PadLeft(scale, '0').TrimEnd('0');
+        fraction = fraction.PadRight(Math.Min(MinimumDecimals, scale), '0');
+        var sign = amount.Units.Sign < 0 ? Swedish.NumberFormat.NegativeSign : "";
+        var text = sign + whole.ToString("N0", Swedish);
+        return fraction.Length == 0 ? text : text + Swedish.NumberFormat.NumberDecimalSeparator + fraction;
+    }
 }
 
 /// <summary>Which amounts the lines carry (sketch GR4): all, only the traced, or none when the graph is large.</summary>
@@ -142,16 +182,16 @@ public static class EdgeWidth
 
     /// <summary>Gives a line's thickness from its traced amount, against the largest traced amount on any line.</summary>
     /// <param name="traced">The line's traced amount.</param>
-    /// <param name="largest">The largest traced amount on any line in the graph.</param>
+    /// <param name="largest">The largest traced amount on any line in the graph, of the same asset.</param>
     /// <returns>The thickness in the surface's units.</returns>
-    public static double For(Satoshi traced, Satoshi largest)
+    public static double For(AssetAmount traced, AssetAmount largest)
     {
-        if (traced.Value <= 0 || largest.Value <= 0)
+        if (traced.Units.Sign <= 0 || largest.Units.Sign <= 0 || traced.Asset != largest.Asset)
         {
             return Untraced;
         }
 
-        var share = Math.Min(1, (double)traced.Value / largest.Value);
+        var share = Math.Min(1, (double)traced.Units / (double)largest.Units);
         return ThinnestTraced + (TracedSpan * share);
     }
 }

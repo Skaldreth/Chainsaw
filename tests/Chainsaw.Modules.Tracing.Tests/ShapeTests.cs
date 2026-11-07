@@ -21,8 +21,8 @@ public sealed class ShapeTests
         Assert.Equal(EdgeDirection.Forward, forward.Direction);
         Assert.Equal(EdgeDirection.Back, turned.Direction);
         var result = TraceCalculator.Trace(graph, new FifoMethod(), [new TraceSeed(new Outpoint(out1.Txid, 0))]);
-        Assert.Equal(new Satoshi(980_000), result.EndedBy(TrailEndReason.Unspent));
-        Assert.Equal(new Satoshi(10_000), result.EndedBy(TrailEndReason.MinerFee));
+        Assert.Equal(new Satoshi(980_000).ToAmount(), result.EndedBy(TrailEndReason.Unspent));
+        Assert.Equal(new Satoshi(10_000).ToAmount(), result.EndedBy(TrailEndReason.MinerFee));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class ShapeTests
 
         var result = TraceCalculator.Trace(graph, new FifoMethod(), [new TraceSeed(new Outpoint(withBurn.Txid, 1))]);
 
-        Assert.Equal(new Satoshi(590_000), result.EndedBy(TrailEndReason.Unspendable));
+        Assert.Equal(new Satoshi(590_000).ToAmount(), result.EndedBy(TrailEndReason.Unspendable));
         Assert.Equal(GraphNodeKind.Coin, graph.Node("coin:" + new Outpoint(withBurn.Txid, 1))!.Kind);
     }
 
@@ -78,7 +78,7 @@ public sealed class ShapeTests
         var graph = PureGraph.Of([pay, next]);
 
         Assert.Throws<InvalidOperationException>(() => TraceCalculator.Trace(
-            graph, new GenerousMethod(), [new TraceSeed(new Outpoint(pay.Txid, 0), new Satoshi(1_000))]));
+            graph, new GenerousMethod(), [new TraceSeed(new Outpoint(pay.Txid, 0), new Satoshi(1_000).ToAmount())]));
     }
 
     [Fact]
@@ -91,11 +91,13 @@ public sealed class ShapeTests
     }
 
     /// <summary>A broken method that gives every output its whole amount.</summary>
-    private sealed class GenerousMethod : ITracingMethod
+    private sealed class GenerousMethod : IUtxoTracingMethod
     {
         public TracingMethodId Id { get; } = new(TracingMethodKind.Fifo, 99);
 
-        public TransactionTaint Propagate(BitcoinTransaction transaction, IReadOnlyList<TaintSet> inputs) =>
-            new([.. transaction.Outputs.Select(output => TaintSet.FirstPart(output.Amount))], Satoshi.Zero);
+        public ChainScope Scope { get; } = ChainScope.AllOf(LedgerModel.Utxo);
+
+        public TransactionTaint Propagate(UtxoFlow flow, IReadOnlyList<TaintSet> inputs) =>
+            new([.. flow.Outputs.Select(TaintSet.FirstPart)], 0);
     }
 }

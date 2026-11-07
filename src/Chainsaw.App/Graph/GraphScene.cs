@@ -64,9 +64,9 @@ public sealed record NodeView(
     bool IsDim,
     string? ChainName,
     IReadOnlyList<Label> Labels,
-    Satoshi In,
-    Satoshi Out,
-    Satoshi TracedIn,
+    AssetAmount In,
+    AssetAmount Out,
+    AssetAmount TracedIn,
     string Subject,
     bool IsNamed)
 {
@@ -108,7 +108,7 @@ public sealed record NodeView(
 /// <param name="Label">What it carries, as written on it.</param>
 public sealed record EdgeView(
     GraphEdge Edge,
-    Satoshi Traced,
+    AssetAmount Traced,
     TracedEdge? TracedEdge,
     GraphInk Ink,
     EdgeDash Dash,
@@ -119,7 +119,7 @@ public sealed record EdgeView(
     public string Key => Edge.Key;
 
     /// <summary>Gets whether the line carries traced money.</summary>
-    public bool IsTraced => Traced.Value > 0;
+    public bool IsTraced => Traced.Units.Sign > 0;
 }
 
 /// <summary>
@@ -167,6 +167,12 @@ public sealed record GraphScene(
     /// <returns><c>FIFO</c> or <c>haircut</c>.</returns>
     public static string MethodName(TracingMethodKind method) => new TracingMethodId(method, 1).Name;
 
+    /// <summary>
+    /// Gets the asset whose sums the actors show and whose traced amounts set the lines' thickness: Bitcoin's coin,
+    /// the only chain the graph has. How tokens are shown is sketched before the first account chain is built.
+    /// </summary>
+    public static Asset Shown { get; } = Chain.Bitcoin.NativeAsset();
+
     /// <summary>Builds the scene from a snapshot.</summary>
     /// <param name="snapshot">The snapshot.</param>
     /// <returns>The scene.</returns>
@@ -175,7 +181,10 @@ public sealed record GraphScene(
         ArgumentNullException.ThrowIfNull(snapshot);
         var graph = snapshot.Graph;
         var traced = (snapshot.Trace?.Edges ?? []).ToDictionary(edge => edge.EdgeKey, StringComparer.Ordinal);
-        var largest = traced.Values.Select(edge => edge.Amount.Amount).DefaultIfEmpty(Satoshi.Zero).Max();
+        var largest = traced.Values.Select(edge => edge.Amount.Amount)
+            .Where(amount => amount.Asset == Shown)
+            .DefaultIfEmpty(AssetAmount.Zero(Shown))
+            .Max();
         var edges = graph.Edges.Select(edge => BuildEdge(edge, traced.GetValueOrDefault(edge.Key), largest)).ToList();
         var nodes = graph.Nodes.Select(node => BuildNode(node, snapshot, edges)).ToList();
         var (lanes, columns) = HopLayout.Arrange(graph.Nodes);
@@ -240,9 +249,9 @@ public sealed record GraphScene(
     /// <param name="traced">The trace's record of it, or <see langword="null"/>.</param>
     /// <param name="largest">The largest traced amount on any line.</param>
     /// <returns>The line's view.</returns>
-    private static EdgeView BuildEdge(GraphEdge edge, TracedEdge? traced, Satoshi largest)
+    private static EdgeView BuildEdge(GraphEdge edge, TracedEdge? traced, AssetAmount largest)
     {
-        var amount = traced?.Amount.Amount ?? Satoshi.Zero;
+        var amount = traced?.Amount.Amount ?? AssetAmount.Zero(edge.Amount.Asset);
         var otherChain = edge.Kind == GraphEdgeKind.ContinuesOnOtherChain;
         var uncertain = traced?.MayBeOutdated == true || edge.Transfers.Any(transfer => transfer.Block is null);
         var dash = (otherChain, uncertain) switch
@@ -251,7 +260,7 @@ public sealed record GraphScene(
             (_, true) => EdgeDash.Uncertain,
             _ => EdgeDash.None,
         };
-        var ink = (otherChain, amount.Value > 0) switch
+        var ink = (otherChain, amount.Units.Sign > 0) switch
         {
             (true, _) => GraphInk.OtherChain,
             (_, true) => GraphInk.Accent,
@@ -275,7 +284,7 @@ public sealed record GraphScene(
         var sort = SortOf(node, labels);
         var primary = labels.FirstOrDefault(label => VisualLanguage.SortOf(label.Kind) == sort);
         var badges = new List<NodeBadge>();
-        if (VisualLanguage.IsCashOut(sort) && tracedIn.Value > 0)
+        if (VisualLanguage.IsCashOut(sort) && tracedIn.Units.Sign > 0)
         {
             badges.Add(NodeBadge.CashOutFound);
         }
@@ -383,8 +392,12 @@ public sealed record GraphScene(
         _ => Shorten(node.Key),
     };
 
-    /// <summary>Adds amounts.</summary>
+    /// <summary>
+    /// Adds the amounts of the asset the graph shows (<see cref="Shown"/>); others wait until tokens are sketched.
+    /// </summary>
     /// <param name="amounts">The amounts.</param>
     /// <returns>The sum.</returns>
-    private static Satoshi Sum(IEnumerable<Satoshi> amounts) => amounts.Aggregate(Satoshi.Zero, (sum, a) => sum + a);
+    private static AssetAmount Sum(IEnumerable<AssetAmount> amounts) => amounts
+        .Where(amount => amount.Asset == Shown)
+        .Aggregate(AssetAmount.Zero(Shown), (sum, amount) => sum + amount);
 }

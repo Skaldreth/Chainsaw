@@ -8,12 +8,12 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 /// <summary>
 /// A traced amount: how much of the traced money Chainsaw concludes is here, by which method and version, and
 /// through which transactions it was counted. It is a conclusion, never a fact (principle 2): the chain does not say
-/// whose satoshi went where, and another method gives another amount.
+/// whose money went where, and another method gives another amount.
 /// </summary>
-/// <param name="Amount">The amount the method gives.</param>
+/// <param name="Amount">The amount the method gives, in the traced asset.</param>
 /// <param name="Method">The method and its version.</param>
 /// <param name="Through">The transactions the amount was counted through, sorted by txid.</param>
-public sealed record TracedAmount(Satoshi Amount, TracingMethodId Method, IReadOnlyList<Txid> Through)
+public sealed record TracedAmount(AssetAmount Amount, TracingMethodId Method, IReadOnlyList<Txid> Through)
 {
     /// <summary>
     /// Explains the amount in plain Swedish, so that the user can ask <em>why?</em> (principle 3).
@@ -22,7 +22,8 @@ public sealed record TracedAmount(Satoshi Amount, TracingMethodId Method, IReadO
     public string Explain()
     {
         var text = new StringBuilder();
-        text.Append(CultureInfo.InvariantCulture, $"Spårat belopp {Amount} BTC enligt {Method}");
+        text.Append(
+            CultureInfo.InvariantCulture, $"Spårat belopp {Amount.ToDecimalString()} {Amount.Asset.Symbol} enligt {Method}");
         text.Append(Through.Count == 0
             ? ", direkt ur startpunkten."
             : string.Create(
@@ -34,7 +35,7 @@ public sealed record TracedAmount(Satoshi Amount, TracingMethodId Method, IReadO
 }
 
 /// <summary>
-/// Where traced money stops, and why. Every traced satoshi ends in exactly one end, so the ends add up to what was
+/// Where traced money stops, and why. Every traced unit ends in exactly one end, so the ends add up to what was
 /// traced: nothing is created and nothing disappears.
 /// </summary>
 /// <param name="Reason">Why it stops.</param>
@@ -66,7 +67,7 @@ public sealed record TraceEnd(
 /// <param name="Coin">The coin.</param>
 /// <param name="Address">Its address, when it has one.</param>
 /// <param name="NodeKey">The node it belongs to.</param>
-/// <param name="Taint">Which of its satoshi are traced.</param>
+/// <param name="Taint">Which of its units are traced.</param>
 /// <param name="Amount">How much, as a conclusion.</param>
 /// <param name="MayBeOutdated">
 /// Whether a step on the way to it may change (an unconfirmed transaction, or an answer the case could not renew).
@@ -84,7 +85,7 @@ public sealed record TracedCoin(
 /// <param name="Fee">The traced amount that went to the fee.</param>
 /// <param name="MayBeOutdated">Whether the transaction, or a step on the way to it, may change.</param>
 public sealed record TracedTransaction(
-    Txid Txid, Satoshi In, IReadOnlyList<Satoshi> Outputs, Satoshi Fee, bool MayBeOutdated);
+    Txid Txid, AssetAmount In, IReadOnlyList<AssetAmount> Outputs, AssetAmount Fee, bool MayBeOutdated);
 
 /// <summary>The traced money that moved along one edge of the graph.</summary>
 /// <param name="EdgeKey">The edge.</param>
@@ -106,7 +107,7 @@ public sealed record TracedEdge(string EdgeKey, TracedAmount Amount, bool MayBeO
 public sealed record TraceResult(
     TracingMethodId Method,
     IReadOnlyList<TraceSeed> Seeds,
-    Satoshi Traced,
+    AssetAmount Traced,
     IReadOnlyList<TracedCoin> Coins,
     IReadOnlyList<TracedTransaction> Transactions,
     IReadOnlyList<TracedEdge> Edges,
@@ -115,6 +116,6 @@ public sealed record TraceResult(
     /// <summary>Gives how much stops for one reason.</summary>
     /// <param name="reason">The reason.</param>
     /// <returns>The sum.</returns>
-    public Satoshi EndedBy(TrailEndReason reason) =>
-        Ends.Where(end => end.Reason == reason).Aggregate(Satoshi.Zero, (sum, end) => sum + end.Amount.Amount);
+    public AssetAmount EndedBy(TrailEndReason reason) => Ends.Where(end => end.Reason == reason)
+        .Aggregate(AssetAmount.Zero(Traced.Asset), (sum, end) => sum + end.Amount.Amount);
 }

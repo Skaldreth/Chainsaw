@@ -189,7 +189,7 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets what the trace started from and how much, by which method; empty without a trace.</summary>
     public string TraceText => Scene?.Snapshot.Trace is { } trace
-        ? $"Spårat {AmountText.BtcWithUnit(trace.Traced)} från {trace.Seeds.Count} mynt · {trace.Method}"
+        ? $"Spårat {AmountText.WithUnit(trace.Traced)} från {trace.Seeds.Count} mynt · {trace.Method}"
         : Scene?.Snapshot.TraceProblem ?? string.Empty;
 
     /// <summary>Gets which amounts the lines carry.</summary>

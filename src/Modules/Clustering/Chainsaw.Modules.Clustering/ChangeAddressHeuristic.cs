@@ -1,6 +1,7 @@
 using System.Globalization;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Clustering;
 
@@ -9,7 +10,7 @@ namespace Chainsaw.Modules.Clustering;
 /// apart, and says how many signs hold. The change is merged with the sender only when the signs are enough
 /// (<see cref="AutomaticMergeSigns"/>, two outputs and nothing against); otherwise it is a suggestion.
 /// </summary>
-internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
+internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
 {
     /// <summary>The heuristic's name and version.</summary>
     public static readonly HeuristicId Identity = new(HeuristicNames.ChangeAddress, 1);
@@ -30,6 +31,9 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
 
     /// <inheritdoc/>
     public HeuristicId Id => Identity;
+
+    /// <inheritdoc/>
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 
     /// <inheritdoc/>
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context)

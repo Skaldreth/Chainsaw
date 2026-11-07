@@ -60,7 +60,7 @@ public sealed record ChainOption(string Name, Chain? Chain)
 /// <param name="Coin">The coin.</param>
 /// <param name="Amount">Its amount.</param>
 /// <param name="Time">When it came, or <see langword="null"/> while unconfirmed.</param>
-public sealed record IncomingCoin(Outpoint Coin, Satoshi Amount, DateTimeOffset? Time);
+public sealed record IncomingCoin(Outpoint Coin, AssetAmount Amount, DateTimeOffset? Time);
 
 /// <summary>
 /// The rules of the inspector's forms (sketch IN1a), without WPF: what each form may act on, the sorts, sources and
@@ -168,11 +168,11 @@ public static class InspectorForms
             .. scene.Snapshot.Graph.Edges
                 .Where(edge => edge.To == node.Key && edge.Kind == GraphEdgeKind.Transfer)
                 .SelectMany(edge => edge.Transfers)
-                .Where(transfer => !linked.Contains(transfer.Coin))
+                .Where(transfer => transfer.Coin is { } coin && !linked.Contains(coin))
                 .DistinctBy(transfer => transfer.Coin)
-                .OrderByDescending(transfer => transfer.Amount.Value)
-                .ThenBy(transfer => transfer.Coin.ToString(), StringComparer.Ordinal)
-                .Select(transfer => new IncomingCoin(transfer.Coin, transfer.Amount, transfer.Block?.Time)),
+                .OrderByDescending(transfer => transfer.Amount.Units)
+                .ThenBy(transfer => transfer.Coin!.ToString(), StringComparer.Ordinal)
+                .Select(transfer => new IncomingCoin(transfer.Coin!, transfer.Amount, transfer.Block?.Time)),
         ];
     }
 

@@ -113,7 +113,7 @@ public sealed class FlowTests : IDisposable
 
         // The first 30 000 000: 10 000 000 peeled to the unknown receiver, 20 000 000 to the exchange, none kept.
         Assert.Equal(Btc(20_000_000), result.EndedBy(TrailEndReason.Exchange));
-        Assert.Equal(Satoshi.Zero, result.EndedBy(TrailEndReason.Unspent));
+        Assert.Equal(Btc(0), result.EndedBy(TrailEndReason.Unspent));
         Assert.Equal(Btc(30_000_000), Sum(result.Ends));
     }
 
@@ -242,8 +242,8 @@ public sealed class FlowTests : IDisposable
     private TraceResult Trace(TraceGraph graph, TracingMethodKind method) => _harness.Service.Trace(
         graph, new TraceRequest(method, [new TraceSeed(new Outpoint(_flows.Pay.Txid, 0))]));
 
-    private static Satoshi Btc(long satoshi) => new(satoshi);
+    private static AssetAmount Btc(long satoshi) => new Satoshi(satoshi).ToAmount();
 
-    private static Satoshi Sum(IEnumerable<TraceEnd> ends) =>
-        ends.Aggregate(Satoshi.Zero, (sum, end) => sum + end.Amount.Amount);
+    private static AssetAmount Sum(IEnumerable<TraceEnd> ends) =>
+        ends.Aggregate(AssetAmount.Zero(Asset.Bitcoin), (sum, end) => sum + end.Amount.Amount);
 }

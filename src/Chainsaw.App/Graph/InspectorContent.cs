@@ -69,8 +69,8 @@ public sealed record InspectorContent(
         var model = node.Node;
         var facts = new List<InspectorFact>
         {
-            new("In", AmountText.BtcWithUnit(node.In)),
-            new("Ut", AmountText.BtcWithUnit(node.Out)),
+            new("In", AmountText.WithUnit(node.In)),
+            new("Ut", AmountText.WithUnit(node.Out)),
             new("Spårat in", Traced(scene, node.TracedIn)),
             new("Sort", node.Look.Name),
         };
@@ -107,14 +107,14 @@ public sealed record InspectorContent(
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(edge);
         var model = edge.Edge;
-        var transactions = model.Transfers.Select(transfer => transfer.Txid).Distinct().Count();
+        var transactions = model.Transfers.Select(transfer => transfer.Transaction).Distinct().Count();
         var facts = new List<InspectorFact>
         {
-            new("Belopp", AmountText.BtcWithUnit(model.Amount)),
+            new("Belopp", AmountText.WithUnit(model.Amount)),
             new("Spårat", Traced(scene, edge.Traced)),
             new("Tid", model.FirstTime is { } time ? Time(time) : "Obekräftad"),
             new("Tx", transactions.ToString(CultureInfo.InvariantCulture)),
-            new("Kontroll", Checked(scene, model.Transfers.Select(transfer => transfer.Txid).Distinct().ToList())),
+            new("Kontroll", Checked(scene, BitcoinTransactions(model))),
         };
         var title = $"{scene.Node(model.From)?.Name ?? model.From} → {scene.Node(model.To)?.Name ?? model.To}";
         return new InspectorContent(
@@ -167,8 +167,20 @@ public sealed record InspectorContent(
     /// <param name="scene">The scene.</param>
     /// <param name="amount">The traced amount.</param>
     /// <returns>The amount with its unit, or <see cref="NoTraceText"/>.</returns>
-    private static string Traced(GraphScene scene, Satoshi amount) =>
-        scene.Snapshot.Trace is null ? NoTraceText : AmountText.BtcWithUnit(amount);
+    private static string Traced(GraphScene scene, AssetAmount amount) =>
+        scene.Snapshot.Trace is null ? NoTraceText : AmountText.WithUnit(amount);
+
+    /// <summary>Gives a line's Bitcoin transactions, which can be checked against their own bytes.</summary>
+    /// <param name="edge">The line.</param>
+    /// <returns>The transactions, each once.</returns>
+    private static List<Txid> BitcoinTransactions(GraphEdge edge) =>
+    [
+        .. edge.Transfers
+            .Select(transfer => transfer.Transaction)
+            .Where(transaction => transaction.Chain == Chain.Bitcoin)
+            .Select(transaction => Txid.Parse(transaction.Id))
+            .Distinct(),
+    ];
 
     /// <summary>Gives what expanding a node looks up.</summary>
     /// <param name="node">The node.</param>
@@ -203,9 +215,9 @@ public sealed record InspectorContent(
     private static IReadOnlyList<string> EdgeDetails(GraphEdge edge)
     {
         var lines = new List<string>();
-        foreach (var transfer in edge.Transfers.DistinctBy(transfer => transfer.Txid))
+        foreach (var transfer in edge.Transfers.DistinctBy(transfer => transfer.Transaction))
         {
-            lines.Add(transfer.Txid.Value);
+            lines.Add(transfer.Transaction.Id);
             lines.Add(BlockText(transfer.Block));
         }
 
@@ -291,20 +303,20 @@ public sealed record InspectorContent(
             yield break;
         }
 
-        if (node.TracedIn.Value > 0)
+        if (node.TracedIn.Units.Sign > 0)
         {
             yield return new WhyLine(
-                $"Spårat hit: {AmountText.BtcWithUnit(node.TracedIn)} enligt {trace.Method}. Det är en bedömning "
+                $"Spårat hit: {AmountText.WithUnit(node.TracedIn)} enligt {trace.Method}. Det är en bedömning "
                 + "enligt metoden, inte ett faktum på kedjan.",
                 GuideTopic.Methods);
         }
 
         foreach (var end in trace.Ends.Where(end => end.NodeKey == node.Key).GroupBy(end => end.Reason))
         {
-            var amount = end.Aggregate(Satoshi.Zero, (sum, item) => sum + item.Amount.Amount);
+            var amount = end.Skip(1).Aggregate(end.First().Amount.Amount, (sum, item) => sum + item.Amount.Amount);
             var outdated = end.Any(item => item.MayBeOutdated) ? " Det kan ha ändrats sedan ärendet frågade." : "";
             yield return new WhyLine(
-                $"{end.Key.Describe()}: {AmountText.BtcWithUnit(amount)} stannar här. {end.First().Explanation}"
+                $"{end.Key.Describe()}: {AmountText.WithUnit(amount)} stannar här. {end.First().Explanation}"
                 + outdated,
                 GuideTopic.TrailEnds,
                 GuideTopics.EndHeading(end.Key));
@@ -364,7 +376,7 @@ public sealed record InspectorContent(
         var why = new List<WhyLine>();
         if (model.Kind == GraphEdgeKind.ContinuesOnOtherChain)
         {
-            var coins = model.Transfers.Select(transfer => transfer.Coin).ToHashSet();
+            var coins = model.Transfers.Select(transfer => transfer.Coin).OfType<Outpoint>().ToHashSet();
             why.AddRange(scene.Snapshot.Graph.CrossChainLinks
                 .Where(link => coins.Contains(link.From))
                 .Select(link => new WhyLine(

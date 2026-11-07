@@ -14,7 +14,7 @@ namespace Chainsaw.Modules.Clustering;
 /// The rules err towards seeing a CoinJoin: a CoinJoin that is missed would merge strangers into one cluster, while
 /// a transaction wrongly taken for one only leaves some addresses unmerged.
 /// </remarks>
-internal sealed class CoinJoinHeuristic : IClusteringHeuristic
+internal sealed class CoinJoinHeuristic : IUtxoHeuristic
 {
     /// <summary>The heuristic's name and version.</summary>
     public static readonly HeuristicId Identity = new(HeuristicNames.CoinJoin, 1);
@@ -45,6 +45,9 @@ internal sealed class CoinJoinHeuristic : IClusteringHeuristic
 
     /// <inheritdoc/>
     public HeuristicId Id => Identity;
+
+    /// <inheritdoc/>
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 
     /// <inheritdoc/>
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context)

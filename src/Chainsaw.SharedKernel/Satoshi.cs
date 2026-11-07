@@ -34,6 +34,10 @@ public readonly record struct Satoshi(long Value) : IComparable<Satoshi>
     /// <returns>The amount in bitcoin, exact to the satoshi.</returns>
     public decimal ToBitcoin() => (decimal)Value / PerBitcoin;
 
+    /// <summary>Gives the same amount as an amount of <see cref="Asset.Bitcoin"/>, which the graph counts in.</summary>
+    /// <returns>The amount.</returns>
+    public AssetAmount ToAmount() => AssetAmount.Of(this);
+
     /// <summary>Adds two amounts.</summary>
     /// <param name="left">The first amount.</param>
     /// <param name="right">The second amount.</param>

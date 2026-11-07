@@ -6,9 +6,10 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
-/// Traces money through a graph by one method. Every coin that holds traced money either goes on into a transaction
+/// Traces money through a graph's coins (the UTXO model) by one method. Every coin that holds traced money either goes on into a transaction
 /// in the graph or ends, with a reason; every transaction is counted once, after every transaction it spends from;
-/// and the ends add up to what was traced, which is checked before anything is returned.
+/// and the ends add up to what was traced, which is checked before anything is returned. The method counts in the
+/// chain's smallest unit; the result counts in the chain's coin as an <see cref="AssetAmount"/>.
 /// </summary>
 internal sealed class TraceCalculator
 {
@@ -16,7 +17,10 @@ internal sealed class TraceCalculator
     private readonly TraceGraph _graph;
 
     /// <summary>The method.</summary>
-    private readonly ITracingMethod _method;
+    private readonly IUtxoTracingMethod _method;
+
+    /// <summary>The asset the coins are counted in: the graph's chain's coin.</summary>
+    private readonly Asset _asset = Chain.Bitcoin.NativeAsset();
 
     /// <summary>What happens to each coin that has been looked at, by coin.</summary>
     private readonly Dictionary<Outpoint, Step> _steps = [];
@@ -31,7 +35,7 @@ internal sealed class TraceCalculator
     /// <param name="graph">The graph.</param>
     /// <param name="method">The method.</param>
     /// <param name="cancellationToken">Stops the trace between steps.</param>
-    private TraceCalculator(TraceGraph graph, ITracingMethod method, CancellationToken cancellationToken) =>
+    private TraceCalculator(TraceGraph graph, IUtxoTracingMethod method, CancellationToken cancellationToken) =>
         (_graph, _method, _cancellationToken) = (graph, method, cancellationToken);
 
     /// <summary>Traces money through a graph.</summary>
@@ -44,7 +48,7 @@ internal sealed class TraceCalculator
     /// <exception cref="InvalidOperationException">The method created or lost money.</exception>
     /// <exception cref="OperationCanceledException">The trace was stopped.</exception>
     public static TraceResult Trace(
-        TraceGraph graph, ITracingMethod method, IReadOnlyList<TraceSeed> seeds,
+        TraceGraph graph, IUtxoTracingMethod method, IReadOnlyList<TraceSeed> seeds,
         CancellationToken cancellationToken = default) =>
         new TraceCalculator(graph, method, cancellationToken).Run(seeds);
 
@@ -66,7 +70,7 @@ internal sealed class TraceCalculator
         {
             var output = Output(seed.Coin);
             _holdings.Add(seed.Coin, new Holding(
-                TaintSet.FirstPart(seed.Amount ?? output.Amount),
+                TaintSet.FirstPart(seed.Amount is { } part ? (long)part.Units : output.Amount.Value),
                 new SortedSet<string>(StringComparer.Ordinal),
                 MayChange(seed.Coin.Txid)));
         }
@@ -84,11 +88,11 @@ internal sealed class TraceCalculator
 
         ends.AddRange(_holdings.Where(pair => _steps[pair.Key].End is not null)
             .Select(pair => EndOf(pair.Key, pair.Value)));
-        var ended = ends.Aggregate(Satoshi.Zero, (sum, end) => sum + end.Amount.Amount);
+        var ended = ends.Aggregate(AssetAmount.Zero(_asset), (sum, end) => sum + end.Amount.Amount);
         if (ended != traced)
         {
             throw new InvalidOperationException(
-                $"{_method.Id} ended {ended} BTC of {traced} BTC traced; the trace is refused.");
+                $"{_method.Id} ended {ended} of {traced} traced; the trace is refused.");
         }
 
         return new TraceResult(
@@ -105,7 +109,7 @@ internal sealed class TraceCalculator
     /// <param name="seeds">The seeds.</param>
     /// <returns>The sum.</returns>
     /// <exception cref="ArgumentException">A seed is not valid.</exception>
-    private Satoshi CheckSeeds(IReadOnlyList<TraceSeed> seeds)
+    private AssetAmount CheckSeeds(IReadOnlyList<TraceSeed> seeds)
     {
         if (seeds is null || seeds.Count == 0 || seeds.Any(seed => seed?.Coin is null))
         {
@@ -117,7 +121,7 @@ internal sealed class TraceCalculator
             throw new ArgumentException("A coin is given as a seed twice.", nameof(seeds));
         }
 
-        var sum = Satoshi.Zero;
+        var sum = AssetAmount.Zero(_asset);
         foreach (var seed in seeds)
         {
             if (!_graph.Transactions.TryGetValue(seed.Coin.Txid, out var entry)
@@ -126,12 +130,12 @@ internal sealed class TraceCalculator
                 throw new ArgumentException($"The seed {seed.Coin} is not in the graph.", nameof(seeds));
             }
 
-            var whole = entry.Transaction.Outputs[seed.Coin.Index].Amount;
+            var whole = entry.Transaction.Outputs[seed.Coin.Index].Amount.ToAmount();
             var amount = seed.Amount ?? whole;
-            if (amount.Value <= 0 || amount.CompareTo(whole) > 0)
+            if (amount.Asset != _asset || amount.Units.Sign <= 0 || amount > whole)
             {
                 throw new ArgumentException(
-                    $"The seed {seed.Coin} traces {amount} BTC of a coin of {whole} BTC.", nameof(seeds));
+                    $"The seed {seed.Coin} traces {amount} of a coin of {whole}.", nameof(seeds));
             }
 
             sum += amount;
@@ -348,15 +352,15 @@ internal sealed class TraceCalculator
             }
         }
 
-        var traced = inputs.Aggregate(Satoshi.Zero, (sum, set) => sum + set.Amount);
-        if (traced == Satoshi.Zero)
+        var traced = inputs.Aggregate(0L, (sum, set) => checked(sum + set.Units));
+        if (traced == 0)
         {
             return null;
         }
 
-        var taint = _method.Propagate(transaction, inputs);
+        var taint = _method.Propagate(MethodChecks.Flow(transaction), inputs);
         CheckConservation(transaction, traced, taint);
-        if (taint.Fee != Satoshi.Zero)
+        if (taint.Fee != 0)
         {
             ends.Add(new TraceEnd(
                 TrailEndReason.MinerFee,
@@ -379,7 +383,11 @@ internal sealed class TraceCalculator
         }
 
         return new TracedTransaction(
-            txid, traced, [.. taint.Outputs.Select(set => set.Amount)], taint.Fee, mayChange || MayChange(txid));
+            txid,
+            Units(traced),
+            [.. taint.Outputs.Select(set => Units(set.Units))],
+            Units(taint.Fee),
+            mayChange || MayChange(txid));
     }
 
     /// <summary>Checks that a method neither created nor lost money in a transaction.</summary>
@@ -387,18 +395,19 @@ internal sealed class TraceCalculator
     /// <param name="traced">How much traced money went in.</param>
     /// <param name="taint">What the method gave.</param>
     /// <exception cref="InvalidOperationException">It did.</exception>
-    private void CheckConservation(BitcoinTransaction transaction, Satoshi traced, TransactionTaint taint)
+    private void CheckConservation(BitcoinTransaction transaction, long traced, TransactionTaint taint)
     {
         var fits = taint.Outputs.Count == transaction.Outputs.Count
-            && taint.Outputs.Select((set, i) => set.End <= transaction.Outputs[i].Amount.Value).All(fits => fits)
-            && taint.Fee.Value >= 0
-            && taint.Fee.CompareTo(transaction.Fee) <= 0;
-        var given = taint.Outputs.Aggregate(taint.Fee, (sum, set) => sum + set.Amount);
-        if (!fits || given != traced)
+            && taint.Outputs.Select((set, i) => set is not null && set.End <= transaction.Outputs[i].Amount.Value)
+                .All(fits => fits)
+            && taint.Fee >= 0
+            && taint.Fee <= transaction.Fee.Value;
+        var given = fits ? taint.Outputs.Aggregate(taint.Fee, (sum, set) => checked(sum + set.Units)) : -1;
+        if (given != traced)
         {
             throw new InvalidOperationException(string.Create(
                 CultureInfo.InvariantCulture,
-                $"{_method.Id} gave {given} BTC out of {traced} BTC traced into {transaction.Txid}; refused."));
+                $"{_method.Id} gave {Units(given)} out of {Units(traced)} traced into {transaction.Txid}; refused."));
         }
     }
 
@@ -411,7 +420,7 @@ internal sealed class TraceCalculator
         var ending = _steps[coin].End!;
         return new TraceEnd(
             ending.Reason,
-            Amount(holding.Taint.Amount, holding.Through),
+            Amount(holding.Taint.Units, holding.Through),
             coin,
             ending.Transaction,
             EndNode(coin, ending),
@@ -463,7 +472,7 @@ internal sealed class TraceCalculator
             output.Address,
             NodeOf(coin, output)?.Key ?? NodeKeys.Coin(coin),
             holding.Taint,
-            Amount(holding.Taint.Amount, holding.Through),
+            Amount(holding.Taint.Units, holding.Through),
             holding.MayBeOutdated);
     }
 
@@ -477,23 +486,28 @@ internal sealed class TraceCalculator
         var edges = new List<TracedEdge>();
         foreach (var edge in _graph.Edges)
         {
-            var sum = Satoshi.Zero;
+            long sum = 0;
             var through = new SortedSet<string>(StringComparer.Ordinal);
             var mayChange = false;
             foreach (var transfer in edge.Transfers)
             {
-                var paidOut = transfer.Coin.Txid == transfer.Txid;
-                if (_holdings.TryGetValue(transfer.Coin, out var holding)
-                    && (paidOut || IntoTransaction(_steps[transfer.Coin], transfer.Txid)))
+                if (transfer.Coin is not { } coin)
                 {
-                    sum += holding.Taint.Amount;
+                    continue;
+                }
+
+                var paidOut = coin.Txid.Value == transfer.Transaction.Id;
+                if (_holdings.TryGetValue(coin, out var holding)
+                    && (paidOut || IntoTransaction(_steps[coin], transfer.Transaction.Id)))
+                {
+                    sum = checked(sum + holding.Taint.Units);
                     through.UnionWith(holding.Through);
-                    mayChange |= holding.MayBeOutdated || _steps[transfer.Coin].MayBeOutdated
-                        || _steps[transfer.Coin].End?.MayBeOutdated == true;
+                    mayChange |= holding.MayBeOutdated || _steps[coin].MayBeOutdated
+                        || _steps[coin].End?.MayBeOutdated == true;
                 }
             }
 
-            if (sum != Satoshi.Zero)
+            if (sum != 0)
             {
                 edges.Add(new TracedEdge(edge.Key, Amount(sum, through), mayChange));
             }
@@ -507,10 +521,11 @@ internal sealed class TraceCalculator
     /// that the line into a mixer carries the amount that ends there.
     /// </summary>
     /// <param name="step">What happens to the coin.</param>
-    /// <param name="txid">The transaction.</param>
+    /// <param name="txid">The transaction's id.</param>
     /// <returns>Whether it does.</returns>
-    private static bool IntoTransaction(Step step, Txid txid) =>
-        step.Spender == txid || step.End is { Transaction: { } at } end && at == txid && end.Reason.EndsTrail();
+    private static bool IntoTransaction(Step step, string txid) =>
+        step.Spender?.Value == txid
+        || step.End is { Transaction: { } at } end && at.Value == txid && end.Reason.EndsTrail();
 
     /// <summary>Gives the node a coin belongs to.</summary>
     /// <param name="coin">The coin.</param>
@@ -525,11 +540,16 @@ internal sealed class TraceCalculator
     private BitcoinOutput Output(Outpoint coin) => _graph.Transactions[coin.Txid].Transaction.Outputs[coin.Index];
 
     /// <summary>Gives an amount as a conclusion of this trace.</summary>
-    /// <param name="amount">The amount.</param>
+    /// <param name="units">The amount in the chain's smallest unit.</param>
     /// <param name="through">The transactions it was counted through.</param>
     /// <returns>The traced amount.</returns>
-    private TracedAmount Amount(Satoshi amount, IEnumerable<string> through) =>
-        new(amount, _method.Id, [.. through.Order(StringComparer.Ordinal).Select(Txid.Parse)]);
+    private TracedAmount Amount(long units, IEnumerable<string> through) =>
+        new(Units(units), _method.Id, [.. through.Order(StringComparer.Ordinal).Select(Txid.Parse)]);
+
+    /// <summary>Gives an amount in the chain's smallest unit as an amount of its coin.</summary>
+    /// <param name="units">The amount.</param>
+    /// <returns>The amount of <see cref="_asset"/>.</returns>
+    private AssetAmount Units(long units) => new(_asset, units);
 
     /// <summary>What happens to a coin: the transaction it goes on into, or how it ends.</summary>
     /// <param name="Spender">The transaction in the graph it goes on into, or <see langword="null"/>.</param>

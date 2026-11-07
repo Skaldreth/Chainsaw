@@ -13,7 +13,7 @@ namespace Chainsaw.Modules.Clustering.Contracts;
 /// </remarks>
 public interface IClusteringService
 {
-    /// <summary>Gets the analyses that run, in the order they run.</summary>
+    /// <summary>Gets the analyses that run on Bitcoin, in the order they run.</summary>
     IReadOnlyList<HeuristicId> Heuristics { get; }
 
     /// <summary>

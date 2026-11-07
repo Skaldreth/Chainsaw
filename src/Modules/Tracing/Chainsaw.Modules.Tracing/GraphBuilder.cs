@@ -30,7 +30,8 @@ internal sealed class GraphBuilder
     private Dictionary<string, Expansion> _expansions = new(StringComparer.Ordinal);
 
     /// <summary>The edges' transfers by kind, sender and receiver.</summary>
-    private readonly Dictionary<(GraphEdgeKind Kind, string From, string To), List<EdgeTransfer>> _edges = [];
+    private readonly Dictionary<(GraphEdgeKind Kind, string From, string To, Asset Asset), List<AssetTransfer>> _edges =
+        [];
 
     /// <summary>Creates a builder.</summary>
     /// <param name="data">The data.</param>
@@ -80,7 +81,7 @@ internal sealed class GraphBuilder
             .ThenBy(node => node.Key, StringComparer.Ordinal)
             .ToList();
         var edges = _edges
-            .Select(pair => Edge(pair.Key.Kind, pair.Key.From, pair.Key.To, pair.Value, hops))
+            .Select(pair => Edge(pair.Key.Kind, pair.Key.From, pair.Key.To, pair.Key.Asset, pair.Value, hops))
             .OrderBy(edge => edge.FirstTime ?? DateTimeOffset.MaxValue)
             .ThenBy(edge => edge.Key, StringComparer.Ordinal)
             .ToList();
@@ -88,9 +89,7 @@ internal sealed class GraphBuilder
             _data.State.StartPoints,
             nodes,
             edges,
-            _data.Transactions,
-            Spends(transactions),
-            transactionEnds,
+            new UtxoGraph(_data.Transactions, Spends(transactions), transactionEnds),
             _data.State.Links,
             _data.State.Expansions,
             problems);
@@ -169,7 +168,7 @@ internal sealed class GraphBuilder
         });
         foreach (var input in transaction.Inputs)
         {
-            AddTransfer(GraphEdgeKind.Transfer, Sender(input), node.Key, new EdgeTransfer(
+            AddTransfer(GraphEdgeKind.Transfer, Sender(input), node.Key, AssetTransfer.OfCoin(
                 transaction.Txid,
                 new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value),
                 input.Amount ?? Satoshi.Zero,
@@ -234,8 +233,9 @@ internal sealed class GraphBuilder
     /// <param name="transaction">The transaction.</param>
     /// <param name="output">The output.</param>
     /// <returns>The transfer.</returns>
-    private static EdgeTransfer Paid(BitcoinTransaction transaction, BitcoinOutput output) =>
-        new(transaction.Txid, new Outpoint(transaction.Txid, output.Index), output.Amount, transaction.Block);
+    private static AssetTransfer Paid(BitcoinTransaction transaction, BitcoinOutput output) =>
+        AssetTransfer.OfCoin(
+            transaction.Txid, new Outpoint(transaction.Txid, output.Index), output.Amount, transaction.Block);
 
     /// <summary>Adds a node unless one with the same key is there.</summary>
     /// <param name="draft">The node.</param>
@@ -251,17 +251,18 @@ internal sealed class GraphBuilder
         return draft;
     }
 
-    /// <summary>Adds a transfer to the edge between two actors.</summary>
+    /// <summary>Adds a transfer to the edge of its asset between two actors.</summary>
     /// <param name="kind">The kind of edge.</param>
     /// <param name="from">The sender's key.</param>
     /// <param name="to">The receiver's key.</param>
     /// <param name="transfer">The transfer.</param>
-    private void AddTransfer(GraphEdgeKind kind, string from, string to, EdgeTransfer transfer)
+    private void AddTransfer(GraphEdgeKind kind, string from, string to, AssetTransfer transfer)
     {
-        if (!_edges.TryGetValue((kind, from, to), out var transfers))
+        var key = (kind, from, to, transfer.Amount.Asset);
+        if (!_edges.TryGetValue(key, out var transfers))
         {
             transfers = [];
-            _edges.Add((kind, from, to), transfers);
+            _edges.Add(key, transfers);
         }
 
         if (!transfers.Contains(transfer))
@@ -505,26 +506,32 @@ internal sealed class GraphBuilder
     /// <param name="kind">The kind.</param>
     /// <param name="from">The sender's key.</param>
     /// <param name="to">The receiver's key.</param>
+    /// <param name="asset">The asset its transfers move.</param>
     /// <param name="transfers">The transfers.</param>
     /// <param name="hops">The hops.</param>
     /// <returns>The edge.</returns>
     private static GraphEdge Edge(
-        GraphEdgeKind kind, string from, string to, List<EdgeTransfer> transfers, Dictionary<string, int> hops)
+        GraphEdgeKind kind,
+        string from,
+        string to,
+        Asset asset,
+        List<AssetTransfer> transfers,
+        Dictionary<string, int> hops)
     {
         var ordered = transfers
             .OrderBy(transfer => transfer.Block?.Height ?? long.MaxValue)
-            .ThenBy(transfer => transfer.Txid.Value, StringComparer.Ordinal)
-            .ThenBy(transfer => transfer.Coin.Index)
+            .ThenBy(transfer => transfer.Transaction.Id, StringComparer.Ordinal)
+            .ThenBy(transfer => transfer.Coin?.Index ?? -1)
             .ToList();
         var direction = hops.TryGetValue(from, out var fromHop) && hops.TryGetValue(to, out var toHop)
             ? Direction(toHop - fromHop)
             : EdgeDirection.Unordered;
         return new GraphEdge(
-            EdgeKey(kind, from, to),
+            EdgeKey(kind, from, to, asset),
             from,
             to,
             kind,
-            ordered.Aggregate(Satoshi.Zero, (sum, transfer) => sum + transfer.Amount),
+            ordered.Aggregate(AssetAmount.Zero(asset), (sum, transfer) => sum + transfer.Amount),
             ordered,
             ordered.Select(transfer => transfer.Block?.Time).OfType<DateTimeOffset>().Cast<DateTimeOffset?>().Min(),
             direction);
@@ -540,13 +547,20 @@ internal sealed class GraphBuilder
         _ => EdgeDirection.Back,
     };
 
-    /// <summary>Gives an edge's key.</summary>
+    /// <summary>
+    /// Gives an edge's key. An edge of the chain's own coin has the key it always had, so that what the case
+    /// remembers about Bitcoin's edges stays; a token's edge between the same actors adds its chain and contract.
+    /// </summary>
     /// <param name="kind">The kind.</param>
     /// <param name="from">The sender's key.</param>
     /// <param name="to">The receiver's key.</param>
+    /// <param name="asset">The asset its transfers move.</param>
     /// <returns>The key.</returns>
-    internal static string EdgeKey(GraphEdgeKind kind, string from, string to) =>
-        (kind == GraphEdgeKind.Transfer ? "transfer|" : "other-chain|") + from + "|" + to;
+    internal static string EdgeKey(GraphEdgeKind kind, string from, string to, Asset asset)
+    {
+        var key = (kind == GraphEdgeKind.Transfer ? "transfer|" : "other-chain|") + from + "|" + to;
+        return asset.Kind == AssetKind.Native ? key : key + "|" + asset.Chain + ":" + asset.Contract;
+    }
 
     /// <summary>A node while the graph is being built.</summary>
     /// <param name="Key">The node's key.</param>

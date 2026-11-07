@@ -162,13 +162,17 @@ public sealed class GoldenTests : IDisposable
         _ => value.ToString() ?? string.Empty,
     };
 
-    private static string TransferText(EdgeTransfer transfer) =>
-        Invariant($"{transfer.Txid.Value} {transfer.Coin} {Units(transfer.Amount)} {transfer.Block?.Height}");
+    private static string TransferText(AssetTransfer transfer) =>
+        Invariant($"{transfer.Transaction.Id} {transfer.Coin} {Units(transfer.Amount)} {transfer.Block?.Height}");
 
     private static string AmountText(TracedAmount amount) =>
         Invariant($"{Units(amount.Amount)} {amount.Method} [{string.Join(", ", amount.Through.Select(t => t.Value))}]");
 
-    private static string Units(SharedKernel.Satoshi amount) => amount.Value.ToString(CultureInfo.InvariantCulture);
+    private static string Units(SharedKernel.AssetAmount amount)
+    {
+        Assert.Equal(SharedKernel.Asset.Bitcoin, amount.Asset);
+        return amount.Units.ToString(CultureInfo.InvariantCulture);
+    }
 
     private static string Invariant(string text) => text;
 }

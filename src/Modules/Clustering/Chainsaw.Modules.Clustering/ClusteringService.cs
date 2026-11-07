@@ -3,6 +3,7 @@ using System.Text.Json;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Clustering;
 
@@ -15,16 +16,27 @@ internal sealed class ClusteringService : IClusteringService
     /// <summary>The longest reason a split may have.</summary>
     public const int MaximumReasonLength = 1_000;
 
-    /// <summary>The analyses, in the order they run.</summary>
-    private readonly IReadOnlyList<IClusteringHeuristic> _heuristics;
+    /// <summary>The analyses that run on Bitcoin's transactions, in the order they run.</summary>
+    private readonly IReadOnlyList<IUtxoHeuristic> _heuristics;
 
-    /// <summary>Takes the analyses; two with the same name and version are refused.</summary>
-    /// <param name="heuristics">The analyses, in the order they run.</param>
-    /// <exception cref="ArgumentException">Two analyses have the same name and version.</exception>
+    /// <summary>
+    /// Takes the analyses and keeps those registered for Bitcoin; two for Bitcoin with the same name and version are
+    /// refused, and so is one for Bitcoin that does not implement the UTXO contract.
+    /// </summary>
+    /// <param name="heuristics">The analyses for every model and chain, in the order they run.</param>
+    /// <exception cref="ArgumentException">An analysis for Bitcoin is not valid, or two are the same.</exception>
     public ClusteringService(IEnumerable<IClusteringHeuristic> heuristics)
     {
         ArgumentNullException.ThrowIfNull(heuristics);
-        _heuristics = [.. heuristics];
+        var forBitcoin = heuristics.Where(heuristic => heuristic.Scope?.Covers(Chain.Bitcoin) ?? true).ToList();
+        if (forBitcoin.FirstOrDefault(heuristic => heuristic is not IUtxoHeuristic || heuristic.Scope is null)
+            is { } misfit)
+        {
+            throw new ArgumentException(
+                $"{misfit.Id} is registered for Bitcoin but does not implement the UTXO contract.", nameof(heuristics));
+        }
+
+        _heuristics = [.. forBitcoin.Cast<IUtxoHeuristic>()];
         if (_heuristics.Select(heuristic => heuristic.Id).Distinct().Count() != _heuristics.Count)
         {
             throw new ArgumentException("Two analyses have the same name and version.", nameof(heuristics));
