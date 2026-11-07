@@ -59,6 +59,17 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   annan adress i datalagret.
 - **Bevakning i realtid:** websocket där källan har det (mempool.space har bevakning av adresser), senare ZMQ från egen nod.
 
+### Bitcoin-källan (Chains)
+- **Kontrollera txid mot tx:ens bytes:** hämta `/tx/:txid/hex` och räkna dubbel SHA-256, så att Chainsaw själv vet att
+  svaret är den tx som efterfrågades, och kontrollera blockets huvud (`/block/:hash/header`) mot dess hash. Då vilar
+  också `/verify` av ett spår på kedjans egen kryptografi, inte bara på källan.
+- **Omorganisation av kedjan:** en tx under sex bekräftelser hämtas om, men en tx som en gång setts i ett block som
+  sedan föll bort märks först när den hämtas om. Blockets plats i kedjan (`/block/:hash/status`) kan kontrolleras.
+- **Adressens sammanfattning** (`/address/:a`: antal tx, mottaget och spenderat), så att sidbläddringen kan visa hur
+  mycket som återstår.
+- **Svarshuvuden som ursprung:** se *Utgångar*. Behövs om källans `Date` ska stå bredvid Chainsaws egen tid.
+- **Flera källor att jämföra:** samma tx från två Esplora-källor, och en varning om de skiljer sig.
+
 ### Klustring och heuristiker
 - **Troliga utgångar ur en mixer** (CLAUDE.md, *Mixers är vanliga*): belopp minus avgift, tidsfönster, adresstyp och kända
   mönster per mixer. Kandidater som användaren godkänner eller avfärdar. Fråga kryptospåraren vilka mixers som syns oftast.
@@ -168,6 +179,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ### Övrigt
 - **Länken `chainsaw:`** registrerad för användaren, ett exemplar av Chainsaw som tar emot länkar, och vänta på upplåsning.
-- **Guiden:** avsnitten skrivs medan funktionerna byggs (UTXO, adresstyper, växeladress, CoinJoin, peel chain, varje
-  heuristik, spårningsmetoderna, varför ett spår tar slut).
+- **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` (UTXO och adresstyper finns; kvar är
+  växeladress, CoinJoin, peel chain, varje heuristik, spårningsmetoderna, varför ett spår tar slut).
 - **Testdata:** `/testdata` med påhittade ärenden och syntetiska tx-mönster, bara i Debug.

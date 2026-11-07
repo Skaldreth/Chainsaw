@@ -68,3 +68,17 @@ byggd. Det provas när tunneln och inställningarna för utgångar byggs.
   begränsningar för en rot (spärrade certifikat i *Ej betrodda certifikat*, begränsade användningsområden,
   *distrust after*-datum)? Chainsaw tar bort rötter som ligger i *Ej betrodda certifikat*, men inte de andra.
 
+
+## Bitcoin-källan (etapp 5, Chains)
+
+Chains har inget gränssnitt än. Det provas när kommandoraden eller grafen kan slå upp en adress, och först med en
+ansluten utgång.
+
+- Ett uppslag mot mempool.space och ett mot blockstream.info (bas-URL i inställningarna) ger samma tx med samma
+  belopp, avgift, blockhöjd och blockhash som webbplatsernas egna sidor.
+- En adress med många tx bläddras sida för sida tills historiken tar slut, och antalet stämmer med webbplatsen.
+- En obekräftad tx visas som obekräftad, och efter att den bekräftats visar nästa uppslag blocket.
+- Utan utgång: ett ärende med hämtade tx öppnas och visar dem, och det som inte är hämtat säger *Ingen utgång är
+  ansluten* utan att något går ut på nätet.
+- `/verify` på ett ärende med hämtade svar är grönt, och svarens SHA-256 stämmer med `sha256sum` av samma svar hämtat
+  med `curl` genom samma utgång (så länge svaret inte har ändrats).
