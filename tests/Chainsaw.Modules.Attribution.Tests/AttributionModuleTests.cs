@@ -17,4 +17,27 @@ public sealed class AttributionModuleTests
     {
         Assert.Throws<ArgumentNullException>(() => AttributionModule.AddAttributionModule(null!));
     }
+
+    [Fact]
+    public void The_module_registers_its_table_and_services()
+    {
+        using var harness = new Harness();
+
+        Assert.NotNull(harness.Labels);
+        Assert.NotNull(harness.Sanctions);
+        Assert.NotNull(harness.Library);
+        Assert.NotNull(harness.Classifier);
+        Assert.True(harness.Verify().IsIntact);
+        Assert.Contains(harness.Verify().Chains, chain => chain.Chain == "attribution.labels");
+    }
+
+    [Fact]
+    public void The_default_data_folder_is_chainsaw_under_local_application_data()
+    {
+        var options = new AttributionOptions();
+
+        Assert.EndsWith("Chainsaw", options.Directory, StringComparison.Ordinal);
+        Assert.EndsWith("Sanktionslistor", options.SanctionDirectory, StringComparison.Ordinal);
+        Assert.EndsWith("Etiketter", options.LibraryDirectory, StringComparison.Ordinal);
+    }
 }

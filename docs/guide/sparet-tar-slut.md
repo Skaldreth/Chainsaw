@@ -30,6 +30,8 @@ Ett slut som bygger på en obekräftad tx, eller på ett svar som inte kunde fr�
 - **Fortsätter på annan kedja.** En brygga eller en swap-tjänst. Har du knutit tx:en på den andra kedjan för hand visas
   den som fortsättningen, med en lila kant. Annars står det bara att pengarna lämnade Bitcoin.
 - **Privacy coin.** Pengarna gick till till exempel Monero, där de inte går att följa.
+- **Tjänst.** Pengarna gick in i en känd sorts tjänst där de spenderas eller samlas: spel, handel, presentkort, en
+  darknet-marknad eller en garantimarknad. Etiketten säger vilken sort.
 - **Okänd tjänst.** Pengarna gick in i en tjänst som flyttar dem internt på sätt som kedjan inte visar.
 - **Avgift till minerare.** Den del av avgiften som var spårade pengar.
 - **Kan aldrig spenderas.** En OP_RETURN-utgång med ett belopp: pengarna är borta för alla.
@@ -39,7 +41,8 @@ Ett slut som bygger på en obekräftad tx, eller på ett svar som inte kunde fr�
 Slutet är en **bedömning**, inte ett faktum, och säger alltid vad det bygger på:
 
 - CoinJoin kommer från klustringens analys (`coinjoin v1`) av just den tx:en.
-- Börs, mixer, brygga och sanktionerade adresser kommer från etiketter: öppna källor, egna etiketter och
-  etikettbiblioteket (byggs i Attribution).
+- Börs (och andra uttag), tjänst, mixer och brygga kommer från etiketter: egna etiketter, sanktionslistor, öppna
+  källor och etikettbiblioteket. Se *Etiketter och varifrån de kommer*. En etikett på ett offer, en sanktionerad ägare
+  eller något okänt avslutar inte spåret: pengarna går att följa vidare.
 - *Inte expanderad ännu*, *Ligger kvar*, *Uppgifterna går inte ihop*, *Avgift* och *Kan aldrig spenderas* avgör
   spåret självt ur kedjan.

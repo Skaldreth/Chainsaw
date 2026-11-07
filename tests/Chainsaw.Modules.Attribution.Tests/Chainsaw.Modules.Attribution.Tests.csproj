@@ -13,5 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Attribution\Chainsaw.Modules.Attribution\Chainsaw.Modules.Attribution.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Clustering\Chainsaw.Modules.Clustering\Chainsaw.Modules.Clustering.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Cases\Chainsaw.Modules.Cases\Chainsaw.Modules.Cases.csproj" />
   </ItemGroup>
 </Project>

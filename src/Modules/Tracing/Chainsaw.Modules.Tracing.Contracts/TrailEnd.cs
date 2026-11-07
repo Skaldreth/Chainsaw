@@ -54,6 +54,12 @@ public enum TrailEndReason
     /// <summary>An exchange: the withdrawal point is found, and a request for information can be made.</summary>
     Exchange,
 
+    /// <summary>
+    /// A known kind of service where the money is spent or pooled (gambling, a merchant, gift cards, a darknet
+    /// market, an escrow market): it goes on inside the service in ways the chain does not show.
+    /// </summary>
+    Service,
+
     /// <summary>A service that is not known: the money goes on inside it in ways the chain does not show.</summary>
     UnknownService,
 }
@@ -86,6 +92,7 @@ public static class TrailEndReasons
         TrailEndReason.PrivacyCoin => "Privacy coin",
         TrailEndReason.OtherChain => "Fortsätter på annan kedja",
         TrailEndReason.Exchange => "Börs, uttag funnet",
+        TrailEndReason.Service => "Tjänst",
         TrailEndReason.UnknownService => "Okänd tjänst",
         _ => reason.ToString(),
     };
@@ -118,8 +125,8 @@ public sealed record TrailEndHint(TrailEndReason Reason, string Source, string E
 }
 
 /// <summary>
-/// Recognises where the trail ends: CoinJoin from Clustering, and later exchanges, mixers, bridges and sanctioned
-/// addresses from Attribution. Every registered classifier is asked, so that a new source of knowledge is added by
+/// Recognises where the trail ends: CoinJoin from Clustering, and exchanges, mixers, bridges and other services
+/// from Attribution's labels. Every registered classifier is asked, so that a new source of knowledge is added by
 /// registering one more, without anything else changing (principle 8).
 /// </summary>
 /// <remarks>The methods run off the UI thread and may read the case; they must not write to it.</remarks>
