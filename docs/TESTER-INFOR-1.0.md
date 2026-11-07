@@ -215,4 +215,4 @@ Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i et
 - Fönstret har runda hörn och en tunn grå kant i Windows 11, som Gawk. Maximerat är hörnen raka.
 - Vyernas ikoner ligger i ett flytande piller vid vänsterkanten, centrerat i höjd, med skugga. Knapparna är runda,
   den valda vyn har grå bakgrund, namnet och kortkommandot visas på hovring, och pricken sitter i knappens hörn.
-- Sidans rubrik ligger fritt från pillret, och pillret får plats i fönstrets minsta höjd (600 px).
+- Sidan har ingen rubrik under titelraden; vyn börjar direkt under den, och pillret får plats i fönstrets minsta höjd (600 px).

@@ -21,9 +21,6 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <!-- The page keeps its text clear of the floating pill (18 px margin, 50 px pill, 20 px air). -->
-        <Thickness x:Key="Margin.PageLeft">88,0,0,0</Thickness>
-
         <!-- An icon of the pill: the view's icon, the tooltip with its shortcut, and a dot when something waits there. -->
         <DataTemplate x:Key="RailItem" DataType="{x:Type vm:RailItemViewModel}">
             <Button x:Name="Item" Style="{StaticResource Button.Rail}"
@@ -113,20 +110,14 @@
                 </Border>
 
                 <Grid Grid.Row="1">
-                    <!-- ===== The page: its header, its content, and the command bar floating at the bottom ===== -->
+                    <!--
+                      ===== The page: its content, and the command bar floating at the bottom. The page has no header of its
+                      own (decided 2026-11-07): the pill's chosen icon says which view it is, and the space is the view's. =====
+                    -->
                     <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="52" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-
-                        <Border Grid.Row="0" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1">
-                            <TextBlock Text="{Binding CurrentEntry.Name}" FontSize="18" FontWeight="SemiBold"
-                                       Margin="{StaticResource Margin.PageLeft}" VerticalAlignment="Center" />
-                        </Border>
 
                         <!-- No view is built yet: the page says so, with the view's icon, and never shows made-up data. -->
-                        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80">
                             <controls:GridIcon Size="40" Foreground="{StaticResource Brush.TextFaint}" HorizontalAlignment="Center"
                                                Data="{Binding CurrentEntry.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
                             <TextBlock Text="{Binding CurrentEntry.Name}" FontSize="14" Foreground="{StaticResource Brush.TextDim}"
@@ -136,7 +127,7 @@
                         </StackPanel>
 
                         <!-- The command bar: search and commands are here and nowhere else (decided 2026-11-07). -->
-                        <StackPanel Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20">
+                        <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20">
                             <TextBlock Text="{Binding CommandAnswer}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                                        HorizontalAlignment="Center" Margin="0,0,0,8">
                                 <TextBlock.Style>
