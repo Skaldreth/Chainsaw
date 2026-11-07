@@ -1,4 +1,3 @@
-using System.Net;
 using Chainsaw.Modules.Network.Contracts;
 
 namespace Chainsaw.Modules.Chains.Contracts;
@@ -7,7 +6,8 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// The rules for an endpoint's address: only <c>https</c> (CLAUDE.md, <em>Säkerhet</em>), absolute, without user,
 /// query or fragment, so that nothing but the lookup's path is ever added to it. A key is never put in the address.
 /// An address on the computer or a private network is allowed only for an endpoint the user marks as their own node
-/// (<em>lokal</em>), and such an endpoint must not have a global IP address (decided 2026-11-07).
+/// (<em>lokal</em>), and such an endpoint must not have an IP address outside the user's own network (decided
+/// 2026-11-07; <see cref="LocalAddresses.IsOwnNetwork(System.Net.IPAddress)"/>).
 /// </summary>
 public static class SourceAddress
 {
@@ -21,7 +21,7 @@ public static class SourceAddress
     /// local.</summary>
     public const string LocalNeedsMarkText = "En adress på datorn eller ett privat nät kräver att den märks Lokal.";
 
-    /// <summary>What a global IP address says when the endpoint is marked local.</summary>
+    /// <summary>What an IP address outside the user's own network says when the endpoint is marked local.</summary>
     public const string LocalMustBeLocalText = "En lokal endpoint ska ha en adress på datorn eller ett privat nät.";
 
     /// <summary>Reads the address of an endpoint on the internet, as the user wrote it.</summary>
@@ -34,11 +34,10 @@ public static class SourceAddress
 
     /// <summary>Reads an address as the user wrote it.</summary>
     /// <param name="text">The address.</param>
-    /// <param name="local">
-    /// Whether the endpoint is marked as the user's own node: then the address must not be a global IP address; else
-    /// it must not be on the computer or a private network. A name (<c>esplora.lan</c>) is checked when it is
-    /// resolved: through the exit only global addresses are reached, and to an own node only local ones.
-    /// </param>
+    /// <param name="local"> Whether the endpoint is marked as the user's own node: then an IP address must be in the
+    /// user's own network; else it must not be on the computer or a private network. A name (<c>esplora.lan</c>) is
+    /// checked when it is resolved: through the exit only global addresses are reached, and to an own node only local
+    /// ones. </param>
     /// <param name="address">The address ending in <c>/</c>, or <see langword="null"/>.</param>
     /// <param name="problem">Why it cannot be used, in Swedish, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when it can be used.</returns>
@@ -72,14 +71,13 @@ public static class SourceAddress
             return false;
         }
 
-        var literal = IPAddress.TryParse(uri.IdnHost.Trim('[', ']'), out var ip) ? ip : null;
         if (!local && LocalAddresses.IsLocal(uri))
         {
             problem = LocalNeedsMarkText;
             return false;
         }
 
-        if (local && literal is not null && !LocalAddresses.IsLocal(literal))
+        if (local && LocalAddresses.IsOwnNetwork(uri) == false)
         {
             problem = LocalMustBeLocalText;
             return false;

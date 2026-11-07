@@ -36,11 +36,10 @@ public sealed partial class SourceChainChip(string name, Chain? chain, bool isBu
 }
 
 /// <summary>
-/// The settings' page Källor (sketch KL1a, decided 2026-11-07): the chains as chips, each built chain's mode
-/// (Snabbast, Prioriterad or Av), its endpoints with their latest probe, the form that adds one (only https, the sort
-/// of
-/// API, a key from the vault, and <em>Prova</em>), and <em>Prova alla nu</em>. The endpoints are tried once when
-/// Chainsaw is unlocked and the exit allows lookups; never before. It knows nothing of WPF.
+/// The settings' page Källor (sketch KL1a, decided 2026-11-07): the chains as chips, each built chain's mode (Snabbast,
+/// Prioriterad or Av), its endpoints with their latest probe, the form that adds one (only https, the sort of API, a
+/// key from the vault, and <em>Prova</em>), and <em>Prova alla nu</em>. The endpoints are tried once when Chainsaw is
+/// unlocked and the exit allows lookups; never before. It knows nothing of WPF.
 /// </summary>
 public sealed partial class SourcesViewModel : ObservableObject
 {
@@ -95,6 +94,12 @@ public sealed partial class SourcesViewModel : ObservableObject
 
     /// <summary>Whether the round at the start is running.</summary>
     private bool _startRunning;
+
+    /// <summary>
+    /// When each chain's page is shown again because an endpoint's wait is over, so that one timer per chain is
+    /// enough.
+    /// </summary>
+    private readonly Dictionary<Chain, DateTimeOffset> _showAgainAt = [];
 
     /// <summary>Counts the form's attempts, so that a late answer is not shown in a newer form.</summary>
     private int _tries;
@@ -598,12 +603,26 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <returns>A task that completes when it is shown.</returns>
     private async Task ShowAgainAsync(Chain chain, DateTimeOffset until)
     {
-        var wait = until - DateTimeOffset.UtcNow;
-        if (wait > TimeSpan.Zero && wait <= TimeSpan.FromHours(1))
+        var now = DateTimeOffset.UtcNow;
+        var wait = until - now;
+        if (wait <= TimeSpan.Zero || wait > TimeSpan.FromHours(1)
+            || (_showAgainAt.TryGetValue(chain, out var planned) && planned > now && planned <= until))
         {
-            await Task.Delay(wait + TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
-            _ui.Post(() => ShowChain(chain));
+            // Nothing to wait for, or a timer already shows the page again no later than then (and plans the next).
+            return;
         }
+
+        _showAgainAt[chain] = until;
+        await Task.Delay(wait + TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
+        _ui.Post(() =>
+        {
+            if (_showAgainAt.TryGetValue(chain, out var at) && at == until)
+            {
+                _showAgainAt.Remove(chain);
+            }
+
+            ShowChain(chain);
+        });
     }
 
     /// <summary>Finds an endpoint's row.</summary>

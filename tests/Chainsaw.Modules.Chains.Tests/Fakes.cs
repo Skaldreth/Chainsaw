@@ -57,12 +57,17 @@ internal sealed class FakeClock : IClock
     /// <summary>Every wait for an endpoint's turn, in order.</summary>
     public List<TimeSpan> Waits { get; } = [];
 
+    /// <summary>Runs at every wait before it ends, for example to cancel the lookup.</summary>
+    public Action? OnDelay { get; set; }
+
     /// <summary>Waits by moving the clock, at once, and records the wait.</summary>
     /// <param name="wait">How long.</param>
-    /// <param name="cancellationToken">Not used.</param>
+    /// <param name="cancellationToken">Stops the wait.</param>
     /// <returns>A completed task.</returns>
     public Task Delay(TimeSpan wait, CancellationToken cancellationToken)
     {
+        OnDelay?.Invoke();
+        cancellationToken.ThrowIfCancellationRequested();
         lock (Waits)
         {
             Waits.Add(wait);

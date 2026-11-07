@@ -100,4 +100,62 @@ public static class LocalAddresses
                 && prefix[10] == 0 && prefix[11] == 0);
         return carriesIPv4 ? bytes[12..16] : null;
     }
+
+    /// <summary>
+    /// Tells whether an address is in the user's own network: the computer itself (loopback), a private IPv4 network
+    /// (10/8, 172.16/12, 192.168/16), link-local (169.254/16, <c>fe80::/10</c>) or an IPv6 unique local address
+    /// (<c>fc00::/7</c>), also as an IPv4-mapped IPv6 address. This is the allow-list for the user's own node: unlike
+    /// <see cref="IsLocal(IPAddress)"/>, which refuses everything that is not global, it leaves out what is not global
+    /// but still reached over the internet (Teredo, 6to4, NAT64, the provider's shared 100.64/10, relays and reserved
+    /// ranges).
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns><see langword="true"/> when it is on the computer or a private network.</returns>
+    /// <exception cref="ArgumentNullException">The address is null.</exception>
+    public static bool IsOwnNetwork(IPAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
+        var bytes = address.GetAddressBytes();
+        if (address.AddressFamily == AddressFamily.InterNetwork)
+        {
+            return bytes switch
+            {
+                [127, ..] or [10, ..] => true,
+                [172, >= 16 and <= 31, ..] or [192, 168, ..] or [169, 254, ..] => true,
+                _ => false,
+            };
+        }
+
+        return IPAddress.IPv6Loopback.Equals(address)
+            || (bytes[0] & 0xFE) == 0xFC
+            || (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80);
+    }
+
+    /// <summary>
+    /// Tells whether an address's host may be the user's own node: <c>localhost</c>, or an IP address in the user's own
+    /// network (<see cref="IsOwnNetwork(IPAddress)"/>). A name is decided when it is resolved.
+    /// </summary>
+    /// <param name="uri">The absolute address.</param>
+    /// <returns>
+    /// <see langword="true"/> for <c>localhost</c> or an own-network IP address, <see langword="false"/> for any
+    /// other IP address, and <see langword="null"/> for a name.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">The address is null.</exception>
+    public static bool? IsOwnNetwork(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        var host = uri.IdnHost.TrimEnd('.');
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return IPAddress.TryParse(host.Trim('[', ']'), out var address) ? IsOwnNetwork(address) : null;
+    }
 }

@@ -168,3 +168,72 @@ public sealed class LocalHttpTests
         Assert.IsType<LocalHttp>(provider.GetRequiredService<ILocalHttp>());
     }
 }
+
+/// <summary>
+/// What counts as the user's own network for the own node (granskningen av etapp 25, I1): only the computer and the
+/// private and link-local ranges, never what is not global but still reached over the internet.
+/// </summary>
+public sealed class OwnNetworkTests
+{
+    [Theory]
+    [InlineData("127.0.0.1")]
+    [InlineData("10.1.2.3")]
+    [InlineData("172.16.0.1")]
+    [InlineData("172.31.255.254")]
+    [InlineData("192.168.1.20")]
+    [InlineData("169.254.10.1")]
+    [InlineData("::1")]
+    [InlineData("fd00::20")]
+    [InlineData("fc00::1")]
+    [InlineData("fe80::1")]
+    [InlineData("::ffff:192.168.1.20")]
+    public void The_computer_and_the_private_networks_are_the_own_network(string text) =>
+        Assert.True(LocalAddresses.IsOwnNetwork(IPAddress.Parse(text)));
+
+    [Theory]
+    [InlineData("2001::1")]
+    [InlineData("2001:0:4136:e378:8000:63bf:3fff:fdd2")]
+    [InlineData("2002:c0a8:0114::1")]
+    [InlineData("64:ff9b::c0a8:0114")]
+    [InlineData("100.64.0.1")]
+    [InlineData("192.88.99.1")]
+    [InlineData("192.0.0.9")]
+    [InlineData("198.18.0.1")]
+    [InlineData("192.0.2.1")]
+    [InlineData("0.0.0.0")]
+    [InlineData("224.0.0.1")]
+    [InlineData("::")]
+    [InlineData("ff02::1")]
+    [InlineData("8.8.8.8")]
+    [InlineData("::ffff:8.8.8.8")]
+    public void What_is_reached_over_the_internet_is_not_the_own_network(string text)
+    {
+        var address = IPAddress.Parse(text);
+
+        Assert.False(LocalAddresses.IsOwnNetwork(address));
+        Assert.Throws<ExitException>(() => LocalHandlerFactory.LocalOnly([address]));
+    }
+
+    [Theory]
+    [InlineData("https://[2002:c0a8:0114::1]/")]
+    [InlineData("https://[2001::1]/")]
+    [InlineData("https://[64:ff9b::c0a8:0114]/")]
+    [InlineData("https://100.64.0.1/")]
+    public async Task The_own_node_refuses_them_before_anything_is_built(string address)
+    {
+        var handlers = new RecordingLocalHandlerFactory();
+        using var http = new LocalHttp(handlers, new NetworkOptions(), new FakeClock());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => http.SendAsync(ExitRequest.Get(new Uri(address))));
+
+        Assert.Empty(handlers.Handlers);
+    }
+
+    [Fact]
+    public void A_name_is_decided_when_it_is_resolved()
+    {
+        Assert.Null(LocalAddresses.IsOwnNetwork(new Uri("https://esplora.lan/")));
+        Assert.True(LocalAddresses.IsOwnNetwork(new Uri("https://localhost:3002/")));
+        Assert.False(LocalAddresses.IsOwnNetwork(new Uri("https://8.8.8.8/")));
+    }
+}

@@ -27,8 +27,10 @@ public sealed class ExitWay
     /// <param name="route">The way chosen in the settings.</param>
     /// <param name="connection">The connection to the exit (VPN).</param>
     /// <param name="ui">The UI thread, where changes are told.</param>
-    /// <param name="sources">The chains' endpoints, whose mode Av is followed; none when <see
-    /// langword="null"/>.</param>
+    /// <param name="sources">
+    /// The chains' endpoints, whose mode Av and whose waits for a source are followed; none when
+    /// <see langword="null"/>.
+    /// </param>
     public ExitWay(IExitRoute route, IExitConnection connection, IUiThread ui, IChainSources? sources = null)
     {
         ArgumentNullException.ThrowIfNull(route);

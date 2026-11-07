@@ -414,8 +414,7 @@ internal static class BlockscoutParser
 
     /// <summary>
     /// Reads a body as JSON and turns every failure into a <see cref="FormatException"/>; a body that says the source
-    /// is
-    /// asked too fast throws <see cref="SourceBusyException"/>, so that it is waited for and not counted as broken.
+    /// is asked too fast throws <see cref="SourceBusyException"/>, so that it is waited for and not counted as broken.
     /// </summary>
     /// <typeparam name="T">What is read.</typeparam>
     /// <param name="body">The body.</param>

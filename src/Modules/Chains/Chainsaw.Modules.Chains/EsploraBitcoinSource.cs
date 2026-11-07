@@ -57,8 +57,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <summary>Creates the source.</summary>
     /// <param name="sources">
     /// The chains' endpoints, of which Bitcoin's are asked, each the only way it may be: through the exit, or straight
-    /// to
-    /// the user's own node.
+    /// to the user's own node.
     /// </param>
     /// <param name="operators">The operator profile.</param>
     /// <param name="clock">The clock.</param>

@@ -9,7 +9,16 @@ namespace Chainsaw.Modules.Chains;
 /// <summary>An endpoint to ask, with the sort of API it speaks.</summary>
 /// <param name="Endpoint">The endpoint.</param>
 /// <param name="Api">Its sort of API.</param>
-internal sealed record PlannedEndpoint(SourceEndpoint Endpoint, ISourceApi Api);
+internal sealed record PlannedEndpoint(SourceEndpoint Endpoint, ISourceApi Api)
+{
+    /// <summary>
+    /// Gets its group in the plan, best first: the lookups are spread only over the endpoints of the best group whose
+    /// turn comes soon (<see cref="EndpointPacer.Patience"/>). In Snabbast the groups are those that answered right,
+    /// those not tried, those behind, those whose probe failed, and each of them again while a failed lookup's pause
+    /// lasts; in Prioriterad every endpoint is a group of its own, so that the user's order holds.
+    /// </summary>
+    public int Tier { get; init; }
+}
 
 /// <summary>Which endpoints a lookup asks, in order; none when the chain is off.</summary>
 /// <param name="Off">Whether the chain is <see cref="SourceMode.Off"/>.</param>
@@ -22,14 +31,13 @@ internal sealed record SourcePlan(bool Off, IReadOnlyList<PlannedEndpoint> Endpo
     public bool NoneInStep { get; init; }
 }
 
-/// <summary>
-/// The chains' endpoints, their modes and their probes (sketch KL1a), kept in <c>sources.json</c> in the program's
-/// data. Every probe goes through <see cref="IExitHttp"/> and asks only for the chain's height (and, in the form that
-/// adds an endpoint, the hash of the block at that height); nothing is probed while the vault is locked, and a round
-/// in which the exit refused is not kept. The lookups ask the endpoints in the order <see cref="Plan"/> gives, each at
-/// its own pace (<see cref="Pacer"/>). An endpoint marked as the user's own node is asked straight in the user's own
-/// network through <see cref="ILocalHttp"/>, and every other through <see cref="IExitHttp"/> (<see cref="SendAsync"/>);
-/// nothing else chooses the way.
+/// <summary> The chains' endpoints, their modes and their probes (sketch KL1a), kept in <c>sources.json</c> in the
+/// program's data. Every probe goes the endpoint's way (<see cref="SendAsync"/>) and asks only for the chain's height
+/// (and, in the form that adds an endpoint, the hash of the block at that height); nothing is probed while the vault is
+/// locked, and a round in which the exit refused is not kept. The lookups ask the endpoints in the order <see
+/// cref="Plan"/> gives, each at its own pace (<see cref="Pacer"/>). An endpoint marked as the user's own node is asked
+/// straight in the user's own network through <see cref="ILocalHttp"/>, and every other through <see cref="IExitHttp"/>
+/// (<see cref="SendAsync"/>); nothing else chooses the way.
 /// </summary>
 internal sealed class ChainSources : IChainSources
 {
@@ -51,6 +59,12 @@ internal sealed class ChainSources : IChainSources
 
     /// <summary>What a probe says when the vault is locked.</summary>
     private const string LockedText = "Valvet är låst. Inget skickades.";
+
+    /// <summary>What a probe says when Chainsaw's own pace for the endpoint left no room in time.</summary>
+    private const string PacedText = "Chainsaws egen takt för endpointen gav ingen plats i tid. Inget skickades.";
+
+    /// <summary>How a probe's words begin when the endpoint asked Chainsaw to wait.</summary>
+    private const string AskedText = "Bad Chainsaw vänta";
 
     /// <summary>The sorts of API, by code.</summary>
     private readonly IReadOnlyDictionary<string, ISourceApi> _apis;
@@ -182,7 +196,11 @@ internal sealed class ChainSources : IChainSources
 
             var order = Order(state);
             var chosen = inStep ? [.. order.Where(endpoint => InStep(state, endpoint))] : order;
-            return new SourcePlan(false, [.. chosen.Select(e => new PlannedEndpoint(e, _apis[e.Api]))])
+            var now = _clock.UtcNow;
+            return new SourcePlan(false, [.. chosen.Select((e, index) => new PlannedEndpoint(e, _apis[e.Api])
+            {
+                Tier = state.Mode == SourceMode.Priority ? index : Tier(state, e, now),
+            })])
             {
                 NoneInStep = inStep && chosen.Count == 0 && order.Count > 0,
             };
@@ -474,6 +492,19 @@ internal sealed class ChainSources : IChainSources
     }
 
     /// <summary>
+    /// Gives an endpoint's group in Snabbast: its probe's rank, and worse while a failed lookup's pause lasts.
+    /// </summary>
+    /// <param name="state">The chain's state, under the lock.</param>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="now">The time now.</param>
+    /// <returns>The group, lowest best.</returns>
+    private static int Tier(ChainState state, SourceEndpoint endpoint, DateTimeOffset now)
+    {
+        var paused = state.FailedSince.TryGetValue(endpoint.Id, out var failure) && failure.PausedUntil > now;
+        return Rank(state.Probes.GetValueOrDefault(endpoint.Id)) + (paused ? 10 : 0);
+    }
+
+    /// <summary>
     /// Gets whether an endpoint is known to be in step with the chain: its latest probe answered with the highest
     /// height of its round, and no lookup through it has failed since.
     /// </summary>
@@ -560,7 +591,7 @@ internal sealed class ChainSources : IChainSources
 
         if (!await TurnAsync(endpoint, api, cancellationToken).ConfigureAwait(false))
         {
-            return NotSent(id, WaitText(Pacer.WaitUntil(id)), at);
+            return NotSent(id, Pacer.WaitUntil(id) is { } until ? WaitText(until) : PacedText, at);
         }
 
         var (height, heightProblem) = await AskAsync(endpoint, heightRequest, api.ReadHeight, cancellationToken)
@@ -623,17 +654,36 @@ internal sealed class ChainSources : IChainSources
             return false;
         }
 
-        await DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            Pacer.Release(turn);
+            throw;
+        }
+
         return true;
     }
 
     /// <summary>Says that an endpoint asked Chainsaw to wait.</summary>
     /// <param name="until">Until when, or <see langword="null"/>.</param>
     /// <returns>The words.</returns>
-    private string WaitText(DateTimeOffset? until) =>
+    private static string WaitText(DateTimeOffset? until) =>
         until is { } time
-            ? $"Bad Chainsaw vänta till {time.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)}."
-            : "Bad Chainsaw vänta.";
+            ? $"{AskedText} till {time.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)}."
+            : AskedText + ".";
+
+    /// <summary>
+    /// Tells whether a probe sent nothing only because of a wait (the endpoint's or Chainsaw's own pace): it says
+    /// nothing about the endpoint, so its earlier probe is kept.
+    /// </summary>
+    /// <param name="probe">The probe.</param>
+    /// <returns><see langword="true"/> when it was a wait.</returns>
+    private static bool IsWait(EndpointProbe probe) =>
+        probe.Outcome == ProbeOutcome.NotSent
+        && (probe.Problem == PacedText || probe.Problem?.StartsWith(AskedText, StringComparison.Ordinal) == true);
 
     /// <summary>
     /// Sends one request of a probe the endpoint's way (<see cref="SendAsync"/>) and reads its answer; a source that
@@ -676,7 +726,7 @@ internal sealed class ChainSources : IChainSources
                 Pacer.AskedToWait(endpoint.Id, wait);
             }
 
-            return (null, "Bad Chainsaw vänta.");
+            return (null, AskedText + ".");
         }
 
         if (!response.IsSuccess)
@@ -798,10 +848,14 @@ internal sealed class ChainSources : IChainSources
                 return;
             }
 
+            // A probe that only waited says nothing about its endpoint: the earlier probe stands.
+            var earlier = new Dictionary<Guid, EndpointProbe>(state.Probes);
             state.Probes.Clear();
             foreach (var probe in probes)
             {
-                state.Probes[probe.EndpointId] = probe;
+                state.Probes[probe.EndpointId] = IsWait(probe) && earlier.TryGetValue(probe.EndpointId, out var kept)
+                    ? kept
+                    : probe;
             }
 
             state.FailedSince.Clear();

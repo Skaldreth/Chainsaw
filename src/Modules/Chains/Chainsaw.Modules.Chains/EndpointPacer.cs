@@ -7,18 +7,33 @@ namespace Chainsaw.Modules.Chains;
 /// <param name="Endpoint">The endpoint whose turn it is.</param>
 /// <param name="StartsAt">When its request may leave, in UTC.</param>
 /// <param name="Wait">How long from now, never negative.</param>
-internal sealed record EndpointTurn(PlannedEndpoint Endpoint, DateTimeOffset StartsAt, TimeSpan Wait);
+/// <param name="Previous">The endpoint's next free time before the turn was taken, so that it can be given
+/// back.</param>
+internal sealed record EndpointTurn(
+    PlannedEndpoint Endpoint, DateTimeOffset StartsAt, TimeSpan Wait, DateTimeOffset? Previous);
+
+/// <summary>Why no turn was taken.</summary>
+/// <param name="Earliest">When the earliest turn comes, in UTC.</param>
+/// <param name="SourceAsked">
+/// Whether that is because a source asked Chainsaw to wait; otherwise Chainsaw's own pace holds the turns.
+/// </param>
+internal sealed record NoTurn(DateTimeOffset Earliest, bool SourceAsked);
 
 /// <summary>
 /// Each endpoint's own pace (decided 2026-11-07: rate limits are always respected). A request takes a turn: the
 /// earliest time the endpoint's pace allows and it has not asked Chainsaw to wait (<c>429</c>, <c>Retry-After</c>).
-/// Turns are taken in advance, so that lookups that run at the same time line up instead of asking at once, and a
-/// lookup that may ask several endpoints takes the one whose turn comes first, so that the lookups are spread over
-/// them rather than asking one too fast. The members are thread-safe.
+/// Turns are taken in advance, so that lookups that run at the same time line up instead of asking at once; a turn
+/// that is not used is given back. A lookup that may ask several endpoints takes the one whose turn comes first among
+/// the best group (<see cref="PlannedEndpoint.Tier"/>), so that the lookups are spread over the endpoints that answer
+/// right rather than asking one too fast; a worse group is asked only when the best one's turn is further away than
+/// <see cref="Patience"/> (it asked to wait, or its queue is long). The members are thread-safe.
 /// </summary>
 /// <param name="clock">The time now.</param>
 internal sealed class EndpointPacer(IClock clock)
 {
+    /// <summary>How long a lookup waits for the best group's turn before a worse group is asked.</summary>
+    public static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
+
     /// <summary>Guards the times.</summary>
     private readonly Lock _gate = new();
 
@@ -29,42 +44,72 @@ internal sealed class EndpointPacer(IClock clock)
     private readonly Dictionary<Guid, DateTimeOffset> _waitUntil = [];
 
     /// <summary>
-    /// Takes the turn that comes first among endpoints, the earlier in the list on a tie, unless even that one is
-    /// further away than the caller will wait; then nothing is taken.
+    /// Takes a turn: the one that comes first in the best group whose turn is within <see cref="Patience"/>, the
+    /// earlier in the list on a tie; when no group's is, the one that comes first of all, unless even that one is
+    /// further away than the caller will wait. Then nothing is taken.
     /// </summary>
     /// <param name="endpoints">The endpoints that may be asked, in the order of the chain's mode.</param>
     /// <param name="longest">The longest the caller waits.</param>
-    /// <returns>The turn, or <see langword="null"/> and the earliest time one comes when it is too far away.</returns>
-    public (EndpointTurn? Turn, DateTimeOffset? Earliest) Take(
-        IReadOnlyList<PlannedEndpoint> endpoints, TimeSpan longest)
+    /// <returns>The turn, or why none was taken; both <see langword="null"/> for no endpoints.</returns>
+    public (EndpointTurn? Turn, NoTurn? None) Take(IReadOnlyList<PlannedEndpoint> endpoints, TimeSpan longest)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         lock (_gate)
         {
             var now = clock.UtcNow;
-            PlannedEndpoint? first = null;
-            var earliest = DateTimeOffset.MaxValue;
-            foreach (var planned in endpoints)
-            {
-                var ready = ReadyAt(planned.Endpoint.Id, now);
-                if (ready < earliest)
-                {
-                    (first, earliest) = (planned, ready);
-                }
-            }
-
-            if (first is null)
+            if (endpoints.Count == 0)
             {
                 return (null, null);
             }
 
-            if (earliest - now > longest)
+            var chosen = endpoints
+                .GroupBy(planned => planned.Tier)
+                .OrderBy(group => group.Key)
+                .Select(group => Earliest(group, now))
+                .FirstOrDefault(found => found.Ready - now <= Patience);
+            if (chosen.Endpoint is null)
             {
-                return (null, earliest);
+                chosen = Earliest(endpoints, now);
             }
 
-            _next[first.Endpoint.Id] = earliest + first.Endpoint.Interval;
-            return (new EndpointTurn(first, earliest, earliest - now), null);
+            var (first, ready) = (chosen.Endpoint!, chosen.Ready);
+            if (ready - now > longest)
+            {
+                var asked = _waitUntil.TryGetValue(first.Endpoint.Id, out var until) && until >= ready;
+                return (null, new NoTurn(ready, asked));
+            }
+
+            DateTimeOffset? previous = _next.TryGetValue(first.Endpoint.Id, out var next) ? next : null;
+            _next[first.Endpoint.Id] = ready + first.Endpoint.Interval;
+            return (new EndpointTurn(first, ready, ready - now, previous), null);
+        }
+    }
+
+    /// <summary>
+    /// Gives back a turn that was not used (the lookup was cancelled, nothing could be sent, or the source asked to
+    /// wait meanwhile), when no later turn has been taken since, so that a cancelled queue never holds the next
+    /// lookups back.
+    /// </summary>
+    /// <param name="turn">The turn.</param>
+    public void Release(EndpointTurn turn)
+    {
+        ArgumentNullException.ThrowIfNull(turn);
+        lock (_gate)
+        {
+            var id = turn.Endpoint.Endpoint.Id;
+            if (!_next.TryGetValue(id, out var next) || next != turn.StartsAt + turn.Endpoint.Endpoint.Interval)
+            {
+                return;
+            }
+
+            if (turn.Previous is { } previous)
+            {
+                _next[id] = previous;
+            }
+            else
+            {
+                _next.Remove(id);
+            }
         }
     }
 
@@ -110,6 +155,26 @@ internal sealed class EndpointPacer(IClock clock)
             _next.Remove(id);
             _waitUntil.Remove(id);
         }
+    }
+
+    /// <summary>Finds the endpoint whose turn comes first, the earlier in the list on a tie, under the lock.</summary>
+    /// <param name="endpoints">The endpoints.</param>
+    /// <param name="now">The time now.</param>
+    /// <returns>The endpoint and when its turn comes; no endpoint when there are none.</returns>
+    private (PlannedEndpoint? Endpoint, DateTimeOffset Ready) Earliest(
+        IEnumerable<PlannedEndpoint> endpoints, DateTimeOffset now)
+    {
+        (PlannedEndpoint? Endpoint, DateTimeOffset Ready) first = (null, DateTimeOffset.MaxValue);
+        foreach (var planned in endpoints)
+        {
+            var ready = ReadyAt(planned.Endpoint.Id, now);
+            if (ready < first.Ready)
+            {
+                first = (planned, ready);
+            }
+        }
+
+        return first;
     }
 
     /// <summary>Gives when an endpoint's next request may leave, under the lock.</summary>

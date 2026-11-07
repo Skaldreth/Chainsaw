@@ -8,8 +8,7 @@ namespace Chainsaw.Modules.Network;
 /// Registers the module Network: the exits (VPN) and the way out chosen (<see cref="IExitRoute"/>, VPN or Windows)
 /// through which every request Chainsaw makes leaves the computer, and <see cref="IExitHttp"/>, the only way out for
 /// the other modules; and <see cref="ILocalHttp"/>, which reaches only the user's own node on the computer or a private
-/// network. Needs the Security module (the exits are kept in
-/// the vault) and an <c>IClock</c>.
+/// network. Needs the Security module (the exits are kept in the vault) and an <c>IClock</c>.
 /// </summary>
 public static class NetworkModule
 {

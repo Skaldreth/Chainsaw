@@ -15,8 +15,8 @@ namespace Chainsaw.Modules.Chains;
 /// <remarks>
 /// The module needs the Network module's <c>IExitHttp</c> (its only way out to the sources), and its
 /// <c>ILocalHttp</c> when an endpoint is marked as the user's own node (without it such an endpoint fails and nothing
-/// goes another way), and the Security module's
-/// <c>IOperatorProfileStore</c>, and adds its tables to every case through an <see cref="ICaseSchemaContributor"/>.
+/// goes another way), and the Security module's <c>IOperatorProfileStore</c>, and adds its tables to every case through
+/// an <see cref="ICaseSchemaContributor"/>.
 /// </remarks>
 public static class ChainsModule
 {

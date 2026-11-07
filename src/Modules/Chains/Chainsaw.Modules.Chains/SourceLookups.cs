@@ -10,12 +10,11 @@ namespace Chainsaw.Modules.Chains;
 /// <summary>
 /// How every chain's source answers a lookup, written once: from the case when the answer cannot have changed,
 /// otherwise from the chain's endpoints in the order of its mode, each at its own pace and spread over them, through
-/// <see cref="IExitHttp"/> only (or straight to the user's own node when the endpoint is marked local, see
-/// <see cref="ChainSources.SendAsync"/>), each response sealed in the case with its endpoint before it is used
-/// (principle 1), and from the case again, saying so, when no endpoint can be asked (principle 9). An endpoint that
-/// fails, does not answer or asks Chainsaw to wait is left quietly for the others (decided 2026-11-07). A chain's
-/// source
-/// says what to ask and how to read it (<see cref="LookupQuery{T}"/>).
+/// <see cref="IExitHttp"/> only (or straight to the user's own node when the endpoint is marked local, see <see
+/// cref="ChainSources.SendAsync"/>), each response sealed in the case with its endpoint before it is used (principle
+/// 1), and from the case again, saying so, when no endpoint can be asked (principle 9). An endpoint that fails, does
+/// not answer or asks Chainsaw to wait is left quietly for the others (decided 2026-11-07). A chain's source says what
+/// to ask and how to read it (<see cref="LookupQuery{T}"/>).
 /// </summary>
 internal sealed class SourceLookups
 {
@@ -105,7 +104,8 @@ internal sealed class SourceLookups
 
     /// <summary>
     /// Answers a lookup: from the case when the answer cannot have changed, otherwise from the source through the
-    /// exit, sealed in the case before it is used, and from the case again when the source cannot be asked.
+    /// exit (or straight from the user's own node), sealed in the case before it is used, and from the case again when
+    /// the source cannot be asked.
     /// </summary>
     /// <typeparam name="T">What is looked up.</typeparam>
     /// <param name="case">The open case.</param>
@@ -187,19 +187,21 @@ internal sealed class SourceLookups
         var remaining = plan.Endpoints.ToList();
         while (remaining.Count > 0)
         {
-            var (planned, waitProblem) = await TurnAsync(remaining, cancellationToken).ConfigureAwait(false);
-            if (planned is null)
+            var (turn, waitProblem) = await TurnAsync(remaining, cancellationToken).ConfigureAwait(false);
+            if (turn is null)
             {
                 problem = waitProblem!;
                 onlyNotFound = false;
                 break;
             }
 
+            var planned = turn.Endpoint;
             remaining.Remove(planned);
             var endpoint = planned.Endpoint;
             var unkeyed = planned.Api.Request(endpoint.Address, query.Path);
             if (_sources.WithKey(endpoint, planned.Api, unkeyed, out var keyProblem) is not { } request)
             {
+                _sources.Pacer.Release(turn);
                 _sources.Failed(_chain, endpoint.Id);
                 problem = keyProblem!;
                 onlyNotFound = false;
@@ -214,10 +216,18 @@ internal sealed class SourceLookups
             catch (ExitNotConnectedException)
             {
                 // Nothing was sent, and nothing more goes through the exit; the user's own node is still asked, since
-                // it is reached in the user's own network.
+                // it is reached in the user's own network. The endpoints passed over were not asked, so a not found
+                // from another can no longer count as everyone's.
+                _sources.Pacer.Release(turn);
                 exitClosed = true;
+                onlyNotFound = false;
                 remaining.RemoveAll(other => !other.Endpoint.Local);
                 continue;
+            }
+            catch (OperationCanceledException)
+            {
+                _sources.Pacer.Release(turn);
+                throw;
             }
             catch (ExitException exception)
             {
@@ -290,51 +300,63 @@ internal sealed class SourceLookups
     }
 
     /// <summary>
-    /// Waits for the turn that comes first among the endpoints still to ask, saying so while the wait is noticeable,
-    /// and gives that endpoint. After the wait, an endpoint that has since asked Chainsaw to wait is passed over.
+    /// Waits for the turn that comes first among the endpoints still to ask (<see cref="EndpointPacer.Take"/>), saying
+    /// so while the wait is noticeable, and gives that turn. After the wait, an endpoint that has since asked Chainsaw
+    /// to wait is passed over and its turn given back; a cancelled wait gives its turn back too.
     /// </summary>
     /// <param name="remaining">The endpoints still to ask, in the plan's order.</param>
     /// <param name="cancellationToken">Stops the wait.</param>
-    /// <returns>The endpoint to ask now, or <see langword="null"/> and why none is asked, in Swedish.</returns>
-    private async Task<(PlannedEndpoint? Endpoint, string? Problem)> TurnAsync(
+    /// <returns>The turn to use now, or <see langword="null"/> and why none is used, in Swedish.</returns>
+    private async Task<(EndpointTurn? Turn, string? Problem)> TurnAsync(
         List<PlannedEndpoint> remaining, CancellationToken cancellationToken)
     {
         while (true)
         {
-            var (turn, earliest) = _sources.Pacer.Take(remaining, LongestWait);
+            var (turn, none) = _sources.Pacer.Take(remaining, LongestWait);
             if (turn is null)
             {
-                var until = earliest is { } time ? $" till {LocalText(time.ToLocalTime())}" : string.Empty;
-                return (null, $"Källorna ber Chainsaw vänta{until}. Inget mer skickades.");
+                var until = none is null ? string.Empty : $" till {LocalText(none.Earliest.ToLocalTime())}";
+                return (null, none is { SourceAsked: false }
+                    ? $"Chainsaws egen takt mot källorna är full{until}. Inget mer skickades; försök igen om en stund."
+                    : $"Källorna ber Chainsaw vänta{until}. Inget mer skickades.");
             }
 
-            if (turn.Wait >= NoticeableWait)
+            var noticed = turn.Wait >= NoticeableWait;
+            if (noticed)
             {
                 _sources.Waiting(_chain, turn.StartsAt);
-                try
-                {
-                    await _sources.DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
-                }
-                finally
+            }
+
+            try
+            {
+                await _sources.DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                _sources.Pacer.Release(turn);
+                throw;
+            }
+            finally
+            {
+                if (noticed)
                 {
                     _sources.DoneWaiting(_chain, turn.StartsAt);
                 }
             }
-            else
-            {
-                await _sources.DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
-            }
 
             if (_sources.Pacer.WaitUntil(turn.Endpoint.Endpoint.Id) is null)
             {
-                return (turn.Endpoint, null);
+                return (turn, null);
             }
+
+            _sources.Pacer.Release(turn);
         }
     }
 
     /// <summary>
-    /// Tells whether a response asks Chainsaw to wait: <c>429</c> (asked too fast), or <c>503</c> with a
-    /// <c>Retry-After</c>.
+    /// Tells whether a response asks Chainsaw to wait: <c>429</c> (asked too fast; at least
+    /// <see cref="NoticeableWait"/>), or <c>503</c> with a <c>Retry-After</c> of at least that. A 503 that asks for no
+    /// wait is a failure, so that a broken endpoint is paused instead of asked first every time.
     /// </summary>
     /// <param name="response">The response.</param>
     /// <returns>How long, <see cref="DefaultBusyWait"/> when a 429 does not say; <see langword="null"/> when it does
@@ -344,8 +366,9 @@ internal sealed class SourceLookups
         ArgumentNullException.ThrowIfNull(response);
         return response.StatusCode switch
         {
-            TooManyRequestsStatus => response.RetryAfter ?? DefaultBusyWait,
-            UnavailableStatus => response.RetryAfter,
+            TooManyRequestsStatus => TimeSpan.FromTicks(
+                Math.Max((response.RetryAfter ?? DefaultBusyWait).Ticks, NoticeableWait.Ticks)),
+            UnavailableStatus => response.RetryAfter is { } asked && asked >= NoticeableWait ? asked : null,
             _ => null,
         };
     }

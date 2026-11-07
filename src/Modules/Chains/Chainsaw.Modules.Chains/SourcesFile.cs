@@ -118,13 +118,15 @@ internal sealed class SourcesFile(string? directory)
     [
         .. chain.Endpoints.Select(endpoint => new EndpointDto(
             endpoint.Id, endpoint.Name, endpoint.Address.AbsoluteUri, endpoint.Api, endpoint.ApiKey,
-            endpoint.Enabled, endpoint.Local, (int)endpoint.Interval.TotalMilliseconds)),
+            endpoint.Enabled, endpoint.Local,
+            endpoint.Interval == DefaultPace(endpoint.Local) ? null : (int)endpoint.Interval.TotalMilliseconds)),
     ]);
 
     /// <summary>
     /// Makes an endpoint of a saved one, or nothing when it cannot be used. An address on the computer or a private
-    /// network is kept only for an endpoint marked local, and a local one only without a global IP address; a pace
-    /// that is missing is the default of its kind, and one outside the limits is brought within them.
+    /// network is kept only for an endpoint marked local, and a local one only without an IP address outside the user's
+    /// own network; a pace that is missing is the default of its kind, and one outside the limits is brought within
+    /// them, never faster than <see cref="SourcePace.Public"/> for an endpoint on the internet.
     /// </summary>
     /// <param name="saved">The saved endpoint.</param>
     /// <param name="chain">The chain it is saved under.</param>
@@ -142,9 +144,12 @@ internal sealed class SourcesFile(string? directory)
 
         var name = string.IsNullOrWhiteSpace(saved.Name) ? SourceAddress.NameOf(address!) : saved.Name.Trim();
         var key = string.IsNullOrWhiteSpace(saved.ApiKey) ? null : saved.ApiKey.Trim();
+        // An endpoint on the internet is never asked faster than Chainsaw's own pace, whatever the file says.
+        var slowest = saved.Local ? SourcePace.Local : SourcePace.Public;
         var pace = saved.IntervalMilliseconds is { } milliseconds
-            ? TimeSpan.FromMilliseconds(Math.Clamp(milliseconds, 0, SourcePace.Maximum.TotalMilliseconds))
-            : saved.Local ? SourcePace.Local : SourcePace.Public;
+            ? TimeSpan.FromMilliseconds(Math.Clamp(
+                milliseconds, slowest.TotalMilliseconds, SourcePace.Maximum.TotalMilliseconds))
+            : DefaultPace(saved.Local);
         return new SourceEndpoint(
             saved.Id, chain, name[..Math.Min(name.Length, SourceAddress.MaximumNameLength)], address!, api.Info.Code,
             key, saved.Enabled)
@@ -153,6 +158,13 @@ internal sealed class SourcesFile(string? directory)
             Interval = pace,
         };
     }
+
+    /// <summary>
+    /// Gives the pace an endpoint has when the file says nothing, so that only another pace is written.
+    /// </summary>
+    /// <param name="local">Whether it is the user's own node.</param>
+    /// <returns>The pace.</returns>
+    private static TimeSpan DefaultPace(bool local) => local ? SourcePace.Local : SourcePace.Public;
 
     /// <summary>The file.</summary>
     /// <param name="Chains">The chains.</param>
@@ -177,5 +189,5 @@ internal sealed class SourcesFile(string? directory)
     /// </param>
     private sealed record EndpointDto(
         Guid Id, string? Name, string? Address, string? Api, string? ApiKey, bool Enabled, bool Local = false,
-        int? IntervalMilliseconds = null);
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? IntervalMilliseconds = null);
 }

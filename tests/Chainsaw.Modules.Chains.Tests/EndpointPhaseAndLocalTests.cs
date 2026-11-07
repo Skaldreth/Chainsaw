@@ -120,6 +120,10 @@ public sealed class EndpointPhaseAndLocalTests : IDisposable
     [Theory]
     [InlineData("https://8.8.8.8/")]
     [InlineData("https://[2606:4700::1]/")]
+    [InlineData("https://100.64.0.1/")]
+    [InlineData("https://[2001::1]/")]
+    [InlineData("https://[2002:c0a8:114::1]/")]
+    [InlineData("https://[64:ff9b::c0a8:114]/")]
     public void A_local_endpoint_must_not_have_a_global_address(string text)
     {
         Assert.False(SourceAddress.TryRead(text, local: true, out _, out var problem));
@@ -195,6 +199,24 @@ public sealed class EndpointPhaseAndLocalTests : IDisposable
     }
 
     [Fact]
+    public async Task An_untrusted_not_found_from_the_own_node_with_the_exit_closed_is_offline_not_not_found()
+    {
+        _harness.AnswerAll();
+        Height(Fixtures.Base, 800_010);
+        var own = await AddAsync(Own, local: true);
+        await _harness.Sources.MoveAsync(Chain.Bitcoin, own.Id, -1);
+
+        // The own node answers no height (still syncing), so its probe fails and its not found is not believed.
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        _harness.Http.Connected = false;
+
+        var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Unconfirmed);
+
+        Assert.Equal(LookupStatus.Offline, lookup.Status);
+        Assert.Single(_harness.Local.Sent, r => r.Uri.AbsolutePath.Contains("/tx/", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task A_local_endpoint_without_a_way_to_the_own_node_fails_and_never_goes_through_the_exit()
     {
         var http = new FakeExitHttp(_harness.Clock);
@@ -239,6 +261,8 @@ public sealed class EndpointPhaseAndLocalTests : IDisposable
                 .Get(Chain.Bitcoin).Endpoints.Single(e => e.Endpoint.Id == own.Id).Endpoint;
             Assert.True(again.Local);
             Assert.Equal(SourcePace.Local, again.Interval);
+            Assert.DoesNotContain("IntervalMilliseconds", File.ReadAllText(
+                Path.Combine(directory, ChainSourcesOptions.FileName)), StringComparison.Ordinal);
             Assert.Equal(SourcePace.Public, first.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Interval);
 
             // A hand-edited file that unmarks a private address, or marks a global one, loses that endpoint.
@@ -250,13 +274,19 @@ public sealed class EndpointPhaseAndLocalTests : IDisposable
                   {"Id": "{{Guid.NewGuid()}}", "Address": "https://8.8.8.8/api/", "Api": "esplora",
                    "Enabled": true, "Local": true},
                   {"Id": "{{Guid.NewGuid()}}", "Address": "https://esplora.lan/api/", "Api": "esplora",
-                   "Enabled": true, "Local": true, "IntervalMilliseconds": 999999999}]}]}
+                   "Enabled": true, "Local": true, "IntervalMilliseconds": 999999999},
+                  {"Id": "{{Guid.NewGuid()}}", "Address": "https://fast.example/api/", "Api": "esplora",
+                   "Enabled": true, "IntervalMilliseconds": 0}]}]}
                 """);
             var edited = new ChainSources([api], _harness.Http, null, null, _harness.Clock, options).Get(Chain.Bitcoin);
-            var kept = Assert.Single(edited.Endpoints).Endpoint;
+            Assert.Equal(2, edited.Endpoints.Count);
+            var kept = edited.Endpoints[0].Endpoint;
             Assert.Equal("esplora.lan", kept.Name);
             Assert.True(kept.Local);
             Assert.Equal(SourcePace.Maximum, kept.Interval);
+
+            // An endpoint on the internet is never asked faster than Chainsaw's own pace, whatever the file says.
+            Assert.Equal(SourcePace.Public, edited.Endpoints[1].Endpoint.Interval);
         }
         finally
         {

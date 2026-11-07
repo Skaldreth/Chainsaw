@@ -91,7 +91,7 @@ internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route,
     /// <summary>
     /// Refuses a request that would send more than a lookup needs or leave the encrypted channel. A request through
     /// the way out must not be for the computer or a private network; a request to the user's own node must be https
-    /// (also in the tests) and must not be for a global IP address.
+    /// (also in the tests) and must not be for an IP address outside the user's own network.
     /// </summary>
     /// <param name="request">The request.</param>
     /// <param name="options">The limits, with what the tests allow.</param>
@@ -110,8 +110,7 @@ internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route,
             throw new ArgumentException("The address must be an absolute https address.", nameof(request));
         }
 
-        if (toOwnNode && IPAddress.TryParse(uri.IdnHost.Trim('[', ']'), out var literal)
-            && !LocalAddresses.IsLocal(literal))
+        if (toOwnNode && LocalAddresses.IsOwnNetwork(uri) == false)
         {
             throw new ArgumentException(
                 "An own node's address must be on the computer or a private network.", nameof(request));

@@ -64,14 +64,18 @@ internal sealed class LocalHandlerFactory(NetworkOptions options) : ILocalHandle
         }
     }
 
-    /// <summary>Keeps the addresses of a name that are on the computer or a private network.</summary>
+    /// <summary>
+    /// Keeps the addresses of a name that are on the computer or a private network
+    /// (<see cref="LocalAddresses.IsOwnNetwork(IPAddress)"/>); an address that is not global but still reached over the
+    /// internet (Teredo, 6to4, NAT64, 100.64/10) is not kept.
+    /// </summary>
     /// <param name="addresses">What the name resolved to.</param>
-    /// <returns>The addresses that are not global.</returns>
+    /// <returns>The addresses in the user's own network.</returns>
     /// <exception cref="ExitException"><see cref="ExitError.NotLocal"/>: none is.</exception>
     internal static IPAddress[] LocalOnly(IPAddress[] addresses)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        var local = addresses.Where(LocalAddresses.IsLocal).ToArray();
+        var local = addresses.Where(LocalAddresses.IsOwnNetwork).ToArray();
         return local.Length > 0 ? local : throw new ExitException(ExitError.NotLocal);
     }
 }

@@ -231,6 +231,161 @@ public sealed class EndpointPaceTests : IDisposable
         Assert.False(endpoint.FailedSince);
     }
 
+    [Fact]
+    public async Task Spreading_never_picks_an_endpoint_behind_while_one_that_answers_only_waits_for_its_pace()
+    {
+        _harness.AnswerAll();
+        await AddSecondAsync();
+        Height(Tip, 800_010);
+        Height(SecondTip, 800_005);
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        Height(SecondTip, 800_010);
+        _harness.Http.Sent.Clear();
+
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+
+        Assert.Equal(["esplora.test", "esplora.test"], _harness.Http.Sent.Select(r => r.Uri.Host));
+        Assert.Contains(SourcePace.Public, _harness.Clock.Waits);
+    }
+
+    [Fact]
+    public async Task Spreading_never_picks_an_endpoint_in_its_pause_while_one_that_answers_only_waits_for_its_pace()
+    {
+        _harness.AnswerAll();
+        var second = await AddSecondAsync();
+        _harness.Http.Answer(SecondTip, "tip-height.txt");
+        _harness.Sources.Failed(Chain.Bitcoin, second.Id);
+
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+
+        Assert.Equal(["esplora.test", "esplora.test"], _harness.Http.Sent.Select(r => r.Uri.Host));
+    }
+
+    [Fact]
+    public async Task In_prioriterad_the_users_order_holds_and_the_next_is_taken_only_when_the_first_asks_to_wait()
+    {
+        _harness.AnswerAll();
+        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+        await AddSecondAsync();
+        _harness.Http.Answer(SecondTip, "tip-height.txt");
+
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+        _harness.Sources.AskedToWait(Chain.Bitcoin, _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Id,
+            TimeSpan.FromSeconds(60));
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+
+        Assert.Equal(["esplora.test", "esplora.test", "second.example"], _harness.Http.Sent.Select(r => r.Uri.Host));
+    }
+
+    [Fact]
+    public void A_turn_that_is_not_used_is_given_back_unless_a_later_one_was_taken()
+    {
+        var pacer = new EndpointPacer(_harness.Clock);
+        var endpoint = new PlannedEndpoint(_harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint, new EsploraApi(
+            new BitcoinSourceOptions()));
+        var first = pacer.Take([endpoint], SourceLookups.LongestWait).Turn!;
+        var second = pacer.Take([endpoint], SourceLookups.LongestWait).Turn!;
+        var third = pacer.Take([endpoint], SourceLookups.LongestWait).Turn!;
+
+        pacer.Release(second);
+        Assert.Equal(SourcePace.Public * 3, pacer.Take([endpoint], SourceLookups.LongestWait).Turn!.Wait);
+
+        var fourth = pacer.Take([endpoint], SourceLookups.LongestWait).Turn!;
+        pacer.Release(fourth);
+        Assert.Equal(SourcePace.Public * 4, pacer.Take([endpoint], SourceLookups.LongestWait).Turn!.Wait);
+        Assert.Equal(TimeSpan.Zero, first.Wait);
+        Assert.Equal(SourcePace.Public * 2, third.Wait);
+    }
+
+    [Fact]
+    public async Task A_cancelled_lookup_gives_its_turn_back_and_ends_its_wait_notice()
+    {
+        _harness.AnswerAll();
+        var id = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Id;
+        _harness.Sources.AskedToWait(Chain.Bitcoin, id, TimeSpan.FromSeconds(20));
+        using var cancel = new CancellationTokenSource();
+        _harness.Clock.OnDelay = () => cancel.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => _harness.Source.GetTipHeightAsync(_harness.Case, cancel.Token));
+
+        Assert.Null(_harness.Sources.Get(Chain.Bitcoin).WaitingUntil);
+        _harness.Clock.OnDelay = null;
+        _harness.Clock.UtcNow += TimeSpan.FromSeconds(21);
+        _harness.Clock.Waits.Clear();
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+        Assert.DoesNotContain(_harness.Clock.Waits, wait => wait > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task When_only_the_pace_queue_is_full_the_lookup_says_so_and_not_that_a_source_asked()
+    {
+        _harness.AnswerAll();
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+        var endpoint = new PlannedEndpoint(_harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint, new EsploraApi(
+            new BitcoinSourceOptions()));
+        while (_harness.Sources.Pacer.Take([endpoint], SourceLookups.LongestWait).Turn is not null)
+        {
+        }
+
+        var lookup = await _harness.Source.GetTipHeightAsync(_harness.Case);
+
+        Assert.Contains("egen takt", lookup.Problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("ber Chainsaw", lookup.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_probe_round_that_only_waited_keeps_the_endpoints_earlier_probe()
+    {
+        _harness.AnswerAll();
+        Height(Tip, 800_010);
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        var id = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Id;
+        _harness.Sources.AskedToWait(Chain.Bitcoin, id, TimeSpan.FromMinutes(5));
+        _harness.Http.Sent.Clear();
+
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+
+        Assert.Empty(_harness.Http.Sent);
+        var view = _harness.Sources.Get(Chain.Bitcoin);
+        Assert.Equal(ProbeOutcome.Answered, view.Endpoints[0].Probe!.Outcome);
+        Assert.Single(_harness.Sources.Plan(Chain.Bitcoin, inStep: true).Endpoints);
+    }
+
+    [Fact]
+    public async Task A_503_that_asks_for_no_wait_is_a_failure_and_the_endpoint_is_paused()
+    {
+        _harness.AnswerAll();
+        _harness.Http.AnswerBusy(Tip, TimeSpan.Zero, status: 503);
+
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+
+        var endpoint = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0];
+        Assert.True(endpoint.FailedSince);
+        Assert.Null(endpoint.WaitUntil);
+    }
+
+    [Fact]
+    public async Task A_429_that_asks_for_no_wait_is_still_waited_for_a_moment()
+    {
+        _harness.AnswerAll();
+        _harness.Http.AnswerBusy(Tip, TimeSpan.Zero);
+        var started = _harness.Clock.UtcNow;
+
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+
+        Assert.Equal(started + SourceLookups.NoticeableWait,
+            _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].WaitUntil);
+    }
+
+    /// <summary>Answers an endpoint's height.</summary>
+    private void Height(string url, long height) => _harness.Http.AnswerBytes(
+        url, System.Text.Encoding.ASCII.GetBytes(height.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        200);
+
     /// <summary>Adds the second endpoint and waits until it is written.</summary>
     private async Task<SourceEndpoint> AddSecondAsync()
     {

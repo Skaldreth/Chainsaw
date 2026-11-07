@@ -6,8 +6,8 @@ namespace Chainsaw.Modules.Network;
 /// <summary>
 /// Sends requests to the user's own node on the computer or a private network, and nowhere else (decided 2026-11-07).
 /// The request never takes the way out chosen in the settings: it is not a lookup at an external source. The address
-/// is checked first (only https, no global IP address), and the pipeline connects only to addresses that are not
-/// global, so that a name that points to the internet is refused before anything is sent.
+/// is checked first (only https, no IP address outside the user's own network), and the pipeline connects only to
+/// addresses in the user's own network, so that a name that points to the internet is refused before anything is sent.
 /// </summary>
 /// <param name="handlers">Builds the pipeline.</param>
 /// <param name="options">The limits on requests.</param>
