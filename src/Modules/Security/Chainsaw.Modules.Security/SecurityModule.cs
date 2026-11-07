@@ -1,19 +1,34 @@
+using Chainsaw.Modules.Security.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Chainsaw.Modules.Security;
 
 /// <summary>
-/// Registers the module Security: the master key, the vault (API keys) and the operator profile.
+/// Registers the module Security: the vault with the master key, the API keys, the operator profile and the keys
+/// derived for other modules.
 /// </summary>
 public static class SecurityModule
 {
-    /// <summary>Adds the module's services to the container. The module has no services yet.</summary>
+    /// <summary>Adds the module's services to the container.</summary>
     /// <param name="services">The container to add to.</param>
+    /// <param name="configure">
+    /// Changes the options, for example the vault folder; by default the vault lives in <c>%LOCALAPPDATA%\Chainsaw\</c>.
+    /// </param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
-    public static IServiceCollection AddSecurityModule(this IServiceCollection services)
+    public static IServiceCollection AddSecurityModule(
+        this IServiceCollection services, Action<VaultOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
+        var options = new VaultOptions();
+        configure?.Invoke(options);
+
+        // A factory, not an instance, so that the container disposes (locks) the vault when the application ends.
+        services.AddSingleton(_ => new Vault(options));
+        services.AddSingleton<IVault>(provider => provider.GetRequiredService<Vault>());
+        services.AddSingleton<IApiKeyStore, ApiKeyStore>();
+        services.AddSingleton<IOperatorProfileStore, OperatorProfileStore>();
+        services.AddSingleton<IPurposeKeys, PurposeKeys>();
         return services;
     }
 }
