@@ -288,9 +288,25 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   parallellt får en rad *case.anchors-replaced* i journalen på den ena när det öppnas, med de ankare som inte nåddes.
   Hur det ska förklaras i gränssnittet bestäms med `/verify`.
 
+### Ärenden i appen (etapp 11)
+- **Öppna en kollegas fil** med ärendelösenordet (`ICaseStore.OpenWithPassword`) och lägga till ett eget kuvert
+  (`AddOperatorAccess`): ett kommando eller en filväljare, och NC1a som ärendets egenskaper (titel, delning). Ändra
+  titeln går i Cases men har inget gränssnitt än.
+- **Etikettbiblioteket när ett ärende öppnas** (`ILabelLibrary.Absorb` och `ShareInto`, etapp 8) kopplas när vyn
+  Etiketter eller grafen byggs.
+- **Sökning i kommandoraden** (etiketter, adresser i ärendet, kluster): text som inte är en adress eller tx svarar nu
+  *Sökning är inte byggd än*.
+- **Moduler som bidrar med kommandon:** `IShellCommand` ligger i SharedKernel, men ett kommando som behöver det öppna
+  ärendet måste nu få det från appen (`CaseSession`). Flytta det öppna ärendet till ett kontrakt (till exempel
+  `IOpenCase` i Cases.Contracts) när en modul behöver egna kommandon.
+- **Ethereum-adressens kontrollsumma** (EIP-55, blandade versaler) kontrolleras inte i igenkänningen; behövs när
+  Ethereum byggs. En TRON-tx ser ut som en Bitcoin-txid och känns bara igen med kedjan utskriven (i en länk).
+- **Senast öppnade ärendet** föreslås som den `.cut` som sparades senast (filens tid), inte ur en egen lista, så att
+  inget om ärenden sparas utanför ärendet. Ett ärende som sparats av en kopia eller synk hamnar då först.
+- **Utgångens namn i titelraden** visas som platsen (eller namnet) först när utgången är ansluten; tunneln är inte
+  byggd, så det har inte kunnat provas.
+
 ### Låsskärmen och förstagångsinställningen (etapp 10)
-- **Titel och startpunkt i första ärendet** (FS1a): kopplas i etapp 11, när Cases har ärendets titel och Chains
-  känner igen startpunkten.
 - **Raden om bevakningen** på låsskärmen (*En bevakning har slagit till*) när Monitoring finns.
 - **Vyn Inställningar:** låsningens tid (nu bara `AutoLockMinutes` i `settings.json`, läst vid start) och fältets
   scen och rörelse (skissens val; nu Drift och stilla kätting).
@@ -303,7 +319,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 
 ### Övrigt
-- **Länken `chainsaw:`** registrerad för användaren, ett exemplar av Chainsaw som tar emot länkar, och vänta på upplåsning.
+- **Registrera länken `chainsaw:`** för användaren (HKCU\Software\Classes\chainsaw med `URL Protocol` och
+  `shell\open\command` till `Chainsaw.exe "%1"`), som ett val i vyn Inställningar, och ta bort registreringen där.
+  Mottagandet är byggt i etapp 11 (ett exemplar per användare, named pipe, väntar på upplåsning).
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` (UTXO, adresstyper, common-input-ownership,
   växeladress, CoinJoin och peel chain finns; kvar är spårningsmetoderna och varför ett spår tar slut).
 - **Testdata:** `/testdata` med påhittade ärenden och syntetiska tx-mönster, bara i Debug.

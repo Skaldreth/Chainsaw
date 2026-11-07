@@ -216,3 +216,57 @@ Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i et
 - Vyernas ikoner ligger i ett flytande piller vid vänsterkanten, centrerat i höjd, med skugga. Knapparna är runda,
   den valda vyn har grå bakgrund, namnet och kortkommandot visas på hovring, och pricken sitter i knappens hörn.
 - Sidan har ingen rubrik under titelraden; vyn börjar direkt under den, och pillret får plats i fönstrets minsta höjd (600 px).
+
+## Ärenden i appen (etapp 11, NC1a)
+
+**Nytt ärende**
+- Ctrl+N, ikonen *Nytt* i pillret och `/new` öppnar panelen från höger; resten av fönstret mörkas. Esc, Avbryt, × och
+  ett klick på det mörka stänger den, och nästa gång är fälten tomma.
+- `/new 2026-0117` fyller i ärendenumret. Ctrl+Enter skapar.
+- Startpunkter, en per rad: under fältet står `BTC` och *Bitcoin-adress* eller *Bitcoin-tx* för varje rad, en
+  TRON-adress (börjar med `T`) står tonad med *TRON-adress · inte byggt än*, och en rad som inte känns igen står i rött.
+  En rad som inte känns igen hindrar att ärendet skapas och felet säger vilken rad.
+- Ett ärende med titel och startpunkter: titelraden visar *nummer · titel*, grafen visas, och svaret ovanför
+  kommandoraden säger att ärendet skapades. Journalen har *Titeln sattes till …* och en rad per startpunkt, och en
+  TRON-startpunkt står som *Startpunkt på TRON noterad, men TRON är inte byggt än* (`app.start-point-noted`).
+- *Kan öppnas av en kollega*: reglaget visar två lösenordsfält. Kortare än 12 tecken eller två olika ger ett fel och
+  båda fälten töms. Ett delat ärende kan öppnas av en kollega med lösenordet (det finns inget gränssnitt för att öppna
+  med lösenord än; prova med verktyget eller vänta på det).
+- Slå av reglaget, stäng panelen eller lås med Ctrl+L: lösenordsfälten är tomma när de visas igen.
+- Ärendelösenordet går inte att hitta i en minnesdump efter att ärendet skapats (som för huvudnyckeln).
+- Ett ärendenummer som finns ger *Det finns redan ett ärende med det numret.* och fälten står kvar.
+
+**Kommandoraden**
+- `/help` listar kommandona. `/hjälp` ger *Okänt kommando*. Fel står i rött ovanför raden; ett lyckat kommando tömmer
+  raden, ett misslyckat lämnar texten kvar.
+- `/op` och Tab blir `/open`. `/open ` visar *Tab: <ärendet du arbetade med senast>*; Tab fyller i det och Tab igen går
+  till nästa. Markören står sist.
+- `/open <nummer>` sparar och stänger det öppna ärendet och öppnar det andra; titelraden följer med. Samma ärende igen
+  säger att det redan är öppet. Ett nummer som inte finns ger ett kort fel.
+- `/close` sparar och stänger; titelraden säger *Inget ärende öppet*. Kontrollera att `.cut`-filens ändringstid är ny.
+- `/verify` på ett orört ärende: *Inget har ändrats: n kedjor och m poster stämmer.* Utan ärende: *Inget ärende är
+  öppet.* (Ett brutet ärende provas i testerna, eftersom filen är krypterad.)
+- `/lock` låser som Ctrl+L.
+- En Bitcoin-adress eller tx utan `/`: med ett ärende öppet blir den en startpunkt (*Startpunkten … lades till*, och
+  *redan en startpunkt* andra gången); utan ärende öppnas Nytt ärende med den ifylld. En TRON-adress ger *TRON är inte
+  byggt än*. Annan text ger *Sökning är inte byggd än*.
+- Stäng Chainsaw med ett ärende öppet (krysset): `.cut` är sparad och arbetskopian (`.work`) är borta.
+
+**Titelraden och statusraden**
+- Utan utgång: grå prick och *Ingen utgång* i titelraden, *Offline: ingen utgång ansluten …* i statusraden. Tunneln är
+  inte byggd, så *ansluten* går inte att prova än.
+
+**Länken `chainsaw:`**
+- Länken är inte registrerad än. Prova med argumentet: `Chainsaw.exe chainsaw:bitcoin/<adress>`.
+- Chainsaw stängt: Chainsaw startar på låsskärmen och visar inget om länken. Efter upplåsning öppnas Nytt ärende med
+  startpunkten ifylld; inget ärende skapas förrän du klickar.
+- Chainsaw igång och upplåst med ett ärende öppet: kör kommandot igen. Inget nytt fönster öppnas; Chainsaws fönster kommer
+  fram och adressen står i kommandoraden med *Från en länk: Enter lägger den som startpunkt i …*. Inget läggs till
+  förrän du trycker Enter.
+- Chainsaw låst: kör kommandot. Låsskärmen visar inget om länken; efter upplåsning visas den som ovan.
+- Under förstagångsinställningen: länken väntar tills inställningen är klar.
+- `Chainsaw.exe chainsaw:bitcoin/hej`, `chainsaw:monero/…` och `chainsaw:bitcoin/abc?x=1` gör ingenting.
+- Två Windows-användare på samma dator (eller en annan användare med `runas`): den andras Chainsaw får inte länkarna.
+
+**Förstagångsinställningen**
+- Första ärendet har nu *Titel* och *Startpunkt*, med raden om kedjan under startpunkten.

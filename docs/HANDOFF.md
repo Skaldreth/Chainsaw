@@ -41,6 +41,10 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
   upplåsning genom `IVault`, förstagångsinställningens fyra steg (FS1a) genom Security, Network och Cases, och låsning
   med Ctrl+L, efter inaktivitet och när Windows låses. Appen startar i förstagångsinställningen eller på låsskärmen.
   **Inte provat på Windows**, se `docs/TESTER-INFOR-1.0.md`.
+- **Etapp 11, ärenden i appen** (2026-11-07, DEV-LOG): Nytt ärende som panel (NC1a) med titel, startpunkter som känns
+  igen per kedja och delningslösenord, kommandoraden med `/new`, `/open`, `/close`, `/verify`, `/lock` och `/help`
+  (Tab fyller i), ärendet och utgången i titelraden, ärendets titel förseglad i Cases, och länken `chainsaw:` till ett
+  enda Chainsaw per användare som väntar på upplåsning. **Inte provat på Windows**, se `docs/TESTER-INFOR-1.0.md`.
 
 ## Nattkörningen 2026-11-07 (klar)
 
@@ -82,7 +86,7 @@ form (godkänd), FS1a och NC1a (valda), SH1b, GR3a, GR3c och GR4.
 | --- | --- | --- |
 | 9 | **Organisationens återställningsnyckel:** kuvert i varje ärendefil (ECIES P-384 eller motsvarande) för en inbyggd publik nyckel, och verktyget `tools/Chainsaw.Recovery` (skapa nyckelpar, fingeravtryck, kontrollera, öppna ett ärende) | Klar |
 | 10 | **Låsskärmen och förstagångsinställningen** (ID7, FS1a): teckenfältet och kättingen i tecken, upplåsning och låsning genom Security, automatisk låsning, förstagångsinställningens fyra steg | Klar |
-| 11 | **Ärenden i appen** (NC1a): Nytt ärende som panel, öppna ärende och kommandon i kommandoraden (`/new`, `/open`, `/verify`, `/lock`), ärendet i titelraden, startpunkter som känns igen | Väntar |
+| 11 | **Ärenden i appen** (NC1a): Nytt ärende som panel, öppna ärende och kommandon i kommandoraden (`/new`, `/open`, `/verify`, `/lock`), ärendet i titelraden, startpunkter som känns igen | Klar |
 | 12 | **Grafen** (GR4, GR3a, GR3c): Tracing-modellen ritad som fri yta med växel till hoppkolumner, bildspråket, belopp på linjerna, expansion, FIFO/haircut, inspektören med *Varför?* | Väntar |
 
 ## Nästa steg

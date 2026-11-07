@@ -704,3 +704,60 @@ på låsskärmen annars; skalet syns bara medan valvet är upplåst.
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`), titel och startpunkt i första ärendet (etapp 11), vyn
 Inställningar för låsningens tid och fältets scen, raden om bevakningen när Monitoring finns.
 
+
+## Etapp 11 (2026-11-07): ärenden i appen
+
+Byggt efter skissen NC1a och skalet som det ser ut i koden (SH1b med pillret, sidan utan eget huvud).
+
+- **Ärendets titel i Cases:** en egen förseglad kedja `cases.title` (schemasteg 2) där den sista posten är titeln som
+  gäller och de tidigare ligger kvar, `ICase.Title` (läses utan databasen) och `ICase.SetTitle`, som förseglar titeln
+  och skriver `case.title-set` i journalen i samma transaktion. `CaseTitleRules`: högst 200 tecken, inga styrtecken,
+  blanksteg slås ihop till ett.
+- **Startpunkter på alla kedjor** (`ChainStartPoint` i Chains.Contracts): Bitcoin genom `BitcoinStartPoint`, Ethereum
+  (`0x` och 40 eller 64 hex), TRON-adresser (Base58Check med versionsbyten 0x41) och, med kedjan utskriven, TRON-tx.
+  Bara Bitcoin är `IsSupported`. Guiden har fått *Startpunkter*.
+- **Kommandon** (`IShellCommand` och `CommandReply` i SharedKernel): appen och modulerna registrerar kommandon i
+  containern, `CommandRegistry` hittar dem, fyller i med Tab, ger en ledtråd (*Tab: 2026-0117*) och har `/help`
+  inbyggt. Text utan `/` går till `StartPointInput`: en Bitcoin-adress eller tx blir en startpunkt i det öppna ärendet
+  genom Tracing, eller fyller i Nytt ärende när inget är öppet. Inget kastar: ett oväntat fel blir ett kort svar.
+- **`/new`, `/open`, `/close`, `/verify`, `/lock`, `/help`:** `/open` föreslår ärendena i mappen med det senast sparade
+  först; `/verify` säger i klartext vilken kedja som bryts vid vilken post och varför (`VerificationText`).
+- **`CaseWorkflow`** öppnar, skapar och stänger ett ärende i taget utanför UI-tråden: ärendet som var öppet sparas och
+  stängs alltid först (ett misslyckat sparande sägs, och arbetskopian tas tillbaka nästa gång), och ett ärende som
+  öppnades medan Chainsaw låstes stängs igen i stället för att visas. När ett ärende väl finns hålls det öppet, och det
+  som misslyckas efteråt (titel, en startpunkt, delningslösenordet) sägs i svaret.
+- **Nytt ärende** (`NewCaseViewModel`, `Views/NewCasePanel`): panelen från höger som mörkar resten under titelraden,
+  ärendenummer, titel, startpunkter en per rad med kedjans märke och vad det är under fältet (TRON tonad, okänt i
+  rött), reglaget *Kan öppnas av en kollega* med två lösenordsfält, Avbryt, Esc och *Skapa ärende* (Ctrl+Enter).
+- **Ärendelösenordet** blir aldrig en sträng: det läses ur `PasswordBox.SecurePassword` till en fäst `char[]`
+  (`PasswordEntry`, som huvudnyckeln), bara när ärendet ska delas, kontrolleras, ges till `SetSharingPassword` och
+  nollställs i `finally`. Fälten töms när panelen stängs, reglaget slås av eller Chainsaw låses.
+- **Titelraden** visar *nummer · titel* eller *Inget ärende öppet*, och utgången ärligt ur `IExitConnection`: grön
+  prick och platsen när den är ansluten, annars *Ingen utgång*; statusraden säger *Offline …* utan utgång.
+- **Länken `chainsaw:`** (`Links/ChainsawLink`, `Interop/SingleInstance`, `ViewModels/LinkInbox`): ett Chainsaw per
+  Windows-användare och session (en mutex), och en named pipe med `PipeOptions.CurrentUserOnly` som tar emot länken från
+  en andra start (högst 512 byte UTF-8, två sekunder). Länken tolkas strikt (`chainsaw:<kedja>/<värde>`, bara bokstäver
+  och siffror i värdet, värdet måste kännas igen på kedjan). Den väntar tyst medan Chainsaw är låst eller under
+  förstagångsinställningen, och skriver aldrig något själv.
+- **Förstagångsinställningen** har fått *Titel* och *Startpunkt* i första ärendet och skapar det genom `CaseWorkflow`.
+- **Avslut:** `App.OnExit` sparar och stänger det öppna ärendet och väntar på det innan modulerna stoppas, eftersom den
+  tidigare `async void` kunde låta processen ta slut före sparandet.
+
+**Egna beslut och avsteg från skissen:**
+- **Sidan har inget huvud** (orkestrerarens besked efter användarens påpekande, commit de84e93): skissens rad med
+  vyns namn (*Graf*) finns inte; ärendets nummer och titel står i titelraden, och panelen fälls ut under den.
+- **En länk skriver aldrig något själv.** Med ett ärende öppet läggs värdet i kommandoraden med *Från en länk: Enter
+  lägger den som startpunkt i …*; utan ärende fylls Nytt ärende i. CLAUDE.md säger att användaren väljer ärende; så kan
+  ett annat program som kan skicka länkar inte lägga startpunkter i ett ärende utan användaren. Bara den senaste länken
+  väntar under låsningen, och låsskärmen säger inget om den.
+- **Startpunkter på en kedja som inte är byggd** (TRON, Ethereum) i Nytt ärende skrivs i journalen
+  (`app.start-point-noted`) i stället för att tappas, eftersom Tracing bara tar Bitcoin.
+- **Det senast öppnade ärendet** föreslås ur filernas tid (den `.cut` som sparades senast), inte ur en egen lista i
+  `settings.json`, som enligt sin beskrivning inte håller något om ärenden.
+- **Högst 50 startpunkter** åt gången i Nytt ärende (princip 7); fler vägras med ett fel i stället för att kapas.
+- **`/open` utan nummer** öppnar inget, utan föreslår det senaste ärendet (Tab fyller i det).
+- **Utgångens namn:** titelraden visar utgångens plats (eller namn) först när den är ansluten; skissens *Stockholm* och
+  *Esplora · senaste block* visas inte, eftersom tunneln och källans läge inte finns i appen än.
+- **`/verify` som appens kommando:** kommandot ligger i appen och anropar `ICaseVerifier`, eftersom ett modulkommando
+  som behöver det öppna ärendet kräver ett kontrakt för det (TODO).
+- **Nytt** i pillret öppnar panelen direkt; menyn PN1 (Nytt fälls ut ur pillret) väntar på användaren.
