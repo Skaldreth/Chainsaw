@@ -268,6 +268,12 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **Kontrollerna körs vid varje läsning av grafen**, och varje körning frågar Clustering om varje tx
   (`GetConclusions`). Det räcker för hundratals tx; för stora ärenden behövs en fråga för alla tx på en gång och att
   bara köra om när grafen ändrats.
+- **Beslut om en kandidat som analysen inte längre ger** (granskningen etapp 22, M): en avgjord kandidat behålls bara
+  om körningen ger den. Blir dess adress märkt som mixer, eller lämnar dess tx grafen, syns beslutet inte längre (det
+  står kvar förseglat). Tjänsten bör bära med sig avgjorda kandidater ur det senast förseglade.
+- **Beslut mellan läsning och förseglning** (granskningen etapp 22, M): `CheckService.Run` läser besluten före
+  analyserna; ett beslut som förseglas under tiden gör att körningen förseglar en kandidatlista utan det. Nästa körning
+  rättar det, med en extra förseglad post.
 - **Historiken (AN1b, etapp 21)** bör visa beslut om förslag och egna ytor. `ICheckService.RemoveArea` tar bort en yta
   förseglat, och ett nytt beslut om samma kandidat ersätter det förra.
 

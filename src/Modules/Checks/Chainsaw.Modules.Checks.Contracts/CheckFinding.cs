@@ -17,10 +17,19 @@ namespace Chainsaw.Modules.Checks.Contracts;
 /// <param name="Title">A short title, for example <c>Peel chain, 12 hopp</c>.</param>
 /// <param name="Summary">One line under the title.</param>
 /// <param name="Why">Why, in plain Swedish, saying that it is a judgement.</param>
-/// <param name="Addresses">The addresses the area is drawn around.</param>
+/// <param name="Addresses">
+/// The addresses the area is drawn around. For a suggestion with candidates, the first is the anchor (for example the
+/// mixer's deposit address) and the rest are the candidates' addresses.
+/// </param>
 /// <param name="Transactions">The transactions the area is drawn around, when they are actors of their own.</param>
-/// <param name="Basis">The transactions it rests on, with their blocks.</param>
-/// <param name="Candidates">The candidates of a suggestion that has several, best first; empty otherwise.</param>
+/// <param name="Basis">
+/// The transactions it rests on, with their blocks. For a suggestion with candidates, the first is the anchor's and
+/// the rest are the candidates'.
+/// </param>
+/// <param name="Candidates">
+/// The candidates of a suggestion that has several, best first, all of them; the service keeps the decided ones and
+/// the best that wait (<see cref="CheckRules.MostWaitingCandidates"/>). Empty otherwise.
+/// </param>
 public sealed record CheckFinding(
     string Key,
     CheckKind Kind,

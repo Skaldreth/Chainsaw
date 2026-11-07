@@ -1720,3 +1720,27 @@ Bygget är utan varningar.
 - **Formuläret** står under grafens hörn, inte vid aktörerna som i skissen, och **lasso** är inte byggt (TODO).
 - **Menyns val** sparas inte i ärendet.
 - **Tröskelvärdena** för mixerns kandidater och tidsområdet är valda av sessionen (TODO, *Väntar på beslut*).
+
+**Granskningen:**
+- **Omgång 1** gav ett C, två I och åtta M:
+  - **C:** listans panel dolde aldrig inspektören (bindningen läste `Checks.IsOpen` mot listans egen DataContext).
+  - **I:** ett andra Enter eller X under omläsningen efter ett beslut kunde avgöra samma kandidat igen och ändra ett
+    godkännande till avfärdat. Nu är listan upptagen tills kontrollerna lästs om.
+  - **I:** analysen klippte till fem kandidater utan att veta om besluten, så en godkänd kandidat kunde försvinna när
+    bättre kom, och avfärdade tog platser. Nu ger analysen alla, och `CheckService` behåller varje avgjord kandidat och
+    de fem bästa som väntar.
+  - **M rättade:** avfärdande per kandidat i stället för per adress, fyllningen räknas efter menyns val, ett förslag
+    är alltid streckat (också avgjort), ärendet kontrolleras efter varje väntan i formuläret och en borttagen yta sägs,
+    svenska felmeddelanden och färgnamn, högst 10 000 adresser i en egen yta, en insättning på noll vägras och ett fynd
+    som inte kan förseglas fäller bara sin analys, kandidaternas linjer ritas bara när de syns, och tester för upptaget,
+    sena svar och menyn.
+- **Omgång 2:** inga C eller I. Av tre M rättades att formuläret kontrollerar ärendet också när ytan var borta, och
+  `CheckFinding` säger hur ett förslags adresser och underlag är ordnade; två står i TODO (en avgjord kandidat som
+  analysen inte längre ger, och beslut mellan läsning och förseglning).
+
+**Tester:** 48 i Checks (facit för mixerns kandidater, CoinJoin, peel chain och plånböcker med den riktiga
+klustringen, förseglingen, besluten, versionerna och egna ytor) och 44 nya i appen (områden, geometri och listans
+vymodell). Bygget är utan varningar.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Kontroller, förslag och områden*); resten av katalogen
+under *Förvirringstekniker* och punkterna under *Kontroller, förslag och områden* i TODO.

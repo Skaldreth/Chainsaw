@@ -534,8 +534,13 @@ public sealed partial class ChecksViewModel : ObservableObject
             if (!stored)
             {
                 FormProblem = GoneText;
-                _own = await _source.GetAreasAsync(openCase, CancellationToken.None);
-                Rebuild();
+                var still = await _source.GetAreasAsync(openCase, CancellationToken.None);
+                if (_session.Current == openCase)
+                {
+                    _own = still;
+                    Rebuild();
+                }
+
                 return;
             }
 
