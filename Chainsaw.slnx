@@ -20,6 +20,10 @@
     <Project Path="src/Modules/Chains/Chainsaw.Modules.Chains.Contracts/Chainsaw.Modules.Chains.Contracts.csproj" />
     <Project Path="src/Modules/Chains/Chainsaw.Modules.Chains/Chainsaw.Modules.Chains.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Checks/">
+    <Project Path="src/Modules/Checks/Chainsaw.Modules.Checks.Contracts/Chainsaw.Modules.Checks.Contracts.csproj" />
+    <Project Path="src/Modules/Checks/Chainsaw.Modules.Checks/Chainsaw.Modules.Checks.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Clustering/">
     <Project Path="src/Modules/Clustering/Chainsaw.Modules.Clustering.Contracts/Chainsaw.Modules.Clustering.Contracts.csproj" />
     <Project Path="src/Modules/Clustering/Chainsaw.Modules.Clustering/Chainsaw.Modules.Clustering.csproj" />
@@ -52,6 +56,7 @@
     <Project Path="tests/Chainsaw.Modules.Security.Tests/Chainsaw.Modules.Security.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Network.Tests/Chainsaw.Modules.Network.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Chains.Tests/Chainsaw.Modules.Chains.Tests.csproj" />
+    <Project Path="tests/Chainsaw.Modules.Checks.Tests/Chainsaw.Modules.Checks.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Clustering.Tests/Chainsaw.Modules.Clustering.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Attribution.Tests/Chainsaw.Modules.Attribution.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Tracing.Tests/Chainsaw.Modules.Tracing.Tests.csproj" />
