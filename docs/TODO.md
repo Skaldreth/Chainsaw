@@ -161,6 +161,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   bara med pilarna och Alt+↑/↓; att dra raden med musen är inte byggt.
 - **Nyckeln som huvud** (etapp 24): Esplora skickar nyckeln som `Authorization: Bearer`. Huvudena som tillåts är
   `Authorization` och `X-Api-Key` (`ExitCredential`); en källa som vill ha något annat lägger till det i Network.
+- **Varför en endpoint fick röd prick** (etapp 24, granskningen omgång 2, M): en nyckel som saknas i valvet gör att
+  endpointen hoppas över och får röd prick med den allmänna texten *Ett uppslag genom den misslyckades …*; att nyckeln
+  saknas står bara i uppslagets text. Raden kunde säga orsaken.
 - **Solana i sidan Källor** (etapp 24): chipet står tonat, men `Chain` har inget värde för Solana än.
 - **Tx på en adress sida kontrolleras inte mot sina bytes** (etapp 15): bara tx som expanderas för sig (och deras
   spenderare) hämtar `/tx/:txid/hex`. En adress historik med 50 tx skulle kosta 50 uppslag till. Kontrollera dem när

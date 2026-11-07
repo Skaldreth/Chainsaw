@@ -95,8 +95,8 @@ public sealed class ChainSourcesTests : IDisposable
         Assert.Equal(ProbeOutcome.Failed, view.Endpoints[1].Probe!.Outcome);
         Assert.Equal(ProbeOutcome.Failed, view.Endpoints[2].Probe!.Outcome);
         Assert.Equal(Slow, view.InUse!.Endpoint.Address.AbsoluteUri);
-        Assert.False(sources.AnsweredProbe(Chain.Bitcoin, view.Endpoints[1].Endpoint.Id));
-        Assert.True(sources.AnsweredProbe(Chain.Bitcoin, view.Endpoints[0].Endpoint.Id));
+        Assert.False(sources.TrustsNotFound(Chain.Bitcoin, view.Endpoints[1].Endpoint.Id));
+        Assert.True(sources.TrustsNotFound(Chain.Bitcoin, view.Endpoints[0].Endpoint.Id));
         Assert.Equal(
             [Slow, Fast, Lagging], sources.Plan(Chain.Bitcoin).Endpoints.Select(p => p.Endpoint.Address.AbsoluteUri));
     }
@@ -398,13 +398,42 @@ public sealed class ChainSourcesTests : IDisposable
         var gate = new TaskCompletionSource();
         _http.Gate = gate.Task;
         var running = sources.ProbeAsync(Chain.Bitcoin);
-        _vault.State = VaultState.Locked;
+        await sources.SetEnabledAsync(Chain.Bitcoin, sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Id, false);
 
-        Assert.Equal(ProbeRun.NotSent, await sources.ProbeAsync(Chain.Bitcoin));
+        Assert.Equal(ProbeRun.NoneOn, await sources.ProbeAsync(Chain.Bitcoin));
         gate.SetResult();
         Assert.Equal(ProbeRun.Probed, await running);
 
         Assert.NotNull(sources.Get(Chain.Bitcoin).ProbedAt);
+    }
+
+    [Fact]
+    public async Task A_round_during_which_the_vault_locked_is_not_kept()
+    {
+        var sources = Create(Endpoints(Fast));
+        Height(Fast, 921_404, 180);
+        var gate = new TaskCompletionSource();
+        _http.Gate = gate.Task;
+        var running = sources.ProbeAsync(Chain.Bitcoin);
+        _vault.State = VaultState.Locked;
+        gate.SetResult();
+
+        Assert.Equal(ProbeRun.NotSent, await running);
+        Assert.Null(sources.Get(Chain.Bitcoin).ProbedAt);
+    }
+
+    [Fact]
+    public async Task In_prioriterad_one_that_failed_its_probe_comes_after_and_gets_no_star()
+    {
+        var sources = Create(Endpoints(Slow, Fast));
+        _http.FailingHosts.Add("slow.example");
+        Height(Fast, 921_404, 180);
+        await sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+
+        await sources.ProbeAsync(Chain.Bitcoin);
+
+        Assert.Equal(Fast, sources.Plan(Chain.Bitcoin).Endpoints[0].Endpoint.Address.AbsoluteUri);
+        Assert.Equal(Fast, sources.Get(Chain.Bitcoin).InUse!.Endpoint.Address.AbsoluteUri);
     }
 
     private ChainSources Create(BitcoinSourceOptions options, string? directory = null) =>

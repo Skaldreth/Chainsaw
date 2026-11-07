@@ -270,6 +270,9 @@
                 <DataTrigger Binding="{Binding Dot}" Value="{x:Static vm:EndpointDot.Failed}">
                     <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Error}" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding Dot}" Value="{x:Static vm:EndpointDot.Behind}">
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Pending}" />
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 

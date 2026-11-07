@@ -421,6 +421,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         var failures = new List<ResponseOrigin>();
         var problem = NoneOnText;
         string? notFound = null;
+        var trustedNotFound = false;
+        var onlyNotFound = true;
         foreach (var planned in plan.Endpoints)
         {
             var endpoint = planned.Endpoint;
@@ -429,6 +431,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             {
                 _sources.Failed(Chain.Bitcoin, endpoint.Id);
                 problem = keyProblem!;
+                onlyNotFound = false;
                 continue;
             }
 
@@ -446,6 +449,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             {
                 _sources.Failed(Chain.Bitcoin, endpoint.Id);
                 problem = exception.Message;
+                onlyNotFound = false;
                 continue;
             }
 
@@ -467,13 +471,14 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
             if (response.StatusCode == NotFoundStatus)
             {
-                // The source says it does not know it. From an endpoint that answered its probe right that is an
-                // answer, and no other endpoint is asked; from one that did not (a wrong path, a node still
-                // syncing), the next is asked, so that one broken endpoint never says that a tx does not exist.
+                // The source says it does not know it. From an endpoint whose probe did not fail that is an answer,
+                // and no other endpoint is asked; from one that failed its probe or lags behind (a wrong path, a node
+                // still syncing), the next is asked, so that one broken endpoint never says that a tx does not exist.
                 failures.Add(sealedResponse.Origin);
                 notFound = interpretProblem;
-                if (_sources.AnsweredProbe(Chain.Bitcoin, endpoint.Id))
+                if (_sources.TrustsNotFound(Chain.Bitcoin, endpoint.Id))
                 {
+                    trustedNotFound = true;
                     break;
                 }
 
@@ -483,14 +488,17 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             _sources.Failed(Chain.Bitcoin, endpoint.Id);
             failures.Add(sealedResponse.Origin);
             problem = interpretProblem!;
+            onlyNotFound = false;
         }
 
-        if (notFound is not null && stored is null)
+        // Not found is said only when an endpoint that can be believed said it, or every endpoint asked said it.
+        var isNotFound = notFound is not null && (trustedNotFound || onlyNotFound);
+        if (isNotFound && stored is null)
         {
             return new BitcoinLookup<T>(LookupStatus.NotFound, null, failures, notFound);
         }
 
-        return Fallback(stored, LookupStatus.Failed, notFound ?? problem, failures);
+        return Fallback(stored, LookupStatus.Failed, isNotFound ? notFound! : problem, failures);
     }
 
     /// <summary>Reads a fresh response, or says why it cannot be used.</summary>

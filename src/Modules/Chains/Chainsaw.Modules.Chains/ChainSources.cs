@@ -101,7 +101,8 @@ internal sealed class ChainSources : IChainSources
         lock (_gate)
         {
             var state = State(chain);
-            var first = Order(state).FirstOrDefault(endpoint => Usable(state, endpoint))?.Id;
+            var next = Order(state).FirstOrDefault();
+            var first = next is not null && Usable(state, next) ? next.Id : (Guid?)null;
             var endpoints = state.Endpoints.Select(endpoint => new EndpointView(
                 endpoint,
                 state.Probes.GetValueOrDefault(endpoint.Id),
@@ -139,19 +140,20 @@ internal sealed class ChainSources : IChainSources
     public void Answered(Chain chain, Guid id) => Note(chain, id, failed: false);
 
     /// <summary>
-    /// Gets whether an endpoint answered its latest probe right and has not failed a lookup since, so that its
-    /// <em>not found</em> can be believed.
+    /// Gets whether an endpoint's <em>not found</em> can be believed: it has not failed a lookup since it was tried,
+    /// and its latest probe did not fail or show it behind. One not tried yet is believed, so that a txid nobody
+    /// knows is not sent to every endpoint.
     /// </summary>
     /// <param name="chain">The chain.</param>
     /// <param name="id">The endpoint.</param>
-    /// <returns><see langword="true"/> when it did.</returns>
-    public bool AnsweredProbe(Chain chain, Guid id)
+    /// <returns><see langword="true"/> when it can.</returns>
+    public bool TrustsNotFound(Chain chain, Guid id)
     {
         lock (_gate)
         {
             var state = State(chain);
             return !state.FailedSince.Contains(id)
-                && state.Probes.GetValueOrDefault(id)?.Outcome == ProbeOutcome.Answered;
+                && state.Probes.GetValueOrDefault(id)?.Outcome is not (ProbeOutcome.Failed or ProbeOutcome.Behind);
         }
     }
 
@@ -262,6 +264,12 @@ internal sealed class ChainSources : IChainSources
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        if (IsLocked)
+        {
+            // The vault locked during the round: what was not sent says nothing about the endpoints.
+            return ProbeRun.NotSent;
+        }
+
         Keep(chain, round, Ranked(probes));
         return ProbeRun.Probed;
     }
@@ -293,10 +301,10 @@ internal sealed class ChainSources : IChainSources
 
     /// <summary>
     /// Orders a chain's endpoints that are on for a lookup. In Fastest, those that answered right come first, the
-    /// fastest first, then those not tried, then those that failed, and one that lags behind in height last: it is
-    /// only asked when no other answers, so that switching off the one that was highest never leaves the chain
-    /// without a source. In Priority, the user's order. Either way an endpoint that failed a lookup since it was
-    /// tried comes after those that did not.
+    /// fastest first, then those not tried, then one that lags behind in height (only asked when no other answers, so
+    /// that switching off the one that was highest never leaves the chain without a source), then those that failed
+    /// their probe. In Priority, the user's order, with those that failed their probe after the others. Either way an
+    /// endpoint that failed a lookup since it was tried comes last.
     /// </summary>
     /// <param name="state">The chain's state, under the lock.</param>
     /// <returns>The endpoints to ask, first first.</returns>
@@ -308,13 +316,10 @@ internal sealed class ChainSources : IChainSources
         }
 
         var on = state.Endpoints.Where(endpoint => endpoint.Enabled);
-        if (state.Mode == SourceMode.Fastest)
-        {
-            on = on
-                .OrderBy(endpoint => Rank(state.Probes.GetValueOrDefault(endpoint.Id)))
-                .ThenBy(endpoint => state.Probes.GetValueOrDefault(endpoint.Id)?.Duration ?? TimeSpan.MaxValue);
-        }
-
+        on = state.Mode == SourceMode.Fastest
+            ? on.OrderBy(endpoint => Rank(state.Probes.GetValueOrDefault(endpoint.Id)))
+                .ThenBy(endpoint => state.Probes.GetValueOrDefault(endpoint.Id)?.Duration ?? TimeSpan.MaxValue)
+            : on.OrderBy(endpoint => state.Probes.GetValueOrDefault(endpoint.Id)?.Outcome == ProbeOutcome.Failed);
         return on.OrderBy(endpoint => state.FailedSince.Contains(endpoint.Id)).ToList();
     }
 
@@ -329,14 +334,14 @@ internal sealed class ChainSources : IChainSources
         !state.FailedSince.Contains(endpoint.Id)
         && state.Probes.GetValueOrDefault(endpoint.Id)?.Outcome is not (ProbeOutcome.Failed or ProbeOutcome.NotSent);
 
-    /// <summary>Ranks a probe for Fastest: answered, not tried, failed, behind.</summary>
+    /// <summary>Ranks a probe for Fastest: answered, not tried, behind, failed.</summary>
     /// <param name="probe">The probe, if any.</param>
     /// <returns>The rank, lowest first.</returns>
     private static int Rank(EndpointProbe? probe) => probe?.Outcome switch
     {
         ProbeOutcome.Answered => 0,
-        ProbeOutcome.Failed => 2,
-        ProbeOutcome.Behind => 3,
+        ProbeOutcome.Behind => 2,
+        ProbeOutcome.Failed => 3,
         _ => 1,
     };
 

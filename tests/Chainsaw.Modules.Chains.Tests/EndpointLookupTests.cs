@@ -145,12 +145,9 @@ public sealed class EndpointLookupTests : IDisposable
     }
 
     [Fact]
-    public async Task Not_found_from_an_endpoint_that_did_not_answer_its_probe_asks_the_next()
+    public async Task Not_found_from_an_endpoint_that_lags_behind_asks_the_next()
     {
-        _harness.AnswerAll();
-        var (second, _) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
-        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
-        await _harness.Sources.MoveAsync(Chain.Bitcoin, second.Id, -1);
+        await LaggingFirstAsync();
 
         var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
 
@@ -172,5 +169,40 @@ public sealed class EndpointLookupTests : IDisposable
         Assert.Equal(LookupStatus.Fetched, lookup.Status);
         Assert.Equal(["esplora.test"], _harness.Http.Sent.Select(r => r.Uri.Host));
         Assert.True(_harness.Sources.Get(Chain.Bitcoin).Endpoints[0].FailedSince);
+    }
+
+    [Fact]
+    public async Task Not_found_from_one_not_believed_and_a_failure_from_the_next_is_no_answer()
+    {
+        await LaggingFirstAsync();
+        _harness.Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}"), "busy"u8.ToArray(), 500);
+
+        var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Failed, lookup.Status);
+        Assert.Contains("500", lookup.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Not_found_from_an_endpoint_not_tried_yet_is_believed()
+    {
+        _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+
+        var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Real);
+
+        Assert.Equal(LookupStatus.NotFound, lookup.Status);
+        Assert.Single(_harness.Http.Sent);
+    }
+
+    /// <summary>Puts an endpoint that lags behind first, in Prioriterad, after a round.</summary>
+    private async Task LaggingFirstAsync()
+    {
+        _harness.AnswerAll();
+        var (second, _) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        _harness.Http.AnswerBytes(Second + "blocks/tip/height", "1"u8.ToArray(), 200);
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+        await _harness.Sources.MoveAsync(Chain.Bitcoin, second.Id, -1);
+        _harness.Http.Sent.Clear();
     }
 }
