@@ -51,6 +51,10 @@ public sealed record BitcoinAddress
     /// <summary>Gets the address in its canonical form.</summary>
     public string Value { get; }
 
+    /// <summary>Gives the address with its chain, as the graph and the labels name an actor on any chain.</summary>
+    /// <returns>The address on Bitcoin.</returns>
+    public ChainAddress ToChainAddress() => new(Chain.Bitcoin, Value);
+
     /// <summary>Gets the kind of script the address pays to.</summary>
     public BitcoinScriptType Type { get; }
 

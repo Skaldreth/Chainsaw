@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Tracing.Contracts;
 
@@ -161,6 +162,21 @@ public interface ITrailEndClassifier
         }
 
         return hints;
+    }
+
+    /// <summary>
+    /// Says for many addresses on an account chain (Ethereum first) whether money that reaches them has reached the end
+    /// of the trail. A classifier that knows nothing about account chains (CoinJoin is a UTXO pattern) keeps the
+    /// default, which knows nothing.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses, each with its chain.</param>
+    /// <returns>The hints of each address that has any.</returns>
+    IReadOnlyDictionary<ChainAddress, IReadOnlyList<TrailEndHint>> ClassifyAccounts(
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        return new Dictionary<ChainAddress, IReadOnlyList<TrailEndHint>>();
     }
 
     /// <summary>Says whether money that is spent into a transaction has reached the end of the trail.</summary>
