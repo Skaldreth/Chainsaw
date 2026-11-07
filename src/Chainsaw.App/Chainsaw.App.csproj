@@ -9,6 +9,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Chainsaw</AssemblyName>
     <RootNamespace>Chainsaw.App</RootNamespace>
+    <!-- The generated call into dwmapi.dll (Interop/WindowFrame.cs) passes its value by pointer. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <!-- WPF projects leave System.IO out of the implicit usings; the parts shared with the tests need it. -->
   <ItemGroup>

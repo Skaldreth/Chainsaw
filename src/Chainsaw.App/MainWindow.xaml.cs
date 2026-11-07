@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Chainsaw.App.Controls;
+using Chainsaw.App.Interop;
 using Chainsaw.App.Navigation;
 using Chainsaw.App.ViewModels;
 using Microsoft.Win32;
@@ -54,6 +56,7 @@ public partial class MainWindow : Window
         _idleTimer.Start();
         SystemEvents.SessionSwitch += OnSessionSwitch;
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        SourceInitialized += (_, _) => WindowFrame.ApplyRoundedDarkFrame(new WindowInteropHelper(this).Handle);
         StateChanged += (_, _) => Frame.Margin = WindowState == WindowState.Maximized ? MaximizedInset : default;
     }
 

@@ -11,26 +11,32 @@
         FontFamily="{StaticResource Font.Ui}" FontSize="14"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
-    <!-- Chainsaw draws its own title bar, as Gawk does; Windows keeps resizing, snapping and the system menu. -->
+    <!--
+      Chainsaw draws its own title bar, as Gawk does; Windows keeps resizing, snapping and the system menu. The thin glass
+      edge keeps the frame that Windows 11 rounds (Interop/WindowFrame.cs), so the window has Gawk's round corners.
+    -->
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="36" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0"
+        <WindowChrome CaptionHeight="36" ResizeBorderThickness="6" GlassFrameThickness="0,0,0,1" CornerRadius="0"
                       UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <!-- An icon of the rail: the view's icon, the tooltip with its shortcut, and a dot when something waits there. -->
+        <!-- The page keeps its text clear of the floating pill (18 px margin, 50 px pill, 20 px air). -->
+        <Thickness x:Key="Margin.PageLeft">88,0,0,0</Thickness>
+
+        <!-- An icon of the pill: the view's icon, the tooltip with its shortcut, and a dot when something waits there. -->
         <DataTemplate x:Key="RailItem" DataType="{x:Type vm:RailItemViewModel}">
             <Button x:Name="Item" Style="{StaticResource Button.Rail}"
                     Command="{Binding DataContext.ShowCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     CommandParameter="{Binding Entry.View}" ToolTip="{Binding Entry.ToolTip}"
                     AutomationProperties.Name="{Binding Entry.Name}">
-                <Grid Width="40" Height="40">
+                <Grid Width="38" Height="38">
                     <controls:GridIcon x:Name="Icon" Size="20" HorizontalAlignment="Center" VerticalAlignment="Center"
                                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                        Data="{Binding Entry.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
                     <Ellipse x:Name="Dot" Width="9" Height="9" Fill="{StaticResource Brush.Accent}"
-                             Stroke="{StaticResource Brush.Surface}" StrokeThickness="2"
-                             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
+                             Stroke="{StaticResource Brush.SurfaceRaised}" StrokeThickness="2"
+                             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0"
                              Visibility="Collapsed" />
                 </Grid>
             </Button>
@@ -45,10 +51,18 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
-        <Style x:Key="Line.Rail" TargetType="Border">
+        <!-- The line between the pill's groups, as in Gawk's Byggare: 24 px, in the strong border colour. -->
+        <Style x:Key="Line.Pill" TargetType="Border">
+            <Setter Property="Width" Value="24" />
             <Setter Property="Height" Value="1" />
-            <Setter Property="Margin" Value="10,8" />
-            <Setter Property="Background" Value="{StaticResource Brush.Border}" />
+            <Setter Property="Margin" Value="0,4" />
+            <Setter Property="Background" Value="{StaticResource Brush.BorderStrong}" />
+        </Style>
+
+        <!-- The pill's lifted look: a raised surface, a strong edge and fully round ends. -->
+        <Style x:Key="Border.Pill" TargetType="Border">
+            <Setter Property="CornerRadius" Value="24" />
+            <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
         </Style>
     </Window.Resources>
 
@@ -99,27 +113,8 @@
                 </Border>
 
                 <Grid Grid.Row="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="56" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <!-- ===== The rail (sketch SH1b): icons only, the name on hover ===== -->
-                    <Border Grid.Column="0" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
-                            BorderThickness="0,0,1,0">
-                        <DockPanel Margin="0,8">
-                            <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Top}" ItemTemplate="{StaticResource RailItem}"
-                                          HorizontalAlignment="Center" Focusable="False" />
-                            <Border DockPanel.Dock="Top" Style="{StaticResource Line.Rail}" />
-                            <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding Bottom}"
-                                          ItemTemplate="{StaticResource RailItem}" HorizontalAlignment="Center" Focusable="False" />
-                            <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Work}" ItemTemplate="{StaticResource RailItem}"
-                                          HorizontalAlignment="Center" Focusable="False" />
-                        </DockPanel>
-                    </Border>
-
                     <!-- ===== The page: its header, its content, and the command bar floating at the bottom ===== -->
-                    <Grid Grid.Column="1">
+                    <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="52" />
                             <RowDefinition Height="*" />
@@ -127,7 +122,7 @@
 
                         <Border Grid.Row="0" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1">
                             <TextBlock Text="{Binding CurrentEntry.Name}" FontSize="18" FontWeight="SemiBold"
-                                       Margin="20,0,0,0" VerticalAlignment="Center" />
+                                       Margin="{StaticResource Margin.PageLeft}" VerticalAlignment="Center" />
                         </Border>
 
                         <!-- No view is built yet: the page says so, with the view's icon, and never shows made-up data. -->
@@ -191,6 +186,28 @@
                                 </Border>
                             </Grid>
                         </StackPanel>
+                    </Grid>
+
+                    <!--
+                      ===== The pill (decided 2026-11-07, after Gawk's Byggare): the views as round icons, the name on hover,
+                      floating over the page at the left edge, centred in height ===== -->
+                    <Grid HorizontalAlignment="Left" VerticalAlignment="Center" Margin="18,0,0,0">
+                        <!-- The shadow lies in a layer of its own, as under the command bar. -->
+                        <Border Style="{StaticResource Border.Pill}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="32" ShadowDepth="10" Direction="270" Opacity="0.45" Color="Black" />
+                            </Border.Effect>
+                        </Border>
+                        <Border Style="{StaticResource Border.Pill}" BorderBrush="{StaticResource Brush.BorderStrong}"
+                                BorderThickness="1" Padding="5">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding Top}" ItemTemplate="{StaticResource RailItem}" Focusable="False" />
+                                <Border Style="{StaticResource Line.Pill}" />
+                                <ItemsControl ItemsSource="{Binding Work}" ItemTemplate="{StaticResource RailItem}" Focusable="False" />
+                                <Border Style="{StaticResource Line.Pill}" />
+                                <ItemsControl ItemsSource="{Binding Bottom}" ItemTemplate="{StaticResource RailItem}" Focusable="False" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Grid>
 

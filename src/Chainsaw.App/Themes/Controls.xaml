@@ -44,13 +44,13 @@
     </Style>
 
     <!--
-      An icon in the rail (sketch SH1b): 40 px square, the name on hover in a tooltip, the chosen one on the selected grey.
-      The dot in the corner is set by the rail's template.
+      An icon in the floating pill (after Gawk's Byggare, decided 2026-11-07): 38 px and round, the name on hover in a
+      tooltip, the chosen one on the selected grey. The dot in the corner is set by the pill's template.
     -->
     <Style x:Key="Button.Rail" TargetType="Button">
-        <Setter Property="Width" Value="40" />
-        <Setter Property="Height" Value="40" />
-        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="Width" Value="38" />
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Margin" Value="1" />
         <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Cursor" Value="Hand" />
@@ -60,7 +60,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="8">
+                    <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="19">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>

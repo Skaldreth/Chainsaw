@@ -244,11 +244,13 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   pengarna spenderas** (spel som två spelkort, handel, presentkort), **rött är risk och slut på spåret** (darknet, garantimarknad,
   mixer, CoinJoin, sanktionerad). Markeringen **Kan frysas** (en snöflinga) sitter på adresser med USDT eller USDC, eftersom
   utgivaren kan frysa dem på begäran.
-- **Skalet är SH1b** (användarens beslut 2026-11-07, byggt): en smal **ikonlist** till vänster med vyernas ikoner och
-  namnet på hovring, i ordningen Nytt · Graf, Tidslinje, Flöde, Exponering, Begäran, Bevakning, Etiketter · Terminal,
+- **Skalet är SH1b** (användarens beslut 2026-11-07, byggt): vyernas ikoner i ett **flytande piller** vid vänsterkanten,
+  som i Gawks Byggare (runda knappar på 38 px, upphöjd yta, skugga, 18 px från kanten och centrerat i höjd; användarens
+  beslut 2026-11-07), med namnet på hovring, i ordningen Nytt · Graf, Tidslinje, Flöde, Exponering, Begäran, Bevakning, Etiketter · Terminal,
   Guide, Inställningar (`src/Chainsaw.App/Navigation/ViewTable.cs`, som också ger kortkommandona). **Sök och kommandon
   finns bara i den flytande raden längst ner** (Ctrl+K eller Ctrl+F), aldrig i huvudet eller som egen vy. Antal visas som
   en prick på ikonen, inte som en siffra.
+  **Fönstret har runda hörn som Gawk** (Windows 11 ritar dem, `Interop/WindowFrame.cs`; användarens beslut 2026-11-07).
 - **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, på låsskärmens fält) och
   **Nytt ärende är NC1a** (en panel från höger som mörkar resten, som kan bli ärendets egenskaper senare). Användaren lät
   Claude välja (2026-11-07); valen följer Gawks form.
