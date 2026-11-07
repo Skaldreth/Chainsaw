@@ -36,7 +36,8 @@ public sealed class VaultTests : IDisposable
         _fixture.Created();
         var before = _fixture.FileBytes();
 
-        VaultFixture.AssertFails(VaultError.AlreadyCreated, () => _fixture.NewVault().Create(VaultFixture.OtherMasterKey));
+        VaultFixture.AssertFails(
+            VaultError.AlreadyCreated, () => _fixture.NewVault().Create(VaultFixture.OtherMasterKey));
         Assert.Equal(before, _fixture.FileBytes());
     }
 
@@ -112,7 +113,7 @@ public sealed class VaultTests : IDisposable
     public void Lock_clears_the_data_key_and_raises_the_event_once()
     {
         _fixture.Created();
-        var dataKey = _fixture.Vault.DataKeyBuffer;
+        var dataKey = VaultFixture.DataKeyOf(_fixture.Vault);
         Assert.NotNull(dataKey);
         Assert.Contains(dataKey, value => value != 0);
         var states = new List<VaultState>();
@@ -122,7 +123,7 @@ public sealed class VaultTests : IDisposable
         _fixture.Vault.Lock();
 
         Assert.All(dataKey, value => Assert.Equal(0, value));
-        Assert.Null(_fixture.Vault.DataKeyBuffer);
+        Assert.Null(VaultFixture.DataKeyOf(_fixture.Vault));
         Assert.Equal(VaultState.Locked, _fixture.Vault.State);
         Assert.Equal([VaultState.Locked], states);
     }
@@ -144,7 +145,7 @@ public sealed class VaultTests : IDisposable
     public void Dispose_locks_the_vault()
     {
         _fixture.Created();
-        var dataKey = _fixture.Vault.DataKeyBuffer!;
+        var dataKey = VaultFixture.DataKeyOf(_fixture.Vault)!;
 
         _fixture.Vault.Dispose();
 
@@ -242,7 +243,7 @@ public sealed class VaultTests : IDisposable
         new ApiKeyStore(_fixture.Vault).Save(new ApiKey("esplora", "account-identifier-7", "api-secret-value-42"));
         new OperatorProfileStore(_fixture.Vault).Save(
             new OperatorProfile("Operator Plaintextname", "Senior Analyst", "Example Unit"));
-        var dataKey = _fixture.Vault.DataKeyBuffer!.ToArray();
+        var dataKey = VaultFixture.DataKeyOf(_fixture.Vault)!.ToArray();
 
         var bytes = _fixture.FileBytes();
 
@@ -289,14 +290,85 @@ public sealed class VaultTests : IDisposable
     }
 
     [Fact]
-    public void A_vault_opens_with_the_iterations_stored_in_its_file()
+    public void A_vault_written_with_fewer_iterations_is_strengthened_when_opened()
     {
         _fixture.Created();
+        var saltBefore = ReadJson()["kdf"]!["salt"]!.GetValue<string>();
 
-        using var other = new Vault(new VaultOptions { Directory = _fixture.Directory, Iterations = 2_000 });
-        other.Unlock(VaultFixture.MasterKey);
+        using (var stronger = new Vault(new VaultOptions { Directory = _fixture.Directory, Iterations = 2_000 }))
+        {
+            stronger.Unlock(VaultFixture.MasterKey);
+        }
 
-        Assert.Equal(VaultState.Unlocked, other.State);
+        Assert.Equal(2_000, ReadJson()["kdf"]!["iterations"]!.GetValue<int>());
+        Assert.NotEqual(saltBefore, ReadJson()["kdf"]!["salt"]!.GetValue<string>());
+        _fixture.NewVault().Unlock(VaultFixture.MasterKey);
+        Assert.Equal(2_000, ReadJson()["kdf"]!["iterations"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void Unlock_raises_the_event_once_and_clears_the_key_it_replaces()
+    {
+        _fixture.Created();
+        _fixture.Vault.Lock();
+        var states = new List<VaultState>();
+        _fixture.Vault.StateChanged += (_, state) => states.Add(state);
+
+        _fixture.Vault.Unlock(VaultFixture.MasterKey);
+        var firstKey = VaultFixture.DataKeyOf(_fixture.Vault)!;
+        _fixture.Vault.Unlock(VaultFixture.MasterKey);
+
+        Assert.Equal([VaultState.Unlocked], states);
+        Assert.All(firstKey, value => Assert.Equal(0, value));
+        Assert.NotSame(firstKey, VaultFixture.DataKeyOf(_fixture.Vault));
+    }
+
+    [Fact]
+    public void ChangeMasterKey_refuses_when_the_file_was_replaced_while_unlocked()
+    {
+        _fixture.Created();
+        var otherDirectory = Path.Combine(_fixture.Directory, "other");
+        using (var other = new Vault(
+                   new VaultOptions { Directory = otherDirectory, Iterations = VaultFixture.TestIterations }))
+        {
+            other.Create(VaultFixture.MasterKey);
+        }
+
+        File.Copy(Path.Combine(otherDirectory, VaultFile.FileName), _fixture.FilePath, overwrite: true);
+        var before = _fixture.FileBytes();
+
+        VaultFixture.AssertFails(
+            VaultError.Corrupt,
+            () => _fixture.Vault.ChangeMasterKey(VaultFixture.MasterKey, VaultFixture.OtherMasterKey));
+
+        Assert.Equal(before, _fixture.FileBytes());
+    }
+
+    [Fact]
+    public void An_oversized_file_is_refused_before_it_is_read()
+    {
+        System.IO.Directory.CreateDirectory(_fixture.Directory);
+        File.WriteAllBytes(_fixture.FilePath, new byte[VaultFile.MaximumFileSize + 1]);
+
+        VaultFixture.AssertFails(VaultError.Corrupt, () => _fixture.NewVault().Unlock(VaultFixture.MasterKey));
+    }
+
+    [Fact]
+    public void Parallel_saves_and_reads_all_reach_the_file()
+    {
+        _fixture.Created();
+        var store = new ApiKeyStore(_fixture.Vault);
+
+        Parallel.For(0, 40, i =>
+        {
+            store.Save(new ApiKey($"service-{i}", "", $"secret-{i}"));
+            Assert.NotNull(store.Find($"service-{i}"));
+            _ = _fixture.Vault.State;
+        });
+
+        using var restarted = _fixture.NewVault();
+        restarted.Unlock(VaultFixture.MasterKey);
+        Assert.Equal(40, new ApiKeyStore(restarted).List().Count);
     }
 
     [Fact]

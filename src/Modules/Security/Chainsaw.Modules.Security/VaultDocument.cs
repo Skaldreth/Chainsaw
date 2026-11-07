@@ -8,8 +8,9 @@ namespace Chainsaw.Modules.Security;
 /// <param name="Version">The format version; a build refuses versions it does not know.</param>
 /// <param name="Kdf">How the wrapping key is derived from the master key.</param>
 /// <param name="DataKey">The data key, encrypted with the wrapping key.</param>
-/// <param name="Content">The content (API keys, operator profile), encrypted with a key derived from the data key.</param>
-internal sealed record VaultDocument(string Format, int Version, KdfParameters Kdf, SealedBox DataKey, SealedBox Content)
+/// <param name="Content">The content (API keys, profile), encrypted with a key derived from the data key.</param>
+internal sealed record VaultDocument(
+    string Format, int Version, KdfParameters Kdf, SealedBox DataKey, SealedBox Content)
 {
     /// <summary>The value of <see cref="Format"/>.</summary>
     public const string FormatName = "chainsaw-vault";
@@ -24,7 +25,7 @@ internal sealed record VaultDocument(string Format, int Version, KdfParameters K
     public static ReadOnlySpan<byte> ContentAssociatedData => "chainsaw-vault/v1/content"u8;
 }
 
-/// <summary>The parameters of the master key derivation, stored so that a vault opens with what it was written with.</summary>
+/// <summary>The master key derivation's parameters, stored so a vault opens with what it was written with.</summary>
 /// <param name="Algorithm">Always <see cref="AlgorithmName"/>.</param>
 /// <param name="Iterations">The PBKDF2 iteration count.</param>
 /// <param name="Salt">The random salt, new for every master key.</param>

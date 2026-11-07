@@ -13,7 +13,8 @@ public interface IPurposeKeys
     /// <summary>Derives the key for a purpose into a buffer that the caller owns and must clear after use.</summary>
     /// <param name="purpose">
     /// A stable name for the purpose, for example <c>cases/file-key</c>: lower-case ASCII letters, digits and
-    /// <c>/ - . _</c>, at most <see cref="MaximumPurposeLength"/> characters. The same purpose always gives the same key.
+    /// <c>/ - . _</c>, at most <see cref="MaximumPurposeLength"/> characters.
+    /// The same purpose always gives the same key.
     /// </param>
     /// <param name="destination">Receives the key; between 16 and 64 bytes.</param>
     /// <exception cref="VaultException"><see cref="VaultError.Locked"/> when the vault is not unlocked.</exception>

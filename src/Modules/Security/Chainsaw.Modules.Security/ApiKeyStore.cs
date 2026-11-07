@@ -6,7 +6,7 @@ namespace Chainsaw.Modules.Security;
 /// <param name="vault">The vault that holds the keys.</param>
 internal sealed class ApiKeyStore(Vault vault) : IApiKeyStore
 {
-    /// <summary>How services are compared: without regard to case, since <c>Esplora</c> and <c>esplora</c> are one.</summary>
+    /// <summary>Services are compared without regard to case: <c>Esplora</c> and <c>esplora</c> are one.</summary>
     private static readonly StringComparer ServiceComparer = StringComparer.OrdinalIgnoreCase;
 
     /// <inheritdoc />
@@ -20,7 +20,8 @@ internal sealed class ApiKeyStore(Vault vault) : IApiKeyStore
     public ApiKey? Find(string service)
     {
         ArgumentNullException.ThrowIfNull(service);
-        return vault.Read(content => content.ApiKeys.FirstOrDefault(key => ServiceComparer.Equals(key.Service, service)));
+        return vault.Read(content =>
+            content.ApiKeys.FirstOrDefault(key => ServiceComparer.Equals(key.Service, service)));
     }
 
     /// <inheritdoc />

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Chainsaw.Modules.Security.Contracts;
 
 namespace Chainsaw.Modules.Security.Tests;
@@ -25,8 +27,22 @@ public sealed class PurposeKeysTests : IDisposable
         var monitoring = Derive(_fixture.Vault, "monitoring/queue");
 
         Assert.NotEqual(cases, monitoring);
-        Assert.NotEqual(_fixture.Vault.DataKeyBuffer, cases);
-        Assert.NotEqual(_fixture.Vault.DataKeyBuffer, monitoring);
+        Assert.NotEqual(VaultFixture.DataKeyOf(_fixture.Vault), cases);
+        Assert.NotEqual(VaultFixture.DataKeyOf(_fixture.Vault), monitoring);
+    }
+
+    [Fact]
+    public void The_key_is_HKDF_SHA256_of_the_data_key_with_the_fixed_info_string()
+    {
+        // Pins the derivation: a change here would silently change every case file's key.
+        var expected = HKDF.DeriveKey(
+            HashAlgorithmName.SHA256,
+            VaultFixture.DataKeyOf(_fixture.Vault)!,
+            32,
+            [],
+            Encoding.ASCII.GetBytes("chainsaw/purpose/v1/cases/file-key"));
+
+        Assert.Equal(expected, Derive(_fixture.Vault, "cases/file-key"));
     }
 
     [Fact]

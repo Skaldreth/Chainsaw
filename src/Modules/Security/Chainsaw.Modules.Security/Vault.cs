@@ -8,10 +8,19 @@ namespace Chainsaw.Modules.Security;
 /// The vault: keeps the data key in pinned memory while unlocked and clears it when locked, and gives the stores in
 /// this module guarded access to the decrypted content.
 /// </summary>
+/// <remarks>
+/// Two locks keep the slow key derivation away from readers. <see cref="_operationGate"/> serialises the operations
+/// that read or write the file (create, unlock, change master key, save), so that they never interleave.
+/// <see cref="_stateGate"/> guards the key, the content and the state in memory and is only held briefly, so that
+/// <see cref="State"/>, the stores' reads and <see cref="Lock"/> never wait for PBKDF2.
+/// </remarks>
 internal sealed class Vault : IVault, IDisposable
 {
-    /// <summary>Serialises every operation, so that the key, the content and the file always change together.</summary>
-    private readonly Lock _gate = new();
+    /// <summary>Serialises the operations that read or write the vault file.</summary>
+    private readonly Lock _operationGate = new();
+
+    /// <summary>Guards the fields below; held only for short, in-memory work and the small writes of a save.</summary>
+    private readonly Lock _stateGate = new();
 
     /// <summary>The vault file.</summary>
     private readonly VaultFile _file;
@@ -28,16 +37,27 @@ internal sealed class Vault : IVault, IDisposable
     /// <summary>The decrypted content while unlocked.</summary>
     private VaultContent? _content;
 
-    /// <summary>Creates the vault for the folder in the options. Nothing is read until it is unlocked.</summary>
+    /// <summary>The state, kept in a field so that reading it never touches the disk.</summary>
+    private VaultState _state;
+
+    /// <summary>Counts the locks, so that an unlock that was overtaken by a lock does not unlock afterwards.</summary>
+    private long _lockGeneration;
+
+    /// <summary>Creates the vault for the folder in the options. Nothing secret is read until it is unlocked.</summary>
     /// <param name="options">Where the file lives and the iteration count for new master keys.</param>
     public Vault(VaultOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         _file = new VaultFile(options.Directory);
         _iterations = options.Iterations;
+        _state = _file.Exists ? VaultState.Locked : VaultState.NotCreated;
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The event is raised outside the locks, so two operations on different threads may deliver their events in
+    /// another order than they happened; a handler that needs the exact state reads <see cref="State"/>.
+    /// </remarks>
     public event EventHandler<VaultState>? StateChanged;
 
     /// <inheritdoc />
@@ -45,9 +65,9 @@ internal sealed class Vault : IVault, IDisposable
     {
         get
         {
-            lock (_gate)
+            lock (_stateGate)
             {
-                return CurrentState();
+                return _state;
             }
         }
     }
@@ -55,26 +75,12 @@ internal sealed class Vault : IVault, IDisposable
     /// <summary>Gets the vault file, for the tests.</summary>
     internal VaultFile File => _file;
 
-    /// <summary>Gets the array that holds the data key, so that the tests can see it is cleared on locking.</summary>
-    internal byte[]? DataKeyBuffer
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _dataKey;
-            }
-        }
-    }
-
     /// <inheritdoc />
     public void Create(ReadOnlySpan<char> masterKey)
     {
         RequireLongEnough(masterKey);
-        VaultState before;
-        lock (_gate)
+        lock (_operationGate)
         {
-            before = CurrentState();
             if (_file.Exists)
             {
                 throw new VaultException(VaultError.AlreadyCreated);
@@ -91,7 +97,7 @@ internal sealed class Vault : IVault, IDisposable
                     WrapDataKey(masterKey, kdf, dataKey),
                     SealContent(dataKey, VaultContent.Empty));
                 _file.Write(document);
-                ReplaceUnlocked(dataKey, document, VaultContent.Empty);
+                CommitUnlocked(dataKey, document, VaultContent.Empty, Interlocked.Read(ref _lockGeneration));
             }
             catch
             {
@@ -99,23 +105,21 @@ internal sealed class Vault : IVault, IDisposable
                 throw;
             }
         }
-
-        RaiseIfChanged(before, VaultState.Unlocked);
     }
 
     /// <inheritdoc />
     public void Unlock(ReadOnlySpan<char> masterKey)
     {
-        VaultState before;
-        lock (_gate)
+        var generation = Interlocked.Read(ref _lockGeneration);
+        lock (_operationGate)
         {
-            before = CurrentState();
             var document = _file.Read();
             var dataKey = UnwrapDataKey(masterKey, document);
             try
             {
                 var content = OpenContent(dataKey, document.Content);
-                ReplaceUnlocked(dataKey, document, content);
+                document = StrengthenIfWeak(masterKey, document, dataKey);
+                CommitUnlocked(dataKey, document, content, generation);
             }
             catch
             {
@@ -123,41 +127,49 @@ internal sealed class Vault : IVault, IDisposable
                 throw;
             }
         }
-
-        RaiseIfChanged(before, VaultState.Unlocked);
     }
 
     /// <inheritdoc />
     public void Lock()
     {
-        VaultState before;
-        VaultState after;
-        lock (_gate)
+        bool changed;
+        lock (_stateGate)
         {
-            before = CurrentState();
+            Interlocked.Increment(ref _lockGeneration);
             ClearUnlocked();
-            after = CurrentState();
+            changed = _state == VaultState.Unlocked;
+            if (changed)
+            {
+                _state = VaultState.Locked;
+            }
         }
 
-        RaiseIfChanged(before, after);
+        if (changed)
+        {
+            StateChanged?.Invoke(this, VaultState.Locked);
+        }
     }
 
     /// <inheritdoc />
     public void ChangeMasterKey(ReadOnlySpan<char> currentMasterKey, ReadOnlySpan<char> newMasterKey)
     {
         RequireLongEnough(newMasterKey);
-        lock (_gate)
+        lock (_operationGate)
         {
             var document = _file.Read();
             var dataKey = UnwrapDataKey(currentMasterKey, document);
             try
             {
+                RequireSameKeyAsUnlocked(dataKey);
                 var kdf = NewKdf();
                 var changed = document with { Kdf = kdf, DataKey = WrapDataKey(newMasterKey, kdf, dataKey) };
                 _file.Write(changed);
-                if (_document is not null)
+                lock (_stateGate)
                 {
-                    _document = changed;
+                    if (_document is not null)
+                    {
+                        _document = _document with { Kdf = changed.Kdf, DataKey = changed.DataKey };
+                    }
                 }
             }
             finally
@@ -170,14 +182,14 @@ internal sealed class Vault : IVault, IDisposable
     /// <summary>Locks the vault, so that the data key is cleared when the application shuts down.</summary>
     public void Dispose() => Lock();
 
-    /// <summary>Reads from the decrypted content.</summary>
+    /// <summary>Reads from the decrypted content without waiting for a key derivation.</summary>
     /// <typeparam name="T">What is read.</typeparam>
     /// <param name="read">Picks what is needed from the content.</param>
     /// <returns>What <paramref name="read"/> returned.</returns>
     /// <exception cref="VaultException"><see cref="VaultError.Locked"/> when the vault is not unlocked.</exception>
     internal T Read<T>(Func<VaultContent, T> read)
     {
-        lock (_gate)
+        lock (_stateGate)
         {
             return read(_content ?? throw new VaultException(VaultError.Locked));
         }
@@ -187,27 +199,30 @@ internal sealed class Vault : IVault, IDisposable
     /// Changes the content and writes the vault file. The change is kept in memory only after the file is written, so a
     /// failed write leaves both as they were.
     /// </summary>
-    /// <param name="change">Gives the new content from the current one, or the same instance when nothing changes.</param>
+    /// <param name="change">Gives the new content, or the same instance when nothing changes.</param>
     /// <exception cref="VaultException"><see cref="VaultError.Locked"/> when the vault is not unlocked.</exception>
     internal void Update(Func<VaultContent, VaultContent> change)
     {
-        lock (_gate)
+        lock (_operationGate)
         {
-            if (_dataKey is null || _document is null || _content is null)
+            lock (_stateGate)
             {
-                throw new VaultException(VaultError.Locked);
-            }
+                if (_dataKey is null || _document is null || _content is null)
+                {
+                    throw new VaultException(VaultError.Locked);
+                }
 
-            var content = change(_content);
-            if (ReferenceEquals(content, _content))
-            {
-                return;
-            }
+                var content = change(_content);
+                if (ReferenceEquals(content, _content))
+                {
+                    return;
+                }
 
-            var document = _document with { Content = SealContent(_dataKey, content) };
-            _file.Write(document);
-            _document = document;
-            _content = content;
+                var document = _document with { Content = SealContent(_dataKey, content) };
+                _file.Write(document);
+                _document = document;
+                _content = content;
+            }
         }
     }
 
@@ -217,7 +232,7 @@ internal sealed class Vault : IVault, IDisposable
     /// <exception cref="VaultException"><see cref="VaultError.Locked"/> when the vault is not unlocked.</exception>
     internal void DerivePurposeKey(string purpose, Span<byte> destination)
     {
-        lock (_gate)
+        lock (_stateGate)
         {
             VaultCrypto.DerivePurposeKey(
                 _dataKey ?? throw new VaultException(VaultError.Locked), purpose, destination);
@@ -258,7 +273,10 @@ internal sealed class Vault : IVault, IDisposable
     /// <param name="masterKey">The master key to try.</param>
     /// <param name="document">The checked vault file.</param>
     /// <returns>The data key in a pinned array that the caller owns and clears.</returns>
-    /// <exception cref="VaultException"><see cref="VaultError.WrongMasterKey"/>.</exception>
+    /// <exception cref="VaultException">
+    /// <see cref="VaultError.WrongMasterKey"/>. AES-GCM cannot tell a wrong key from a changed wrapped key, so a
+    /// tampered file is reported the same way.
+    /// </exception>
     private static byte[] UnwrapDataKey(ReadOnlySpan<char> masterKey, VaultDocument document)
     {
         Span<byte> wrappingKey = stackalloc byte[VaultCrypto.KeySize];
@@ -333,33 +351,89 @@ internal sealed class Vault : IVault, IDisposable
     /// <returns>The parameters.</returns>
     private KdfParameters NewKdf() => new(KdfParameters.AlgorithmName, _iterations, VaultCrypto.NewSalt());
 
-    /// <summary>Gives the state; the caller holds the gate.</summary>
-    /// <returns>Unlocked when the data key is in memory, otherwise whether the file exists.</returns>
-    private VaultState CurrentState()
+    /// <summary>
+    /// Wraps the data key again with the configured iteration count when the file was written with fewer, so that a
+    /// raised default reaches old vaults. A failed write keeps the old file, which still opens.
+    /// </summary>
+    /// <param name="masterKey">The master key that just opened the vault.</param>
+    /// <param name="document">The vault file as read.</param>
+    /// <param name="dataKey">The data key.</param>
+    /// <returns>The document as it now is on disk.</returns>
+    private VaultDocument StrengthenIfWeak(ReadOnlySpan<char> masterKey, VaultDocument document, byte[] dataKey)
     {
-        if (_dataKey is not null)
+        if (document.Kdf.Iterations >= _iterations)
         {
-            return VaultState.Unlocked;
+            return document;
         }
 
-        return _file.Exists ? VaultState.Locked : VaultState.NotCreated;
-    }
-
-    /// <summary>Takes ownership of a newly opened data key and its content, clearing any key held before.</summary>
-    /// <param name="dataKey">The data key in a pinned array.</param>
-    /// <param name="document">The vault file.</param>
-    /// <param name="content">The decrypted content.</param>
-    private void ReplaceUnlocked(byte[] dataKey, VaultDocument document, VaultContent content)
-    {
-        ClearUnlocked();
-        _dataKey = dataKey;
-        _document = document;
-        _content = content;
+        var kdf = NewKdf();
+        var strengthened = document with { Kdf = kdf, DataKey = WrapDataKey(masterKey, kdf, dataKey) };
+        try
+        {
+            _file.Write(strengthened);
+            return strengthened;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return document;
+        }
     }
 
     /// <summary>
-    /// Clears the data key and drops the content. The strings in the content cannot be cleared (a .NET string is
-    /// immutable); dropping them lets the garbage collector reuse their memory.
+    /// Refuses to wrap a data key from disk that differs from the one in memory, which happens when the file was
+    /// replaced while the vault was unlocked; wrapping it would make later saves unreadable.
+    /// </summary>
+    /// <param name="dataKey">The data key unwrapped from the file.</param>
+    /// <exception cref="VaultException"><see cref="VaultError.Corrupt"/> when the keys differ.</exception>
+    private void RequireSameKeyAsUnlocked(byte[] dataKey)
+    {
+        lock (_stateGate)
+        {
+            if (_dataKey is not null && !CryptographicOperations.FixedTimeEquals(_dataKey, dataKey))
+            {
+                throw new VaultException(VaultError.Corrupt);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Takes ownership of a newly opened data key and its content, clearing any key held before, and raises the event.
+    /// An unlock that a <see cref="Lock"/> overtook is refused, so that locking always wins.
+    /// </summary>
+    /// <param name="dataKey">The data key in a pinned array; cleared by the caller if this throws.</param>
+    /// <param name="document">The vault file.</param>
+    /// <param name="content">The decrypted content.</param>
+    /// <param name="generation">The lock generation when the operation started.</param>
+    /// <exception cref="VaultException"><see cref="VaultError.Locked"/>: the vault was locked meanwhile.</exception>
+    private void CommitUnlocked(byte[] dataKey, VaultDocument document, VaultContent content, long generation)
+    {
+        bool changed;
+        lock (_stateGate)
+        {
+            if (Interlocked.Read(ref _lockGeneration) != generation)
+            {
+                // A vault that was created meanwhile exists now, even though it stays locked.
+                _state = VaultState.Locked;
+                throw new VaultException(VaultError.Locked);
+            }
+
+            ClearUnlocked();
+            _dataKey = dataKey;
+            _document = document;
+            _content = content;
+            changed = _state != VaultState.Unlocked;
+            _state = VaultState.Unlocked;
+        }
+
+        if (changed)
+        {
+            StateChanged?.Invoke(this, VaultState.Unlocked);
+        }
+    }
+
+    /// <summary>
+    /// Clears the data key and drops the content; the caller holds the state gate. The strings in the content cannot
+    /// be cleared (a .NET string is immutable); dropping them lets the garbage collector reuse their memory.
     /// </summary>
     private void ClearUnlocked()
     {
@@ -371,16 +445,5 @@ internal sealed class Vault : IVault, IDisposable
         _dataKey = null;
         _document = null;
         _content = null;
-    }
-
-    /// <summary>Raises <see cref="StateChanged"/> when the state differs; called outside the gate.</summary>
-    /// <param name="before">The state before the operation.</param>
-    /// <param name="after">The state after it.</param>
-    private void RaiseIfChanged(VaultState before, VaultState after)
-    {
-        if (before != after)
-        {
-            StateChanged?.Invoke(this, after);
-        }
     }
 }

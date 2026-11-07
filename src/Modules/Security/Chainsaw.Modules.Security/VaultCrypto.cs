@@ -29,7 +29,7 @@ internal static class VaultCrypto
 
     /// <summary>Allocates a buffer for key material that the garbage collector will not move or copy.</summary>
     /// <param name="length">The number of bytes.</param>
-    /// <returns>A pinned array that the owner must clear with <see cref="CryptographicOperations.ZeroMemory"/>.</returns>
+    /// <returns>A pinned array that the owner clears with <see cref="CryptographicOperations.ZeroMemory"/>.</returns>
     public static byte[] AllocateSecret(int length) => GC.AllocateArray<byte>(length, pinned: true);
 
     /// <summary>Creates a new random data key.</summary>
@@ -66,14 +66,19 @@ internal static class VaultCrypto
     /// <param name="destination">Receives the key; the caller clears it.</param>
     public static void DerivePurposeKey(ReadOnlySpan<byte> dataKey, string purpose, Span<byte> destination) =>
         HKDF.DeriveKey(
-            HashAlgorithmName.SHA256, dataKey, destination, [], Encoding.ASCII.GetBytes(PurposeKeyInfoPrefix + purpose));
+            HashAlgorithmName.SHA256,
+            dataKey,
+            destination,
+            [],
+            Encoding.ASCII.GetBytes(PurposeKeyInfoPrefix + purpose));
 
     /// <summary>Encrypts with AES-256-GCM under a fresh random nonce.</summary>
     /// <param name="key">The 32-byte key.</param>
     /// <param name="plaintext">The bytes to encrypt.</param>
     /// <param name="associatedData">Data that is authenticated but not encrypted, binding the box to its place.</param>
     /// <returns>The nonce, ciphertext and tag.</returns>
-    public static SealedBox Seal(ReadOnlySpan<byte> key, ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> associatedData)
+    public static SealedBox Seal(
+        ReadOnlySpan<byte> key, ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> associatedData)
     {
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
         var ciphertext = new byte[plaintext.Length];
@@ -88,7 +93,7 @@ internal static class VaultCrypto
     /// <param name="box">The box; its sizes must already have been checked.</param>
     /// <param name="associatedData">The same associated data that was given to <see cref="Seal"/>.</param>
     /// <param name="plaintext">Receives the plaintext; as long as the ciphertext.</param>
-    /// <exception cref="AuthenticationTagMismatchException">The key is wrong or the box or its data has changed.</exception>
+    /// <exception cref="AuthenticationTagMismatchException">Wrong key, or the box or its data changed.</exception>
     public static void Open(
         ReadOnlySpan<byte> key, SealedBox box, ReadOnlySpan<byte> associatedData, Span<byte> plaintext)
     {

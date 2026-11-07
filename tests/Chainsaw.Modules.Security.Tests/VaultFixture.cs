@@ -1,3 +1,4 @@
+using System.Reflection;
 using Chainsaw.Modules.Security.Contracts;
 
 namespace Chainsaw.Modules.Security.Tests;
@@ -41,6 +42,15 @@ internal sealed class VaultFixture : IDisposable
         Vault.Create(MasterKey);
         return this;
     }
+
+    /// <summary>
+    /// Gets the array that holds a vault's data key, by reflection, so that production code needs no test hook that
+    /// hands out the key.
+    /// </summary>
+    /// <param name="vault">The vault.</param>
+    /// <returns>The live array, or <see langword="null"/> while locked.</returns>
+    public static byte[]? DataKeyOf(Vault vault) =>
+        (byte[]?)typeof(Vault).GetField("_dataKey", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(vault);
 
     /// <summary>Reads the vault file's bytes.</summary>
     /// <returns>The bytes.</returns>

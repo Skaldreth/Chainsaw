@@ -15,6 +15,12 @@ internal sealed class VaultFile
     /// <summary>The suffix of the temporary file a write goes through.</summary>
     public const string TemporarySuffix = ".tmp";
 
+    /// <summary>
+    /// The largest vault file that is read. A real vault is a few kilobytes; the limit keeps a damaged or hostile file
+    /// from forcing a large read and allocation.
+    /// </summary>
+    public const long MaximumFileSize = 1024 * 1024;
+
     /// <summary>The JSON settings of the file: camelCase names, byte arrays as Base64.</summary>
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -50,12 +56,21 @@ internal sealed class VaultFile
     /// <see cref="VaultError.NotCreated"/>, <see cref="VaultError.UnsupportedVersion"/> or
     /// <see cref="VaultError.Corrupt"/>.
     /// </exception>
+    /// <exception cref="IOException">The file exists but cannot be read, for example because it is in use.</exception>
+    /// <exception cref="UnauthorizedAccessException">The file exists but may not be read.</exception>
     public VaultDocument Read()
     {
         byte[] bytes;
         try
         {
-            bytes = File.ReadAllBytes(FilePath);
+            using var stream = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (stream.Length > MaximumFileSize)
+            {
+                throw new VaultException(VaultError.Corrupt);
+            }
+
+            bytes = new byte[stream.Length];
+            stream.ReadExactly(bytes);
         }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {

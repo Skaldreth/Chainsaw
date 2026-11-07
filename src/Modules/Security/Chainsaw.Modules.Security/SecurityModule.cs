@@ -12,7 +12,8 @@ public static class SecurityModule
     /// <summary>Adds the module's services to the container.</summary>
     /// <param name="services">The container to add to.</param>
     /// <param name="configure">
-    /// Changes the options, for example the vault folder; by default the vault lives in <c>%LOCALAPPDATA%\Chainsaw\</c>.
+    /// Changes the options, for example the vault folder; by default the vault lives in
+    /// <c>%LOCALAPPDATA%\Chainsaw\</c>.
     /// </param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>

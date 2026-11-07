@@ -3,7 +3,7 @@ namespace Chainsaw.Modules.Security;
 /// <summary>Where the vault file lives and how hard its master key is to guess.</summary>
 public sealed class VaultOptions
 {
-    /// <summary>The PBKDF2-SHA512 iterations for a new or changed master key (OWASP's recommendation for 2023).</summary>
+    /// <summary>The PBKDF2-SHA512 iterations for a new or changed master key (OWASP's recommendation).</summary>
     public const int DefaultIterations = 600_000;
 
     /// <summary>
