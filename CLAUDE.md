@@ -375,8 +375,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   bara de som går att använda på noden, och under noden när det är trångt ovanför. Etikett (L), Bryt upp (U) och Annan
   kedja (K) fälls ut i en ruta bredvid noden med en liten pil mot den, inte i inspektören. **Inspektören är ren
   läsning:** huvudet med *Varför?* som rund ikon, fakta, historik och adresserna med kopiera. **Skälet är frivilligt**
-  i alla formulär (användarens beslut 2026-11-07). **Utgångarna är UT1a**: utgången i titelraden fäller ut en ruta med utgångarna, anslut och
-  koppla ner, *Lägg till WireGuard-fil …* och vägen till källorna. **Guiden är GD1b**: en panel från höger bredvid
+  i alla formulär (användarens beslut 2026-11-07). **Utgångarna är UT2b** (användarens beslut 2026-11-07, ersätter UT1a): utgången i titelraden fäller ut en
+  ruta med vägen som en stor bild (Datorn, utgångens namn i en stor ring i lägets färg, Blockkedjor; linjen hel och grön
+  när uppslag går, streckad och röd annars), med VPN utgångarna under med en rund knapp för att ansluta, och längst ner
+  *Inställningar för anslutning*. *Lägg till WireGuard-fil* görs i Inställningar, inte i rutan. **Guiden är GD1b**: en panel från höger bredvid
   arbetet, öppnad från *Varför?*, *?* och spårningsmetoden, med svaret för det valda överst och *Öppna i Guide* till
   hela vyn (F1).
 - **Kontroller och förslag är KF1a** (användarens beslut 2026-11-07): knappen *Förslag · N* i grafens huvud (Ctrl+J)
@@ -503,7 +505,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
 | **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b |
-| **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
+| **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret); UT2a, UT2b (lättare att läsa) | UT2b vald (ersätter UT1a) |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
 | **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten); BV3a, BV3b (Bevaka, enklare och vid noden) | BV1a och BV2a valda, med animerade ringar vid träff; BV3a vald |
