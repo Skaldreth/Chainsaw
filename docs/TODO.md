@@ -33,11 +33,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 ### Polering först (användarens beslut 2026-11-07: inget nytt byggs förrän det som finns känns bra)
 
 Inventeringen av appen mot besluten, i ordning efter vad som gör mest för första intrycket:
-1. **Felrättningar utan ny form:** GateView säger att uppslag bara går genom VPN (motsäger Windows som utgång);
-   inställningarna talar om *Teckenfältet* fast låsskärmen är ID8c; två olika texter för offline (ShellViewModel och
-   GraphViewModel); *Ctrl+K* hårdkodat i kommandoraden; `Toggle.Switch` saknar hovring; bildspråkets *?* kan krocka med
-   pillret vid 600 px höjd; inaktuella rader i TESTER-INFOR och HANDOFF *Nästa steg*. (Grafens hörn utan ärende och
-   Nytt → Etikett-tipset är rättade.)
+1. **Felrättningar utan ny form:** inaktuella rader i TESTER-INFOR (väntar tills etapp 27 är inne, som skriver i
+   samma fil). (Rättat 2026-11-07: GateView och Windows som utgång, *Kättingen* i stället för *Teckenfältet*, en
+   text för offline, *Ctrl+K* ur `ViewTable`, hovring på `Toggle.Switch`, bildspråkets *?* nere till höger.)
 2. **GR6c, tom graf med guidenoder** (vald).
 3. **Öppna ett ärende** går bara med `/open`: ingen lista över senaste ärenden, inget Ctrl+O, ärendet i titelraden går
    inte att klicka, `/close` och `/verify` saknar knapp. Skissas (ÄV1).

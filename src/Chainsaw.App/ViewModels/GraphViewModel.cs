@@ -1,5 +1,6 @@
 using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
+using Chainsaw.App.Navigation;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
@@ -26,7 +27,7 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>What the graph says while the case has no start point.</summary>
     public const string NoStartPointsText =
-        "Inga startpunkter än. Skriv en adress eller en tx i kommandoraden (Ctrl+K) och tryck Enter.";
+        $"Inga startpunkter än. Skriv en adress eller en tx i kommandoraden ({ViewTable.CommandGesture}) och tryck Enter.";
 
     /// <summary>What the graph says while it is read for the first time.</summary>
     public const string LoadingText = "Läser grafen ur ärendet …";
@@ -44,8 +45,8 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>What the graph says when an expansion failed outright.</summary>
     public const string ExpandFailedText = "Expansionen misslyckades.";
 
-    /// <summary>What an expansion adds while no exit is connected (principle 9).</summary>
-    public const string OfflineText = "Offline: ingen utgång ansluten, så bara det ärendet redan har kan visas.";
+    /// <summary>What an expansion adds while no exit is connected (principle 9): the shell's one offline text.</summary>
+    public const string OfflineText = ShellViewModel.OfflineText;
 
     /// <summary>What the graph says when Bitcoin's sources are off in the settings (principle 9, sketch KL1a).</summary>
     public const string SourcesOffText =

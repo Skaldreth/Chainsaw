@@ -182,7 +182,7 @@
                     <StackPanel Visibility="{Binding IsExit, Converter={StaticResource Visible}}">
                         <TextBlock Text="Hur Chainsaw går ut på nätet" FontSize="24" FontWeight="SemiBold" Margin="0,16,0,0" />
                         <TextBlock Style="{StaticResource Text.Lead}" Margin="0,16,0,0"
-                                   Text="Uppslag mot kedjan går bara genom en VPN-utgång, aldrig direkt från datorn. Utan utgång fungerar allt som redan finns i ärendet, men inget nytt hämtas." />
+                                   Text="Uppslag mot kedjan går genom en VPN-utgång, eller genom Windows om du väljer det i inställningarna (Ctrl+,). Utan utgång fungerar allt som redan finns i ärendet, men inget nytt hämtas." />
                         <Button x:Name="AddExitButton" Style="{StaticResource Button.Choice}" Margin="0,16,0,0" Click="OnAddExit"
                                 IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}">
                             <StackPanel Orientation="Horizontal">

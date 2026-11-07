@@ -233,12 +233,14 @@
                 </ItemsControl>
             </Border>
 
-            <!-- The visual language behind the ? (sketches GR3a and GR3c). -->
-            <Button Style="{StaticResource Button.Help}" Content="?" FontSize="13" HorizontalAlignment="Left"
-                    VerticalAlignment="Bottom" Margin="18,0,0,18" AutomationProperties.Name="Bildspråket"
+            <!--
+              The visual language behind the ? (sketches GR3a and GR3c), in the lower right corner (sketch SO1a), where
+              it never meets the pill at the left edge however low the window is. -->
+            <Button Style="{StaticResource Button.Help}" Content="?" FontSize="13" HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom" Margin="0,0,18,18" AutomationProperties.Name="Bildspråket"
                     ToolTip="Bildspråket. I grafen: Esc väljer inget, E expanderar, F passar in, + och − zoomar."
                     Command="{Binding ToggleLegendCommand}" />
-            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="18,0,0,56" Width="420" Padding="14"
+            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,18,56" Width="420" Padding="14"
                     CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"
                     Background="{StaticResource Brush.Floating}"
                     Visibility="{Binding IsLegendOpen, Converter={StaticResource Visible}}">

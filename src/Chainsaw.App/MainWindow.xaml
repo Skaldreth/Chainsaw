@@ -4,6 +4,7 @@
         xmlns:controls="clr-namespace:Chainsaw.App.Controls"
         xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
         xmlns:views="clr-namespace:Chainsaw.App.Views"
+        xmlns:nav="clr-namespace:Chainsaw.App.Navigation"
         Title="Chainsaw" Width="1440" Height="900" MinWidth="960" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Brush.Background}"
@@ -215,7 +216,7 @@
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Left" Text="&gt;" FontFamily="{StaticResource Font.Mono}"
                                                    Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <TextBlock DockPanel.Dock="Right" Text="Ctrl+K" FontSize="11" Foreground="{StaticResource Brush.TextDim}"
+                                        <TextBlock DockPanel.Dock="Right" Text="{x:Static nav:ViewTable.CommandGesture}" FontSize="11" Foreground="{StaticResource Brush.TextDim}"
                                                    VerticalAlignment="Center" Margin="10,0,0,0" />
                                         <TextBox x:Name="CommandBox" Style="{StaticResource TextBox.Command}"
                                                  Tag="Sök adress, tx eller etikett, eller skriv /kommando"

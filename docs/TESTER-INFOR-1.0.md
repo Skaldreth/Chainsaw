@@ -400,7 +400,7 @@ offline och se att det sägs ärligt). Grafen är förstavyn.
   streckad. Beloppet står mitt på linjen, *0,1570 av 0,2400* när bara en del är spårad.
 - Knappen *Alla belopp* växlar till *Spårade belopp* (bara magenta linjer har belopp) och *Inga belopp*. Håll pekaren
   över en linje: beloppet visas ändå. Välj en nod: bara linjerna runt den har belopp.
-- *?* nere till vänster öppnar bildspråket: sorterna med ikon och färg, markeringarna och linjerna, och en länk till
+- *?* nere till höger öppnar bildspråket: sorterna med ikon och färg, markeringarna och linjerna, och en länk till
   Guiden. Hovring över *?* visar grafens tangenter.
 
 **Fri yta och hoppkolumner**
@@ -465,7 +465,7 @@ Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunnel
 
 **Titelraden och statusraden**
 - Utan ansluten utgång står det *Ingen utgång* med en grå prick och en liten pil i titelraden, och statusraden säger
-  *Offline: ingen utgång ansluten, så inget nytt kan hämtas*. Med en ansluten utgång: grön prick och namnet, och
+  *Offline: ingen utgång ansluten. Det ärendet redan har visas, men inget nytt hämtas.*. Med en ansluten utgång: grön prick och namnet, och
   statusraden *Uppslag går genom utgången …*.
 - Hovring över utgången visar statusradens text. Fönstret går fortfarande att dra i titelraden runt knappen.
 
@@ -516,7 +516,7 @@ Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunnel
   väljer inget, som förut.
 - Högerklicka på *FIFO* i grafens hörn: panelen öppnas vid *FIFO (först in, först ut)* med det spårade överst. Ett
   vanligt klick byter fortfarande metod. Efter byte till haircut: högerklick öppnar vid *Haircut (andel)*.
-- *?* nere till vänster visar bildspråket; länken *Guiden: Grafen och bildspråket* stänger bildspråket och öppnar
+- *?* nere till höger visar bildspråket; länken *Guiden: Grafen och bildspråket* stänger bildspråket och öppnar
   panelen vid avsnittets början. Med panelen redan öppen blir det ett steg, och pilen går tillbaka.
 - Byt vy i pillret: panelen stängs. Öppna eller stäng ett ärende: panelen stängs.
 - Svarsrutan står kvar överst medan avsnittet under den rullar till den markerade rubriken; ett långt svar (ett

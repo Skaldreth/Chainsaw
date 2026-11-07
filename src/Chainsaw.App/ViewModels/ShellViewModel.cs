@@ -29,8 +29,12 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>What the status line says when lookups go through Windows.</summary>
     public const string WindowsSourceText = "Uppslag går genom Windows";
 
-    /// <summary>What the status line says while no exit is connected: nothing can be looked up (principle 9).</summary>
-    public const string OfflineText = "Offline: ingen utgång ansluten, så inget nytt kan hämtas";
+    /// <summary>
+    /// What Chainsaw says while no exit is connected (principle 9), in the status line and in the graph alike, so
+    /// that offline is said one way only.
+    /// </summary>
+    public const string OfflineText =
+        "Offline: ingen utgång ansluten. Det ärendet redan har visas, men inget nytt hämtas.";
 
     /// <summary>What the bar says when a sanction list is chosen while one is being imported.</summary>
     public const string ImportRunningText = "En sanktionslista importeras redan.";

@@ -914,23 +914,23 @@
                                             <Border DockPanel.Dock="Right" Style="{StaticResource Settings.SegmentFrame}">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Border CornerRadius="5" Padding="12,0" Height="28" Background="{StaticResource Brush.SurfaceSelected}">
-                                                        <TextBlock Text="Slumpa" FontSize="12.5" VerticalAlignment="Center" />
+                                                        <TextBlock Text="Rör sig" FontSize="12.5" VerticalAlignment="Center" />
                                                     </Border>
                                                     <Border Padding="12,0" Height="28">
-                                                        <TextBlock Text="Av" FontSize="12.5" VerticalAlignment="Center"
+                                                        <TextBlock Text="Står still" FontSize="12.5" VerticalAlignment="Center"
                                                                    Foreground="{StaticResource Brush.TextDim}" />
                                                     </Border>
                                                 </StackPanel>
                                             </Border>
                                             <StackPanel Margin="0,0,16,0">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="Teckenfältet" Style="{StaticResource Settings.RowTitle}" />
+                                                    <TextBlock Text="Kättingen" Style="{StaticResource Settings.RowTitle}" />
                                                     <Border Style="{StaticResource Settings.Tag}">
                                                         <TextBlock Text="{x:Static vm:SettingsViewModel.NotBuiltText}" FontSize="11"
                                                                    Foreground="{StaticResource Brush.TextDim}" />
                                                     </Border>
                                                 </StackPanel>
-                                                <TextBlock Text="Scenen bakom låsskärmen." Style="{StaticResource Settings.RowHint}" />
+                                                <TextBlock Text="Kättingen som blir DNA bakom låsskärmen." Style="{StaticResource Settings.RowHint}" />
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
