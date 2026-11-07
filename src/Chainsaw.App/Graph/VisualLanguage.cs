@@ -34,6 +34,9 @@ public enum GraphInk
 
     /// <summary>The dark grey of a line that carries none of the traced money.</summary>
     Untraced,
+
+    /// <summary>The light disc of the start point's flag (sketch GR5, variant A).</summary>
+    StartMark,
 }
 
 /// <summary>A node's frame: the shape says what it is (sketch GR3a).</summary>
@@ -52,7 +55,10 @@ public enum NodeShape
 /// </summary>
 public enum NodeSort
 {
-    /// <summary>The victim, or the start point (round, the accent).</summary>
+    /// <summary>
+    /// The victim (round, the accent): a label the user sets, never the start point's sort, since a start point may
+    /// as well be the suspect's wallet (sketch GR5).
+    /// </summary>
     Victim,
 
     /// <summary>A cluster without a label: several addresses, one owner.</summary>
@@ -127,6 +133,12 @@ public enum NodeBadge
 
     /// <summary>The label came from another case through the library.</summary>
     FromOtherCase,
+
+    /// <summary>
+    /// The trace starts here (sketch GR5, variant A): a small flag in the top-left corner, the same form as the other
+    /// marks but on the other side, so that it never collides with them. The node keeps its sort.
+    /// </summary>
+    StartPoint,
 }
 
 /// <summary>How a sort is drawn.</summary>
@@ -179,10 +191,12 @@ public static class VisualLanguage
     ];
 
     /// <summary>
-    /// Gets every mark that Chainsaw can set now; the watched and freezable marks wait for their modules.
+    /// Gets every mark that Chainsaw can set now; the watched and freezable marks wait for their modules. The start
+    /// point's flag is drawn in the other corner (<see cref="NodeView.IsStartPoint"/>), the rest in the top-right one.
     /// </summary>
     public static IReadOnlyList<BadgeLook> Badges { get; } =
     [
+        new(NodeBadge.StartPoint, "Startpunkt", "Icon.Flag", GraphInk.StartMark),
         new(NodeBadge.CashOutFound, "Uttag funnet", "Icon.Kind.Check", GraphInk.CashOut),
         new(NodeBadge.FromOtherCase, "Etikett från ett annat ärende", "Icon.Tag", GraphInk.Cluster),
         new(NodeBadge.Sanctioned, "Sanktionerad", "Icon.Kind.Ban", GraphInk.Sanctioned),

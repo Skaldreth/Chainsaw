@@ -156,6 +156,7 @@ public partial class App : Application
                 .AddSingleton<SanctionListImport>()
                 .AddSingleton<ExitPanelViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
+                .AddSingleton<IGraphEditor, GraphEditor>()
                 .AddSingleton<GraphViewModel>()
                 .AddSingleton(_ => GuideLibrary.Load())
                 .AddSingleton<GuidePanelViewModel>()

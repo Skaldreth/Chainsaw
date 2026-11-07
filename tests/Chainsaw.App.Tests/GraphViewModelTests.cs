@@ -104,7 +104,7 @@ public sealed class GraphViewModelTests
         public Rig(bool open = true)
         {
             Workflow = new CaseWorkflow(new TestCaseStore(), Tracing, new TestVault(VaultState.Unlocked), Session);
-            Graph = new GraphViewModel(Session, Workflow, Source, Exit, new InlineUi());
+            Graph = new GraphViewModel(Session, Workflow, Source, Exit, new InlineUi(), Editor, new TestClock());
             Graph.FitWanted += (_, _) => Fits++;
             Graph.GuideWanted += (_, request) => Guides.Add(request);
             Graph.WhyChanged += (_, request) => Followed.Add(request);
@@ -121,6 +121,8 @@ public sealed class GraphViewModelTests
         public CaseWorkflow Workflow { get; }
 
         public TestGraphSource Source { get; } = new();
+
+        public TestGraphEditor Editor { get; } = new();
 
         public TestExitConnection Exit { get; } = new();
 
@@ -484,7 +486,8 @@ public sealed class GraphViewModelTests
         var expansion = new TaskCompletionSource<GraphExpansion>();
         rig.Source.Waiting = null;
         var source = new SlowExpansion(rig.Source, expansion.Task);
-        var graph = new GraphViewModel(rig.Session, rig.Workflow, source, rig.Exit, new InlineUi());
+        var graph = new GraphViewModel(
+            rig.Session, rig.Workflow, source, rig.Exit, new InlineUi(), rig.Editor, new TestClock());
         graph.Choose(GraphSamples.UKey, null);
         var loadsBefore = rig.Source.Loads.Count;
 

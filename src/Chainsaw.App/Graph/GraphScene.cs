@@ -37,7 +37,7 @@ public enum EdgeDash
 
 /// <summary>An actor as the graph draws it.</summary>
 /// <param name="Node">The actor in Tracing's model.</param>
-/// <param name="Look">Its sort and how that is drawn.</param>
+/// <param name="Look">Its sort and how that is drawn; a start point keeps its own sort (sketch GR5).</param>
 /// <param name="Name">Its name: the label's name, or the address, tx or coin shortened.</param>
 /// <param name="Count">How many addresses its cluster has, when more than one; otherwise empty.</param>
 /// <param name="Badges">The marks in its corner.</param>
@@ -49,6 +49,12 @@ public enum EdgeDash
 /// <param name="In">What came in on the chain along the graph's lines (fact).</param>
 /// <param name="Out">What went out on the chain along the graph's lines (fact).</param>
 /// <param name="TracedIn">How much of the traced money came in, by the method (conclusion).</param>
+/// <param name="Subject">
+/// What the node is, written out in full: its first address, the txid, the coin or the other chain's id. The graph
+/// writes it under a name in dimmed grey, or as the title of a node without a name, shortened only when it does not
+/// fit (CLAUDE.md, <em>Nodernas namn</em>).
+/// </param>
+/// <param name="IsNamed">Whether a label gives the node a name (a label's or the user's own name).</param>
 public sealed record NodeView(
     GraphNode Node,
     SortLook Look,
@@ -60,10 +66,15 @@ public sealed record NodeView(
     IReadOnlyList<Label> Labels,
     Satoshi In,
     Satoshi Out,
-    Satoshi TracedIn)
+    Satoshi TracedIn,
+    string Subject,
+    bool IsNamed)
 {
     /// <summary>Gets the node's key.</summary>
     public string Key => Node.Key;
+
+    /// <summary>Gets whether the trace starts here, drawn as the flag in the top-left corner (sketch GR5).</summary>
+    public bool IsStartPoint => Node.IsStartPoint;
 
     /// <summary>Gets the tooltip: the sort, the marks and how far it is expanded.</summary>
     public string ToolTip
@@ -71,6 +82,11 @@ public sealed record NodeView(
         get
         {
             var parts = new List<string> { Look.Name };
+            if (IsStartPoint)
+            {
+                parts.Add(VisualLanguage.Of(NodeBadge.StartPoint).Name);
+            }
+
             parts.AddRange(Badges.Select(badge => VisualLanguage.Of(badge).Name));
             if (IsDim)
             {
@@ -275,10 +291,11 @@ public sealed record GraphScene(
         }
 
         var expandable = node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster or GraphNodeKind.Transaction;
+        var name = primary?.Name ?? labels.FirstOrDefault(label => label.Name is not null)?.Name;
         return new NodeView(
             node,
             VisualLanguage.Of(sort),
-            primary?.Name ?? labels.FirstOrDefault(label => label.Name is not null)?.Name ?? NameOf(node),
+            name ?? NameOf(node),
             node.ClusterSize > 1 ? node.ClusterSize.ToString(System.Globalization.CultureInfo.InvariantCulture) : "",
             badges,
             expandable && node.Expansion != NodeExpansion.Expanded,
@@ -286,12 +303,15 @@ public sealed record GraphScene(
             labels,
             Sum(incoming.Select(edge => edge.Edge.Amount)),
             Sum(outgoing.Select(edge => edge.Edge.Amount)),
-            tracedIn);
+            tracedIn,
+            SubjectOf(node),
+            name is not null);
     }
 
     /// <summary>
     /// Gives an actor's sort: its kind in the model, then its labels (a sanction is a mark when another label says
-    /// more), then whether the trace starts there.
+    /// more). Whether the trace starts there never changes it (sketch GR5): the start point is a flag, and the victim
+    /// a label.
     /// </summary>
     /// <param name="node">The actor.</param>
     /// <param name="labels">Its labels, the best supported first.</param>
@@ -329,13 +349,26 @@ public sealed record GraphScene(
             return NodeSort.Sanctioned;
         }
 
-        if (node.IsStartPoint || labelled.Contains(NodeSort.Victim))
+        if (labelled.Contains(NodeSort.Victim))
         {
             return NodeSort.Victim;
         }
 
         return node.Kind == GraphNodeKind.Cluster ? NodeSort.Cluster : NodeSort.Unknown;
     }
+
+    /// <summary>Gives what an actor is, written out in full: its first address, the txid, the coin or the id.</summary>
+    /// <param name="node">The actor.</param>
+    /// <returns>The text; the node's key when it has nothing else.</returns>
+    private static string SubjectOf(GraphNode node) => node.Kind switch
+    {
+        GraphNodeKind.Transaction when node.Transaction is { } txid => txid.Value,
+        GraphNodeKind.Coin when node.Coin is { } coin =>
+            coin.Txid.Value + ":" + coin.Index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        GraphNodeKind.OtherChain when node.OtherChain is { } other => other.Id,
+        _ when node.GraphAddresses.Count > 0 => node.GraphAddresses[0].Value,
+        _ => node.Key,
+    };
 
     /// <summary>Gives an actor's name when no label names it: what it is, shortened.</summary>
     /// <param name="node">The actor.</param>

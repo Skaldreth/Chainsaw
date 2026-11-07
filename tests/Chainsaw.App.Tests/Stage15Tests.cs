@@ -25,7 +25,14 @@ public sealed class Stage15Tests
             Source.View = view ?? GraphViewState.Default;
             Workflow = new CaseWorkflow(
                 new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), Session);
-            Graph = new GraphViewModel(Session, Workflow, Source, new TestExitConnection(), new InlineUi());
+            Graph = new GraphViewModel(
+                Session,
+                Workflow,
+                Source,
+                new TestExitConnection(),
+                new InlineUi(),
+                new TestGraphEditor(),
+                new TestClock());
             Session.Open(Case);
         }
 

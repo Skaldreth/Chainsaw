@@ -275,7 +275,10 @@ public sealed class GraphCanvas : FrameworkElement
         e.Handled = true;
     }
 
-    /// <summary>The graph's keys: Esc, E, F, + and −.</summary>
+    /// <summary>
+    /// The graph's keys: Esc (closes an open form, then chooses nothing), E, F, + and −, and the inspector's forms L,
+    /// U and K (sketch IN1a).
+    /// </summary>
     /// <param name="e">The key.</param>
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -291,8 +294,20 @@ public sealed class GraphCanvas : FrameworkElement
         e.Handled = true;
         switch (e.Key)
         {
+            case Key.Escape when _model.Forms.IsOpen:
+                _model.Forms.Cancel();
+                break;
             case Key.Escape:
                 _model.Choose(null, null);
+                break;
+            case Key.L:
+                _model.Forms.Open(InspectorForm.Label);
+                break;
+            case Key.U:
+                _model.Forms.Open(InspectorForm.Split);
+                break;
+            case Key.K:
+                _model.Forms.Open(InspectorForm.CrossChain);
                 break;
             case Key.E:
                 _model.ExpandCommand.Execute(null);
@@ -540,23 +555,93 @@ public sealed class GraphCanvas : FrameworkElement
         var nameLeft = place.X + NodePadding + IconBox + NodeGap;
         var countRoom = node.Count.Length > 0 ? count.Width + NodeGap : 0;
         var nameRight = place.X + GraphSizes.NodeWidth - NodePadding - countRoom;
-        var name = Text(node.Name, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
-        name.MaxTextWidth = Math.Max(1, nameRight - nameLeft);
-        name.MaxLineCount = 1;
-        name.Trimming = TextTrimming.CharacterEllipsis;
-        dc.DrawText(name, new Point(nameLeft, place.Y + ((GraphSizes.NodeHeight - name.Height) / 2)));
+        DrawTitle(dc, node, place, nameLeft, Math.Max(1, nameRight - nameLeft));
         if (node.Count.Length > 0)
         {
             dc.DrawText(count, new Point(nameRight + NodeGap, place.Y + ((GraphSizes.NodeHeight - count.Height) / 2)));
         }
 
         DrawMarks(dc, node, place);
+        if (node.IsStartPoint)
+        {
+            DrawStartFlag(dc, place);
+        }
+
         if (node.ChainName is { } chain)
         {
             DrawChain(dc, chain, place);
         }
 
         dc.Pop();
+    }
+
+    /// <summary>
+    /// Writes a node's title (CLAUDE.md, <em>Nodernas namn</em>; sketch GR5): a name with the address under it in dimmed
+    /// grey, or only the address as a quieter title; the address is shortened only when it does not fit.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="node">The node.</param>
+    /// <param name="place">Its top-left corner.</param>
+    /// <param name="left">Where the text starts.</param>
+    /// <param name="room">How wide the text may be.</param>
+    private void DrawTitle(DrawingContext dc, NodeView node, GraphPoint place, double left, double room)
+    {
+        if (!node.IsNamed)
+        {
+            var title = Fitted(node.Subject, 12.5, GraphPalette.Find(this, "Brush.TextMuted"), FontWeights.Medium, room);
+            dc.DrawText(title, new Point(left, place.Y + ((GraphSizes.NodeHeight - title.Height) / 2)));
+            return;
+        }
+
+        var name = Text(node.Name, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
+        name.MaxTextWidth = room;
+        name.MaxLineCount = 1;
+        name.Trimming = TextTrimming.CharacterEllipsis;
+        var subject = Fitted(node.Subject, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal, room);
+        var top = place.Y + ((GraphSizes.NodeHeight - name.Height - subject.Height + 2) / 2);
+        dc.DrawText(name, new Point(left, top));
+        dc.DrawText(subject, new Point(left, top + name.Height - 2));
+    }
+
+    /// <summary>Makes an address's text, shortened in the middle only as much as the room asks.</summary>
+    /// <param name="subject">The address, txid or id in full.</param>
+    /// <param name="size">The size.</param>
+    /// <param name="ink">The colour.</param>
+    /// <param name="weight">The weight.</param>
+    /// <param name="room">How wide it may be.</param>
+    /// <returns>The formatted text.</returns>
+    private FormattedText Fitted(string subject, double size, Brush ink, FontWeight weight, double room)
+    {
+        var text = Text(subject, size, ink, weight);
+        if (text.Width <= room || subject.Length == 0)
+        {
+            return text;
+        }
+
+        var characters = (int)Math.Floor(room / (text.Width / subject.Length));
+        do
+        {
+            text = Text(SubjectText.Fit(subject, characters), size, ink, weight);
+            characters--;
+        }
+        while (text.Width > room && characters >= SubjectText.Shortest);
+
+        return text;
+    }
+
+    /// <summary>
+    /// Draws the start point's flag in the node's top-left corner (sketch GR5, variant A): a light disc of the same
+    /// form as the marks in the other corner, so that the two never collide.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="place">The node's top-left corner.</param>
+    private void DrawStartFlag(DrawingContext dc, GraphPoint place)
+    {
+        var (disc, icon) = GraphPalette.Mark(this, NodeBadge.StartPoint);
+        var centre = new Point(place.X - MarkOverhang + (MarkSize / 2), place.Y - MarkOverhang + (MarkSize / 2));
+        dc.DrawEllipse(disc, new Pen(GraphPalette.Find(this, "Brush.Background"), 2), centre, MarkSize / 2, MarkSize / 2);
+        var corner = new Point(centre.X - (MarkIconSize / 2), centre.Y - (MarkIconSize / 2));
+        DrawGlyph(dc, VisualLanguage.Of(NodeBadge.StartPoint).Icon, icon, corner, MarkIconSize);
     }
 
     /// <summary>Gives a node's frame: the accent when chosen, lighter under the pointer, dashed when uncertain.</summary>

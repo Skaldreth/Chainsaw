@@ -27,13 +27,21 @@ public sealed partial class GraphSceneTests
     private static Dictionary<string, IReadOnlyList<Label>> On(string key, params Label[] labels) =>
         new() { [key] = labels };
 
-    /// <summary>Without labels: the start is the victim, a cluster a cluster and an address unknown and faint.</summary>
+    /// <summary>
+    /// Without labels: the start keeps its own sort with the flag (sketch GR5), a cluster is a cluster and an address
+    /// unknown and faint.
+    /// </summary>
     [Fact]
     public void UnlabelledActorsHaveTheGraphsOwnSorts()
     {
         var scene = GraphSamples.Scene();
 
-        Assert.Equal(NodeSort.Victim, scene.Node(GraphSamples.VKey)!.Look.Sort);
+        var start = scene.Node(GraphSamples.VKey)!;
+        Assert.Equal(NodeSort.Unknown, start.Look.Sort);
+        Assert.True(start.IsStartPoint);
+        Assert.Empty(start.Badges);
+        Assert.Contains("Startpunkt", start.ToolTip, StringComparison.Ordinal);
+        Assert.False(scene.Node(GraphSamples.UKey)!.IsStartPoint);
         Assert.Equal(NodeSort.Cluster, scene.Node(GraphSamples.KKey)!.Look.Sort);
         Assert.Equal("2", scene.Node(GraphSamples.KKey)!.Count);
         var unknown = scene.Node(GraphSamples.UKey)!;
@@ -90,15 +98,81 @@ public sealed partial class GraphSceneTests
         Assert.Contains("Sanktionerad", mixer.ToolTip, StringComparison.Ordinal);
     }
 
-    /// <summary>A label on the start point says what it is; an unknown label does not hide the start.</summary>
+    /// <summary>
+    /// A label on the start point says what it is; the start is never the victim by itself, only by the victim's
+    /// label (sketch GR5), and a start that is a cluster stays a cluster.
+    /// </summary>
     [Fact]
     public void StartPointKeepsItsLabel()
     {
         var exchange = GraphSamples.Scene(On(GraphSamples.VKey, GraphSamples.Label(GraphSamples.V, LabelKind.Exchange)));
         var unknown = GraphSamples.Scene(On(GraphSamples.VKey, GraphSamples.Label(GraphSamples.V, LabelKind.Unknown)));
+        var victim = GraphSamples.Scene(On(GraphSamples.VKey, GraphSamples.Label(GraphSamples.V, LabelKind.Victim)));
+        var graph = GraphSamples.Graph();
+        var clusterStart = graph with
+        {
+            Nodes =
+            [
+                .. graph.Nodes.Select(node => node.Key == GraphSamples.KKey ? node with { IsStartPoint = true } : node),
+            ],
+        };
 
         Assert.Equal(NodeSort.Exchange, exchange.Node(GraphSamples.VKey)!.Look.Sort);
-        Assert.Equal(NodeSort.Victim, unknown.Node(GraphSamples.VKey)!.Look.Sort);
+        Assert.Equal(NodeSort.Unknown, unknown.Node(GraphSamples.VKey)!.Look.Sort);
+        Assert.Equal(NodeSort.Victim, victim.Node(GraphSamples.VKey)!.Look.Sort);
+        Assert.True(victim.Node(GraphSamples.VKey)!.IsStartPoint);
+        var cluster = GraphSamples.Scene(graph: clusterStart).Node(GraphSamples.KKey)!;
+        Assert.Equal(NodeSort.Cluster, cluster.Look.Sort);
+        Assert.True(cluster.IsStartPoint);
+    }
+
+    /// <summary>
+    /// A node without a name is titled by its address in full, to be shortened only where it does not fit; a named
+    /// node has the name with the address under it (CLAUDE.md, <em>Nodernas namn</em>).
+    /// </summary>
+    [Fact]
+    public void NamedNodesShowTheAddressUnderTheName()
+    {
+        var scene = GraphSamples.Scene(On(GraphSamples.EKey, ExchangeA));
+        var named = scene.Node(GraphSamples.EKey)!;
+        var unnamed = scene.Node(GraphSamples.UKey)!;
+        var ownName = GraphSamples.Label(GraphSamples.U, LabelKind.Unknown, "Säljaren");
+        var own = GraphSamples.Scene(On(GraphSamples.UKey, ownName)).Node(GraphSamples.UKey)!;
+
+        Assert.True(named.IsNamed);
+        Assert.Equal("Börs A", named.Name);
+        Assert.Equal(GraphSamples.E.Value, named.Subject);
+        Assert.False(unnamed.IsNamed);
+        Assert.Equal(GraphSamples.U.Value, unnamed.Subject);
+        Assert.True(own.IsNamed);
+        Assert.Equal("Säljaren", own.Name);
+        Assert.Equal(NodeSort.Unknown, own.Look.Sort);
+    }
+
+    /// <summary>An address is shortened only as much as the room asks, keeping its start and its last four.</summary>
+    [Fact]
+    public void SubjectIsShortenedOnlyWhenItDoesNotFit()
+    {
+        const string address = "bc1qdlm5aahn0t09nl4ujy8624fl6zy54klay937yr";
+
+        Assert.Equal(address, SubjectText.Fit(address, 42));
+        Assert.Equal(address, SubjectText.Fit(address, 100));
+        Assert.Equal("bc1qdlm…37yr", SubjectText.Fit(address, 12));
+        Assert.Equal("bc1q…37yr", SubjectText.Fit(address, 3));
+        Assert.Equal("short", SubjectText.Fit("short", 2));
+        Assert.Equal(22, SubjectText.Fit(address, 22).Length);
+    }
+
+    /// <summary>The legend has the start point's flag first among the marks.</summary>
+    [Fact]
+    public void LegendHasTheStartFlag()
+    {
+        var flag = VisualLanguage.Badges[0];
+
+        Assert.Equal(NodeBadge.StartPoint, flag.Badge);
+        Assert.Equal("Startpunkt", flag.Name);
+        Assert.Equal("Icon.Flag", flag.Icon);
+        Assert.Equal(GraphInk.StartMark, flag.Ink);
     }
 
     /// <summary>A shared tx is a CoinJoin when the trail ends there as one; another chain has its sort.</summary>
@@ -326,7 +400,9 @@ public sealed partial class GraphSceneTests
         Assert.Contains(start.Why, line => line.Text.StartsWith("Inte expanderad", StringComparison.Ordinal));
         Assert.Contains(start.Why, line => line.Text.Contains("Ingen etikett", StringComparison.Ordinal));
         Assert.Equal(2, cluster.Expansion.Count);
-        Assert.Equal("Offer", start.Facts.Single(fact => fact.Name == "Sort").Value);
+        Assert.Equal("Okänd", start.Facts.Single(fact => fact.Name == "Sort").Value);
+        Assert.True(start.IsStartPoint);
+        Assert.False(cluster.IsStartPoint);
     }
 
     /// <summary>The trail's end at a node is said with its reason, its source and its section.</summary>

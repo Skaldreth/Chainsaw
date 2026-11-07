@@ -52,6 +52,12 @@ public sealed record InspectorContent(
     /// <summary>Gets whether the chosen node can be expanded.</summary>
     public bool CanExpand => Expansion.Count > 0;
 
+    /// <summary>
+    /// Gets whether the chosen node is a start point, which the inspector says under its heading with the flag
+    /// (sketch GR5); the node keeps its own sort.
+    /// </summary>
+    public bool IsStartPoint { get; init; }
+
     /// <summary>Gives the inspector's content for a node.</summary>
     /// <param name="scene">The scene.</param>
     /// <param name="node">The node.</param>
@@ -86,7 +92,10 @@ public sealed record InspectorContent(
             facts,
             NodeDetails(model),
             NodeWhy(scene, node),
-            ExpansionOf(model));
+            ExpansionOf(model))
+        {
+            IsStartPoint = model.IsStartPoint,
+        };
     }
 
     /// <summary>Gives the inspector's content for a line.</summary>
@@ -231,7 +240,8 @@ public sealed record InspectorContent(
         {
             why.Add(new WhyLine(
                 "Startpunkt i ärendet. Spåret räknas från mynten som startpunkten tog emot, eller från en "
-                + "startpunkts-tx:s betalningar till andra än betalarna; det är ett val, inte en slutsats.",
+                + "startpunkts-tx:s betalningar till andra än betalarna; det är ett val, inte en slutsats. "
+                + "Startpunkten säger inget om vem som äger den: den kan lika gärna vara den misstänktes som offrets.",
                 GuideTopic.StartPoints));
         }
 

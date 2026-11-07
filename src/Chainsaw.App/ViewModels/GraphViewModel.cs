@@ -3,6 +3,7 @@ using Chainsaw.App.Guide;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -90,14 +91,24 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="source">The modules.</param>
     /// <param name="exit">The connection to the exit, for an honest offline.</param>
     /// <param name="ui">The UI thread.</param>
+    /// <param name="editor">Where the inspector's forms write in the case (sketch IN1a).</param>
+    /// <param name="clock">The clock.</param>
     public GraphViewModel(
-        CaseSession session, CaseWorkflow workflow, IGraphSource source, IExitConnection exit, IUiThread ui)
+        CaseSession session,
+        CaseWorkflow workflow,
+        IGraphSource source,
+        IExitConnection exit,
+        IUiThread ui,
+        IGraphEditor editor,
+        IClock clock)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(exit);
         ArgumentNullException.ThrowIfNull(ui);
         _session = session;
         _source = source;
+        Forms = new InspectorFormsViewModel(session, editor, clock);
+        Forms.Saved += (_, _) => _ = RefreshAsync();
         session.Changed += (_, _) => OnCaseChanged();
         workflow.StartPointAdded += (_, _) => ui.Post(() => _ = RefreshAsync());
         exit.StatusChanged += (_, status) => ui.Post(() => IsOffline = status.State != ExitState.Connected);
@@ -215,6 +226,12 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets whether something is chosen.</summary>
     public bool HasInspection => Inspection is not null;
+
+    /// <summary>
+    /// Gets the inspector's forms (sketch IN1a): <em>Etikett</em>, <em>Bryt upp</em> and <em>Annan kedja</em> for the
+    /// chosen node; what they store makes the graph be read again from the case.
+    /// </summary>
+    public InspectorFormsViewModel Forms { get; }
 
     /// <summary>Gets the answers to <em>Varför?</em> for what is chosen, the cluster's added when they come.</summary>
     [ObservableProperty]
@@ -827,6 +844,7 @@ public sealed partial class GraphViewModel : ObservableObject
             _ => null,
         };
         Why = Inspection?.Why ?? [];
+        Forms.Follow(scene, node);
         if (node is { Node.Kind: GraphNodeKind.Cluster } && _session.Current is { } openCase)
         {
             _ = ExplainClusterAsync(openCase, node);

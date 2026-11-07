@@ -25,6 +25,7 @@ public static class GraphPalette
         GraphInk.OtherChain => "Brush.Kind.OtherChain",
         GraphInk.Cluster => "Brush.Kind.Cluster",
         GraphInk.Unknown => "Brush.Kind.Unknown",
+        GraphInk.StartMark => "Brush.Mark.Start",
         _ => "Brush.Graph.Untraced",
     };
 
@@ -42,6 +43,7 @@ public static class GraphPalette
     {
         NodeBadge.CashOutFound => (Find(owner, "Brush.Kind.CashOut"), Find(owner, "Brush.Mark.OnCashOut")),
         NodeBadge.Sanctioned => (Find(owner, "Brush.Kind.Sanctioned"), Find(owner, "Brush.Mark.OnSanctioned")),
+        NodeBadge.StartPoint => (Find(owner, "Brush.Mark.Start"), Find(owner, "Brush.Background")),
         _ => (Find(owner, "Brush.Mark.OtherCase"), Find(owner, "Brush.Text")),
     };
 

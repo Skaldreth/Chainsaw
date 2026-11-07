@@ -16,7 +16,16 @@ Kedjan säger vilka adresser som fick pengar, aldrig vem som äger dem. Allt som
 
 En etikett kan inte ändras. Har den blivit fel **tas den tillbaka** med en rad i journalen som säger varför, och den
 står kvar i ärendet som tillbakatagen. Då går det alltid att läsa vad man trodde och när, och `/verify` visar att
-ingen etikett har ändrats i efterhand.
+ingen etikett har ändrats i efterhand. Att ta tillbaka en etikett går inte att göra i grafen än.
+
+## Sätta en etikett i grafen
+
+Välj en adress eller ett kluster och tryck **L** (eller *Etikett* i inspektören). Du anger namn, sort, källa och skäl,
+och kan slå på *Sprid inte*. En etikett på ett kluster sätts på klustret, en på en adress på adressen. Källan
+*Beställningen* och *Svar från börs* är din egen bedömning ur ett dokument, och står först i skälet; en *öppen källa*
+får sitt namn och dagen du läste den som version. Etiketten *Offer* är det som gör en nod magenta: startpunkten är aldrig
+ett offer av sig själv. En etikett som redan kom från ett annat ärende och som du sätter igen blir ett eget ursprung,
+och två oberoende ursprung visas som bekräftelse.
 
 ## Adress eller kluster
 
@@ -34,7 +43,7 @@ Sorterna följer vad som händer med pengarna, och färgen i grafen säger samma
 - **Rött, risk:** darknet och garantimarknad (spåret tar slut i en *Tjänst*), mixer och CoinJoin (spåret tar slut där)
   och sanktionerad.
 - **Lila, annan kedja:** swap eller brygga. Spåret *fortsätter på annan kedja*.
-- **Offer** i accentfärgen och **okänd** utan färg.
+- **Offer** i accentfärgen och **okänd** utan färg. *Okänd* med ett namn är ett eget namn på aktören.
 
 En **sanktionerad** adress avslutar inte spåret: det säger vem ägaren är, inte vart pengarna tar vägen. Detsamma gäller
 offer och okänd.

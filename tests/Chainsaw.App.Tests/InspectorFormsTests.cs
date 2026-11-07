@@ -1,0 +1,485 @@
+using Chainsaw.App.Graph;
+using Chainsaw.App.ViewModels;
+using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
+
+namespace Chainsaw.App.Tests;
+
+/// <summary>Records what the inspector's forms ask the modules to store, and answers with a set cluster.</summary>
+internal sealed class TestGraphEditor : IGraphEditor
+{
+    public List<LabelDraft> Labels { get; } = [];
+
+    public List<SplitRequest> Splits { get; } = [];
+
+    public List<(Outpoint Coin, ChainTransactionRef Target, string Reason)> Links { get; } = [];
+
+    /// <summary>Gets or sets the cluster that is read; by default the sample's two addresses.</summary>
+    public Cluster? Cluster { get; set; }
+
+    /// <summary>Gets or sets what storing throws, or <see langword="null"/>.</summary>
+    public Exception? Failure { get; set; }
+
+    /// <summary>Gets or sets after how many splits storing fails, when it does.</summary>
+    public int FailAfter { get; set; }
+
+    public Task<Cluster> ReadClusterAsync(ICase @case, BitcoinAddress address, CancellationToken cancellationToken) =>
+        Task.FromResult(Cluster ?? InspectorFormsTests.SampleCluster());
+
+    public Task AddLabelAsync(ICase @case, LabelDraft draft)
+    {
+        if (Failure is { } failure)
+        {
+            throw failure;
+        }
+
+        Labels.Add(draft);
+        return Task.CompletedTask;
+    }
+
+    public Task<SplitOutcome> SplitAsync(ICase @case, IReadOnlyList<SplitRequest> splits)
+    {
+        foreach (var split in splits)
+        {
+            if (Failure is { } failure && Splits.Count >= FailAfter)
+            {
+                return Task.FromResult(new SplitOutcome(Splits.Count, failure));
+            }
+
+            Splits.Add(split);
+        }
+
+        return Task.FromResult(new SplitOutcome(splits.Count, null));
+    }
+
+    public Task LinkCrossChainAsync(ICase @case, Outpoint coin, ChainTransactionRef target, string reason)
+    {
+        if (Failure is { } failure)
+        {
+            throw failure;
+        }
+
+        Links.Add((coin, target, reason));
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>The inspector's forms (sketch IN1a) and their rules.</summary>
+public sealed class InspectorFormsTests
+{
+    /// <summary>A made-up txid for the other chains (never a real one).</summary>
+    private const string Hash = "2f86702824c1c099724caf4941d4072014b3ce107f80e222f828767efc2f9162";
+
+    /// <summary>Gives the sample cluster K: K1 is the start, K2 joined by common-input-ownership in tx 2.</summary>
+    /// <returns>The cluster.</returns>
+    internal static Cluster SampleCluster()
+    {
+        var link = Merged(1, HeuristicNames.CommonInputOwnership, GraphSamples.K1, GraphSamples.K2);
+        return new Cluster(
+            GraphSamples.K1,
+            [new ClusterMember(GraphSamples.K1, null, null), new ClusterMember(GraphSamples.K2, link, GraphSamples.K1)],
+            [link],
+            [],
+            [],
+            []);
+    }
+
+    /// <summary>Gives a merged link between addresses.</summary>
+    /// <param name="sequence">The evidence's number.</param>
+    /// <param name="heuristic">The heuristic's name.</param>
+    /// <param name="addresses">The addresses.</param>
+    /// <returns>The link.</returns>
+    private static ClusterLink Merged(long sequence, string heuristic, params BitcoinAddress[] addresses) => new(
+        new ClusterEvidence(
+            sequence,
+            new HeuristicId(heuristic, 1),
+            GraphSamples.Tx[2],
+            addresses,
+            EvidenceStrength.Merge,
+            "samma ägare",
+            null,
+            null,
+            sequence,
+            DateTimeOffset.UnixEpoch),
+        LinkState.Merged);
+
+    /// <summary>
+    /// The three buttons follow the chosen node: a label on an actor, a split on a cluster, a link on coins.
+    /// </summary>
+    [Fact]
+    public void ButtonsFollowTheChosenNode()
+    {
+        var rig = new Rig();
+
+        Assert.False(rig.Forms.HasNode);
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        Assert.True(rig.Forms.HasNode);
+        Assert.True(rig.Forms.CanLabel);
+        Assert.False(rig.Forms.CanSplit);
+        Assert.Equal(InspectorFormsViewModel.OnlyClusterText, rig.Forms.SplitToolTip);
+        Assert.True(rig.Forms.CanCrossChain);
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        Assert.True(rig.Forms.CanSplit);
+        Assert.Equal("Bryt upp (U)", rig.Forms.SplitToolTip);
+        rig.Graph.Choose(null, GraphSamples.VK);
+        Assert.False(rig.Forms.HasNode);
+        rig.Forms.Open(InspectorForm.Label);
+        Assert.Equal(InspectorForm.None, rig.Forms.Form);
+    }
+
+    /// <summary>A split cannot be opened on an address, and choosing another node or Esc closes a form.</summary>
+    [Fact]
+    public void FormsCloseWithTheNodeAndEsc()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.UKey, null);
+
+        rig.Forms.Open(InspectorForm.Split);
+        Assert.Equal(InspectorForm.None, rig.Forms.Form);
+        rig.Forms.Open(InspectorForm.Label);
+        rig.Forms.Reason = "Skäl";
+        Assert.True(rig.Forms.IsLabelOpen);
+        rig.Forms.Open(InspectorForm.Label);
+        Assert.False(rig.Forms.IsOpen);
+        rig.Forms.Open(InspectorForm.Label);
+        Assert.Equal(string.Empty, rig.Forms.Reason);
+        rig.Graph.Choose(GraphSamples.EKey, null);
+        Assert.False(rig.Forms.IsOpen);
+        rig.Forms.Open(InspectorForm.Label);
+        rig.Forms.Cancel();
+        Assert.False(rig.Forms.IsOpen);
+    }
+
+    /// <summary>The same node read again keeps its open form and what was typed.</summary>
+    [Fact]
+    public async Task ReadingTheGraphAgainKeepsTheForm()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.Forms.Open(InspectorForm.Label);
+        rig.Forms.Reason = "Skäl";
+
+        await rig.Graph.RefreshAsync();
+
+        Assert.True(rig.Forms.IsLabelOpen);
+        Assert.Equal("Skäl", rig.Forms.Reason);
+    }
+
+    /// <summary>A label needs a reason; it is stored through Attribution and the graph is read again.</summary>
+    [Fact]
+    public async Task LabelIsStoredAndTheGraphReadAgain()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.Forms.Open(InspectorForm.Label);
+        rig.Forms.LabelName = "  Säljare på P2P ";
+        rig.Forms.ChooseKind(rig.Forms.Kinds.Single(kind => kind.Kind == LabelKind.OtcP2P));
+        rig.Forms.DoNotSpread = true;
+        Assert.False(rig.Forms.CanSubmit);
+        Assert.Equal("Sätt etikett", rig.Forms.SubmitText);
+        var loads = rig.Source.Loads.Count;
+
+        rig.Forms.Reason = "Annons med samma adress";
+        Assert.True(rig.Forms.CanSubmit);
+        await rig.Forms.SubmitCommand.ExecuteAsync(null);
+
+        var draft = Assert.Single(rig.Editor.Labels);
+        Assert.Equal(LabelSubject.ForAddress(GraphSamples.U), draft.Subject);
+        Assert.Equal(LabelKind.OtcP2P, draft.Kind);
+        Assert.Equal("Säljare på P2P", draft.Name);
+        Assert.Equal("Annons med samma adress", draft.Reason);
+        Assert.True(draft.DoNotSpread);
+        Assert.Equal(LabelSource.Own, draft.Source);
+        Assert.False(rig.Forms.IsOpen);
+        Assert.Equal(loads + 1, rig.Source.Loads.Count);
+    }
+
+    /// <summary>A label on a cluster is on the cluster; the victim is a label like any other (sketch GR5).</summary>
+    [Fact]
+    public async Task LabelOnAClusterIsOnTheCluster()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        rig.Forms.Open(InspectorForm.Label);
+        rig.Forms.ChooseKind(rig.Forms.Kinds[0]);
+        rig.Forms.Reason = "Offrets plånbok";
+
+        await rig.Forms.SubmitCommand.ExecuteAsync(null);
+
+        var draft = Assert.Single(rig.Editor.Labels);
+        Assert.Equal(LabelSubject.ForCluster(GraphSamples.K1), draft.Subject);
+        Assert.Equal(LabelKind.Victim, draft.Kind);
+        Assert.Null(draft.Name);
+    }
+
+    /// <summary>
+    /// The order and an exchange's answer are said in the reason; an open source must be named, and its version is
+    /// the day it was read.
+    /// </summary>
+    [Fact]
+    public void SourcesAreSaidInTheLabel()
+    {
+        var subject = LabelSubject.ForAddress(GraphSamples.U);
+        var day = new DateOnly(2026, 11, 7);
+
+        var order = InspectorForms.Draft(
+            subject, LabelKind.Exchange, "", LabelBasis.Order, null, " Sida 2 ", false, day);
+        var answer = InspectorForms.Draft(
+            subject, LabelKind.Exchange, null, LabelBasis.ExchangeAnswer, null, "Svar", false, day);
+        var open = InspectorForms.Draft(
+            subject, LabelKind.Mixer, "Mixer X", LabelBasis.OpenSource, " Listan ", "Rad 4", false, day);
+
+        Assert.Equal(InspectorForms.OrderPrefix + "Sida 2", order.Reason);
+        Assert.Null(order.Name);
+        Assert.Equal(LabelSource.Own, order.Source);
+        Assert.Equal(InspectorForms.ExchangeAnswerPrefix + "Svar", answer.Reason);
+        Assert.Equal(LabelSource.OpenSource, open.Source);
+        Assert.Equal("Listan", open.SourceName);
+        Assert.Equal("läst 2026-11-07", open.SourceVersion);
+        Assert.Equal("Rad 4", open.Reason);
+    }
+
+    /// <summary>The form asks for the open source's name before it can be stored.</summary>
+    [Fact]
+    public void OpenSourceNeedsAName()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.Forms.Open(InspectorForm.Label);
+        rig.Forms.Reason = "Rad 4";
+        rig.Forms.ChooseBasis(rig.Forms.Bases.Single(basis => basis.Basis == LabelBasis.OpenSource));
+
+        Assert.True(rig.Forms.IsOpenSource);
+        Assert.False(rig.Forms.CanSubmit);
+        rig.Forms.SourceName = "Listan";
+        Assert.True(rig.Forms.CanSubmit);
+        Assert.Equal(["Egen bedömning", "Öppen källa", "Beställningen", "Svar från börs"],
+            rig.Forms.Bases.Select(basis => basis.Name));
+    }
+
+    /// <summary>What the case refuses is said in the form, which stays open with what was typed.</summary>
+    [Fact]
+    public async Task RefusalIsSaidAndTheFormStays()
+    {
+        var rig = new Rig();
+        rig.Editor.Failure = new CaseException(CaseError.NoOperatorProfile);
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.Forms.Open(InspectorForm.Label);
+        rig.Forms.Reason = "Skäl";
+
+        await rig.Forms.SubmitCommand.ExecuteAsync(null);
+
+        Assert.True(rig.Forms.IsLabelOpen);
+        Assert.Contains("operatörsprofilen", rig.Forms.Error, StringComparison.Ordinal);
+        Assert.False(rig.Forms.IsSaving);
+    }
+
+    /// <summary>
+    /// Breaking out reads the cluster's addresses with their heuristics, needs a pick that leaves someone and a
+    /// reason, and stores one split per link through Clustering.
+    /// </summary>
+    [Fact]
+    public async Task SplitBreaksThePickedAddressesOut()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        rig.Forms.Open(InspectorForm.Split);
+
+        Assert.Equal(2, rig.Forms.Members.Count);
+        Assert.Equal(string.Empty, rig.Forms.Members[0].Heuristic);
+        Assert.Equal("CIO v1", rig.Forms.Members[1].Heuristic);
+        Assert.Equal("0 av 2 ut", rig.Forms.PickedText);
+        rig.Forms.ToggleMember(rig.Forms.Members[1]);
+        Assert.Equal("Bryt ut 1", rig.Forms.SubmitText);
+        Assert.False(rig.Forms.CanSubmit);
+        rig.Forms.Reason = "Betaltjänst";
+        Assert.True(rig.Forms.CanSubmit);
+        rig.Forms.ToggleMember(rig.Forms.Members[0]);
+        Assert.False(rig.Forms.CanSubmit);
+        rig.Forms.ToggleMember(rig.Forms.Members[0]);
+
+        await rig.Forms.SubmitCommand.ExecuteAsync(null);
+
+        var split = Assert.Single(rig.Editor.Splits);
+        Assert.Equal(
+            new SplitRequest(GraphSamples.K2, GraphSamples.K1, HeuristicNames.CommonInputOwnership, "Betaltjänst"),
+            split);
+        Assert.False(rig.Forms.IsOpen);
+    }
+
+    /// <summary>When a split fails part way, those stored are said and the graph is read again.</summary>
+    [Fact]
+    public async Task PartlyStoredSplitsAreSaid()
+    {
+        var rig = new Rig();
+        var a = GraphSamples.Address(20);
+        rig.Editor.Cluster = new Cluster(
+            GraphSamples.K1,
+            [new ClusterMember(GraphSamples.K1, null, null), new ClusterMember(a, null, GraphSamples.K1)],
+            [Merged(1, HeuristicNames.CommonInputOwnership, GraphSamples.K1, a),
+                Merged(2, HeuristicNames.ChangeAddress, a, GraphSamples.K1)],
+            [],
+            [],
+            []);
+        rig.Editor.Failure = new CaseException(CaseError.Closed);
+        rig.Editor.FailAfter = 1;
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        rig.Forms.Open(InspectorForm.Split);
+        rig.Forms.ToggleMember(rig.Forms.Members[1]);
+        rig.Forms.Reason = "Skäl";
+        var loads = rig.Source.Loads.Count;
+
+        await rig.Forms.SubmitCommand.ExecuteAsync(null);
+
+        Assert.StartsWith("1 av 2 uppbrytningar sparades.", rig.Forms.Error, StringComparison.Ordinal);
+        Assert.True(rig.Forms.IsSplitOpen);
+        Assert.Equal(loads + 1, rig.Source.Loads.Count);
+    }
+
+    /// <summary>
+    /// Breaking out splits every link that crosses between those who leave and those who stay, and keeps the links
+    /// among those who leave, so that they leave together.
+    /// </summary>
+    [Fact]
+    public void BreakOutSplitsOnlyTheCrossingLinks()
+    {
+        var a = GraphSamples.Address(20);
+        var b = GraphSamples.Address(21);
+        var c = GraphSamples.Address(22);
+        var d = GraphSamples.Address(23);
+        var cio = Merged(1, HeuristicNames.CommonInputOwnership, a, b, c);
+        var change = Merged(2, HeuristicNames.ChangeAddress, c, d);
+        var stopped = Merged(3, HeuristicNames.CommonInputOwnership, a, d) with { State = LinkState.Suggested };
+        var cluster = new Cluster(a, [], [cio, change, cio], [stopped], [], []);
+
+        var splits = InspectorForms.BreakOut(cluster, [c, d], " Skäl ");
+
+        Assert.Equal(
+            [new SplitRequest(c, a, HeuristicNames.CommonInputOwnership, "Skäl")],
+            splits);
+        Assert.Empty(InspectorForms.BreakOut(cluster, [], "Skäl"));
+    }
+
+    /// <summary>
+    /// A link to another chain takes the only coin in, the chain recognised from the pasted transaction, and a reason;
+    /// it is stored through Tracing.
+    /// </summary>
+    [Fact]
+    public async Task CrossChainLinkIsStored()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.Forms.Open(InspectorForm.CrossChain);
+
+        Assert.False(rig.Forms.ShowsCoins);
+        Assert.Equal("Ethereum-tx", rig.Forms.TxLabel);
+        rig.Forms.TxText = Hash;
+        Assert.True(rig.Forms.IsTxRecognised);
+        Assert.Equal(Chain.Tron, rig.Forms.TargetChain);
+        Assert.Equal("TRON-tx", rig.Forms.TxLabel);
+        rig.Forms.TxText = "0x" + Hash.ToUpperInvariant();
+        Assert.Equal(Chain.Ethereum, rig.Forms.TargetChain);
+        rig.Forms.TxText = "inte en tx";
+        Assert.False(rig.Forms.IsTxRecognised);
+        rig.Forms.TxText = "0x" + Hash;
+        Assert.False(rig.Forms.CanSubmit);
+        rig.Forms.Reason = "Samma belopp minus avgift";
+        Assert.Equal("Knyt", rig.Forms.SubmitText);
+
+        await rig.Forms.SubmitCommand.ExecuteAsync(null);
+
+        var link = Assert.Single(rig.Editor.Links);
+        Assert.Equal(new Outpoint(GraphSamples.Tx[1], 1), link.Coin);
+        Assert.Equal(new ChainTransactionRef(Chain.Ethereum, "0x" + Hash), link.Target);
+        Assert.Equal("Samma belopp minus avgift", link.Reason);
+        Assert.False(rig.Forms.IsOpen);
+    }
+
+    /// <summary>A chain that is not built is shown toned and cannot be chosen.</summary>
+    [Fact]
+    public void ChainsNotBuiltCannotBeChosen()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.Forms.Open(InspectorForm.CrossChain);
+        var litecoin = rig.Forms.Chains.Single(chain => chain.Name == "Litecoin");
+
+        rig.Forms.ChooseChain(litecoin);
+
+        Assert.False(litecoin.IsBuilt);
+        Assert.Contains(InspectorFormsViewModel.NotBuiltText, litecoin.ToolTip, StringComparison.Ordinal);
+        Assert.Equal(Chain.Ethereum, rig.Forms.TargetChain);
+        rig.Forms.ChooseChain(rig.Forms.Chains.Single(chain => chain.Name == "TRON"));
+        Assert.Equal(Chain.Tron, rig.Forms.TargetChain);
+    }
+
+    /// <summary>
+    /// With several coins in, the user chooses which went on, the largest first; a coin already linked is not offered.
+    /// </summary>
+    [Fact]
+    public void SeveralCoinsAreChosenFrom()
+    {
+        var graph = GraphSamples.Graph();
+        var second = GraphSamples.Edge("x-k", GraphSamples.UKey, GraphSamples.KKey, 3, 1, 0.7m);
+        var link = new CrossChainLink(
+            1,
+            new Outpoint(GraphSamples.Tx[3], 0),
+            new ChainTransactionRef(Chain.Tron, Hash),
+            "Skäl",
+            1,
+            DateTimeOffset.UnixEpoch);
+        var scene = GraphSamples.Scene(graph: graph with { Edges = [.. graph.Edges, second], CrossChainLinks = [link] });
+        var cluster = scene.Node(GraphSamples.KKey)!;
+
+        var coins = InspectorForms.IncomingCoins(scene, cluster);
+
+        Assert.Equal(
+            [new Outpoint(GraphSamples.Tx[3], 1), new Outpoint(GraphSamples.Tx[1], 0)],
+            coins.Select(coin => coin.Coin));
+        Assert.Empty(InspectorForms.IncomingCoins(scene, scene.Node(GraphSamples.WKey)!));
+    }
+
+    /// <summary>The sorts are offered with the victim and the unknown first, then in the legend's order.</summary>
+    [Fact]
+    public void SortsFollowTheLegend()
+    {
+        var kinds = InspectorForms.Kinds.Select(option => option.Kind).ToList();
+
+        Assert.Equal(LabelKind.Victim, kinds[0]);
+        Assert.Equal(LabelKind.Unknown, kinds[1]);
+        Assert.Equal(LabelKind.Exchange, kinds[2]);
+        Assert.Equal(Enum.GetValues<LabelKind>().Length, kinds.Distinct().Count());
+        Assert.Equal("CIO v1", InspectorForms.ShortName(new HeuristicId(HeuristicNames.CommonInputOwnership, 1)));
+        Assert.Equal("Växel v2", InspectorForms.ShortName(new HeuristicId(HeuristicNames.ChangeAddress, 2)));
+    }
+
+    /// <summary>The graph with its forms, a case open and the sample graph read.</summary>
+    private sealed class Rig
+    {
+        public Rig()
+        {
+            Workflow = new CaseWorkflow(
+                new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), Session);
+            Graph = new GraphViewModel(
+                Session, Workflow, Source, new TestExitConnection(), new InlineUi(), Editor, new TestClock());
+            Session.Open(new TestCase("2026-0001"));
+        }
+
+        public CaseSession Session { get; } = new();
+
+        public CaseWorkflow Workflow { get; }
+
+        public TestGraphSource Source { get; } = new();
+
+        public TestGraphEditor Editor { get; } = new();
+
+        public GraphViewModel Graph { get; }
+
+        public InspectorFormsViewModel Forms => Graph.Forms;
+    }
+}

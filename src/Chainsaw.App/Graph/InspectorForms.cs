@@ -1,0 +1,320 @@
+using System.Globalization;
+using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
+
+namespace Chainsaw.App.Graph;
+
+/// <summary>The forms that fold out in the inspector (sketch IN1a).</summary>
+public enum InspectorForm
+{
+    /// <summary>No form is open; the inspector shows its facts.</summary>
+    None,
+
+    /// <summary><em>Etikett</em> (L): name, sort, source, reason and <em>Sprid inte</em>.</summary>
+    Label,
+
+    /// <summary><em>Bryt upp</em> (U), only on a cluster: the addresses to break out and the reason.</summary>
+    Split,
+
+    /// <summary><em>Annan kedja</em> (K): the chain and the transaction where the money continues.</summary>
+    CrossChain,
+}
+
+/// <summary>
+/// What a label rests on, as the form offers it (sketch IN1a, <em>Källa</em>). The order and the answer from an
+/// exchange are the user's own judgement from a document, and say so in the reason; an open source is named.
+/// </summary>
+public enum LabelBasis
+{
+    /// <summary>The user's own judgement.</summary>
+    Own,
+
+    /// <summary>An open source, named by the user.</summary>
+    OpenSource,
+
+    /// <summary>The order the case came from.</summary>
+    Order,
+
+    /// <summary>An answer from an exchange to a request for information.</summary>
+    ExchangeAnswer,
+}
+
+/// <summary>A sort the label form offers: the label's kind and how the graph draws it (sketch GR3c).</summary>
+/// <param name="Kind">The label's kind.</param>
+/// <param name="Look">How the sort is drawn.</param>
+public sealed record LabelKindOption(LabelKind Kind, SortLook Look);
+
+/// <summary>A chain the form <em>Annan kedja</em> offers.</summary>
+/// <param name="Name">The chain's name.</param>
+/// <param name="Chain">The chain, or <see langword="null"/> when Chainsaw does not know it yet.</param>
+public sealed record ChainOption(string Name, Chain? Chain)
+{
+    /// <summary>Gets whether a link to the chain can be made now.</summary>
+    public bool IsBuilt => Chain is not null;
+}
+
+/// <summary>A coin that came into the chosen node and can be linked to another chain.</summary>
+/// <param name="Coin">The coin.</param>
+/// <param name="Amount">Its amount.</param>
+/// <param name="Time">When it came, or <see langword="null"/> while unconfirmed.</param>
+public sealed record IncomingCoin(Outpoint Coin, Satoshi Amount, DateTimeOffset? Time);
+
+/// <summary>
+/// The rules of the inspector's forms (sketch IN1a), without WPF: what each form may act on, the sorts, sources and
+/// chains it offers, and what it asks the modules to store.
+/// </summary>
+public static class InspectorForms
+{
+    /// <summary>The most characters of a label's name, as Attribution takes it.</summary>
+    public const int MostNameLength = 200;
+
+    /// <summary>The most characters of a reason, as Attribution, Clustering and Tracing take it.</summary>
+    public const int MostReasonLength = 1_000;
+
+    /// <summary>What a reason from the order starts with.</summary>
+    public const string OrderPrefix = "Ur beställningen: ";
+
+    /// <summary>What a reason from an exchange's answer starts with.</summary>
+    public const string ExchangeAnswerPrefix = "Ur svar från börs: ";
+
+    /// <summary>
+    /// Gets the sorts a label can say, in the legend's order with the victim and the unknown first (an unknown with a
+    /// name is the user's own name for an actor).
+    /// </summary>
+    public static IReadOnlyList<LabelKindOption> Kinds { get; } =
+    [
+        .. new[] { LabelKind.Victim, LabelKind.Unknown }
+            .Concat(Enum.GetValues<LabelKind>().Where(kind => kind is not (LabelKind.Victim or LabelKind.Unknown)))
+            .Select(kind => new LabelKindOption(kind, VisualLanguage.Of(VisualLanguage.SortOf(kind))))
+            .OrderBy(option => option.Kind is LabelKind.Victim or LabelKind.Unknown ? -1 : LegendOrder(option.Look)),
+    ];
+
+    /// <summary>Gets the sources the label form offers, in the sketch's order.</summary>
+    public static IReadOnlyList<LabelBasis> Bases { get; } =
+        [LabelBasis.Own, LabelBasis.OpenSource, LabelBasis.Order, LabelBasis.ExchangeAnswer];
+
+    /// <summary>
+    /// Gets the chains the form <em>Annan kedja</em> offers: Ethereum and TRON, which a link can name now, and the
+    /// chains that are not built yet, shown toned (CLAUDE.md: never show what does not exist as if it did).
+    /// </summary>
+    public static IReadOnlyList<ChainOption> Chains { get; } =
+    [
+        new("Ethereum", Chain.Ethereum),
+        new("TRON", Chain.Tron),
+        new("Litecoin", null),
+        new("Solana", null),
+    ];
+
+    /// <summary>Gives a source's name as the form writes it.</summary>
+    /// <param name="basis">The source.</param>
+    /// <returns>The name, in Swedish.</returns>
+    public static string Describe(this LabelBasis basis) => basis switch
+    {
+        LabelBasis.OpenSource => "Öppen källa",
+        LabelBasis.Order => "Beställningen",
+        LabelBasis.ExchangeAnswer => "Svar från börs",
+        _ => "Egen bedömning",
+    };
+
+    /// <summary>Gives what a label on a node is on: the address alone, or the cluster that holds it.</summary>
+    /// <param name="node">The node.</param>
+    /// <returns>
+    /// The subject, or <see langword="null"/> when the node cannot carry a label (a tx, a coin, a chain).
+    /// </returns>
+    public static LabelSubject? LabelSubjectOf(NodeView node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return node.Node switch
+        {
+            { Kind: GraphNodeKind.Address, GraphAddresses: [var address, ..] } => LabelSubject.ForAddress(address),
+            { Kind: GraphNodeKind.Cluster, GraphAddresses: [var address, ..] } => LabelSubject.ForCluster(address),
+            _ => null,
+        };
+    }
+
+    /// <summary>Says whether a node is a cluster that can be broken up.</summary>
+    /// <param name="node">The node.</param>
+    /// <returns><see langword="true"/> for a cluster.</returns>
+    public static bool CanSplit(NodeView node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return node.Node is { Kind: GraphNodeKind.Cluster, GraphAddresses.Count: > 0 };
+    }
+
+    /// <summary>
+    /// Gives the coins that came into an actor along the graph's lines and have no link to another chain in force,
+    /// the largest first: what can have gone into a bridge or a swap there.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="node">The actor; only an address or a cluster has any.</param>
+    /// <returns>The coins.</returns>
+    public static IReadOnlyList<IncomingCoin> IncomingCoins(GraphScene scene, NodeView node)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(node);
+        if (node.Node.Kind is not (GraphNodeKind.Address or GraphNodeKind.Cluster))
+        {
+            return [];
+        }
+
+        var linked = scene.Snapshot.Graph.CrossChainLinks.Select(link => link.From).ToHashSet();
+        return
+        [
+            .. scene.Snapshot.Graph.Edges
+                .Where(edge => edge.To == node.Key && edge.Kind == GraphEdgeKind.Transfer)
+                .SelectMany(edge => edge.Transfers)
+                .Where(transfer => !linked.Contains(transfer.Coin))
+                .DistinctBy(transfer => transfer.Coin)
+                .OrderByDescending(transfer => transfer.Amount.Value)
+                .ThenBy(transfer => transfer.Coin.ToString(), StringComparer.Ordinal)
+                .Select(transfer => new IncomingCoin(transfer.Coin, transfer.Amount, transfer.Block?.Time)),
+        ];
+    }
+
+    /// <summary>
+    /// Recognises a transaction on another chain as it is typed: on the chosen chain, or else on another chain that
+    /// a link can name, so that a pasted Ethereum hash is known for what it is.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="chosen">The chosen chain.</param>
+    /// <returns>The transaction, or <see langword="null"/> when no built chain writes it so.</returns>
+    public static ChainTransactionRef? Recognise(string? text, Chain chosen)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var order = Chains.Where(option => option.Chain is not null)
+            .Select(option => option.Chain!.Value)
+            .OrderBy(chain => chain == chosen ? 0 : 1);
+        foreach (var chain in order)
+        {
+            try
+            {
+                return new ChainTransactionRef(chain, text);
+            }
+            catch (ArgumentException)
+            {
+                // Not this chain's format; the next is tried.
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Builds the label the form asks Attribution to set.</summary>
+    /// <param name="subject">What the label is on.</param>
+    /// <param name="kind">The sort.</param>
+    /// <param name="name">The name, or empty.</param>
+    /// <param name="basis">What it rests on.</param>
+    /// <param name="sourceName">The open source's name, when it rests on one.</param>
+    /// <param name="reason">The user's reason.</param>
+    /// <param name="doNotSpread">Whether it stays in this case (<em>Sprid inte</em>).</param>
+    /// <param name="today">Today's date, the open source's version: when the user read it there.</param>
+    /// <returns>The draft.</returns>
+    public static LabelDraft Draft(
+        LabelSubject subject,
+        LabelKind kind,
+        string? name,
+        LabelBasis basis,
+        string? sourceName,
+        string reason,
+        bool doNotSpread,
+        DateOnly today)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(reason);
+        var trimmedName = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+        var trimmedReason = reason.Trim();
+        var draft = new LabelDraft(subject, kind, trimmedName, ReasonFor(basis, trimmedReason), null, doNotSpread);
+        return basis == LabelBasis.OpenSource
+            ? draft with
+            {
+                Source = LabelSource.OpenSource,
+                SourceName = sourceName?.Trim(),
+                SourceVersion = "läst " + today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            }
+            : draft;
+    }
+
+    /// <summary>
+    /// Gives the splits that break the picked addresses out of their cluster: for every link that merged a picked
+    /// address with one that stays, a split between the two that names the link's heuristic. Clustering then refuses
+    /// every such link, so the picked addresses leave together, and nothing else that merged them is touched.
+    /// </summary>
+    /// <param name="cluster">The cluster, from Clustering.</param>
+    /// <param name="picked">The addresses to break out; at least one, not all.</param>
+    /// <param name="reason">The user's reason.</param>
+    /// <returns>The splits, one per link that crosses; empty when nothing crosses.</returns>
+    public static IReadOnlyList<SplitRequest> BreakOut(
+        Cluster cluster, IReadOnlyCollection<BitcoinAddress> picked, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(cluster);
+        ArgumentNullException.ThrowIfNull(picked);
+        ArgumentNullException.ThrowIfNull(reason);
+        var leaving = picked.ToHashSet();
+        var requests = new List<SplitRequest>();
+        foreach (var link in cluster.Links
+            .Where(link => link.State == LinkState.Merged)
+            .DistinctBy(link => link.Evidence.Sequence))
+        {
+            var addresses = link.Evidence.Addresses;
+            var goes = addresses.FirstOrDefault(leaving.Contains);
+            var stays = addresses.FirstOrDefault(address => !leaving.Contains(address));
+            if (goes is not null && stays is not null)
+            {
+                requests.Add(new SplitRequest(goes, stays, link.Evidence.Heuristic.Name, reason.Trim()));
+            }
+        }
+
+        return [.. requests.DistinctBy(request => (request.First, request.Second, request.Heuristic))];
+    }
+
+    /// <summary>Gives a heuristic's short name, as a member's row writes it (sketch IN1a: <c>CIO v1</c>).</summary>
+    /// <param name="heuristic">The heuristic.</param>
+    /// <returns>The short name and the version.</returns>
+    public static string ShortName(HeuristicId heuristic)
+    {
+        ArgumentNullException.ThrowIfNull(heuristic);
+        var name = heuristic.Name switch
+        {
+            HeuristicNames.CommonInputOwnership => "CIO",
+            HeuristicNames.ChangeAddress => "Växel",
+            HeuristicNames.PeelChain => "Peel",
+            HeuristicNames.CoinJoin => "CoinJoin",
+            _ => heuristic.Name,
+        };
+        return name + " v" + heuristic.Version.ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Gives a reason as it is stored, saying where a judgement from a document comes from.</summary>
+    /// <param name="basis">What the label rests on.</param>
+    /// <param name="reason">The user's reason, trimmed.</param>
+    /// <returns>The reason to store.</returns>
+    private static string ReasonFor(LabelBasis basis, string reason) => basis switch
+    {
+        LabelBasis.Order when reason.Length > 0 => OrderPrefix + reason,
+        LabelBasis.ExchangeAnswer when reason.Length > 0 => ExchangeAnswerPrefix + reason,
+        _ => reason,
+    };
+
+    /// <summary>Gives a sort's place in the legend, so that the form's sorts stand in the same order.</summary>
+    /// <param name="look">The sort.</param>
+    /// <returns>Its index.</returns>
+    private static int LegendOrder(SortLook look)
+    {
+        for (var index = 0; index < VisualLanguage.Sorts.Count; index++)
+        {
+            if (VisualLanguage.Sorts[index].Sort == look.Sort)
+            {
+                return index;
+            }
+        }
+
+        return VisualLanguage.Sorts.Count;
+    }
+}
