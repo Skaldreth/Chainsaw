@@ -1,6 +1,6 @@
 # Chainsaw – överlämning
 
-Senast uppdaterad: 2026-11-06.
+Senast uppdaterad: 2026-11-07.
 
 Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i `CLAUDE.md`, backloggen i `docs/TODO.md`.
 
@@ -35,23 +35,14 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
   ärendenummer, anteckning eller skäl, och etiketter som avslutar spåret. Guiden har fått *Etiketter och varifrån de
   kommer*. Inget gränssnitt.
 
-## Nattkörningen 2026-11-07
+## Nattkörningen 2026-11-07 (klar)
 
-Användaren sover. Huvudsessionen (`session_013CLefr2kGog3dCFdfqN1yx`) orkestrerar, och varje etapp byggs i en egen ny
-session. Etapperna i ordning; en etapp som är klar markeras här av huvudsessionen.
-
-| Etapp | Innehåll | Läge |
-| --- | --- | --- |
-| 2 | **Security:** huvudnyckeln (PBKDF2-SHA512, 600 000 iterationer), datanyckeln (AES-256-GCM) som lindas in, valvet i `%LOCALAPPDATA%\Chainsaw\` för API-nycklar, operatörsprofilen, låst och upplåst läge | Klar |
-| 3 | **Cases:** ärendefilen `.cut` (SQLite3 Multiple Ciphers, nyckel ur valvet), schemamigreringar per modul, journalen och hashkedjan som bara fylls på, `/verify` som tjänst | Klar |
-| 4 | **Network:** utgångarna som modell och `IExitHttp`, som **vägrar** när ingen utgång är ansluten (princip 4); WireGuard-tunneln själv senare | Klar |
-| 5 | **Chains:** Bitcoin-modellen (block, tx, inputs, outputs, adresser i `Satoshi`), `IBitcoinSource`, Esplora-källan genom `IExitHttp`, varje råsvar sparat med SHA-256 och blockhöjd i ärendet, offline ur ärendet; tester mot syntetiska svar | Klar |
-| 6 | **Clustering:** heuristikerna common-input-ownership v1, CoinJoin v1 (stoppar sammanslagning), växeladress v1 och peel chain v1, med namn, version och tx; kluster med sammanslagningar och uppbrytningar som minns; tester mot ett facit av syntetiska mönster | Klar |
-| 7 | **Tracing:** grafen som modell (aktörer, adresser, tx, kanter, kant till annan kedja), spårningsmetoderna FIFO och haircut, slut på spåret med orsak; tester | Klar |
-| 8 | **Attribution:** etiketter med ursprung, OFAC-listans kryptoadresser ur en sparad fil, etikettbiblioteket som smittar mellan ärenden (CLAUDE.md, *Etiketter smittar*); tester | Klar |
-
-Gränssnittet byggs inte i natt utöver det som redan är godkänt. Huvudsessionen skissar i slutet av natten det som behövs
-härnäst (förstagångsinställningen och Nytt ärende) så att användaren kan välja på morgonen.
+Etapperna 2–8 byggdes var och en i en egen session, granskades oberoende tills inga C eller I återstod, och
+kontrollerades av huvudsessionen efter varje etapp (bygget utan varningar, alla tester gröna). Efter etapp 8: **799
+tester**. Detaljerna står i `docs/DEV-LOG.md`. Modulerna är byggda men **inte inkopplade i appen**; det kräver gränssnitt
+som väntar på skisser (förstagångsinställningen FS1a/FS1b, Nytt ärende NC1a/NC1b). Besluten som väntar på användaren
+står i `docs/TODO.md` under *Väntar på beslut*. Under natten byttes också loggan av användaren i en annan session (två
+länkar som hakar i varandra, `assets/logo/`).
 
 ### Så byggs etapperna
 
@@ -76,7 +67,11 @@ härnäst (förstagångsinställningen och Nytt ärende) så att användaren kan
 
 ## Nästa steg
 
-1. **Prova skalet på Windows** efter `docs/TESTER-INFOR-1.0.md` och skicka skärmdumpar.
-2. **Låsskärmen** (ID7: kättingen i tecken och teckenfältet) och förstagångsinställningen med huvudnyckeln.
-3. **MVP** (överenskommen 2026-11-06): Bitcoin via Esplora genom en utgång, ett ärende, mata in en adress, expandera grafen
-   för hand, automatisk klustring med förklaring, egna etiketter, export av ett enkelt underlag med hashkedja.
+1. **Användarens val:** FS1a eller FS1b, NC1a eller NC1b, låsskärmens kätting (två varianter, TODO), och besluten i TODO
+   under *Väntar på beslut* (nycklarna och kollegans fil, återställningsnyckel, var ärendena ligger, tröskelvärden m.fl.).
+2. **Koppla in modulerna i appen** efter de valda skisserna: förstagångsinställningen och upplåsningen (Security),
+   Nytt ärende och att öppna ett ärende (Cases), startpunkter i kommandoraden (Chains), grafen enligt GR4 (Tracing,
+   Clustering, Attribution).
+3. **WireGuard-tunneln** (Chainsaws eget hjälpprogram), så att något kan hämtas på riktigt.
+4. **Prova på Windows** efter `docs/TESTER-INFOR-1.0.md`.
+5. Senare moduler: Pricing (kurser), Monitoring (bevakning, också när appen är stängd), Requests (begäran till börser).
