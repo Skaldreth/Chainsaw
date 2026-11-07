@@ -18,7 +18,7 @@ internal sealed class ExitRouteChoice : IExitRoute, IDisposable
     /// <summary>The way chosen now.</summary>
     private ExitRoute _route;
 
-    /// <summary>The pipeline through Windows, built when Windows is first used; <see langword="null"/> before.</summary>
+    /// <summary>The pipeline through Windows, built when it is first used; <see langword="null"/> before.</summary>
     private HttpMessageInvoker? _windows;
 
     /// <summary>Cancelled when Windows is left, which stops the requests in flight through it.</summary>

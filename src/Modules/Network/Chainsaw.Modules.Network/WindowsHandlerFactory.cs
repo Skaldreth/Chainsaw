@@ -51,7 +51,9 @@ internal sealed class WindowsHandlerFactory(NetworkOptions options) : IWindowsHa
     /// <param name="requested">The address the request is for.</param>
     /// <param name="cancellationToken">Stops the connection.</param>
     /// <returns>The stream.</returns>
-    /// <exception cref="HttpRequestException">The source's name points only to addresses that are not global.</exception>
+    /// <exception cref="HttpRequestException">
+    /// The source's name points only to addresses that are not global.
+    /// </exception>
     internal static async ValueTask<Stream> ConnectAsync(
         DnsEndPoint endpoint, Uri? requested, CancellationToken cancellationToken)
     {
@@ -86,7 +88,8 @@ internal sealed class WindowsHandlerFactory(NetworkOptions options) : IWindowsHa
     internal static bool IsSource(DnsEndPoint endpoint, Uri? requested) =>
         requested is not null
         && endpoint.Port == requested.Port
-        && string.Equals(endpoint.Host.Trim('[', ']'), requested.IdnHost.Trim('[', ']'), StringComparison.OrdinalIgnoreCase);
+        && string.Equals(
+            endpoint.Host.Trim('[', ']'), requested.IdnHost.Trim('[', ']'), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Keeps the global addresses of a name.</summary>
     /// <param name="addresses">What the name resolved to.</param>

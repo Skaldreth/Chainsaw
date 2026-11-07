@@ -29,7 +29,7 @@ public sealed class Stage15Tests
                 Session,
                 Workflow,
                 Source,
-                new TestExitConnection(),
+                TestWays.For(new TestExitConnection()),
                 new InlineUi(),
                 new TestGraphEditor(),
                 new TestClock());

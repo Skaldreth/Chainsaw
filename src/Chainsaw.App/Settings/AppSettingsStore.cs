@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Chainsaw.App.Settings;
 
@@ -13,8 +14,17 @@ public sealed class AppSettingsStore(string directory)
     /// <summary>The file's name.</summary>
     public const string FileName = "settings.json";
 
-    /// <summary>How the file is written: indented, so that it can be read and changed by hand.</summary>
-    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    /// <summary>
+    /// How the file is written: indented and with the choices as words, so that it can be read and changed by hand.
+    /// </summary>
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
+    /// <summary>Lets one write at a time, so that two quick changes never meet in the temporary file.</summary>
+    private readonly Lock _writing = new();
 
     /// <summary>Creates the store for the default folder.</summary>
     public AppSettingsStore()
@@ -26,7 +36,10 @@ public sealed class AppSettingsStore(string directory)
     public string FilePath => Path.Combine(directory, FileName);
 
     /// <summary>Reads the settings.</summary>
-    /// <returns>The settings, or the defaults when the file is missing or cannot be read.</returns>
+    /// <returns>
+    /// The settings with only known values (<see cref="AppSettings.Known"/>), or the defaults when the file is missing
+    /// or cannot be read.
+    /// </returns>
     public AppSettings Load()
     {
         try
@@ -36,7 +49,8 @@ public sealed class AppSettingsStore(string directory)
                 return new AppSettings();
             }
 
-            return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new AppSettings();
+            return (JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Json) ?? new AppSettings())
+                .Known();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -48,9 +62,12 @@ public sealed class AppSettingsStore(string directory)
     /// <param name="settings">The settings.</param>
     public void Save(AppSettings settings)
     {
-        Directory.CreateDirectory(directory);
-        var temporary = FilePath + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(settings, Json));
-        File.Move(temporary, FilePath, overwrite: true);
+        lock (_writing)
+        {
+            Directory.CreateDirectory(directory);
+            var temporary = FilePath + ".tmp";
+            File.WriteAllText(temporary, JsonSerializer.Serialize(settings, Json));
+            File.Move(temporary, FilePath, overwrite: true);
+        }
     }
 }

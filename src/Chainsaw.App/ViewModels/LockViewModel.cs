@@ -18,6 +18,9 @@ public sealed partial class LockViewModel : ObservableObject
     /// <summary>What the lock screen says when an exit stays connected while Chainsaw is locked (2026-11-07).</summary>
     public const string ExitStaysText = "Utgången står kvar, men Chainsaw slår inte upp något medan det är låst.";
 
+    /// <summary>What the lock screen says when lookups go through Windows (decided 2026-11-07).</summary>
+    public const string WindowsWaitsText = "Uppslag går genom Windows. Chainsaw slår inte upp något medan det är låst.";
+
     /// <summary>What the lock screen says when the vault did not open for a reason it does not name.</summary>
     public const string UnknownFailureText = "Valvet gick inte att öppna.";
 
@@ -27,25 +30,25 @@ public sealed partial class LockViewModel : ObservableObject
     /// <summary>The vault the master key opens.</summary>
     private readonly IVault _vault;
 
-    /// <summary>The exit, whose state the lock screen tells.</summary>
-    private readonly IExitConnection _exit;
+    /// <summary>The way out and the exit, whose state the lock screen tells.</summary>
+    private readonly ExitWay _exit;
 
     /// <summary>Creates the lock screen.</summary>
     /// <param name="vault">The vault.</param>
-    /// <param name="exit">The exit.</param>
+    /// <param name="exit">The way out and the exit; its changes are told on the UI thread.</param>
     /// <param name="autoLock">The automatic lock, whose time is shown.</param>
     /// <param name="build">The build, shown in the corner.</param>
-    /// <param name="ui">The UI thread, where the exit's changes are shown.</param>
-    public LockViewModel(IVault vault, IExitConnection exit, AutoLock autoLock, BuildInfo build, IUiThread ui)
+    public LockViewModel(IVault vault, ExitWay exit, AutoLock autoLock, BuildInfo build)
     {
         _vault = vault;
         _exit = exit;
         AutoLockText = autoLock.Description;
+        autoLock.Changed += (_, _) => AutoLockText = autoLock.Description;
         AboutText = $"Om Chainsaw · {build.ShortCommit}";
         AboutDetails = $"Chainsaw {build.Version}, commit {build.Commit ?? "okänd"}. "
             + "Teckenfältet bygger på asciify-engine (MIT).";
-        ExitText = TextFor(exit.Status);
-        exit.StatusChanged += (_, status) => ui.Post(() => ExitText = TextFor(status));
+        ExitText = TextFor(exit);
+        exit.Changed += (_, _) => ExitText = TextFor(exit);
     }
 
     /// <summary>Gets why the last attempt failed, or an empty text.</summary>
@@ -68,8 +71,9 @@ public sealed partial class LockViewModel : ObservableObject
     [ObservableProperty]
     public partial string ExitText { get; private set; }
 
-    /// <summary>Gets the line about the automatic lock.</summary>
-    public string AutoLockText { get; }
+    /// <summary>Gets the line about the automatic lock, which follows the settings.</summary>
+    [ObservableProperty]
+    public partial string AutoLockText { get; private set; }
 
     /// <summary>Gets the text in the corner: <c>Om Chainsaw · commit</c>.</summary>
     public string AboutText { get; }
@@ -128,11 +132,18 @@ public sealed partial class LockViewModel : ObservableObject
     /// <summary>Forgets the last error, as when the lock screen is shown again.</summary>
     public void Reset() => ErrorText = string.Empty;
 
-    /// <summary>Gives the line about the exit for its state.</summary>
-    /// <param name="status">The exit's state.</param>
+    /// <summary>Gives the line about the way out: through Windows, or the exit's state.</summary>
+    /// <param name="exit">The way out and the exit.</param>
     /// <returns>The line.</returns>
-    private static string TextFor(ExitStatus status) =>
-        status.State == ExitState.Connected ? ExitStaysText : ExitWaitsText;
+    private static string TextFor(ExitWay exit)
+    {
+        if (exit.IsWindows)
+        {
+            return WindowsWaitsText;
+        }
+
+        return exit.Status.State == ExitState.Connected ? ExitStaysText : ExitWaitsText;
+    }
 
     /// <summary>Gives the Swedish text for why the vault did not open.</summary>
     /// <param name="error">The reason.</param>

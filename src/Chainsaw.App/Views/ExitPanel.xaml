@@ -124,8 +124,20 @@
                             </Style>
                         </Border.Style>
                         <StackPanel Orientation="Horizontal">
-                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Globe}" Margin="0,0,6,0"
-                                               Foreground="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=Border}}" />
+                            <!-- The exit's globe, or Windows' screen when lookups go through the computer's own network. -->
+                            <controls:GridIcon Size="14" Margin="0,0,6,0"
+                                               Foreground="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=Border}}">
+                                <controls:GridIcon.Style>
+                                    <Style TargetType="controls:GridIcon">
+                                        <Setter Property="Data" Value="{StaticResource Icon.Globe}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsWindowsMode}" Value="True">
+                                                <Setter Property="Data" Value="{StaticResource Icon.Monitor}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </controls:GridIcon.Style>
+                            </controls:GridIcon>
                             <TextBlock Text="{Binding RouteText}" FontSize="12" VerticalAlignment="Center"
                                        MaxWidth="150" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
@@ -137,8 +149,21 @@
                 </Grid>
                 <Border Height="1" Margin="10,0" Background="{StaticResource Brush.BorderStrong}" />
 
-                <!-- The exits in the vault, and the way to add one. -->
+                <!--
+                  The exits in the vault, and the way to add one. With Windows as the way out they are toned and cannot be
+                  used here, and the panel points to the settings, where the way out is chosen (sketch ST1a).
+                -->
                 <StackPanel Margin="4" Visibility="{Binding IsListing, Converter={StaticResource Visible}}">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsWindowsMode}" Value="True">
+                                    <Setter Property="Opacity" Value="0.45" />
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource ExitRow}" Focusable="False"
                                   AutomationProperties.Name="Utgångar" />
                     <TextBlock Text="Inga utgångar i valvet" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
@@ -149,6 +174,20 @@
                             <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}" Foreground="{StaticResource Brush.TextMuted}"
                                                Margin="0,0,10,0" />
                             <TextBlock Text="Lägg till WireGuard-fil …" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- With Windows as the way out: the way to the settings' page Nätverk. -->
+                <StackPanel Margin="4,0,4,4" Visibility="{Binding IsWindowsMode, Converter={StaticResource Visible}}">
+                    <TextBlock Text="Uppslag går genom Windows. Utgångarna används med VPN." FontSize="12"
+                               Foreground="{StaticResource Brush.TextDim}" Margin="12,2,12,6" TextWrapping="Wrap" />
+                    <Button x:Name="SettingsButton" Style="{StaticResource Button.MenuItem}" Command="{Binding OpenSettingsCommand}"
+                            ToolTip="Inställningar (Ctrl+,)">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Settings}" Foreground="{StaticResource Brush.TextMuted}"
+                                               Margin="0,0,10,0" />
+                            <TextBlock Text="Inställningar …" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>

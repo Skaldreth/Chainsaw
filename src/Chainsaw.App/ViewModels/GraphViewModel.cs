@@ -89,7 +89,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="session">The open case.</param>
     /// <param name="workflow">The cases, which say when a start point is added.</param>
     /// <param name="source">The modules.</param>
-    /// <param name="exit">The connection to the exit, for an honest offline.</param>
+    /// <param name="exit">The way out (VPN or Windows) and the exit, for an honest offline.</param>
     /// <param name="ui">The UI thread.</param>
     /// <param name="editor">Where the inspector's forms write in the case (sketch IN1a).</param>
     /// <param name="clock">The clock.</param>
@@ -97,7 +97,7 @@ public sealed partial class GraphViewModel : ObservableObject
         CaseSession session,
         CaseWorkflow workflow,
         IGraphSource source,
-        IExitConnection exit,
+        ExitWay exit,
         IUiThread ui,
         IGraphEditor editor,
         IClock clock)
@@ -112,8 +112,8 @@ public sealed partial class GraphViewModel : ObservableObject
         Forms.Failed += (_, text) => Notice = Notice.Length == 0 ? text : $"{text} {Notice}";
         session.Changed += (_, _) => OnCaseChanged();
         workflow.StartPointAdded += (_, _) => ui.Post(() => _ = RefreshAsync());
-        exit.StatusChanged += (_, status) => ui.Post(() => IsOffline = status.State != ExitState.Connected);
-        IsOffline = exit.Status.State != ExitState.Connected;
+        exit.Changed += (_, _) => IsOffline = !exit.IsLive;
+        IsOffline = !exit.IsLive;
         OnCaseChanged();
     }
 

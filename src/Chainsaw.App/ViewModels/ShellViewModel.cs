@@ -1,6 +1,7 @@
 using Chainsaw.App.Commands;
 using Chainsaw.App.Links;
 using Chainsaw.App.Navigation;
+using Chainsaw.App.Settings;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.SharedKernel.Commands;
@@ -10,9 +11,9 @@ using CommunityToolkit.Mvvm.Input;
 namespace Chainsaw.App.ViewModels;
 
 /// <summary>
-/// The shell (sketch SH1b): the rail of views, the view shown, the open case and the exit in the title bar, the
-/// command bar at the bottom with its commands, Nytt ärende (NC1a) and the status line. It knows nothing of WPF, so
-/// that it is tested in Chainsaw.App.Tests.
+/// The shell (sketch SH1b): the rail of views, the view shown, the open case and the way out in the title bar, the
+/// command bar at the bottom with its commands, Nytt ärende (NC1a), the settings (ST1a) and the status line. It knows
+/// nothing of WPF, so that it is tested in Chainsaw.App.Tests.
 /// </summary>
 public sealed partial class ShellViewModel : ObservableObject
 {
@@ -21,6 +22,12 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>What the title bar says while no exit is connected.</summary>
     public const string NoExitText = "Ingen utgång";
+
+    /// <summary>What the title bar says when lookups go through Windows.</summary>
+    public const string WindowsText = "Windows";
+
+    /// <summary>What the status line says when lookups go through Windows.</summary>
+    public const string WindowsSourceText = "Uppslag går genom Windows";
 
     /// <summary>What the status line says while no exit is connected: nothing can be looked up (principle 9).</summary>
     public const string OfflineText = "Offline: ingen utgång ansluten, så inget nytt kan hämtas";
@@ -40,8 +47,11 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The cases, listed anew when the shell is shown.</summary>
     private readonly CaseWorkflow _workflow;
 
-    /// <summary>The UI thread, where the exit's changes are shown.</summary>
+    /// <summary>The UI thread, where the exit's name is shown.</summary>
     private readonly IUiThread _ui;
+
+    /// <summary>The way out and the exit, shown in the title bar and the status line.</summary>
+    private readonly ExitWay _way;
 
     /// <summary>The import of a sanction list, from the menu Nytt.</summary>
     private readonly SanctionListImport _sanctions;
@@ -63,22 +73,27 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="commands">The command bar's commands.</param>
     /// <param name="newCase">Nytt ärende.</param>
     /// <param name="workflow">The cases, whose list is read anew when the shell is shown.</param>
-    /// <param name="exit">The connection to the exit, shown in the title bar and the status line.</param>
+    /// <param name="exit">The way out and the exit, shown in the title bar and the status line.</param>
     /// <param name="exits">The exits, for the connected exit's name.</param>
     /// <param name="sanctions">The import of a sanction list, from the menu Nytt.</param>
     /// <param name="exitPanel">The exits' panel under the exit in the title bar (sketch UT1a).</param>
+    /// <param name="settings">The settings dialog (sketch ST1a).</param>
     /// <param name="ui">The UI thread.</param>
     public ShellViewModel(
         CaseSession session,
         CommandRegistry commands,
         NewCaseViewModel newCase,
         CaseWorkflow workflow,
-        IExitConnection exit,
+        ExitWay exit,
         IExitStore exits,
         SanctionListImport sanctions,
         ExitPanelViewModel exitPanel,
+        SettingsViewModel settings,
         IUiThread ui)
     {
+        _way = exit;
+        Settings = settings;
+        exitPanel.SettingsWanted += (_, _) => Show(AppView.Settings, SettingsPage.Network);
         _session = session;
         _sanctions = sanctions;
         _commands = commands;
@@ -104,7 +119,7 @@ public sealed partial class ShellViewModel : ObservableObject
                 DismissAll();
             }
         };
-        exit.StatusChanged += (_, status) => ui.Post(() => ShowExit(status));
+        exit.Changed += (_, _) => ShowExit();
         Top = ViewTable.In(RailGroup.Top).Select(e => new RailItemViewModel(e)).ToList();
         Work = ViewTable.In(RailGroup.Work).Select(e => new RailItemViewModel(e)).ToList();
         Bottom = ViewTable.In(RailGroup.Bottom).Select(e => new RailItemViewModel(e)).ToList();
@@ -122,7 +137,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         OnCaseChanged();
         Show(ViewTable.Start);
-        ShowExit(exit.Status);
+        ShowExit();
     }
 
     /// <summary>Gets Nytt ärende, the panel from the right.</summary>
@@ -130,6 +145,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets the exits' panel, folded out under the exit in the title bar (sketch UT1a).</summary>
     public ExitPanelViewModel ExitPanel { get; }
+
+    /// <summary>Gets the settings dialog (sketch ST1a), opened with Ctrl+, or the pill's cog.</summary>
+    public SettingsViewModel Settings { get; }
 
     /// <summary>Gets the views at the top of the rail.</summary>
     public IReadOnlyList<RailItemViewModel> Top { get; }
@@ -199,13 +217,15 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets the case in the title bar: its number and title, or that none is open.</summary>
     public string CaseTitle => _session.Current is null ? NoCaseText : _session.DisplayName;
 
-    /// <summary>Gets what the title bar says about the exit: its name, or that none is connected.</summary>
+    /// <summary>
+    /// Gets what the title bar says about the way out: Windows, the exit's name, or that none is connected.
+    /// </summary>
     [ObservableProperty]
     public partial string ExitText { get; private set; } = NoExitText;
 
-    /// <summary>Gets whether the exit is connected (a green dot).</summary>
+    /// <summary>Gets whether lookups can go: through Windows or a connected exit (a green dot).</summary>
     [ObservableProperty]
-    public partial bool IsExitConnected { get; private set; }
+    public partial bool IsExitLive { get; private set; }
 
     /// <summary>Gets what the status line says about where lookups go.</summary>
     [ObservableProperty]
@@ -225,9 +245,9 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(item);
         ExitPanel.Close();
-        if (NewCase.IsOpen)
+        if (NewCase.IsOpen || Settings.IsOpen)
         {
-            // The panel lies over the pill: a menu opened behind it would take the keys unseen.
+            // The panel or the dialog lies over the pill: a menu opened behind it would take the keys unseen.
             DismissSubmenus();
             return;
         }
@@ -252,25 +272,44 @@ public sealed partial class ShellViewModel : ObservableObject
     /// </summary>
     public void DismissSubmenus() => DismissMenus();
 
-    /// <summary>Closes any open submenu and the exits' panel, for example when Chainsaw locks or a view is shown.</summary>
+    /// <summary>
+    /// Closes any open submenu, the exits' panel and the settings, for example when Chainsaw locks or a view is shown.
+    /// </summary>
     public void DismissAll()
     {
         DismissMenus();
         ExitPanel.Close();
+        Settings.Close();
     }
 
     /// <summary>
     /// Shows a view and marks its icon in the rail, and closes any open submenu. *Nytt* is not a page but the panel
-    /// from the right (NC1a), which its shortcut opens directly.
+    /// from the right (NC1a), which its shortcut opens directly, and *Inställningar* is the dialog over the view shown
+    /// (ST1a), which stays marked.
     /// </summary>
     /// <param name="view">The view to show.</param>
     [RelayCommand]
-    public void Show(AppView view)
+    public void Show(AppView view) => Show(view, null);
+
+    /// <summary>Shows a view, or the settings at a page.</summary>
+    /// <param name="view">The view to show.</param>
+    /// <param name="page">The settings' page, when the view is the settings; else ignored.</param>
+    public void Show(AppView view, SettingsPage? page)
     {
         DismissAll();
         if (view == AppView.New)
         {
             NewCase.Show();
+            return;
+        }
+
+        if (view == AppView.Settings)
+        {
+            if (!NewCase.IsOpen)
+            {
+                Settings.Open(page);
+            }
+
             return;
         }
 
@@ -494,11 +533,19 @@ public sealed partial class ShellViewModel : ObservableObject
         Answer(reply);
     }
 
-    /// <summary>Shows the exit's state honestly: connected with its name, connecting, or not connected.</summary>
-    /// <param name="status">The exit's status.</param>
-    private void ShowExit(ExitStatus status)
+    /// <summary>
+    /// Shows the way out honestly: Windows, or the exit connected with its name, connecting, or not connected.
+    /// </summary>
+    private void ShowExit()
     {
-        IsExitConnected = status.State == ExitState.Connected;
+        IsExitLive = _way.IsLive;
+        if (_way.IsWindows)
+        {
+            (ExitText, SourceText) = (WindowsText, WindowsSourceText);
+            return;
+        }
+
+        var status = _way.Status;
         (ExitText, SourceText) = status.State switch
         {
             ExitState.Connected => ("Utgång ansluten", "Uppslag går genom utgången"),
@@ -506,7 +553,7 @@ public sealed partial class ShellViewModel : ObservableObject
             ExitState.Failed => ("Utgången är inte ansluten", OfflineText),
             _ => (NoExitText, OfflineText),
         };
-        if (IsExitConnected && status.ExitId is { } id)
+        if (IsExitLive && status.ExitId is { } id)
         {
             _ = NameExitAsync(id);
         }
@@ -534,7 +581,7 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             _ui.Post(() =>
             {
-                if (IsExitConnected)
+                if (IsExitLive && !_way.IsWindows && _way.Status.ExitId == id)
                 {
                     var name = exit.Place.Length > 0 ? exit.Place : exit.Name;
                     (ExitText, SourceText) = (name, $"Uppslag går genom utgången {name}");

@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\Modules\Tracing\Chainsaw.Modules.Tracing.Contracts\Chainsaw.Modules.Tracing.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Attribution\Chainsaw.Modules.Attribution.Contracts\Chainsaw.Modules.Attribution.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Clustering\Chainsaw.Modules.Clustering.Contracts\Chainsaw.Modules.Clustering.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Pricing\Chainsaw.Modules.Pricing.Contracts\Chainsaw.Modules.Pricing.Contracts.csproj" />
   </ItemGroup>
   <!--
     Chainsaw.App is a WPF program, which tests cannot load where there is no Windows desktop runtime, as in the cloud.
@@ -44,5 +45,6 @@
   <!-- The Guide's texts, built in as in the program, so that the tests read what the program shows. -->
   <ItemGroup>
     <EmbeddedResource Include="..\..\docs\guide\*.md" LogicalName="Chainsaw.App.Guide.%(Filename).md" />
+    <EmbeddedResource Include="..\..\THIRD_PARTY.md" LogicalName="Chainsaw.App.Licenses.md" />
   </ItemGroup>
 </Project>

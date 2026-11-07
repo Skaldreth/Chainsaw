@@ -13,7 +13,9 @@ public interface IExitHttp
     /// <param name="request">The request.</param>
     /// <param name="cancellationToken">Stops the request.</param>
     /// <returns>The response with its raw body, status and times.</returns>
-    /// <exception cref="ExitNotConnectedException">VPN is chosen and no exit is connected; nothing was sent.</exception>
+    /// <exception cref="ExitNotConnectedException">
+    /// VPN is chosen and no exit is connected; nothing was sent.
+    /// </exception>
     /// <exception cref="ExitException">
     /// The request timed out, the response was too large, the request failed on the way, or the exit was disconnected
     /// or the way out changed while it was in flight.

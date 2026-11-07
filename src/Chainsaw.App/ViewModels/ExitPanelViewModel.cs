@@ -11,12 +11,17 @@ namespace Chainsaw.App.ViewModels;
 /// The exits' panel under the exit in the title bar (sketch UT1a): the route from the computer through the exit to the
 /// sources, green while lookups can go and red and dashed while they cannot, the exits in the vault with their state,
 /// a button that connects or disconnects each (only one is connected at a time), and the step that adds a WireGuard
-/// file. Everything that reaches the vault or the tunnel runs off the UI thread. It knows nothing of WPF.
+/// file. With Windows chosen as the way out (sketch ST1a) the route goes through Windows and the exits are toned, with
+/// the way to the settings. The settings' page Nätverk shows the same exits through this view model. Everything that
+/// reaches the vault or the tunnel runs off the UI thread. It knows nothing of WPF.
 /// </summary>
 public sealed partial class ExitPanelViewModel : ObservableObject
 {
     /// <summary>What the route says in place of an exit while none is connected.</summary>
     public const string NoRouteText = "Ingen";
+
+    /// <summary>What the route says when lookups go through Windows.</summary>
+    public const string WindowsRouteText = "Windows";
 
     /// <summary>What the panel says when the vault locked under it.</summary>
     public const string LockedText = "Valvet är låst. Lås upp och försök igen.";
@@ -42,6 +47,9 @@ public sealed partial class ExitPanelViewModel : ObservableObject
 
     /// <summary>The connection to the program's exit.</summary>
     private readonly IExitConnection _connection;
+
+    /// <summary>The way out chosen in the settings.</summary>
+    private readonly ExitWay _way;
 
     /// <summary>The exits in the vault.</summary>
     private readonly IExitStore _exits;
@@ -81,12 +89,16 @@ public sealed partial class ExitPanelViewModel : ObservableObject
 
     /// <summary>Creates the panel and follows the connection's status.</summary>
     /// <param name="connection">The connection to the program's exit.</param>
+    /// <param name="way">The way out chosen in the settings (VPN or Windows).</param>
     /// <param name="exits">The exits in the vault.</param>
     /// <param name="picker">Windows' file dialog.</param>
     /// <param name="ui">The UI thread.</param>
-    public ExitPanelViewModel(IExitConnection connection, IExitStore exits, IFilePicker picker, IUiThread ui)
+    public ExitPanelViewModel(
+        IExitConnection connection, ExitWay way, IExitStore exits, IFilePicker picker, IUiThread ui)
     {
         _connection = connection;
+        _way = way;
+        way.Changed += (_, _) => ShowRoute();
         _exits = exits;
         _picker = picker;
         _status = connection.Status;
@@ -94,12 +106,30 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         Show(_status);
     }
 
+    /// <summary>Raised when the panel asks for the settings' page Nätverk, where the way out is chosen.</summary>
+    public event EventHandler? SettingsWanted;
+
     /// <summary>Gets the exits in the vault, ordered by name.</summary>
     public ObservableCollection<ExitRowViewModel> Rows { get; } = [];
 
     /// <summary>Gets whether the panel is folded out.</summary>
     [ObservableProperty]
     public partial bool IsOpen { get; private set; }
+
+    /// <summary>Gets whether the settings' page Nätverk shows the exits (sketch ST1a).</summary>
+    [ObservableProperty]
+    public partial bool IsInSettings { get; private set; }
+
+    /// <summary>
+    /// Gets whether the exits are the way out (VPN). With Windows they are toned and cannot be used here; the way out
+    /// is changed in the settings.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWindowsMode))]
+    public partial bool IsVpnMode { get; private set; } = true;
+
+    /// <summary>Gets whether Windows is the way out, so that the list says where to change it.</summary>
+    public bool IsWindowsMode => !IsVpnMode;
 
     /// <summary>Gets whether the step that adds a file is shown in place of the list.</summary>
     [ObservableProperty]
@@ -109,11 +139,14 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// <summary>Gets whether the list of exits is shown.</summary>
     public bool IsListing => !IsAdding;
 
-    /// <summary>Gets whether lookups can go now: an exit is connected (the route is green).</summary>
+    /// <summary>Gets whether lookups can go now: through Windows, or a connected exit (the route is green).</summary>
     [ObservableProperty]
     public partial bool IsLive { get; private set; }
 
-    /// <summary>Gets the exit in the route: the connected exit's name, or <see cref="NoRouteText"/>.</summary>
+    /// <summary>
+    /// Gets the middle of the route: <see cref="WindowsRouteText"/>, the connected exit's name, or
+    /// <see cref="NoRouteText"/>.
+    /// </summary>
     [ObservableProperty]
     public partial string RouteText { get; private set; } = NoRouteText;
 
@@ -197,7 +230,47 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     public Task PowerAsync(ExitRowViewModel row)
     {
         ArgumentNullException.ThrowIfNull(row);
+        if (!IsVpnMode && !row.IsOn)
+        {
+            // With Windows chosen an exit is not connected here; the way out is changed in the settings.
+            return Task.CompletedTask;
+        }
+
         return row.IsOn ? DisconnectAsync() : ConnectAsync(row);
+    }
+
+    /// <summary>
+    /// Asks for the settings' page Nätverk (<em>Inställningar …</em> under a toned list), and folds the panel in.
+    /// </summary>
+    [RelayCommand]
+    public void OpenSettings()
+    {
+        Close();
+        SettingsWanted?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Shows the exits on the settings' page Nätverk, reading them anew.</summary>
+    /// <returns>A task that completes when the rows are shown, or why they are not.</returns>
+    public Task ShowInSettingsAsync()
+    {
+        _shown++;
+        IsInSettings = true;
+        ErrorText = string.Empty;
+        return RefreshAsync();
+    }
+
+    /// <summary>Leaves the settings' page: the step that adds a file is left and its file forgotten.</summary>
+    public void LeaveSettings()
+    {
+        if (!IsInSettings)
+        {
+            return;
+        }
+
+        _shown++;
+        IsInSettings = false;
+        CancelAdd();
+        ErrorText = string.Empty;
     }
 
     /// <summary>
@@ -208,7 +281,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     [RelayCommand]
     public async Task AddFileAsync()
     {
-        if (IsBusy || _picker.PickWireGuardFile() is not { } path)
+        if (IsBusy || !IsVpnMode || _picker.PickWireGuardFile() is not { } path)
         {
             return;
         }
@@ -219,7 +292,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         try
         {
             var verdict = await Task.Run(() => CheckFile(path));
-            if (shown != _shown || !IsOpen)
+            if (shown != _shown || !(IsOpen || IsInSettings))
             {
                 return;
             }
@@ -428,9 +501,19 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         ShowRoute();
     }
 
-    /// <summary>Makes the route green with the connected exit's name, or red and dashed with <em>Ingen</em>.</summary>
+    /// <summary>
+    /// Makes the route green through Windows or with the connected exit's name, or red and dashed with <em>Ingen</em>.
+    /// </summary>
     private void ShowRoute()
     {
+        IsVpnMode = !_way.IsWindows;
+        if (_way.IsWindows)
+        {
+            IsLive = true;
+            RouteText = WindowsRouteText;
+            return;
+        }
+
         IsLive = _status.State == ExitState.Connected;
         var connected = IsLive ? Rows.FirstOrDefault(row => row.Id == _status.ExitId) : null;
         RouteText = connected?.Name ?? (IsLive ? ExitRowViewModel.ConnectedText : NoRouteText);

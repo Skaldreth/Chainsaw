@@ -132,6 +132,18 @@ public sealed partial class GateViewModel : ObservableObject
     /// </remarks>
     public void OnWindowsLocked() => Lock();
 
+    /// <summary>
+    /// Locks because Windows was locked, unless the settings say Chainsaw stays unlocked then (page Låsning). Sleep and
+    /// a disconnected session go to <see cref="OnWindowsLocked"/>, which always locks.
+    /// </summary>
+    public void OnWindowsSessionLocked()
+    {
+        if (_autoLock.LocksWithWindows)
+        {
+            OnWindowsLocked();
+        }
+    }
+
     /// <summary>Tells whether there is anything to lock.</summary>
     /// <returns><see langword="true"/> unless the lock screen is already shown.</returns>
     private bool CanLock() => Mode != GateMode.Locked;
@@ -173,13 +185,15 @@ public sealed partial class GateViewModel : ObservableObject
 
     /// <summary>
     /// Shows the lock screen in place of everything else and lets go of what the shell held: the command bar, Nytt
-    /// ärende with what was written in it, and the open case. Links wait from now on.
+    /// ärende with what was written in it, the settings, the menus and the exits' panel, and the open case. Links wait
+    /// from now on.
     /// </summary>
     private void HideEverything()
     {
         Mode = GateMode.Locked;
         _links.Close();
         _shell.ClearCommand();
+        _shell.DismissAll();
         _shell.NewCase.Dismiss();
         _session.Forget();
         LockScreen.Reset();

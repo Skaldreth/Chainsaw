@@ -1,9 +1,11 @@
 using Chainsaw.App.Commands;
+using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -43,6 +45,10 @@ internal sealed class TestEntry(string text) : ISecretEntry
 /// <summary>A vault that opens with one key, keeps what it was given only as a copy, and can be made to fail.</summary>
 internal sealed class TestVault(VaultState state, string key = "correct horse battery") : IVault
 {
+    private string _key = key;
+
+    public string? ChangedTo { get; private set; }
+
     public VaultState State { get; private set; } = state;
 
     public event EventHandler<VaultState>? StateChanged;
@@ -74,7 +80,7 @@ internal sealed class TestVault(VaultState state, string key = "correct horse ba
             throw Failure;
         }
 
-        if (!masterKey.SequenceEqual(key))
+        if (!masterKey.SequenceEqual(_key))
         {
             throw new VaultException(VaultError.WrongMasterKey);
         }
@@ -91,8 +97,21 @@ internal sealed class TestVault(VaultState state, string key = "correct horse ba
         }
     }
 
-    public void ChangeMasterKey(ReadOnlySpan<char> currentMasterKey, ReadOnlySpan<char> newMasterKey) =>
-        throw new NotSupportedException();
+    public void ChangeMasterKey(ReadOnlySpan<char> currentMasterKey, ReadOnlySpan<char> newMasterKey)
+    {
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
+
+        if (!currentMasterKey.SequenceEqual(_key))
+        {
+            throw new VaultException(VaultError.WrongMasterKey);
+        }
+
+        _key = newMasterKey.ToString();
+        ChangedTo = _key;
+    }
 
     public void Set(VaultState state)
     {
@@ -118,6 +137,44 @@ internal sealed class TestProfiles : IOperatorProfileStore
 
         Saved = profile;
     }
+}
+
+/// <summary>The way out chosen, kept in memory, as Network keeps it.</summary>
+internal sealed class TestExitRoute : IExitRoute
+{
+    public ExitRoute Current { get; private set; }
+
+    public event EventHandler<ExitRoute>? Changed;
+
+    public List<ExitRoute> Chosen { get; } = [];
+
+    public void Choose(ExitRoute route)
+    {
+        Chosen.Add(route);
+        if (Current != route)
+        {
+            Current = route;
+            Changed?.Invoke(this, route);
+        }
+    }
+}
+
+/// <summary>Builds the way out for a test, as the program wires it, on the test's own thread.</summary>
+internal static class TestWays
+{
+    public static ExitWay For(IExitConnection exit, IExitRoute? route = null) =>
+        new(route ?? new TestExitRoute(), exit, new InlineUi());
+}
+
+/// <summary>The currency and resolution in Pricing, kept in memory.</summary>
+internal sealed class TestPriceDefaults : IPriceDefaults
+{
+    public FiatCurrency Currency { get; private set; } = FiatCurrency.Sek;
+
+    public PriceResolution Resolution { get; private set; } = PriceResolution.Hour;
+
+    public void Choose(FiatCurrency currency, PriceResolution resolution) =>
+        (Currency, Resolution) = (currency, resolution);
 }
 
 internal sealed class TestExitConnection : IExitConnection
@@ -252,7 +309,7 @@ internal sealed class TestCaseStore : ICaseStore
 
     public string Directory => "Ärenden";
 
-    public RecoveryPublicKey? RecoveryKey => null;
+    public RecoveryPublicKey? RecoveryKey { get; set; }
 
     public IReadOnlyList<CaseFileInfo> List() => Files;
 
@@ -465,10 +522,14 @@ internal sealed class GateRig
             ],
             input);
         Sanctions = new SanctionListImport(SanctionLists, Picker);
-        ExitPanel = new ExitPanelViewModel(Exit, Exits, Picker, Ui);
-        Shell = new ShellViewModel(Session, Commands, NewCase, Workflow, Exit, Exits, Sanctions, ExitPanel, Ui);
+        Way = new ExitWay(Route, Exit, Ui);
+        ExitPanel = new ExitPanelViewModel(Exit, Way, Exits, Picker, Ui);
+        Settings = new SettingsViewModel(
+            new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build);
+        Shell = new ShellViewModel(
+            Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui);
         Links = new LinkInbox(Shell);
-        LockScreen = new LockViewModel(Vault, Exit, AutoLock, BuildInfo.Parse("0.1.0+abcdef0123456"), Ui);
+        LockScreen = new LockViewModel(Vault, Way, AutoLock, Build);
         FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow);
         Gate = new GateViewModel(Vault, LockScreen, FirstRun, Shell, Session, AutoLock, Links, LockSignal, Ui);
     }
@@ -484,6 +545,20 @@ internal sealed class GateRig
     public TestProfiles Profiles { get; } = new();
 
     public TestExitConnection Exit { get; } = new();
+
+    public TestExitRoute Route { get; } = new();
+
+    public ExitWay Way { get; }
+
+    public TestPriceDefaults Prices { get; } = new();
+
+    public BuildInfo Build { get; } = BuildInfo.Parse("0.1.0+abcdef0123456");
+
+    /// <summary>The settings' file in a folder of the test's own, which is never created unless written.</summary>
+    public AppSettingsStore SettingsStore { get; } =
+        new(Path.Combine(Path.GetTempPath(), "chainsaw-app-settings-" + Guid.NewGuid().ToString("N")));
+
+    public SettingsViewModel Settings { get; }
 
     public TestExitStore Exits { get; } = new();
 

@@ -106,7 +106,7 @@ public sealed class ShellViewModelTests
         Assert.Equal("Inget ärende öppet", shell.CaseTitle);
         Assert.Equal(ShellViewModel.NoExitText, shell.ExitText);
         Assert.Equal(ShellViewModel.OfflineText, shell.SourceText);
-        Assert.False(shell.IsExitConnected);
+        Assert.False(shell.IsExitLive);
     }
 
     [Fact]
@@ -118,11 +118,11 @@ public sealed class ShellViewModelTests
 
         rig.Exit.Set(new ExitStatus(ExitState.Connected, exit.Id, null));
         Assert.True(SpinWait.SpinUntil(() => rig.Shell.ExitText == "Stockholm", TimeSpan.FromSeconds(5)));
-        Assert.True(rig.Shell.IsExitConnected);
+        Assert.True(rig.Shell.IsExitLive);
         Assert.Equal("Uppslag går genom utgången Stockholm", rig.Shell.SourceText);
 
         rig.Exit.Set(new ExitStatus(ExitState.Failed, exit.Id, ExitFailure.ConnectionLost));
-        Assert.False(rig.Shell.IsExitConnected);
+        Assert.False(rig.Shell.IsExitLive);
         Assert.Equal(ShellViewModel.OfflineText, rig.Shell.SourceText);
     }
 

@@ -4,12 +4,16 @@ namespace Chainsaw.App.ViewModels;
 
 /// <summary>
 /// The automatic lock after inactivity: the window tells it whenever the user does something in Chainsaw, and asks
-/// now and then whether the time without activity has run out.
+/// now and then whether the time without activity has run out. It also says whether Chainsaw locks with Windows. Both
+/// are chosen in the settings (sketch ST1a, page Låsning).
 /// </summary>
 /// <param name="clock">The clock.</param>
 /// <param name="timeout">How long Chainsaw may be left alone before it locks.</param>
 public sealed class AutoLock(IClock clock, TimeSpan timeout)
 {
+    /// <summary>The shortest time that is accepted, so that Chainsaw never locks while it is being used.</summary>
+    private static readonly TimeSpan Shortest = TimeSpan.FromMinutes(1);
+
     /// <summary>When the user last did something.</summary>
     private DateTimeOffset _lastActivity = clock.UtcNow;
 
@@ -18,8 +22,16 @@ public sealed class AutoLock(IClock clock, TimeSpan timeout)
     /// </summary>
     private int _holds;
 
+    /// <summary>Raised after the time or the lock with Windows has changed.</summary>
+    public event EventHandler? Changed;
+
     /// <summary>Gets how long Chainsaw may be left alone before it locks.</summary>
-    public TimeSpan Timeout { get; } = timeout;
+    public TimeSpan Timeout { get; private set; } = timeout;
+
+    /// <summary>
+    /// Gets whether Chainsaw locks when Windows is locked. Sleep and a disconnected session always lock.
+    /// </summary>
+    public bool LocksWithWindows { get; private set; } = true;
 
     /// <summary>Gets the line on the lock screen that says when Chainsaw locks itself.</summary>
     public string Description
@@ -30,6 +42,24 @@ public sealed class AutoLock(IClock clock, TimeSpan timeout)
             var unit = minutes == 1 ? "minut" : "minuter";
             return $"Låses automatiskt efter {minutes} {unit} utan aktivitet.";
         }
+    }
+
+    /// <summary>Changes the time without activity before Chainsaw locks; it counts from the last activity.</summary>
+    /// <param name="timeout">The new time, at least a minute.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The time is shorter than a minute.</exception>
+    public void Change(TimeSpan timeout)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(timeout, Shortest);
+        Timeout = timeout;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Changes whether Chainsaw locks when Windows is locked.</summary>
+    /// <param name="locks">Whether it locks.</param>
+    public void LockWithWindows(bool locks)
+    {
+        LocksWithWindows = locks;
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Records that the user did something now.</summary>

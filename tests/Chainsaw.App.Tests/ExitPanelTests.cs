@@ -392,10 +392,12 @@ public sealed class ExitPanelTests
         {
             Store.Known.AddRange([Amsterdam, Stockholm]);
             Connection.Store = Store;
-            Panel = new ExitPanelViewModel(Connection, Store, Picker, new InlineUi());
+            Panel = new ExitPanelViewModel(Connection, TestWays.For(Connection, Route), Store, Picker, new InlineUi());
         }
 
         public PanelStore Store { get; } = new();
+
+        public TestExitRoute Route { get; } = new();
 
         public PanelConnection Connection { get; } = new();
 

@@ -27,6 +27,8 @@
   <ItemGroup>
     <!-- The Guide's texts (docs/guide), built in so that the Guide works without the repository and offline. -->
     <EmbeddedResource Include="..\..\docs\guide\*.md" LogicalName="Chainsaw.App.Guide.%(Filename).md" />
+    <!-- The licences of what Chainsaw is built on, shown under Om Chainsaw in the settings. -->
+    <EmbeddedResource Include="..\..\THIRD_PARTY.md" LogicalName="Chainsaw.App.Licenses.md" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />

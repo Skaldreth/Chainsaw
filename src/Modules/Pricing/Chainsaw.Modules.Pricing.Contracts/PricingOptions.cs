@@ -6,14 +6,14 @@ namespace Chainsaw.Modules.Pricing.Contracts;
 public sealed record PricingOptions
 {
     /// <summary>
-    /// Gets the currency to count in when a request names none, at the start (see <see cref="IPriceDefaults"/>); Swedish
-    /// kronor by default.
+    /// Gets the currency to count in when a request names none, at the start (see <see cref="IPriceDefaults"/>);
+    /// Swedish kronor by default.
     /// </summary>
     public FiatCurrency Currency { get; init; } = FiatCurrency.Sek;
 
     /// <summary>
-    /// Gets the resolution of the crypto rate when a request names none, at the start (see <see cref="IPriceDefaults"/>);
-    /// one hour by default.
+    /// Gets the resolution of the crypto rate when a request names none, at the start (see
+    /// <see cref="IPriceDefaults"/>); one hour by default.
     /// </summary>
     public PriceResolution Resolution { get; init; } = PriceResolution.Hour;
 

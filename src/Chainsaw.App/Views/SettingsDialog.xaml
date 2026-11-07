@@ -1,0 +1,724 @@
+<UserControl x:Class="Chainsaw.App.Views.SettingsDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:exits="clr-namespace:Chainsaw.App.Exits"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:network="clr-namespace:Chainsaw.Modules.Network.Contracts;assembly=Chainsaw.Modules.Network.Contracts"
+             Focusable="False" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Cycle"
+             PreviewKeyDown="OnKey">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- A page in the menu: 32 px, the chosen one on the selected surface, as in Gawk's dialog. -->
+        <Style x:Key="Settings.Menu" TargetType="Button" BasedOn="{StaticResource Button.MenuItem}">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- One option of a segmented choice: the chosen one on the selected surface. -->
+        <Style x:Key="Settings.Segment" TargetType="Button">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="5" BorderThickness="1"
+                                BorderBrush="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The frame around a segmented choice. -->
+        <Style x:Key="Settings.SegmentFrame" TargetType="Border">
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="Background" Value="#1C1C1C" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- A row of a page: the title and its explanation to the left, the choice to the right. -->
+        <Style x:Key="Settings.Row" TargetType="Border">
+            <Setter Property="Padding" Value="0,14" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.SubmenuHover}" />
+        </Style>
+
+        <!-- A row that is not built yet: toned, with its tag. -->
+        <Style x:Key="Settings.RowNotBuilt" TargetType="Border" BasedOn="{StaticResource Settings.Row}">
+            <Setter Property="Opacity" Value="0.45" />
+            <Setter Property="IsEnabled" Value="False" />
+        </Style>
+
+        <Style x:Key="Settings.RowTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+
+        <Style x:Key="Settings.RowHint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <Style x:Key="Settings.Value" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- The tag Inte byggt än beside a title. -->
+        <Style x:Key="Settings.Tag" TargetType="Border">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- A button at the right of a row: Byt …, Visa. -->
+        <Style x:Key="Settings.Button" TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+            <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- The switch: magenta and to the right when on (sketch ST1a). -->
+        <Style x:Key="Settings.Switch" TargetType="Button">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Track" CornerRadius="10" Background="{StaticResource Brush.BorderStrong}"
+                                BorderThickness="1" BorderBrush="Transparent">
+                            <Ellipse x:Name="Knob" Width="14" Height="14" Fill="{StaticResource Brush.Text}"
+                                     HorizontalAlignment="Left" Margin="2,0" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding LocksWithWindows}" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Brush.Accent}" />
+                                <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+                            </DataTrigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A card of the way out: the chosen one in the accent (sketch ST1a). -->
+        <Style x:Key="Settings.Card" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="Background" Value="#222222" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1.5" CornerRadius="10" Padding="14">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- An option of a segmented choice. -->
+        <DataTemplate x:Key="Settings.Option" DataType="{x:Type vm:SettingsChoice}">
+            <Button Style="{StaticResource Settings.Segment}" Content="{Binding Label}" CommandParameter="{Binding}"
+                    Command="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+        </DataTemplate>
+
+        <ItemsPanelTemplate x:Key="Settings.Options">
+            <StackPanel Orientation="Horizontal" />
+        </ItemsPanelTemplate>
+
+        <!-- An exit under VPN: its dot, its name, its state and the power button (sketch ST1a, as in UT1a). -->
+        <DataTemplate x:Key="Settings.Exit" DataType="{x:Type vm:ExitRowViewModel}">
+            <Grid Height="42" Margin="12,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{StaticResource Brush.TextFaint}" Margin="0,0,10,0" />
+                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="Word" Grid.Column="2" Text="{Binding Word}" FontSize="12" Margin="10,0"
+                           Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" MaxWidth="260"
+                           TextTrimming="CharacterEllipsis" />
+                <Button x:Name="Power" Grid.Column="3" Style="{StaticResource Button.Power}"
+                        Command="{Binding DataContext.Exits.PowerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}" ToolTip="{Binding ActionText}"
+                        AutomationProperties.Name="{Binding ActionName}">
+                    <controls:GridIcon Size="16" Data="{StaticResource Icon.Power}"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                </Button>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsOn}" Value="True">
+                    <Setter TargetName="Power" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                    <Setter TargetName="Power" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static exits:ExitRowState.Connected}">
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static exits:ExitRowState.Connecting}">
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Pending}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static exits:ExitRowState.Failed}">
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Error}" />
+                    <Setter TargetName="Word" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!--
+      The settings (sketch ST1a, as in Gawk): a dialog in the middle of the window over the darkened work. The pages in
+      groups to the left, the title and a line about the page at the top, and the rows with a title and an explanation to
+      the left and the choice to the right. Changes apply and are saved at once. A click on the dark part closes it, as
+      Esc and × do.
+    -->
+    <Grid>
+        <Rectangle Fill="#80000000" MouseLeftButtonDown="OnDimClicked" />
+        <Grid MaxWidth="1040" MaxHeight="720" Margin="24">
+            <!-- The shadow lies in a layer of its own, as under the command bar, so that it never blurs the text. -->
+            <Border CornerRadius="14" Background="{StaticResource Brush.Floating}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="48" ShadowDepth="12" Direction="270" Opacity="0.6" Color="Black" />
+                </Border.Effect>
+            </Border>
+            <Border CornerRadius="14" Background="{StaticResource Brush.Floating}" BorderBrush="{StaticResource Brush.BorderStrong}"
+                    BorderThickness="1" ClipToBounds="True" AutomationProperties.Name="Inställningar">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="230" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- ===== The menu: the pages in groups, Om last on its own ===== -->
+                    <Border Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.SubmenuHover}"
+                            BorderThickness="0,0,1,0" CornerRadius="14,0,0,14" Padding="12,16">
+                        <StackPanel>
+                            <TextBlock Text="Inställningar" FontSize="16" FontWeight="SemiBold" Margin="10,0,0,6" />
+                            <ItemsControl ItemsSource="{Binding Menu}" Focusable="False" AutomationProperties.Name="Sidor">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:SettingsMenuGroup}">
+                                        <StackPanel>
+                                            <TextBlock x:Name="GroupName" Text="{Binding Name}" FontSize="12"
+                                                       Foreground="{StaticResource Brush.TextDim}" Margin="10,12,0,4" />
+                                            <ItemsControl ItemsSource="{Binding Items}" Focusable="False">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:SettingsMenuItem}">
+                                                        <Button Style="{StaticResource Settings.Menu}" Content="{Binding Entry.Name}"
+                                                                CommandParameter="{Binding}"
+                                                                Command="{Binding DataContext.ShowItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding HasName}" Value="False">
+                                                <Setter TargetName="GroupName" Property="Text" Value="" />
+                                                <Setter TargetName="GroupName" Property="Margin" Value="0,14,0,0" />
+                                                <Setter TargetName="GroupName" Property="FontSize" Value="1" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ===== The page: its title, its line, × and its rows ===== -->
+                    <DockPanel Grid.Column="1">
+                        <Border DockPanel.Dock="Top" Padding="28,22,20,18" BorderBrush="{StaticResource Brush.SubmenuHover}"
+                                BorderThickness="0,0,0,1">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Width="32" Height="32"
+                                        VerticalAlignment="Top" Command="{Binding CloseCommand}" ToolTip="Stäng (Esc)"
+                                        AutomationProperties.Name="Stäng">
+                                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Close}"
+                                                       Foreground="{StaticResource Brush.TextMuted}" />
+                                </Button>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Lead}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
+                                               Margin="0,4,0,0" Visibility="{Binding HasLead, Converter={StaticResource Visible}}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <TextBlock DockPanel.Dock="Bottom" Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="12"
+                                   Margin="28,0,28,14" TextWrapping="Wrap"
+                                   Visibility="{Binding HasError, Converter={StaticResource Visible}}" />
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                            <StackPanel Margin="28,8,28,28">
+
+                                <!-- ===== Nätverk: the way out as two cards, the exits under VPN, and only https ===== -->
+                                <StackPanel Visibility="{Binding IsNetworkPage, Converter={StaticResource Visible}}">
+                                    <Border Style="{StaticResource Settings.Row}" Padding="0,16">
+                                        <StackPanel>
+                                            <TextBlock Text="Utgång" Style="{StaticResource Settings.RowTitle}" />
+                                            <UniformGrid Columns="2" Margin="-6,12,-6,0">
+                                                <Button x:Name="WindowsCard" Margin="6,0" Command="{Binding ChooseRouteCommand}"
+                                                        CommandParameter="{x:Static network:ExitRoute.Windows}"
+                                                        AutomationProperties.Name="Windows som utgång">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource Settings.Card}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsWindows}" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                                                                    <Setter Property="Background" Value="#2A2026" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <DockPanel>
+                                                        <controls:GridIcon DockPanel.Dock="Left" Size="22" Data="{StaticResource Icon.Monitor}"
+                                                                           VerticalAlignment="Top" Margin="0,0,12,0"
+                                                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                                        <StackPanel>
+                                                            <TextBlock Text="Windows" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
+                                                            <TextBlock Text="Datorns eget nät, med det skydd som är installerat för hela datorn."
+                                                                       FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,4,0,0"
+                                                                       TextWrapping="Wrap" LineHeight="18" />
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </Button>
+                                                <Button x:Name="VpnCard" Margin="6,0" Command="{Binding ChooseRouteCommand}"
+                                                        CommandParameter="{x:Static network:ExitRoute.Vpn}"
+                                                        AutomationProperties.Name="VPN som utgång">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource Settings.Card}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsVpn}" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                                                                    <Setter Property="Background" Value="#2A2026" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <DockPanel>
+                                                        <controls:GridIcon DockPanel.Dock="Left" Size="22" Data="{StaticResource Icon.Shield}"
+                                                                           VerticalAlignment="Top" Margin="0,0,12,0"
+                                                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                                        <StackPanel>
+                                                            <TextBlock Text="VPN" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
+                                                            <TextBlock Text="Bara genom en ansluten utgång i Chainsaw. Utan den görs inga uppslag."
+                                                                       FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,4,0,0"
+                                                                       TextWrapping="Wrap" LineHeight="18" />
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </Button>
+                                            </UniformGrid>
+
+                                            <!-- Under VPN: the exits, through the same view model as the exits' panel (UT1a). -->
+                                            <Border Margin="0,12,0,0" CornerRadius="10" BorderThickness="1" Padding="4"
+                                                    BorderBrush="{StaticResource Brush.BorderStrong}" DataContext="{Binding Exits}"
+                                                    Visibility="{Binding DataContext.IsVpn, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Visible}}">
+                                                <StackPanel>
+                                                    <StackPanel Visibility="{Binding IsListing, Converter={StaticResource Visible}}">
+                                                        <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource Settings.Exit}"
+                                                                      Focusable="False" AutomationProperties.Name="Utgångar" />
+                                                        <TextBlock Text="Inga utgångar i valvet" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                                                   Margin="12,10,12,6" Visibility="{Binding IsEmpty, Converter={StaticResource Visible}}" />
+                                                        <Border Height="1" Margin="8,2" Background="{StaticResource Brush.BorderStrong}" />
+                                                        <Button x:Name="AddButton" Style="{StaticResource Button.MenuItem}" Height="34"
+                                                                Command="{Binding AddFileCommand}">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}"
+                                                                                   Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,10,0" />
+                                                                <TextBlock Text="Lägg till WireGuard-fil …" FontSize="13" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </StackPanel>
+
+                                                    <!-- The step that adds a file, as in the exits' panel. -->
+                                                    <StackPanel Margin="10" Visibility="{Binding IsAdding, Converter={StaticResource Visible}}">
+                                                        <Border Height="34" CornerRadius="6" Background="{StaticResource Brush.Background}"
+                                                                BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1" Padding="10,0">
+                                                            <DockPanel VerticalAlignment="Center">
+                                                                <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.File}"
+                                                                                   Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,8,0" />
+                                                                <TextBlock DockPanel.Dock="Right" Text="{Binding CheckText}" FontSize="11.5"
+                                                                           Margin="8,0,0,0" VerticalAlignment="Center">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsFileValid}" Value="True">
+                                                                                    <Setter Property="Foreground" Value="{StaticResource Brush.Success}" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding FileName}" FontSize="12.5" VerticalAlignment="Center"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                            </DockPanel>
+                                                        </Border>
+                                                        <DockPanel Margin="0,10,0,0">
+                                                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="34" Padding="14,0"
+                                                                    FontSize="12.5" Margin="8,0,0,0" Content="Spara" Command="{Binding SaveCommand}"
+                                                                    ToolTip="Spara (Enter)" IsEnabled="{Binding CanSave}" />
+                                                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="34"
+                                                                    Padding="14,0" FontSize="12.5" Margin="8,0,0,0" Content="Avbryt"
+                                                                    Command="{Binding CancelAddCommand}" ToolTip="Avbryt (Esc)" />
+                                                            <TextBox x:Name="ExitNameBox" Style="{StaticResource TextBox.Field}" Height="34" FontSize="13"
+                                                                     Background="{StaticResource Brush.Background}" AutomationProperties.Name="Namn"
+                                                                     MaxLength="{x:Static network:ExitRules.MaximumNameLength}"
+                                                                     Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}">
+                                                                <TextBox.InputBindings>
+                                                                    <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
+                                                                </TextBox.InputBindings>
+                                                            </TextBox>
+                                                        </DockPanel>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                            <controls:GridIcon Size="12" Data="{StaticResource Icon.Lock}"
+                                                                               Foreground="{StaticResource Brush.TextDim}" Margin="0,0,6,0" />
+                                                            <TextBlock Text="Krypteras i valvet" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+
+                                                    <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="12"
+                                                               Margin="12,4,12,8" TextWrapping="Wrap"
+                                                               Visibility="{Binding HasError, Converter={StaticResource Visible}}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="Alltid" Style="{StaticResource Settings.Value}" />
+                                            <StackPanel>
+                                                <TextBlock Text="Bara https" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Kakor och referer skickas aldrig. Gäller båda utgångarna."
+                                                           Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ===== Låsning: the time and the lock with Windows ===== -->
+                                <StackPanel Visibility="{Binding IsLockPage, Converter={StaticResource Visible}}">
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" Style="{StaticResource Settings.SegmentFrame}">
+                                                <ItemsControl ItemsSource="{Binding LockChoices}" Tag="{Binding ChooseLockCommand}"
+                                                              ItemTemplate="{StaticResource Settings.Option}"
+                                                              ItemsPanel="{StaticResource Settings.Options}" Focusable="False"
+                                                              AutomationProperties.Name="Lås efter" />
+                                            </Border>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Lås efter" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Utan inmatning. Ctrl+L låser direkt." Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource Settings.Switch}"
+                                                    Command="{Binding ToggleLockWithWindowsCommand}"
+                                                    AutomationProperties.Name="Lås när Windows låses" />
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="När Windows låses" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Chainsaw låses samtidigt. En ansluten utgång står kvar. Viloläge låser alltid."
+                                                           Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ===== Utseende: not built yet ===== -->
+                                <StackPanel Visibility="{Binding IsLookPage, Converter={StaticResource Visible}}">
+                                    <Border Style="{StaticResource Settings.RowNotBuilt}">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" Style="{StaticResource Settings.SegmentFrame}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border CornerRadius="5" Padding="12,0" Height="28" Background="{StaticResource Brush.SurfaceSelected}">
+                                                        <TextBlock Text="Slumpa" FontSize="12.5" VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <Border Padding="12,0" Height="28">
+                                                        <TextBlock Text="Av" FontSize="12.5" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource Brush.TextDim}" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="Teckenfältet" Style="{StaticResource Settings.RowTitle}" />
+                                                    <Border Style="{StaticResource Settings.Tag}">
+                                                        <TextBlock Text="{x:Static vm:SettingsViewModel.NotBuiltText}" FontSize="11"
+                                                                   Foreground="{StaticResource Brush.TextDim}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="Scenen bakom låsskärmen." Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ===== Länkar: not built yet ===== -->
+                                <StackPanel Visibility="{Binding IsLinksPage, Converter={StaticResource Visible}}">
+                                    <Border Style="{StaticResource Settings.RowNotBuilt}">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" Width="36" Height="20" CornerRadius="10" VerticalAlignment="Center"
+                                                    Background="{StaticResource Brush.BorderStrong}">
+                                                <Ellipse Width="14" Height="14" Fill="{StaticResource Brush.Text}" HorizontalAlignment="Left"
+                                                         Margin="3,0" />
+                                            </Border>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="Öppna chainsaw:-länkar" Style="{StaticResource Settings.RowTitle}" />
+                                                    <Border Style="{StaticResource Settings.Tag}">
+                                                        <TextBlock Text="{x:Static vm:SettingsViewModel.NotBuiltText}" FontSize="11"
+                                                                   Foreground="{StaticResource Brush.TextDim}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="Registreras för dig i Windows, inte för datorn."
+                                                           Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ===== Kurser: the currency, the resolution and the sources ===== -->
+                                <StackPanel Visibility="{Binding IsPricingPage, Converter={StaticResource Visible}}">
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" Style="{StaticResource Settings.SegmentFrame}">
+                                                <ItemsControl ItemsSource="{Binding CurrencyChoices}" Tag="{Binding ChooseCurrencyCommand}"
+                                                              ItemTemplate="{StaticResource Settings.Option}"
+                                                              ItemsPanel="{StaticResource Settings.Options}" Focusable="False"
+                                                              AutomationProperties.Name="Valuta" />
+                                            </Border>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Valuta" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Belopp räknas om vid tx:ens tid." Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" Style="{StaticResource Settings.SegmentFrame}">
+                                                <ItemsControl ItemsSource="{Binding ResolutionChoices}" Tag="{Binding ChooseResolutionCommand}"
+                                                              ItemTemplate="{StaticResource Settings.Option}"
+                                                              ItemsPanel="{StaticResource Settings.Options}" Focusable="False"
+                                                              AutomationProperties.Name="Upplösning" />
+                                            </Border>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Upplösning" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Blocktiden är ungefärlig, därför timme." Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <StackPanel>
+                                            <TextBlock Text="Källor" Style="{StaticResource Settings.RowTitle}" />
+                                            <TextBlock Text="Bitstamp för BTC, Riksbanken för kronan." Style="{StaticResource Settings.RowHint}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ===== Profil: who fetched, and the master key ===== -->
+                                <StackPanel Visibility="{Binding IsProfilePage, Converter={StaticResource Visible}}">
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <StackPanel Margin="0,0,8,0">
+                                                    <TextBlock Text="Namn" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,3" />
+                                                    <TextBox x:Name="NameBox" Style="{StaticResource TextBox.Field}" Width="130" Height="32" FontSize="13"
+                                                             Background="{StaticResource Brush.Background}" AutomationProperties.Name="Namn"
+                                                             Text="{Binding ProfileName, UpdateSourceTrigger=PropertyChanged}"
+                                                             LostKeyboardFocus="OnProfileLeft" KeyDown="OnProfileKey" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,8,0">
+                                                    <TextBlock Text="Titel" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,3" />
+                                                    <TextBox Style="{StaticResource TextBox.Field}" Width="130" Height="32" FontSize="13"
+                                                             Background="{StaticResource Brush.Background}" AutomationProperties.Name="Titel"
+                                                             Text="{Binding ProfileTitle, UpdateSourceTrigger=PropertyChanged}"
+                                                             LostKeyboardFocus="OnProfileLeft" KeyDown="OnProfileKey" />
+                                                </StackPanel>
+                                                <StackPanel>
+                                                    <TextBlock Text="Enhet" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,3" />
+                                                    <TextBox Style="{StaticResource TextBox.Field}" Width="130" Height="32" FontSize="13"
+                                                             Background="{StaticResource Brush.Background}" AutomationProperties.Name="Enhet"
+                                                             Text="{Binding ProfileUnit, UpdateSourceTrigger=PropertyChanged}"
+                                                             LostKeyboardFocus="OnProfileLeft" KeyDown="OnProfileKey" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Du" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Står som den som hämtade och förseglade." Style="{StaticResource Settings.RowHint}" />
+                                                <TextBlock Text="{Binding ProfileError}" Style="{StaticResource Text.Error}" FontSize="12"
+                                                           Margin="0,6,0,0" TextWrapping="Wrap"
+                                                           Visibility="{Binding HasProfileError, Converter={StaticResource Visible}}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource Settings.Button}" Content="Byt …"
+                                                        Command="{Binding ToggleChangeKeyCommand}" AutomationProperties.Name="Byt huvudnyckel" />
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Text="Huvudnyckel" Style="{StaticResource Settings.RowTitle}" />
+                                                    <TextBlock Text="Lindar om valvets nyckel. Ärendena påverkas inte."
+                                                               Style="{StaticResource Settings.RowHint}" />
+                                                </StackPanel>
+                                            </DockPanel>
+
+                                            <!-- The master key's form, folded out under its row: the keys never become strings. -->
+                                            <StackPanel Margin="0,12,0,0" Visibility="{Binding IsChangingKey, Converter={StaticResource Visible}}">
+                                                <UniformGrid Columns="3">
+                                                    <StackPanel Margin="0,0,8,0">
+                                                        <TextBlock Text="Nuvarande" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,3" />
+                                                        <PasswordBox x:Name="CurrentKeyBox" Style="{StaticResource PasswordBox.Field}" Height="32" FontSize="13" AutomationProperties.Name="Nuvarande huvudnyckel" />
+                                                    </StackPanel>
+                                                    <StackPanel Margin="0,0,8,0">
+                                                        <TextBlock Text="Ny" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,3" />
+                                                        <PasswordBox x:Name="NewKeyBox" Style="{StaticResource PasswordBox.Field}" Height="32" FontSize="13" AutomationProperties.Name="Ny huvudnyckel" />
+                                                    </StackPanel>
+                                                    <StackPanel>
+                                                        <TextBlock Text="Upprepa" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,3" />
+                                                        <PasswordBox x:Name="RepeatKeyBox" Style="{StaticResource PasswordBox.Field}" Height="32" FontSize="13" AutomationProperties.Name="Upprepa ny huvudnyckel"
+                                                                     KeyDown="OnKeyFormKey" />
+                                                    </StackPanel>
+                                                </UniformGrid>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                                    <Button Style="{StaticResource Button.Secondary}" Height="32" Padding="14,0" FontSize="12.5"
+                                                            Content="Avbryt" Command="{Binding ToggleChangeKeyCommand}" />
+                                                    <Button Style="{StaticResource Button.Primary}" Height="32" Padding="14,0" FontSize="12.5"
+                                                            Margin="8,0,0,0" Content="Byt huvudnyckel" Click="OnChangeKey"
+                                                            IsEnabled="{Binding IsKeyBusy, Converter={x:Static controls:InvertConverter.Instance}}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding KeyText}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
+                                                       Visibility="{Binding HasKeyText, Converter={StaticResource Visible}}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource Brush.Success}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsKeyError}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ===== Om Chainsaw: the version, the recovery key and the licences ===== -->
+                                <StackPanel Visibility="{Binding IsAboutPage, Converter={StaticResource Visible}}">
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding VersionText}" Style="{StaticResource Settings.Value}"
+                                                       FontFamily="{StaticResource Font.Mono}" />
+                                            <TextBlock Text="Version" Style="{StaticResource Settings.RowTitle}" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding RecoveryKeyText}" MaxWidth="420"
+                                                       TextWrapping="Wrap" TextAlignment="Right" Margin="16,0,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Settings.Value}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasRecoveryKey}" Value="True">
+                                                                <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+                                                                <Setter Property="FontSize" Value="12" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <StackPanel>
+                                                <TextBlock Text="Återställningsnyckel" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Organisationens, inbyggd i Chainsaw." Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource Settings.Button}" Content="Visa"
+                                                        Command="{Binding ToggleLicensesCommand}" AutomationProperties.Name="Visa licenser" />
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Text="Licenser" Style="{StaticResource Settings.RowTitle}" />
+                                                    <TextBlock Text="WireGuard, gVisor och de andra delarna." Style="{StaticResource Settings.RowHint}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                            <controls:GuideDocumentView Margin="0,12,0,0" Section="{Binding Licenses}" Compact="True"
+                                                                        Visibility="{Binding IsShowingLicenses, Converter={StaticResource Visible}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

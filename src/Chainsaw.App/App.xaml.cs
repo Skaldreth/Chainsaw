@@ -7,6 +7,7 @@ using Chainsaw.Modules.Clustering;
 using Chainsaw.Modules.Attribution;
 using Chainsaw.Modules.Tracing;
 using Chainsaw.Modules.Pricing;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Monitoring;
 using Chainsaw.Modules.Requests;
 using Chainsaw.App.Commands;
@@ -118,27 +119,34 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Registers the clock, every module, the settings, the gate, the shell and the main window in one container.
+    /// Registers the clock, every module, the settings, the gate, the shell and the main window in one container. The
+    /// settings' file is read once, here, so that the way out, the currency and the lock hold from the start.
     /// </summary>
     /// <returns>The host, not yet started.</returns>
-    private IHost BuildHost() =>
-        Host.CreateDefaultBuilder()
+    private IHost BuildHost()
+    {
+        var store = new AppSettingsStore();
+        var settings = store.Load();
+        return Host.CreateDefaultBuilder()
             .ConfigureServices(services => services
                 .AddSingleton<IClock, SystemClock>()
                 .AddSingleton<IUiThread>(new WpfUiThread(Dispatcher))
-                .AddSingleton(new AppSettingsStore().Load())
+                .AddSingleton(store)
+                .AddSingleton(settings)
                 .AddSingleton(BuildInfo.From(typeof(App).Assembly))
-                .AddSingleton(provider => new AutoLock(
-                        provider.GetRequiredService<IClock>(),
-                        provider.GetRequiredService<AppSettings>().AutoLockTimeout))
+                .AddSingleton(provider => StartAutoLock(provider.GetRequiredService<IClock>(), settings))
                 .AddCasesModule()
                 .AddSecurityModule()
-                .AddNetworkModule()
+                .AddNetworkModule(options => options.Route = settings.ExitRoute)
                 .AddChainsModule()
                 .AddClusteringModule()
                 .AddAttributionModule()
                 .AddTracingModule()
-                .AddPricingModule()
+                .AddPricingModule(new PricingOptions
+                {
+                    Currency = settings.Currency,
+                    Resolution = settings.Resolution,
+                })
                 .AddMonitoringModule()
                 .AddRequestsModule()
                 .AddSingleton<CaseSession>()
@@ -154,7 +162,9 @@ public partial class App : Application
                 .AddSingleton<CommandRegistry>()
                 .AddSingleton<IFilePicker, WpfFilePicker>()
                 .AddSingleton<SanctionListImport>()
+                .AddSingleton<ExitWay>()
                 .AddSingleton<ExitPanelViewModel>()
+                .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphEditor, GraphEditor>()
                 .AddSingleton<GraphViewModel>()
@@ -168,4 +178,16 @@ public partial class App : Application
                 .AddSingleton<GateViewModel>()
                 .AddSingleton<MainWindow>())
             .Build();
+    }
+
+    /// <summary>Creates the automatic lock with the time and the lock with Windows from the settings.</summary>
+    /// <param name="clock">The clock.</param>
+    /// <param name="settings">The settings read at the start.</param>
+    /// <returns>The automatic lock.</returns>
+    private static AutoLock StartAutoLock(IClock clock, AppSettings settings)
+    {
+        var autoLock = new AutoLock(clock, settings.AutoLockTimeout);
+        autoLock.LockWithWindows(settings.LockWithWindows);
+        return autoLock;
+    }
 }

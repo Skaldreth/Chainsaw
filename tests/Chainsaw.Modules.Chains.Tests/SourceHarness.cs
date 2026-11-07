@@ -86,7 +86,8 @@ internal sealed class SourceHarness : IDisposable
     /// <summary>Reads the sealed exit and way out of every raw response, in order.</summary>
     public List<(string? ExitId, string Route)> ExitColumns() => Case.Read(reader =>
     {
-        using var command = reader.CreateCommand("SELECT exit_id, exit_route FROM chains_raw_responses ORDER BY sequence");
+        using var command = reader.CreateCommand(
+            "SELECT exit_id, exit_route FROM chains_raw_responses ORDER BY sequence");
         using var row = command.ExecuteReader();
         var rows = new List<(string?, string)>();
         while (row.Read())

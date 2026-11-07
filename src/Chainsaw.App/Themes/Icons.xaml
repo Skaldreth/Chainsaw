@@ -31,6 +31,7 @@
     <Geometry x:Key="Icon.Globe">M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3.5 9h17 M3.5 15h17 M12 3c-2.4 2.6-3.6 5.6-3.6 9s1.2 6.4 3.6 9 M12 3c2.4 2.6 3.6 5.6 3.6 9s-1.2 6.4-3.6 9</Geometry>
     <Geometry x:Key="Icon.Power">M12 3v8 M6.3 6.8a8 8 0 1 0 11.4 0</Geometry>
     <Geometry x:Key="Icon.File">M6 3h8l4 4v14H6z M13 3v5h5</Geometry>
+    <Geometry x:Key="Icon.Monitor">M3 4.5h18v11.5H3z M8.5 20h7 M12 16v4</Geometry>
     <Geometry x:Key="Icon.Laptop">M4 5h16v11H4z M2 19h20</Geometry>
     <Geometry x:Key="Icon.Server">M4 4h16v6H4z M4 14h16v6H4z M7.5 7h.01 M7.5 17h.01</Geometry>
     <Geometry x:Key="Icon.ChevronDown">M6 9l6 6 6-6</Geometry>

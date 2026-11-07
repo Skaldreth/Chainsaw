@@ -70,6 +70,7 @@ public partial class MainWindow : Window
         Gate.Attach(gate);
         NewCasePanel.Attach(shell.NewCase);
         ExitPanelView.Attach(shell.ExitPanel);
+        SettingsDialog.Attach(shell.Settings);
         GraphPage.Attach(graph);
         GuidePage.Attach(guide);
         GuidePanel.Attach(guidePanel);
@@ -139,14 +140,14 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// The keys of the open Guide panel, wherever the keyboard is: Esc closes it, and F1 takes its place to the view
-    /// Guide (as <em>Öppna i Guide</em>). The command bar, Nytt ärende, an open submenu, the exits' panel and an open
-    /// form in the graph's inspector keep their own Esc.
+    /// Guide (as <em>Öppna i Guide</em>). The command bar, Nytt ärende, the settings, an open submenu, the exits' panel
+    /// and an open form in the graph's inspector keep their own Esc.
     /// </summary>
     /// <param name="sender">The window.</param>
     /// <param name="e">The key.</param>
     private void OnGuideEscape(object sender, KeyEventArgs e)
     {
-        if (!_guidePanel.IsOpen || !_gate.IsShellVisible || _shell.NewCase.IsOpen)
+        if (!_guidePanel.IsOpen || !_gate.IsShellVisible || _shell.NewCase.IsOpen || _shell.Settings.IsOpen)
         {
             return;
         }
@@ -422,15 +423,20 @@ public partial class MainWindow : Window
         PreviewMouseMove += (_, _) => _gate.Touch();
     }
 
-    /// <summary>Locks Chainsaw when Windows is locked or the session is disconnected.</summary>
+    /// <summary>
+    /// Locks Chainsaw when the session is disconnected, and when Windows is locked unless the settings say otherwise.
+    /// </summary>
     /// <param name="sender">Windows.</param>
     /// <param name="e">What happened to the session.</param>
     private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
     {
-        if (e.Reason is SessionSwitchReason.SessionLock or SessionSwitchReason.ConsoleDisconnect
-            or SessionSwitchReason.RemoteDisconnect)
+        if (e.Reason is SessionSwitchReason.SessionLock)
         {
-            LockFromWindows();
+            LockFromWindows(_gate.OnWindowsSessionLocked);
+        }
+        else if (e.Reason is SessionSwitchReason.ConsoleDisconnect or SessionSwitchReason.RemoteDisconnect)
+        {
+            LockFromWindows(_gate.OnWindowsLocked);
         }
     }
 
@@ -441,7 +447,7 @@ public partial class MainWindow : Window
     {
         if (e.Mode == PowerModes.Suspend)
         {
-            LockFromWindows();
+            LockFromWindows(_gate.OnWindowsLocked);
         }
     }
 
@@ -449,15 +455,16 @@ public partial class MainWindow : Window
     /// Locks at once when Windows' event comes on the UI thread (as it normally does), so that the lock is in place
     /// before the computer sleeps; otherwise it is posted there.
     /// </summary>
-    private void LockFromWindows()
+    /// <param name="lockNow">The gate's way to lock for this event.</param>
+    private void LockFromWindows(Action lockNow)
     {
         if (Dispatcher.CheckAccess())
         {
-            _gate.OnWindowsLocked();
+            lockNow();
         }
         else
         {
-            Dispatcher.BeginInvoke(_gate.OnWindowsLocked);
+            Dispatcher.BeginInvoke(lockNow);
         }
     }
 
@@ -473,7 +480,7 @@ public partial class MainWindow : Window
         }
 
         Activate();
-        if (_gate.IsShellVisible && !_shell.NewCase.IsOpen && _shell.CommandText.Length > 0)
+        if (_gate.IsShellVisible && !_shell.NewCase.IsOpen && !_shell.Settings.IsOpen && _shell.CommandText.Length > 0)
         {
             FocusCommandBar();
         }
@@ -497,10 +504,11 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>Moves the keyboard to the command bar and selects what is written there.</summary>
+    /// <summary>Moves the keyboard to the command bar, closing what lies over it, and selects what is written.</summary>
     private void FocusCommandBar()
     {
         _shell.ExitPanel.Close();
+        _shell.Settings.Close();
         CommandBox.Focus();
         CommandBox.SelectAll();
     }

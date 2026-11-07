@@ -65,7 +65,9 @@ public sealed class NetworkOptions
     internal byte[]? TunnelHelperSha256 { get; set; }
 
     /// <summary>Refuses limits that would make every request fail or never end.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">A limit is zero, negative or too long, or the way is unknown.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A limit is zero, negative or too long, or the way is unknown.
+    /// </exception>
     internal void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(RequestTimeout, TimeSpan.Zero, nameof(RequestTimeout));

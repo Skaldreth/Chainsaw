@@ -63,8 +63,9 @@ public sealed class ServiceTests : IDisposable
     [Fact]
     public void An_unknown_currency_or_resolution_is_refused()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => _harness.Defaults.Choose((FiatCurrency)9, PriceResolution.Hour));
-        Assert.Throws<ArgumentOutOfRangeException>(() => _harness.Defaults.Choose(FiatCurrency.Sek, (PriceResolution)9));
+        var defaults = _harness.Defaults;
+        Assert.Throws<ArgumentOutOfRangeException>(() => defaults.Choose((FiatCurrency)9, PriceResolution.Hour));
+        Assert.Throws<ArgumentOutOfRangeException>(() => defaults.Choose(FiatCurrency.Sek, (PriceResolution)9));
         Assert.Equal(FiatCurrency.Sek, _harness.Defaults.Currency);
     }
 

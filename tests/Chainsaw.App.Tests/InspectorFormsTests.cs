@@ -577,7 +577,8 @@ public sealed class InspectorFormsTests
             Workflow = new CaseWorkflow(
                 new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), Session);
             Graph = new GraphViewModel(
-                Session, Workflow, Source, new TestExitConnection(), new InlineUi(), Editor, new TestClock());
+                Session, Workflow, Source, TestWays.For(new TestExitConnection()), new InlineUi(), Editor,
+                new TestClock());
             Session.Open(new TestCase("2026-0001"));
         }
 
