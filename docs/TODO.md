@@ -619,6 +619,28 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   i anropet till `IExitStore.Add`, som tar en (samma sak som *Klartext i minnet*). Kräver ett kontrakt med tecken.
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 
+### Bevakning (etapp 26)
+- **Bakgrundsprocessen när Chainsaw är stängt** (etapp 27): eget flöde till samma `IWatchCheck`, DPAPI, kö som förs in
+  i ärendet, aviseringssätten i inställningarna och raden på låsskärmen.
+- **Starten från en höjd i fas** (granskningen omgång 1, M5): starten är kedjans höjd från `GetTipHeightAsync`, som
+  frågar vilken endpoint som helst; ligger den ett block efter kan pengar i det nyaste blocket före bevakningen räknas
+  som en träff. Höjden borde komma från en endpoint i fas (eller provets högsta höjd).
+- **Omorganisation** (granskningen omgång 1, M6): en träff förseglas en gång per tx; byter tx:en block står den gamla
+  hashen kvar. Kontrollera träffarnas block mot kedjan och säg det.
+- **Pausen** räknar det som hände under pausen som träffar när bevakningen återupptas (inget tappas). Bekräfta eller
+  välj att räkna från återupptagandet.
+- **Mycket aktiva adresser:** en kontroll läser högst fem sidor bakåt. En börsadress med fler tx per kontroll än så
+  läses aldrig ända ner; kontrollen säger det och läser om från samma block, men de äldsta kan missas. Läs i ett
+  tidsfönster eller med källans egen bevakning (websocket) i stället.
+- **Motparter som kluster** följer inte klustringen: en Ctrl+klickad klusternod lägger dess adresser då, inte de som
+  kommer senare (noden själv följer klustringen vid varje kontroll).
+- **Ringarna** ritas genom att grafen ritas om (15 gånger i sekunden medan en osedd träff syns). Ett eget lager för
+  ringarna skulle bara rita dem; pennorna skapas per bildruta.
+- **Pengar ut ur en CoinJoin** räknas högst till det de bevakade adresserna satte in, minus växeln; vem av utgångarna
+  som är deras säger kedjan inte, och linjen får inget belopp när träffen har flera motparter.
+- **Varje råsvar förseglas** också för bevakningen: höjden en gång i minuten och adressernas första sida vid varje nytt
+  block. Ärendet växer med bevakningar som går länge; att slå ihop lika svar (samma hash) vore en ändring i Chains.
+
 ### Historik, ta tillbaka och ångra (etapp 21)
 - **Hämtad i historiken:** en adress visar *Först in* med blocket men inte när den hämtades, eftersom
   `IBitcoinSource.GetAddressTransactionsAsync` inte kan läsa ur ärendet utan att fråga källan. Ett läge bara ur ärendet
