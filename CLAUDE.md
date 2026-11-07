@@ -206,6 +206,11 @@ tests/                      xUnit, ett testprojekt per modul
   linjens tjocklek är beloppet och **streckat betyder alltid osäkert**. **Viktig information får stå kvar** (användarens
   beslut 2026-11-07): beloppet står alltid på linjerna, och användaren kan gallra till bara de spårade eller inga när grafen
   blir stor. Bildspråket finns bakom ett *?* i grafens hörn.
+- **Sorterna efter vad som händer med pengarna** (skiss GR3c, användarens beslut 2026-11-07, införda i GR4): **blått är uttag**
+  (börs, börs utan kundkontroll med streckad ram, nästlad tjänst, OTC och P2P, kryptoautomat, kryptokort), **gult är där
+  pengarna spenderas** (spel som två spelkort, handel, presentkort), **rött är risk och slut på spåret** (darknet, garantimarknad,
+  mixer, CoinJoin, sanktionerad). Markeringen **Kan frysas** (en snöflinga) sitter på adresser med USDT eller USDC, eftersom
+  utgivaren kan frysa dem på begäran.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
   Etiketter, Terminal och Guide.

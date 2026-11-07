@@ -5,6 +5,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på beslut
 
+- **Ordningen bland uttagen** (CLAUDE.md, *Sorterna efter vad som händer med pengarna*): fråga kryptospåraren vilka uttag
+  som är vanligast i de svenska ärendena, och om några sorter kan slås ihop.
+
 - **Vad av ett annat ärende som följer med en etikett** (CLAUDE.md, *Etiketter smittar*): ärendenumret, utredarens
   anteckning och varför etiketten sattes kan vara sekretess i det andra ärendet. Förslag: ärendenumret och anteckningen
   följer med till biblioteket men inte vidare in i ett annat ärende; där står bara vem, när och etiketten. Kan också
@@ -18,11 +21,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på skiss
 
-- **Fler sorter av uttag i bildspråket** (skissat i GR3c 2026-11-07, väntar på användarens ok): förslaget är att allt där pengar lämnar
-  kedjan är blått med egen ikon (börs, OTC och P2P, kryptoautomat, kryptokort och betaltjänst), att det som spenderar är
-  gult (spel, handel, presentkort) och att darknetmarknader är röda. Därtill en markering **Kan frysas** för stablecoins
-  vars utgivare kan frysa en adress (USDT, USDC), eftersom det är en egen väg för att stoppa pengarna. Fråga
-  kryptospåraren vilka uttag som är vanligast i de svenska ärendena.
 
 - Identiteten: loggan, accentfärgen, låsskärmen och förstagångsinställningen med teckenfältet.
 - Grafen (hjärtat): noder för adress, tx och kluster, expandering, slut på spåret, spårat belopp på kanterna, brus-kontroll.
