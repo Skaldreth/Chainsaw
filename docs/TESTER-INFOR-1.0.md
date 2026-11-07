@@ -996,3 +996,14 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Ett svar som kommer när raden är dold (nytt ärende skapat, sanktionslista importerad) visas som en toast.
 - [ ] Nytt → Startpunkt med ett ärende öppet tar fram raden med förklaringen; en chainsaw:-länk tar fram den med adressen ifylld.
 - [ ] Med Guidens panel öppen står raden mitt i ytan bredvid panelen; Ctrl+K medan Nytt ärende är öppet gör ingenting.
+
+## Ärendeväljaren (ÄV1a)
+- [ ] Klicka på ärendet i titelraden (eller *Inget ärende öppet*): ärendeväljaren fälls ut under det med samma yta, kant och skugga som utgångarnas ruta och glider in mjukt (stilla med animeringar avstängda).
+- [ ] Ctrl+O öppnar den med markören i *Sök ärendenummer*; Esc stänger den och tangentbordet går tillbaka till ärendet i titelraden.
+- [ ] Ett klick utanför stänger den utan att klicket når det som ligger under; ett klick på ärendet igen fäller in den.
+- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Kontrollerat nu · inget ändrat* (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
+- [ ] Listan visar ärendena med det senast ändrade först, med nummer och *ändrad i dag 14:02*; det öppna har accentstreck och brickan *Öppet*.
+- [ ] Sökfältet filtrerar på ärendenummer och räknaren följer med; utan träff står *Inget ärende har det numret.*
+- [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
+- [ ] *Nytt ärende … Ctrl+N* stänger rutan och öppnar panelen Nytt ärende.
+- [ ] Ärendeväljaren, utgångarnas ruta och kommandoraden är aldrig öppna samtidigt, och ärendeväljaren stängs när Chainsaw låses.

@@ -47,7 +47,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
    riktningen syns, resten som tillval) och BV3b (bevakningen som en mening), båda vid noden; **BV3a vald och byggd 2026-11-07**.
 8. **Undermenyn Nytt** i pillret: *animerad 2026-11-07* (växer ut ur knappen och tonar in).
 9. **Pillret:** *klart 2026-11-07*, vyer som inte är byggda är nedtonade.
-10. **Byta ärende i titelraden** går inte (ÄV1a, godkänd).
+10. **Byta ärende i titelraden:** *ÄV1a byggd 2026-11-07* (klick på ärendet eller Ctrl+O).
 11. **Grafens ikon i pillret** säger för lite; en mer beskrivande ikon skissas.
 12. **Terminal:** *borttagen 2026-11-07*.
 13. **Bevakningens tomma läge** (*byggt 2026-11-07*) såg inte professionellt ut: en större ikon i mitten med en förklarande text under att
