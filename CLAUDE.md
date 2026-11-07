@@ -37,8 +37,10 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
 3. **Förklarbart.** En användare ska alltid kunna fråga *varför?* om en sammanslagning, en etikett eller ett belopp och få ett
    svar i klartext, med länk till det det bygger på.
 4. **Sekretess.** Ärendet är en krypterad fil. Inga ärendedata skickas till molnet. Uppslag mot externa källor går bara
-   genom en vald utgång (VPN), aldrig direkt från datorns nät, och skickar bara det uppslaget kräver (adressen eller tx:en),
-   aldrig ärendet.
+   genom den utgång som är inställd, och skickar bara det uppslaget kräver (adressen eller tx:en), aldrig ärendet. Utgången
+   är **en VPN-utgång i Chainsaw eller Windows** (datorns eget nät), vald i inställningarna (användarens beslut 2026-11-07:
+   ofta har datorn ett externt skydd för hela datorn, och då ska Windows få sköta utgången). Utan ansluten VPN-utgång, när
+   VPN är valt, görs inga uppslag.
 5. **Inget LLM nu, men en öppen dörr.** Chainsaw bygger inte in någon språkmodell. Mönsterigenkänning (det användaren ser som
    troligast senare) ska kunna läggas till som ännu en analys med namn och version, på samma sätt som en heuristik, utan
    att något annat ändras. En eventuell modell måste vara lokal. AI som själv driver utredningen släpps inte in.
@@ -205,6 +207,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Låsning** automatiskt efter inaktivitet, när Windows låses och med Ctrl+L. En ansluten utgång står kvar när valvet
   låses, eftersom inga uppslag görs medan Chainsaw är låst (användarens beslut 2026-11-07).
 - **Bara https ut** (användarens beslut 2026-11-07): `IExitHttp` vägrar `http`, så att utgången aldrig ser innehållet.
+- **Windows som utgång** (användarens beslut 2026-11-07): i inställningarna väljs *Windows* eller *VPN*. Med Windows går
+  `IExitHttp` ut genom datorns eget nät (och dess proxy och skydd), fortfarande bara https och utan kakor och referer, och
+  titelraden och utgångarnas ruta visar ärligt *Windows* som utgång. Valet journalförs inte per uppslag, men varje
+  förseglat råsvar säger vilken sorts utgång det kom genom.
 - **Utgångar:** Chainsaw har ett **eget exemplar** av hjälpprogrammet för WireGuard och egna utgångar, och är inte beroende
   av att Gawk är igång (användarens beslut 2026-11-07). Samma sorts tunnel som Gawk, men Chainsaws egen.
   Hjälpprogrammet (`tools/Chainsaw.Tunnel`, etapp 13) är en egen process per tunnel: WireGuard i användarläge utan

@@ -44,6 +44,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på skiss
 
+- **Inställningarna** (efter Gawks inställningsdialog, användarens önskemål 2026-11-07): utgången *Windows* eller *VPN*,
+  låsningens tid, valutan, länken `chainsaw:`, operatörsprofilen, huvudnyckeln, Om med återställningsnyckelns
+  fingeravtryck. Skissas i ST1.
+
 
 
 
