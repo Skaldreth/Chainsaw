@@ -82,10 +82,26 @@ internal sealed class Vault : IVault, IDisposable
         var generation = Interlocked.Read(ref _lockGeneration);
         bool created;
         bool changed;
+        var overtaken = false;
         lock (_operationGate)
         {
             created = !_file.Exists;
-            changed = created ? CreateFile(masterKey, generation) : CorrectStateFromFile(exists: true);
+            try
+            {
+                changed = created ? CreateFile(masterKey, generation) : CorrectStateFromFile(exists: true);
+            }
+            catch (VaultException exception) when (exception.Error == VaultError.Locked)
+            {
+                // A lock overtook the creation: the file exists now, so the state went from not created to locked.
+                changed = true;
+                overtaken = true;
+            }
+        }
+
+        if (overtaken)
+        {
+            RaiseIfChanged(changed, VaultState.Locked);
+            throw new VaultException(VaultError.Locked);
         }
 
         if (!created)

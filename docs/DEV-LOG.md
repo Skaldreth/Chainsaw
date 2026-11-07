@@ -51,8 +51,15 @@ Modulen `Security` utan gränssnitt: `IVault` (skapa, lås upp, lås, byt huvudn
 - Byte av huvudnyckel vägrar (`Corrupt`) om filen har bytts ut medan valvet var upplåst, så att senare sparningar inte
   krypteras med fel nyckel.
 
-**Granskningen:** första omgången gav två I (PBKDF2 under samma lås som läsningarna, byte av huvudnyckel mot en utbytt
-fil) och nio M; alla I och de flesta M rättade. Kvar i TODO: klartext i minnet (strängar, ej fäst JSON-buffert).
+**Granskningen:** tre omgångar.
+- Omgång 1 gav två I: PBKDF2 kördes under samma lås som läsningarna, och byte av huvudnyckel kunde ske mot en utbytt
+  fil. Den gav också nio M.
+- Omgång 2 gav ett C: en händelsehanterare som kastade fick datanyckeln att nollställas medan valvet var upplåst. Den gav
+  också två I: händelsen höjdes under låset, och sparningen skrev till disk under läslåset.
+- Omgång 3 hittade inga C eller I.
+
+Alla C och I är rättade, och de flesta M. Kvar i TODO: klartext i minnet (strängar och en JSON-buffert som inte är fäst),
+och att en sparning som en låsning hinner före inte säger det till anroparen.
 
 **Återstår:** förstagångsinställningen och låsskärmen som använder valvet, låsning efter inaktivitet och när Windows
 låses, och modellen för ärendefilens nyckel (TODO, *Väntar på beslut*).

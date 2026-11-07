@@ -35,7 +35,8 @@ public interface IVault
     /// The new master key, at least <see cref="MasterKeyRules.MinimumLength"/> characters.
     /// </param>
     /// <exception cref="VaultException">
-    /// <see cref="VaultError.MasterKeyTooShort"/> or <see cref="VaultError.AlreadyCreated"/>.
+    /// <see cref="VaultError.MasterKeyTooShort"/>, <see cref="VaultError.AlreadyCreated"/> or
+    /// <see cref="VaultError.Locked"/> when the vault was locked while it was being created (it then exists, locked).
     /// </exception>
     void Create(ReadOnlySpan<char> masterKey);
 
