@@ -25,7 +25,11 @@ public enum GraphStartMode
 /// <param name="CaseNumber">The case number.</param>
 /// <param name="ChangedText">When it was last saved, for example <c>ändrad i går 16:02</c>.</param>
 /// <remarks>The title and the start points lie in the encrypted file, so they are not shown before it is opened.</remarks>
-public sealed record RecentCaseItem(string CaseNumber, string ChangedText);
+public sealed record RecentCaseItem(string CaseNumber, string ChangedText) : IStartRingItem
+{
+    /// <inheritdoc />
+    public string Key => CaseNumber;
+}
 
 /// <summary>A form of start point that is recognised, lit while the text in the field is of that form.</summary>
 /// <param name="Name">The form's name, for example <c>Bitcoin-adress</c>.</param>
@@ -93,6 +97,9 @@ public sealed partial class GraphStartViewModel : ObservableObject
     /// <summary>The clock, for <em>i dag</em> and <em>i går</em>.</summary>
     private readonly IClock _clock;
 
+    /// <summary>The UI thread, which the saved piles are shown on once they are read.</summary>
+    private readonly IUiThread _ui;
+
     /// <summary>The exit's name while it is connected, for example <c>Stockholm</c> or <c>Windows</c>.</summary>
     private string? _exitName;
 
@@ -110,9 +117,10 @@ public sealed partial class GraphStartViewModel : ObservableObject
         _session = session;
         _workflow = workflow;
         _clock = clock;
+        _ui = ui;
         _zone = zone ?? TimeZoneInfo.Local;
-        workflow.CasesListed += (_, _) => ui.Post(ShowRecent);
-        ShowRecent();
+        workflow.CasesListed += (_, _) => ui.Post(ShowRing);
+        ShowRing();
         ShowSend();
     }
 
@@ -139,18 +147,20 @@ public sealed partial class GraphStartViewModel : ObservableObject
     /// <summary>Gets whether the empty graph is shown instead of a text.</summary>
     public bool IsShown => Mode != GraphStartMode.None;
 
-    /// <summary>Gets the latest cases, the most recently saved first, at most <see cref="RecentCount"/>.</summary>
+    /// <summary>
+    /// Gets the loose cases on the ring, the most recently saved first: the latest <see cref="RecentCount"/> that lie
+    /// in no pile, and those taken out of a pile while Chainsaw runs (sketch GR8a).
+    /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsFirstTime), nameof(HasRecent))]
     public partial IReadOnlyList<RecentCaseItem> Recent { get; private set; } = [];
 
     /// <summary>
     /// Gets whether there are no cases at all, the first time: then a little more is said, and the course is shown.
     /// </summary>
-    public bool IsFirstTime => Recent.Count == 0;
+    public bool IsFirstTime => Ring.Count == 0;
 
-    /// <summary>Gets whether there are cases to stand around Nytt ärende.</summary>
-    public bool HasRecent => Recent.Count > 0;
+    /// <summary>Gets whether there are cases or piles to stand around Nytt ärende.</summary>
+    public bool HasRecent => Ring.Count > 0;
 
     /// <summary>Gets the text in the start point's field.</summary>
     [ObservableProperty]
@@ -196,6 +206,11 @@ public sealed partial class GraphStartViewModel : ObservableObject
         {
             StartPointText = string.Empty;
             ErrorText = string.Empty;
+        }
+
+        if (mode != GraphStartMode.NoCase)
+        {
+            ClosePile();
         }
 
         Mode = mode;
@@ -347,19 +362,6 @@ public sealed partial class GraphStartViewModel : ObservableObject
             form.Name, form.Form, form.Tip,
             startPoint is not null && startPoint.Chain == form.Chain && startPoint.Kind == form.Kind)),
     ];
-
-    /// <summary>Lists the latest cases from the workflow's list, which is read off the UI thread.</summary>
-    private void ShowRecent()
-    {
-        var now = _clock.UtcNow;
-        Recent =
-        [
-            .. _workflow.Files
-                .OrderByDescending(file => file.LastWrittenUtc)
-                .Take(RecentCount)
-                .Select(file => new RecentCaseItem(file.CaseNumber, ChangedText(file.LastWrittenUtc, now, _zone))),
-        ];
-    }
 
     /// <summary>Says what is fetched, and through which exit, or that nothing can be fetched now.</summary>
     private void ShowSend()

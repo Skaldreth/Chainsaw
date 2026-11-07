@@ -90,6 +90,12 @@ public sealed class CaseWorkflow
     /// </summary>
     public IReadOnlyList<CaseFileInfo> Files => _files;
 
+    /// <summary>
+    /// Gets whether the folder could be read the last time it was listed, so that what is not in <see cref="Files"/>
+    /// is known to be gone (the start page's piles forget it) and not merely unread.
+    /// </summary>
+    public bool IsListed { get; private set; }
+
     /// <summary>Gets whether an opening, creation or closing runs.</summary>
     public bool IsBusy => _busy;
 
@@ -106,7 +112,9 @@ public sealed class CaseWorkflow
     /// <returns>A task that completes when the list is replaced.</returns>
     public async Task RefreshCasesAsync()
     {
-        _files = await ListAsync() ?? [];
+        var files = await ListAsync();
+        IsListed = files is not null;
+        _files = files ?? [];
         CasesListed?.Invoke(this, EventArgs.Empty);
     }
 

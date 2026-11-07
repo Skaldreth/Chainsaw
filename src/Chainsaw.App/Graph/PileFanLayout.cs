@@ -61,9 +61,7 @@ public static class PileFanLayout
         IReadOnlyList<PileCard> cards, GraphPoint centre, PileFanMode mode, PileSide side)
     {
         ArgumentNullException.ThrowIfNull(cards);
-        var centres = mode == PileFanMode.Spiral
-            ? Spiral(cards.Count)
-            : TimeArc(cards.Count, side == PileSide.In ? -1 : 1);
+        var centres = Centres(cards.Count, mode, side);
         var places = new Dictionary<string, GraphPoint>(StringComparer.Ordinal);
         for (var index = 0; index < cards.Count; index++)
         {
@@ -74,6 +72,17 @@ public static class PileFanLayout
 
         return places;
     }
+
+    /// <summary>
+    /// Gives where the centres of a number of cards lie around a pile, relative to the pile's centre, without overlap;
+    /// the graph's piles and the start page's piles of cases (sketch GR8a) share it, so that they fan out alike.
+    /// </summary>
+    /// <param name="count">How many cards.</param>
+    /// <param name="mode">The mode.</param>
+    /// <param name="side">The pile's side, which way the time arc opens.</param>
+    /// <returns>The centres, in the cards' order.</returns>
+    public static IReadOnlyList<(double X, double Y)> Centres(int count, PileFanMode mode, PileSide side) =>
+        mode == PileFanMode.Spiral ? Spiral(count) : TimeArc(count, side == PileSide.In ? -1 : 1);
 
     /// <summary>Gives a card's frame at its place.</summary>
     /// <param name="place">The card's top-left corner.</param>

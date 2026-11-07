@@ -142,8 +142,11 @@
 
     <Grid>
         <!-- ===== No case: the hub ===== -->
-        <Grid Visibility="{Binding IsNoCase, Converter={StaticResource Visible}}" Margin="70,0,0,56">
-            <!-- With cases: Nytt ärende in the middle of a ring of the latest cases and Alla ärenden. -->
+        <Grid x:Name="Hub" Visibility="{Binding IsNoCase, Converter={StaticResource Visible}}" Margin="70,0,0,56">
+            <!--
+              With cases: Nytt ärende in the middle of a ring of the latest cases, the user's piles (sketch GR8a) and
+              Alla ärenden. A case dragged onto another makes a pile; a click on a pile fans it out over the hub.
+            -->
             <controls:RingPanel x:Name="Ring" LineBrush="{StaticResource Brush.BorderStrong}"
                                 Visibility="{Binding HasRecent, Converter={StaticResource Visible}}" />
 
@@ -272,6 +275,23 @@
                 <Border x:Name="GhostWatch" Canvas.Left="580" Canvas.Top="0" Style="{StaticResource Border.GhostNode}" />
             </Canvas>
         </Grid>
+
+        <!--
+          ===== A pile fanned out (sketch GR8a, as the graph's EX2b) =====
+          The hub is pushed out in a shock, dimmed, and the pile's cases spring out around it in the middle.
+        -->
+        <controls:FanOutLayer x:Name="Fan" Panel.ZIndex="1" LineBrush="{StaticResource Brush.BorderHover}" />
+        <TextBlock Panel.ZIndex="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="70,0,0,30"
+                   FontSize="12" Foreground="{StaticResource Brush.TextDim}" Text="{Binding FanHint}" IsHitTestVisible="False"
+                   Visibility="{Binding IsPileOpen, Converter={StaticResource Visible}}" />
+
+        <!-- A case lifted on the ring: it follows the pointer above everything, and takes no clicks. -->
+        <Canvas x:Name="LiftLayer" Panel.ZIndex="3" IsHitTestVisible="False" />
+
+        <!--
+          SO1a goes here: the trash in the lower left corner, which grows to a round drop area while a case is lifted
+          (GraphStartViewModel.IsLifting) and takes it out of the start page. Not built yet; see docs/TODO.md.
+        -->
 
         <!-- ===== The foot: the Guide and the exit, said honestly ===== -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="70,0,0,78"

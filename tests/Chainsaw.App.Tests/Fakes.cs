@@ -324,7 +324,10 @@ internal sealed class TestCaseStore : ICaseStore
 
     public RecoveryPublicKey? RecoveryKey { get; set; }
 
-    public IReadOnlyList<CaseFileInfo> List() => Files;
+    /// <summary>When set, <see cref="List"/> throws it, as a folder that cannot be read.</summary>
+    public Exception? ListFailure { get; set; }
+
+    public IReadOnlyList<CaseFileInfo> List() => ListFailure is null ? Files : throw ListFailure;
 
     public void AddFile(string caseNumber, int minutesAgo) =>
         Files.Add(new CaseFileInfo(

@@ -23,12 +23,6 @@ public sealed class AppSettingsStore(string directory)
         Converters = { new JsonStringEnumConverter() },
     };
 
-    /// <summary>How many times the finished file is put in place before the write fails.</summary>
-    private const int ReplaceAttempts = 5;
-
-    /// <summary>How long to wait before the file is put in place again.</summary>
-    private static readonly TimeSpan ReplacePause = TimeSpan.FromMilliseconds(40);
-
     /// <summary>Lets one write at a time, so that two quick changes never meet in the temporary file.</summary>
     private readonly Lock _writing = new();
 
@@ -55,7 +49,7 @@ public sealed class AppSettingsStore(string directory)
                 return new AppSettings();
             }
 
-            return (JsonSerializer.Deserialize<AppSettings>(ReadShared(), Json) ?? new AppSettings()).Known();
+            return (JsonSerializer.Deserialize<AppSettings>(SettingsFile.ReadShared(FilePath), Json) ?? new AppSettings()).Known();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -92,7 +86,7 @@ public sealed class AppSettingsStore(string directory)
     {
         try
         {
-            var read = JsonSerializer.Deserialize<AppSettings>(ReadShared(), Json);
+            var read = JsonSerializer.Deserialize<AppSettings>(SettingsFile.ReadShared(FilePath), Json);
             return read is not null && read.ExitRoute == Modules.Network.Contracts.ExitRoute.Vpn;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
@@ -107,45 +101,9 @@ public sealed class AppSettingsStore(string directory)
     {
         lock (_writing)
         {
-            Directory.CreateDirectory(directory);
-            var temporary = FilePath + ".tmp";
-            File.WriteAllText(temporary, JsonSerializer.Serialize(settings, Json));
-            Replace(temporary);
+            // A failed write of VPN would otherwise remove the file (ForgetIfWindows), so the write retries on Windows'
+            // short locks (SettingsFile).
+            SettingsFile.WriteReplacing(FilePath, JsonSerializer.Serialize(settings, Json));
         }
-    }
-
-    /// <summary>
-    /// Puts the written file in place of the old one. On Windows the old file cannot be replaced while someone else
-    /// has it open (another read, an antivirus scan), so a short wait and a new attempt are tried before the write
-    /// fails; a failed write of VPN would otherwise remove the file (<see cref="ForgetIfWindows"/>).
-    /// </summary>
-    /// <param name="temporary">The written file.</param>
-    private void Replace(string temporary)
-    {
-        for (var attempt = 1; ; attempt++)
-        {
-            try
-            {
-                File.Move(temporary, FilePath, overwrite: true);
-                return;
-            }
-            catch (Exception exception) when (attempt < ReplaceAttempts
-                && exception is IOException or UnauthorizedAccessException)
-            {
-                Thread.Sleep(ReplacePause);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Reads the file while letting a write replace it at the same time, so that reading never makes a write fail.
-    /// </summary>
-    /// <returns>The file's text.</returns>
-    private string ReadShared()
-    {
-        using var stream = new FileStream(
-            FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
     }
 }

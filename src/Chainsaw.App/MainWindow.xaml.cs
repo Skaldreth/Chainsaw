@@ -142,7 +142,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Wires the empty graph (sketch GR6c): Nytt ärende opens the panel, <em>Alla ärenden …</em> folds out the case picker
-    /// (sketch ÄV1a), and the exit's name follows the title bar's.
+    /// (sketch ÄV1a), the start page's piles are read from this computer (sketch GR8a), and the exit's name follows
+    /// the title bar's.
     /// </summary>
     /// <param name="shell">The shell.</param>
     /// <param name="start">The empty graph.</param>
@@ -150,6 +151,9 @@ public partial class MainWindow : Window
     {
         start.NewCaseWanted += (_, _) => shell.NewCase.Show();
         start.AllCasesWanted += (_, _) => shell.OpenCasePicker();
+
+        // The piles on the start page (sketch GR8a) are kept on this computer, next to the settings.
+        _ = start.UsePilesAsync(new Settings.CasePileStore());
         shell.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(ShellViewModel.ExitText) or nameof(ShellViewModel.IsExitLive))
