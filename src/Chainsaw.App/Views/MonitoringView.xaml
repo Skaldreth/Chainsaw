@@ -17,7 +17,6 @@
     -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
-        <controls:InvertVisibility x:Key="Hidden" />
         <Style x:Key="Head" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextFaint}" />
@@ -40,89 +39,59 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="340" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <!-- The list, beside the pill. -->
         <DockPanel Grid.Column="0" Margin="84,16,24,80">
-            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Graph}" Command="{Binding NewCommand}"
-                        ToolTip="Ny bevakning · B" IsEnabled="{Binding HasCase}" Margin="10,0,0,0">
+            <!-- The head shows only beside watches: the empty state has its own button, and a count of nothing is
+                 noise (principle 7). -->
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12" Height="32"
+                       Visibility="{Binding ShowsHead, Converter={StaticResource Visible}}">
+                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Graph}" BorderThickness="1.5" Height="32"
+                        Command="{Binding NewCommand}" ToolTip="Ny bevakning · B" Margin="18,0,0,0">
                     <StackPanel Orientation="Horizontal">
                         <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}" Margin="0,0,7,0" />
-                        <TextBlock Text="Ny bevakning …" FontSize="13.5" Foreground="{StaticResource Brush.Text}" />
-                        <TextBlock Text="B" FontSize="11.5" Foreground="{StaticResource Brush.TextFaint}" Margin="7,0,0,0"
+                        <TextBlock Text="Ny bevakning …" FontSize="13.5" VerticalAlignment="Center" />
+                        <TextBlock Text="B" FontSize="12" Foreground="{StaticResource Brush.TextFaint}" Margin="9,0,0,0"
                                    VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <!-- The honest state of the watching (sketch BV1a): it runs, also in the background through Windows (solid,
-                     green), waits for the exit (dashed, yellow), or the background is off (dashed, grey). -->
-                <Grid DockPanel.Dock="Right" Height="30" ToolTip="{Binding BackgroundTip}">
-                    <Border CornerRadius="15" BorderThickness="1.5" Background="{StaticResource Brush.Surface}">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+                <!-- The honest state of the watching (sketch BV1a), as a quiet dot and words: it runs (green), waits
+                     for the exit (yellow) or the background is off (grey). The tooltip says why. -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                            Background="Transparent" ToolTip="{Binding BackgroundTip}">
+                    <Ellipse Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsWaiting}" Value="True">
-                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                        <Setter Property="Fill" Value="{StaticResource Brush.Pending}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding IsOff}" Value="True">
-                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                        <Setter Property="Fill" Value="{StaticResource Brush.TextFaint}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
-                    </Border>
-                    <Rectangle RadiusX="15" RadiusY="15" StrokeThickness="1" StrokeDashArray="4 3" IsHitTestVisible="False">
-                        <Rectangle.Style>
-                            <Style TargetType="Rectangle">
-                                <Setter Property="Visibility" Value="Collapsed" />
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding BackgroundText}" FontSize="13" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsWaiting}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Setter Property="Stroke" Value="{StaticResource Brush.Pending}" />
+                                        <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding IsOff}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Setter Property="Stroke" Value="{StaticResource Brush.BorderStrong}" />
+                                        <Setter Property="Foreground" Value="{StaticResource Brush.TextFaint}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Rectangle.Style>
-                    </Rectangle>
-                    <StackPanel Orientation="Horizontal" Margin="12,0">
-                        <Ellipse Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center">
-                            <Ellipse.Style>
-                                <Style TargetType="Ellipse">
-                                    <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsWaiting}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource Brush.Pending}" />
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsOff}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource Brush.TextDim}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
-                        <TextBlock Text="{Binding BackgroundText}" FontSize="13" VerticalAlignment="Center">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsWaiting}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsOff}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </StackPanel>
-                </Grid>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
                 <TextBlock Text="{Binding Summary}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
                            VerticalAlignment="Center" />
             </DockPanel>
@@ -145,10 +114,6 @@
                 <TextBlock Grid.Column="4" Text="Motpart och tillgång" Style="{StaticResource Head}" />
                 <TextBlock Grid.Column="5" Text="Senast kontrollerad" Style="{StaticResource Head}" />
             </Grid>
-
-            <TextBlock DockPanel.Dock="Top" Text="{Binding EmptyText}" FontSize="13.5" Foreground="{StaticResource Brush.TextDim}"
-                       Margin="12,24,0,0" TextWrapping="Wrap"
-                       Visibility="{Binding HasRows, Converter={StaticResource Hidden}}" />
 
             <!-- Virtualized, so that a long list costs only the rows on screen (principle 6). -->
             <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" VirtualizingPanel.IsVirtualizing="True"
@@ -271,14 +236,53 @@
                 </ItemsControl>
         </DockPanel>
 
+        <!-- The empty view: a calm eye in the watch's own tone, what a watch does and the one button to add one.
+             It steps aside while the form is open, so that the two never overlap. -->
+        <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400"
+                    Margin="84,0,24,80">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasRows}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Form.IsOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <Grid Width="96" Height="96" HorizontalAlignment="Center">
+                <Ellipse Fill="{StaticResource Brush.Watch}" Opacity="0.12" />
+                <controls:GridIcon Size="48" Data="{StaticResource Icon.Eye}" Foreground="{StaticResource Brush.Watch}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Grid>
+            <TextBlock Text="{Binding EmptyTitle}" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"
+                       HorizontalAlignment="Center" Margin="0,22,0,0" />
+            <TextBlock Text="{Binding EmptyText}" FontSize="13.5" Foreground="{StaticResource Brush.TextDim}"
+                       TextAlignment="Center" TextWrapping="Wrap" LineHeight="20" Margin="0,8,0,0" />
+            <Button Style="{StaticResource Button.Primary}" Height="38" Padding="18,0" Margin="0,22,0,0"
+                    HorizontalAlignment="Center" Command="{Binding NewCommand}" ToolTip="B"
+                    Visibility="{Binding CanAddFirst, Converter={StaticResource Visible}}">
+                <StackPanel Orientation="Horizontal">
+                    <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}" Margin="0,0,7,0"
+                                       Foreground="{StaticResource Brush.OnAccent}" />
+                    <TextBlock Text="Ny bevakning …" FontSize="13.5" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
         <!-- The form for Ny bevakning … and Ändra. -->
         <views:WatchForm Grid.Column="0" DataContext="{Binding Form}" HorizontalAlignment="Center" VerticalAlignment="Top"
                          Margin="0,64,0,0" Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
 
         <!-- The chosen watch: details, hits and what can be done with it. -->
-        <Border Grid.Column="1" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
-                BorderThickness="1,0,0,0" Padding="18">
-            <Grid Visibility="{Binding HasSelection, Converter={StaticResource Visible}}">
+        <!-- Only while a watch is chosen; otherwise it folds away and the list takes the width (principle 7). -->
+        <Border Grid.Column="1" Width="340" Background="{StaticResource Brush.Surface}"
+                BorderBrush="{StaticResource Brush.Border}" BorderThickness="1.5,0,0,0" Padding="18"
+                Visibility="{Binding HasSelection, Converter={StaticResource Visible}}">
+            <Grid>
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
                         <TextBlock Text="{Binding Selected.Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
