@@ -127,10 +127,11 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 Överlämnat 2026-11-07 sent på kvällen, till en ny huvudsession.
 
 1. **Etapp 27 (bakgrundsprocessen) pågår** i sessionen `session_013CLefsNUTWiS1FLqvboDDe` och rapporterar till den
-   gamla huvudsessionen (`session_013CLefr2kGog3dCFdfqN1yx`), som inte längre lyssnar. Kontrollera själv med
+   huvudsessionen `session_013CLefr2kGog3dCFdfqN1yx` (efter `/clear` kan rapporten komma utan sammanhang, eller till en
+   session som inte längre finns). Kontrollera själv med
    `get_session` och `list_events`, eller på grenen: när rad 27 ovan står Klar och sista commit inte är WIP, hämta,
    bygg och kör hela sviten (`dotnet test Chainsaw.slnx`), och rapportera till användaren. En påminnelse
-   (`trig_01PWoydNnzJroHhnDt8JsMFs`) går 2026-11-07 22:30 UTC till den gamla sessionen; ta bort den
+   (`trig_01PWoydNnzJroHhnDt8JsMFs`) går 2026-11-07 22:30 UTC till samma session; ta bort den
    (`delete_trigger`) eller låt den vara.
 2. **Fem test fel på Windows** som inte syns i Linux (användaren körde hela sviten: 2 249 tester, 7 fel; de två i
    guldtestet var tidszonen och är rättade i 01ada69). Be användaren om raderna med `[FAIL]` och rätta dem; troligen
