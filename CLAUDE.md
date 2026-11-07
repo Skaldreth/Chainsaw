@@ -188,7 +188,7 @@ tests/                      xUnit, ett testprojekt per modul
 - **Samma stil som Gawk, egen identitet** (användarens beslut 2026-11-06): mörkt tema i neutrala gråtoner, tangentbordsfokus,
   en flytande kommandorad för power users, svenska i gränssnittet. Loggan är **en kätting** (användarens beslut 2026-11-07, skiss
   ID5): **Chainsaw är blockkedjan som såg**, en ordlek. **Ikonen är två länkar som hakar i varandra, diagonalt, fyllda i
-  accentfärgen** med två smala snitt där den ena länken går över den andra, efter användarens förlaga
+  accentfärgen**, spårad exakt som vektor ur användarens förlaga (så ritas en kedja i Chainsaw)
   (användarens beslut 2026-11-07, ersätter ID5 variant B med ögat). Bitcoin-myntet (ID1) och sågkedjan (ID3) är avvisade. Låsskärmen och
   förstagångsinställningen har teckenfältet i ASCII-stil, som i Gawk, och på låsskärmen **löper kättingen uppifrån och ner
   i vänsterdelen**, skriven i tecken, ganska stor men inte överdriven, och **står still** (användarens beslut
