@@ -30,6 +30,10 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
   hopp och tid, kant till annan kedja), expansion genom `IBitcoinSource`, FIFO och haircut som aldrig skapar eller
   tappar pengar, slut på spåret med orsak, länkar till andra kedjor förseglade, och grafen visas ur ärendet utan att
   något skickas (`LookupMode.CaseOnly` i Chains). Guiden har fått två avsnitt. Inget gränssnitt.
+- **Etapp 8, Attribution** (2026-11-07, DEV-LOG): etiketter med ursprung, förseglade och tillbakatagna med journal,
+  OFAC SDN ur en sparad fil med hash och datum, det krypterade etikettbiblioteket som smittar mellan ärenden utan
+  ärendenummer, anteckning eller skäl, och etiketter som avslutar spåret. Guiden har fått *Etiketter och varifrån de
+  kommer*. Inget gränssnitt.
 
 ## Nattkörningen 2026-11-07
 
@@ -44,7 +48,7 @@ session. Etapperna i ordning; en etapp som är klar markeras här av huvudsessio
 | 5 | **Chains:** Bitcoin-modellen (block, tx, inputs, outputs, adresser i `Satoshi`), `IBitcoinSource`, Esplora-källan genom `IExitHttp`, varje råsvar sparat med SHA-256 och blockhöjd i ärendet, offline ur ärendet; tester mot syntetiska svar | Klar |
 | 6 | **Clustering:** heuristikerna common-input-ownership v1, CoinJoin v1 (stoppar sammanslagning), växeladress v1 och peel chain v1, med namn, version och tx; kluster med sammanslagningar och uppbrytningar som minns; tester mot ett facit av syntetiska mönster | Klar |
 | 7 | **Tracing:** grafen som modell (aktörer, adresser, tx, kanter, kant till annan kedja), spårningsmetoderna FIFO och haircut, slut på spåret med orsak; tester | Klar |
-| 8 | **Attribution:** etiketter med ursprung, OFAC-listans kryptoadresser ur en sparad fil, etikettbiblioteket som smittar mellan ärenden (CLAUDE.md, *Etiketter smittar*); tester | Väntar |
+| 8 | **Attribution:** etiketter med ursprung, OFAC-listans kryptoadresser ur en sparad fil, etikettbiblioteket som smittar mellan ärenden (CLAUDE.md, *Etiketter smittar*); tester | Klar |
 
 Gränssnittet byggs inte i natt utöver det som redan är godkänt. Huvudsessionen skissar i slutet av natten det som behövs
 härnäst (förstagångsinställningen och Nytt ärende) så att användaren kan välja på morgonen.

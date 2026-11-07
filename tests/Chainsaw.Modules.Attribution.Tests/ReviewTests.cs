@@ -212,4 +212,52 @@ public sealed class ReviewTests : IDisposable
         Assert.Equal("v2", newer.Origin.SourceVersion);
         Assert.False(Assert.Single(_harness.Labels.GetLabels(_harness.Case, address)).IsConfirmed);
     }
+
+    [Fact]
+    public void R1_a_label_kept_out_near_a_victim_and_then_taken_back_is_still_withdrawn()
+    {
+        var address = Wpkh("out-then-back");
+        var label = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange);
+        _harness.Library.Absorb(_harness.Case);
+        using var second = _harness.Create("2026-0202");
+        _harness.Library.ShareInto(second, [address]);
+        var victim = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Victim);
+        _harness.Library.Absorb(_harness.Case);
+        _harness.Labels.Retract(_harness.Case, label.Sequence, "Fel");
+        _harness.Labels.Retract(_harness.Case, victim.Sequence, "Fel");
+        _harness.Library.Absorb(_harness.Case);
+
+        _harness.Library.Absorb(second);
+        using var third = _harness.Create("2026-0303");
+
+        Assert.Empty(_harness.Library.ShareInto(third, [address]));
+    }
+
+    [Fact]
+    public void R2_two_people_with_the_same_name_in_different_units_confirm_each_other()
+    {
+        var address = Wpkh("namesakes");
+        _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB");
+        _harness.Profiles.Profile = new("Testa Testsson", "Analytiker", "En annan enhet");
+        _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB", "Eget svar");
+
+        Assert.True(Assert.Single(_harness.Labels.GetLabels(_harness.Case, address)).IsConfirmed);
+    }
+
+    [Fact]
+    public void R4_a_copy_near_a_victim_leaves_the_library_when_the_victim_case_is_absorbed()
+    {
+        var address = Wpkh("copy-near-victim");
+        _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange);
+        _harness.Library.Absorb(_harness.Case);
+        using var second = _harness.Create("2026-0202");
+        _harness.Library.ShareInto(second, [address]);
+        _harness.Library.Absorb(second);
+
+        _harness.Own(LabelSubject.ForAddress(address), LabelKind.Victim);
+        _harness.Library.Absorb(_harness.Case);
+
+        Assert.Empty(_harness.Library.List());
+        Assert.Single(_harness.Labels.GetLabels(second, address));
+    }
 }

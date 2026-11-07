@@ -492,3 +492,81 @@ tester i Tracing (bland dem slumpade flöden för båda metoderna), 135 i Chains
 - att hitta fortsättningen på en annan kedja själv.
 
 **Återstår:** grafen (GR4) som ritar modellen, och Attribution som ger börser, mixers och bryggor.
+
+## Etapp 8 (2026-11-07): Attribution, etiketter med ursprung, sanktionslistan och etikettbiblioteket
+
+Modulen `Attribution` utan gränssnitt: `IAttributionService` (etiketter i ärendet, tillbakatagning, sanktionskontroll),
+`ISanctionLists` (importerade listor), `ILabelLibrary` (biblioteket som smittar) och en `ITrailEndClassifier`,
+registrerade i `AddAttributionModule`.
+
+- **Etiketter** (`LabelEntry`, sammanslagna till `Label`): på en adress eller på klustret som håller den, med sort
+  (de sjutton sorterna ur CLAUDE.md, med färggrupp) och namn, och alltid ett ursprung (`LabelOrigin`): källa (egen,
+  sanktionslista, öppen källa, beteende, annat ärende), ursprunglig källa, källans namn och version, vem, när, varför
+  och anteckning. `Label.Explain()` börjar alltid med *Bedömning, inte ett faktum*.
+- **Förseglat:** varje etikett och varje tillbakatagning är en post i kedjan `attribution.labels` med en rad i
+  journalen. En etikett ändras aldrig; den tas tillbaka och står kvar som tillbakatagen.
+- **Sanktionslistan:** OFAC:s `sdn.xml` läses ur en fil användaren importerar (ingen DTD, inga externa entiteter, högst
+  256 MB). Filen sparas byte för byte i `Sanktionslistor` med SHA-256 i namnet, och läses om och kontrolleras mot hash
+  och datum innan en träff tas ur den. Varje träff blir *Sanktionerad* med postens namn, uid och program, och listans
+  datum och hash som version. Adresser för andra valutor räknas men slås inte upp än.
+- **Biblioteket** (`Etiketter\bibliotek.bin`, AES-256-GCM med syftesnyckeln `attribution/library`): `Absorb` tar in
+  ett ärendes etiketter och ersätter det som kom därifrån; `ShareInto` ger ärendet bibliotekets etiketter för dess
+  adresser, förseglade som *annat ärende*. Ärendenummer, anteckning och skäl stannar i biblioteket; in i ett annat
+  ärende går bara vem, när, etiketten och sortens källa.
+- **Bekräftelse:** samma etikett (adress, sort, namn) slås ihop. Oberoende ursprung räknas per person (operatörsprofil),
+  per sanktionslista och per analys eller öppen källa, så att samma person två gånger eller en nyare version av samma
+  lista inte blir en bekräftelse.
+- **Spårets slut:** blå sorter ger *Börs, uttag funnet*, gula samt darknet och garantimarknad den nya orsaken
+  `TrailEndReason.Service` (*Tjänst*, tillagd i Tracing.Contracts), mixer och CoinJoin sina egna, swap och brygga
+  *Fortsätter på annan kedja*. Offer, sanktionerad och okänd avslutar inte spåret.
+- **Guiden:** `etiketter.md` (*Etiketter och varifrån de kommer*), och `sparet-tar-slut.md` har fått *Tjänst*.
+
+**Egna beslut:**
+- **Sekretessen** byggs efter förslaget i TODO (*Väntar på beslut*): ärendenummer och anteckning till biblioteket men
+  inte vidare. Också skälet stannar, och hela operatörsprofilen följer med som *vem*. Står kvar som fråga.
+- **Offret sprids aldrig**, och inte heller någon etikett på offrets adresser eller kluster (till exempel offrets eget
+  konto på en börs). Det går före *Sprid inte*.
+- **En etikett som tas tillbaka där den sattes dras tillbaka överallt:** den ges aldrig igen, och kopior i andra
+  ärenden tas tillbaka med en rad som inte säger något om det första ärendet. *Sprid inte* i efterhand görs så.
+- **Ny orsak `Service`** i Tracing, eftersom *Okänd tjänst* vore fel för ett casino.
+- **Biblioteket är en egen krypterad fil** med en syftesnyckel ur valvet, inte en hemlighet i valvet, eftersom valvets
+  hemligheter har en gräns på 256 KiB.
+- **Adresserna kommer från anroparen** (`ShareInto` och `CheckSanctions`): Attribution kan inte fråga Tracing om
+  grafen, eftersom Tracing frågar Attribution om spårets slut.
+- **Sanktionslistan som är aktuell** är den med senast publiceringsdatum, inte den senast importerade.
+
+**Granskningen:** tre omgångar.
+- **Omgång 1** gav sex I och åtta M:
+  - **I:** etiketter på offrets adress (till exempel offrets börskonto) spreds;
+  - **I:** en tillbakatagning stoppade inte kopior som redan nått andra ärenden;
+  - **I:** samma etikett satt två gånger blev en bekräftelse;
+  - **I:** två versioner av samma lista blev en bekräftelse;
+  - **I:** en kopia av en sanktionsträff hindrade ärendets egen kontroll;
+  - **I:** en lista som importerades under en kontroll kunde stå som ursprung för en annan listas träff.
+- **Omgång 2** gav tre I och tre M:
+  - **I:** närhet till ett offer drog tillbaka kopior överallt, för alltid och med fel skäl;
+  - **I:** ärendets egen sanktionsträff visades inte bredvid en kopia;
+  - **I:** skyddet mot dubbletter tappade ett ändrat *Sprid inte*.
+- **Omgång 3:** inga C eller I. Fyra M är rättade:
+  - en etikett som hölls utanför och sedan togs tillbaka dras tillbaka;
+  - namnar räknas inte som samma person;
+  - varje träff har sitt datum i journalen;
+  - bibliotekets post nära ett offer tas bort.
+
+Alla C och I är rättade och har regressionstester: 86 tester i Attribution och 799 i hela lösningen. Kvar i TODO:
+- EU-listan och *Kan frysas*;
+- öppna källor;
+- att appen kopplar ihop det;
+- texten för blå slut;
+- streckade etiketter från andra ärenden;
+- att namnet sprids;
+- listan i ärendet;
+- att ta bort en lista;
+- minnet vid import;
+- prestandan i grafen;
+- bibliotekets underhåll;
+- kopior som redan spritts före ett offer.
+
+**Återstår:** vyn Etiketter och etiketterna i grafen (skissas först), och att appen läser in och ger tillbaka etiketter
+när ett ärende öppnas.
+

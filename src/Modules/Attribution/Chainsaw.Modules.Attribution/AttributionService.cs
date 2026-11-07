@@ -206,6 +206,7 @@ internal sealed class AttributionService(
                         address = found.Address.Value,
                         uid = found.Hit.EntryUid,
                         sha256 = found.List.Sha256,
+                        published = found.List.PublishDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     }),
                 })));
             var added = drafts

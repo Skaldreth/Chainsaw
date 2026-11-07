@@ -69,7 +69,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         var inCase = @case.Read(LabelStore.Read);
         var nearVictim = NearVictim(@case, inCase.Active);
         var labels = inCase.Active
-            .Where(label => LabelRules.MaySpread(label) && !nearVictim(label))
+            .Where(label => LabelRules.MaySpread(label) && !nearVictim(label.Subject))
             .ToList();
 
         // A label set here and then taken back is withdrawn everywhere: the copies other cases got from the library
@@ -84,14 +84,13 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         lock (_gate)
         {
             var document = Load();
-            // Only what the library has held needs remembering; anything else never reached another case.
-            document.Withdrawn.UnionWith(document.Labels
-                .Select(stored => stored.OriginId)
-                .Where(withdrawn.Contains));
+            document.Withdrawn.UnionWith(withdrawn);
             foreach (var stored in document.Labels)
             {
                 stored.Cases.Remove(caseId);
-                if (document.Withdrawn.Contains(stored.OriginId))
+
+                // Near a victim in this case: out of the library, without touching the copies other cases have.
+                if (document.Withdrawn.Contains(stored.OriginId) || nearVictim(stored.SubjectOf()))
                 {
                     stored.Cases.Clear();
                 }
@@ -247,8 +246,8 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="active">The case's labels that are not taken back.</param>
-    /// <returns>The test.</returns>
-    private Func<LabelEntry, bool> NearVictim(ICase @case, IReadOnlyList<LabelEntry> active)
+    /// <returns>The test, on what a label is on.</returns>
+    private Func<LabelSubject, bool> NearVictim(ICase @case, IReadOnlyList<LabelEntry> active)
     {
         var victims = active
             .Where(label => label.Kind == LabelKind.Victim)
@@ -259,9 +258,9 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
             return _ => false;
         }
 
-        return label => victims.Contains(label.Subject.Address)
-            || (label.Subject.Kind == LabelSubjectKind.Cluster
-                && clustering.GetCluster(@case, label.Subject.Address).Addresses.Any(victims.Contains));
+        return subject => victims.Contains(subject.Address)
+            || (subject.Kind == LabelSubjectKind.Cluster
+                && clustering.GetCluster(@case, subject.Address).Addresses.Any(victims.Contains));
     }
 
     /// <summary>Gives the key a case is known by in the library.</summary>

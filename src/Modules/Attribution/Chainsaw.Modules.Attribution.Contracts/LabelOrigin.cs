@@ -40,12 +40,12 @@ public sealed record LabelOrigin(
     string? Note)
 {
     /// <summary>
-    /// Gets what makes the origin independent of another: the person for an own label, and the source for a list,
-    /// an open source or an analysis, so that the same person setting a label twice, or a newer version of the same
-    /// list or analysis, never counts as confirmation.
+    /// Gets what makes the origin independent of another: the person (name, title and organisation) for an own
+    /// label, and the source for a list, an open source or an analysis, so that the same person setting a label
+    /// twice, or a newer version of the same list or analysis, never counts as confirmation.
     /// </summary>
     public string IndependenceKey => OriginalSource == LabelSource.Own
-        ? $"{LabelSource.Own}/{SetBy.Name}"
+        ? $"{LabelSource.Own}/{SetBy.Name}/{SetBy.Title}/{SetBy.Organization}"
         : $"{OriginalSource}/{SourceName}";
 
     /// <summary>Gets whether the label came from another case through the library.</summary>
