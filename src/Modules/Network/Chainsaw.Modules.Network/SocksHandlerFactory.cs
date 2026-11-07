@@ -67,26 +67,43 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
         return policy;
     }
 
-    /// <summary>Reads the trusted roots installed for the user and the computer, as they are now.</summary>
-    /// <returns>The roots; a store that cannot be opened adds none.</returns>
+    /// <summary>
+    /// Reads the trusted roots installed for the user and the computer, without the ones Windows distrusts.
+    /// </summary>
+    /// <returns>The roots.</returns>
     private static X509Certificate2Collection InstalledRoots()
     {
+        var disallowed = ReadStores(StoreName.Disallowed)
+            .Select(certificate => certificate.Thumbprint)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var roots = new X509Certificate2Collection();
+        roots.AddRange(ReadStores(StoreName.Root)
+            .Where(root => !disallowed.Contains(root.Thumbprint))
+            .ToArray());
+        return roots;
+    }
+
+    /// <summary>Reads a certificate store for the user and for the computer, as it is now.</summary>
+    /// <param name="name">The store.</param>
+    /// <returns>The certificates; a store that cannot be opened adds none.</returns>
+    private static X509Certificate2Collection ReadStores(StoreName name)
+    {
+        var certificates = new X509Certificate2Collection();
         foreach (var location in new[] { StoreLocation.CurrentUser, StoreLocation.LocalMachine })
         {
             try
             {
-                using var store = new X509Store(StoreName.Root, location);
+                using var store = new X509Store(name, location);
                 store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
-                roots.AddRange(store.Certificates);
+                certificates.AddRange(store.Certificates);
             }
             catch (System.Security.Cryptography.CryptographicException)
             {
-                // A store that does not exist or cannot be read gives no roots; chains to them then fail.
+                // A store that does not exist or cannot be read adds nothing; chains to missing roots then fail.
             }
         }
 
-        return roots;
+        return certificates;
     }
 
     /// <summary>

@@ -42,22 +42,65 @@ public sealed class TlsPipelineTests
         harness.Connection.Dispose();
     }
 
-    /// <summary>Creates a root, an intermediate and a leaf for chain.example whose AIA names a URL.</summary>
+    [Fact]
+    public void The_offline_policy_still_accepts_a_complete_chain_to_a_trusted_root()
+    {
+        var (root, intermediate, leaf) = CreateChain("http://192.0.2.1/intermediate.cer");
+        using (root)
+        using (intermediate)
+        using (leaf)
+        {
+            var policy = SocksHandlerFactory.OfflineChainPolicy();
+            policy.CustomTrustStore.Add(root);
+            policy.ExtraStore.Add(intermediate);
+            using var chain = new X509Chain { ChainPolicy = policy };
+
+            Assert.True(chain.Build(leaf), string.Join(", ", chain.ChainStatus.Select(status => status.Status)));
+        }
+    }
+
+    [Fact]
+    public void The_offline_policy_refuses_a_root_that_is_not_installed()
+    {
+        var (root, intermediate, leaf) = CreateChain("http://192.0.2.1/intermediate.cer");
+        using (root)
+        using (intermediate)
+        using (leaf)
+        {
+            var policy = SocksHandlerFactory.OfflineChainPolicy();
+            policy.ExtraStore.Add(intermediate);
+            using var chain = new X509Chain { ChainPolicy = policy };
+
+            Assert.False(chain.Build(leaf));
+        }
+    }
+
+    /// <summary>Creates a leaf for chain.example whose AIA names a URL, with its own root and intermediate.</summary>
     private static X509Certificate2 CreateLeafWithAia(string aiaUrl)
+    {
+        var (root, intermediate, leaf) = CreateChain(aiaUrl);
+        root.Dispose();
+        intermediate.Dispose();
+        return leaf;
+    }
+
+    /// <summary>Creates a root, an intermediate and a leaf for chain.example whose AIA names a URL.</summary>
+    private static (X509Certificate2 Root, X509Certificate2 Intermediate, X509Certificate2 Leaf) CreateChain(
+        string aiaUrl)
     {
         var now = DateTimeOffset.UtcNow;
         using var rootKey = RSA.Create(2048);
         var rootRequest = new CertificateRequest(
             "CN=Test Root", rootKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         rootRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
-        using var root = rootRequest.CreateSelfSigned(now.AddDays(-1), now.AddDays(30));
+        var root = rootRequest.CreateSelfSigned(now.AddDays(-1), now.AddDays(30));
 
         using var intermediateKey = RSA.Create(2048);
         var intermediateRequest = new CertificateRequest(
             "CN=Test Intermediate", intermediateKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         intermediateRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
         using var intermediatePublic = intermediateRequest.Create(root, now.AddDays(-1), now.AddDays(29), [1, 2, 3, 4]);
-        using var intermediate = intermediatePublic.CopyWithPrivateKey(intermediateKey);
+        var intermediate = intermediatePublic.CopyWithPrivateKey(intermediateKey);
 
         using var leafKey = RSA.Create(2048);
         var leafRequest = new CertificateRequest(
@@ -68,7 +111,7 @@ public sealed class TlsPipelineTests
         leafRequest.CertificateExtensions.Add(new X509AuthorityInformationAccessExtension(null, [aiaUrl]));
         using var leafPublic = leafRequest.Create(intermediate, now.AddDays(-1), now.AddDays(28), [5, 6, 7, 8]);
         using var leaf = leafPublic.CopyWithPrivateKey(leafKey);
-        return X509CertificateLoader.LoadPkcs12(leaf.Export(X509ContentType.Pfx), null);
+        return (root, intermediate, X509CertificateLoader.LoadPkcs12(leaf.Export(X509ContentType.Pfx), null));
     }
 
     /// <summary>

@@ -43,14 +43,15 @@ internal static class LocalTargets
             return IsLocalV4(embedded);
         }
 
-        // Only 2000::/3 is global unicast; everything else (::, ::1, fe80::/10, fc00::/7, fec0::/10, ff00::/8, the
-        // IPv4-compatible and translated forms) is refused.
+        // Only 2000::/3 is global unicast; everything else (fe80::/10, fc00::/7, fec0::/10, ff00::/8 and the rest)
+        // is refused. The forms that carry IPv4 (also :: and ::1, as 0.0.0.0 and 0.0.0.1) were judged by it above.
         return (bytes[0] & 0xE0) != 0x20;
     }
 
     /// <summary>
     /// Checks the IPv4 ranges that are not global: 0/8, 10/8, 100.64/10, 127/8, 169.254/16, 172.16/12, 192.0.0/24,
-    /// 192.168/16, 198.18/15 and everything from 224/4 up (multicast, reserved and broadcast).
+    /// 192.0.2/24, 192.88.99/24, 192.168/16, 198.18/15, 198.51.100/24, 203.0.113/24 and everything from 224/4 up
+    /// (multicast, reserved and broadcast).
     /// </summary>
     /// <param name="bytes">The four bytes.</param>
     /// <returns><see langword="true"/> when the address is in one of them.</returns>
@@ -60,8 +61,8 @@ internal static class LocalTargets
         [100, >= 64 and <= 127, ..] => true,
         [169, 254, ..] => true,
         [172, >= 16 and <= 31, ..] => true,
-        [192, 0, 0, _] or [192, 168, ..] => true,
-        [198, 18 or 19, ..] => true,
+        [192, 0, 0 or 2, _] or [192, 88, 99, _] or [192, 168, ..] => true,
+        [198, 18 or 19, ..] or [198, 51, 100, _] or [203, 0, 113, _] => true,
         [>= 224, ..] => true,
         _ => false,
     };

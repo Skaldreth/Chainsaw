@@ -45,8 +45,16 @@ public sealed class ExitConnectionRaceTests
         _harness.Connector.Tunnels[0].StopGate = slowStop.Task;
 
         var reconnecting = _harness.Connection.ConnectAsync();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            slowStop.SetResult();
+        });
+
+        // Dispose cancels the waiting attempt and waits for the old tunnel's stop to end.
         _harness.Connection.Dispose();
-        slowStop.SetResult();
+
+        Assert.True(_harness.Connector.Tunnels[0].Disposed);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reconnecting);
         Assert.Single(_harness.Connector.Tunnels);
@@ -224,6 +232,59 @@ public sealed class ExitConnectionRaceTests
         _harness.Connection.Dispose();
 
         Assert.True(tunnel.Disposed);
+    }
+
+    [Fact]
+    public async Task Disposing_waits_for_a_disconnect_that_is_stopping_its_tunnel()
+    {
+        await _harness.ConnectedExitAsync();
+        var tunnel = _harness.Connector.Tunnels[0];
+        var slowStop = new TaskCompletionSource();
+        tunnel.StopGate = slowStop.Task;
+        var disconnecting = _harness.Connection.DisconnectAsync();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            slowStop.SetResult();
+        });
+
+        _harness.Connection.Dispose();
+
+        Assert.True(tunnel.Disposed);
+        await disconnecting;
+    }
+
+    [Fact]
+    public void A_watch_that_comes_after_the_exit_stopped_is_not_registered()
+    {
+        var tunnel = new FakeTunnel(FakeConnector.LoopbackProxy, new NetworkCredential("u", "p"));
+        var active = new ActiveExit(Guid.NewGuid(), tunnel, new HttpMessageInvoker(new RecordingHandler(
+            (_, _) => Task.FromResult(new HttpResponseMessage()))));
+        var calls = 0;
+
+        active.Stop();
+        active.Watch(tunnel.Stopped, () => calls++);
+        tunnel.Drop();
+
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public void A_watch_on_a_tunnel_that_has_already_stopped_runs_at_once()
+    {
+        var tunnel = new FakeTunnel(FakeConnector.LoopbackProxy, new NetworkCredential("u", "p"));
+        var active = new ActiveExit(Guid.NewGuid(), tunnel, new HttpMessageInvoker(new RecordingHandler(
+            (_, _) => Task.FromResult(new HttpResponseMessage()))));
+        tunnel.Drop();
+        var calls = 0;
+
+        active.Watch(tunnel.Stopped, () =>
+        {
+            calls++;
+            active.Stop();
+        });
+
+        Assert.Equal(1, calls);
     }
 
     /// <summary>A connector that hands over its tunnel only when told to, whatever its token says.</summary>

@@ -211,7 +211,7 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
             finally
             {
                 // Off the caller's thread, so that a tunnel that awaits on a captured context cannot deadlock.
-                TrackStop(Task.Run(active.StopTunnelAsync));
+                _ = StopTracked(active.StopTunnelAsync);
             }
         }
 
@@ -295,7 +295,7 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         var pipeline = CreatePipeline(tunnel);
         if (pipeline is null)
         {
-            await ActiveExit.StopQuietlyAsync(tunnel).ConfigureAwait(false);
+            await StopTracked(() => ActiveExit.StopQuietlyAsync(tunnel)).ConfigureAwait(false);
             SetStatus(new ExitStatus(ExitState.Failed, exitId, ExitFailure.ConnectFailed));
             return Status;
         }
@@ -326,7 +326,7 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         if (!publish)
         {
             active.Stop();
-            await active.StopTunnelAsync().ConfigureAwait(false);
+            await StopTracked(active.StopTunnelAsync).ConfigureAwait(false);
             RaiseLatest();
             ObjectDisposedException.ThrowIf(disposed, this);
             throw new OperationCanceledException(cancellationToken);
@@ -439,7 +439,7 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
                 }
                 finally
                 {
-                    await active.StopTunnelAsync().ConfigureAwait(false);
+                    await StopTracked(active.StopTunnelAsync).ConfigureAwait(false);
                 }
             }
         }
@@ -564,6 +564,19 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
                 // Dropped; see the summary of RaiseLatest.
             }
         }
+    }
+
+    /// <summary>
+    /// Stops a tunnel on the thread pool as a tracked stop, so that disposal waits for it whoever began it. Every
+    /// tunnel stop goes through here or through <see cref="TrackStop"/>.
+    /// </summary>
+    /// <param name="stop">Stops the tunnel; it never throws.</param>
+    /// <returns>The tracked stop.</returns>
+    private Task StopTracked(Func<Task> stop)
+    {
+        var task = Task.Run(stop);
+        TrackStop(task);
+        return task;
     }
 
     /// <summary>Keeps a tunnel stop running on the thread pool until it ends, so that disposal can wait for it.</summary>

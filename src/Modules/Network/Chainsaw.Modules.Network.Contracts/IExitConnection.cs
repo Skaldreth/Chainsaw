@@ -13,7 +13,9 @@ public interface IExitConnection
     /// Raised after <see cref="Status"/> has changed, on any thread, one at a time and in order. When changes come
     /// quickly an intermediate status may be skipped, but the latest is always raised. A handler that throws does not
     /// affect the connection. A handler must not wait synchronously for <see cref="ConnectAsync"/> or
-    /// <see cref="DisconnectAsync"/>, since the event can be raised while one of them runs.
+    /// <see cref="DisconnectAsync"/>, since the event can be raised while one of them runs, and must not block on
+    /// another thread (use <c>Dispatcher.BeginInvoke</c>, not <c>Invoke</c>), since the application's exit can wait
+    /// for an event in flight.
     /// </summary>
     event EventHandler<ExitStatus>? StatusChanged;
 

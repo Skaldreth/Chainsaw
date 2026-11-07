@@ -115,6 +115,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   (kontraktet i `IExitTunnel` säger det). Prova det med den riktiga tunneln.
 - **Rötter som läggs till medan Chainsaw är igång:** de betrodda rötterna läses när en utgång ansluts. En rot som
   Windows lägger till senare gäller från nästa anslutning.
+- **Kontrollen av `DNS =`** godtar raden också under `[Peer]` och ett värde som inte är en adress. Kan skärpas till
+  `[Interface]` och en giltig IP-adress när tunneln byggs (granskningen etapp 4, M).
+- **Rötternas begränsningar på Windows:** med Chainsaws egen rotlista följs inte Windows egna begränsningar för en rot
+  (användningsområden, *distrust after*). Prova på Windows (TESTER-INFOR) och bestäm om de ska läsas in.
 - **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
   titelraden (skissas först).
 - **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan
