@@ -1025,3 +1025,7 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
 - [ ] *Nytt ärende … Ctrl+N* stänger rutan och öppnar panelen Nytt ärende.
 - [ ] Ärendeväljaren, utgångarnas ruta och kommandoraden är aldrig öppna samtidigt, och ärendeväljaren stängs när Chainsaw låses.
+
+## Ikonlisten vid noden och zoomen (polering 2026-11-07)
+- [ ] Välj en nod och zooma ut: ikonlisten ovanför noden krymper med grafen ner till tre fjärdedelar av sin storlek, och står kvar centrerad över noden.
+- [ ] Zooma ut ännu mer (under ungefär 45 %): listen försvinner; E, L, B och de andra tangenterna fungerar ändå, och listen kommer tillbaka när man zoomar in.

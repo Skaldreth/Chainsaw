@@ -154,6 +154,9 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// </summary>
     public event EventHandler? Drawn;
 
+    /// <summary>How much the graph is zoomed: 1 is the graph's own size.</summary>
+    public double Zoom => _viewport.Zoom;
+
     /// <summary>Gives where a node's frame stands on the screen, in this control's coordinates.</summary>
     /// <param name="nodeKey">The node.</param>
     /// <returns>The frame, or <see langword="null"/> when the node is not in the graph.</returns>
