@@ -841,6 +841,12 @@ Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *S
 - Längst ner: *Så spårar man i Chainsaw* öppnar Guiden bredvid ytan (avsnittet med de fem stegen), och utgången står
   med sin prick.
 - Med animeringar avstängda i Windows står ringarna stilla, svaga.
+- [ ] Utan ärende växer tre tunna ringar i accentfärgen ut runt *Nytt ärende* från nodens rundade kant, med samma hörn, och tonar bort lugnt efter ungefär 2 cm. Ingen fast ram står kvar runt noden.
+- [ ] Ringarna står mitt på noden, både i navet med de senaste ärendena och första gången utan ärenden, och skär inte in i raden under noden.
+- [ ] *Nytt ärende* har ett svagt sken i accentfärgen; hovring och klick fungerar som förut, och ringarna tar aldrig musen.
+- [ ] Ett ärende utan startpunkt: samma ringar växer ut från den streckade startpunktsnoden, och offline blir de grå.
+- [ ] Med animeringar avstängda i Windows står en enda svag, stilla ring runt noden; slås de på igen startar pulsen utan omstart.
+- [ ] Pulsen rör sig mjukt utan att hacka och stannar när man byter vy eller öppnar ett ärende.
 
 ## Bevakningen, första delen (etapp 26, BV1a och BV2a)
 
@@ -888,6 +894,12 @@ start (en endpoint måste vara *i fas* för att bevakningen ska fråga).
 - Lås Chainsaw (Ctrl+L) och vänta på ett block: inga uppslag görs (utgångens trafik står still); efter upplåsning
   fortsätter bevakningen.
 - Ett stort Ethereum-ärende med bevakning: grafen ska inte kännas trög medan ringarna rör sig.
+- [ ] Bevakning i ett ärende utan bevakningar: ett stort öga i en mjuk rund cirkel mitt på ytan med *Inga bevakningar än*, två dämpade rader under och knappen *Ny bevakning …*; ingen räknare, inget bakgrundsläge, ingen knapp uppe till höger och ingen högerpanel.
+- [ ] Klicka på *Ny bevakning …* i det tomma läget (eller tryck B): formuläret öppnas och det tomma läget försvinner medan det är öppet.
+- [ ] Bevakning utan öppet ärende: *Inget ärende öppet* med en förklarande rad och ingen knapp.
+- [ ] Med en bevakning: listan, räknaren, bakgrundens läge som prick och text utan ram och *Ny bevakning … B* syns i huvudet, och högerpanelen visar den valda.
+- [ ] Bakgrundens läge i huvudet: grön prick när den går, gul när den väntar på utgången, grå när den är av; hovra för förklaringen.
+- [ ] Ta bort den sista bevakningen: högerpanelen fälls bort och det tomma läget kommer tillbaka.
 
 ## Bevakningen, andra delen: när Chainsaw är stängt (etapp 27)
 
