@@ -17,5 +17,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Chainsaw.Modules.Cases.Tests" />
     <InternalsVisibleTo Include="Chainsaw.Recovery.Tests" />
+    <InternalsVisibleTo Include="Chainsaw.Modules.Tracing.Tests" />
   </ItemGroup>
 </Project>

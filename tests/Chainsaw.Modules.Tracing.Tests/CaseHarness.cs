@@ -35,6 +35,7 @@ internal sealed class CaseHarness : IDisposable
         {
             options.Directory = _directory;
             options.AnchorDirectory = Path.Combine(_directory, "anchors");
+            options.TimeZone = TimeZone;
         });
         services.AddClusteringModule();
         services.AddTracingModule();
@@ -45,6 +46,13 @@ internal sealed class CaseHarness : IDisposable
         Case = Store.Create(CaseNumber);
         Service = _provider.GetRequiredService<ITracingService>();
     }
+
+    /// <summary>
+    /// The journal's time zone, fixed so that the facit does not depend on the computer's zone (Windows in Sweden
+    /// wrote +01:00 where Linux in UTC wrote +00:00, and the zone's name differs between the systems).
+    /// </summary>
+    public static TimeZoneInfo TimeZone { get; } =
+        TimeZoneInfo.CreateCustomTimeZone("Chainsaw/Test", TimeSpan.Zero, "Test", "Test");
 
     public FakeProfiles Profiles { get; } = new();
 
