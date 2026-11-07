@@ -46,7 +46,8 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
    virtualiseras och grafen ritar bara det som syns.
 7. **Så lite brus som möjligt.** Det visuella är det viktigaste. Komplexitet döljs smart men syns ändå, genom **färg, form,
    ikoner, linjer och små markeringar** i stället för text och förklaringar i grafen och dialogerna (användarens krav
-   2026-11-07). Smakfullt och stilrent, men alltid med en funktion. Text visas på hovring, när något väljs eller i Guiden.
+   2026-11-07). Smakfullt och stilrent, men alltid med en funktion. Viktig information, som beloppet på en linje, får stå
+   kvar; förklaringar och detaljer visas på hovring, när något väljs eller i Guiden.
    En graf som växer okontrollerat är ett fel, inte en funktion.
 8. **Moduler äger inte utredningen.** En datakälla, en heuristik eller en kedja ska kunna bytas utan att ärenden, hämtad
    historik eller slutsatser försvinner.
@@ -192,8 +193,9 @@ tests/                      xUnit, ett testprojekt per modul
 - **Bildspråket** (skiss GR3a): formen säger vad det är (rund = aktör vi inte vet något om, fyrkantig = tjänst eller
   kluster), färgen vad det betyder (accent = offrens pengar, blått = börs, rött = spåret tar slut eller risk, lila = annan
   kedja), en ikon per sort, små markeringar i hörnet (bevakad, etikett från ett annat ärende, uttag funnet, sanktionerad),
-  linjens tjocklek är beloppet och **streckat betyder alltid osäkert**. Belopp på linjerna visas på hovring, vid fokus eller
-  när användaren slår på det. Bildspråket finns bakom ett *?* i grafens hörn.
+  linjens tjocklek är beloppet och **streckat betyder alltid osäkert**. **Viktig information får stå kvar** (användarens
+  beslut 2026-11-07): beloppet står alltid på linjerna, och användaren kan gallra till bara de spårade eller inga när grafen
+  blir stor. Bildspråket finns bakom ett *?* i grafens hörn.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
   Etiketter, Terminal och Guide.
