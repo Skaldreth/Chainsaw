@@ -116,6 +116,7 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 | 22 | **Kontroller och förslag (KF1a) med områden:** ramverket för kontroller och förslag (analys med namn och version, förseglade), listan Ctrl+J, områdena och egna ytor (Z), först med CoinJoin, peel chain och mixerns kandidater. Startad när 20 var klar | Klar |
 | 23 | **Ethereum och ERC-20 (TK1a), första delen:** källan, kontomodellen och tokenmärkena. Startad när 24 var klar; delas i flera etapper | Pågår |
 | 24 | **Källornas endpoints (KL1a):** sidan Källor i ST1a, lägga till, prioritera och ta bort endpoints per kedja, lägena Snabbast (prov vid start genom utgången), Prioriterad och Av, endpointen i varje förseglat råsvar. Startad när 20 var klar | Klar |
+| 25 | **Endpointarna, andra delen:** rate limit per endpoint (egen takt, `429` och `Retry-After`, uppslagen spridda), snygg reserv mot de andra, ett blocks marginal utom för bevakningen, egen nod på det lokala nätet (märkt lokal, bara https). Startas när 23 är klar | Väntar |
 
 ## Nästa steg
 

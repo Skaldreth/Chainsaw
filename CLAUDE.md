@@ -128,6 +128,17 @@ fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händ
   - **Av:** inga uppslag görs för kedjan, och det visas ärligt.
   Varje sparat råsvar säger vilken endpoint det kom från (princip 1).
   Formen är **KL1a** (användarens beslut 2026-11-07): en egen sida *Källor* i inställningarna, efter Nätverk.
+  Användarens beslut 2026-11-07 om endpointarna:
+  - **Provas bara vid start** (och med *Prova alla nu*); bevakningen frågar ändå hela tiden.
+  - **Snygg reserv:** en endpoint som inte svarar, svarar fel eller säger åt Chainsaw att vänta lämnas tyst för de andra,
+    och kommer tillbaka när den svarar igen.
+  - **Rate limits respekteras alltid:** varje endpoint har en egen takt, `429` och `Retry-After` följs, och Chainsaw
+    väntar och sprider uppslagen över endpointarna i stället för att fråga för fort.
+  - **Ett block efter är inte efter** för vanliga uppslag, eftersom informationen kommer efterhand. **Bevakningen** får
+    bara använda en endpoint som är i fas med den högsta höjden.
+  - **En egen nod på det lokala nätet tillåts** (till exempel `https://esplora.lan`): bara en endpoint som användaren
+    själv lagt till och uttryckligen märkt som lokal får ha en adress på datorn eller ett privat nät, fortfarande bara
+    https. Uppslagen till den lämnar aldrig det egna nätet; alla andra uppslag går som förut genom utgången (princip 4).
 
 ### Öppna med en adress
 
@@ -198,6 +209,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   - En etikett behåller alltid sitt ursprung (vem, när, varför och från vilket ärende den kom) och visas som *från ett annat
     ärende* när den inte sattes här. Den blir en bedömning i det nya ärendet, aldrig ett faktum (princip 2).
   - Samma etikett som kommer in flera gånger slås ihop, och flera oberoende ursprung visas som bekräftelse.
+  - **Vem som helst kan ta tillbaka en egen etikett i ärendet**, också en kollegas, och tillbakatagandet följer med till
+    biblioteket (användarens beslut 2026-11-07).
 - **Före 1.0 får schemat ändras fritt.** Migreringar får slås ihop och gamla testärenden behöver inte fungera.
 
 ### Säkerhet

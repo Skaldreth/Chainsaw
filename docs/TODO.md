@@ -55,9 +55,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   grafen säger inte *Offline*, också när datorn saknar nät. Chainsaw kan inte veta om Windows når källorna förrän ett
   uppslag görs; `NetworkChange` kunde säga när datorn inte har något nät alls. Bekräfta eller välj.
 
-- **Vems egen etikett** (etapp 21, granskningen M4): historiken räknar varje egen etikett i ärendet som användarens,
-  också en som en kollega satte i en fil som lämnats över. Tas den tillbaka dras den tillbaka ur biblioteket överallt.
-  Ska bara den som satte etiketten kunna ta tillbaka den, eller räcker det att tillbakatagandet säger vem?
 
 ## Bygga härnäst
 
@@ -151,14 +148,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 ### Bitcoin-källan (Chains)
 - **Svarshuvuden som ursprung:** se *Utgångar*. Behövs om källans `Date` ska stå bredvid Chainsaws egen tid.
 - **Flera källor att jämföra:** samma tx från två Esplora-källor, och en varning om de skiljer sig.
-- **Endpointarna provas bara vid start och med *Prova alla nu*** (etapp 24): i Snabbast provas de inte om under dagen.
-  En endpoint som blir långsam eller börjar ligga efter märks först när ett uppslag misslyckas (den läggs då sist) eller
-  vid nästa prov. Prova igen efter en tid (till exempel en gång i timmen när utgången är ansluten)?
-- **Efter i höjd räknas strikt** (etapp 24): en endpoint med lägre höjd än den högsta i provet räknas som efter, också
-  ett enda block (ett nytt block kan just ha kommit). Behövs en marginal, eller ett nytt prov av den som ligger efter?
-- **Egen Esplora på det lokala nätet** (etapp 24): adresser på datorn eller ett privat nät vägras av utgången (både
-  genom tunneln och genom Windows vid direkt anslutning), så en Esplora på `esplora.lan` går inte att nå. Ska en egen
-  nod på det lokala nätet tillåtas, och i så fall bara med Windows som utgång?
 - **Endpointens namn** (etapp 24): namnet tas ur adressens värd och kan inte ändras i sidan Källor. Handtaget flyttar
   bara med pilarna och Alt+↑/↓; att dra raden med musen är inte byggt.
 - **Nyckeln som huvud** (etapp 24): Esplora skickar nyckeln som `Authorization: Bearer`. Huvudena som tillåts är
