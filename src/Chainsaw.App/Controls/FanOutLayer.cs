@@ -4,14 +4,17 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using Chainsaw.App.Motion;
+using Path = System.Windows.Shapes.Path;
+using Chainsaw.App.Graph;
+using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.App.Controls;
 
 /// <summary>
 /// Fans a pile out over a surface, the same way in the graph and on the start page (sketches EX1, EX2b and GR8a): the
 /// surface is sent out in a circular shock from the pile, the pile glides to the middle, a backdrop dims everything
-/// else, and the pile's cards spring out on rings around it (<see cref="FanOut"/>), with faint dotted spokes to them.
+/// else, and the pile's cards spring out around it, laid out as the graph's piles are
+/// (<see cref="PileFanLayout"/>), with faint spokes to them.
 /// Folding it again runs the other way. It only places and moves; what the cards are, and what a click or a drag on
 /// them does, belongs to whoever opens it. Everything stands still when Windows has animations turned off.
 /// </summary>
@@ -56,9 +59,10 @@ public sealed class FanOutLayer : Canvas
     private static readonly IEasingFunction Shock = Frozen(new CubicEase { EasingMode = EasingMode.EaseOut });
 
     /// <summary>The ease a card springs out with: a little past its place and back.</summary>
-    private static readonly IEasingFunction Spring = Frozen(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 });
+    private static readonly IEasingFunction Spring =
+        Frozen(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 });
 
-    /// <summary>How far the surface is pushed out from the pile: a little, so that it reads as a shock, not a zoom.</summary>
+    /// <summary>How far the surface is pushed out from the pile: a little, a shock and not a zoom.</summary>
     private const double PushScale = 1.1;
 
     /// <summary>How small a card is as it leaves the pile.</summary>
@@ -73,11 +77,11 @@ public sealed class FanOutLayer : Canvas
     /// <summary>How visible a shock ring is as it leaves the pile.</summary>
     private const double ShockOpacity = 0.55;
 
-    /// <summary>The line width of the shock's rings and the spokes.</summary>
+    /// <summary>The line width of the shock's rings.</summary>
     private const double LineWidth = 1.5;
 
-    /// <summary>The space kept between a card and the layer's edge.</summary>
-    private const double EdgeSpace = 16;
+    /// <summary>The line width of the spokes, thin as the graph's.</summary>
+    private const double SpokeWidth = 1;
 
     /// <summary>The room kept free under the rings, for a line of help under them.</summary>
     private const double FootRoom = 44;
@@ -85,7 +89,7 @@ public sealed class FanOutLayer : Canvas
     /// <summary>The dim backdrop over the surface, which a click on folds the pile.</summary>
     private readonly Rectangle _backdrop = new();
 
-    /// <summary>The faint dotted spokes from the pile to its cards.</summary>
+    /// <summary>The faint spokes from the pile to its cards.</summary>
     private readonly Path _spokes = new() { IsHitTestVisible = false };
 
     /// <summary>The cards, each with the place its centre stands at.</summary>
@@ -107,9 +111,7 @@ public sealed class FanOutLayer : Canvas
         ClipToBounds = true;
         Focusable = true;
         FocusVisualStyle = null;
-        _spokes.StrokeThickness = LineWidth;
-        _spokes.StrokeDashArray = [0, 2.6];
-        _spokes.StrokeDashCap = PenLineCap.Round;
+        _spokes.StrokeThickness = SpokeWidth;
         _backdrop.MouseLeftButtonDown += (_, _) => _backdropPressed = true;
         _backdrop.MouseLeftButtonUp += (_, e) =>
         {
@@ -217,7 +219,7 @@ public sealed class FanOutLayer : Canvas
     public Point SlotOf(FrameworkElement card) =>
         _cards.Find(each => ReferenceEquals(each.Card, card)) is { Card: not null } found ? found.Slot : Middle();
 
-    /// <summary>Moves a card while it is dragged, so that its centre stands at a point; it is lifted above the others.</summary>
+    /// <summary>Moves a dragged card so that its centre stands at a point, lifted above the others.</summary>
     /// <param name="card">The card.</param>
     /// <param name="centre">Where its centre goes, in the layer's coordinates.</param>
     public void Move(FrameworkElement card, Point centre)
@@ -331,17 +333,14 @@ public sealed class FanOutLayer : Canvas
     /// <param name="middle">The middle.</param>
     private void Deal(IReadOnlyList<FrameworkElement> cards, Point middle)
     {
-        var widest = cards.Count == 0 ? 0 : cards.Max(card => card.Width);
-        var highest = cards.Count == 0 ? 0 : cards.Max(card => card.Height);
-        var reach = (middle.X - (widest / 2) - EdgeSpace, middle.Y - (highest / 2) - EdgeSpace);
-        var slots = FanOut.Slots(cards.Count, (middle.X, middle.Y), reach);
+        var slots = PileFanLayout.Centres(cards.Count, PileFanMode.Spiral, PileSide.Out);
         var spokes = new GeometryGroup();
         _spokes.Stroke = LineBrush;
         _spokes.Data = spokes;
         Children.Add(_spokes);
         for (var index = 0; index < cards.Count; index++)
         {
-            var slot = new Point(slots[index].X, slots[index].Y);
+            var slot = new Point(middle.X + slots[index].X, middle.Y + slots[index].Y);
             spokes.Children.Add(new LineGeometry(middle, slot));
             _cards.Add((cards[index], slot));
             Place(cards[index], slot);
@@ -375,8 +374,10 @@ public sealed class FanOutLayer : Canvas
             TranslateTransform.XProperty, Delayed(FromTo(middle.X - slot.X, 0, CardTime, Spring), begin));
         move.Translate.BeginAnimation(
             TranslateTransform.YProperty, Delayed(FromTo(middle.Y - slot.Y, 0, CardTime, Spring), begin));
-        move.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, Delayed(FromTo(CardStartScale, 1, CardTime, Spring), begin));
-        move.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, Delayed(FromTo(CardStartScale, 1, CardTime, Spring), begin));
+        move.Scale.BeginAnimation(
+            ScaleTransform.ScaleXProperty, Delayed(FromTo(CardStartScale, 1, CardTime, Spring), begin));
+        move.Scale.BeginAnimation(
+            ScaleTransform.ScaleYProperty, Delayed(FromTo(CardStartScale, 1, CardTime, Spring), begin));
         card.BeginAnimation(OpacityProperty, Delayed(FromTo(0, 1, DimTime, null), begin));
     }
 
@@ -390,7 +391,8 @@ public sealed class FanOutLayer : Canvas
             return (scale, translate);
         }
 
-        var made = (Scale: new ScaleTransform(1, 1, card.Width / 2, card.Height / 2), Translate: new TranslateTransform());
+        var made = (
+            Scale: new ScaleTransform(1, 1, card.Width / 2, card.Height / 2), Translate: new TranslateTransform());
         card.RenderTransform = new TransformGroup { Children = { made.Scale, made.Translate } };
         return made;
     }

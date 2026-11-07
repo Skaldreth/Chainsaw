@@ -28,10 +28,10 @@ public static class SettingsFile
         return reader.ReadToEnd();
     }
 
-    /// <summary>Writes a file in one step: the text goes to a temporary file, which then replaces the old one.</summary>
+    /// <summary>Writes a file in one step: the text goes to a temporary file, which replaces the old one.</summary>
     /// <param name="path">The file.</param>
     /// <param name="text">The text.</param>
-    /// <remarks>The caller lets one write at a time, so that two quick changes never meet in the temporary file.</remarks>
+    /// <remarks>The caller lets one write at a time, so that two writes never meet in the temporary file.</remarks>
     public static void WriteReplacing(string path, string text)
     {
         if (Path.GetDirectoryName(path) is { Length: > 0 } directory)

@@ -64,7 +64,11 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 18. **Kommandoraden:** *dold 2026-11-07*, fälls fram med Ctrl+K som Spotlight; svar när den är dold blir en toast.
 19. **Sonarpulsen runt *Nytt ärende*:** *omgjord 2026-11-07*, tre tunna ringar ur nodens egen kant.
 20. **Soptunnan (SO1a)** byggs, och finns redan i startvyn: där kan man slänga ärenden.
-21. **Startvyn grupperar ärenden:** *GR8a vald 2026-11-07*, med samma stöt och centrering som i grafen. Byggs.
+21. **Startvyn grupperar ärenden:** *byggt 2026-11-07, väntar på prov på Windows* (GR8a, högen ritad som grafens
+    samlingsnod och utfälld som den, med stöt och centrering). Det som återstår: soptunnan i startvyn (SO1a, punkt
+    20), som ska växa nere till vänster medan ett ärende lyfts (`GraphStartViewModel.IsLifting`, platsen är märkt i
+    `GraphStartView.xaml`); att dra en hel hög (till soptunnan eller på en annan hög); tangentbordet för högarna (en
+    hög tar inte fokus med Tab); och att grafens samlingsnod får samma stöt och centrering genom `FanOutLayer`.
 22. **En expansion ritar allt rakt ut:** *byggt 2026-11-07, väntar på prov på Windows:* ledtrådsnoden `+N tx`,
     samlingsnoden (EX2b) med valvyn i två lägen (EX1a, EX1b) och filtren, urvalet sparat i ärendet. Det som återstår
     står under *Spårning (Tracing)*, *Ledtrådsnoden och samlingsnoden*.

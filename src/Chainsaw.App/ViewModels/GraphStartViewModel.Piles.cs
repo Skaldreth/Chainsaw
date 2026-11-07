@@ -11,7 +11,7 @@ public interface IStartRingItem
     string Key { get; }
 }
 
-/// <summary>A pile on the start page, drawn as the graph's collection node, a deck of cards (sketches GR8a and EX2b).</summary>
+/// <summary>A pile on the start page, drawn as the graph's pile node, a deck (sketches GR8a and EX2b).</summary>
 /// <param name="Id">The pile's id.</param>
 /// <param name="Name">The name the user wrote; empty while it has none.</param>
 /// <param name="Count">How many cases lie in it.</param>
@@ -41,7 +41,7 @@ public sealed partial class PileCardViewModel(string caseNumber, string changedT
     /// <summary>Gets the case as a recent case, so that a click opens it the way the ring does.</summary>
     public RecentCaseItem Case => new(CaseNumber, ChangedText);
 
-    /// <summary>Gets or sets whether the card is chosen (Shift-click), to be dragged out with the others chosen.</summary>
+    /// <summary>Gets or sets whether the card is chosen (Shift-click), to be dragged out with the others.</summary>
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 }
@@ -49,8 +49,8 @@ public sealed partial class PileCardViewModel(string caseNumber, string changedT
 /// <summary>
 /// The start page's piles (sketch GR8a): a case dropped on another makes a pile, named at once in the pile itself; more
 /// cases are dropped on a pile; a click fans it out over a dimmed surface, where cards are chosen with Shift-click and
-/// dragged out to lie loose on the start page again. The piles are kept on this computer (<see cref="ICasePileStore"/>),
-/// never in the cases, and a case that is no longer in the folder leaves its pile.
+/// dragged out to lie loose on the start page again. The piles are kept on this computer
+/// (<see cref="ICasePileStore"/>), never in the cases, and a case that is no longer in the folder leaves its pile.
 /// </summary>
 public sealed partial class GraphStartViewModel
 {
@@ -78,13 +78,13 @@ public sealed partial class GraphStartViewModel
     /// </summary>
     private readonly HashSet<string> _released = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Where the piles are kept; none until <see cref="UsePilesAsync"/>, and then they live only in memory.</summary>
+    /// <summary>Where the piles are kept; none until <see cref="UsePilesAsync"/>, so only in memory.</summary>
     private ICasePileStore? _pileStore;
 
-    /// <summary>Whether the piles were changed before the saved ones were read, so that the reading does not undo it.</summary>
+    /// <summary>Whether the piles were changed before the saved ones were read, so that reading does not undo it.</summary>
     private bool _pilesTouched;
 
-    /// <summary>Gets what stands on the ring around Nytt ärende: the shown loose cases and every pile, newest first.</summary>
+    /// <summary>Gets what stands on the ring around Nytt ärende: loose cases and every pile, newest first.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFirstTime), nameof(HasRecent))]
     public partial IReadOnlyList<IStartRingItem> Ring { get; private set; } = [];
@@ -246,8 +246,9 @@ public sealed partial class GraphStartViewModel
             return;
         }
 
-        OpenPile = ItemOf(PileOf(pileId)!);
-        OpenCards = [.. ExistingCases(PileOf(pileId)!).Select(file => new PileCardViewModel(file.CaseNumber, Changed(file)))];
+        var pile = PileOf(pileId)!;
+        OpenPile = ItemOf(pile);
+        OpenCards = [.. ExistingCases(pile).Select(file => new PileCardViewModel(file.CaseNumber, Changed(file)))];
         ShowFanHint();
     }
 
@@ -336,7 +337,8 @@ public sealed partial class GraphStartViewModel
         var pilesOnRing = _piles
             .Select(pile => (Pile: pile, Cases: ExistingCases(pile)))
             .Where(each => each.Cases.Count > 0)
-            .Select(each => (Latest: each.Cases.Max(file => file.LastWrittenUtc), Item: (IStartRingItem)ItemOf(each.Pile)));
+            .Select(each => (
+                Latest: each.Cases.Max(file => file.LastWrittenUtc), Item: (IStartRingItem)ItemOf(each.Pile)));
         Ring = [.. looseOnRing.Concat(pilesOnRing).OrderByDescending(each => each.Latest).Select(each => each.Item)];
     }
 
@@ -356,7 +358,7 @@ public sealed partial class GraphStartViewModel
         }
     }
 
-    /// <summary>Takes out of every pile the cases that are no longer in the folder, and drops the piles left empty.</summary>
+    /// <summary>Takes the cases no longer in the folder out of every pile, and drops the piles left empty.</summary>
     /// <param name="files">The cases in the folder.</param>
     private void ForgetMissing(IReadOnlyDictionary<string, CaseFileInfo> files)
     {
@@ -364,7 +366,7 @@ public sealed partial class GraphStartViewModel
             .Select(pile => pile with { CaseNumbers = [.. pile.CaseNumbers.Where(files.ContainsKey)] })
             .Where(pile => pile.CaseNumbers.Count > 0)
             .ToList();
-        if (kept.Count != _piles.Count || kept.Zip(_piles).Any(pair => pair.First.CaseNumbers.Count != pair.Second.CaseNumbers.Count))
+        if (kept.Sum(pile => pile.CaseNumbers.Count) != _piles.Sum(pile => pile.CaseNumbers.Count))
         {
             ChangePiles(kept);
         }
@@ -398,7 +400,8 @@ public sealed partial class GraphStartViewModel
     private CasePileItem ItemOf(CasePile pile)
     {
         var cases = ExistingCases(pile);
-        var changed = cases.Count == 0 ? string.Empty : PileChangedPrefix + Changed(cases.MaxBy(file => file.LastWrittenUtc)!);
+        var latest = cases.MaxBy(file => file.LastWrittenUtc);
+        var changed = latest is null ? string.Empty : PileChangedPrefix + Changed(latest);
         return new CasePileItem(pile.Id, pile.Name, cases.Count, changed, NamingPileId == pile.Id);
     }
 
@@ -415,7 +418,8 @@ public sealed partial class GraphStartViewModel
     /// <returns>The files.</returns>
     private Dictionary<string, CaseFileInfo> FilesByNumber() => _workflow.Files
         .GroupBy(file => file.CaseNumber, StringComparer.OrdinalIgnoreCase)
-        .ToDictionary(group => group.Key, group => group.MaxBy(file => file.LastWrittenUtc)!, StringComparer.OrdinalIgnoreCase);
+        .ToDictionary(
+            group => group.Key, group => group.MaxBy(file => file.LastWrittenUtc)!, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Says when a case was last saved, in words, now.</summary>
     /// <param name="file">The case's file.</param>
@@ -454,7 +458,8 @@ public sealed partial class GraphStartViewModel
     /// <summary>Cuts a name to <see cref="MaximumPileName"/> characters.</summary>
     /// <param name="name">The name.</param>
     /// <returns>The name, at most that long.</returns>
-    private static string Shorten(string name) => name.Length <= MaximumPileName ? name : name[..MaximumPileName].TrimEnd();
+    private static string Shorten(string name) =>
+        name.Length <= MaximumPileName ? name : name[..MaximumPileName].TrimEnd();
 
     /// <summary>
     /// Keeps a case in the first pile it is in, when a hand-edited file has it in two, so that a case lies in one

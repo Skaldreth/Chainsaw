@@ -37,6 +37,7 @@ public partial class GraphStartView : UserControl
         GhostWatch.Child = Ghost("Bevaka", "B på en aktör", "Icon.Eye", "Brush.TextMuted",
             "Säger till när pengarna rör sig. B, eller högerklicka och välj Bevaka …");
         DataContextChanged += (_, _) => Attach(DataContext as GraphStartViewModel);
+        WirePiles();
     }
 
     /// <summary>Puts the keyboard in the start point's field, when it is shown.</summary>
@@ -79,9 +80,13 @@ public partial class GraphStartView : UserControl
             return;
         }
 
-        if (e.PropertyName == nameof(GraphStartViewModel.Recent))
+        if (e.PropertyName == nameof(GraphStartViewModel.Ring))
         {
             ShowRing(_model);
+        }
+        else if (e.PropertyName == nameof(GraphStartViewModel.OpenPile))
+        {
+            ShowFan(_model);
         }
         else if (e.PropertyName == nameof(GraphStartViewModel.IsOnline))
         {
@@ -108,13 +113,16 @@ public partial class GraphStartView : UserControl
         };
         middle.Children.Add(hint);
         Ring.Children.Add(middle);
-        var template = (DataTemplate)FindResource("RecentCase");
-        foreach (var item in model.Recent)
+        _ringNodes.Clear();
+        foreach (var item in model.Ring)
         {
-            Ring.Children.Add(new ContentPresenter { Content = item, ContentTemplate = template });
+            var node = RingNode(item);
+            _ringNodes[item.Key] = node;
+            Ring.Children.Add(node);
         }
 
         Ring.Children.Add(AllCasesNode());
+        ShowRingPiles(model);
     }
 
     /// <summary>Colours the exit's dots: green while lookups can be made, grey offline, and the start point quiet.</summary>

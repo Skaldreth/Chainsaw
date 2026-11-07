@@ -1091,3 +1091,26 @@ ligger bredvid `Chainsaw.exe`.
       lika brett som blocket.
 - [ ] Beloppen på linjerna hamnar aldrig ovanpå varandra: ett belopp som skulle krocka visas när pekaren är över
       linjen eller när noden är vald.
+
+## Ärenden i högar (GR8a)
+- [ ] Utan öppet ärende: dra ett ärende runt *Nytt ärende* och släpp det på ett annat. Medan det dras följer en lite
+      vriden bild av kortet pekaren, och ärendet eller högen under som tar emot det växer lite. De två blir en hög:
+      en fyrkantig nod med två kort bakom sig, ikonen med lagren, antalet och *senast ändrad …* under namnet.
+- [ ] Namnet skrivs direkt i den nya högen (*Namnge högen* i fältet). Enter eller ett klick utanför behåller det,
+      Esc lämnar högen utan namn, och en hög utan namn heter *Namnlös*. Högst 40 tecken.
+- [ ] Dra ett tredje ärende till högen: antalet ökar. Släpps ett ärende utanför något händer inget, och Esc under
+      dragningen lägger tillbaka det.
+- [ ] Ett klick på ett ärende (utan att dra) öppnar det som förut.
+- [ ] Ett klick på högen: två ringar går ut från högen, ytan trycks ut lite och dimmas, högen glider till mitten och
+      korten fjädrar ut runt den i samma spiral som grafens samlingsnod, med tunna linjer till dem.
+- [ ] Med animeringar avstängda i Windows (Inställningar › Hjälpmedel › Visuella effekter) står allt direkt på sin
+      plats, utan ringar eller rörelse.
+- [ ] Shift-klick väljer kort (terrakottaram), raden längst ner säger *2 valda · dra ut dem tillsammans*. Dra ett valt
+      kort ut på det dimmade: de valda följer med under det, högen fälls ihop och de ligger lösa runt *Nytt ärende*,
+      också när de är äldre än de fyra senaste. Enter tar ut de valda på samma sätt.
+- [ ] Ett kort som släpps på högen i mitten glider tillbaka till sin plats.
+- [ ] Ett klick på ett kort öppnar ärendet. Esc, ett klick på högen i mitten eller på det dimmade fäller ihop högen.
+- [ ] Pennan i den utfällda högen byter namn på den.
+- [ ] En hög som töms försvinner.
+- [ ] Starta om Chainsaw: högarna står kvar med namn (`%LOCALAPPDATA%\Chainsaw\piles.json`). Ta bort en ärendefil
+      ur mappen: den försvinner ur sin hög när Chainsaw listar ärendena igen.

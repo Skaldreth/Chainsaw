@@ -208,6 +208,11 @@ public sealed partial class GraphStartViewModel : ObservableObject
             ErrorText = string.Empty;
         }
 
+        if (mode != GraphStartMode.NoCase)
+        {
+            ClosePile();
+        }
+
         Mode = mode;
     }
 

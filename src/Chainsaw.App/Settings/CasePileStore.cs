@@ -86,7 +86,7 @@ public sealed class CasePileStore(string directory) : ICasePileStore
         }
     }
 
-    /// <summary>Whether a pile read from the file has an id and cases, so that a hand-edited file cannot break it.</summary>
+    /// <summary>Whether a pile read has an id and cases, so that a hand-edited file cannot break it.</summary>
     /// <param name="saved">The pile as read.</param>
     /// <returns><see langword="true"/> when it can be shown.</returns>
     private static bool IsWhole(SavedPile? saved) =>
