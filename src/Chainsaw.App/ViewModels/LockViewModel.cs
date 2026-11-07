@@ -46,8 +46,7 @@ public sealed partial class LockViewModel : ObservableObject
         AutoLockText = autoLock.Description;
         autoLock.Changed += (_, _) => AutoLockText = autoLock.Description;
         AboutText = $"Om Chainsaw · {build.ShortCommit}";
-        AboutDetails = $"Chainsaw {build.Version}, commit {build.Commit ?? "okänd"}. "
-            + "Teckenfältet bygger på asciify-engine (MIT).";
+        AboutDetails = $"Chainsaw {build.Version}, commit {build.Commit ?? "okänd"}.";
         ExitText = TextFor(exit);
         exit.Changed += (_, _) => ExitText = TextFor(exit);
     }
@@ -79,7 +78,7 @@ public sealed partial class LockViewModel : ObservableObject
     /// <summary>Gets the text in the corner: <c>Om Chainsaw · commit</c>.</summary>
     public string AboutText { get; }
 
-    /// <summary>Gets what *Om Chainsaw* tells: the version, the commit and the field's origin.</summary>
+    /// <summary>Gets what *Om Chainsaw* tells: the version and the commit.</summary>
     public string AboutDetails { get; }
 
     /// <summary>Opens the vault with what is written in the field.</summary>

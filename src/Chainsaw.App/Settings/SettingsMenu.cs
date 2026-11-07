@@ -32,7 +32,7 @@ public static class SettingsMenu
             new(SettingsPage.Network, "Nätverk", "Hur Chainsaw når källorna. Bara https, alltid."),
             new(SettingsPage.Sources, "Källor", "Var Chainsaw frågar kedjorna, per kedja."),
             new(SettingsPage.Lock, "Låsning", "När Chainsaw låser sig själv."),
-            new(SettingsPage.Look, "Utseende", "Låsskärmens teckenfält."),
+            new(SettingsPage.Look, "Utseende", "Låsskärmens kätting."),
             new(SettingsPage.Links, "Länkar", "Andra program kan öppna en adress i Chainsaw."),
         ]),
         new("Arbetet", [new(SettingsPage.Pricing, "Kurser", "Kursen vid en tx:s tid, med källa.")]),

@@ -27,15 +27,14 @@
   <!--
     Chainsaw.App is a WPF program, which tests cannot load where there is no Windows desktop runtime, as in the cloud.
     The parts that use no WPF on purpose are compiled in here instead: the views' table in Navigation/, the view
-    models in ViewModels/, the commands in Commands/, the links in Links/, the field behind the lock screen in Field/, the settings in
-    Settings/, the
-    graph's layout, look and hit tests in Graph/, the check of a WireGuard file and the exits' words in Exits/, and
-    the Guide's texts, index and history in Guide/.
+    models in ViewModels/, the commands in Commands/, the links in Links/, the figure behind the lock screen in
+    Figure/, the settings in Settings/, the graph's layout, look and hit tests in Graph/, the check of a WireGuard file
+    and the exits' words in Exits/, and the Guide's texts, index and history in Guide/.
   -->
   <ItemGroup>
     <Compile Include="..\..\src\Chainsaw.App\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\ViewModels\*.cs" Link="ViewModels\%(Filename)%(Extension)" />
-    <Compile Include="..\..\src\Chainsaw.App\Field\*.cs" Link="Field\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Figure\*.cs" Link="Figure\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Settings\*.cs" Link="Settings\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Commands\*.cs" Link="Commands\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Links\*.cs" Link="Links\%(Filename)%(Extension)" />

@@ -37,7 +37,8 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
 - **Etapp 9, återställningsnyckeln** (2026-11-07, DEV-LOG): ECIES P-384-kuvert i varje ärendefil för den inbyggda
   publika nyckeln (ingen nyckel är inbyggd än), och `tools/Chainsaw.Recovery` för administratören
   (`docs/ATERSTALLNINGSNYCKEL.md`). Inget gränssnitt.
-- **Etapp 10, låsskärmen och förstagångsinställningen** (2026-11-07, DEV-LOG): teckenfältet med kättingen (ID7a),
+- **Etapp 10, låsskärmen och förstagångsinställningen** (2026-11-07, DEV-LOG): kättingen som blir DNA (ID8c, ersatte
+  teckenfältet och ID7a samma dag),
   upplåsning genom `IVault`, förstagångsinställningens fyra steg (FS1a) genom Security, Network och Cases, och låsning
   med Ctrl+L, efter inaktivitet och när Windows låses. Appen startar i förstagångsinställningen eller på låsskärmen.
   **Inte provat på Windows**, se `docs/TESTER-INFOR-1.0.md`.

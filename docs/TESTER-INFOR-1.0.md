@@ -208,21 +208,26 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows; appen har inget gränssni
   med sin nya huvudnyckel.
 - Inmatning med åäö i lösenorden (konsolens teckentabell) fungerar i både `keygen` och `open`.
 
-## Låsskärmen och förstagångsinställningen (etapp 10, ID7a och FS1a)
+## Låsskärmen och förstagångsinställningen (etapp 10, ID8c och FS1a)
 
-Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i ett mindre fönster.
+Jämför med skisserna ID8c och FS1a på canvasen, gärna i 1440 × 900 och i ett mindre fönster.
 
-**Teckenfältet och kättingen**
-- Fältet rör sig långsamt (scenen Drift), är tyst runt formuläret och syns inte bakom texten.
-- Kättingen står still i magenta från topp till botten i vänsterdelen, rak, med loggans skarv och en rak bit med hål
-  mellan skarvarna; den är ungefär lika stor som i skissen och tar inte över sidan.
-- Håll Ctrl och rör musen över fältet: en ljus lykta följer musen med ett kort spår; släpp Ctrl och den tonar bort.
-  Ctrl+L under tiden låser inte om låsskärmen redan visas.
-- Stäng av animeringar i Windows (Inställningar, Hjälpmedel, Visuella effekter, *Animeringseffekter* av): fältet står
-  still. Lyktan fungerar fortfarande.
-- Minimera fönstret och lås upp: Chainsaw använder ingen märkbar processor (Aktivitetshanteraren) medan fältet inte syns.
-- Fältet är skarpt på en skärm med 150 % skalning, och när fönstret flyttas mellan skärmar med olika skalning.
-- Fältet hackar inte och gränssnittet känns inte trögt medan det rör sig (skriv i fältet för huvudnyckeln).
+**Kättingen som blir DNA (ID8c)**
+- Kättingen kommer in på snedden uppifrån i magenta, med loggans skarv och en rak bit med hål mellan skarvarna, och
+  står still. Ungefär mitt på diagonalen släpper länkarna: den sista länkens två stänger fortsätter utan skarv eller
+  glipa som spiralens två strängar, lika breda som stängerna.
+- Spiralen vrider sig, vidgas mot nederkanten och går ut genom nedre vänstra hörnet. Strängen bakom är mörkare, och
+  basparen är streck mellan strängarna, ljusa vid den ena och mörkare vid den andra. Inga tunna streck över länkarnas
+  hål och inga mörka skarvar mellan skarven och stängerna.
+- Inget teckenfält bakom; sidan är slät.
+- Partiklarna: små tecken (`. : · + *`) och ibland en bas (A, T, G, C) lossnar från spiralens strängar, driver sakta
+  utåt och tonar in och ut. Kättingen släpper inga.
+- I ett smalare fönster flyttar kättingen till vänster och krockar inte med formuläret.
+- Stäng av animeringar i Windows (Inställningar, Hjälpmedel, Visuella effekter, *Animeringseffekter* av): partiklarna
+  står still.
+- Minimera fönstret och lås upp: Chainsaw använder ingen märkbar processor (Aktivitetshanteraren) medan figuren inte syns.
+- Figuren och partiklarna är skarpa på en skärm med 150 % skalning, och när fönstret flyttas mellan skärmar.
+- Partiklarna hackar inte och gränssnittet känns inte trögt medan de rör sig (skriv i fältet för huvudnyckeln).
 
 **Låsskärmen**
 - Titelraden har bara loggan, *Chainsaw* och fönsterknapparna; fönstret går att dra, maximera och stänga.
@@ -231,8 +236,7 @@ Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i et
   *Låser upp …* under tiden).
 - Raderna under formuläret: utgången (*Utgången ansluts efter upplåsning …*) och *Låses automatiskt efter 15 minuter
   utan aktivitet.*
-- *Om Chainsaw · <commit>* i hörnet, där commit är samma som `git log -1`; klick visar version, commit och
-  teckenfältets ursprung.
+- *Om Chainsaw · <commit>* i hörnet, där commit är samma som `git log -1`; klick visar version och commit.
 
 **Förstagångsinställningen**
 - Strecken överst fylls steg för steg, och *Steg n av 4* står under dem. Tillbaka och Nästa går mellan stegen, Enter i

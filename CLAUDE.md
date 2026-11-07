@@ -155,7 +155,7 @@ den låses upp, och användaren väljer ärende.
 
 - **.NET 10 (LTS), WPF**, CommunityToolkit.Mvvm, Microsoft.Extensions.Hosting/DI, Microsoft.Data.Sqlite.Core med SQLite3
   Multiple Ciphers. Samma val som Gawk, men **koden kopieras inte** från Gawk (användarens beslut 2026-11-06). Det som tas
-  över är designstilen, temat och gränssnittets komponenter (teckenfältet, scrubbern, tidslinjen, tavlan med kolumner och
+  över är designstilen, temat och gränssnittets komponenter (scrubbern, tidslinjen, tavlan med kolumner och
   kort), skrivna om för Chainsaw.
 - **Modulär monolit med separation of concerns.** Varje modul består av ett `*.Contracts`-projekt (publika gränssnitt och
   typer) och ett implementationsprojekt med `internal`-typer, och registreras med `services.AddXxxModule()`. Moduler beror
@@ -260,10 +260,12 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   ID5): **Chainsaw är blockkedjan som såg**, en ordlek. **Ikonen är två länkar som hakar i varandra, diagonalt, fyllda i
   accentfärgen**, spårad exakt som vektor ur användarens förlaga (så ritas en kedja i Chainsaw)
   (användarens beslut 2026-11-07, ersätter ID5 variant B med ögat). Bitcoin-myntet (ID1) och sågkedjan (ID3) är avvisade. Låsskärmen och
-  förstagångsinställningen har teckenfältet i ASCII-stil, som i Gawk, och på låsskärmen **löper kättingen uppifrån och ner
-  i vänsterdelen**, skriven i tecken, ganska stor men inte överdriven, och **står still** (användarens beslut
-  2026-11-07); bara teckenfältet bakom lever (skiss ID7). Kättingen har **loggans form**: skarven ur loggan upprepad,
-  med 40 enheter rak länk mellan skarvarna (`assets/logo/chainsaw-chain-joint.svg`, användarens beslut 2026-11-07); den står **rak**, uppifrån och ner (ID7a; användaren godkände låsskärmen, Claude valde rak efter "löper uppifrån och ner", 2026-11-07).
+  förstagångsinställningen har **kättingen som blir DNA** (skiss ID8c, användarens beslut 2026-11-07, ersätter
+  teckenfältet och ID7a): kättingen i loggans form (skarven ur loggan upprepad, med 40 enheter rak länk mellan
+  skarvarna, `assets/logo/chainsaw-chain-joint.svg`) kommer in **på snedden** uppifrån och står still. Ungefär halvvägs
+  släpper länkarna, och den sista länkens två stänger fortsätter som en **dubbelspiral** med stängernas bredd, som vidgas
+  mot nederkanten, med basparen som streck mellan strängarna. Figuren är ritad som **vektor**, utan teckenfält bakom;
+  bara **partiklar** i tecken (och ibland en bas) lossnar från spiralen och driver ut.
 - **Färger:** Gawks gråskala (bakgrund `#191919`, paneler `#1F1F1F`, upphöjt `#262626`, markerat `#333333`, text `#EFEFEF` /
   `#B4B4B4` / `#8F8F8F`, lyckat `#8CC98F`, fel `#EC8C8C`) med en **egen accentfärg: Magenta `#E070B0`** (användarens beslut 2026-11-07, skiss ID6). Accenten betyder alltid offrens
   pengar och det valda, och krockar inte med grafens färger för börs, risk, annan kedja och tjänst.
@@ -333,7 +335,7 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   öppnad med Ctrl+, eller kugghjulet i pillret, med menyn till vänster (Nätverk, Låsning, Utseende, Länkar, Kurser,
   Profil, Om Chainsaw) och rader med titel och förklaring till vänster och valet till höger. Nätverk har *Windows* eller
   *VPN* som två kort, och under VPN utgångarna som i UT1a.
-- **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, på låsskärmens fält) och
+- **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, bredvid låsskärmens figur) och
   **Nytt ärende är NC1a** (en panel från höger som mörkar resten, som kan bli ärendets egenskaper senare). Användaren lät
   Claude välja (2026-11-07); valen följer Gawks form.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
@@ -409,7 +411,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | Sida | Skisser | Läge |
 | --- | --- | --- |
 | **Stil och ikoner** | ID1 (Bitcoin-myntet), ID3 (sågkedjan), ID5 (kättingen); ID6 (accentfärgen), GR3a och GR3c (bildspråket) | ID1 och ID3 avvisade, ID5 ersatt av loggan i `assets/logo/`; ID6 Magenta, GR3a och GR3c godkända |
-| **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen) | ID7a och FS1a valda och byggda |
+| **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA) | ID8c (ersätter ID7a) och FS1a valda och byggda |
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |

@@ -34,7 +34,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ===== Title bar: on the lock page only the logo and the window buttons (sketches ID7 and FS1a) ===== -->
+        <!-- ===== Title bar: on the lock page only the logo and the window buttons (sketches ID8c and FS1a) ===== -->
         <Border Grid.Row="0" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
                 BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="False">
@@ -60,11 +60,11 @@
             </DockPanel>
         </Border>
 
-        <!-- ===== The page: the field with the chain, and the form in the quiet area ===== -->
+        <!-- ===== The page: the chain that turns into a helix (sketch ID8c), and the form beside it ===== -->
         <Grid Grid.Row="1" Background="{StaticResource Brush.Background}" ClipToBounds="True">
-            <controls:AsciiField x:Name="Field" />
+            <controls:ChainFigure />
 
-            <!-- The lock screen (sketch ID7): the form where the sketch has it on a 1440 px page. -->
+            <!-- The lock screen (sketch ID8c): the form where the sketch has it on a 1440 px page. -->
             <Grid Visibility="{Binding IsLockVisible, Converter={StaticResource Visible}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="760*" MinWidth="420" />
@@ -105,10 +105,10 @@
                 </StackPanel>
             </Grid>
 
-            <!-- The first-run setup (sketch FS1a): one step at a time on the same field. -->
+            <!-- The first-run setup (sketch FS1a): one step at a time beside the same figure. -->
             <Grid Visibility="{Binding IsFirstRunVisible, Converter={StaticResource Visible}}">
                 <Grid.ColumnDefinitions>
-                    <!-- At least clear of the chain (x 275-385) and its quiet margin, also in a narrow window. -->
+                    <!-- At least clear of the chain, which moves left with a narrow window. -->
                     <ColumnDefinition Width="700*" MinWidth="420" />
                     <ColumnDefinition Width="440" />
                     <ColumnDefinition Width="300*" />
@@ -237,7 +237,7 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Om Chainsaw in the corner: the commit, and on a click the version and where the field comes from. -->
+            <!-- Om Chainsaw in the corner: the commit, and on a click the version. -->
             <Button x:Name="AboutButton" Style="{StaticResource Button.About}" HorizontalAlignment="Right"
                     VerticalAlignment="Bottom" Margin="0,0,16,14" Content="{Binding LockScreen.AboutText}"
                     Click="OnAbout" />

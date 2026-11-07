@@ -2041,3 +2041,28 @@ Bygget är utan varningar. Nätet används aldrig i testerna.
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Endpointarna, andra delen*), bevakningen (Monitoring)
 som ska använda `LookupMode.InStep`, och punkterna i TODO under *Bitcoin-källan* och *Utgångar*.
+
+## Låsskärmen ID8c (2026-11-07): kättingen som blir DNA
+
+Användaren valde ID8c efter flera omgångar på canvasen (ID8a–d). En ren gränssnittsändring, granskad av sessionen mot
+skissen.
+
+- **Figuren** (`src/Chainsaw.App/Figure/`, utan WPF och testad): kättingen i loggans form på snedden (40°, skala 0,75,
+  axeln möter sidans överkant vid x 640 på en sida på 1 440 px), som slutar efter en hel länk ungefär halvvägs. Den
+  sista länkens stänger fortsätter som spiralens två strängar med stängernas bredd. Spiralen vidgas till 220 % mot
+  nederkanten, och vridningen är integralen av en fast lutning genom radien, så att strängarna korsar varandra i samma
+  vinkel hela vägen. Strängen bakom är mörkare, basparen är streck i två halvor, och partiklarna (110 åt gången, var
+  sjunde en bas) lossnar från strängarna och driver ut. Värdena är skissens förval.
+- **Kontrollen** `ChainFigure` ritar formerna en gång per storlek som en fryst ritning och flyttar bara partiklarna,
+  ungefär 30 gånger i sekunden medan den syns. Med Windows animeringar avstängda står partiklarna still och timern vilar;
+  minimerat flyttas ingenting.
+- **Stängerna ritas som en egen form** som går två enheter in i skarvarna. I samma form tog överlappet ut skarven
+  (vindningsregeln), och en kantlinje runt skarven drog streck över länkens hål; båda sågs i skissen.
+- **Egna beslut:** figuren gäller också förstagångsinställningen, som delar sidan. I ett smalare fönster än 1 440 px
+  flyttas axeln till vänster i samma proportion, så att kättingen inte krockar med formuläret. Lyktan under musen
+  (Ctrl) följde med teckenfältet och är borta, eftersom ID8c inte har den.
+- **Borttaget:** teckenfältet (motorn, scenerna, lyktan, glyferna och rastreringen) och dess tester, raden om
+  asciify-engine i *Om Chainsaw* och i `THIRD_PARTY.md`.
+
+**Tester:** 584 gröna i appens testprojekt efter rebasen på etapp 25, varav 17 nya för figuren och partiklarna. Bygget är utan varningar.
+**Inte provat på Windows** (TESTER-INFOR, *Kättingen som blir DNA*).

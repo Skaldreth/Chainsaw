@@ -11,7 +11,7 @@ using Microsoft.Win32;
 namespace Chainsaw.App.Views;
 
 /// <summary>
-/// The gate's page (sketches ID7 and FS1a): the field with the chain, and the lock screen's form or the first-run
+/// The gate's page (sketches ID8c and FS1a): the chain that turns into a helix, and the lock screen's form or the first-run
 /// setup's. The view only wires the fields and the keyboard; what happens lives in <see cref="GateViewModel"/>. The
 /// master key is taken from the password boxes as characters (<see cref="PasswordEntry"/>) and never read as text.
 /// </summary>
@@ -49,7 +49,7 @@ public partial class GateView : UserControl
         ShowMode();
     }
 
-    /// <summary>Follows the gate: the field is quiet around the form shown, and the keyboard goes to its field.</summary>
+    /// <summary>Follows the gate: the keyboard goes to the field of the form shown.</summary>
     /// <param name="sender">The gate.</param>
     /// <param name="e">The property that changed.</param>
     private void OnGateChanged(object? sender, PropertyChangedEventArgs e)
@@ -82,7 +82,7 @@ public partial class GateView : UserControl
         FocusLater(FirstFieldOfStep());
     }
 
-    /// <summary>Points the field at the form shown, empties hidden secret fields and moves the keyboard.</summary>
+    /// <summary>Empties hidden secret fields and moves the keyboard to the form shown.</summary>
     private void ShowMode()
     {
         if (_gate is null)
@@ -96,11 +96,9 @@ public partial class GateView : UserControl
             case GateMode.Locked:
                 FirstKey.Clear();
                 RepeatKey.Clear();
-                Field.Form = LockForm;
                 FocusLater(LockKey);
                 break;
             case GateMode.FirstRun:
-                Field.Form = FirstRunForm;
                 FocusLater(FirstFieldOfStep());
                 break;
             default:
