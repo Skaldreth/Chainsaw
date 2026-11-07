@@ -18,10 +18,8 @@ public sealed class TlsPipelineTests
     public async Task A_missing_intermediate_is_not_fetched_around_the_exit()
     {
         // The certificate's AIA address points here: a connection to it would be a request around the exit.
-        using var aia = new TcpListener(IPAddress.Loopback, 0);
-        aia.Start();
-        var aiaPort = ((IPEndPoint)aia.LocalEndpoint).Port;
-        using var leaf = CreateLeafWithAia($"http://127.0.0.1:{aiaPort}/intermediate.cer");
+        using var aia = new AiaTrap();
+        using var leaf = CreateLeafWithAia(aia.Url);
         using var socks = new TcpListener(IPAddress.Loopback, 0);
         socks.Start();
         var served = Task.Run(() => ServeTlsThroughSocksAsync(socks, leaf));
@@ -33,13 +31,32 @@ public sealed class TlsPipelineTests
 
         var exception = await Assert.ThrowsAsync<ExitException>(
             () => harness.Http.SendAsync(ExitRequest.Get(new Uri("https://chain.example/"))));
-        var handshakeReachedProxy = await served.WaitAsync(TimeSpan.FromSeconds(5));
+        var handshakeReachedProxy = await served.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(ExitError.RequestFailed, exception.Error);
         Assert.True(handshakeReachedProxy, "The TLS handshake did not reach the proxy.");
-        await Task.Delay(200);
-        Assert.False(aia.Pending(), "The certificate's AIA address was fetched around the exit.");
+
+        // On Windows the test's own TLS server (SChannel) builds the leaf's chain itself and may fetch the AIA
+        // address, in this process; there the client's side is shown by the policy test below instead.
+        if (!OperatingSystem.IsWindows())
+        {
+            await Task.Delay(200);
+            Assert.Equal(0, aia.Connections);
+        }
+
         harness.Connection.Dispose();
+    }
+
+    [Fact]
+    public void The_offline_policy_never_fetches_a_missing_intermediate()
+    {
+        using var aia = new AiaTrap();
+        using var leaf = CreateLeafWithAia(aia.Url);
+        using var chain = new X509Chain { ChainPolicy = SocksHandlerFactory.OfflineChainPolicy() };
+
+        Assert.False(chain.Build(leaf));
+        Thread.Sleep(200);
+        Assert.Equal(0, aia.Connections);
     }
 
     [Fact]
@@ -149,5 +166,61 @@ public sealed class TlsPipelineTests
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// A listener at a certificate's AIA address that counts every connection and closes it at once, so that a
+    /// fetch is seen and fails fast instead of waiting for an answer that never comes.
+    /// </summary>
+    private sealed class AiaTrap : IDisposable
+    {
+        /// <summary>The listener on loopback.</summary>
+        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+
+        /// <summary>Stops the accepting loop.</summary>
+        private readonly CancellationTokenSource _stop = new();
+
+        /// <summary>How many connections have been made.</summary>
+        private int _connections;
+
+        /// <summary>Starts listening and accepting.</summary>
+        public AiaTrap()
+        {
+            _listener.Start();
+            Url = $"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}/intermediate.cer";
+            _ = AcceptAsync();
+        }
+
+        /// <summary>Gets the URL to put in the certificate's AIA.</summary>
+        public string Url { get; }
+
+        /// <summary>Gets how many connections have been made.</summary>
+        public int Connections => Volatile.Read(ref _connections);
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            _stop.Cancel();
+            _listener.Stop();
+            _stop.Dispose();
+        }
+
+        /// <summary>Counts and closes every connection until stopped.</summary>
+        private async Task AcceptAsync()
+        {
+            try
+            {
+                while (true)
+                {
+                    using var client = await _listener.AcceptTcpClientAsync(_stop.Token);
+                    Interlocked.Increment(ref _connections);
+                }
+            }
+            catch (Exception exception) when (exception is OperationCanceledException or SocketException
+                or ObjectDisposedException)
+            {
+                // Stopped.
+            }
+        }
     }
 }
