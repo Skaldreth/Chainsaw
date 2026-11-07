@@ -194,6 +194,22 @@ public sealed class EndpointLookupTests : IDisposable
         Assert.Single(_harness.Http.Sent);
     }
 
+    [Fact]
+    public async Task Not_found_from_an_endpoint_added_after_a_round_asks_the_next()
+    {
+        _harness.AnswerAll();
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        var (second, _) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+        await _harness.Sources.MoveAsync(Chain.Bitcoin, second.Id, -1);
+        _harness.Http.Sent.Clear();
+
+        var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Fetched, lookup.Status);
+        Assert.Equal("second.example", _harness.Http.Sent[0].Uri.Host);
+    }
+
     /// <summary>Puts an endpoint that lags behind first, in Prioriterad, after a round.</summary>
     private async Task LaggingFirstAsync()
     {

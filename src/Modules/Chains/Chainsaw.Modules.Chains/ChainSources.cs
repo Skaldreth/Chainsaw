@@ -141,8 +141,9 @@ internal sealed class ChainSources : IChainSources
 
     /// <summary>
     /// Gets whether an endpoint's <em>not found</em> can be believed: it has not failed a lookup since it was tried,
-    /// and its latest probe did not fail or show it behind. One not tried yet is believed, so that a txid nobody
-    /// knows is not sent to every endpoint.
+    /// and its latest probe did not fail or show it behind. One not tried yet is believed only before the chain's
+    /// first round, so that a txid nobody knows is not sent to every endpoint; one added after a round (perhaps with
+    /// a wrong path) is believed once a round has shown that it answers.
     /// </summary>
     /// <param name="chain">The chain.</param>
     /// <param name="id">The endpoint.</param>
@@ -152,8 +153,9 @@ internal sealed class ChainSources : IChainSources
         lock (_gate)
         {
             var state = State(chain);
+            var probe = state.Probes.GetValueOrDefault(id);
             return !state.FailedSince.Contains(id)
-                && state.Probes.GetValueOrDefault(id)?.Outcome is not (ProbeOutcome.Failed or ProbeOutcome.Behind);
+                && (probe?.Outcome == ProbeOutcome.Answered || (probe is null && state.ProbedAt is null));
         }
     }
 
@@ -264,7 +266,7 @@ internal sealed class ChainSources : IChainSources
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        if (IsLocked)
+        if (IsLocked || probes.Any(probe => probe.Problem == LockedText))
         {
             // The vault locked during the round: what was not sent says nothing about the endpoints.
             return ProbeRun.NotSent;

@@ -1560,3 +1560,110 @@ Inget tas bort; det gamla står kvar överstruket och tonat, med tillbakatagande
 bekräftelsen, biblioteket). Bygget är utan varningar.
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Historik, ta tillbaka och ångra*).
+
+## Etapp 24 (2026-11-07): källornas endpoints per kedja (KL1a)
+
+**Byggt:**
+- **Network:** `ExitRequest.Credential` (`ExitCredential`) skickar en källas API-nyckel som ett huvud. Bara
+  `Authorization` och `X-Api-Key` tillåts, och värdet får bara innehålla skrivbar ASCII (inga radbrytningar). Annars
+  vägrar `ExitHttp` innan något byggs. `ToString` döljer nyckeln. Nyckeln står aldrig i adressen och förseglas alltså
+  aldrig.
+- **Chains, endpoints per kedja** (`IChainSources`, `ChainSources`):
+  - **Endpointen:** namn, https-adress, sort av API, namnet på en API-nyckel i valvet (aldrig nyckeln) och om den är
+    påslagen.
+  - **Filen:** endpointarna sparas i `sources.json` i appdata (`ChainSourcesOptions.Directory`), aldrig i ärendet.
+    Skrivningen går via en temporär fil och en i taget, med läget när skrivningen börjar. En trasig fil ger förvalen.
+    En rad med `http`, en okänd sort eller en sort för en annan kedja hoppas över.
+  - **Kontroll av adressen:** `SourceAddress.TryRead` tar bara https utan användare, frågor och `#`.
+- **Förval:** Bitcoin har mempool.space och Blockstream med fasta id, i läget Snabbast
+  (`BitcoinSourceOptions.DefaultEndpoints`; `EsploraBaseUri` sätter en enda).
+- **Sorter av API** (`ISourceApi`, `EsploraApi`):
+  - En sort säger hur höjden och ett blocks hash frågas efter och hur nyckeln skickas. Esplora skickar den som bearer.
+  - Ethereum och andra kedjor lägger bara till sin sort i `AddChainsModule`, och `Chains` (sidans chips) följer de
+    registrerade sorterna.
+- **Prov:**
+  - `ProbeAsync` frågar alla påslagna endpoints parallellt, genom `IExitHttp`, bara efter `blocks/tip/height`, med 10 s
+    gräns per endpoint. Den lägsta höjden under den högsta räknas som *efter* (`BlocksBehind`).
+  - En omgång sparas inte i dessa fall, och de förra resultaten står kvar:
+    - när utgången vägrar (`ExitNotConnectedException`);
+    - när valvet är låst eller låses under omgången;
+    - när omgången avbryts;
+    - när en nyare omgång har börjat.
+  - `TryAsync` (formulärets *Prova*) frågar också efter hashen vid den höjden (`block-height/:h`) och sparar inget.
+- **Lägena:**
+  - **Snabbast:** ordningen är de som svarade rätt (snabbast först), de som inte är provade, de som ligger efter och
+    sist de vars prov misslyckades.
+  - **Prioriterad:** användarens ordning, med de vars prov misslyckades efter de andra.
+  - I båda lägena kommer en endpoint som ett uppslag misslyckades genom sist, tills den provas igen eller svarar.
+  - **Av:** inga uppslag.
+- **Källan för Bitcoin:**
+  - `EsploraBitcoinSource` frågar endpointarna i den ordningen. Nästa endpoint frågas vid fel, vid timeout, när ett
+    svar inte går att använda och när nyckeln saknas.
+  - Varje förseglat råsvar, också de som misslyckades, har `endpoint_id` och `endpoint_name`, och `source` är sorten.
+    Schemats steg 1 ändrades (före 1.0). `ResponseOrigin` har `EndpointId` och `Endpoint`.
+  - **Av** ger *Offline* med ärendets svar och texten att källorna är avstängda.
+- **Appen:**
+  - **Sidan Källor** efter Nätverk (`SourcesViewModel`, `EndpointRowViewModel`, i `SettingsDialog.xaml`). Den har:
+    - chips per kedja: Bitcoin, och Ethereum, TRON och Solana tonade med *Inte byggt än*;
+    - läget och raderna med prick, adress, stapel och ms, ★, den gula markeringen *N block efter* (bara i Snabbast),
+      brytare och ×;
+    - handtag, platsnummer, pilar och Alt+↑/↓ i Prioriterad, där fokus följer raden;
+    - *Lägg till endpoint …* med *Bara https.* direkt, sort, nyckel ur valvet och *Prova*;
+    - *Provade hh:mm* och *Prova alla nu*.
+  - **Provet vid start** görs en gång, när valvet är upplåst och utgången tillåter uppslag. En omgång där inget kunde
+    skickas görs om nästa gång utgången eller valvet ändras.
+  - `ExitWay.ChainsOff` följer läget Av, och grafens hörn säger *Av* med förklaring på hovring.
+
+**Egna beslut:**
+- **Formen på provet:** provet frågar bara efter höjden. Formulärets *Prova* frågar också efter hashen vid den
+  höjden, så att höjd och hash hör ihop (skissen visar båda).
+- **En endpoint som ligger efter** används sist i stället för aldrig. Annars kunde ett avstängt eller dött snabbaste
+  lämna kedjan utan källa (granskningen). Den gula markeringen säger *Används bara när ingen annan svarar*.
+- **När *finns inte* gäller:** *finns inte* (404) tros bara från en endpoint vars senaste prov svarade rätt, eller
+  från en som inte är provad före kedjans första omgång. Annars frågas nästa. NotFound ges bara då, eller när alla
+  tillfrågade sa 404. En trasig endpoint kan därmed aldrig säga att en tx inte finns, och en txid skickas inte till alla.
+- **Nyckeln:** den skickas som `Authorization: Bearer`. Bara två huvuden tillåts i Network, så en nyckel aldrig kan
+  sätta kakor, referer eller värd.
+- **Ingen journalrad per prov:** proven skriver inget i ärendet, eftersom de inte säger något om det.
+- **Solana** står som chip trots att `Chain` saknar Solana (skissen visar det). Att dra en rad med musen är inte
+  byggt, och namnet tas ur värden (TODO).
+- **Mindre konflikter med andra etapper:** sidan ligger i `SettingsDialog.xaml` (resurserna där behövs), och
+  `SettingsViewModel` och `ExitWay` tar sidan och källorna som valfria argument, så att etapperna 21 och 22 inte
+  behövde ändras.
+
+**Granskningen:** tre omgångar och en sista rättelse.
+- **Omgång 1:** inga C, tre I och sex M. Ingenting gick förbi utgången, och http eller nycklar läckte inte.
+  - **I:**
+    - En endpoint efter i höjd föll ur för gott.
+    - En 404 från en trasig endpoint avslutade bytet till nästa.
+    - Chipet och ★ var gröna när inget svarade.
+  - **M:**
+    - *Prova* kunde krascha om valvet låstes mellan frågorna.
+    - Låset kontrollerades en gång per omgång.
+    - En omgång som inget skickade kastade en pågående.
+    - En saknad nyckel flyttade inte ner endpointen.
+    - Markeringen *efter* visades i Prioriterad.
+    - Radlängd.
+- **Omgång 2:** inga C, ett I och fem M.
+  - **I:** en otrodd 404 följd av ett fel gav ändå *finns inte*.
+  - **M rättade:**
+    - Proven före första omgången skickade en okänd txid till alla.
+    - En omgång där valvet låstes sparades.
+    - ★ i Prioriterad följde inte ordningen.
+    - De döda före de som ligger efter, och chipets färg för en som ligger efter.
+  - **M i TODO:** varför en saknad nyckel ger röd prick.
+- **Omgång 3:** inga C eller I. Två M, båda rättade:
+  - en endpoint som läggs till efter en omgång tros inte på sin 404 förrän den provats;
+  - en omgång under vilken valvet låstes och låstes upp kastas också.
+
+**Tester:** 1 800 gröna i hela lösningen efter rebasen på etapp 21. Av dem är 59 nya:
+- 39 i Chains (endpointarna, lägena, proven, nyckeln, filen och uppslagen med byte av endpoint);
+- 2 i Network (nyckeln som huvud och vägrade huvuden);
+- 18 i appen (sidan Källor, provet vid start, Av i grafen).
+
+Bygget är utan varningar.
+
+**Återstår:**
+- Prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Källornas endpoints*).
+- Nytt prov under dagen, marginal för *efter* och en egen nod på det lokala nätet (TODO, *Bitcoin-källan*).
+- Ethereums sort av API i etapp 23.
