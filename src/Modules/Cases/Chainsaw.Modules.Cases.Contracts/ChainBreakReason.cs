@@ -20,4 +20,13 @@ public enum ChainBreakReason
 
     /// <summary>The table is missing or its columns do not match the chain.</summary>
     TableChanged,
+
+    /// <summary>
+    /// The chain is shorter than, or differs from, what this computer recorded the last time it saved the case: the
+    /// case has been rolled back to an older copy, or records have been removed or rewritten.
+    /// </summary>
+    RolledBack,
+
+    /// <summary>A chain has a head or a sealed table but no registered definition, so it cannot be checked.</summary>
+    Unregistered,
 }

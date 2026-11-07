@@ -25,10 +25,19 @@ internal sealed class CasesSchema : ICaseSchemaContributor
             case_number TEXT NOT NULL,
             created_utc TEXT NOT NULL
         ) STRICT;
-        CREATE TRIGGER case_info_no_update BEFORE UPDATE ON case_info
+        CREATE TRIGGER seal_case_info_no_update BEFORE UPDATE ON case_info
             BEGIN SELECT RAISE(ABORT, 'the case information cannot be changed'); END;
-        CREATE TRIGGER case_info_no_delete BEFORE DELETE ON case_info
+        CREATE TRIGGER seal_case_info_no_delete BEFORE DELETE ON case_info
             BEGIN SELECT RAISE(ABORT, 'the case information cannot be removed'); END;
+        CREATE TABLE sealed_chain (
+            name TEXT PRIMARY KEY,
+            table_name TEXT NOT NULL,
+            columns TEXT NOT NULL
+        ) STRICT;
+        CREATE TRIGGER seal_sealed_chain_no_update BEFORE UPDATE ON sealed_chain
+            BEGIN SELECT RAISE(ABORT, 'a sealed chain cannot be redefined'); END;
+        CREATE TRIGGER seal_sealed_chain_no_delete BEFORE DELETE ON sealed_chain
+            BEGIN SELECT RAISE(ABORT, 'a sealed chain cannot be unregistered'); END;
         CREATE TABLE chain_head (
             chain TEXT PRIMARY KEY,
             sequence INTEGER NOT NULL,

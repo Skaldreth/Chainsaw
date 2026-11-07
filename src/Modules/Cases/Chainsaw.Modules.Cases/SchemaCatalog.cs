@@ -10,7 +10,8 @@ namespace Chainsaw.Modules.Cases;
 internal sealed partial class SchemaCatalog
 {
     /// <summary>The Cases module's own tables that no other module may write.</summary>
-    public static readonly IReadOnlyList<string> CaseTables = ["case_info", "chain_head", "schema_version"];
+    public static readonly IReadOnlyList<string> CaseTables =
+        ["case_info", "chain_head", "schema_version", "sealed_chain"];
 
     /// <summary>Builds the catalog.</summary>
     /// <param name="contributors">Every registered contributor, the Cases module's own included.</param>
@@ -98,13 +99,15 @@ internal sealed partial class SchemaCatalog
 
     /// <summary>Checks a sealed chain's names.</summary>
     /// <param name="chain">The chain.</param>
-    private static void Validate(SealedChain chain)
+    /// <exception cref="ArgumentException">A name is not valid.</exception>
+    public static void Validate(SealedChain chain)
     {
         var columns = chain.ContentColumns;
         if (!ChainName().IsMatch(chain.Name) || !Identifier().IsMatch(chain.Table)
             || chain.Table.StartsWith("sqlite_", StringComparison.Ordinal)
             || columns.Count == 0
-            || columns.Any(column => !Identifier().IsMatch(column) || column is HashChain.SequenceColumn or HashChain.HashColumn)
+            || columns.Any(column =>
+                !Identifier().IsMatch(column) || column is HashChain.SequenceColumn or HashChain.HashColumn)
             || columns.Distinct(StringComparer.Ordinal).Count() != columns.Count)
         {
             throw new ArgumentException($"The sealed chain {chain.Name} is not valid.");

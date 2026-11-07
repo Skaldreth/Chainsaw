@@ -24,6 +24,12 @@ internal static class CaseContainer
     /// <summary>The most envelopes a header may hold.</summary>
     public const int MaximumEnvelopes = 64;
 
+    /// <summary>The header field with the case id.</summary>
+    private const string CaseIdField = "caseId";
+
+    /// <summary>The header field with the envelopes.</summary>
+    private const string EnvelopesField = "envelopes";
+
     /// <summary>The magic at the start of every case file.</summary>
     private static ReadOnlySpan<byte> Magic => "CHSWCASE"u8;
 
@@ -80,8 +86,8 @@ internal static class CaseContainer
 
         var document = new JsonObject
         {
-            ["caseId"] = header.CaseId.ToString("D"),
-            ["envelopes"] = envelopes,
+            [CaseIdField] = header.CaseId.ToString("D"),
+            [EnvelopesField] = envelopes,
         };
         var json = JsonSerializer.SerializeToUtf8Bytes(document);
         Span<byte> prefix = stackalloc byte[PrefixLength];
@@ -101,8 +107,8 @@ internal static class CaseContainer
         try
         {
             var document = JsonNode.Parse(json) as JsonObject;
-            var caseIdText = document?["caseId"]?.GetValue<string>();
-            var envelopes = document?["envelopes"] as JsonArray;
+            var caseIdText = document?[CaseIdField]?.GetValue<string>();
+            var envelopes = document?[EnvelopesField] as JsonArray;
             if (!Guid.TryParseExact(caseIdText, "D", out var caseId) || envelopes is null
                 || envelopes.Count is 0 or > MaximumEnvelopes)
             {
@@ -112,7 +118,8 @@ internal static class CaseContainer
             var parsed = new List<JsonObject>(envelopes.Count);
             foreach (var envelope in envelopes)
             {
-                if (envelope is not JsonObject item || item["kind"]?.GetValue<string>() is not { Length: > 0 })
+                if (envelope is not JsonObject item
+                    || item[KeyEnvelopes.KindField]?.GetValue<string>() is not { Length: > 0 })
                 {
                     throw new CaseException(CaseError.Corrupt);
                 }
@@ -122,7 +129,8 @@ internal static class CaseContainer
 
             return new CaseHeader(caseId, parsed);
         }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException
+            or ArgumentException)
         {
             throw new CaseException(CaseError.Corrupt, exception);
         }

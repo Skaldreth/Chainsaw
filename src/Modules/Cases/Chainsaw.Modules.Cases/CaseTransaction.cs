@@ -12,6 +12,9 @@ namespace Chainsaw.Modules.Cases;
 /// </param>
 internal sealed class CaseTransaction(Case owner, SqliteTransaction transaction, bool writable) : ICaseTransaction
 {
+    /// <summary>The commands handed out, disposed when the work returns.</summary>
+    private readonly List<CaseCommand> _commands = [];
+
     /// <summary>Whether the work has returned.</summary>
     private bool _ended;
 
@@ -20,7 +23,9 @@ internal sealed class CaseTransaction(Case owner, SqliteTransaction transaction,
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sql);
         EnsureActive();
-        return owner.Database.Command(sql, transaction);
+        var command = new CaseCommand(owner.Database.Command(sql, transaction), () => !_ended);
+        _commands.Add(command);
+        return command;
     }
 
     /// <inheritdoc />
@@ -37,8 +42,17 @@ internal sealed class CaseTransaction(Case owner, SqliteTransaction transaction,
         return owner.AppendSealedIn(transaction, chain, values);
     }
 
-    /// <summary>Marks the work as returned, so that a kept reference can no longer be used.</summary>
-    public void End() => _ended = true;
+    /// <summary>Marks the work as returned and disposes its commands, so that kept references no longer work.</summary>
+    public void End()
+    {
+        _ended = true;
+        foreach (var command in _commands)
+        {
+            command.Dispose();
+        }
+
+        _commands.Clear();
+    }
 
     /// <summary>Refuses writing from a reader or after the work has returned.</summary>
     /// <exception cref="InvalidOperationException">This is a reader, or the work has returned.</exception>

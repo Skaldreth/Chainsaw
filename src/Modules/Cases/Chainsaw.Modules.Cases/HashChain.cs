@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Chainsaw.Modules.Cases.Contracts;
 using Microsoft.Data.Sqlite;
 
@@ -22,6 +24,9 @@ internal static class HashChain
     /// <summary>The column with a record's hash.</summary>
     public const string HashColumn = "hash";
 
+    /// <summary>What <c>PRAGMA quick_check</c> answers, alone, for a sound database.</summary>
+    private const string QuickCheckSound = "ok";
+
     /// <summary>The column types a content column may have in a STRICT table.</summary>
     private static readonly string[] AllowedTypes = ["INTEGER", "REAL", "TEXT", "BLOB", "ANY"];
 
@@ -41,7 +46,10 @@ internal static class HashChain
         ];
     }
 
-    /// <summary>Creates the protecting triggers, as the Cases module, in the transaction that created the table.</summary>
+    /// <summary>
+    /// Creates the protecting triggers and registers the chain's definition, as the Cases module, in the transaction
+    /// that created the table. The registry lets a build that does not know the module still guard and verify it.
+    /// </summary>
     /// <param name="database">The database.</param>
     /// <param name="transaction">The transaction.</param>
     /// <param name="chain">The chain.</param>
@@ -52,6 +60,89 @@ internal static class HashChain
             using var command = database.Command(sql, transaction);
             command.ExecuteNonQuery();
         }
+
+        using var register = database.Command(
+            "INSERT INTO sealed_chain (name, table_name, columns) VALUES ($name, $table, $columns)", transaction);
+        register.Parameters.AddWithValue("$name", chain.Name);
+        register.Parameters.AddWithValue("$table", chain.Table);
+        register.Parameters.AddWithValue("$columns", JsonSerializer.Serialize(chain.ContentColumns));
+        register.ExecuteNonQuery();
+    }
+
+    /// <summary>Reads the registered chains; a definition that does not hold is given by name only.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The current transaction, if any.</param>
+    /// <returns>The valid definitions and the names of those that are not.</returns>
+    public static (IReadOnlyList<SealedChain> Chains, IReadOnlyList<string> Invalid) ReadRegistry(
+        CaseDatabase database, SqliteTransaction? transaction)
+    {
+        var chains = new List<SealedChain>();
+        var invalid = new List<string>();
+        using var select = database.Command("SELECT name, table_name, columns FROM sealed_chain", transaction);
+        using var reader = select.ExecuteReader();
+        while (reader.Read())
+        {
+            var name = reader.GetString(0);
+            try
+            {
+                var columns = JsonSerializer.Deserialize<List<string>>(reader.GetString(2)) ?? [];
+                var chain = new SealedChain(name, reader.GetString(1), columns);
+                SchemaCatalog.Validate(chain);
+                chains.Add(chain);
+            }
+            catch (Exception exception) when (exception is JsonException or ArgumentException)
+            {
+                invalid.Add(name);
+            }
+        }
+
+        return (chains, invalid);
+    }
+
+    /// <summary>Reads the names of every chain that has a head.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns>The names.</returns>
+    public static IReadOnlyList<string> ReadHeadNames(CaseDatabase database, SqliteTransaction transaction)
+    {
+        var names = new List<string>();
+        using var select = database.Command("SELECT chain FROM chain_head", transaction);
+        using var reader = select.ExecuteReader();
+        while (reader.Read())
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
+    }
+
+    /// <summary>Reads one record's stored hash.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain.</param>
+    /// <param name="sequence">The record's sequence number.</param>
+    /// <returns>The hash, or <see langword="null"/> when there is no such record.</returns>
+    public static byte[]? ReadRecordHash(
+        CaseDatabase database, SqliteTransaction transaction, SealedChain chain, long sequence)
+    {
+        using var select = database.Command(
+            $"SELECT {HashColumn} FROM {chain.Table} WHERE {SequenceColumn} = $sequence", transaction);
+        select.Parameters.AddWithValue("$sequence", sequence);
+        return select.ExecuteScalar() as byte[];
+    }
+
+    /// <summary>Reads a chain's stored head.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain's name.</param>
+    /// <returns>The head's sequence number and hash; 0 and <see langword="null"/> for an empty chain.</returns>
+    public static (long Sequence, byte[]? Hash) ReadHead(
+        CaseDatabase database, SqliteTransaction transaction, string chain)
+    {
+        using var command = database.Command("SELECT sequence, hash FROM chain_head WHERE chain = $chain", transaction);
+        command.Parameters.AddWithValue("$chain", chain);
+        using var reader = command.ExecuteReader();
+        return reader.Read() ? (reader.GetInt64(0), reader.GetValue(1) as byte[]) : (0, null);
     }
 
     /// <summary>Checks whether a table exists in the case.</summary>
@@ -64,7 +155,7 @@ internal static class HashChain
         using var command = database.Command(
             "SELECT count(*) FROM sqlite_schema WHERE type = 'table' AND name = $table", transaction);
         command.Parameters.AddWithValue("$table", table);
-        return Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
     }
 
     /// <summary>
@@ -74,8 +165,11 @@ internal static class HashChain
     /// <param name="database">The database.</param>
     /// <param name="transaction">The current transaction, if any.</param>
     /// <param name="chain">The chain.</param>
-    /// <returns>The types in the order of the content columns, or <see langword="null"/> when the shape is wrong.</returns>
-    public static IReadOnlyList<string>? ReadShape(CaseDatabase database, SqliteTransaction? transaction, SealedChain chain)
+    /// <returns>
+    /// The types in the order of the content columns, or <see langword="null"/> when the shape is wrong.
+    /// </returns>
+    public static IReadOnlyList<string>? ReadShape(
+        CaseDatabase database, SqliteTransaction? transaction, SealedChain chain)
     {
         using (var strict = database.Command(
             "SELECT strict FROM pragma_table_list($table) WHERE schema = 'main' AND type = 'table'", transaction))
@@ -85,6 +179,13 @@ internal static class HashChain
             {
                 return null;
             }
+        }
+
+        // Indexes and foreign keys on a sealed table would let constraints refuse records or hold other tables.
+        if (Count(database, transaction, "SELECT count(*) FROM pragma_index_list($table)", chain.Table) != 0
+            || Count(database, transaction, "SELECT count(*) FROM pragma_foreign_key_list($table)", chain.Table) != 0)
+        {
+            return null;
         }
 
         var columns = new Dictionary<string, (string Type, bool NotNull, long Key)>(StringComparer.OrdinalIgnoreCase);
@@ -111,6 +212,19 @@ internal static class HashChain
                 columns.TryGetValue(column, out var content) && content.Key == 0
                 && AllowedTypes.Contains(content.Type));
         return shapeHolds ? [.. chain.ContentColumns.Select(column => columns[column].Type)] : null;
+    }
+
+    /// <summary>Runs a count with a table name as its parameter.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The current transaction, if any.</param>
+    /// <param name="sql">The SQL, with <c>$table</c>.</param>
+    /// <param name="table">The table.</param>
+    /// <returns>The count.</returns>
+    private static long Count(CaseDatabase database, SqliteTransaction? transaction, string sql, string table)
+    {
+        using var command = database.Command(sql, transaction);
+        command.Parameters.AddWithValue("$table", table);
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
     /// <summary>Adds a record, seals it and moves the chain's head, in the caller's transaction.</summary>
@@ -173,17 +287,23 @@ internal static class HashChain
     {
         using var command = database.Command("PRAGMA quick_check", transaction);
         using var reader = command.ExecuteReader();
-        return reader.Read() && reader.GetString(0) == "ok" && !reader.Read();
+        return reader.Read() && reader.GetString(0) == QuickCheckSound && !reader.Read();
     }
 
     /// <summary>Walks a chain from its first record and says where it first breaks.</summary>
     /// <param name="database">The database.</param>
     /// <param name="transaction">A read transaction.</param>
     /// <param name="chain">The chain.</param>
+    /// <param name="registered">
+    /// The chain's registered definition, if any; it must be the same as <paramref name="chain"/>.
+    /// </param>
     /// <returns>The result for the chain.</returns>
-    public static ChainVerification Verify(CaseDatabase database, SqliteTransaction transaction, SealedChain chain)
+    public static ChainVerification Verify(
+        CaseDatabase database, SqliteTransaction transaction, SealedChain chain, SealedChain? registered)
     {
-        if (!TableExists(database, transaction, chain.Table) || ReadShape(database, transaction, chain) is null)
+        if (registered is null || registered.Table != chain.Table
+            || !registered.ContentColumns.SequenceEqual(chain.ContentColumns)
+            || !TableExists(database, transaction, chain.Table) || ReadShape(database, transaction, chain) is null)
         {
             return new ChainVerification(chain.Name, 0, 0, null, new ChainBreak(0, ChainBreakReason.TableChanged));
         }
@@ -221,7 +341,8 @@ internal static class HashChain
     /// <param name="lastGood">The sequence number of the last unbroken record.</param>
     /// <param name="lastHash">The last unbroken record's hash; replaced by this record's when it holds.</param>
     /// <returns>The break, or <see langword="null"/> when the record holds.</returns>
-    private static ChainBreak? CheckRecord(SqliteDataReader reader, SealedChain chain, long lastGood, ref byte[]? lastHash)
+    private static ChainBreak? CheckRecord(
+        SqliteDataReader reader, SealedChain chain, long lastGood, ref byte[]? lastHash)
     {
         var expected = lastGood + 1;
         var sequence = reader.GetInt64(0);
@@ -287,19 +408,6 @@ internal static class HashChain
         return intact ? null : new ChainBreak(0, ChainBreakReason.ProtectionMissing);
     }
 
-    /// <summary>Reads a chain's stored head.</summary>
-    /// <param name="database">The database.</param>
-    /// <param name="transaction">The transaction.</param>
-    /// <param name="chain">The chain's name.</param>
-    /// <returns>The head's sequence number and hash; 0 and <see langword="null"/> for an empty chain.</returns>
-    private static (long Sequence, byte[]? Hash) ReadHead(CaseDatabase database, SqliteTransaction transaction, string chain)
-    {
-        using var command = database.Command("SELECT sequence, hash FROM chain_head WHERE chain = $chain", transaction);
-        command.Parameters.AddWithValue("$chain", chain);
-        using var reader = command.ExecuteReader();
-        return reader.Read() ? (reader.GetInt64(0), reader.GetValue(1) as byte[]) : (0, null);
-    }
-
     /// <summary>Checks the values against the columns' declared types and gives them in the sealed types.</summary>
     /// <param name="chain">The chain.</param>
     /// <param name="types">The declared types.</param>
@@ -311,13 +419,23 @@ internal static class HashChain
         ArgumentNullException.ThrowIfNull(values);
         if (values.Count != chain.ContentColumns.Count)
         {
-            throw new ArgumentException($"The chain {chain.Name} takes {chain.ContentColumns.Count} values.", nameof(values));
+            throw new ArgumentException(
+                $"The chain {chain.Name} takes {chain.ContentColumns.Count} values.", nameof(values));
         }
 
         var normalized = new object?[values.Count];
         for (var index = 0; index < values.Count; index++)
         {
-            var value = values[index] is int small ? (long)small : values[index];
+            var value = values[index] switch
+            {
+                int small => (long)small,
+                double real when !double.IsFinite(real) =>
+                    throw new ArgumentException("Only finite numbers can be sealed.", nameof(values)),
+
+                // SQLite stores -0.0 as the integer 0 and reads it back as +0.0, so it is sealed as +0.0.
+                double real when real == 0 => 0.0,
+                var other => other,
+            };
             var fits = value switch
             {
                 null => true,
@@ -330,7 +448,8 @@ internal static class HashChain
             if (!fits)
             {
                 throw new ArgumentException(
-                    $"The value for {chain.ContentColumns[index]} does not match its type {types[index]}.", nameof(values));
+                    $"The value for {chain.ContentColumns[index]} does not match its type {types[index]}.",
+                    nameof(values));
             }
 
             normalized[index] = value;

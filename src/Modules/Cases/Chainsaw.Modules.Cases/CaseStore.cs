@@ -23,6 +23,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <summary>The cases that are open now.</summary>
     private readonly HashSet<Case> _open = [];
 
+    /// <summary>The background closing started by the last lock of the vault.</summary>
+    private Task _closing = Task.CompletedTask;
+
     /// <summary>Creates the store and starts following the vault's state.</summary>
     /// <param name="vault">The vault.</param>
     /// <param name="purposeKeys">The vault's keys per purpose.</param>
@@ -79,6 +82,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         System.IO.Directory.CreateDirectory(Directory);
         var lockFile = AcquireLock(paths);
         byte[]? fileKey = null;
+        byte[]? anchorKey = null;
         CaseDatabase? database = null;
         var createdHere = false;
         try
@@ -90,34 +94,38 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
             // A working copy without a case file is left by a creation that never saved; it holds nothing yet.
             createdHere = true;
-            File.Delete(paths.WorkingCopy);
-            File.Delete(paths.WorkingJournal);
+            DeleteWorkingFiles(paths);
             fileKey = CaseCrypto.NewFileKey();
+            anchorKey = DeriveAnchorKey();
             var header = NewHeader(fileKey);
             database = OpenDatabase(paths.WorkingCopy, fileKey, header.CaseId);
             SchemaMigrator.Run(database, _services.Catalog);
             var info = new CaseInfo(header.CaseId, caseNumber, _services.Clock.UtcNow.ToUniversalTime());
             WriteInfo(database, info);
-            var opened = Track(new Case(_services, paths, header, fileKey, lockFile, database, info, Forget));
-            (database, fileKey) = (null, null);
+            var opened = Track(new Case(
+                _services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget));
+            (database, fileKey, anchorKey) = (null, null, null);
             FinishOpening(opened, () =>
             {
                 opened.AppendOwnJournal(new JournalDraft(
                     CaseJournalKinds.Created,
                     $"Ärendet {caseNumber} skapades av {profile.Name}",
-                    CreatedDetails(info, opened)));
+                    CreationDetails(info, opened)));
                 opened.SaveUnlocked();
             });
             return opened;
         }
         catch
         {
-            AbandonOpening(paths, fileKey, lockFile, database, removeWorkingCopy: createdHere);
+            database?.Dispose();
+            Clear(fileKey, anchorKey);
             if (createdHere)
             {
+                DeleteWorkingFiles(paths);
                 File.Delete(paths.CaseFile);
             }
 
+            lockFile.Dispose();
             throw;
         }
     }
@@ -134,7 +142,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             var header = ReadHeader(paths);
-            Case.DeriveEnvelopeKey(_services.PurposeKeys, wrappingKey);
+            Case.DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
             if (!KeyEnvelopes.TryOpenOperator(header, wrappingKey, fileKey))
             {
                 throw new CaseException(CaseError.NoAccess);
@@ -144,13 +152,13 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         }
         catch
         {
-            CryptographicOperations.ZeroMemory(fileKey);
+            Clear(fileKey);
             lockFile.Dispose();
             throw;
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(wrappingKey);
+            Clear(wrappingKey);
         }
     }
 
@@ -175,7 +183,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         }
         catch
         {
-            CryptographicOperations.ZeroMemory(fileKey);
+            Clear(fileKey);
             lockFile.Dispose();
             throw;
         }
@@ -186,6 +194,18 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     {
         _services.Vault.StateChanged -= OnVaultStateChanged;
         CloseAll();
+    }
+
+    /// <summary>Waits until the cases that a lock of the vault started closing have closed; for the tests.</summary>
+    internal void WaitForClosing()
+    {
+        Task closing;
+        lock (_openGate)
+        {
+            closing = _closing;
+        }
+
+        closing.GetAwaiter().GetResult();
     }
 
     /// <summary>
@@ -203,13 +223,20 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     {
         var recovering = File.Exists(paths.WorkingCopy);
         CaseDatabase? database = null;
+        byte[]? anchorKey = null;
         try
         {
             if (!recovering)
             {
-                ExtractDatabase(paths, header.CaseId);
+                CaseFiles.Extract(paths, header.CaseId);
+            }
+            else if (!CaseFiles.BelongsTogether(paths))
+            {
+                // The case file was replaced after the working copy was taken from it: neither is overwritten.
+                throw new CaseException(CaseError.Conflict);
             }
 
+            anchorKey = DeriveAnchorKey();
             database = OpenWorkingCopy(paths, fileKey, header.CaseId, recovering);
             var (applied, info) = PrepareSchema(database, recovering);
             if (info.Id != header.CaseId)
@@ -217,19 +244,21 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 throw new CaseException(recovering ? CaseError.Conflict : CaseError.Corrupt);
             }
 
-            var opened = Track(new Case(_services, paths, header, fileKey, lockFile, database, info, Forget));
-            database = null;
+            var opened = Track(Construct(
+                () => new Case(_services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget),
+                recovering));
+            (database, anchorKey) = (null, null);
             FinishOpening(opened, () => JournalOpening(opened, recovering, applied, openedWithPassword));
             return opened;
         }
         catch
         {
             database?.Dispose();
+            Clear(anchorKey);
             if (!recovering)
             {
                 // Only a working copy made here is removed; a recovered one may hold the only copy of saved work.
-                File.Delete(paths.WorkingCopy);
-                File.Delete(paths.WorkingJournal);
+                DeleteWorkingFiles(paths);
             }
 
             throw;
@@ -249,6 +278,22 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         {
             var applied = SchemaMigrator.Run(database, _services.Catalog);
             return (applied, ReadInfo(database));
+        }
+        catch (SqliteException exception)
+        {
+            throw new CaseException(recovering ? CaseError.Conflict : CaseError.Corrupt, exception);
+        }
+    }
+
+    /// <summary>Builds the case, which reads its chains; a page that does not authenticate makes the file corrupt.</summary>
+    /// <param name="construct">Builds the case.</param>
+    /// <param name="recovering">Whether the working copy was left by an interrupted session.</param>
+    /// <returns>The case.</returns>
+    private static Case Construct(Func<Case> construct, bool recovering)
+    {
+        try
+        {
+            return construct();
         }
         catch (SqliteException exception)
         {
@@ -309,28 +354,43 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         }
     }
 
-    /// <summary>Undoes a failed opening: closes the database, clears the key and releases the lock.</summary>
-    /// <param name="paths">The case's files.</param>
-    /// <param name="fileKey">The file key, if it was opened.</param>
-    /// <param name="lockFile">The held lock.</param>
-    /// <param name="database">The database, if it was opened.</param>
-    /// <param name="removeWorkingCopy">Whether the working copy holds nothing that must be kept.</param>
-    private static void AbandonOpening(
-        CasePaths paths, byte[]? fileKey, FileStream lockFile, CaseDatabase? database, bool removeWorkingCopy)
+    /// <summary>Clears keys that were not handed over.</summary>
+    /// <param name="keys">The keys; <see langword="null"/> entries are skipped.</param>
+    private static void Clear(params byte[]?[] keys)
     {
-        database?.Dispose();
-        if (fileKey is not null)
+        foreach (var key in keys)
         {
-            CryptographicOperations.ZeroMemory(fileKey);
+            if (key is not null)
+            {
+                CryptographicOperations.ZeroMemory(key);
+            }
         }
+    }
 
-        if (removeWorkingCopy)
+    /// <summary>Removes a working copy and the files that belong to it.</summary>
+    /// <param name="paths">The case's files.</param>
+    private static void DeleteWorkingFiles(CasePaths paths)
+    {
+        File.Delete(paths.WorkingCopy);
+        File.Delete(paths.WorkingJournal);
+        File.Delete(paths.WorkingBase);
+    }
+
+    /// <summary>Derives the key that authenticates this computer's anchors.</summary>
+    /// <returns>The key in a pinned buffer that the caller hands over or clears.</returns>
+    private byte[] DeriveAnchorKey()
+    {
+        var key = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
         {
-            File.Delete(paths.WorkingCopy);
-            File.Delete(paths.WorkingJournal);
+            Case.DeriveVaultKey(_services.PurposeKeys, AnchorStore.Purpose, key);
+            return key;
         }
-
-        lockFile.Dispose();
+        catch
+        {
+            Clear(key);
+            throw;
+        }
     }
 
     /// <summary>Gives the files for a case number in the folder.</summary>
@@ -365,7 +425,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
     /// <summary>Gets the operator profile that the journal needs.</summary>
     /// <returns>The profile.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.VaultLocked"/> or <see cref="CaseError.NoOperatorProfile"/>.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.VaultLocked"/> or <see cref="CaseError.NoOperatorProfile"/>.
+    /// </exception>
     private OperatorProfile CurrentProfile()
     {
         try
@@ -387,10 +449,20 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             return new FileStream(
-                paths.LockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
+                paths.LockFile,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                bufferSize: 1,
+                FileOptions.DeleteOnClose);
         }
         catch (IOException exception) when (exception is not (FileNotFoundException or DirectoryNotFoundException))
         {
+            throw new CaseException(CaseError.InUse, exception);
+        }
+        catch (UnauthorizedAccessException exception) when (File.Exists(paths.LockFile))
+        {
+            // On Windows a lock file that is being removed by the session that just closed cannot be opened.
             throw new CaseException(CaseError.InUse, exception);
         }
     }
@@ -402,23 +474,6 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     {
         using var stream = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read);
         return CaseContainer.ReadHeader(stream);
-    }
-
-    /// <summary>Copies the encrypted database out of the case file into a new working copy.</summary>
-    /// <param name="paths">The case's files.</param>
-    /// <param name="caseId">The case id the key was opened for; the header must still say it.</param>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when the file changed in between.</exception>
-    private static void ExtractDatabase(CasePaths paths, Guid caseId)
-    {
-        using var input = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, 81920);
-        if (CaseContainer.ReadHeader(input).CaseId != caseId)
-        {
-            throw new CaseException(CaseError.Corrupt);
-        }
-
-        using var output = new FileStream(paths.WorkingCopy, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920);
-        input.CopyTo(output);
-        output.Flush(flushToDisk: true);
     }
 
     /// <summary>Opens the working copy; one left by an interrupted session that does not open is a conflict.</summary>
@@ -467,7 +522,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
         try
         {
-            Case.DeriveEnvelopeKey(_services.PurposeKeys, wrappingKey);
+            Case.DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
             return new CaseHeader(caseId, [KeyEnvelopes.CreateOperator(caseId, fileKey, wrappingKey)]);
         }
         finally
@@ -481,6 +536,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="info">The information.</param>
     private static void WriteInfo(CaseDatabase database, CaseInfo info)
     {
+        using var scope = database.As(GuardMode.Internal);
         using var transaction = database.Begin();
         using (var insert = database.Command(
             "INSERT INTO case_info (id, case_id, case_number, created_utc) VALUES (1, $id, $number, $created)",
@@ -501,6 +557,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is missing or malformed.</exception>
     private static CaseInfo ReadInfo(CaseDatabase database)
     {
+        using var scope = database.As(GuardMode.Internal);
         using var select = database.Command("SELECT case_id, case_number, created_utc FROM case_info WHERE id = 1");
         using var reader = select.ExecuteReader();
         if (!reader.Read()
@@ -518,12 +575,12 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="info">The case information.</param>
     /// <param name="opened">The new case.</param>
     /// <returns>The JSON.</returns>
-    private static string CreatedDetails(CaseInfo info, Case opened) =>
+    private static string CreationDetails(CaseInfo info, Case opened) =>
         JsonSerializer.Serialize(new Dictionary<string, object>
         {
-            ["caseId"] = info.Id.ToString("D"),
-            ["caseNumber"] = info.CaseNumber,
-            ["schema"] = JsonSerializer.Deserialize<JsonElement>(Case.SchemaDetails(opened.Database)),
+            [CreatedDetails.CaseId] = info.Id.ToString("D"),
+            [CreatedDetails.CaseNumber] = info.CaseNumber,
+            [CreatedDetails.Schema] = Case.SchemaDetails(opened.Database),
         });
 
     /// <summary>Remembers an open case.</summary>
@@ -549,18 +606,34 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         }
     }
 
-    /// <summary>Closes every open case when the vault leaves the unlocked state.</summary>
+    /// <summary>
+    /// When the vault leaves the unlocked state, refuses every new operation on the open cases at once and saves and
+    /// closes them in the background, so that the thread that locked the vault (often the UI thread) does not wait.
+    /// </summary>
     /// <param name="sender">The vault.</param>
     /// <param name="state">The new state.</param>
     private void OnVaultStateChanged(object? sender, VaultState state)
     {
-        if (state != VaultState.Unlocked)
+        if (state == VaultState.Unlocked)
         {
-            CloseAll();
+            return;
+        }
+
+        lock (_openGate)
+        {
+            foreach (var item in _open)
+            {
+                item.BeginClosing();
+            }
+
+            _closing = _closing.ContinueWith(_ => CloseAll(), TaskScheduler.Default);
         }
     }
 
-    /// <summary>Closes every open case; a case whose save fails keeps its working copy for recovery.</summary>
+    /// <summary>
+    /// Closes every open case; a case whose save fails keeps its working copy for recovery, and a failure in one case
+    /// never keeps the others open.
+    /// </summary>
     private void CloseAll()
     {
         List<Case> open;
@@ -571,7 +644,14 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
         foreach (var item in open)
         {
-            item.Dispose();
+            try
+            {
+                item.Dispose();
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // The case has released its keys and its lock (Close does so whatever fails); go on with the others.
+            }
         }
     }
 }

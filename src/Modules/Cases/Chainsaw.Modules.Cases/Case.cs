@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Chainsaw.Modules.Cases.Contracts;
@@ -8,15 +7,19 @@ using Microsoft.Data.Sqlite;
 namespace Chainsaw.Modules.Cases;
 
 /// <summary>
-/// An open case: the connection to the encrypted working copy, the file key in pinned memory, the header with its
-/// envelopes and the lock that keeps the case from being opened twice.
+/// An open case: the connection to the encrypted working copy, the file key and the anchor key in pinned memory, the
+/// header with its envelopes and the lock that keeps the case from being opened twice.
 /// </summary>
 /// <remarks>
-/// Every operation holds <see cref="_gate"/>, so they run one at a time. The file key is kept while the case is open
-/// only to wrap new envelopes; it is cleared when the case closes.
+/// Every operation holds <see cref="_gate"/>, so they run one at a time, and runs its SQL in a guard scope; between
+/// operations the guard refuses everything. The file key is kept while the case is open only to wrap new envelopes,
+/// and the anchor key to write the anchors when saving after the vault has been locked; both are cleared on close.
 /// </remarks>
 internal sealed class Case : ICase
 {
+    /// <summary>The size of the buffer when the working copy is copied into the case file.</summary>
+    private const int CopyBufferSize = 81920;
+
     /// <summary>Serialises every operation on the case.</summary>
     private readonly Lock _gate = new();
 
@@ -29,15 +32,27 @@ internal sealed class Case : ICase
     /// <summary>The file key in a pinned array; cleared on close.</summary>
     private readonly byte[] _fileKey;
 
+    /// <summary>The key that authenticates this computer's anchors, in a pinned array; cleared on close.</summary>
+    private readonly byte[] _anchorKey;
+
     /// <summary>The lock file, held open while the case is open.</summary>
     private readonly FileStream _lock;
 
     /// <summary>Called once when the case has closed, so that the store forgets it.</summary>
     private readonly Action<Case> _onClosed;
 
+    /// <summary>The chains in the case: this build's and those registered by modules this build does not know.</summary>
+    private readonly IReadOnlyList<SealedChain> _chains;
+
+    /// <summary>The registered definitions by chain name.</summary>
+    private readonly IReadOnlyDictionary<string, SealedChain> _registered;
+
+    /// <summary>The names of registered definitions that do not hold.</summary>
+    private readonly IReadOnlyList<string> _invalidRegistrations;
+
     /// <summary>
-    /// The declared column types of each sealed chain whose table has the right shape, read once after the schema is
-    /// up to date.
+    /// The declared column types of each chain whose table has the right shape, read once after the schema is up to
+    /// date.
     /// </summary>
     private readonly Dictionary<string, IReadOnlyList<string>> _shapes = new(StringComparer.Ordinal);
 
@@ -50,11 +65,14 @@ internal sealed class Case : ICase
     /// <summary>Whether another module's work is running, so that nested calls are refused.</summary>
     private bool _inWork;
 
-    /// <summary>Wraps an opened database; the factory methods in <see cref="CaseStore"/> build it.</summary>
+    /// <summary>Set, without waiting for the gate, when the vault is locked and the case is about to close.</summary>
+    private volatile bool _closing;
+
+    /// <summary>Wraps an opened database; the store's create and open build it.</summary>
     /// <param name="services">The services.</param>
     /// <param name="paths">The case's files.</param>
     /// <param name="header">The header.</param>
-    /// <param name="fileKey">The file key; the case owns and clears it.</param>
+    /// <param name="keys">The file key and the anchor key; the case owns and clears them.</param>
     /// <param name="lockFile">The held lock file; the case owns and closes it.</param>
     /// <param name="database">The open database with an up-to-date schema.</param>
     /// <param name="info">The case information.</param>
@@ -63,7 +81,7 @@ internal sealed class Case : ICase
         CaseServices services,
         CasePaths paths,
         CaseHeader header,
-        byte[] fileKey,
+        (byte[] File, byte[] Anchor) keys,
         FileStream lockFile,
         CaseDatabase database,
         CaseInfo info,
@@ -72,12 +90,23 @@ internal sealed class Case : ICase
         _services = services;
         _paths = paths;
         _header = header;
-        _fileKey = fileKey;
+        (_fileKey, _anchorKey) = keys;
         _lock = lockFile;
         _database = database;
         _onClosed = onClosed;
         Info = info;
-        foreach (var chain in services.Catalog.Chains)
+
+        using var scope = database.As(GuardMode.Internal);
+        var (registered, invalid) = HashChain.ReadRegistry(database, null);
+        _registered = registered.ToDictionary(chain => chain.Name, StringComparer.Ordinal);
+        _invalidRegistrations = invalid;
+        _chains =
+        [
+            .. services.Catalog.Chains,
+            .. registered.Where(chain => !services.Catalog.Chains.Any(known => known.Name == chain.Name)),
+        ];
+        database.AddSealed(registered.Select(chain => chain.Table));
+        foreach (var chain in _chains)
         {
             // A table changed outside Chainsaw leaves its chain without a shape: nothing more is sealed in it, and
             // the verification reports it.
@@ -101,7 +130,7 @@ internal sealed class Case : ICase
         {
             lock (_gate)
             {
-                return _database is null;
+                return _closing || _database is null;
             }
         }
     }
@@ -113,12 +142,12 @@ internal sealed class Case : ICase
         {
             lock (_gate)
             {
-                return KeyEnvelopes.OfKind(_header, KeyEnvelopes.PasswordKind).Any();
+                return HasSharingPasswordUnlocked();
             }
         }
     }
 
-    /// <summary>Gets the open database, for <see cref="CaseTransaction"/> and the verifier.</summary>
+    /// <summary>Gets the open database, for <see cref="CaseTransaction"/> and the tests.</summary>
     internal CaseDatabase Database => _database ?? throw new CaseException(CaseError.Closed);
 
     /// <inheritdoc />
@@ -128,16 +157,17 @@ internal sealed class Case : ICase
         lock (_gate)
         {
             var database = EnterWork();
+            using var scope = database.As(GuardMode.Internal);
             using var transaction = database.Begin(deferred: true);
             var reader = new CaseTransaction(this, transaction, writable: false);
             try
             {
-                database.Mode = GuardMode.Reading;
+                using var workScope = database.As(GuardMode.Reading);
                 return work(reader);
             }
             finally
             {
-                ExitWork(reader, database);
+                ExitWork(reader);
             }
         }
     }
@@ -149,19 +179,24 @@ internal sealed class Case : ICase
         lock (_gate)
         {
             var database = EnterWork();
+            using var scope = database.As(GuardMode.Internal);
             using var transaction = database.Begin();
-            var scope = new CaseTransaction(this, transaction, writable: true);
+            var writer = new CaseTransaction(this, transaction, writable: true);
             try
             {
-                database.Mode = GuardMode.Writing;
-                var result = work(scope);
-                ExitWork(scope, database);
+                T result;
+                using (database.As(GuardMode.Writing))
+                {
+                    result = work(writer);
+                }
+
+                ExitWork(writer);
                 transaction.Commit();
                 return result;
             }
             finally
             {
-                ExitWork(scope, database);
+                ExitWork(writer);
             }
         }
     }
@@ -172,18 +207,8 @@ internal sealed class Case : ICase
         JournalRecords.Validate(draft);
         lock (_gate)
         {
-            var database = EnterWork();
-            try
-            {
-                using var transaction = database.Begin();
-                var entry = AppendJournalIn(transaction, draft);
-                transaction.Commit();
-                return entry;
-            }
-            finally
-            {
-                _inWork = false;
-            }
+            EnsureIdle();
+            return AppendOwnJournal(draft);
         }
     }
 
@@ -193,15 +218,9 @@ internal sealed class Case : ICase
         ArgumentOutOfRangeException.ThrowIfNegative(maximumCount);
         lock (_gate)
         {
-            var database = EnterWork();
-            try
-            {
-                return JournalRecords.Read(database, null, fromSequence, maximumCount);
-            }
-            finally
-            {
-                _inWork = false;
-            }
+            EnsureIdle();
+            using var scope = Database.As(GuardMode.Internal);
+            return JournalRecords.Read(Database, null, fromSequence, maximumCount);
         }
     }
 
@@ -218,12 +237,10 @@ internal sealed class Case : ICase
             EnsureIdle();
             var envelope = KeyEnvelopes.CreatePassword(
                 Info.Id, _fileKey, password, _services.Options.SharingIterations);
-            var replaced = HasSharingPasswordUnlocked();
             AppendOwnJournal(new JournalDraft(
                 CaseJournalKinds.SharingPasswordSet,
-                replaced ? "Delningslösenordet byttes" : "Ett delningslösenord lades till"));
-            _header = _header.WithEnvelopes(
-                _header.Envelopes.Where(item => !KeyEnvelopes.IsKind(item, KeyEnvelopes.PasswordKind)).Append(envelope));
+                HasSharingPasswordUnlocked() ? "Delningslösenordet byttes" : "Ett delningslösenord lades till"));
+            _header = _header.WithEnvelopes(WithoutSharingEnvelope().Append(envelope));
             SaveUnlocked();
         }
     }
@@ -244,9 +261,9 @@ internal sealed class Case : ICase
                 throw new CaseException(CaseError.WouldLoseAccess);
             }
 
-            AppendOwnJournal(new JournalDraft(CaseJournalKinds.SharingPasswordRemoved, "Delningslösenordet togs bort"));
-            _header = _header.WithEnvelopes(
-                _header.Envelopes.Where(item => !KeyEnvelopes.IsKind(item, KeyEnvelopes.PasswordKind)));
+            AppendOwnJournal(new JournalDraft(
+                CaseJournalKinds.SharingPasswordRemoved, "Delningslösenordet togs bort"));
+            _header = _header.WithEnvelopes(WithoutSharingEnvelope());
             SaveUnlocked();
         }
     }
@@ -265,7 +282,7 @@ internal sealed class Case : ICase
             var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
             try
             {
-                DeriveEnvelopeKey(_services.PurposeKeys, wrappingKey);
+                DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
                 var envelope = KeyEnvelopes.CreateOperator(Info.Id, _fileKey, wrappingKey);
                 AppendOwnJournal(new JournalDraft(
                     CaseJournalKinds.OperatorAccessAdded, "Operatörens valv fick ett eget kuvert"));
@@ -300,40 +317,25 @@ internal sealed class Case : ICase
                 return;
             }
 
-            EnsureIdle();
+            if (_inWork)
+            {
+                throw new InvalidOperationException("The case cannot be closed from inside a read or a write.");
+            }
+
             try
             {
                 SaveUnlocked();
                 ReleaseDatabase();
                 File.Delete(_paths.WorkingCopy);
                 File.Delete(_paths.WorkingJournal);
+                File.Delete(_paths.WorkingBase);
             }
             finally
             {
                 // On a failed save the working copy stays, so that the next opening recovers it.
-                ReleaseDatabase();
-                CryptographicOperations.ZeroMemory(_fileKey);
-                _lock.Dispose();
+                ReleaseResources();
             }
         }
-
-        _onClosed(this);
-    }
-
-    /// <summary>
-    /// Drops the case without saving, as if the process had died: the working copy stays for recovery. Only tests
-    /// use it, to check the recovery.
-    /// </summary>
-    internal void Abandon()
-    {
-        lock (_gate)
-        {
-            ReleaseDatabase();
-            CryptographicOperations.ZeroMemory(_fileKey);
-            _lock.Dispose();
-        }
-
-        _onClosed(this);
     }
 
     /// <summary>Closes the case; a failed save keeps the working copy for recovery instead of throwing.</summary>
@@ -349,7 +351,26 @@ internal sealed class Case : ICase
         }
     }
 
-    /// <summary>Adds a journal entry in a transaction that is already open, as the Cases module.</summary>
+    /// <summary>
+    /// Refuses every new operation at once, without waiting for one that runs, so that the case can be closed in the
+    /// background when the vault is locked.
+    /// </summary>
+    internal void BeginClosing() => _closing = true;
+
+    /// <summary>
+    /// Drops the case without saving, as if the process had died: the working copy stays for recovery. Only tests
+    /// use it, to check the recovery.
+    /// </summary>
+    internal void Abandon()
+    {
+        lock (_gate)
+        {
+            ReleaseDatabase();
+            ReleaseResources();
+        }
+    }
+
+    /// <summary>Adds a journal entry in a transaction that is already open.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="draft">What happened.</param>
     /// <returns>The sealed entry.</returns>
@@ -362,7 +383,7 @@ internal sealed class Case : ICase
         return JournalRecords.ToEntry(record, values);
     }
 
-    /// <summary>Adds a record to a sealed chain in a transaction that is already open.</summary>
+    /// <summary>Adds a record to a sealed chain of this build in a transaction that is already open.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="chain">The chain's name.</param>
     /// <param name="values">The values.</param>
@@ -374,75 +395,90 @@ internal sealed class Case : ICase
     }
 
     /// <summary>
-    /// Checks the whole database page by page and then every sealed chain, in one read transaction. A page that
-    /// does not authenticate makes the database unsound; the chains are then not walked, since SQLite cannot read
+    /// Checks the whole database page by page, the case information, every chain and this computer's anchors, in
+    /// one read transaction. When a page does not authenticate the chains are not walked, since SQLite cannot read
     /// them reliably.
     /// </summary>
-    /// <returns>Whether the database is sound, and one result per chain, ordered by name.</returns>
-    internal (bool DatabaseIntact, IReadOnlyList<ChainVerification> Chains) VerifyChains()
+    /// <returns>The problems with the case as a whole, and one result per chain, ordered by name.</returns>
+    internal (IReadOnlyList<CaseProblem> Problems, IReadOnlyList<ChainVerification> Chains) Verify()
     {
         lock (_gate)
         {
-            var database = EnterWork();
+            EnsureIdle();
+            var database = Database;
+            using var scope = database.As(GuardMode.Internal);
             try
             {
                 using var transaction = database.Begin(deferred: true);
                 if (!HashChain.QuickCheck(database, transaction))
                 {
-                    return (false, []);
+                    return ([CaseProblem.DatabaseUnsound], []);
                 }
 
-                return (true, [.. _services.Catalog.Chains.Select(chain => HashChain.Verify(database, transaction, chain))]);
+                return CaseChecks.Run(
+                    database, transaction, Info, _chains, _registered, _invalidRegistrations, ReadAnchors());
             }
             catch (SqliteException)
             {
-                return (false, []);
-            }
-            finally
-            {
-                _inWork = false;
+                return ([CaseProblem.DatabaseUnsound], []);
             }
         }
     }
 
     /// <summary>Records something the Cases module did, in a transaction of its own.</summary>
     /// <param name="draft">What happened.</param>
-    internal void AppendOwnJournal(JournalDraft draft)
+    /// <returns>The sealed entry.</returns>
+    internal JournalEntry AppendOwnJournal(JournalDraft draft)
     {
+        using var scope = Database.As(GuardMode.Internal);
         using var transaction = Database.Begin();
-        AppendJournalIn(transaction, draft);
+        var entry = AppendJournalIn(transaction, draft);
         transaction.Commit();
+        return entry;
     }
 
-    /// <summary>Writes the case file: the header and then the working copy, to a new file that replaces the old.</summary>
+    /// <summary>
+    /// Writes the case file (the header and then the working copy) to a new file that replaces the old, records the
+    /// new file's hash for recovery and moves this computer's anchors forward.
+    /// </summary>
     internal void SaveUnlocked()
     {
         _ = Database;
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using (var output = new FileStream(
-            _paths.SaveFile, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 81920))
+            _paths.SaveFile, FileMode.Create, FileAccess.Write, FileShare.None, CopyBufferSize))
         {
-            CaseContainer.WriteHeader(output, _header);
-            using (var input = new FileStream(
-                _paths.WorkingCopy, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 81920))
+            using (var header = new MemoryStream())
             {
-                input.CopyTo(output);
+                CaseContainer.WriteHeader(header, _header);
+                hash.AppendData(header.GetBuffer(), 0, (int)header.Length);
+                header.WriteTo(output);
+            }
+
+            using (var input = new FileStream(
+                _paths.WorkingCopy, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, CopyBufferSize))
+            {
+                CaseFiles.CopyHashing(input, output, hash);
             }
 
             output.Flush(flushToDisk: true);
         }
 
+        CaseFiles.WriteBase(_paths, hash.GetHashAndReset());
         File.Move(_paths.SaveFile, _paths.CaseFile, overwrite: true);
+        WriteAnchors();
     }
 
-    /// <summary>Derives this vault's envelope key, giving a locked vault the case's own error.</summary>
+    /// <summary>Derives a key from the vault, giving a locked vault the case's own error.</summary>
     /// <param name="purposeKeys">The vault's keys per purpose.</param>
+    /// <param name="purpose">The purpose.</param>
     /// <param name="destination">Receives the key.</param>
     /// <exception cref="CaseException"><see cref="CaseError.VaultLocked"/>.</exception>
-    internal static void DeriveEnvelopeKey(IPurposeKeys purposeKeys, Span<byte> destination)
+    internal static void DeriveVaultKey(IPurposeKeys purposeKeys, string purpose, Span<byte> destination)
     {
         try
         {
-            purposeKeys.DeriveKey(CaseCrypto.EnvelopePurpose, destination);
+            purposeKeys.DeriveKey(purpose, destination);
         }
         catch (VaultException exception) when (exception.Error == VaultError.Locked)
         {
@@ -450,7 +486,50 @@ internal sealed class Case : ICase
         }
     }
 
-    /// <summary>Seals a record as the Cases module and returns to the mode the work was in.</summary>
+    /// <summary>
+    /// Moves each chain's anchor to its head, but only where the chain still reaches its old anchor: a case that was
+    /// rolled back or rewritten keeps its old anchors, so that the verification goes on showing it. Unreadable
+    /// anchors are left as they are for the same reason.
+    /// </summary>
+    private void WriteAnchors()
+    {
+        var anchors = ReadAnchors();
+        if (anchors is null)
+        {
+            return;
+        }
+
+        var database = Database;
+        var updated = anchors.ToDictionary(anchor => anchor.Chain, StringComparer.Ordinal);
+        try
+        {
+            using var scope = database.As(GuardMode.Internal);
+            using var transaction = database.Begin(deferred: true);
+            foreach (var chain in _chains.Where(chain => _shapes.ContainsKey(chain.Name)))
+            {
+                var kept = updated.GetValueOrDefault(chain.Name);
+                var (sequence, hash) = HashChain.ReadHead(database, transaction, chain.Name);
+                if (hash is not null && (kept is null || CaseChecks.Reaches(database, transaction, chain, kept)))
+                {
+                    updated[chain.Name] = new ChainAnchor(chain.Name, sequence, hash);
+                }
+            }
+        }
+        catch (SqliteException)
+        {
+            // A database that cannot be read is saved as it is, and its anchors stay where they were.
+            return;
+        }
+
+        AnchorStore.Write(_services.Options.AnchorDirectory, Info.Id, _anchorKey, [.. updated.Values]);
+    }
+
+    /// <summary>Reads this computer's anchors of the case.</summary>
+    /// <returns>The anchors, or <see langword="null"/> when they are unreadable.</returns>
+    private IReadOnlyList<ChainAnchor>? ReadAnchors() =>
+        AnchorStore.Read(_services.Options.AnchorDirectory, Info.Id, _anchorKey);
+
+    /// <summary>Seals a record as the Cases module.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="chain">The chain.</param>
     /// <param name="values">The values.</param>
@@ -458,22 +537,16 @@ internal sealed class Case : ICase
     private SealedRecord SealAsCases(SqliteTransaction transaction, SealedChain chain, IReadOnlyList<object?> values)
     {
         var database = Database;
-        var mode = database.Mode;
-        database.Mode = GuardMode.Internal;
-        try
-        {
-            var shape = _shapes.GetValueOrDefault(chain.Name) ?? throw new CaseException(CaseError.Corrupt);
-            return HashChain.Append(database, transaction, chain, shape, values);
-        }
-        finally
-        {
-            database.Mode = mode;
-        }
+        using var scope = database.As(GuardMode.Internal);
+        var shape = _shapes.GetValueOrDefault(chain.Name) ?? throw new CaseException(CaseError.Corrupt);
+        return HashChain.Append(database, transaction, chain, shape, values);
     }
 
     /// <summary>Gets the operator from the vault for the journal.</summary>
     /// <returns>The profile.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.VaultLocked"/> or <see cref="CaseError.NoOperatorProfile"/>.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.VaultLocked"/> or <see cref="CaseError.NoOperatorProfile"/>.
+    /// </exception>
     private OperatorProfile CurrentOperator()
     {
         try
@@ -494,7 +567,7 @@ internal sealed class Case : ICase
         var opened = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
         try
         {
-            DeriveEnvelopeKey(_services.PurposeKeys, wrappingKey);
+            DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
             return KeyEnvelopes.TryOpenOperator(_header, wrappingKey, opened)
                 && CryptographicOperations.FixedTimeEquals(opened, _fileKey);
         }
@@ -504,6 +577,11 @@ internal sealed class Case : ICase
             CryptographicOperations.ZeroMemory(opened);
         }
     }
+
+    /// <summary>Gives the envelopes without the sharing envelope.</summary>
+    /// <returns>The envelopes.</returns>
+    private IEnumerable<System.Text.Json.Nodes.JsonObject> WithoutSharingEnvelope() =>
+        _header.Envelopes.Where(item => !KeyEnvelopes.IsKind(item, KeyEnvelopes.PasswordKind));
 
     /// <summary>Checks for a sharing envelope while the gate is held.</summary>
     /// <returns><see langword="true"/> when there is one.</returns>
@@ -518,25 +596,31 @@ internal sealed class Case : ICase
         return Database;
     }
 
-    /// <summary>Ends a module's work: the handle stops working and the guard returns to the Cases module.</summary>
+    /// <summary>Ends a module's work: the handle and its commands stop working.</summary>
     /// <param name="scope">The handle given to the work.</param>
-    /// <param name="database">The database.</param>
-    private void ExitWork(CaseTransaction scope, CaseDatabase database)
+    private void ExitWork(CaseTransaction scope)
     {
         scope.End();
-        database.Mode = GuardMode.Internal;
         _inWork = false;
     }
 
-    /// <summary>Refuses a closed case and calls made from inside a module's work.</summary>
+    /// <summary>Refuses a closed or closing case and calls made from inside a module's work.</summary>
     /// <exception cref="CaseException"><see cref="CaseError.Closed"/>.</exception>
-    /// <exception cref="InvalidOperationException">Called from inside <see cref="Read{T}"/> or <see cref="Write{T}"/>.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Called from inside <see cref="Read{T}"/> or <see cref="Write{T}"/>.
+    /// </exception>
     private void EnsureIdle()
     {
+        if (_closing)
+        {
+            throw new CaseException(CaseError.Closed);
+        }
+
         _ = Database;
         if (_inWork)
         {
-            throw new InvalidOperationException("The case cannot be used from inside a read or a write; use the handle.");
+            throw new InvalidOperationException(
+                "The case cannot be used from inside a read or a write; use the handle.");
         }
     }
 
@@ -547,11 +631,30 @@ internal sealed class Case : ICase
         _database = null;
     }
 
-    /// <summary>Writes the schema versions as JSON details for the journal.</summary>
+    /// <summary>Clears the keys, releases the lock and tells the store, whatever else failed.</summary>
+    private void ReleaseResources()
+    {
+        try
+        {
+            ReleaseDatabase();
+            CryptographicOperations.ZeroMemory(_fileKey);
+            CryptographicOperations.ZeroMemory(_anchorKey);
+            _lock.Dispose();
+        }
+        finally
+        {
+            _onClosed(this);
+        }
+    }
+
+    /// <summary>Gives the schema versions as a JSON object for the journal.</summary>
     /// <param name="database">The database.</param>
-    /// <returns>The JSON.</returns>
-    internal static string SchemaDetails(CaseDatabase database) =>
-        JsonSerializer.Serialize(SchemaMigrator.ReadVersions(database)
+    /// <returns>The JSON element.</returns>
+    internal static JsonElement SchemaDetails(CaseDatabase database)
+    {
+        using var scope = database.As(GuardMode.Internal);
+        return JsonSerializer.SerializeToElement(SchemaMigrator.ReadVersions(database)
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-            .ToDictionary(pair => pair.Key, pair => pair.Value.ToString(CultureInfo.InvariantCulture)));
+            .ToDictionary(pair => pair.Key, pair => pair.Value));
+    }
 }

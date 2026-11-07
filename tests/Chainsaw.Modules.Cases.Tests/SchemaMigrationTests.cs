@@ -94,7 +94,8 @@ public sealed class SchemaMigrationTests : IDisposable
     [Fact]
     public void Contributors_with_bad_names_or_versions_are_refused()
     {
-        Assert.Throws<ArgumentException>(() => _fixture.CreateStore(new TestSchema(new CaseSchemaStep(1, "Igen", "SELECT 1"))));
+        var repeated = new TestSchema(new CaseSchemaStep(1, "Igen", "SELECT 1"));
+        Assert.Throws<ArgumentException>(() => _fixture.CreateStore(repeated));
         Assert.Throws<ArgumentException>(() => _fixture.CreateStore(new TestSchema(), new TestSchema()));
         Assert.Throws<ArgumentException>(() => _fixture.CreateStore(new BadSchema("SELECT 1", "Fel Namn")));
     }

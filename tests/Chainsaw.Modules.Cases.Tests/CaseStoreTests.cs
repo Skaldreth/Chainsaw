@@ -88,6 +88,8 @@ public sealed class CaseStoreTests : IDisposable
         _fixture.Vault.Lock();
 
         Assert.True(opened.IsClosed);
+        Assert.Equal(CaseError.Closed, Assert.Throws<CaseException>(() => opened.Save()).Error);
+        store.WaitForClosing();
         Assert.Equal(CaseError.Closed, Assert.Throws<CaseException>(() => opened.ReadJournal()).Error);
         _fixture.Vault.Unlock([]);
         using var reopened = store.Open("A1");
@@ -284,7 +286,8 @@ public sealed class CaseStoreTests : IDisposable
         }
 
         using var reread = File.OpenRead(path);
-        Assert.Contains(CaseContainer.ReadHeader(reread).Envelopes, envelope => KeyEnvelopes.IsKind(envelope, "recovery"));
+        Assert.Contains(
+            CaseContainer.ReadHeader(reread).Envelopes, envelope => KeyEnvelopes.IsKind(envelope, "recovery"));
     }
 
     [Fact]

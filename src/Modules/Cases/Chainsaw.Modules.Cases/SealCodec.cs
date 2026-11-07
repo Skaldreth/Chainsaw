@@ -33,7 +33,8 @@ internal static class SealCodec
     private const byte BlobTag = 4;
 
     /// <summary>The UTF-8 encoding that refuses lone surrogates instead of replacing them.</summary>
-    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+    private static readonly UTF8Encoding StrictUtf8 =
+        new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     /// <summary>Gets the hash before the first record of every chain: 32 zero bytes.</summary>
     public static byte[] Genesis => new byte[HashSize];

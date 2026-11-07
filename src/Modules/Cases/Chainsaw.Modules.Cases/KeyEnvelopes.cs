@@ -28,11 +28,35 @@ internal static class KeyEnvelopes
     /// <summary>The kind of the sharing envelope.</summary>
     public const string PasswordKind = "password";
 
+    /// <summary>The field with an envelope's kind.</summary>
+    public const string KindField = "kind";
+
+    /// <summary>The field with the nonce.</summary>
+    private const string NonceField = "nonce";
+
+    /// <summary>The field with the wrapped file key.</summary>
+    private const string KeyField = "key";
+
+    /// <summary>The field with the tag.</summary>
+    private const string TagField = "tag";
+
+    /// <summary>The field with a sharing envelope's key derivation.</summary>
+    private const string KdfField = "kdf";
+
+    /// <summary>The field with a sharing envelope's iteration count.</summary>
+    private const string IterationsField = "iterations";
+
+    /// <summary>The field with a sharing envelope's salt.</summary>
+    private const string SaltField = "salt";
+
     /// <summary>The key derivation of a sharing envelope.</summary>
     private const string PasswordKdf = "pbkdf2-sha512";
 
-    /// <summary>The highest iteration count that is accepted, so that a damaged file cannot stall the application.</summary>
-    private const int MaximumIterations = 10_000_000;
+    /// <summary>
+    /// The highest iteration count that is accepted (a few seconds of PBKDF2), so that a crafted file cannot stall
+    /// the application.
+    /// </summary>
+    private const int MaximumIterations = 2_000_000;
 
     /// <summary>Wraps the file key for a vault.</summary>
     /// <param name="caseId">The case id.</param>
@@ -44,10 +68,10 @@ internal static class KeyEnvelopes
         var (nonce, ciphertext, tag) = CaseCrypto.Wrap(wrappingKey, fileKey, OperatorData(caseId));
         return new JsonObject
         {
-            ["kind"] = OperatorKind,
-            ["nonce"] = Convert.ToBase64String(nonce),
-            ["key"] = Convert.ToBase64String(ciphertext),
-            ["tag"] = Convert.ToBase64String(tag),
+            [KindField] = OperatorKind,
+            [NonceField] = Convert.ToBase64String(nonce),
+            [KeyField] = Convert.ToBase64String(ciphertext),
+            [TagField] = Convert.ToBase64String(tag),
         };
     }
 
@@ -69,13 +93,13 @@ internal static class KeyEnvelopes
                 wrappingKey, fileKey, PasswordData(caseId, iterations, salt));
             return new JsonObject
             {
-                ["kind"] = PasswordKind,
-                ["kdf"] = PasswordKdf,
-                ["iterations"] = iterations,
-                ["salt"] = Convert.ToBase64String(salt),
-                ["nonce"] = Convert.ToBase64String(nonce),
-                ["key"] = Convert.ToBase64String(ciphertext),
-                ["tag"] = Convert.ToBase64String(tag),
+                [KindField] = PasswordKind,
+                [KdfField] = PasswordKdf,
+                [IterationsField] = iterations,
+                [SaltField] = Convert.ToBase64String(salt),
+                [NonceField] = Convert.ToBase64String(nonce),
+                [KeyField] = Convert.ToBase64String(ciphertext),
+                [TagField] = Convert.ToBase64String(tag),
             };
         }
         finally
@@ -146,7 +170,7 @@ internal static class KeyEnvelopes
     /// <param name="kind">The kind.</param>
     /// <returns><see langword="true"/> when the envelope is of that kind.</returns>
     public static bool IsKind(JsonObject envelope, string kind) =>
-        string.Equals(envelope["kind"]?.GetValue<string>(), kind, StringComparison.Ordinal);
+        string.Equals(envelope[KindField]?.GetValue<string>(), kind, StringComparison.Ordinal);
 
     /// <summary>The associated data of a vault envelope.</summary>
     /// <param name="caseId">The case id.</param>
@@ -168,12 +192,14 @@ internal static class KeyEnvelopes
     /// <summary>Reads and checks the nonce, wrapped key and tag of an envelope.</summary>
     /// <param name="envelope">The envelope.</param>
     /// <returns>The three values.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when one is missing or has the wrong size.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/> when one is missing or has the wrong size.
+    /// </exception>
     private static (byte[] Nonce, byte[] Ciphertext, byte[] Tag) ReadSealed(JsonObject envelope)
     {
-        var nonce = ReadBytes(envelope, "nonce", CaseCrypto.NonceSize);
-        var ciphertext = ReadBytes(envelope, "key", CaseCrypto.KeySize);
-        var tag = ReadBytes(envelope, "tag", CaseCrypto.TagSize);
+        var nonce = ReadBytes(envelope, NonceField, CaseCrypto.NonceSize);
+        var ciphertext = ReadBytes(envelope, KeyField, CaseCrypto.KeySize);
+        var tag = ReadBytes(envelope, TagField, CaseCrypto.TagSize);
         return (nonce, ciphertext, tag);
     }
 
@@ -185,15 +211,15 @@ internal static class KeyEnvelopes
     {
         try
         {
-            var kdf = envelope["kdf"]?.GetValue<string>();
-            var iterations = envelope["iterations"]?.GetValue<int>() ?? 0;
+            var kdf = envelope[KdfField]?.GetValue<string>();
+            var iterations = envelope[IterationsField]?.GetValue<int>() ?? 0;
             if (!string.Equals(kdf, PasswordKdf, StringComparison.Ordinal)
                 || iterations is < 1 or > MaximumIterations)
             {
                 throw new CaseException(CaseError.Corrupt);
             }
 
-            return (iterations, ReadBytes(envelope, "salt", CaseCrypto.SaltSize));
+            return (iterations, ReadBytes(envelope, SaltField, CaseCrypto.SaltSize));
         }
         catch (Exception exception) when (exception is InvalidOperationException or FormatException)
         {
@@ -206,7 +232,9 @@ internal static class KeyEnvelopes
     /// <param name="name">The field.</param>
     /// <param name="size">The size it must have.</param>
     /// <returns>The bytes.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is missing or has another size.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/> when it is missing or has another size.
+    /// </exception>
     private static byte[] ReadBytes(JsonObject envelope, string name, int size)
     {
         try

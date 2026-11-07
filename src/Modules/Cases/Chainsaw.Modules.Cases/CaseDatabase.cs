@@ -45,12 +45,8 @@ internal sealed class CaseDatabase : IDisposable
             _guard.Authorize(action, first.utf8_to_string(), second.utf8_to_string());
     }
 
-    /// <summary>Gets or sets who runs SQL now.</summary>
-    public GuardMode Mode
-    {
-        get => _guard.Mode;
-        set => _guard.Mode = value;
-    }
+    /// <summary>Gets who runs SQL now.</summary>
+    public GuardMode Mode => _guard.Mode;
 
     /// <summary>Gets the connection, for the Cases module's own commands.</summary>
     public SqliteConnection Connection => _connection;
@@ -100,16 +96,29 @@ internal sealed class CaseDatabase : IDisposable
     public SqliteCommand Command(string sql, SqliteTransaction? transaction = null) =>
         new(sql, _connection, transaction);
 
-    /// <summary>Begins a transaction as the Cases module.</summary>
+    /// <summary>Begins a transaction; the caller is in a <see cref="As"/> scope that allows it.</summary>
     /// <param name="deferred">
     /// <see langword="true"/> for a read transaction that takes no write lock until it writes.
     /// </param>
     /// <returns>The transaction; disposing it without committing rolls it back.</returns>
-    public SqliteTransaction Begin(bool deferred = false)
+    public SqliteTransaction Begin(bool deferred = false) => _connection.BeginTransaction(deferred);
+
+    /// <summary>
+    /// Lets SQL run as someone until the scope is disposed, which gives the mode back. Outside every scope the guard
+    /// is <see cref="GuardMode.Idle"/> and refuses everything.
+    /// </summary>
+    /// <param name="mode">Who runs SQL in the scope.</param>
+    /// <returns>The scope.</returns>
+    public GuardScope As(GuardMode mode)
     {
-        Mode = GuardMode.Internal;
-        return _connection.BeginTransaction(deferred);
+        var previous = _guard.Mode;
+        _guard.Mode = mode;
+        return new GuardScope(_guard, previous);
     }
+
+    /// <summary>Adds sealed tables to the guard, for example those of modules this build does not know.</summary>
+    /// <param name="tables">The tables.</param>
+    public void AddSealed(IEnumerable<string> tables) => _guard.AddSealed(tables);
 
     /// <summary>Closes the connection; SQLite3 Multiple Ciphers clears its copy of the key.</summary>
     public void Dispose()

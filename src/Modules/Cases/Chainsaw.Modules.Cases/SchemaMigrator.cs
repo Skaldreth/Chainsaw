@@ -18,6 +18,12 @@ internal static class SchemaMigrator
         ) STRICT;
         """;
 
+    /// <summary>SQLite's result code for a damaged database.</summary>
+    private const int SqliteCorrupt = 11;
+
+    /// <summary>SQLite's result code for a file that is not a database (or did not authenticate).</summary>
+    private const int SqliteNotADatabase = 26;
+
     /// <summary>Runs the steps that have not run yet.</summary>
     /// <param name="database">The database.</param>
     /// <param name="catalog">The contributors.</param>
@@ -27,7 +33,7 @@ internal static class SchemaMigrator
     /// </exception>
     public static IReadOnlyList<string> Run(CaseDatabase database, SchemaCatalog catalog)
     {
-        database.Mode = GuardMode.Internal;
+        using var scope = database.As(GuardMode.Internal);
         using (var create = database.Command(VersionTable))
         {
             create.ExecuteNonQuery();
@@ -58,7 +64,7 @@ internal static class SchemaMigrator
     }
 
     /// <summary>Gives each module's schema version in the case.</summary>
-    /// <param name="database">The database.</param>
+    /// <param name="database">The database, in a scope that allows the Cases module.</param>
     /// <returns>The versions by module.</returns>
     public static IReadOnlyDictionary<string, long> ReadVersions(CaseDatabase database)
     {
@@ -73,6 +79,12 @@ internal static class SchemaMigrator
         return versions;
     }
 
+    /// <summary>Tells a damaged or unreadable database apart from a step that is wrong.</summary>
+    /// <param name="exception">The failure.</param>
+    /// <returns><see langword="true"/> when SQLite found the file damaged or could not read it.</returns>
+    private static bool IsDamage(SqliteException exception) =>
+        exception.SqliteErrorCode is SqliteCorrupt or SqliteNotADatabase;
+
     /// <summary>Runs one step in its own transaction.</summary>
     /// <param name="database">The database.</param>
     /// <param name="contributor">The step's module.</param>
@@ -83,25 +95,20 @@ internal static class SchemaMigrator
         var newTables = contributor.SealedChains
             .Where(chain => !HashChain.TableExists(database, transaction, chain.Table))
             .ToList();
+        var mode = contributor.Module == CasesSchema.ModuleName ? GuardMode.Internal : GuardMode.Migrating;
         try
         {
-            database.Mode = contributor.Module == CasesSchema.ModuleName ? GuardMode.Internal : GuardMode.Migrating;
-            using (var command = database.Command(step.Sql, transaction))
-            {
-                command.ExecuteNonQuery();
-            }
+            using var stepScope = database.As(mode);
+            using var command = database.Command(step.Sql, transaction);
+            command.ExecuteNonQuery();
         }
-        catch (SqliteException exception)
+        catch (SqliteException exception) when (!IsDamage(exception))
         {
             throw new InvalidOperationException(
                 string.Create(
                     CultureInfo.InvariantCulture,
                     $"The schema step {step.Version} of the module {contributor.Module} failed."),
                 exception);
-        }
-        finally
-        {
-            database.Mode = GuardMode.Internal;
         }
 
         foreach (var chain in newTables.Where(chain => HashChain.TableExists(database, transaction, chain.Table)))

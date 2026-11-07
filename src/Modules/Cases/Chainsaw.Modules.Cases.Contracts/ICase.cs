@@ -47,7 +47,9 @@ public interface ICase : IDisposable
     /// <summary>Adds one entry to the journal in a transaction of its own.</summary>
     /// <param name="draft">What happened.</param>
     /// <returns>The sealed entry.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
     JournalEntry AppendJournal(JournalDraft draft);
 
     /// <summary>Reads journal entries in order.</summary>
@@ -60,8 +62,12 @@ public interface ICase : IDisposable
     /// Adds a sharing envelope that opens the case with a password, replacing an earlier one, and saves the file.
     /// The password is derived with PBKDF2-SHA512 like the master key, so this takes a noticeable time.
     /// </summary>
-    /// <param name="password">The password, at least <see cref="SharingPasswordRules.MinimumLength"/> characters.</param>
-    /// <exception cref="CaseException"><see cref="CaseError.PasswordTooShort"/> or <see cref="CaseError.Closed"/>.</exception>
+    /// <param name="password">
+    /// The password, at least <see cref="SharingPasswordRules.MinimumLength"/> characters.
+    /// </param>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.PasswordTooShort"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
     void SetSharingPassword(ReadOnlySpan<char> password);
 
     /// <summary>Removes the sharing envelope, if there is one, and saves the file.</summary>

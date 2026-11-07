@@ -34,7 +34,8 @@ internal static class JournalRecords
             throw new ArgumentException("The kind must be lower-case ASCII letters, digits and . - _.", nameof(draft));
         }
 
-        if (string.IsNullOrWhiteSpace(draft.Summary) || draft.Summary.Length > MaximumSummaryLength)
+        if (string.IsNullOrWhiteSpace(draft.Summary) || draft.Summary.Length > MaximumSummaryLength
+            || draft.Summary.AsSpan().ContainsAny('\r', '\n'))
         {
             throw new ArgumentException("The summary must be one line of at most 1 000 characters.", nameof(draft));
         }
@@ -51,7 +52,8 @@ internal static class JournalRecords
     /// <param name="utc">When, in UTC.</param>
     /// <param name="timeZone">The local time zone.</param>
     /// <returns>The values.</returns>
-    public static object?[] Values(JournalDraft draft, OperatorProfile profile, DateTimeOffset utc, TimeZoneInfo timeZone)
+    public static object?[] Values(
+        JournalDraft draft, OperatorProfile profile, DateTimeOffset utc, TimeZoneInfo timeZone)
     {
         var instant = utc.ToUniversalTime();
         var local = TimeZoneInfo.ConvertTime(instant, timeZone);

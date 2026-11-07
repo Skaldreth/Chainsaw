@@ -5,7 +5,9 @@ namespace Chainsaw.Modules.Cases.Contracts;
 /// <summary>Reads from an open case inside <see cref="ICase.Read{T}"/> or <see cref="ICase.Write{T}"/>.</summary>
 /// <remarks>
 /// Commands run under a guard in SQLite that refuses changing sealed tables, the case's own tables and the schema,
-/// attaching other databases and changing settings, whatever SQL is given.
+/// attaching other databases, temporary objects, savepoints and changing settings or the key, whatever SQL is given.
+/// A command works only while the read or write that created it runs; it hands out neither the connection nor the
+/// transaction.
 /// </remarks>
 public interface ICaseReader
 {

@@ -3,7 +3,7 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Cases;
 
-/// <summary>Walks every sealed chain of an open case and reports where each one breaks.</summary>
+/// <summary>Checks an open case as a whole and walks every sealed chain, reporting where each one breaks.</summary>
 /// <param name="clock">The clock, for when the verification ran.</param>
 internal sealed class CaseVerifier(IClock clock) : ICaseVerifier
 {
@@ -16,7 +16,7 @@ internal sealed class CaseVerifier(IClock clock) : ICaseVerifier
             throw new ArgumentException("The case must come from this module's case store.", nameof(@case));
         }
 
-        var (databaseIntact, chains) = opened.VerifyChains();
-        return new CaseVerification(clock.UtcNow.ToUniversalTime(), databaseIntact, chains);
+        var (problems, chains) = opened.Verify();
+        return new CaseVerification(clock.UtcNow.ToUniversalTime(), problems, chains);
     }
 }

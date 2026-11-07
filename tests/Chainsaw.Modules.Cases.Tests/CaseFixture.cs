@@ -21,6 +21,8 @@ internal sealed class CaseFixture : IDisposable
 
     public string Directory { get; }
 
+    public string AnchorDirectory => Path.Combine(Directory, "anchors");
+
     public FakeVault Vault { get; } = new();
 
     public FakePurposeKeys PurposeKeys { get; }
@@ -34,7 +36,13 @@ internal sealed class CaseFixture : IDisposable
 
     public CaseStore CreateStore(params ICaseSchemaContributor[] contributors)
     {
-        var options = new CasesOptions { Directory = Directory, SharingIterations = 1_000, TimeZone = TimeZone };
+        var options = new CasesOptions
+        {
+            Directory = Directory,
+            AnchorDirectory = AnchorDirectory,
+            SharingIterations = 1_000,
+            TimeZone = TimeZone,
+        };
         var store = new CaseStore(
             Vault, PurposeKeys, Profiles, Clock, options, [new CasesSchema(), .. contributors]);
         _stores.Add(store);
