@@ -133,7 +133,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   - **Decimaler** (granskningen av etapp 23, M): en token som säger fler decimaler än Chainsaw räknar i frågas om vid
     varje uppslag (den kunde sparas som *räknas inte*), ett kontrakt kan i princip byta decimaler, och en post utan
     decimaler i en tokenhistorik (en token källan inte läst, eller en NFT om Blockscout listar dem där) håller sidan
-    öppen så att den frågas om. Pröva mot en riktig Blockscout.
+    öppen så att den frågas om, vid varje uppslag så länge posten står kvar (en token utan `decimals()` kan skickas
+    till vilken adress som helst). Pröva mot en riktig Blockscout, och ge upp efter några försök eller när tokenens
+    eget uppslag säger att den saknar decimaler.
+  - **Det som inte räknades på en sida** (`Skipped`, `Unread`) ska sägas i grafen när den läser sidorna (etapp 23b), som
+    tx:ens anteckningar redan gör.
   - **`BitcoinLookup<T>`** används av båda kedjorna och borde heta `ChainLookup<T>`; byts när ingen annan etapp rör
     Chains.
 - **Tornado Cash** (användarens fråga 2026-11-07) kommer med Ethereum: kontrakten känns igen som mixer och blir *Spåret

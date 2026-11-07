@@ -242,7 +242,7 @@ internal static class BlockscoutParser
                 var from = Address(String(item, "from"));
                 var to = OptionalReceiver(item);
                 if (to is null && history == EthereumHistory.Transactions && from == address
-                    && (IsError(item) || Whole(item, "value").IsZero))
+                    && (!Succeeded(item) || Whole(item, "value").IsZero))
                 {
                     // A failed creation can lack a receiver; it moved nothing, but its fee was paid.
                     AddFee(item, hash, from, block, fees);
@@ -308,7 +308,7 @@ internal static class BlockscoutParser
         switch (history)
         {
             case EthereumHistory.Transactions:
-                var succeeded = !IsError(item) && OptionalString(item, "txreceipt_status") != "0";
+                var succeeded = Succeeded(item);
                 var value = Whole(item, "value");
                 if (succeeded && !value.IsZero)
                 {
@@ -544,10 +544,15 @@ internal static class BlockscoutParser
             return;
         }
 
-        var succeeded = !IsError(item) && OptionalString(item, "txreceipt_status") != "0";
         var fee = Whole(item, "gasUsed") * Whole(item, "gasPrice");
-        fees.Add(new EthereumFee(hash, payer, new AssetAmount(Asset.Ether, fee), succeeded, block));
+        fees.Add(new EthereumFee(hash, payer, new AssetAmount(Asset.Ether, fee), Succeeded(item), block));
     }
+
+    /// <summary>Says whether an entry of an address's transactions succeeded: no error and no failed receipt.</summary>
+    /// <param name="item">The entry.</param>
+    /// <returns><see langword="true"/> when it did.</returns>
+    private static bool Succeeded(JsonElement item) =>
+        !IsError(item) && OptionalString(item, "txreceipt_status") != "0";
 
     /// <summary>Says whether a token entry has decimals; without them the source has not read the token.</summary>
     /// <param name="item">The entry.</param>

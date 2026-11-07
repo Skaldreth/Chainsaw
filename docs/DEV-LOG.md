@@ -1744,3 +1744,92 @@ vymodell). Bygget är utan varningar.
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Kontroller, förslag och områden*); resten av katalogen
 under *Förvirringstekniker* och punkterna under *Kontroller, förslag och områden* i TODO.
+
+## Etapp 23 (2026-11-07): Ethereum och ERC-20, första delen (TK1a)
+
+**Byggt:**
+- **Kontraktet för Ethereum** (Chains.Contracts): `IEthereumSource` med en adress historik (tx, interna tx och
+  ERC-20-överföringar, var för sig och sida för sida bakåt från ett block), en tx med alla sina rörelser (ether, interna
+  och tokens med kontrakt och decimaler), blocket på en höjd (hash och tid) och kedjans höjd.
+  - `EthereumAddress` kan bara skapas genom kontroll: `0x` och 40 hex, och en adress i blandade versaler måste ha rätt
+    EIP-55-kontrollsumma. `Keccak256` är Ethereums egen (inte SHA-3) och testas mot en oberoende Python-implementation
+    (`Ethereum/keccak.py`) och EIP-55:s egna exempel.
+  - `EthereumTransfer` (sort, från, till, `AssetAmount`, position, block), `EthereumTransaction` (avgift, lyckad,
+    `IsComplete`), `EthereumAddressPage` (avgifter, nästa sida, `IsCutShort`, `IsIncomplete`), `EthereumBlockReference`.
+- **Blockscout som sort av API** (`BlockscoutApi`, `blockscout`): Etherscan-kompatibla `?module=…` för historik, tx
+  (`gettxinfo` med loggarna), interna tx och tokens, och `v2/blocks/:höjd` för blockets hash. Öppet utan nyckel, går
+  att köra själv. Förval `https://eth.blockscout.com/api/` i läget Snabbast; sidan Källor visar Ethereum otonat.
+- **Uppslagen** går genom `SourceLookups`, motorn som bröts ut ur `EsploraBitcoinSource` så att båda kedjorna följer
+  samma regler: endpoints i lägets ordning, bara `IExitHttp`, varje råsvar förseglat med endpoint, utgång och tid innan
+  det används (också felsvar), *finns inte* bara från en endpoint som kan tros, och ärendets svar offline.
+  Ethereums svar ligger i samma förseglade tabell med kedjan `ethereum-mainnet`; inget schema ändrades.
+- **Det som aldrig hämtas igen:** en tx, dess interna tx och blocket när blocket är 64 djupt (slutgiltigt); en äldre
+  sida av en historik när dess block är det; en tokens decimaler. Första sidan och höjden hämtas alltid om.
+- **Tolkningen kontrollerar** status 0/1/2 (tom lista eller fel som en hastighetsgräns), att svaret gäller det som
+  frågades, att varje post rör adressen, att inget ligger över sidans block, `Transfer`-händelsen (tre ämnen och ett
+  ord data; ERC-721 räknas inte) och decimalerna.
+- **Tillgångar:** ETH och ERC-20 som `Asset` med kontrakt och decimaler. `KnownTokens` känner USDT och USDC på
+  kontraktet (aldrig symbolen), med utgivaren (Tether, Circle) för *Kan frysas* och märket (₮, $, Ξ). USDT:s och USDC:s
+  decimaler frågas aldrig efter.
+- **Spårningen i kontomodellen** (Tracing): FIFO v1 och haircut v1 för alla kontokedjor (`AccountFifoMethod`,
+  `AccountHaircutMethod`), och `AccountChecks` som kontrollerar en `AccountLedger` (samma tillgång, spårat högst det som
+  kom in, avgifter bara i kedjans mynt) och vägrar en metod som skapar eller tappar pengar.
+- **Kurser:** Bitstamp ger ETH i dollar och euro (`ethusd`, `etheur`), och `Price.ValueOf(AssetAmount)` värderar wei.
+- **Appen:** `TokenMarks` (märket först i beloppet, raden för saldo per token med utgivare och snöflingan), startpunkter
+  som kontrollerar EIP-55, och ett ärligt svar att grafen för Ethereum inte är byggd än.
+- **Guiden:** gruppen *Ethereum* med *Kontomodellen*, *ERC-20 och tokens*, *Interna tx* och *Kan frysas*.
+
+**Egna beslut:**
+- **Blockscout i stället för Etherscan:** Etherscan tar API-nyckeln bara i adressen, som förseglas i ärendet; det bryter
+  regeln att nycklar aldrig ligger i ärendet. Blockscout fungerar utan nyckel och går att köra själv. Etherscan står i
+  TODO.
+- **Sidor efter block** (`endblock`, nyaste först) i stället för sidnummer, så att en läst sida inte flyttas när nya tx
+  kommer, och en äldre sida kan bli slutlig.
+- **Avgiften** är tx:ens använda gas gånger källans gaspris, så som kedjan tar betalt; det är kedjans uppgifter och inget
+  Chainsaw bedömer.
+- **En token utan decimaler räknas inte:** tx:en och sidan säger att de är ofullständiga, i stället för att gissa.
+- **FIFO för konton** lägger den spårade delen av en överföring in före den ospårade, och saldot före det lästa räknas
+  som ospårat. **Haircut** avrundar nedåt; det som avrundningen lämnar ligger kvar på kontot.
+- **Grafen, inspektören och startpunkterna för Ethereum** väntar till nästa del (23b): de kräver att grafens noder och
+  spårningens resultat blir oberoende av Bitcoin, och etapp 22 bygger i grafen samtidigt.
+- **Kurser för USDT och USDC** väntar: `PriceRequest` frågar per kedja. Till dess ingen kurs.
+- **Det kedjan inte avgör räknas inte:** en överföring på noll (adressförgiftning), en NFT, en token som säger fler
+  decimaler än Chainsaw räknar i, ett `delegatecall` eller `staticcall` och en logg med Transfer-ämnet i fel form. Inget
+  av det gör ett helt svar oläsligt eller får endpointen att se trasig ut; tx:en eller sidan säger vad som inte räknades.
+
+**Granskningen:** fyra omgångar.
+- **Omgång 1:** inga C, fem I och elva M.
+  - **I:** en skräptoken med 255 decimaler gjorde hela tokenhistoriken oläslig; överföringar på noll (adressförgiftning)
+    räknades; en okänd tx (200 med status 0) blev *trasig källa* i stället för *finns inte*; en obekräftad tx visades
+    som misslyckad; `delegatecall` räknades som ether som flyttades.
+  - **M rättade:** sidstorleken i ämnet, en full sida av obekräftade poster, ether till ett nytt kontrakt, negativt
+    saldo i raden, Guidens texter (dricksen, validatorernas uttag, kontrollen som inte används än), `Price.ValueOf`:s
+    gräns, provet vid start i TESTER-INFOR, radbrytningar. **I TODO:** återställda underanrop, blob-gas, startpunktens
+    text för fel kontrollsumma och `0X`.
+- **Omgång 2:** inga C, två I och åtta M.
+  - **I:** en logg som en penningtvättare skrivit (ämne som inte är en adress) gjorde tx:en oläslig; en misslyckad
+    skapelse utan mottagare gjorde en sida med interna tx oläslig.
+  - **M rättade:** decimaler som källan saknade sparades för gott, en obekräftad post fick en avgift, en tx utan
+    `success` lästes som misslyckad, *finns inte* kräver status 0, gamla tokens Transfer-form sägs, frystexten säger
+    *enligt historiken i ärendet*, långa rader i Guiden. **I TODO:** en endpoint som ligger efter.
+- **Omgång 3:** inga C, två I och tre M.
+  - **I:** loggar som källan delar i sidor (`next_page_params`) tappades; en post utan decimaler på en äldre sida
+    sparades som slutlig.
+  - **M:** en misslyckad skapelse utan mottagare i tx-historiken (rättad); decimalernas kantfall (TODO).
+- **Omgång 4:** inga C eller I. Tre M: en regel för *lyckad* (rättad), och att en sida med en post utan decimaler frågas
+  om och att det som inte räknades ska sägas i grafen (TODO).
+
+Bitcoins facit (`GoldenTests`) är oförändrat i varje omgång.
+
+**Tester:** 1 945 gröna i hela lösningen efter rebasen på etapp 22, varav nya:
+- 64 i Chains (Keccak mot en oberoende Python-implementation, EIP-55, kända tokens, tolkningen, källan mot inspelade
+  syntetiska Blockscout-svar: tx med alla rörelser, försegling, slutliga block, offline, *finns inte*, obekräftad,
+  skräp som aldrig förstör ett svar, sidor);
+- 9 i Tracing (FIFO och haircut för konton, slumpade huvudböcker, vägrade metoder);
+- 3 i Pricing (ETH och wei);
+- 5 i appen (tokenmärkena och saldoraden).
+
+Bygget är utan varningar.
+
+**Återstår:** etapp 23b (HANDOFF): grafen och inspektören för Ethereum, startpunkter, swap-pillret, kurser för USDT
+och USDC, och sedan kontoheuristikerna och TRON. Det som står i TODO under *Ethereum-källan, det som återstår*.
