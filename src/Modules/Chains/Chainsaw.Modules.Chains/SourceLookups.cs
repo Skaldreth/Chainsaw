@@ -183,7 +183,7 @@ internal sealed class SourceLookups
                 continue;
             }
 
-            var (value, interpretProblem) = Interpret(query, response);
+            var (value, interpretProblem, saysNotFound) = Interpret(query, response);
             var sealedResponse = await Task.Run(
                 () => @case.Write(transaction => _store.Append(
                     transaction, query.Kind, query.Subject, response, endpoint, fetchedBy,
@@ -199,7 +199,7 @@ internal sealed class SourceLookups
                 };
             }
 
-            if (response.StatusCode == NotFoundStatus)
+            if (saysNotFound)
             {
                 // The source says it does not know it. From an endpoint whose probe did not fail that is an answer,
                 // and no other endpoint is asked; from one that failed its probe or lags behind (a wrong path, a node
@@ -235,30 +235,42 @@ internal sealed class SourceLookups
     /// <typeparam name="T">What is looked up.</typeparam>
     /// <param name="query">The lookup.</param>
     /// <param name="response">The response.</param>
-    /// <returns>The value, or <see langword="null"/> and the problem in Swedish.</returns>
-    private static (T? Value, string? Problem) Interpret<T>(LookupQuery<T> query, ExitResponse response)
+    /// <returns>
+    /// The value, or <see langword="null"/> and the problem in Swedish, and whether the source said it does not know
+    /// what was asked: HTTP 404, or a body that says so (<see cref="SourceNotFoundException"/>, as the
+    /// Etherscan-style APIs answer 200 with <c>status 0</c>).
+    /// </returns>
+    private static (T? Value, string? Problem, bool NotFound) Interpret<T>(
+        LookupQuery<T> query, ExitResponse response)
         where T : class
     {
+        const string NotFoundText = "Källan känner inte till det som söktes.";
         if (response.StatusCode == NotFoundStatus)
         {
-            return (null, "Källan känner inte till det som söktes.");
+            return (null, NotFoundText, true);
         }
 
         if (!response.IsSuccess)
         {
-            return (null, $"Källan svarade med status {response.StatusCode.ToString(CultureInfo.InvariantCulture)}.");
+            return (null, $"Källan svarade med status {response.StatusCode.ToString(CultureInfo.InvariantCulture)}.",
+                false);
         }
 
         try
         {
-            return (query.Parse(response.Body.ToArray()), null);
+            return (query.Parse(response.Body.ToArray()), null, false);
+        }
+        catch (SourceNotFoundException)
+        {
+            return (null, NotFoundText, true);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             // Whatever the source sent, the response is sealed afterwards; a body that cannot be read is never
             // allowed to stop that (principle 1) or to escape as an exception (the chains' contracts).
             return (null,
-                "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.");
+                "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.",
+                false);
         }
     }
 
@@ -410,5 +422,18 @@ internal sealed class SourceLookups
             problem = "Valvet är låst. Inget skickades.";
             return null;
         }
+    }
+}
+
+/// <summary>
+/// Thrown by a parser when the source's body says that it does not know what was asked (an unknown transaction or
+/// token), which the lookups treat as a 404: an answer, not a broken source.
+/// </summary>
+internal sealed class SourceNotFoundException : FormatException
+{
+    /// <summary>Creates the exception.</summary>
+    public SourceNotFoundException()
+        : base("The source does not know what was asked.")
+    {
     }
 }

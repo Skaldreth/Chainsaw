@@ -37,8 +37,11 @@ public enum EthereumTransferKind
 }
 
 /// <summary>
-/// One movement of value on Ethereum: ether or a token, from one address to another, in a transaction. A fact from the
-/// chain (principle 2): the addresses, the amount and the contract are what the chain recorded.
+/// One movement of value on Ethereum: ether or a token, from one address to another, in a transaction, as the chain
+/// recorded it (principle 2). For ether that is the chain's own ledger. For a token it is the <c>Transfer</c> event the
+/// token's contract wrote: the contract's own claim about its ledger, which for a contract Chainsaw does not know (see
+/// <see cref="KnownTokens"/>) need not be honest. Transfers of zero are never given, since anyone can make a token
+/// contract write one from any address (address poisoning).
 /// </summary>
 /// <param name="Transaction">The transaction it happened in.</param>
 /// <param name="Kind">Whether it is ether sent by the transaction, ether sent by a contract, or a token.</param>
@@ -49,7 +52,8 @@ public enum EthereumTransferKind
 /// </param>
 /// <param name="Position">
 /// Where in the transaction it happened, so that two movements in one transaction stay apart: 0 for ether sent by the
-/// transaction, the trace's index for an internal one and the log's index for a token.
+/// transaction, the trace's index for an internal one and the log's index for a token. When the source gives neither
+/// index, the entry's order among the transaction's entries in the answer.
 /// </param>
 /// <param name="Block">The block, or <see langword="null"/> while the transaction is unconfirmed.</param>
 public sealed record EthereumTransfer(
@@ -61,20 +65,36 @@ public sealed record EthereumTransfer(
     long Position,
     EthereumBlockReference? Block);
 
+/// <summary>How a transaction ended.</summary>
+public enum EthereumOutcome
+{
+    /// <summary>It ran in a block and succeeded.</summary>
+    Succeeded,
+
+    /// <summary>It ran in a block and failed (reverted): it moved nothing, but its sender paid the fee.</summary>
+    Failed,
+
+    /// <summary>It is not in a block yet, so whether it succeeds and what it moves is not known.</summary>
+    Pending,
+}
+
 /// <summary>
-/// An Ethereum transaction as the chain recorded it: who signed it, where it was sent, whether it succeeded, what it
-/// cost and every movement of value in it. A failed transaction moves nothing, but its sender still pays the fee.
+/// An Ethereum transaction as the chain recorded it: who signed it, where it was sent, how it ended, what it cost and
+/// every movement of value in it. A failed transaction moves nothing, but its sender still pays the fee.
 /// </summary>
 /// <param name="Hash">The transaction's hash.</param>
 /// <param name="Block">The block, or <see langword="null"/> while it is unconfirmed.</param>
 /// <param name="From">The account that signed it and pays the fee.</param>
 /// <param name="To">The address it was sent to, or <see langword="null"/> when it created a contract.</param>
 /// <param name="Value">The ether it sent with it, in wei (also when it failed; then nothing moved).</param>
-/// <param name="Fee">What the sender paid for its gas, in wei: the gas used times the price per gas.</param>
-/// <param name="Succeeded">Whether it succeeded; a failed one moves no value.</param>
+/// <param name="Fee">
+/// What the sender paid for its gas, in wei: the gas used times the price per gas (zero while pending). A blob
+/// transaction's blob gas is not in it.
+/// </param>
+/// <param name="Outcome">How it ended; a failed one moves no value.</param>
 /// <param name="Transfers">
 /// Every movement of value in it, in the order the chain applied them: the ether it sent, then the internal
-/// transactions, then the tokens by their logs. Empty when it failed.
+/// transactions, then the tokens by their logs. Empty when it failed; only the ether it would send while it is pending.
 /// </param>
 public sealed record EthereumTransaction(
     EthereumTxHash Hash,
@@ -83,11 +103,14 @@ public sealed record EthereumTransaction(
     EthereumAddress? To,
     AssetAmount Value,
     AssetAmount Fee,
-    bool Succeeded,
+    EthereumOutcome Outcome,
     IReadOnlyList<EthereumTransfer> Transfers)
 {
     /// <summary>Gets whether the transaction is in a block.</summary>
     public bool IsConfirmed => Block is not null;
+
+    /// <summary>Gets whether it ran in a block and succeeded.</summary>
+    public bool Succeeded => Outcome == EthereumOutcome.Succeeded;
 
     /// <summary>
     /// Gets whether every part of it could be read: its internal transactions, its block's hash and every token's
@@ -125,7 +148,8 @@ public sealed record EthereumFee(
 /// <summary>
 /// One page of an address's history of one kind, newest first. A page goes back from a block: the first page from the
 /// newest, the next from the oldest block on the page before (the source pages by block, so that a page already read
-/// does not shift when new transactions arrive).
+/// does not shift when new transactions arrive). The next page starts <em>at</em> that block, so the entries in it
+/// come again: a reader drops them by transaction, kind and position.
 /// </summary>
 /// <param name="Address">The address.</param>
 /// <param name="History">Which history.</param>
@@ -141,7 +165,8 @@ public sealed record EthereumFee(
 /// paging; the history is then incomplete, and says so.
 /// </param>
 /// <param name="IsIncomplete">
-/// Whether the source said it has not read all of the history yet (Blockscout's internal transactions, status 2).
+/// Whether the source said it has not read all of the history yet (Blockscout's internal transactions, status 2); such
+/// a page is fetched again.
 /// </param>
 public sealed record EthereumAddressPage(
     EthereumAddress Address,
@@ -151,7 +176,14 @@ public sealed record EthereumAddressPage(
     IReadOnlyList<EthereumFee> Fees,
     long? NextAtOrBelow,
     bool IsCutShort,
-    bool IsIncomplete);
+    bool IsIncomplete)
+{
+    /// <summary>
+    /// Gets how many entries Chainsaw does not count: an NFT, a token without decimals Chainsaw can count in, and a
+    /// token transfer of zero (address poisoning). They do not keep the page from being final.
+    /// </summary>
+    public int Skipped { get; init; }
+}
 
 /// <summary>The height of Ethereum's newest block.</summary>
 /// <param name="Height">The block's number.</param>

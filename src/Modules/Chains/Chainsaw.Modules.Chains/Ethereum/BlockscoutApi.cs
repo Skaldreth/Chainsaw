@@ -10,8 +10,7 @@ namespace Chainsaw.Modules.Chains;
 /// Blockscout, the open-source explorer for Ethereum that can also be run in-house, as a sort of API for Ethereum: its
 /// Etherscan-compatible API (<c>?module=…&amp;action=…</c>) for histories, transactions and tokens, and its block
 /// endpoint (<c>v2/blocks/:height</c>) for a block's hash. The height is
-/// <c>module=block&amp;action=eth_block_number</c>;
-/// a key goes as a bearer token (the open instance needs none).
+/// <c>module=block&amp;action=eth_block_number</c>; a key goes as a bearer token (the open instance needs none).
 /// </summary>
 internal sealed class BlockscoutApi : ISourceApi
 {

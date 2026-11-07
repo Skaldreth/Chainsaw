@@ -37,6 +37,19 @@
    "index": "3",
    "contractAddress": "",
    "type": "call"
+  },
+  {
+   "transactionHash": "0xb1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+   "blockNumber": "900",
+   "timeStamp": "1793872800",
+   "from": "0x5555555555555555555555555555555555555555",
+   "to": "0x2222222222222222222222222222222222222222",
+   "value": "9",
+   "isError": "0",
+   "index": "4",
+   "contractAddress": "",
+   "type": "call",
+   "callType": "delegatecall"
   }
  ]
 }

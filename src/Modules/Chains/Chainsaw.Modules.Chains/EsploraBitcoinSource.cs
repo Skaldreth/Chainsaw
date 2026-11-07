@@ -75,7 +75,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
         _lookups = new SourceLookups(
             Chain.Bitcoin, "Bitcoin", http, operators, sources, _store, options.SafeConfirmations,
-            async (lookups, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
+            async (_, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
                 .ConfigureAwait(false));
     }
 
@@ -337,13 +337,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             body => EsploraParser.ParseTipHeight(body)),
         _ => null);
 
-
-
-
-
-
-
-
     /// <summary>
     /// Asks for the chain's height when the newest known one is older than <see cref="TipFreshness"/>, so that an
     /// answer whose block has become deep enough can be taken from the case.
@@ -451,10 +444,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
         return null;
     }
-
-
-
-
 
     /// <summary>Gives the height of the shallowest of some transactions, when they are all confirmed.</summary>
     /// <param name="transactions">The transactions.</param>

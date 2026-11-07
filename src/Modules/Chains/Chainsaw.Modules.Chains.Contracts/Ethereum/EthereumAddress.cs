@@ -86,9 +86,8 @@ public sealed record EthereumAddress
     public override string ToString() => Checksummed;
 
     /// <summary>
-    /// Gives the EIP-55 form: the Keccak-256 of the lower-case hex (without <c>0x</c>) decides each letter's case,
-    /// upper
-    /// where the hash's matching nibble is 8 or more.
+    /// Gives the EIP-55 form: the Keccak-256 of the lower-case hex (without <c>0x</c>) decides each letter's case:
+    /// upper where the hash's matching nibble is 8 or more.
     /// </summary>
     /// <param name="lower">The address in lower case with <c>0x</c>.</param>
     /// <returns>The checksummed address.</returns>

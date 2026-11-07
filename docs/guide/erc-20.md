@@ -11,10 +11,15 @@ men ett annat kontrakt visas med sin egen adress och får aldrig USDT:s märke e
 
 ## Händelsen Transfer
 
-När en token flyttas skriver kontraktet en händelse i tx:ens logg: `Transfer(från, till, belopp)`. Det är där kedjan
-säger att tokens bytte ägare. Chainsaw läser händelsen ur loggen och kontrollerar formen: tre ämnen (händelsens namn,
+När en token flyttas skriver kontraktet en händelse i tx:ens logg: `Transfer(från, till, belopp)`. Händelsen är
+**kontraktets eget besked** om sin bokföring. För USDT och USDC är det utgivarens kontrakt; ett okänt kontrakt kan skriva
+vad det vill, så en överföring i en okänd token är kontraktets uppgift, inte ett bevis. Chainsaw läser händelsen ur loggen och kontrollerar formen: tre ämnen (händelsens namn,
 från och till) och beloppet som ett enda tal. En händelse med fyra ämnen är en NFT (ERC-721), där talet är vilken sak det
 gäller och inte ett belopp, och den räknas inte.
+
+En överföring på **noll** räknas inte heller. Vem som helst kan få ett tokenkontrakt att skriva en sådan från vilken
+adress som helst, till en adress som liknar en riktig mottagare (**adressförgiftning**), i hopp om att någon kopierar fel
+adress ur historiken. Den flyttar ingenting.
 
 ## Decimaler
 

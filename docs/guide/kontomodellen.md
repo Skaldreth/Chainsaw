@@ -19,13 +19,18 @@ En tx på Ethereum kan flytta pengar på tre sätt, och Chainsaw läser alla tre
 - **[Interna tx](interna-tx.md)**: ether som ett kontrakt skickar medan tx:en körs.
 - **[Tokenöverföringar](erc-20.md)** (ERC-20), som kontraktet skriver som händelser i tx:ens logg.
 
-En tx som **misslyckas** flyttar ingenting, men den som signerade den betalar ändå avgiften.
+En tx som **misslyckas** flyttar ingenting, men den som signerade den betalar ändå avgiften. En tx som ännu inte ligger i
+ett block är **obekräftad**: om den lyckas och vad den flyttar avgörs först när den körs.
+
+Två sorters ether syns inte i de här tre: validatorernas uttag och det den som föreslår ett block får i dricks. Chainsaw
+läser dem inte än, så ett saldo räknat ur överföringarna kan vara för lågt för en sådan adress.
 
 ## Avgiften
 
 Avgiften (gas) betalas alltid i ether av den som signerade tx:en, också när det som flyttades var en token. Den är tx:ens
-använda gas gånger priset per gas, så som kedjan tar betalt. Ingen tar emot den som ett konto gör, så i spårningen är den
-ett eget slut för pengarna, som avgiften till minerare i Bitcoin.
+använda gas gånger priset per gas, så som kedjan tar betalt. Grundavgiften bränns, och dricksen går till den som föreslog
+blocket. Ingen av delarna är en överföring som går att följa vidare, så i spårningen är avgiften ett eget slut för
+pengarna, som avgiften till minerare i Bitcoin.
 
 ## Spårningsmetoderna för konton
 
@@ -36,8 +41,8 @@ Ett konto spåras per tillgång: ett saldo i ether och ett per token, aldrig bla
 - **Haircut** låter varje överföring ut ta den spårade andelen av saldot just då. De spårade pengarna tunnas ut över
   allt som går ut efteråt.
 
-Chainsaw kontrollerar varje uträkning: det som kom in spårat är exakt det som gick ut, till avgifter och det som ligger
-kvar. Går det mer ut än den lästa historiken visar kom in, räknas resten som ospårat; en metod hittar aldrig på pengar.
+Varje uträkning kontrolleras (när grafen för Ethereum är byggd): det som kom in spårat ska vara exakt det som gick ut,
+till avgifter och det som ligger kvar. Går det mer ut än den lästa historiken visar kom in, räknas resten som ospårat; en metod hittar aldrig på pengar.
 
 ## Var svaren kommer ifrån
 

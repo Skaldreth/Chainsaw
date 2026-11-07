@@ -1,0 +1,11 @@
+{
+ "status": "1",
+ "message": "OK",
+ "result": {
+  "contractAddress": "0x4444444444444444444444444444444444444444",
+  "decimals": "255",
+  "symbol": "JUNK",
+  "name": "Junk",
+  "type": "ERC-20"
+ }
+}

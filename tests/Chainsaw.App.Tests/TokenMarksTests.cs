@@ -48,6 +48,17 @@ public sealed class TokenMarksTests
     }
 
     [Fact]
+    public void MoreOutThanInShowsNoBalanceAndNoSnowflake()
+    {
+        var row = TokenMarks.Balance(
+            new AssetAmount(KnownTokens.EthereumUsdt, 1), new AssetAmount(KnownTokens.EthereumUsdt, 5));
+
+        Assert.Equal("–", row.Left);
+        Assert.Equal(TokenMarks.IncompleteNote, row.Note);
+        Assert.False(row.CanBeFrozen);
+    }
+
+    [Fact]
     public void ARowIsOneAsset() =>
         Assert.Throws<ArgumentException>(() => TokenMarks.Balance(
             new AssetAmount(Asset.Ether, 1), AssetAmount.Zero(KnownTokens.EthereumUsdt)));

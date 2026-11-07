@@ -10,8 +10,7 @@ namespace Chainsaw.Modules.Chains;
 
 /// <summary>
 /// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora for Bitcoin,
-/// Blockscout for
-/// Ethereum).
+/// Blockscout for Ethereum).
 /// </summary>
 /// <remarks>
 /// The module needs the Network module's <c>IExitHttp</c> (its only way out) and the Security module's

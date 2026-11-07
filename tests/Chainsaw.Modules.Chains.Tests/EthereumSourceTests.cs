@@ -187,9 +187,11 @@ public sealed class EthereumSourceTests
         var page = (await harness.Source.GetAddressHistoryAsync(
             harness.Case, EthereumHarness.A, EthereumHistory.Tokens)).Value!;
 
+        // The NFT, the token claiming 255 decimals and the transfer of zero are not counted, and never spoil the page.
         var usdt = Assert.Single(page.Transfers);
         Assert.Equal(KnownTokens.EthereumUsdt, usdt.Amount.Asset);
-        Assert.True(page.IsIncomplete);
+        Assert.Equal(3, page.Skipped);
+        Assert.False(page.IsIncomplete);
     }
 
     [Fact]
@@ -289,5 +291,53 @@ public sealed class EthereumSourceTests
         Assert.Equal(LookupStatus.Offline, lookup.Status);
         Assert.Contains("Ethereum", lookup.Problem, StringComparison.Ordinal);
         Assert.Empty(harness.Http.Sent);
+    }
+
+    [Fact]
+    public async Task AnUnknownTransactionIsNotFoundAndTheEndpointIsNotBlamed()
+    {
+        using var harness = new EthereumHarness();
+        harness.Answer(EthereumHarness.TxUrl(EthereumHarness.H1), "tx-unknown.json");
+
+        var lookup = await harness.Source.GetTransactionAsync(harness.Case, EthereumHarness.H1);
+
+        Assert.Equal(LookupStatus.NotFound, lookup.Status);
+        Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single().FailedSince);
+        Assert.Single(harness.Rows());
+    }
+
+    [Fact]
+    public async Task APendingTransactionIsNeitherSucceededNorFailed()
+    {
+        using var harness = new EthereumHarness();
+        var pending = EthereumTxHash.Parse("0x" + Fixtures.Repeat("b4", 32));
+        harness.Answer(EthereumHarness.TxUrl(pending), "tx-pending.json");
+
+        var lookup = await harness.Source.GetTransactionAsync(harness.Case, pending);
+
+        var tx = lookup.Value!;
+        Assert.Equal(EthereumOutcome.Pending, tx.Outcome);
+        Assert.False(tx.IsConfirmed);
+        Assert.False(tx.IsComplete);
+        Assert.True(tx.Fee.IsZero);
+        Assert.Equal(EthereumTransferKind.Native, Assert.Single(tx.Transfers).Kind);
+        Assert.Contains(lookup.Notes, note => note.Contains("obekräftad", StringComparison.Ordinal));
+        Assert.DoesNotContain(harness.Http.Sent, r => r.Uri.Query.Contains("txlistinternal", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ATokenClaimingTooManyDecimalsIsLeftOutWithoutBlamingTheEndpoint()
+    {
+        using var harness = new EthereumHarness();
+        harness.AnswerTransaction();
+        harness.Answer(
+            EthereumHarness.Url("?module=token&action=getToken&contractaddress=" + EthereumHarness.Foo.Value),
+            "token-huge.json");
+
+        var lookup = await harness.Source.GetTransactionAsync(harness.Case, EthereumHarness.H1);
+
+        Assert.False(lookup.Value!.IsComplete);
+        Assert.Equal(3, lookup.Value.Transfers.Count);
+        Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single().FailedSince);
     }
 }

@@ -110,4 +110,13 @@ public sealed class EthereumModelTests
     public void TheTransferTopicIsKeccakOfTheEvent() =>
         Assert.Equal(
             "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", BlockscoutParser.TransferTopic);
+
+    [Fact]
+    public void AFullPageOfUnconfirmedEntriesIsCutShort()
+    {
+        var page = BlockscoutParser.ParseHistory(Fixtures.Bytes("../Ethereum/history-pending.json"),
+            EthereumHarness.A, EthereumHistory.Transactions, null, 2);
+        Assert.True(page.IsCutShort);
+        Assert.Null(page.NextAtOrBelow);
+    }
 }

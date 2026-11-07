@@ -17,8 +17,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
     /// <summary>The chain and network in the sealed table.</summary>
     public const string ChainName = "ethereum-mainnet";
 
-    /// <summary>How old the newest known height may be before a lookup that depends on depth asks for a new
-    /// one.</summary>
+    /// <summary>How old the newest known height may be before a lookup that depends on depth asks again.</summary>
     private static readonly TimeSpan TipFreshness = TimeSpan.FromMinutes(1);
 
     /// <summary>The time now, to decide whether the known height is fresh.</summary>
@@ -53,7 +52,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         _lookups = new SourceLookups(
             Chain.Ethereum, "Ethereum", http, operators, sources, new RawResponseStore(timeZone, ChainName),
             options.SafeConfirmations,
-            async (lookups, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
+            async (_, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
                 .ConfigureAwait(false));
     }
 
@@ -81,7 +80,9 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             _ => (EthereumResponseKinds.AddressTokens, "tokentx"),
         };
         var below = atOrBelow?.ToString(CultureInfo.InvariantCulture);
-        var subject = $"{address.Value}/{below ?? "newest"}";
+        // The page size is part of the subject, so that a page read with another size is never taken for a full one.
+        var subject = string.Create(CultureInfo.InvariantCulture,
+            $"{address.Value}/{below ?? "newest"}/{_options.PageSize}");
         var path = string.Create(CultureInfo.InvariantCulture,
             $"?module=account&action={action}&address={address.Value}&sort=desc&page=1&offset={_options.PageSize}")
             + (below is null ? string.Empty : "&endblock=" + below);
@@ -113,7 +114,17 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         }
 
         var parts = new TransactionParts(info);
-        var calls = transaction.Succeeded
+        if (transaction.Outcome == EthereumOutcome.Pending)
+        {
+            parts.Missing("Tx:en är obekräftad: om den lyckas och vad den flyttar avgörs först när den körs i ett block.");
+        }
+
+        if (transaction.Outcome != EthereumOutcome.Failed && !transaction.Value.IsZero && transaction.Receiver is null)
+        {
+            parts.Missing("Källan sa inte vem som tog emot tx:ens ether (ett kontrakt som skapades); den räknas inte.");
+        }
+
+        var calls = transaction.Outcome == EthereumOutcome.Succeeded
             ? parts.Add(await _lookups.LookupAsync(@case, InternalQuery(hash, transaction.Height), mode,
                 cancellationToken).ConfigureAwait(false), "Tx:ens interna tx")
             : new InternalCalls([], false);
@@ -139,7 +150,14 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             else if (parts.Add(await _lookups.LookupAsync(@case, TokenQuery(contract), mode, cancellationToken)
                 .ConfigureAwait(false), $"Tokenen {contract}") is { } token)
             {
-                tokens[contract] = token.Asset;
+                if (token.Asset is { } asset)
+                {
+                    tokens[contract] = asset;
+                }
+                else
+                {
+                    parts.Missing($"Tokenen {contract} har inga decimaler Chainsaw kan räkna i; den räknas inte.");
+                }
             }
         }
 
@@ -198,14 +216,15 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         EthereumBlockReference? block)
     {
         var transfers = new List<EthereumTransfer>();
-        if (info.Succeeded)
+        if (info.Outcome != EthereumOutcome.Failed && !info.Value.IsZero && info.Receiver is { } receiver)
         {
-            if (!info.Value.IsZero && info.To is { } to)
-            {
-                transfers.Add(new EthereumTransfer(info.Hash, EthereumTransferKind.Native, info.From, to,
-                    new AssetAmount(Asset.Ether, info.Value), 0, block));
-            }
+            // While pending this is only what the transaction would send; the lookup says it is unconfirmed.
+            transfers.Add(new EthereumTransfer(info.Hash, EthereumTransferKind.Native, info.From, receiver,
+                new AssetAmount(Asset.Ether, info.Value), 0, block));
+        }
 
+        if (info.Outcome == EthereumOutcome.Succeeded)
+        {
             transfers.AddRange(calls.Select(call => new EthereumTransfer(info.Hash, EthereumTransferKind.Internal,
                 call.From, call.To, new AssetAmount(Asset.Ether, call.Value), call.Position, block)));
             transfers.AddRange(info.Tokens.Where(log => tokens.ContainsKey(log.Contract)).Select(log =>
@@ -214,7 +233,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         }
 
         return new EthereumTransaction(info.Hash, block, info.From, info.To, new AssetAmount(Asset.Ether, info.Value),
-            new AssetAmount(Asset.Ether, info.Fee), info.Succeeded, transfers);
+            new AssetAmount(Asset.Ether, info.Fee), info.Outcome, transfers);
     }
 
     /// <summary>The lookup of a transaction, which cannot change once its block is final.</summary>

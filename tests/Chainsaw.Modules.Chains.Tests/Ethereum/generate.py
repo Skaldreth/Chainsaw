@@ -47,6 +47,7 @@ write("tx-b1.json", {"status": "1", "message": "OK", "result": {
         log(FOO, B, C, 5, 8),
         {"address": ROUTER, "topics": ["0x" + "ab" * 32, None, None, None], "data": "0x", "index": "9"},
         log(FOO, B, C, 0, 10, [word(C)]),  # four topics: an NFT's Transfer, not an amount
+        log(USDT, A, "0x" + "77" * 20, 0, 11),  # a transfer of zero to a lookalike: address poisoning
     ]}})
 write("tx-b1-internal.json", {"status": "1", "message": "OK", "result": [
     {"transactionHash": H1, "blockNumber": "900", "timeStamp": TIME, "from": ROUTER, "to": C,
@@ -55,6 +56,8 @@ write("tx-b1-internal.json", {"status": "1", "message": "OK", "result": [
      "value": "7", "isError": "1", "index": "2", "contractAddress": "", "type": "call"},
     {"transactionHash": H1, "blockNumber": "900", "timeStamp": TIME, "from": ROUTER, "to": B,
      "value": "0", "isError": "0", "index": "3", "contractAddress": "", "type": "call"},
+    {"transactionHash": H1, "blockNumber": "900", "timeStamp": TIME, "from": ROUTER, "to": B,
+     "value": "9", "isError": "0", "index": "4", "contractAddress": "", "type": "call", "callType": "delegatecall"},
 ]})
 write("token-foo.json", {"status": "1", "message": "OK", "result": {
     "contractAddress": FOO, "decimals": "18", "symbol": "FOO", "name": "Foo", "type": "ERC-20"}})
@@ -65,6 +68,12 @@ write("tx-b2-internal.json", {"status": "0", "message": "No internal transaction
 write("tx-other.json", {"status": "1", "message": "OK", "result": {
     "hash": H3, "blockNumber": "900", "timeStamp": TIME, "from": A, "to": B, "value": "5", "gasUsed": "1",
     "gasPrice": "1", "success": True, "logs": []}})
+write("tx-unknown.json", {"status": "0", "message": "Transaction not found", "result": None})
+write("tx-pending.json", {"status": "1", "message": "OK", "result": {
+    "hash": H4, "blockNumber": None, "timeStamp": None, "from": A, "to": B, "value": "3", "gasPrice": "1",
+    "success": False, "logs": []}})
+write("token-huge.json", {"status": "1", "message": "OK", "result": {
+    "contractAddress": FOO, "decimals": "255", "symbol": "JUNK", "name": "Junk", "type": "ERC-20"}})
 write("rate-limit.json", {"status": "0", "message": "NOTOK", "result": "Max rate limit reached"})
 
 
@@ -86,6 +95,9 @@ write("history-tokens.json", {"status": "1", "message": "OK", "result": [
           tokenName="Tether USD"),
     entry(H4, C, A, 3, 897, contractAddress="0x" + "66" * 20, tokenSymbol="", tokenDecimal="",
           tokenName="An NFT"),
+    entry(H4, C, A, 3, 897, contractAddress=FOO, tokenSymbol="JUNK", tokenDecimal="255", tokenName="Junk"),
+    entry(H3, A, "0x" + "77" * 20, 0, 896, contractAddress=USDT, tokenSymbol="USDT", tokenDecimal="6",
+          tokenName="Tether USD"),
 ]})
 write("history-internal.json", {"status": "2", "message": "Some internal transactions have not been processed",
                                 "result": [{"transactionHash": H3, "blockNumber": "899", "timeStamp": TIME,
@@ -95,5 +107,7 @@ write("history-empty.json", {"status": "0", "message": "No transactions found", 
 write("history-stranger.json", {"status": "1", "message": "OK", "result": [entry(H1, B, C, 1, 900)]})
 write("history-full.json", {"status": "1", "message": "OK", "result": [
     entry(H1, A, B, 1, 900), entry(H3, A, B, 1, 899)]})
+write("history-pending.json", {"status": "1", "message": "OK", "result": [
+    entry(H1, A, B, 1, 900) | {"blockNumber": "", "blockHash": ""}, entry(H3, A, B, 1, 900) | {"blockNumber": ""}]})
 write("history-one-block.json", {"status": "1", "message": "OK", "result": [
     entry(H1, A, B, 1, 900), entry(H3, A, B, 1, 900)]})

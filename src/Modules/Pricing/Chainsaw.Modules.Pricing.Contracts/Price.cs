@@ -108,7 +108,9 @@ public sealed record Price
     /// <param name="amount">The amount, in the chain's own coin.</param>
     /// <returns>The value with its steps.</returns>
     /// <exception cref="InvalidOperationException">The amount is not in the coin the price is for.</exception>
-    /// <exception cref="OverflowException">The amount is too large to value (more than 10^28 coins).</exception>
+    /// <exception cref="OverflowException">
+    /// The amount is too large to value: more than about 7.9 × 10^28 of its smallest unit (about 79 billion ether).
+    /// </exception>
     public Valuation ValueOf(AssetAmount amount)
     {
         if (amount.Asset != Chain.NativeAsset())

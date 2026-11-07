@@ -22,13 +22,18 @@ internal sealed record TokenLog(EthereumAddress Contract, EthereumAddress From, 
 /// <param name="Time">The block's time, or <see langword="null"/>.</param>
 /// <param name="From">The signer.</param>
 /// <param name="To">Where it was sent, or <see langword="null"/> when it created a contract.</param>
+/// <param name="Receiver">
+/// Who receives its ether: <paramref name="To"/>, or the contract it created; <see langword="null"/> when the source
+/// gave neither.
+/// </param>
 /// <param name="Value">The ether it sent, in wei.</param>
 /// <param name="Fee">The gas used times the price per gas, in wei.</param>
-/// <param name="Succeeded">Whether it succeeded.</param>
-/// <param name="Tokens">The ERC-20 <c>Transfer</c> events in its logs, in their order.</param>
+/// <param name="Outcome">How it ended.</param>
+/// <param name="Tokens">The ERC-20 <c>Transfer</c> events in its logs that move something, in their order.</param>
 internal sealed record TransactionInfo(
     EthereumTxHash Hash, long? Height, DateTimeOffset? Time, EthereumAddress From, EthereumAddress? To,
-    BigInteger Value, BigInteger Fee, bool Succeeded, IReadOnlyList<TokenLog> Tokens);
+    EthereumAddress? Receiver, BigInteger Value, BigInteger Fee, EthereumOutcome Outcome,
+    IReadOnlyList<TokenLog> Tokens);
 
 /// <summary>An internal transaction as the source lists it.</summary>
 /// <param name="From">The contract that sent the ether.</param>
@@ -43,8 +48,11 @@ internal sealed record InternalCall(EthereumAddress From, EthereumAddress To, Bi
 internal sealed record InternalCalls(IReadOnlyList<InternalCall> Calls, bool IsIncomplete);
 
 /// <summary>A token as the source describes it.</summary>
-/// <param name="Asset">The token, by its contract, with the source's symbol and decimals.</param>
-internal sealed record TokenInfo(Asset Asset);
+/// <param name="Asset">
+/// The token, by its contract, with the source's symbol and decimals; <see langword="null"/> when it has no decimals
+/// Chainsaw can count in (anyone can make a contract say 255).
+/// </param>
+internal sealed record TokenInfo(Asset? Asset);
 
 /// <summary>
 /// Reads Blockscout's answers and checks that they add up: every value is a whole number that is not negative, every
@@ -105,22 +113,25 @@ internal static class BlockscoutParser
         }
 
         var height = OptionalHeight(result, "blockNumber");
-        var succeeded = result.TryGetProperty("success", out var success) && success.ValueKind == JsonValueKind.True;
+        var outcome = OutcomeOf(result, height);
         var tokens = new List<TokenLog>();
-        if (succeeded && result.TryGetProperty("logs", out var logs) && logs.ValueKind == JsonValueKind.Array)
+        if (outcome == EthereumOutcome.Succeeded && result.TryGetProperty("logs", out var logs)
+            && logs.ValueKind == JsonValueKind.Array)
         {
             tokens.AddRange(logs.EnumerateArray().Select(TransferOf).OfType<TokenLog>());
         }
 
+        var to = OptionalAddress(result, "to");
         return new TransactionInfo(
             hash,
             height,
             height is null ? null : Time(result),
             Address(String(result, "from")),
-            OptionalAddress(result, "to"),
+            to,
+            to ?? OptionalAddress(result, "contractAddress") ?? OptionalAddress(result, "created_contract"),
             Whole(result, "value"),
-            Whole(result, "gasUsed") * Whole(result, "gasPrice"),
-            succeeded,
+            outcome == EthereumOutcome.Pending ? BigInteger.Zero : Whole(result, "gasUsed") * Whole(result, "gasPrice"),
+            outcome,
             tokens);
     });
 
@@ -141,7 +152,7 @@ internal static class BlockscoutParser
                 throw new FormatException("The list has another transaction's internal transactions.");
             }
 
-            if (IsError(item) || Whole(item, "value").IsZero)
+            if (!MovesEther(item))
             {
                 continue;
             }
@@ -166,7 +177,7 @@ internal static class BlockscoutParser
             throw new FormatException("The answer is about another token.");
         }
 
-        return new TokenInfo(Token(contract, OptionalString(result, "symbol"), String(result, "decimals")));
+        return new TokenInfo(Token(contract, OptionalString(result, "symbol"), OptionalString(result, "decimals")));
     });
 
     /// <summary>Reads a page of an address's history, newest first.</summary>
@@ -186,6 +197,7 @@ internal static class BlockscoutParser
             var fees = new List<EthereumFee>();
             var ordinals = new Dictionary<string, int>(StringComparer.Ordinal);
             var heights = new List<long>();
+            var skipped = 0;
             foreach (var item in items)
             {
                 var hash = EthereumTxHash.Parse(TransactionOf(item));
@@ -207,18 +219,22 @@ internal static class BlockscoutParser
                 }
 
                 var ordinal = ordinals[hash.Value] = ordinals.GetValueOrDefault(hash.Value, -1) + 1;
-                incomplete |= !Read(item, history, hash, from, to, block, ordinal, address, transfers, fees);
+                skipped += Read(item, history, hash, from, to, block, ordinal, address, transfers, fees) ? 0 : 1;
             }
 
             long? next = null;
             var cutShort = false;
-            if (items.Count >= pageSize && heights.Count > 0)
+            if (items.Count >= pageSize)
             {
-                cutShort = heights.Min() == heights.Max();
+                // A full page in one block, or of unconfirmed entries only, cannot be paged past by block.
+                cutShort = heights.Count == 0 || heights.Min() == heights.Max();
                 next = cutShort ? null : heights.Min();
             }
 
-            return new EthereumAddressPage(address, history, atOrBelow, transfers, fees, next, cutShort, incomplete);
+            return new EthereumAddressPage(address, history, atOrBelow, transfers, fees, next, cutShort, incomplete)
+            {
+                Skipped = skipped,
+            };
         });
 
     /// <summary>Reads one entry of a history into its transfer and fee.</summary>
@@ -232,7 +248,10 @@ internal static class BlockscoutParser
     /// <param name="address">The page's address.</param>
     /// <param name="transfers">Where a transfer is added.</param>
     /// <param name="fees">Where a fee is added.</param>
-    /// <returns><see langword="false"/> when the entry could not be read whole (a token without decimals).</returns>
+    /// <returns>
+    /// <see langword="false"/> when the entry is not counted: an NFT, a token without decimals Chainsaw can count in,
+    /// or a token transfer of zero.
+    /// </returns>
     private static bool Read(
         JsonElement item, EthereumHistory history, EthereumTxHash hash, EthereumAddress from, EthereumAddress to,
         EthereumBlockReference? block, int ordinal, EthereumAddress address, List<EthereumTransfer> transfers,
@@ -257,7 +276,7 @@ internal static class BlockscoutParser
 
                 return true;
             case EthereumHistory.Internal:
-                if (!IsError(item) && !Whole(item, "value").IsZero)
+                if (MovesEther(item))
                 {
                     transfers.Add(new EthereumTransfer(hash, EthereumTransferKind.Internal, from, to,
                         new AssetAmount(Asset.Ether, Whole(item, "value")), PositionOf(item, ordinal), block));
@@ -265,17 +284,18 @@ internal static class BlockscoutParser
 
                 return true;
             default:
-                var decimals = OptionalString(item, "tokenDecimal");
-                if (string.IsNullOrEmpty(decimals))
+                // An NFT, a token whose decimals Chainsaw cannot count in (anyone can make a contract say 255) and a
+                // transfer of zero (address poisoning) are not counted, and never make the page unreadable.
+                var token = Token(Address(String(item, "contractAddress")), OptionalString(item, "tokenSymbol"),
+                    OptionalString(item, "tokenDecimal"));
+                if (token is null || !BigInteger.TryParse(OptionalString(item, "value"), NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var units) || units.IsZero)
                 {
-                    // Not an ERC-20 with decimals (an NFT, or a token the source has not read): nothing to count in.
                     return false;
                 }
 
-                var token = Token(Address(String(item, "contractAddress")), OptionalString(item, "tokenSymbol"),
-                    decimals);
                 transfers.Add(new EthereumTransfer(hash, EthereumTransferKind.Token, from, to,
-                    new AssetAmount(token, Whole(item, "value")), LogPosition(item, ordinal), block));
+                    new AssetAmount(token, units), LogPosition(item, ordinal), block));
                 return true;
         }
     }
@@ -296,9 +316,11 @@ internal static class BlockscoutParser
 
         // ERC-20's Transfer has three topics and the amount as one word of data; ERC-721's has the token id as a
         // fourth topic, which is not an amount, so it is not read.
+        // A transfer of zero is left out: anyone can make a token contract write one from any address (address
+        // poisoning), and it moves nothing.
         var data = OptionalString(log, "data") ?? string.Empty;
         if (topics.Count != 3 || !string.Equals(topics[0], TransferTopic, StringComparison.OrdinalIgnoreCase)
-            || data.Length != 66)
+            || data.Length != 66 || Quantity(data).IsZero)
         {
             return null;
         }
@@ -320,15 +342,14 @@ internal static class BlockscoutParser
     /// <summary>Makes a token of a contract, a symbol and decimals, recognising USDT and USDC by contract.</summary>
     /// <param name="contract">The contract.</param>
     /// <param name="symbol">The symbol the source gave, if any.</param>
-    /// <param name="decimals">The decimals as text.</param>
-    /// <returns>The token.</returns>
-    /// <exception cref="FormatException">The decimals are not a whole number Chainsaw can count in.</exception>
-    private static Asset Token(EthereumAddress contract, string? symbol, string decimals)
+    /// <param name="decimals">The decimals as text, if any.</param>
+    /// <returns>The token, or <see langword="null"/> when the decimals are missing or not ones Chainsaw counts in.</returns>
+    private static Asset? Token(EthereumAddress contract, string? symbol, string? decimals)
     {
         if (!int.TryParse(decimals, NumberStyles.None, CultureInfo.InvariantCulture, out var places)
             || places > Asset.MaximumDecimals)
         {
-            throw new FormatException("The token's decimals are not a whole number Chainsaw can count in.");
+            return null;
         }
 
         var shown = string.IsNullOrWhiteSpace(symbol) ? "token" : symbol.Trim();
@@ -358,11 +379,22 @@ internal static class BlockscoutParser
     /// <param name="root">The answer.</param>
     /// <returns>The result.</returns>
     /// <exception cref="FormatException">The source said it failed.</exception>
-    private static JsonElement Result(JsonElement root) =>
-        OptionalString(root, "status") == "1" && root.TryGetProperty("result", out var result)
-            && result.ValueKind == JsonValueKind.Object
-            ? result
-            : throw new FormatException("The source did not answer: " + OptionalString(root, "message"));
+    /// <exception cref="SourceNotFoundException">The source said it does not know what was asked.</exception>
+    private static JsonElement Result(JsonElement root)
+    {
+        var message = OptionalString(root, "message") ?? string.Empty;
+        if (OptionalString(root, "status") == "1" && root.TryGetProperty("result", out var result)
+            && result.ValueKind == JsonValueKind.Object)
+        {
+            return result;
+        }
+
+        // Etherscan-style APIs answer an unknown transaction or token with 200, status 0 and no result.
+        var empty = !root.TryGetProperty("result", out var missing) || missing.ValueKind == JsonValueKind.Null;
+        throw empty && message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+            ? new SourceNotFoundException()
+            : new FormatException("The source did not answer: " + message);
+    }
 
     /// <summary>
     /// Gives the entries of an Etherscan-style list: status 1 with entries, 2 with entries the source has not finished
@@ -431,6 +463,38 @@ internal static class BlockscoutParser
         long.TryParse(OptionalString(item, "logIndex"), NumberStyles.None, CultureInfo.InvariantCulture, out var log)
             ? log
             : ordinal;
+
+    /// <summary>Says how a transaction ended: pending without a block, otherwise by the source's <c>success</c>.</summary>
+    /// <param name="result">The transaction.</param>
+    /// <param name="height">Its block, or <see langword="null"/>.</param>
+    /// <returns>The outcome.</returns>
+    private static EthereumOutcome OutcomeOf(JsonElement result, long? height)
+    {
+        if (height is null)
+        {
+            return EthereumOutcome.Pending;
+        }
+
+        return result.TryGetProperty("success", out var success) && success.ValueKind == JsonValueKind.True
+            ? EthereumOutcome.Succeeded
+            : EthereumOutcome.Failed;
+    }
+
+    /// <summary>
+    /// Says whether an internal transaction moved ether: it did not fail, carried value, and is a call, a creation or a
+    /// self-destruct. A <c>delegatecall</c> or <c>callcode</c> runs another contract's code with the caller's value
+    /// without moving it, and a <c>staticcall</c> cannot move any, so they are not counted.
+    /// </summary>
+    /// <param name="item">The entry.</param>
+    /// <returns><see langword="true"/> when it moved ether.</returns>
+    private static bool MovesEther(JsonElement item)
+    {
+        var callType = OptionalString(item, "callType");
+        var type = OptionalString(item, "type");
+        return !IsError(item) && !Whole(item, "value").IsZero
+            && (string.IsNullOrEmpty(callType) || callType == "call")
+            && type is null or "" or "call" or "create" or "create2" or "selfdestruct" or "suicide";
+    }
 
     /// <summary>Says whether the source marked an entry as failed.</summary>
     /// <param name="item">The entry.</param>

@@ -119,6 +119,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   - **Interna tx i en adress historik** saknar blockets hash; den hämtas med blocket.
   - **En sida i ett enda block** (fler än sidstorleken i samma block) kan inte bläddras förbi; sidan säger det
     (`IsCutShort`).
+  - **Interna tx under ett anrop som återställdes:** bara anrop som själva är märkta som misslyckade, och
+    `delegatecall`, `staticcall` och `callcode`, räknas bort. Ett anrop under ett återställt anrop kan vara omärkt hos
+    källan; kontrollera mot en riktig trace från Blockscout och räkna bort hela grenen (granskningen av etapp 23).
+  - **Blob-gas** (tx av typ 3) ingår inte i avgiften, och validatorernas uttag och dricksen till blockets föreslagare
+    finns i ingen av de tre historikerna.
+  - **Startpunkten med fel kontrollsumma** säger bara *känns inte igen*; den borde säga att EIP-55-kontrollsumman inte
+    stämmer. `0X` (stort X) tas inte längre som Ethereum (granskningen av etapp 23, M).
   - **`BitcoinLookup<T>`** används av båda kedjorna och borde heta `ChainLookup<T>`; byts när ingen annan etapp rör
     Chains.
 - **Tornado Cash** (användarens fråga 2026-11-07) kommer med Ethereum: kontrakten känns igen som mixer och blir *Spåret

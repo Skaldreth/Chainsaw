@@ -25,7 +25,10 @@ public sealed record TokenLabel(string Glyph, string Number, string Tip)
 /// <param name="Name">The symbol, for example <c>USDT</c>.</param>
 /// <param name="In">What came in.</param>
 /// <param name="Out">What went out.</param>
-/// <param name="Left">What is left: in less out, as the chain's transfers in the case give it.</param>
+/// <param name="Left">
+/// What is left: in less out, as the chain's transfers in the case give it; a dash when more went out than the case
+/// shows came in (the history read is incomplete).
+/// </param>
 /// <param name="Note">Who issued it, or that it is the chain's own coin.</param>
 /// <param name="CanBeFrozen">Whether the issuer can freeze what is left (something is left and the issuer can).</param>
 /// <param name="FreezeText">What the snowflake's box says, or <see langword="null"/>.</param>
@@ -37,6 +40,9 @@ public static class TokenMarks
 {
     /// <summary>What a coin's row says instead of an issuer.</summary>
     public const string NativeNote = "Kedjans eget mynt";
+
+    /// <summary>What a row says when more went out than the case shows came in.</summary>
+    public const string IncompleteNote = "Historiken i ärendet är ofullständig";
 
     /// <summary>Gives an asset's mark: <c>Ξ</c>, <c>₮</c> or <c>$</c>, and none for bitcoin or an unknown
     /// token.</summary>
@@ -64,6 +70,14 @@ public static class TokenMarks
         }
 
         var left = incoming - outgoing;
+        if (left.Units.Sign < 0)
+        {
+            // More went out than the case shows came in: the history read is incomplete, and no balance is shown.
+            return new TokenBalanceRow(
+                Glyph(asset) is { Length: > 0 } mark ? mark : asset.Symbol, asset.Symbol, AmountText.Number(incoming),
+                AmountText.Number(outgoing), "–", IncompleteNote, false, null);
+        }
+
         var issuer = KnownTokens.IssuerOf(asset);
         var canBeFrozen = issuer is not null && left.Units.Sign > 0;
         var note = issuer is null
