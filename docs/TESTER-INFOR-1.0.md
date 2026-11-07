@@ -576,9 +576,13 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
 **Annan kedja (K)**
 - Välj en adress som tagit emot pengar (helst en swap) och tryck K: Ethereum är valt, Litecoin och Solana är tonade med
   *Inte byggt än*. Klistra in en Ethereum-tx (`0x` och 64 hex): en grön bock visas i fältet. Klistra in 64 hex utan
-  `0x`: TRON väljs av sig själv och rubriken blir *TRON-tx*.
+  `0x`: ingen bock (det kan vara båda kedjorna); välj TRON så kommer bocken och rubriken blir *TRON-tx*. Med TRON valt
+  och en tx med `0x` byts kedjan till Ethereum av sig själv.
 - Kom flera mynt in till adressen listas de (största först) och ett måste väljas.
 - Skriv skäl och tryck Enter: en lila streckad linje går till en lila nod med kedjans namn under hörnet. Myntet erbjuds
   inte igen i formuläret.
-- Fokus: efter Enter eller Esc, klicka i grafen igen för att använda grafens tangenter (E, F, L, U, K).
+- Fokus: efter Enter eller Esc går tangentbordet tillbaka till grafen, så att E, F, L, U och K fungerar direkt.
+- Enter efter att ha klickat på en rad, en sort eller en källa sparar formuläret (klickar inte på raden igen).
+- Sorten *Sanktionerad* finns inte i rutnätet (den kommer bara ur en importerad lista). Med sorten *Offer* är *Sprid
+  inte* tonad: ett offer sprids aldrig.
 

@@ -135,6 +135,10 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     /// <summary>What the form says when the cluster could not be read.</summary>
     public const string MembersFailedText = "Klustrets adresser kunde inte läsas ur ärendet.";
 
+    /// <summary>What the form says when a picked address is still in the cluster after the splits.</summary>
+    public const string StillInClusterText =
+        "Uppbrytningarna är sparade, men en annan länk håller kvar dem; öppna Bryt upp igen.";
+
     /// <summary>What the form says when the case would not store what was asked.</summary>
     public const string SaveFailedText = "Det kunde inte sparas i ärendet";
 
@@ -175,6 +179,12 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
 
     /// <summary>Raised when something was stored, so that the graph is read again from the case.</summary>
     public event EventHandler? Saved;
+
+    /// <summary>
+    /// Raised with what went wrong when a store failed after its form was closed or replaced, so that the graph's
+    /// notice says it instead of the failure vanishing with the form.
+    /// </summary>
+    public event EventHandler<string>? Failed;
 
     /// <summary>Gets the open form.</summary>
     [ObservableProperty]
@@ -241,8 +251,14 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
 
     /// <summary>Gets the chosen sort.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(KindName))]
+    [NotifyPropertyChangedFor(nameof(KindName), nameof(IsSpreadOptional))]
     public partial LabelKind Kind { get; private set; } = LabelKind.Unknown;
+
+    /// <summary>
+    /// Gets whether <em>Sprid inte</em> means anything for the chosen sort: a victim's label never spreads, whatever
+    /// the switch says (Attribution).
+    /// </summary>
+    public bool IsSpreadOptional => Kind != LabelKind.Victim;
 
     /// <summary>Gets the chosen sort's name, as the form writes it beside the grid.</summary>
     public string KindName => Kind.Describe();
@@ -352,6 +368,10 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         else if (Form == InspectorForm.CrossChain)
         {
             FillCoins();
+        }
+        else if (Form == InspectorForm.Split && !IsSaving)
+        {
+            _ = ReadMembersAsync(_opened);
         }
     }
 
@@ -484,6 +504,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         }
 
         var form = Form;
+        var opened = _opened;
         IsSaving = true;
         Error = string.Empty;
         try
@@ -494,14 +515,23 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
                 InspectorForm.Split => await StoreSplitsAsync(openCase),
                 _ => await StoreLinkAsync(openCase),
             };
-            if (stored && _session.Current == openCase && Form == form)
+            if (stored && _session.Current == openCase && Form == form && opened == _opened)
             {
                 Close();
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            Error = Failure(exception);
+            // Said in the form only while it is the same one; otherwise in the notice that outlives it.
+            var text = Failure(exception);
+            if (opened == _opened)
+            {
+                Error = text;
+            }
+            else
+            {
+                Failed?.Invoke(this, text);
+            }
         }
         finally
         {
@@ -545,7 +575,15 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     /// <returns><see langword="true"/> when every split was stored.</returns>
     private async Task<bool> StoreSplitsAsync(ICase openCase)
     {
-        var requests = SplitRequests();
+        if (_cluster is not { } shown || !HasReason(Reason))
+        {
+            return false;
+        }
+
+        // The cluster is read again just before, so that links that came since the rows were read are split too.
+        var picked = Picked();
+        var fresh = await _editor.ReadClusterAsync(openCase, shown.Start, CancellationToken.None);
+        var requests = InspectorForms.BreakOut(fresh, [.. picked.Where(fresh.Contains)], Reason);
         var outcome = await _editor.SplitAsync(openCase, requests);
         if (outcome.Stored > 0)
         {
@@ -557,6 +595,17 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
             Error = string.Create(
                 CultureInfo.InvariantCulture,
                 $"{outcome.Stored} av {requests.Count} uppbrytningar sparades. {Failure(failure)}");
+            return false;
+        }
+
+        // Checked against the case, never assumed: an address still in the cluster is said, not hidden.
+        var after = await _editor.ReadClusterAsync(openCase, shown.Start, CancellationToken.None);
+        var staying = picked.Count(after.Contains);
+        if (staying > 0)
+        {
+            Error = string.Create(
+                CultureInfo.InvariantCulture,
+                $"{staying} av de valda adresserna är fortfarande i klustret. {StillInClusterText}");
             return false;
         }
 
@@ -726,7 +775,10 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
             return;
         }
 
-        MembersNotice = ReadingMembersText;
+        if (Members.Count == 0)
+        {
+            MembersNotice = ReadingMembersText;
+        }
         try
         {
             var cluster = await _editor.ReadClusterAsync(openCase, first, CancellationToken.None);
@@ -735,10 +787,15 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
                 return;
             }
 
+            // A cluster read again keeps the picks of the addresses still in it.
+            var picked = Picked().ToHashSet();
             _cluster = cluster;
+            Members.Clear();
             foreach (var member in cluster.Members)
             {
-                Members.Add(RowOf(member));
+                var row = RowOf(member);
+                row.IsPicked = picked.Contains(member.Address);
+                Members.Add(row);
             }
 
             MembersNotice = string.Empty;

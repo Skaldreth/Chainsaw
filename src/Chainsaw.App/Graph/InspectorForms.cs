@@ -82,12 +82,14 @@ public static class InspectorForms
 
     /// <summary>
     /// Gets the sorts a label can say, in the legend's order with the victim and the unknown first (an unknown with a
-    /// name is the user's own name for an actor).
+    /// name is the user's own name for an actor). <see cref="LabelKind.Sanctioned"/> is left out: a sanction comes
+    /// only from an imported list, and an own judgement must never be drawn as a list's hit (principle 2).
     /// </summary>
     public static IReadOnlyList<LabelKindOption> Kinds { get; } =
     [
         .. new[] { LabelKind.Victim, LabelKind.Unknown }
-            .Concat(Enum.GetValues<LabelKind>().Where(kind => kind is not (LabelKind.Victim or LabelKind.Unknown)))
+            .Concat(Enum.GetValues<LabelKind>()
+                .Where(kind => kind is not (LabelKind.Victim or LabelKind.Unknown or LabelKind.Sanctioned)))
             .Select(kind => new LabelKindOption(kind, VisualLanguage.Of(VisualLanguage.SortOf(kind))))
             .OrderBy(option => option.Kind is LabelKind.Victim or LabelKind.Unknown ? -1 : LegendOrder(option.Look)),
     ];
@@ -175,8 +177,9 @@ public static class InspectorForms
     }
 
     /// <summary>
-    /// Recognises a transaction on another chain as it is typed: on the chosen chain, or else on another chain that
-    /// a link can name, so that a pasted Ethereum hash is known for what it is.
+    /// Recognises a transaction on another chain as it is typed: on the chosen chain, or else on another chain only
+    /// when its format says so unambiguously (<c>0x</c> is Ethereum's). Plain hex fits both Ethereum without its prefix
+    /// and TRON, so it is never moved to another chain by itself.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="chosen">The chosen chain.</param>
@@ -188,22 +191,24 @@ public static class InspectorForms
             return null;
         }
 
-        var order = Chains.Where(option => option.Chain is not null)
-            .Select(option => option.Chain!.Value)
-            .OrderBy(chain => chain == chosen ? 0 : 1);
-        foreach (var chain in order)
-        {
-            try
-            {
-                return new ChainTransactionRef(chain, text);
-            }
-            catch (ArgumentException)
-            {
-                // Not this chain's format; the next is tried.
-            }
-        }
+        var prefixed = text.Trim().StartsWith("0x", StringComparison.OrdinalIgnoreCase);
+        return Make(chosen, text) ?? (prefixed && chosen != Chain.Ethereum ? Make(Chain.Ethereum, text) : null);
+    }
 
-        return null;
+    /// <summary>Makes a reference on a chain when the text has the chain's format.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="text">The text.</param>
+    /// <returns>The reference, or <see langword="null"/>.</returns>
+    private static ChainTransactionRef? Make(Chain chain, string text)
+    {
+        try
+        {
+            return new ChainTransactionRef(chain, text);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Builds the label the form asks Attribution to set.</summary>
@@ -244,7 +249,9 @@ public static class InspectorForms
     /// <summary>
     /// Gives the splits that break the picked addresses out of their cluster: for every link that merged a picked
     /// address with one that stays, a split between the two that names the link's heuristic. Clustering then refuses
-    /// every such link, so the picked addresses leave together, and nothing else that merged them is touched.
+    /// every such link, and the links among the picked addresses and among those that stay are not touched: picked
+    /// addresses linked to each other leave together, and those joined only through an address that stays leave
+    /// each on its own.
     /// </summary>
     /// <param name="cluster">The cluster, from Clustering.</param>
     /// <param name="picked">The addresses to break out; at least one, not all.</param>

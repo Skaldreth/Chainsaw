@@ -109,6 +109,7 @@ public sealed partial class GraphViewModel : ObservableObject
         _source = source;
         Forms = new InspectorFormsViewModel(session, editor, clock);
         Forms.Saved += (_, _) => _ = RefreshAsync();
+        Forms.Failed += (_, text) => Notice = text;
         session.Changed += (_, _) => OnCaseChanged();
         workflow.StartPointAdded += (_, _) => ui.Post(() => _ = RefreshAsync());
         exit.StatusChanged += (_, status) => ui.Post(() => IsOffline = status.State != ExitState.Connected);

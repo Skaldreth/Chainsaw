@@ -28,8 +28,27 @@ internal sealed class TestGraphEditor : IGraphEditor
     /// <summary>Gets or sets after how many splits storing fails, when it does.</summary>
     public int FailAfter { get; set; }
 
-    public Task<Cluster> ReadClusterAsync(ICase @case, BitcoinAddress address, CancellationToken cancellationToken) =>
-        Task.FromResult(Cluster ?? InspectorFormsTests.SampleCluster());
+    /// <summary>Gets or sets whether a split address stays in the cluster, as when another link holds it.</summary>
+    public bool SplitsHold { get; set; } = true;
+
+    /// <summary>Gets how many times the cluster was read.</summary>
+    public int Reads { get; private set; }
+
+    /// <summary>Reads the set cluster; an address split out leaves it while the splits hold.</summary>
+    /// <param name="case">The case.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="cancellationToken">Not used.</param>
+    /// <returns>The cluster.</returns>
+    public Task<Cluster> ReadClusterAsync(ICase @case, BitcoinAddress address, CancellationToken cancellationToken)
+    {
+        Reads++;
+        var cluster = Cluster ?? InspectorFormsTests.SampleCluster();
+        var gone = SplitsHold ? Splits.Select(split => split.First).ToHashSet() : [];
+        return Task.FromResult(cluster with
+        {
+            Members = [.. cluster.Members.Where(member => !gone.Contains(member.Address))],
+        });
+    }
 
     public Task AddLabelAsync(ICase @case, LabelDraft draft)
     {
@@ -206,7 +225,9 @@ public sealed class InspectorFormsTests
         var rig = new Rig();
         rig.Graph.Choose(GraphSamples.KKey, null);
         rig.Forms.Open(InspectorForm.Label);
+        Assert.True(rig.Forms.IsSpreadOptional);
         rig.Forms.ChooseKind(rig.Forms.Kinds[0]);
+        Assert.False(rig.Forms.IsSpreadOptional);
         rig.Forms.Reason = "Offrets plånbok";
 
         await rig.Forms.SubmitCommand.ExecuteAsync(null);
@@ -342,6 +363,50 @@ public sealed class InspectorFormsTests
     }
 
     /// <summary>
+    /// The cluster is read again before the splits, so a link that came after the rows were read is split too; and
+    /// an address that another link still holds is said, never hidden.
+    /// </summary>
+    [Fact]
+    public async Task SplitReadsTheClusterAgainAndChecksIt()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        rig.Forms.Open(InspectorForm.Split);
+        rig.Forms.ToggleMember(rig.Forms.Members[1]);
+        rig.Forms.Reason = "Skäl";
+        var later = Merged(2, HeuristicNames.ChangeAddress, GraphSamples.K2, GraphSamples.K1);
+        var sample = SampleCluster();
+        rig.Editor.Cluster = sample with { Links = [.. sample.Links, later] };
+        rig.Editor.SplitsHold = false;
+
+        await rig.Forms.SubmitCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, rig.Editor.Splits.Count);
+        Assert.Contains(rig.Editor.Splits, split => split.Heuristic == HeuristicNames.ChangeAddress);
+        Assert.StartsWith(
+            "1 av de valda adresserna är fortfarande i klustret.", rig.Forms.Error, StringComparison.Ordinal);
+        Assert.True(rig.Forms.IsSplitOpen);
+    }
+
+    /// <summary>A refreshed graph reads the open split form's cluster again, keeping the picks still in it.</summary>
+    [Fact]
+    public async Task RefreshReadsTheMembersAgain()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        rig.Forms.Open(InspectorForm.Split);
+        rig.Forms.ToggleMember(rig.Forms.Members[1]);
+        var reads = rig.Editor.Reads;
+
+        await rig.Graph.RefreshAsync();
+
+        Assert.Equal(reads + 1, rig.Editor.Reads);
+        Assert.Equal(2, rig.Forms.Members.Count);
+        Assert.True(rig.Forms.Members[1].IsPicked);
+        Assert.Equal("1 av 2 ut", rig.Forms.PickedText);
+    }
+
+    /// <summary>
     /// Breaking out splits every link that crosses between those who leave and those who stay, and keeps the links
     /// among those who leave, so that they leave together.
     /// </summary>
@@ -379,8 +444,10 @@ public sealed class InspectorFormsTests
         Assert.False(rig.Forms.ShowsCoins);
         Assert.Equal("Ethereum-tx", rig.Forms.TxLabel);
         rig.Forms.TxText = Hash;
+        Assert.False(rig.Forms.IsTxRecognised);
+        Assert.Equal(Chain.Ethereum, rig.Forms.TargetChain);
+        rig.Forms.ChooseChain(rig.Forms.Chains.Single(chain => chain.Name == "TRON"));
         Assert.True(rig.Forms.IsTxRecognised);
-        Assert.Equal(Chain.Tron, rig.Forms.TargetChain);
         Assert.Equal("TRON-tx", rig.Forms.TxLabel);
         rig.Forms.TxText = "0x" + Hash.ToUpperInvariant();
         Assert.Equal(Chain.Ethereum, rig.Forms.TargetChain);
@@ -453,7 +520,8 @@ public sealed class InspectorFormsTests
         Assert.Equal(LabelKind.Victim, kinds[0]);
         Assert.Equal(LabelKind.Unknown, kinds[1]);
         Assert.Equal(LabelKind.Exchange, kinds[2]);
-        Assert.Equal(Enum.GetValues<LabelKind>().Length, kinds.Distinct().Count());
+        Assert.Equal(Enum.GetValues<LabelKind>().Length - 1, kinds.Distinct().Count());
+        Assert.DoesNotContain(LabelKind.Sanctioned, kinds);
         Assert.Equal("CIO v1", InspectorForms.ShortName(new HeuristicId(HeuristicNames.CommonInputOwnership, 1)));
         Assert.Equal("Växel v2", InspectorForms.ShortName(new HeuristicId(HeuristicNames.ChangeAddress, 2)));
     }

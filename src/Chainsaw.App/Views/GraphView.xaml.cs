@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 using Chainsaw.App.ViewModels;
 
 namespace Chainsaw.App.Views;
@@ -34,5 +36,14 @@ public partial class GraphView : UserControl
     {
         DataContext = model;
         Canvas.Attach(model);
+        model.Forms.PropertyChanged += (_, e) =>
+        {
+            // A closed form's field collapses; the keyboard goes back to the graph, so that E, F, L, U and K work.
+            if (e.PropertyName == nameof(InspectorFormsViewModel.Form) && !model.Forms.IsOpen
+                && IsKeyboardFocusWithin)
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(Canvas));
+            }
+        };
     }
 }

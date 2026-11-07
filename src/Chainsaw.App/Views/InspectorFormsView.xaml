@@ -17,8 +17,12 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
 
-        <!-- A button without a look of its own: its content draws it. -->
+        <!--
+          A button without a look of its own: its content draws it. It never takes the keyboard, so that Enter after a
+          click stores the form instead of clicking the row again.
+        -->
         <Style x:Key="Button.Bare" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Background" Value="Transparent" />
@@ -42,8 +46,9 @@
             <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         </Style>
 
-        <!-- A choice among several (a source, a chain): grey, lighter when chosen. -->
+        <!-- A choice among several (a source, a chain): grey, lighter when chosen; never takes the keyboard. -->
         <Style x:Key="Button.Chip" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
+            <Setter Property="Focusable" Value="False" />
             <Setter Property="Height" Value="26" />
             <Setter Property="Padding" Value="9,0" />
             <Setter Property="FontSize" Value="12" />
@@ -261,8 +266,9 @@
                     <TextBox Style="{StaticResource TextBox.Reason}" AutomationProperties.Name="Skäl"
                              Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" />
                     <ToggleButton Style="{StaticResource Toggle.Switch}" Margin="0,12,0,0" IsChecked="{Binding DoNotSpread}"
-                                  AutomationProperties.Name="Sprid inte"
-                                  ToolTip="Håller etiketten borta från biblioteket och andra ärenden">
+                                  AutomationProperties.Name="Sprid inte" IsEnabled="{Binding IsSpreadOptional}"
+                                  ToolTipService.ShowOnDisabled="True"
+                                  ToolTip="Håller etiketten borta från biblioteket och andra ärenden. Ett offer sprids aldrig.">
                         <StackPanel Orientation="Horizontal">
                             <controls:GridIcon Size="14" Data="{StaticResource Icon.NoSpread}"
                                                Foreground="{StaticResource Brush.TextMuted}" />
