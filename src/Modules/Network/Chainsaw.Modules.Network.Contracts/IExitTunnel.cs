@@ -11,6 +11,12 @@ public interface IExitTunnel : IAsyncDisposable
     /// </summary>
     IPEndPoint Socks5Proxy { get; }
 
+    /// <summary>
+    /// Gets the user name and password the proxy demands, new and random for each tunnel, so that no other program on
+    /// the computer can use the tunnel. A tunnel without them (or with an empty one) is refused.
+    /// </summary>
+    NetworkCredential Socks5Credentials { get; }
+
     /// <summary>Gets a token that is cancelled when the tunnel stops for any reason other than being disposed.</summary>
     CancellationToken Stopped { get; }
 }

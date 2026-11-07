@@ -21,7 +21,7 @@ internal sealed class ExitRecords(IVaultSecrets secrets)
     /// <summary>The format of the id in a secret's name: 32 lower-case hexadecimal digits.</summary>
     private const string IdFormat = "N";
 
-    /// <summary>How an exit is written: the sort as text, so that the stored value reads the same in every version.</summary>
+    /// <summary>How an exit is written: the sort as text, so that the value reads the same in every version.</summary>
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -33,7 +33,7 @@ internal sealed class ExitRecords(IVaultSecrets secrets)
     public IReadOnlyList<ExitInfo> List() =>
         secrets.List(ExitPrefix)
             .Select(name => Guid.TryParseExact(name[ExitPrefix.Length..], IdFormat, out var id) ? Find(id) : null)
-            .OfType<(ExitInfo Exit, string Configuration)>()
+            .OfType<ExitWithConfiguration>()
             .Select(found => found.Exit)
             .OrderBy(exit => exit.Name, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(exit => exit.Id)
@@ -41,8 +41,10 @@ internal sealed class ExitRecords(IVaultSecrets secrets)
 
     /// <summary>Finds an exit with its configuration.</summary>
     /// <param name="id">The exit.</param>
-    /// <returns>The exit and its configuration, or <see langword="null"/> when there is none or it is unreadable.</returns>
-    public (ExitInfo Exit, string Configuration)? Find(Guid id)
+    /// <returns>
+    /// The exit and its configuration, or <see langword="null"/> when there is none or it is unreadable.
+    /// </returns>
+    public ExitWithConfiguration? Find(Guid id)
     {
         var value = secrets.Find(NameOf(id));
         if (value is null)
@@ -61,19 +63,20 @@ internal sealed class ExitRecords(IVaultSecrets secrets)
             return null;
         }
 
-        if (stored is null || stored.Name is null || stored.Place is null || string.IsNullOrEmpty(stored.Configuration)
+        if (stored is not { Name: { } name, Place: { } place, Configuration: { Length: > 0 } configuration }
             || !Enum.IsDefined(stored.Kind))
         {
             return null;
         }
 
-        return (new ExitInfo(id, stored.Name, stored.Place, stored.Kind), stored.Configuration);
+        return new ExitWithConfiguration(new ExitInfo(id, name, place, stored.Kind), configuration);
     }
 
     /// <summary>Stores an exit.</summary>
     /// <param name="id">The exit's id.</param>
     /// <param name="exit">The exit.</param>
-    public void Save(Guid id, StoredExit exit) => secrets.Save(NameOf(id), JsonSerializer.Serialize(exit, JsonOptions));
+    public void Save(Guid id, StoredExit exit) =>
+        secrets.Save(NameOf(id), JsonSerializer.Serialize(exit, JsonOptions));
 
     /// <summary>Removes an exit.</summary>
     /// <param name="id">The exit.</param>
@@ -87,7 +90,7 @@ internal sealed class ExitRecords(IVaultSecrets secrets)
 
     /// <summary>Finds the selected exit with its configuration.</summary>
     /// <returns>The exit, or <see langword="null"/> when none is selected or the selected one is gone.</returns>
-    public (ExitInfo Exit, string Configuration)? FindSelected() => SelectedId() is { } id ? Find(id) : null;
+    public ExitWithConfiguration? FindSelected() => SelectedId() is { } id ? Find(id) : null;
 
     /// <summary>Sets or clears the selection.</summary>
     /// <param name="id">The exit, or <see langword="null"/> for none.</param>

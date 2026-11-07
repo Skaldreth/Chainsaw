@@ -32,7 +32,7 @@ public sealed class ExitStoreTests
         var (name, value) = Assert.Single(_harness.Secrets.All);
         Assert.Equal(ExitRecords.ExitPrefix + exit.Id.ToString("N"), name);
         Assert.Contains("test-private-key-not-real", value, StringComparison.Ordinal);
-        Assert.Equal((exit, NetworkHarness.Configuration), _harness.Records.Find(exit.Id));
+        Assert.Equal(new ExitWithConfiguration(exit, NetworkHarness.Configuration), _harness.Records.Find(exit.Id));
     }
 
     [Theory]
@@ -166,6 +166,20 @@ public sealed class ExitStoreTests
 
         Assert.Empty(_harness.Store.List());
         Assert.Null(_harness.Records.Find(id));
+    }
+
+    [Fact]
+    public void An_exit_with_its_configuration_never_shows_the_configuration_as_text()
+    {
+        var exit = _harness.Store.Add("Exit A", "Stockholm", ExitKind.WireGuard, NetworkHarness.Configuration);
+
+        var found = _harness.Records.Find(exit.Id)!;
+
+        Assert.DoesNotContain("test-private-key-not-real", found.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "PrivateKey",
+            new StoredExit("A", "B", ExitKind.WireGuard, NetworkHarness.Configuration).ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact]

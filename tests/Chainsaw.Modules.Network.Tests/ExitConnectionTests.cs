@@ -204,4 +204,127 @@ public sealed class ExitConnectionTests
         Assert.True(_harness.Connector.Tunnels[0].Disposed);
         Assert.False(_harness.Connection.TryLease(out _));
     }
+
+    [Theory]
+    [InlineData("", "password")]
+    [InlineData("user", "")]
+    public async Task A_tunnel_without_proxy_credentials_is_refused_and_stopped(string user, string password)
+    {
+        var exit = await _harness.SelectedExitAsync();
+        _harness.Connector.Credentials = new NetworkCredential(user, password);
+
+        var status = await _harness.Connection.ConnectAsync();
+
+        Assert.Equal(new ExitStatus(ExitState.Failed, exit.Id, ExitFailure.ConnectFailed), status);
+        Assert.True(Assert.Single(_harness.Connector.Tunnels).Disposed);
+        Assert.Empty(_harness.Handlers.Proxies);
+    }
+
+    [Fact]
+    public async Task The_pipeline_gets_a_copy_of_the_proxy_that_the_tunnel_cannot_change_afterwards()
+    {
+        var given = new IPEndPoint(IPAddress.Loopback, 49_200);
+        _harness.Connector.Proxy = given;
+        await _harness.ConnectedExitAsync();
+
+        given.Address = IPAddress.Parse("192.0.2.10");
+
+        var used = Assert.Single(_harness.Handlers.Proxies);
+        Assert.NotSame(given, used);
+        Assert.Equal(new IPEndPoint(IPAddress.Loopback, 49_200), used);
+        Assert.Equal("tunnel-user", _harness.Handlers.Credentials[0].UserName);
+    }
+
+    [Fact]
+    public async Task Disconnecting_cancels_an_attempt_that_hangs()
+    {
+        await _harness.SelectedExitAsync();
+        _harness.Connector.Gate = new TaskCompletionSource();
+
+        var connecting = _harness.Connection.ConnectAsync();
+        await _harness.Connection.DisconnectAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connecting);
+        Assert.Equal(ExitStatus.NotConnected, _harness.Connection.Status);
+        Assert.False(_harness.Connection.TryLease(out _));
+    }
+
+    [Fact]
+    public async Task Selecting_another_exit_cancels_an_attempt_that_hangs()
+    {
+        await _harness.SelectedExitAsync("Exit A");
+        var other = _harness.Store.Add("Exit B", "Oslo", ExitKind.WireGuard, NetworkHarness.Configuration);
+        _harness.Connector.Gate = new TaskCompletionSource();
+
+        var connecting = _harness.Connection.ConnectAsync();
+        await _harness.Store.SelectAsync(other.Id);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connecting);
+        Assert.Equal(other, _harness.Store.FindSelected());
+        Assert.Equal(ExitStatus.NotConnected, _harness.Connection.Status);
+    }
+
+    [Fact]
+    public async Task A_tunnel_handed_over_after_dispose_is_stopped_at_once()
+    {
+        await _harness.SelectedExitAsync();
+        var release = new TaskCompletionSource();
+        var connector = new HandOverAfterConnector(release.Task);
+        var connection = new ExitConnection(_harness.Records, connector, _harness.Handlers);
+
+        var connecting = connection.ConnectAsync();
+        connection.Dispose();
+        release.SetResult();
+
+        await Assert.ThrowsAnyAsync<Exception>(() => connecting);
+        Assert.True(connector.Tunnel.Disposed);
+        Assert.False(connection.TryLease(out _));
+        Assert.Empty(_harness.Handlers.Proxies);
+    }
+
+    [Fact]
+    public async Task A_handler_that_throws_does_not_stop_a_disconnect_or_a_change()
+    {
+        var exit = await _harness.ConnectedExitAsync();
+        _harness.Connection.StatusChanged += (_, _) => throw new InvalidOperationException("display failed");
+        var other = _harness.Store.Add("Exit B", "Oslo", ExitKind.WireGuard, NetworkHarness.Configuration);
+
+        await _harness.Store.SelectAsync(other.Id);
+
+        Assert.True(_harness.Connector.Tunnels[0].Disposed);
+        Assert.Equal(other, _harness.Store.FindSelected());
+        Assert.Equal(ExitStatus.NotConnected, _harness.Events[^1]);
+        Assert.NotEqual(exit.Id, other.Id);
+    }
+
+    [Fact]
+    public async Task The_last_event_is_always_the_current_status()
+    {
+        for (var round = 0; round < 50; round++)
+        {
+            var harness = new NetworkHarness();
+            await harness.SelectedExitAsync();
+            var connect = Task.Run(() => harness.Connection.ConnectAsync());
+            await Task.Yield();
+            harness.Connector.Tunnels.ToList().ForEach(tunnel => tunnel.Drop());
+            await connect;
+            harness.Connector.Tunnels.ToList().ForEach(tunnel => tunnel.Drop());
+
+            Assert.Equal(harness.Connection.Status, harness.Events[^1]);
+        }
+    }
+
+    /// <summary>A connector that hands over its tunnel only when told to, whatever the token says.</summary>
+    private sealed class HandOverAfterConnector(Task release) : IExitConnector
+    {
+        public FakeTunnel Tunnel { get; } =
+            new(FakeConnector.LoopbackProxy, new NetworkCredential("tunnel-user", "tunnel-password-1"));
+
+        public async Task<IExitTunnel> ConnectAsync(
+            ExitInfo exit, string configuration, CancellationToken cancellationToken)
+        {
+            await release;
+            return Tunnel;
+        }
+    }
 }

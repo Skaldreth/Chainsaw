@@ -28,11 +28,13 @@ internal sealed class FakeSecrets : IVaultSecrets
 }
 
 /// <summary>A tunnel that exists only in memory.</summary>
-internal sealed class FakeTunnel(IPEndPoint proxy) : IExitTunnel
+internal sealed class FakeTunnel(IPEndPoint proxy, NetworkCredential credentials) : IExitTunnel
 {
     private readonly CancellationTokenSource _stopped = new();
 
     public IPEndPoint Socks5Proxy => proxy;
+
+    public NetworkCredential Socks5Credentials => credentials;
 
     public CancellationToken Stopped => _stopped.Token;
 
@@ -59,6 +61,8 @@ internal sealed class FakeConnector : IExitConnector
 
     public IPEndPoint Proxy { get; set; } = LoopbackProxy;
 
+    public NetworkCredential Credentials { get; set; } = new("tunnel-user", "tunnel-password-1");
+
     public Exception? Failure { get; set; }
 
     /// <summary>When set, the connector waits for it before it returns, to see the connecting state.</summary>
@@ -80,7 +84,7 @@ internal sealed class FakeConnector : IExitConnector
             throw Failure;
         }
 
-        var tunnel = new FakeTunnel(Proxy);
+        var tunnel = new FakeTunnel(Proxy, Credentials);
         if (DropAtOnce)
         {
             tunnel.Drop();
@@ -125,11 +129,14 @@ internal sealed class RecordingHandlerFactory : IExitHandlerFactory
 
     public List<IPEndPoint> Proxies { get; } = [];
 
+    public List<NetworkCredential> Credentials { get; } = [];
+
     public List<RecordingHandler> Handlers { get; } = [];
 
-    public HttpMessageHandler Create(IPEndPoint socks5Proxy)
+    public HttpMessageHandler Create(IPEndPoint socks5Proxy, NetworkCredential credentials)
     {
         Proxies.Add(socks5Proxy);
+        Credentials.Add(credentials);
         var handler = new RecordingHandler((request, token) => Answer(request, token));
         Handlers.Add(handler);
         return handler;

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using Chainsaw.Modules.Network.Contracts;
@@ -20,6 +21,7 @@ public sealed class SocksPipelineTests : IAsyncLifetime
         var options = new NetworkOptions { AllowPlainHttp = true, RequestTimeout = TimeSpan.FromSeconds(10) };
         _harness = new NetworkHarness(options, new SocksHandlerFactory(options));
         _harness.Connector.Proxy = _proxy.EndPoint;
+        _harness.Connector.Credentials = _proxy.Credentials;
         await _harness.ConnectedExitAsync();
     }
 
@@ -63,6 +65,42 @@ public sealed class SocksPipelineTests : IAsyncLifetime
         Assert.Equal(2, _proxy.Requests.Count);
         Assert.DoesNotContain("Cookie", _proxy.Requests[1], StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Referer", _proxy.Requests[1], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task The_tunnels_credentials_open_the_proxy_and_others_do_not()
+    {
+        await _harness.Http.SendAsync(ExitRequest.Get(Address));
+        Assert.Equal(0, _proxy.Refused);
+
+        _harness.Connector.Credentials = new NetworkCredential("proxy-user", "wrong-password");
+        await _harness.Connection.ConnectAsync();
+        var exception = await Assert.ThrowsAsync<ExitException>(() => _harness.Http.SendAsync(ExitRequest.Get(Address)));
+
+        Assert.Equal(ExitError.RequestFailed, exception.Error);
+        Assert.Equal(1, _proxy.Refused);
+        Assert.Single(_proxy.Requests);
+    }
+
+    [Fact]
+    public async Task No_trace_headers_are_sent_even_when_diagnostics_listen()
+    {
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+        };
+        ActivitySource.AddActivityListener(listener);
+        using var source = new ActivitySource("Chainsaw.Tests");
+        using var activity = source.StartActivity("lookup");
+        activity?.AddBaggage("case", "secret-case");
+
+        await _harness.Http.SendAsync(ExitRequest.Get(Address));
+
+        var request = Assert.Single(_proxy.Requests);
+        Assert.DoesNotContain("traceparent", request, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("baggage", request, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("secret-case", request, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -140,12 +178,13 @@ public sealed class SocksPipelineTests : IAsyncLifetime
     [Fact]
     public void The_proxy_setting_never_bypasses_and_takes_no_credentials()
     {
-        var proxy = new ExitProxy(new IPEndPoint(IPAddress.Loopback, 1080));
+        var credentials = new NetworkCredential("u", "p");
+        var proxy = new ExitProxy(new IPEndPoint(IPAddress.Loopback, 1080), credentials);
 
         Assert.False(proxy.IsBypassed(new Uri("http://localhost/")));
         Assert.False(proxy.IsBypassed(new Uri("http://127.0.0.1/")));
         Assert.Equal(new Uri("socks5://127.0.0.1:1080"), proxy.GetProxy(new Uri("https://chain.example/")));
-        Assert.Null(proxy.Credentials);
+        Assert.Same(credentials, proxy.Credentials);
         Assert.Throws<NotSupportedException>(() => proxy.Credentials = CredentialCache.DefaultCredentials);
     }
 
@@ -154,7 +193,7 @@ public sealed class SocksPipelineTests : IAsyncLifetime
     {
         var options = new NetworkOptions();
         using var handler = (SocketsHttpHandler)new SocksHandlerFactory(options)
-            .Create(new IPEndPoint(IPAddress.Loopback, 1080));
+            .Create(new IPEndPoint(IPAddress.Loopback, 1080), new NetworkCredential("u", "p"));
 
         Assert.True(handler.UseProxy);
         Assert.IsType<ExitProxy>(handler.Proxy);
@@ -163,5 +202,7 @@ public sealed class SocksPipelineTests : IAsyncLifetime
         Assert.Equal(DecompressionMethods.None, handler.AutomaticDecompression);
         Assert.Null(handler.Credentials);
         Assert.NotNull(handler.ConnectCallback);
+        Assert.Null(handler.ActivityHeadersPropagator);
+        Assert.False(handler.SslOptions.AllowTlsResume);
     }
 }

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 
 namespace Chainsaw.Modules.Network;
@@ -12,13 +13,14 @@ namespace Chainsaw.Modules.Network;
 internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandlerFactory
 {
     /// <inheritdoc />
-    public HttpMessageHandler Create(IPEndPoint socks5Proxy)
+    public HttpMessageHandler Create(IPEndPoint socks5Proxy, NetworkCredential credentials)
     {
         ArgumentNullException.ThrowIfNull(socks5Proxy);
+        ArgumentNullException.ThrowIfNull(credentials);
         return new SocketsHttpHandler
         {
             UseProxy = true,
-            Proxy = new ExitProxy(socks5Proxy),
+            Proxy = new ExitProxy(socks5Proxy, credentials),
             DefaultProxyCredentials = null,
             Credentials = null,
             PreAuthenticate = false,
@@ -26,6 +28,12 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.None,
             ConnectTimeout = options.ConnectTimeout,
+
+            // No trace headers (traceparent, baggage), even when diagnostics listen: they could link lookups.
+            ActivityHeadersPropagator = null,
+
+            // No resumed TLS sessions, which could show a source that two exits are the same client.
+            SslOptions = new SslClientAuthenticationOptions { AllowTlsResume = false },
             ConnectCallback = (context, cancellationToken) =>
                 ConnectOnlyToProxyAsync(socks5Proxy, context.DnsEndPoint, cancellationToken),
         };

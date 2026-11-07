@@ -22,6 +22,12 @@ internal sealed class FakeSocksServer : IAsyncDisposable
 
     public IPEndPoint EndPoint => (IPEndPoint)_listener.LocalEndpoint;
 
+    /// <summary>Gets the user name and password the proxy demands (method 2, RFC 1929).</summary>
+    public NetworkCredential Credentials { get; } = new("proxy-user", "proxy-password-1");
+
+    /// <summary>Gets the number of clients refused for wrong or missing credentials.</summary>
+    public int Refused { get; private set; }
+
     /// <summary>Gets the targets asked for: the address type (1 IPv4, 3 name, 4 IPv6), the host and the port.</summary>
     public List<(byte AddressType, string Host, int Port)> Targets { get; } = [];
 
@@ -62,8 +68,26 @@ internal sealed class FakeSocksServer : IAsyncDisposable
         {
             var stream = client.GetStream();
             var greeting = await ReadExactAsync(stream, 2);
-            await ReadExactAsync(stream, greeting[1]);
-            await stream.WriteAsync(new byte[] { 5, 0 });
+            var methods = await ReadExactAsync(stream, greeting[1]);
+            if (!methods.Contains((byte)2))
+            {
+                Refused++;
+                await stream.WriteAsync(new byte[] { 5, 0xFF });
+                return;
+            }
+
+            await stream.WriteAsync(new byte[] { 5, 2 });
+            await ReadExactAsync(stream, 1);
+            var user = Encoding.ASCII.GetString(await ReadExactAsync(stream, (await ReadExactAsync(stream, 1))[0]));
+            var password = Encoding.ASCII.GetString(
+                await ReadExactAsync(stream, (await ReadExactAsync(stream, 1))[0]));
+            var accepted = user == Credentials.UserName && password == Credentials.Password;
+            await stream.WriteAsync(new byte[] { 1, accepted ? (byte)0 : (byte)1 });
+            if (!accepted)
+            {
+                Refused++;
+                return;
+            }
 
             var head = await ReadExactAsync(stream, 4);
             var addressType = head[3];

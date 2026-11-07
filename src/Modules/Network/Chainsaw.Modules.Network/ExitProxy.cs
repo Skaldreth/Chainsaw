@@ -8,16 +8,17 @@ namespace Chainsaw.Modules.Network;
 /// exit and never by the computer's own DNS.
 /// </summary>
 /// <param name="socks5Proxy">The tunnel's proxy.</param>
-internal sealed class ExitProxy(IPEndPoint socks5Proxy) : IWebProxy
+/// <param name="credentials">The user name and password the tunnel's proxy demands.</param>
+internal sealed class ExitProxy(IPEndPoint socks5Proxy, NetworkCredential credentials) : IWebProxy
 {
     /// <summary>The proxy's address as a URI, built once.</summary>
     private readonly Uri _address = new($"socks5://{socks5Proxy}");
 
-    /// <summary>Gets or sets the proxy's credentials; always none, the tunnel's proxy needs none.</summary>
+    /// <summary>Gets the tunnel's credentials; they cannot be replaced.</summary>
     public ICredentials? Credentials
     {
-        get => null;
-        set => throw new NotSupportedException("The exit's proxy takes no credentials.");
+        get => credentials;
+        set => throw new NotSupportedException("The exit's proxy takes only the tunnel's credentials.");
     }
 
     /// <summary>Gives the proxy for an address: always the tunnel's.</summary>

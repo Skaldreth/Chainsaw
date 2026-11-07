@@ -4,6 +4,10 @@ namespace Chainsaw.Modules.Network.Contracts;
 /// A request through the exit failed. The message is Swedish and meant for the user; it never contains the address
 /// asked, the configuration or anything about the case.
 /// </summary>
+/// <remarks>
+/// The inner exception is for diagnostics on this computer only. It comes from .NET and can name the host and port
+/// asked, so it must never be shown to the user, written to a shared log or put in a case.
+/// </remarks>
 public class ExitException : Exception
 {
     /// <summary>Creates the exception for a reason, with the reason's standard message.</summary>

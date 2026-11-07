@@ -100,6 +100,15 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   lyssna bara på `127.0.0.1`, ta konfigurationen ur valvet utan att skriva den till disk, säga till genom
   `IExitTunnel.Stopped` när tunneln faller, och skickas med Chainsaw i stället för att hämtas. Tills dess misslyckas
   varje anslutning ärligt med *TunnelUnavailable*. Välj implementation och granska licensen.
+- **Tunnelns port kan tas över** (granskningen etapp 4, I): SOCKS5-porten på `127.0.0.1` kräver nu ett slumpat
+  användarnamn och lösenord per tunnel, så att andra program inte kan använda den. Men om tunnelns process dör och ett
+  annat program hinner lyssna på samma port innan `Stopped` slår till, kan Chainsaws nästa uppslag gå till fel proxy.
+  Bäst är att köra tunneln i Chainsaws egen process och låta `ConnectCallback` ge en ström direkt ur tunneln i stället
+  för en lokal port. Bestäms när tunneln byggs.
+- **Svarshuvuden som ursprung:** `ExitResponse` har bara status, medietyp och den råa kroppen. Behöver Chains huvuden
+  som `Date` eller `ETag` som en del av ursprunget läggs de till då (granskningen etapp 4, M).
+- **Privata adresser genom utgången:** `IExitHttp` vägrar inte `localhost`, privata eller länklokala adresser. De går
+  genom utgången och läcker inget, men ett uppslag behöver dem aldrig; kan vägras (granskningen etapp 4, M).
 - **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
   titelraden (skissas först).
 - **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan

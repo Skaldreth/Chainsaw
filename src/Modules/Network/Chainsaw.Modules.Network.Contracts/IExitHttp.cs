@@ -16,7 +16,9 @@ public interface IExitHttp
     /// The request timed out, the response was too large, the request failed on the way or the exit was disconnected
     /// while it was in flight.
     /// </exception>
-    /// <exception cref="ArgumentException">The request is not allowed (not https, user information, a GET body).</exception>
+    /// <exception cref="ArgumentException">
+    /// The request is not allowed (not https, user information, a GET body).
+    /// </exception>
     /// <exception cref="OperationCanceledException">The caller cancelled the request.</exception>
     Task<ExitResponse> SendAsync(ExitRequest request, CancellationToken cancellationToken = default);
 }

@@ -29,4 +29,14 @@ public sealed class NetworkOptions
     /// loopback address; the application only sends <c>https</c>, so the exit sees no content.
     /// </summary>
     internal bool AllowPlainHttp { get; set; }
+
+    /// <summary>Refuses limits that would make every request fail or never end.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">A limit is zero, negative or infinite.</exception>
+    internal void Validate()
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(RequestTimeout, TimeSpan.Zero, nameof(RequestTimeout));
+        ArgumentOutOfRangeException.ThrowIfEqual(RequestTimeout, Timeout.InfiniteTimeSpan, nameof(RequestTimeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(ConnectTimeout, TimeSpan.Zero, nameof(ConnectTimeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(MaximumResponseBytes, 0, nameof(MaximumResponseBytes));
+    }
 }

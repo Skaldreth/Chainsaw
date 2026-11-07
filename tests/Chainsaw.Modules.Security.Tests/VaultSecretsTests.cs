@@ -112,3 +112,29 @@ public sealed class VaultSecretsTests : IDisposable
         Assert.Equal("1", Secrets.Find("a"));
     }
 }
+
+public sealed class VaultContentSecretsTests
+{
+    [Fact]
+    public void Content_from_before_the_secrets_has_none()
+    {
+        var content = System.Text.Json.JsonSerializer.Deserialize<VaultContent>("""{"ApiKeys":[],"Operator":null}""")!;
+
+        Assert.Null(content.Secrets);
+        Assert.Empty(content.SecretsOrEmpty);
+    }
+
+    [Fact]
+    public void Each_secret_is_serialised_once()
+    {
+        var content = VaultContent.Empty with
+        {
+            Secrets = new Dictionary<string, string>(StringComparer.Ordinal) { ["a"] = "marker-value" },
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(content);
+
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(json, "marker-value"));
+        Assert.DoesNotContain("SecretsOrEmpty", json, StringComparison.Ordinal);
+    }
+}

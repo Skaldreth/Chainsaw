@@ -47,6 +47,21 @@ public sealed class NetworkModuleTests : IDisposable
     }
 
     [Fact]
+    public void Limits_that_would_break_every_request_are_refused()
+    {
+        var services = new ServiceCollection();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => services.AddNetworkModule(options => options.RequestTimeout = TimeSpan.Zero));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => services.AddNetworkModule(options => options.RequestTimeout = Timeout.InfiniteTimeSpan));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => services.AddNetworkModule(options => options.ConnectTimeout = TimeSpan.FromSeconds(-1)));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => services.AddNetworkModule(options => options.MaximumResponseBytes = 0));
+    }
+
+    [Fact]
     public async Task Without_a_tunnel_the_container_connects_nothing_and_refuses_every_request()
     {
         using var provider = BuildProvider();

@@ -10,8 +10,10 @@ public interface IExitConnection
     ExitStatus Status { get; }
 
     /// <summary>
-    /// Raised after <see cref="Status"/> has changed, on any thread. The status is already changed when the event is
-    /// raised; an exception from a handler reaches the caller of the operation that changed it.
+    /// Raised after <see cref="Status"/> has changed, on any thread, one at a time and in order. When changes come
+    /// quickly an intermediate status may be skipped, but the latest is always raised. A handler that throws does not
+    /// affect the connection. A handler must not wait synchronously for <see cref="ConnectAsync"/> or
+    /// <see cref="DisconnectAsync"/>, since the event can be raised while one of them runs.
     /// </summary>
     event EventHandler<ExitStatus>? StatusChanged;
 
@@ -22,12 +24,14 @@ public interface IExitConnection
     /// <param name="cancellationToken">Stops the attempt; the state then returns to not connected.</param>
     /// <returns>The status when the attempt ended.</returns>
     /// <exception cref="InvalidOperationException">No exit is selected.</exception>
-    /// <exception cref="OperationCanceledException">The attempt was cancelled.</exception>
+    /// <exception cref="OperationCanceledException">
+    /// The attempt was cancelled, by the token or by a disconnect or a change of the selected exit meanwhile.
+    /// </exception>
     Task<ExitStatus> ConnectAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Disconnects the exit. Requests in flight are stopped and fail. Disconnecting when nothing is connected is
-    /// harmless.
+    /// Disconnects the exit, cancelling an attempt to connect that is running. Requests in flight are stopped and
+    /// fail. Disconnecting when nothing is connected is harmless.
     /// </summary>
     /// <returns>A task that completes when the tunnel is stopped.</returns>
     Task DisconnectAsync();
