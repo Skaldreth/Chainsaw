@@ -189,6 +189,8 @@ public sealed class ExitHttpTests
     [InlineData("https://[2002:7f00:1::]/tx")]
     [InlineData("https://[fec0::1]/tx")]
     [InlineData("https://[ff02::1]/tx")]
+    [InlineData("https://[2001:db8::1]/tx")]
+    [InlineData("https://[2001:0:4136:e378::1]/tx")]
     public async Task An_address_on_the_computer_or_a_private_network_is_refused(string address)
     {
         await _harness.ConnectedExitAsync();
@@ -202,7 +204,7 @@ public sealed class ExitHttpTests
     [Theory]
     [InlineData("https://172.32.0.1/tx")]
     [InlineData("https://8.8.8.8/tx")]
-    [InlineData("https://[2001:db8::1]/tx")]
+    [InlineData("https://[2a00:1450::1]/tx")]
     [InlineData("https://[2002:808:808::1]/tx")]
     [InlineData("https://[::ffff:8.8.8.8]/tx")]
     [InlineData("https://[64:ff9b::808:808]/tx")]

@@ -119,6 +119,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   `[Interface]` och en giltig IP-adress när tunneln byggs (granskningen etapp 4, M).
 - **Rötternas begränsningar på Windows:** med Chainsaws egen rotlista följs inte Windows egna begränsningar för en rot
   (användningsområden, *distrust after*). Prova på Windows (TESTER-INFOR) och bestäm om de ska läsas in.
+- **Stoppen när programmet avslutas:** `Dispose` väntar (högst fem sekunder) på tunnelstoppen som finns när den
+  börjar, men inte på ett anslutningsförsök som lämnar över en tunnel efteråt (den stoppas ändå direkt), och det finns
+  ett litet fönster mellan att den anslutna utgången tas och att dess stopp registreras. Viktigt när tunneln är en
+  egen process (granskningen etapp 4, omgång 5, M).
 - **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
   titelraden (skissas först).
 - **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan

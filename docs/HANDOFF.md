@@ -12,6 +12,9 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
   längst ner och statusraden. 41 tester gröna. **Inte provat på Windows**, se `docs/TESTER-INFOR-1.0.md`.
 - **Etapp 2, Security** (2026-11-07, DEV-LOG): valvet med huvudnyckel, inlindad datanyckel, API-nycklar,
   operatörsprofilen och nycklar per syfte (`IPurposeKeys`) till etapp 3. Inget gränssnitt.
+- **Etapp 4, Network** (2026-11-07, DEV-LOG): utgångarna krypterade i valvet, anslutningen till den valda utgången
+  och `IExitHttp`, den enda vägen ut, som bara går genom tunnelns SOCKS5-port och vägrar utan ansluten utgång.
+  Tunneln själv (WireGuard) är inte byggd, så varje anslutning misslyckas ärligt. Inget gränssnitt.
 - **Etapp 3, Cases** (2026-11-07, DEV-LOG): ärendefilen `.cut` med egen filnyckel och nyckelkuvert (valvet och ett
   valfritt delningslösenord), schemasteg per modul, journalen och de förseglade tabellerna i en hashkedja,
   verifieringen bakom `/verify`. Inget gränssnitt.
@@ -25,7 +28,7 @@ session. Etapperna i ordning; en etapp som är klar markeras här av huvudsessio
 | --- | --- | --- |
 | 2 | **Security:** huvudnyckeln (PBKDF2-SHA512, 600 000 iterationer), datanyckeln (AES-256-GCM) som lindas in, valvet i `%LOCALAPPDATA%\Chainsaw\` för API-nycklar, operatörsprofilen, låst och upplåst läge | Klar |
 | 3 | **Cases:** ärendefilen `.cut` (SQLite3 Multiple Ciphers, nyckel ur valvet), schemamigreringar per modul, journalen och hashkedjan som bara fylls på, `/verify` som tjänst | Klar |
-| 4 | **Network:** utgångarna som modell och `IExitHttp`, som **vägrar** när ingen utgång är ansluten (princip 4); WireGuard-tunneln själv senare | Väntar |
+| 4 | **Network:** utgångarna som modell och `IExitHttp`, som **vägrar** när ingen utgång är ansluten (princip 4); WireGuard-tunneln själv senare | Klar |
 | 5 | **Chains:** Bitcoin-modellen (block, tx, inputs, outputs, adresser i `Satoshi`), `IBitcoinSource`, Esplora-källan genom `IExitHttp`, varje råsvar sparat med SHA-256 och blockhöjd i ärendet, offline ur ärendet; tester mot syntetiska svar | Väntar |
 | 6 | **Clustering:** heuristikerna common-input-ownership v1, CoinJoin v1 (stoppar sammanslagning), växeladress v1 och peel chain v1, med namn, version och tx; kluster med sammanslagningar och uppbrytningar som minns; tester mot ett facit av syntetiska mönster | Väntar |
 | 7 | **Tracing:** grafen som modell (aktörer, adresser, tx, kanter, kant till annan kedja), spårningsmetoderna FIFO och haircut, slut på spåret med orsak; tester | Väntar |

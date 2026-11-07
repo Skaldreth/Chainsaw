@@ -134,3 +134,76 @@ ankarnas avvikelser visas i gränssnittet, och var ärendena ska ligga.
 
 **Återstår:** gränssnittet för att skapa, öppna, dela och verifiera ärenden; att appen sparar ofta; `/verify` i
 kommandoraden; att andra moduler (Chains i etapp 5) registrerar sina tabeller och förseglar sina råsvar.
+
+## Etapp 4 (2026-11-07): Network, utgångarna och den enda vägen ut
+
+Modulen `Network` utan gränssnitt: `IExitStore` (utgångarna och den valda), `IExitConnection` (ansluta, koppla ner,
+läget och en händelse), `IExitConnector` och `IExitTunnel` (där tunneln kopplas in) och `IExitHttp`, den enda vägen ut
+för andra moduler, registrerade i `AddNetworkModule`. Security fick `IVaultSecrets`, namngivna hemligheter i valvet.
+
+- **Utgångarna** sparas som hemligheter i valvet (`network/exits/<id>`): namn, plats, sort och WireGuard-filen,
+  krypterade tillsammans. Också den valda utgången ligger i valvet. Inget om utgångarna står i klartext.
+- **Anslutningen** går genom `IExitConnector`. Tunneln ger en SOCKS5-port på loopback med ett slumpat användarnamn och
+  lösenord. En port som inte är loopback, eller som saknar inloggningsuppgifter, vägras. Faller tunneln blir läget
+  *misslyckades* (förbindelsen förlorad) direkt. Att välja en annan utgång eller ta bort den anslutna kopplar ner
+  först, och ett pågående anslutningsförsök avbryts av en nedkoppling.
+- **`IExitHttp`** vägrar med `ExitNotConnectedException` (svensk text) innan något byggs när ingen utgång är
+  ansluten. Den skickar bara metod, adress, `Host`, en neutral User-Agent (`Mozilla/5.0`) och, när det behövs,
+  `Accept` och en kropp. Den har inga cookies, ingen referer, inga omdirigeringar och inga spårhuvuden
+  (`traceparent`). Svaret har råa bytes, status, medietyp och tider, och storleken och tiden är begränsade.
+- **Ingen väg runt utgången**, i flera lager:
+  - Proxyn går aldrig förbi.
+  - Hanterarens enda socket kan bara gå till tunnelns port.
+  - SOCKS5 skickar namnet, så datorn slår inte upp något själv.
+  - HTTP/1.1 är låst (ingen QUIC över UDP).
+  - TLS-kedjan byggs utan nedladdningar och spärrkontroll, och bara mot de rötter som redan finns installerade. Annars
+    hämtar operativsystemet saknade certifikat och rötter direkt från datorns nät.
+  - Adresser på datorn och i privata, reserverade eller dokumentationsnät vägras.
+
+**Egna beslut:**
+- **Bara https.** `http` vägras, så att utgången aldrig ser innehållet. Står i TODO under *Väntar på beslut*.
+- **User-Agent `Mozilla/5.0`**, det mest allmänna värdet, så att en källa inte kan skilja Chainsaw från en annan
+  klient.
+- **Den valda utgången ligger i valvet**, inte i en fil i klartext. Bevakningsprocessen, som ska gå utan valvet, får
+  sin konfiguration med DPAPI när den byggs.
+- **WireGuard-filen måste ha `DNS =`**, så att namn kan slås upp inne i tunneln.
+- **En låsning av valvet kopplar inte ner utgången.** Står i TODO under *Väntar på beslut*.
+- **Ofullständiga certifikatkedjor misslyckas** och spärrar kontrolleras inte. Det är priset för att inget hämtas
+  runt utgången.
+- Ett fel i en hanterare av `StatusChanged` stoppar aldrig anslutningen. Händelserna kommer i ordning, och den
+  senaste kommer alltid.
+
+**Granskningen:** fem omgångar.
+- **Omgång 1:**
+  - Två I: `traceparent` skickades när diagnostik lyssnade, och tunnelns port saknade inloggning.
+  - Tio M, bland annat händelser i fel ordning, en hanterare som kastade och lämnade tunneln igång, hemligheter som
+    serialiserades två gånger, och återupptagna TLS-sessioner.
+- **Omgång 2:**
+  - Ett C: när en kedja saknade ett mellanliggande certifikat hämtade TLS det från certifikatets AIA-adress direkt
+    från datorns nät. Det gick runt utgången och visade den riktiga adressen. Rättat med en kedjepolicy utan
+    nedladdningar, och ett test med https genom den riktiga vägen som misslyckas utan rättelsen.
+  - Två I: ett försök som väntade på sin tur avbröts inte av en nedkoppling, och https saknade test.
+  - Åtta M.
+- **Omgång 3:**
+  - Tre I: en avbrytning just efter publiceringen lämnade en död utgång som *ansluten*, Windows automatiska
+    uppdatering av rötter kunde hämta runt utgången, och namnuppslaget i tunneln stod inte i kontraktet.
+  - Fyra M, bland annat adresser som bär IPv4 i IPv6 och HTTP/1.1 som inte var låst.
+- **Omgång 4:**
+  - Ett I: `Dispose` väntade inte på stopp som en nedkoppling hade börjat.
+  - Sex M.
+- **Omgång 5:** inga C eller I. Fyra M: ett stopp som hänger höll anslutningen för alltid, förlorad förbindelse
+  visades först när stoppet var klart, och IPv6-dokumentationsnät och Teredo släpptes igenom. De är rättade. Det
+  fjärde, luckor i `Dispose`, står i TODO.
+
+Alla C och I är rättade och har regressionstester: 155 tester i Network och 93 i Security.
+
+**Kvar i TODO:**
+- tunneln själv, med namnuppslag i tunneln och helst i samma process (porten kan annars tas över);
+- gränssnittet för utgångar;
+- svarshuvuden som ursprung;
+- rötternas begränsningar på Windows;
+- kontrollen av `DNS =`;
+- `Dispose` och anslutningsförsök som pågår.
+
+**Återstår:** tunneln, gränssnittet och att Chains (etapp 5) gör sina uppslag genom `IExitHttp`.
+

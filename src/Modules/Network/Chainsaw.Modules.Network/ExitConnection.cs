@@ -10,7 +10,7 @@ namespace Chainsaw.Modules.Network;
 /// </summary>
 internal sealed class ExitConnection : IExitConnection, IDisposable
 {
-    /// <summary>How long the application's exit waits for a tunnel to stop before it leaves it to itself.</summary>
+    /// <summary>How long an operation or the application's exit waits for a tunnel to stop before it leaves it.</summary>
     private static readonly TimeSpan DisposeStopLimit = TimeSpan.FromSeconds(5);
 
     /// <summary>The exits in the vault.</summary>
@@ -295,7 +295,7 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         var pipeline = CreatePipeline(tunnel);
         if (pipeline is null)
         {
-            await StopTracked(() => ActiveExit.StopQuietlyAsync(tunnel)).ConfigureAwait(false);
+            await StopBoundedAsync(() => ActiveExit.StopQuietlyAsync(tunnel)).ConfigureAwait(false);
             SetStatus(new ExitStatus(ExitState.Failed, exitId, ExitFailure.ConnectFailed));
             return Status;
         }
@@ -326,8 +326,8 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         if (!publish)
         {
             active.Stop();
-            await StopTracked(active.StopTunnelAsync).ConfigureAwait(false);
             RaiseLatest();
+            await StopBoundedAsync(active.StopTunnelAsync).ConfigureAwait(false);
             ObjectDisposedException.ThrowIf(disposed, this);
             throw new OperationCanceledException(cancellationToken);
         }
@@ -417,10 +417,12 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         }
 
         active.Stop();
+
+        // The event first, so that the display shows the lost connection while the tunnel is still stopping.
         TrackStop(Task.Run(async () =>
         {
-            await active.StopTunnelAsync().ConfigureAwait(false);
             RaiseLatest();
+            await active.StopTunnelAsync().ConfigureAwait(false);
         }));
     }
 
@@ -431,21 +433,16 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         var active = TakeActive(ExitStatus.NotConnected);
         try
         {
-            if (active is not null)
-            {
-                try
-                {
-                    active.Stop();
-                }
-                finally
-                {
-                    await StopTracked(active.StopTunnelAsync).ConfigureAwait(false);
-                }
-            }
+            active?.Stop();
         }
         finally
         {
+            // The event first, so that the display follows the state while the tunnel is still stopping.
             RaiseLatest();
+            if (active is not null)
+            {
+                await StopBoundedAsync(active.StopTunnelAsync).ConfigureAwait(false);
+            }
         }
     }
 
@@ -577,6 +574,18 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         var task = Task.Run(stop);
         TrackStop(task);
         return task;
+    }
+
+    /// <summary>
+    /// Stops a tunnel as a tracked stop and waits for it at most <see cref="DisposeStopLimit"/>. A tunnel that hangs
+    /// while it stops is left to itself (its pipeline is already gone) and cannot hold the operations for ever.
+    /// </summary>
+    /// <param name="stop">Stops the tunnel; it never throws.</param>
+    /// <returns>A task that completes when the tunnel has stopped or the limit has passed.</returns>
+    private async Task StopBoundedAsync(Func<Task> stop)
+    {
+        var stopping = StopTracked(stop);
+        await Task.WhenAny(stopping, Task.Delay(DisposeStopLimit)).ConfigureAwait(false);
     }
 
     /// <summary>Keeps a tunnel stop running on the thread pool until it ends, so that disposal can wait for it.</summary>

@@ -287,6 +287,33 @@ public sealed class ExitConnectionRaceTests
         Assert.Equal(1, calls);
     }
 
+    [Fact]
+    public async Task A_tunnel_that_hangs_while_it_stops_does_not_hold_the_connection_for_ever()
+    {
+        await _harness.ConnectedExitAsync();
+        _harness.Connector.Tunnels[0].StopGate = new TaskCompletionSource().Task;
+
+        await _harness.Connection.DisconnectAsync().WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(ExitStatus.NotConnected, _harness.Connection.Status);
+        Assert.Equal(ExitState.Connected, (await _harness.Connection.ConnectAsync()).State);
+    }
+
+    [Fact]
+    public async Task A_lost_connection_is_raised_before_the_tunnel_has_stopped()
+    {
+        var exit = await _harness.ConnectedExitAsync();
+        var slowStop = new TaskCompletionSource();
+        _harness.Connector.Tunnels[0].StopGate = slowStop.Task;
+
+        _harness.Connector.Tunnels[0].Drop();
+
+        var failed = new ExitStatus(ExitState.Failed, exit.Id, ExitFailure.ConnectionLost);
+        await NetworkHarness.WaitUntilAsync(() => _harness.Events[^1] == failed);
+        Assert.False(_harness.Connector.Tunnels[0].Disposed);
+        slowStop.SetResult();
+    }
+
     /// <summary>A connector that hands over its tunnel only when told to, whatever its token says.</summary>
     private sealed class HandOverAfterConnector(Task release) : IExitConnector
     {

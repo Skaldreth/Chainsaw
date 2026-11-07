@@ -43,6 +43,12 @@ internal static class LocalTargets
             return IsLocalV4(embedded);
         }
 
+        // 2001::/32 (Teredo, which hides an IPv4 address) and 2001:db8::/32 (documentation) are never a source.
+        if (bytes is [0x20, 0x01, 0x00, 0x00, ..] or [0x20, 0x01, 0x0D, 0xB8, ..])
+        {
+            return true;
+        }
+
         // Only 2000::/3 is global unicast; everything else (fe80::/10, fc00::/7, fec0::/10, ff00::/8 and the rest)
         // is refused. The forms that carry IPv4 (also :: and ::1, as 0.0.0.0 and 0.0.0.1) were judged by it above.
         return (bytes[0] & 0xE0) != 0x20;
