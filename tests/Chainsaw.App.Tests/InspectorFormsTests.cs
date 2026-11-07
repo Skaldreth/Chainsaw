@@ -414,9 +414,9 @@ public sealed class InspectorFormsTests
         Assert.Contains("fortfarande i klustret", rig.Graph.Notice, StringComparison.Ordinal);
     }
 
-    /// <summary>A form closed by choosing another node hands what it said to the graph's notice.</summary>
+    /// <summary>A plain refusal the user has read in the form does not come back in the graph's notice.</summary>
     [Fact]
-    public async Task ErrorMovesToTheNoticeWhenTheFormCloses()
+    public async Task ReadRefusalStaysWithItsForm()
     {
         var rig = new Rig();
         rig.Editor.Failure = new CaseException(CaseError.Closed);
@@ -425,9 +425,10 @@ public sealed class InspectorFormsTests
         rig.Forms.Reason = "Skäl";
         await rig.Forms.SubmitCommand.ExecuteAsync(null);
 
+        Assert.Contains("ärendet är stängt", rig.Forms.Error, StringComparison.Ordinal);
         rig.Graph.Choose(GraphSamples.EKey, null);
 
-        Assert.Contains("ärendet är stängt", rig.Graph.Notice, StringComparison.Ordinal);
+        Assert.DoesNotContain("ärendet är stängt", rig.Graph.Notice, StringComparison.Ordinal);
     }
 
     /// <summary>A refreshed graph reads the open split form's cluster again, keeping the picks still in it.</summary>

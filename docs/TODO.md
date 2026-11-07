@@ -235,6 +235,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Samma person på två datorer:** en egen etikett räknas som oberoende per operatörsprofil (namn, titel, enhet). En
   profil som ändras räknas som en annan person; ett stabilt operatörs-id i Security vore bättre.
 - **Etiketter på tx** (till exempel en känd brygga eller swap): `ClassifyTransaction` ger inget från etiketter än.
+- **Esc med ett formulär öppet och tangentbordet någon annanstans** (granskningen etapp 16, omgång 3, M2): står
+  fokus i Guidens panel eller en annan kontroll utanför formuläret och grafen gör Esc ingenting, eftersom formuläret
+  tar Esc före panelen. Esc borde då stänga formuläret (eller panelen).
 - **Uppbrytningen mot den riktiga klustringen** (granskningen etapp 16, M4): `InspectorForms.BreakOut` testas mot
   ett handbyggt kluster i App.Tests; ett test i Clustering.Tests som sparar bevis, bryter ut genom `Split` och läser
   klustret efteråt (blandat val i en CIO-länk med tre adresser, en senare länk med annan heuristik, valda adresser som

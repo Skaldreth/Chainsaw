@@ -1319,6 +1319,8 @@ Annan kedja (K). Allt som skrivs går genom modulerna (Attribution `Add`, Cluste
   formuläret när grafen lästes om; nu läses grafen om först efter kontrollen, och det ett formulär som stängs har att
   säga flyttas till grafens rad. Fyra M rättade: en kontroll som inte gick att läsa sägs som sådan, bara den senaste
   läsningen av klustret visas, Enter sparar också efter ett klick på knapparna eller *Sprid inte*, och Esc stänger
-  ett öppet formulär före Guidens panel (etapp 18).
+  ett öppet formulär före Guidens panel (etapp 18). Omgång 3 gav inga C eller I; av två M rättades att en läst vägran inte kommer
+  tillbaka i grafens rad (bara uppbrytningens varningar gör det, och läggs till raden i stället för att ersätta den),
+  och den andra (Esc när fokus står utanför formuläret och grafen) står i TODO.
 - **Återstår:** ta tillbaka en etikett eller länk i grafen och ångra en uppbrytning (behöver skiss), egna källor för
   beställningen och börsens svar. Inte provat på Windows (`docs/TESTER-INFOR-1.0.md`).

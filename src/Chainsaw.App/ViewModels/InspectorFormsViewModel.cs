@@ -167,6 +167,12 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     /// <summary>Counts the forms opened, so that a cluster read for an earlier one is dropped.</summary>
     private int _opened;
 
+    /// <summary>
+    /// Whether the form's error tells of something that was stored (a split's warning), and so moves to the graph's
+    /// notice when the form closes; a plain refusal the user has read does not.
+    /// </summary>
+    private bool _errorOutlivesForm;
+
     /// <summary>Counts the readings of the cluster's addresses, so that only the latest is shown.</summary>
     private int _memberReads;
 
@@ -371,7 +377,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         if (!same || !IsAllowed(Form))
         {
             // What the closing form had to say moves to the graph's notice instead of vanishing with it.
-            if (IsOpen && Error.Length > 0)
+            if (IsOpen && Error.Length > 0 && _errorOutlivesForm)
             {
                 Failed?.Invoke(this, Error);
             }
@@ -534,6 +540,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
                 if (problem.Length > 0)
                 {
                     Say(problem, opened);
+                    _errorOutlivesForm = form == InspectorForm.Split && opened == _opened;
                 }
             }
             else if (_session.Current == openCase && Form == form && opened == _opened)
@@ -762,6 +769,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         Coins.Clear();
         OnPropertyChanged(nameof(ShowsCoins));
         Error = string.Empty;
+        _errorOutlivesForm = false;
     }
 
     /// <summary>Chooses a chain and marks it.</summary>
