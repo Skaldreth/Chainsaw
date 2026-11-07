@@ -12,6 +12,12 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Recorded\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Monitoring\Chainsaw.Modules.Monitoring\Chainsaw.Modules.Monitoring.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Cases\Chainsaw.Modules.Cases\Chainsaw.Modules.Cases.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Clustering\Chainsaw.Modules.Clustering\Chainsaw.Modules.Clustering.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Chains\Chainsaw.Modules.Chains\Chainsaw.Modules.Chains.csproj" />
   </ItemGroup>
 </Project>

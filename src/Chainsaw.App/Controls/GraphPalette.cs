@@ -46,6 +46,7 @@ public static class GraphPalette
         NodeBadge.Sanctioned => (Find(owner, "Brush.Kind.Sanctioned"), Find(owner, "Brush.Mark.OnSanctioned")),
         NodeBadge.StartPoint => (Find(owner, "Brush.Mark.Start"), Find(owner, "Brush.Background")),
         NodeBadge.CanBeFrozen => (Find(owner, "Brush.Mark.Freeze"), Find(owner, "Brush.Mark.OnFreeze")),
+        NodeBadge.Watched => (Find(owner, "Brush.Accent"), Find(owner, "Brush.Mark.OnAccent")),
         _ => (Find(owner, "Brush.Mark.OtherCase"), Find(owner, "Brush.Text")),
     };
 

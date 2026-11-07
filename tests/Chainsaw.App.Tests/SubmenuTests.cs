@@ -49,7 +49,7 @@ public sealed class SubmenuTableTests
     {
         var notBuilt = SubmenuTable.New.Where(r => r.Need == SubmenuNeed.NotBuilt).ToList();
 
-        Assert.Equal([SubmenuAction.Label, SubmenuAction.Watch, SubmenuAction.Request], notBuilt.Select(r => r.Action));
+        Assert.Equal([SubmenuAction.Label, SubmenuAction.Request], notBuilt.Select(r => r.Action));
         Assert.All(notBuilt, r => Assert.StartsWith("Inte byggt än", r.NotBuiltText, StringComparison.Ordinal));
     }
 }
@@ -161,6 +161,8 @@ public sealed class SubmenuViewModelTests
         menu.Open();
 
         menu.MoveNext();
+        Assert.Equal("Bevakning", menu.Marked?.Row.Name);
+        menu.MoveNext();
         Assert.Equal("Importera sanktionslista …", menu.Marked?.Row.Name);
         menu.MoveNext();
         Assert.Equal("Ärende", menu.Marked?.Row.Name);
@@ -211,7 +213,7 @@ public sealed class SubmenuViewModelTests
         var (chosen, _) = Listen(menu);
         menu.Open();
 
-        Assert.True(menu.ChooseLetter('B'));
+        Assert.True(menu.ChooseLetter('R'));
 
         Assert.Empty(chosen);
         Assert.True(menu.IsOpen);
@@ -233,7 +235,7 @@ public sealed class SubmenuViewModelTests
         var menu = Menu(hasCase: true);
         var (chosen, _) = Listen(menu);
         menu.Open();
-        var watch = menu.Rows.Single(r => r.Row.Action == SubmenuAction.Watch);
+        var watch = menu.Rows.Single(r => r.Row.Action == SubmenuAction.Request);
 
         menu.Point(watch);
         menu.Choose(watch);

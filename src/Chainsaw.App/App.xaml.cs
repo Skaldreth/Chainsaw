@@ -172,6 +172,16 @@ public partial class App : Application
                 .AddSingleton<IGraphEditor, GraphEditor>()
                 .AddSingleton<ICheckSource, CheckSource>()
                 .AddSingleton<GraphViewModel>()
+                .AddSingleton<IWatchSource, WatchSource>()
+                .AddSingleton<WatchBoard>()
+                .AddSingleton(provider => new WatchFormViewModel(
+                    provider.GetRequiredService<WatchBoard>(),
+                    () => provider.GetRequiredService<SettingsViewModel>().WatchPace))
+                .AddSingleton<MonitoringViewModel>()
+                .AddSingleton(provider => new WatchRunner(
+                    provider.GetRequiredService<WatchBoard>(),
+                    () => provider.GetRequiredService<SettingsViewModel>().WatchPace,
+                    provider.GetRequiredService<IClock>()))
                 .AddSingleton(_ => GuideLibrary.Load())
                 .AddSingleton<GuidePanelViewModel>()
                 .AddSingleton<GuideViewModel>()

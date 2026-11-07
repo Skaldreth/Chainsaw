@@ -7,6 +7,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Chainsaw.Modules.Monitoring.Contracts\Chainsaw.Modules.Monitoring.Contracts.csproj" />
+    <ProjectReference Include="..\..\Chains\Chainsaw.Modules.Chains.Contracts\Chainsaw.Modules.Chains.Contracts.csproj" />
+    <ProjectReference Include="..\..\Clustering\Chainsaw.Modules.Clustering.Contracts\Chainsaw.Modules.Clustering.Contracts.csproj" />
+    <ProjectReference Include="..\..\Network\Chainsaw.Modules.Network.Contracts\Chainsaw.Modules.Network.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Chainsaw.Modules.Monitoring.Tests" />

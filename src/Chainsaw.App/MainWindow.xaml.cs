@@ -54,12 +54,16 @@ public partial class MainWindow : Window
     /// <param name="graph">The graph's view model (sketch GR4).</param>
     /// <param name="guidePanel">The Guide's panel (sketch GD1b).</param>
     /// <param name="guide">The view Guide (F1).</param>
+    /// <param name="monitoring">The view Bevakning (sketch BV1a).</param>
+    /// <param name="watchRunner">The watches' checks while Chainsaw is open and unlocked, started here.</param>
     public MainWindow(
         ShellViewModel shell,
         GateViewModel gate,
         GraphViewModel graph,
         GuidePanelViewModel guidePanel,
-        GuideViewModel guide)
+        GuideViewModel guide,
+        MonitoringViewModel monitoring,
+        WatchRunner watchRunner)
     {
         InitializeComponent();
         _shell = shell;
@@ -75,6 +79,8 @@ public partial class MainWindow : Window
         GuidePage.Attach(guide);
         GuidePanel.Attach(guidePanel);
         WireGuide(graph, guide);
+        WireWatches(shell, graph, monitoring);
+        watchRunner.Start();
         gate.PropertyChanged += OnGateChanged;
         ShowGate();
 
@@ -91,6 +97,27 @@ public partial class MainWindow : Window
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SourceInitialized += (_, _) => WindowFrame.ApplyRoundedDarkFrame(new WindowInteropHelper(this).Handle);
         StateChanged += (_, _) => Frame.Margin = WindowState == WindowState.Maximized ? MaximizedInset : default;
+    }
+
+    /// <summary>
+    /// Wires the watches (sketches BV1a and BV2a): the graph and the view Bevakning share the form and the watches, the
+    /// view names counterparties by the graph's nodes, <em>Öppna i grafen</em> shows the graph, and a hit is told in
+    /// the graph's notice.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="monitoring">The view Bevakning.</param>
+    private void WireWatches(ShellViewModel shell, GraphViewModel graph, MonitoringViewModel monitoring)
+    {
+        MonitoringPage.Attach(monitoring);
+        graph.FollowWatches(monitoring.Board, monitoring.Form);
+        monitoring.Names = graph.NameIn;
+        monitoring.OpenInGraphWanted += (_, watch) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.ShowWatch(watch);
+        };
+        monitoring.Board.HitsFound += (_, hits) => graph.TellHits(hits);
     }
 
     /// <summary>

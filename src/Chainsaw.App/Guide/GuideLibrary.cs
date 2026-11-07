@@ -26,6 +26,7 @@ public sealed class GuideLibrary
         ("Klustring", ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin"]),
         ("Spårning", ["grafen", "sparningsmetoder", "sparet-tar-slut", "kurser"]),
         ("Etiketter", ["etiketter"]),
+        ("Bevakning", ["bevakning"]),
         ("Förvirring", ["kontroller-och-forslag", "mixerns-kandidater", "omraden"]),
     ];
 

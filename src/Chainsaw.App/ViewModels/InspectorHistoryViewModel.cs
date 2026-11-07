@@ -297,6 +297,12 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         Error = string.Empty;
         try
         {
+            if (row.Event.Undo == HistoryUndo.RemoveWatch)
+            {
+                await RemoveWatchAsync(openCase, row.Event.WatchId!, reason, opened);
+                return;
+            }
+
             var outcome = row.Event.Undo switch
             {
                 HistoryUndo.RetractLabel => await _editor.RetractLabelAsync(openCase, row.Event.LabelSequence, reason),
@@ -322,6 +328,47 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         {
             IsSaving = false;
         }
+    }
+
+    /// <summary>
+    /// Gets or sets the watches, whose records and hits join the history (sketch BV1a); none when
+    /// <see langword="null"/>.
+    /// </summary>
+    public WatchBoard? Watches { get; set; }
+
+    /// <summary>Takes a watch back through the Monitoring module, as a new sealed record.</summary>
+    /// <param name="openCase">The open case.</param>
+    /// <param name="watchId">The watch.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <param name="opened">The form's number when the store began.</param>
+    /// <returns>A task that completes when it is stored or could not be.</returns>
+    private async Task RemoveWatchAsync(
+        Modules.Cases.Contracts.ICase openCase, string watchId, string? reason, int opened)
+    {
+        if (Watches is not { } watches)
+        {
+            return;
+        }
+
+        var done = false;
+        var written = await watches.WriteAsync(async () =>
+            done = await watches.Source.RemoveAsync(openCase, watchId, reason));
+        if (!written)
+        {
+            Say(WatchBoard.FailedText, opened);
+            return;
+        }
+
+        if (!done)
+        {
+            Say(AlreadyText, opened);
+        }
+        else if (opened == _opened)
+        {
+            Close();
+        }
+
+        Saved?.Invoke(this, null);
     }
 
     /// <summary>Says what went wrong: in the form while it is the same one, otherwise in the graph's notice.</summary>
@@ -379,6 +426,12 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         try
         {
             var data = await _editor.ReadHistoryAsync(openCase, node.Node, CancellationToken.None);
+            if (Watches is { } watches)
+            {
+                var snapshot = watches.Snapshot;
+                data = data with { Watches = snapshot.Records, WatchHits = snapshot.Hits };
+            }
+
             if (read != _reads)
             {
                 return;

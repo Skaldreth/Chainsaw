@@ -143,6 +143,9 @@ public enum NodeBadge
     /// </summary>
     StartPoint,
 
+    /// <summary>A watch is on the node (sketch BV2a): an eye in the corner, grey when lookups cannot be made.</summary>
+    Watched,
+
     /// <summary>
     /// <em>Kan frysas</em> (a snowflake): USDT or USDC is left at the address according to the history in the case,
     /// and its issuer can freeze it on request (CLAUDE.md, sketch TK1a).
@@ -200,7 +203,8 @@ public static class VisualLanguage
     ];
 
     /// <summary>
-    /// Gets every mark that Chainsaw can set now; the watched mark waits for its module. The start
+    /// Gets every mark that Chainsaw can set now, the watch's eye among them (drawn from the watches, after the other
+    /// marks). The start
     /// point's flag is drawn in the other corner (<see cref="NodeView.IsStartPoint"/>), the rest in the top-right one.
     /// </summary>
     public static IReadOnlyList<BadgeLook> Badges { get; } =
@@ -210,6 +214,7 @@ public static class VisualLanguage
         new(NodeBadge.FromOtherCase, "Etikett från ett annat ärende", "Icon.Tag", GraphInk.Cluster),
         new(NodeBadge.Sanctioned, "Sanktionerad", "Icon.Kind.Ban", GraphInk.Sanctioned),
         new(NodeBadge.CanBeFrozen, "Kan frysas", "Icon.Snow", GraphInk.Freeze),
+        new(NodeBadge.Watched, "Bevakad", "Icon.Eye", GraphInk.Accent),
     ];
 
     /// <summary>Gives how a sort is drawn.</summary>

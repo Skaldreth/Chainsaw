@@ -844,6 +844,21 @@
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" Style="{StaticResource Settings.SegmentFrame}">
+                                                <ItemsControl ItemsSource="{Binding WatchPaceChoices}" Tag="{Binding ChooseWatchPaceCommand}"
+                                                              ItemTemplate="{StaticResource Settings.Option}"
+                                                              ItemsPanel="{StaticResource Settings.Options}" Focusable="False"
+                                                              AutomationProperties.Name="Bevakningen, hur ofta" />
+                                            </Border>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Bevakningen, hur ofta" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Bara medan Chainsaw är öppet och upplåst. Låst görs inga uppslag."
+                                                           Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
                                 </StackPanel>
 
                                 <!-- ===== Utseende: not built yet ===== -->

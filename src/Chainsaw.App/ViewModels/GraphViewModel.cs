@@ -509,6 +509,7 @@ public sealed partial class GraphViewModel : ObservableObject
         SelectedEdge = edge?.Key;
         IsLegendOpen = false;
         Inspect();
+        SeeWatches(SelectedNode);
         Redraw?.Invoke(this, EventArgs.Empty);
     }
 
@@ -824,6 +825,7 @@ public sealed partial class GraphViewModel : ObservableObject
         SelectedEdge = scene.Edge(SelectedEdge)?.Key;
         Arrange();
         Inspect();
+        ShowWatches();
         _ = Checks.FollowAsync(scene);
         OnPropertyChanged(nameof(MethodToolTip));
         if (fit)
@@ -840,6 +842,7 @@ public sealed partial class GraphViewModel : ObservableObject
         EmptyText = text;
         Arrange();
         Inspect();
+        ShowWatches();
         _ = Checks.FollowAsync(null);
     }
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.App.Graph;
@@ -26,6 +27,12 @@ public enum HistoryKind
 
     /// <summary>A label or a link was taken back, or a split undone: a sealed record of its own.</summary>
     Withdrawal,
+
+    /// <summary>The user made, changed, paused or resumed a watch on the node (sketch BV1a).</summary>
+    Watch,
+
+    /// <summary>A watch on the node found money moving: a fact from the chain that the watch picked out.</summary>
+    WatchHit,
 }
 
 /// <summary>What the row's button does, when the row is the user's own and still counts.</summary>
@@ -42,6 +49,9 @@ public enum HistoryUndo
 
     /// <summary>Takes a link to another chain back (<em>Ta tillbaka</em>).</summary>
     Unlink,
+
+    /// <summary>Takes a watch back (<em>Ta tillbaka</em>): it stops, and stays in the case struck through.</summary>
+    RemoveWatch,
 }
 
 /// <summary>One row in the node's history (sketch AN1b).</summary>
@@ -83,6 +93,9 @@ public sealed record HistoryEvent(
     /// <summary>Gets the link, for <see cref="HistoryUndo.Unlink"/>.</summary>
     public CrossChainLink? Link { get; init; }
 
+    /// <summary>Gets the watch, for <see cref="HistoryUndo.RemoveWatch"/>.</summary>
+    public string? WatchId { get; init; }
+
     /// <summary>Gets whether the row has a button: it is the user's own and still counts.</summary>
     public bool CanUndo => Undo != HistoryUndo.None && !IsWithdrawn;
 
@@ -109,6 +122,12 @@ public sealed record NodeHistoryData(
     Cluster? Cluster,
     IReadOnlyDictionary<long, string> Operators)
 {
+    /// <summary>Gets every record of the case's watches, also of those taken back (Monitoring).</summary>
+    public IReadOnlyList<WatchRecord> Watches { get; init; } = [];
+
+    /// <summary>Gets every hit of the case's watches.</summary>
+    public IReadOnlyList<WatchHit> WatchHits { get; init; } = [];
+
     /// <summary>Gets the journal entries whose writer the history names.</summary>
     /// <param name="labels">The labels.</param>
     /// <param name="splits">The splits.</param>
@@ -209,6 +228,7 @@ public static class NodeHistory
         AddLabels(data, rows);
         AddSplits(data, rows);
         AddLinks(scene, node, data, rows);
+        AddWatches(node, data, rows);
 
         // In time order; what happened at the same moment keeps the order above, a taking back after what it concerns.
         return [.. rows.Select((row, index) => (row, index)).OrderBy(pair => pair.row.Utc).ThenBy(pair => pair.index)
@@ -265,6 +285,92 @@ public static class NodeHistory
                 "Klustrad", sub, "Icon.Kind.Wallet", GraphInk.Cluster, IsDashed: true, IsFact: false,
                 IsWithdrawn: false, HistoryUndo.None));
         }
+    }
+
+    /// <summary>
+    /// Adds the watches on the node: each record of them, the taking back as a row of its own, and each hit as a fact.
+    /// The row that made a watch has <em>Ta tillbaka</em> while the watch is in force.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddWatches(NodeView node, NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        var addresses = node.Node.Addresses.ToHashSet();
+        var mine = data.Watches.Where(record => addresses.Contains(record.Watch.Subject.Anchor)).ToList();
+        var removed = mine.Where(record => record.Action == WatchAction.Removed).Select(record => record.Watch.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var record in mine.Where(record => record.Action != WatchAction.Started))
+        {
+            var watch = record.Watch;
+            var key = "watch/" + watch.Id;
+            var what = WatchText(watch.Filter);
+            switch (record.Action)
+            {
+                case WatchAction.Removed:
+                    rows.Add(Withdrawal(key, record.Utc, "Tillbakatagen: bevakningen", record.By.Name, record.Reason));
+                    break;
+                case WatchAction.Added:
+                    rows.Add(new HistoryEvent(
+                        key, HistoryKind.Watch, record.Utc, "Bevakning · " + what, record.By.Name, "Icon.Eye",
+                        GraphInk.Cluster, IsDashed: false, IsFact: false, removed.Contains(watch.Id),
+                        HistoryUndo.RemoveWatch)
+                    {
+                        WatchId = watch.Id,
+                    });
+                    break;
+                default:
+                    var verb = record.Action switch
+                    {
+                        WatchAction.Paused => "Bevakning pausad",
+                        WatchAction.Resumed => "Bevakning återupptagen",
+                        _ => "Bevakning ändrad · " + what,
+                    };
+                    rows.Add(new HistoryEvent(
+                        key + "/" + record.Sequence.ToString(CultureInfo.InvariantCulture), HistoryKind.Watch,
+                        record.Utc, verb, record.By.Name, "Icon.Eye", GraphInk.Cluster, IsDashed: false,
+                        IsFact: false, IsWithdrawn: false, HistoryUndo.None));
+                    break;
+            }
+        }
+
+        var ids = mine.Select(record => record.Watch.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var hit in data.WatchHits.Where(hit => ids.Contains(hit.WatchId)))
+        {
+            var match = hit.Match;
+            var direction = match.Direction == WatchDirection.Out ? "Ut" : "In";
+            var sub = string.Create(CultureInfo.InvariantCulture, $"Block {match.Block.Height:N0} · på kedjan")
+                .Replace(',', ' ');
+            rows.Add(new HistoryEvent(
+                "watch-hit/" + hit.Sequence.ToString(CultureInfo.InvariantCulture), HistoryKind.WatchHit,
+                match.Block.Time, $"Träff · {direction} {AmountText.WithUnit(match.Amount)}", sub, "Icon.Eye",
+                GraphInk.Accent, IsDashed: false, IsFact: true, IsWithdrawn: false, HistoryUndo.None));
+        }
+    }
+
+    /// <summary>Writes what a watch looks for in a few words.</summary>
+    /// <param name="filter">The filter.</param>
+    /// <returns>For example <c>ut · 2 mottagare</c>.</returns>
+    private static string WatchText(WatchFilter filter)
+    {
+        var direction = filter.Direction switch
+        {
+            WatchDirection.In => "in",
+            WatchDirection.Out => "ut",
+            _ => "in och ut",
+        };
+        var parties = new List<string> { direction };
+        if (filter.Receivers.Count > 0)
+        {
+            parties.Add(string.Create(CultureInfo.InvariantCulture, $"{filter.Receivers.Count} mottagare"));
+        }
+
+        if (filter.Senders.Count > 0)
+        {
+            parties.Add(string.Create(CultureInfo.InvariantCulture, $"{filter.Senders.Count} avsändare"));
+        }
+
+        return string.Join(" · ", parties);
     }
 
     /// <summary>Adds every label and every taking back of one.</summary>

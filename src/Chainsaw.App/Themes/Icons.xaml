@@ -13,6 +13,12 @@
     <Geometry x:Key="Icon.Exposure">M12 3a9 9 0 1 0 9 9h-9z M15 3.5A9 9 0 0 1 20.5 9H15z</Geometry>
     <Geometry x:Key="Icon.Request">M6 3h9l4 4v14H6z M14 3v5h5 M9 13h7 M9 17h5</Geometry>
     <Geometry x:Key="Icon.Eye">M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</Geometry>
+    <!-- Copy (Kopiera adress), the directions of a watch and the pick in the graph (sketch BV1a). -->
+    <Geometry x:Key="Icon.Copy">M9 9h11v11H9z M5 15H4V4h11v1</Geometry>
+    <Geometry x:Key="Icon.Dir.In">M17 7L7 17 M7 9v8h8</Geometry>
+    <Geometry x:Key="Icon.Dir.Out">M7 17L17 7 M9 7h8v8</Geometry>
+    <Geometry x:Key="Icon.Dir.Both">M4 12h16 M8 8l-4 4 4 4 M16 8l4 4-4 4</Geometry>
+    <Geometry x:Key="Icon.Pick">M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</Geometry>
     <Geometry x:Key="Icon.Tag">M3.5 12V3.5H12l8.5 8.5-8.5 8.5z M8 8h.01</Geometry>
     <Geometry x:Key="Icon.Terminal">M4 6l5 5-5 5 M11 17h9</Geometry>
     <Geometry x:Key="Icon.Guide">M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5</Geometry>

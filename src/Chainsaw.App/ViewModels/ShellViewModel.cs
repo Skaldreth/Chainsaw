@@ -79,6 +79,10 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="exitPanel">The exits' panel under the exit in the title bar (sketch UT1a).</param>
     /// <param name="settings">The settings dialog (sketch ST1a).</param>
     /// <param name="ui">The UI thread.</param>
+    /// <param name="monitoring">The view Bevakning (sketch BV1a), or <see langword="null"/>.</param>
+    /// <param name="watches">
+    /// The watches, whose unseen hits put a dot on the pill's eye; or <see langword="null"/>.
+    /// </param>
     public ShellViewModel(
         CaseSession session,
         CommandRegistry commands,
@@ -89,8 +93,11 @@ public sealed partial class ShellViewModel : ObservableObject
         SanctionListImport sanctions,
         ExitPanelViewModel exitPanel,
         SettingsViewModel settings,
-        IUiThread ui)
+        IUiThread ui,
+        MonitoringViewModel? monitoring = null,
+        WatchBoard? watches = null)
     {
+        Monitoring = monitoring;
         _way = exit;
         Settings = settings;
         exitPanel.SettingsWanted += (_, _) => Show(AppView.Settings, SettingsPage.Network);
@@ -135,6 +142,12 @@ public sealed partial class ShellViewModel : ObservableObject
             };
         }
 
+        if (watches is not null)
+        {
+            watches.Changed += (_, _) => ShowWatchDot(watches);
+            ShowWatchDot(watches);
+        }
+
         OnCaseChanged();
         Show(ViewTable.Start);
         ShowExit();
@@ -170,7 +183,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets the view shown.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentEntry), nameof(IsGraphShown), nameof(IsGuideShown),
-        nameof(IsPlaceholderShown))]
+        nameof(IsMonitoringShown), nameof(IsPlaceholderShown))]
     public partial AppView Current { get; private set; }
 
     /// <summary>Gets whether the graph is shown (sketch GR4).</summary>
@@ -179,8 +192,14 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets whether the view Guide is shown (F1, sketch GD1a in a simple form).</summary>
     public bool IsGuideShown => Current == AppView.Guide;
 
+    /// <summary>Gets whether the view Bevakning is shown (sketch BV1a).</summary>
+    public bool IsMonitoringShown => Current == AppView.Monitoring && Monitoring is not null;
+
     /// <summary>Gets whether the shown view is not built yet, so that the page says so.</summary>
-    public bool IsPlaceholderShown => !IsGraphShown && !IsGuideShown;
+    public bool IsPlaceholderShown => !IsGraphShown && !IsGuideShown && !IsMonitoringShown;
+
+    /// <summary>Gets the view Bevakning, or <see langword="null"/> when the shell is built without it.</summary>
+    public MonitoringViewModel? Monitoring { get; }
 
     /// <summary>Gets the entry of the view shown: its name and icon for the header and the empty page.</summary>
     public ViewEntry CurrentEntry => ViewTable.For(Current);
@@ -465,8 +484,22 @@ public sealed partial class ShellViewModel : ObservableObject
             case SubmenuAction.NewCase:
                 NewCase.Show();
                 break;
+            case SubmenuAction.Watch when Monitoring is not null:
+                Show(AppView.Monitoring);
+                Monitoring.New();
+                break;
             default:
                 break;
+        }
+    }
+
+    /// <summary>Puts a dot on the pill's eye while a watch has hits the user has not seen (sketch BV1a).</summary>
+    /// <param name="watches">The watches.</param>
+    private void ShowWatchDot(WatchBoard watches)
+    {
+        if (Items.FirstOrDefault(item => item.Entry.View == AppView.Monitoring) is { } eye)
+        {
+            eye.Waiting = watches.Snapshot.Unseen;
         }
     }
 

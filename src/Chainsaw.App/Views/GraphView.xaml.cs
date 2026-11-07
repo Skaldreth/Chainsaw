@@ -15,6 +15,9 @@ public partial class GraphView : UserControl
     /// <summary>The corner's space to the inspector when nothing lies over the page.</summary>
     private static readonly Thickness CornerMargin = new(0, 12, 16, 0);
 
+    /// <summary>The node's menu's height, for keeping it inside the page.</summary>
+    private const double MenuHeight = 220;
+
     /// <summary>Creates the page.</summary>
     public GraphView() => InitializeComponent();
 
@@ -45,6 +48,24 @@ public partial class GraphView : UserControl
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(Canvas));
             }
         };
+        model.PropertyChanged += (_, e) =>
+        {
+            // The node's menu opens where the right click was, inside the page.
+            if (e.PropertyName == nameof(GraphViewModel.MenuNode) && model.IsMenuOpen)
+            {
+                var at = Canvas.MenuAt;
+                NodeMenu.Margin = new Thickness(
+                    Math.Max(0, Math.Min(at.X, Canvas.ActualWidth - NodeMenu.Width)),
+                    Math.Max(0, Math.Min(at.Y, Canvas.ActualHeight - MenuHeight)), 0, 0);
+            }
+
+            if (e.PropertyName == nameof(GraphViewModel.IsWatchFormOpen) && !model.IsWatchFormOpen
+                && IsKeyboardFocusWithin)
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(Canvas));
+            }
+        };
+        model.CopyWanted += (_, text) => CopyText(text);
         model.Forms.PropertyChanged += (_, e) =>
         {
             // A closed form's field collapses; the keyboard goes back to the graph, so that E, F, L, U and K work.
@@ -54,5 +75,19 @@ public partial class GraphView : UserControl
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(Canvas));
             }
         };
+    }
+
+    /// <summary>Copies a node's address to the clipboard; a clipboard held by another program is left alone.</summary>
+    /// <param name="text">The address.</param>
+    private static void CopyText(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            // Another program holds the clipboard; nothing is lost but the copy.
+        }
     }
 }

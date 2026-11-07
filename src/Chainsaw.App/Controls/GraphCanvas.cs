@@ -89,7 +89,14 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         Focusable = true;
         _hoverTip.PlacementTarget = this;
-        IsVisibleChanged += (_, _) => CloseHoverTip();
+        IsVisibleChanged += (_, _) =>
+        {
+            CloseHoverTip();
+            if (!IsVisible)
+            {
+                KeepRings(false);
+            }
+        };
         FocusVisualStyle = null;
         ClipToBounds = true;
         SizeChanged += (_, _) => FitIfPending();
@@ -160,6 +167,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawAreas(drawingContext, visible);
         var (nearNodes, nearEdges) = _model.Near;
         var edges = GraphHitTest.VisibleEdges(scene, _model.Curves, visible).ToList();
+        DrawWatchGlows(drawingContext, visible);
         foreach (var edge in edges)
         {
             DrawEdge(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
@@ -170,6 +178,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawAmount(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
         }
 
+        DrawWatchMarks(drawingContext, visible);
         foreach (var node in GraphHitTest.VisibleNodes(scene, _model.Places, visible))
         {
             DrawNode(drawingContext, node, _model.Places[node.Key], nearNodes);
@@ -188,6 +197,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         base.OnMouseLeftButtonDown(e);
         CloseHoverTip();
         Focus();
+        _model?.CloseMenu();
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
         if (_model is not null && PressArea(surface))
@@ -296,8 +306,21 @@ public sealed partial class GraphCanvas : FrameworkElement
         base.OnKeyDown(e);
         var plus = e.Key is Key.OemPlus or Key.Add;
         var allowed = plus ? ModifierKeys.Shift : ModifierKeys.None;
+        if (_model is not null && e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            _model.CopyAddress();
+            e.Handled = true;
+            return;
+        }
+
         if (_model is null || (Keyboard.Modifiers & ~allowed) != ModifierKeys.None)
         {
+            return;
+        }
+
+        if (WatchKey(e.Key))
+        {
+            e.Handled = true;
             return;
         }
 
@@ -352,6 +375,32 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
     }
 
+    /// <summary>
+    /// The watches' keys, before the graph's own: Esc closes the node's menu, then the watch form; B opens
+    /// <em>Bevaka …</em> for the chosen node (sketch BV2a).
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <returns><see langword="true"/> when it was the watches' key.</returns>
+    private bool WatchKey(Key key)
+    {
+        var model = _model!;
+        switch (key)
+        {
+            case Key.Escape when model.IsMenuOpen:
+                model.CloseMenu();
+                return true;
+            case Key.Escape when model.IsWatchFormOpen:
+                model.WatchForm!.Cancel();
+                return true;
+            case Key.B:
+                model.CloseMenu();
+                model.OpenWatch();
+                return true;
+            default:
+                return false;
+        }
+    }
+
     /// <summary>Does what a press came to: stores a dragged node, or chooses what a click is on.</summary>
     /// <param name="end">What the press came to.</param>
     /// <param name="node">The node it held.</param>
@@ -371,8 +420,15 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
         else if (end == GestureEnd.Click && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
         {
-            // Ctrl+click chooses actors for an own area (sketch KF1b), one at a time.
-            if (_model.HitTest(_viewport.ToSurface(at), Tolerance).Node is { } picked)
+            // Ctrl+click picks a counterparty for an open watch form (sketch BV2a), or else chooses actors for an own
+            // area (sketch KF1b), one at a time.
+            var hit = _model.HitTest(_viewport.ToSurface(at), Tolerance).Node;
+            if (_model.PickForWatch(hit))
+            {
+                return;
+            }
+
+            if (hit is { } picked)
             {
                 _model.Checks.TogglePick(picked);
             }
@@ -383,6 +439,23 @@ public sealed partial class GraphCanvas : FrameworkElement
             _model.ChooseAt(_viewport.ToSurface(at), Tolerance);
         }
     }
+
+    /// <summary>Opens the node's menu on a right click (sketch BV2a), or closes it over empty surface.</summary>
+    /// <param name="e">The release.</param>
+    protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnMouseRightButtonUp(e);
+        CloseHoverTip();
+        Focus();
+        var at = e.GetPosition(this);
+        MenuAt = at;
+        _model?.OpenMenu(_model.HitTest(_viewport.ToSurface(ToGraph(at)), Tolerance).Node);
+        e.Handled = true;
+    }
+
+    /// <summary>Gets where on the surface the node's menu was opened, so that the view puts it there.</summary>
+    public Point MenuAt { get; private set; }
 
     /// <summary>Lights what is under the pointer, shows its details as a tooltip and the hand over it.</summary>
     /// <param name="surface">The pointer on the surface.</param>
@@ -642,6 +715,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         DrawMarks(dc, node, place);
+        DrawWatchMark(dc, node, place);
         if (node.IsStartPoint)
         {
             DrawStartFlag(dc, place);

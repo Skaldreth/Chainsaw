@@ -198,6 +198,41 @@
             <views:AreaForm DataContext="{Binding Checks}" HorizontalAlignment="Right" VerticalAlignment="Top"
                             Margin="0,56,16,0" Visibility="{Binding IsFormOpen, Converter={StaticResource Visible}}" />
 
+            <!-- The watch form (sketch BV2a): Bevaka … on a node, under the corner, while it is open. -->
+            <views:WatchForm DataContext="{Binding WatchForm}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                             Margin="0,56,16,0" Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
+
+            <!-- The node's menu (right click, sketch BV2a): the forms, Bevaka …, Expandera and Kopiera adress. -->
+            <Border x:Name="NodeMenu" HorizontalAlignment="Left" VerticalAlignment="Top" Width="220" Padding="5"
+                    CornerRadius="10" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"
+                    Background="{StaticResource Brush.SurfaceRaised}"
+                    Visibility="{Binding IsMenuOpen, Converter={StaticResource Visible}}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="28" ShadowDepth="10" Direction="270" Opacity="0.5" Color="Black" />
+                </Border.Effect>
+                <ItemsControl ItemsSource="{Binding MenuRows}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:NodeMenuRow}">
+                            <StackPanel>
+                                <Border Height="1" Margin="6,4" Background="{StaticResource Brush.BorderStrong}"
+                                        Visibility="{Binding HasGapBefore, Converter={StaticResource Visible}}" />
+                                <Button Style="{StaticResource Button.MenuItem}" IsEnabled="{Binding IsEnabled}" Height="30"
+                                        Command="{Binding DataContext.RunMenuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}">
+                                    <DockPanel>
+                                        <controls:GridIcon Size="16" Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
+                                                           Foreground="{StaticResource Brush.TextMuted}" DockPanel.Dock="Left" Margin="0,0,10,0" />
+                                        <TextBlock Text="{Binding Key}" FontSize="11" Foreground="{StaticResource Brush.TextDim}"
+                                                   DockPanel.Dock="Right" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Label}" FontSize="12.5" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Button>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+
             <!-- The visual language behind the ? (sketches GR3a and GR3c). -->
             <Button Style="{StaticResource Button.Help}" Content="?" FontSize="13" HorizontalAlignment="Left"
                     VerticalAlignment="Bottom" Margin="18,0,0,18" AutomationProperties.Name="Bildspråket"
