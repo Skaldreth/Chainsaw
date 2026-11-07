@@ -278,9 +278,8 @@ Samma arbetssätt som Gawk (användarens beslut 2026-11-06):
 - **Kodkvalitet:** professionell C#. En regel uttrycks en gång, inga nästlade ternärer, rader under ungefär 120 tecken,
   metoder som gör en sak, inga magiska strängar.
 - **UI skissas alltid först** som en ny tavla på Chainsaws canvas (https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h), och
-  implementeras först när användaren sagt ok. Canvasen är uppdelad i **sidor per område** (Stil och ikoner,
-  Låsskärm och förstagång, Skalet, Vänsternavigering, Ärenden, Grafen; användarens beslut 2026-11-07), och en ny skiss
-  läggs på sitt områdes sida, eller på en ny sida för ett nytt område. Skisser
+  implementeras först när användaren sagt ok. Canvasen är uppdelad i **sidor per område** (se *Skisserna* under
+  *Dokumentation*). Skisser
   visas i **två varianter sida vid sida** när formen inte är given. Undantaget är felrättningar som inte ändrar utseendet.
 - **Förklara medan vi bygger.** Användaren lär sig genom att följa flödet: när något nytt om kedjorna dyker upp (en
   heuristik, ett format) förklaras det kort, och texten blir ett avsnitt i Guiden.
@@ -317,3 +316,23 @@ Varje uppgift står på ett ställe. Historiken finns i git.
 - **HANDOFF hålls kort.** Det som är klart tas bort. Ett beslut som ska gälla framåt flyttas hit.
 - **En punkt i TODO som byggs** tas bort därifrån.
 - **Skisserna** finns på canvasen. Dokumenten nämner bara skissens namn där det behövs.
+
+### Skisserna
+
+Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i sidor per område** (användarens beslut
+2026-11-07):
+- En ny skiss läggs på sitt områdes sida. Ett nytt område, till exempel en ny vy, får en egen sida.
+- Varje sida börjar uppe till vänster. Skisser som hör ihop står på en rad med en rubrik ovanför, varianter sida vid
+  sida, och en ny omgång blir en ny rad under den förra.
+- Skissen heter efter området och ordningen (`GR4`, `FS1a`), och tavlans titel säger vad den visar.
+- En förlaga från Gawk som lyfts in står bredvid Chainsaws skiss med *från Gawk (förlaga)* i titeln.
+- När en ny sida eller rad läggs till uppdateras tabellen nedan.
+
+| Sida | Skisser | Läge |
+| --- | --- | --- |
+| **Stil och ikoner** | ID1 (Bitcoin-myntet), ID3 (sågkedjan), ID5 (kättingen); ID6 (accentfärgen), GR3a och GR3c (bildspråket) | ID1 och ID3 avvisade, ID5 ersatt av loggan i `assets/logo/`; ID6 Magenta, GR3a och GR3c godkända |
+| **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen) | ID7a och FS1a valda och byggda |
+| **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
+| **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
+| **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4 | GR4 godkänd, förlagan för grafen |
