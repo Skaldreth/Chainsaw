@@ -291,4 +291,3 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` (UTXO, adresstyper, common-input-ownership,
   växeladress, CoinJoin och peel chain finns; kvar är spårningsmetoderna och varför ett spår tar slut).
 - **Testdata:** `/testdata` med påhittade ärenden och syntetiska tx-mönster, bara i Debug.
-- **Låsskärmens kätting:** formen är godkänd (CLAUDE.md). Väntar på användarens val mellan ID7a (rak) och ID7b (på snedden) innan låsskärmen byggs.
