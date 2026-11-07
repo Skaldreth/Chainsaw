@@ -57,7 +57,10 @@ internal sealed class PriceService : IPriceService
     /// <summary>Lets one request at a time go to the fiat source.</summary>
     private readonly SemaphoreSlim _fiatGate = new(1, 1);
 
-    /// <summary>When the last request to the fiat source was sent, as <see cref="Environment.TickCount64"/>.</summary>
+    /// <summary>
+    /// When the last request to the fiat source was answered or failed on the way, as
+    /// <see cref="System.Diagnostics.Stopwatch.GetTimestamp"/>.
+    /// </summary>
     private long? _lastFiatRequest;
 
     /// <summary>The day, in the fiat source's calendar, that <see cref="_fiatRequestsToday"/> counts.</summary>
@@ -396,7 +399,10 @@ internal sealed class PriceService : IPriceService
             }
 
             var (from, to) = FiatRange(day);
-            var key = $"{@case.Path}|{RateResponseStore.FiatSubject(series, from, to)}";
+            // The day that has passed is part of the key: once it moves on, the same request may now be final.
+            var passed = PassedBefore(_clock.UtcNow);
+            var key = $"{@case.Path}|{RateResponseStore.FiatSubject(series, from, to)}|" +
+                passed.ToString(RateResponseStore.DayFormat, CultureInfo.InvariantCulture);
             if (_pendingFiat.TryGetValue(key, out var pending)
                 && _clock.UtcNow - pending.At < PendingReuse)
             {
@@ -466,7 +472,7 @@ internal sealed class PriceService : IPriceService
     private DateOnly PassedBefore(DateTimeOffset time) => DayOf(time - DayPassMargin);
 
     /// <summary>Remembers an answer without a final rate, so that the same request is not sent again at once.</summary>
-    /// <param name="key">The case and the request's subject.</param>
+    /// <param name="key">The case, the request's subject and the last day that had passed.</param>
     /// <param name="lookup">The answer.</param>
     private void RememberPending(string key, PriceLookup<FiatRate> lookup)
     {
@@ -490,7 +496,7 @@ internal sealed class PriceService : IPriceService
     /// <summary>Counts a request to the fiat source towards the spacing and the day's limit.</summary>
     private void CountFiatRequest()
     {
-        _lastFiatRequest = Environment.TickCount64;
+        _lastFiatRequest = System.Diagnostics.Stopwatch.GetTimestamp();
         var today = Today();
         _fiatRequestsToday = today == _fiatRequestDay ? _fiatRequestsToday + 1 : 1;
         _fiatRequestDay = today;
@@ -510,7 +516,7 @@ internal sealed class PriceService : IPriceService
             return;
         }
 
-        var wait = _options.RiksbankInterval - TimeSpan.FromMilliseconds(Environment.TickCount64 - last);
+        var wait = _options.RiksbankInterval - System.Diagnostics.Stopwatch.GetElapsedTime(last);
         if (wait > TimeSpan.Zero)
         {
             await Task.Delay(wait, cancellationToken).ConfigureAwait(false);

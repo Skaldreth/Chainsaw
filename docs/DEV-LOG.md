@@ -911,3 +911,87 @@ när deras gränssnitt finns; fler knappar med undermenyer.
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Grafen*); tidslinjen under grafen, mixerns kandidater,
 Guiden som vy, formulären för etiketter, länkar och uppbrytning, och att spara metod och läge i ärendet (TODO); besluten
 om vilka mynt som spåras, startpunkten som offer och nodernas namn (TODO, *Väntar på beslut*).
+
+## Etapp 14 (2026-11-07): Pricing, kurser vid en tidpunkt
+
+Modulen `Pricing` utan gränssnitt: `IPriceService` ger priset på en kedjas valuta (BTC först) vid en tidpunkt i vald
+valuta, med källa, upplösning och perioden kursen faktiskt gäller, registrerad i `AddPricingModule`.
+
+- **Två sorters källor, ett kontrakt för varje** (princip 8): `ICryptoRateSource` (en börs prishistorik, perioder med
+  första, högsta, lägsta och sista pris och volym) och `IFiatRateSource` (en centralbanks kurs per bankdag). En källa
+  säger bara hur man frågar och hur svaret läses; att fråga genom utgången, försegla och läsa ur ärendet görs en gång,
+  i `PriceService`. En källa som registreras före modulen tar Bitstamps eller Riksbankens plats.
+- **Källorna** (kontrollerade 2026-11-07 mot dokumentationen och med ett riktigt anrop var, aldrig i testerna):
+  - **Bitstamp** `GET /api/v2/ohlc/{btcusd|btceur}/?step=&limit=1&start=`: öppen utan nyckel, perioder på 60, 3 600
+    och 86 400 sekunder (bland andra) och historik sedan 2011. Valt framför Kraken, vars öppna OHLC bara ger de senaste
+    720 perioderna och alltså ingen historik. Gränsen är 10 000 anrop per 10 minuter.
+  - **Riksbanken (SWEA)** `GET /swea/v1/Observations/{SEKUSDPMI|SEKEURPMI}/{från}/{till}`: kronor per en dollar eller
+    euro, en kurs per bankdag, fritt att använda med Riksbanken som källa. Utan nyckel tillåts 5 anrop i minuten och
+    1 000 om dagen per IP-adress; ett svar 429 säger ärligt att källan inte tar emot fler uppslag just nu. Utan kurs
+    i intervallet svarar API:t 204 utan innehåll.
+- **Kursen är en uppgift, omräkningen en uträkning** (princip 2 och 3): `CryptoRate` och `FiatRate` är vad källan sa,
+  med sitt förseglade svar (`RateOrigin`). `Price` multiplicerar dem exakt (decimal) och `Price.Steps` visar stegen på
+  svenska med källa, marknad, period och serie; `ValueOf(Satoshi)` värderar ett belopp och avrundar bara det som visas,
+  till två decimaler.
+- **Varje råsvar förseglas** i `pricing.raw_responses` innan det används (källa, URL, sort, ämne, status, medietyp,
+  tider i UTC och lokalt med tidszon, utgång, vem som hämtade, SHA-256 och byten), också felsvar och svar som inte går
+  att tolka, som aldrig används. Två register bredvid (inte förseglade) pekar ut slutliga svar; ett svar som läses
+  tillbaka kontrolleras mot sin SHA-256 och mot den källa, sort och det ämne registret pekade på.
+- **Aldrig hämtat igen:** en period räknas som slutlig först fem minuter efter sitt slut, både enligt datorns klocka
+  (annars frågas inte alls) och enligt det förseglade svarets tid. En dag hos Riksbanken är slutlig när den har en egen
+  kurs, eller när den har passerat (sex timmar efter midnatt i svensk tid) innan svaret kom. Slutligheten avgörs alltid
+  ur det förseglade svaret, aldrig ur registren, som inte är förseglade.
+- **Riksbankens gräns** (5 anrop i minuten, 1 000 om dagen utan nyckel): ett anrop i taget, minst 12 sekunder isär
+  (`RiksbankInterval`), ärendet läses igen före varje anrop, ett svar utan slutlig kurs ges igen i 15 minuter i stället
+  för ett nytt anrop, och dygnets anrop räknas sedan Chainsaw startade. Samtidiga uppslag av samma Bitstamp-period delar
+  ett anrop. Ett anrop som har gått iväg körs alltid klart och förseglas, också om den som frågade slutar vänta.
+- **Offline** (princip 9): utan utgång svarar ärendet, annars *Offline*; `PriceLookupMode.CaseOnly` läser bara ärendet.
+  En tidpunkt i framtiden, en kedja utan källa och en period som inte är slut vägras innan något skickas.
+- **Guiden:** `docs/guide/kurser.md`.
+
+**Egna beslut:**
+- **Sista priset i perioden där tidpunkten ligger**, och perioden visas alltid. Första priset ligger före tidpunkten
+  och sista efter; sista priset är det vanliga måttet på en period, och avståndet syns.
+- **En timme som förval**, eftersom en blocktid bara är ungefär rätt; minut och dag kan väljas.
+- **Kronor via dollar som förval** (`KronaVia`, euro kan väljas): BTC/USD har mest handel. Ingen börs med lång historik
+  har BTC/SEK. Räknar man i dollar eller euro används Bitstamps kurs direkt, utan Riksbanken.
+- **Dagen räknas i svensk tid**, och för en helg eller helgdag används senaste bankdagen före (det står i stegen).
+  Riksbankens kurs för en dag används för hela dagen, också före publiceringen; dagens kurs innan den är publicerad
+  ger *inte publicerad än* i stället för gårdagens.
+- **Ett Riksbanksanrop täcker 14 dagar före och 31 dagar efter** den efterfrågade dagen (högst till i går), så att ett
+  anrop räcker för en månads tx inom Riksbankens gräns på 5 anrop i minuten.
+- **Ingen rad i journalen per uppslag**, som i Chains: den förseglade tabellen har vem, när och vad.
+- **Inget hämtas utan operatörsprofil** eller med låst valv.
+- **Valutan ställs in** i `PricingOptions` (SEK som förval) eller per anrop; att spara valet i appens inställningar
+  kommer med gränssnittet.
+
+**Granskningen:** fyra omgångar.
+- **Omgång 1:** tre I och nio M.
+  - **I:** en period kunde sparas som slutlig i samma ögonblick som den tog slut (nu fem minuters marginal); registren,
+    som inte är förseglade, avgjorde slutligheten (nu det förseglade svaret); inget skyddade Riksbankens gräns (nu ett
+    anrop i taget med mellanrum, och dagens publicerade kurs pekas ut).
+  - **M** rättade: volym noll syns i stegen, `CaseException` står i kontraktet, alla fel i en källas läsning förseglas,
+    källornas namn för användaren kommer från källorna, helg i dag får rätt text, standardkällorna byggs först när de
+    används, radlängder. Perioder före källans historik står i TODO.
+- **Omgång 2:** två I och sex M.
+  - **I:** svar utan slutlig kurs hämtades om och om igen (nu ges de igen i 15 minuter); samtidiga uppslag av samma
+    Bitstamp-period skickade var sitt anrop (nu ett delat).
+  - **M** rättade: mellanrummet räknas också efter ett fel på vägen, dygnsgränsen räknas, en dag räknas som passerad
+    först sex timmar efter midnatt, en adress som inte kan byggas eller vägras av utgången ger ett svar, en skadad rad
+    ger *Corrupt*, testernas fejkade utgång är trådsäker, nya tester.
+- **Omgång 3:** ett I och nio M.
+  - **I:** efter marginalen bedömdes en helgdag efter anropets sista dag i stället för dagen själv, så helgens uppslag
+    misslyckades mellan midnatt och sex.
+  - **M** rättade: ett anrop som utgången vägrade räknas inte, ett skickat Riksbanksanrop förseglas alltid, delade
+    Bitstamp-anrop per öppet ärende, dygnets räkning beskriven ärligt, tester för avbrytning, vägrade adresser och det
+    delade anropet. Perioder före källans historik (igen) står i TODO.
+- **Omgång 4:** inga C eller I. Två M rättade: ett ihågkommet svar gäller bara samma passerade dag, och mellanrummet
+  mäts med `Stopwatch`.
+
+Alla C och I är rättade och har regressionstester: 126 tester i Pricing.
+
+**Kvar i TODO:** kurserna i gränssnittet (kräver skiss), Bitstamps villkor för bruk i tjänsten (*Väntar på beslut*),
+det som inte gick att kontrollera i dokumentationen, perioder före källans historik, dygnsgränsen över omstarter och
+datorer, fler källor och tokens, stängnings- eller medelkurs, och ett gemensamt lager för råsvar.
+
+**Återstår:** beloppen i SEK i grafen och inspektören, och valet av valuta i inställningarna.
