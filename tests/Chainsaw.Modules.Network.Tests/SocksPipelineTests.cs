@@ -18,7 +18,12 @@ public sealed class SocksPipelineTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var options = new NetworkOptions { AllowPlainHttp = true, RequestTimeout = TimeSpan.FromSeconds(10) };
+        var options = new NetworkOptions
+        {
+            AllowPlainHttp = true,
+            AllowLocalTargets = true,
+            RequestTimeout = TimeSpan.FromSeconds(10),
+        };
         _harness = new NetworkHarness(options, new SocksHandlerFactory(options));
         _harness.Connector.Proxy = _proxy.EndPoint;
         _harness.Connector.Credentials = _proxy.Credentials;
@@ -116,6 +121,17 @@ public sealed class SocksPipelineTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_media_type_is_kept_exactly_as_the_server_wrote_it()
+    {
+        _proxy.Response = _ => "HTTP/1.1 200 OK\r\nContent-Type: application/JSON;charset=UTF-8\r\n"
+            + "Content-Length: 2\r\nConnection: close\r\n\r\n{}";
+
+        var response = await _harness.Http.SendAsync(ExitRequest.Get(Address));
+
+        Assert.Equal("application/JSON;charset=UTF-8", response.ContentType);
+    }
+
+    [Fact]
     public async Task A_compressed_body_is_kept_as_it_came()
     {
         _proxy.Response = _ => "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: 3\r\n"
@@ -204,5 +220,9 @@ public sealed class SocksPipelineTests : IAsyncLifetime
         Assert.NotNull(handler.ConnectCallback);
         Assert.Null(handler.ActivityHeadersPropagator);
         Assert.False(handler.SslOptions.AllowTlsResume);
+        Assert.True(handler.SslOptions.CertificateChainPolicy!.DisableCertificateDownloads);
+        Assert.Equal(
+            System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck,
+            handler.SslOptions.CertificateChainPolicy.RevocationMode);
     }
 }

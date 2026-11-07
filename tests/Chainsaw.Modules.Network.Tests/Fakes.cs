@@ -43,10 +43,17 @@ internal sealed class FakeTunnel(IPEndPoint proxy, NetworkCredential credentials
     /// <summary>Makes the tunnel stop on its own, as a dropped VPN would.</summary>
     public void Drop() => _stopped.Cancel();
 
-    public ValueTask DisposeAsync()
+    /// <summary>When set, stopping the tunnel waits for it, as a slow helper process would.</summary>
+    public Task? StopGate { get; set; }
+
+    public async ValueTask DisposeAsync()
     {
+        if (StopGate is not null)
+        {
+            await StopGate;
+        }
+
         Disposed = true;
-        return ValueTask.CompletedTask;
     }
 }
 
@@ -70,6 +77,9 @@ internal sealed class FakeConnector : IExitConnector
 
     public bool DropAtOnce { get; set; }
 
+    /// <summary>When set, the connector returns no tunnel at all, as a broken plug-in might.</summary>
+    public bool ReturnNull { get; set; }
+
     public async Task<IExitTunnel> ConnectAsync(
         ExitInfo exit, string configuration, CancellationToken cancellationToken)
     {
@@ -82,6 +92,11 @@ internal sealed class FakeConnector : IExitConnector
         if (Failure is not null)
         {
             throw Failure;
+        }
+
+        if (ReturnNull)
+        {
+            return null!;
         }
 
         var tunnel = new FakeTunnel(Proxy, Credentials);
@@ -159,7 +174,13 @@ internal sealed class NetworkHarness
         Connection = new ExitConnection(Records, Connector, handlers ?? Handlers);
         Store = new ExitStore(Records, Connection);
         Http = new ExitHttp(Connection, Options, Clock);
-        Connection.StatusChanged += (_, status) => Events.Add(status);
+        Connection.StatusChanged += (_, status) =>
+        {
+            lock (_events)
+            {
+                _events.Add(status);
+            }
+        };
     }
 
     public const string Configuration = "[Interface]\nPrivateKey = test-private-key-not-real\n";
@@ -182,7 +203,38 @@ internal sealed class NetworkHarness
 
     public ExitHttp Http { get; }
 
-    public List<ExitStatus> Events { get; } = [];
+    private readonly List<ExitStatus> _events = [];
+
+    /// <summary>Gets a copy of the events raised so far; they may come from another thread.</summary>
+    public IReadOnlyList<ExitStatus> Events
+    {
+        get
+        {
+            lock (_events)
+            {
+                return [.. _events];
+            }
+        }
+    }
+
+    public void ClearEvents()
+    {
+        lock (_events)
+        {
+            _events.Clear();
+        }
+    }
+
+    /// <summary>Waits until a condition holds, for work that finishes on the thread pool.</summary>
+    public static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "The condition did not come true in time.");
+            await Task.Delay(5);
+        }
+    }
 
     /// <summary>Adds an exit and selects it.</summary>
     public async Task<ExitInfo> SelectedExitAsync(string name = "Exit A")

@@ -37,7 +37,9 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
     /// <summary>The current status.</summary>
     private ExitStatus _status = ExitStatus.NotConnected;
 
-    /// <summary>Counts the changes of <see cref="_status"/>, so that events are raised in order and never stale.</summary>
+    /// <summary>
+    /// Counts the changes of <see cref="_status"/>, so that events are raised in order and never stale.
+    /// </summary>
     private long _version;
 
     /// <summary>The version last raised as an event; read and written by the thread that raises.</summary>
@@ -49,8 +51,12 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
     /// <summary>Whether a change came while a thread was raising (guarded by <see cref="_eventGate"/>).</summary>
     private bool _raisePending;
 
-    /// <summary>Cancels the attempt to connect that is running, so that a disconnect never waits behind it.</summary>
-    private CancellationTokenSource? _attempt;
+    /// <summary>
+    /// The attempts to connect that have begun, also those still waiting for their turn, so that a disconnect, a
+    /// change of exit or <see cref="Dispose"/> cancels every one of them and never waits behind one (guarded by
+    /// <see cref="_gate"/>).
+    /// </summary>
+    private readonly HashSet<CancellationTokenSource> _attempts = [];
 
     /// <summary>Whether the connection is disposed; a tunnel that is started afterwards is stopped at once.</summary>
     private bool _disposed;
@@ -84,31 +90,32 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
     /// <inheritdoc />
     public async Task<ExitStatus> ConnectAsync(CancellationToken cancellationToken = default)
     {
-        await _operation.WaitAsync(cancellationToken).ConfigureAwait(false);
+        // Registered before the wait for the turn, so that a disconnect that comes at any later point cancels it.
         using var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _attempts.Add(attempt);
+        }
+
         try
         {
-            ObjectDisposedException.ThrowIf(IsDisposed(), this);
-            var selected = _records.FindSelected() ?? throw new InvalidOperationException("No exit is selected.");
-            await DisconnectCoreAsync().ConfigureAwait(false);
-            lock (_gate)
+            await _operation.WaitAsync(attempt.Token).ConfigureAwait(false);
+            try
             {
-                _attempt = attempt;
+                return await ConnectInTurnAsync(attempt.Token).ConfigureAwait(false);
             }
-
-            var exitId = selected.Exit.Id;
-            SetStatus(new ExitStatus(ExitState.Connecting, exitId, null));
-            var tunnel = await StartTunnelAsync(selected, attempt.Token).ConfigureAwait(false);
-            return tunnel is null ? Status : await PublishAsync(exitId, tunnel, attempt.Token).ConfigureAwait(false);
+            finally
+            {
+                _operation.Release();
+            }
         }
         finally
         {
             lock (_gate)
             {
-                _attempt = null;
+                _attempts.Remove(attempt);
             }
-
-            _operation.Release();
         }
     }
 
@@ -189,16 +196,39 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         var active = TakeActive(ExitStatus.NotConnected);
         if (active is not null)
         {
-            active.Stop();
-
-            // Off the caller's thread, so that a tunnel that awaits on a captured context cannot deadlock.
-            Task.Run(active.StopTunnelAsync).Wait(DisposeStopLimit);
+            try
+            {
+                active.Stop();
+            }
+            finally
+            {
+                // Off the caller's thread, so that a tunnel that awaits on a captured context cannot deadlock.
+                Task.Run(active.StopTunnelAsync).Wait(DisposeStopLimit);
+            }
         }
+
+        RaiseLatest();
 
         // The semaphore is not disposed: an operation in flight still releases it when it ends.
     }
 
-    /// <summary>Starts the tunnel; a failure ends in <see cref="ExitState.Failed"/>, a cancellation in not connected.</summary>
+    /// <summary>Connects the selected exit; the caller holds the operation gate.</summary>
+    /// <param name="cancellationToken">The attempt's token.</param>
+    /// <returns>The status when the attempt ended.</returns>
+    private async Task<ExitStatus> ConnectInTurnAsync(CancellationToken cancellationToken)
+    {
+        var selected = _records.FindSelected() ?? throw new InvalidOperationException("No exit is selected.");
+        await DisconnectCoreAsync().ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var exitId = selected.Exit.Id;
+        SetStatus(new ExitStatus(ExitState.Connecting, exitId, null));
+        var tunnel = await StartTunnelAsync(selected, cancellationToken).ConfigureAwait(false);
+        return tunnel is null ? Status : await PublishAsync(exitId, tunnel, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Starts the tunnel; a failure ends in <see cref="ExitState.Failed"/>, a cancellation in not connected.
+    /// </summary>
     /// <param name="selected">The exit and its configuration.</param>
     /// <param name="cancellationToken">Stops the attempt.</param>
     /// <returns>The tunnel, or <see langword="null"/> when it failed.</returns>
@@ -208,8 +238,14 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         var exitId = selected.Exit.Id;
         try
         {
-            return await _connector.ConnectAsync(selected.Exit, selected.Configuration, cancellationToken)
+            var tunnel = await _connector.ConnectAsync(selected.Exit, selected.Configuration, cancellationToken)
                 .ConfigureAwait(false);
+            if (tunnel is null)
+            {
+                SetStatus(new ExitStatus(ExitState.Failed, exitId, ExitFailure.ConnectFailed));
+            }
+
+            return tunnel;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -240,44 +276,47 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
     /// <returns>The status after the attempt.</returns>
     private async Task<ExitStatus> PublishAsync(Guid exitId, IExitTunnel tunnel, CancellationToken cancellationToken)
     {
-        if (cancellationToken.IsCancellationRequested || IsDisposed())
-        {
-            await ActiveExit.StopQuietlyAsync(tunnel).ConfigureAwait(false);
-            SetStatus(ExitStatus.NotConnected);
-            cancellationToken.ThrowIfCancellationRequested();
-            throw new ObjectDisposedException(nameof(ExitConnection));
-        }
-
-        var invoker = CreatePipeline(tunnel);
-        if (invoker is null)
+        var pipeline = CreatePipeline(tunnel);
+        if (pipeline is null)
         {
             await ActiveExit.StopQuietlyAsync(tunnel).ConfigureAwait(false);
             SetStatus(new ExitStatus(ExitState.Failed, exitId, ExitFailure.ConnectFailed));
             return Status;
         }
 
+        var (invoker, stopped) = pipeline.Value;
         var active = new ActiveExit(exitId, tunnel, invoker);
-        bool published;
+        bool disposed;
         lock (_gate)
         {
-            published = !_disposed;
-            if (published)
+            // Checked under the same lock as the publication, so that a disconnect or a dispose that has cancelled
+            // the attempt can never be overtaken by it.
+            disposed = _disposed;
+            var publish = !disposed && !cancellationToken.IsCancellationRequested;
+            if (publish)
             {
                 _active = active;
                 _status = new ExitStatus(ExitState.Connected, exitId, null);
                 _version++;
             }
+            else
+            {
+                _status = ExitStatus.NotConnected;
+                _version++;
+            }
         }
 
-        if (!published)
+        if (disposed || cancellationToken.IsCancellationRequested)
         {
             active.Stop();
             await active.StopTunnelAsync().ConfigureAwait(false);
-            throw new ObjectDisposedException(nameof(ExitConnection));
+            RaiseLatest();
+            ObjectDisposedException.ThrowIf(disposed, this);
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         // Watched after it is published, so that a tunnel that has already stopped is noticed at once.
-        active.Watch(() => OnTunnelStopped(active));
+        active.Watch(stopped, () => OnTunnelStopped(active));
         RaiseLatest();
         return Status;
     }
@@ -287,11 +326,15 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
     /// that the tunnel cannot change it after it has been checked.
     /// </summary>
     /// <param name="tunnel">The started tunnel.</param>
-    /// <returns>The pipeline, or <see langword="null"/> when the proxy is refused or the pipeline cannot be built.</returns>
-    private HttpMessageInvoker? CreatePipeline(IExitTunnel tunnel)
+    /// <returns>
+    /// The pipeline and the tunnel's stop token, or <see langword="null"/> when the proxy is refused or the pipeline
+    /// cannot be built.
+    /// </returns>
+    private (HttpMessageInvoker Invoker, CancellationToken Stopped)? CreatePipeline(IExitTunnel tunnel)
     {
         try
         {
+            var stopped = tunnel.Stopped;
             var given = tunnel.Socks5Proxy;
             var credentials = tunnel.Socks5Credentials;
             if (given is null || credentials is null)
@@ -304,7 +347,12 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
             var acceptable = IPAddress.IsLoopback(proxy.Address)
                 && copied.UserName.Length > 0
                 && copied.Password.Length > 0;
-            return acceptable ? new HttpMessageInvoker(_handlers.Create(proxy, copied), disposeHandler: true) : null;
+            if (!acceptable)
+            {
+                return null;
+            }
+
+            return (new HttpMessageInvoker(_handlers.Create(proxy, copied), disposeHandler: true), stopped);
         }
 #pragma warning disable CA1031 // A tunnel whose proxy cannot be read or used is a failed connection.
         catch (Exception)
@@ -322,7 +370,12 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
             ? new IPAddress(address.GetAddressBytes(), address.ScopeId)
             : new IPAddress(address.GetAddressBytes());
 
-    /// <summary>Stops the exit when its tunnel stops on its own; the state becomes failed with the connection lost.</summary>
+    /// <summary>
+    /// Stops the exit when its tunnel stops on its own; the state becomes failed with the connection lost. Runs inside
+    /// the tunnel's cancellation callback, so only the state and the pipeline are changed there; stopping the tunnel
+    /// and raising the event run on the thread pool, so that a tunnel that holds its own lock while it cancels cannot
+    /// deadlock.
+    /// </summary>
     /// <param name="active">The exit whose tunnel stopped.</param>
     private void OnTunnelStopped(ActiveExit active)
     {
@@ -339,8 +392,11 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         }
 
         active.Stop();
-        _ = active.StopTunnelAsync();
-        RaiseLatest();
+        _ = Task.Run(async () =>
+        {
+            await active.StopTunnelAsync().ConfigureAwait(false);
+            RaiseLatest();
+        });
     }
 
     /// <summary>Disconnects the connected exit, if any; the caller holds the operation gate.</summary>
@@ -352,8 +408,14 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         {
             if (active is not null)
             {
-                active.Stop();
-                await active.StopTunnelAsync().ConfigureAwait(false);
+                try
+                {
+                    active.Stop();
+                }
+                finally
+                {
+                    await active.StopTunnelAsync().ConfigureAwait(false);
+                }
             }
         }
         finally
@@ -458,7 +520,9 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         }
     }
 
-    /// <summary>Calls each handler of <see cref="StatusChanged"/>, keeping one handler's failure from the others.</summary>
+    /// <summary>
+    /// Calls each handler of <see cref="StatusChanged"/>, keeping one handler's failure from the others.
+    /// </summary>
     /// <param name="status">The status to report.</param>
     private void InvokeHandlers(ExitStatus status)
     {
@@ -477,32 +541,25 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         }
     }
 
-    /// <summary>Cancels the attempt to connect that is running, if any.</summary>
+    /// <summary>Cancels every attempt to connect that has begun, also those still waiting for their turn.</summary>
     private void CancelAttempt()
     {
-        CancellationTokenSource? attempt;
+        CancellationTokenSource[] attempts;
         lock (_gate)
         {
-            attempt = _attempt;
+            attempts = [.. _attempts];
         }
 
-        try
+        foreach (var attempt in attempts)
         {
-            attempt?.Cancel();
-        }
-        catch (ObjectDisposedException)
-        {
-            // The attempt has just ended.
-        }
-    }
-
-    /// <summary>Tells whether the connection is disposed.</summary>
-    /// <returns><see langword="true"/> after <see cref="Dispose"/>.</returns>
-    private bool IsDisposed()
-    {
-        lock (_gate)
-        {
-            return _disposed;
+            try
+            {
+                attempt.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The attempt has just ended.
+            }
         }
     }
 }

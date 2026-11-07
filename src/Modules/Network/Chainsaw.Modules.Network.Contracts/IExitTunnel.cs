@@ -17,6 +17,9 @@ public interface IExitTunnel : IAsyncDisposable
     /// </summary>
     NetworkCredential Socks5Credentials { get; }
 
-    /// <summary>Gets a token that is cancelled when the tunnel stops for any reason other than being disposed.</summary>
+    /// <summary>
+    /// Gets a token that is cancelled when the tunnel stops for any reason other than being disposed. Chainsaw reacts
+    /// inside the cancellation and disposes the tunnel afterwards on another thread.
+    /// </summary>
     CancellationToken Stopped { get; }
 }

@@ -18,7 +18,9 @@ internal sealed record VaultContent(
     /// <summary>Gets the content of a new vault.</summary>
     public static VaultContent Empty { get; } = new([], null);
 
-    /// <summary>Gets the named secrets, empty when there are none. Not serialised: it is a view of <see cref="Secrets"/>.</summary>
+    /// <summary>
+    /// Gets the named secrets, empty when there are none. Not serialised: it is a view of <see cref="Secrets"/>.
+    /// </summary>
     [JsonIgnore]
     public IReadOnlyDictionary<string, string> SecretsOrEmpty =>
         Secrets ?? new Dictionary<string, string>(StringComparer.Ordinal);

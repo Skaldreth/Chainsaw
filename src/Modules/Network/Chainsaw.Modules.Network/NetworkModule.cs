@@ -16,7 +16,7 @@ public static class NetworkModule
     /// <param name="configure">Changes the limits on requests.</param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">A limit is zero, negative or infinite.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A limit is zero, negative or too long.</exception>
     public static IServiceCollection AddNetworkModule(
         this IServiceCollection services, Action<NetworkOptions>? configure = null)
     {

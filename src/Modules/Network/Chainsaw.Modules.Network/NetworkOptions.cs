@@ -9,6 +9,9 @@ public sealed class NetworkOptions
     /// </summary>
     public const string UserAgent = "Mozilla/5.0";
 
+    /// <summary>The longest time limit that is accepted; a lookup that needs longer is broken.</summary>
+    private static readonly TimeSpan LongestTimeout = TimeSpan.FromMinutes(10);
+
     /// <summary>
     /// Gets or sets how long a request may take in all, from sending to the last byte of the body. 30 seconds by
     /// default.
@@ -30,13 +33,20 @@ public sealed class NetworkOptions
     /// </summary>
     internal bool AllowPlainHttp { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether addresses on the computer or a private network may be asked for. Only the tests turn it on;
+    /// a lookup never needs them, and a tunnel could reach them on its own side.
+    /// </summary>
+    internal bool AllowLocalTargets { get; set; }
+
     /// <summary>Refuses limits that would make every request fail or never end.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">A limit is zero, negative or infinite.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A limit is zero, negative or too long.</exception>
     internal void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(RequestTimeout, TimeSpan.Zero, nameof(RequestTimeout));
-        ArgumentOutOfRangeException.ThrowIfEqual(RequestTimeout, Timeout.InfiniteTimeSpan, nameof(RequestTimeout));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(RequestTimeout, LongestTimeout, nameof(RequestTimeout));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(ConnectTimeout, TimeSpan.Zero, nameof(ConnectTimeout));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(ConnectTimeout, LongestTimeout, nameof(ConnectTimeout));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(MaximumResponseBytes, 0, nameof(MaximumResponseBytes));
     }
 }

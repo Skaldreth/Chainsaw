@@ -107,8 +107,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   för en lokal port. Bestäms när tunneln byggs.
 - **Svarshuvuden som ursprung:** `ExitResponse` har bara status, medietyp och den råa kroppen. Behöver Chains huvuden
   som `Date` eller `ETag` som en del av ursprunget läggs de till då (granskningen etapp 4, M).
-- **Privata adresser genom utgången:** `IExitHttp` vägrar inte `localhost`, privata eller länklokala adresser. De går
-  genom utgången och läcker inget, men ett uppslag behöver dem aldrig; kan vägras (granskningen etapp 4, M).
+- **Certifikatkedjor som saknar en mellanliggande nivå:** för att operativsystemet inte ska hämta något runt utgången
+  (AIA och spärrlistor) hämtas inga certifikat och spärrar kontrolleras inte. En källa som skickar en ofullständig kedja
+  går då inte att nå. Spärrkontroll genom utgången kan byggas senare om det behövs (granskningen etapp 4, C).
 - **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
   titelraden (skissas först).
 - **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan

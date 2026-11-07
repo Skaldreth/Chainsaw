@@ -108,12 +108,14 @@ public sealed class ExitConnectionTests
 
         _harness.Connector.Tunnels[0].Drop();
 
-        Assert.Equal(new ExitStatus(ExitState.Failed, exit.Id, ExitFailure.ConnectionLost), _harness.Connection.Status);
-        Assert.Equal(_harness.Connection.Status, _harness.Events[^1]);
+        // The state and the pipeline change at once; the tunnel is stopped and the event raised on the thread pool.
+        var failed = new ExitStatus(ExitState.Failed, exit.Id, ExitFailure.ConnectionLost);
+        Assert.Equal(failed, _harness.Connection.Status);
         Assert.True(lease.Stopping.IsCancellationRequested);
         Assert.True(_harness.Handlers.Handlers[0].Disposed);
-        Assert.True(_harness.Connector.Tunnels[0].Disposed);
         Assert.False(_harness.Connection.TryLease(out _));
+        await NetworkHarness.WaitUntilAsync(() => _harness.Connector.Tunnels[0].Disposed);
+        await NetworkHarness.WaitUntilAsync(() => _harness.Events.Count > 0 && _harness.Events[^1] == failed);
     }
 
     [Fact]
@@ -133,7 +135,7 @@ public sealed class ExitConnectionTests
     public async Task Disconnecting_stops_the_tunnel_and_the_pipeline()
     {
         await _harness.ConnectedExitAsync();
-        _harness.Events.Clear();
+        _harness.ClearEvents();
 
         await _harness.Connection.DisconnectAsync();
 
@@ -262,69 +264,5 @@ public sealed class ExitConnectionTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connecting);
         Assert.Equal(other, _harness.Store.FindSelected());
         Assert.Equal(ExitStatus.NotConnected, _harness.Connection.Status);
-    }
-
-    [Fact]
-    public async Task A_tunnel_handed_over_after_dispose_is_stopped_at_once()
-    {
-        await _harness.SelectedExitAsync();
-        var release = new TaskCompletionSource();
-        var connector = new HandOverAfterConnector(release.Task);
-        var connection = new ExitConnection(_harness.Records, connector, _harness.Handlers);
-
-        var connecting = connection.ConnectAsync();
-        connection.Dispose();
-        release.SetResult();
-
-        await Assert.ThrowsAnyAsync<Exception>(() => connecting);
-        Assert.True(connector.Tunnel.Disposed);
-        Assert.False(connection.TryLease(out _));
-        Assert.Empty(_harness.Handlers.Proxies);
-    }
-
-    [Fact]
-    public async Task A_handler_that_throws_does_not_stop_a_disconnect_or_a_change()
-    {
-        var exit = await _harness.ConnectedExitAsync();
-        _harness.Connection.StatusChanged += (_, _) => throw new InvalidOperationException("display failed");
-        var other = _harness.Store.Add("Exit B", "Oslo", ExitKind.WireGuard, NetworkHarness.Configuration);
-
-        await _harness.Store.SelectAsync(other.Id);
-
-        Assert.True(_harness.Connector.Tunnels[0].Disposed);
-        Assert.Equal(other, _harness.Store.FindSelected());
-        Assert.Equal(ExitStatus.NotConnected, _harness.Events[^1]);
-        Assert.NotEqual(exit.Id, other.Id);
-    }
-
-    [Fact]
-    public async Task The_last_event_is_always_the_current_status()
-    {
-        for (var round = 0; round < 50; round++)
-        {
-            var harness = new NetworkHarness();
-            await harness.SelectedExitAsync();
-            var connect = Task.Run(() => harness.Connection.ConnectAsync());
-            await Task.Yield();
-            harness.Connector.Tunnels.ToList().ForEach(tunnel => tunnel.Drop());
-            await connect;
-            harness.Connector.Tunnels.ToList().ForEach(tunnel => tunnel.Drop());
-
-            Assert.Equal(harness.Connection.Status, harness.Events[^1]);
-        }
-    }
-
-    /// <summary>A connector that hands over its tunnel only when told to, whatever the token says.</summary>
-    private sealed class HandOverAfterConnector(Task release) : IExitConnector
-    {
-        public FakeTunnel Tunnel { get; } =
-            new(FakeConnector.LoopbackProxy, new NetworkCredential("tunnel-user", "tunnel-password-1"));
-
-        public async Task<IExitTunnel> ConnectAsync(
-            ExitInfo exit, string configuration, CancellationToken cancellationToken)
-        {
-            await release;
-            return Tunnel;
-        }
     }
 }

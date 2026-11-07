@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Chainsaw.Modules.Network;
 
@@ -32,12 +33,30 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
             // No trace headers (traceparent, baggage), even when diagnostics listen: they could link lookups.
             ActivityHeadersPropagator = null,
 
-            // No resumed TLS sessions, which could show a source that two exits are the same client.
-            SslOptions = new SslClientAuthenticationOptions { AllowTlsResume = false },
+            SslOptions = new SslClientAuthenticationOptions
+            {
+                // No resumed TLS sessions, which could show a source that two exits are the same client.
+                AllowTlsResume = false,
+                CertificateChainPolicy = OfflineChainPolicy(),
+            },
             ConnectCallback = (context, cancellationToken) =>
                 ConnectOnlyToProxyAsync(socks5Proxy, context.DnsEndPoint, cancellationToken),
         };
     }
+
+    /// <summary>
+    /// Builds the server certificate's chain without fetching anything: a missing intermediate (from the certificate's
+    /// AIA address) or a revocation list would otherwise be fetched by the operating system straight from the
+    /// computer's network, around the exit. A server that sends an incomplete chain therefore fails.
+    /// </summary>
+    /// <returns>The policy, new for each pipeline since a policy is mutable.</returns>
+    internal static X509ChainPolicy OfflineChainPolicy() => new()
+    {
+        DisableCertificateDownloads = true,
+
+        // Set explicitly: a policy's default is Online, which would fetch revocation lists around the exit.
+        RevocationMode = X509RevocationMode.NoCheck,
+    };
 
     /// <summary>
     /// Opens the handler's socket, but only to the tunnel's proxy. Any other endpoint is refused before a socket is

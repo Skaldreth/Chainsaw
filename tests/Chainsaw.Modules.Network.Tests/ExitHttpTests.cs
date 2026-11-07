@@ -150,6 +150,47 @@ public sealed class ExitHttpTests
         Assert.Empty(_harness.Handlers.Handlers[0].Requests);
     }
 
+    [Theory]
+    [InlineData("https://localhost/tx")]
+    [InlineData("https://api.localhost/tx")]
+    [InlineData("https://127.0.0.1/tx")]
+    [InlineData("https://127.8.9.10/tx")]
+    [InlineData("https://0.0.0.0/tx")]
+    [InlineData("https://10.1.2.3/tx")]
+    [InlineData("https://100.64.0.1/tx")]
+    [InlineData("https://169.254.1.1/tx")]
+    [InlineData("https://172.16.0.1/tx")]
+    [InlineData("https://172.31.255.255/tx")]
+    [InlineData("https://192.168.1.1/tx")]
+    [InlineData("https://[::1]/tx")]
+    [InlineData("https://[::]/tx")]
+    [InlineData("https://[fe80::1]/tx")]
+    [InlineData("https://[fd00::1]/tx")]
+    [InlineData("https://[::ffff:192.168.1.1]/tx")]
+    public async Task An_address_on_the_computer_or_a_private_network_is_refused(string address)
+    {
+        await _harness.ConnectedExitAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _harness.Http.SendAsync(ExitRequest.Get(new Uri(address))));
+
+        Assert.Empty(_harness.Handlers.Handlers[0].Requests);
+    }
+
+    [Theory]
+    [InlineData("https://172.32.0.1/tx")]
+    [InlineData("https://8.8.8.8/tx")]
+    [InlineData("https://[2001:db8::1]/tx")]
+    [InlineData("https://localhost.example/tx")]
+    public async Task A_public_address_is_allowed(string address)
+    {
+        await _harness.ConnectedExitAsync();
+
+        await _harness.Http.SendAsync(ExitRequest.Get(new Uri(address)));
+
+        Assert.Single(_harness.Handlers.Handlers[0].Requests);
+    }
+
     [Fact]
     public async Task Requests_that_are_not_well_formed_are_refused()
     {

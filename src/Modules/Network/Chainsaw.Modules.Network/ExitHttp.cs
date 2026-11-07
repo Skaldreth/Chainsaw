@@ -39,7 +39,7 @@ internal sealed class ExitHttp(ExitConnection connection, NetworkOptions options
                 request.Uri,
                 lease.ExitId,
                 (int)response.StatusCode,
-                response.Content.Headers.ContentType?.ToString(),
+                RawContentType(response),
                 body,
                 requestedAt,
                 clock.UtcNow);
@@ -81,6 +81,12 @@ internal sealed class ExitHttp(ExitConnection connection, NetworkOptions options
             throw new ArgumentException("The address must be an absolute https address.", nameof(request));
         }
 
+        if (!options.AllowLocalTargets && LocalTargets.IsLocal(uri))
+        {
+            throw new ArgumentException(
+                "The address must not be on the computer or a private network.", nameof(request));
+        }
+
         if (uri.UserInfo.Length > 0)
         {
             throw new ArgumentException("The address must not carry user information.", nameof(request));
@@ -106,6 +112,14 @@ internal sealed class ExitHttp(ExitConnection connection, NetworkOptions options
             throw new ArgumentException("The media type asked for is not valid.", nameof(request));
         }
     }
+
+    /// <summary>Gives the response's media type exactly as the server wrote it.</summary>
+    /// <param name="response">The response.</param>
+    /// <returns>The raw header value, or <see langword="null"/> when there is none.</returns>
+    private static string? RawContentType(HttpResponseMessage response) =>
+        response.Content.Headers.NonValidated.TryGetValues("Content-Type", out var values)
+            ? string.Join(", ", values)
+            : null;
 
     /// <summary>Builds the message with only what the request needs.</summary>
     /// <param name="request">The checked request.</param>

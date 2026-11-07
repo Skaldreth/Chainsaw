@@ -44,6 +44,7 @@ public sealed class NetworkModuleTests : IDisposable
         Assert.Equal(TimeSpan.FromSeconds(30), options.RequestTimeout);
         Assert.Equal(32 * 1024 * 1024, options.MaximumResponseBytes);
         Assert.False(options.AllowPlainHttp);
+        Assert.False(options.AllowLocalTargets);
     }
 
     [Fact]
@@ -59,6 +60,10 @@ public sealed class NetworkModuleTests : IDisposable
             () => services.AddNetworkModule(options => options.ConnectTimeout = TimeSpan.FromSeconds(-1)));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => services.AddNetworkModule(options => options.MaximumResponseBytes = 0));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => services.AddNetworkModule(options => options.RequestTimeout = TimeSpan.FromDays(60)));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => services.AddNetworkModule(options => options.ConnectTimeout = TimeSpan.FromDays(30)));
     }
 
     [Fact]
