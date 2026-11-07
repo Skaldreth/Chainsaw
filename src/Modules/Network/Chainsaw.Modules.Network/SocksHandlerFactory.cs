@@ -132,8 +132,9 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
         {
             await socket.ConnectAsync(socks5Proxy, cancellationToken).ConfigureAwait(false);
 
-            // Asked after the connection: a tunnel that still holds its port now has held it all along, so nothing
-            // else can have answered. Nothing has been sent yet, not even the credentials.
+            // Asked after the connection, before anything is sent: the helper holds its port exclusively and never
+            // frees it before it ends, so a helper that still lives now has held the port all along. The one gap
+            // left is the moment a crashing helper's handles close before Windows marks it exited (TODO).
             if (!proxyIsTunnel())
             {
                 throw new HttpRequestException("The tunnel no longer holds its proxy's port.");

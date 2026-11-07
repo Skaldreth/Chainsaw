@@ -254,6 +254,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Tunnelns port på andra system än Windows:** på Windows hålls porten exklusivt (`SO_EXCLUSIVEADDRUSE`) och
   Chainsaw frågar efter varje anslutning om hjälpprogrammet lever, så en anslutning kan inte ha nått något annat
   program. Byggs Chainsaw någon gång för ett annat system behöver samma garanti prövas där.
+  En lucka finns kvar (granskningen etapp 13, omgång 3, M): när hjälpprogrammet kraschar stänger Windows troligen
+  dess handtag (och porten) innan processen räknas som avslutad, så under ett ögonblick kan ett program som körs som
+  samma användare ta porten medan `IsRunning` ännu är sant. Stängs med en kontroll av vem som äger anslutningens andra
+  ände (`GetExtendedTcpTable` med processens id) eller med ett bevis från hjälpprogrammet (HMAC över en nonce med en
+  nyckel från stdin) innan Chainsaw skickar något.
 - **Återanslutning:** när tunneln faller (*förbindelsen förlorad*, till exempel efter att datorn sovit) ansluter
   Chainsaw inte igen av sig själv. Viktigt för bevakningen.
 - **Svarshuvuden som ursprung:** `ExitResponse` har bara status, medietyp och den råa kroppen. Behöver Chains huvuden

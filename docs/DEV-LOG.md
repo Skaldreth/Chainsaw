@@ -1075,3 +1075,96 @@ Bygget är utan varningar.
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Datalagret och spårningen*). Skiss för det som hölls
 tillbaka och för märkningen av kontrollerade tx i grafen (TODO, *Väntar på skiss*).
+
+
+
+## Etapp 13 (2026-11-07): WireGuard-tunneln
+
+Chainsaws eget hjälpprogram för WireGuard, `tools/Chainsaw.Tunnel` (Go), kopplat in bakom `IExitConnector` i stället
+för `UnavailableExitConnector`. Inte beroende av Gawk, och ingen kod från Gawk. Inget gränssnitt.
+
+- **Hjälpprogrammet** kör wireguard-go med gVisors nätstack i minnet: inget nätverkskort, inga
+  administratörsrättigheter. En process per tunnel.
+  - **Konfigurationen och uppgifterna:** konfigurationen och ett slumpat användarnamn och lösenord (128 bitar
+    vardera) kommer som en JSON-rad på stdin, aldrig på kommandoraden eller disken.
+  - **Svaret:** den första raden på stdout är porten när servern har svarat på en handskakning, annars ett felkod.
+  - **Stopp:** `{"stopped":"lost"}` när tunneln faller. Stängd stdin stoppar programmet, så det överlever aldrig
+    Chainsaw.
+  - **Tystnad:** stderr används inte, och inget loggas.
+- **Proxyn:** SOCKS5 bara på `127.0.0.1`, bara användarnamn och lösenord (jämförda i konstant tid) och bara
+  `CONNECT`. Fler än 64 anslutningar väntar på en ledig plats.
+- **Namnuppslag:** namn slås upp inne i tunneln med filens `DNS =`. Adresser som inte är globala vägras, med samma
+  regler som `LocalTargets`, också när ett namn pekar dit. Det enda namn datorn själv slår upp är serverns eget i
+  `Endpoint`.
+- **WireGuard-filen tolkas strikt:**
+  - Exakt en `[Interface]` och en `[Peer]`.
+  - `DNS =` med en IP-adress.
+  - Okända nycklar vägras.
+  - `PostUp` och de andra kommandona i wg-quick ignoreras och körs aldrig.
+  - Felet nämner rad och nyckel, aldrig ett värde.
+  - `ExitStore` gör samma kontroll av `DNS =` när en utgång läggs till.
+- **Fallen tunnel:** keepalive var 25:e sekund (eller kortare om filen säger det). Tunneln räknas som fallen om ingen
+  ny handskakning har setts på 270 sekunder (monoton klocka), om enheten stängs eller om proxyn slutar ta emot.
+- **C#:**
+  - `WireGuardConnector` startar hjälpprogrammet genom `HelperProcessStarter`, som först jämför dess SHA-256 med den
+    inbyggda hashen och håller filen stängd för skrivning tills processen har startat.
+  - `WireGuardTunnel` säger `Stopped` vid en senare rad, när stdout tar slut eller när processen avslutas, men inte
+    vid dispose. Dispose stänger stdin och dödar processen efter tre sekunder.
+  - En start som avbryts eller tar för lång tid (30 s) dödar processen, eftersom läsningar från rör inte alltid kan
+    avbrytas på Windows.
+  - Två nya skäl i `ExitFailure`: `ConfigurationRefused` och `NoAnswer`.
+- **Bygget:**
+  - `build.sh` och `build.ps1` kräver Go 1.27.3 (`toolchain` i `go.mod`) och kör `go vet`, testerna,
+    `go mod tidy -diff` och `govulncheck` mot Windows-bygget.
+  - Bygget är reproducerbart: samma källa ger samma hash.
+  - `dist/chainsaw-tunnel.exe` och dess `.sha256` är incheckade. Appen kopierar programmet och `licenses/` till sin
+    utdatamapp.
+- **Licenserna** (MIT, Apache 2.0 och BSD-3, ingen copyleft) står i `THIRD_PARTY.md`.
+
+**Egna beslut:**
+- **En port med inloggning i stället för en tunnel i Chainsaws egen process.** Alternativen vägdes:
+  - Ett Go-bibliotek i processen kräver cgo och en korskompilator för Windows.
+  - En egen ström över stdin och stdout kräver ett eget protokoll med flödeskontroll.
+  - Båda ändrar kontraktet `IExitTunnel`.
+  - Porten görs i stället säker: hjälpprogrammet håller den ensamt (`SO_EXCLUSIVEADDRUSE`) och frigör den först när
+    processen avslutas. Chainsaw frågar efter varje anslutning, innan något skickas, om programmet lever
+    (`IExitTunnel.IsRunning`).
+  - Kvar finns ögonblicket när ett kraschande program stänger sina handtag innan Windows räknar det som avslutat (TODO).
+- **Uppgifterna slumpas av Chainsaw**, inte av hjälpprogrammet, så att de aldrig behöver läsas tillbaka.
+- **Ansluten först efter en handskakning**, så att *ansluten* betyder att servern svarar.
+- **Serverns namn i `Endpoint`** slås upp med datorns resolver, som i varje VPN-klient. IPv4 föredras.
+- **`dist/` i stället för `bin/`**, som `.gitignore` utesluter.
+- **Uppdaterade bibliotek:** x/crypto, x/net, x/sys och x/time är uppdaterade. gVisor står kvar på den version
+  wireguard-go anger. govulncheck hittar en sårbarhet i x/crypto (`openpgp`), men den delen används inte.
+
+**Granskningen:** tre omgångar.
+- **Omgång 1:** inga C. Tre I och sju M.
+  - **I:** porten kunde tas av ett annat program (nu ensam port och kontroll efter anslutningen).
+  - **I:** Go 1.24 hade inte längre säkerhetsstöd (nu 1.27.3, låst, med govulncheck).
+  - **I:** proxyn kunde dö tyst (nu en fallen tunnel).
+  - **M rättade:** anslutningar väntar på plats, halvstängda reläer har en tidsgräns, monoton klocka, rören stängs,
+    skälet till en vägrad fil följer med felet, och korta IPv4-former vägras.
+  - **M dokumenterade:** testluckor för den riktiga processen (TESTER-INFOR) och sömn (TESTER-INFOR, TODO).
+- **Omgång 2:** inga C. Ett I och sex M.
+  - **I:** programmet stängde porten innan processen avslutades. Nu stängs den aldrig av programmet självt, och ett
+    test visar det.
+  - **M rättade:** gränsen 270 s, bara kända nycklar nämns i fel, strikt DNS-adress, govulncheck låst och mot
+    Windows, `go.mod` städad, radlängder.
+  - **M i TODO:** skälet till en vägrad fil behöver ett fält i `ExitStatus` för gränssnittet.
+- **Omgång 3:** inga C eller I. Tre M.
+  - IPv6 inom hakparenteser i `DNS =` vägras nu.
+  - Testklassen har fått en sammanfattning.
+  - Luckan när programmet kraschar står i TODO.
+
+**Tester:** 197 i Network (42 nya) och 44 i Go, däribland en hel tunnel mot en WireGuard-peer i samma process på
+`127.0.0.1`: handskakning, namn som slås upp av peerns namnserver inne i tunneln, relä, vägran mot ett namn som pekar på
+datorn, stopp när stdin stängs och att porten inte frigörs före processens slut. 1 443 tester i hela lösningen. Bygget
+utan varningar.
+
+**Återstår:**
+- Prova på Windows med en riktig WireGuard-fil (`docs/TESTER-INFOR-1.0.md`, *WireGuard-tunneln*).
+- Gränssnittet för utgångar (skissas).
+- Återanslutning efter en fallen tunnel.
+- Skälet till en vägrad fil i `ExitStatus`.
+- Luckan när programmet kraschar.
+- Signering av programmet.

@@ -141,7 +141,8 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
     /// <returns><see langword="true"/> when it is an address.</returns>
     private static bool IsAddress(string text)
     {
-        if (!IPAddress.TryParse(text, out var address))
+        // Brackets and a port are accepted by .NET but not by the helper.
+        if (text.Contains('[', StringComparison.Ordinal) || !IPAddress.TryParse(text, out var address))
         {
             return false;
         }

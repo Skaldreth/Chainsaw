@@ -5,6 +5,10 @@ using Chainsaw.Modules.Network.Contracts;
 
 namespace Chainsaw.Modules.Network.Tests;
 
+/// <summary>
+/// The WireGuard connector, tunnel and helper starter, with the helper played by a process in memory: nothing is
+/// started and nothing goes on the network.
+/// </summary>
 public sealed class WireGuardConnectorTests
 {
     private static readonly ExitInfo Exit = new(Guid.NewGuid(), "Exit A", "Stockholm", ExitKind.WireGuard);
