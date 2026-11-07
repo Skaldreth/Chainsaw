@@ -1038,3 +1038,6 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Vänsterknappen på tom yta panorerar inte längre; den drar noder och väljer.
 - [ ] Med animeringar avstängda i Windows glider ytan inte efter släppet.
 - [ ] Grafens läge (var man panorerat) finns kvar när ärendet öppnas igen.
+
+## Grafens ikon (IK1)
+- [ ] Grafens ikon i pillret är en förgrening: en rund aktör till vänster vars linje delar sig mot en rund aktör uppe till höger och en fyrkantig tjänst nere till höger, skarp i 20 px.

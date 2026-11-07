@@ -7,7 +7,7 @@
     -->
     <Geometry x:Key="Icon.Plus">M12 5v14 M5 12h14</Geometry>
     <Geometry x:Key="Icon.Search">M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z M20 20l-4-4</Geometry>
-    <Geometry x:Key="Icon.Graph">M6 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M8 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M19 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M7.5 6.5l9 1.2 M6.6 7l1.1 10 M17.6 9l1 7 M10 19h7</Geometry>
+    <Geometry x:Key="Icon.Graph">M4.5 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M7 12h4 M11 12l4.5-5.5 M11 12l4.5 5.5 M18.5 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M16 15.5h5v5h-5z</Geometry>
     <Geometry x:Key="Icon.Timeline">M3 12h18 M7 8v8 M12 10v4 M17 6v12</Geometry>
     <Geometry x:Key="Icon.Flow">M3 6c6 0 6 6 12 6h6 M3 18c6 0 6-6 12-6 M3 12h4</Geometry>
     <Geometry x:Key="Icon.Exposure">M12 3a9 9 0 1 0 9 9h-9z M15 3.5A9 9 0 0 1 20.5 9H15z</Geometry>
