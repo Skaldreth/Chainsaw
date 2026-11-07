@@ -341,4 +341,6 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4 | GR4 godkänd, förlagan för grafen |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär) | GR4 godkänd, förlagan för grafen; GR5 och IN1 väntar |
+| **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | Väntar |
+| **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | Väntar |
