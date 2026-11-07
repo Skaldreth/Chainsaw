@@ -96,7 +96,8 @@ public sealed class RecordedTests : IDisposable
         var hits = run.Hits.ToList();
         Assert.Equal([Spent, Coinbase], hits.Select(hit => hit.Match.Transaction));
         Assert.Equal(WatchDirection.Out, hits[0].Match.Direction);
-        Assert.Equal(99_990_000, (long)hits[0].Match.Amount.Units);
+        // Another address put money into the same tx, so only what the watched address put in can be its money out.
+        Assert.Equal(40_000_000, (long)hits[0].Match.Amount.Units);
         Assert.Equal(WatchDirection.In, hits[1].Match.Direction);
         Assert.Equal(626_234_567, (long)hits[1].Match.Amount.Units);
         Assert.Equal(

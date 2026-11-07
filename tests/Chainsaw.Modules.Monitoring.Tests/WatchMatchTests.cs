@@ -156,3 +156,58 @@ public sealed class WatchMatchTests
     private static WatchFlow Flow(EthereumAddress from, EthereumAddress to, AssetAmount amount) =>
         new([new WatchLeg(Synthetic.On(from), amount)], [new WatchLeg(Synthetic.On(to), amount)]);
 }
+
+/// <summary>The facit for money out of a CoinJoin: never more than the watched addresses put in.</summary>
+public sealed class WatchCoinJoinTests
+{
+    private static readonly Chainsaw.Modules.Chains.Contracts.BitcoinAddress Node = Synthetic.Wpkh("node");
+
+    [Fact]
+    public void Money_out_with_others_inputs_is_capped_at_what_the_node_put_in_less_its_change()
+    {
+        var builder = Synthetic.Tx("coinjoin").In(Node, 10_000_000);
+        for (var index = 0; index < 4; index++)
+        {
+            builder.In(Synthetic.Wpkh("peer" + index), 10_000_000);
+        }
+
+        for (var index = 0; index < 5; index++)
+        {
+            builder.Out(Synthetic.Wpkh("mix" + index), 9_000_000);
+        }
+
+        var tx = builder.Out(Node, 900_000).Build();
+        var filter = new WatchFilter(Chain.Bitcoin, WatchDirection.Out, [], [], null, null);
+
+        var match = Assert.Single(new WatchCheck().Match(new HashSet<ChainAddress> { Synthetic.Btc("node") }, filter,
+            BitcoinCaseFeed.Of(tx)));
+
+        Assert.Equal(9_100_000, (long)match.Amount.Units);
+        Assert.Equal(5, match.Counterparties.Count);
+    }
+
+    [Fact]
+    public async Task A_check_cut_short_keeps_the_height_so_the_next_reads_from_the_same_place()
+    {
+        using var harness = new Harness();
+        harness.WatchBitcoin(Node);
+        await harness.Service.CheckAsync(harness.Case, Chain.Bitcoin, 900_000);
+        var pages = new List<Chainsaw.Modules.Chains.Contracts.BitcoinAddressPage>();
+        Chainsaw.Modules.Chains.Contracts.Txid? after = null;
+        for (var page = 0; page < 6; page++)
+        {
+            var tx = Synthetic.Tx("busy" + page, 900_100 - page).In(Node, 5_000).Out(Synthetic.Wpkh("x"), 4_000)
+                .Build();
+            pages.Add(new Chainsaw.Modules.Chains.Contracts.BitcoinAddressPage(Node, after, [tx], tx.Txid));
+            after = tx.Txid;
+        }
+
+        harness.Bitcoin.Pages[Node.Value] = pages;
+
+        var run = await harness.Service.CheckAsync(harness.Case, Chain.Bitcoin, 900_100);
+
+        Assert.Equal(WatchFeedStatus.Partial, run.Outcomes.Single().Status);
+        Assert.Equal(5, run.Hits.Count());
+        Assert.Equal(900_000, harness.Service.GetChecked(harness.Case).Values.Single().Height);
+    }
+}

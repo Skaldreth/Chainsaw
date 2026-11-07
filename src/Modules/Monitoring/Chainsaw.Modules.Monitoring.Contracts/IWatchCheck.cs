@@ -54,6 +54,13 @@ public enum WatchFeedStatus
     Read,
 
     /// <summary>
+    /// The source answered, but not everything back to where the check was could be read (too many pages, a history
+    /// the source has not finished, a block without its hash); what was read counts, and the next check reads from the
+    /// same place again.
+    /// </summary>
+    Partial,
+
+    /// <summary>
     /// The source could not be asked (no exit, the chain off, no endpoint in step); nothing new is known.
     /// </summary>
     NotAsked,

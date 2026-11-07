@@ -17,10 +17,22 @@ public enum WatchPartyList
     Senders,
 }
 
-/// <summary>A counterparty in the form, as a chip.</summary>
-/// <param name="Address">The address.</param>
+/// <summary>
+/// A counterparty in the form, as a chip: one address, or every address of a node in the graph (a cluster), so that
+/// money to any of them counts.
+/// </summary>
+/// <param name="Addresses">The addresses, at least one.</param>
 /// <param name="Text">What the chip says: the node's name in the graph, or the address shortened.</param>
-public sealed record WatchPartyChip(ChainAddress Address, string Text);
+public sealed record WatchPartyChip(IReadOnlyList<ChainAddress> Addresses, string Text)
+{
+    /// <summary>Gets the first address, for the chip's tooltip.</summary>
+    public ChainAddress Address => Addresses[0];
+
+    /// <summary>Gets the chip's tooltip: the addresses it stands for.</summary>
+    public string ToolTip => Addresses.Count == 1
+        ? Address.Value
+        : $"{Address.Value} och {Addresses.Count - 1} till i noden";
+}
 
 /// <summary>One choice of a segmented row in the form.</summary>
 /// <param name="label">What it says.</param>
@@ -225,14 +237,14 @@ public sealed partial class WatchFormViewModel : ObservableObject
         Reset(watch.Subject, watch.Id, name, $"Ändra {watch.Subject.Name}");
         IsManual = false;
         ChooseDirection(watch.Filter.Direction);
-        foreach (var party in watch.Filter.Receivers)
+        foreach (var group in watch.Filter.Receivers.GroupBy(party => _name(party)))
         {
-            Receivers.Add(new WatchPartyChip(party, _name(party)));
+            Receivers.Add(new WatchPartyChip([.. group], group.Key));
         }
 
-        foreach (var party in watch.Filter.Senders)
+        foreach (var group in watch.Filter.Senders.GroupBy(party => _name(party)))
         {
-            Senders.Add(new WatchPartyChip(party, _name(party)));
+            Senders.Add(new WatchPartyChip([.. group], group.Key));
         }
 
         ChooseAsset(watch.Filter.Asset);
@@ -294,29 +306,44 @@ public sealed partial class WatchFormViewModel : ObservableObject
         }
     }
 
-    /// <summary>Adds a node's address from the graph (Ctrl+click) to the list being picked for.</summary>
-    /// <param name="address">The node's address.</param>
-    /// <param name="text">The node's name.</param>
+    /// <summary>Adds an address to the list being picked for.</summary>
+    /// <param name="address">The address.</param>
+    /// <param name="text">The node's name, or <see langword="null"/> for the address shortened.</param>
     /// <returns><see langword="true"/> when it was added.</returns>
     public bool Add(ChainAddress address, string? text)
     {
         ArgumentNullException.ThrowIfNull(address);
-        if (Chain != address.Chain)
+        return Add([address], text ?? _name(address));
+    }
+
+    /// <summary>
+    /// Adds a node from the graph (Ctrl+click) to the list being picked for, with every address it has on the chain,
+    /// so that a cluster counts as a whole.
+    /// </summary>
+    /// <param name="addresses">The node's addresses.</param>
+    /// <param name="text">The node's name.</param>
+    /// <returns><see langword="true"/> when it was added.</returns>
+    public bool Add(IReadOnlyList<ChainAddress> addresses, string text)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var mine = addresses.Where(address => address.Chain == Chain).Distinct().ToList();
+        if (mine.Count == 0)
         {
             Problem = NotAnAddressText;
             return false;
         }
 
-        if (address == (_subject?.Anchor ?? ManualAddress()))
+        if ((_subject?.Anchor ?? ManualAddress()) is { } self && mine.Contains(self))
         {
             Problem = SelfText;
             return false;
         }
 
         var list = (Picking == WatchPartyList.Receivers && ShowsReceivers) || !ShowsSenders ? Receivers : Senders;
-        if (list.All(chip => chip.Address != address))
+        var fresh = mine.Where(address => list.All(chip => !chip.Addresses.Contains(address))).ToList();
+        if (fresh.Count > 0)
         {
-            list.Add(new WatchPartyChip(address, text ?? _name(address)));
+            list.Add(new WatchPartyChip(fresh, text));
         }
 
         Problem = string.Empty;
@@ -426,8 +453,8 @@ public sealed partial class WatchFormViewModel : ObservableObject
         return new WatchFilter(
             chain,
             Direction,
-            ShowsReceivers ? [.. Receivers.Select(chip => chip.Address)] : [],
-            ShowsSenders ? [.. Senders.Select(chip => chip.Address)] : [],
+            ShowsReceivers ? [.. Receivers.SelectMany(chip => chip.Addresses)] : [],
+            ShowsSenders ? [.. Senders.SelectMany(chip => chip.Addresses)] : [],
             asset,
             minimum)
         {

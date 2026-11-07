@@ -192,15 +192,8 @@ public sealed partial class GraphViewModel
             return false;
         }
 
-        if (node.Node.Addresses.FirstOrDefault(address => address.Chain == form.Chain) is { } address)
-        {
-            form.Add(address, node.Name);
-        }
-        else
-        {
-            form.Add(node.Node.Addresses.FirstOrDefault() ?? new ChainAddress(Chain.Bitcoin, node.Key), node.Name);
-        }
-
+        // The click is the form's either way; a node without an address on the chain (a tx, a coin) is refused there.
+        form.Add(node.Node.Addresses, node.Name);
         return true;
     }
 

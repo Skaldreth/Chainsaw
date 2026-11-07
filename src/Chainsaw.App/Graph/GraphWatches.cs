@@ -175,8 +175,10 @@ public static class GraphWatches
 
                 var isNew = hits.Any(each => snapshot.IsNew(each) && each.Match.Direction == hit.Match.Direction
                     && each.Match.Counterparties.Contains(party));
-                lines.Add(new WatchLine(
-                    from, to, WatchLineKind.Hit, idle, tip, AmountText.WithUnit(hit.Match.Amount), isNew, watch.Id));
+                // The amount is the whole hit's; it is written on the line only when the hit has one counterparty, so
+                // that a line never claims what went to another.
+                var label = hit.Match.Counterparties.Count == 1 ? AmountText.WithUnit(hit.Match.Amount) : null;
+                lines.Add(new WatchLine(from, to, WatchLineKind.Hit, idle, tip, label, isNew, watch.Id));
             }
         }
 

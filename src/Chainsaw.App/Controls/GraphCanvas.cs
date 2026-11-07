@@ -153,6 +153,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(RenderSize));
         if (_model?.Scene is not { } scene)
         {
+            KeepRings(false);
             return;
         }
 
@@ -178,6 +179,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawAmount(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
         }
 
+        _ringsOnScreen = false;
         DrawWatchMarks(drawingContext, visible);
         foreach (var node in GraphHitTest.VisibleNodes(scene, _model.Places, visible))
         {
@@ -187,6 +189,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawCandidates(drawingContext, visible);
         DrawAreaChips(drawingContext, visible);
         drawingContext.Pop();
+        KeepRings(_ringsOnScreen);
     }
 
     /// <summary>Presses on the surface: takes hold of a node, or of the surface to pan it.</summary>

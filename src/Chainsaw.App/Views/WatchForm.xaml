@@ -48,7 +48,7 @@
         <DataTemplate x:Key="Chip" DataType="{x:Type vm:WatchPartyChip}">
             <Border Height="22" Padding="7,0,4,0" Margin="0,0,4,4" CornerRadius="11" BorderThickness="1"
                     BorderBrush="{StaticResource Brush.Accent}" Background="{StaticResource Brush.Surface}"
-                    ToolTip="{Binding Address.Value}">
+                    ToolTip="{Binding ToolTip}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center" />
                     <Button Focusable="False" Cursor="Hand" Margin="4,0,0,0" ToolTip="Ta bort" Background="Transparent"

@@ -36,9 +36,6 @@
             </Style.Triggers>
         </Style>
     </UserControl.Resources>
-    <UserControl.InputBindings>
-        <KeyBinding Key="B" Command="{Binding NewCommand}" />
-    </UserControl.InputBindings>
 
     <Grid>
         <Grid.ColumnDefinitions>

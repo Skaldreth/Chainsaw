@@ -102,7 +102,9 @@ internal sealed class FakeBitcoinSource : IBitcoinSource
         Asked.Add((address.Value, mode));
         if (Status != LookupStatus.Fetched)
         {
-            return Task.FromResult(new BitcoinLookup<BitcoinAddressPage>(Status, null, [], "Inget svar."));
+            // A source that was asked and failed has sealed its answer; one that was never asked has not.
+            IReadOnlyList<ResponseOrigin> sent = Status == LookupStatus.Failed ? [Origin(9)] : [];
+            return Task.FromResult(new BitcoinLookup<BitcoinAddressPage>(Status, null, sent, "Inget svar."));
         }
 
         var pages = Pages.GetValueOrDefault(address.Value) ?? [new BitcoinAddressPage(address, null, [], null)];

@@ -336,8 +336,8 @@ internal sealed class MonitoringService(
         var through = Math.Max(height, result.Highest ?? height);
         return @case.Write(transaction =>
         {
-            // Every read address or not, the height is only moved on when every address was read, so that a
-            // failed lookup is read again from where it was.
+            // The height is only moved on when every address was read back to where the check was, so that a failed,
+            // partial or not asked lookup is read again from the same place.
             var previous = WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id);
             var kept = result.Status == WatchFeedStatus.Read ? through : previous?.Height ?? watch.StartHeight!.Value;
             WatchStore.WriteChecked(

@@ -107,19 +107,23 @@ public sealed class WatchRunner : IDisposable
         var source = _board.Source;
         var state = _chains.TryGetValue(chain, out var known) ? known : _chains[chain] = new ChainState();
         var now = _clock.UtcNow;
-        if (source.Gate(chain) != WatchGate.Open || (!unstarted && now < state.NextHeight))
+        // A new watch starts at once, unless the last ask for the height failed: then the minute holds too.
+        var waits = !unstarted || state.HeightFailed;
+        if (source.Gate(chain) != WatchGate.Open || (waits && now < state.NextHeight))
         {
             return;
         }
 
         state.NextHeight = now + HeightPoll;
-        if (await source.GetHeightAsync(openCase, chain, cancellationToken).ConfigureAwait(false) is not { } height)
+        var height = await source.GetHeightAsync(openCase, chain, cancellationToken).ConfigureAwait(false);
+        state.HeightFailed = height is null;
+        if (height is null)
         {
             return;
         }
 
-        var run = await source.CheckAsync(openCase, chain, height, cancellationToken).ConfigureAwait(false);
-        _board.Checked([.. run.Hits]);
+        var run = await source.CheckAsync(openCase, chain, height.Value, cancellationToken).ConfigureAwait(false);
+        _board.Checked(openCase, [.. run.Hits]);
     }
 
     /// <summary>Runs rounds until stopped; a round that fails waits for the next.</summary>
@@ -156,6 +160,9 @@ public sealed class WatchRunner : IDisposable
     /// <summary>What the runner knows about one chain.</summary>
     private sealed class ChainState
     {
+        /// <summary>Gets or sets whether the last ask for the height gave nothing.</summary>
+        public bool HeightFailed { get; set; }
+
         /// <summary>Gets or sets when the height may be asked next.</summary>
         public DateTimeOffset NextHeight { get; set; } = DateTimeOffset.MinValue;
     }

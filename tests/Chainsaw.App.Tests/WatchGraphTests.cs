@@ -175,4 +175,91 @@ public sealed class WatchGraphTests
         Assert.True(form.Paces.Single(choice => Equals(choice.Value, WatchPace.FiveMinutes)).IsChosen);
         Assert.Equal(["Varje block", "1 min", "5 min", "15 min"], form.Paces.Select(choice => choice.Label));
     }
+
+    [Fact]
+    public async Task A_cluster_picked_in_the_graph_counts_with_all_its_addresses_and_a_tx_is_refused()
+    {
+        var (graph, _, form) = Graph();
+        await graph.ReloadAsync(fit: false);
+        graph.Choose(VKey, null);
+        graph.OpenWatch();
+
+        Assert.True(graph.PickForWatch(KKey));
+        var filter = form.BuildFilter()!;
+
+        Assert.Equal([WatchSamples.On(K1), WatchSamples.On(K2)], filter.Receivers);
+        Assert.Single(form.Receivers);
+        Assert.Contains("1 till", form.Receivers[0].ToolTip, StringComparison.Ordinal);
+        Assert.False(form.Add([], "tx"));
+        Assert.Equal(WatchFormViewModel.NotAnAddressText, form.Problem);
+    }
+
+    [Fact]
+    public void A_hit_with_several_counterparties_writes_no_amount_on_each_line()
+    {
+        var watch = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(WatchDirection.Out));
+        var both = WatchSamples.Out(WatchSamples.On(E), 3m) with
+        {
+            Counterparties = [WatchSamples.On(E), WatchSamples.On(U)],
+        };
+        _source.Hit(watch, both);
+        var snapshot = new WatchSnapshot(_source.Watches, _source.Records, _source.Hits, _source.Checked, _source.Seen);
+
+        var overlay = GraphWatches.Build(Scene(), snapshot, _ => WatchGate.Open);
+
+        Assert.Equal(2, overlay.Lines.Count(line => line.Kind == WatchLineKind.Hit));
+        Assert.All(overlay.Lines.Where(line => line.Kind == WatchLineKind.Hit), line => Assert.Null(line.Label));
+    }
+
+    [Fact]
+    public async Task A_check_of_a_case_no_longer_open_is_not_told()
+    {
+        var watch = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
+        var (session, board) = WatchSamples.Board(_source);
+        var told = 0;
+        board.HitsFound += (_, _) => told++;
+        var hit = _source.Hit(watch, WatchSamples.Out(WatchSamples.On(E), 1m));
+
+        board.Checked(new TestCase("annat"), [hit]);
+        board.Checked(session.Current!, [hit]);
+        await board.ReloadAsync();
+
+        Assert.Equal(1, told);
+    }
+
+    [Fact]
+    public async Task The_head_waits_when_the_gate_is_closed_even_without_active_watches_or_an_endpoint_in_step()
+    {
+        var (_, board) = WatchSamples.Board(_source);
+        var view = new MonitoringViewModel(board, new WatchFormViewModel(board), new TestClock());
+        _source.GateState = WatchGate.NoExit;
+        await board.ReloadAsync();
+        Assert.Equal(WatchWords.NoExitText, view.BackgroundText);
+
+        _source.GateState = WatchGate.Open;
+        var watch = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
+        _source.Checked[watch.Id] = new WatchChecked(TestWatchSource.At, 900_000, WatchFeedStatus.NotAsked, "i fas");
+        await board.ReloadAsync();
+
+        Assert.Equal(WatchWords.NoSourceText, view.BackgroundText);
+        Assert.True(view.IsWaiting);
+    }
+
+    [Fact]
+    public async Task A_failed_height_waits_its_minute_also_for_a_new_watch()
+    {
+        _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(), start: null);
+        _source.Height = null;
+        var (_, board) = WatchSamples.Board(_source);
+        var clock = new TestClock();
+        var runner = new WatchRunner(board, clock, (_, _) => Task.CompletedTask);
+
+        await runner.RunOnceAsync();
+        clock.UtcNow += TimeSpan.FromSeconds(5);
+        await runner.RunOnceAsync();
+        clock.UtcNow += TimeSpan.FromMinutes(1);
+        await runner.RunOnceAsync();
+
+        Assert.Equal(2, _source.HeightsAsked);
+    }
 }

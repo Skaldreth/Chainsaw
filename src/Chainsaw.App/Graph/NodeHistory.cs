@@ -339,7 +339,8 @@ public static class NodeHistory
         {
             var match = hit.Match;
             var direction = match.Direction == WatchDirection.Out ? "Ut" : "In";
-            var sub = string.Create(CultureInfo.InvariantCulture, $"Block {match.Block.Height:N0} · på kedjan")
+            var hash = SubjectText.Fit(match.Block.Hash, SubjectText.Shortest + 4);
+            var sub = string.Create(CultureInfo.InvariantCulture, $"Block {match.Block.Height:N0} · {hash} · på kedjan")
                 .Replace(',', ' ');
             rows.Add(new HistoryEvent(
                 "watch-hit/" + hit.Sequence.ToString(CultureInfo.InvariantCulture), HistoryKind.WatchHit,

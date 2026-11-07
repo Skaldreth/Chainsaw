@@ -28,6 +28,14 @@ public static class WatchWords
     /// <summary>The head when a chain's sources are off.</summary>
     public const string ChainOffText = "Källorna är av för {0} · inga uppslag görs";
 
+    /// <summary>The head when the last check found no endpoint in step with the chain.</summary>
+    public const string NoSourceText = "Väntar på en endpoint i fas · inga uppslag görs";
+
+    /// <summary>The head's tooltip when no endpoint is in step.</summary>
+    public const string NoSourceTip =
+        "Bevakningen frågar bara en endpoint som svarade på den högsta höjden när endpointarna provades. " +
+        "Prova alla nu under Inställningar → Källor.";
+
     /// <summary>The head while Chainsaw is locked (never shown, since the window is then hidden).</summary>
     public const string LockedText = "Låst · inga uppslag görs";
 

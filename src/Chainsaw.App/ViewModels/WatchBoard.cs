@@ -118,12 +118,18 @@ public sealed class WatchBoard
     /// <summary>
     /// Tells, from any thread, that a check ran: the case is read anew on the UI thread, and new hits are told.
     /// </summary>
+    /// <param name="checkedCase">The case the check ran in; when another case is open by then, nothing is told.</param>
     /// <param name="hits">The hits the check sealed.</param>
-    public void Checked(IReadOnlyList<WatchHit> hits)
+    public void Checked(ICase checkedCase, IReadOnlyList<WatchHit> hits)
     {
         ArgumentNullException.ThrowIfNull(hits);
         _ui.Post(() =>
         {
+            if (!ReferenceEquals(checkedCase, _session.Current))
+            {
+                return;
+            }
+
             _ = ReloadAsync();
             if (hits.Count > 0)
             {

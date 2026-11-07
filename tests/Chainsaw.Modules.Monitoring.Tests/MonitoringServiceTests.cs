@@ -241,6 +241,19 @@ public sealed class MonitoringServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_lookup_that_sent_nothing_is_not_asked_rather_than_failed()
+    {
+        _harness.WatchBitcoin(Node);
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_000);
+        _harness.Bitcoin.Status = LookupStatus.Offline;
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_020);
+
+        Assert.Equal(WatchFeedStatus.NotAsked, run.Outcomes.Single().Status);
+        Assert.Equal(900_000, _harness.Service.GetChecked(_harness.Case).Values.Single().Height);
+    }
+
+    [Fact]
     public void Seen_hits_are_noted_and_never_move_back()
     {
         _harness.Service.MarkSeen(_harness.Case, "w", 5);

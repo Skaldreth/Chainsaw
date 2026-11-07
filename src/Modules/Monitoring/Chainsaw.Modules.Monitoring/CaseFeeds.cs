@@ -11,7 +11,11 @@ internal static class FeedTexts
 {
     /// <summary>When a check stopped before it reached back to where it was.</summary>
     public const string CutShort =
-        "{0} har fler nya tx än en kontroll läser ({1} sidor); de äldsta kan saknas tills nästa kontroll.";
+        "{0} har fler nya tx än en kontroll läser ({1} sidor); äldre tx kan ha missats, och nästa kontroll läser " +
+        "från samma block igen.";
+
+    /// <summary>When the source has not read all of an address's history, or cannot page it.</summary>
+    public const string Incomplete = "Källan har inte hela historiken för {0} än; nästa kontroll läser den igen.";
 
     /// <summary>When an address on a watch is not one the chain knows.</summary>
     public const string NotAnAddress = "{0} är ingen adress på kedjan.";
@@ -20,13 +24,18 @@ internal static class FeedTexts
     public const string NoBlockHash =
         "Blockets hash för block {0} kunde inte hämtas; träffen tas med nästa kontroll.";
 
-    /// <summary>Gives the status of a lookup as a feed reports it.</summary>
-    /// <param name="status">The lookup's status.</param>
-    /// <returns>Read when it was fetched now, failed when it failed, otherwise not asked.</returns>
-    public static WatchFeedStatus StatusOf(LookupStatus status) => status switch
+    /// <summary>
+    /// Gives the status of a lookup as a feed reports it: read when it was answered, failed when a source was asked and
+    /// failed, and not asked when nothing was sent (no exit, the chain off, no endpoint in step).
+    /// </summary>
+    /// <typeparam name="T">What was looked up.</typeparam>
+    /// <param name="lookup">The lookup.</param>
+    /// <returns>The status.</returns>
+    public static WatchFeedStatus StatusOf<T>(BitcoinLookup<T> lookup)
+        where T : class => lookup.Status switch
     {
         LookupStatus.Fetched or LookupStatus.FromCase or LookupStatus.NotFound => WatchFeedStatus.Read,
-        LookupStatus.Failed => WatchFeedStatus.Failed,
+        LookupStatus.Failed when lookup.Origins.Count > 0 => WatchFeedStatus.Failed,
         _ => WatchFeedStatus.NotAsked,
     };
 
@@ -65,11 +74,11 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
             var lookup = await source.GetAddressTransactionsAsync(
                 @case, bitcoin, after, LookupMode.InStep, cancellationToken).ConfigureAwait(false);
             origins.AddRange(lookup.Origins.Select(origin => origin.Sequence));
-            var status = FeedTexts.StatusOf(lookup.Status);
+            var status = FeedTexts.StatusOf(lookup);
             if (status != WatchFeedStatus.Read || lookup.Value is not { } read)
             {
-                return new WatchFeedPage(status == WatchFeedStatus.Read ? WatchFeedStatus.Read : status,
-                    transactions, origins, false, status == WatchFeedStatus.Read ? null : lookup.Problem);
+                return new WatchFeedPage(
+                    status, transactions, origins, false, status == WatchFeedStatus.Read ? null : lookup.Problem);
             }
 
             transactions.AddRange(read.Transactions.Select(Of));
@@ -83,7 +92,7 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
             after = read.NextAfter;
         }
 
-        return new WatchFeedPage(WatchFeedStatus.Read, transactions, origins, true,
+        return new WatchFeedPage(WatchFeedStatus.Partial, transactions, origins, true,
             FeedTexts.Format(FeedTexts.CutShort, address.Value, WatchRules.MaximumPages));
     }
 
@@ -141,15 +150,16 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
             problems.Add(FeedTexts.Format(FeedTexts.CutShort, address.Value, WatchRules.MaximumPages));
         }
 
-        var hashes = await BlockHashesAsync(transfers.Values, origins, problems, cancellationToken)
+        var hashes = await BlockHashesAsync(transfers.Values, downTo, origins, problems, cancellationToken)
             .ConfigureAwait(false);
 
         // A block whose hash could not be had keeps the check from moving on, so that the next check reads its
         // transactions again however long it takes.
-        var hashless = transfers.Values.Any(transfer => transfer.Block is { } block && !hashes.ContainsKey(block.Height));
-        if (hashless)
+        var hashless = transfers.Values.Any(transfer =>
+            transfer.Block is { } block && block.Height > downTo && !hashes.ContainsKey(block.Height));
+        if (hashless || cut)
         {
-            status = WatchFeedStatus.Failed;
+            status = (WatchFeedStatus)Math.Max((int)status, (int)WatchFeedStatus.Partial);
         }
         var transactions = transfers.Values
             .GroupBy(transfer => transfer.Transaction.Value, StringComparer.Ordinal)
@@ -193,7 +203,7 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
             var lookup = await source.GetAddressHistoryAsync(
                 @case, address, history, atOrBelow, LookupMode.InStep, cancellationToken).ConfigureAwait(false);
             origins.AddRange(lookup.Origins.Select(origin => origin.Sequence));
-            var status = FeedTexts.StatusOf(lookup.Status);
+            var status = FeedTexts.StatusOf(lookup);
             if (status != WatchFeedStatus.Read || lookup.Value is not { } read)
             {
                 if (lookup.Problem is { } problem && status != WatchFeedStatus.Read)
@@ -209,6 +219,12 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
                 transfers.TryAdd((transfer.Transaction.Value, transfer.Kind, transfer.Position), transfer);
             }
 
+            if (read.IsCutShort || read.IsIncomplete || read.Unread > 0)
+            {
+                problems.Add(FeedTexts.Format(FeedTexts.Incomplete, address.Value));
+                return (WatchFeedStatus.Partial, false);
+            }
+
             if (read.NextAtOrBelow is not { } next || next <= downTo)
             {
                 return (WatchFeedStatus.Read, false);
@@ -222,12 +238,14 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
 
     /// <summary>Looks up the hash of every block a movement lacks it for, in step with the chain.</summary>
     /// <param name="transfers">The movements.</param>
+    /// <param name="downTo">The block at or below which nothing counts, so that it is never looked up.</param>
     /// <param name="origins">The sealed responses so far.</param>
     /// <param name="problems">What went wrong so far.</param>
     /// <param name="cancellationToken">Stops the lookups.</param>
     /// <returns>The hashes found, per height.</returns>
     private async Task<IReadOnlyDictionary<long, string>> BlockHashesAsync(
         IEnumerable<EthereumTransfer> transfers,
+        long downTo,
         List<long> origins,
         List<string> problems,
         CancellationToken cancellationToken)
@@ -242,7 +260,7 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         }
 
         var missing = transfers.Select(transfer => transfer.Block).OfType<EthereumBlockReference>()
-            .Where(block => block.Hash is null && !hashes.ContainsKey(block.Height))
+            .Where(block => block.Hash is null && block.Height > downTo && !hashes.ContainsKey(block.Height))
             .Select(block => block.Height)
             .Distinct()
             .ToList();

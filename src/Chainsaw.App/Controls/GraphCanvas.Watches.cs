@@ -39,7 +39,7 @@ public sealed partial class GraphCanvas
     private const double RingTravel = 12;
 
     /// <summary>The time between two frames of the rings.</summary>
-    private static readonly TimeSpan RingFrame = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan RingFrame = TimeSpan.FromMilliseconds(66);
 
     /// <summary>The time of one beat of the rings.</summary>
     private static readonly TimeSpan RingBeat = TimeSpan.FromSeconds(1.6);
@@ -49,6 +49,9 @@ public sealed partial class GraphCanvas
 
     /// <summary>Moves the rings while a hit is unseen; stopped otherwise.</summary>
     private DispatcherTimer? _rings;
+
+    /// <summary>Whether moving rings were drawn on screen this frame, so that the frames run only then.</summary>
+    private bool _ringsOnScreen;
 
     /// <summary>Where in a beat the rings are, from 0 to 1.</summary>
     private double _ringPhase;
@@ -112,8 +115,6 @@ public sealed partial class GraphCanvas
                 DrawRays(dc, ray, place);
             }
         }
-
-        KeepRings(overlay.Moves);
     }
 
     /// <summary>
@@ -216,6 +217,7 @@ public sealed partial class GraphCanvas
     /// <param name="idle">Whether lookups cannot be made now (grey).</param>
     private void DrawRings(DrawingContext dc, Point centre, double radius, bool idle)
     {
+        _ringsOnScreen = true;
         var tint = GraphPalette.Find(this, idle ? "Brush.Watch.Idle" : "Brush.Watch");
         var phase = AnimationsOn ? _ringPhase : 0;
         for (var ring = 0; ring < 2; ring++)
@@ -276,9 +278,10 @@ public sealed partial class GraphCanvas
     };
 
     /// <summary>
-    /// Starts the rings' frames while something moves and animations are on, and stops them otherwise.
+    /// Starts the rings' frames while moving rings are on screen and animations are on, and stops them otherwise, so
+    /// that the graph is drawn again only while something it shows moves (principle 6).
     /// </summary>
-    /// <param name="moves">Whether a hit is unseen.</param>
+    /// <param name="moves">Whether moving rings were drawn on screen.</param>
     private void KeepRings(bool moves)
     {
         if (moves && AnimationsOn && IsVisible)

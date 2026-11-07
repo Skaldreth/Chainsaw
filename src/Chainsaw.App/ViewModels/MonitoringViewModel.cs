@@ -440,10 +440,17 @@ public sealed partial class MonitoringViewModel : ObservableObject
         Hits = [.. snapshot.HitsOf(watch.Id).Select(hit => new WatchHitRow(
             hit,
             WatchWords.Hit(hit, Name),
-            WatchWords.When(hit.Match.Block.Time, _clock.UtcNow) + " · block " + WatchWords.Block(hit.Match.Block.Height),
+            WhenText(hit.Match.Block),
             snapshot.IsNew(hit)))];
         OnPropertyChanged(nameof(PauseText));
     }
+
+    /// <summary>Writes a hit's block: when, its height and its hash shortened (principle 1).</summary>
+    /// <param name="block">The block.</param>
+    /// <returns>For example <c>14:01 · block 921 340 · 0000…3f2a</c>.</returns>
+    private string WhenText(WatchBlock block) =>
+        $"{WatchWords.When(block.Time, _clock.UtcNow)} · block {WatchWords.Block(block.Height)} · " +
+        Graph.SubjectText.Fit(block.Hash, Graph.SubjectText.Shortest + 4);
 
     /// <summary>Shows the head: the summary and the honest state of the watching.</summary>
     /// <param name="snapshot">The snapshot.</param>
@@ -458,8 +465,16 @@ public sealed partial class MonitoringViewModel : ObservableObject
             _ => $" · {unseen} nya träffar",
         };
         Summary = $"{snapshot.Watches.Count} bevakningar · {active.Count} aktiva{news}";
-        var gates = active.Select(watch => (watch.Chain, Gate: _board.Gate(watch.Chain))).ToList();
-        if (gates.Any(each => each.Gate is WatchGate.NoExit or WatchGate.Locked))
+        // The gate counts whether or not a watch is active: an honest head never says it watches when it cannot.
+        var chains = snapshot.Watches.Select(watch => watch.Chain).DefaultIfEmpty(Chain.Bitcoin).Distinct();
+        var gates = chains.Select(chain => (Chain: chain, Gate: _board.Gate(chain))).ToList();
+        var notAsked = active.Any(watch => snapshot.Checked.TryGetValue(watch.Id, out var last)
+            && last.Status == WatchFeedStatus.NotAsked);
+        if (gates.Any(each => each.Gate == WatchGate.Locked))
+        {
+            (BackgroundText, BackgroundTip, IsWaiting) = (WatchWords.LockedText, WatchWords.LockedText, true);
+        }
+        else if (gates.Any(each => each.Gate == WatchGate.NoExit))
         {
             (BackgroundText, BackgroundTip, IsWaiting) = (WatchWords.NoExitText, WatchWords.NoExitTip, true);
         }
@@ -467,6 +482,10 @@ public sealed partial class MonitoringViewModel : ObservableObject
         {
             var text = string.Format(CultureInfo.InvariantCulture, WatchWords.ChainOffText, off.Chain);
             (BackgroundText, BackgroundTip, IsWaiting) = (text, text, true);
+        }
+        else if (notAsked)
+        {
+            (BackgroundText, BackgroundTip, IsWaiting) = (WatchWords.NoSourceText, WatchWords.NoSourceTip, true);
         }
         else
         {

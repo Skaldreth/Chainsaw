@@ -37,14 +37,7 @@ internal sealed class WatchCheck : IWatchCheck
             var spends = flow.From.Any(leg => Watched(addresses, leg));
             if (spends && filter.WatchesOut)
             {
-                var receivers = new HashSet<ChainAddress>(filter.Receivers);
-                foreach (var leg in flow.To.Where(leg => !Watched(addresses, leg)))
-                {
-                    if (receivers.Count == 0 || (leg.Address is { } to && receivers.Contains(to)))
-                    {
-                        Count(sums, WatchDirection.Out, leg, leg.Address is { } receiver ? [receiver] : [], filter);
-                    }
-                }
+                CountOut(sums, flow, addresses, filter);
             }
             else if (!spends && filter.WatchesIn && FromWanted(flow, filter))
             {
@@ -124,7 +117,46 @@ internal sealed class WatchCheck : IWatchCheck
             [.. problems.Distinct(StringComparer.Ordinal)]);
     }
 
-    /// <summary>Gives the worse of two statuses: failed before not asked before read.</summary>
+    /// <summary>
+    /// Counts the money a flow sends out from the watched addresses. When others put money into the same flow (a
+    /// CoinJoin, a payjoin), only what the watched addresses put in, less what came back to them, can be theirs: the
+    /// amount is capped at that, so that a sealed amount never claims more than the chain shows they sent.
+    /// </summary>
+    /// <param name="sums">The sums so far.</param>
+    /// <param name="flow">The flow.</param>
+    /// <param name="addresses">The watched addresses.</param>
+    /// <param name="filter">The filter.</param>
+    private static void CountOut(
+        Dictionary<(WatchDirection, Asset), (AssetAmount Amount, HashSet<ChainAddress> Parties)> sums,
+        WatchFlow flow,
+        IReadOnlySet<ChainAddress> addresses,
+        WatchFilter filter)
+    {
+        var receivers = new HashSet<ChainAddress>(filter.Receivers);
+        var legs = flow.To.Where(leg => !Watched(addresses, leg)
+            && (receivers.Count == 0 || (leg.Address is { } to && receivers.Contains(to)))).ToList();
+        if (legs.Count == 0)
+        {
+            return;
+        }
+
+        var asset = legs[0].Amount.Asset;
+        var total = legs.Aggregate(AssetAmount.Zero(asset), (sum, leg) => sum + leg.Amount);
+        if (flow.From.Any(leg => !Watched(addresses, leg)) && flow.From.All(leg => leg.Amount.Asset == asset))
+        {
+            var mine = flow.From.Where(leg => Watched(addresses, leg))
+                .Aggregate(AssetAmount.Zero(asset), (sum, leg) => sum + leg.Amount);
+            var back = flow.To.Where(leg => Watched(addresses, leg))
+                .Aggregate(AssetAmount.Zero(asset), (sum, leg) => sum + leg.Amount);
+            var cap = mine - back;
+            total = cap.Units.Sign <= 0 ? AssetAmount.Zero(asset) : (total < cap ? total : cap);
+        }
+
+        var parties = legs.Select(leg => leg.Address).OfType<ChainAddress>();
+        Count(sums, WatchDirection.Out, new WatchLeg(null, total), parties, filter);
+    }
+
+    /// <summary>Gives the worse of two statuses: failed before not asked before partial before read.</summary>
     /// <param name="left">One status.</param>
     /// <param name="right">The other.</param>
     /// <returns>The worse.</returns>
