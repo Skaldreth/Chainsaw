@@ -24,7 +24,13 @@ internal static class TracingMethods
         where T : class, ITracingMethod
     {
         ArgumentNullException.ThrowIfNull(methods);
-        var covering = methods.Where(method => method.Scope?.Covers(chain) ?? true).ToList();
+        var all = methods.ToList();
+        if (all.FirstOrDefault(method => method.Scope is null) is { } unscoped)
+        {
+            throw new ArgumentException($"{unscoped.Id} is registered without a scope.", nameof(methods));
+        }
+
+        var covering = all.Where(method => method.Scope.Covers(chain)).ToList();
         if (covering.FirstOrDefault(method => !Fits(method)) is { } misfit)
         {
             throw new ArgumentException(

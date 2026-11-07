@@ -110,7 +110,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
     `TraceEnd.Transaction`) får `ChainTransactionRef` och myntet som UTXO-detalj; kontomodellens del av grafen bredvid
     `UtxoGraph`; en kalkylator för kontomodellen över `IAccountTracingMethod`; heuristikkontraktet för konton
     (`IAccountHeuristic`) när kluster och bevis kan hålla andra adresser än Bitcoins; `ITracingService` med en källa
-    per kedja i stället för `IBitcoinSource`; `BlockReference` med en blockhash i kedjans eget format.
+    per kedja i stället för `IBitcoinSource`; `BlockReference` med en blockhash i kedjans eget format; i appen
+    `GraphScene.Shown` (nodernas summor och linjernas tjocklek räknar bara BTC), formuläret Annan kedja
+    (`IncomingCoin` tar bara mynt) och *Kontroll* i inspektören (bara Bitcoins tx). `AccountLedger` ska kontrollera
+    att varje rörelse är i dess tillgång och att bara kedjans eget mynt har avgifter.
+  - **Med TRON:** kontrakt och adresser skrivs både i base58 (`T…`) och hex (`41…`); de görs om till base58 i källan
+    eller i `Asset` och `ChainAddress`, så att samma kontrakt aldrig blir två tillgångar.
   - **Med nästa UTXO-kedja (Litecoin, Zcash):** `UtxoGraph` får sin kedja och tillgång (i dag räknar
     `TraceCalculator` alltid i BTC), och UTXO-kontraktet en egen tx och egna adresser (eller `BitcoinTransaction` och
     `BitcoinAddress` en kedja), eftersom `BitcoinAddress` inte tar `ltc1` eller `t1`. `CrossChainLink.From` blir ett

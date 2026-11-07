@@ -151,13 +151,16 @@ public readonly record struct AssetAmount : IComparable<AssetAmount>
     /// <returns>The amount with all its decimals, a space and the symbol.</returns>
     public override string ToString() => _asset is null ? "0" : ToDecimalString() + " " + _asset.Symbol;
 
-    /// <summary>Checks that two amounts are of the same asset.</summary>
+    /// <summary>
+    /// Checks that two amounts are of the same asset, written with the same decimals, so that two sources that
+    /// disagree about a token's decimals are never counted together.
+    /// </summary>
     /// <param name="left">The first amount.</param>
     /// <param name="right">The second amount.</param>
     /// <returns>The asset.</returns>
     /// <exception cref="InvalidOperationException">They are not.</exception>
     private static Asset Same(AssetAmount left, AssetAmount right) =>
-        left.Asset == right.Asset
+        left.Asset == right.Asset && left.Asset.Decimals == right.Asset.Decimals
             ? left.Asset
             : throw new InvalidOperationException(
                 $"Amounts of {left.Asset} and {right.Asset} cannot be counted together.");

@@ -28,9 +28,14 @@ internal sealed class ClusteringService : IClusteringService
     public ClusteringService(IEnumerable<IClusteringHeuristic> heuristics)
     {
         ArgumentNullException.ThrowIfNull(heuristics);
-        var forBitcoin = heuristics.Where(heuristic => heuristic.Scope?.Covers(Chain.Bitcoin) ?? true).ToList();
-        if (forBitcoin.FirstOrDefault(heuristic => heuristic is not IUtxoHeuristic || heuristic.Scope is null)
-            is { } misfit)
+        var all = heuristics.ToList();
+        if (all.FirstOrDefault(heuristic => heuristic.Scope is null) is { } unscoped)
+        {
+            throw new ArgumentException($"{unscoped.Id} is registered without a scope.", nameof(heuristics));
+        }
+
+        var forBitcoin = all.Where(heuristic => heuristic.Scope.Covers(Chain.Bitcoin)).ToList();
+        if (forBitcoin.FirstOrDefault(heuristic => heuristic is not IUtxoHeuristic) is { } misfit)
         {
             throw new ArgumentException(
                 $"{misfit.Id} is registered for Bitcoin but does not implement the UTXO contract.", nameof(heuristics));

@@ -1488,3 +1488,17 @@ som Bitcoins registrerade bredvid. Båda är lika. Inga förseglade källor elle
     - Radlängder.
   - **M i DEV-LOG eller TODO:** `UtxoFlow` som vägrar, ett negativt belopp i `Parse` (bara som skillnad, nu
     dokumenterat), facit med fler fall och ett reguljärt uttryck per överföring.
+- **Omgång 2:** inga C eller I. Sju M.
+  - **Rättade:** belopp av samma token med olika decimaler räknas inte ihop, en metod eller heuristik utan räckvidd
+    får ett eget fel, en startpunkt med ett belopp utan tillgång vägras som de andra, och kontraktets text om
+    kontrollen gäller UTXO-modellen i dag.
+  - **M i TODO:** TRON:s två skrivsätt för kontrakt, att `AccountLedger` kontrollerar sina regler, och appens delar
+    som bara räknar Bitcoin.
+
+**Tester:** 1 690 gröna i hela lösningen efter rebasen på etapp 19, varav 39 nya för etappen: 2 i facit, 18 i
+SharedKernel (tillgångar, belopp med stora tal, adresser och räckvidder), 9 i Tracing (metoder per modell och kedja,
+kontomodellen, kantens nyckel, `UtxoFlow`), 3 i Clustering (heuristiker per kedja) och 7 i appen (belopp i andra
+tillgångar). Bygget är utan varningar.
+
+**Återstår:** inget att prova på Windows utöver det som redan står där; gränssnittet ska se ut som förut. Det som
+fortfarande är bundet till Bitcoin står i TODO under *Kedjor och data*.

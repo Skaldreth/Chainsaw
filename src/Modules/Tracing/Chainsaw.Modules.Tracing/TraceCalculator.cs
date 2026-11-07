@@ -131,6 +131,11 @@ internal sealed class TraceCalculator
                 throw new ArgumentException($"The seed {seed.Coin} is not in the graph.", nameof(seeds));
             }
 
+            if (seed.Amount is { } given && given == default)
+            {
+                throw new ArgumentException($"The seed {seed.Coin} has an amount without an asset.", nameof(seeds));
+            }
+
             var whole = entry.Transaction.Outputs[seed.Coin.Index].Amount.ToAmount();
             var amount = seed.Amount ?? whole;
             if (amount.Asset != _asset || amount.Units.Sign <= 0 || amount > whole)

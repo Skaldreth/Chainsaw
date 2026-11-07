@@ -110,6 +110,9 @@ public sealed class AssetTests
         Assert.True(AssetAmount.Zero(Asset.Ether).IsZero);
         Assert.Throws<InvalidOperationException>(() => default(AssetAmount).Asset);
         Assert.Throws<InvalidOperationException>(() => default(AssetAmount) + bitcoin);
+        var sixDecimals = Asset.Token(Chain.Ethereum, UsdtOnEthereum, "USDT", 6);
+        var eighteen = Asset.Token(Chain.Ethereum, UsdtOnEthereum, "USDT", 18);
+        Assert.Throws<InvalidOperationException>(() => new AssetAmount(sixDecimals, 1) + new AssetAmount(eighteen, 1));
     }
 
     [Fact]

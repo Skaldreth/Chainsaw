@@ -11,7 +11,8 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 /// </summary>
 /// <remarks>
 /// A method never creates or loses money: what is traced in is exactly what is traced out plus what stays or goes to
-/// the fee. Chainsaw checks that after every step and refuses a method that breaks it.
+/// the fee. Chainsaw checks that after every step and refuses a method that breaks it (for the UTXO model today; the
+/// account model's calculator comes with the first account chain).
 /// </remarks>
 public interface ITracingMethod
 {
