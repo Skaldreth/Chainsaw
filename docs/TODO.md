@@ -35,16 +35,14 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   emot i grafen, och från en startpunkts-tx:s betalningar till andra än betalarna; ett mynt längre fram i samma flöde
   tas bort. Ska användaren välja mynten själv (till exempel offrets betalningar, eller ett belopp av ett mynt), och hur
   ska det se ut? Behöver en skiss.
-- **Startpunkten som offer** (etapp 12, valt av sessionen): en startpunkt utan etikett ritas som *Offer* (rund,
-  magenta) efter GR3a, där offret är *startpunkten*. Ofta är startpunkten bedragarens adress som offret betalade till.
-  Ska startpunkten i stället behålla sin sort (okänd, kluster) med en egen markering, och offret vara en etikett?
-- **Namnen i grafen** (etapp 12, valt av sessionen): noder utan etikett heter efter adressen förkortad
-  (`bc1q…x0wl`), inte *K1*, *U2* som i skissen, eftersom en numrering ändras när grafen växer. Bekräfta.
 
 ## Bygga härnäst
 
 
 ## Väntar på skiss
+
+- **Startpunktens markering och nodernas namn** (beslutade 2026-11-07, CLAUDE.md *Gränssnitt*): grafen ritar i dag
+  startpunkten som *Offer* och noderna bara med förkortad adress. Skissas i GR5.
 
 
 

@@ -239,6 +239,12 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   linjens tjocklek är beloppet och **streckat betyder alltid osäkert**. **Viktig information får stå kvar** (användarens
   beslut 2026-11-07): beloppet står alltid på linjerna, och användaren kan gallra till bara de spårade eller inga när grafen
   blir stor. Bildspråket finns bakom ett *?* i grafens hörn.
+- **Startpunkten är neutral** (användarens beslut 2026-11-07): en startpunkt behåller sin sort (okänd, kluster, tjänst)
+  och får en egen markering som startpunkt, eftersom den lika gärna kan vara den misstänktes plånbok som offrets. Offret
+  är en etikett, inte startpunktens sort.
+- **Nodernas namn** (användarens beslut 2026-11-07): en nod utan namn heter efter adressen förkortad (`bc1q…x0wl`), inte
+  en numrering. En nod som fått ett namn (en etikett eller ett eget namn) visar namnet, med adressen under i nedtonat
+  grått, förkortad bara när den inte får plats.
 - **Sorterna efter vad som händer med pengarna** (skiss GR3c, användarens beslut 2026-11-07, införda i GR4): **blått är uttag**
   (börs, börs utan kundkontroll med streckad ram, nästlad tjänst, OTC och P2P, kryptoautomat, kryptokort), **gult är där
   pengarna spenderas** (spel som två spelkort, handel, presentkort), **rött är risk och slut på spåret** (darknet, garantimarknad,

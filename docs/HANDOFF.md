@@ -96,6 +96,18 @@ form (godkänd), FS1a och NC1a (valda), SH1b, GR3a, GR3c och GR4.
 | 11b | **Undermenyer i pillret** (PN1, godkänd 2026-11-07, efter Gawks B9): en allmän kontroll för pillret där en knapp kan ha en undermeny som fälls ut som en del av knappen (flik förbi pillrets kant, rundat inre hörn, en kant och skugga, tangentbord och Esc). Första användningen är **Nytt**: Startpunkt (S), Etikett (E), Bevakning (B), Begäran (R), Importera sanktionslista … (I) och Ärende (Ctrl+N); det som kräver ärende tonat utan ärende, det som inte är byggt tonat | Klar |
 | 12 | **Grafen** (GR4, GR3a, GR3c): Tracing-modellen ritad som fri yta med växel till hoppkolumner, bildspråket, belopp på linjerna, expansion, FIFO/haircut, inspektören med *Varför?* | Klar |
 
+## Eftermiddagskörningen 2026-11-07
+
+Samma arbetssätt, men etapper utan gränssnitt körs **parallellt**, var och en i en egen session på samma gren. Före push:
+`git pull --rebase origin claude/busy-cray-wj01k4`, lös konflikter i dokumenten genom att behålla båda sidor, och bygg och
+testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
+
+| Etapp | Innehåll | Läge |
+| --- | --- | --- |
+| 13 | **WireGuard-tunneln:** Chainsaws eget hjälpprogram (`tools/Chainsaw.Tunnel`), kopplat bakom `IExitConnector`, bara `127.0.0.1`, konfigurationen ur valvet utan disk, namnuppslag i tunneln | Pågår |
+| 14 | **Kurser (Pricing):** kursen vid en tidpunkt i vald valuta (SEK som förval) genom `IExitHttp`, med källa och råsvar förseglat i ärendet, offline ur ärendet | Pågår |
+| 15 | **Datalagret och spårningen:** txid mot tx:ens bytes, utgångar som aldrig kan spenderas, adressens sammanfattning, spårningen i bakgrunden, gränser för expansionen, spårningsmetod, läge och zoom sparade i ärendet, etikettbiblioteket när ett ärende öppnas | Pågår |
+
 ## Nästa steg
 
 1. **Användarens val:** FS1a eller FS1b, NC1a eller NC1b, låsskärmens kätting (två varianter, TODO), och besluten i TODO
