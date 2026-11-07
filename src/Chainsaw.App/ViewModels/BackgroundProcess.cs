@@ -13,7 +13,9 @@ public interface IBackgroundProcess
     /// <returns><see langword="true"/> when it does.</returns>
     bool IsRunning();
 
-    /// <summary>Says whether a process is the running background process, so that an old status is not believed.</summary>
+    /// <summary>
+    /// Says whether a process is the running background process, so that an old status is not believed.
+    /// </summary>
     /// <param name="processId">The process the status names.</param>
     /// <returns><see langword="true"/> when it is.</returns>
     bool IsProcess(int processId);

@@ -2165,6 +2165,109 @@ Bygget är utan varningar. Nätet används aldrig i testerna.
 (bakgrundsprocessen, aviseringarna); punkterna under *Bevakning (etapp 26)* i TODO.
 
 
+## Etapp 27 (2026-11-07): bevakningen, andra delen (när Chainsaw är stängt)
+
+**Byggt:**
+- **Bakgrundsprocessen `src/Chainsaw.Watcher`** (eget projekt, `Chainsaw.Watcher.exe` bredvid `Chainsaw.exe`): en liten,
+  tyst process utan fönster (WinExe, låg prioritet, en GC-heap utan bakgrundstråd, utan kulturdata), en per
+  Windows-användare (namngiven mutex), som stoppas med en namngiven händelse (`--stop`, eller reglaget i
+  inställningarna) och avslutar sig själv när inget ska bevakas. Varje 15:e sekund läser den planen (bara när den
+  skrivits om), lämnar ärenden som är öppna i Chainsaw åt Chainsaw, frågar varje kedjas höjd högst en gång i minuten och
+  kontrollerar de bevakningar som står på tur.
+- **Samma kontroll som i Chainsaw:** `IWatchCheck`, `IWatchFeeds` (nytt kontrakt, samma flöden med `LookupMode.InStep`),
+  endpointarna ur `sources.json` med sin takt och reserv, och `WatchSchedule` (nytt i kontrakten): när en bevakning står
+  på tur, hur långt bakåt den läser och hur långt en kontroll lämnar den, skrivet en gång för båda.
+- **Ärendet i minnet (`ScratchCase`):** källorna kräver ett ärende att försegla i. Bakgrunden ger dem ett ärende i
+  minnet med bara Chains tabeller, kastat efter varje varv, så att källornas kod körs oförändrad. Inget sparas på disk
+  utanför den skyddade kön.
+- **Underlaget (planen) under DPAPI** (`IUserDataProtector` i Security, `CryptProtectData` för den inloggade
+  användaren, med syftet som entropi): på eller av, utgången, aviseringssätten och per ärende (bara ärendets slumpade id)
+  de aktiva bevakningarna med adresser (ett kluster som klustringen satte det när planen skrevs), filter, start, hur långt
+  de lästs och de träffar ärendet redan har i bakåtläsningen. Appen skriver planen när vyn läser om bevakningarna (tillägg,
+  ändring, paus, borttagning, efter varje egen kontroll) och när inställningarna ändras.
+- **Kön** (en skyddad fil per kontroll, skriven helt och flyttad på plats): träffarna, hur långt bevakningen lästes och
+  alla råsvar kontrollen hämtade och vilar på, med alla sina värden (`SealedResponse`) och SHA-256. En post med en ny
+  träff märks i filnamnet, så att låsskärmen kan säga att en bevakning slagit till utan att läsa något.
+- **Införandet i ärendet** (`IBackgroundWatches.Import`, när ärendet är öppet och upplåst, först i varje varv av appens
+  `WatchRunner` så att de aldrig skriver samtidigt): råsvaren förseglas igen oförändrade efter kontroll av SHA-256
+  (`IResponseTransfer` i Chains), en start sätts om bevakningen saknar en, träffarna förseglas med raden *slog till i
+  bakgrunden* i journalen när bevakningen fortfarande gäller (filtret lika, takten oräknad) och träffen är ny och över
+  ärendets start, hur långt den lästs skrivs bara när kontrollen räknade från ärendets start eller lägre, och postens id
+  sparas (`monitoring_imported`, schemasteg 2), så att den aldrig förs in två gånger. Ärendet sparas innan posterna tas
+  bort. En post som inte går att läsa läggs åt sidan och sägs.
+- **Ärendet hålls** (`ICaseHolds`): medan ett ärende är öppet håller appen en fil under `held\` utan delning; bakgrunden
+  lämnar det. Systemet släpper filen också när Chainsaw kraschar.
+- **Aviseringen** säger bara *En bevakning har slagit till.* och *Öppna Chainsaw och lås upp för att se den.*: i Windows
+  (en ikon i meddelandefältet med `NIF_INFO`, som Windows visar som toast, i en minut), som ljud (mynt-swooshet, gjort
+  av `tools/sounds/coin-swoosh.py`, inbyggt) och, bakom samma gränssnitt men inte i inställningarna, som en meddelanderuta
+  överst mitt på skärmen. Högst en gång per varv, och aldrig för en träff ärendet redan har.
+  `Chainsaw.Watcher.exe --test-alert` prövar sätten.
+- **Appen:** `BackgroundLink` håller det öppna ärendet, skriver planen, sätter `HKCU\…\Run` och startar eller stoppar
+  processen (bara när den är på, en bevakning är aktiv och Windows är utgången), startar den igen högst en gång i minuten
+  om den dött, för in kön och säger vad bakgrunden gör. **Inställningarna (ST1a, Låsning)** har tre rader:
+  *Bevaka när Chainsaw är stängt*, *Avisering i Windows*, *Ljud*. **BV1a:s huvud** säger *Går i bakgrunden · genom
+  Windows · i fas med …*, *Bakgrunden väntar på utgången* (VPN), *Bakgrunden är av*, *Bakgrunden går inte*, *Går i
+  bakgrunden · uppslagen misslyckas* eller *… källorna är av* (hel eller streckad ram som i skissen); Chainsaws egna
+  problem (utgången, källorna, misslyckade uppslag) går före. **Låsskärmen (ID8c)** har raden *En bevakning har slagit
+  till. Den visas efter upplåsning.* med en rosa prick.
+- **Guiden:** *När Chainsaw är stängt* i *Bevakning*.
+
+**Utredningen om VPN:** utgångarnas WireGuard-filer (privat nyckel och peer) ligger krypterade i valvet
+(`network/exits/…` genom `IVaultSecrets`) och kan bara läsas med huvudnyckeln. Bakgrunden har aldrig huvudnyckeln, så
+den kan inte starta en tunnel. Att lägga en kopia under DPAPI utanför valvet skulle gå tekniskt, men är ett avsteg från
+*Säkerhet* som bara användaren kan besluta (TODO, *Väntar på beslut*). Därför gör bakgrunden **inga uppslag med VPN
+vald** (grinden säger `NoExit`, processen startas inte ens, och huvudet säger det). Medan Chainsaw är öppet bevakar
+appen själv genom VPN som förut.
+
+**Egna beslut:**
+- **`src/Chainsaw.Watcher`, inte `tools/`:** processen skickas med appen och är en del av produkten; `tools/` är
+  administratörens verktyg och hjälpprogram byggda för sig. Den bygger med appen (projektreferens, alla typer internal).
+- **Ett ärende i minnet** i stället för ett nytt gränssnitt i Chains: källornas uppslag, takt, reserv och försegling körs
+  oförändrade, och Chains fick bara överföringen av råsvar (`IResponseTransfer`, läs och försegla igen med SHA-256).
+- **Vem som hämtade:** bakgrunden har ingen operatörsprofil (den ligger i valvet), så råsvaren säger *Chainsaw i
+  bakgrunden*; journalraden som för in dem har operatören som öppnade ärendet. Utgången står som i alla råsvar
+  (`windows`).
+- **Planen bär också ärendets kända träffar i bakåtläsningen** (bevakning, tx, riktning, tillgång), så att en träff som
+  Chainsaw redan förseglat aldrig aviseras igen (granskningen omgång 1). Det är mer än *adresserna och ärendets id*, men
+  under samma DPAPI och sådant som står på kedjan.
+- **Höjden** förs in med ärendets första post i varvet; en höjd som inte ledde till någon kontroll hör inte till något
+  ärende och förs inte in.
+- **Endpointarna provas** när processen startar och igen efter tio minuter om ingen är i fas. Ändras `sources.json`
+  byggs tjänsterna om.
+- **Endpoints med API-nyckel** fungerar inte i bakgrunden (nyckeln ligger i valvet).
+- **Aviseringen i Windows** via meddelandefältet, inte en WinRT-toast, eftersom en toast kräver att Chainsaw registreras
+  som app (AUMID); ikonen tas bort efter en minut.
+- **Ljudet** är syntetiserat (brus genom ett svepande bandpassfilter som swoosh, sedan mynt som studsar: oharmoniska
+  deltoner med exponentiell avklingning och ett klick, allt tätare och tystare), 1,45 s, stereo, och därmed Chainsaws
+  eget (THIRD_PARTY).
+- **Förval:** bakgrunden, aviseringen i Windows och ljudet är på; meddelandet mitt på skärmen är av och dolt.
+
+**Granskningen:** tre omgångar.
+- **Omgång 1:** ett C, sju I och tio M.
+  - **C:** bara den första kedjan provades; en andra kedjas bevakningar frågade aldrig.
+  - **I:** träffar fick inte alla sina ursprung när ett tidigare råsvar i varvet återanvändes; falska aviseringar för
+    träffar ärendet redan hade; en krasch mellan start och framsteg kunde kasta bakgrundens träffar; ett skrivfel tog
+    ner processen; en plan som inte kunde läsas för stunden avslutade den; huvudet visade inte vad processen sa;
+    framsteget skrevs var 15:e sekund.
+  - **M rättade:** höjden till den första post som faktiskt köas, införandets I/O, ikonen och trådarna vid avslut, takten
+    i filterjämförelsen, radlängd, tester. **I TODO:** sammanfattningsraden efter en krasch, köns tillväxt, två takter
+    mot samma endpoints, adresserna kvar när bakgrunden är av.
+- **Omgång 2:** inga C, två I och fem M. **I:** en kontroll från en senare start markerade block som lästa (från
+  rättelsen i omgång 1); en träff som indexerats sent aviserades aldrig. **M rättade:** aviseringen sägs innan den
+  minns, en första plan som hålls vid inloggning, en gammal process status, dokumentationen.
+- **Omgång 3:** inga C eller I. Två M rättade (en plan som aldrig går att läsa sägs som fel, radlängd); en lämnad (ett
+  återanvänt process-id kan ge en gammal status ett varv).
+
+**Tester:** 2 263 gröna i hela lösningen, varav 79 nya: 21 i det nya `Chainsaw.Watcher.Tests` (hela vägen från planen
+genom processen till ärendet med den riktiga Esplora-källan bakom en låtsad utgång, VPN, hållna ärenden, start, två
+kedjor, två bevakningar på en adress, kända och sent indexerade träffar, ärendet i minnet, aviseringssätten,
+omstarterna), 26 i Monitoring (filerna, kön, schemat, införandet), 5 i Chains (överföringen), 4 i Security (DPAPI), 23 i
+appen (länken, huvudet, låsskärmen, inställningarna, löparen). DPAPI, registret, aviseringen och ljudet går bara att
+prova på Windows (`docs/TESTER-INFOR-1.0.md`). Bygget är utan varningar; nätet används aldrig i testerna.
+
+**Återstår:** prova på Windows; skissa meddelandet mitt på skärmen; punkterna under *Bevakning i bakgrunden (etapp 27)*
+i TODO; beslutet om WireGuard i bakgrunden.
+
 ## Låsskärmen ID8c (2026-11-07): kättingen som blir DNA
 
 Användaren valde ID8c efter flera omgångar på canvasen (ID8a–d). En ren gränssnittsändring, granskad av sessionen mot

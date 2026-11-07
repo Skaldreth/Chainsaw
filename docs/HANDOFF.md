@@ -120,7 +120,7 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 | 24 | **Källornas endpoints (KL1a):** sidan Källor i ST1a, lägga till, prioritera och ta bort endpoints per kedja, lägena Snabbast (prov vid start genom utgången), Prioriterad och Av, endpointen i varje förseglat råsvar. Startad när 20 var klar | Klar |
 | 25 | **Endpointarna, andra delen:** rate limit per endpoint (egen takt, `429` och `Retry-After`, uppslagen spridda), snygg reserv mot de andra, ett blocks marginal utom för bevakningen, egen nod på det lokala nätet (märkt lokal, bara https). Startad när 23 var klar | Klar |
 | 26 | **Bevakningen, första delen (BV1a, BV2a):** modulen Monitoring (bevakning med riktning, mottagare 1:n och avsändare n:1, tillgång, minsta belopp; förseglad i ärendet; frågar källan med `LookupMode.InStep` genom utgången; träffar förseglade), bevakning medan Chainsaw är öppet, vyn BV1a, högerklick *Bevaka …* i grafen och BV2a med animerade ringar vid träff | Klar |
-| 27 | **Bevakningen, andra delen:** bakgrundsprocessen när Chainsaw är stängt (startar med Windows, vet bara adresserna och ärendets id under DPAPI, genom utgången, kö som förs in i ärendet när det öppnas, avisering som bara säger att en bevakning slagit till). Startad när 26 var klar | Pågår |
+| 27 | **Bevakningen, andra delen:** bakgrundsprocessen när Chainsaw är stängt (startar med Windows, vet bara adresserna och ärendets id under DPAPI, genom utgången, kö som förs in i ärendet när det öppnas, avisering som bara säger att en bevakning slagit till). Startad när 26 var klar | Klar |
 
 ## Nästa steg
 

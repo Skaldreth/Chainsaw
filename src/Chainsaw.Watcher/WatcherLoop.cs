@@ -49,6 +49,12 @@ internal sealed class WatcherLoop
     /// <summary>The plan read last.</summary>
     private BackgroundPlan _plan = BackgroundPlan.Empty;
 
+    /// <summary>How many rounds without a readable plan before it is said as failing.</summary>
+    private const int UnreadRoundsSaid = 4;
+
+    /// <summary>How many rounds have gone without a readable plan.</summary>
+    private int _unreadRounds;
+
     /// <summary>Whether a plan has been read at all.</summary>
     private bool _planRead;
 
@@ -78,7 +84,13 @@ internal sealed class WatcherLoop
         ReadPlan();
         if (!_planRead)
         {
-            // The first plan could not be read just now (a scanner holds it at sign-in): wait a round, never end.
+            // The first plan could not be read just now (a scanner holds it at sign-in): wait a round, never end, and
+            // say that it fails once it has gone on for a while.
+            if (++_unreadRounds >= UnreadRoundsSaid)
+            {
+                Say(BackgroundState.Failing, null);
+            }
+
             return true;
         }
 

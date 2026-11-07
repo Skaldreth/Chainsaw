@@ -190,6 +190,7 @@ src/
     Controls/               Egna kontroller och det som behöver WPF: GridIcon, kortkommandon, omvandlare
     Themes/                 Colors, Icons (24-rutnätet), Logo (kättingen), Controls
   Chainsaw.SharedKernel/    Klocka, operatör, kommandon, resultat, kedjor och belopp (satoshi, wei) som egna typer
+  Chainsaw.Watcher/         Bevakningen när Chainsaw är stängt: egen liten process, planen och kön under DPAPI (etapp 27)
   Modules/
     Cases/                  Ärenden (en krypterad .cut-fil per ärende), journal, kommandologg, hashkedja
     Security/               Huvudnyckel, valv (API-nycklar), operatörsprofil
