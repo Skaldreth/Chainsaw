@@ -96,6 +96,11 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
     får ett mjukt sken, och utan filter står korta prickade strålar vid porten. Vid en träff blir vaktlinjen en riktig
     linje med beloppet, och **ringarna på linjen är animerade** (användarens beslut 2026-11-07), tills träffen är sedd;
     de står stilla när Windows har animeringar avstängda. När bakgrunden väntar på utgången blir det grått.
+  - **Hur bevakningen säger till** (användarens beslut 2026-11-07) väljs i inställningarna, ett eller flera sätt:
+    **avisering i Windows**, **ljud** (ett riktigt bra mynt-swoosh med skrammel) och **ett meddelande mitt på skärmen**
+    som ligger överst tills det stängs. Alla säger bara att en bevakning har slagit till.
+  - **Hur ofta källan frågas** ställs per bevakning (användarens beslut 2026-11-07), med förvalet **vid varje nytt
+    block** (på kedjor utan block, eller med mycket täta block, något som motsvarar det).
 - **Redovisa:** hur rapporten byggs bestäms när vi kommer dit (användarens beslut 2026-11-06).
 
 **Mixers är vanliga** i utredningarna (användarens observation 2026-11-07) och är en egen sort i grafen. Spåret tar slut
@@ -131,6 +136,7 @@ fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händ
   råsvar sparas med hash (princip 1).
 - **Mellanhänder bara när de ger något kedjan inte har:** kurser och attribution. Kurser hämtas från en källa som anger
   kursen vid en tidpunkt, och kursen sparas i ärendet med källa. Valutan att räkna i ställs in (SEK som förval).
+  Källan är **Bitstamp** (användarens beslut 2026-11-07).
 - **Uppslag kräver inget godkännande** (användarens beslut 2026-11-06), men går alltid genom vald utgång (princip 4).
 - Källornas API-nycklar ligger i valvet, aldrig i ärendet.
 - **Källornas adresser hanteras per kedja** (användarens beslut 2026-11-07): användaren lägger till, prioriterar och tar
@@ -224,6 +230,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   - Samma etikett som kommer in flera gånger slås ihop, och flera oberoende ursprung visas som bekräftelse.
   - **Vem som helst kan ta tillbaka en egen etikett i ärendet**, också en kollegas, och tillbakatagandet följer med till
     biblioteket (användarens beslut 2026-11-07).
+  - **Allt följer med** (användarens beslut 2026-11-07): ärendenumret, anteckningen, skälet och hela operatörsprofilen
+    (namn, titel, enhet) följer med etiketten in i andra ärenden, inte bara till biblioteket. *Sprid inte* finns kvar.
 - **Före 1.0 får schemat ändras fritt.** Migreringar får slås ihop och gamla testärenden behöver inte fungera.
 
 ### Säkerhet
@@ -254,7 +262,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Windows som utgång** (användarens beslut 2026-11-07): i inställningarna väljs *Windows* eller *VPN*. Med Windows går
   `IExitHttp` ut genom datorns eget nät (och dess proxy och skydd), fortfarande bara https och utan kakor och referer, och
   titelraden och utgångarnas ruta visar ärligt *Windows* som utgång. Valet journalförs inte per uppslag, men varje
-  förseglat råsvar säger vilken sorts utgång det kom genom.
+  förseglat råsvar säger vilken sorts utgång det kom genom. Windows visas grönt **så länge datorn når internet**
+  (användarens beslut 2026-11-07); utan nät visas *Offline* som för en VPN-utgång som inte är ansluten.
 - **Utgångar:** Chainsaw har ett **eget exemplar** av hjälpprogrammet för WireGuard och egna utgångar, och är inte beroende
   av att Gawk är igång (användarens beslut 2026-11-07). Samma sorts tunnel som Gawk, men Chainsaws egen.
   Hjälpprogrammet (`tools/Chainsaw.Tunnel`, etapp 13) är en egen process per tunnel: WireGuard i användarläge utan
@@ -343,7 +352,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Inställningarna är ST1a** (användarens beslut 2026-11-07): en dialog mitt i fönstret över mörkad bakgrund, som i Gawk,
   öppnad med Ctrl+, eller kugghjulet i pillret, med menyn till vänster (Nätverk, Låsning, Utseende, Länkar, Kurser,
   Profil, Om Chainsaw) och rader med titel och förklaring till vänster och valet till höger. Nätverk har *Windows* eller
-  *VPN* som två kort, och under VPN utgångarna som i UT1a.
+  *VPN* som två kort, och under VPN utgångarna som i UT1a. *Byt …* vid huvudnyckeln fäller ut tre fält under raden
+  (nuvarande, ny, upprepa) med Avbryt och *Byt huvudnyckel* (användarens beslut 2026-11-07, byggt i etapp 19).
 - **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, bredvid låsskärmens figur) och
   **Nytt ärende är NC1a** (en panel från höger som mörkar resten, som kan bli ärendets egenskaper senare). Användaren lät
   Claude välja (2026-11-07); valen följer Gawks form.

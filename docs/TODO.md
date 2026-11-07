@@ -11,38 +11,31 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
   återkallas med en rad `REVOKED` i `organization-recovery-key.pem`. Att ta bort alla andra nycklars kuvert vid ett
   byte prövades men vägrades i granskningen: en äldre version eller en annan organisations Chainsaw tog då bort den
   nyare nyckelns kuvert. Bekräfta att återkallelse för hand räcker.
-- **Endpointarna, andra delen** (etapp 25, valt av sessionen, det säkraste): takten är Chainsaws eget förval (högst
-  fyra uppslag i sekunden per endpoint på internet), inte källornas publicerade gränser; leverantörens delade adresser
-  (100.64/10, CGNAT och Tailscale) räknas inte som eget nät för en lokal nod; i Prioriterad sprids uppslagen inte, utan
-  nästa tas när den första ber om väntan. Bekräfta eller ändra.
+- **Endpointarna, andra delen** (etapp 25, valt av sessionen, det säkraste; förklarat för användaren 2026-11-07):
+  - **Takten:** Chainsaw frågar en endpoint på internet högst fyra gånger i sekunden, ett eget förval, i stället för
+    att läsa varje källas egen gräns (som ofta inte är publicerad). Ska takten gå att ställa per endpoint?
+  - **Tailscale och CGNAT** (100.64.0.0/10) räknas inte som det egna nätet, så en nod där kan inte märkas lokal.
+  - **Prioriterad** sprider inte uppslagen: nästa endpoint tas först när den första ber Chainsaw vänta.
 
-- **Vad av ett annat ärende som följer med en etikett** (CLAUDE.md, *Etiketter smittar*; byggt i etapp 8 efter
-  förslaget, bekräfta med användaren): ärendenumret, anteckningen och skälet följer med till biblioteket men inte vidare
-  in i ett annat ärende; där står bara vem (hela operatörsprofilen: namn, titel, enhet), när, etiketten med namn och
-  vilken sorts källa. En etikett kan märkas *Sprid inte*. Sessionens egna tillägg: en etikett på ett offer, och varje
-  etikett på offrets adresser eller kluster, sprids aldrig; en etikett som tas tillbaka där den sattes dras tillbaka ur
-  alla kopior. Ska *Sprid inte* också gå att sätta för ett helt ärende? Ska titel och enhet följa med?
-- **Hur bevakningen säger till** (den går också när Chainsaw är stängt, CLAUDE.md *Bevaka*): bara en avisering i Windows,
-  eller också ljud, e-post eller telefon? (Hur ofta källan frågas: `docs/KRYPTOSPARAREN.md`, fråga 12.)
 - **Rapporten:** hur redovisningen byggs (som i Gawk med bilagor, eller enklare underlag för underrättelse). Bestäms när vi
   kommer dit.
-- **Bitstamp som kurskälla i tjänsten** (etapp 14, valt av sessionen): öppen historik utan nyckel, men villkoren för
-  kommersiellt bruk är oklara (se *Kurser*). Bekräfta att Bitstamp får användas, eller välj en annan källa; källan kan
-  bytas utan att något annat ändras.
 
 - **Guiden från spårningsmetoden och *?*** (etapp 18, valt av sessionen): ett klick på metoden byter metod som förut,
   och ett **högerklick** öppnar Guiden vid metoden (verktygstipset säger det). *?* visar bildspråket som förut, och
   dess länk *Guiden: Grafen och bildspråket* öppnar panelen. I GD1b öppnade ett klick på metoden och på *?* Guiden
   direkt; då behövs en annan väg att byta metod och se bildspråket. Bekräfta eller välj.
 
-- **Formuläret för att byta huvudnyckel** (etapp 19, valt av sessionen): ST1a har bara knappen *Byt …*. Den fäller ut
-  tre fält under raden (nuvarande, ny, upprepa) med Avbryt och *Byt huvudnyckel*, som förstagångsinställningens steg.
-  Bekräfta formen eller skissa den.
-- **Windows som utgång är alltid grönt** (etapp 19, granskningen M): med Windows valt visar titelraden grön prick och
-  grafen säger inte *Offline*, också när datorn saknar nät. Chainsaw kan inte veta om Windows når källorna förrän ett
-  uppslag görs; `NetworkChange` kunde säga när datorn inte har något nät alls. Bekräfta eller välj.
 
 ## Bygga härnäst
+
+- **Allt följer med en etikett** (CLAUDE.md, *Etiketter smittar*, användarens beslut 2026-11-07): etapp 8 för bara
+  vem, när, etiketten och källans sort in i ett annat ärende; ärendenumret, anteckningen, skälet, titeln och enheten
+  ska också följa med. Sessionens egen regel att en etikett på ett offer aldrig sprids står kvar tills användaren säger
+  annat. Om *Sprid inte* också ska gå att sätta för ett helt ärende är inte bestämt.
+- **Windows som utgång utan nät** (CLAUDE.md, *Windows som utgång*): grönt så länge datorn når internet, *Offline*
+  annars (`NetworkChange` säger när datorn saknar nät).
+- **Bevakningens aviseringar** (etapp 27, CLAUDE.md *Bevaka*): sätten i inställningarna (avisering i Windows, ljud,
+  meddelande mitt på skärmen överst) och hur ofta per bevakning. Ljudet behöver en fri licens eller göras själv.
 
 ## Väntar på skiss
 
@@ -50,12 +43,14 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
   förvalt. Valet *Windows* eller *VPN* där, som de två korten i ST1a, behöver en ändring av FS1a.
 
 - **Det som hölls tillbaka och det som kontrollerats** (etapp 15): en expansion tar högst 50 tx (en adress nyaste,
-  en tx:s spenderare efter belopp) och säger i raden längst upp hur många som hölls tillbaka. Grafen behöver ett sätt
-  att hämta resten, och kanske att vika ihop en batchutbetalnings många outputs i en nod. Inspektören bör visa om en
-  tx är kontrollerad mot sina bytes och om den bytt block (omorganisation). Skissas.
-- **Tidslinjen under grafen** (GR4): prickar per händelse under ytan, där ett klick visar grafen vid en tx (det som
-  kom senare bleknar) och *Till nu* går tillbaka. Inte byggd i etapp 12; skissen finns, men hur händelserna väljs i en
-  stor graf (en prick per tx blir för många) behöver bestämmas.
+  en tx:s spenderare efter belopp). Användarens idé 2026-11-07: en **ledtrådsnod** `+243 tx` vid adressen; ett klick
+  skickar de andra noderna bort i en cirkulär stöt (en övergång), centrerar på ledtråden, som byts mot alla tx runt
+  om, och användaren väljer vilka som plockas ut i den stora vyn. Inspektören bör också visa om en tx är kontrollerad
+  mot sina bytes och om den bytt block (omorganisation). Skissas (EX1).
+- **Tidslinjen under grafen** (GR4): användarens idé 2026-11-07: som **tidszoner på en världskarta**, smala lodräta
+  linjer som kan böja sig för att få in noderna, men som visas raka i hoppkolumnerna och den automatiska layouten.
+  Formen från Gawks tidslinje: tona in och ut i ändarna, en prick med sonar, prickad linje. Ett klick visar grafen vid
+  en tid (det som kom senare bleknar), *Till nu* går tillbaka. Skissas (TL1).
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.
 - **Guidens figurer** (GD1b och GD1a): skisserna har små figurer i avsnitten (UTXO, common-input-ownership, växeln,
@@ -70,7 +65,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
   kanterna, och grafens flyttade hörn kan ligga över raden med det spårade uppe till vänster.
 - **Sök i Guiden:** GD1a har en sökruta i vyn. Sök finns bara i kommandoraden (CLAUDE.md), så sökningen bör gå därifrån
   (till exempel `/guide utxo`). Inte byggt.
-- Begäran om uppgifter till börser: formuläret och mallarna.
+- **Begäran om uppgifter till börser:** först en enkel **export till Markdown** (användarens beslut 2026-11-07), med
+  börsen, insättningarna (tx, tid, belopp, adress) och spåret dit. Var den startas skissas (BG1).
 
 ## Senare (efter MVP:n)
 
