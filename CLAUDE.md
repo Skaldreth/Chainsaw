@@ -153,6 +153,7 @@ src/
     Monitoring/             Bevakning av adresser och kluster
     Requests/               Begäran om uppgifter till börser, mallar
 tests/                      xUnit, ett testprojekt per modul
+assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG i 256 px och programikonen chainsaw.ico
 ```
 
 ### Lagring
