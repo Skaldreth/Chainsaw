@@ -114,7 +114,7 @@ public sealed class GraphViewModelTests
         var rig = new Rig();
 
         Assert.Equal([TracingMethodKind.Fifo], rig.Source.Loads);
-        Assert.True(rig.Graph.HasGraph);
+        Assert.Equal(5, rig.Graph.Scene!.Nodes.Count);
         Assert.Equal(string.Empty, rig.Graph.EmptyText);
         Assert.Equal(5, rig.Graph.Places.Count);
         Assert.Equal(5, rig.Graph.Curves.Count);
@@ -135,7 +135,7 @@ public sealed class GraphViewModelTests
         rig.Session.Open(rig.Case);
 
         Assert.Equal(GraphViewModel.NoStartPointsText, rig.Graph.EmptyText);
-        Assert.False(rig.Graph.HasGraph);
+        Assert.Empty(rig.Graph.Scene!.Nodes);
     }
 
     /// <summary>A graph that cannot be read says so instead of showing anything.</summary>
@@ -149,7 +149,6 @@ public sealed class GraphViewModelTests
 
         Assert.Null(rig.Graph.Scene);
         Assert.Equal(GraphViewModel.LoadFailedText, rig.Graph.EmptyText);
-        Assert.False(rig.Graph.IsLoading);
     }
 
     /// <summary>An answer to an older reading is dropped when the case has changed meanwhile.</summary>
@@ -390,5 +389,100 @@ public sealed class GraphViewModelTests
         Assert.Equal(VisualLanguage.Sorts.Count, rig.Graph.LegendSorts.Count);
         rig.Graph.Choose(GraphSamples.VKey, null);
         Assert.False(rig.Graph.IsLegendOpen);
+    }
+
+    /// <summary>
+    /// While an expansion runs, the method cannot change and a start point's reading waits for it, so that the
+    /// expansion is never cut short; the reading follows when it is done (regression).
+    /// </summary>
+    [Fact]
+    public async Task ExpansionIsNotCutShort()
+    {
+        var rig = new Rig();
+        var expansion = new TaskCompletionSource<GraphExpansion>();
+        rig.Source.Waiting = null;
+        var source = new SlowExpansion(rig.Source, expansion.Task);
+        var graph = new GraphViewModel(rig.Session, rig.Workflow, source, rig.Exit, new InlineUi());
+        graph.Choose(GraphSamples.UKey, null);
+        var loadsBefore = rig.Source.Loads.Count;
+
+        var running = graph.ExpandAsync();
+        Assert.False(graph.ToggleMethodCommand.CanExecute(null));
+        await graph.RefreshAsync();
+        Assert.Equal(loadsBefore, rig.Source.Loads.Count);
+
+        expansion.SetResult(new GraphExpansion(GraphSamples.Scene(), ExpansionOutcome.Expanded, 1, []));
+        await running;
+
+        Assert.Equal("1 nya tx i grafen.", graph.Notice);
+        Assert.Equal(loadsBefore + 1, rig.Source.Loads.Count);
+        Assert.True(graph.ToggleMethodCommand.CanExecute(null));
+    }
+
+    /// <summary>A reading that started before an expansion cannot bring back the graph without it (regression).</summary>
+    [Fact]
+    public async Task OlderReadingDoesNotUndoAnExpansion()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        var late = new TaskCompletionSource<GraphScene>();
+        rig.Source.Waiting = late;
+        var reading = rig.Graph.RefreshAsync();
+        var grown = GraphSamples.Graph() with
+        {
+            Nodes =
+            [
+                .. GraphSamples.Graph().Nodes,
+                GraphSamples.Node("address:x", GraphNodeKind.Address, [GraphSamples.Address(8)], 3),
+            ],
+        };
+        rig.Source.Expansion = new GraphExpansion(
+            GraphSamples.Scene(graph: grown), ExpansionOutcome.Expanded, 1, []);
+
+        await rig.Graph.ExpandAsync();
+        late.SetResult(GraphSamples.Scene());
+        await reading;
+
+        Assert.NotNull(rig.Graph.Scene!.Node("address:x"));
+    }
+
+    /// <summary>A node not moved by the user stays where it first stood on the free surface when the graph grows.</summary>
+    [Fact]
+    public async Task FreePlacesStayWhenTheGraphGrows()
+    {
+        var rig = new Rig();
+        var before = rig.Graph.Places[GraphSamples.EKey];
+        var earlier = GraphSamples.Node("address:x", GraphNodeKind.Address, [GraphSamples.Address(8)], -2);
+        var grown = GraphSamples.Graph() with { Nodes = [earlier, .. GraphSamples.Graph().Nodes] };
+        rig.Source.Expansion = new GraphExpansion(GraphSamples.Scene(graph: grown), ExpansionOutcome.Expanded, 1, []);
+        rig.Graph.Choose(GraphSamples.UKey, null);
+
+        await rig.Graph.ExpandAsync();
+
+        Assert.Equal(before, rig.Graph.Places[GraphSamples.EKey]);
+        rig.Graph.ShowLayout(GraphLayout.HopColumns);
+        Assert.NotEqual(before.X, rig.Graph.Places[GraphSamples.EKey].X);
+    }
+
+    /// <summary>A graph source whose expansion waits for the test, and otherwise answers as another source.</summary>
+    /// <param name="inner">The other source.</param>
+    /// <param name="expansion">The expansion's answer.</param>
+    private sealed class SlowExpansion(TestGraphSource inner, Task<GraphExpansion> expansion) : IGraphSource
+    {
+        public Task<GraphScene> LoadAsync(ICase @case, TracingMethodKind method, CancellationToken cancellationToken) =>
+            inner.LoadAsync(@case, method, cancellationToken);
+
+        public Task<GraphExpansion> ExpandAsync(
+            ICase @case,
+            IReadOnlyList<ExpansionRequest> requests,
+            TracingMethodKind method,
+            CancellationToken cancellationToken) => expansion;
+
+        public Task<IReadOnlyList<WhyLine>> ExplainClusterAsync(
+            ICase @case, GraphNode node, CancellationToken cancellationToken) =>
+            inner.ExplainClusterAsync(@case, node, cancellationToken);
+
+        public Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place) =>
+            inner.SavePositionAsync(@case, nodeKey, layout, place);
     }
 }

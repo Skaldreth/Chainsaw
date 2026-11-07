@@ -67,7 +67,11 @@ public static class SeedPicker
         return (toOthers.Count > 0 ? toOthers : paid).Select(output => new Outpoint(txid, output.Index));
     }
 
-    /// <summary>Gives every transaction in the graph that the money in a coin reaches, however many steps on.</summary>
+    /// <summary>
+    /// Gives every transaction in the graph that the money in a coin reaches, however many steps on. It follows every
+    /// spend the case knows, also past an end of the trail, so it may leave out a seed that Tracing would accept; that
+    /// errs towards tracing less, never towards counting twice.
+    /// </summary>
     /// <param name="graph">The graph.</param>
     /// <param name="coin">The coin.</param>
     /// <returns>The transactions.</returns>

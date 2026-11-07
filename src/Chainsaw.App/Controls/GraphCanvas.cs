@@ -19,9 +19,6 @@ namespace Chainsaw.App.Controls;
 /// </remarks>
 public sealed class GraphCanvas : FrameworkElement
 {
-    /// <summary>How far the pointer must move before a press becomes a drag, in screen pixels.</summary>
-    private const double DragThreshold = 3;
-
     /// <summary>A node's corner radius.</summary>
     private const double NodeRadius = 10;
 
@@ -79,20 +76,8 @@ public sealed class GraphCanvas : FrameworkElement
     /// <summary>Whether the graph should be fitted to the screen as soon as the surface has a size.</summary>
     private bool _fitPending;
 
-    /// <summary>Where the pointer was pressed, on screen, or <see langword="null"/> while it is not pressed.</summary>
-    private Point? _pressedAt;
-
-    /// <summary>Where the pointer was last while the surface is panned.</summary>
-    private Point _lastPan;
-
-    /// <summary>The node under the pointer when it was pressed, or <see langword="null"/> over empty surface.</summary>
-    private string? _pressedNode;
-
-    /// <summary>Where the pressed node stood, and where on it the pointer took hold.</summary>
-    private (GraphPoint Place, GraphPoint Grip) _hold;
-
-    /// <summary>Whether the press has become a drag.</summary>
-    private bool _dragging;
+    /// <summary>The press, drag and click under way.</summary>
+    private readonly GraphGesture _gesture = new();
 
     /// <summary>Creates the surface, which takes the keyboard when clicked.</summary>
     public GraphCanvas()
@@ -190,18 +175,11 @@ public sealed class GraphCanvas : FrameworkElement
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseLeftButtonDown(e);
         Focus();
-        var at = e.GetPosition(this);
-        _pressedAt = at;
-        _lastPan = at;
-        _dragging = false;
-        _pressedNode = null;
-        var surface = ToSurface(at);
-        if (_model?.HitTest(surface, Tolerance).Node is { } node && _model.Places.TryGetValue(node, out var place))
-        {
-            _pressedNode = node;
-            _hold = (place, new GraphPoint(surface.X - place.X, surface.Y - place.Y));
-        }
-
+        var at = ToGraph(e.GetPosition(this));
+        var surface = _viewport.ToSurface(at);
+        var node = _model?.HitTest(surface, Tolerance).Node;
+        var place = node is not null && _model!.Places.TryGetValue(node, out var found) ? found : default;
+        _gesture.Press(at, node, place, new GraphPoint(surface.X - place.X, surface.Y - place.Y));
         CaptureMouse();
         e.Handled = true;
     }
@@ -217,75 +195,52 @@ public sealed class GraphCanvas : FrameworkElement
             return;
         }
 
-        var at = e.GetPosition(this);
-        if (_pressedAt is not { } pressed)
+        var at = ToGraph(e.GetPosition(this));
+        var surface = _viewport.ToSurface(at);
+        if (!_gesture.IsPressed)
         {
-            var surface = ToSurface(at);
-            _model.HoverAt(surface, Tolerance);
-            var hit = _model.HitTest(surface, Tolerance);
-            Cursor = hit.Node is not null || hit.Edge is not null ? Cursors.Hand : null;
+            ShowHover(surface);
             return;
         }
 
-        _dragging |= (at - pressed).Length >= DragThreshold;
-        if (!_dragging)
+        var (dx, dy) = _gesture.Move(at);
+        if (_gesture.IsDragging && _gesture.Node is { } node)
         {
-            return;
+            var wanted = new GraphPoint(surface.X - _gesture.Grip.X, surface.Y - _gesture.Grip.Y);
+            _model.MoveNode(node, _gesture.NodePlace, wanted);
         }
-
-        if (_pressedNode is { } node)
+        else if (dx != 0 || dy != 0)
         {
-            var surface = ToSurface(at);
-            _model.MoveNode(node, _hold.Place, new GraphPoint(surface.X - _hold.Grip.X, surface.Y - _hold.Grip.Y));
-        }
-        else
-        {
-            _viewport = _viewport.Pan(at.X - _lastPan.X, at.Y - _lastPan.Y);
-            _lastPan = at;
+            _viewport = _viewport.Pan(dx, dy);
             InvalidateVisual();
         }
     }
 
-    /// <summary>Lets go: a drag of a node is stored, and a click chooses what is under the pointer.</summary>
+    /// <summary>
+    /// Lets go: a drag of a node is stored, and a click chooses what is under the pointer. The press is ended before
+    /// the capture is released, since releasing it raises <see cref="OnLostMouseCapture"/> at once.
+    /// </summary>
     /// <param name="e">The release.</param>
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseLeftButtonUp(e);
+        var (end, node) = _gesture.End();
         ReleaseMouseCapture();
-        if (_model is null || _pressedAt is null)
-        {
-            return;
-        }
-
-        if (_dragging && _pressedNode is { } node)
-        {
-            _ = _model.DropNodeAsync(node);
-        }
-        else if (!_dragging)
-        {
-            _model.ChooseAt(ToSurface(e.GetPosition(this)), Tolerance);
-        }
-
-        _pressedAt = null;
-        _pressedNode = null;
-        _dragging = false;
+        Finish(end, node, ToGraph(e.GetPosition(this)));
         e.Handled = true;
     }
 
-    /// <summary>Forgets a press when the capture is lost, for example to another window.</summary>
+    /// <summary>Ends a press when the capture is lost, for example to another window; a dragged node is stored.</summary>
     /// <param name="e">The arguments.</param>
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
-        if (_dragging && _pressedNode is { } node && _model is not null)
+        var (end, node) = _gesture.End();
+        if (end == GestureEnd.DropNode)
         {
-            _ = _model.DropNodeAsync(node);
+            Finish(end, node, default);
         }
-
-        _pressedAt = null;
-        _pressedNode = null;
-        _dragging = false;
     }
 
     /// <summary>The pointer left the surface: nothing is under it any more.</summary>
@@ -315,7 +270,7 @@ public sealed class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnKeyDown(e);
-        if (_model is null || Keyboard.Modifiers != ModifierKeys.None)
+        if (_model is null || (Keyboard.Modifiers & ~ModifierKeys.Shift) != ModifierKeys.None)
         {
             return;
         }
@@ -344,6 +299,43 @@ public sealed class GraphCanvas : FrameworkElement
         }
     }
 
+    /// <summary>Does what a press came to: stores a dragged node, or chooses what a click is on.</summary>
+    /// <param name="end">What the press came to.</param>
+    /// <param name="node">The node it held.</param>
+    /// <param name="at">Where on screen it was let go.</param>
+    private void Finish(GestureEnd end, string? node, GraphPoint at)
+    {
+        if (_model is null)
+        {
+            return;
+        }
+
+        if (end == GestureEnd.DropNode && node is not null)
+        {
+            _ = _model.DropNodeAsync(node);
+        }
+        else if (end == GestureEnd.Click)
+        {
+            _model.ChooseAt(_viewport.ToSurface(at), Tolerance);
+        }
+    }
+
+    /// <summary>Lights what is under the pointer, shows its details as a tooltip and the hand over it.</summary>
+    /// <param name="surface">The pointer on the surface.</param>
+    private void ShowHover(GraphPoint surface)
+    {
+        var model = _model!;
+        model.HoverAt(surface, Tolerance);
+        var hit = model.HitTest(surface, Tolerance);
+        Cursor = hit.Node is not null || hit.Edge is not null ? Cursors.Hand : null;
+        ToolTip = model.Scene?.Node(hit.Node)?.ToolTip;
+    }
+
+    /// <summary>Turns WPF's point into the graph's.</summary>
+    /// <param name="point">The point.</param>
+    /// <returns>The same point.</returns>
+    private static GraphPoint ToGraph(Point point) => new(point.X, point.Y);
+
     /// <summary>Freezes a dash style, so that it can be shared.</summary>
     /// <param name="style">The style.</param>
     /// <returns>The frozen style.</returns>
@@ -355,11 +347,6 @@ public sealed class GraphCanvas : FrameworkElement
 
     /// <summary>Gets how close to a line the pointer must be, in the surface's units at the current zoom.</summary>
     private double Tolerance => GraphHitTest.LineTolerance / _viewport.Zoom;
-
-    /// <summary>Gives the point of the surface under a point on screen.</summary>
-    /// <param name="at">The point on screen.</param>
-    /// <returns>The point on the surface.</returns>
-    private GraphPoint ToSurface(Point at) => _viewport.ToSurface(new GraphPoint(at.X, at.Y));
 
     /// <summary>Fits the graph if a fit waits and the surface has a size.</summary>
     private void FitIfPending()
@@ -408,8 +395,7 @@ public sealed class GraphCanvas : FrameworkElement
                 _ => DashStyles.Solid,
             },
         };
-        var opacity = _model!.IsFocused && !near.Contains(edge.Key) ? FadedLineOpacity
-            : edge.IsTraced || edge.Dash == EdgeDash.OtherChain ? 1 : UntracedLineOpacity;
+        var opacity = LineOpacity(edge, near);
         var geometry = new StreamGeometry();
         using (var context = geometry.Open())
         {
@@ -421,6 +407,34 @@ public sealed class GraphCanvas : FrameworkElement
         dc.PushOpacity(opacity);
         dc.DrawGeometry(null, pen, geometry);
         dc.Pop();
+    }
+
+    /// <summary>Gives how faint a line is: faint away from what is chosen, a little faint without traced money.</summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="near">The lines near what is chosen.</param>
+    /// <returns>The opacity.</returns>
+    private double LineOpacity(EdgeView edge, IReadOnlySet<string> near)
+    {
+        if (_model!.IsFocused && !near.Contains(edge.Key))
+        {
+            return FadedLineOpacity;
+        }
+
+        return edge.IsTraced || edge.Dash == EdgeDash.OtherChain ? 1 : UntracedLineOpacity;
+    }
+
+    /// <summary>Gives how faint a node is: faint away from what is chosen, or when it is not expanded.</summary>
+    /// <param name="node">The node.</param>
+    /// <param name="near">The nodes near what is chosen.</param>
+    /// <returns>The opacity.</returns>
+    private double NodeOpacity(NodeView node, IReadOnlySet<string> near)
+    {
+        if (_model!.IsFocused && !near.Contains(node.Key))
+        {
+            return FadedNodeOpacity;
+        }
+
+        return node.IsDim ? NotExpandedOpacity : 1;
     }
 
     /// <summary>Writes a line's amount at its middle, when the gallring and the focus say so.</summary>
@@ -456,8 +470,7 @@ public sealed class GraphCanvas : FrameworkElement
     {
         var model = _model!;
         var chosen = model.SelectedNode == node.Key;
-        var opacity = model.IsFocused && !near.Contains(node.Key) ? FadedNodeOpacity
-            : node.IsDim ? NotExpandedOpacity : 1;
+        var opacity = NodeOpacity(node, near);
         var frame = new Rect(place.X, place.Y, GraphSizes.NodeWidth, GraphSizes.NodeHeight);
         var ink = GraphPalette.Brush(this, node.Look.Ink);
         dc.PushOpacity(opacity);

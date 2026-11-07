@@ -414,6 +414,56 @@ public sealed partial class GraphSceneTests
         Assert.Equal(ExpansionOutcome.NotExpanded, GraphSource.Combine([ExpansionOutcome.NotExpanded]));
     }
 
+    /// <summary>
+    /// Without a trace no amount is a method's result: the inspector says so and gives the reason (regression).
+    /// </summary>
+    [Fact]
+    public void WithoutTraceNoTracedAmountIsClaimed()
+    {
+        var graph = GraphSamples.Graph();
+        var scene = GraphScene.Build(new GraphSnapshot(
+            graph, new Dictionary<string, IReadOnlyList<Label>>(), TracingMethodKind.Fifo, [], null,
+            GraphSource.TraceFailedText));
+
+        var node = InspectorContent.ForNode(scene, scene.Node(GraphSamples.EKey)!);
+        var edge = InspectorContent.ForEdge(scene, scene.Edge(GraphSamples.VU)!);
+
+        Assert.Contains(new InspectorFact("Spårat in", InspectorContent.NoTraceText), node.Facts);
+        Assert.Contains(node.Why, line => line.Text == GraphSource.TraceFailedText);
+        Assert.Contains(new InspectorFact("Spårat", InspectorContent.NoTraceText), edge.Facts);
+        Assert.Contains(edge.Why, line => line.Text == GraphSource.TraceFailedText);
+        Assert.DoesNotContain(edge.Why, line => line.Text.StartsWith("Inga av de spårade", Ordinal));
+    }
+
+    /// <summary>Only a line to or from a cluster says it rests on the clustering; times and heights are plain.</summary>
+    [Fact]
+    public void LineSaysClusteringOnlyForClusters()
+    {
+        var scene = GraphSamples.Scene();
+
+        var single = InspectorContent.ForEdge(scene, scene.Edge(GraphSamples.VU)!);
+        var cluster = InspectorContent.ForEdge(scene, scene.Edge(GraphSamples.VK)!);
+
+        Assert.DoesNotContain(single.Why, line => line.Text.Contains("klustringens", Ordinal));
+        Assert.Contains(cluster.Why, line => line.Text.Contains("klustringens", Ordinal));
+        Assert.Contains("(1970-01-01 00:00 UTC)", InspectorContent.Time(DateTimeOffset.UnixEpoch), Ordinal);
+        Assert.Contains(cluster.Details, line => line.StartsWith("Block 101 ·", Ordinal));
+    }
+
+    /// <summary>A service label wins over a victim label on the same node.</summary>
+    [Fact]
+    public void ServiceWinsOverVictim()
+    {
+        var scene = GraphSamples.Scene(On(
+            GraphSamples.UKey,
+            GraphSamples.Label(GraphSamples.U, LabelKind.Victim),
+            GraphSamples.Label(GraphSamples.U, LabelKind.Exchange)));
+        var victim = GraphSamples.Scene(On(GraphSamples.UKey, GraphSamples.Label(GraphSamples.U, LabelKind.Victim)));
+
+        Assert.Equal(NodeSort.Exchange, scene.Node(GraphSamples.UKey)!.Look.Sort);
+        Assert.Equal(NodeSort.Victim, victim.Node(GraphSamples.UKey)!.Look.Sort);
+    }
+
     /// <summary>Finds the repository's root, where <c>Chainsaw.slnx</c> lies.</summary>
     /// <returns>The root.</returns>
     private static string Root()

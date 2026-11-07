@@ -273,3 +273,65 @@ public sealed class GraphLayoutTests
         Assert.Empty(GraphHitTest.Curves(scene, places, hopColumns: false));
     }
 }
+
+/// <summary>The press, drag and click on the graph's surface (regression: a click must choose).</summary>
+public sealed class GraphGestureTests
+{
+    /// <summary>A press that does not move is a click, and ends once.</summary>
+    [Fact]
+    public void PressWithoutMoveIsAClickOnce()
+    {
+        var gesture = new GraphGesture();
+        gesture.Press(new GraphPoint(10, 10), "n", default, default);
+        gesture.Move(new GraphPoint(11, 11));
+
+        Assert.Equal((GestureEnd.Click, "n"), gesture.End());
+        Assert.Equal((GestureEnd.Nothing, null), gesture.End());
+        Assert.False(gesture.IsPressed);
+    }
+
+    /// <summary>A press on a node that moves drags it, and is stored once however the press ends.</summary>
+    [Fact]
+    public void DraggedNodeIsDroppedOnce()
+    {
+        var gesture = new GraphGesture();
+        gesture.Press(new GraphPoint(10, 10), "n", new GraphPoint(1, 2), new GraphPoint(3, 4));
+
+        Assert.Equal((0, 0), gesture.Move(new GraphPoint(30, 10)));
+        Assert.True(gesture.IsDragging);
+        Assert.Equal(new GraphPoint(1, 2), gesture.NodePlace);
+        Assert.Equal((GestureEnd.DropNode, "n"), gesture.End());
+        Assert.Equal(GestureEnd.Nothing, gesture.End().End);
+    }
+
+    /// <summary>A press on empty surface that moves pans it by each step, and ends in nothing.</summary>
+    [Fact]
+    public void EmptySurfaceIsPanned()
+    {
+        var gesture = new GraphGesture();
+        gesture.Press(new GraphPoint(10, 10), null, default, default);
+
+        Assert.Equal((20, 5), gesture.Move(new GraphPoint(30, 15)));
+        Assert.Equal((-5, 0), gesture.Move(new GraphPoint(25, 15)));
+        Assert.Equal(GestureEnd.Nothing, gesture.End().End);
+        Assert.Equal((0, 0), gesture.Move(new GraphPoint(0, 0)));
+    }
+
+    /// <summary>
+    /// Two nodes in one column are joined by a loop out to the right, outside both nodes, in either layout
+    /// (regression: the line went straight through the upper node).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SameColumnLoopsOutToTheRight(bool hopColumns)
+    {
+        var curve = EdgeCurve.Between(new GraphPoint(16, 36), new GraphPoint(16, 228), hopColumns);
+        var right = 16 + GraphSizes.NodeWidth;
+
+        Assert.True(curve.Control1.X > right && curve.Control2.X > right);
+        Assert.Equal(right, curve.Start.X);
+        Assert.Equal(right, curve.End.X);
+        Assert.True(curve.Middle.X > right);
+    }
+}

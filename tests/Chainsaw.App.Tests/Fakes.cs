@@ -320,6 +320,8 @@ internal sealed class TestTracing : ITracingService
 
     public List<ExpansionRequest> Expanded { get; } = [];
 
+    public IReadOnlyList<Txid> NewPerExpansion { get; set; } = [];
+
     public Task<TraceGraph> LoadAsync(ICase @case, CancellationToken cancellationToken = default) =>
         Graph is { } graph ? Task.FromResult(graph) : throw new NotSupportedException();
 
@@ -345,9 +347,12 @@ internal sealed class TestTracing : ITracingService
         ICase @case, ExpansionRequest request, CancellationToken cancellationToken = default)
     {
         Expanded.Add(request);
-        var outcome = Expanded.Count == 1 ? ExpansionOutcome.Expanded : ExpansionOutcome.NotExpanded;
+        var outcome = Expanded.Count == 1 || NewPerExpansion.Count > 0
+            ? ExpansionOutcome.Expanded
+            : ExpansionOutcome.NotExpanded;
         var problem = outcome == ExpansionOutcome.NotExpanded ? "Ingen utgång är ansluten." : null;
-        return Task.FromResult(new ExpansionResult(outcome, [], problem, Graph ?? throw new NotSupportedException()));
+        return Task.FromResult(new ExpansionResult(
+            outcome, NewPerExpansion, problem, Graph ?? throw new NotSupportedException()));
     }
 
     public CrossChainLink LinkCrossChain(ICase @case, Outpoint from, ChainTransactionRef to, string reason) =>

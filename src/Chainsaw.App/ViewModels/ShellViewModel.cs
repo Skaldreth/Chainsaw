@@ -356,8 +356,8 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Shows the Guide for a section that a <em>Varför?</em> in the graph asks for. The Guide is not built as a view yet,
-    /// so the answer says so honestly and names where the section's text lies.
+    /// Shows the Guide for a section that a <em>Varför?</em> in the graph asks for. The Guide is not built as a view
+    /// yet, so the answer says so honestly and names where the section's text lies.
     /// </summary>
     /// <param name="topic">The section.</param>
     public void ShowGuide(GuideTopic topic)

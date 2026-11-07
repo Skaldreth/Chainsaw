@@ -229,8 +229,18 @@ public sealed record GraphScene(
         var amount = traced?.Amount.Amount ?? Satoshi.Zero;
         var otherChain = edge.Kind == GraphEdgeKind.ContinuesOnOtherChain;
         var uncertain = traced?.MayBeOutdated == true || edge.Transfers.Any(transfer => transfer.Block is null);
-        var dash = otherChain ? EdgeDash.OtherChain : uncertain ? EdgeDash.Uncertain : EdgeDash.None;
-        var ink = otherChain ? GraphInk.OtherChain : amount.Value > 0 ? GraphInk.Accent : GraphInk.Untraced;
+        var dash = (otherChain, uncertain) switch
+        {
+            (true, _) => EdgeDash.OtherChain,
+            (_, true) => EdgeDash.Uncertain,
+            _ => EdgeDash.None,
+        };
+        var ink = (otherChain, amount.Value > 0) switch
+        {
+            (true, _) => GraphInk.OtherChain,
+            (_, true) => GraphInk.Accent,
+            _ => GraphInk.Untraced,
+        };
         return new EdgeView(
             edge, amount, traced, ink, dash, EdgeWidth.For(amount, largest), AmountText.OnLine(edge.Amount, amount));
     }
@@ -306,7 +316,9 @@ public sealed record GraphScene(
             .Select(label => VisualLanguage.SortOf(label.Kind))
             .Where(sort => sort is not NodeSort.Unknown)
             .ToList();
-        var said = labelled.FirstOrDefault(sort => sort != NodeSort.Sanctioned, NodeSort.Unknown);
+        // A service says most about the money; a sanction is then a mark, and a victim label yields to a service.
+        var said = labelled.FirstOrDefault(
+            sort => sort is not (NodeSort.Sanctioned or NodeSort.Victim), NodeSort.Unknown);
         if (said != NodeSort.Unknown)
         {
             return said;
@@ -317,7 +329,7 @@ public sealed record GraphScene(
             return NodeSort.Sanctioned;
         }
 
-        if (node.IsStartPoint)
+        if (node.IsStartPoint || labelled.Contains(NodeSort.Victim))
         {
             return NodeSort.Victim;
         }

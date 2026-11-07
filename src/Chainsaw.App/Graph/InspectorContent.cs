@@ -68,7 +68,7 @@ public sealed record InspectorContent(
         {
             new("In", AmountText.BtcWithUnit(node.In)),
             new("Ut", AmountText.BtcWithUnit(node.Out)),
-            new("Spårat in", AmountText.BtcWithUnit(node.TracedIn)),
+            new("Spårat in", Traced(scene, node.TracedIn)),
             new("Sort", node.Look.Name),
         };
         if (model.Hop is { } hop)
@@ -105,7 +105,7 @@ public sealed record InspectorContent(
         var facts = new List<InspectorFact>
         {
             new("Belopp", AmountText.BtcWithUnit(model.Amount)),
-            new("Spårat", AmountText.BtcWithUnit(edge.Traced)),
+            new("Spårat", Traced(scene, edge.Traced)),
             new("Tid", model.FirstTime is { } time ? Time(time) : "Obekräftad"),
             new("Tx", transactions.ToString(CultureInfo.InvariantCulture)),
         };
@@ -114,12 +114,24 @@ public sealed record InspectorContent(
             title, EdgeIcon, edge.Ink, NodeShape.Round, facts, EdgeDetails(model), EdgeWhy(scene, edge), []);
     }
 
-    /// <summary>Writes a time in local time with the UTC time after it (principle 1).</summary>
+    /// <summary>What a traced amount says when there is no trace to read it from.</summary>
+    public const string NoTraceText = "Ingen spårning";
+
+    /// <summary>Writes a time in local time with the UTC time after it, both with their date (principle 1).</summary>
     /// <param name="time">The time.</param>
-    /// <returns>For example <c>2026-11-07 13:00 (12:00 UTC)</c>.</returns>
+    /// <returns>For example <c>2026-11-07 13:00 (2026-11-07 12:00 UTC)</c>.</returns>
     public static string Time(DateTimeOffset time) => string.Create(
         CultureInfo.InvariantCulture,
-        $"{time.ToLocalTime():yyyy-MM-dd HH:mm} ({time.UtcDateTime:HH:mm} UTC)");
+        $"{time.ToLocalTime():yyyy-MM-dd HH:mm} ({time.UtcDateTime:yyyy-MM-dd HH:mm} UTC)");
+
+    /// <summary>
+    /// Writes a traced amount, or that there is no trace: without one, no amount is a method's result (principle 2).
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="amount">The traced amount.</param>
+    /// <returns>The amount with its unit, or <see cref="NoTraceText"/>.</returns>
+    private static string Traced(GraphScene scene, Satoshi amount) =>
+        scene.Snapshot.Trace is null ? NoTraceText : AmountText.BtcWithUnit(amount);
 
     /// <summary>Gives what expanding a node looks up.</summary>
     /// <param name="node">The node.</param>
@@ -165,10 +177,10 @@ public sealed record InspectorContent(
 
     /// <summary>Writes a block's height and hash, or that the transaction is unconfirmed.</summary>
     /// <param name="block">The block.</param>
-    /// <returns>For example <c>Block 921 344 · 0000…</c>.</returns>
+    /// <returns>For example <c>Block 921344 · 0000…</c>, the height as other tools write it.</returns>
     private static string BlockText(BlockReference? block) => block is null
         ? "Obekräftad: inte i något block än"
-        : string.Create(CultureInfo.GetCultureInfo("sv-SE"), $"Block {block.Height:N0} · {block.Hash.Value}");
+        : string.Create(CultureInfo.InvariantCulture, $"Block {block.Height} · {block.Hash.Value}");
 
     /// <summary>Keeps the first lines and counts the rest.</summary>
     /// <param name="lines">The lines.</param>
@@ -223,6 +235,11 @@ public sealed record InspectorContent(
     {
         if (scene.Snapshot.Trace is not { } trace)
         {
+            if (scene.Snapshot.TraceProblem is { } problem)
+            {
+                yield return new WhyLine(problem, GuideTopic.Methods);
+            }
+
             yield break;
         }
 
@@ -243,6 +260,25 @@ public sealed record InspectorContent(
                 + outdated,
                 GuideTopic.TrailEnds);
         }
+    }
+
+    /// <summary>Answers what the trace says about a line, or why there is no trace.</summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="edge">The line.</param>
+    /// <returns>The answer.</returns>
+    private static WhyLine TracedWhy(GraphScene scene, EdgeView edge)
+    {
+        if (edge.TracedEdge is { } traced)
+        {
+            return new WhyLine(traced.Amount.Explain(), GuideTopic.Methods);
+        }
+
+        if (scene.Snapshot.Trace is null)
+        {
+            return new WhyLine(scene.Snapshot.TraceProblem ?? NoTraceText + ".", GuideTopic.Methods);
+        }
+
+        return new WhyLine($"Inga av de spårade pengarna gick här enligt {scene.MethodText}.", GuideTopic.Methods);
     }
 
     /// <summary>Says how far a node is expanded, when not all the way.</summary>
@@ -290,16 +326,16 @@ public sealed record InspectorContent(
         }
         else
         {
+            var clustered = scene.Node(model.From)?.Node.Kind == GraphNodeKind.Cluster
+                || scene.Node(model.To)?.Node.Kind == GraphNodeKind.Cluster;
+            var facts = "Beloppet är summan av " + model.Transfers.Count.ToString(CultureInfo.InvariantCulture)
+                + " överföringar på kedjan, som är fakta.";
             why.Add(new WhyLine(
-                "Beloppet är summan av " + model.Transfers.Count.ToString(CultureInfo.InvariantCulture)
-                + " överföringar på kedjan, som är fakta. Att adresserna hör till de här aktörerna är klustringens "
-                + "slutsats.",
+                clustered ? facts + " Att adresserna hör till klustret är klustringens slutsats." : facts,
                 GuideTopic.Utxo));
         }
 
-        why.Add(edge.TracedEdge is { } traced
-            ? new WhyLine(traced.Amount.Explain(), GuideTopic.Methods)
-            : new WhyLine($"Inga av de spårade pengarna gick här enligt {scene.MethodText}.", GuideTopic.Methods));
+        why.Add(TracedWhy(scene, edge));
         if (edge.Dash == EdgeDash.Uncertain)
         {
             why.Add(new WhyLine(

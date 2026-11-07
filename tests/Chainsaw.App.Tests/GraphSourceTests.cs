@@ -152,4 +152,37 @@ public sealed class GraphSourceTests
         Assert.Empty(address);
         Assert.Equal([GraphSamples.K1], _clustering.Asked);
     }
+
+    /// <summary>A trace that refuses its own result (InvalidOperationException) keeps the graph without amounts.</summary>
+    [Fact]
+    public async Task RefusedTraceKeepsTheGraph()
+    {
+        _tracing.Tracer = (_, _) => throw new InvalidOperationException("ring");
+
+        var scene = await Source.LoadAsync(_case, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Equal(GraphSource.TraceFailedText, scene.Snapshot.TraceProblem);
+        Assert.Equal(5, scene.Nodes.Count);
+    }
+
+    /// <summary>An expansion stops at its limit of new transactions and says so (principle 7).</summary>
+    [Fact]
+    public async Task ExpansionStopsAtItsLimit()
+    {
+        _tracing.Tracer = (_, _) => GraphSamples.Trace();
+        _tracing.NewPerExpansion = [.. Enumerable.Range(0, 60).Select(GraphSamples.TxidOf)];
+        ExpansionRequest[] requests =
+        [
+            ExpansionRequest.ForAddress(GraphSamples.K1),
+            ExpansionRequest.ForAddress(GraphSamples.K2),
+            ExpansionRequest.ForAddress(GraphSamples.E),
+        ];
+
+        var result = await Source.ExpandAsync(_case, requests, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Equal(2, _tracing.Expanded.Count);
+        Assert.Equal(120, result.NewTransactions);
+        Assert.Equal(ExpansionOutcome.Partly, result.Outcome);
+        Assert.Equal([GraphSource.LimitReachedText], result.Problems);
+    }
 }

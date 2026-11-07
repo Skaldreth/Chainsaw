@@ -2,8 +2,8 @@ namespace Chainsaw.App.Graph;
 
 /// <summary>
 /// A line between two nodes as a cubic Bézier curve (sketch GR4): forward from the sender's right side to the
-/// receiver's left side, backward on the free surface from the left side to the right side, and in the hop columns
-/// money that turns back (or stays in its column) as an arc over the top.
+/// receiver's left side, backward on the free surface from the left side to the right side, in the hop columns
+/// money that turns back as an arc over the top, and between two nodes in one column a loop out to the right.
 /// </summary>
 /// <param name="Start">Where the line leaves the sender.</param>
 /// <param name="Control1">The first control point.</param>
@@ -20,6 +20,12 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
 
     /// <summary>How much more an arc rises for each unit it spans sideways.</summary>
     private const double ArcLiftPerSpan = 0.12;
+
+    /// <summary>How far a loop between two nodes in one column reaches out to the right, at the least.</summary>
+    private const double SideLoop = 40;
+
+    /// <summary>How much further the loop reaches for each unit between the two nodes.</summary>
+    private const double SideLoopPerSpan = 0.25;
 
     /// <summary>How many straight pieces a curve is cut into when it is measured.</summary>
     private const int Pieces = 24;
@@ -41,6 +47,19 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
     {
         const double width = GraphSizes.NodeWidth;
         const double half = GraphSizes.NodeHeight / 2;
+        if (Math.Abs(to.X - from.X) < SameColumn)
+        {
+            // In one column: a loop out to the right, from side to side, never a line through the nodes between.
+            var right = from.X + width;
+            var reach = Math.Max(SideLoop, Math.Abs(to.Y - from.Y) * SideLoopPerSpan);
+            return new EdgeCurve(
+                new GraphPoint(right, from.Y + half),
+                new GraphPoint(right + reach, from.Y + half),
+                new GraphPoint(right + reach, to.Y + half),
+                new GraphPoint(to.X + width, to.Y + half),
+                IsArc: true);
+        }
+
         if (!hopColumns && to.X < from.X)
         {
             // Backward on the free surface: from the sender's left side to the receiver's right side.
@@ -49,9 +68,9 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
             return Curve(new GraphPoint(x1, from.Y + half), new GraphPoint(x2, to.Y + half), -pull);
         }
 
-        if (to.X < from.X + SameColumn)
+        if (to.X < from.X)
         {
-            // Back in the hops, or within one column: an arc over the top, from top centre to top centre.
+            // Back in the hops: an arc over the top, from top centre to top centre.
             var (x1, x2) = (from.X + (width / 2), to.X + (width / 2));
             var lift = Math.Min(from.Y, to.Y) - ArcLift - (Math.Abs(x1 - x2) * ArcLiftPerSpan);
             return new EdgeCurve(

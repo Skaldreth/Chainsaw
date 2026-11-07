@@ -50,8 +50,19 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>The places the user has dragged nodes to in this session, per layout.</summary>
     private readonly Dictionary<(string Key, GraphLayout Layout), GraphPoint> _moved = [];
 
-    /// <summary>Counts the graph's readings, so that an answer to an older one is dropped.</summary>
+    /// <summary>
+    /// Counts the graph's readings and expansions, so that an answer to an older one is dropped.
+    /// </summary>
     private int _version;
+
+    /// <summary>Whether a reading was asked for while an expansion ran, to be made when it is done.</summary>
+    private bool _refreshAfterExpansion;
+
+    /// <summary>
+    /// Where each node stood on the free surface when it first appeared, so that it stays there when the graph grows
+    /// (sketch GR4: laid out once, then where the user leaves it).
+    /// </summary>
+    private readonly Dictionary<string, GraphPoint> _firstFree = new(StringComparer.Ordinal);
 
     /// <summary>Stops the reading or expansion under way when the case changes.</summary>
     private CancellationTokenSource _work = new();
@@ -71,7 +82,7 @@ public sealed partial class GraphViewModel : ObservableObject
         _session = session;
         _source = source;
         session.Changed += (_, _) => OnCaseChanged();
-        workflow.StartPointAdded += (_, _) => ui.Post(() => _ = ReloadAsync(fit: false));
+        workflow.StartPointAdded += (_, _) => ui.Post(() => _ = RefreshAsync());
         exit.StatusChanged += (_, status) => ui.Post(() => IsOffline = status.State != ExitState.Connected);
         IsOffline = exit.Status.State != ExitState.Connected;
         OnCaseChanged();
@@ -88,11 +99,8 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets the graph ready to draw, or <see langword="null"/> when there is none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MethodText), nameof(HasGraph), nameof(TraceText))]
+    [NotifyPropertyChangedFor(nameof(MethodText), nameof(TraceText))]
     public partial GraphScene? Scene { get; private set; }
-
-    /// <summary>Gets whether a graph with at least one actor is shown.</summary>
-    public bool HasGraph => Scene is { Nodes.Count: > 0 };
 
     /// <summary>Gets what the page says in place of the graph; empty while a graph is shown.</summary>
     [ObservableProperty]
@@ -181,13 +189,10 @@ public sealed partial class GraphViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsLegendOpen { get; private set; }
 
-    /// <summary>Gets whether the graph is being read.</summary>
-    [ObservableProperty]
-    public partial bool IsLoading { get; private set; }
-
     /// <summary>Gets whether an expansion runs.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanExpand), nameof(ExpandText))]
+    [NotifyCanExecuteChangedFor(nameof(ToggleMethodCommand))]
     public partial bool IsExpanding { get; private set; }
 
     /// <summary>Gets whether the chosen node can be expanded now.</summary>
@@ -231,12 +236,36 @@ public sealed partial class GraphViewModel : ObservableObject
         Arrange();
     }
 
-    /// <summary>Changes the tracing method between FIFO and haircut and counts the amounts again.</summary>
+    /// <summary>
+    /// Changes the tracing method between FIFO and haircut and counts the amounts again; not while an expansion runs,
+    /// which would otherwise be cut short.
+    /// </summary>
     /// <returns>A task that completes when the graph is shown with the new amounts.</returns>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanToggleMethod))]
     public Task ToggleMethodAsync()
     {
+        if (IsExpanding)
+        {
+            return Task.CompletedTask;
+        }
+
         Method = Other(Method);
+        return ReloadAsync(fit: false);
+    }
+
+    /// <summary>
+    /// Reads the graph anew for the same case, for example after a start point was added; while an expansion runs,
+    /// the reading waits for it instead of cutting it short.
+    /// </summary>
+    /// <returns>A task that completes when the graph is shown, or at once when the reading waits.</returns>
+    public Task RefreshAsync()
+    {
+        if (IsExpanding)
+        {
+            _refreshAfterExpansion = true;
+            return Task.CompletedTask;
+        }
+
         return ReloadAsync(fit: false);
     }
 
@@ -374,8 +403,13 @@ public sealed partial class GraphViewModel : ObservableObject
             var result = await _source.ExpandAsync(openCase, inspection.Expansion, Method, token);
             if (version == _version)
             {
+                // A reading that started before the expansion would bring back the graph without what it fetched.
+                _version++;
                 Show(result.Scene, fit: false);
-                Notice = ExpansionNotice(result, IsOffline);
+                var problems = Notice;
+                Notice = problems.Length == 0
+                    ? ExpansionNotice(result, IsOffline)
+                    : $"{ExpansionNotice(result, IsOffline)} {problems}";
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -388,13 +422,19 @@ public sealed partial class GraphViewModel : ObservableObject
         finally
         {
             IsExpanding = false;
+            if (_refreshAfterExpansion)
+            {
+                _refreshAfterExpansion = false;
+                _ = ReloadAsync(fit: false, keepNotice: true);
+            }
         }
     }
 
     /// <summary>Reads the graph anew from the case, off the UI thread.</summary>
     /// <param name="fit">Whether the view should fit the new graph to the screen.</param>
+    /// <param name="keepNotice">Whether the notice stays, as after an expansion whose reading waited.</param>
     /// <returns>A task that completes when the graph is shown or could not be read.</returns>
-    public async Task ReloadAsync(bool fit)
+    public async Task ReloadAsync(bool fit, bool keepNotice = false)
     {
         _work.Cancel();
         _work.Dispose();
@@ -406,7 +446,6 @@ public sealed partial class GraphViewModel : ObservableObject
             return;
         }
 
-        IsLoading = true;
         if (Scene is null)
         {
             EmptyText = LoadingText;
@@ -417,7 +456,7 @@ public sealed partial class GraphViewModel : ObservableObject
             var scene = await _source.LoadAsync(openCase, Method, _work.Token);
             if (version == _version)
             {
-                Show(scene, fit);
+                Show(scene, fit, keepNotice);
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -425,13 +464,6 @@ public sealed partial class GraphViewModel : ObservableObject
             if (version == _version && exception is not OperationCanceledException)
             {
                 Clear(LoadFailedText);
-            }
-        }
-        finally
-        {
-            if (version == _version)
-            {
-                IsLoading = false;
             }
         }
     }
@@ -454,6 +486,10 @@ public sealed partial class GraphViewModel : ObservableObject
         return (offline && result.Outcome != ExpansionOutcome.Expanded ? $"{text} {OfflineText}" : text).Trim();
     }
 
+    /// <summary>Says whether the method can be changed now: not while an expansion runs.</summary>
+    /// <returns><see langword="true"/> when it can.</returns>
+    private bool CanToggleMethod() => !IsExpanding;
+
     /// <summary>Gives the other of the two methods.</summary>
     /// <param name="method">The method.</param>
     /// <returns>Haircut for FIFO and FIFO for haircut.</returns>
@@ -464,6 +500,8 @@ public sealed partial class GraphViewModel : ObservableObject
     private void OnCaseChanged()
     {
         _moved.Clear();
+        _firstFree.Clear();
+        _refreshAfterExpansion = false;
         Scene = null;
         SelectedNode = null;
         SelectedEdge = null;
@@ -475,11 +513,15 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Shows a new graph, keeping what is chosen when it is still there.</summary>
     /// <param name="scene">The graph.</param>
     /// <param name="fit">Whether the view should fit it to the screen.</param>
-    private void Show(GraphScene scene, bool fit)
+    /// <param name="keepNotice">Whether the notice stays instead of the graph's problems.</param>
+    private void Show(GraphScene scene, bool fit, bool keepNotice = false)
     {
         Scene = scene;
         EmptyText = scene.Snapshot.Graph.StartPoints.Count == 0 && scene.Nodes.Count == 0 ? NoStartPointsText : "";
-        Notice = string.Join(" ", scene.Snapshot.Graph.Problems);
+        if (!keepNotice || Notice.Length == 0)
+        {
+            Notice = string.Join(" ", scene.Snapshot.Graph.Problems);
+        }
         SelectedNode = scene.Node(SelectedNode)?.Key;
         SelectedEdge = scene.Edge(SelectedEdge)?.Key;
         Arrange();
@@ -497,7 +539,6 @@ public sealed partial class GraphViewModel : ObservableObject
     {
         Scene = null;
         EmptyText = text;
-        IsLoading = false;
         Arrange();
         Inspect();
     }
@@ -507,7 +548,14 @@ public sealed partial class GraphViewModel : ObservableObject
     {
         if (Scene is { } scene)
         {
-            Places = GraphPlacement.Place(scene.Snapshot.Graph.Nodes, Layout, scene.Columns, _moved);
+            KeepFirstFreePlaces(scene);
+            var moved = new Dictionary<(string Key, GraphLayout Layout), GraphPoint>(_moved);
+            foreach (var (key, place) in _firstFree)
+            {
+                moved.TryAdd((key, GraphLayout.Free), place);
+            }
+
+            Places = GraphPlacement.Place(scene.Snapshot.Graph.Nodes, Layout, scene.Columns, moved);
             Curves = GraphHitTest.Curves(scene, Places, IsHopColumns);
         }
         else
@@ -517,6 +565,22 @@ public sealed partial class GraphViewModel : ObservableObject
         }
 
         Redraw?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Remembers the free place of each node that appears for the first time and that the case has no place for, so
+    /// that a later expansion, which moves the hop columns, does not move it on the free surface.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    private void KeepFirstFreePlaces(GraphScene scene)
+    {
+        foreach (var node in scene.Snapshot.Graph.Nodes)
+        {
+            if (!node.Positions.ContainsKey(GraphLayout.Free) && !_firstFree.ContainsKey(node.Key))
+            {
+                _firstFree[node.Key] = scene.Columns[node.Key];
+            }
+        }
     }
 
     /// <summary>Fills the inspector for what is chosen, and asks Clustering about a chosen cluster.</summary>

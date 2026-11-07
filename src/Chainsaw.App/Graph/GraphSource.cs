@@ -69,6 +69,16 @@ public sealed class GraphSource(
     public const string TraceFailedText =
         "Spårningen kunde inte räknas från startpunkternas mynt; grafen visas utan spårade belopp.";
 
+    /// <summary>
+    /// The most transactions one expansion brings in over all its lookups, so that a cluster with many addresses does
+    /// not flood the graph (principle 7); the rest is left for the next press, and the expansion says so.
+    /// </summary>
+    public const int MostNewTransactions = 100;
+
+    /// <summary>What an expansion says when it stopped at <see cref="MostNewTransactions"/>.</summary>
+    public const string LimitReachedText =
+        "Gränsen för en expansion nåddes; expandera igen för resten.";
+
     /// <summary>What the trace says when the graph does not yet show a coin to start in.</summary>
     public const string NothingToTraceText =
         "Inget att spåra än: startpunktens mynt finns inte i grafen. Välj startpunkten och expandera den.";
@@ -105,6 +115,13 @@ public sealed class GraphSource(
                 foreach (var request in requests)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (added >= MostNewTransactions)
+                    {
+                        outcomes.Add(ExpansionOutcome.NotExpanded);
+                        problems.Add(LimitReachedText);
+                        break;
+                    }
+
                     var result = await tracing.ExpandAsync(@case, request, cancellationToken).ConfigureAwait(false);
                     outcomes.Add(result.Outcome);
                     added += result.NewTransactions.Count;
@@ -234,10 +251,11 @@ public sealed class GraphSource(
             {
                 trace = tracing.Trace(graph, new TraceRequest(method, seeds));
             }
-            catch (ArgumentException)
+            catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
             {
-                // The seeds do not hold together (for example a coin whose amount the case lacks); the graph is still
-                // shown, honestly without traced amounts.
+                // The seeds do not hold together (for example a coin whose amount the case lacks), or the trace
+                // refused its own result (a method that would create or lose money, transactions in a ring); the
+                // graph is still shown, honestly without traced amounts.
                 problem = TraceFailedText;
             }
         }
