@@ -9,6 +9,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   återkallas med en rad `REVOKED` i `organization-recovery-key.pem`. Att ta bort alla andra nycklars kuvert vid ett
   byte prövades men vägrades i granskningen: en äldre version eller en annan organisations Chainsaw tog då bort den
   nyare nyckelns kuvert. Bekräfta att återkallelse för hand räcker.
+- **Endpointarna, andra delen** (etapp 25, valt av sessionen, det säkraste): takten är Chainsaws eget förval (högst
+  fyra uppslag i sekunden per endpoint på internet), inte källornas publicerade gränser; leverantörens delade adresser
+  (100.64/10, CGNAT och Tailscale) räknas inte som eget nät för en lokal nod; i Prioriterad sprids uppslagen inte, utan
+  nästa tas när den första ber om väntan. Bekräfta eller ändra.
 - **Ordningen bland uttagen** (CLAUDE.md, *Sorterna efter vad som händer med pengarna*): fråga kryptospåraren vilka uttag
   som är vanligast i de svenska ärendena, och om några sorter kan slås ihop.
 
@@ -141,7 +145,7 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   - **En Blockscout som ligger efter** kan ge en kort äldre sida som räknas som slutlig, eftersom djupet räknas från
     den högsta höjden ärendet känner (också från en annan endpoint). Samma modell som Bitcoin. Och en sida där en
     tokens decimaler saknades (källan har inte läst tokenen än) blir slutlig med posten överhoppad (`Skipped`).
-    Pröva med etapp 25:s marginal för *efter*.
+    Etapp 25:s marginal räknar en endpoint ett block efter som i fas för vanliga uppslag, så frågan om djupet kvarstår.
   - **Decimaler** (granskningen av etapp 23, M): en token som säger fler decimaler än Chainsaw räknar i frågas om vid
     varje uppslag (den kunde sparas som *räknas inte*), ett kontrakt kan i princip byta decimaler, och en post utan
     decimaler i en tokenhistorik (en token källan inte läst, eller en NFT om Blockscout listar dem där) håller sidan
@@ -230,6 +234,19 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   de förseglade bytesen, och `GetTransactionAsync` gör det igen. Ge tillbaka tolkningen med tx:en.
 - **Omorganisationen sägs bara en gång** (granskningen etapp 15, omgång 2, M): att en tx bytt block står i
   expansionens rad, men grafen visar det inte när den läses igen. En markering på noden eller linjen (skiss).
+- **Takten per endpoint** (etapp 25): förvalet är Chainsaws eget (högst fyra uppslag i sekunden per endpoint på
+  internet, ingen paus för en egen nod), inte källornas publicerade gränser. Takten står bara i `sources.json`
+  (`IntervalMilliseconds`, aldrig snabbare än förvalet för en endpoint på internet); sidan Källor har inget val för den.
+  Skissas om det behövs.
+- **Den egna noden provas inte utan utgång** (etapp 25, granskningen M1): ett prov där utgången vägrar sparas inte, också
+  när den egna noden svarade, och provet vid start väntar på en ansluten utgång (eller Windows). Uppslagen går ändå till
+  noden, men den kan inte bli *i fas* för bevakningen förrän ett prov med utgång gjorts. Prova lokala endpoints för sig.
+- **Spridningen i Prioriterad** (etapp 25): varje endpoint är en egen grupp, så användarens ordning gäller och nästa tas
+  först när den första bett om väntan eller dess kö är längre än fem sekunder. I Snabbast sprids uppslagen inom den bästa
+  gruppen (de som svarat rätt). Ändras om användaren vill ha spridning också i Prioriterad.
+- **Väntan som syns** (etapp 25): statusraden säger *Väntar på källan · Bitcoin* medan ett uppslag väntar mer än en sekund,
+  och raden i Källor säger *Väntar* när källan bett om det. Grafens hörn säger det inte (grafen byggdes om i etapp 23b
+  samtidigt); en liten markering där kan skissas.
 - **Svaret om spenderade utgångar och omorganisationer** (etapp 15): en tx som bytt block säger det, men ett svar om
   vem som spenderar en output jämförs inte med det förra.
 
@@ -481,6 +498,12 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   Chainsaws kontroll av adresser som inte är globala gäller bara direkta anslutningar.
 - **Namnuppslag med Windows** (etapp 19): källans namn slås upp av datorn (eller proxyn), som i varje program på
   datorn; det är meningen med valet. Adresser som inte är globala vägras ändå vid en direkt anslutning.
+- **Den egna nodens namn och certifikat** (etapp 25, granskningen M4): namnet på en endpoint märkt *Lokal*
+  (`esplora.lan`) slås upp av datorns resolver, utanför utgången; bara namnet lämnar datorn, och bara till den
+  resolver datorn använder. Certifikatet kontrolleras mot rötterna som är installerade i Windows, så en nod med
+  självsignerat certifikat måste ha sin rot installerad. Fäst nodens certifikat (pinning) i Källor om det behövs.
+- **100.64/10 räknas inte som eget nät** (etapp 25, granskningen I1): leverantörens delade adresser (CGNAT, också
+  Tailscale) nås inte som egen nod, eftersom de kan ligga utanför användarens nät. Ändras bara efter användarens beslut.
 - **Ett kortkommando för utgångarna** (etapp 17): rutan öppnas bara med musen eller Tab till utgången i titelraden.
 - **Tunnelns hjälpprogram och Go:** `chainsaw-tunnel.exe` är byggd med Go 1.27.3 (låst i `go.mod`) och checkad in
   med sin hash; den byggs om med `tools/Chainsaw.Tunnel/build.sh` (som kör `govulncheck`) när Go eller beroendena får
