@@ -12,8 +12,9 @@ bestämts eller byggts står i `docs/TODO.md`.
 ## Nästa steg
 
 1. **Skisserna väntar på användarens val** (canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h):
-   - **Identiteten:** loggan är en sågkedja. **ID3** väntar på val mellan A (tre länkar på snedden) och B (stående), och
-     **ID4** visar låsskärmen med kedjan längs vänsterkanten. Accentfärgen är inte vald (Stål `#4FBFA8` är förslaget).
+   - **Identiteten:** loggan är en kätting (blockkedjan som *såg*). **ID5** väntar på val mellan A (två länkar) och B
+     (en länk är ett öga), **ID6** på accentfärgen (tolv alternativ med krockar markerade), och **ID7** visar låsskärmen
+     med kättingen längs vänsterkanten.
    - **Grafen:** bildspråket (GR3a) är godkänt, och grafen är en fri yta med växel till hoppkolumner. **GR4** visar dem
      tillsammans och väntar på ett sista ok innan grafen byggs.
    - Därefter: skalet (sidopanelen och vyernas ordning) och resten av vyerna.
