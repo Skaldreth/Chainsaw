@@ -107,26 +107,103 @@ public sealed class RecoveryKeyTests : IDisposable
     }
 
     [Fact]
-    public void A_replaced_key_gets_a_new_envelope_and_the_old_one_still_opens()
+    public void A_replaced_key_gets_a_new_envelope_and_the_old_one_is_removed()
     {
         var oldKey = _owner.RecoveryKey!;
         using (_owner.CreateStore().Create("A1"))
         {
         }
 
+        var copyBefore = _owner.CaseFile("A1") + ".kopia";
+        File.Copy(_owner.CaseFile("A1"), copyBefore);
         _owner.RecoveryKey = RecoveryPublicKey.FromPrivateKey(_otherKey);
         using (var opened = _owner.CreateStore().Open("A1"))
         {
-            Assert.Equal([oldKey.Fingerprint, _owner.RecoveryKey.Fingerprint], opened.RecoveryFingerprints);
+            Assert.Equal([_owner.RecoveryKey.Fingerprint], opened.RecoveryFingerprints);
+            var entry = opened.ReadJournal()[^1];
+            Assert.Equal(CaseJournalKinds.RecoveryAccessAdded, entry.Kind);
+            Assert.Contains(oldKey.Fingerprint, entry.Details, StringComparison.Ordinal);
         }
 
-        using (_administrator.CreateStore().OpenWithRecoveryKey(_owner.CaseFile("A1"), _privateKey, Administrator))
+        var error = Assert.Throws<CaseException>(() => _administrator.CreateStore()
+            .OpenWithRecoveryKey(_owner.CaseFile("A1"), _privateKey, Administrator));
+        Assert.Equal(CaseError.NoAccess, error.Error);
+        using (_administrator.CreateStore().OpenWithRecoveryKey(_owner.CaseFile("A1"), _otherKey, Administrator))
         {
         }
 
-        using var withNew = _administrator.CreateStore()
-            .OpenWithRecoveryKey(_owner.CaseFile("A1"), _otherKey, Administrator);
-        Assert.Equal("A1", withNew.Info.CaseNumber);
+        // A copy made before the key was replaced still opens with the old key.
+        using var old = _administrator.CreateStore().OpenWithRecoveryKey(copyBefore, _privateKey, Administrator);
+        Assert.Equal("A1", old.Info.CaseNumber);
+    }
+
+    [Fact]
+    public void A_recovery_envelope_of_a_later_format_does_not_stop_the_case_from_opening_and_is_kept()
+    {
+        using (_owner.CreateStore().Create("A1"))
+        {
+        }
+
+        var future = new System.Text.Json.Nodes.JsonObject
+        {
+            ["kind"] = "recovery",
+            ["alg"] = "v2",
+            ["fingerprint"] = "ABCDEF",
+        };
+        RewriteHeader(_owner.CaseFile("A1"), header => header.WithEnvelopes(header.Envelopes.Append(future)));
+        _owner.RecoveryKey = RecoveryPublicKey.FromPrivateKey(_otherKey);
+
+        using (var opened = _owner.CreateStore().Open("A1"))
+        {
+            Assert.Equal([_owner.RecoveryKey.Fingerprint], opened.RecoveryFingerprints);
+        }
+
+        using var stream = File.OpenRead(_owner.CaseFile("A1"));
+        Assert.Contains(
+            CaseContainer.ReadHeader(stream).Envelopes,
+            envelope => envelope["alg"]?.GetValue<string>() == "v2");
+    }
+
+    [Fact]
+    public void A_damaged_envelope_does_not_stop_a_good_one_for_the_same_key()
+    {
+        using (_owner.CreateStore().Create("A1"))
+        {
+        }
+
+        var damaged = RecoveryEnvelope(_owner.CaseFile("A1"));
+        using (var p256 = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256))
+        {
+            damaged["ephemeral"] = Convert.ToBase64String(p256.ExportSubjectPublicKeyInfo());
+        }
+
+        RewriteHeader(_owner.CaseFile("A1"), header => header.WithEnvelopes(header.Envelopes.Prepend(damaged)));
+
+        using var opened = _administrator.CreateStore()
+            .OpenWithRecoveryKey(_owner.CaseFile("A1"), _privateKey, Administrator);
+        Assert.Equal("A1", opened.Info.CaseNumber);
+    }
+
+    [Fact]
+    public void A_full_header_gets_no_envelope_that_would_make_it_unreadable()
+    {
+        _owner.RecoveryKey = null;
+        using (_owner.CreateStore().Create("A1"))
+        {
+        }
+
+        RewriteHeader(_owner.CaseFile("A1"), header => header.WithEnvelopes(header.Envelopes.Concat(
+            Enumerable.Range(0, CaseContainer.MaximumEnvelopes - 1)
+                .Select(_ => new System.Text.Json.Nodes.JsonObject { ["kind"] = "okänd" }))));
+        _owner.RecoveryKey = RecoveryPublicKey.FromPrivateKey(_privateKey);
+
+        using (var opened = _owner.CreateStore().Open("A1"))
+        {
+            Assert.Empty(opened.RecoveryFingerprints);
+        }
+
+        using var again = _owner.CreateStore().Open("A1");
+        Assert.Equal("A1", again.Info.CaseNumber);
     }
 
     [Fact]

@@ -99,31 +99,74 @@ internal static class RecoveryEnvelopes
     /// <returns><see langword="true"/> when an envelope opened.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when such an envelope is malformed.</exception>
     /// <exception cref="CryptographicException">The private key is not a P-384 key.</exception>
+    /// <remarks>
+    /// A damaged envelope does not stop the others from being tried; the file is only corrupt when no envelope for
+    /// the key opens and one of them was malformed.
+    /// </remarks>
     public static bool TryOpen(CaseHeader header, ECDiffieHellman privateKey, Span<byte> fileKey)
     {
         var fingerprint = RecoveryPublicKey.FromPrivateKey(privateKey).Fingerprint;
-        foreach (var envelope in KeyEnvelopes.OfKind(header, Kind))
+        CaseException? malformed = null;
+        foreach (var envelope in Readable(header).Where(item => item.Fingerprint == fingerprint))
         {
-            if (!string.Equals(ReadFingerprint(envelope), fingerprint, StringComparison.Ordinal))
+            try
             {
-                continue;
+                if (TryOpenOne(header.CaseId, envelope.Envelope, privateKey, fingerprint, fileKey))
+                {
+                    return true;
+                }
             }
-
-            if (TryOpenOne(header.CaseId, envelope, privateKey, fingerprint, fileKey))
+            catch (CaseException exception) when (exception.Error == CaseError.Corrupt)
             {
-                return true;
+                malformed = exception;
             }
         }
 
-        return false;
+        return malformed is null ? false : throw malformed;
     }
 
-    /// <summary>Gives the fingerprints of the recovery keys the header has envelopes for.</summary>
+    /// <summary>
+    /// Gives the fingerprints of the recovery keys the header has envelopes of this construction for. Recovery
+    /// envelopes of another construction (a later format) or with a malformed fingerprint are left out and kept as
+    /// they are, like envelopes of unknown kinds, so that they never stop a case from opening.
+    /// </summary>
     /// <param name="header">The header.</param>
     /// <returns>The fingerprints, in file order, without repeats.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when an envelope is malformed.</exception>
     public static IReadOnlyList<string> Fingerprints(CaseHeader header) =>
-        [.. KeyEnvelopes.OfKind(header, Kind).Select(ReadFingerprint).Distinct(StringComparer.Ordinal)];
+        [.. Readable(header).Select(item => item.Fingerprint).Distinct(StringComparer.Ordinal)];
+
+    /// <summary>
+    /// Gives the header without the envelopes of this construction for other keys than the given one, so that a
+    /// replaced (perhaps compromised) key no longer opens later copies of the file.
+    /// </summary>
+    /// <param name="header">The header.</param>
+    /// <param name="fingerprint">The fingerprint of the key that stays.</param>
+    /// <returns>The envelopes that stay, and the fingerprints of those removed.</returns>
+    public static (IReadOnlyList<JsonObject> Kept, IReadOnlyList<string> Removed) WithoutOtherKeys(
+        CaseHeader header, string fingerprint)
+    {
+        var removed = Readable(header).Where(item => item.Fingerprint != fingerprint).ToList();
+        var kept = header.Envelopes.Where(envelope => !removed.Any(item => ReferenceEquals(item.Envelope, envelope)));
+        return ([.. kept], [.. removed.Select(item => item.Fingerprint).Distinct(StringComparer.Ordinal)]);
+    }
+
+    /// <summary>Gives the recovery envelopes of this construction with a well-formed fingerprint.</summary>
+    /// <param name="header">The header.</param>
+    /// <returns>The envelopes and their fingerprints, in file order.</returns>
+    private static IEnumerable<(JsonObject Envelope, string Fingerprint)> Readable(CaseHeader header)
+    {
+        foreach (var envelope in KeyEnvelopes.OfKind(header, Kind))
+        {
+            if (envelope[AlgorithmField] is JsonValue algorithm
+                && algorithm.TryGetValue<string>(out var name) && name == Algorithm
+                && envelope[FingerprintField] is JsonValue value
+                && value.TryGetValue<string>(out var fingerprint)
+                && fingerprint.Length == FingerprintLength && fingerprint.All(char.IsAsciiHexDigitLower))
+            {
+                yield return (envelope, fingerprint);
+            }
+        }
+    }
 
     /// <summary>Opens one envelope.</summary>
     /// <param name="caseId">The case id.</param>
@@ -136,11 +179,6 @@ internal static class RecoveryEnvelopes
     private static bool TryOpenOne(
         Guid caseId, JsonObject envelope, ECDiffieHellman privateKey, string fingerprint, Span<byte> fileKey)
     {
-        if (!string.Equals(ReadString(envelope, AlgorithmField), Algorithm, StringComparison.Ordinal))
-        {
-            throw new CaseException(CaseError.Corrupt);
-        }
-
         var ephemeralBytes = ReadBytes(envelope, EphemeralField);
         RecoveryPublicKey ephemeralKey;
         try
@@ -201,18 +239,6 @@ internal static class RecoveryEnvelopes
         Encoding.UTF8.GetBytes(
             $"chainsaw/case/envelope/v1\n{Kind}\n{Algorithm}\n{caseId:D}\n{fingerprint}\n"
             + Convert.ToBase64String(ephemeralPublic));
-
-    /// <summary>Reads and checks an envelope's fingerprint.</summary>
-    /// <param name="envelope">The envelope.</param>
-    /// <returns>The fingerprint.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is malformed.</exception>
-    private static string ReadFingerprint(JsonObject envelope)
-    {
-        var fingerprint = ReadString(envelope, FingerprintField);
-        return fingerprint.Length == FingerprintLength && fingerprint.All(char.IsAsciiHexDigitLower)
-            ? fingerprint
-            : throw new CaseException(CaseError.Corrupt);
-    }
 
     /// <summary>Reads a string field.</summary>
     /// <param name="envelope">The envelope.</param>

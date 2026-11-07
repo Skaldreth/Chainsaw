@@ -36,6 +36,18 @@ internal static class RecoveryTool
     /// <summary>The administrator's title in the journal.</summary>
     private const string AdministratorTitle = "Administratör";
 
+    /// <summary>The command that makes a key pair.</summary>
+    private const string KeygenCommand = "keygen";
+
+    /// <summary>The command that shows a fingerprint.</summary>
+    private const string FingerprintCommand = "fingerprint";
+
+    /// <summary>The command that checks a case.</summary>
+    private const string CheckCommand = "check";
+
+    /// <summary>The command that opens a case.</summary>
+    private const string OpenCommand = "open";
+
     /// <summary>The switches, which take no value.</summary>
     private static readonly HashSet<string> Switches = [ShareSwitch];
 
@@ -50,10 +62,10 @@ internal static class RecoveryTool
         {
             return line?.Command switch
             {
-                "keygen" => Keygen(line, console),
-                "fingerprint" => Fingerprint(line, console),
-                "check" => Check(line, console),
-                "open" => Open(line, console),
+                KeygenCommand => Keygen(line, console),
+                FingerprintCommand => Fingerprint(line, console),
+                CheckCommand => Check(line, console),
+                OpenCommand => Open(line, console),
                 _ => Usage(console),
             };
         }
@@ -75,6 +87,12 @@ internal static class RecoveryTool
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             console.Error($"Fel: {exception.Message}");
+            return ExitCodes.Failed;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // Never a stack trace or an exception's details: only that the command failed.
+            console.Error($"Fel: kommandot misslyckades ({exception.GetType().Name}).");
             return ExitCodes.Failed;
         }
     }
@@ -223,7 +241,8 @@ internal static class RecoveryTool
         var administrator = line.Option(AdministratorOption)?.Trim();
         var vault = line.Option(VaultOption);
         if (line.Positional.Count != 1 || keyFile is null || string.IsNullOrEmpty(administrator)
-            || line.Has(ShareSwitch) == (vault is not null)
+            || administrator.Any(char.IsControl) || (line.Option(OrganizationOption)?.Any(char.IsControl) ?? false)
+            || line.Has(ShareSwitch) == (vault is not null) || (vault is not null && line.Has(OrganizationOption))
             || !line.OnlyOptions(KeyOption, AdministratorOption, OrganizationOption, VaultOption, ShareSwitch))
         {
             return Usage(console);
@@ -381,12 +400,12 @@ internal static class RecoveryTool
     private static int Usage(IToolConsole console)
     {
         console.Error("Chainsaw.Recovery: organisationens återställningsnyckel");
-        console.Error("  keygen <mapp>                          skapa ett nyckelpar (utanför alla git-repon)");
-        console.Error("  fingerprint [publik.pem]               visa fingeravtrycket (förval: den inbyggda nyckeln)");
-        console.Error("  check <ärende.cut> [--public <fil>]    har ärendet ett kuvert för nyckeln?");
-        console.Error("  open <ärende.cut> --key <privat.pem> --admin <namn> [--org <enhet>] --share");
+        console.Error($"  {KeygenCommand} <mapp>                          skapa ett nyckelpar (utanför alla git-repon)");
+        console.Error($"  {FingerprintCommand} [publik.pem]               visa fingeravtrycket (förval: den inbyggda nyckeln)");
+        console.Error($"  {CheckCommand} <ärende.cut> [--public <fil>]    har ärendet ett kuvert för nyckeln?");
+        console.Error($"  {OpenCommand} <ärende.cut> --key <privat.pem> --admin <namn> [--org <enhet>] --share");
         console.Error("                                         öppna och sätt ett nytt delningslösenord");
-        console.Error("  open <ärende.cut> --key <privat.pem> --admin <namn> --vault <valvets mapp>");
+        console.Error($"  {OpenCommand} <ärende.cut> --key <privat.pem> --admin <namn> --vault <valvets mapp>");
         console.Error("                                         öppna och lägg till ett kuvert för operatörens valv");
         console.Error("Lösenord och huvudnycklar frågas efter och tas aldrig från kommandoraden.");
         return ExitCodes.Usage;

@@ -193,7 +193,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   - **Den publika nyckeln** ligger i `src/Modules/Cases/Chainsaw.Modules.Cases/organization-recovery-key.pem`, en
     inbyggd resurs. Utan nyckel i filen skapas ärenden utan kuvert, och journalens första rad säger det; en ogiltig
     nyckel stoppar appen. Kuvertet läggs till när ett ärende skapas, och när ett ärende som saknar kuvert för den
-    inbyggda nyckeln öppnas (äldre ärenden och bytt nyckel; gamla kuvert ligger kvar).
+    inbyggda nyckeln öppnas (äldre ärenden och bytt nyckel). Kuvert för en tidigare nyckel tas då bort, så att en
+    bytt (kanske röjd) nyckel inte öppnar senare kopior; kopior gjorda före bytet har dem kvar. Kuvert i ett okänt
+    format sparas orörda och hindrar aldrig att ärendet öppnas.
   - **Verktyget** `tools/Chainsaw.Recovery` (`keygen`, `fingerprint`, `check`, `open`) är administratörens. Den
     privata nyckeln skyddas med lösenord (krypterad PKCS #8, PBKDF2-HMAC-SHA512 med 600 000 iterationer och
     AES-256), skrivs aldrig över och aldrig i ett git-repo. Hur nyckeln skapas, förvaras och används står i

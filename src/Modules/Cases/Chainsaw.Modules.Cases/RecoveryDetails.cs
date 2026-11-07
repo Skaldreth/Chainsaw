@@ -8,4 +8,7 @@ internal static class RecoveryDetails
 
     /// <summary>The recovery key's fingerprint.</summary>
     public const string Fingerprint = "fingerprint";
+
+    /// <summary>The fingerprints of the earlier keys whose envelopes were removed.</summary>
+    public const string Removed = "removed";
 }

@@ -523,8 +523,9 @@ internal sealed class Case : ICase
 
     /// <summary>
     /// Adds an envelope for the organisation's recovery key when one is configured and the file has none for it (an
-    /// older case, or a key that has been replaced; envelopes for earlier keys stay), with an entry in the journal.
-    /// The caller saves.
+    /// older case, or a key that has been replaced), with an entry in the journal. Envelopes for earlier keys are
+    /// removed at the same time, so that a replaced key, which may have been compromised, does not open later copies
+    /// of the file; copies made before still hold them. The caller saves.
     /// </summary>
     /// <returns><see langword="true"/> when an envelope was added.</returns>
     internal bool AddMissingRecoveryEnvelope()
@@ -535,15 +536,25 @@ internal sealed class Case : ICase
             return false;
         }
 
+        var (kept, removed) = RecoveryEnvelopes.WithoutOtherKeys(_header, recoveryKey.Fingerprint);
+        if (kept.Count >= CaseContainer.MaximumEnvelopes)
+        {
+            // A header with more envelopes would not be read again; the file keeps the ways in it has.
+            return false;
+        }
+
         var envelope = RecoveryEnvelopes.Create(Info.Id, _fileKey, recoveryKey);
         AppendOwnJournal(new JournalDraft(
             CaseJournalKinds.RecoveryAccessAdded,
-            "Ärendet fick ett kuvert för organisationens återställningsnyckel",
-            JsonSerializer.Serialize(new Dictionary<string, string>
+            removed.Count == 0
+                ? "Ärendet fick ett kuvert för organisationens återställningsnyckel"
+                : "Ärendet fick ett kuvert för organisationens nya återställningsnyckel, och de gamla togs bort",
+            JsonSerializer.Serialize(new Dictionary<string, object>
             {
                 [RecoveryDetails.Fingerprint] = recoveryKey.Fingerprint,
+                [RecoveryDetails.Removed] = removed,
             })));
-        _header = _header.WithEnvelopes(_header.Envelopes.Append(envelope));
+        _header = _header.WithEnvelopes(kept.Append(envelope));
         return true;
     }
 

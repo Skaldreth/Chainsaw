@@ -12,9 +12,6 @@ namespace Chainsaw.Recovery;
 /// </summary>
 internal sealed class CaseSession : IDisposable
 {
-    /// <summary>The name of the anchors folder next to a vault, as in the application.</summary>
-    private const string AnchorsFolder = "Ankare";
-
     /// <summary>The length of the temporary vault's random master key.</summary>
     private const int TemporaryMasterKeyLength = 32;
 
@@ -35,7 +32,7 @@ internal sealed class CaseSession : IDisposable
         services.AddCasesModule(options =>
         {
             options.Directory = vaultDirectory;
-            options.AnchorDirectory = Path.Combine(vaultDirectory, AnchorsFolder);
+            options.AnchorDirectory = Path.Combine(vaultDirectory, CasesOptions.AnchorsFolder);
         });
         _provider = services.BuildServiceProvider();
     }

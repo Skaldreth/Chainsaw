@@ -76,8 +76,14 @@ internal static class CaseContainer
     /// <summary>Writes the fixed part and the header; the caller writes the database after it.</summary>
     /// <param name="stream">The new file, at its start.</param>
     /// <param name="header">The header.</param>
+    /// <exception cref="InvalidOperationException">The header has more envelopes than are read back.</exception>
     public static void WriteHeader(Stream stream, CaseHeader header)
     {
+        if (header.Envelopes.Count is 0 or > MaximumEnvelopes)
+        {
+            throw new InvalidOperationException("A header must hold between one and the maximum of envelopes.");
+        }
+
         var envelopes = new JsonArray();
         foreach (var envelope in header.Envelopes)
         {

@@ -92,6 +92,12 @@ internal static class KeyFiles
             _ = RecoveryPublicKey.FromPrivateKey(key);
             return key;
         }
+        catch (Exception exception) when (exception is ArgumentException or FormatException)
+        {
+            // For example two keys in one file: reported like any other unreadable key.
+            key.Dispose();
+            throw new CryptographicException("The file does not hold exactly one encrypted private key.", exception);
+        }
         catch
         {
             key.Dispose();

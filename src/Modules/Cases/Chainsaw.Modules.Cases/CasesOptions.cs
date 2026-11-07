@@ -12,8 +12,8 @@ public sealed class CasesOptions
     /// <summary>The name of the cases folder.</summary>
     private const string CasesFolder = "Ärenden";
 
-    /// <summary>The name of the anchors folder.</summary>
-    private const string AnchorsFolder = "Ankare";
+    /// <summary>The name of the anchors folder under the application's folder (and the vault's).</summary>
+    public const string AnchorsFolder = "Ankare";
 
     /// <summary>
     /// Gets or sets the folder that holds the case files. The application uses
@@ -29,9 +29,9 @@ public sealed class CasesOptions
     public string AnchorDirectory { get; set; } = DefaultDirectory(AnchorsFolder);
 
     /// <summary>
-    /// Gets or sets the organisation's public recovery key that every case gets an envelope for, or
+    /// Gets the organisation's public recovery key that every case gets an envelope for, or
     /// <see langword="null"/> when none is configured. The application uses the key built into the module (see
-    /// <see cref="EmbeddedRecoveryKey"/>); only tests set their own.
+    /// <see cref="EmbeddedRecoveryKey"/>); only tests set their own, through the internal setter.
     /// </summary>
     public Contracts.RecoveryPublicKey? RecoveryKey { get; internal set; } = EmbeddedRecoveryKey.Load();
 

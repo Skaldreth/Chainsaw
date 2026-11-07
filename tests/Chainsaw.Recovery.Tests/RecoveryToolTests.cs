@@ -281,6 +281,8 @@ public sealed class RecoveryToolTests(KeyPairFixture keys) : IClassFixture<KeyPa
     [InlineData("open", "A1.cut", "--key", "k.pem", "--admin", "Ada", "--share", "--vault", "v")]
     [InlineData("open", "A1.cut", "--key", "k.pem", "--share")]
     [InlineData("open", "A1.cut", "--key", "k.pem", "--admin", "Ada", "--share", "--password", "hemligt")]
+    [InlineData("open", "A1.cut", "--key", "k.pem", "--admin", "Ada", "--org", "Enheten", "--vault", "v")]
+    [InlineData("open", "A1.cut", "--key", "k.pem", "--admin", "Ada\nFörfalskad rad", "--share")]
     [InlineData("keygen")]
     [InlineData("check")]
     public void A_wrong_command_line_shows_the_usage(params string[] args)
@@ -289,6 +291,24 @@ public sealed class RecoveryToolTests(KeyPairFixture keys) : IClassFixture<KeyPa
 
         Assert.Equal(ExitCodes.Usage, RecoveryTool.Run(args, console));
         Assert.Contains("Chainsaw.Recovery", console.All, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_key_file_with_two_keys_is_refused_without_a_stack_trace()
+    {
+        using var folder = new TemporaryFolder();
+        var doubled = Path.Combine(folder.Path, "dubbel.pem");
+        var text = File.ReadAllText(keys.PrivatePath);
+        File.WriteAllText(doubled, text + text);
+        using var computer = new OperatorComputer(keys.PublicKey);
+        var path = computer.CreateCase("A1");
+        var console = new FakeConsole(KeyPairFixture.Password, SharingPassword, SharingPassword);
+
+        var exitCode = RecoveryTool.Run(
+            ["open", path, "--key", doubled, "--admin", Administrator, "--share"], console);
+
+        Assert.Equal(ExitCodes.Failed, exitCode);
+        Assert.DoesNotContain("   at ", console.All, StringComparison.Ordinal);
     }
 
     private static byte[] OidBytes(string oid)

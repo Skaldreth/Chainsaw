@@ -24,9 +24,16 @@ internal static class EmbeddedRecoveryKey
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName)
             ?? throw new InvalidOperationException($"The resource {ResourceName} is missing from the build.");
         using var reader = new StreamReader(stream);
+        var text = reader.ReadToEnd();
+        if (text.Contains("PRIVATE KEY", StringComparison.Ordinal))
+        {
+            // A private key pasted by mistake must never ship, nor pass for "no key configured".
+            throw new InvalidOperationException($"The resource {ResourceName} holds a private key; remove it.");
+        }
+
         try
         {
-            return RecoveryPublicKey.FromPem(reader.ReadToEnd());
+            return RecoveryPublicKey.FromPem(text);
         }
         catch (Exception exception) when (exception is System.Security.Cryptography.CryptographicException
             or FormatException or ArgumentException)

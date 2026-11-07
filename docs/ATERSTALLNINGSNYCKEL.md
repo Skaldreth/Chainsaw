@@ -14,8 +14,9 @@ administratören.
 
 - Ett nytt ärende får kuvertet direkt.
 - Ett äldre ärende utan kuvert får det nästa gång det öppnas, med en rad i journalen.
-- Byts nyckeln får varje ärende ett nytt kuvert när det öppnas. De gamla kuverten ligger kvar, så den gamla privata
-  nyckeln öppnar fortfarande äldre filer.
+- Byts nyckeln får varje ärende ett nytt kuvert när det öppnas, och kuvertet för den gamla nyckeln tas bort (med en
+  rad i journalen). Ärenden som inte har öppnats sedan bytet, och kopior gjorda före bytet, öppnas fortfarande bara
+  med den gamla privata nyckeln. Spara den därför tills alla ärenden har öppnats med den nya versionen.
 - Är ingen nyckel inbyggd säger Chainsaw det: journalens första rad visar att ärendet skapades utan återställningsnyckel.
 
 Glömmer operatören sin huvudnyckel går **valvet** inte att återställa; det skapas på nytt. **Ärendena** kan däremot
@@ -57,8 +58,10 @@ nyckelns **fingeravtryck** (SHA-256 av den publika nyckeln, sexton grupper om fy
   ett test i lösningen letar efter privata nycklar i repot, men det är en sista spärr, inte en förvaringsplats.
 - Förvara den privata nyckeln och lösenordet **åtskilda**, till exempel nyckeln på två USB-minnen i olika kassaskåp
   och lösenordet i ett förseglat kuvert hos en annan person.
-- Byt nyckel om den kan ha röjts: skapa ett nytt par, bygg in den nya publika nyckeln och behåll den gamla privata
-  nyckeln så länge äldre filer kan behöva öppnas.
+- Byt nyckel om den kan ha röjts: skapa ett nytt par och bygg in den nya publika nyckeln. Kopior av ärendefiler som
+  redan har lämnats ut har kvar kuvertet för den gamla nyckeln, och den som har den röjda nyckeln och en sådan kopia
+  kan läsa den. Det går bara att stänga genom att byta ärendets filnyckel (finns inte än).
+- Klistra aldrig in den privata nyckeln i `organization-recovery-key.pem`: Chainsaw vägrar då att starta.
 
 ## Kontrollera ett ärende
 
