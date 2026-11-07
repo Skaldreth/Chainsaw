@@ -1055,5 +1055,6 @@ ligger bredvid `Chainsaw.exe`.
       källorna provas igen.
 - [ ] Med *VPN* valt och en ansluten utgång ändrar en kort nätförlust inte titelraden till *Offline* av sig själv
       (tunnelns eget läge gäller).
-- [ ] Ett nät som finns men inte når internet (till exempel ett Wi-Fi med inloggningssida) visas fortfarande grönt;
-      uppslagen misslyckas då på vägen och sägs som fel. Notera om det känns fel.
+- [ ] Ett nät som finns men inte når internet (till exempel ett Wi-Fi med inloggningssida) visas som *Offline* inom
+      några sekunder, och inga uppslag görs. Logga in på sidan: inom cirka 10 s blir titelraden grön och säger *Windows*.
+- [ ] I ett nät där ping (ICMP) är spärrat men https går genom datorns proxy visas *Windows* ändå grönt.

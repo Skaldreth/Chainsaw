@@ -215,6 +215,43 @@ internal sealed class FakePresence : INetworkPresence
     public void Raise() => Changed?.Invoke(this, IsAvailable);
 }
 
+/// <summary>The computer's network as the test says; with a network at first.</summary>
+internal sealed class FakeSignals : INetworkSignals
+{
+    public bool HasNetwork { get; set; } = true;
+
+    public event EventHandler? Changed;
+
+    /// <summary>Sets the network and tells it, as Windows does after a change.</summary>
+    public void Set(bool hasNetwork)
+    {
+        HasNetwork = hasNetwork;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+}
+
+/// <summary>A probe that waits for the test to answer each call, and counts the calls.</summary>
+internal sealed class ScriptedProbe : IInternetProbe
+{
+    private readonly System.Threading.Channels.Channel<Func<bool>> _answers =
+        System.Threading.Channels.Channel.CreateUnbounded<Func<bool>>();
+
+    private int _calls;
+
+    public int Calls => Volatile.Read(ref _calls);
+
+    public void Answer(bool reached) => _answers.Writer.TryWrite(() => reached);
+
+    public void Throw() => _answers.Writer.TryWrite(() => throw new HttpRequestException("probe"));
+
+    public async Task<bool> ReachesInternetAsync(CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref _calls);
+        var answer = await _answers.Reader.ReadAsync(cancellationToken);
+        return answer();
+    }
+}
+
 /// <summary>A clock that moves only when told to.</summary>
 internal sealed class FakeClock : IClock
 {

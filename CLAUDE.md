@@ -271,7 +271,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   `IExitHttp` ut genom datorns eget nät (och dess proxy och skydd), fortfarande bara https och utan kakor och referer, och
   titelraden och utgångarnas ruta visar ärligt *Windows* som utgång. Valet journalförs inte per uppslag, men varje
   förseglat råsvar säger vilken sorts utgång det kom genom. Windows visas grönt **så länge datorn når internet**
-  (användarens beslut 2026-11-07); utan nät visas *Offline* som för en VPN-utgång som inte är ansluten.
+  (användarens beslut 2026-11-07); utan nät visas *Offline* som för en VPN-utgång som inte är ansluten. Om datorn
+  *når internet* avgörs med ett https-prov genom datorns proxy (`https://1.1.1.1/cdn-cgi/trace`, med Windows NCSI-mål
+  `msftconnecttest.com` som reserv), inte med ping, som ofta är spärrat i företagsnät; ett Wi-Fi med inloggningssida
+  är därför *Offline*.
 - **Utgångar:** Chainsaw har ett **eget exemplar** av hjälpprogrammet för WireGuard och egna utgångar, och är inte beroende
   av att Gawk är igång (användarens beslut 2026-11-07). Samma sorts tunnel som Gawk, men Chainsaws egen.
   Hjälpprogrammet (`tools/Chainsaw.Tunnel`, etapp 13) är en egen process per tunnel: WireGuard i användarläge utan
