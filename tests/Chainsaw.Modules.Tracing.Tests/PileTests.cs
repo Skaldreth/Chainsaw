@@ -161,4 +161,16 @@ public sealed class PileTests : IDisposable
 
         Assert.Null(Assert.Single(graph.HeldBack).Remaining);
     }
+
+    [Fact]
+    public void Showing_the_unspendable_outputs_is_kept_with_the_view()
+    {
+        var view = GraphViewState.Default with { ShowUnspendable = true };
+
+        _harness.Service.SaveView(_harness.Case, view);
+        _harness.Reopen();
+
+        Assert.True(_harness.Service.GetView(_harness.Case).ShowUnspendable);
+        Assert.False(GraphViewState.Default.ShowUnspendable);
+    }
 }

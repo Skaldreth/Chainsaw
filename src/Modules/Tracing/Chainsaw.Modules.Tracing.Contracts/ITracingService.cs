@@ -248,6 +248,12 @@ public sealed record GraphViewState(
     /// <summary>Gets the view of an unchanged graph: FIFO, the free surface, every amount, fitted.</summary>
     public static GraphViewState Default { get; } =
         new(TracingMethodKind.Fifo, GraphLayout.Free, GraphAmountLabels.All, null);
+
+    /// <summary>
+    /// Gets whether the graph shows the outputs that can never be spent and carry nothing (OP_RETURN, 0 BTC), which it
+    /// hides by default (the user's decision 2026-11-07).
+    /// </summary>
+    public bool ShowUnspendable { get; init; }
 }
 
 /// <summary>What to expand: one Bitcoin address or transaction, or one Ethereum address or transaction.</summary>

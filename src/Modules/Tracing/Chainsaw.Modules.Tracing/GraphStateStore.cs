@@ -222,7 +222,10 @@ internal static class GraphStateStore
     public static GraphViewState? ReadView(ICaseReader reader)
     {
         using var command = reader.CreateCommand(
-            "SELECT method, layout, amount_labels, offset_x, offset_y, zoom FROM tracing_view WHERE id = 1");
+            """
+            SELECT method, layout, amount_labels, offset_x, offset_y, zoom, show_unspendable FROM tracing_view
+            WHERE id = 1
+            """);
         using var rows = command.ExecuteReader();
         if (!rows.Read()
             || !Enum.TryParse<TracingMethodKind>(rows.GetString(0), out var method) || !Enum.IsDefined(method)
@@ -239,7 +242,7 @@ internal static class GraphStateStore
             viewport = IsFinite(candidate) ? candidate : null;
         }
 
-        return new GraphViewState(method, layout, labels, viewport);
+        return new GraphViewState(method, layout, labels, viewport) { ShowUnspendable = rows.GetInt64(6) != 0 };
     }
 
     /// <summary>Stores how the user left the graph, replacing what was stored.</summary>
@@ -249,16 +252,18 @@ internal static class GraphStateStore
     public static void SaveView(ICaseTransaction transaction, GraphViewState view, DateTimeOffset utc)
     {
         using var command = transaction.CreateCommand("""
-            INSERT INTO tracing_view (id, method, layout, amount_labels, offset_x, offset_y, zoom, updated_utc)
-            VALUES (1, $method, $layout, $labels, $x, $y, $zoom, $utc)
+            INSERT INTO tracing_view (id, method, layout, amount_labels, offset_x, offset_y, zoom, updated_utc,
+                show_unspendable)
+            VALUES (1, $method, $layout, $labels, $x, $y, $zoom, $utc, $unspendable)
             ON CONFLICT (id) DO UPDATE SET method = excluded.method, layout = excluded.layout,
                 amount_labels = excluded.amount_labels, offset_x = excluded.offset_x, offset_y = excluded.offset_y,
-                zoom = excluded.zoom, updated_utc = excluded.updated_utc
+                zoom = excluded.zoom, updated_utc = excluded.updated_utc, show_unspendable = excluded.show_unspendable
             """);
         command.AddParameter("$method", view.Method.ToString()).AddParameter("$layout", view.Layout.ToString())
             .AddParameter("$labels", view.AmountLabels.ToString())
             .AddParameter("$x", view.Viewport?.OffsetX).AddParameter("$y", view.Viewport?.OffsetY)
-            .AddParameter("$zoom", view.Viewport?.Zoom).AddParameter("$utc", Text(utc));
+            .AddParameter("$zoom", view.Viewport?.Zoom).AddParameter("$utc", Text(utc))
+            .AddParameter("$unspendable", view.ShowUnspendable ? 1L : 0L);
         command.ExecuteNonQuery();
     }
 

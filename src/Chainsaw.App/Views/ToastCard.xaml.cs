@@ -98,14 +98,15 @@ public partial class ToastCard : UserControl
 
         if (!toast.IsSticky)
         {
-            StartCountdown();
+            StartCountdown(toast.TimeShown);
         }
     }
 
     /// <summary>Runs the thin line in the bottom edge down; when it is out, the toast closes.</summary>
-    private void StartCountdown()
+    /// <param name="time">How long the toast stands.</param>
+    private void StartCountdown(TimeSpan time)
     {
-        var shrink = new DoubleAnimation(1, 0, new Duration(Toaster.TimeShown));
+        var shrink = new DoubleAnimation(1, 0, new Duration(time));
         Storyboard.SetTarget(shrink, Bar);
         Storyboard.SetTargetProperty(
             shrink, new PropertyPath("(UIElement.RenderTransform).(ScaleTransform.ScaleX)"));

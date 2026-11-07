@@ -27,7 +27,14 @@ public enum ToastKind
 /// <param name="ActionText">The action's word, such as <em>Försök igen</em>; <see langword="null"/> for none.</param>
 /// <param name="Action">What the action does; the toast closes after it.</param>
 public sealed record ToastRequest(
-    ToastKind Kind, string Title, string Text = "", string? ActionText = null, Action? Action = null);
+    ToastKind Kind, string Title, string Text = "", string? ActionText = null, Action? Action = null)
+{
+    /// <summary>
+    /// Gets whether a toast that fades by itself stands longer than the others (<see cref="Toaster.TimeLingering"/>),
+    /// because it offers something the user may want a moment to take up, such as showing what the graph hides.
+    /// </summary>
+    public bool Lingers { get; init; }
+}
 
 /// <summary>One toast in the stack (sketch TO1a), as the view shows it.</summary>
 public sealed partial class Toast : ObservableObject
@@ -68,6 +75,9 @@ public sealed partial class Toast : ObservableObject
     /// <summary>Gets whether the toast stays until closed: errors and warnings do, the others fade out by themselves.</summary>
     public bool IsSticky => Kind is ToastKind.Error or ToastKind.Warning;
 
+    /// <summary>Gets how long the toast stands before it fades out, when it is not sticky.</summary>
+    public TimeSpan TimeShown => Request.Lingers ? Toaster.TimeLingering : Toaster.TimeShown;
+
     /// <summary>Gets whether the toast is on its way out; the view fades it and then removes it.</summary>
     [ObservableProperty]
     public partial bool IsLeaving { get; private set; }
@@ -100,6 +110,9 @@ public sealed class Toaster
 
     /// <summary>How long a toast that is not sticky stands before it fades out by itself.</summary>
     public static readonly TimeSpan TimeShown = TimeSpan.FromSeconds(6);
+
+    /// <summary>How long a toast that lingers (<see cref="ToastRequest.Lingers"/>) stands before it fades out.</summary>
+    public static readonly TimeSpan TimeLingering = TimeSpan.FromSeconds(20);
 
     /// <summary>The UI thread, since any part may say something from any thread.</summary>
     private readonly IUiThread _ui;

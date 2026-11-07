@@ -84,4 +84,20 @@ public sealed class ToasterTests
 
         Assert.Empty(toaster.Toasts);
     }
+
+    [Fact]
+    public void A_lingering_toast_stands_longer_than_the_others()
+    {
+        var toaster = NewToaster();
+
+        toaster.Show(new ToastRequest(ToastKind.Information, "Vanlig"));
+        toaster.Show(new ToastRequest(ToastKind.Information, "Dröjer", ActionText: "Visa", Action: () => { })
+        {
+            Lingers = true,
+        });
+
+        Assert.Equal(Toaster.TimeShown, toaster.Toasts[0].TimeShown);
+        Assert.Equal(Toaster.TimeLingering, toaster.Toasts[1].TimeShown);
+        Assert.True(Toaster.TimeLingering > Toaster.TimeShown);
+    }
 }

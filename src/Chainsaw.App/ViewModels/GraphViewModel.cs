@@ -948,7 +948,7 @@ public sealed partial class GraphViewModel : ObservableObject
                 moved.TryAdd((key, GraphLayout.Free), place);
             }
 
-            Places = GraphPlacement.Place(scene.Snapshot.Graph.Nodes, Layout, scene.Columns, moved);
+            Places = GraphPlacement.Place(scene.LayoutNodes, Layout, scene.Columns, moved);
             Curves = GraphHitTest.Curves(scene, Places, IsHopColumns);
         }
         else
@@ -968,7 +968,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="scene">The scene.</param>
     private void KeepFirstFreePlaces(GraphScene scene)
     {
-        var nodes = scene.Snapshot.Graph.Nodes;
+        var nodes = scene.LayoutNodes;
         var standing = nodes
             .Select(node => FreePlaceOf(node))
             .OfType<GraphPoint>()

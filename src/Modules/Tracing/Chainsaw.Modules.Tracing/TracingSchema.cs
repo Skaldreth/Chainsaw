@@ -86,12 +86,14 @@ internal sealed class TracingSchema : ICaseSchemaContributor
     /// <summary>
     /// The third version: what an expansion held back (how many transactions it took and how many there are), so that
     /// the clue <c>+N tx</c> is drawn when the case is opened again (sketch EX1), and which actors the user picked out
-    /// of the piles (sketch EX2b). Ordinary data like the places.
+    /// of the piles (sketch EX2b), and whether the graph shows the outputs that can never be spent. Ordinary data
+    /// like the places.
     /// </summary>
     private const string Version3 = """
         ALTER TABLE tracing_expansions ADD COLUMN held_back INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE tracing_expansions ADD COLUMN held_back_taken INTEGER;
         ALTER TABLE tracing_expansions ADD COLUMN held_back_available INTEGER;
+        ALTER TABLE tracing_view ADD COLUMN show_unspendable INTEGER NOT NULL DEFAULT 0;
         CREATE TABLE tracing_picked (
             member_key TEXT PRIMARY KEY,
             picked_utc TEXT NOT NULL

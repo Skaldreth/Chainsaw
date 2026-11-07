@@ -123,6 +123,14 @@ public enum NodeSort
 
     /// <summary>A transaction on another chain that the user linked to.</summary>
     OtherChainTransaction,
+
+    /// <summary>
+    /// A pile of counterparties (sketch EX2b): square, as a deck of cards, with how many lie in it and their sum.
+    /// </summary>
+    Pile,
+
+    /// <summary>What an expansion held back (sketch EX1): a dashed clue, <c>+N tx</c>.</summary>
+    HeldBack,
 }
 
 /// <summary>A small mark in a node's corner (sketches GR3a and GR3c).</summary>
@@ -200,6 +208,8 @@ public static class VisualLanguage
         new(NodeSort.Coin, "Mynt", "Icon.Kind.Coin", GraphInk.Unknown, NodeShape.Round, false),
         new(NodeSort.OtherChainTransaction, "Annan kedja", "Icon.Kind.Swap", GraphInk.OtherChain, NodeShape.Square,
             true),
+        new(NodeSort.Pile, "Hög", "Icon.Layers", GraphInk.Unknown, NodeShape.Square, false),
+        new(NodeSort.HeldBack, "Hölls tillbaka", "Icon.Plus", GraphInk.Unknown, NodeShape.Round, true),
     ];
 
     /// <summary>
