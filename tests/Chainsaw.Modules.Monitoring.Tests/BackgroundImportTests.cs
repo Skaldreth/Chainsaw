@@ -142,6 +142,18 @@ public sealed class BackgroundImportTests : IDisposable
     }
 
     [Fact]
+    public async Task A_check_from_a_later_start_never_marks_the_blocks_between_as_read()
+    {
+        var watch = await StartedWatch();
+        Queue.Add(Hit(watch, 900_003) with { Start = 900_002 });
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Single(result.Hits);
+        Assert.Equal(900_000, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+    }
+
+    [Fact]
     public async Task A_change_of_only_the_pace_keeps_the_background_s_hits()
     {
         var watch = await StartedWatch();

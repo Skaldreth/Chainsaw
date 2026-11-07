@@ -887,6 +887,7 @@ ligger bredvid `Chainsaw.exe`.
   bort alla bevakningar, eller slå av *Bevaka när Chainsaw är stängt*: värdet försvinner och processen avslutas inom
   några sekunder.
 - Starta `Chainsaw.Watcher.exe` två gånger för hand: bara en process blir kvar. `Chainsaw.Watcher.exe --stop` stoppar den.
+  Har en avisering just visats lever processen kvar upp till en minut (tills ikonen tas bort), utan att bevaka.
 - Logga ut och in med en aktiv bevakning: processen startar av sig själv.
 - Döda processen i Aktivitetshanteraren medan Chainsaw är öppet: Chainsaw startar den igen inom någon minut.
 

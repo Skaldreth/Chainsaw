@@ -187,8 +187,10 @@ internal sealed class BackgroundWatches(
             return [];
         }
 
+        // How far it read counts only when it read from the case's start or lower: a check from a later start never
+        // read the blocks between, and must not mark them as read.
         var current = WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id);
-        if (current is null || checkedAt.CheckedUtc > current.CheckedUtc)
+        if (entry.Start <= start && (current is null || checkedAt.CheckedUtc > current.CheckedUtc))
         {
             WatchStore.WriteChecked(transaction, watch.Id, checkedAt);
         }

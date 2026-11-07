@@ -224,6 +224,18 @@ public sealed class BackgroundLinkTests
     }
 
     [Fact]
+    public async Task A_status_left_by_an_ended_process_is_not_believed()
+    {
+        _fakes.Status.Status = new BackgroundStatus(
+            BackgroundState.Failing, null, TestWatchSource.At, BackgroundFakes.FakeProcess.Stale);
+        var (_, link) = Link(Windows);
+
+        await link.WriteCaseAsync();
+
+        Assert.Equal(BackgroundMode.Running, link.Mode);
+    }
+
+    [Fact]
     public async Task The_endpoint_in_step_follows_the_background_s_word()
     {
         _fakes.Status.Status = new BackgroundStatus(BackgroundState.Running, "blockstream.info", TestWatchSource.At, 3);
@@ -425,6 +437,10 @@ internal sealed class BackgroundFakes
         public string Command => BackgroundFakes.Command;
 
         public bool IsRunning() => Running;
+
+        public bool IsProcess(int processId) => processId != Stale;
+
+        public const int Stale = 99;
 
         public bool Start()
         {

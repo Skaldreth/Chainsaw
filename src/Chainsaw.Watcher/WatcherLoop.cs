@@ -49,6 +49,9 @@ internal sealed class WatcherLoop
     /// <summary>The plan read last.</summary>
     private BackgroundPlan _plan = BackgroundPlan.Empty;
 
+    /// <summary>Whether a plan has been read at all.</summary>
+    private bool _planRead;
+
     /// <summary>When the plan read last was written.</summary>
     private DateTimeOffset? _planWritten;
 
@@ -73,6 +76,12 @@ internal sealed class WatcherLoop
     public async Task<bool> RunOnceAsync(CancellationToken cancellationToken = default)
     {
         ReadPlan();
+        if (!_planRead)
+        {
+            // The first plan could not be read just now (a scanner holds it at sign-in): wait a round, never end.
+            return true;
+        }
+
         if (!_plan.HasWork)
         {
             Say(BackgroundState.Stopped, null);
@@ -112,11 +121,6 @@ internal sealed class WatcherLoop
 
         KeepProgress();
         Say(StateOf(round, work.Count), round.InStepWith);
-        if (round.NewHits)
-        {
-            _parts.Alerts.Raise(_plan.Alerts);
-        }
-
         return true;
     }
 
@@ -245,12 +249,11 @@ internal sealed class WatcherLoop
             .Concat(result.Origins)
             .ToList();
 
-        // Only a hit above where the watch was read, not known to the case and not told before, is said: a hit in the
-        // look-back the open Chainsaw already sealed is never told again.
-        var readThrough = last?.Height ?? start;
+        // Only a hit not known to the case and not told before is said: one in the look-back the open Chainsaw already
+        // sealed is never told again, and one an endpoint indexed late is told when it is first seen.
         var alerted = progress.Alerted.ToList();
         var fresh = false;
-        foreach (var match in result.Matches.Where(match => match.Block.Height > readThrough))
+        foreach (var match in result.Matches)
         {
             var key = WatchSchedule.Key(watch.WatchId, match);
             if (!alerted.Contains(key, StringComparer.Ordinal) && !watch.Known.Contains(key, StringComparer.Ordinal))
@@ -266,7 +269,14 @@ internal sealed class WatcherLoop
         {
             HasNewHits = fresh,
         });
-        round.NewHits |= fresh;
+        if (fresh && !round.Alerted)
+        {
+            // Said at once, once a round, before the progress that remembers it is written: a stop later in the round
+            // never swallows it.
+            round.Alerted = true;
+            _parts.Alerts.Raise(_plan.Alerts);
+        }
+
         round.Failing |= result.Status == WatchFeedStatus.Failed;
         _progressChanged = true;
         _progress[(caseId, watch.WatchId)] = progress with
@@ -357,6 +367,7 @@ internal sealed class WatcherLoop
         {
             _planWritten = written;
             _plan = plan;
+            _planRead = true;
         }
     }
 
@@ -445,8 +456,8 @@ internal sealed class WatcherLoop
         /// <summary>Gets or sets whether a lookup failed.</summary>
         public bool Failing { get; set; }
 
-        /// <summary>Gets or sets whether a hit not told of before was seen.</summary>
-        public bool NewHits { get; set; }
+        /// <summary>Gets or sets whether the round has already said that a watch has hit.</summary>
+        public bool Alerted { get; set; }
 
         /// <summary>Gets or sets how many chains it had.</summary>
         public int Chains { get; set; }

@@ -291,4 +291,24 @@ public sealed class WatcherLoopTests : IDisposable
             Assert.True(await Loop.RunOnceAsync());
         }
     }
+
+    [Fact]
+    public async Task A_hit_an_endpoint_indexed_late_is_told_when_first_seen_in_the_look_back()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        var plan = _world.WritePlan();
+        var read = plan.Cases.Single().Watches.Single() with
+        {
+            Checked = new WatchChecked(_world.Clock.UtcNow, 800_003, WatchFeedStatus.Read, null) { Tip = 800_003 },
+        };
+        _world.App<IBackgroundPlan>().Update(current => current.With(current.Cases.Single() with { Watches = [read] }));
+        _world.Height(800_010);
+        _world.Clock.UtcNow += TimeSpan.FromMinutes(5);
+
+        await Loop.RunOnceAsync();
+
+        Assert.Equal([WatchAlerts.Sound], _world.Alerts.Raised);
+        Assert.True(Queue.HasHits());
+    }
 }

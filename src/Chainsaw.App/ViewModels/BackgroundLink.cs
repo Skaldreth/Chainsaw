@@ -196,7 +196,9 @@ public sealed class BackgroundLink : IDisposable
             running = _parts.Process.Start();
         }
 
-        var status = _parts.Status.Read();
+        // A status left by a process that has ended is not believed; the new one says its own after its first round.
+        var said = _parts.Status.Read();
+        var status = said is not null && _parts.Process.IsProcess(said.ProcessId) ? said : null;
         var hits = _parts.Queue.HasHits();
         var mode = ModeOf(plan, running, status);
         var inStep = mode == BackgroundMode.Running ? status?.InStepWith : null;

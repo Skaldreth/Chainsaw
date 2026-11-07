@@ -33,6 +33,22 @@ public sealed class WindowsBackgroundProcess : IBackgroundProcess
     }
 
     /// <inheritdoc/>
+    public bool IsProcess(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return string.Equals(
+                process.ProcessName, Path.GetFileNameWithoutExtension(BackgroundNames.Executable),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    /// <inheritdoc/>
     public bool Start()
     {
         if (!Exists)
