@@ -56,9 +56,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på skiss
 
-- **Inställningarna** (efter Gawks inställningsdialog, användarens önskemål 2026-11-07): utgången *Windows* eller *VPN*,
-  låsningens tid, valutan, länken `chainsaw:`, operatörsprofilen, huvudnyckeln, Om med återställningsnyckelns
-  fingeravtryck. Skissas i ST1.
+- **Förstagångsinställningens steg Utgång** (etapp 19): erbjuder bara en WireGuard-fil eller *Senare*, och VPN är
+  förvalt. Valet *Windows* eller *VPN* där, som de två korten i ST1a, behöver en ändring av FS1a.
 
 
 
@@ -355,10 +354,12 @@ Hur kontrollerna och förslagen visas samlat (en lista att gå igenom, markering
   om rutan ska visa den (granskningen etapp 13, M).
 - **Ta bort och byta namn på en utgång** (etapp 17): `IExitStore.RemoveAsync` finns, men rutan UT1a har ingen knapp för
   det, och inget sätt att byta namn eller ange plats (`ExitInfo.Place`, som titelraden visar först). Skissas.
-- **Windows i utgångarnas ruta** (efter skissen ST1): rutan UT1a har vägen och listan var för sig. Det som behövs är
-  ett läge ur Network (Windows eller VPN) i `ExitPanelViewModel` och `ShellViewModel`: med Windows säger vägen och
-  titelraden *Windows* (grön när `IExitHttp` kan gå ut), raderna i listan tonas eller döljs (en `IsVpnMode` på
-  `IsListing`), och strömknappen och *Lägg till WireGuard-fil …* hänvisar till inställningarna.
+- **En proxy som kräver inloggning** (etapp 19): med Windows som utgång går uppslagen genom systemets proxy, men
+  Chainsaw skickar aldrig Windows-användarens uppgifter till den (`DefaultProxyCredentials` är tomt), eftersom en
+  proxy som hittas automatiskt (WPAD) annars kunde få dem. En sådan proxy svarar 407 och uppslaget misslyckas ärligt.
+  Om det behövs i tjänsten: ett val i inställningarna, bara för en proxy som är inställd för hand.
+- **Namnuppslag med Windows** (etapp 19): källans namn slås upp av datorn (eller proxyn), som i varje program på
+  datorn; det är meningen med valet. Adresser som inte är globala vägras ändå vid en direkt anslutning.
 - **Ett kortkommando för utgångarna** (etapp 17): rutan öppnas bara med musen eller Tab till utgången i titelraden.
 - **Tunnelns hjälpprogram och Go:** `chainsaw-tunnel.exe` är byggd med Go 1.27.3 (låst i `go.mod`) och checkad in
   med sin hash; den byggs om med `tools/Chainsaw.Tunnel/build.sh` (som kör `govulncheck`) när Go eller beroendena får
@@ -464,8 +465,8 @@ Hur kontrollerna och förslagen visas samlat (en lista att gå igenom, markering
 
 ### Låsskärmen och förstagångsinställningen (etapp 10)
 - **Raden om bevakningen** på låsskärmen (*En bevakning har slagit till*) när Monitoring finns.
-- **Vyn Inställningar:** låsningens tid (nu bara `AutoLockMinutes` i `settings.json`, läst vid start) och fältets
-  scen och rörelse (skissens val; nu Drift och stilla kätting).
+- **Inställningarna, Utseende:** fältets scen och rörelse (skissens val; nu Drift och stilla kätting) är tonade med
+  *Inte byggt än* i ST1a.
 - **Låsning mitt i inställningen** avslutar den: efter upplåsning visas skalet, och utgången och första ärendet erbjuds
   inte igen. En krasch mellan valvet och profilen ger ett valv utan profil, så att ärenden inte går att skapa.
   Inställningen kunde återupptas tills den är klar (granskningen, M).
@@ -477,7 +478,8 @@ Hur kontrollerna och förslagen visas samlat (en lista att gå igenom, markering
 
 ### Övrigt
 - **Registrera länken `chainsaw:`** för användaren (HKCU\Software\Classes\chainsaw med `URL Protocol` och
-  `shell\open\command` till `Chainsaw.exe "%1"`), som ett val i vyn Inställningar, och ta bort registreringen där.
+  `shell\open\command` till `Chainsaw.exe "%1"`), som valet under Länkar i inställningarna (ST1a, tonat *Inte byggt
+  än*), och ta bort registreringen där.
   Mottagandet är byggt i etapp 11 (ett exemplar per användare, named pipe, väntar på upplåsning).
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` och byggs in i programmet. Ett nytt avsnitt
   läggs i indexet i `src/Chainsaw.App/Guide/GuideLibrary.cs` (annars hamnar det under *Övrigt*), och länkar mellan

@@ -586,3 +586,51 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
 - Sorten *Sanktionerad* finns inte i rutnätet (den kommer bara ur en importerad lista). Med sorten *Offer* är *Sprid
   inte* tonad: ett offer sprids aldrig.
 
+
+## Inställningarna och Windows som utgång (etapp 19, ST1a)
+
+**Dialogen**
+- Ctrl+, och kugghjulet i pillret öppnar dialogen mitt i fönstret över den mörkade vyn, 1040 × 720 px (mindre i ett
+  litet fönster), med menyn till vänster: *Den här datorn* (Nätverk, Låsning, Utseende, Länkar), *Arbetet* (Kurser),
+  *Du* (Profil) och sist Om Chainsaw. Vyn bakom byter inte, och pillrets markerade ikon står kvar.
+- Esc, × och ett klick på det mörka stänger den. Esc stänger först steget *Lägg till WireGuard-fil* eller formuläret
+  för huvudnyckeln om något av dem är ute. Ctrl+K, Ctrl+1 … och Ctrl+L stänger den också (Ctrl+L låser).
+- Med Nytt ärende öppet öppnas inte dialogen. Tab stannar inne i dialogen.
+- Utseende och Länkar är tonade med *Inte byggt än* och går inte att ändra.
+
+**Nätverk: Windows eller VPN**
+- Två kort, *Windows* och *VPN*; det valda har magentafärgad ram. VPN är förvalt första gången.
+- Under VPN står utgångarna som i rutan i titelraden (anslut och koppla ner med strömknappen, *Lägg till WireGuard-fil …*).
+- Välj Windows: titelraden säger *Windows* med grön prick, statusraden *Uppslag går genom Windows*, och grafen säger inte
+  *Offline*. En expansion i grafen hämtar genom datorns eget nät.
+- Med Windows: kontrollera med Wireshark eller Resursövervakaren att uppslag går till källan, eller till proxyn om Windows
+  har en (Inställningar → Nätverk → Proxy, också en PAC-fil), och bara med https. Inga kakor, inget Referer och inga
+  hämtningar av AIA, spärrlistor eller rötter från Windows Update.
+- Med Windows och en proxy som kräver inloggning: uppslaget misslyckas ärligt (Chainsaw skickar inte dina
+  Windows-uppgifter till proxyn; se TODO).
+- Med Windows och en källas namn som pekar på datorn eller det lokala nätet (till exempel genom `hosts`): uppslaget
+  vägras.
+- Byt tillbaka till VPN medan en expansion pågår genom Windows: den stoppas, och utan ansluten utgång görs inga fler
+  uppslag (titelraden *Ingen utgång*, statusraden *Offline*). Kontrollera med Wireshark att inget mer går ut på det
+  vanliga nätkortet.
+- Valet ligger kvar efter omstart (`%LOCALAPPDATA%\Chainsaw\settings.json`, `"ExitRoute": "Windows"`). Skriv ett okänt
+  värde i filen för hand: Chainsaw startar med VPN.
+- Rutan under utgången i titelraden i läget Windows: vägen dator → Windows → källor är grön, utgångarna är tonade och går
+  inte att använda, och *Inställningar …* öppnar dialogen på Nätverk.
+- Låsskärmen säger *Uppslag går genom Windows. Chainsaw slår inte upp något medan det är låst.* med Windows valt.
+- En ansluten utgång står kvar när Windows väljs (den används inte) och används igen när VPN väljs.
+
+**Låsning, Kurser, Profil och Om**
+- *Lås efter* 5 min, 15 min, 30 min och 1 h: valet gäller direkt (räknat från senaste aktivitet), syns på låsskärmen och
+  ligger kvar efter omstart.
+- *När Windows låses* av: Win+L låser inte Chainsaw; viloläge och en frånkopplad session låser fortfarande.
+- Kurser: valuta SEK/USD/EUR och upplösning Minut/Timme/Dag sparas och ligger kvar efter omstart.
+- Profil: namn, titel och enhet läses när dialogen öppnas och sparas när ett fält lämnas eller med Enter. Ett tomt namn
+  sparas inte och säger varför.
+- *Byt …* fäller ut tre fält (nuvarande, ny, upprepa). Fel nuvarande nyckel, för kort ny nyckel och olika upprepning
+  säger varför. Efter ett byte låser Ctrl+L och den nya nyckeln låser upp; den gamla gör det inte. Fälten är tomma när
+  formuläret fälls in eller dialogen stängs.
+- Om Chainsaw: version och commit, *Ingen inbyggd nyckel* (eller fingeravtrycket när en nyckel är inbyggd), och *Visa*
+  fäller ut licenserna ur `THIRD_PARTY.md`.
+- När `settings.json` inte går att skriva (till exempel skrivskyddad) säger dialogen det, och valet gäller tills
+  Chainsaw stängs.
