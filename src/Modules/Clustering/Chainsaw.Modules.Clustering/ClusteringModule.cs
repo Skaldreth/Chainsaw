@@ -8,7 +8,8 @@ namespace Chainsaw.Modules.Clustering;
 /// Registers the module Clustering: the heuristics, by name and version, and the clusters with their merges and splits.
 /// </summary>
 /// <remarks>
-/// The heuristics are registered as <see cref="IClusteringHeuristic"/>; another analysis (for example a local model
+/// The heuristics are registered as <see cref="IClusteringHeuristic"/>, each for the model and chains in its
+/// <see cref="IClusteringHeuristic.Scope"/> (today's four for Bitcoin); another analysis (for example a local model
 /// later, principle 5) is added by registering one more. The module adds its sealed tables to every case through an
 /// <see cref="ICaseSchemaContributor"/>.
 /// </remarks>
