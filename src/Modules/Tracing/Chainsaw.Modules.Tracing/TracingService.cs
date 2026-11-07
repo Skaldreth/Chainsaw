@@ -17,6 +17,13 @@ internal sealed class TracingService : ITracingService
     /// <summary>The longest reason the user may give.</summary>
     private const int MaximumReasonLength = 1_000;
 
+    /// <summary>
+    /// How many lookups of where coins went are asked at the same time. The source's own pace per endpoint still
+    /// decides when each request leaves (rate limits are always respected); asking a few at once only keeps one
+    /// answer's way through the exit from holding up the next turn, and lets the lookups spread over the endpoints.
+    /// </summary>
+    internal const int SpendLookupsAtOnce = 4;
+
     /// <summary>Bitcoin's facts.</summary>
     private readonly IBitcoinSource _source;
 
@@ -672,21 +679,20 @@ internal sealed class TracingService : ITracingService
 
     /// <summary>
     /// Asks where the outputs of the transactions an expansion brought in went, so that the graph knows which coins
-    /// are spent and which are still there. A failure here is not an error: those coins stay not expanded yet.
+    /// are spent and which are still there. A failure here is not an error: those coins stay not expanded yet. A few
+    /// are asked at once (<see cref="SpendLookupsAtOnce"/>), each still in its endpoint's turn.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="transactions">The transactions.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>A task that completes when every answer is in the case.</returns>
-    private async Task FetchSpendsAsync(
-        ICase @case, IReadOnlyList<Txid> transactions, CancellationToken cancellationToken)
-    {
-        foreach (var txid in transactions)
-        {
-            await _source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
-                .ConfigureAwait(false);
-        }
-    }
+    private Task FetchSpendsAsync(
+        ICase @case, IReadOnlyList<Txid> transactions, CancellationToken cancellationToken) =>
+        Parallel.ForEachAsync(
+            transactions,
+            new ParallelOptions { MaxDegreeOfParallelism = SpendLookupsAtOnce, CancellationToken = cancellationToken },
+            async (txid, token) => await _source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, token)
+                .ConfigureAwait(false));
 
     /// <summary>
     /// Reads the state and every transaction in it and where its outputs went, from the case only: showing the graph

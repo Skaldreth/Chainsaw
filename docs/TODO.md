@@ -40,9 +40,13 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
    ikoner ovanför den valda noden; inspektören blir ren läsning, med *Varför?* som rund ikon.
 3. **IN1b, formulären vid noden:** Etikett (och Bryt upp och Annan kedja, samma skiss) fälls ut i en ruta bredvid noden
    i grafen, inte i inspektören.
-4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. Ett prov här mot mempool.space med samma adress gav
-   50 tx och resten tillbakahållet, alltså fungerar Tracing och Chains; orsaken i appen är inte hittad. Provet tog
-   **nästan 6 minuter för 53 uppslag**, vilket är för långsamt (takten per endpoint?).
+4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. *Rättat 2026-11-07, väntar på prov på Windows:* med
+   appens hela sammansättning (GraphSource, modulerna och utgången genom Windows) ger startpunkten 50 tx; *Inget nytt*
+   kom bara från de OP_RETURN-noder som varje coinbase har (adressen är en pools), som nu inte kan expanderas. En
+   proxy på det lokala nätet fällde varje uppslag genom Windows; rättat. Långsamheten: de 6 minuterna var provets
+   stillastående testklocka (takten 250 ms lades på varje tur), men appen läste också om hela adressidor per tx och
+   växelheuristiken var kvadratisk i antal outputs; rättat, och var mynten tog vägen frågas fyra i taget i
+   endpointens takt. Kvar: ska OP_RETURN-utgångar på 0 BTC alls ritas som noder (princip 7)? Skissas om de tas bort.
 5. **Grafens hörn uppe till höger:** ikoner i stället för knappar (Förslag, Områden, växeln, FIFO, Alla belopp).
 6. **Inspektörens skugga** går upp över titelraden i ovankant.
 7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissas om.

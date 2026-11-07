@@ -71,6 +71,28 @@ internal sealed class EsploraParser(BitcoinNetwork network)
         return [.. Array(document.RootElement).Select(ReadTransaction)];
     }
 
+    /// <summary>
+    /// Reads one transaction out of a list read back from the case, without reading the others: a graph reads each of
+    /// its transactions from the address page it came on, and reading the whole page for each made a graph of a few
+    /// hundred transactions take seconds to show.
+    /// </summary>
+    /// <param name="body">The response's bytes.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The transaction, or <see langword="null"/> when the list does not have it.</returns>
+    /// <exception cref="EsploraFormatException">The response cannot be read, or the transaction does not add up.
+    /// </exception>
+    public BitcoinTransaction? ParseTransactionInList(ReadOnlySpan<byte> body, Txid txid)
+    {
+        ArgumentNullException.ThrowIfNull(txid);
+        using var document = Open(body);
+        var element = Array(document.RootElement).FirstOrDefault(candidate =>
+            candidate.ValueKind == JsonValueKind.Object
+            && candidate.TryGetProperty("txid", out var id)
+            && id.ValueKind == JsonValueKind.String
+            && string.Equals(id.GetString(), txid.Value, StringComparison.OrdinalIgnoreCase));
+        return element.ValueKind == JsonValueKind.Undefined ? null : ReadTransaction(element);
+    }
+
     /// <summary>Reads which inputs spend a transaction's outputs, as from <c>/tx/:txid/outspends</c>.</summary>
     /// <param name="body">The response's bytes.</param>
     /// <returns>One entry per output, in order.</returns>

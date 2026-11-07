@@ -46,7 +46,8 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
             return HeuristicResult.Nothing(Identity, transaction.Txid);
         }
 
-        var scored = outputs.Select(output => (Output: output, Signs: Signs(transaction, output, outputs, context)))
+        var sightings = Sightings.Of(transaction, outputs, context);
+        var scored = outputs.Select(output => (Output: output, Signs: Signs(output, outputs, sightings)))
             .OrderByDescending(entry => entry.Signs.Signs.Count)
             .ThenBy(entry => entry.Output.Index)
             .ToList();
@@ -77,25 +78,21 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
     }
 
     /// <summary>Gives the signs that hold for one output and for none of the others.</summary>
-    /// <param name="transaction">The transaction.</param>
     /// <param name="candidate">The output that may be change.</param>
     /// <param name="outputs">All outputs with an address.</param>
-    /// <param name="context">What the case knows around the transaction.</param>
+    /// <param name="sightings">What the transaction and the case say once for all its outputs.</param>
     /// <returns>
     /// The signs, in the order of <see cref="ChangeSign"/>, and the earlier transactions where any output's address
     /// was seen, which the signs rest on.
     /// </returns>
     private static (List<ChangeSign> Signs, List<Txid> SeenIn) Signs(
-        BitcoinTransaction transaction,
-        BitcoinOutput candidate,
-        IReadOnlyList<BitcoinOutput> outputs,
-        IHeuristicContext context)
+        BitcoinOutput candidate, IReadOnlyList<BitcoinOutput> outputs, Sightings sightings)
     {
         var others = outputs.Where(output => output.Index != candidate.Index).ToList();
-        var inputAddresses = transaction.InputAddresses();
+        var inputAddresses = sightings.InputAddresses;
         var signs = new List<ChangeSign>();
 
-        if (transaction.CommonInputType() is { } inputType
+        if (sightings.InputType is { } inputType
             && candidate.ScriptType == inputType
             && others.All(output => output.ScriptType != inputType))
         {
@@ -107,15 +104,14 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
             signs.Add(ChangeSign.OthersRound);
         }
 
-        var seenIn = others.Select(output => context.SeenBefore(output.Address!, transaction)).ToList();
         if (!inputAddresses.Contains(candidate.Address!)
-            && context.SeenBefore(candidate.Address!, transaction) is null
-            && seenIn.All(seen => seen is not null))
+            && sightings.SeenBefore(candidate) is null
+            && others.All(output => sightings.SeenBefore(output) is not null))
         {
             signs.Add(ChangeSign.FreshAddress);
         }
 
-        if (transaction.SmallestInput() is { } smallest
+        if (sightings.SmallestInput is { } smallest
             && candidate.Amount.CompareTo(smallest) < 0
             && others.All(output => output.Amount.CompareTo(smallest) >= 0))
         {
@@ -130,12 +126,53 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
 
         // Every earlier sighting counts as basis, also of the outputs that did not get the sign: without one of them
         // the signs could tie, and a narrower run must not take the conclusion back.
-        var basis = outputs.Select(output => context.SeenBefore(output.Address!, transaction))
-            .OfType<BitcoinTransaction>()
-            .Select(seen => seen.Txid)
-            .Distinct()
-            .ToList();
-        return (signs, basis);
+        return (signs, sightings.Basis);
+    }
+
+    /// <summary>
+    /// What a transaction and the case say once for all its outputs: the inputs' addresses, script type and smallest
+    /// amount, and where each output's address was seen before. Read once per transaction rather than once per output
+    /// and pair of outputs, since a batch payout with a few hundred outputs otherwise took a tenth of a second.
+    /// </summary>
+    /// <param name="InputAddresses">The inputs' addresses.</param>
+    /// <param name="InputType">The one script type every input has, or <see langword="null"/>.</param>
+    /// <param name="SmallestInput">The smallest input, when every input's amount is known.</param>
+    /// <param name="Seen">The earliest earlier transaction each output's address was seen in, by output index.</param>
+    /// <param name="Basis">The earlier transactions any output's address was seen in, each once.</param>
+    private sealed record Sightings(
+        IReadOnlySet<BitcoinAddress> InputAddresses,
+        BitcoinScriptType? InputType,
+        Satoshi? SmallestInput,
+        IReadOnlyDictionary<int, BitcoinTransaction?> Seen,
+        List<Txid> Basis)
+    {
+        /// <summary>Reads what a transaction and the case say about its outputs.</summary>
+        /// <param name="transaction">The transaction.</param>
+        /// <param name="outputs">Its outputs with an address.</param>
+        /// <param name="context">What the case knows around the transaction.</param>
+        /// <returns>The sightings.</returns>
+        public static Sightings Of(
+            BitcoinTransaction transaction, IReadOnlyList<BitcoinOutput> outputs, IHeuristicContext context)
+        {
+            var seen = outputs.ToDictionary(
+                output => output.Index, output => context.SeenBefore(output.Address!, transaction));
+            var basis = outputs.Select(output => seen[output.Index])
+                .OfType<BitcoinTransaction>()
+                .Select(earlier => earlier.Txid)
+                .Distinct()
+                .ToList();
+            return new Sightings(
+                transaction.InputAddresses().ToHashSet(),
+                transaction.CommonInputType(),
+                transaction.SmallestInput(),
+                seen,
+                basis);
+        }
+
+        /// <summary>Gives the earliest earlier transaction an output's address was seen in.</summary>
+        /// <param name="output">The output.</param>
+        /// <returns>The transaction, or <see langword="null"/> when the address is new.</returns>
+        public BitcoinTransaction? SeenBefore(BitcoinOutput output) => Seen[output.Index];
     }
 
     /// <summary>Says whether an output's amount is round (<see cref="TransactionShape.IsRound"/>).</summary>

@@ -14,6 +14,7 @@ internal sealed class FakeSource : IBitcoinSource
     /// <summary>The page size, small so that paging is tested.</summary>
     public const int PageSize = 3;
 
+    private readonly Lock _gate = new();
     private readonly Dictionary<Txid, BitcoinTransaction> _chain = [];
     private readonly HashSet<Txid> _givenTransactions = [];
     private readonly Dictionary<Txid, IReadOnlyList<BitcoinOutputSpend>> _givenSpends = [];
@@ -99,8 +100,20 @@ internal sealed class FakeSource : IBitcoinSource
         return Task.FromResult(Answer(LookupStatus.Fetched, transaction, ProblemOnFetch) with { Notes = NotesOnFetch });
     }
 
+    /// <summary>
+    /// Answers where a transaction's coins went, one call at a time: Tracing asks for several at once, as Chains
+    /// allows.
+    /// </summary>
     public Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> GetOutputSpendsAsync(
         ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            return OutputSpends(txid, mode);
+        }
+    }
+
+    private Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> OutputSpends(Txid txid, LookupMode mode)
     {
         Lookups += mode == LookupMode.CaseOnly ? 0 : 1;
         SpendLookups += mode == LookupMode.CaseOnly ? 0 : 1;
