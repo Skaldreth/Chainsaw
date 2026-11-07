@@ -173,8 +173,11 @@ internal sealed class RecordingWindowsHandlerFactory : IWindowsHandlerFactory
 
     public bool Fails { get; set; }
 
+    public Action? Building { get; set; }
+
     public HttpMessageHandler Create()
     {
+        Building?.Invoke();
         if (Fails)
         {
             throw new System.Security.Cryptography.CryptographicException("The stores cannot be read.");

@@ -59,8 +59,9 @@ public sealed class AppSettingsStore(string directory)
     }
 
     /// <summary>
-    /// Removes the file when it says Windows, after a choice of VPN could not be written, so that the next start takes
-    /// the defaults (VPN). A file that cannot be read or removed is left as it is.
+    /// Removes the file unless it can be read and says VPN, after a choice of VPN could not be written, so that the next
+    /// start takes the defaults (VPN) and never a Windows that the file still says. A file that cannot be removed is
+    /// left as it is.
     /// </summary>
     public void ForgetIfWindows()
     {
@@ -68,7 +69,7 @@ public sealed class AppSettingsStore(string directory)
         {
             try
             {
-                if (File.Exists(FilePath) && Load().ExitRoute == Modules.Network.Contracts.ExitRoute.Windows)
+                if (File.Exists(FilePath) && !SaysVpn())
                 {
                     File.Delete(FilePath);
                 }
@@ -77,6 +78,21 @@ public sealed class AppSettingsStore(string directory)
             {
                 // Nothing more can be done; the dialog says that the settings were not saved.
             }
+        }
+    }
+
+    /// <summary>Reads the file strictly: whether it can be read and says VPN, with no fall back to the defaults.</summary>
+    /// <returns><see langword="true"/> only when the file was read and says VPN.</returns>
+    private bool SaysVpn()
+    {
+        try
+        {
+            var read = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Json);
+            return read is not null && read.ExitRoute == Modules.Network.Contracts.ExitRoute.Vpn;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return false;
         }
     }
 

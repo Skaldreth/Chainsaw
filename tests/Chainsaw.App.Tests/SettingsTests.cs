@@ -447,6 +447,61 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void A_choice_of_vpn_whose_write_fails_removes_a_file_that_says_windows()
+    {
+        var store = _rig.SettingsStore;
+        store.Save(new AppSettings { ExitRoute = ExitRoute.Windows });
+        Directory.CreateDirectory(store.FilePath + ".tmp");
+
+        Settings.ChooseRoute(ExitRoute.Vpn);
+
+        Assert.True(SpinWait.SpinUntil(() => !File.Exists(store.FilePath) && Settings.HasError, Wait));
+        Assert.Equal(ExitRoute.Vpn, store.Load().ExitRoute);
+    }
+
+    [Fact]
+    public void An_unreadable_file_is_removed_after_a_failed_choice_of_vpn()
+    {
+        var store = _rig.SettingsStore;
+        store.Save(new AppSettings());
+        File.WriteAllText(store.FilePath, "{ not json");
+
+        store.ForgetIfWindows();
+
+        Assert.False(File.Exists(store.FilePath));
+    }
+
+    [Fact]
+    public void A_later_write_that_succeeds_clears_the_error_of_an_earlier_one()
+    {
+        var store = _rig.SettingsStore;
+        Directory.CreateDirectory(store.FilePath + ".tmp");
+        Settings.ChooseCurrency(Settings.CurrencyChoices[1]);
+        Assert.True(SpinWait.SpinUntil(() => Settings.HasError, Wait));
+        Directory.Delete(store.FilePath + ".tmp");
+
+        Settings.ChooseCurrency(Settings.CurrencyChoices[2]);
+
+        Assert.True(SpinWait.SpinUntil(
+            () => !Settings.HasError && File.Exists(store.FilePath) && store.Load().Currency == FiatCurrency.Eur, Wait));
+    }
+
+    [Fact]
+    public void The_cog_again_while_the_settings_are_open_keeps_what_is_written()
+    {
+        _rig.Profiles.Save(new OperatorProfile("Alex Berg", "Utredare", "Kryptogruppen"));
+        _rig.Shell.Show(AppView.Settings);
+        Assert.True(SpinWait.SpinUntil(() => Settings.ProfileName == "Alex Berg", Wait));
+        Settings.ProfileTitle = "Analytiker";
+
+        _rig.Shell.Show(AppView.Settings, SettingsPage.Profile);
+
+        Assert.True(Settings.IsOpen);
+        Assert.Equal(SettingsPage.Profile, Settings.Page);
+        Assert.Equal("Analytiker", Settings.ProfileTitle);
+    }
+
+    [Fact]
     public async Task Nothing_is_saved_before_the_profile_has_been_read()
     {
         await Settings.SaveProfileAsync();

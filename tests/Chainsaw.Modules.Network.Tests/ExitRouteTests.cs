@@ -219,6 +219,19 @@ public sealed class ExitRouteTests
     }
 
     [Fact]
+    public async Task Vpn_chosen_while_the_windows_pipeline_is_built_sends_nothing_through_windows()
+    {
+        _harness.Route.Choose(ExitRoute.Windows);
+        _harness.WindowsHandlers.Building = () => _harness.Route.Choose(ExitRoute.Vpn);
+
+        await Assert.ThrowsAsync<ExitNotConnectedException>(() => _harness.Http.SendAsync(ExitRequest.Get(Address)));
+
+        var built = Assert.Single(_harness.WindowsHandlers.Handlers);
+        Assert.True(built.Disposed);
+        Assert.Empty(built.Requests);
+    }
+
+    [Fact]
     public void The_container_gives_one_choice_and_refuses_an_unknown_way_at_the_start()
     {
         using var provider = new ServiceCollection()

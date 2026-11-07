@@ -296,6 +296,13 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="page">The settings' page, when the view is the settings; else ignored.</param>
     public void Show(AppView view, SettingsPage? page)
     {
+        if (view == AppView.Settings && Settings.IsOpen)
+        {
+            // Already open: only the page changes, so that nothing written is closed and read again.
+            Settings.Open(page);
+            return;
+        }
+
         DismissAll();
         if (view == AppView.New)
         {

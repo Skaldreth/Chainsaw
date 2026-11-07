@@ -1407,8 +1407,16 @@ Annan kedja (K). Allt som skrivs går genom modulerna (Attribution `Add`, Cluste
   - **M i TODO:** felens texter om utgången genom Windows, grön prick med Windows utan nät, en ansluten utgång i läget
     Windows, och intranätnamn genom en proxy.
 
-**Tester:** Network 226 (ExitRouteTests), App 500 (SettingsTests), Chains och Pricing med den förseglade vägen.
-1 646 i hela lösningen. Bygget utan varningar.
+- **Omgång 2:** inga C eller I. Sju M.
+  - **Rättade:**
+    - Kugghjulet medan dialogen är öppen byter bara sida, så att profilen inte läses om och skriver tillbaka gammalt.
+    - En fil som inte kan läsas strikt som VPN tas bort när ett VPN-val inte kunde skrivas.
+    - Bara den senaste skrivningens fel visas.
+    - Tester för valet av VPN som inte kan skrivas och för VPN som väljs medan Windows-pipelinen byggs.
+  - **M i TODO:** strängare låsning som inte kan skrivas, profilens fel efter stängning och sparningarnas ordning.
+
+**Tester:** Network 227 (ExitRouteTests), App 504 (SettingsTests), Chains och Pricing med den förseglade vägen.
+1 651 i hela lösningen. Bygget utan varningar.
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Inställningarna och Windows som utgång*), Utseende och
 Länkar, valet i förstagångsinställningen, och besluten i TODO.

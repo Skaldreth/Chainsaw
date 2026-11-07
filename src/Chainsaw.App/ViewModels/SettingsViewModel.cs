@@ -71,6 +71,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The writes of the settings' file, one after the other so that the latest is the one kept.</summary>
     private Task _saving = Task.CompletedTask;
 
+    /// <summary>Counts the writes, so that only the latest one's result is shown.</summary>
+    private int _writes;
+
     /// <summary>The profile as it was read or last saved, so that an unchanged profile is not written again.</summary>
     private OperatorProfile? _savedProfile;
 
@@ -265,6 +268,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <param name="page">The page, or <see langword="null"/> for the page shown last.</param>
     public void Open(SettingsPage? page = null)
     {
+        if (IsOpen)
+        {
+            ShowPage(page ?? Page);
+            return;
+        }
+
         _shown++;
         ShowPage(page ?? Page);
         ErrorText = string.Empty;
@@ -579,23 +588,31 @@ public sealed partial class SettingsViewModel : ObservableObject
         ShowChoices();
         ErrorText = string.Empty;
         var before = _saving;
-        _saving = SaveAfterAsync(before, settings);
+        _saving = SaveAfterAsync(before, settings, ++_writes);
     }
 
     /// <summary>Writes the settings once the write before has ended.</summary>
     /// <param name="before">The write before.</param>
     /// <param name="settings">The settings.</param>
+    /// <param name="write">The write's number; only the latest write's result is shown.</param>
     /// <returns>A task that completes when the file is written or the failure is shown.</returns>
-    private async Task SaveAfterAsync(Task before, AppSettings settings)
+    private async Task SaveAfterAsync(Task before, AppSettings settings, int write)
     {
         await before;
+        string result;
         try
         {
             await Task.Run(() => SaveOrForget(settings));
+            result = string.Empty;
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            ErrorText = SaveFailedText;
+            result = SaveFailedText;
+        }
+
+        if (write == _writes)
+        {
+            ErrorText = result;
         }
     }
 
