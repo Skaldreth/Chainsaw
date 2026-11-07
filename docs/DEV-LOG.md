@@ -761,3 +761,23 @@ Byggt efter skissen NC1a och skalet som det ser ut i koden (SH1b med pillret, si
 - **`/verify` som appens kommando:** kommandot ligger i appen och anropar `ICaseVerifier`, eftersom ett modulkommando
   som behöver det öppna ärendet kräver ett kontrakt för det (TODO).
 - **Nytt** i pillret öppnar panelen direkt; menyn PN1 (Nytt fälls ut ur pillret) väntar på användaren.
+
+**Granskningen:**
+- Omgång 1: inga C, fyra I och tio M. I rättade: en TRON-tx från en länk blev en Bitcoin-startpunkt när den lades i
+  raden eller panelen (värden som inte är Bitcoin skrivs nu med kedjan först, `tron:<hex>`, och läses tillbaka på
+  samma kedja, `Links/StartPointText`); en skapelse som en låsning avbröt sades som om ärendet aldrig skapats (nu
+  sägs att det finns, vad som inte hann göras och `/open`); första ärendets fel i inställningen visades aldrig (nu i
+  skalet); ärendemappen lästes på UI-tråden vid varje tangent (nu en lista som läses utanför UI-tråden när skalet
+  visas och efter varje öppning, skapelse och stängning). M rättade: ett felskrivet nummer eller ett nummer som finns
+  stänger inte längre det öppna ärendet, avslutet tar bort värden vad som än misslyckas, ett ärende som en låsning
+  stänger i bakgrunden väntas in innan det öppnas igen, en länk ersätter aldrig text i raden, titelns felmeddelande
+  nämner styrtecken. M i TODO: avslut mitt i en skapelse, svar efter en låsning, välja befintligt ärende för en
+  länk, pipens robusthet, testklassernas XML-dokumentation.
+- Omgång 2: inga C eller I, fyra M, rättade: första ärendet som en låsning avbröt sägs i skalet efter upplåsningen,
+  inställningens svar visas före en väntande länks förklaring, ett ärende som stängs efter en låsning under
+  öppningen väntas också in (`CaseSession.Release`), kedjans namn i `tron:` tas ur samma tabell som länken, och
+  avslutet släpper mutexen även om värden inte går att ta bort. I TODO: en länk som kommer medan raden har text sparas
+  inte.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`), registrera länken i Inställningar, öppna en kollegas fil
+med lösenord, ändra titeln i ett gränssnitt, sökning i kommandoraden, och punkterna under *Ärenden i appen* i TODO.

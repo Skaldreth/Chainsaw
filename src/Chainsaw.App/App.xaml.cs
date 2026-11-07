@@ -86,9 +86,15 @@ public partial class App : Application
         {
             // Disposing the host disposes the case store, which closes every case still open, also one that a lock
             // or a creation left closing in the background.
-            _host?.Dispose();
-            _instance?.Dispose();
-            base.OnExit(e);
+            try
+            {
+                _host?.Dispose();
+            }
+            finally
+            {
+                _instance?.Dispose();
+                base.OnExit(e);
+            }
         }
     }
 

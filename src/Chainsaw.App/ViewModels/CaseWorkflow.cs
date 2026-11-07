@@ -12,7 +12,10 @@ namespace Chainsaw.App.ViewModels;
 /// <param name="Reply">
 /// The answer; an error with <paramref name="IsCreated"/> true says what could not be done after the case existed.
 /// </param>
-public sealed record CaseCreation(bool IsCreated, CommandReply Reply);
+/// <param name="Exists">
+/// Whether the case file exists, also when the case is not open because Chainsaw locked while it was created.
+/// </param>
+public sealed record CaseCreation(bool IsCreated, CommandReply Reply, bool Exists = false);
 
 /// <summary>
 /// Opens, creates and closes cases for the window, one at a time: a case open before is always saved and closed
@@ -181,6 +184,7 @@ public sealed class CaseWorkflow
     {
         ArgumentNullException.ThrowIfNull(request);
         var isCreated = false;
+        var exists = false;
         var reply = await RunAlone(async () =>
         {
             // Checked before the open case is closed: a number that exists (also the open case's) is refused at once.
@@ -201,6 +205,7 @@ public sealed class CaseWorkflow
                 return CommandReply.Failed(closed.Prefix + CaseTexts.For(exception.Error));
             }
 
+            exists = true;
             if (!Keep(created.Case))
             {
                 return CommandReply.Failed(LockedAfterCreation(created.Case.Info.CaseNumber, created.Missed));
@@ -213,7 +218,7 @@ public sealed class CaseWorkflow
                 ? CommandReply.Done(text)
                 : CommandReply.Failed($"{text} Men {string.Join(" och ", created.Missed)}.");
         });
-        return new CaseCreation(isCreated, reply);
+        return new CaseCreation(isCreated, reply, exists);
     }
 
     /// <summary>Adds a start point to the open case through Tracing, with a line in the journal.</summary>
@@ -344,7 +349,7 @@ public sealed class CaseWorkflow
             return true;
         }
 
-        _ = Task.Run(() => CaseSession.DisposeQuietly(openCase));
+        _session.Release(openCase);
         return false;
     }
 

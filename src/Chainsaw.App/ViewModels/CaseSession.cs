@@ -100,8 +100,24 @@ public sealed class CaseSession
         }
 
         Current = null;
-        _closing = Task.Run(() => DisposeQuietly(openCase));
+        Release(openCase);
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Saves and closes, in the background, a case that was never made the open one (it was opened or created while
+    /// Chainsaw locked); <see cref="Settled"/> waits for it too, so that opening it again does not meet its lock file.
+    /// </summary>
+    /// <param name="openCase">The case.</param>
+    public void Release(ICase openCase)
+    {
+        ArgumentNullException.ThrowIfNull(openCase);
+        var before = _closing;
+        _closing = Task.Run(async () =>
+        {
+            await before;
+            DisposeQuietly(openCase);
+        });
     }
 
     /// <summary>Disposes a case; a failure to save keeps its working copy, which the next opening recovers.</summary>

@@ -49,7 +49,7 @@ public static class StartPointText
     {
         ArgumentNullException.ThrowIfNull(startPoint);
         return startPoint.Chain is { } chain && chain != Chain.Bitcoin
-            ? $"{chain.ToString().ToLowerInvariant()}:{startPoint.Value}"
+            ? $"{ChainNames.First(item => item.Value == chain).Key}:{startPoint.Value}"
             : startPoint.Value;
     }
 }

@@ -88,6 +88,15 @@ public sealed partial class FirstRunViewModel : ObservableObject
     /// </summary>
     public SharedKernel.Commands.CommandReply? CreationReply { get; private set; }
 
+    /// <summary>Takes the answer from creating the first case, so that it is shown once.</summary>
+    /// <returns>The answer, or <see langword="null"/> when there is none or it was taken.</returns>
+    public SharedKernel.Commands.CommandReply? TakeCreationReply()
+    {
+        var reply = CreationReply;
+        CreationReply = null;
+        return reply;
+    }
+
     /// <summary>Gets why the last step did not go on, or an empty text.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
@@ -457,13 +466,18 @@ public sealed partial class FirstRunViewModel : ObservableObject
             IsBusy = false;
         }
 
+        if (creation.Exists)
+        {
+            // Shown in the shell once it is shown, also after a lock that cut the creation short.
+            CreationReply = creation.Reply;
+        }
+
         if (!creation.IsCreated)
         {
             ErrorText = creation.Reply.Text;
             return;
         }
 
-        CreationReply = creation.Reply;
         Completed?.Invoke(this, EventArgs.Empty);
     }
 }

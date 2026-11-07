@@ -312,6 +312,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Pipens robusthet** (M8): mellan två anslutningar kan en annan användare hinna skapa pipen med samma namn, och
   länkar går då förlorade (inget annat händer); en andra start medan den första startar värden (mer än tre sekunder)
   tappar sin länk. Lyssna innan värden byggs, med en kö, och skapa nästa instans av pipen innan den förra hanteras.
+- **En länk medan raden har text** (granskningen etapp 11, omgång 2): länken läggs inte in och svaret försvinner vid
+  nästa tangent. Spara den som ett väntande förslag (i ledtråden) tills raden är tom.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
 - **Utgångens namn i titelraden** visas som platsen (eller namnet) först när utgången är ansluten; tunneln är inte
   byggd, så det har inte kunnat provas.

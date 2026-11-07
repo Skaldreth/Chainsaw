@@ -261,6 +261,34 @@ public sealed class FirstRunViewModelTests
     }
 
     [Fact]
+    public async Task A_first_case_cut_short_by_a_lock_is_said_in_the_shell_after_the_unlock()
+    {
+        var rig = await AtFirstCase();
+        rig.FirstRun.CaseNumber = "2026-0117";
+        rig.Cases.DuringCreate = () => rig.Vault.Lock();
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+        rig.Cases.DuringCreate = null;
+
+        await rig.LockScreen.UnlockAsync(new TestEntry("correct horse battery"));
+
+        Assert.True(rig.Gate.IsShellVisible);
+        Assert.Contains("/open 2026-0117", rig.Shell.CommandAnswer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_link_that_waited_through_the_setup_explains_itself_after_the_first_case()
+    {
+        var rig = await AtFirstCase();
+        rig.Links.Receive("chainsaw:bitcoin/" + Samples.Address);
+        rig.FirstRun.CaseNumber = "2026-0117";
+
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+
+        Assert.Equal(Samples.Address, rig.Shell.CommandText);
+        Assert.Contains("Från en länk", rig.Shell.CommandAnswer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task An_unknown_start_point_creates_no_first_case()
     {
         var rig = await AtFirstCase();

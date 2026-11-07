@@ -168,10 +168,6 @@ public sealed partial class GateViewModel : ObservableObject
         if (Mode == GateMode.FirstRun && _vault.State == VaultState.Unlocked)
         {
             Open();
-            if (FirstRun.CreationReply is { } reply)
-            {
-                _shell.Say(reply);
-            }
         }
     }
 
@@ -195,6 +191,13 @@ public sealed partial class GateViewModel : ObservableObject
         _autoLock.Touch();
         Mode = GateMode.Unlocked;
         _shell.OnShown();
+
+        // The first case's answer goes first, so that a link that waited explains itself after it.
+        if (FirstRun.TakeCreationReply() is { } reply)
+        {
+            _shell.Say(reply);
+        }
+
         _links.Open();
     }
 }
