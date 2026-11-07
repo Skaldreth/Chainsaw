@@ -66,7 +66,9 @@ internal sealed class Case : ICase
     /// <summary>The connection; <see langword="null"/> after close.</summary>
     private volatile CaseDatabase? _database;
 
-    /// <summary>Whether another module's work is running, so that nested calls are refused.</summary>
+    /// <summary>
+    /// Whether another module's work or one of the case's own operations is running; nested calls are refused.
+    /// </summary>
     private bool _inWork;
 
     /// <summary>
@@ -230,7 +232,7 @@ internal sealed class Case : ICase
         JournalRecords.ValidateFromModule(draft);
         lock (_gate)
         {
-            EnsureIdle();
+            using var operation = BeginOperation();
             return AppendOwnJournal(draft);
         }
     }
@@ -241,7 +243,7 @@ internal sealed class Case : ICase
         ArgumentOutOfRangeException.ThrowIfNegative(maximumCount);
         lock (_gate)
         {
-            EnsureIdle();
+            using var operation = BeginOperation();
             using var scope = Database.As(GuardMode.Internal);
             return JournalRecords.Read(Database, null, fromSequence, maximumCount);
         }
@@ -257,7 +259,7 @@ internal sealed class Case : ICase
 
         lock (_gate)
         {
-            EnsureIdle();
+            using var operation = BeginOperation();
             var envelope = KeyEnvelopes.CreatePassword(
                 Info.Id, _fileKey, password, _services.Options.SharingIterations);
             AppendOwnJournal(new JournalDraft(
@@ -273,7 +275,7 @@ internal sealed class Case : ICase
     {
         lock (_gate)
         {
-            EnsureIdle();
+            using var operation = BeginOperation();
             if (!HasSharingPasswordUnlocked())
             {
                 return;
@@ -296,7 +298,7 @@ internal sealed class Case : ICase
     {
         lock (_gate)
         {
-            EnsureIdle();
+            using var operation = BeginOperation();
             if (VaultHasEnvelope())
             {
                 return;
@@ -325,7 +327,7 @@ internal sealed class Case : ICase
     {
         lock (_gate)
         {
-            EnsureIdle();
+            using var operation = BeginOperation();
             SaveUnlocked();
         }
     }
@@ -432,7 +434,7 @@ internal sealed class Case : ICase
     {
         lock (_gate)
         {
-            EnsureIdle();
+            using var operation = BeginOperation();
             var database = Database;
             using var scope = database.As(GuardMode.Internal);
             try
@@ -649,7 +651,7 @@ internal sealed class Case : ICase
         }
     }
 
-    /// <summary>Seals a record as the Cases module.</summary>
+    /// <summary>Seals a record as the Cases module, in the narrow sealing mode.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="chain">The chain.</param>
     /// <param name="values">The values.</param>
@@ -657,9 +659,13 @@ internal sealed class Case : ICase
     private SealedRecord SealAsCases(SqliteTransaction transaction, SealedChain chain, IReadOnlyList<object?> values)
     {
         var database = Database;
-        using var scope = database.As(GuardMode.Internal);
         var shape = _shapes.GetValueOrDefault(chain.Name) ?? throw new CaseException(CaseError.Corrupt);
-        return HashChain.Append(database, transaction, chain, shape, values);
+
+        // Everything that can fail on the values is done before any rights are given; the sealing itself may only
+        // insert into this table and move the head.
+        var normalized = HashChain.Normalize(chain, shape, values);
+        using var scope = database.AsSealing(chain.Table);
+        return HashChain.Append(database, transaction, chain, normalized);
     }
 
     /// <summary>Gets the operator from the vault for the journal.</summary>
@@ -706,6 +712,19 @@ internal sealed class Case : ICase
     /// <summary>Checks for a sharing envelope while the gate is held.</summary>
     /// <returns><see langword="true"/> when there is one.</returns>
     private bool HasSharingPasswordUnlocked() => KeyEnvelopes.OfKind(_header, KeyEnvelopes.PasswordKind).Any();
+
+    /// <summary>
+    /// Starts one of the case's own operations: the case must be open and nothing may be running, also not on this
+    /// thread (the gate lets the same thread in again, for example from a handler of an exception during an
+    /// operation).
+    /// </summary>
+    /// <returns>The operation, which ends when disposed.</returns>
+    private Operation BeginOperation()
+    {
+        EnsureIdle();
+        _inWork = true;
+        return new Operation(this);
+    }
 
     /// <summary>Starts another module's work: the case must be open and no other work may be running.</summary>
     /// <returns>The database.</returns>
@@ -775,5 +794,13 @@ internal sealed class Case : ICase
         return JsonSerializer.SerializeToElement(SchemaMigrator.ReadVersions(database)
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)
             .ToDictionary(pair => pair.Key, pair => pair.Value));
+    }
+
+    /// <summary>Ends one of the case's own operations when disposed.</summary>
+    /// <param name="owner">The case.</param>
+    private readonly struct Operation(Case owner) : IDisposable
+    {
+        /// <summary>Ends the operation.</summary>
+        public void Dispose() => owner._inWork = false;
     }
 }

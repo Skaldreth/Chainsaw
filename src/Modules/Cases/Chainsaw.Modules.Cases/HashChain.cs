@@ -231,21 +231,14 @@ internal static class HashChain
     }
 
     /// <summary>Adds a record, seals it and moves the chain's head, in the caller's transaction.</summary>
-    /// <param name="database">The database, in <see cref="GuardMode.Internal"/>.</param>
+    /// <param name="database">The database, in <see cref="GuardMode.Sealing"/> for the chain's table.</param>
     /// <param name="transaction">The transaction.</param>
     /// <param name="chain">The chain.</param>
-    /// <param name="types">The declared types of the content columns (from <see cref="ReadShape"/>).</param>
-    /// <param name="values">The values, one per content column.</param>
+    /// <param name="normalized">The values from <see cref="Normalize"/>, one per content column.</param>
     /// <returns>The sealed record.</returns>
-    /// <exception cref="ArgumentException">The values do not match the columns.</exception>
     public static SealedRecord Append(
-        CaseDatabase database,
-        SqliteTransaction transaction,
-        SealedChain chain,
-        IReadOnlyList<string> types,
-        IReadOnlyList<object?> values)
+        CaseDatabase database, SqliteTransaction transaction, SealedChain chain, object?[] normalized)
     {
-        var normalized = Normalize(chain, types, values);
         var (headSequence, previous) = ReadHead(database, transaction, chain.Name);
         var sequence = headSequence + 1;
         var hash = SealCodec.Hash(previous ?? SealCodec.Genesis, chain.Name, sequence, normalized);
@@ -417,7 +410,7 @@ internal static class HashChain
     /// <param name="values">The values.</param>
     /// <returns>The values, with <see cref="int"/> widened to <see cref="long"/>.</returns>
     /// <exception cref="ArgumentException">A value is missing or has the wrong type.</exception>
-    private static object?[] Normalize(SealedChain chain, IReadOnlyList<string> types, IReadOnlyList<object?> values)
+    public static object?[] Normalize(SealedChain chain, IReadOnlyList<string> types, IReadOnlyList<object?> values)
     {
         ArgumentNullException.ThrowIfNull(values);
         if (values.Count != chain.ContentColumns.Count)

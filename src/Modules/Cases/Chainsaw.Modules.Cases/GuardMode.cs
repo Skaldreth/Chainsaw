@@ -15,6 +15,12 @@ internal enum GuardMode
     Internal,
 
     /// <summary>
+    /// The Cases module sealing one record: inserting into that one sealed table, moving the chains' heads and
+    /// reading; nothing else, so that nothing that runs during the sealing can do more.
+    /// </summary>
+    Sealing,
+
+    /// <summary>
     /// Another module's schema step: its own tables may be created, changed and dropped, but the protected tables,
     /// transactions, attached databases and settings may not be touched.
     /// </summary>

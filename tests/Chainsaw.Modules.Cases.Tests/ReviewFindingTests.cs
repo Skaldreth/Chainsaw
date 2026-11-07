@@ -334,6 +334,108 @@ public sealed class ReviewFindingTests : IDisposable
     }
 
     [Fact]
+    public void A_reader_disposed_from_an_exception_filter_while_cases_seals_runs_nothing()
+    {
+        using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
+
+        opened.Write(transaction =>
+        {
+            var command = transaction.CreateCommand(
+                "SELECT 1; UPDATE chain_head SET sequence = 999 WHERE chain = 'cases.journal'");
+            var reader = command.ExecuteReader();
+            reader.Read();
+            try
+            {
+                transaction.AppendSealed("test.sealed", [1.5m, 1L]);
+            }
+            catch (ArgumentException) when (DisposeAndKeepGoing(reader))
+            {
+            }
+            catch (ArgumentException)
+            {
+            }
+
+            return 0;
+        });
+
+        Assert.True(new CaseVerifier(_fixture.Clock).Verify(opened).IsIntact);
+    }
+
+    [Fact]
+    public void A_reader_disposed_from_a_first_chance_handler_while_cases_seals_runs_nothing()
+    {
+        using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
+        var thread = Environment.CurrentManagedThreadId;
+        DbDataReader? reader = null;
+        void Handler(object? sender, System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs args)
+        {
+            if (Environment.CurrentManagedThreadId == thread && reader is not null)
+            {
+                var kept = reader;
+                reader = null;
+                kept.Dispose();
+            }
+        }
+
+        AppDomain.CurrentDomain.FirstChanceException += Handler;
+        try
+        {
+            _ = Record.Exception(() => opened.Write(transaction =>
+            {
+                var command = transaction.CreateCommand(
+                    "SELECT 1; UPDATE chain_head SET sequence = 4242 WHERE chain = 'cases.journal'");
+                reader = command.ExecuteReader();
+                reader.Read();
+                return transaction.AppendSealed("test.sealed", ["x", "inte ett tal"]);
+            }));
+        }
+        finally
+        {
+            AppDomain.CurrentDomain.FirstChanceException -= Handler;
+        }
+
+        Assert.True(new CaseVerifier(_fixture.Clock).Verify(opened).IsIntact);
+    }
+
+    [Fact]
+    public void An_operation_cannot_be_entered_again_from_inside_another()
+    {
+        using var opened = _fixture.CreateStore().Create("A1");
+        var thread = Environment.CurrentManagedThreadId;
+        Exception? nested = null;
+        var armed = true;
+        void Handler(object? sender, System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs args)
+        {
+            if (armed && Environment.CurrentManagedThreadId == thread)
+            {
+                armed = false;
+                nested = Record.Exception(() => opened.AppendJournal(new JournalDraft("test.note", "Inuti")));
+            }
+        }
+
+        AppDomain.CurrentDomain.FirstChanceException += Handler;
+        try
+        {
+            _ = Record.Exception(() => opened.SetSharingPassword("för kort"));
+            _ = Record.Exception(() => opened.ReadJournal(maximumCount: -1));
+            armed = true;
+            opened.Save();
+        }
+        finally
+        {
+            AppDomain.CurrentDomain.FirstChanceException -= Handler;
+        }
+
+        Assert.True(nested is null or InvalidOperationException);
+    }
+
+    [Fact]
+    public void A_missing_step_is_refused_as_an_argument()
+    {
+        Assert.Throws<ArgumentException>(() => _fixture.CreateStore(new TestSchema([null!])));
+    }
+
+    [Fact]
     public void A_module_named_cases_is_refused()
     {
         Assert.Throws<ArgumentException>(() => _fixture.CreateStore(new FickleSchema { Name = "cases" }));
@@ -506,6 +608,12 @@ public sealed class ReviewFindingTests : IDisposable
         }
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    private static bool DisposeAndKeepGoing(DbDataReader reader)
+    {
+        reader.Dispose();
+        return false;
     }
 
     /// <summary>A contributor that changes its answers after the store has checked them.</summary>

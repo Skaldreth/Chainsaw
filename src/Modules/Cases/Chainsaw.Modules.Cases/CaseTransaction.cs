@@ -84,13 +84,27 @@ internal sealed class CaseTransaction(Case owner, SqliteTransaction transaction,
     /// <summary>Marks the work as returned and disposes its commands, so that kept references no longer work.</summary>
     public void End()
     {
-        _ended = true;
+        // Released before the handle ends, in the work's scope: the rest of a reader runs with the work's rights. Each
+        // command is released even when another fails, and the first failure fails the work.
+        Exception? failure = null;
         foreach (var command in _commands)
         {
-            command.Dispose();
+            try
+            {
+                command.Release();
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                failure ??= exception;
+            }
         }
 
+        _ended = true;
         _commands.Clear();
+        if (failure is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(failure);
+        }
     }
 
     /// <summary>Refuses writing from a reader or after the work has returned.</summary>

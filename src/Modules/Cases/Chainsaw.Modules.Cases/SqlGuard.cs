@@ -24,6 +24,9 @@ internal sealed class SqlGuard
     /// <summary>The prefix of the triggers that protect sealed tables; such a trigger can never be dropped.</summary>
     public const string SealTriggerPrefix = "seal_";
 
+    /// <summary>The table of the chains' heads, which sealing moves.</summary>
+    private const string HeadTable = "chain_head";
+
     /// <summary>The prefix of SQLite's own tables.</summary>
     private const string SqlitePrefix = "sqlite_";
 
@@ -82,6 +85,16 @@ internal sealed class SqlGuard
     /// </summary>
     public int OwnerThread { get; set; }
 
+    /// <summary>Gets or sets the sealed table that <see cref="GuardMode.Sealing"/> may insert into.</summary>
+    public string? SealingTable { get; set; }
+
+    /// <summary>Gets or sets the whole state at once.</summary>
+    public GuardState State
+    {
+        get => new(Mode, OwnerThread, SealingTable);
+        set => (Mode, OwnerThread, SealingTable) = (value.Mode, value.Thread, value.SealingTable);
+    }
+
     /// <summary>Adds sealed tables, for example those of modules this build does not know.</summary>
     /// <param name="tables">The tables.</param>
     public void AddSealed(IEnumerable<string> tables) => _sealedTables = _sealedTables.Union(tables);
@@ -105,6 +118,7 @@ internal sealed class SqlGuard
         var allowed = Mode switch
         {
             GuardMode.Internal => true,
+            GuardMode.Sealing => AllowsSealing(kind, first, second),
             GuardMode.Migrating => AllowsMigrating(kind, first, second),
             GuardMode.Writing => AllowsWriting(kind, first, second),
             _ => AllowsReading(kind, first, second),
@@ -130,6 +144,19 @@ internal sealed class SqlGuard
             && (DeniedFunctions.Contains(second)
                 || second.StartsWith(CipherFunctionPrefix, StringComparison.OrdinalIgnoreCase)),
         _ => false,
+    };
+
+    /// <summary>What the Cases module may do while sealing one record.</summary>
+    /// <param name="action">The action.</param>
+    /// <param name="first">The first detail.</param>
+    /// <param name="second">The second detail.</param>
+    /// <returns><see langword="true"/> when allowed.</returns>
+    private bool AllowsSealing(SqliteAction action, string? first, string? second) => action switch
+    {
+        SqliteAction.Insert => string.Equals(first, SealingTable, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(first, HeadTable, StringComparison.OrdinalIgnoreCase),
+        SqliteAction.Update => string.Equals(first, HeadTable, StringComparison.OrdinalIgnoreCase),
+        _ => AllowsReading(action, first, second),
     };
 
     /// <summary>What another module's schema step may do.</summary>

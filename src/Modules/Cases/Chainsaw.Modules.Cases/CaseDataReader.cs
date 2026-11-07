@@ -109,16 +109,24 @@ internal sealed class CaseDataReader(DbDataReader inner, Func<bool> isActive) : 
     /// <inheritdoc />
     public override IEnumerator GetEnumerator() => new DbEnumerator(this, closeReader: false);
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Disposes SQLite's reader at once only while the work runs: disposing it runs the rest of the command's
+    /// statements, which must never happen with anyone else's rights. Otherwise <see cref="Release"/> does it when the
+    /// work ends.
+    /// </summary>
+    /// <param name="disposing">Whether this is a call to <see cref="IDisposable.Dispose"/>.</param>
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && isActive())
         {
             inner.Dispose();
         }
 
         base.Dispose(disposing);
     }
+
+    /// <summary>Disposes SQLite's reader; called by the work's end, inside the work's own scope.</summary>
+    internal void Release() => inner.Dispose();
 
     /// <summary>Gives SQLite's reader while the work runs.</summary>
     /// <returns>The reader.</returns>

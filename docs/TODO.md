@@ -116,6 +116,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Ankarfil som inte går att läsa:** journalen säger då *Unreadable* utan att lista kedjornas lägen; en återställning
   som sker samtidigt syns som en ersättning av ankarna men inte med vilka poster som saknas. Ankarna kan skrivas med
   kedjornas huvuden i detaljerna (granskningen etapp 3, omgång 3, M).
+- **Vem som förseglade en post:** en modul kan försegla poster i en annan moduls kedja (inte i Cases egna), och posten
+  säger inte vilken modul som skrev den. Bind transaktionen till sin modul eller skriv modulen i posten
+  (granskningen etapp 3, omgång 5, M).
 - **`CasesOptions` är publik i implementationsprojektet** (som `VaultOptions`), eftersom `AddCasesModule` tar den.
   Flytta båda till Contracts eller till ett eget alternativ-gränssnitt om regeln ska vara strikt.
 - **Ankarna och flera datorer:** ankarna är per valv och dator. Ett ärende som arbetats med på en annan dator och sedan

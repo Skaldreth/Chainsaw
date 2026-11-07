@@ -14,6 +14,9 @@ namespace Chainsaw.Modules.Cases;
 /// <param name="isActive">Tells whether the work is still running.</param>
 internal sealed class CaseCommand(SqliteCommand inner, Func<bool> isActive) : DbCommand
 {
+    /// <summary>The readers handed out, released when the work ends.</summary>
+    private readonly List<CaseDataReader> _readers = [];
+
     /// <inheritdoc />
     [AllowNull]
     public override string CommandText
@@ -100,18 +103,43 @@ internal sealed class CaseCommand(SqliteCommand inner, Func<bool> isActive) : Db
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
     {
         EnsureActive();
-        return new CaseDataReader(inner.ExecuteReader(behavior & ~CommandBehavior.CloseConnection), isActive);
+        var reader = new CaseDataReader(inner.ExecuteReader(behavior & ~CommandBehavior.CloseConnection), isActive);
+        _readers.Add(reader);
+        return reader;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Disposes SQLite's command at once only while the work runs, since disposing it can run statements a reader
+    /// left; otherwise <see cref="Release"/> does it when the work ends.
+    /// </summary>
+    /// <param name="disposing">Whether this is a call to <see cref="IDisposable.Dispose"/>.</param>
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && isActive())
         {
-            inner.Dispose();
+            Release();
         }
 
         base.Dispose(disposing);
+    }
+
+    /// <summary>
+    /// Disposes the readers and SQLite's command; called by the work's end, inside the work's own scope.
+    /// </summary>
+    internal void Release()
+    {
+        try
+        {
+            foreach (var reader in _readers)
+            {
+                reader.Release();
+            }
+        }
+        finally
+        {
+            _readers.Clear();
+            inner.Dispose();
+        }
     }
 
     /// <summary>Refuses to run after the module's work has returned.</summary>

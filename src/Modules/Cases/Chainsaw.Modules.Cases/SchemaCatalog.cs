@@ -101,7 +101,7 @@ internal sealed partial class SchemaCatalog
     private static ContributorSnapshot Snapshot(ICaseSchemaContributor contributor)
     {
         ArgumentNullException.ThrowIfNull(contributor);
-        var steps = (contributor.Steps ?? []).Select(step => step with { }).ToArray();
+        var steps = (contributor.Steps ?? []).Select(step => step is null ? null! : step with { }).ToArray();
         var chains = (contributor.SealedChains ?? [])
             .Select(chain => new SealedChain(chain.Name, chain.Table, [.. chain.ContentColumns ?? []]))
             .ToArray();
