@@ -306,7 +306,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            BorderThickness="1.5" CornerRadius="8" Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
@@ -476,6 +476,8 @@
 
     <!-- A button in the graph's corner (sketch GR4): 30 px, a grey frame, the method or the amounts. -->
     <Style x:Key="Button.Graph" TargetType="Button">
+        <!-- 1.5 px, so that the pill-shaped buttons hold their own against the graph's lines (2026-11-07). -->
+        <Setter Property="BorderThickness" Value="1.5" />
         <Setter Property="Height" Value="30" />
         <Setter Property="Padding" Value="12,0" />
         <Setter Property="FontSize" Value="14" />
