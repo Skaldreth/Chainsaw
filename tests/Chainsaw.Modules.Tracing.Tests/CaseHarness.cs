@@ -22,7 +22,7 @@ internal sealed class CaseHarness : IDisposable
     private readonly string _directory =
         Path.Combine(Path.GetTempPath(), "chainsaw-tracing-" + Guid.NewGuid().ToString("N"));
 
-    public CaseHarness()
+    public CaseHarness(Action<IServiceCollection>? configure = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IVault, FakeVault>();
@@ -38,6 +38,7 @@ internal sealed class CaseHarness : IDisposable
         services.AddClusteringModule();
         services.AddTracingModule();
         services.AddSingleton<ITrailEndClassifier>(Labels);
+        configure?.Invoke(services);
         _provider = services.BuildServiceProvider();
         Store = _provider.GetRequiredService<ICaseStore>();
         Case = Store.Create(CaseNumber);

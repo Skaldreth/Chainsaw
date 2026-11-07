@@ -15,7 +15,9 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 /// <param name="StartPoints">The trace's start points.</param>
 /// <param name="Nodes">The actors, in a stable order: the start points first, then by hop and time.</param>
 /// <param name="Edges">The transfers between actors, summed per pair, kind and asset.</param>
-/// <param name="Utxo">The UTXO model's part: the transactions, whether their coins are spent, and where they end.</param>
+/// <param name="Utxo">
+/// The UTXO model's part: the transactions, whether their coins are spent, and where the trail ends at them.
+/// </param>
 /// <param name="CrossChainLinks">The user's links to other chains that are in force.</param>
 /// <param name="Expansions">What the user has expanded.</param>
 /// <param name="Problems">What could not be read, in Swedish; empty when everything was there.</param>

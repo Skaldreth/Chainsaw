@@ -55,7 +55,8 @@ public readonly record struct AssetAmount : IComparable<AssetAmount>
         var whole = parts[0];
         var fraction = parts.Length == 2 ? parts[1] : string.Empty;
         if (parts.Length > 2 || whole.Length == 0 || fraction.Length > asset.Decimals
-            || !whole.All(char.IsAsciiDigit) || !fraction.All(char.IsAsciiDigit) || (parts.Length == 2 && fraction.Length == 0))
+            || !whole.All(char.IsAsciiDigit) || !fraction.All(char.IsAsciiDigit)
+            || (parts.Length == 2 && fraction.Length == 0))
         {
             throw new FormatException($"Not an amount of {asset.Symbol} with at most {asset.Decimals} decimals.");
         }
@@ -150,5 +151,6 @@ public readonly record struct AssetAmount : IComparable<AssetAmount>
     private static Asset Same(AssetAmount left, AssetAmount right) =>
         left.Asset is not null && left.Asset == right.Asset
             ? left.Asset
-            : throw new InvalidOperationException($"Amounts of {left.Asset} and {right.Asset} cannot be counted together.");
+            : throw new InvalidOperationException(
+                $"Amounts of {left.Asset} and {right.Asset} cannot be counted together.");
 }

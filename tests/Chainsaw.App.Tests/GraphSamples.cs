@@ -223,7 +223,12 @@ internal static class GraphSamples
             index, false, TxidOf(90 + number), index, input.Address, BitcoinScriptType.PayToWitnessPublicKeyHash,
             Satoshi.FromBitcoin(input.Amount), 0)).ToList();
         var outs = outputs.Select((output, index) => new BitcoinOutput(
-            index, BitcoinScriptType.PayToWitnessPublicKeyHash, output.Address, Satoshi.FromBitcoin(output.Amount), "", null)).ToList();
+            index,
+            BitcoinScriptType.PayToWitnessPublicKeyHash,
+            output.Address,
+            Satoshi.FromBitcoin(output.Amount),
+            "",
+            null)).ToList();
         var fee = Satoshi.FromBitcoin(inputs.Sum(input => input.Amount) - outputs.Sum(output => output.Amount));
         return new BitcoinTransaction(TxidOf(number), Block(100 + number), ins, outs, fee, 200, 800, 2, 0);
     }

@@ -97,7 +97,8 @@ public sealed partial class CoinChoice(IncomingCoin coin) : ObservableObject
     public IncomingCoin Coin { get; } = coin;
 
     /// <summary>Gets the row's text: the amount and the transaction it came in.</summary>
-    public string Text { get; } = $"{AmountText.WithUnit(coin.Amount)} · tx {GraphScene.Shorten(coin.Coin.Txid.Value)}";
+    public string Text { get; } =
+        $"{AmountText.WithUnit(coin.Amount)} · tx {GraphScene.Shorten(coin.Coin.Txid.Value)}";
 
     /// <summary>Gets the coin in full and when it came.</summary>
     public string ToolTip { get; } = coin.Time is { } time

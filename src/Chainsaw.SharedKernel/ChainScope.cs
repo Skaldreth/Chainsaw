@@ -40,7 +40,9 @@ public sealed record ChainScope
     /// <returns>The scope.</returns>
     public static ChainScope AllOf(LedgerModel model) => new(model, null);
 
-    /// <summary>Gives a scope of some chains, all of the same model, as for a heuristic that knows their habits.</summary>
+    /// <summary>
+    /// Gives a scope of some chains, all of the same model, as for a heuristic that knows their habits.
+    /// </summary>
     /// <param name="chain">The first chain.</param>
     /// <param name="more">Further chains.</param>
     /// <returns>The scope.</returns>

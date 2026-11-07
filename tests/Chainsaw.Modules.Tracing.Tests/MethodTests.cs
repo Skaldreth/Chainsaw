@@ -155,7 +155,9 @@ public sealed class ConservationTests
         }
 
         var seeds = transactions.SelectMany(tx => tx.Outputs.Take(1).Select(output =>
-            new TraceSeed(new Outpoint(tx.Txid, output.Index), new Satoshi(output.Amount.Value - random.Next(1_000)).ToAmount())))
+            new TraceSeed(
+                new Outpoint(tx.Txid, output.Index),
+                new Satoshi(output.Amount.Value - random.Next(1_000)).ToAmount())))
             .ToList();
         for (var n = 0; n < 40 && unspent.Count > 0; n++)
         {
@@ -184,7 +186,8 @@ public sealed class ConservationTests
 
         var traced = seeds.Aggregate(AssetAmount.Zero(Asset.Bitcoin), (sum, s) => sum + s.Amount!.Value);
         Assert.Equal(traced, result.Traced);
-        Assert.Equal(traced, result.Ends.Aggregate(AssetAmount.Zero(Asset.Bitcoin), (sum, end) => sum + end.Amount.Amount));
+        Assert.Equal(
+            traced, result.Ends.Aggregate(AssetAmount.Zero(Asset.Bitcoin), (sum, end) => sum + end.Amount.Amount));
         Assert.All(result.Transactions, tx => Assert.Equal(
             tx.In, tx.Outputs.Aggregate(tx.Fee, (sum, amount) => sum + amount)));
         Assert.All(result.Coins, coin => Assert.True(

@@ -43,6 +43,6 @@ public sealed record AccountEntry(AssetTransfer Transfer, TransferDirection Dire
 public sealed record AccountLedger(ChainAddress Account, AssetAmount Opening, IReadOnlyList<AccountEntry> Entries);
 
 /// <summary>How the traced money went through one account, by one method.</summary>
-/// <param name="Outgoing">The traced part of each outgoing entry, in the ledger's order of the outgoing entries.</param>
+/// <param name="Outgoing">The traced part of each outgoing entry, in the ledger's order.</param>
 /// <param name="Remaining">The traced money still in the account after the last entry.</param>
 public sealed record AccountTaint(IReadOnlyList<AssetAmount> Outgoing, AssetAmount Remaining);

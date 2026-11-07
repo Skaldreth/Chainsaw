@@ -6,10 +6,11 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
-/// Traces money through a graph's coins (the UTXO model) by one method. Every coin that holds traced money either goes on into a transaction
-/// in the graph or ends, with a reason; every transaction is counted once, after every transaction it spends from;
-/// and the ends add up to what was traced, which is checked before anything is returned. The method counts in the
-/// chain's smallest unit; the result counts in the chain's coin as an <see cref="AssetAmount"/>.
+/// Traces money through a graph's coins (the UTXO model) by one method. Every coin that holds traced money either
+/// goes on into a transaction in the graph or ends, with a reason; every transaction is counted once, after every
+/// transaction it spends from; and the ends add up to what was traced, which is checked before anything is returned.
+/// The method counts in the chain's smallest unit; the result counts in the chain's coin as an
+/// <see cref="AssetAmount"/>.
 /// </summary>
 internal sealed class TraceCalculator
 {

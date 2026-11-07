@@ -23,7 +23,8 @@ public sealed record TracedAmount(AssetAmount Amount, TracingMethodId Method, IR
     {
         var text = new StringBuilder();
         text.Append(
-            CultureInfo.InvariantCulture, $"Spårat belopp {Amount.ToDecimalString()} {Amount.Asset.Symbol} enligt {Method}");
+            CultureInfo.InvariantCulture,
+            $"Spårat belopp {Amount.ToDecimalString()} {Amount.Asset.Symbol} enligt {Method}");
         text.Append(Through.Count == 0
             ? ", direkt ur startpunkten."
             : string.Create(

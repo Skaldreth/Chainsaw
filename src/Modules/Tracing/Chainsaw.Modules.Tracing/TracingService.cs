@@ -36,9 +36,13 @@ internal sealed class TracingService : ITracingService
     /// <param name="source">Bitcoin's facts.</param>
     /// <param name="clustering">The clusters and the analyses.</param>
     /// <param name="classifiers">What recognises the ends of the trail.</param>
-    /// <param name="methods">The tracing methods, for every model and chain; Bitcoin's are the UTXO methods that cover it.</param>
+    /// <param name="methods">
+    /// The tracing methods, for every model and chain; Bitcoin's are the UTXO methods that cover it.
+    /// </param>
     /// <param name="clock">The clock.</param>
-    /// <exception cref="ArgumentException">The methods are not registered properly (see <see cref="TracingMethods"/>).</exception>
+    /// <exception cref="ArgumentException">
+    /// The methods are not registered properly (see <see cref="TracingMethods"/>).
+    /// </exception>
     public TracingService(
         IBitcoinSource source,
         IClusteringService clustering,

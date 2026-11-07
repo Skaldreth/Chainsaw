@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Globalization;
 using System.Text;
 using Chainsaw.Modules.Tracing.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Chainsaw.Modules.Tracing.Tests;
 
@@ -14,13 +15,27 @@ public sealed class GoldenTests : IDisposable
 {
     private const string Facit = "bitcoin-flow.txt";
 
-    private readonly CaseHarness _harness = new();
     private readonly Flows _flows = new();
+    private CaseHarness _harness = new();
 
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task Bitcoins_graph_results_and_sealed_data_are_unchanged()
+    public Task Bitcoins_graph_results_and_sealed_data_are_unchanged() => CompareWithFacit();
+
+    [Fact]
+    public Task An_account_model_registered_beside_Bitcoin_changes_nothing_for_Bitcoin()
+    {
+        _harness.Dispose();
+        _harness = new CaseHarness(services =>
+        {
+            services.AddSingleton<ITracingMethod>(new AccountFifo());
+            services.AddSingleton<Clustering.Contracts.IClusteringHeuristic>(new DepositSweep());
+        });
+        return CompareWithFacit();
+    }
+
+    private async Task CompareWithFacit()
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         await _flows.ExpandInto(_harness);
@@ -175,4 +190,26 @@ public sealed class GoldenTests : IDisposable
     }
 
     private static string Invariant(string text) => text;
+
+    /// <summary>A tracing method for Ethereum's accounts, with the same kind and version as Bitcoin's FIFO.</summary>
+    private sealed class AccountFifo : IAccountTracingMethod
+    {
+        public TracingMethodId Id { get; } = new(TracingMethodKind.Fifo, 1);
+
+        public SharedKernel.ChainScope Scope { get; } = SharedKernel.ChainScope.Only(SharedKernel.Chain.Ethereum);
+
+        public AccountTaint Propagate(AccountLedger ledger) =>
+            throw new InvalidOperationException("Never called for Bitcoin.");
+    }
+
+    /// <summary>
+    /// A heuristic for the account model with the name of one of Bitcoin's, which must never run on Bitcoin nor be
+    /// named in its journal.
+    /// </summary>
+    private sealed class DepositSweep : Clustering.Contracts.IClusteringHeuristic
+    {
+        public Clustering.Contracts.HeuristicId Id { get; } = new(Clustering.Contracts.HeuristicNames.CoinJoin, 1);
+
+        public SharedKernel.ChainScope Scope { get; } = SharedKernel.ChainScope.AllOf(SharedKernel.LedgerModel.Account);
+    }
 }
