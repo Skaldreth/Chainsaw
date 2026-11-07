@@ -246,7 +246,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   blir stor. Bildspråket finns bakom ett *?* i grafens hörn.
 - **Startpunkten är neutral** (användarens beslut 2026-11-07): en startpunkt behåller sin sort (okänd, kluster, tjänst)
   och får en egen markering som startpunkt, eftersom den lika gärna kan vara den misstänktes plånbok som offrets. Offret
-  är en etikett, inte startpunktens sort.
+  är en etikett, inte startpunktens sort. Markeringen är **en liten flagga i hörnet** som de andra markeringarna (skiss GR5
+  variant A, användarens beslut 2026-11-07).
 - **Nodernas namn** (användarens beslut 2026-11-07): en nod utan namn heter efter adressen förkortad (`bc1q…x0wl`), inte
   en numrering. En nod som fått ett namn (en etikett eller ett eget namn) visar namnet, med adressen under i nedtonat
   grått, förkortad bara när den inte får plats.
@@ -267,6 +268,11 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   kant och går över i menyn, en enda form med samma yta, kant och skugga och ett rundat inre hörn. Det är det allmänna
   sättet att visa undermenyer i pillret; Nytt är den första.
   **Fönstret har runda hörn som Gawk** (Windows 11 ritar dem, `Interop/WindowFrame.cs`; användarens beslut 2026-11-07).
+- **Inspektörens formulär är IN1a** (användarens beslut 2026-11-07): Etikett (L), Bryt upp (U) och Annan kedja (K) fälls
+  ut i inspektören till höger. **Utgångarna är UT1a**: utgången i titelraden fäller ut en ruta med utgångarna, anslut och
+  koppla ner, *Lägg till WireGuard-fil …* och vägen till källorna. **Guiden är GD1b**: en panel från höger bredvid
+  arbetet, öppnad från *Varför?*, *?* och spårningsmetoden, med svaret för det valda överst och *Öppna i Guide* till
+  hela vyn (F1).
 - **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, på låsskärmens fält) och
   **Nytt ärende är NC1a** (en panel från höger som mörkar resten, som kan bli ärendets egenskaper senare). Användaren lät
   Claude välja (2026-11-07); valen följer Gawks form.
@@ -346,6 +352,6 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär) | GR4 godkänd, förlagan för grafen; GR5 och IN1 väntar |
-| **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | Väntar |
-| **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | Väntar |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär) | GR4 godkänd, förlagan för grafen; GR5 variant A och IN1a valda |
+| **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
+| **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald |

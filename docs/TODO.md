@@ -44,8 +44,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på skiss
 
-- **Startpunktens markering och nodernas namn** (beslutade 2026-11-07, CLAUDE.md *Gränssnitt*): grafen ritar i dag
-  startpunkten som *Offer* och noderna bara med förkortad adress. Skissas i GR5.
 
 
 
