@@ -28,6 +28,25 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 
 ## Bygga härnäst
 
+### Polering först (användarens beslut 2026-11-07: inget nytt byggs förrän det som finns känns bra)
+
+Inventeringen av appen mot besluten, i ordning efter vad som gör mest för första intrycket:
+1. **Felrättningar utan ny form:** GateView säger att uppslag bara går genom VPN (motsäger Windows som utgång);
+   inställningarna talar om *Teckenfältet* fast låsskärmen är ID8c; två olika texter för offline (ShellViewModel och
+   GraphViewModel); *Ctrl+K* hårdkodat i kommandoraden; `Toggle.Switch` saknar hovring; bildspråkets *?* kan krocka med
+   pillret vid 600 px höjd; inaktuella rader i TESTER-INFOR och HANDOFF *Nästa steg*. (Grafens hörn utan ärende och
+   Nytt → Etikett-tipset är rättade.)
+2. **GR6, tom graf med guidenoder** (väntar på val).
+3. **Öppna ett ärende** går bara med `/open`: ingen lista över senaste ärenden, inget Ctrl+O, ärendet i titelraden går
+   inte att klicka, `/close` och `/verify` saknar knapp. Skissas (ÄV1).
+4. **Sex vyer är platshållare** (Tidslinje, Flöde, Exponering, Begäran, Etiketter, Terminal) men syns som byggda i
+   pillret. Tona dem och säg det i verktygstipset; journalen syns ingenstans utan Terminal.
+5. **Förmågor utan synlig knapp:** startpunkt och sökning bara i kommandoraden (platshållaren lovar sökning som inte
+   finns); Bevaka och Kopiera saknas i inspektören; passa in (F) och zoom bara i verktygstips; dubbelklick på en nod
+   expanderar inte; inget högerklick eller inklistring på tom yta.
+6. **Tomma lägen:** Bevakning utan ärende ger ingen väg vidare; inget ärende föreslås efter upplåsning.
+7. Därefter det godkända: EX1/EX2b, SO1a med Delete, TL1a, BG1b.
+
 - **Soptunnan (SO1a)**, se CLAUDE.md *Soptunnan*, med Delete på valda noder: byggs som en etapp, eftersom den skriver i ärendet. Sessionens
   förslag: en bevakning på något som slängs pausas och går igen när det läggs tillbaka.
 - **Allt följer med en etikett** (CLAUDE.md, *Etiketter smittar*, användarens beslut 2026-11-07): etapp 8 för bara

@@ -15,7 +15,7 @@ public static class SubmenuTable
     [
         new(SubmenuAction.StartPoint, "Startpunkt", "S", SubmenuNeed.Nothing),
         new(SubmenuAction.Label, "Etikett", "E", SubmenuNeed.NotBuilt,
-            "Inte byggt än: etiketter sätts i grafen, som inte är byggd"),
+            "Inte byggt än: en etikett sätts på en nod i grafen (L)"),
         new(SubmenuAction.Watch, "Bevakning", "B", SubmenuNeed.OpenCase),
         new(SubmenuAction.Request, "Begäran", "R", SubmenuNeed.NotBuilt,
             "Inte byggt än: begäran till en börs kommer senare"),
