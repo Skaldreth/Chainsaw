@@ -58,9 +58,6 @@ public partial class MainWindow : Window
     /// <summary>The Guide's panel beside the work (sketch GD1b).</summary>
     private readonly GuidePanelViewModel _guidePanel;
 
-    /// <summary>What <em>Alla ärenden …</em> in the empty graph puts in the command bar, for Tab to complete.</summary>
-    private const string OpenCommandText = "/open ";
-
     /// <summary>The shortcut that folds out the case picker (sketch ÄV1a).</summary>
     private const string CasePickerGesture = "Ctrl+O";
 
@@ -144,20 +141,15 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Wires the empty graph (sketch GR6c): Nytt ärende opens the panel, <em>Alla ärenden …</em> puts <c>/open</c> in
-    /// the command bar, and the exit's name follows the title bar's.
+    /// Wires the empty graph (sketch GR6c): Nytt ärende opens the panel, <em>Alla ärenden …</em> folds out the case picker
+    /// (sketch ÄV1a), and the exit's name follows the title bar's.
     /// </summary>
     /// <param name="shell">The shell.</param>
     /// <param name="start">The empty graph.</param>
     private void WireEmptyGraph(ShellViewModel shell, GraphStartViewModel start)
     {
         start.NewCaseWanted += (_, _) => shell.NewCase.Show();
-        start.AllCasesWanted += (_, _) =>
-        {
-            shell.CommandText = OpenCommandText;
-            shell.OpenCommandBar();
-            CommandBox.CaretIndex = CommandBox.Text.Length;
-        };
+        start.AllCasesWanted += (_, _) => shell.OpenCasePicker();
         shell.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(ShellViewModel.ExitText) or nameof(ShellViewModel.IsExitLive))

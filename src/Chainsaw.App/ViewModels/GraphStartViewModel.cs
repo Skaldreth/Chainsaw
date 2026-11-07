@@ -119,7 +119,7 @@ public sealed partial class GraphStartViewModel : ObservableObject
     /// <summary>Raised when Nytt ärende is chosen, so that the panel opens (sketch NC1a).</summary>
     public event EventHandler? NewCaseWanted;
 
-    /// <summary>Raised when <em>Alla ärenden …</em> is chosen, so that <c>/open</c> is put in the command bar.</summary>
+    /// <summary>Raised when <em>Alla ärenden …</em> is chosen, so that the case picker folds out.</summary>
     public event EventHandler? AllCasesWanted;
 
     /// <summary>Raised when <em>Så spårar man i Chainsaw</em> is chosen, so that the Guide opens beside the work.</summary>
@@ -256,7 +256,7 @@ public sealed partial class GraphStartViewModel : ObservableObject
     [RelayCommand]
     private void NewCase() => NewCaseWanted?.Invoke(this, EventArgs.Empty);
 
-    /// <summary>Asks for every case in the folder, through <c>/open</c> in the command bar.</summary>
+    /// <summary>Asks for every case in the folder, through the case picker.</summary>
     [RelayCommand]
     private void AllCases() => AllCasesWanted?.Invoke(this, EventArgs.Empty);
 

@@ -150,15 +150,15 @@ public partial class GraphStartView : UserControl
         return node;
     }
 
-    /// <summary>Makes the node Alla ärenden, which asks for every case through <c>/open</c>.</summary>
+    /// <summary>Makes the node Alla ärenden, which folds out the case picker (sketch ÄV1a).</summary>
     /// <returns>The node.</returns>
     private Button AllCasesNode()
     {
         var node = new Button
         {
             Style = (Style)FindResource("Button.GuideNode"),
-            Content = NodeContent("Alla ärenden …", "/open", "Icon.Folder", "Brush.TextMuted", dashed: true, round: false),
-            ToolTip = "Alla ärenden i mappen. Samma som /open i kommandoraden.",
+            Content = NodeContent("Alla ärenden …", "Ctrl+O", "Icon.Folder", "Brush.TextMuted", dashed: true, round: false),
+            ToolTip = "Alla ärenden i mappen (Ctrl+O).",
         };
         node.SetBinding(Button.CommandProperty, nameof(GraphStartViewModel.AllCasesCommand));
         AutomationProperties.SetName(node, "Alla ärenden");
