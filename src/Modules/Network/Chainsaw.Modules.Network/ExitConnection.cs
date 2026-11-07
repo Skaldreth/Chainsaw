@@ -369,13 +369,31 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
                 return null;
             }
 
-            return (new HttpMessageInvoker(_handlers.Create(proxy, copied), disposeHandler: true), stopped);
+            var handler = _handlers.Create(proxy, copied, () => IsRunning(tunnel));
+            return (new HttpMessageInvoker(handler, disposeHandler: true), stopped);
         }
 #pragma warning disable CA1031 // A tunnel whose proxy cannot be read or used is a failed connection.
         catch (Exception)
 #pragma warning restore CA1031
         {
             return null;
+        }
+    }
+
+    /// <summary>Asks a tunnel whether it still holds its proxy's port; a tunnel that cannot say does not.</summary>
+    /// <param name="tunnel">The tunnel.</param>
+    /// <returns><see langword="true"/> when the tunnel says it is running.</returns>
+    private static bool IsRunning(IExitTunnel tunnel)
+    {
+        try
+        {
+            return tunnel.IsRunning;
+        }
+#pragma warning disable CA1031 // A tunnel that fails to answer is treated as one that has stopped.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return false;
         }
     }
 

@@ -103,6 +103,10 @@ $p.StandardInput.Close()              # programmet ska avslutas inom någon seku
   `{"stopped":"lost"}` och avslutas.
 - Byt ut `chainsaw-tunnel.exe` mot en annan fil med samma namn: Chainsaw vägrar starta den (*tunneln finns inte*) när
   anslutningen byggs i appen. Prova också att filen inte kan skrivas över medan Chainsaw startar den.
+- Frågar Windows-brandväggen om något första gången tunneln startas (programmet skickar UDP till servern)?
+- Stoppas ett osignerat `chainsaw-tunnel.exe` av Defender, SmartScreen, AppLocker eller WDAC på en tjänstedator?
+- Låt datorn sova i mer än fyra minuter med tunneln uppe: efter uppvaknandet ska tunneln antingen fortsätta (ny
+  handskakning) eller skriva `{"stopped":"lost"}`, aldrig hänga.
 - När utgångarnas gränssnitt finns: anslut, gör ett uppslag, och kontrollera att `chainsaw-tunnel.exe` försvinner ur
   Aktivitetshanteraren när utgången kopplas ner, när Chainsaw stängs och när Chainsaw avslutas i Aktivitetshanteraren.
 

@@ -40,6 +40,8 @@ internal sealed class FakeTunnel(IPEndPoint proxy, NetworkCredential credentials
 
     public bool Disposed { get; private set; }
 
+    public bool IsRunning => !Disposed && !_stopped.IsCancellationRequested;
+
     /// <summary>Makes the tunnel stop on its own, as a dropped VPN would.</summary>
     public void Drop() => _stopped.Cancel();
 
@@ -148,8 +150,11 @@ internal sealed class RecordingHandlerFactory : IExitHandlerFactory
 
     public List<RecordingHandler> Handlers { get; } = [];
 
-    public HttpMessageHandler Create(IPEndPoint socks5Proxy, NetworkCredential credentials)
+    public List<Func<bool>> ProxyChecks { get; } = [];
+
+    public HttpMessageHandler Create(IPEndPoint socks5Proxy, NetworkCredential credentials, Func<bool> proxyIsTunnel)
     {
+        ProxyChecks.Add(proxyIsTunnel);
         Proxies.Add(socks5Proxy);
         Credentials.Add(credentials);
         var handler = new RecordingHandler((request, token) => Answer(request, token));

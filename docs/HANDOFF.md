@@ -14,7 +14,7 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
   operatörsprofilen och nycklar per syfte (`IPurposeKeys`) till etapp 3. Inget gränssnitt.
 - **Etapp 4, Network** (2026-11-07, DEV-LOG): utgångarna krypterade i valvet, anslutningen till den valda utgången
   och `IExitHttp`, den enda vägen ut, som bara går genom tunnelns SOCKS5-port och vägrar utan ansluten utgång.
-  Tunneln själv (WireGuard) är inte byggd, så varje anslutning misslyckas ärligt. Inget gränssnitt.
+  Tunneln byggdes i etapp 13. Inget gränssnitt.
 - **Etapp 3, Cases** (2026-11-07, DEV-LOG): ärendefilen `.cut` med egen filnyckel och nyckelkuvert (valvet och ett
   valfritt delningslösenord), schemasteg per modul, journalen och de förseglade tabellerna i en hashkedja,
   verifieringen bakom `/verify`. Inget gränssnitt.

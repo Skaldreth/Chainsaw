@@ -210,13 +210,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   valvet. Byggs med bevakningen.
 
 ### Utgångar (Network)
-- **Tunnelns port kan tas över** (granskningen etapp 4, I; beslutet etapp 13): tunneln är en egen process med
-  SOCKS5 på `127.0.0.1`, användarnamn och lösenord per tunnel. Om processen dör och ett annat program hinner lyssna på
-  samma port innan Chainsaw märker det (stdout stängs och processen avslutas, normalt inom millisekunder) kan ett
-  uppslag gå till fel proxy; det programmet ser bara namnet (TLS hela vägen) men kan skicka uppslaget direkt från
-  datorns nät. Det stängs helt med ett bevis åt andra hållet: hjälpprogrammet visar att det känner en hemlighet innan
-  Chainsaw skickar något (en egen SOCKS5-metod i `ConnectCallback`), eller med en ström över stdin/stdout i stället
-  för en port. Görs om bevakningsprocessen eller fleranvändardatorer gör risken större.
+- **Tunnelns port på andra system än Windows:** på Windows hålls porten exklusivt (`SO_EXCLUSIVEADDRUSE`) och
+  Chainsaw frågar efter varje anslutning om hjälpprogrammet lever, så en anslutning kan inte ha nått något annat
+  program. Byggs Chainsaw någon gång för ett annat system behöver samma garanti prövas där.
+- **Återanslutning:** när tunneln faller (*förbindelsen förlorad*, till exempel efter att datorn sovit) ansluter
+  Chainsaw inte igen av sig själv. Viktigt för bevakningen.
 - **Svarshuvuden som ursprung:** `ExitResponse` har bara status, medietyp och den råa kroppen. Behöver Chains huvuden
   som `Date` eller `ETag` som en del av ursprunget läggs de till då (granskningen etapp 4, M).
 - **Certifikatkedjor som saknar en mellanliggande nivå:** för att operativsystemet inte ska hämta något runt utgången
@@ -233,8 +231,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
   titelraden (skissas först). Felen har egna skäl sedan etapp 13: *filen godtas inte* (`ConfigurationRefused`),
   *servern svarar inte* (`NoAnswer`), *tunneln finns inte* och *förbindelsen förlorad*.
-- **Tunnelns hjälpprogram och Go:** `chainsaw-tunnel.exe` är byggd med Go 1.24.7 och checkad in med sin hash; den
-  byggs om med `tools/Chainsaw.Tunnel/build.sh` när beroendena uppdateras (säkerhetsfixar i wireguard-go eller gVisor).
+- **Tunnelns hjälpprogram och Go:** `chainsaw-tunnel.exe` är byggd med Go 1.27.3 (låst i `go.mod`) och checkad in
+  med sin hash; den byggs om med `tools/Chainsaw.Tunnel/build.sh` (som kör `govulncheck`) när Go eller beroendena får
+  säkerhetsrättelser, minst när en Go-version slutar få stöd.
   `dotnet test` kör inte Go-testerna; de körs av byggskriptet. Signera programmet med organisationens certifikat när
   Chainsaw signeras.
 - **Tunnelns IPv6:** servern nås över IPv4 när `Endpoint` är ett namn med båda sorterna. En utgång som bara svarar på

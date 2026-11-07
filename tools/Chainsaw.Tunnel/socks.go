@@ -38,8 +38,16 @@ const handshakeTimeout = 10 * time.Second
 // dialTimeout bounds how long a connection through the tunnel may take to open.
 const dialTimeout = 20 * time.Second
 
-// maxConnections bounds the connections served at once, so that a flood cannot exhaust the helper.
+// maxConnections bounds the connections served at once, so that a flood cannot exhaust the helper. A connection
+// beyond it waits in the listener's queue for a free slot.
 const maxConnections = 64
+
+// halfClosedTimeout bounds how long one direction of a relay may stay open after the other has ended, so that a
+// target that never closes cannot hold a slot for ever.
+const halfClosedTimeout = 60 * time.Second
+
+// longestAcceptPause is the longest pause before accepting again after a temporary failure.
+const longestAcceptPause = time.Second
 
 // errProtocol is a client that does not speak the protocol, or speaks it wrongly.
 var errProtocol = errors.New("the client broke the SOCKS5 protocol")
@@ -70,23 +78,46 @@ func newSocksServer(
 	}
 }
 
-// serve accepts connections until the listener is closed.
+// serve accepts connections until the listener is closed (nil) or accepting fails for good (the error). A
+// temporary failure, such as too few free handles, is retried after a short pause that grows, as net/http does.
 func (s *socksServer) serve(ctx context.Context, listener net.Listener) error {
+	pause := time.Duration(0)
 	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			return err
-		}
+		// A slot first, so that a connection beyond the limit waits instead of being cut off.
 		select {
 		case s.slots <- struct{}{}:
-			go func() {
-				defer func() { <-s.slots }()
-				s.handle(ctx, conn)
-			}()
-		default:
-			conn.Close() // Too many at once; the client may try again.
+		case <-ctx.Done():
+			return nil
 		}
+		conn, err := listener.Accept()
+		if err != nil {
+			<-s.slots
+			if errors.Is(err, net.ErrClosed) || ctx.Err() != nil {
+				return nil
+			}
+			if !isTemporary(err) {
+				return err
+			}
+			pause = min(max(2*pause, 5*time.Millisecond), longestAcceptPause)
+			select {
+			case <-time.After(pause):
+			case <-ctx.Done():
+				return nil
+			}
+			continue
+		}
+		pause = 0
+		go func() {
+			defer func() { <-s.slots }()
+			s.handle(ctx, conn)
+		}()
 	}
+}
+
+// isTemporary tells whether an accept failure may pass, as net/http judges it.
+func isTemporary(err error) bool {
+	var temporary interface{ Temporary() bool }
+	return errors.As(err, &temporary) && temporary.Temporary()
 }
 
 // handle serves one client: authentication, the request and then the relay in both directions.
@@ -248,6 +279,8 @@ func relay(client, target net.Conn) {
 		_, _ = io.Copy(to, from)
 		if half, ok := to.(interface{ CloseWrite() error }); ok {
 			_ = half.CloseWrite()
+			// The other direction gets a while to finish, never for ever.
+			_ = to.SetReadDeadline(time.Now().Add(halfClosedTimeout))
 		} else {
 			_ = to.Close()
 		}

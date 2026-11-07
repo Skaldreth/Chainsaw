@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"strconv"
@@ -184,4 +185,68 @@ func TestReadRequestReadsEveryAddressForm(t *testing.T) {
 	if _, _, reply := readRequest(bytes.NewReader([]byte{5, 1, 0, 1, 1, 2, 3, 4, 0, 0})); reply != replyNotAllowed {
 		t.Errorf("port 0 gave %d", reply)
 	}
+}
+
+// temporaryError is an accept failure that may pass.
+type temporaryError struct{}
+
+func (temporaryError) Error() string   { return "temporary" }
+func (temporaryError) Temporary() bool { return true }
+func (temporaryError) Timeout() bool   { return false }
+
+// scriptedListener gives the accept results it is told, then fails for good.
+type scriptedListener struct {
+	results []error
+	calls   int
+}
+
+func (l *scriptedListener) Accept() (net.Conn, error) {
+	l.calls++
+	if l.calls <= len(l.results) {
+		return nil, l.results[l.calls-1]
+	}
+	return nil, errors.New("broken for good")
+}
+
+func (l *scriptedListener) Close() error   { return nil }
+func (l *scriptedListener) Addr() net.Addr { return &net.TCPAddr{} }
+
+func TestServeRetriesATemporaryFailureAndStopsOnAPermanentOne(t *testing.T) {
+	listener := &scriptedListener{results: []error{temporaryError{}, temporaryError{}}}
+
+	err := newSocksServer("user", "secret", (&echoDial{}).dial).serve(context.Background(), listener)
+
+	if err == nil || listener.calls != 3 {
+		t.Fatalf("err %v after %d accepts", err, listener.calls)
+	}
+}
+
+func TestServeEndsQuietlyWhenTheListenerCloses(t *testing.T) {
+	listener := &scriptedListener{results: []error{net.ErrClosed}}
+
+	if err := newSocksServer("user", "secret", (&echoDial{}).dial).serve(context.Background(), listener); err != nil {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestAConnectionBeyondTheLimitWaitsForAFreeSlot(t *testing.T) {
+	address := startTestProxy(t, (&echoDial{}).dial)
+	held := make([]net.Conn, 0, maxConnections)
+	for range maxConnections {
+		conn := connectTo(t, address)
+		authenticate(t, conn, "user", "secret")
+		expect(t, conn, []byte{1, 0})
+		held = append(held, conn)
+	}
+
+	waiting := connectTo(t, address)
+	_, _ = waiting.Write([]byte{5, 1, 2})
+	_ = waiting.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	if _, err := waiting.Read(make([]byte, 2)); err == nil {
+		t.Fatal("a connection beyond the limit was served at once")
+	}
+	held[0].Close()
+	_ = waiting.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	expect(t, waiting, []byte{5, 2})
 }

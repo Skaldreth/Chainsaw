@@ -45,8 +45,8 @@ kopieras till `licenses/chainsaw-tunnel/` bredvid programmet.
 | `gvisor.dev/gvisor` (gVisor netstack) | `v0.0.0-20250503011706-39ed1f5ac29c` | TCP/IP-stacken inne i tunneln | Apache 2.0, Copyright The gVisor Authors | `gvisor.txt` |
 | `golang.zx2c4.com/wintun` | `v0.0.0-20230126152724-0fa3db229ce2` | Följer med wireguard-go; Wintun-drivrutinen används inte, eftersom tunneln inte har något nätverkskort | MIT, Copyright (C) 2017–2021 WireGuard LLC | `wintun-go.txt` |
 | `github.com/google/btree` | `v1.1.2` | Används av gVisor | Apache 2.0, Copyright Google | `google-btree.txt` |
-| `golang.org/x/crypto`, `x/net`, `x/sys`, `x/time` | `v0.37.0`, `v0.39.0`, `v0.32.0`, `v0.7.0` | Kryptografi (Curve25519, ChaCha20-Poly1305, BLAKE2s), DNS-meddelanden, systemanrop | BSD 3-Clause, Copyright The Go Authors | `go.txt` |
-| Go (standardbiblioteket och körmiljön) | `go1.24.7` | Kompileras in i programmet | BSD 3-Clause, Copyright The Go Authors | `go.txt` |
+| `golang.org/x/crypto`, `x/net`, `x/sys`, `x/time` | `v0.58.0`, `v0.62.0`, `v0.49.0`, `v0.16.0` | Kryptografi (Curve25519, ChaCha20-Poly1305, BLAKE2s), DNS-meddelanden, systemanrop | BSD 3-Clause, Copyright The Go Authors | `go.txt` |
+| Go (standardbiblioteket och körmiljön) | `go1.27.3` | Kompileras in i programmet | BSD 3-Clause, Copyright The Go Authors | `go.txt` |
 
 Apache 2.0 kräver att licensen följer med och att en eventuell NOTICE-fil gör det; varken gVisor eller btree har någon.
 Ingen modul har en licens med copyleft (GPL eller liknande).

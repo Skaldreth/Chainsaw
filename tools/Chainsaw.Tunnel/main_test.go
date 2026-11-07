@@ -72,18 +72,39 @@ func TestRunRefusesABadConfigurationAndNeverRepeatsIt(t *testing.T) {
 	}
 }
 
-func TestLatestHandshakeReadsTheDeviceReport(t *testing.T) {
-	now := time.Unix(1_000_000, 0)
-
-	age, ok := latestHandshake("public_key=ab\nlast_handshake_time_sec=999990\nlast_handshake_time_nsec=0\n", now)
-	if !ok || age != 10*time.Second {
-		t.Errorf("age %v, ok %v", age, ok)
+func TestHandshakeSecondsReadsTheDeviceReport(t *testing.T) {
+	seconds, ok := handshakeSeconds("public_key=ab\nlast_handshake_time_sec=999990\nlast_handshake_time_nsec=0\n")
+	if !ok || seconds != 999990 {
+		t.Errorf("seconds %d, ok %v", seconds, ok)
 	}
-	if _, ok := latestHandshake("last_handshake_time_sec=0\n", now); ok {
+	if _, ok := handshakeSeconds("last_handshake_time_sec=0\n"); ok {
 		t.Error("no handshake yet")
 	}
-	if _, ok := latestHandshake("", now); ok {
+	if _, ok := handshakeSeconds(""); ok {
 		t.Error("no peer")
+	}
+}
+
+func TestHandshakeWatchFallsOnlyWhenNoNewHandshakeComes(t *testing.T) {
+	start := time.Unix(5_000, 0)
+	watch := newHandshakeWatch(start)
+	report := func(seconds int) string { return fmt.Sprintf("last_handshake_time_sec=%d\n", seconds) }
+
+	if watch.stale(report(100), start.Add(time.Minute)) {
+		t.Fatal("a fresh tunnel is not stale")
+	}
+	// The report's wall clock says the handshake is ancient, as after a clock jump: only new handshakes count.
+	if watch.stale(report(200), start.Add(3*time.Minute)) {
+		t.Fatal("a new handshake keeps the tunnel up")
+	}
+	if watch.stale(report(200), start.Add(3*time.Minute+staleHandshake-time.Second)) {
+		t.Fatal("stale too early")
+	}
+	if !watch.stale(report(200), start.Add(3*time.Minute+staleHandshake)) {
+		t.Fatal("no new handshake for staleHandshake must count as fallen")
+	}
+	if !newHandshakeWatch(start).stale("", start.Add(staleHandshake)) {
+		t.Fatal("a device without a handshake must fall too")
 	}
 }
 

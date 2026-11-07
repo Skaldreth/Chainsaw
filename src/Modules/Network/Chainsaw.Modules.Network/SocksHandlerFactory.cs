@@ -14,10 +14,11 @@ namespace Chainsaw.Modules.Network;
 internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandlerFactory
 {
     /// <inheritdoc />
-    public HttpMessageHandler Create(IPEndPoint socks5Proxy, NetworkCredential credentials)
+    public HttpMessageHandler Create(IPEndPoint socks5Proxy, NetworkCredential credentials, Func<bool> proxyIsTunnel)
     {
         ArgumentNullException.ThrowIfNull(socks5Proxy);
         ArgumentNullException.ThrowIfNull(credentials);
+        ArgumentNullException.ThrowIfNull(proxyIsTunnel);
         return new SocketsHttpHandler
         {
             UseProxy = true,
@@ -40,7 +41,7 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
                 CertificateChainPolicy = OfflineChainPolicy(),
             },
             ConnectCallback = (context, cancellationToken) =>
-                ConnectOnlyToProxyAsync(socks5Proxy, context.DnsEndPoint, cancellationToken),
+                ConnectOnlyToProxyAsync(socks5Proxy, context.DnsEndPoint, proxyIsTunnel, cancellationToken),
         };
     }
 
@@ -112,11 +113,14 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
     /// </summary>
     /// <param name="socks5Proxy">The tunnel's proxy.</param>
     /// <param name="requested">The endpoint the handler asks for.</param>
+    /// <param name="proxyIsTunnel">Tells, once connected, whether the port still belongs to the tunnel.</param>
     /// <param name="cancellationToken">Stops the connection.</param>
     /// <returns>The stream to the proxy.</returns>
-    /// <exception cref="HttpRequestException">The endpoint is not the tunnel's proxy.</exception>
+    /// <exception cref="HttpRequestException">
+    /// The endpoint is not the tunnel's proxy, or the tunnel no longer holds the port.
+    /// </exception>
     internal static async ValueTask<Stream> ConnectOnlyToProxyAsync(
-        IPEndPoint socks5Proxy, DnsEndPoint requested, CancellationToken cancellationToken)
+        IPEndPoint socks5Proxy, DnsEndPoint requested, Func<bool> proxyIsTunnel, CancellationToken cancellationToken)
     {
         if (!IsProxy(socks5Proxy, requested))
         {
@@ -127,6 +131,14 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
         try
         {
             await socket.ConnectAsync(socks5Proxy, cancellationToken).ConfigureAwait(false);
+
+            // Asked after the connection: a tunnel that still holds its port now has held it all along, so nothing
+            // else can have answered. Nothing has been sent yet, not even the credentials.
+            if (!proxyIsTunnel())
+            {
+                throw new HttpRequestException("The tunnel no longer holds its proxy's port.");
+            }
+
             return new NetworkStream(socket, ownsSocket: true);
         }
         catch

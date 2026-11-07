@@ -18,6 +18,12 @@ internal interface ITunnelProcess : IDisposable
     /// <summary>Gets a task that completes when the helper has exited.</summary>
     Task Exited { get; }
 
+    /// <summary>
+    /// Gets whether the helper has exited, asked of the operating system now (not through <see cref="Exited"/>,
+    /// which may complete a little later).
+    /// </summary>
+    bool HasExited { get; }
+
     /// <summary>Ends the helper at once. Does nothing when it has already exited.</summary>
     void Kill();
 }

@@ -188,7 +188,24 @@ public sealed class SocksPipelineTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<HttpRequestException>(async () =>
             await SocksHandlerFactory.ConnectOnlyToProxyAsync(
-                proxy, new DnsEndPoint("chain.example", 443), CancellationToken.None));
+                proxy, new DnsEndPoint("chain.example", 443), () => true, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_connection_to_a_port_the_tunnel_no_longer_holds_is_closed_unused()
+    {
+        using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var proxy = (IPEndPoint)listener.LocalEndpoint;
+        var accepting = listener.AcceptTcpClientAsync();
+
+        await Assert.ThrowsAsync<HttpRequestException>(async () =>
+            await SocksHandlerFactory.ConnectOnlyToProxyAsync(
+                proxy, new DnsEndPoint(proxy.Address.ToString(), proxy.Port), () => false, CancellationToken.None));
+
+        using var taker = await accepting;
+        var buffer = new byte[16];
+        Assert.Equal(0, await taker.GetStream().ReadAsync(buffer).AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
@@ -209,7 +226,7 @@ public sealed class SocksPipelineTests : IAsyncLifetime
     {
         var options = new NetworkOptions();
         using var handler = (SocketsHttpHandler)new SocksHandlerFactory(options)
-            .Create(new IPEndPoint(IPAddress.Loopback, 1080), new NetworkCredential("u", "p"));
+            .Create(new IPEndPoint(IPAddress.Loopback, 1080), new NetworkCredential("u", "p"), () => true);
 
         Assert.True(handler.UseProxy);
         Assert.IsType<ExitProxy>(handler.Proxy);

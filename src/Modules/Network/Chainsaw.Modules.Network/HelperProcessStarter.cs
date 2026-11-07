@@ -112,6 +112,23 @@ internal sealed class HelperProcessStarter(NetworkOptions options) : ITunnelProc
         /// <inheritdoc />
         public Task Exited { get; }
 
+        /// <inheritdoc />
+        public bool HasExited
+        {
+            get
+            {
+                try
+                {
+                    return _process.HasExited;
+                }
+                catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
+                {
+                    // A process that cannot be asked counts as gone.
+                    return true;
+                }
+            }
+        }
+
         /// <summary>
         /// Starts the helper without a window, a shell or arguments. Its stderr is read and dropped (it writes
         /// nothing there), so that it can never block on a full pipe.
@@ -160,7 +177,29 @@ internal sealed class HelperProcessStarter(NetworkOptions options) : ITunnelProc
             }
         }
 
-        /// <inheritdoc />
-        public void Dispose() => _process.Dispose();
+        /// <summary>
+        /// Closes the helper's pipes and lets go of the process. The pipes are closed explicitly: the process does not
+        /// close a stream that has been used, so they would otherwise wait for the finalizer.
+        /// </summary>
+        public void Dispose()
+        {
+            CloseQuietly(_process.StandardInput.BaseStream);
+            CloseQuietly(_process.StandardOutput.BaseStream);
+            _process.Dispose();
+        }
+
+        /// <summary>Closes a pipe that may already be closed or broken.</summary>
+        /// <param name="stream">The pipe.</param>
+        private static void CloseQuietly(Stream stream)
+        {
+            try
+            {
+                stream.Dispose();
+            }
+            catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+            {
+                // Already closed or broken; nothing more to release.
+            }
+        }
     }
 }

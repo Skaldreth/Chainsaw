@@ -26,4 +26,12 @@ public interface IExitTunnel : IAsyncDisposable
     /// inside the cancellation and disposes the tunnel afterwards on another thread.
     /// </summary>
     CancellationToken Stopped { get; }
+
+    /// <summary>
+    /// Gets whether the tunnel still holds its proxy's port. It is read after each connection to the proxy: while it
+    /// is <see langword="true"/> the port has been the tunnel's own all along (it is held exclusively), so the
+    /// connection reached the tunnel and not a program that took the port after the tunnel ended. A tunnel that has
+    /// stopped, or cannot say, gives <see langword="false"/>, and the connection is closed unused.
+    /// </summary>
+    bool IsRunning { get; }
 }

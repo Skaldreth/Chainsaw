@@ -35,6 +35,8 @@ internal sealed class FakeTunnelProcess : ITunnelProcess
 
     public Task Exited => _exited.Task;
 
+    public bool HasExited => _exited.Task.IsCompleted;
+
     /// <summary>Gets the helper's side of stdin: what Chainsaw wrote.</summary>
     public StreamReader StdinLines { get; }
 

@@ -67,7 +67,8 @@ internal sealed class WireGuardConnector(ITunnelProcessStarter starter, NetworkO
 
     /// <summary>
     /// Writes the first line on the helper's stdin: the configuration and the credentials as one JSON object. The
-    /// buffer is wiped afterwards.
+    /// byte buffer is wiped afterwards; that is tidiness, not protection, since the configuration also lives in
+    /// .NET strings that cannot be wiped.
     /// </summary>
     /// <param name="input">The helper's stdin.</param>
     /// <param name="configuration">The WireGuard file from the vault.</param>
@@ -116,7 +117,7 @@ internal sealed class WireGuardConnector(ITunnelProcessStarter starter, NetworkO
         if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
         {
             var code = error.GetString() ?? string.Empty;
-            throw new ExitConnectException(FailureFor(code), $"The helper could not start the tunnel ({code}).");
+            throw new ExitConnectException(FailureFor(code), DescribeFailure(code, root));
         }
 
         if (root.TryGetProperty("port", out var port) && port.TryGetInt32(out var number)
@@ -128,7 +129,8 @@ internal sealed class WireGuardConnector(ITunnelProcessStarter starter, NetworkO
         throw new ExitConnectException(ExitFailure.ConnectFailed, "The helper's answer has no valid port.");
     }
 
-    /// <summary>Gives the reason for a code the helper reported (the codes are in <c>tools/Chainsaw.Tunnel</c>).</summary>
+    /// <summary>Gives the reason for a code the helper reported (the codes are in <c>tools/Chainsaw.Tunnel</c>).
+    /// </summary>
     /// <param name="code">The code.</param>
     /// <returns>The reason.</returns>
     internal static ExitFailure FailureFor(string code) => code switch
@@ -137,6 +139,26 @@ internal sealed class WireGuardConnector(ITunnelProcessStarter starter, NetworkO
         "handshake" or "endpoint" => ExitFailure.NoAnswer,
         _ => ExitFailure.ConnectFailed,
     };
+
+    /// <summary>
+    /// Describes a failure the helper reported. For a refused configuration the helper's own reason is kept (the line
+    /// and the key, never a value: the helper builds it only from fixed texts), so that the user can be told which
+    /// line of the file is wrong.
+    /// </summary>
+    /// <param name="code">The helper's code.</param>
+    /// <param name="root">The helper's answer.</param>
+    /// <returns>The message.</returns>
+    private static string DescribeFailure(string code, JsonElement root)
+    {
+        var message = $"The helper could not start the tunnel ({code}).";
+        if (code == "configuration" && root.TryGetProperty("message", out var reason)
+            && reason.ValueKind == JsonValueKind.String)
+        {
+            return $"{message} {reason.GetString()}";
+        }
+
+        return message;
+    }
 
     /// <summary>Parses one of the helper's lines as a JSON object.</summary>
     /// <param name="line">The line.</param>

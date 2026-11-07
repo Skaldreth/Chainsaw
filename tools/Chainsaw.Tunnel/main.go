@@ -43,7 +43,7 @@ const maxCredentialBytes = 255
 // handshakeWait is how long the helper waits for the peer to answer the first handshake.
 const handshakeWait = 15 * time.Second
 
-// staleHandshake is how old the latest handshake may be before the tunnel counts as fallen. WireGuard rekeys at
+// staleHandshake is how long the helper may go without seeing a new handshake before the tunnel counts as fallen. WireGuard rekeys at
 // least every two minutes while traffic flows, and the helper always keeps the tunnel alive with keepalives
 // (longestKeepalive), so a working tunnel never comes near it; 180 seconds is WireGuard's own reject-after time.
 const staleHandshake = 180*time.Second + 30*time.Second
@@ -153,7 +153,7 @@ func run(stdin io.Reader, stdout io.Writer) int {
 		return 3
 	}
 
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	listener, err := listenLoopback(ctx)
 	if err != nil {
 		out.fail(codeListen, err)
 		return 3
@@ -161,10 +161,16 @@ func run(stdin io.Reader, stdout io.Writer) int {
 	defer listener.Close()
 
 	proxy := newSocksServer(start.Username, start.Password, (&dialer{tnet: tnet}).dial)
-	go func() { _ = proxy.serve(ctx, listener) }()
+	serveFailed := make(chan struct{})
+	go func() {
+		// A proxy that can no longer accept is a fallen tunnel, never a silent one.
+		if proxy.serve(ctx, listener) != nil {
+			close(serveFailed)
+		}
+	}()
 	out.send(map[string]any{"port": listener.Addr().(*net.TCPAddr).Port})
 
-	if watchHandshakes(ctx, dev) {
+	if watchHandshakes(ctx, dev, serveFailed) {
 		out.send(map[string]any{"stopped": codeLost})
 		return 4
 	}
@@ -249,22 +255,51 @@ func waitForHandshake(ctx context.Context, dev *device.Device) bool {
 	return false
 }
 
-// watchHandshakes watches the tunnel until it falls (true) or the helper is told to stop (false).
-func watchHandshakes(ctx context.Context, dev *device.Device) bool {
+// watchHandshakes watches the tunnel until it falls (true) or the helper is told to stop (false). The tunnel falls
+// when the device closes, the proxy stops accepting, or no new handshake has been seen for staleHandshake.
+func watchHandshakes(ctx context.Context, dev *device.Device, serveFailed <-chan struct{}) bool {
 	ticker := time.NewTicker(healthInterval)
 	defer ticker.Stop()
+	watch := newHandshakeWatch(time.Now())
 	for {
 		select {
 		case <-ctx.Done():
 			return false
 		case <-dev.Wait():
 			return true
+		case <-serveFailed:
+			return true
 		case <-ticker.C:
-			if age, ok := handshakeAge(dev); !ok || age >= staleHandshake {
+			report, err := dev.IpcGet()
+			if err != nil || watch.stale(report, time.Now()) {
 				return true
 			}
 		}
 	}
+}
+
+// handshakeWatch tells whether the peer's handshakes have stopped. It measures with the helper's own monotonic
+// clock from when a new handshake was last seen, not with the wall clock of the device's report, so that a jump of
+// the computer's clock does not count as a fallen tunnel.
+type handshakeWatch struct {
+	// lastValue is last_handshake_time_sec as last read.
+	lastValue int64
+	// lastChange is when lastValue last changed, on the monotonic clock.
+	lastChange time.Time
+}
+
+// newHandshakeWatch starts watching just after the first handshake was seen.
+func newHandshakeWatch(now time.Time) *handshakeWatch {
+	return &handshakeWatch{lastValue: -1, lastChange: now}
+}
+
+// stale reads the device's report and tells whether no new handshake has come for staleHandshake.
+func (w *handshakeWatch) stale(report string, now time.Time) bool {
+	if value, ok := handshakeSeconds(report); ok && value != w.lastValue {
+		w.lastValue = value
+		w.lastChange = now
+	}
+	return now.Sub(w.lastChange) >= staleHandshake
 }
 
 // handshakeAge gives how long ago the peer's latest handshake was, from the device's own report.
@@ -273,12 +308,15 @@ func handshakeAge(dev *device.Device) (time.Duration, bool) {
 	if err != nil {
 		return 0, false
 	}
-	return latestHandshake(report, time.Now())
+	seconds, ok := handshakeSeconds(report)
+	if !ok {
+		return 0, false
+	}
+	return time.Since(time.Unix(seconds, 0)), true
 }
 
-// latestHandshake reads last_handshake_time_sec from the device's report and gives its age; false when no
-// handshake has been made.
-func latestHandshake(report string, now time.Time) (time.Duration, bool) {
+// handshakeSeconds reads last_handshake_time_sec from the device's report; false when no handshake has been made.
+func handshakeSeconds(report string) (int64, bool) {
 	for _, line := range strings.Split(report, "\n") {
 		value, found := strings.CutPrefix(line, "last_handshake_time_sec=")
 		if !found {
@@ -288,7 +326,7 @@ func latestHandshake(report string, now time.Time) (time.Duration, bool) {
 		if err != nil || seconds == 0 {
 			return 0, false
 		}
-		return now.Sub(time.Unix(seconds, 0)), true
+		return seconds, true
 	}
 	return 0, false
 }

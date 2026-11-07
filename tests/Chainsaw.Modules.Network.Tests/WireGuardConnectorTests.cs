@@ -91,6 +91,7 @@ public sealed class WireGuardConnectorTests
         Assert.True(process.Killed);
         Assert.True(process.Disposed);
         Assert.DoesNotContain("PrivateKey = ", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(code == "configuration", exception.Message.Contains("line 3", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -213,6 +214,19 @@ public sealed class WireGuardConnectorTests
         Assert.False(process.Killed);
         Assert.True(process.Disposed);
         Assert.False(tunnel.Stopped.IsCancellationRequested);
+        Assert.False(tunnel.IsRunning);
+    }
+
+    [Fact]
+    public async Task The_tunnel_runs_until_the_helper_exits()
+    {
+        var (tunnel, process) = await ConnectAsync();
+        Assert.True(tunnel.IsRunning);
+
+        process.Exit();
+
+        Assert.False(tunnel.IsRunning);
+        await tunnel.DisposeAsync();
     }
 
     [Fact]
@@ -243,6 +257,8 @@ public sealed class WireGuardConnectorTests
         Assert.Equal(ExitState.Connected, status.State);
         Assert.Equal(new IPEndPoint(IPAddress.Loopback, 40_125), Assert.Single(harness.Handlers.Proxies));
         Assert.Equal(start.GetProperty("password").GetString(), harness.Handlers.Credentials[0].Password);
+        var proxyIsTunnel = Assert.Single(harness.Handlers.ProxyChecks);
+        Assert.True(proxyIsTunnel());
 
         process.ExitWhenStdinCloses();
         await process.AnswerAsync(new { stopped = "lost" });
@@ -250,6 +266,7 @@ public sealed class WireGuardConnectorTests
 
         Assert.Equal(new ExitStatus(ExitState.Failed, exit.Id, ExitFailure.ConnectionLost), connection.Status);
         Assert.False(connection.TryLease(out _));
+        Assert.False(proxyIsTunnel());
     }
 
     [Fact]

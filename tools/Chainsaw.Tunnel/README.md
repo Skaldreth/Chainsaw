@@ -27,12 +27,16 @@ skriver aldrig till stderr och loggar ingenting.
 - En WireGuard-fil utan `DNS =` med en IP-adress under `[Interface]`, med mer än en `[Peer]`, med en okänd nyckel eller
   en trasig nyckel. `PostUp` och de andra kommandona i wg-quick ignoreras och körs aldrig.
 
+Porten hålls exklusivt på Windows (`SO_EXCLUSIVEADDRUSE`), och Chainsaw frågar efter varje anslutning till den om
+programmet fortfarande lever, så ingen annan kan ha svarat.
+
 Namn slås upp inne i tunneln med filens `DNS =`. Det enda namn som slås upp med datorns egen resolver är serverns eget
 namn i `Endpoint`, eftersom tunneln inte finns innan dess.
 
 ## Bygga
 
-`./build.sh` (eller `build.ps1` på Windows) kör `go vet` och `go test` och bygger sedan `dist/chainsaw-tunnel.exe` för
+`./build.sh` (eller `build.ps1` på Windows) kräver den version av Go som `go.mod` låser (`toolchain`), kör `go vet`,
+`go test` och `govulncheck` och bygger sedan `dist/chainsaw-tunnel.exe` för
 Windows x64 tillsammans med dess SHA-256. Bygget är reproducerbart med samma version av Go (`go.mod`). Chainsaw startar
 bara programmet om hashen stämmer med den Chainsaw byggdes med (`HelperProcessStarter`), så bygg om Chainsaw efteråt
 och checka in båda filerna. Appen kopierar programmet och licenserna (`licenses/`) till sin utdatamapp.

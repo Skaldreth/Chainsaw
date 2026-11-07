@@ -55,6 +55,26 @@ internal sealed class WireGuardTunnel : IExitTunnel
     public CancellationToken Stopped => _stopped.Token;
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The helper listens with <c>SO_EXCLUSIVEADDRUSE</c> on Windows, so its port cannot be taken while it lives.
+    /// </remarks>
+    public bool IsRunning
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return false;
+                }
+            }
+
+            return !_stopped.IsCancellationRequested && !_process.HasExited;
+        }
+    }
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         lock (_gate)

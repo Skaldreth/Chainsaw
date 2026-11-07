@@ -67,6 +67,8 @@ public sealed class ExitStoreTests
     [InlineData("[Interface]\nPrivateKey = k\n# DNS = 10.64.0.1\n")]
     [InlineData("[Interface]\nPrivateKey = k\nDNS =\n")]
     [InlineData("[Interface]\nPrivateKey = k\nDNS = example.internal\n")]
+    [InlineData("[Interface]\nPrivateKey = k\nDNS = 10\n")]
+    [InlineData("[Interface]\nPrivateKey = k\nDNS = 1.2.3\n")]
     [InlineData("[Interface]\nPrivateKey = k\n[Peer]\nDNS = 10.64.0.1\n")]
     [InlineData("DNS = 10.64.0.1\n[Interface]\nPrivateKey = k\n")]
     public void A_configuration_without_a_dns_server_is_refused(string configuration)

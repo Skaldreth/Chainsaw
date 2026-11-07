@@ -123,12 +123,29 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
             var isDns = parts.Length == 2
                 && section.Equals("Interface", StringComparison.OrdinalIgnoreCase)
                 && parts[0].Trim().Equals("DNS", StringComparison.OrdinalIgnoreCase);
-            if (isDns && parts[1].Split(',').Any(item => IPAddress.TryParse(item.Trim(), out _)))
+            if (isDns && parts[1].Split(',').Any(item => IsAddress(item.Trim())))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Tells whether a text is an IP address in the forms the helper accepts: four dotted numbers for IPv4 (not the
+    /// old short forms such as <c>10</c> or <c>1.2.3</c>, which the helper refuses), or IPv6.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns><see langword="true"/> when it is an address.</returns>
+    private static bool IsAddress(string text)
+    {
+        if (!IPAddress.TryParse(text, out var address))
+        {
+            return false;
+        }
+
+        return address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork
+            || text.Count(character => character == '.') == 3;
     }
 }
