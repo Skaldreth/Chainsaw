@@ -20,16 +20,10 @@ internal static partial class EmbeddedRecoveryKey
     public const string ResourceName = "Chainsaw.Modules.Cases.organization-recovery-key.pem";
 
     /// <summary>
-    /// The keyword of a line that revokes an earlier key, <c>REVOKED &lt;fingerprint&gt;</c>; every line outside the
-    /// key that mentions it, in any case, must hold exactly one fingerprint.
+    /// The keyword of a line that revokes an earlier key, <c>REVOKED &lt;fingerprint&gt;</c>; every line that
+    /// mentions it, in any case, must hold exactly one fingerprint, and no other line may hold one.
     /// </summary>
     public const string RevokedKeyword = "REVOKED";
-
-    /// <summary>The first line of a PEM block.</summary>
-    private const string PemBegin = "-----BEGIN ";
-
-    /// <summary>The last line of a PEM block.</summary>
-    private const string PemEnd = "-----END ";
 
     /// <summary>Every kind of line break, so that a file saved with CR, LF or CRLF reads the same.</summary>
     private static readonly char[] LineBreaks = ['\r', '\n'];
@@ -59,7 +53,7 @@ internal static partial class EmbeddedRecoveryKey
     /// </exception>
     public static RecoveryKeyConfiguration Parse(string text)
     {
-        if (text.Contains(PrivateKeyMarker, StringComparison.Ordinal))
+        if (text.Contains(PrivateKeyMarker, StringComparison.OrdinalIgnoreCase))
         {
             // A private key pasted by mistake must never ship, nor pass for "no key configured".
             throw new InvalidOperationException($"The resource {ResourceName} holds a private key; remove it.");
@@ -77,39 +71,27 @@ internal static partial class EmbeddedRecoveryKey
                 $"The resource {ResourceName} does not hold a P-384 public key.", exception);
         }
 
-        var revoked = OutsidePemBlocks(text.Split(LineBreaks))
+        // Every line is read, also those of the key: a block written on one line or never closed must not hide a
+        // revocation, and the key's Base64 holding the keyword or a fingerprint is too unlikely to matter (and would
+        // stop the build rather than pass unnoticed).
+        var lines = text.Split(LineBreaks);
+        var revoked = lines
             .Where(line => line.Contains(RevokedKeyword, StringComparison.OrdinalIgnoreCase))
             .Select(ReadFingerprint)
             .ToHashSet(StringComparer.Ordinal);
+        if (lines.Any(line => !line.Contains(RevokedKeyword, StringComparison.OrdinalIgnoreCase)
+            && Fingerprint().IsMatch(line)))
+        {
+            // A fingerprint without the keyword (a typo, or the word in Swedish) is a revocation that would be lost.
+            throw new InvalidOperationException(
+                $"The resource {ResourceName} has a fingerprint on a line without {RevokedKeyword}.");
+        }
         if (key is not null && revoked.Contains(key.Fingerprint))
         {
             throw new InvalidOperationException($"The resource {ResourceName} revokes its own key.");
         }
 
         return new RecoveryKeyConfiguration(key, revoked);
-    }
-
-    /// <summary>Gives the lines that are not inside a PEM block, whose Base64 could hold any letters.</summary>
-    /// <param name="lines">The lines.</param>
-    /// <returns>The lines outside every block.</returns>
-    private static IEnumerable<string> OutsidePemBlocks(IEnumerable<string> lines)
-    {
-        var inside = false;
-        foreach (var line in lines)
-        {
-            if (line.Contains(PemBegin, StringComparison.Ordinal))
-            {
-                inside = true;
-            }
-            else if (line.Contains(PemEnd, StringComparison.Ordinal))
-            {
-                inside = false;
-            }
-            else if (!inside)
-            {
-                yield return line;
-            }
-        }
     }
 
     /// <summary>

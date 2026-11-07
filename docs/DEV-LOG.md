@@ -627,6 +627,10 @@ Inget gränssnitt i appen.
   lista eller med `=` ignorerades fortfarande; nu måste varje rad utanför nyckelblocket som nämner ordet ha exakt ett
   fingeravtryck (64 hexadecimala tecken, i grupper eller inte), annars startar inte appen. M: en kommentar med ordet
   stoppar appen (står i dokumentet), och verktyget förklarar en ogiltig inbyggd konfiguration.
+- Omgång 5: inga C, ett I och tre M, rättade. I: ett nyckelblock skrivet på en rad (inklistrat ur ett mejl) dolde
+  alla återkallelser efter sig; nu läses varje rad. M: ett block som aldrig stängs dolde resten, ett fingeravtryck på
+  en rad utan ordet (stavfel, *ÅTERKALLAD*) stoppar nu appen, och spärren mot en privat nyckel bryr sig inte om
+  versaler.
 
 **Återstår:** gränssnittet som visar nyckelns fingeravtryck och när den saknas, att administratören skapar nyckeln och
 bygger in den, och att byta ärendets filnyckel (för att stänga en röjd nyckel i kopior som redan lämnats ut).

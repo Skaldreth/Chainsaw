@@ -226,10 +226,35 @@ public sealed class RecoveryKeyTests : IDisposable
     [InlineData("revoked")]
     [InlineData("REVOKED: inte ett fingeravtryck")]
     [InlineData("Revoked keys are listed below.")]
+    [InlineData("REVOKE e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7")]
+    [InlineData("ÅTERKALLAD e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7")]
+    [InlineData("-----begin private key-----")]
     [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----")]
     public void Built_in_text_that_does_not_hold_stops_the_build_from_running(string line)
     {
         Assert.Throws<InvalidOperationException>(() => EmbeddedRecoveryKey.Parse("Förklaring\n" + line));
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("")]
+    public void A_key_block_on_one_line_does_not_hide_a_revocation_after_it(string separator)
+    {
+        var key = RecoveryPublicKey.FromPrivateKey(_privateKey);
+        var oneLine = key.ExportPem().Replace("\n", separator, StringComparison.Ordinal);
+
+        var parsed = EmbeddedRecoveryKey.Parse(oneLine + "\nKommentar\nREVOKED " + OpenSslFingerprint + "\n");
+
+        Assert.Equal(key, parsed.Key);
+        Assert.Equal([OpenSslFingerprint], parsed.Revoked);
+    }
+
+    [Fact]
+    public void A_block_that_is_never_closed_does_not_hide_a_revocation()
+    {
+        Assert.Equal(
+            [OpenSslFingerprint],
+            EmbeddedRecoveryKey.Parse("-----BEGIN NOTE-----\nREVOKED " + OpenSslFingerprint).Revoked);
     }
 
     [Fact]
