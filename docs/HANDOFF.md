@@ -128,11 +128,8 @@ Uppdaterat 2026-11-07 sent på kvällen. Etapp 27 är inne och hela sviten är g
 Windows är rättade och användaren har kört sviten utan fel. Felrättningarna utan ny form och GR6c (utan läget
 *Startpunkten tillagd*, se TODO) är byggda.
 
-1. **Accentfärgen:** användaren är inte nöjd med Magenta och skickade tre varma paletter (terrakotta med kräm och en
-   mörk ton). De ligger som ID9a–c på sidan *Stil och ikoner*. Väntar på val: bara accenten, eller också de varma
-   neutralerna. Terrakotta ligger nära risk (rött), spenderas (gult) och Gawks orange; väljs den behöver risk bli
-   kallare. Byts accenten: `Themes/Colors.xaml` (Color.Accent, Brush.AccentHover, Brush.OnAccent), loggan i
-   `assets/logo/` och CLAUDE.md *Färger*.
+1. **Färgerna ID9b** är bytta (accenten terrakotta och skiffer som botten) och loggan i `assets/logo/` med dem.
+   Provas på Windows.
 2. **Polering först**, i ordning (`docs/TODO.md`, *Polering först*): **ÄV1a**, ärendeväljaren; sedan det som saknar
    knapp (tona de obyggda vyerna i pillret, Bevaka och Kopiera i inspektören, zoom och passa in i grafens hörn,
    dubbelklick som expanderar); sedan en kort testrunda av användaren på Windows.

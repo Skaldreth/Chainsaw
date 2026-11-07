@@ -25,8 +25,8 @@ internal static partial class WindowFrame
     /// <summary>The corner preference for Windows 11's normal rounding (DWMWCP_ROUND).</summary>
     private const int CornerRound = 2;
 
-    /// <summary>The border colour as a COLORREF (0x00BBGGRR): <c>Brush.BorderStrong</c>, #3A3A3A.</summary>
-    private const int BorderStrong = 0x003A3A3A;
+    /// <summary>The border colour as a COLORREF (0x00BBGGRR): <c>Brush.BorderStrong</c>, #45474A.</summary>
+    private const int BorderStrong = 0x004A4745;
 
     /// <summary>Asks for rounded corners, a dark frame and the strong border colour on the given window.</summary>
     /// <param name="hwnd">The window's handle, known once the window's source is initialised.</param>

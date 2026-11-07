@@ -285,9 +285,12 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   släpper länkarna, och den sista länkens två stänger fortsätter som en **dubbelspiral** med stängernas bredd, som vidgas
   mot nederkanten, med basparen som streck mellan strängarna. Figuren är ritad som **vektor**, utan teckenfält bakom;
   bara **partiklar** i tecken (och ibland en bas) lossnar från spiralen och driver ut.
-- **Färger:** Gawks gråskala (bakgrund `#191919`, paneler `#1F1F1F`, upphöjt `#262626`, markerat `#333333`, text `#EFEFEF` /
-  `#B4B4B4` / `#8F8F8F`, lyckat `#8CC98F`, fel `#EC8C8C`) med en **egen accentfärg: Magenta `#E070B0`** (användarens beslut 2026-11-07, skiss ID6). Accenten betyder alltid offrens
-  pengar och det valda, och krockar inte med grafens färger för börs, risk, annan kedja och tjänst.
+- **Färger: ID9b, terrakotta och skiffer** (användarens beslut 2026-11-07, ersätter Gawks gråskala och Magenta): en
+  sval blågrå skiffer som botten (bakgrund `#22262A`, paneler `#2B2E32`, upphöjt `#33373A`, markerat `#404346`, kanter
+  `#33373A` / `#45474A`), text i kräm och grått (`#FBF6F0` / `#9AA2A6` / `#7C8387`), lyckat `#8CC98F`, fel `#EC8C8C`,
+  och **accenten terrakotta `#C55A3D`** med kräm på. Stegen räknas ut ur paletten i `Themes/Colors.xaml`. Accenten
+  betyder alltid offrens pengar och det valda; den ligger nära risk (rött) och spenderas (gult), som får hållas isär
+  på ljushet.
 - **Typsnitt:** Segoe UI Variable, Cascadia Mono bara för hashar, txid och adresser i inspektören samt terminalen.
 - **Grafen är hjärtat.** Det är där man arbetar mest. Den bygger på idéerna från Gawks Byggare (en duk med noder, portar och
   kopplingar), anpassad för spårning. Scrubbern, tidslinjen och kolumner med kort tas över i formen.
@@ -474,7 +477,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 
 | Sida | Skisser | Läge |
 | --- | --- | --- |
-| **Stil och ikoner** | ID1 (Bitcoin-myntet), ID3 (sågkedjan), ID5 (kättingen); ID6 (accentfärgen), GR3a och GR3c (bildspråket); ID9a–c (accentfärgen i varma jordtoner) | ID1 och ID3 avvisade, ID5 ersatt av loggan i `assets/logo/`; ID6 Magenta (användaren inte nöjd 2026-11-07), GR3a och GR3c godkända; ID9a–c väntar på val |
+| **Stil och ikoner** | ID1 (Bitcoin-myntet), ID3 (sågkedjan), ID5 (kättingen); ID6 (accentfärgen), GR3a och GR3c (bildspråket); ID9a–c (accentfärgen i varma jordtoner) | ID1 och ID3 avvisade, ID5 ersatt av loggan i `assets/logo/`; ID6 Magenta ersatt, GR3a och GR3c godkända; ID9b vald och byggd |
 | **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA) | ID8c (ersätter ID7a) och FS1a valda och byggda |
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |

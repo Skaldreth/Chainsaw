@@ -16,10 +16,10 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="#4A4A4A" />
+                <Setter Property="Background" Value="#56585A" />
             </Trigger>
             <Trigger Property="IsDragging" Value="True">
-                <Setter Property="Background" Value="#5A5A5A" />
+                <Setter Property="Background" Value="#636465" />
             </Trigger>
         </Style.Triggers>
     </Style>

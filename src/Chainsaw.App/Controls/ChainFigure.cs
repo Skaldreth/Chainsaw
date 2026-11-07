@@ -23,7 +23,7 @@ public sealed class ChainFigure : FrameworkElement
     private static readonly TimeSpan LongestStep = TimeSpan.FromMilliseconds(100);
 
     /// <summary>The accent, should the theme not give it.</summary>
-    private static readonly Color FallbackAccent = Color.FromRgb(0xE0, 0x70, 0xB0);
+    private static readonly Color FallbackAccent = Color.FromRgb(0xC5, 0x5A, 0x3D);
 
     /// <summary>One joint, as a frozen shape in the logo's units.</summary>
     private static readonly Geometry Joint = Frozen(Geometry.Parse(ChainLink.Joint));

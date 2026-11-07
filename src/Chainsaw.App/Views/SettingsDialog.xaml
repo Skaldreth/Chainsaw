@@ -65,7 +65,7 @@
             <Setter Property="CornerRadius" Value="7" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
-            <Setter Property="Background" Value="#1C1C1C" />
+            <Setter Property="Background" Value="#262A2E" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
@@ -203,7 +203,7 @@
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
             <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
-            <Setter Property="Background" Value="#222222" />
+            <Setter Property="Background" Value="#2F3236" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -551,7 +551,7 @@
                                                                 <DataTrigger Binding="{Binding IsWindows}" Value="True">
                                                                     <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
                                                                     <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
-                                                                    <Setter Property="Background" Value="#2A2026" />
+                                                                    <Setter Property="Background" Value="#392D2D" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -577,7 +577,7 @@
                                                                 <DataTrigger Binding="{Binding IsVpn}" Value="True">
                                                                     <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
                                                                     <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
-                                                                    <Setter Property="Background" Value="#2A2026" />
+                                                                    <Setter Property="Background" Value="#392D2D" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>

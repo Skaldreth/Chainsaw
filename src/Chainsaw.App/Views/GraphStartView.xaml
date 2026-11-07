@@ -125,7 +125,7 @@
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding IsLit}" Value="True">
                     <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Brush.Success}" />
-                    <Setter TargetName="Chip" Property="Background" Value="#1F2A20" />
+                    <Setter TargetName="Chip" Property="Background" Value="#25342C" />
                     <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Success}" />
                     <Setter TargetName="Name" Property="Foreground" Value="{StaticResource Brush.Text}" />
                     <Setter TargetName="Form" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
