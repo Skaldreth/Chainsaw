@@ -254,6 +254,21 @@ public sealed class MonitoringServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_source_that_failed_while_the_case_stood_in_is_failed_and_read_again_at_the_same_height()
+    {
+        _harness.WatchBitcoin(Node);
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_000);
+        _harness.Bitcoin.Status = LookupStatus.FromCaseMayBeOutdated;
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_020);
+
+        Assert.Equal(WatchFeedStatus.Failed, run.Outcomes.Single().Status);
+        var last = _harness.Service.GetChecked(_harness.Case).Values.Single();
+        Assert.True(MonitoringService.IsDue(_harness.Service.GetWatches(_harness.Case).Single(), last, 900_000,
+            last.CheckedUtc.AddMinutes(1)));
+    }
+
+    [Fact]
     public void Seen_hits_are_noted_and_never_move_back()
     {
         _harness.Service.MarkSeen(_harness.Case, "w", 5);

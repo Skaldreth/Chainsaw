@@ -80,7 +80,15 @@ public sealed record WatchFeedPage(
     IReadOnlyList<WatchTransaction> Transactions,
     IReadOnlyList<long> Origins,
     bool IsCutShort,
-    string? Problem);
+    string? Problem)
+{
+    /// <summary>
+    /// Gets, for a partial read, the block above which everything was read: blocks below it, down to where the check
+    /// was asked to read, were not. <see langword="null"/> when nothing reliable was read, so the check stays where it
+    /// was; for a full read it is not used.
+    /// </summary>
+    public long? CompleteAbove { get; init; }
+}
 
 /// <summary>
 /// Where a check reads an address's newest transactions. The case's feed asks the chain's source with
@@ -116,7 +124,14 @@ public sealed record WatchCheckResult(
     WatchFeedStatus Status,
     IReadOnlyList<long> Origins,
     long? Highest,
-    IReadOnlyList<string> Problems);
+    IReadOnlyList<string> Problems)
+{
+    /// <summary>
+    /// Gets, for a partial check, the block above which every address was read completely (the highest of the
+    /// addresses' <see cref="WatchFeedPage.CompleteAbove"/>), or <see langword="null"/> when that is not known.
+    /// </summary>
+    public long? CompleteAbove { get; init; }
+}
 
 /// <summary>
 /// The check of a watch, without the case (only addresses and a filter in, matches out), so that the background

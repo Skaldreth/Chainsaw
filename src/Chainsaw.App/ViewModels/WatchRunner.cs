@@ -117,6 +117,7 @@ public sealed class WatchRunner : IDisposable
         state.NextHeight = now + HeightPoll;
         var height = await source.GetHeightAsync(openCase, chain, cancellationToken).ConfigureAwait(false);
         state.HeightFailed = height is null;
+        _board.HeightAsked(openCase, chain, height is null);
         if (height is null)
         {
             return;

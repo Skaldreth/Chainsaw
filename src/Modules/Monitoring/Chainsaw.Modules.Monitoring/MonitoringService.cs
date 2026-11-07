@@ -29,6 +29,12 @@ internal sealed class MonitoringService(
     public const string TooManyAddressesText =
         "Klustret har {0} adresser; en kontroll läser de {1} första, så resten bevakas inte nu.";
 
+    /// <summary>
+    /// How much earlier than its pace a watch may be checked, since the height is asked once a minute and a check takes
+    /// time: without it a watch of one minute would wait for two.
+    /// </summary>
+    public static readonly TimeSpan Tolerance = TimeSpan.FromSeconds(10);
+
     /// <summary>What a check says when a cluster's addresses could not be read.</summary>
     public const string NoClusterText = "Klustrets adresser kunde inte läsas; bara {0} kontrollerades.";
 
@@ -206,7 +212,7 @@ internal sealed class MonitoringService(
                 .ConfigureAwait(false);
             var fresh = result.Matches.Where(match => !known.Contains(WatchCodec.Key(watch.Id, match))).ToList();
             var problems = notes.Concat(result.Problems).ToList();
-            var hits = Seal(@case, watch, fresh, result, problems, height);
+            var hits = Seal(@case, watch, fresh, result, problems, height, now);
             outcomes.Add(new WatchOutcome(watch.Id, result.Status, hits, problems));
         }
 
@@ -230,8 +236,8 @@ internal sealed class MonitoringService(
             return true;
         }
 
-        var newBlock = height > last.Height || last.Status != WatchFeedStatus.Read;
-        return newBlock && now - last.CheckedUtc >= watch.Filter.Pace.Interval();
+        var newBlock = height > last.Height || last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
+        return newBlock && now - last.CheckedUtc >= watch.Filter.Pace.Interval() - Tolerance;
     }
 
     /// <summary>Gives the feed that reads a chain through the case's sources.</summary>
@@ -323,6 +329,7 @@ internal sealed class MonitoringService(
     /// <param name="result">The check.</param>
     /// <param name="problems">What to say about it.</param>
     /// <param name="height">The chain's height.</param>
+    /// <param name="started">When the check started, which is when it counts as made for the pace.</param>
     /// <returns>The sealed hits.</returns>
     private IReadOnlyList<WatchHit> Seal(
         ICase @case,
@@ -330,7 +337,8 @@ internal sealed class MonitoringService(
         IReadOnlyList<WatchMatch> fresh,
         WatchCheckResult result,
         IReadOnlyList<string> problems,
-        long height)
+        long height,
+        DateTimeOffset started)
     {
         var problem = problems.Count == 0 ? null : string.Join(' ', problems);
         var through = Math.Max(height, result.Highest ?? height);
@@ -338,10 +346,24 @@ internal sealed class MonitoringService(
         {
             // The height is only moved on when every address was read back to where the check was, so that a failed,
             // partial or not asked lookup is read again from the same place.
-            var previous = WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id);
-            var kept = result.Status == WatchFeedStatus.Read ? through : previous?.Height ?? watch.StartHeight!.Value;
-            WatchStore.WriteChecked(
-                transaction, watch.Id, new WatchChecked(clock.UtcNow, kept, result.Status, problem));
+            // A watch removed, paused or changed while it was checked gets nothing sealed from the check: the next
+            // check reads it again as it is now.
+            var now = WatchStore.ReadWatches(transaction).FirstOrDefault(each => each.Id == watch.Id);
+            if (now is null || now.State != WatchState.Active
+                || WatchCodec.Encode(now.Filter) != WatchCodec.Encode(watch.Filter))
+            {
+                return (IReadOnlyList<WatchHit>)[];
+            }
+
+            var previous = WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id)?.Height
+                ?? watch.StartHeight!.Value;
+            var kept = result.Status switch
+            {
+                WatchFeedStatus.Read => through,
+                WatchFeedStatus.Partial when result.CompleteAbove is { } above => Math.Max(previous, above),
+                _ => previous,
+            };
+            WatchStore.WriteChecked(transaction, watch.Id, new WatchChecked(started, kept, result.Status, problem));
             if (fresh.Count == 0)
             {
                 return (IReadOnlyList<WatchHit>)[];

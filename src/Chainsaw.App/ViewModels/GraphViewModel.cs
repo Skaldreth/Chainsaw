@@ -700,6 +700,7 @@ public sealed partial class GraphViewModel : ObservableObject
     private void OnCaseChanged()
     {
         CaseChanged?.Invoke(this, EventArgs.Empty);
+        ForgetWatchForms();
         _moved.Clear();
         _firstFree.Clear();
         _refreshAfterExpansion = false;

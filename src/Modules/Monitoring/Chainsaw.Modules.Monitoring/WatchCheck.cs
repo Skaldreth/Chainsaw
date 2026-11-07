@@ -80,10 +80,16 @@ internal sealed class WatchCheck : IWatchCheck
         var problems = new List<string>();
         var status = WatchFeedStatus.Read;
         long? highest = null;
+        long? completeAbove = null;
         foreach (var address in addresses)
         {
             var page = await feed.ReadAsync(address, filter.Asset, downTo, cancellationToken).ConfigureAwait(false);
             origins.AddRange(page.Origins);
+            if (page.Status == WatchFeedStatus.Partial && page.CompleteAbove is { } above)
+            {
+                completeAbove = Math.Max(completeAbove ?? above, above);
+            }
+
             status = Worse(status, page.Status);
             if (page.Problem is { } problem)
             {
@@ -114,7 +120,10 @@ internal sealed class WatchCheck : IWatchCheck
             status,
             [.. origins.Distinct().Order()],
             highest,
-            [.. problems.Distinct(StringComparer.Ordinal)]);
+            [.. problems.Distinct(StringComparer.Ordinal)])
+        {
+            CompleteAbove = completeAbove,
+        };
     }
 
     /// <summary>

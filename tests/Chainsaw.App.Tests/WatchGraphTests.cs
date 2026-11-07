@@ -15,9 +15,11 @@ public sealed class WatchGraphTests
 {
     private readonly TestWatchSource _source = new();
 
+    private CaseSession? _session;
+
     private (GraphViewModel Graph, WatchBoard Board, WatchFormViewModel Form) Graph()
     {
-        var session = new CaseSession();
+        var session = _session = new CaseSession();
         var workflow = new CaseWorkflow(
             new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), session);
         var graph = new GraphViewModel(
@@ -261,5 +263,62 @@ public sealed class WatchGraphTests
         await runner.RunOnceAsync();
 
         Assert.Equal(2, _source.HeightsAsked);
+    }
+
+    [Fact]
+    public void A_cluster_counterparty_draws_one_line_and_one_chip()
+    {
+        _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(
+            WatchDirection.Out, [WatchSamples.On(K1), WatchSamples.On(K2)]));
+        var snapshot = new WatchSnapshot(_source.Watches, _source.Records, _source.Hits, _source.Checked, _source.Seen);
+
+        var overlay = GraphWatches.Build(Scene(), snapshot, _ => WatchGate.Open);
+
+        Assert.Single(overlay.Lines);
+        Assert.DoesNotContain(" eller ", overlay.MarkOf(VKey)!.Tip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Another_case_closes_the_form_and_the_menu_and_nothing_is_saved_there()
+    {
+        var (graph, _, form) = Graph();
+        await graph.ReloadAsync(fit: false);
+        graph.OpenMenu(VKey);
+        graph.Choose(VKey, null);
+        graph.OpenWatch();
+        Assert.True(form.IsOpen);
+
+        _session!.Open(new TestCase("2026-0099"));
+        await form.SaveAsync();
+
+        Assert.False(form.IsOpen);
+        Assert.False(graph.IsMenuOpen);
+        Assert.Empty(_source.Added);
+    }
+
+    [Fact]
+    public async Task The_watched_clusters_own_addresses_cannot_be_its_counterparties()
+    {
+        var (graph, _, form) = Graph();
+        await graph.ReloadAsync(fit: false);
+        graph.Choose(KKey, null);
+        graph.OpenWatch();
+
+        Assert.False(form.Add(WatchSamples.On(K2), null));
+        Assert.Equal(WatchFormViewModel.SelfText, form.Problem);
+    }
+
+    [Fact]
+    public async Task A_height_that_cannot_be_had_is_said_in_the_head()
+    {
+        _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
+        _source.Height = null;
+        var (_, board) = WatchSamples.Board(_source);
+        var view = new MonitoringViewModel(board, new WatchFormViewModel(board), new TestClock());
+        await board.ReloadAsync();
+
+        await new WatchRunner(board, new TestClock(), (_, _) => Task.CompletedTask).RunOnceAsync();
+
+        Assert.Equal(WatchWords.FailingText, view.BackgroundText);
     }
 }

@@ -376,15 +376,22 @@ public sealed partial class MonitoringViewModel : ObservableObject
     private WatchRowViewModel RowOf(WatchSnapshot snapshot, Watch watch)
     {
         var gate = _board.Gate(watch.Chain);
+        var failed = snapshot.Checked.TryGetValue(watch.Id, out var last)
+            && last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
+        var running = gate == WatchGate.Open && watch.StartHeight is not null && !failed;
         var light = watch.State == WatchState.Paused ? WatchLight.Paused
-            : gate == WatchGate.Open && watch.StartHeight is not null ? WatchLight.Active : WatchLight.Waiting;
+            : running ? WatchLight.Active : WatchLight.Waiting;
+        // A cluster picked as a counterparty brings all its addresses; the row names its node once.
         var parties = watch.Filter.Receivers.Select(party => new WatchRowParty(Name(party), true))
             .Concat(watch.Filter.Senders.Select(party => new WatchRowParty(Name(party), false)))
+            .Distinct()
             .ToList();
         return new WatchRowViewModel(
             watch,
             light,
-            WatchWords.State(watch, gate),
+            failed && watch.State == WatchState.Active && gate == WatchGate.Open
+                ? "Senaste uppslaget misslyckades"
+                : WatchWords.State(watch, gate),
             parties,
             WatchWords.Parties(watch.Filter, Name),
             LastOf(snapshot, watch),
@@ -470,6 +477,8 @@ public sealed partial class MonitoringViewModel : ObservableObject
         var gates = chains.Select(chain => (Chain: chain, Gate: _board.Gate(chain))).ToList();
         var notAsked = active.Any(watch => snapshot.Checked.TryGetValue(watch.Id, out var last)
             && last.Status == WatchFeedStatus.NotAsked);
+        var failing = active.Any(watch => _board.HeightFailing.Contains(watch.Chain)
+            || (snapshot.Checked.TryGetValue(watch.Id, out var last) && last.Status == WatchFeedStatus.Failed));
         if (gates.Any(each => each.Gate == WatchGate.Locked))
         {
             (BackgroundText, BackgroundTip, IsWaiting) = (WatchWords.LockedText, WatchWords.LockedText, true);
@@ -482,6 +491,10 @@ public sealed partial class MonitoringViewModel : ObservableObject
         {
             var text = string.Format(CultureInfo.InvariantCulture, WatchWords.ChainOffText, off.Chain);
             (BackgroundText, BackgroundTip, IsWaiting) = (text, text, true);
+        }
+        else if (failing)
+        {
+            (BackgroundText, BackgroundTip, IsWaiting) = (WatchWords.FailingText, WatchWords.FailingTip, true);
         }
         else if (notAsked)
         {

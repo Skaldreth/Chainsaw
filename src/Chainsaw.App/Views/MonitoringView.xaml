@@ -112,8 +112,21 @@
                        Margin="12,24,0,0" TextWrapping="Wrap"
                        Visibility="{Binding HasRows, Converter={StaticResource Hidden}}" />
 
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
-                <ItemsControl ItemsSource="{Binding Rows}" Focusable="False">
+            <!-- Virtualized, so that a long list costs only the rows on screen (principle 6). -->
+            <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.ScrollUnit="Pixel">
+            <ItemsControl.Template>
+            <ControlTemplate TargetType="ItemsControl">
+                <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <ItemsPresenter />
+                </ScrollViewer>
+            </ControlTemplate>
+            </ItemsControl.Template>
+            <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <VirtualizingStackPanel VirtualizationMode="Recycling" />
+            </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:WatchRowViewModel}">
                             <Button Height="52" Margin="0,0,0,4" Cursor="Hand" FocusVisualStyle="{x:Null}"
@@ -218,7 +231,6 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </ScrollViewer>
         </DockPanel>
 
         <!-- The form for Ny bevakning … and Ändra. -->
@@ -301,8 +313,20 @@
                         </Border>
                         <TextBlock DockPanel.Dock="Top" Text="Inga träffar än." FontSize="12" Foreground="{StaticResource Brush.TextFaint}"
                                    Visibility="{Binding HasNoHits, Converter={StaticResource Visible}}" />
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
-                            <ItemsControl ItemsSource="{Binding Hits}" Focusable="False">
+                        <ItemsControl ItemsSource="{Binding Hits}" Focusable="False" VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.ScrollUnit="Pixel">
+                            <ItemsControl.Template>
+                                <ControlTemplate TargetType="ItemsControl">
+                                    <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" Focusable="False">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </ControlTemplate>
+                            </ItemsControl.Template>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel VirtualizationMode="Recycling" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:WatchHitRow}">
                                         <Border CornerRadius="6" Padding="12,7,8,7" Margin="0,0,0,6">
@@ -340,7 +364,6 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </ScrollViewer>
                     </DockPanel>
                 </DockPanel>
             </Grid>

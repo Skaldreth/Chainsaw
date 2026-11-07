@@ -176,7 +176,7 @@ public sealed partial class GraphViewModel
 
         Forms.Cancel();
         var kind = node.Node.Kind == GraphNodeKind.Cluster ? WatchSubjectKind.Cluster : WatchSubjectKind.Address;
-        form.OpenFor(new WatchSubject(kind, node.Node.Addresses[0], node.Name), NameOf);
+        form.OpenFor(new WatchSubject(kind, node.Node.Addresses[0], node.Name), NameOf, node.Node.Addresses);
     }
 
     /// <summary>
@@ -255,6 +255,15 @@ public sealed partial class GraphViewModel
         && node.Node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster
         && node.Node.Addresses.Count > 0
         && node.Node.Chain is Chain.Bitcoin or Chain.Ethereum;
+
+    /// <summary>
+    /// Closes the node's menu and the watch form when another case opens, so that nothing is saved there.
+    /// </summary>
+    private void ForgetWatchForms()
+    {
+        MenuNode = null;
+        WatchForm?.Cancel();
+    }
 
     /// <summary>Works out the overlay anew and draws.</summary>
     private void ShowWatches()

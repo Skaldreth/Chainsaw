@@ -200,6 +200,7 @@ public static class GraphWatches
     {
         var pairs = watch.Filter.Receivers.Select(party => (Party: party, IsOut: true))
             .Concat(watch.Filter.Senders.Select(party => (Party: party, IsOut: false)));
+        var drawn = new HashSet<(string, string)>();
         foreach (var (party, isOut) in pairs)
         {
             if (!nodeOf.TryGetValue(party, out var other) || other == node)
@@ -208,7 +209,8 @@ public static class GraphWatches
             }
 
             var (from, to) = isOut ? (node, other) : (other, node);
-            if (hitLines.Any(line => line.From == from && line.To == to))
+            // A cluster picked as a counterparty brings all its addresses: one line to its node, never one per address.
+            if (hitLines.Any(line => line.From == from && line.To == to) || !drawn.Add((from, to)))
             {
                 continue;
             }
@@ -240,12 +242,12 @@ public static class GraphWatches
         });
         if (watch.Filter.Receivers.Count > 0)
         {
-            parts.Add("till " + string.Join(" eller ", watch.Filter.Receivers.Select(Name)));
+            parts.Add("till " + string.Join(" eller ", watch.Filter.Receivers.Select(Name).Distinct()));
         }
 
         if (watch.Filter.Senders.Count > 0)
         {
-            parts.Add("från " + string.Join(" eller ", watch.Filter.Senders.Select(Name)));
+            parts.Add("från " + string.Join(" eller ", watch.Filter.Senders.Select(Name).Distinct()));
         }
 
         if (watch.Filter.HasNoCounterparties)

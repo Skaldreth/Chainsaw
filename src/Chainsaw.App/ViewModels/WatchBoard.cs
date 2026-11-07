@@ -60,6 +60,14 @@ public sealed class WatchBoard
     /// <summary>Gets the snapshot of the open case, or an empty one.</summary>
     public WatchSnapshot Snapshot { get; private set; } = WatchSnapshot.Empty;
 
+    /// <summary>
+    /// Gets the chains whose height could not be had at the last ask, so that the view says lookups fail.
+    /// </summary>
+    public IReadOnlySet<Chain> HeightFailing => _heightFailing;
+
+    /// <summary>The chains whose height could not be had at the last ask.</summary>
+    private readonly HashSet<Chain> _heightFailing = [];
+
     /// <summary>Gets the problem of the last read or write, or an empty text.</summary>
     public string Problem { get; private set; } = string.Empty;
 
@@ -138,6 +146,27 @@ public sealed class WatchBoard
         });
     }
 
+    /// <summary>
+    /// Tells, from any thread, whether a chain's height could be had for the open case, so that a failing source is
+    /// said rather than hidden behind <em>Bevakar</em>.
+    /// </summary>
+    /// <param name="checkedCase">The case the runner asked for.</param>
+    /// <param name="chain">The chain.</param>
+    /// <param name="failed">Whether the height could not be had.</param>
+    public void HeightAsked(ICase checkedCase, Chain chain, bool failed) => _ui.Post(() =>
+    {
+        if (!ReferenceEquals(checkedCase, _session.Current))
+        {
+            return;
+        }
+
+        var changed = failed ? _heightFailing.Add(chain) : _heightFailing.Remove(chain);
+        if (changed)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    });
+
     /// <summary>Notes that the user has seen a watch's hits, when it has new ones.</summary>
     /// <param name="watchId">The watch.</param>
     /// <returns>A task that completes when it is noted and read back.</returns>
@@ -186,6 +215,11 @@ public sealed class WatchBoard
     /// <param name="problem">The problem, or an empty text.</param>
     private void Show(WatchSnapshot snapshot, string problem)
     {
+        if (_session.Current is null)
+        {
+            _heightFailing.Clear();
+        }
+
         Snapshot = snapshot;
         Problem = problem;
         Changed?.Invoke(this, EventArgs.Empty);

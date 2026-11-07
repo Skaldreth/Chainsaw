@@ -80,6 +80,12 @@ public sealed partial class WatchFormViewModel : ObservableObject
     /// <summary>The watch being changed, or <see langword="null"/>.</summary>
     private string? _changing;
 
+    /// <summary>The case the form was opened in; it saves only there.</summary>
+    private Modules.Cases.Contracts.ICase? _case;
+
+    /// <summary>The watched node's own addresses, which can never be its counterparties.</summary>
+    private IReadOnlySet<ChainAddress> _own = new HashSet<ChainAddress>();
+
     /// <summary>Names an address in a chip.</summary>
     private Func<ChainAddress, string> _name = WatchWords.Short;
 
@@ -214,10 +220,13 @@ public sealed partial class WatchFormViewModel : ObservableObject
     /// <summary>Opens the form for a node in the graph.</summary>
     /// <param name="subject">The node.</param>
     /// <param name="name">Names an address: its node's name in the graph, or the address shortened.</param>
-    public void OpenFor(WatchSubject subject, Func<ChainAddress, string>? name = null)
+    /// <param name="own">The node's addresses (a cluster's all), which can never be its counterparties.</param>
+    public void OpenFor(
+        WatchSubject subject, Func<ChainAddress, string>? name = null, IReadOnlyList<ChainAddress>? own = null)
     {
         ArgumentNullException.ThrowIfNull(subject);
         Reset(subject, null, name, $"Bevaka {subject.Name}");
+        _own = (own ?? []).ToHashSet();
         IsManual = false;
     }
 
@@ -333,7 +342,7 @@ public sealed partial class WatchFormViewModel : ObservableObject
             return false;
         }
 
-        if ((_subject?.Anchor ?? ManualAddress()) is { } self && mine.Contains(self))
+        if (((_subject?.Anchor ?? ManualAddress()) is { } self && mine.Contains(self)) || mine.Any(_own.Contains))
         {
             Problem = SelfText;
             return false;
@@ -380,7 +389,14 @@ public sealed partial class WatchFormViewModel : ObservableObject
             return;
         }
 
-        if (_board.Case is not { } openCase || BuildFilter() is not { } filter || SubjectToSave() is not { } subject)
+        if (_board.Case is not { } openCase || !ReferenceEquals(openCase, _case))
+        {
+            // Another case was opened since the form was: nothing of this one is saved there.
+            Cancel();
+            return;
+        }
+
+        if (BuildFilter() is not { } filter || SubjectToSave() is not { } subject)
         {
             return;
         }
@@ -525,6 +541,8 @@ public sealed partial class WatchFormViewModel : ObservableObject
     {
         _subject = subject;
         _changing = changing;
+        _case = _board.Case;
+        _own = new HashSet<ChainAddress>();
         _name = name ?? WatchWords.Short;
         Title = title;
         AddressText = string.Empty;

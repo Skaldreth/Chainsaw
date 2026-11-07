@@ -27,7 +27,7 @@ internal static class WatchTexts
             parts.Add("alla motparter");
         }
 
-        parts.Add(filter.Asset?.Symbol ?? "alla tillgångar");
+        parts.Add(filter.CountedAsset?.Symbol ?? "alla tillgångar");
         if (filter.Minimum is { } minimum)
         {
             parts.Add($"minst {minimum}");

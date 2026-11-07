@@ -28,6 +28,14 @@ public static class WatchWords
     /// <summary>The head when a chain's sources are off.</summary>
     public const string ChainOffText = "Källorna är av för {0} · inga uppslag görs";
 
+    /// <summary>The head when lookups were sent and failed.</summary>
+    public const string FailingText = "Uppslagen misslyckas · försöker igen";
+
+    /// <summary>The head's tooltip when lookups fail.</summary>
+    public const string FailingTip =
+        "Källan svarade inte, eller svarade fel, vid senaste kontrollen. Bevakningen frågar igen vid nästa kontroll; " +
+        "se Inställningar → Källor.";
+
     /// <summary>The head when the last check found no endpoint in step with the chain.</summary>
     public const string NoSourceText = "Väntar på en endpoint i fas · inga uppslag görs";
 
@@ -130,12 +138,12 @@ public static class WatchWords
         var parts = new List<string>();
         if (filter.Receivers.Count > 0)
         {
-            parts.Add("Till " + string.Join(", ", filter.Receivers.Select(name)));
+            parts.Add("Till " + string.Join(", ", filter.Receivers.Select(name).Distinct()));
         }
 
         if (filter.Senders.Count > 0)
         {
-            parts.Add("Från " + string.Join(", ", filter.Senders.Select(name)));
+            parts.Add("Från " + string.Join(", ", filter.Senders.Select(name).Distinct()));
         }
 
         return parts.Count == 0 ? "Alla motparter" : string.Join(" · ", parts);

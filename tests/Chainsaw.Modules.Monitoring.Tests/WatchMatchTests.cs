@@ -187,7 +187,7 @@ public sealed class WatchCoinJoinTests
     }
 
     [Fact]
-    public async Task A_check_cut_short_keeps_the_height_so_the_next_reads_from_the_same_place()
+    public async Task A_check_cut_short_moves_on_above_what_it_read_and_says_the_gap()
     {
         using var harness = new Harness();
         harness.WatchBitcoin(Node);
@@ -208,6 +208,8 @@ public sealed class WatchCoinJoinTests
 
         Assert.Equal(WatchFeedStatus.Partial, run.Outcomes.Single().Status);
         Assert.Equal(5, run.Hits.Count());
-        Assert.Equal(900_000, harness.Service.GetChecked(harness.Case).Values.Single().Height);
+        var checkedAt = harness.Service.GetChecked(harness.Case).Values.Single();
+        Assert.Equal(900_096, checkedAt.Height);
+        Assert.Contains("900001–900096", checkedAt.Problem, StringComparison.Ordinal);
     }
 }

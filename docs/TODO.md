@@ -629,9 +629,10 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   hashen kvar. Kontrollera träffarnas block mot kedjan och säg det.
 - **Pausen** räknar det som hände under pausen som träffar när bevakningen återupptas (inget tappas). Bekräfta eller
   välj att räkna från återupptagandet.
-- **Mycket aktiva adresser:** en kontroll läser högst fem sidor bakåt. En börsadress med fler tx per kontroll än så
-  läses aldrig ända ner; kontrollen säger det och läser om från samma block, men de äldsta kan missas. Läs i ett
-  tidsfönster eller med källans egen bevakning (websocket) i stället.
+- **Mycket aktiva adresser:** en kontroll läser högst fem sidor bakåt. Har en adress fler nya tx än så går kontrollen
+  vidare från det äldsta block den läste och sparar luckan (*tx i block N–M lästes inte*) med kontrollen; tx i luckan
+  kan ha missats. Samma när källan inte kan bläddra längre (en full sida i ett block) eller inte läst historiken
+  färdigt. Läs luckan i efterhand med en markör, eller med källans egen bevakning (websocket).
 - **Motparter som kluster** följer inte klustringen: en Ctrl+klickad klusternod lägger dess adresser då, inte de som
   kommer senare (noden själv följer klustringen vid varje kontroll).
 - **Ringarna** ritas genom att grafen ritas om (15 gånger i sekunden medan en osedd träff syns). Ett eget lager för
