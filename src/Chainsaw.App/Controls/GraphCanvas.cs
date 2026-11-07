@@ -204,9 +204,10 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawEdge(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
         }
 
-        foreach (var edge in edges)
+        var taken = new List<Rect>();
+        foreach (var edge in AmountOrder(edges, nearEdges))
         {
-            DrawAmount(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
+            DrawAmount(drawingContext, edge, _model.Curves[edge.Key], nearEdges, taken);
         }
 
         _ringsOnScreen = false;
@@ -218,6 +219,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         DrawCandidates(drawingContext, visible);
         DrawAreaChips(drawingContext, visible);
+        DrawFan(drawingContext, visible);
         drawingContext.Pop();
         KeepRings(_ringsOnScreen);
     }
@@ -234,7 +236,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         _model?.CloseMenu();
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
-        if (_model is not null && PressArea(surface))
+        if (_model is not null && (PressFan(at, surface) || PressArea(surface)))
         {
             e.Handled = true;
             return;
@@ -265,6 +267,11 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
+        if (MoveFan(at, surface))
+        {
+            return;
+        }
+
         if (!_gesture.IsPressed)
         {
             ShowHover(surface);
@@ -289,6 +296,12 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseLeftButtonUp(e);
+        if (ReleaseFan(_viewport.ToSurface(ToGraph(e.GetPosition(this)))))
+        {
+            e.Handled = true;
+            return;
+        }
+
         var (end, node) = _gesture.End();
         ReleaseMouseCapture();
         Finish(end, node, ToGraph(e.GetPosition(this)));
@@ -300,6 +313,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        ForgetFanPress();
         if (_panButton is not null)
         {
             StopPan();
@@ -356,6 +370,12 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         if (_model is null || (Keyboard.Modifiers & ~allowed) != ModifierKeys.None)
         {
+            return;
+        }
+
+        if (FanKey(e.Key))
+        {
+            e.Handled = true;
             return;
         }
 
@@ -578,13 +598,13 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         var lane = GraphPalette.Find(this, "Brush.Graph.Lane");
         var text = GraphPalette.Find(this, "Brush.Graph.LaneText");
-        foreach (var column in scene.Lanes.Where(l => l.X <= visible.Right && l.X + GraphSizes.NodeWidth >= visible.X))
+        foreach (var column in scene.Lanes.Where(l => l.X <= visible.Right && l.X + l.Width >= visible.X))
         {
             var top = Math.Min(0, visible.Y);
             dc.DrawRoundedRectangle(
-                lane, null, new Rect(column.X, top, GraphSizes.NodeWidth, visible.Bottom - top), NodeRadius, NodeRadius);
+                lane, null, new Rect(column.X, top, column.Width, visible.Bottom - top), NodeRadius, NodeRadius);
             var name = Text(column.Name, 11, text, FontWeights.Normal);
-            dc.DrawText(name, new Point(column.X + ((GraphSizes.NodeWidth - name.Width) / 2), 8));
+            dc.DrawText(name, new Point(column.X + ((column.Width - name.Width) / 2), 8));
         }
     }
 
@@ -654,9 +674,19 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="edge">The line.</param>
     /// <param name="curve">Its curve.</param>
     /// <param name="near">The lines near what is chosen.</param>
-    private void DrawAmount(DrawingContext dc, EdgeView edge, EdgeCurve curve, IReadOnlySet<string> near)
+    /// <param name="taken">
+    /// Where amounts already stand; an amount that would stand on one of them is left for hovering, so that amounts
+    /// never lie on top of each other (CLAUDE.md, <em>Grafen använder ytan</em>).
+    /// </param>
+    private void DrawAmount(
+        DrawingContext dc, EdgeView edge, EdgeCurve curve, IReadOnlySet<string> near, List<Rect> taken)
     {
         var model = _model!;
+        if (edge.Label.Length == 0)
+        {
+            return;
+        }
+
         if (!model.Labels.Shows(edge.IsTraced, model.HoveredEdge == edge.Key, model.IsFocused, near.Contains(edge.Key)))
         {
             // The swap is not an amount, so the gallring never hides it.
@@ -681,6 +711,12 @@ public sealed partial class GraphCanvas : FrameworkElement
         var height = text.Height + (value?.Height ?? 0);
         var middle = curve.Middle;
         var box = new Rect(middle.X - (width / 2) - 5, middle.Y - (text.Height / 2) - 1, width + 10, height + 2);
+        if (taken.Any(other => other.IntersectsWith(box)))
+        {
+            return;
+        }
+
+        taken.Add(box);
         dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
         var left = middle.X - ((text.Width + glyphWidth) / 2);
         if (glyph is not null)
@@ -699,6 +735,18 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawSwap(dc, swap, new Point(middle.X, box.Bottom + 4));
         }
     }
+
+    /// <summary>
+    /// Gives the order the amounts are written in, so that the one under the pointer, then those near what is chosen,
+    /// then the traced keep their place when two would meet.
+    /// </summary>
+    /// <param name="edges">The lines on screen.</param>
+    /// <param name="near">The lines near what is chosen.</param>
+    /// <returns>The lines in that order.</returns>
+    private IEnumerable<EdgeView> AmountOrder(IReadOnlyList<EdgeView> edges, IReadOnlySet<string> near) => edges
+        .OrderByDescending(edge => edge.Key == _model!.HoveredEdge)
+        .ThenByDescending(edge => near.Contains(edge.Key))
+        .ThenByDescending(edge => edge.IsTraced);
 
     /// <summary>
     /// Draws a swap's pill under a line's amount (sketch TK1a): <c>₮ → Ξ</c> in the other chain's purple on a dark

@@ -554,6 +554,12 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="edgeKey">The line, or <see langword="null"/>.</param>
     public void Choose(string? nodeKey, string? edgeKey)
     {
+        if (ChooseFolded(nodeKey, edgeKey))
+        {
+            nodeKey = null;
+            edgeKey = null;
+        }
+
         var node = Scene?.Node(nodeKey);
         var edge = node is null ? Scene?.Edge(edgeKey) : null;
         SelectedNode = node?.Key;
@@ -635,12 +641,26 @@ public sealed partial class GraphViewModel : ObservableObject
             return;
         }
 
+        await ExpandWithAsync(openCase, inspection.Expansion, () => ExpandCommand.Execute(null));
+    }
+
+    /// <summary>
+    /// Expands the graph by the given lookups, off the UI thread, and says what came in; after it, a lingering toast
+    /// says how many outputs that can never be spent are hidden, when the expansion brought new ones.
+    /// </summary>
+    /// <param name="openCase">The open case.</param>
+    /// <param name="requests">The lookups.</param>
+    /// <param name="retry">What <em>Försök igen</em> does when it fails.</param>
+    /// <returns>A task that completes when the graph is shown after the expansion.</returns>
+    private async Task ExpandWithAsync(ICase openCase, IReadOnlyList<ExpansionRequest> requests, Action retry)
+    {
         var version = _version;
         var token = _work.Token;
+        var hiddenBefore = Scene?.Unspendable ?? 0;
         IsExpanding = true;
         try
         {
-            var result = await _source.ExpandAsync(openCase, inspection.Expansion, Method, token);
+            var result = await _source.ExpandAsync(openCase, requests, Method, token);
             if (version == _version)
             {
                 // A reading that started before the expansion would bring back the graph without what it fetched.
@@ -650,6 +670,7 @@ public sealed partial class GraphViewModel : ObservableObject
                 var said = ExpansionNotice(result, IsOffline);
                 Notice = problems.Length == 0 ? said : $"{said} {problems}";
                 ToastWanted?.Invoke(this, new ToastRequest(ExpansionKind(result), said));
+                SayHiddenUnspendable(hiddenBefore);
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -662,7 +683,7 @@ public sealed partial class GraphViewModel : ObservableObject
                     ToastKind.Error,
                     ExpandFailedText,
                     exception is OperationCanceledException ? string.Empty : exception.Message,
-                    () => ExpandCommand.Execute(null));
+                    retry);
             }
         }
         finally
@@ -792,6 +813,8 @@ public sealed partial class GraphViewModel : ObservableObject
         Method = TracingMethodKind.Fifo;
         Layout = GraphLayout.Free;
         Labels = AmountLabelMode.All;
+        _showUnspendable = false;
+        CloseFan();
         Scene = null;
         SelectedNode = null;
         SelectedEdge = null;
@@ -827,6 +850,7 @@ public sealed partial class GraphViewModel : ObservableObject
             Method = view.Method;
             Layout = view.Layout;
             Labels = AmountLabelModes.FromStored(view.AmountLabels);
+            _showUnspendable = view.ShowUnspendable;
             StoredViewport = view.Viewport is { } stored ? Viewport.FromStored(stored) : null;
             _viewport = StoredViewport;
             _viewLoaded = read;
@@ -874,7 +898,10 @@ public sealed partial class GraphViewModel : ObservableObject
                 return;
             }
 
-            var view = new GraphViewState(Method, Layout, Labels.ToStored(), _viewport?.ToStored());
+            var view = new GraphViewState(Method, Layout, Labels.ToStored(), _viewport?.ToStored())
+            {
+                ShowUnspendable = _showUnspendable,
+            };
             try
             {
                 await _source.SaveViewAsync(openCase, view);
@@ -898,7 +925,8 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="keepNotice">Whether the notice stays instead of the graph's problems.</param>
     private void Show(GraphScene scene, bool fit, bool keepNotice = false)
     {
-        Scene = scene;
+        Scene = scene.WithUnspendable(_showUnspendable);
+        scene = Scene;
         EmptyText = scene.Snapshot.Graph.StartPoints.Count == 0 && scene.Nodes.Count == 0 ? NoStartPointsText : "";
         if (!keepNotice || Notice.Length == 0)
         {
@@ -917,6 +945,7 @@ public sealed partial class GraphViewModel : ObservableObject
         Inspect();
         ShowWatches();
         _ = Checks.FollowAsync(scene);
+        FollowFan();
         OnPropertyChanged(nameof(MethodToolTip));
         if (fit)
         {
@@ -934,6 +963,7 @@ public sealed partial class GraphViewModel : ObservableObject
         Inspect();
         ShowWatches();
         _ = Checks.FollowAsync(null);
+        CloseFan();
     }
 
     /// <summary>Works out every node's place and every line's curve in the layout shown, and draws again.</summary>

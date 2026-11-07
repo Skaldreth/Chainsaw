@@ -160,6 +160,15 @@ public sealed partial class PileFanViewModel : ObservableObject
     [RelayCommand]
     public void ToggleMode() => Mode = Mode == PileFanMode.Spiral ? PileFanMode.TimeArc : PileFanMode.Spiral;
 
+    /// <summary>Shows the cards in a mode.</summary>
+    /// <param name="mode">The mode.</param>
+    [RelayCommand]
+    public void ShowMode(PileFanMode mode) => Mode = mode;
+
+    /// <summary>Hides or shows dust (<em>Dölj damm</em>).</summary>
+    [RelayCommand]
+    public void ToggleDust() => HideDust = !HideDust;
+
     /// <summary>Closes the fan (Esc, or a click on the dimmed graph).</summary>
     [RelayCommand]
     public void Close() => CloseWanted?.Invoke(this, EventArgs.Empty);
