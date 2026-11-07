@@ -190,10 +190,9 @@ public sealed class RecoveryKeyTests : IDisposable
     [InlineData("  * revoked:{0}\r")]
     [InlineData("`REVOKED {0}`")]
     [InlineData("– REVOKED {0}")]
-    [InlineData("1. REVOKED {0}")]
-    [InlineData("**REVOKED** {0} # röjd 2027")]
     [InlineData("REVOKED={0}")]
-    [InlineData("REVOKED_KEY {0}")]
+    [InlineData("**REVOKED** {0}")]
+    [InlineData("REVOKED E652-6D56-62E6-673C-2FDB-97CF-6D66-C37B-D96B-EEE2-8711-DC95-C636-1C27-F370-89B7")]
     [InlineData("\uFEFF\u200BREVOKED\u200B {0}")]
     public void Every_spelling_of_a_revocation_is_read(string line)
     {
@@ -226,6 +225,12 @@ public sealed class RecoveryKeyTests : IDisposable
     [InlineData("revoked")]
     [InlineData("REVOKED: inte ett fingeravtryck")]
     [InlineData("Revoked keys are listed below.")]
+    [InlineData("1. REVOKED e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7")]
+    [InlineData("REVOKED e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7 # röjd")]
+    [InlineData("REVOKED_KEY e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7")]
+    [InlineData("REVOKED e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7 ersatt av "
+        + "0000000000000000000000000000000000000000000000000000000000000000")]
+    [InlineData("ÅTERKALLAD E652.6D56.62E6.673C.2FDB.97CF.6D66.C37B.D96B.EEE2.8711.DC95.C636.1C27.F370.89B7")]
     [InlineData("REVOKE e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7")]
     [InlineData("ÅTERKALLAD e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7")]
     [InlineData("-----begin private key-----")]

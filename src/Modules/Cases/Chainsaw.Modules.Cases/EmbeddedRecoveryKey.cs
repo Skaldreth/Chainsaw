@@ -25,11 +25,17 @@ internal static partial class EmbeddedRecoveryKey
     /// </summary>
     public const string RevokedKeyword = "REVOKED";
 
-    /// <summary>What the keyword is replaced with before a fingerprint is looked for: no hexadecimal digit.</summary>
-    private const string KeywordStandIn = "|";
+    /// <summary>The length of a fingerprint in hexadecimal digits.</summary>
+    private const int FingerprintLength = 64;
+
+    /// <summary>
+    /// The characters besides whitespace that may decorate a revocation: list markers, quotes, separators and
+    /// invisible marks that editors insert.
+    /// </summary>
+    private const string Decoration = "-–—*•`'\":=\u200B\uFEFF";
 
     /// <summary>Every kind of line break, so that a file saved with CR, LF or CRLF reads the same.</summary>
-    private static readonly char[] LineBreaks = ['\r', '\n'];
+    private static readonly char[] LineBreaks = ['\r', '\n', '\u0085', '\u2028', '\u2029', '\f', '\v'];
 
     /// <summary>The text that marks a private key, which must never be built in.</summary>
     private const string PrivateKeyMarker = "PRIVATE KEY";
@@ -83,7 +89,7 @@ internal static partial class EmbeddedRecoveryKey
             .Select(ReadFingerprint)
             .ToHashSet(StringComparer.Ordinal);
         if (lines.Any(line => !line.Contains(RevokedKeyword, StringComparison.OrdinalIgnoreCase)
-            && LooseFingerprint().IsMatch(Separators().Replace(line, string.Empty))))
+            && HoldsFingerprint(line)))
         {
             // A fingerprint without the keyword (a typo, or the word in Swedish) is a revocation that would be lost.
             throw new InvalidOperationException(
@@ -98,43 +104,44 @@ internal static partial class EmbeddedRecoveryKey
     }
 
     /// <summary>
-    /// Reads the one fingerprint on a line that mentions the keyword, however the line is written (in a list, in
-    /// quotes, after a colon or an equals sign): 64 hexadecimal digits in either case, together or in groups of four.
-    /// A line that mentions the keyword without exactly one fingerprint stops the build from running, so that a
-    /// revocation is never ignored because of how it was written.
+    /// Reads the fingerprint on a line that mentions the keyword. The line may hold nothing but the keyword, one
+    /// fingerprint of 64 hexadecimal digits in either case, and decoration (whitespace, list markers, backticks, a
+    /// colon or an equals sign, dashes between groups); anything else, a second fingerprint or a comment included,
+    /// stops the build from running, so that a revocation is never lost or turned into another one by how it was
+    /// written.
     /// </summary>
     /// <param name="line">The line.</param>
-    /// <returns>The fingerprint in lowercase without spaces.</returns>
-    /// <exception cref="InvalidOperationException">The line does not hold exactly one fingerprint.</exception>
+    /// <returns>The fingerprint in lowercase.</returns>
+    /// <exception cref="InvalidOperationException">The line is not exactly one revocation.</exception>
     private static string ReadFingerprint(string line)
     {
-        // The keyword ends in a hexadecimal letter, so it is taken out before the fingerprint is looked for.
-        var withoutKeyword = line.Replace(RevokedKeyword, KeywordStandIn, StringComparison.OrdinalIgnoreCase);
-        var matches = Fingerprint().Matches(withoutKeyword);
-        return matches.Count == 1
-            ? new string([.. matches[0].Value.Where(char.IsAsciiHexDigit)]).ToLowerInvariant()
+        var rest = line.Replace(RevokedKeyword, string.Empty, StringComparison.OrdinalIgnoreCase);
+        var digits = new string([.. rest.Where(character => !IsDecoration(character))]);
+        return digits.Length == FingerprintLength && digits.All(char.IsAsciiHexDigit)
+            ? digits.ToLowerInvariant()
             : throw new InvalidOperationException(
-                $"The resource {ResourceName} has a line about a revoked key without exactly one fingerprint.");
+                $"The resource {ResourceName} has a line about a revoked key that is not exactly one fingerprint.");
     }
 
-    /// <summary>
-    /// A fingerprint: 64 hexadecimal digits, together or in groups of four with whitespace between, with no further
-    /// hexadecimal digit next to it, not even across whitespace; a hexadecimal word beside a grouped fingerprint would
-    /// otherwise be taken as one of its groups and revoke another key than meant.
-    /// </summary>
-    /// <returns>The expression.</returns>
-    [GeneratedRegex(@"(?<![0-9A-Fa-f]\s*)(?:[0-9A-Fa-f]{4}\s*){15}[0-9A-Fa-f]{4}(?!\s*[0-9A-Fa-f])")]
-    private static partial Regex Fingerprint();
+    /// <summary>Checks whether a character is decoration around a revocation rather than content.</summary>
+    /// <param name="character">The character.</param>
+    /// <returns><see langword="true"/> for decoration.</returns>
+    private static bool IsDecoration(char character) =>
+        char.IsWhiteSpace(character) || Decoration.Contains(character);
 
-    /// <summary>64 hexadecimal digits in a row, for a line whose separators have been taken out.</summary>
+    /// <summary>
+    /// Checks whether a line without the keyword holds a fingerprint in any notation: 64 hexadecimal digits in a row
+    /// once everything but letters and digits is taken out.
+    /// </summary>
+    /// <param name="line">The line.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool HoldsFingerprint(string line) =>
+        LooseFingerprint().IsMatch(new string([.. line.Where(char.IsLetterOrDigit)]));
+
+    /// <summary>64 hexadecimal digits in a row.</summary>
     /// <returns>The expression.</returns>
     [GeneratedRegex("[0-9A-Fa-f]{64}")]
     private static partial Regex LooseFingerprint();
-
-    /// <summary>The separators people write between a fingerprint's digits: whitespace, colons and dashes.</summary>
-    /// <returns>The expression.</returns>
-    [GeneratedRegex(@"[\s:\-]")]
-    private static partial Regex Separators();
 }
 
 /// <summary>The recovery key a build has, and the earlier keys it revokes.</summary>

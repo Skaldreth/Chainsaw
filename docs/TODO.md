@@ -241,6 +241,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Antalet kuvert:** `AddOperatorAccess` och delningskuvertet kontrollerar inte gränsen på 64 kuvert innan de lägger
   till, så en fil kan bli oläsbar (`WriteHeader` vägrar nu i stället för att skriva den). Återställningskuvertet
   hoppas över vid gränsen (granskningen etapp 9, M).
+- **Återkallelser i `organization-recovery-key.pem`:** ett fingeravtryck delat på två rader där ordet `REVOKED`
+  också saknas (stavfel eller svenska) märks inte. En grupp som tappas och ersätts av ett annat ord med fyra
+  hexadecimala tecken ser ut som ett giltigt fingeravtryck och återkallar en nyckel som inte finns. Ett eget kommando i verktyget som skriver raden (`revoke
+  <publik.pem>`) skulle ta bort risken för skrivfel (granskningen etapp 9, omgång 7, M).
 - **Gränssnittet för återställningsnyckeln:** visa i inställningarna eller *Om Chainsaw* om en nyckel är inbyggd och
   dess fingeravtryck (`ICaseStore.RecoveryKey`), och ärligt när den saknas. Skissas med inställningarna.
 - **Verktyget `Chainsaw.Recovery`:** på Windows får den privata nyckelns fil mappens rättigheter, inte en egen ACL

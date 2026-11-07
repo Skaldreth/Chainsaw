@@ -635,6 +635,11 @@ Inget gränssnitt i appen.
   fingeravtryck togs som dess första grupp och återkallade fel nyckel; nu får ingen hexadecimal siffra stå intill
   fingeravtrycket, och raden stoppar appen. M: ett fingeravtryck med kolon eller bindestreck på en rad utan ordet
   stoppar nu också appen.
+- Omgång 7: inga C, ett I och fyra M. I: två fingeravtryck på samma rad kunde ge att det ena ignorerades. Rättat med
+  en strikt regel i stället för att leta i fri text: en rad med ordet får bara innehålla ordet, ett fingeravtryck och
+  dekoration, annars startar inte appen. M rättade: fler skiljetecken på rader utan ordet, fler radbrytningar. M kvar
+  i TODO: ett fingeravtryck delat på två rader utan ordet; en nyckel inklistrad direkt efter text utan radbrytning
+  stoppar appen (felar säkert).
 
 **Återstår:** gränssnittet som visar nyckelns fingeravtryck och när den saknas, att administratören skapar nyckeln och
 bygger in den, och att byta ärendets filnyckel (för att stänga en röjd nyckel i kopior som redan lämnats ut).
