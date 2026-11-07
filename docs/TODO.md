@@ -19,21 +19,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   ska kunna frågas oftare.
 - **Rapporten:** hur redovisningen byggs (som i Gawk med bilagor, eller enklare underlag för underrättelse). Bestäms när vi
   kommer dit.
-- **Ärendefilens nyckel och kollegans fil** (byggd i etapp 3 efter orkestrerarens beslut, bekräfta med användaren):
-  varje ärende har en egen slumpad filnyckel i kuvert i filens huvud, ett för operatörens valv och ett valfritt
-  delningskuvert med ett ärendelösenord som kan lämnas till en kollega. Kollegan kan lägga till ett eget kuvert. Är det
-  rätt modell, och ska ett delningslösenord krävas eller föreslås när ett ärende skapas?
-- **Var ärendena ligger:** etapp 3 lägger dem i `%LOCALAPPDATA%\Chainsaw\Ärenden` i stället för `Dokument`, eftersom
-  Dokument ofta synkas till OneDrive (princip 4, granskningen). Ska användaren kunna välja en annan mapp, och ska
-  Chainsaw varna om den valda mappen synkas till molnet?
-- **Återställningsnyckel för ett ärende:** formatet har plats för fler sorters kuvert. Ska varje ärende (eller enheten)
-  ha en återställningsnyckel, så att ärendet inte går förlorat om valvet går förlorat och inget delningslösenord finns?
-- **Glömd huvudnyckel:** valvet går inte att återställa (det är meningen). Ska det finnas en återställningsnyckel att
-  skriva ut vid förstagångsinställningen, eller räcker det att valvet skapas på nytt och API-nycklarna matas in igen?
-- **Utgången när valvet låses** (etapp 4): en ansluten utgång står kvar när valvet låses, eftersom tunneln bara är en
-  väg ut och inga uppslag görs medan Chainsaw är låst. Ska låsningen också koppla ner utgången?
-- **Bara https** (etapp 4): `IExitHttp` vägrar `http`, så att utgången aldrig ser innehållet. En egen Esplora i ett
-  lokalt nät över `http` går då inte att nå. Räcker det, eller ska `http` tillåtas för en uttryckligen betrodd källa?
 - **Tröskelvärdena i klustringen** (etapp 6, valda av sessionen): växeln slås ihop automatiskt vid minst tre tecken
   och inget emot, i en tx med två outputs; en peel chain kräver tre kända hopp och att det som går vidare är minst fyra
   gånger det som skalas av; ett jämnt belopp är en multipel av 0,001 BTC; en möjlig CoinJoin (två lika stora outputs,
@@ -42,6 +27,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   vanliga betalningar ser ut som hopp), så `peel-chain v1` bara föreslår. Fråga kryptospåraren vad som skiljer en
   riktig peel chain: samma skripttyp i varje hopp, liknande andel som skalas av, kort tid mellan hoppen?
 - **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Användaren frågar kryptospåraren vilken som används i praktiken (planerat 2026-11-08).
+
+## Bygga härnäst
+
+- **Organisationens återställningsnyckel** (användarens beslut 2026-11-07, CLAUDE.md *Säkerhet*): ett kuvert i varje
+  ärendefil för organisationens publika nyckel, och ett verktyg för administratören (skapa nyckelpar, fingeravtryck,
+  kontrollera, öppna ett ärende med den privata nyckeln). Den privata nyckeln finns aldrig i repot.
 
 ## Väntar på skiss
 

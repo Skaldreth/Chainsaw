@@ -162,8 +162,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **En fil per ärende:** `<ärendenummer>.cut`, krypterad och lösenordsskyddad på samma sätt som Gawks ärenden (huvudnyckeln
   låser upp). Allt ligger i filen: hämtade svar, kluster, etiketter, grafens läge, bevakningar och journal.
   Varje ärende har en **egen slumpad filnyckel** i nyckelkuvert i filens okrypterade huvud: ett för operatörens valv och
-  ett valfritt **delningskuvert** med ett ärendelösenord som kan lämnas till en kollega (orkestrerarens beslut
-  2026-11-07, väntar på användarens bekräftelse; TODO). Medan ärendet är öppet arbetar SQLite i en krypterad arbetskopia
+  ett valfritt **delningskuvert** med ett ärendelösenord som kan lämnas till en kollega (användarens beslut
+  2026-11-07), och ett kuvert för **organisationens återställningsnyckel** (se *Säkerhet*). Ärendena ligger i
+  `%LOCALAPPDATA%\Chainsaw\Ärenden`, inte i Dokument, som ofta synkas till molnet (användarens beslut 2026-11-07). Medan ärendet är öppet arbetar SQLite i en krypterad arbetskopia
   bredvid filen, som skrivs tillbaka vid sparning och tas tillbaka efter en krasch.
 - **Appdata** i `%LOCALAPPDATA%\Chainsaw\`: valv, inställningar, delade listor (sanktionslistor, öppna etikettkällor) och
   etikettbiblioteket.
@@ -181,7 +182,13 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 
 - **Huvudnyckeln lagras aldrig.** Samma modell som Gawk: en slumpad datanyckel (AES-256-GCM) lindad med en nyckel härledd
   ur huvudnyckeln (PBKDF2-SHA512). Datanyckeln finns i minnet bara medan appen är upplåst.
-- **Låsning** automatiskt efter inaktivitet, när Windows låses och med Ctrl+L.
+- **Organisationens återställningsnyckel** (användarens beslut 2026-11-07): varje ärendefil får ett kuvert inlindat med
+  organisationens publika nyckel, som är inbyggd i Chainsaw. Den privata nyckeln har bara administratören, och den finns
+  aldrig i repot. Glöms huvudnyckeln går valvet inte att återställa (det skapas på nytt), men ärendena kan öppnas av
+  administratören.
+- **Låsning** automatiskt efter inaktivitet, när Windows låses och med Ctrl+L. En ansluten utgång står kvar när valvet
+  låses, eftersom inga uppslag görs medan Chainsaw är låst (användarens beslut 2026-11-07).
+- **Bara https ut** (användarens beslut 2026-11-07): `IExitHttp` vägrar `http`, så att utgången aldrig ser innehållet.
 - **Utgångar:** Chainsaw har ett **eget exemplar** av hjälpprogrammet för WireGuard och egna utgångar, och är inte beroende
   av att Gawk är igång (användarens beslut 2026-11-07). Samma sorts tunnel som Gawk, men Chainsaws egen.
 
@@ -227,6 +234,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   Guide, Inställningar (`src/Chainsaw.App/Navigation/ViewTable.cs`, som också ger kortkommandona). **Sök och kommandon
   finns bara i den flytande raden längst ner** (Ctrl+K eller Ctrl+F), aldrig i huvudet eller som egen vy. Antal visas som
   en prick på ikonen, inte som en siffra.
+- **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, på låsskärmens fält) och
+  **Nytt ärende är NC1a** (en panel från höger som mörkar resten, som kan bli ärendets egenskaper senare). Användaren lät
+  Claude välja (2026-11-07); valen följer Gawks form.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
   Etiketter, Terminal och Guide.
