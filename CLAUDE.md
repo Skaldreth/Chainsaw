@@ -365,7 +365,12 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   ur ärendet (princip 1), det slängda döljs och kan läggas tillbaka. Slängs något mitt i grafen som har kopplingar vidare,
   bevakningar eller liknande, **varnar** Chainsaw att det också åker ned i soptunnan, och det som följer med hänger under
   det man slängde. Soptunnan har en **egen vy** med allt som slängts, som ett träd: det man slängde överst och det som
-  följde med under, i flera led. Formen skissas (SO1).
+  följde med under, i flera led. Formen är **SO1a** (användarens beslut 2026-11-07): ikonen växer till en rund
+  yta i hörnet med en ringvåg när man är framme, varningen är en liten ruta vid soptunnan med trädet, och det som följer
+  med blir streckat medan resten tonas ner. Vyn är en indragen trädlista per slängning med *Lägg tillbaka* (grenen eller
+  en del) och *Lägg tillbaka allt*. En linje till något i soptunnan blir en kort stump, en bevakning bland det slängda
+  pausas (ögat grått), och soptunnan använder inte rött, som betyder risk. Bildspråkets *?* flyttas till nedre högra
+  hörnet.
 - **Begäran är BG1b** (användarens beslut 2026-11-07, ändrat från BG1a samma dag): vyn Begäran i pillret listar alla
   uttag som spårade pengar nått i ärendet, med den valda begäran som stor förhandsvisning av Markdown-filen till höger,
   brickor för vilka insättningar som tas med och för spåret dit, och *Exportera .md …*. Exporterade filer står under
@@ -462,5 +467,5 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
 | **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten) | BV1a och BV2a valda, med animerade ringar vid träff |
 | **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald |
-| **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | Väntar på användaren |
+| **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | SO1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b; byggd i etapp 22 |
