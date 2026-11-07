@@ -41,8 +41,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. Ett prov här mot mempool.space med samma adress gav
    50 tx och resten tillbakahållet, alltså fungerar Tracing och Chains; orsaken i appen är inte hittad. Provet tog
    **nästan 6 minuter för 53 uppslag**, vilket är för långsamt (takten per endpoint?).
-5. **Grafens hörn uppe till höger:** ikoner i stället för knappar (Förslag, Områden, växeln, FIFO, Alla belopp).
-6. **Inspektörens skugga** går upp över titelraden i ovankant.
+5. **Grafens hörn uppe till höger:** *byggt 2026-11-07* som en rad ikoner med prick när något finns.
+6. **Inspektörens skugga** över titelraden: *rättad 2026-11-07* (sidan klipper vid sin kant).
 7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissas om.
 8. **Undermenyn Nytt** i pillret ska animeras när den visas.
 9. **Pillret:** Tidslinje, Flöde, Exponering och Begäran (och de andra som inte är byggda) ska vara nedtonade.

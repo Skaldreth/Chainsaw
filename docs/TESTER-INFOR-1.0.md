@@ -957,3 +957,7 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Tryck L (eller etikettikonen): formuläret fälls ut i en ruta till höger om noden med en pil mot den; nära
       högerkanten till vänster. Esc stänger, Enter sparar. Samma för U och K.
 - [ ] Inspektören har inga knappar längre, bara *Varför?* som rund ikon i huvudet och kopiera vid adresserna.
+- [ ] Grafens hörn uppe till höger är en rad ikoner: förslag (prick när något väntar), områden (prick när några ritas),
+      fri yta och hoppkolumner (den valda markerad), metoden som text och beloppen på linjerna (nedtonad vid *Inga
+      belopp*). Tipsen säger vad varje ikon gör.
+- [ ] Inspektörens skugga syns inte ovanför titelradens underkant.

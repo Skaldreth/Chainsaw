@@ -252,8 +252,14 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets which amounts the lines carry.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(LabelsText))]
+    [NotifyPropertyChangedFor(nameof(LabelsText), nameof(LabelsToolTip), nameof(ShowsNoAmounts))]
     public partial AmountLabelMode Labels { get; private set; } = AmountLabelMode.All;
+
+    /// <summary>Gets the amounts icon's tip: which amounts the lines carry, and that a click changes it.</summary>
+    public string LabelsToolTip => $"Belopp på linjerna: {Labels.Describe()} (klicka för att byta)";
+
+    /// <summary>Gets whether the lines carry no amounts, so that the amounts icon is toned down.</summary>
+    public bool ShowsNoAmounts => Labels == AmountLabelMode.None;
 
     /// <summary>Gets the amounts button's text.</summary>
     public string LabelsText => Labels.Describe();

@@ -187,8 +187,16 @@ public sealed partial class ChecksViewModel : ObservableObject
 
     /// <summary>Gets how many decisions wait, for the button <em>Förslag · N</em>.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ButtonText))]
+    [NotifyPropertyChangedFor(nameof(ButtonText), nameof(HasWaiting), nameof(ToolTipText))]
     public partial int WaitingCount { get; private set; }
+
+    /// <summary>Gets whether something waits for the user, so that the corner's icon carries a dot.</summary>
+    public bool HasWaiting => WaitingCount > 0;
+
+    /// <summary>Gets the corner's icon's tip: what it is, how many wait and its key.</summary>
+    public string ToolTipText => WaitingCount > 0
+        ? $"Kontroller och förslag · {WaitingCount.ToString(CultureInfo.InvariantCulture)} att avgöra · Ctrl+J"
+        : "Kontroller och förslag · Ctrl+J";
 
     /// <summary>Gets the button's text in the graph's corner.</summary>
     public string ButtonText => "Förslag · " + WaitingCount.ToString(CultureInfo.InvariantCulture);
@@ -236,6 +244,9 @@ public sealed partial class ChecksViewModel : ObservableObject
 
     /// <summary>Gets how many areas are drawn, for the menu's button.</summary>
     public string AreaCountText => Areas.Count.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Gets whether any areas are drawn, so that the corner's icon carries a dot.</summary>
+    public bool HasAreas => Areas.Count > 0;
 
     /// <summary>Gets what the inspector lists under <em>Här</em> for the chosen actor.</summary>
     [ObservableProperty]
@@ -937,6 +948,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         OnPropertyChanged(nameof(Areas));
         OnPropertyChanged(nameof(Focus));
         OnPropertyChanged(nameof(AreaCountText));
+        OnPropertyChanged(nameof(HasAreas));
         OnPropertyChanged(nameof(Picked));
         Changed?.Invoke(this, EventArgs.Empty);
     }
