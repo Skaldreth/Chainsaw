@@ -178,6 +178,10 @@ tests/                      xUnit, ett testprojekt per modul
 - **Typsnitt:** Segoe UI Variable, Cascadia Mono bara för hashar, txid och adresser i inspektören samt terminalen.
 - **Grafen är hjärtat.** Det är där man arbetar mest. Den bygger på idéerna från Gawks Byggare (en duk med noder, portar och
   kopplingar), anpassad för spårning. Scrubbern, tidslinjen och kolumner med kort tas över i formen.
+  Efter GR1 (användarens beslut 2026-11-07): noderna ritas **tunt som i GR1b** (en rund eller fyrkantig ram med sortens färg,
+  namn och en svag rad under), **hoppen i tidsordning** från GR1a är bra struktur, men grafen måste tåla **många linjer åt
+  alla håll**, som kryptoanalytikerna arbetar i Reactor. Hur de två förenas skissas i GR2a (fri duk som kan ordnas i hopp)
+  och GR2b (hoppen som ryggrad, aktörerna fria i höjdled, pengar som vänder som bågar).
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
   Etiketter, Terminal och Guide.
