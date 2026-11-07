@@ -279,6 +279,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   koppla ner, *Lägg till WireGuard-fil …* och vägen till källorna. **Guiden är GD1b**: en panel från höger bredvid
   arbetet, öppnad från *Varför?*, *?* och spårningsmetoden, med svaret för det valda överst och *Öppna i Guide* till
   hela vyn (F1).
+- **Inställningarna är ST1a** (användarens beslut 2026-11-07): en dialog mitt i fönstret över mörkad bakgrund, som i Gawk,
+  öppnad med Ctrl+, eller kugghjulet i pillret, med menyn till vänster (Nätverk, Låsning, Utseende, Länkar, Kurser,
+  Profil, Om Chainsaw) och rader med titel och förklaring till vänster och valet till höger. Nätverk har *Windows* eller
+  *VPN* som två kort, och under VPN utgångarna som i UT1a.
 - **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, på låsskärmens fält) och
   **Nytt ärende är NC1a** (en panel från höger som mörkar resten, som kan bli ärendets egenskaper senare). Användaren lät
   Claude välja (2026-11-07); valen följer Gawks form.
@@ -361,4 +365,4 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär) | GR4 godkänd, förlagan för grafen; GR5 variant A och IN1a valda |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
-| **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy) | Väntar |
+| **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy) | ST1a vald |
