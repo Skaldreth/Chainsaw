@@ -38,5 +38,5 @@ public sealed record ClusterSplit(
 /// The name of the heuristic whose merge is broken, usually the one on the link between them in
 /// <see cref="IClusteringService.ExplainConnection"/>.
 /// </param>
-/// <param name="Reason">The user's reason; not empty, at most 1 000 characters.</param>
+/// <param name="Reason">The user's reason; may be empty, at most 1 000 characters.</param>
 public sealed record SplitRequest(BitcoinAddress First, BitcoinAddress Second, string Heuristic, string Reason);

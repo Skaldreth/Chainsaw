@@ -28,7 +28,7 @@ internal sealed class AttributionService(
         }
 
         var name = LabelRules.Optional(draft.Name, LabelRules.MaximumNameLength, nameof(draft));
-        var reason = LabelRules.Required(draft.Reason, LabelRules.MaximumReasonLength, nameof(draft));
+        var reason = LabelRules.Optional(draft.Reason, LabelRules.MaximumReasonLength, nameof(draft)) ?? string.Empty;
         var note = LabelRules.Optional(draft.Note, LabelRules.MaximumNoteLength, nameof(draft));
         var (sourceName, sourceVersion) = draft.Source switch
         {

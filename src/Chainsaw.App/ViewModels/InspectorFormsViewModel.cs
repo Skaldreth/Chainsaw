@@ -734,11 +734,10 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         ? Coins[0].Coin
         : Coins.FirstOrDefault(coin => coin.IsChosen)?.Coin;
 
-    /// <summary>Says whether a reason is given and not too long.</summary>
+    /// <summary>Says whether a reason is short enough; it may be empty (the user's decision 2026-11-07).</summary>
     /// <param name="reason">The reason.</param>
     /// <returns><see langword="true"/> when it is.</returns>
-    private static bool HasReason(string reason) =>
-        !string.IsNullOrWhiteSpace(reason) && reason.Trim().Length <= InspectorForms.MostReasonLength;
+    private static bool HasReason(string reason) => reason.Trim().Length <= InspectorForms.MostReasonLength;
 
     /// <summary>Says whether a form can be opened for the chosen node.</summary>
     /// <param name="form">The form.</param>

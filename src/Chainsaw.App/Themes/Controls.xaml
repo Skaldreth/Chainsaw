@@ -551,9 +551,23 @@
     </Style>
 
     <!-- The legend's ? in the graph's corner (sketch GR4): a small round button. -->
+    <!--
+      A round button with a drawn question mark: 34 px, a 1.5 px ring and the mark at 18 px in the text's colour, so that
+      it reads as clearly as the pill's icons (a text "?" in a 1 px ring looked thin and blurry on Windows).
+    -->
     <Style x:Key="Button.Help" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
-        <Setter Property="Width" Value="28" />
-        <Setter Property="Height" Value="28" />
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ContentTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <controls:GridIcon Size="18" Data="{StaticResource Icon.Question}"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
         <Setter Property="Padding" Value="0" />
         <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
@@ -561,13 +575,13 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="1" CornerRadius="14">
+                            BorderThickness="1.5" CornerRadius="17">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.TextDim}" />
-                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />

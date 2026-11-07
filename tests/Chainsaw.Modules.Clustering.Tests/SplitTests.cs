@@ -137,7 +137,7 @@ public sealed class SplitTests : IDisposable
     }
 
     [Fact]
-    public void A_split_needs_two_addresses_a_heuristic_and_a_reason()
+    public void A_split_needs_two_addresses_and_a_heuristic_and_a_reason_that_fits()
     {
         var service = _harness.Service;
         var @case = _harness.Case;
@@ -148,8 +148,6 @@ public sealed class SplitTests : IDisposable
             Wpkh("payer-1"), Wpkh("payer-change"), "Not A Name", "Skäl")));
         Assert.Throws<ArgumentException>(() => service.Split(@case, new SplitRequest(
             Wpkh("payer-1"), Wpkh("payer-change"), "change-adress", "Skäl")));
-        Assert.Throws<ArgumentException>(() => service.Split(@case, new SplitRequest(
-            Wpkh("payer-1"), Wpkh("payer-change"), HeuristicNames.ChangeAddress, " ")));
         Assert.Throws<ArgumentException>(() => service.Split(@case, new SplitRequest(
             Wpkh("payer-1"), Wpkh("payer-change"), HeuristicNames.ChangeAddress, new string('x', 1_001))));
         Assert.Equal(0, _harness.Count("clustering_splits"));

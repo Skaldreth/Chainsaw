@@ -250,7 +250,7 @@
             <!--
               The visual language behind the ? (sketches GR3a and GR3c), in the lower right corner (sketch SO1a), where
               it never meets the pill at the left edge however low the window is. -->
-            <Button Style="{StaticResource Button.Help}" Content="?" FontSize="14" HorizontalAlignment="Right"
+            <Button Style="{StaticResource Button.Help}" HorizontalAlignment="Right"
                     VerticalAlignment="Bottom" Margin="0,0,18,18" AutomationProperties.Name="Bildspråket"
                     ToolTip="Bildspråket. I grafen: Esc väljer inget, E expanderar, F passar in, + och − zoomar."
                     Command="{Binding ToggleLegendCommand}" />
@@ -569,10 +569,49 @@
             </Grid>
         </Border>
 
-        <!-- The inspector's left edge is dragged to make it wider or narrower; the width is kept while Chainsaw runs. -->
-        <GridSplitter x:Name="InspectorEdge" Grid.Column="1" Width="6" HorizontalAlignment="Left" Margin="-3,0,0,0"
-                      Background="Transparent" ResizeDirection="Columns" ResizeBehavior="PreviousAndCurrent"
+        <!--
+          The inspector's left edge is dragged to make it wider or narrower; the width is kept while Chainsaw runs. A small
+          grip in the middle of the edge always shows that it can be dragged, and a dark grey line along the whole edge
+          fades in when the pointer rests there a moment (and stays while dragging).
+        -->
+        <GridSplitter x:Name="InspectorEdge" Grid.Column="1" Width="8" HorizontalAlignment="Left" Margin="-4,0,0,0"
+                      ResizeDirection="Columns" ResizeBehavior="PreviousAndCurrent"
                       Cursor="SizeWE" Focusable="False" DragCompleted="OnInspectorResized"
-                      ToolTip="Dra för att ändra inspektörens bredd" />
+                      AutomationProperties.Name="Inspektörens bredd">
+            <GridSplitter.Template>
+                <ControlTemplate TargetType="GridSplitter">
+                    <Grid Background="Transparent">
+                        <Rectangle x:Name="Line" Width="2" HorizontalAlignment="Center" Opacity="0"
+                                   Fill="{StaticResource Brush.BorderHover}" />
+                        <Border x:Name="Grip" Width="4" Height="36" CornerRadius="2" HorizontalAlignment="Center"
+                                VerticalAlignment="Center" Background="{StaticResource Brush.BorderStrong}" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Grip" Property="Background" Value="{StaticResource Brush.BorderHover}" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Line" Storyboard.TargetProperty="Opacity"
+                                                         To="1" BeginTime="0:0:0.35" Duration="0:0:0.15" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Line" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.2" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Line" Property="Fill" Value="{StaticResource Brush.TextDim}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </GridSplitter.Template>
+        </GridSplitter>
     </Grid>
 </UserControl>

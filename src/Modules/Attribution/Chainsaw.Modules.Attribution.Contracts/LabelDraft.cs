@@ -4,7 +4,7 @@ namespace Chainsaw.Modules.Attribution.Contracts;
 /// <param name="Subject">What it is on.</param>
 /// <param name="Kind">What it says the subject is.</param>
 /// <param name="Name">The service's or the owner's name, or <see langword="null"/>.</param>
-/// <param name="Reason">Why; required, at most 1 000 characters.</param>
+/// <param name="Reason">Why; optional (empty for none), at most 1 000 characters.</param>
 /// <param name="Note">The investigator's own note, or <see langword="null"/>; at most 4 000 characters.</param>
 /// <param name="DoNotSpread">Whether the label stays in this case (<em>Sprid inte</em>).</param>
 public sealed record LabelDraft(

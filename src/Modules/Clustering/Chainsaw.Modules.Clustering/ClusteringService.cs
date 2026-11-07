@@ -178,7 +178,7 @@ internal sealed class ClusteringService : IClusteringService
     /// <summary>Checks a split before anything is stored.</summary>
     /// <param name="request">The split.</param>
     /// <exception cref="ArgumentException">
-    /// The addresses are the same, the heuristic is not one that runs, or the reason is empty or too long.
+    /// The addresses are the same, the heuristic is not one that runs, or the reason is too long.
     /// </exception>
     private void CheckRequest(SplitRequest request)
     {
@@ -195,9 +195,10 @@ internal sealed class ClusteringService : IClusteringService
             throw new ArgumentException("A split names one of the analyses that run.", nameof(request));
         }
 
-        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Length > MaximumReasonLength)
+        // The reason is the user's choice (the user's decision 2026-11-07); only its length is checked.
+        if (request.Reason is null || request.Reason.Length > MaximumReasonLength)
         {
-            throw new ArgumentException("A split needs a reason of at most 1 000 characters.", nameof(request));
+            throw new ArgumentException("A split's reason is at most 1 000 characters.", nameof(request));
         }
     }
 

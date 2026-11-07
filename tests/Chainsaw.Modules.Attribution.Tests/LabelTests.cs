@@ -89,10 +89,18 @@ public sealed class LabelTests : IDisposable
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void A_label_needs_a_reason(string reason)
+    public void A_label_needs_no_reason(string reason)
     {
-        Assert.Throws<ArgumentException>(() =>
-            _harness.Own(LabelSubject.ForAddress(Wpkh("no-reason")), LabelKind.Exchange, reason: reason));
+        var label = _harness.Own(LabelSubject.ForAddress(Wpkh("no-reason")), LabelKind.Exchange, reason: reason);
+
+        Assert.True(string.IsNullOrEmpty(label.Origin.Reason));
+    }
+
+    [Fact]
+    public void A_reason_that_is_too_long_is_refused()
+    {
+        Assert.Throws<ArgumentException>(() => _harness.Own(
+            LabelSubject.ForAddress(Wpkh("long-reason")), LabelKind.Exchange, reason: new string('x', 1_001)));
     }
 
     [Theory]

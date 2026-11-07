@@ -117,13 +117,13 @@ public sealed class StateTests : IDisposable
     }
 
     [Fact]
-    public void A_link_needs_another_chain_and_a_reason()
+    public void A_link_needs_another_chain_and_a_reason_that_fits()
     {
         var coin = new Outpoint(_flows.Pay.Txid, 0);
 
         Assert.Throws<ArgumentException>(() => _harness.Service.LinkCrossChain(
             _harness.Case, coin, new ChainTransactionRef(Chain.Bitcoin, new string('b', 64)), "Skäl."));
-        Assert.Throws<ArgumentException>(() => _harness.Service.LinkCrossChain(_harness.Case, coin, EthereumTx, " "));
+        Assert.Throws<ArgumentException>(() => _harness.Service.LinkCrossChain(_harness.Case, coin, EthereumTx, new string('x', 1_001)));
         Assert.Throws<ArgumentException>(() => new ChainTransactionRef(Chain.Ethereum, new string('a', 64)));
         Assert.Throws<ArgumentException>(() => new ChainTransactionRef(Chain.Tron, "0x" + new string('a', 64)));
     }

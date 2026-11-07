@@ -80,7 +80,7 @@ public interface ITracingService
     /// <param name="reason">Why, at most 1 000 characters.</param>
     /// <returns>The link.</returns>
     /// <exception cref="ArgumentException">
-    /// The target is on Bitcoin, the coin already has a link in force, or the reason is empty or too long.
+    /// The target is on Bitcoin, the coin already has a link in force, or the reason is too long.
     /// </exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
@@ -97,7 +97,7 @@ public interface ITracingService
     /// <param name="reason">Why, at most 1 000 characters.</param>
     /// <returns>The link.</returns>
     /// <exception cref="ArgumentException">
-    /// The target is on Ethereum, the movement already has a link in force, or the reason is empty or too long.
+    /// The target is on Ethereum, the movement already has a link in force, or the reason is too long.
     /// </exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.

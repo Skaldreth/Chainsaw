@@ -39,7 +39,7 @@ public interface IClusteringService
     /// <param name="request">The two addresses, the heuristic that merged them and the reason.</param>
     /// <returns>The stored split.</returns>
     /// <exception cref="ArgumentException">
-    /// The addresses are the same, the heuristic is not a valid name, or the reason is empty or too long.
+    /// The addresses are the same, the heuristic is not a valid name, or the reason is too long.
     /// </exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.

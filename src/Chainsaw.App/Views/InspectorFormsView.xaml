@@ -264,7 +264,7 @@
                                  MaxLength="{x:Static graph:InspectorForms.MostNameLength}"
                                  Text="{Binding SourceName, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
-                    <TextBlock Text="Skäl" Style="{StaticResource Text.FormLabel}" />
+                    <TextBlock Text="Skäl (frivilligt)" Style="{StaticResource Text.FormLabel}" />
                     <TextBox Style="{StaticResource TextBox.Reason}" AutomationProperties.Name="Skäl"
                              Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" />
                     <ToggleButton Style="{StaticResource Toggle.Switch}" Margin="0,12,0,0" IsChecked="{Binding DoNotSpread}"
@@ -337,7 +337,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock Text="Skäl" Style="{StaticResource Text.FormLabel}" />
+                    <TextBlock Text="Skäl (frivilligt)" Style="{StaticResource Text.FormLabel}" />
                     <TextBox x:Name="SplitReasonBox" Style="{StaticResource TextBox.Reason}" AutomationProperties.Name="Skäl"
                              Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" />
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
@@ -406,7 +406,7 @@
                                            ToolTip="Känns igen"
                                            Visibility="{Binding IsTxRecognised, Converter={StaticResource Visible}}" />
                     </Grid>
-                    <TextBlock Text="Skäl" Style="{StaticResource Text.FormLabel}" />
+                    <TextBlock Text="Skäl (frivilligt)" Style="{StaticResource Text.FormLabel}" />
                     <TextBox Style="{StaticResource TextBox.Reason}" AutomationProperties.Name="Skäl"
                              Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" />
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">

@@ -265,7 +265,7 @@ public sealed class InspectorFormsTests
         rig.Forms.LabelName = "  Säljare på P2P ";
         rig.Forms.ChooseKind(rig.Forms.Kinds.Single(kind => kind.Kind == LabelKind.OtcP2P));
         rig.Forms.DoNotSpread = true;
-        Assert.False(rig.Forms.CanSubmit);
+        Assert.True(rig.Forms.CanSubmit);
         Assert.Equal("Sätt etikett", rig.Forms.SubmitText);
         var loads = rig.Source.Loads.Count;
 
@@ -383,7 +383,7 @@ public sealed class InspectorFormsTests
         Assert.Equal("0 av 2 ut", rig.Forms.PickedText);
         rig.Forms.ToggleMember(rig.Forms.Members[1]);
         Assert.Equal("Bryt ut 1", rig.Forms.SubmitText);
-        Assert.False(rig.Forms.CanSubmit);
+        Assert.True(rig.Forms.CanSubmit);
         rig.Forms.Reason = "Betaltjänst";
         Assert.True(rig.Forms.CanSubmit);
         rig.Forms.ToggleMember(rig.Forms.Members[0]);
@@ -563,7 +563,7 @@ public sealed class InspectorFormsTests
         rig.Forms.TxText = "inte en tx";
         Assert.False(rig.Forms.IsTxRecognised);
         rig.Forms.TxText = "0x" + Hash;
-        Assert.False(rig.Forms.CanSubmit);
+        Assert.True(rig.Forms.CanSubmit);
         rig.Forms.Reason = "Samma belopp minus avgift";
         Assert.Equal("Knyt", rig.Forms.SubmitText);
 

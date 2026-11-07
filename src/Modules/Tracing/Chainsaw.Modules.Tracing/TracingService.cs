@@ -832,14 +832,14 @@ internal sealed class TracingService : ITracingService
             JsonSerializer.Serialize(new { kind = startKind, subject }));
     }
 
-    /// <summary>Checks a reason the user gives.</summary>
+    /// <summary>Checks a reason the user gives; it may be empty (the user's decision 2026-11-07).</summary>
     /// <param name="reason">The reason.</param>
-    /// <exception cref="ArgumentException">It is empty or too long.</exception>
+    /// <exception cref="ArgumentException">It is too long.</exception>
     private static void CheckReason(string reason)
     {
-        if (string.IsNullOrWhiteSpace(reason) || reason.Length > MaximumReasonLength)
+        if (reason is null || reason.Length > MaximumReasonLength)
         {
-            throw new ArgumentException("A reason of at most 1 000 characters is needed.", nameof(reason));
+            throw new ArgumentException("A reason is at most 1 000 characters.", nameof(reason));
         }
     }
 
