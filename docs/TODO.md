@@ -93,6 +93,14 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Peel chain med fler inputs** (ett hopp som fylls på) och kedjor där växeln inte är den största outputen.
 - **En version som dras tillbaka:** visar det sig att en heuristik i en version slog ihop fel ska dess slutsatser kunna
   sluta räknas utan att tas bort (princip 8), till exempel med en förseglad post *dras tillbaka* per version.
+- **Klustringens underlag ur ärendet** (granskningen etapp 6): `IClusteringService.Analyse` tar de tx som anroparen
+  skickar, både som det som analyseras och som det analysen vet runt varje tx. En snävare körning kan inte ta tillbaka
+  en slutsats vars underlag den saknar, men en tx som aldrig hämtats in i ärendet kan analyseras. Bättre: Clustering
+  läser tx:en ur ärendet genom Chains (kontrakt för det i `Chains.Contracts`), och varje slutsats pekar på det
+  förseglade råsvaret och blocket (höjd och hash) den bygger på (princip 1).
+- **Uppbrytning av ett par som inte hör ihop:** en uppbrytning får göras i förväg, mellan två adresser som inte är i
+  samma kluster. Gränssnittet bör föreslå länken på vägen mellan dem (`ExplainConnection`) och varna när de inte hör
+  ihop.
 - **Stora ärenden i klustringen:** klustren byggs om ur alla förseglade slutsatser vid varje fråga, och en körning
   läser alla fingeravtryck. Det räcker för tusentals tx; för större ärenden behövs ett register bredvid (som Chains
   har) eller en cache som byggs om när något nytt förseglas.
