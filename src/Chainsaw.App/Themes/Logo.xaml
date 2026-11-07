@@ -2,10 +2,10 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-      The logo (sketch ID5 B): a link chain where the second link is an eye, the blockchain that saw. The shapes are
-      exported from the sketch's drawing, so that the app and the canvas show the same logo. The layers are drawn in
-      order: the links, their holes cut in the title bar's colour, the pupil, the edge-on link with a halo, its slit,
-      and the upper rim of the eye in front of it, so that the links look interlocked.
+      The logo: two chain links hooked into each other, lying on the diagonal (the user's reference image,
+      2026-11-07). Both links are drawn upright around the origin and turned 45 degrees. Each link's end lies inside
+      the other, so their sides run together in the middle; two slits in the title bar's colour cut the shared sides
+      where one link passes over the other, which is what makes them read as interlocked.
     -->
     <DrawingImage x:Key="Logo.Small">
         <DrawingImage.Drawing>
@@ -18,28 +18,21 @@
                 <DrawingGroup>
                     <DrawingGroup.Transform>
                         <TransformGroup>
-                            <TranslateTransform X="0" Y="-40.0" />
-                            <ScaleTransform ScaleX="1.25" ScaleY="1.25" />
-                            <RotateTransform Angle="-40" />
+                            <RotateTransform Angle="45" />
                             <TranslateTransform X="128" Y="128" />
                         </TransformGroup>
                     </DrawingGroup.Transform>
-                    <GeometryDrawing Brush="{StaticResource Brush.Accent}" Geometry="M-17 -13A17 17 0 0 1 17 -13V13A17 17 0 0 1 -17 13ZM-56 80C-24.08 46.666666666666664 24.08 46.666666666666664 56 80C24.08 113.33333333333334 -24.08 113.33333333333334 -56 80Z" />
-                    <GeometryDrawing Brush="{StaticResource Brush.Surface}" Geometry="M-8 -13A8 8 0 0 1 8 -13V13A8 8 0 0 1 -8 13ZM-38 80C-16.34 58.66666666666667 16.34 58.66666666666667 38 80C16.34 101.33333333333333 -16.34 101.33333333333333 -38 80Z" />
-                    <GeometryDrawing Brush="{StaticResource Brush.Accent}" Geometry="M-10 80a10 10 0 1 0 20 0a10 10 0 1 0 -20 0Z" />
-                    <GeometryDrawing Geometry="M-6 15A6 6 0 0 1 6 15V61A6 6 0 0 1 -6 61Z">
+                    <GeometryDrawing Geometry="M-30,-88 A30,30 0 0 1 30,-88 L30,25 A30,30 0 0 1 -30,25 Z
+                                               M-30,-25 A30,30 0 0 1 30,-25 L30,88 A30,30 0 0 1 -30,88 Z">
                         <GeometryDrawing.Pen>
-                            <Pen Brush="{StaticResource Brush.Surface}" Thickness="9" />
+                            <Pen Brush="{StaticResource Brush.Accent}" Thickness="20" />
                         </GeometryDrawing.Pen>
                     </GeometryDrawing>
-                    <GeometryDrawing Brush="{StaticResource Brush.Accent}" Geometry="M-6 15A6 6 0 0 1 6 15V61A6 6 0 0 1 -6 61Z" />
-                    <GeometryDrawing Brush="{StaticResource Brush.Surface}" Geometry="M-1.75 21.75A1.75 1.75 0 0 1 1.75 21.75V54.25A1.75 1.75 0 0 1 -1.75 54.25Z" />
-                    <GeometryDrawing Geometry="M-17 -13A17 17 0 0 1 17 -13M8 -13A8 8 0 0 0 -8 -13M-56 80C-24.08 46.666666666666664 24.08 46.666666666666664 56 80M38 80C16.34 58.66666666666667 -16.34 58.66666666666667 -38 80">
+                    <GeometryDrawing Geometry="M-48,-29 L-12,-17 M48,29 L12,17">
                         <GeometryDrawing.Pen>
-                            <Pen Brush="{StaticResource Brush.Surface}" Thickness="9" StartLineCap="Round" EndLineCap="Round" />
+                            <Pen Brush="{StaticResource Brush.Surface}" Thickness="8" />
                         </GeometryDrawing.Pen>
                     </GeometryDrawing>
-                    <GeometryDrawing Brush="{StaticResource Brush.Accent}" Geometry="M-17 -13A17 17 0 0 1 17 -13L8 -13A8 8 0 0 0 -8 -13ZM-56 80C-24.08 46.666666666666664 24.08 46.666666666666664 56 80L38 80C16.34 58.66666666666667 -16.34 58.66666666666667 -38 80Z" />
                 </DrawingGroup>
             </DrawingGroup>
         </DrawingImage.Drawing>

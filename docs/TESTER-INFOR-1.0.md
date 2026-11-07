@@ -8,7 +8,7 @@ Det som är byggt men inte kan provas i molnmiljön (Linux), per område: vad ma
 
 ## Skalet (etapp 1, SH1b)
 
-- Titelraden: kättingloggan med ögat är skarp i 16 px, *Chainsaw*, *Inget ärende öppet* och *Ingen utgång* med grå prick.
+- Titelraden: kättingloggan (två länkar i varandra, diagonalt) är skarp i 16 px och snitten syns, *Chainsaw*, *Inget ärende öppet* och *Ingen utgång* med grå prick.
 - Fönstret går att dra i titelraden, dubbelklick maximerar, Windows fäster det mot kanterna, och kanterna ändrar storlek.
 - Maximerat går fönstret inte utanför skärmen; minimera, maximera och stäng fungerar, stäng blir röd vid hovring.
 - Ikonlisten: elva ikoner, skarpa i 20 px, Nytt överst med en linje under, Terminal, Guide och Inställningar längst ner.
