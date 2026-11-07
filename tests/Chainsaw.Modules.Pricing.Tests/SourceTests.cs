@@ -33,9 +33,10 @@ public sealed class BitstampSourceTests
     [InlineData(Chain.Bitcoin, FiatCurrency.Usd, true)]
     [InlineData(Chain.Bitcoin, FiatCurrency.Eur, true)]
     [InlineData(Chain.Bitcoin, FiatCurrency.Sek, false)]
-    [InlineData(Chain.Ethereum, FiatCurrency.Usd, false)]
+    [InlineData(Chain.Ethereum, FiatCurrency.Usd, true)]
+    [InlineData(Chain.Ethereum, FiatCurrency.Sek, false)]
     [InlineData(Chain.Tron, FiatCurrency.Usd, false)]
-    public void Has_bitcoin_in_dollars_and_euro_only(Chain chain, FiatCurrency quote, bool supported)
+    public void Has_bitcoin_and_ether_in_dollars_and_euro_only(Chain chain, FiatCurrency quote, bool supported)
     {
         Assert.Equal(supported, _source.Supports(chain, quote));
     }
@@ -138,6 +139,20 @@ public sealed class BitstampSourceTests
         var uri = source.RequestUri(Chain.Bitcoin, FiatCurrency.Usd, PriceResolution.Hour, Start);
 
         Assert.StartsWith("https://bitstamp.test/api/v2/ohlc/", uri.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Reads_ether_from_its_own_market_only()
+    {
+        var body = Encoding.UTF8.GetBytes(Body(Candle(Fixtures.HourStart)).Replace("BTC/USD", "ETH/USD",
+            StringComparison.Ordinal));
+
+        var candle = _source.ReadCandle(body, Chain.Ethereum, FiatCurrency.Usd, PriceResolution.Hour, Start);
+
+        Assert.Equal("ETH/USD", candle!.Market);
+        Assert.Throws<RateFormatException>(() => Read(body));
+        Assert.Contains("ohlc/ethusd/", _source.RequestUri(Chain.Ethereum, FiatCurrency.Usd, PriceResolution.Hour,
+            Start).AbsoluteUri, StringComparison.Ordinal);
     }
 
     private RateCandle? Read(byte[] body) =>

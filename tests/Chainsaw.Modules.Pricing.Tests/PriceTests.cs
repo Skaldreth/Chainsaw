@@ -122,6 +122,21 @@ public sealed class PriceTests
     }
 
     [Fact]
+    public void Values_ether_from_wei_exactly()
+    {
+        var price = new Price(Fixtures.At, FiatCurrency.Usd, Usd with { Chain = Chain.Ethereum }, null);
+
+        var valuation = price.ValueOf(new AssetAmount(Asset.Ether, 5_820_000_000_000_000_000));
+
+        Assert.Equal(5.82m, valuation.Amount);
+        Assert.Equal(5.82m * price.UnitPrice, valuation.Value);
+        Assert.StartsWith("5,82 ETH × ", valuation.Steps[^1], StringComparison.Ordinal);
+        Assert.Throws<InvalidOperationException>(() => price.ValueOf(new Satoshi(1)));
+        Assert.Throws<InvalidOperationException>(() => price.ValueOf(new AssetAmount(
+            Asset.Token(Chain.Ethereum, "0xdac17f958d2ee523a2206206994597c13d831ec7", "USDT", 6), 1)));
+    }
+
+    [Fact]
     public void Values_nothing_as_nothing()
     {
         var valuation = new Price(Fixtures.At, FiatCurrency.Usd, Usd, null).ValueOf(Satoshi.Zero);

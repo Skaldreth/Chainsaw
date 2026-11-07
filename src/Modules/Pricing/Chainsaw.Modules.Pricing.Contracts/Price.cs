@@ -102,19 +102,40 @@ public sealed record Price
     /// <param name="amount">The amount.</param>
     /// <returns>The value with its steps.</returns>
     /// <exception cref="InvalidOperationException">The price is not for Bitcoin.</exception>
-    public Valuation ValueOf(Satoshi amount)
+    public Valuation ValueOf(Satoshi amount) => ValueOf(amount.ToAmount());
+
+    /// <summary>Values an amount of the chain's own coin at this price (bitcoin, ether).</summary>
+    /// <param name="amount">The amount, in the chain's own coin.</param>
+    /// <returns>The value with its steps.</returns>
+    /// <exception cref="InvalidOperationException">The amount is not in the coin the price is for.</exception>
+    /// <exception cref="OverflowException">The amount is too large to value (more than 10^28 coins).</exception>
+    public Valuation ValueOf(AssetAmount amount)
     {
-        if (Chain != Chain.Bitcoin)
+        if (amount.Asset != Chain.NativeAsset())
         {
-            throw new InvalidOperationException("Only a price for Bitcoin values satoshi.");
+            throw new InvalidOperationException($"Only an amount of {Chain.Code()} is valued at this price.");
         }
 
-        var bitcoin = amount.ToBitcoin();
-        var value = bitcoin * UnitPrice;
+        var coins = (decimal)amount.Units / Pow10(amount.Asset.Decimals);
+        var value = coins * UnitPrice;
         var rounded = Math.Round(value, 2, MidpointRounding.AwayFromZero);
-        var line = $"{Exact(bitcoin)} {Chain.Code()} × {Exact(UnitPrice)} = {Exact(value)} {Currency.Code()}, " +
+        var line = $"{Exact(coins)} {Chain.Code()} × {Exact(UnitPrice)} = {Exact(value)} {Currency.Code()}, " +
             $"avrundat {rounded.ToString(MoneyFormat, Swedish)} {Currency.Code()}.";
-        return new Valuation(this, bitcoin, value, rounded, [.. Steps, line]);
+        return new Valuation(this, coins, value, rounded, [.. Steps, line]);
+    }
+
+    /// <summary>Gives ten to a power exactly, as a decimal.</summary>
+    /// <param name="power">The power, at most 28.</param>
+    /// <returns>10^power.</returns>
+    private static decimal Pow10(int power)
+    {
+        var result = 1m;
+        for (var i = 0; i < power; i++)
+        {
+            result *= 10m;
+        }
+
+        return result;
     }
 
     /// <summary>Writes a number exactly as it is, in Swedish.</summary>

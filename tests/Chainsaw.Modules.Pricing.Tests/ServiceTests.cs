@@ -270,7 +270,6 @@ public sealed class ServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(Chain.Ethereum)]
     [InlineData(Chain.Tron)]
     [InlineData((Chain)99)]
     public async Task Refuses_a_chain_without_a_source(Chain chain)
