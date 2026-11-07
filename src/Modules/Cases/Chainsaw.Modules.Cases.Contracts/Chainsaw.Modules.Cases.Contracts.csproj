@@ -4,5 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Chainsaw.SharedKernel\Chainsaw.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\Security\Chainsaw.Modules.Security.Contracts\Chainsaw.Modules.Security.Contracts.csproj" />
   </ItemGroup>
 </Project>
