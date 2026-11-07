@@ -25,6 +25,9 @@ internal static partial class EmbeddedRecoveryKey
     /// </summary>
     public const string RevokedKeyword = "REVOKED";
 
+    /// <summary>What the keyword is replaced with before a fingerprint is looked for: no hexadecimal digit.</summary>
+    private const string KeywordStandIn = "|";
+
     /// <summary>Every kind of line break, so that a file saved with CR, LF or CRLF reads the same.</summary>
     private static readonly char[] LineBreaks = ['\r', '\n'];
 
@@ -80,7 +83,7 @@ internal static partial class EmbeddedRecoveryKey
             .Select(ReadFingerprint)
             .ToHashSet(StringComparer.Ordinal);
         if (lines.Any(line => !line.Contains(RevokedKeyword, StringComparison.OrdinalIgnoreCase)
-            && Fingerprint().IsMatch(line)))
+            && LooseFingerprint().IsMatch(Separators().Replace(line, string.Empty))))
         {
             // A fingerprint without the keyword (a typo, or the word in Swedish) is a revocation that would be lost.
             throw new InvalidOperationException(
@@ -105,17 +108,33 @@ internal static partial class EmbeddedRecoveryKey
     /// <exception cref="InvalidOperationException">The line does not hold exactly one fingerprint.</exception>
     private static string ReadFingerprint(string line)
     {
-        var matches = Fingerprint().Matches(line);
+        // The keyword ends in a hexadecimal letter, so it is taken out before the fingerprint is looked for.
+        var withoutKeyword = line.Replace(RevokedKeyword, KeywordStandIn, StringComparison.OrdinalIgnoreCase);
+        var matches = Fingerprint().Matches(withoutKeyword);
         return matches.Count == 1
             ? new string([.. matches[0].Value.Where(char.IsAsciiHexDigit)]).ToLowerInvariant()
             : throw new InvalidOperationException(
                 $"The resource {ResourceName} has a line about a revoked key without exactly one fingerprint.");
     }
 
-    /// <summary>A fingerprint: 64 hexadecimal digits, together or in groups of four with whitespace between.</summary>
+    /// <summary>
+    /// A fingerprint: 64 hexadecimal digits, together or in groups of four with whitespace between, with no further
+    /// hexadecimal digit next to it, not even across whitespace; a hexadecimal word beside a grouped fingerprint would
+    /// otherwise be taken as one of its groups and revoke another key than meant.
+    /// </summary>
     /// <returns>The expression.</returns>
-    [GeneratedRegex(@"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{4}\s*){15}[0-9A-Fa-f]{4}(?![0-9A-Fa-f])")]
+    [GeneratedRegex(@"(?<![0-9A-Fa-f]\s*)(?:[0-9A-Fa-f]{4}\s*){15}[0-9A-Fa-f]{4}(?!\s*[0-9A-Fa-f])")]
     private static partial Regex Fingerprint();
+
+    /// <summary>64 hexadecimal digits in a row, for a line whose separators have been taken out.</summary>
+    /// <returns>The expression.</returns>
+    [GeneratedRegex("[0-9A-Fa-f]{64}")]
+    private static partial Regex LooseFingerprint();
+
+    /// <summary>The separators people write between a fingerprint's digits: whitespace, colons and dashes.</summary>
+    /// <returns>The expression.</returns>
+    [GeneratedRegex(@"[\s:\-]")]
+    private static partial Regex Separators();
 }
 
 /// <summary>The recovery key a build has, and the earlier keys it revokes.</summary>

@@ -631,6 +631,10 @@ Inget gränssnitt i appen.
   alla återkallelser efter sig; nu läses varje rad. M: ett block som aldrig stängs dolde resten, ett fingeravtryck på
   en rad utan ordet (stavfel, *ÅTERKALLAD*) stoppar nu appen, och spärren mot en privat nyckel bryr sig inte om
   versaler.
+- Omgång 6: inga C, ett I och ett M, rättade. I: ett hexadecimalt ord (till exempel ett år) före ett grupperat
+  fingeravtryck togs som dess första grupp och återkallade fel nyckel; nu får ingen hexadecimal siffra stå intill
+  fingeravtrycket, och raden stoppar appen. M: ett fingeravtryck med kolon eller bindestreck på en rad utan ordet
+  stoppar nu också appen.
 
 **Återstår:** gränssnittet som visar nyckelns fingeravtryck och när den saknas, att administratören skapar nyckeln och
 bygger in den, och att byta ärendets filnyckel (för att stänga en röjd nyckel i kopior som redan lämnats ut).

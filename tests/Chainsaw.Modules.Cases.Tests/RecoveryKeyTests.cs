@@ -229,6 +229,10 @@ public sealed class RecoveryKeyTests : IDisposable
     [InlineData("REVOKE e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7")]
     [InlineData("ÅTERKALLAD e6526d5662e6673c2fdb97cf6d66c37bd96beee28711dc95c6361c27f37089b7")]
     [InlineData("-----begin private key-----")]
+    [InlineData("REVOKED 2026 E652 6D56 62E6 673C 2FDB 97CF 6D66 C37B D96B EEE2 8711 DC95 C636 1C27 F370 89B7")]
+    [InlineData("REVOKED E652 6D56 62E6 673C 2FDB 97CF 6D66 C37B D96B EEE2 8711 DC95 C636 1C27 F370 89B7 2026")]
+    [InlineData("Röjd: E652-6D56-62E6-673C-2FDB-97CF-6D66-C37B-D96B-EEE2-8711-DC95-C636-1C27-F370-89B7")]
+    [InlineData("E6:52:6D:56:62:E6:67:3C:2F:DB:97:CF:6D:66:C3:7B:D9:6B:EE:E2:87:11:DC:95:C6:36:1C:27:F3:70:89:B7")]
     [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----")]
     public void Built_in_text_that_does_not_hold_stops_the_build_from_running(string line)
     {
