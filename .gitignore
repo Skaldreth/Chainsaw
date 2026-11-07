@@ -9,3 +9,4 @@ TestResults/
 
 # The organisation's private recovery key never belongs in the repository.
 *.private.pem
+.claude/worktrees/
