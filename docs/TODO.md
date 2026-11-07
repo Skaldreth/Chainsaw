@@ -64,7 +64,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 - **Sök i Guiden:** GD1a har en sökruta i vyn. Sök finns bara i kommandoraden (CLAUDE.md), så sökningen bör gå därifrån
   (till exempel `/guide utxo`). Inte byggt.
 - **Begäran om uppgifter till börser:** först en enkel **export till Markdown** (användarens beslut 2026-11-07), med
-  börsen, insättningarna (tx, tid, belopp, adress) och spåret dit. Formen är BG1a (CLAUDE.md).
+  börsen, insättningarna (tx, tid, belopp, adress) och spåret dit. Formen är BG1b (CLAUDE.md).
 
 ## Senare (efter MVP:n)
 

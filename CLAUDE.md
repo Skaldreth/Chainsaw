@@ -360,10 +360,11 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Tokens är TK1a** (användarens beslut 2026-11-07): linjerna behåller bildspråket (accent och tjocklek), tokenen står
   som ett litet märke först i beloppet (₮, Ξ) med SEK litet under, en swap är ett litet piller på linjen (₮ → Ξ), och
   inspektören listar saldot per token med utgivaren och snöflingan *Kan frysas*.
-- **Begäran är BG1a** (användarens beslut 2026-11-07): högerklick på ett uttag i grafen och *Begäran … (R)* fäller ut
-  ett formulär i inspektören, med insättningarna som kryssrutor (de spårade ikryssade) och *Spåret dit*, och fliken
-  *Filen* med Markdown-texten. Exporten till `.md` tar bara med det begäran behöver, aldrig offrets namn eller
-  anteckningar, journalförs och skriver aldrig över; uttaget får en markering i hörnet efter exporten.
+- **Begäran är BG1b** (användarens beslut 2026-11-07, ändrat från BG1a samma dag): vyn Begäran i pillret listar alla
+  uttag som spårade pengar nått i ärendet, med den valda begäran som stor förhandsvisning av Markdown-filen till höger,
+  brickor för vilka insättningar som tas med och för spåret dit, och *Exportera .md …*. Exporterade filer står under
+  *Exporterade* med SHA-256. Exporten tar bara med det begäran behöver, aldrig offrets namn eller anteckningar,
+  journalförs och skriver aldrig över (en ny fil får ett nummer).
 - **Inställningarna är ST1a** (användarens beslut 2026-11-07): en dialog mitt i fönstret över mörkad bakgrund, som i Gawk,
   öppnad med Ctrl+, eller kugghjulet i pillret, med menyn till vänster (Nätverk, Låsning, Utseende, Länkar, Kurser,
   Profil, Om Chainsaw) och rader med titel och förklaring till vänster och valet till höger. Nätverk har *Windows* eller
@@ -454,5 +455,5 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
 | **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten) | BV1a och BV2a valda, med animerade ringar vid träff |
-| **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1a vald |
+| **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b; byggd i etapp 22 |
