@@ -36,6 +36,15 @@ public partial class GraphView : UserControl
     {
         DataContext = model;
         Canvas.Attach(model);
+        model.Checks.PropertyChanged += (_, e) =>
+        {
+            // The list's keys (J, K, Enter, X and ?) and Z work in the graph; the keyboard goes back to it.
+            if (e.PropertyName is nameof(ChecksViewModel.IsOpen) or nameof(ChecksViewModel.IsFormOpen)
+                && !model.Checks.IsFormOpen)
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(Canvas));
+            }
+        };
         model.Forms.PropertyChanged += (_, e) =>
         {
             // A closed form's field collapses; the keyboard goes back to the graph, so that E, F, L, U and K work.

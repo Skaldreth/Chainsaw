@@ -25,6 +25,7 @@ public sealed class GuideLibrary
         ("Klustring", ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin"]),
         ("Spårning", ["grafen", "sparningsmetoder", "sparet-tar-slut", "kurser"]),
         ("Etiketter", ["etiketter"]),
+        ("Förvirring", ["kontroller-och-forslag", "mixerns-kandidater", "omraden"]),
     ];
 
     /// <summary>The sections by id.</summary>

@@ -60,6 +60,13 @@
     <SolidColorBrush x:Key="Brush.Mark.OnSanctioned" Color="#2A0F0F" />
     <!-- The start point's flag (sketch GR5, variant A): a light disc, the same form as the marks, in the other corner. -->
     <SolidColorBrush x:Key="Brush.Mark.Start" Color="#E6E6E6" />
+    <!-- The areas behind the actors (sketch KF1b): drawn faint as fill and a little stronger as edge. -->
+    <SolidColorBrush x:Key="Brush.Area.Red" Color="#EC8C8C" />
+    <SolidColorBrush x:Key="Brush.Area.Sand" Color="#D6C4A0" />
+    <SolidColorBrush x:Key="Brush.Area.Grey" Color="#C8C8C8" />
+    <SolidColorBrush x:Key="Brush.Area.Lila" Color="#C8A6E8" />
+    <SolidColorBrush x:Key="Brush.Area.Green" Color="#8CC98F" />
+    <SolidColorBrush x:Key="Brush.Area.Blue" Color="#8DBAFF" />
 
     <FontFamily x:Key="Font.Ui">Segoe UI Variable Text, Segoe UI</FontFamily>
     <!-- Mono only for hashes, txids and addresses in the inspector, and the terminal. -->

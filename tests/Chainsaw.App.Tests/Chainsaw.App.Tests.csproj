@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Modules\Attribution\Chainsaw.Modules.Attribution.Contracts\Chainsaw.Modules.Attribution.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Clustering\Chainsaw.Modules.Clustering.Contracts\Chainsaw.Modules.Clustering.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Pricing\Chainsaw.Modules.Pricing.Contracts\Chainsaw.Modules.Pricing.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Checks\Chainsaw.Modules.Checks.Contracts\Chainsaw.Modules.Checks.Contracts.csproj" />
   </ItemGroup>
   <!--
     Chainsaw.App is a WPF program, which tests cannot load where there is no Windows desktop runtime, as in the cloud.

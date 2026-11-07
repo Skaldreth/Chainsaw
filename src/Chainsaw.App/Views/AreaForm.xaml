@@ -1,0 +1,98 @@
+<UserControl x:Class="Chainsaw.App.Views.AreaForm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance Type=vm:ChecksViewModel}"
+             mc:Ignorable="d">
+
+    <!--
+      The small form beside the graph for an own area (sketch KF1b): a new one around the chosen actors (Z) with name,
+      sort, colour, Samma aktör? and a note, or a new name, or a removal with an optional reason. Esc cancels and Enter
+      stores. Only wiring; what happens lives in ChecksViewModel.
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="Margin" Value="0,10,0,4" />
+        </Style>
+    </UserControl.Resources>
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding CancelFormCommand}" />
+        <KeyBinding Key="Enter" Command="{Binding SaveFormCommand}" />
+    </UserControl.InputBindings>
+
+    <Border Width="300" Padding="14" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"
+            Background="{StaticResource Brush.Floating}">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="32" ShadowDepth="12" Direction="270" Opacity="0.45" Color="Black" />
+        </Border.Effect>
+        <StackPanel>
+            <TextBlock Text="{Binding FormTitle}" FontSize="13" FontWeight="SemiBold" />
+
+            <StackPanel Visibility="{Binding ShowsName, Converter={StaticResource Visible}}">
+                <DockPanel>
+                    <CheckBox DockPanel.Dock="Right" Content="Samma aktör?" FontSize="11.5" VerticalAlignment="Bottom"
+                              Foreground="{StaticResource Brush.TextMuted}" IsChecked="{Binding FormSameActor}"
+                              Margin="0,0,0,4" Visibility="{Binding IsCreating, Converter={StaticResource Visible}}" />
+                    <TextBlock Style="{StaticResource Label}" Text="Namn" />
+                </DockPanel>
+                <TextBox Style="{StaticResource TextBox.Field}" Height="30"
+                         Text="{Binding FormName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Namn" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsCreating, Converter={StaticResource Visible}}">
+                <TextBlock Style="{StaticResource Label}" Text="Sort" />
+                <ComboBox Height="28" ItemsSource="{Binding SortChoices}" SelectedValuePath="Sort" DisplayMemberPath="Name"
+                          SelectedValue="{Binding FormSort}" AutomationProperties.Name="Sort" />
+                <TextBlock Style="{StaticResource Label}" Text="Färg" />
+                <ItemsControl ItemsSource="{Binding TintChoices}" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:TintChoice}">
+                            <Button Focusable="False" Cursor="Hand" Margin="0,0,8,0" ToolTip="{Binding Tint}"
+                                    Command="{Binding DataContext.ChooseTintCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding Tint}">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Grid Width="22" Height="22">
+                                            <Ellipse Fill="{Binding TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}" Opacity="0.35" />
+                                            <Ellipse x:Name="Ring" StrokeThickness="1.5"
+                                                     Stroke="{Binding TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsChosen}" Value="True">
+                                                <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource Brush.Text}" />
+                                            </DataTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <TextBlock Style="{StaticResource Label}" Text="{Binding NoteLabel}" />
+            <TextBox Style="{StaticResource TextBox.Field}" Height="30" Text="{Binding FormNote, UpdateSourceTrigger=PropertyChanged}"
+                     AutomationProperties.Name="Anteckning" />
+
+            <TextBlock Text="{Binding FormProblem}" FontSize="11.5" Foreground="{StaticResource Brush.Error}" TextWrapping="Wrap"
+                       Margin="0,8,0,0" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                <Button Style="{StaticResource Button.Graph}" Height="28" Margin="0,0,8,0" Command="{Binding CancelFormCommand}"
+                        ToolTip="Esc">Avbryt</Button>
+                <Button Style="{StaticResource Button.Primary}" Height="28" Padding="14,0" Command="{Binding SaveFormCommand}"
+                        Content="{Binding FormSaveText}" ToolTip="Enter" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

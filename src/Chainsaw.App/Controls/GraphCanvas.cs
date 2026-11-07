@@ -19,7 +19,7 @@ namespace Chainsaw.App.Controls;
 /// dragged to pan, and the wheel zooms around the pointer. The keys: Esc chooses nothing, E expands, F fits the graph
 /// to the screen, + and − zoom.
 /// </remarks>
-public sealed class GraphCanvas : FrameworkElement
+public sealed partial class GraphCanvas : FrameworkElement
 {
     /// <summary>A node's corner radius.</summary>
     private const double NodeRadius = 10;
@@ -102,6 +102,7 @@ public sealed class GraphCanvas : FrameworkElement
         ArgumentNullException.ThrowIfNull(model);
         _model = model;
         model.Redraw += (_, _) => InvalidateVisual();
+        model.ShowNodesWanted += (_, nodes) => FitTo(nodes);
         model.FitWanted += (_, _) =>
         {
             _fitPending = true;
@@ -156,6 +157,7 @@ public sealed class GraphCanvas : FrameworkElement
             DrawLanes(drawingContext, scene, visible);
         }
 
+        DrawAreas(drawingContext, visible);
         var (nearNodes, nearEdges) = _model.Near;
         var edges = GraphHitTest.VisibleEdges(scene, _model.Curves, visible).ToList();
         foreach (var edge in edges)
@@ -173,6 +175,8 @@ public sealed class GraphCanvas : FrameworkElement
             DrawNode(drawingContext, node, _model.Places[node.Key], nearNodes);
         }
 
+        DrawCandidates(drawingContext);
+        DrawAreaChips(drawingContext, visible);
         drawingContext.Pop();
     }
 
@@ -186,6 +190,12 @@ public sealed class GraphCanvas : FrameworkElement
         Focus();
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
+        if (_model is not null && PressArea(surface))
+        {
+            e.Handled = true;
+            return;
+        }
+
         var node = _model?.HitTest(surface, Tolerance).Node;
         var place = node is not null && _model!.Places.TryGetValue(node, out var found) ? found : default;
         _gesture.Press(at, node, place, new GraphPoint(surface.X - place.X, surface.Y - place.Y));
@@ -291,6 +301,17 @@ public sealed class GraphCanvas : FrameworkElement
             return;
         }
 
+        if (CheckKey(e.Key))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (LeftForText(e.Key))
+        {
+            return;
+        }
+
         e.Handled = true;
         switch (e.Key)
         {
@@ -348,8 +369,17 @@ public sealed class GraphCanvas : FrameworkElement
         {
             _ = _model.DropNodeAsync(node);
         }
+        else if (end == GestureEnd.Click && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            // Ctrl+click chooses actors for an own area (sketch KF1b), one at a time.
+            if (_model.HitTest(_viewport.ToSurface(at), Tolerance).Node is { } picked)
+            {
+                _model.Checks.TogglePick(picked);
+            }
+        }
         else if (end == GestureEnd.Click)
         {
+            _model.Checks.ChooseArea(null);
             _model.ChooseAt(_viewport.ToSurface(at), Tolerance);
         }
     }
@@ -548,7 +578,7 @@ public sealed class GraphCanvas : FrameworkElement
 
         dc.DrawRoundedRectangle(
             GraphPalette.Find(this, chosen ? "Brush.SurfaceRaised" : "Brush.Surface"),
-            FramePen(node, chosen),
+            FramePen(node, chosen || model.Checks.Picked.Contains(node.Key)),
             frame,
             NodeRadius,
             NodeRadius);

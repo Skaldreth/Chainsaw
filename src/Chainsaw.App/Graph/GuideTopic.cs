@@ -35,6 +35,15 @@ public enum GuideTopic
 
     /// <summary><em>Grafen och bildspråket</em>.</summary>
     Graph,
+
+    /// <summary><em>Kontroller och förslag</em> (sketch KF1a).</summary>
+    Checks,
+
+    /// <summary><em>Områden i grafen</em> (sketch KF1b).</summary>
+    Areas,
+
+    /// <summary><em>Mixerns troliga utgångar</em>.</summary>
+    MixerCandidates,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -63,6 +72,9 @@ public static class GuideTopics
         GuideTopic.PeelChain => "peel-chain",
         GuideTopic.CoinJoin => "coinjoin",
         GuideTopic.Graph => "grafen",
+        GuideTopic.Checks => "kontroller-och-forslag",
+        GuideTopic.Areas => "omraden",
+        GuideTopic.MixerCandidates => "mixerns-kandidater",
         _ => "utxo-modellen",
     };
 
@@ -80,6 +92,9 @@ public static class GuideTopics
         GuideTopic.PeelChain => "Peel chain",
         GuideTopic.CoinJoin => "CoinJoin",
         GuideTopic.Graph => "Grafen och bildspråket",
+        GuideTopic.Checks => "Kontroller och förslag",
+        GuideTopic.Areas => "Områden i grafen",
+        GuideTopic.MixerCandidates => "Mixerns troliga utgångar",
         _ => "UTXO-modellen",
     };
 
@@ -109,6 +124,7 @@ public static class GuideTopics
         GuideTopic.CoinJoin => "Vad Chainsaw tittar efter",
         GuideTopic.Labels => "En etikett är alltid en bedömning",
         GuideTopic.Graph => InspectorHeading,
+        GuideTopic.MixerCandidates => "Hur poängen räknas",
         _ => null,
     };
 

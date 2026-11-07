@@ -48,6 +48,11 @@
         </DataTemplate>
     </UserControl.Resources>
 
+    <UserControl.InputBindings>
+        <!-- The checks and suggestions (sketch KF1a) where the inspector stands. -->
+        <KeyBinding Key="J" Modifiers="Control" Command="{Binding Checks.ToggleCommand}" />
+    </UserControl.InputBindings>
+
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -77,6 +82,68 @@
                 <TextBlock Text="{Binding OfflineWord}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center"
                            Margin="0,0,12,0" ToolTip="{Binding OfflineTip}"
                            Visibility="{Binding ShowsOffline, Converter={StaticResource Visible}}" />
+                <!-- Förslag · N (sketch KF1a, Ctrl+J): the list of checks and suggestions where the inspector stands. -->
+                <Button Style="{StaticResource Button.Graph}" Margin="0,0,10,0" Command="{Binding Checks.ToggleCommand}"
+                        ToolTip="Kontroller och förslag · Ctrl+J" AutomationProperties.Name="Kontroller och förslag">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Stroke="{StaticResource Brush.Accent}" StrokeDashArray="2 1.5"
+                                 VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="{Binding Checks.ButtonText}" />
+                    </StackPanel>
+                </Button>
+                <!-- Områden i grafen (sketch KF1b): which sorts of areas are drawn behind the actors. -->
+                <Grid Margin="0,0,10,0">
+                    <Button Style="{StaticResource Button.Graph}" Command="{Binding Checks.ToggleMenuCommand}"
+                            ToolTip="Områden i grafen. Z ritar en egen yta runt valda aktörer (Ctrl+klick)."
+                            AutomationProperties.Name="Områden i grafen">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Layers}"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                            <TextBlock Text="{Binding Checks.AreaCountText}" Margin="6,0,0,0" />
+                        </StackPanel>
+                    </Button>
+                    <Border Margin="0,36,0,0" Width="210" Padding="8" HorizontalAlignment="Right" VerticalAlignment="Top"
+                            CornerRadius="10" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"
+                            Background="{StaticResource Brush.Floating}"
+                            Visibility="{Binding Checks.IsMenuOpen, Converter={StaticResource Visible}}">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="24" ShadowDepth="8" Direction="270" Opacity="0.4" Color="Black" />
+                        </Border.Effect>
+                        <StackPanel>
+                            <TextBlock Text="Områden i grafen" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                       Margin="8,2,0,6" />
+                            <ItemsControl ItemsSource="{Binding Checks.Sorts}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:AreaSortItem}">
+                                        <Button Style="{StaticResource Button.MenuItem}" Height="30" CommandParameter="{Binding Sort}"
+                                                Command="{Binding DataContext.Checks.ToggleSortCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                            <DockPanel>
+                                                <Border x:Name="Box" DockPanel.Dock="Left" Width="14" Height="14" CornerRadius="3"
+                                                        BorderThickness="1.2" BorderBrush="{StaticResource Brush.TextDim}" Margin="0,0,9,0">
+                                                    <controls:GridIcon x:Name="Tick" Size="12" Data="{StaticResource Icon.Kind.Check}"
+                                                                       Foreground="{StaticResource Brush.OnAccent}" Visibility="Hidden" />
+                                                </Border>
+                                                <Border DockPanel.Dock="Left" Width="14" Height="10" CornerRadius="3" Margin="0,0,9,0"
+                                                        BorderThickness="1" Opacity="0.7"
+                                                        BorderBrush="{Binding TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="11.5"
+                                                           Foreground="{StaticResource Brush.TextDim}" />
+                                                <TextBlock Text="{Binding Name}" FontSize="12.5" />
+                                            </DockPanel>
+                                        </Button>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsShown}" Value="True">
+                                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.Accent}" />
+                                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </Grid>
                 <Border BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="FreeButton" ToolTip="Fri yta"
@@ -126,6 +193,10 @@
                 <Button Style="{StaticResource Button.Graph}" Content="{Binding LabelsText}" ToolTip="Belopp på linjerna"
                         Command="{Binding CycleLabelsCommand}" AutomationProperties.Name="Belopp på linjerna" />
             </StackPanel>
+
+            <!-- The form for an own area (sketch KF1b): under the corner, while it is open. -->
+            <views:AreaForm DataContext="{Binding Checks}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                            Margin="0,56,16,0" Visibility="{Binding IsFormOpen, Converter={StaticResource Visible}}" />
 
             <!-- The visual language behind the ? (sketches GR3a and GR3c). -->
             <Button Style="{StaticResource Button.Help}" Content="?" FontSize="13" HorizontalAlignment="Left"
@@ -311,6 +382,33 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!-- Här (sketch KF1a): the checks and suggestions that concern the chosen actor. -->
+                        <ItemsControl Focusable="False" Margin="0,0,0,10"
+                                      ItemsSource="{Binding DataContext.Checks.Here, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:HereLine}">
+                                    <DockPanel Margin="0,0,0,5">
+                                        <Grid DockPanel.Dock="Left" Width="18" Height="18" Margin="0,0,8,0">
+                                            <Ellipse x:Name="Ring" StrokeThickness="1.1"
+                                                     Stroke="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                                            <controls:GridIcon Size="10" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
+                                                               Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                                        </Grid>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding State}" FontSize="11"
+                                                   Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Title}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                            <Setter TargetName="Ring" Property="StrokeDashArray" Value="2.5 2" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
                         <!-- The forms (sketch IN1a): Etikett (L), Bryt upp (U) and Annan kedja (K), folded out here. -->
                         <views:InspectorFormsView
                             DataContext="{Binding DataContext.Forms, RelativeSource={RelativeSource AncestorType=UserControl}}" />
@@ -341,6 +439,10 @@
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
+
+                <!-- The checks and suggestions (sketch KF1a) fold out where the inspector stands, over it. -->
+                <views:ChecksPanel DataContext="{Binding Checks}"
+                                   Visibility="{Binding Checks.IsOpen, Converter={StaticResource Visible}}" />
             </Grid>
         </Border>
     </Grid>

@@ -97,6 +97,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="ui">The UI thread.</param>
     /// <param name="editor">Where the inspector's forms write in the case (sketch IN1a).</param>
     /// <param name="clock">The clock.</param>
+    /// <param name="checks">
+    /// The checks, suggestions and own areas (sketches KF1a and KF1b); none when the graph is built without them.
+    /// </param>
     public GraphViewModel(
         CaseSession session,
         CaseWorkflow workflow,
@@ -104,13 +107,18 @@ public sealed partial class GraphViewModel : ObservableObject
         ExitWay exit,
         IUiThread ui,
         IGraphEditor editor,
-        IClock clock)
+        IClock clock,
+        ICheckSource? checks = null)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(exit);
         ArgumentNullException.ThrowIfNull(ui);
         _session = session;
         _source = source;
+        Checks = new ChecksViewModel(session, checks ?? NoCheckSource.Instance);
+        Checks.Changed += (_, _) => Redraw?.Invoke(this, EventArgs.Empty);
+        Checks.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
+        Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
         Forms = new InspectorFormsViewModel(session, editor, clock);
         Forms.Saved += (_, _) => _ = RefreshAsync();
         Forms.Failed += (_, text) => Notice = Notice.Length == 0 ? text : $"{text} {Notice}";
@@ -135,6 +143,9 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Raised when a new graph is shown and the view should fit it to the screen.</summary>
     public event EventHandler? FitWanted;
+
+    /// <summary>Raised when a check asks the view to fit its actors to the screen.</summary>
+    public event EventHandler<IReadOnlyList<string>>? ShowNodesWanted;
 
     /// <summary>Raised when the places or the drawing change, so that the view draws again.</summary>
     public event EventHandler? Redraw;
@@ -253,6 +264,12 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Gets the inspector's tabs and its history, with taking back and undoing (sketch AN1b).</summary>
     public InspectorHistoryViewModel History { get; }
 
+    /// <summary>
+    /// Gets the checks and suggestions (sketch KF1a, Ctrl+J) and the areas behind the actors with the own areas
+    /// (sketch KF1b, Z), run in the background on the graph shown.
+    /// </summary>
+    public ChecksViewModel Checks { get; }
+
     /// <summary>Gets the answers to <em>Varför?</em> for what is chosen, the cluster's added when they come.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<WhyLine> Why { get; private set; } = [];
@@ -303,11 +320,25 @@ public sealed partial class GraphViewModel : ObservableObject
     public IReadOnlyList<BadgeLook> LegendBadges => VisualLanguage.Badges;
 
     /// <summary>Gets what is near what is chosen, which the view draws clearly while the rest is faint.</summary>
-    public (IReadOnlySet<string> Nodes, IReadOnlySet<string> Edges) Near =>
-        Scene?.Near(SelectedNode, SelectedEdge) ?? (new HashSet<string>(), new HashSet<string>());
+    /// <remarks>While the list of checks is open, the chosen row's actors are near instead (sketch KF1a).</remarks>
+    public (IReadOnlySet<string> Nodes, IReadOnlySet<string> Edges) Near
+    {
+        get
+        {
+            if (Checks.Focus is { } focus && Scene is { } scene)
+            {
+                return (focus, scene.Edges
+                    .Where(edge => focus.Contains(edge.Edge.From) && focus.Contains(edge.Edge.To))
+                    .Select(edge => edge.Key)
+                    .ToHashSet(StringComparer.Ordinal));
+            }
+
+            return Scene?.Near(SelectedNode, SelectedEdge) ?? (new HashSet<string>(), new HashSet<string>());
+        }
+    }
 
     /// <summary>Gets whether something is chosen, so that the rest is drawn faint.</summary>
-    public bool IsFocused => SelectedNode is not null || SelectedEdge is not null;
+    public bool IsFocused => SelectedNode is not null || SelectedEdge is not null || Checks.Focus is not null;
 
     /// <summary>Shows a layout; each keeps its own places (sketch GR4).</summary>
     /// <param name="layout">The layout.</param>
@@ -793,6 +824,7 @@ public sealed partial class GraphViewModel : ObservableObject
         SelectedEdge = scene.Edge(SelectedEdge)?.Key;
         Arrange();
         Inspect();
+        _ = Checks.FollowAsync(scene);
         OnPropertyChanged(nameof(MethodToolTip));
         if (fit)
         {
@@ -808,6 +840,7 @@ public sealed partial class GraphViewModel : ObservableObject
         EmptyText = text;
         Arrange();
         Inspect();
+        _ = Checks.FollowAsync(null);
     }
 
     /// <summary>Works out every node's place and every line's curve in the layout shown, and draws again.</summary>
@@ -908,6 +941,7 @@ public sealed partial class GraphViewModel : ObservableObject
         Why = Inspection?.Why ?? [];
         Forms.Follow(scene, node);
         History.Follow(scene, node);
+        Checks.Inspect(node?.Key);
         if (node is { Node.Kind: GraphNodeKind.Cluster } && _session.Current is { } openCase)
         {
             _ = ExplainClusterAsync(openCase, node);

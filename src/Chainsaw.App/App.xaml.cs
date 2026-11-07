@@ -6,6 +6,7 @@ using Chainsaw.Modules.Chains;
 using Chainsaw.Modules.Clustering;
 using Chainsaw.Modules.Attribution;
 using Chainsaw.Modules.Tracing;
+using Chainsaw.Modules.Checks;
 using Chainsaw.Modules.Pricing;
 using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Monitoring;
@@ -142,6 +143,7 @@ public partial class App : Application
                 .AddClusteringModule()
                 .AddAttributionModule()
                 .AddTracingModule()
+                .AddChecksModule()
                 .AddPricingModule(new PricingOptions
                 {
                     Currency = settings.Currency,
@@ -168,6 +170,7 @@ public partial class App : Application
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphEditor, GraphEditor>()
+                .AddSingleton<ICheckSource, CheckSource>()
                 .AddSingleton<GraphViewModel>()
                 .AddSingleton(_ => GuideLibrary.Load())
                 .AddSingleton<GuidePanelViewModel>()

@@ -43,6 +43,7 @@
     <ProjectReference Include="..\Modules\Clustering\Chainsaw.Modules.Clustering\Chainsaw.Modules.Clustering.csproj" />
     <ProjectReference Include="..\Modules\Attribution\Chainsaw.Modules.Attribution\Chainsaw.Modules.Attribution.csproj" />
     <ProjectReference Include="..\Modules\Tracing\Chainsaw.Modules.Tracing\Chainsaw.Modules.Tracing.csproj" />
+    <ProjectReference Include="..\Modules\Checks\Chainsaw.Modules.Checks\Chainsaw.Modules.Checks.csproj" />
     <ProjectReference Include="..\Modules\Pricing\Chainsaw.Modules.Pricing\Chainsaw.Modules.Pricing.csproj" />
     <ProjectReference Include="..\Modules\Monitoring\Chainsaw.Modules.Monitoring\Chainsaw.Modules.Monitoring.csproj" />
     <ProjectReference Include="..\Modules\Requests\Chainsaw.Modules.Requests\Chainsaw.Modules.Requests.csproj" />
