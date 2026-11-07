@@ -278,7 +278,9 @@ Samma arbetssätt som Gawk (användarens beslut 2026-11-06):
 - **Kodkvalitet:** professionell C#. En regel uttrycks en gång, inga nästlade ternärer, rader under ungefär 120 tecken,
   metoder som gör en sak, inga magiska strängar.
 - **UI skissas alltid först** som en ny tavla på Chainsaws canvas (https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h), och
-  implementeras först när användaren sagt ok. Skisser
+  implementeras först när användaren sagt ok. Canvasen är uppdelad i **sidor per område** (Stil och ikoner,
+  Låsskärm och förstagång, Skalet, Vänsternavigering, Ärenden, Grafen; användarens beslut 2026-11-07), och en ny skiss
+  läggs på sitt områdes sida, eller på en ny sida för ett nytt område. Skisser
   visas i **två varianter sida vid sida** när formen inte är given. Undantaget är felrättningar som inte ändrar utseendet.
 - **Förklara medan vi bygger.** Användaren lär sig genom att följa flödet: när något nytt om kedjorna dyker upp (en
   heuristik, ett format) förklaras det kort, och texten blir ett avsnitt i Guiden.
