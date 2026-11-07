@@ -1833,3 +1833,57 @@ Bygget är utan varningar.
 
 **Återstår:** etapp 23b (HANDOFF): grafen och inspektören för Ethereum, startpunkter, swap-pillret, kurser för USDT
 och USDC, och sedan kontoheuristikerna och TRON. Det som står i TODO under *Ethereum-källan, det som återstår*.
+
+## Etapp 23b (2026-11-07): Ethereum och ERC-20, andra delen: grafen och inspektören (TK1a)
+
+**Byggt:**
+- **Grafen oberoende av Bitcoin (Tracing):** en nod har `Chain`, `Accounts` och `Addresses` (`ChainAddress`) bredvid
+  `GraphAddresses`, och `TraceGraph.NodeOf(ChainAddress)`. En Ethereum-adress är en egen nod (`account:Ethereum:0x…`,
+  rund, sorten *Okänd* tills en etikett säger annat), eftersom kontomodellens heuristiker inte finns än.
+  `TraceStartPoint`, `ExpansionRequest` och `Expansion` tar Ethereum-adresser och tx (lagrade som `ethereum-address`
+  och `ethereum-transaction` i samma tabeller; inget schema ändrat).
+- **Expansion genom `IEthereumSource`** (`EthereumReader`): en adress tre historiker sida för sida, de nyaste först
+  upp till gränsen (50 tx, etapp 15), med vad som hölls tillbaka, klipptes, inte räknades eller inte var läst än; en tx
+  med alla rörelser; blockens hash ur blockuppslaget där historiken saknar den (interna tx). Grafen läses ur ärendet
+  med `LookupMode.CaseOnly`, så att visa den igen aldrig skickar något. `AccountData` slår ihop hela tx och historiker
+  (varje rörelse en gång) och hittar swappar.
+- **Kontomodellens del av grafen** (`TraceGraph.Account`, `AccountGraph`): rörelserna i kedjans ordning, avgifterna,
+  hela tx, vilka adresser som är lästa och swapparna (`TokenSwap`). Linjerna summerar per par och tillgång med blocket
+  (`BlockHash.TryParseEthereum`, `0x…`).
+- **Spårning per tillgång** (`AccountTraceCalculator`, `ITracingService.TraceAccountsAsync`): varje läst adress bär
+  pengarna vidare med FIFO v1 eller haircut v1 genom `AccountChecks.Run`, om och om igen tills inget ändras (pengar
+  kan komma tillbaka). Pengar stannar som *inte expanderad* hos en oläst adress, med etikettens slut hos en börs eller
+  mixer (`ITrailEndClassifier.ClassifyAccounts`), som *ligger kvar* och som avgift. Summan av sluten måste vara det
+  spårade; frön i varandras flöde vägras i stället för att räknas två gånger.
+- **Etiketter på Ethereum (Attribution, en agent i egen worktree):** `LabelSubject.ForAccount`, `Target`
+  (`ChainAddress`), `GetLabels` och `GetHistory` för `ChainAddress`, biblioteket och `ClassifyAccounts`. Bitcoins
+  lagrade text oförändrad.
+- **Kurser för USDT och USDC (Pricing, en agent i egen worktree):** `PriceRequest.Asset`, Bitstamps `usdtusd`,
+  `usdteur`, `usdcusd` och `usdceur`, efter kontraktet; en token utan källa får `Unsupported` och ingen kurs.
+- **Appen (TK1a):** startpunkter för Ethereum i kommandoraden, Nytt ärende och `chainsaw:ethereum/…`; märket först i
+  beloppet och värdet i kronor litet under (`EdgeValue`, bara när varje rörelse på linjen har en kurs); tjockleken mot
+  den största spårade linjen av samma tillgång; swap-pillret **₮ → Ξ** på linjen den som bytte sålde på (ritas också
+  med *Inga belopp*); snöflingan *Kan frysas* (`NodeBadge.CanBeFrozen`, `Icon.Snow`) och saldot per token
+  (`NodeView.Balances`) med avgifterna dragna från ether. Inspektören visar *Kedja*, *Spårat in* per tillgång,
+  tabellen Token · In · Ut · Kvar och frysrutan, och för en linje *Värde*, *Swap* och varje tx med block och hash.
+  `AccountSeedPicker` väljer frön. Etikett (L), Historik och Annan kedja (K) fungerar för Ethereum-noder; en länk från
+  en Ethereum-rörelse lagras i samma förseglade kolumner (`token:0x…` och positionen).
+- **KF1a:** listans status säger att kontrollerna gäller UTXO och inte körs på Ethereum.
+- **Guiden:** *ERC-20 och tokens* (värdet, swap), *Kan frysas* (bara expanderade adresser), *Kontomodellen* (i grafen),
+  *Grafen* (snöflingan, tokens på linjerna) och *Startpunkter*.
+
+**Egna beslut:**
+- **Ethereum byggt vid sidan av Bitcoin** i stället för att göra om `GraphAddresses`, `TraceResult` och `UtxoGraph`:
+  Bitcoins facit (`GoldenTests`) är oförändrat, och etapp 25 arbetar i Chains och Network samtidigt.
+- **Varje Ethereum-adress är sin egen aktör** tills kontoheuristikerna finns.
+- **Swappen sätts på den som signerade tx:en**, när den skickade exakt en tillgång och fick exakt en annan; poolen gör
+  samma sak baklänges och får inget piller. Spårningen följer inte bytet än (TODO).
+- **Saldot och snöflingan** bara för en expanderad adress; annars *Inte expanderad: saldot är okänt*.
+- **Två tx i samma block** ordnas efter hash, eftersom källorna inte ger platsen i blocket (TODO).
+- **Värdet** räknas per rörelse vid blockets tid; en linje utan kurs för varje rörelse får inget värde. Läsningen
+  använder bara ärendets kurser; en expansion får be om högst 30.
+- **En felregistrerad kontometod** stoppar inte Bitcoin; spårningen på Ethereum vägras då med skälet.
+- **Delegerat:** Attribution och Pricing byggdes av två agenter i egna worktrees efter samma kontrakt och granskades med
+  resten.
+
+**Granskningen:**

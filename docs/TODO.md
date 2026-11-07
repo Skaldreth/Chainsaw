@@ -93,18 +93,30 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 ## Senare (efter MVP:n)
 
 ### Kedjor och data
-- **Ethereum, nästa del (etapp 23b, efter etapp 23):** källan, modellen, kontometoderna och tokenmärkena är byggda.
-  Kvar, i ordning:
-  - **Grafen och inspektören:** noder och adresser som `ChainAddress` (punkterna nedan *Med den första kontokedjan*),
-    expansion av en adress genom `IEthereumSource` (de tre historikerna, sida för sida, dubbletter vid sidgränsen
-    tas bort på tx, sort och position), en tx med alla sina rörelser, spårning per tillgång med `AccountChecks.Run`,
-    märket först i beloppet och SEK under (`TokenMarks`), saldo per token med utgivaren och snöflingan i inspektören,
-    snöflingan i nodens hörn, och `TraceStartPoint` för Ethereum så att startpunkter kan läggas till (i dag säger
-    appen ärligt att grafen inte är byggd).
-  - **Swap som piller på linjen** (₮ → Ξ), bara när tx:en själv visar det: samma adress skickar en token och får en
-    annan (eller ether) i samma tx genom en känd DEX. Annars inget piller.
-  - **Kurser för USDT och USDC:** Bitstamp har `usdtusd` och `usdcusd`, men `PriceRequest` och `ICryptoRateSource` frågar
-    per kedja; de behöver fråga per tillgång (känd token efter kontrakt, aldrig symbol). Till dess: *ingen kurs*.
+- **Ethereum efter etapp 23b** (grafen, inspektören, startpunkterna, swap-pillret och kurserna för USDT och USDC är
+  byggda). Kvar:
+  - **Spårning genom en swap:** pillret visar bytet, men spårningen räknar varje tillgång för sig, så spårade USDT blir
+    inte spårad ether hos den som bytte (de stannar som *inte expanderad* hos poolen). Att föra över den spårade
+    andelen i bytet är en bedömning (analys med namn och version) och behöver ett beslut om hur andelen räknas.
+  - **Swap genom en känd DEX:** pillret sätts på mönstret (den som signerade skickade en tillgång och fick en annan i
+    samma tx), utan lista över DEX-kontrakt. En lista över kända DEX:ar och aggregatorer kan visa namnet i *Varför?*.
+  - **Tx:ens plats i blocket:** källornas historik ger inte `transactionIndex`, så två tx i samma block ordnas efter
+    hash. Det påverkar bara FIFO när en adress både tar emot och betalar i samma block. Läs `transactionIndex` i
+    Blockscout-tolkningen (Chains, etapp 25 arbetar där samtidigt).
+  - **Välja vad som spåras:** frön väljs av `AccountSeedPicker` (allt som kom in till startadressen, eller en start-tx:s
+    rörelser till andra än den som signerade); att välja dem i grafen saknas, som för Bitcoin.
+  - **Saldot och snöflingan** räknas ur grafens linjer för en expanderad adress, alltså bara så långt historiken är
+    läst (gränsen 50 tx). En adress med längre historik kan visa fel saldo; källans saldouppslag (`balance`,
+    `tokenbalance`) vid ett block skulle ge kedjans eget svar.
+  - **Kurs per överföring:** varje rörelse värderas vid sitt blocks tid med Pricings förvalda upplösning; en expansion
+    ber om högst 30 kurser, resten hämtas vid nästa. Värdet visas bara för linjer på Ethereum (Bitcoins linjer har inget
+    värde än, TODO under *Kurser*).
+  - **Egna ytor (Z) och områdena** tar inte Ethereum-noder (`OwnArea` lagrar Bitcoin-adresser och txid).
+  - **Kontrollerna (KF1a)** körs inte på Ethereum; listan säger det. Kontoheuristikerna och Tornado Cash nedan.
+  - **OFAC:s ETH-adresser** (`Digital Currency Address - ETH`) läses inte; sanktionskontrollen är Bitcoins.
+  - **Länk till annan kedja från Ethereum** lagras i samma förseglade kolumner som ett mynt (`token:0x…` och
+    positionen). Spårningen stannar fortfarande vid bryggan som *inte expanderad* eller dess etikett; länken ritas som
+    lila linje men för inte de spårade pengarna vidare.
   - **Kontoheuristiker** (`IAccountHeuristic`): börsens insättningsadresser som töms till samma hot wallet, och
     adresser som betalar varandras gas. Kräver att kluster och bevis kan hålla `ChainAddress`.
   - **Tornado Cash** och andra kända kontrakt (DEX, bryggor) som etiketter och slut på spåret (se nedan).
@@ -136,8 +148,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
     öppen så att den frågas om, vid varje uppslag så länge posten står kvar (en token utan `decimals()` kan skickas
     till vilken adress som helst). Pröva mot en riktig Blockscout, och ge upp efter några försök eller när tokenens
     eget uppslag säger att den saknar decimaler.
-  - **Det som inte räknades på en sida** (`Skipped`, `Unread`) ska sägas i grafen när den läser sidorna (etapp 23b), som
-    tx:ens anteckningar redan gör.
   - **`BitcoinLookup<T>`** används av båda kedjorna och borde heta `ChainLookup<T>`; byts när ingen annan etapp rör
     Chains.
 - **Tornado Cash** (användarens fråga 2026-11-07) kommer med Ethereum: kontrakten känns igen som mixer och blir *Spåret
@@ -151,14 +161,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   spårning, egna heuristiker som insättningsadresser som töms till samma plånbok), TRON med USDT (2–3 etapper,
   återanvänder kontomodellen) och UTXO-kedjor som Litecoin efter behov (en etapp var). Tokens visas enligt TK1a.
 - **Det som fortfarande är bundet till Bitcoin efter etapp 20** (står i DEV-LOG, etapp 20):
-  - **Med den första kontokedjan (Ethereum):** grafens noder och adresser (`GraphNode.GraphAddresses`, `NodeOf`) blir
-    `ChainAddress`; spårningens resultat (`TraceSeed`, `TracedCoin`, `TracedTransaction.Txid`, `TracedAmount.Through`,
-    `TraceEnd.Transaction`) får `ChainTransactionRef` och myntet som UTXO-detalj; kontomodellens del av grafen bredvid
-    `UtxoGraph` (metoderna och kontrollen `AccountChecks.Run` finns sedan etapp 23); heuristikkontraktet för konton
-    (`IAccountHeuristic`) när kluster och bevis kan hålla andra adresser än Bitcoins; `ITracingService` med en källa
-    per kedja i stället för `IBitcoinSource`; `BlockReference` med en blockhash i kedjans eget format; i appen
-    `GraphScene.Shown` (nodernas summor och linjernas tjocklek räknar bara BTC), formuläret Annan kedja
-    (`IncomingCoin` tar bara mynt) och *Kontroll* i inspektören (bara Bitcoins tx).
+  - **Efter etapp 23b** (Ethereum byggt vid sidan av): grafens noder har `Chain`, `Accounts` och `Addresses`
+    (`ChainAddress`) bredvid `GraphAddresses`, och kontomodellens del är `TraceGraph.Account` med ett eget resultat
+    (`AccountTraceResult`). Kvar för Bitcoin-delen: spårningens resultat för mynt (`TraceSeed`, `TracedCoin`,
+    `TracedTransaction.Txid`, `TracedAmount.Through`, `TraceEnd.Transaction`) och `UtxoGraph` med Bitcoins typer;
+    heuristikkontraktet för konton (`IAccountHeuristic`) när kluster och bevis kan hålla andra adresser än Bitcoins;
+    `ITracingService` med en källa per kedja i stället för `IBitcoinSource` och `IEthereumSource` var för sig;
+    `GraphScene.Shown` (Bitcoin-nodernas summor räknar BTC) och *Kontroll* i inspektören (bara Bitcoins tx).
   - **Med TRON:** kontrakt och adresser skrivs både i base58 (`T…`) och hex (`41…`); de görs om till base58 i källan
     eller i `Asset` och `ChainAddress`, så att samma kontrakt aldrig blir två tillgångar.
   - **Med nästa UTXO-kedja (Litecoin, Zcash):** `UtxoGraph` får sin kedja och tillgång (i dag räknar
@@ -401,7 +410,8 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   igen och sparar ett nytt svar. Kan pekas ut som *ingen kurs* när perioden är slut.
 - **Riksbankens dygnsgräns** räknas bara sedan Chainsaw startade och bara på den här datorn; datorer bakom samma utgång
   delar gränsen utan att veta om det. Kan sparas i appdata, och en nyckel i valvet höjer gränsen.
-- **Fler källor och tokens:** ETH och TRX (och USDT/USDC, som i praktiken är dollar) när Ethereum och TRON byggs; en
+- **Fler källor och tokens:** TRX när TRON byggs (ETH sedan etapp 23, USDT och USDC på Ethereum sedan etapp 23b, efter
+  kontraktet och aldrig som en dollar av sig själv; TRON:s USDT har ingen källa än); en
   andra kryptokälla att jämföra med (till exempel Kraken eller Coinbase för nyare perioder); Riksbankens nyckel (200
   anrop i minuten) i valvet om gränsen på 5 i minuten blir ett problem.
 - **Medelkurs eller stängningskurs:** Chainsaw tar sista priset i perioden. Fråga kryptospåraren om rapporterna brukar
