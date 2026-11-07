@@ -355,7 +355,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   Nästa steg står svagt med kortkommandon och förklaras på hovring, *Så spårar man i Chainsaw* öppnar Guiden, första
   gången förklarar lite mer, och offline sägs ärligt vid noderna. Grafen är aldrig tom och tyst.
 - **Startvyn lägger ärenden i högar, GR8a** (användarens beslut 2026-11-07): användaren gör egna högar genom att släppa
-  ett ärende på ett annat och namnge högen; en hög är en fyrkantig kortlek med antalet. Ett klick på en hög gör **samma
+  ett ärende på ett annat och namnge högen; en hög **ritas som samlingsnoden i grafen (EX2b)**, som visar bättre att det
+  ligger många i den (användarens beslut 2026-11-07), med antalet. Ett klick på en hög gör **samma
   sak som i grafen**: ytan skickas ut i en cirkulär stöt, högen centreras och korten fälls ut runt den över en bakgrund
   som dimmar ner resten (som EX1 och EX2b). Ett kort som dras ut hamnar på startsidan; Shift-klick väljer flera. Ett
   ärende som lyfts får soptunnan att växa nere till vänster (SO1a). Högarna sparas på datorn, inte i ärendena.
