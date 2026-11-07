@@ -432,6 +432,9 @@ internal static class HashChain
             var value = values[index] switch
             {
                 int small => (long)small,
+
+                // Copied, so that the bytes sealed are the bytes stored whatever the caller does with its array.
+                byte[] bytes => bytes.ToArray(),
                 double real when !double.IsFinite(real) =>
                     throw new ArgumentException("Only finite numbers can be sealed.", nameof(values)),
 

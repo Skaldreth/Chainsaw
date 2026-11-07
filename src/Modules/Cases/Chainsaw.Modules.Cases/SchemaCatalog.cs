@@ -13,18 +13,23 @@ internal sealed partial class SchemaCatalog
     public static readonly IReadOnlyList<string> CaseTables =
         ["case_info", "chain_head", "schema_version", "sealed_chain"];
 
-    /// <summary>Builds the catalog.</summary>
+    /// <summary>
+    /// Builds the catalog from copies of the contributors, taken and checked once: every later use reads the copies,
+    /// so a contributor cannot answer differently after it has been checked.
+    /// </summary>
     /// <param name="contributors">Every registered contributor, the Cases module's own included.</param>
     /// <exception cref="ArgumentException">A contributor or chain is not valid.</exception>
     public SchemaCatalog(IEnumerable<ICaseSchemaContributor> contributors)
     {
-        var ordered = contributors
-            .OrderBy(contributor => contributor.Module == CasesSchema.ModuleName ? 0 : 1)
+        var snapshots = contributors.Select(Snapshot).ToList();
+        var ordered = snapshots
+            .OrderBy(contributor => contributor.IsCases ? 0 : 1)
             .ThenBy(contributor => contributor.Module, StringComparer.Ordinal)
             .ToList();
-        if (ordered.Count == 0 || ordered[0].Module != CasesSchema.ModuleName)
+        if (ordered.Count(contributor => contributor.IsCases) != 1)
         {
-            throw new ArgumentException("The Cases module's own schema is missing.", nameof(contributors));
+            throw new ArgumentException(
+                "The Cases module's own schema must be there exactly once.", nameof(contributors));
         }
 
         var modules = new HashSet<string>(StringComparer.Ordinal);
@@ -44,14 +49,18 @@ internal sealed partial class SchemaCatalog
         }
 
         Contributors = ordered;
-        Chains = chains.Values.OrderBy(chain => chain.Name, StringComparer.Ordinal).ToList();
+        Chains = [.. chains.Values.OrderBy(chain => chain.Name, StringComparer.Ordinal)];
+        ModuleChains = [.. ordered.Where(contributor => !contributor.IsCases).SelectMany(item => item.SealedChains)];
     }
 
-    /// <summary>Gets the contributors in the order their steps run.</summary>
-    public IReadOnlyList<ICaseSchemaContributor> Contributors { get; }
+    /// <summary>Gets the copies of the contributors in the order their steps run, the Cases module's first.</summary>
+    public IReadOnlyList<ContributorSnapshot> Contributors { get; }
 
     /// <summary>Gets every sealed chain, ordered by name.</summary>
     public IReadOnlyList<SealedChain> Chains { get; }
+
+    /// <summary>Gets the sealed chains of other modules, the only ones a module may seal records in.</summary>
+    public IReadOnlyList<SealedChain> ModuleChains { get; }
 
     /// <summary>Finds a chain by name.</summary>
     /// <param name="name">The chain's name.</param>
@@ -60,6 +69,17 @@ internal sealed partial class SchemaCatalog
     public SealedChain Chain(string name) =>
         Chains.FirstOrDefault(chain => string.Equals(chain.Name, name, StringComparison.Ordinal))
         ?? throw new ArgumentException($"There is no sealed chain named {name}.", nameof(name));
+
+    /// <summary>
+    /// Finds a chain that another module may seal records in: never the Cases module's own (the journal is written
+    /// only through the journal, with the time and the operator added by the Cases module).
+    /// </summary>
+    /// <param name="name">The chain's name.</param>
+    /// <returns>The chain.</returns>
+    /// <exception cref="ArgumentException">No other module's chain has that name.</exception>
+    public SealedChain ModuleChain(string name) =>
+        ModuleChains.FirstOrDefault(chain => string.Equals(chain.Name, name, StringComparison.Ordinal))
+        ?? throw new ArgumentException($"There is no sealed chain named {name} that a module may write.", nameof(name));
 
     /// <summary>Creates the guard for these tables.</summary>
     /// <returns>A new guard, one per connection.</returns>
@@ -75,12 +95,27 @@ internal sealed partial class SchemaCatalog
     [GeneratedRegex("^[a-z][a-z0-9_.]{0,127}$", RegexOptions.CultureInvariant)]
     private static partial Regex ChainName();
 
-    /// <summary>Checks a contributor's name and steps.</summary>
+    /// <summary>Copies a contributor, reading each of its members once.</summary>
     /// <param name="contributor">The contributor.</param>
-    /// <param name="modules">The module names seen so far.</param>
-    private static void Validate(ICaseSchemaContributor contributor, HashSet<string> modules)
+    /// <returns>The copy.</returns>
+    private static ContributorSnapshot Snapshot(ICaseSchemaContributor contributor)
     {
-        if (!Identifier().IsMatch(contributor.Module) || !modules.Add(contributor.Module))
+        ArgumentNullException.ThrowIfNull(contributor);
+        var steps = (contributor.Steps ?? []).Select(step => step with { }).ToArray();
+        var chains = (contributor.SealedChains ?? [])
+            .Select(chain => new SealedChain(chain.Name, chain.Table, [.. chain.ContentColumns ?? []]))
+            .ToArray();
+        return new ContributorSnapshot(contributor.Module, contributor is CasesSchema, steps, chains);
+    }
+
+    /// <summary>Checks a contributor's name and steps.</summary>
+    /// <param name="contributor">The contributor's copy.</param>
+    /// <param name="modules">The module names seen so far.</param>
+    private static void Validate(ContributorSnapshot contributor, HashSet<string> modules)
+    {
+        var nameHolds = contributor.Module is not null && Identifier().IsMatch(contributor.Module)
+            && (contributor.IsCases == (contributor.Module == CasesSchema.ModuleName));
+        if (!nameHolds || !modules.Add(contributor.Module!))
         {
             throw new ArgumentException($"The module name {contributor.Module} is not valid or not unique.");
         }
@@ -88,7 +123,7 @@ internal sealed partial class SchemaCatalog
         var previous = 0;
         foreach (var step in contributor.Steps)
         {
-            if (step.Version <= previous || string.IsNullOrWhiteSpace(step.Sql))
+            if (step is null || step.Version <= previous || string.IsNullOrWhiteSpace(step.Sql))
             {
                 throw new ArgumentException($"The steps of {contributor.Module} must have increasing versions from 1.");
             }
@@ -103,11 +138,12 @@ internal sealed partial class SchemaCatalog
     public static void Validate(SealedChain chain)
     {
         var columns = chain.ContentColumns;
-        if (!ChainName().IsMatch(chain.Name) || !Identifier().IsMatch(chain.Table)
+        if (chain.Name is null || chain.Table is null
+            || !ChainName().IsMatch(chain.Name) || !Identifier().IsMatch(chain.Table)
             || chain.Table.StartsWith("sqlite_", StringComparison.Ordinal)
             || columns.Count == 0
-            || columns.Any(column =>
-                !Identifier().IsMatch(column) || column is HashChain.SequenceColumn or HashChain.HashColumn)
+            || columns.Any(column => column is null
+                || !Identifier().IsMatch(column) || column is HashChain.SequenceColumn or HashChain.HashColumn)
             || columns.Distinct(StringComparer.Ordinal).Count() != columns.Count)
         {
             throw new ArgumentException($"The sealed chain {chain.Name} is not valid.");

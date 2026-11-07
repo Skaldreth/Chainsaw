@@ -14,6 +14,9 @@ namespace Chainsaw.Modules.Cases;
 /// </param>
 internal sealed class CaseTransaction(Case owner, SqliteTransaction transaction, bool writable) : ICaseTransaction
 {
+    /// <summary>The thread the work runs on; the handle, its commands and its readers work only there.</summary>
+    private readonly int _thread = Environment.CurrentManagedThreadId;
+
     /// <summary>The commands handed out, disposed when the work returns.</summary>
     private readonly List<CaseCommand> _commands = [];
 
@@ -31,7 +34,7 @@ internal sealed class CaseTransaction(Case owner, SqliteTransaction transaction,
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sql);
         EnsureActive();
-        var command = new CaseCommand(owner.Database.Command(sql, transaction), () => !_ended && !_busy);
+        var command = new CaseCommand(owner.Database.Command(sql, transaction), IsActive);
         _commands.Add(command);
         return command;
     }
@@ -54,6 +57,12 @@ internal sealed class CaseTransaction(Case owner, SqliteTransaction transaction,
         object?[] copy = [.. values];
         return AsCases(() => owner.AppendSealedIn(transaction, chain, copy));
     }
+
+    /// <summary>
+    /// Tells whether the work's commands may run now: on the work's thread, while it runs, not while sealing.
+    /// </summary>
+    /// <returns><see langword="true"/> when they may.</returns>
+    private bool IsActive() => !_ended && !_busy && Environment.CurrentManagedThreadId == _thread;
 
     /// <summary>Runs the Cases module's sealing with the work's commands made inert.</summary>
     /// <typeparam name="T">What the sealing gives.</typeparam>
@@ -95,13 +104,20 @@ internal sealed class CaseTransaction(Case owner, SqliteTransaction transaction,
         }
     }
 
-    /// <summary>Refuses use after the work has returned.</summary>
-    /// <exception cref="InvalidOperationException">The work has returned.</exception>
+    /// <summary>
+    /// Refuses use after the work has returned, from another thread, or while the Cases module seals.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The handle may not be used now.</exception>
     private void EnsureActive()
     {
         if (_ended)
         {
             throw new InvalidOperationException("The transaction has ended.");
+        }
+
+        if (Environment.CurrentManagedThreadId != _thread || _busy)
+        {
+            throw new InvalidOperationException("The transaction can only be used by its work, on the work's thread.");
         }
     }
 }

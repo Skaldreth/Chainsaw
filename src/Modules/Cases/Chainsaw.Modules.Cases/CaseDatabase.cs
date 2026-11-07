@@ -113,11 +113,18 @@ internal sealed class CaseDatabase : IDisposable
     /// </summary>
     /// <param name="mode">Who runs SQL in the scope.</param>
     /// <returns>The scope.</returns>
+    /// <exception cref="InvalidOperationException">Another thread holds a scope.</exception>
     public GuardScope As(GuardMode mode)
     {
-        var scope = new GuardScope(_guard, _guard.Mode, _guard.OwnerThread);
+        var thread = Environment.CurrentManagedThreadId;
+        if (_guard.Mode != GuardMode.Idle && _guard.OwnerThread != thread)
+        {
+            throw new InvalidOperationException("The case's connection is in use on another thread.");
+        }
+
+        var scope = new GuardScope(_guard, (_guard.Mode, _guard.OwnerThread), (mode, thread));
         _guard.Mode = mode;
-        _guard.OwnerThread = Environment.CurrentManagedThreadId;
+        _guard.OwnerThread = thread;
         return scope;
     }
 

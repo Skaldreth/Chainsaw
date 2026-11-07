@@ -43,7 +43,7 @@ internal static class SchemaMigrator
         foreach (var contributor in catalog.Contributors)
         {
             var known = contributor.Steps.Count == 0 ? 0 : contributor.Steps[^1].Version;
-            if (versions.GetValueOrDefault(contributor.Module) > known)
+            if (versions.GetValueOrDefault(contributor.Module!) > known)
             {
                 throw new CaseException(CaseError.UnsupportedVersion);
             }
@@ -52,7 +52,7 @@ internal static class SchemaMigrator
         var applied = new List<string>();
         foreach (var contributor in catalog.Contributors)
         {
-            var current = versions.GetValueOrDefault(contributor.Module);
+            var current = versions.GetValueOrDefault(contributor.Module!);
             foreach (var step in contributor.Steps.Where(step => step.Version > current))
             {
                 RunStep(database, contributor, step);
@@ -89,13 +89,13 @@ internal static class SchemaMigrator
     /// <param name="database">The database.</param>
     /// <param name="contributor">The step's module.</param>
     /// <param name="step">The step.</param>
-    private static void RunStep(CaseDatabase database, ICaseSchemaContributor contributor, CaseSchemaStep step)
+    private static void RunStep(CaseDatabase database, ContributorSnapshot contributor, CaseSchemaStep step)
     {
         using var transaction = database.Begin();
         var newTables = contributor.SealedChains
             .Where(chain => !HashChain.TableExists(database, transaction, chain.Table))
             .ToList();
-        var mode = contributor.Module == CasesSchema.ModuleName ? GuardMode.Internal : GuardMode.Migrating;
+        var mode = contributor.IsCases ? GuardMode.Internal : GuardMode.Migrating;
         try
         {
             using var stepScope = database.As(mode);

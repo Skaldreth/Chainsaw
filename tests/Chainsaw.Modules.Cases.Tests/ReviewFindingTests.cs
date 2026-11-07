@@ -282,7 +282,61 @@ public sealed class ReviewFindingTests : IDisposable
             return failure;
         });
 
-        Assert.IsType<SqliteException>(error);
+        Assert.IsType<InvalidOperationException>(error);
+    }
+
+    [Fact]
+    public void A_module_cannot_seal_in_the_journal_chain()
+    {
+        using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
+
+        Assert.Throws<ArgumentException>(() => opened.Write(transaction => transaction.AppendSealed(
+            "cases.journal",
+            ["2001-01-01T00:00:00.0000000+00:00", "2001-01-01T01:00:00.0000000+01:00", "x", "Någon annan", "Chef",
+             "Annan", CaseJournalKinds.SharingPasswordRemoved, "Förfalskad", null])));
+        Assert.Single(opened.ReadJournal());
+    }
+
+    [Fact]
+    public void The_transaction_refuses_every_other_thread()
+    {
+        using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
+
+        var failures = opened.Write(transaction =>
+        {
+            var found = new List<Exception?>();
+            var thread = new Thread(() =>
+            {
+                found.Add(Record.Exception(() => transaction.AppendSealed("test.sealed", ["x", 1L])));
+                found.Add(Record.Exception(() => transaction.AppendJournal(new JournalDraft("test.note", "Annan"))));
+                found.Add(Record.Exception(() => transaction.CreateCommand("SELECT 1")));
+            });
+            thread.Start();
+            thread.Join();
+            return found;
+        });
+
+        Assert.All(failures, failure => Assert.IsType<InvalidOperationException>(failure));
+        Assert.Single(opened.ReadJournal());
+    }
+
+    [Fact]
+    public void A_contributor_that_changes_after_the_check_changes_nothing()
+    {
+        var fickle = new FickleSchema();
+        using var opened = _fixture.CreateStore(fickle).Create("A1");
+        fickle.Columns[0] = "note, hash) VALUES (99, 'n', x'00'); DELETE FROM chain_head; --";
+        fickle.Name = "cases";
+
+        opened.Write(transaction => transaction.AppendSealed("fickle.records", ["anteckning"]));
+
+        Assert.True(new CaseVerifier(_fixture.Clock).Verify(opened).IsIntact);
+    }
+
+    [Fact]
+    public void A_module_named_cases_is_refused()
+    {
+        Assert.Throws<ArgumentException>(() => _fixture.CreateStore(new FickleSchema { Name = "cases" }));
     }
 
     [Fact]
@@ -452,6 +506,26 @@ public sealed class ReviewFindingTests : IDisposable
         }
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    /// <summary>A contributor that changes its answers after the store has checked them.</summary>
+    private sealed class FickleSchema : ICaseSchemaContributor
+    {
+        public string Name { get; set; } = "fickle";
+
+        public List<string> Columns { get; } = ["note"];
+
+        public string Module => Name;
+
+        public IReadOnlyList<CaseSchemaStep> Steps { get; } =
+        [
+            new(
+                1,
+                "Poster",
+                "CREATE TABLE fickle_records (sequence INTEGER PRIMARY KEY, note TEXT, hash BLOB NOT NULL) STRICT;"),
+        ];
+
+        public IReadOnlyList<SealedChain> SealedChains => [new("fickle.records", "fickle_records", Columns)];
     }
 
     private sealed class RealSchema : ICaseSchemaContributor

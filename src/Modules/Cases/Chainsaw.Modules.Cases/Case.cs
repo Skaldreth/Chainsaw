@@ -408,7 +408,10 @@ internal sealed class Case : ICase
         return JournalRecords.ToEntry(record, values);
     }
 
-    /// <summary>Adds a record to a sealed chain of this build in a transaction that is already open.</summary>
+    /// <summary>
+    /// Adds a record, for another module, to a sealed chain of another module of this build, in a transaction that is
+    /// already open.
+    /// </summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="chain">The chain's name.</param>
     /// <param name="values">The values.</param>
@@ -416,7 +419,7 @@ internal sealed class Case : ICase
     internal SealedRecord AppendSealedIn(SqliteTransaction transaction, string chain, IReadOnlyList<object?> values)
     {
         ArgumentNullException.ThrowIfNull(chain);
-        return SealAsCases(transaction, _services.Catalog.Chain(chain), values);
+        return SealAsCases(transaction, _services.Catalog.ModuleChain(chain), values);
     }
 
     /// <summary>
