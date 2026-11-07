@@ -98,6 +98,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   adresshistorik och traces.
 - **TRON och USDT (TRC-20).**
 - **Fler kedjor** efter behov: Litecoin, BSC, Solana.
+- **Zcash** (användarens fråga 2026-11-07): den genomskinliga delen (t-adresser) är en UTXO-kedja som Bitcoin och
+  passar efter etapp 20 som de andra UTXO-kedjorna, men Esplora finns inte för Zcash, så källan blir en annan (en
+  tjänst med API-nyckel eller egen nod med Zebra). Tx som går in i den skyddade poolen (Sapling, Orchard) blir *Spåret
+  tar slut här* med orsaken skyddad pool. Senare kan pengar som kommer ut ur poolen föreslås som kandidater ur belopp
+  och tid, streckade som mixerns troliga utgångar.
 - **Privacy coins:** först *Spåret tar slut här*. Senare forskningsmetoderna (till exempel tidsanalys och kända svagheter i
   äldre Monero-tx, Zcash-tx som går in och ut ur den skyddade poolen med samma belopp).
 - **Cross-chain automatiskt:** hitta fortsättningen på den andra kedjan själv (belopp och tid hos swap-tjänster, bryggornas
