@@ -30,7 +30,7 @@ internal static class LocalTargets
     /// </summary>
     /// <param name="address">The address.</param>
     /// <returns><see langword="true"/> when the address is not global.</returns>
-    private static bool IsLocal(IPAddress address)
+    internal static bool IsLocal(IPAddress address)
     {
         var bytes = address.GetAddressBytes();
         if (address.AddressFamily == AddressFamily.InterNetwork)

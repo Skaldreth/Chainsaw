@@ -20,6 +20,25 @@ public sealed class SourceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
+    public async Task A_response_through_the_exit_is_sealed_with_the_exit_and_the_way_vpn()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal((FakeExitHttp.ExitId.ToString("D"), "vpn"), Assert.Single(_harness.ExitColumns()));
+    }
+
+    [Fact]
+    public async Task A_response_through_windows_is_sealed_with_the_way_windows_and_no_exit()
+    {
+        Http.Route = ExitRoute.Windows;
+
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(((string?)null, "windows"), Assert.Single(_harness.ExitColumns()));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
     public async Task A_fetched_transaction_is_sealed_with_its_raw_bytes_and_hash()
     {
         var lookup = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);

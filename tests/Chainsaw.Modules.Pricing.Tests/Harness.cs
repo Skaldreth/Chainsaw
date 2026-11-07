@@ -45,6 +45,7 @@ internal sealed class Harness : IDisposable
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(CaseNumber);
         Prices = _provider.GetRequiredService<IPriceService>();
+        Defaults = _provider.GetRequiredService<IPriceDefaults>();
     }
 
     public FakeClock Clock { get; } = new();
@@ -56,6 +57,8 @@ internal sealed class Harness : IDisposable
     public ICase Case { get; }
 
     public IPriceService Prices { get; }
+
+    public IPriceDefaults Defaults { get; }
 
     public CaseVerification Verify() => _provider.GetRequiredService<ICaseVerifier>().Verify(Case);
 
@@ -84,6 +87,20 @@ internal sealed class Harness : IDisposable
         PriceResolution? resolution = null) =>
         Prices.GetPriceAsync(
             Case, new PriceRequest(Chain.Bitcoin, at) { Currency = currency, Resolution = resolution }, mode);
+
+    /// <summary>Reads the sealed exit and way out of every raw response, in order.</summary>
+    public List<(string? ExitId, string Route)> ExitColumns() => Case.Read(reader =>
+    {
+        using var command = reader.CreateCommand("SELECT exit_id, exit_route FROM pricing_raw_responses ORDER BY sequence");
+        using var row = command.ExecuteReader();
+        var rows = new List<(string?, string)>();
+        while (row.Read())
+        {
+            rows.Add((row.IsDBNull(0) ? null : row.GetString(0), row.GetString(1)));
+        }
+
+        return rows;
+    });
 
     /// <summary>Reads the sealed raw responses, in order.</summary>
     public List<RawRow> RawRows() => Case.Read(reader =>

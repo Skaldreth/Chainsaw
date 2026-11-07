@@ -67,6 +67,8 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
 
     public bool Connected { get; set; } = true;
 
+    public ExitRoute Route { get; set; } = ExitRoute.Vpn;
+
     public ExitError? Failure { get; set; }
 
     public List<ExitRequest> Sent { get; } = [];
@@ -99,6 +101,7 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
             : (404, Encoding.UTF8.GetBytes("Not found"), "text/plain");
         var sent = clock.UtcNow;
         return Task.FromResult(new ExitResponse(
-            request.Uri, ExitId, status, contentType, body, sent, sent.AddMilliseconds(120)));
+            request.Uri, Route == ExitRoute.Vpn ? ExitId : Guid.Empty, status, contentType, body, sent,
+            sent.AddMilliseconds(120), Route));
     }
 }

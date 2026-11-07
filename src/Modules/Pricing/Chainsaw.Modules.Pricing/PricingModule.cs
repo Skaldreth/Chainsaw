@@ -43,6 +43,8 @@ public static class PricingModule
         services.AddSingleton<ICaseSchemaContributor, PricingSchema>();
         services.TryAddSingleton<ICryptoRateSource>(_ => new BitstampRateSource(settings.BitstampBaseUri));
         services.TryAddSingleton<IFiatRateSource>(_ => new RiksbankRateSource(settings.RiksbankBaseUri));
+        services.AddSingleton(_ => new PriceDefaults(settings));
+        services.AddSingleton<IPriceDefaults>(provider => provider.GetRequiredService<PriceDefaults>());
         services.AddSingleton<IPriceService>(provider => new PriceService(
             provider.GetRequiredService<ICryptoRateSource>(),
             provider.GetRequiredService<IFiatRateSource>(),
@@ -50,6 +52,7 @@ public static class PricingModule
             provider.GetRequiredService<IOperatorProfileStore>(),
             provider.GetRequiredService<IClock>(),
             settings,
+            provider.GetRequiredService<PriceDefaults>(),
             TimeZoneInfo.Local));
         return services;
     }

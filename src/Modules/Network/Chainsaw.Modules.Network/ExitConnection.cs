@@ -180,7 +180,7 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         {
             if (_active is { } active && _status.State == ExitState.Connected)
             {
-                lease = new ExitLease(active.ExitId, active.Invoker, active.Stopping);
+                lease = new ExitLease(active.ExitId, active.Invoker, active.Stopping, ExitRoute.Vpn);
                 return true;
             }
         }

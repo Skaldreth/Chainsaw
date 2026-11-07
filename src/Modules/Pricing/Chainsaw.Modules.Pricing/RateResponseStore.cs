@@ -11,8 +11,9 @@ namespace Chainsaw.Modules.Pricing;
 
 /// <summary>
 /// Seals the rate sources' raw responses in the case and finds them again (principles 1 and 9). Every response is
-/// sealed with its source, address, status, times (UTC and local with the time zone), the exit it left through, who
-/// fetched it, the SHA-256 of its bytes and the bytes themselves; the indexes beside it only say where to look.
+/// sealed with its source, address, status, times (UTC and local with the time zone), the exit it left through and
+/// the sort of way out (VPN or Windows), who fetched it, the SHA-256 of its bytes and the bytes themselves; the indexes
+/// beside it only say where to look.
 /// </summary>
 /// <param name="timeZone">The time zone the local time is written in.</param>
 internal sealed class RateResponseStore(TimeZoneInfo timeZone)
@@ -43,7 +44,7 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
         [
             source, response.Uri.AbsoluteUri, kind, subject, (long)response.StatusCode, response.ContentType,
             Text(response.RequestedAt), Text(response.ReceivedAt), Text(local), timeZone.Id,
-            response.ExitId.ToString("D"), JsonSerializer.Serialize(fetchedBy), sha256, body,
+            response.ExitIdText, response.RouteText, JsonSerializer.Serialize(fetchedBy), sha256, body,
         ];
         var record = transaction.AppendSealed(PricingSchema.RawResponsesChain, values);
         var origin = new RateOrigin(

@@ -93,6 +93,9 @@ internal sealed class PriceService : IPriceService
     /// <summary>The settings.</summary>
     private readonly PricingOptions _options;
 
+    /// <summary>The currency and resolution chosen in the settings, for a request that names none.</summary>
+    private readonly PriceDefaults _defaults;
+
     /// <summary>Seals and finds the raw responses.</summary>
     private readonly RateResponseStore _store;
 
@@ -103,11 +106,13 @@ internal sealed class PriceService : IPriceService
     /// <param name="operators">The operator profile.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="options">The settings.</param>
+    /// <param name="defaults">The currency and resolution chosen in the settings.</param>
     /// <param name="timeZone">The time zone local times are recorded in.</param>
     public PriceService(
         ICryptoRateSource crypto, IFiatRateSource fiat, IExitHttp http, IOperatorProfileStore operators,
-        IClock clock, PricingOptions options, TimeZoneInfo timeZone)
+        IClock clock, PricingOptions options, PriceDefaults defaults, TimeZoneInfo timeZone)
     {
+        _defaults = defaults;
         _crypto = crypto;
         _fiat = fiat;
         _http = http;
@@ -124,8 +129,9 @@ internal sealed class PriceService : IPriceService
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(request);
-        var currency = request.Currency ?? _options.Currency;
-        var resolution = request.Resolution ?? _options.Resolution;
+        var chosen = _defaults.Both;
+        var currency = request.Currency ?? chosen.Currency;
+        var resolution = request.Resolution ?? chosen.Resolution;
         if (Refusal(request, currency, resolution, out var quote) is { } refusal)
         {
             return new PriceLookup<Price>(PriceLookupStatus.Unsupported, null, [], refusal);

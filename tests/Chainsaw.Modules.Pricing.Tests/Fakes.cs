@@ -67,6 +67,8 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
 
     public bool Connected { get; set; } = true;
 
+    public ExitRoute Route { get; set; } = ExitRoute.Vpn;
+
     public ExitError? Failure { get; set; }
 
     public List<ExitRequest> Sent { get; } = [];
@@ -114,6 +116,8 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
         }
 
         var sent = clock.UtcNow;
-        return new ExitResponse(request.Uri, ExitId, status, "application/json", body, sent, sent + Lag);
+        return new ExitResponse(
+            request.Uri, Route == ExitRoute.Vpn ? ExitId : Guid.Empty, status, "application/json", body, sent,
+            sent + Lag, Route);
     }
 }

@@ -6,14 +6,18 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Network;
 
 /// <summary>
-/// Sends requests through the connected exit and nowhere else. Without a connected exit the request is refused before
-/// anything is built or sent. Only the address, the method, a neutral User-Agent and, when asked, <c>Accept</c> and a
-/// body are sent: the pipeline keeps no cookies, follows no redirects and adds no referer.
+/// Sends requests the way out chosen in the settings and nowhere else. With VPN chosen, a request goes through the
+/// connected exit, and without one it is refused before anything is built or sent; it never falls back to Windows.
+/// With Windows chosen it goes through the computer's own network. Only the address, the method, a neutral User-Agent
+/// and, when asked, <c>Accept</c> and a body are sent: the pipeline keeps no cookies, follows no redirects and adds no
+/// referer.
 /// </summary>
-/// <param name="connection">The connection that holds the only pipeline out.</param>
+/// <param name="connection">The connection that holds the pipeline through the exit (VPN).</param>
+/// <param name="route">The way out chosen, which holds the pipeline through Windows.</param>
 /// <param name="options">The limits on requests.</param>
 /// <param name="clock">The clock for the request's times.</param>
-internal sealed class ExitHttp(ExitConnection connection, NetworkOptions options, IClock clock) : IExitHttp
+internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route, NetworkOptions options, IClock clock)
+    : IExitHttp
 {
     /// <summary>The size of each read from the response body.</summary>
     private const int ReadChunkBytes = 64 * 1024;
@@ -23,7 +27,7 @@ internal sealed class ExitHttp(ExitConnection connection, NetworkOptions options
     {
         Validate(request);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!connection.TryLease(out var lease))
+        if (!TryLease(out var lease))
         {
             throw new ExitNotConnectedException();
         }
@@ -43,7 +47,8 @@ internal sealed class ExitHttp(ExitConnection connection, NetworkOptions options
                 RawContentType(response),
                 body,
                 requestedAt,
-                clock.UtcNow);
+                clock.UtcNow,
+                lease.Route);
         }
         catch (ExitException)
         {
@@ -66,6 +71,15 @@ internal sealed class ExitHttp(ExitConnection connection, NetworkOptions options
             throw new ExitException(ExitError.RequestFailed, exception);
         }
     }
+
+    /// <summary>
+    /// Takes the pipeline of the way out chosen now: through Windows when it is chosen, else through the connected
+    /// exit. With VPN chosen and no exit connected there is none, and Windows is never asked.
+    /// </summary>
+    /// <param name="lease">The pipeline, its exit and the token that stops it.</param>
+    /// <returns><see langword="true"/> when the request can leave.</returns>
+    private bool TryLease(out ExitLease lease) =>
+        route.TryLeaseWindows(out lease) || (route.Current == ExitRoute.Vpn && connection.TryLease(out lease));
 
     /// <summary>Refuses a request that would send more than a lookup needs or leave the encrypted channel.</summary>
     /// <param name="request">The request.</param>

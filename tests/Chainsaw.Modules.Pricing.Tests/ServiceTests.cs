@@ -35,6 +35,40 @@ public sealed class ServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Seals_the_way_out_with_every_response()
+    {
+        _harness.AnswerAll();
+        _harness.Http.Route = ExitRoute.Windows;
+
+        await _harness.PriceAsync(Fixtures.At);
+
+        Assert.All(_harness.ExitColumns(), row => Assert.Equal(((string?)null, "windows"), row));
+        Assert.Equal(2, _harness.ExitColumns().Count);
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public async Task The_currency_chosen_in_the_settings_applies_to_the_next_request()
+    {
+        _harness.AnswerAll();
+        _harness.Defaults.Choose(FiatCurrency.Eur, PriceResolution.Hour);
+
+        var lookup = await _harness.PriceAsync(Fixtures.At);
+
+        Assert.Equal(FiatCurrency.Eur, lookup.Value!.Currency);
+        Assert.Equal(FiatCurrency.Eur, _harness.Defaults.Currency);
+        Assert.Equal([Fixtures.BitstampEurHour], _harness.Http.Sent.Select(request => request.Uri.AbsoluteUri));
+    }
+
+    [Fact]
+    public void An_unknown_currency_or_resolution_is_refused()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => _harness.Defaults.Choose((FiatCurrency)9, PriceResolution.Hour));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _harness.Defaults.Choose(FiatCurrency.Sek, (PriceResolution)9));
+        Assert.Equal(FiatCurrency.Sek, _harness.Defaults.Currency);
+    }
+
+    [Fact]
     public async Task Seals_every_response_with_its_source_hash_and_who_fetched_it()
     {
         _harness.AnswerAll();

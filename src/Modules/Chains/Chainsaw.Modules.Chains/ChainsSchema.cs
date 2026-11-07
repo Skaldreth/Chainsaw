@@ -21,7 +21,7 @@ internal sealed class ChainsSchema : ICaseSchemaContributor
     public static readonly IReadOnlyList<string> RawResponseColumns =
     [
         "chain", "source", "url", "kind", "subject", "status_code", "media_type", "requested_utc", "received_utc",
-        "received_local", "time_zone", "exit_id", "fetched_by", "sha256", "body",
+        "received_local", "time_zone", "exit_id", "exit_route", "fetched_by", "sha256", "body",
     ];
 
     /// <summary>The first version of the tables.</summary>
@@ -39,7 +39,8 @@ internal sealed class ChainsSchema : ICaseSchemaContributor
             received_utc TEXT NOT NULL,
             received_local TEXT NOT NULL,
             time_zone TEXT NOT NULL,
-            exit_id TEXT NOT NULL,
+            exit_id TEXT,
+            exit_route TEXT NOT NULL,
             fetched_by TEXT NOT NULL,
             sha256 BLOB NOT NULL,
             body BLOB NOT NULL,

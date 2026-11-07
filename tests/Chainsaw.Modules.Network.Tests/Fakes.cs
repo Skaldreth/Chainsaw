@@ -163,6 +163,22 @@ internal sealed class RecordingHandlerFactory : IExitHandlerFactory
     }
 }
 
+/// <summary>Builds recording handlers for the way out through Windows, and counts them.</summary>
+internal sealed class RecordingWindowsHandlerFactory : IWindowsHandlerFactory
+{
+    public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> Answer { get; set; } =
+        (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([]) });
+
+    public List<RecordingHandler> Handlers { get; } = [];
+
+    public HttpMessageHandler Create()
+    {
+        var handler = new RecordingHandler((request, token) => Answer(request, token));
+        Handlers.Add(handler);
+        return handler;
+    }
+}
+
 /// <summary>A clock that moves only when told to.</summary>
 internal sealed class FakeClock : IClock
 {
@@ -178,7 +194,8 @@ internal sealed class NetworkHarness
         Records = new ExitRecords(Secrets);
         Connection = new ExitConnection(Records, Connector, handlers ?? Handlers);
         Store = new ExitStore(Records, Connection);
-        Http = new ExitHttp(Connection, Options, Clock);
+        Route = new ExitRouteChoice(Options, WindowsHandlers);
+        Http = new ExitHttp(Connection, Route, Options, Clock);
         Connection.StatusChanged += (_, status) =>
         {
             lock (_events)
@@ -196,6 +213,10 @@ internal sealed class NetworkHarness
     public FakeConnector Connector { get; } = new();
 
     public RecordingHandlerFactory Handlers { get; } = new();
+
+    public RecordingWindowsHandlerFactory WindowsHandlers { get; } = new();
+
+    public ExitRouteChoice Route { get; }
 
     public FakeClock Clock { get; } = new();
 

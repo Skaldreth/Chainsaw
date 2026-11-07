@@ -1,3 +1,5 @@
+using Chainsaw.Modules.Network.Contracts;
+
 namespace Chainsaw.Modules.Network;
 
 /// <summary>The limits on requests through the exit.</summary>
@@ -35,6 +37,12 @@ public sealed class NetworkOptions
     public int MaximumResponseBytes { get; set; } = 32 * 1024 * 1024;
 
     /// <summary>
+    /// Gets or sets the way out when Chainsaw starts, read from the application's settings; VPN by default, the safest.
+    /// It is changed afterwards with <see cref="IExitRoute.Choose"/>.
+    /// </summary>
+    public ExitRoute Route { get; set; } = ExitRoute.Vpn;
+
+    /// <summary>
     /// Gets or sets whether plain <c>http</c> is allowed. Only the tests turn it on, to talk to a proxy on the
     /// loopback address; the application only sends <c>https</c>, so the exit sees no content.
     /// </summary>
@@ -57,7 +65,7 @@ public sealed class NetworkOptions
     internal byte[]? TunnelHelperSha256 { get; set; }
 
     /// <summary>Refuses limits that would make every request fail or never end.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">A limit is zero, negative or too long.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A limit is zero, negative or too long, or the way is unknown.</exception>
     internal void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(RequestTimeout, TimeSpan.Zero, nameof(RequestTimeout));
@@ -68,5 +76,9 @@ public sealed class NetworkOptions
             TunnelStartTimeout, TimeSpan.Zero, nameof(TunnelStartTimeout));
         ArgumentOutOfRangeException.ThrowIfGreaterThan(TunnelStartTimeout, LongestTimeout, nameof(TunnelStartTimeout));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(MaximumResponseBytes, 0, nameof(MaximumResponseBytes));
+        if (!Enum.IsDefined(Route))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Route), Route, "Unknown way out.");
+        }
     }
 }
