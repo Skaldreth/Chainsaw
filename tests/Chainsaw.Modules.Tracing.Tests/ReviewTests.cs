@@ -226,4 +226,54 @@ public sealed class ReviewTests : IDisposable
         Assert.Contains(_flows.Peel3.Txid.Value, journal.Summary, StringComparison.Ordinal);
         Assert.True(_harness.Verify().IsIntact);
     }
+
+    [Fact]
+    public void An_end_at_a_transaction_that_may_be_replaced_says_it_may_change()
+    {
+        var pay = Tx("pay").In(Wpkh("a"), 1_000_000).Out(Wpkh("b"), 990_000).Build();
+        var pending = Tx("pending-mix", null).Spend(pay, 0).In(Wpkh("x"), 990_000)
+            .Out(Wpkh("m1"), 985_000).Out(Wpkh("m2"), 985_000).Build();
+        var graph = PureGraph.Of([pay, pending]);
+        var hint = new TrailEndHint(TrailEndReason.CoinJoin, "coinjoin v1", "Känd CoinJoin.");
+        var marked = graph with
+        {
+            TransactionEnds = new Dictionary<Txid, IReadOnlyList<TrailEndHint>> { [pending.Txid] = [hint] },
+        };
+
+        var end = Assert.Single(
+            TraceCalculator.Trace(marked, new FifoMethod(), [new TraceSeed(new Outpoint(pay.Txid, 0))]).Ends);
+
+        Assert.Equal(TrailEndReason.CoinJoin, end.Reason);
+        Assert.True(end.MayBeOutdated);
+    }
+
+    [Fact]
+    public async Task A_coin_continues_on_one_other_chain_at_a_time()
+    {
+        await _flows.ExpandInto(_harness);
+        var coin = new Outpoint(_flows.Peel3.Txid, 1);
+        var first = new ChainTransactionRef(Chain.Ethereum, "0x" + new string('d', 64));
+        var second = new ChainTransactionRef(Chain.Tron, new string('e', 64));
+        var link = _harness.Service.LinkCrossChain(_harness.Case, coin, first, "Först.");
+
+        Assert.Throws<ArgumentException>(() => _harness.Service.LinkCrossChain(_harness.Case, coin, second, "Också."));
+
+        _harness.Service.UnlinkCrossChain(_harness.Case, link, "Fel kedja.");
+        _harness.Service.LinkCrossChain(_harness.Case, coin, second, "Rätt.");
+        var graph = await _harness.Load();
+        var edge = Assert.Single(graph.Edges, edge => edge.Kind == GraphEdgeKind.ContinuesOnOtherChain);
+        Assert.Equal(new Satoshi(118_945_000), edge.Amount);
+    }
+
+    [Fact]
+    public async Task A_transaction_expansion_answered_from_the_case_is_not_complete()
+    {
+        await _flows.ExpandInto(_harness);
+        _harness.Source.Online = false;
+
+        var result = await _harness.Expand(_flows.Peel3);
+
+        Assert.Equal(ExpansionOutcome.Partly, result.Outcome);
+        Assert.NotNull(result.Problem);
+    }
 }

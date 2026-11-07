@@ -235,6 +235,8 @@ internal sealed class TraceCalculator
             });
         }
 
+        // Everything that rests on this spend may change when the spend or the spender is not settled.
+        var mayChange = spend.MayBeOutdated || MayChange(spender);
         var inputs = entry.Transaction.Inputs;
         var index = spend.SpentBy.InputIndex;
         if (index >= inputs.Count || inputs[index].PreviousTxid != coin.Txid
@@ -244,15 +246,21 @@ internal sealed class TraceCalculator
                 TrailEndReason.Conflicting,
                 spender,
                 $"Uppgiften om att tx {spender} spenderar myntet går inte ihop med tx:en; spåret följs inte.",
-                []));
+                [])
+            {
+                MayBeOutdated = mayChange,
+            });
         }
 
         if (_graph.TransactionEnds.GetValueOrDefault(spender) is { Count: > 0 } hints)
         {
-            return Step.Ends(new Ending(hints[0].Reason, spender, hints[0].Explanation, hints));
+            return Step.Ends(new Ending(hints[0].Reason, spender, hints[0].Explanation, hints)
+            {
+                MayBeOutdated = mayChange,
+            });
         }
 
-        return new Step(spender, null, spend.MayBeOutdated || MayChange(spender));
+        return new Step(spender, null, mayChange);
     }
 
     /// <summary>

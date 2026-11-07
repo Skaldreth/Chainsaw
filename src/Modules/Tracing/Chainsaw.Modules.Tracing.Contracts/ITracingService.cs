@@ -76,7 +76,9 @@ public interface ITracingService
     /// <param name="to">The transaction on the other chain; not Bitcoin.</param>
     /// <param name="reason">Why, at most 1 000 characters.</param>
     /// <returns>The link.</returns>
-    /// <exception cref="ArgumentException">The target is on Bitcoin, or the reason is empty or too long.</exception>
+    /// <exception cref="ArgumentException">
+    /// The target is on Bitcoin, the coin already has a link in force, or the reason is empty or too long.
+    /// </exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
     /// </exception>

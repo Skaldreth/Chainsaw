@@ -137,6 +137,14 @@ internal sealed class TracingService : ITracingService
 
         return @case.Write(transaction =>
         {
+            // One coin continues in one place; another link is made after the first is taken back, so that the
+            // coin's amount is never on two lines at once.
+            if (GraphStateStore.Read(transaction).Links.Any(link => link.From == from))
+            {
+                throw new ArgumentException(
+                    "The coin already continues on another chain; take that link back first.", nameof(from));
+            }
+
             var journal = transaction.AppendJournal(new JournalDraft(
                 TracingJournalKinds.CrossChainLinked,
                 string.Format(CultureInfo.InvariantCulture, "Fortsätter på annan kedja: {0} → {1}", from, to),
@@ -318,6 +326,7 @@ internal sealed class TracingService : ITracingService
         }
 
         var found = new List<Txid> { txid };
+        string? problem = Outdated(lookup);
         var spends = await _source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (spends.Value is null)
@@ -325,7 +334,7 @@ internal sealed class TracingService : ITracingService
             return new StepResult(found, Problem(spends.Status, spends.Problem), true);
         }
 
-        string? problem = spends.Status == LookupStatus.FromCaseMayBeOutdated ? spends.Problem : null;
+        problem ??= Outdated(spends);
         foreach (var spender in spends.Value.Select(spend => spend.SpentBy?.Txid).OfType<Txid>().Distinct())
         {
             var next = await _source.GetTransactionAsync(@case, spender, LookupMode.AsNeeded, cancellationToken)
@@ -336,6 +345,7 @@ internal sealed class TracingService : ITracingService
                 continue;
             }
 
+            problem ??= Outdated(next);
             found.Add(spender);
         }
 
@@ -432,6 +442,15 @@ internal sealed class TracingService : ITracingService
             throw new ArgumentException("A reason of at most 1 000 characters is needed.", nameof(reason));
         }
     }
+
+    /// <summary>Gives why an answer may be outdated, when it came from the case instead of the source.</summary>
+    /// <typeparam name="T">What was looked up.</typeparam>
+    /// <param name="lookup">The answer.</param>
+    /// <returns>The text, or <see langword="null"/> when the answer is current.</returns>
+    private static string? Outdated<T>(BitcoinLookup<T> lookup)
+        where T : class => lookup.Status == LookupStatus.FromCaseMayBeOutdated
+        ? lookup.Problem ?? "Svaret kommer ur ärendet och kan ha ändrats."
+        : null;
 
     /// <summary>Says what went wrong with a lookup, for the user.</summary>
     /// <param name="status">How it was answered.</param>

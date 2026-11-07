@@ -41,4 +41,5 @@ Slutet är en **bedömning**, inte ett faktum, och säger alltid vad det bygger 
 - CoinJoin kommer från klustringens analys (`coinjoin v1`) av just den tx:en.
 - Börs, mixer, brygga och sanktionerade adresser kommer från etiketter: öppna källor, egna etiketter och
   etikettbiblioteket (byggs i Attribution).
-- *Inte expanderad ännu*, *Ligger kvar*, *Avgift* och *Kan aldrig spenderas* avgör spåret självt ur kedjan.
+- *Inte expanderad ännu*, *Ligger kvar*, *Uppgifterna går inte ihop*, *Avgift* och *Kan aldrig spenderas* avgör
+  spåret självt ur kedjan.
