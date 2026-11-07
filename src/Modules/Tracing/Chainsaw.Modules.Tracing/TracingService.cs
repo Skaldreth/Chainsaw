@@ -645,9 +645,7 @@ internal sealed class TracingService : ITracingService
     /// <param name="lookup">The answer.</param>
     /// <returns>The text, or <see langword="null"/> when the answer is current.</returns>
     private static string? Outdated<T>(BitcoinLookup<T> lookup)
-        where T : class => lookup.Status == LookupStatus.FromCaseMayBeOutdated
-        ? lookup.Problem ?? "Svaret kommer ur ärendet och kan ha ändrats."
-        : null;
+        where T : class => Lookups.Outdated(lookup);
 
     /// <summary>
     /// Joins an answer's notes (a transaction that left its block, one that could not be checked against its bytes)
@@ -664,27 +662,13 @@ internal sealed class TracingService : ITracingService
     /// <param name="first">The first text.</param>
     /// <param name="second">The second text.</param>
     /// <returns>Both, one, or <see langword="null"/>.</returns>
-    private static string? Join(string? first, string? second)
-    {
-        if (first is null || second is null || first.Contains(second, StringComparison.Ordinal))
-        {
-            return first ?? second;
-        }
-
-        return $"{first} {second}";
-    }
+    private static string? Join(string? first, string? second) => Lookups.Join(first, second);
 
     /// <summary>Says what went wrong with a lookup, for the user.</summary>
     /// <param name="status">How it was answered.</param>
     /// <param name="problem">The source's own text, if any.</param>
     /// <returns>The text.</returns>
-    private static string Problem(LookupStatus status, string? problem) => problem ?? status switch
-    {
-        LookupStatus.Offline => "Offline: ingen utgång är ansluten och ärendet har inte uppgiften.",
-        LookupStatus.NotInCase => "Ärendet har inte uppgiften; expandera för att hämta den.",
-        LookupStatus.NotFound => "Källan känner inte till den.",
-        _ => "Uppslaget misslyckades.",
-    };
+    private static string Problem(LookupStatus status, string? problem) => Lookups.Problem(status, problem);
 
     /// <summary>What one expansion step brought in.</summary>
     /// <param name="Transactions">The transactions.</param>

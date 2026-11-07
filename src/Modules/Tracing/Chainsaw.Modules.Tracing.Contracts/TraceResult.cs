@@ -16,6 +16,12 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 public sealed record TracedAmount(AssetAmount Amount, TracingMethodId Method, IReadOnlyList<Txid> Through)
 {
     /// <summary>
+    /// Gets the transactions on an account chain the amount was counted through, sorted by id; empty on Bitcoin,
+    /// whose are <see cref="Through"/>.
+    /// </summary>
+    public IReadOnlyList<ChainTransactionRef> ThroughOther { get; init; } = [];
+
+    /// <summary>
     /// Explains the amount in plain Swedish, so that the user can ask <em>why?</em> (principle 3).
     /// </summary>
     /// <returns>For example <c>Spårat belopp 0.30000000 BTC enligt FIFO v1, räknat genom 2 tx: …</c>.</returns>
@@ -25,11 +31,14 @@ public sealed record TracedAmount(AssetAmount Amount, TracingMethodId Method, IR
         text.Append(
             CultureInfo.InvariantCulture,
             $"Spårat belopp {Amount.ToDecimalString()} {Amount.Asset.Symbol} enligt {Method}");
-        text.Append(Through.Count == 0
+        IReadOnlyList<string> through = Through.Count > 0
+            ? [.. Through.Select(txid => txid.Value)]
+            : [.. ThroughOther.Select(reference => reference.Id)];
+        text.Append(through.Count == 0
             ? ", direkt ur startpunkten."
             : string.Create(
                 CultureInfo.InvariantCulture,
-                $", räknat genom {Through.Count} tx: {string.Join(", ", Through.Select(txid => txid.Value))}."));
+                $", räknat genom {through.Count} tx: {string.Join(", ", through)}."));
         text.Append(" Det är en bedömning enligt metoden, inte ett faktum på kedjan.");
         return text.ToString();
     }

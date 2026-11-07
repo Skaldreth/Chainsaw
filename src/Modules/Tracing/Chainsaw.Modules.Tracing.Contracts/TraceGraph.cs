@@ -65,6 +65,12 @@ public sealed record TraceGraph(
         init => Utxo = Utxo with { TransactionEnds = value };
     }
 
+    /// <summary>
+    /// Gets the account model's part: the movements of value, fees and transactions on Ethereum that the graph holds,
+    /// and which accounts' histories it has read. Empty when the graph has no account chain.
+    /// </summary>
+    public AccountGraph Account { get; init; } = AccountGraph.Empty;
+
     /// <summary>Gives a node by its key.</summary>
     /// <param name="key">The key.</param>
     /// <returns>The node, or <see langword="null"/>.</returns>
@@ -74,6 +80,11 @@ public sealed record TraceGraph(
     /// <param name="address">The address.</param>
     /// <returns>The node, or <see langword="null"/> when the address is not in the graph.</returns>
     public GraphNode? NodeOf(BitcoinAddress address) => Index().ByAddress.GetValueOrDefault(address);
+
+    /// <summary>Gives the node an address on any chain belongs to in the graph.</summary>
+    /// <param name="address">The address with its chain.</param>
+    /// <returns>The node, or <see langword="null"/> when the address is not in the graph.</returns>
+    public GraphNode? NodeOf(ChainAddress address) => Index().ByAccount.GetValueOrDefault(address);
 
     /// <summary>Gives the lookups for the current nodes, building them when the nodes are new.</summary>
     /// <returns>The lookups.</returns>
@@ -86,6 +97,8 @@ public sealed record TraceGraph(
                 Nodes,
                 Nodes.ToDictionary(node => node.Key, StringComparer.Ordinal),
                 Nodes.SelectMany(node => node.GraphAddresses.Select(address => (address, node)))
+                    .ToDictionary(pair => pair.address, pair => pair.node),
+                Nodes.SelectMany(node => node.Addresses.Select(address => (address, node)))
                     .ToDictionary(pair => pair.address, pair => pair.node));
             _index = index;
         }
@@ -96,17 +109,22 @@ public sealed record TraceGraph(
     /// <summary>The graph's lookups.</summary>
     /// <param name="Nodes">The node list they were built from.</param>
     /// <param name="ByKey">The nodes by key.</param>
-    /// <param name="ByAddress">The nodes by the addresses they hold.</param>
+    /// <param name="ByAddress">The nodes by the Bitcoin addresses they hold.</param>
+    /// <param name="ByAccount">The nodes by the addresses they hold on any chain.</param>
     private sealed record NodeIndex(
         IReadOnlyList<GraphNode> Nodes,
         Dictionary<string, GraphNode> ByKey,
-        Dictionary<BitcoinAddress, GraphNode> ByAddress);
+        Dictionary<BitcoinAddress, GraphNode> ByAddress,
+        Dictionary<ChainAddress, GraphNode> ByAccount);
 }
 
 /// <summary>What kind of actor a node is; the graph draws the kind as its shape (skiss GR3a).</summary>
 public enum GraphNodeKind
 {
-    /// <summary>One address that nothing links to another: an actor we know nothing about (round).</summary>
+    /// <summary>
+    /// One address that nothing links to another: an actor we know nothing about (round). On an account chain every
+    /// address is one, since the account model's heuristics are not built yet.
+    /// </summary>
     Address,
 
     /// <summary>Addresses that Clustering concludes have the same owner: a wallet (square).</summary>
@@ -141,10 +159,12 @@ public enum NodeExpansion
 /// <summary>An actor in the graph.</summary>
 /// <param name="Key">
 /// The node's stable key: <c>address:</c>, <c>cluster:</c> (with the representative address), <c>tx:</c>,
-/// <c>coin:</c> or <c>chain:</c> and the subject.
+/// <c>coin:</c> or <c>chain:</c> and the subject; <c>account:</c>, the chain and the address on an account chain.
 /// </param>
 /// <param name="Kind">What kind of actor it is.</param>
-/// <param name="GraphAddresses">The node's addresses that occur in the graph, sorted.</param>
+/// <param name="GraphAddresses">
+/// The node's Bitcoin addresses that occur in the graph, sorted; empty on another chain (see <see cref="Accounts"/>).
+/// </param>
 /// <param name="ClusterSize">How many addresses the whole cluster has in the case; 1 for a single address.</param>
 /// <param name="Transaction">The transaction, for <see cref="GraphNodeKind.Transaction"/>.</param>
 /// <param name="Coin">The coin, for <see cref="GraphNodeKind.Coin"/>.</param>
@@ -174,7 +194,24 @@ public sealed record GraphNode(
     DateTimeOffset? FirstReceived,
     NodeExpansion Expansion,
     IReadOnlyList<TrailEndHint> Ends,
-    IReadOnlyDictionary<GraphLayout, NodePosition> Positions);
+    IReadOnlyDictionary<GraphLayout, NodePosition> Positions)
+{
+    /// <summary>Gets the chain the actor is on; Bitcoin unless it is an account on another chain.</summary>
+    public Chain Chain { get; init; } = Chain.Bitcoin;
+
+    /// <summary>
+    /// Gets the node's addresses on an account chain (Ethereum), sorted; empty on Bitcoin, whose addresses are
+    /// <see cref="GraphAddresses"/>.
+    /// </summary>
+    public IReadOnlyList<ChainAddress> Accounts { get; init; } = [];
+
+    /// <summary>
+    /// Gets the node's addresses in the graph on any chain, each with its chain: what the labels, the history and the
+    /// forms name an actor by, whatever the chain.
+    /// </summary>
+    public IReadOnlyList<ChainAddress> Addresses =>
+        Accounts.Count > 0 ? Accounts : [.. GraphAddresses.Select(address => address.ToChainAddress())];
+}
 
 /// <summary>The graph's two layouts (skiss GR4); each remembers its places.</summary>
 public enum GraphLayout
@@ -255,6 +292,34 @@ public sealed record GraphEdge(
 public sealed record AssetTransfer(
     ChainTransactionRef Transaction, AssetAmount Amount, BlockReference? Block, Outpoint? Coin)
 {
+    /// <summary>
+    /// Gets how the value moved on an account chain (ether sent by the transaction, by a contract, or a token), or
+    /// <see langword="null"/> on a UTXO chain.
+    /// </summary>
+    public EthereumTransferKind? Movement { get; init; }
+
+    /// <summary>
+    /// Gets where in the transaction it moved on an account chain (see <see cref="EthereumTransfer.Position"/>), so that
+    /// two movements in one transaction stay apart; 0 on a UTXO chain.
+    /// </summary>
+    public long Position { get; init; }
+
+    /// <summary>Gives the transfer of an Ethereum movement, as an edge carries it.</summary>
+    /// <param name="transfer">The movement.</param>
+    /// <param name="block">Its block with the hash, or <see langword="null"/> while unconfirmed or the hash is not
+    /// known.</param>
+    /// <returns>The transfer.</returns>
+    public static AssetTransfer OfEthereum(EthereumTransfer transfer, BlockReference? block)
+    {
+        ArgumentNullException.ThrowIfNull(transfer);
+        return new AssetTransfer(
+            new ChainTransactionRef(Chain.Ethereum, transfer.Transaction.Value), transfer.Amount, block, null)
+        {
+            Movement = transfer.Kind,
+            Position = transfer.Position,
+        };
+    }
+
     /// <summary>Gives the transfer of a Bitcoin coin.</summary>
     /// <param name="txid">The transaction the coin moved in.</param>
     /// <param name="coin">The coin.</param>
@@ -302,9 +367,13 @@ public enum SpendState
 /// <param name="MayBeOutdated">Whether the answer may have changed since the case asked.</param>
 public sealed record CoinSpend(SpendState State, BitcoinSpend? SpentBy, bool MayBeOutdated);
 
-/// <summary>Something the user expanded: an address's history or a transaction and where its outputs went.</summary>
-/// <param name="Address">The address, or <see langword="null"/> for a transaction.</param>
-/// <param name="Txid">The transaction, or <see langword="null"/> for an address.</param>
+/// <summary>
+/// Something the user expanded: an address's history or a transaction and where its outputs went. On Ethereum the
+/// subject and what came in are in the Ethereum properties, and <see cref="Address"/>, <see cref="Txid"/> and
+/// <see cref="Transactions"/> are empty.
+/// </summary>
+/// <param name="Address">The Bitcoin address, or <see langword="null"/> for anything else.</param>
+/// <param name="Txid">The Bitcoin transaction, or <see langword="null"/> for anything else.</param>
 /// <param name="Transactions">The transactions the expansion brought into the graph.</param>
 /// <param name="IsComplete">
 /// Whether everything was brought in; <see langword="false"/> when an address's history was cut at the limit or a
@@ -316,4 +385,21 @@ public sealed record Expansion(
     Txid? Txid,
     IReadOnlyList<Txid> Transactions,
     bool IsComplete,
-    DateTimeOffset ExpandedUtc);
+    DateTimeOffset ExpandedUtc)
+{
+    /// <summary>Gets the Ethereum address whose history was brought in, or <see langword="null"/>.</summary>
+    public EthereumAddress? EthereumAddress { get; init; }
+
+    /// <summary>Gets the Ethereum transaction that was brought in, or <see langword="null"/>.</summary>
+    public EthereumTxHash? EthereumTransaction { get; init; }
+
+    /// <summary>
+    /// Gets the Ethereum transactions the expansion brought into the graph, newest first; empty on Bitcoin, whose are
+    /// <see cref="Transactions"/>.
+    /// </summary>
+    public IReadOnlyList<EthereumTxHash> EthereumTransactions { get; init; } = [];
+
+    /// <summary>Gets what was expanded, as the case stores it: the address or the transaction.</summary>
+    public string Subject =>
+        Address?.Value ?? Txid?.Value ?? EthereumAddress?.Value ?? EthereumTransaction!.Value;
+}

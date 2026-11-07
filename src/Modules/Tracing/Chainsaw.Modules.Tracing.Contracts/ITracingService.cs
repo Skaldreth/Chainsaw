@@ -24,6 +24,9 @@ public interface ITracingService
     /// <summary>Gets the tracing methods for Bitcoin, the newest version of each kind.</summary>
     IReadOnlyList<TracingMethodId> Methods { get; }
 
+    /// <summary>Gets the tracing methods for the account model on Ethereum, the newest version of each kind.</summary>
+    IReadOnlyList<TracingMethodId> AccountMethods { get; }
+
     /// <summary>Builds the graph from the case: start points, expansions, clusters and the user's links.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="cancellationToken">Stops the work.</param>
@@ -141,6 +144,25 @@ public interface ITracingService
         TraceGraph graph, TraceRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Traces money through the account part of the graph (Ethereum) by a method, one asset at a time: from the seeds,
+    /// through every account whose history the graph has read, to where it stops. Every account's share is checked
+    /// (<c>AccountChecks.Run</c>), so a method that creates or loses money is refused.
+    /// </summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="request">The method and the seeds.</param>
+    /// <param name="cancellationToken">Stops the trace.</param>
+    /// <returns>The traced amounts and the ends, per asset.</returns>
+    /// <exception cref="ArgumentException">
+    /// The method is not registered for Ethereum, there are no seeds, or a seed is not a movement in the graph or is
+    /// given twice.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// A method broke its contract, or the seeds lie in each other's flow so that money would be counted twice.
+    /// </exception>
+    Task<AccountTraceResult> TraceAccountsAsync(
+        TraceGraph graph, AccountTraceRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Reads how the user left the graph: the tracing method, the layout, which amounts the lines carry and the part
     /// of the surface on screen, so that the graph opens as it was left.
     /// </summary>
@@ -195,15 +217,38 @@ public sealed record GraphViewState(
         new(TracingMethodKind.Fifo, GraphLayout.Free, GraphAmountLabels.All, null);
 }
 
-/// <summary>What to expand.</summary>
-/// <param name="Address">The address whose history to bring in, or <see langword="null"/>.</param>
-/// <param name="Txid">The transaction to follow forward, or <see langword="null"/>.</param>
+/// <summary>What to expand: exactly one of a Bitcoin address or transaction, or an Ethereum address or transaction.</summary>
+/// <param name="Address">The Bitcoin address whose history to bring in, or <see langword="null"/>.</param>
+/// <param name="Txid">The Bitcoin transaction to follow forward, or <see langword="null"/>.</param>
 /// <param name="MaximumTransactions">
 /// The most transactions one expansion may bring in, so that an exchange's address or a batch payout does not flood
 /// the graph (principle 7): an address's newest first, and of a transaction's spenders those that receive the most.
 /// </param>
 public sealed record ExpansionRequest(BitcoinAddress? Address, Txid? Txid, int MaximumTransactions = 50)
 {
+    /// <summary>Gets the Ethereum address whose history to bring in, or <see langword="null"/>.</summary>
+    public EthereumAddress? EthereumAddress { get; init; }
+
+    /// <summary>Gets the Ethereum transaction to bring in with every movement in it, or <see langword="null"/>.</summary>
+    public EthereumTxHash? EthereumTransaction { get; init; }
+
+    /// <summary>Gives a request to bring in an Ethereum address's history: its transactions, internal transactions
+    /// and token transfers, newest first, up to the limit.</summary>
+    /// <param name="address">The address.</param>
+    /// <param name="maximumTransactions">The most transactions to bring in.</param>
+    /// <returns>The request.</returns>
+    public static ExpansionRequest ForEthereumAddress(EthereumAddress address, int maximumTransactions = 50) =>
+        new(null, null, maximumTransactions)
+        {
+            EthereumAddress = address ?? throw new ArgumentNullException(nameof(address)),
+        };
+
+    /// <summary>Gives a request to bring in an Ethereum transaction with every movement of value in it.</summary>
+    /// <param name="hash">The transaction's hash.</param>
+    /// <returns>The request.</returns>
+    public static ExpansionRequest ForEthereumTransaction(EthereumTxHash hash) =>
+        new(null, null) { EthereumTransaction = hash ?? throw new ArgumentNullException(nameof(hash)) };
+
     /// <summary>Gives a request to expand an address.</summary>
     /// <param name="address">The address.</param>
     /// <param name="maximumTransactions">The most transactions to bring in.</param>
@@ -248,6 +293,12 @@ public enum ExpansionOutcome
 public sealed record ExpansionResult(
     ExpansionOutcome Outcome, IReadOnlyList<Txid> NewTransactions, string? Problem, TraceGraph Graph)
 {
+    /// <summary>Gets the Ethereum transactions that were not in the graph before.</summary>
+    public IReadOnlyList<EthereumTxHash> NewEthereumTransactions { get; init; } = [];
+
+    /// <summary>Gets how many transactions on any chain came into the graph.</summary>
+    public int NewCount => NewTransactions.Count + NewEthereumTransactions.Count;
+
     /// <summary>
     /// Gets what the expansion held back so that the graph does not flood (principle 7), or <see langword="null"/>
     /// when it brought in everything it found.

@@ -17,6 +17,12 @@ internal static class GraphStateStore
     /// <summary>The kind of a start point or expansion at a transaction.</summary>
     public const string TransactionKind = "transaction";
 
+    /// <summary>The kind of a start point or expansion at an Ethereum address.</summary>
+    public const string EthereumAddressKind = "ethereum-address";
+
+    /// <summary>The kind of a start point or expansion at an Ethereum transaction.</summary>
+    public const string EthereumTransactionKind = "ethereum-transaction";
+
     /// <summary>The action of a sealed record that links a coin to another chain.</summary>
     public const string LinkAction = "link";
 
@@ -32,9 +38,22 @@ internal static class GraphStateStore
     /// <summary>Gives a start point's kind and subject as stored.</summary>
     /// <param name="startPoint">The start point.</param>
     /// <returns>The kind and the address or txid.</returns>
-    public static (string Kind, string Subject) Key(TraceStartPoint startPoint) => startPoint.Address is { } address
-        ? (AddressKind, address.Value)
-        : (TransactionKind, startPoint.Txid!.Value);
+    public static (string Kind, string Subject) Key(TraceStartPoint startPoint)
+    {
+        if (startPoint.Address is { } address)
+        {
+            return (AddressKind, address.Value);
+        }
+
+        if (startPoint.Txid is { } txid)
+        {
+            return (TransactionKind, txid.Value);
+        }
+
+        return startPoint.EthereumAddress is { } account
+            ? (EthereumAddressKind, account.Value)
+            : (EthereumTransactionKind, startPoint.EthereumTransaction!.Value);
+    }
 
     /// <summary>Says whether a start point is stored.</summary>
     /// <param name="reader">The case's reader.</param>
@@ -87,15 +106,22 @@ internal static class GraphStateStore
     /// <returns>The expansion as stored, with the earlier transactions after the new.</returns>
     public static Expansion SaveExpansion(ICaseTransaction transaction, Expansion expansion)
     {
+        var kind = KindOf(expansion);
         var earlier = ReadExpansions(transaction).FirstOrDefault(stored =>
-            stored.Address == expansion.Address && stored.Txid == expansion.Txid);
+            KindOf(stored) == kind && stored.Subject == expansion.Subject);
         if (earlier is not null)
         {
             expansion = expansion with
             {
                 Transactions = [.. expansion.Transactions.Concat(earlier.Transactions).Distinct()],
+                EthereumTransactions =
+                    [.. expansion.EthereumTransactions.Concat(earlier.EthereumTransactions).Distinct()],
             };
         }
+
+        IEnumerable<string> brought = kind is EthereumAddressKind or EthereumTransactionKind
+            ? expansion.EthereumTransactions.Select(hash => hash.Value)
+            : expansion.Transactions.Select(txid => txid.Value);
 
         using var command = transaction.CreateCommand("""
             INSERT INTO tracing_expansions (kind, subject, transactions, complete, expanded_utc)
@@ -104,9 +130,9 @@ internal static class GraphStateStore
                 complete = excluded.complete, expanded_utc = excluded.expanded_utc
             """);
         command
-            .AddParameter("$kind", expansion.Address is null ? TransactionKind : AddressKind)
-            .AddParameter("$subject", expansion.Address?.Value ?? expansion.Txid!.Value)
-            .AddParameter("$transactions", JsonSerializer.Serialize(expansion.Transactions.Select(txid => txid.Value)))
+            .AddParameter("$kind", kind)
+            .AddParameter("$subject", expansion.Subject)
+            .AddParameter("$transactions", JsonSerializer.Serialize(brought))
             .AddParameter("$complete", expansion.IsComplete ? 1L : 0L)
             .AddParameter("$utc", Text(expansion.ExpandedUtc));
         command.ExecuteNonQuery();
@@ -237,9 +263,14 @@ internal static class GraphStateStore
         var startPoints = new List<TraceStartPoint>();
         while (rows.Read())
         {
-            startPoints.Add(rows.GetString(0) == AddressKind
-                ? TraceStartPoint.ForAddress(BitcoinAddress.Parse(rows.GetString(1)))
-                : TraceStartPoint.ForTransaction(Txid.Parse(rows.GetString(1))));
+            var subject = rows.GetString(1);
+            startPoints.Add(rows.GetString(0) switch
+            {
+                AddressKind => TraceStartPoint.ForAddress(BitcoinAddress.Parse(subject)),
+                EthereumAddressKind => TraceStartPoint.ForEthereumAddress(EthereumAddress.Parse(subject)),
+                EthereumTransactionKind => TraceStartPoint.ForEthereumTransaction(EthereumTxHash.Parse(subject)),
+                _ => TraceStartPoint.ForTransaction(Txid.Parse(subject)),
+            });
         }
 
         return startPoints;
@@ -258,14 +289,27 @@ internal static class GraphStateStore
         var expansions = new List<Expansion>();
         while (rows.Read())
         {
-            var isAddress = rows.GetString(0) == AddressKind;
+            var kind = rows.GetString(0);
+            var subject = rows.GetString(1);
             var transactions = JsonSerializer.Deserialize<List<string>>(rows.GetString(2)) ?? [];
-            expansions.Add(new Expansion(
-                isAddress ? BitcoinAddress.Parse(rows.GetString(1)) : null,
-                isAddress ? null : Txid.Parse(rows.GetString(1)),
-                [.. transactions.Select(Txid.Parse)],
-                rows.GetInt64(3) != 0,
-                Time(rows, 4)));
+            var complete = rows.GetInt64(3) != 0;
+            var utc = Time(rows, 4);
+            expansions.Add(kind switch
+            {
+                AddressKind => new Expansion(
+                    BitcoinAddress.Parse(subject), null, [.. transactions.Select(Txid.Parse)], complete, utc),
+                EthereumAddressKind => new Expansion(null, null, [], complete, utc)
+                {
+                    EthereumAddress = EthereumAddress.Parse(subject),
+                    EthereumTransactions = [.. transactions.Select(EthereumTxHash.Parse)],
+                },
+                EthereumTransactionKind => new Expansion(null, null, [], complete, utc)
+                {
+                    EthereumTransaction = EthereumTxHash.Parse(subject),
+                    EthereumTransactions = [.. transactions.Select(EthereumTxHash.Parse)],
+                },
+                _ => new Expansion(null, Txid.Parse(subject), [.. transactions.Select(Txid.Parse)], complete, utc),
+            });
         }
 
         return expansions;
@@ -346,6 +390,24 @@ internal static class GraphStateStore
             pair => pair.Key,
             pair => (IReadOnlyDictionary<GraphLayout, StoredPosition>)pair.Value,
             StringComparer.Ordinal);
+    }
+
+    /// <summary>Gives the kind an expansion is stored under.</summary>
+    /// <param name="expansion">The expansion.</param>
+    /// <returns>The kind.</returns>
+    private static string KindOf(Expansion expansion)
+    {
+        if (expansion.Address is not null)
+        {
+            return AddressKind;
+        }
+
+        if (expansion.Txid is not null)
+        {
+            return TransactionKind;
+        }
+
+        return expansion.EthereumAddress is not null ? EthereumAddressKind : EthereumTransactionKind;
     }
 
     /// <summary>Writes a time the way the module stores times: round-trip ISO 8601.</summary>

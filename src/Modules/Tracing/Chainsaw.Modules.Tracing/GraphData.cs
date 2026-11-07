@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Tracing;
 
@@ -12,7 +13,11 @@ internal sealed record GraphData(
     GraphState State,
     IReadOnlyDictionary<Txid, GraphTransaction> Transactions,
     IReadOnlyDictionary<Txid, OutputSpendsAnswer> OutputSpends,
-    IReadOnlyList<string> Problems);
+    IReadOnlyList<string> Problems)
+{
+    /// <summary>Gets the Ethereum facts; empty when the graph has none.</summary>
+    public AccountData Account { get; init; } = AccountData.Empty;
+}
 
 /// <summary>The answer about which inputs spend a transaction's outputs.</summary>
 /// <param name="Spends">One entry per output, in order.</param>
@@ -26,4 +31,8 @@ internal sealed record OutputSpendsAnswer(IReadOnlyList<BitcoinOutputSpend> Spen
 internal sealed record GraphKnowledge(
     Func<BitcoinAddress, IReadOnlyCollection<BitcoinAddress>> ClusterOf,
     Func<BitcoinAddress, IReadOnlyList<TrailEndHint>> AddressEnds,
-    Func<BitcoinTransaction, IReadOnlyList<TrailEndHint>> TransactionEnds);
+    Func<BitcoinTransaction, IReadOnlyList<TrailEndHint>> TransactionEnds)
+{
+    /// <summary>Gets why the trail ends at an address on an account chain; empty when it does not.</summary>
+    public Func<ChainAddress, IReadOnlyList<TrailEndHint>> AccountEnds { get; init; } = _ => [];
+}

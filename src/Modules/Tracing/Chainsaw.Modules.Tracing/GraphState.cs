@@ -24,6 +24,23 @@ internal sealed record GraphState(
             .Concat(Expansions.SelectMany(expansion => expansion.Transactions))
             .Distinct(),
     ];
+
+    /// <summary>
+    /// Gets every Ethereum transaction the graph holds whole: the start points' transactions and those expanded, each
+    /// once, in the order they came. The transactions an address's history brought in are read from its pages
+    /// (<see cref="EthereumHistories"/>).
+    /// </summary>
+    public IReadOnlyList<EthereumTxHash> EthereumTransactions =>
+    [
+        .. StartPoints.Where(start => start.EthereumTransaction is not null).Select(start => start.EthereumTransaction!)
+            .Concat(Expansions.Where(expansion => expansion.EthereumTransaction is not null)
+                .SelectMany(expansion => expansion.EthereumTransactions))
+            .Distinct(),
+    ];
+
+    /// <summary>Gets the Ethereum addresses whose history was brought in, with the transactions it brought.</summary>
+    public IReadOnlyList<Expansion> EthereumHistories =>
+        [.. Expansions.Where(expansion => expansion.EthereumAddress is not null)];
 }
 
 /// <summary>A stored place and when it was set.</summary>
