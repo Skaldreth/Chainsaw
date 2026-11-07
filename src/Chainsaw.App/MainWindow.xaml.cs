@@ -42,6 +42,9 @@ public partial class MainWindow : Window
     /// <summary>The Guide's panel beside the work (sketch GD1b).</summary>
     private readonly GuidePanelViewModel _guidePanel;
 
+    /// <summary>What <em>Alla ärenden …</em> in the empty graph puts in the command bar, for Tab to complete.</summary>
+    private const string OpenCommandText = "/open ";
+
     /// <summary>The graph, whose inspector's open form takes Esc before the Guide's panel (sketch IN1a).</summary>
     private readonly GraphViewModel _graph;
 
@@ -84,6 +87,7 @@ public partial class MainWindow : Window
         GuidePanel.Attach(guidePanel);
         WireGuide(graph, guide);
         WireWatches(shell, graph, monitoring);
+        WireEmptyGraph(shell, graph.Start);
         watchRunner.Start();
         shell.Settings.SettingsChanged += (_, settings) => _ = background.ApplyAsync(settings);
         background.Start();
@@ -103,6 +107,35 @@ public partial class MainWindow : Window
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SourceInitialized += (_, _) => WindowFrame.ApplyRoundedDarkFrame(new WindowInteropHelper(this).Handle);
         StateChanged += (_, _) => Frame.Margin = WindowState == WindowState.Maximized ? MaximizedInset : default;
+    }
+
+    /// <summary>
+    /// Wires the empty graph (sketch GR6c): Nytt ärende opens the panel, <em>Alla ärenden …</em> puts <c>/open</c> in
+    /// the command bar, and the exit's name follows the title bar's.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="start">The empty graph.</param>
+    private void WireEmptyGraph(ShellViewModel shell, GraphStartViewModel start)
+    {
+        start.NewCaseWanted += (_, _) => shell.NewCase.Show();
+        start.AllCasesWanted += (_, _) =>
+        {
+            shell.CommandText = OpenCommandText;
+            FocusCommandBar();
+            CommandBox.CaretIndex = CommandBox.Text.Length;
+        };
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ShellViewModel.ExitText) or nameof(ShellViewModel.IsExitLive))
+            {
+                ShowExit();
+            }
+        };
+        ShowExit();
+
+        // Until the connected exit's name is read, the empty graph names none.
+        void ShowExit() => start.ShowExit(
+            shell.IsExitLive, shell.ExitText == ShellViewModel.ConnectedText ? null : shell.ExitText);
     }
 
     /// <summary>

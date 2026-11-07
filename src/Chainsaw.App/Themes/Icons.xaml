@@ -45,6 +45,7 @@
     <Geometry x:Key="Icon.Pulse">M3 12h4l2.5-6 5 12 2.5-6h4</Geometry>
     <Geometry x:Key="Icon.Key">M8.5 15.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M11.5 11.5H21 M18 11.5v3 M15 11.5v2</Geometry>
     <Geometry x:Key="Icon.File">M6 3h8l4 4v14H6z M13 3v5h5</Geometry>
+    <Geometry x:Key="Icon.Folder">M3.5 6.5A1.5 1.5 0 0 1 5 5h4.5l2 2.5H19a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z</Geometry>
     <Geometry x:Key="Icon.Monitor">M3 4.5h18v11.5H3z M8.5 20h7 M12 16v4</Geometry>
     <Geometry x:Key="Icon.Laptop">M4 5h16v11H4z M2 19h20</Geometry>
     <Geometry x:Key="Icon.Server">M4 4h16v6H4z M4 14h16v6H4z M7.5 7h.01 M7.5 17h.01</Geometry>

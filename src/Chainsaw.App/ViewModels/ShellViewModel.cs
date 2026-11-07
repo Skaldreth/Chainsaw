@@ -23,6 +23,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>What the title bar says while no exit is connected.</summary>
     public const string NoExitText = "Ingen utgång";
 
+    /// <summary>What the title bar says while an exit is connected and its name is still being read.</summary>
+    public const string ConnectedText = "Utgång ansluten";
+
     /// <summary>What the title bar says when lookups go through Windows.</summary>
     public const string WindowsText = "Windows";
 
@@ -604,7 +607,7 @@ public sealed partial class ShellViewModel : ObservableObject
         var status = _way.Status;
         (ExitText, SourceText) = status.State switch
         {
-            ExitState.Connected => ("Utgång ansluten", "Uppslag går genom utgången"),
+            ExitState.Connected => (ConnectedText, "Uppslag går genom utgången"),
             ExitState.Connecting => ("Ansluter …", OfflineText),
             ExitState.Failed => ("Utgången är inte ansluten", OfflineText),
             _ => (NoExitText, OfflineText),

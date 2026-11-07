@@ -116,6 +116,9 @@ public sealed partial class GraphViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(ui);
         _session = session;
         _source = source;
+        Start = new GraphStartViewModel(session, workflow, ui, clock);
+        Start.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
+        OnEmptyTextChanged(EmptyText);
         Checks = new ChecksViewModel(session, checks ?? NoCheckSource.Instance);
         Checks.Changed += (_, _) => Redraw?.Invoke(this, EventArgs.Empty);
         Checks.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
@@ -183,6 +186,12 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Gets what the page says in place of the graph; empty while a graph is shown.</summary>
     [ObservableProperty]
     public partial string EmptyText { get; private set; } = NoCaseText;
+
+    /// <summary>
+    /// Gets the empty graph that guides (sketch GR6c): with no case and in a case without a start point it stands in
+    /// place of <see cref="EmptyText"/>.
+    /// </summary>
+    public GraphStartViewModel Start { get; }
 
     /// <summary>
     /// Gets the part of the surface on screen that the case had stored, to be shown instead of fitting the graph the
@@ -682,6 +691,15 @@ public sealed partial class GraphViewModel : ObservableObject
         };
         return (offline && result.Outcome != ExpansionOutcome.Expanded ? $"{text} {OfflineText}" : text).Trim();
     }
+
+    /// <summary>Lets the empty graph guide where the page would only say that there is nothing (sketch GR6c).</summary>
+    /// <param name="value">What the page says in place of the graph.</param>
+    partial void OnEmptyTextChanged(string value) => Start.Show(value switch
+    {
+        NoCaseText => GraphStartMode.NoCase,
+        NoStartPointsText => GraphStartMode.NoStartPoint,
+        _ => GraphStartMode.None,
+    });
 
     /// <summary>Shows whether lookups can go now, and whether Bitcoin's sources are off.</summary>
     /// <param name="exit">The way out.</param>

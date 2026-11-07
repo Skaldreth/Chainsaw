@@ -63,10 +63,15 @@
         <Grid Grid.Column="0">
             <controls:GraphCanvas x:Name="Canvas" AutomationProperties.Name="Grafen" />
 
-            <!-- In place of the graph: no case, no start point, reading or failed; never made-up data. -->
+            <!-- In place of the graph while it is read or could not be; never made-up data. -->
             <TextBlock Text="{Binding EmptyText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
                        HorizontalAlignment="Center" VerticalAlignment="Center" Margin="40,0,40,80"
-                       TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420" IsHitTestVisible="False" />
+                       TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420" IsHitTestVisible="False"
+                       Visibility="{Binding Start.IsShown, Converter={x:Static controls:InvertVisibility.Instance}}" />
+
+            <!-- With no case, or no start point, the empty graph guides instead (sketch GR6c). -->
+            <views:GraphStartView x:Name="StartView" DataContext="{Binding Start}"
+                                  Visibility="{Binding IsShown, Converter={StaticResource Visible}}" />
 
             <!-- What was traced and how, and what the last step said: top left, beside the pill's column. -->
             <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="84,14,0,0" MaxWidth="520"

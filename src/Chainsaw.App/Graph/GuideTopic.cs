@@ -56,6 +56,9 @@ public enum GuideTopic
 
     /// <summary><em>Kurser och omräkning</em>: the value at the time, in SEK.</summary>
     Prices,
+
+    /// <summary><em>Så spårar man i Chainsaw</em>: a case's course, from the empty graph (sketch GR6c).</summary>
+    HowToTrace,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -91,6 +94,7 @@ public static class GuideTopics
         GuideTopic.Tokens => "erc-20",
         GuideTopic.CanBeFrozen => "kan-frysas",
         GuideTopic.Prices => "kurser",
+        GuideTopic.HowToTrace => "sa-sparar-man",
         _ => "utxo-modellen",
     };
 
@@ -115,6 +119,7 @@ public static class GuideTopics
         GuideTopic.Tokens => "ERC-20 och tokens",
         GuideTopic.CanBeFrozen => "Kan frysas",
         GuideTopic.Prices => "Kurser och omräkning",
+        GuideTopic.HowToTrace => "Så spårar man i Chainsaw",
         _ => "UTXO-modellen",
     };
 

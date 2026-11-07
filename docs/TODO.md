@@ -36,7 +36,10 @@ Inventeringen av appen mot besluten, i ordning efter vad som gör mest för för
 1. **Felrättningar utan ny form:** inaktuella rader i TESTER-INFOR (väntar tills etapp 27 är inne, som skriver i
    samma fil). (Rättat 2026-11-07: GateView och Windows som utgång, *Kättingen* i stället för *Teckenfältet*, en
    text för offline, *Ctrl+K* ur `ViewTable`, hovring på `Toggle.Switch`, bildspråkets *?* nere till höger.)
-2. **GR6c, tom graf med guidenoder** (vald).
+2. **GR6c, resten:** byggd 2026-11-07 utan ärende och utan startpunkt. Kvar är skissens tredje läge, *Startpunkten
+   tillagd*: den riktiga noden med en pulserande guidenod *Expandera* bredvid och *Hitta uttaget* svagt efter, som
+   behöver ritas i grafens duk. Avsteg från skissen: Enter är inte grått offline, eftersom en startpunkt går att lägga
+   till utan nät (princip 9) och inget hämtas förrän den expanderas; raden säger det i stället.
 3. **Öppna ett ärende** går bara med `/open`: ingen lista över senaste ärenden, inget Ctrl+O, ärendet i titelraden går
    inte att klicka, `/close` och `/verify` saknar knapp. Skissas (ÄV1).
 4. **Sex vyer är platshållare** (Tidslinje, Flöde, Exponering, Begäran, Etiketter, Terminal) men syns som byggda i

@@ -1,0 +1,284 @@
+<UserControl x:Class="Chainsaw.App.Views.GraphStartView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels">
+
+    <!--
+      The empty graph that guides (sketch GR6c). With no case: Nytt ärende in the middle with the latest cases around it,
+      and the first time a little more about what a case is and the course as five dots. In a case without a start point:
+      the empty start point with a field in it, the forms it recognises, and the later steps faint below. The step the
+      user stands at has sonar; everything else explains itself on hover (principle 7). Its data context is the graph's
+      GraphStartViewModel.
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- A guide node: a dashed frame that lights on hover, and a dashed round icon frame with the title and a line. -->
+        <Style x:Key="Button.GuideNode" TargetType="Button">
+            <Setter Property="Width" Value="200" />
+            <Setter Property="Height" Value="54" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Rectangle x:Name="Frame" RadiusX="10" RadiusY="10" Fill="{StaticResource Brush.Surface}"
+                                       Stroke="{TemplateBinding BorderBrush}" StrokeThickness="1.5"
+                                       StrokeDashArray="3 3" Opacity="0.9" />
+                            <ContentPresenter Margin="10,0,12,0" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.TextDim}" />
+                                <Setter TargetName="Frame" Property="Opacity" Value="1" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The step the user stands at: the same node with the accent's frame, solid. -->
+        <Style x:Key="Button.GuideNode.Current" TargetType="Button" BasedOn="{StaticResource Button.GuideNode}">
+            <Setter Property="Width" Value="220" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border x:Name="Frame" CornerRadius="10" Background="{StaticResource Brush.Surface}"
+                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.5" />
+                            <ContentPresenter Margin="10,0,12,0" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource Brush.AccentHover}" />
+                                <Setter TargetName="Frame" Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A later step, faint: what comes after the start point, explained on hover. -->
+        <Style x:Key="Border.GhostNode" TargetType="Border">
+            <Setter Property="Width" Value="200" />
+            <Setter Property="Height" Value="54" />
+            <Setter Property="Opacity" Value="0.55" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+        </Style>
+
+        <!-- The node's icon in its frame: round, dashed, in the step's colour. -->
+        <Style x:Key="Grid.NodeIcon" TargetType="Grid">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- A recent case around Nytt ärende: a document in its square frame, the number and when it was saved. -->
+        <DataTemplate x:Key="RecentCase" DataType="{x:Type vm:RecentCaseItem}">
+            <Button Style="{StaticResource Button.GuideNode}"
+                    Command="{Binding DataContext.OpenCaseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding}" AutomationProperties.Name="{Binding CaseNumber}"
+                    ToolTip="Öppna ärendet. Titeln står i den krypterade filen och syns när ärendet är öppet.">
+                <DockPanel>
+                    <Grid Style="{StaticResource Grid.NodeIcon}">
+                        <Rectangle RadiusX="7" RadiusY="7" Stroke="{StaticResource Brush.TextMuted}" StrokeThickness="1.5"
+                                   StrokeDashArray="2 2" />
+                        <controls:GridIcon Size="15" Data="{StaticResource Icon.File}" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding CaseNumber}" FontSize="12.5" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush.Text}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding ChangedText}" FontSize="11" Foreground="{StaticResource Brush.TextDim}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </DockPanel>
+            </Button>
+        </DataTemplate>
+
+        <!-- A form of start point: a pill with a dot, its name and its short form, lit when the text matches. -->
+        <DataTemplate x:Key="FormChip" DataType="{x:Type vm:StartPointForm}">
+            <Border x:Name="Chip" Height="24" Padding="9,0" CornerRadius="12" BorderThickness="1" Margin="3,0"
+                    BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Surface}"
+                    ToolTip="{Binding Tip}">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse x:Name="Dot" Width="6" Height="6" Fill="{StaticResource Brush.BorderHover}"
+                             VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBlock x:Name="Name" Text="{Binding Name}" FontSize="11.5" VerticalAlignment="Center"
+                               Foreground="{StaticResource Brush.TextMuted}" />
+                    <TextBlock x:Name="Form" Text="{Binding Form}" FontFamily="{StaticResource Font.Mono}" FontSize="10.5"
+                               VerticalAlignment="Center" Margin="6,0,0,0" Foreground="{StaticResource Brush.TextFaint}" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsLit}" Value="True">
+                    <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="Chip" Property="Background" Value="#1F2A20" />
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="Name" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                    <Setter TargetName="Form" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- ===== No case: the hub ===== -->
+        <Grid Visibility="{Binding IsNoCase, Converter={StaticResource Visible}}" Margin="70,0,0,56">
+            <!-- With cases: Nytt ärende in the middle of a ring of the latest cases and Alla ärenden. -->
+            <controls:RingPanel x:Name="Ring" LineBrush="{StaticResource Brush.BorderStrong}"
+                                Visibility="{Binding HasRecent, Converter={StaticResource Visible}}" />
+
+            <!-- The first time: Nytt ärende, what a case is, and the course. -->
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="{Binding IsFirstTime, Converter={StaticResource Visible}}">
+                <Grid HorizontalAlignment="Center">
+                    <controls:SonarRing Width="248" Height="82" CornerRadius="18" BorderThickness="1.5"
+                                        BorderBrush="{StaticResource Brush.Accent}" />
+                    <ContentControl x:Name="FirstNewCase" Focusable="False" />
+                </Grid>
+                <TextBlock Margin="0,26,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="12.5"
+                           LineHeight="19" Foreground="{StaticResource Brush.TextMuted}"
+                           Text="Ett ärende är en krypterad fil på den här datorn, en per utredning. Allt du hämtar sparas i den, med källa, tid och hash, så att det går att kontrollera i efterhand." />
+                <TextBlock Margin="0,8,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="12"
+                           Foreground="{StaticResource Brush.TextDim}"
+                           Text="Inget skickas till molnet. Uppslag går bara genom den utgång du har valt." />
+                <ItemsControl x:Name="Course" Margin="0,40,0,0" HorizontalAlignment="Center" Focusable="False"
+                              ToolTip="Ärendets gång">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+        </Grid>
+
+        <!-- ===== A case without a start point ===== -->
+        <Grid Visibility="{Binding IsNoStartPoint, Converter={StaticResource Visible}}" Margin="70,0,0,56">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="1" HorizontalAlignment="Center" Width="640">
+                <TextBlock Text="Första startpunkten" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Margin="0,6,0,0" FontSize="12" Foreground="{StaticResource Brush.TextMuted}"
+                           TextAlignment="Center" TextWrapping="Wrap"
+                           Text="Där spåret börjar: en adress eller en tx. Den kan lika gärna vara den misstänktes som offrets." />
+
+                <!-- The empty start point: a dashed node with the flag, the field and Enter, with sonar around it. -->
+                <Grid Margin="0,26,0,0" HorizontalAlignment="Center">
+                    <controls:SonarRing x:Name="StartSonar" Width="488" Height="100" CornerRadius="22"
+                                        BorderThickness="1.5" BorderBrush="{StaticResource Brush.Accent}" />
+                    <Grid Width="460" Height="72">
+                        <Rectangle x:Name="StartFrame" RadiusX="12" RadiusY="12" Fill="{StaticResource Brush.Surface}"
+                                   Stroke="{StaticResource Brush.Accent}" StrokeThickness="1.5" StrokeDashArray="3 3" />
+                        <DockPanel Margin="12,0,14,0" VerticalAlignment="Center">
+                            <Grid DockPanel.Dock="Left" Width="30" Height="30" Margin="0,0,12,0">
+                                <Ellipse Stroke="{StaticResource Brush.Accent}" StrokeThickness="1.5" StrokeDashArray="2 2" />
+                                <controls:GridIcon Size="16" Data="{StaticResource Icon.Flag}"
+                                                   Foreground="{StaticResource Brush.Accent}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+                            <Button DockPanel.Dock="Right" Margin="12,0,0,0" Height="30" Padding="10,0" FontSize="12"
+                                    Content="Enter" Command="{Binding AddCommand}"
+                                    ToolTip="Lägg till startpunkten · Enter">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Button.Primary}">
+                                        <Setter Property="Height" Value="30" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanAdd}" Value="False">
+                                                <Setter Property="Opacity" Value="0.45" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Grid>
+                                <TextBox x:Name="StartPointBox" Style="{StaticResource TextBox.Field}" Height="34"
+                                         FontFamily="{StaticResource Font.Mono}" FontSize="12"
+                                         Background="{StaticResource Brush.Background}"
+                                         MaxLength="{x:Static vm:GraphStartViewModel.MaximumInput}"
+                                         AutomationProperties.Name="Startpunkt"
+                                         Text="{Binding StartPointText, UpdateSourceTrigger=PropertyChanged}">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding AddCommand}" />
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                                <TextBlock Text="{x:Static vm:GraphStartViewModel.Placeholder}" FontSize="12"
+                                           Margin="11,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                           Foreground="{StaticResource Brush.TextFaint}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding StartPointText}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DockPanel>
+                    </Grid>
+                </Grid>
+
+                <ItemsControl Margin="0,22,0,0" HorizontalAlignment="Center" Focusable="False"
+                              ItemsSource="{Binding FormsShown}" ItemTemplate="{StaticResource FormChip}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel HorizontalAlignment="Center" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <TextBlock Margin="0,12,0,0" HorizontalAlignment="Center" FontSize="11.5"
+                           Foreground="{StaticResource Brush.TextDim}"
+                           Text="Klistra in med Ctrl+V var som helst på ytan, så hamnar det här." />
+                <StackPanel Margin="0,12,0,0" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Ellipse x:Name="SendDot" Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" />
+                    <TextBlock x:Name="SendLine" Text="{Binding SendText}" FontSize="11.5" TextWrapping="Wrap"
+                               MaxWidth="600" />
+                </StackPanel>
+                <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center" FontSize="12" Text="{Binding ErrorText}"
+                           Foreground="{StaticResource Brush.Error}" TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
+
+            <!-- The later steps, faint, explained on hover. -->
+            <Canvas Grid.Row="2" Width="780" Height="110" Margin="0,30,0,0" HorizontalAlignment="Center">
+                <Path Stroke="{StaticResource Brush.BorderHover}" StrokeThickness="1.5" StrokeDashArray="0 4"
+                      StrokeDashCap="Round" Opacity="0.45" Data="M 200,27 C 285,27 205,67 290,67 M 490,67 C 575,67 495,27 580,27" />
+                <Border x:Name="GhostExpand" Canvas.Left="0" Canvas.Top="0" Style="{StaticResource Border.GhostNode}" />
+                <Border x:Name="GhostExit" Canvas.Left="290" Canvas.Top="40" Style="{StaticResource Border.GhostNode}" />
+                <Border x:Name="GhostWatch" Canvas.Left="580" Canvas.Top="0" Style="{StaticResource Border.GhostNode}" />
+            </Canvas>
+        </Grid>
+
+        <!-- ===== The foot: the Guide and the exit, said honestly ===== -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="70,0,0,78"
+                    Visibility="{Binding IsShown, Converter={StaticResource Visible}}">
+            <Button Style="{StaticResource Button.Link}" Command="{Binding GuideCommand}" VerticalAlignment="Center"
+                    Foreground="{StaticResource Brush.TextMuted}" ToolTip="Öppnar Guiden bredvid ytan"
+                    Content="Så spårar man i Chainsaw" />
+            <Rectangle Width="1" Height="12" Margin="18,0" Fill="{StaticResource Brush.BorderStrong}"
+                       VerticalAlignment="Center" />
+            <Ellipse x:Name="FootDot" Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" />
+            <TextBlock x:Name="FootLine" Text="{Binding FootText}" FontSize="12" VerticalAlignment="Center" />
+        </StackPanel>
+    </Grid>
+</UserControl>

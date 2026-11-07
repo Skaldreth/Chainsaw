@@ -21,6 +21,7 @@ public sealed class GuideLibrary
     /// <summary>The groups and the sections in each, in the order they are read.</summary>
     public static readonly IReadOnlyList<(string Group, IReadOnlyList<string> Sections)> Index =
     [
+        ("Kom igång", ["sa-sparar-man"]),
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan"]),
         ("Ethereum", ["kontomodellen", "erc-20", "interna-tx", "kan-frysas"]),
         ("Klustring", ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin"]),

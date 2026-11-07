@@ -822,6 +822,26 @@ Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *S
   välj TRON och klistra in en tx; en lila streckad linje går till den andra kedjans nod, och länken syns i Historik.
 - *Förslag · N* (Ctrl+J): statusraden säger att kontrollerna gäller UTXO och inte körs på Ethereum.
 
+## Den tomma grafen (GR6c)
+
+- **Första gången** (inga ärenden i mappen): mitt på grafen står *Nytt ärende · Ctrl+N* med en pulserande ring, under
+  den två rader om vad ett ärende är, och ärendets gång som fem prickar (Ärende först, i accent). Ett klick öppnar
+  panelen Nytt ärende.
+- **Med ärenden:** *Nytt ärende* i mitten, de fyra senast sparade ärendena runt om (nummer och *ändrad i dag 14:02*,
+  *ändrad i går …* eller datum) och *Alla ärenden … · /open* sist, med prickade linjer från mitten. Ett klick öppnar
+  ärendet; *Alla ärenden …* skriver `/open ` i kommandoraden med markören sist, så att Tab fyller i. Ringen krymper
+  i ett litet fönster (960 × 600) men alla noder syns och krockar inte med pillret.
+- **Ett ärende utan startpunkt:** *Första startpunkten* med en streckad nod (flaggan, ett fält och *Enter*), sonar
+  runt den, brickorna Bitcoin-adress, Ethereum-adress, Bitcoin-tx och Ethereum-tx, och under dem tre svaga steg
+  (Expandera, Hitta uttaget, Bevaka) som förklarar sig på hovring.
+- Skriv eller klistra in en adress: brickan för sorten lyser grönt. **Ctrl+V var som helst på grafen** lägger texten
+  i fältet. Enter lägger till startpunkten och grafen visas; text som inte känns igen ger en röd rad.
+- Raden under brickorna säger att inget hämtas förrän du expanderar, och genom vilken utgång. Utan utgång: grå prick,
+  *Offline …*, och ringen och ramen blir grå; startpunkten går ändå att lägga till.
+- Längst ner: *Så spårar man i Chainsaw* öppnar Guiden bredvid ytan (avsnittet med de fem stegen), och utgången står
+  med sin prick.
+- Med animeringar avstängda i Windows står ringarna stilla, svaga.
+
 ## Bevakningen, första delen (etapp 26, BV1a och BV2a)
 
 Kräver en ansluten utgång (eller Windows som utgång), ett ärende med en graf, och att endpointarna har provats vid

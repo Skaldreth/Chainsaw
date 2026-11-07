@@ -84,6 +84,12 @@ public sealed class CaseWorkflow
         _library = library;
     }
 
+    /// <summary>
+    /// Gets the case files as last listed off the UI thread (<see cref="RefreshCasesAsync"/>), for the latest cases
+    /// around Nytt ärende in the empty graph (sketch GR6c).
+    /// </summary>
+    public IReadOnlyList<CaseFileInfo> Files => _files;
+
     /// <summary>Gets whether an opening, creation or closing runs.</summary>
     public bool IsBusy => _busy;
 

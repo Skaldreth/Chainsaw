@@ -76,6 +76,7 @@ public partial class GraphView : UserControl
             }
         };
         ShowInspector(model.HasCase);
+        PreviewKeyDown += (_, e) => e.Handled = e.Handled || PasteStartPoint(e, model.Start);
         model.CopyWanted += (_, text) => CopyText(text);
         model.Forms.PropertyChanged += (_, e) =>
         {
@@ -94,6 +95,41 @@ public partial class GraphView : UserControl
     {
         InspectorColumn.Width = new GridLength(shown ? InspectorWidth : 0);
         Inspector.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Ctrl+V anywhere on the empty graph puts the text in the start point's field (sketch GR6c); a text field that has
+    /// the keyboard pastes as usual.
+    /// </summary>
+    /// <param name="e">The key.</param>
+    /// <param name="start">The empty graph.</param>
+    /// <returns><see langword="true"/> when the paste was taken.</returns>
+    private bool PasteStartPoint(KeyEventArgs e, GraphStartViewModel start)
+    {
+        if (e.Key != Key.V || Keyboard.Modifiers != ModifierKeys.Control || !start.IsNoStartPoint
+            || Keyboard.FocusedElement is TextBox)
+        {
+            return false;
+        }
+
+        string text;
+        try
+        {
+            text = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            // Another program holds the clipboard; nothing is pasted.
+            return false;
+        }
+
+        if (!start.Paste(text))
+        {
+            return false;
+        }
+
+        StartView.FocusField();
+        return true;
     }
 
     /// <summary>Copies a node's address to the clipboard; a clipboard held by another program is left alone.</summary>
