@@ -7,9 +7,10 @@ namespace Chainsaw.Modules.Network;
 
 /// <summary>
 /// Builds the pipeline to the user's own node (decided 2026-11-07): straight to the node, never through a proxy, and
-/// only to addresses in the user's own network, so that nothing through it can leave the computer for the internet. Everything else is as through an exit: no cookies, no redirects, no credentials, no trace
-/// headers, no resumed TLS sessions, HTTP/1.1, and a certificate chain built from the roots installed on the computer
-/// without fetching anything.
+/// only to addresses in the user's own network, so that nothing through it can leave the computer for the internet.
+/// Everything else is as through an exit: no cookies, no redirects, no credentials, no trace headers, no resumed TLS
+/// sessions, HTTP/1.1, and a certificate chain built from the roots installed on the computer without fetching
+/// anything.
 /// </summary>
 /// <param name="options">The limits on requests.</param>
 internal sealed class LocalHandlerFactory(NetworkOptions options) : ILocalHandlerFactory

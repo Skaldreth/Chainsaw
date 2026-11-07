@@ -372,7 +372,8 @@ public sealed class EndpointPaceTests : IDisposable
         var kept = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Probe!;
         Assert.Equal(ProbeOutcome.Behind, kept.Outcome);
         Assert.Equal(3, kept.BlocksBehind);
-        Assert.Equal(second.Id, Assert.Single(_harness.Sources.Plan(Chain.Bitcoin, inStep: true).Endpoints).Endpoint.Id);
+        var inStep = _harness.Sources.Plan(Chain.Bitcoin, inStep: true).Endpoints;
+        Assert.Equal(second.Id, Assert.Single(inStep).Endpoint.Id);
         Assert.False(_harness.Sources.TrustsNotFound(Chain.Bitcoin, first));
     }
 

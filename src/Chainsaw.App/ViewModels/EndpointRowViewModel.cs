@@ -97,7 +97,8 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     public partial bool IsLocal { get; private set; }
 
     /// <summary>Gets what the mark <em>Lokal</em> means, on hovering.</summary>
-    public string LocalTip => "Egen nod på datorn eller ett privat nät. Uppslagen går direkt dit, aldrig genom utgången.";
+    public string LocalTip =>
+        "Egen nod på datorn eller ett privat nät. Uppslagen går direkt dit, aldrig genom utgången.";
 
     /// <summary>Gets whether the endpoint is switched on.</summary>
     [ObservableProperty]

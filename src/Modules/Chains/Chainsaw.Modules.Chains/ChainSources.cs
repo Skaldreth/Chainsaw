@@ -902,7 +902,9 @@ internal sealed class ChainSources : IChainSources
     /// can be measured against the new one.
     /// </summary>
     /// <param name="kept">The earlier probe.</param>
-    /// <returns>An answer as <see cref="ProbeOutcome.Answered"/> without how far behind it was; any other as it is.</returns>
+    /// <returns>
+    /// An answer as <see cref="ProbeOutcome.Answered"/> without how far behind it was; any other as it is.
+    /// </returns>
     private static EndpointProbe Unranked(EndpointProbe kept) =>
         kept.Outcome is ProbeOutcome.Answered or ProbeOutcome.Behind
             ? kept with { Outcome = ProbeOutcome.Answered, BlocksBehind = null, Problem = null }
