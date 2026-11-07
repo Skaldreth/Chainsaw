@@ -2,12 +2,13 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Threading;
+using Chainsaw.App.ViewModels;
 
 namespace Chainsaw.App.Interop;
 
 /// <summary>
 /// Catches what no part of Chainsaw caught, so that one fault never closes the program and loses what is on screen:
-/// the fault is said in a box, and its sort and stack trace (never its message, which may hold an address or other case
+/// the fault is said in a toast (or a box before the window is up), and its sort and stack trace (never its message, which may hold an address or other case
 /// data, principle 4) are written to <c>%LOCALAPPDATA%\Chainsaw\crash.log</c> for the developer.
 /// </summary>
 public static class CrashGuard
@@ -21,6 +22,12 @@ public static class CrashGuard
     /// <summary>What the box says, before the fault's own message.</summary>
     private const string BoxText =
         "Något gick fel, men Chainsaw fortsätter. Detaljerna (utan ärendets data) står i {0}.\n\n{1}";
+
+    /// <summary>The toast's title for a fault nobody caught.</summary>
+    private const string ToastTitle = "Något gick fel, men Chainsaw fortsätter.";
+
+    /// <summary>Gets or sets the toaster that says a fault on the UI thread; without one, a box says it.</summary>
+    public static Toaster? Toaster { get; set; }
 
     /// <summary>Guards the application: the UI thread, other threads and tasks that nobody waited for.</summary>
     /// <param name="application">The application.</param>
@@ -60,13 +67,19 @@ public static class CrashGuard
         return text.AppendLine().ToString();
     }
 
-    /// <summary>Says a fault on the UI thread in a box and keeps Chainsaw running.</summary>
+    /// <summary>Says a fault on the UI thread in a toast, or a box, and keeps Chainsaw running.</summary>
     /// <param name="sender">The dispatcher.</param>
     /// <param name="e">The fault.</param>
     private static void OnUiFault(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         var path = Write(e.Exception);
         e.Handled = true;
+        if (Toaster is { } toaster)
+        {
+            toaster.Show(ToastKind.Error, ToastTitle, $"{e.Exception.Message} Detaljerna står i {path}.");
+            return;
+        }
+
         MessageBox.Show(
             string.Format(System.Globalization.CultureInfo.InvariantCulture, BoxText, path, e.Exception.Message),
             "Chainsaw", MessageBoxButton.OK, MessageBoxImage.Warning);

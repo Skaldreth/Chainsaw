@@ -308,6 +308,9 @@
 
                 <!-- The settings (ST1a): a dialog in the middle, over everything under the title bar, the rest darkened. -->
                 <views:SettingsDialog x:Name="SettingsDialog" Grid.Row="1" Grid.RowSpan="2" />
+
+                <!-- The toaster (TO1a): at the lower right, over everything under the title bar, dialogs too. -->
+                <views:ToastHost x:Name="Toasts" Grid.Row="1" Grid.RowSpan="2" />
             </Grid>
 
             <!-- The gate: the lock screen (ID7) or the first-run setup (FS1a) on the field, in place of everything. -->

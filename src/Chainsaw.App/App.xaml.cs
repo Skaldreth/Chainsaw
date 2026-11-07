@@ -174,6 +174,7 @@ public partial class App : Application
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphEditor, GraphEditor>()
                 .AddSingleton<ICheckSource, CheckSource>()
+                .AddSingleton<Toaster>()
                 .AddSingleton<GraphViewModel>()
                 .AddSingleton<IWatchSource, WatchSource>()
                 .AddSingleton<WatchBoard>()

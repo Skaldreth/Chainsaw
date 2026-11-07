@@ -50,6 +50,9 @@ public sealed partial class GraphViewModel
     /// <summary>Raised when the user wants a node's address copied (the view owns the clipboard).</summary>
     public event EventHandler<string>? CopyWanted;
 
+    /// <summary>Raised when the graph has something to say as a toast (sketch TO1a).</summary>
+    public event EventHandler<ToastRequest>? ToastWanted;
+
     /// <summary>Gets the watch form, shared with the view Bevakning; <see langword="null"/> without watches.</summary>
     public WatchFormViewModel? WatchForm { get; private set; }
 

@@ -45,6 +45,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>What the graph says when an expansion failed outright.</summary>
     public const string ExpandFailedText = "Expansionen misslyckades.";
 
+    /// <summary>The action on a toast that tries a failed step again.</summary>
+    public const string RetryText = "Försök igen";
+
     /// <summary>What an expansion adds while no exit is connected (principle 9): the shell's one offline text.</summary>
     public const string OfflineText = ShellViewModel.OfflineText;
 
@@ -65,6 +68,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// Counts the graph's readings and expansions, so that an answer to an older one is dropped.
     /// </summary>
     private int _version;
+
+    /// <summary>The graph's problems as last told by a toast, so that the same are not told at every reading.</summary>
+    private string _toldProblems = string.Empty;
 
     /// <summary>Whether a reading was asked for while an expansion ran, to be made when it is done.</summary>
     private bool _refreshAfterExpansion;
@@ -125,10 +131,10 @@ public sealed partial class GraphViewModel : ObservableObject
         Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
         Forms = new InspectorFormsViewModel(session, editor, clock);
         Forms.Saved += (_, _) => _ = RefreshAsync();
-        Forms.Failed += (_, text) => Notice = Notice.Length == 0 ? text : $"{text} {Notice}";
+        Forms.Failed += (_, text) => Tell(ToastKind.Error, text);
         History = new InspectorHistoryViewModel(session, editor);
         History.Saved += (_, notice) => _ = RefreshThenSayAsync(notice);
-        History.Failed += (_, text) => Say(text);
+        History.Failed += (_, text) => Tell(ToastKind.Error, text);
 
         // A form (L, U or K) opens among the facts, so the facts are shown.
         Forms.PropertyChanged += (_, e) =>
@@ -422,7 +428,21 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Puts a text first in the graph's notice, keeping what it already says.</summary>
     /// <param name="text">The text.</param>
-    private void Say(string text) => Notice = Notice.Length == 0 ? text : $"{text} {Notice}";
+    private void Say(string text) => Tell(ToastKind.Information, text);
+
+    /// <summary>
+    /// Says something: it goes before the notice, and to the toaster (sketch TO1a) as a toast of its sort.
+    /// </summary>
+    /// <param name="kind">The toast's sort.</param>
+    /// <param name="text">What is said.</param>
+    /// <param name="detail">A line under it, such as a fault's own message; empty for none.</param>
+    /// <param name="retry">What <em>Försök igen</em> does; <see langword="null"/> for no action.</param>
+    private void Tell(ToastKind kind, string text, string detail = "", Action? retry = null)
+    {
+        var said = detail.Length == 0 ? text : $"{text} {detail}";
+        Notice = Notice.Length == 0 ? said : $"{said} {Notice}";
+        ToastWanted?.Invoke(this, new ToastRequest(kind, text, detail, retry is null ? null : RetryText, retry));
+    }
 
     /// <summary>Steps which amounts the lines carry: all, the traced, none.</summary>
     [RelayCommand]
@@ -583,7 +603,7 @@ public sealed partial class GraphViewModel : ObservableObject
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // The case may have closed meanwhile; the place still holds in this session.
-            Notice = SaveFailedText;
+            Tell(ToastKind.Warning, SaveFailedText);
         }
     }
 
@@ -612,9 +632,9 @@ public sealed partial class GraphViewModel : ObservableObject
                 _version++;
                 Show(result.Scene, fit: false);
                 var problems = Notice;
-                Notice = problems.Length == 0
-                    ? ExpansionNotice(result, IsOffline)
-                    : $"{ExpansionNotice(result, IsOffline)} {problems}";
+                var said = ExpansionNotice(result, IsOffline);
+                Notice = problems.Length == 0 ? said : $"{said} {problems}";
+                ToastWanted?.Invoke(this, new ToastRequest(ExpansionKind(result), said));
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -622,9 +642,12 @@ public sealed partial class GraphViewModel : ObservableObject
             if (version == _version)
             {
                 // Say why, so that the user can tell a source that refused from a fault (a cancelled one says nothing).
-                Notice = exception is OperationCanceledException
-                    ? ExpandFailedText
-                    : $"{ExpandFailedText} {exception.Message}";
+                Notice = string.Empty;
+                Tell(
+                    ToastKind.Error,
+                    ExpandFailedText,
+                    exception is OperationCanceledException ? string.Empty : exception.Message,
+                    () => ExpandCommand.Execute(null));
             }
         }
         finally
@@ -677,10 +700,25 @@ public sealed partial class GraphViewModel : ObservableObject
         }
     }
 
-    /// <summary>Says what an expansion brought, honestly, also offline.</summary>
+    /// <summary>Gives the sort of toast an expansion is told with: new tx are a success, nothing new or a part is
+    /// information, and nothing brought in is a warning.</summary>
     /// <param name="result">The expansion.</param>
+    /// <returns>The sort.</returns>
+    public static ToastKind ExpansionKind(GraphExpansion result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return result.Outcome switch
+        {
+            ExpansionOutcome.Expanded when result.NewTransactions > 0 => ToastKind.Success,
+            ExpansionOutcome.Expanded or ExpansionOutcome.Partly => ToastKind.Information,
+            _ => ToastKind.Warning,
+        };
+    }
+
+    /// <summary>Says what an expansion brought, in a short line, with what the user should know besides.</summary>
+    /// <param name="result">What the expansion brought.</param>
     /// <param name="offline">Whether no exit is connected.</param>
-    /// <returns>The notice.</returns>
+    /// <returns>The line.</returns>
     public static string ExpansionNotice(GraphExpansion result, bool offline)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -832,7 +870,7 @@ public sealed partial class GraphViewModel : ObservableObject
                 // in this session. Said only while that case is still the one shown.
                 if (_session.Current == openCase)
                 {
-                    Notice = ViewSaveFailedText;
+                    Tell(ToastKind.Warning, ViewSaveFailedText);
                 }
             }
         }
@@ -850,6 +888,13 @@ public sealed partial class GraphViewModel : ObservableObject
         if (!keepNotice || Notice.Length == 0)
         {
             Notice = string.Join(" ", scene.Snapshot.Graph.Problems);
+            if (Notice.Length > 0 && Notice != _toldProblems)
+            {
+                // The graph's problems are told once, not at every reading of the same graph.
+                ToastWanted?.Invoke(this, new ToastRequest(ToastKind.Warning, Notice));
+            }
+
+            _toldProblems = Notice;
         }
         SelectedNode = scene.Node(SelectedNode)?.Key;
         SelectedEdge = scene.Edge(SelectedEdge)?.Key;

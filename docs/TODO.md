@@ -34,7 +34,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 
 **Användarens lista 2026-11-07, tas i tur och ordning** (ingen punkt går före någon annan; så polerar användaren):
 1. **TO1a, toastern** (godkänd): fel, varning, lyckat och information nere till höger, högst fem, staplas uppåt och
-   tonar ut. Tar över grafens Notice, och fel som ingen fångat. *Pågår.*
+   tonar ut. Tar över grafens Notice, och fel som ingen fångat. *Byggd 2026-11-07*; sidornas egna felrader (Källor,
+   Bevakning) går över till toastern när de sidorna ses över.
 2. **IN2b, ikonlisten vid noden** (godkänd): Expandera, Etikett, Bevaka, Bryt upp, Annan kedja och Kopiera som
    ikoner ovanför den valda noden; inspektören blir ren läsning, med *Varför?* som rund ikon.
 3. **IN1b, formulären vid noden:** Etikett (och Bryt upp och Annan kedja, samma skiss) fälls ut i en ruta bredvid noden
@@ -49,6 +50,11 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 9. **Pillret:** Tidslinje, Flöde, Exponering och Begäran (och de andra som inte är byggda) ska vara nedtonade.
 10. **Byta ärende i titelraden** går inte (ÄV1a, godkänd).
 11. **Grafens ikon i pillret** säger för lite; en mer beskrivande ikon skissas.
+12. **Terminal tas bort** (användarens beslut 2026-11-07: programmet har inga power users). CLAUDE.md och pillret
+    ändras.
+13. **Bevakningens tomma läge** ser inte professionellt ut: en större ikon i mitten med en förklarande text under att
+    det är tomt; knapparna och pillret uppe till höger (*Bevakar medan Chainsaw är öppet*, *Ny bevakning …*) görs om.
+14. **Bevakningens högra panel** står kvar när den är tom; den ska bara synas när en bevakning är vald.
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;

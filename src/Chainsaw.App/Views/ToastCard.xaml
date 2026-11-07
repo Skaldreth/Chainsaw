@@ -1,0 +1,94 @@
+<UserControl x:Class="Chainsaw.App.Views.ToastCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance Type=vm:Toast}"
+             mc:Ignorable="d" Margin="0,10,0,0">
+
+    <!--
+      One toast (sketch TO1a): the sort's round icon, the title, a line under it and an optional action, a cross that
+      closes, and for those that fade by themselves a thin line in the bottom edge that shows the time left. The sort's
+      colour is the ink; none uses the accent, which means the victim's money and what is chosen.
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+        <Style x:Key="Ink" TargetType="controls:GridIcon">
+            <Setter Property="Data" Value="{StaticResource Icon.Info}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:ToastKind.Error}">
+                    <Setter Property="Data" Value="{StaticResource Icon.Close}" />
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:ToastKind.Warning}">
+                    <Setter Property="Data" Value="{StaticResource Icon.Alert}" />
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:ToastKind.Success}">
+                    <Setter Property="Data" Value="{StaticResource Icon.Check}" />
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+        <Grid.RenderTransform>
+            <TranslateTransform x:Name="Slide" />
+        </Grid.RenderTransform>
+
+        <!-- The shadow in a layer of its own, so that the text is never drawn through the effect and stays sharp. -->
+        <Border CornerRadius="12" Background="{StaticResource Brush.SurfaceRaised}" IsHitTestVisible="False">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="30" ShadowDepth="10" Direction="270" Opacity="0.45" Color="Black" />
+            </Border.Effect>
+        </Border>
+
+        <Border CornerRadius="12" BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}"
+                Background="{StaticResource Brush.SurfaceRaised}" ClipToBounds="True">
+            <Grid>
+                <Grid Margin="14,12,12,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Width="28" Height="28" VerticalAlignment="Top">
+                        <Ellipse Opacity="0.16"
+                                 Fill="{Binding Foreground, ElementName=Glyph}" />
+                        <controls:GridIcon x:Name="Glyph" Size="16" Style="{StaticResource Ink}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Text}" FontSize="13" Foreground="{StaticResource Brush.TextMuted}"
+                                   TextWrapping="Wrap" LineHeight="19" Margin="0,3,0,0"
+                                   Visibility="{Binding HasText, Converter={StaticResource Visible}}" />
+                        <Button Style="{StaticResource Button.Link}" Content="{Binding ActionText}" Margin="0,6,0,0"
+                                Command="{Binding RunCommand}" AutomationProperties.Name="{Binding ActionText}"
+                                Visibility="{Binding HasAction, Converter={StaticResource Visible}}" />
+                    </StackPanel>
+
+                    <Button Grid.Column="2" Style="{StaticResource Button.Icon}" Width="26" Height="26" VerticalAlignment="Top"
+                            Command="{Binding CloseCommand}" AutomationProperties.Name="Stäng" ToolTip="Stäng">
+                        <controls:GridIcon Size="14" Data="{StaticResource Icon.Close}" />
+                    </Button>
+                </Grid>
+
+                <!-- The time left, for a toast that fades by itself; hovering stops it. -->
+                <Rectangle x:Name="Bar" Height="2" VerticalAlignment="Bottom" Opacity="0.7"
+                           Fill="{Binding Foreground, ElementName=Glyph}" RenderTransformOrigin="0,0.5"
+                           Visibility="{Binding IsSticky, Converter={x:Static controls:InvertVisibility.Instance}}">
+                    <Rectangle.RenderTransform>
+                        <ScaleTransform x:Name="BarScale" ScaleX="1" />
+                    </Rectangle.RenderTransform>
+                </Rectangle>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -26,6 +26,9 @@ internal sealed class TestGraphSource : IGraphSource
 
     public GraphExpansion? Expansion { get; set; }
 
+    /// <summary>A fault every expansion fails with, or <see langword="null"/>.</summary>
+    public Exception? ExpandFailure { get; set; }
+
     public IReadOnlyList<WhyLine> ClusterLines { get; set; } = [new("Länk", GuideTopic.CommonInputOwnership)];
 
     public Task<GraphScene> LoadAsync(ICase @case, TracingMethodKind method, CancellationToken cancellationToken)
@@ -46,7 +49,9 @@ internal sealed class TestGraphSource : IGraphSource
         CancellationToken cancellationToken)
     {
         Expansions.Add(requests);
-        return Task.FromResult(Expansion ?? new GraphExpansion(Scene(), ExpansionOutcome.Expanded, 2, []));
+        return ExpandFailure is { } failure
+            ? Task.FromException<GraphExpansion>(failure)
+            : Task.FromResult(Expansion ?? new GraphExpansion(Scene(), ExpansionOutcome.Expanded, 2, []));
     }
 
     public Task<IReadOnlyList<WhyLine>> ExplainClusterAsync(
@@ -422,6 +427,44 @@ public sealed class GraphViewModelTests
         Assert.Equal("2 nya tx i grafen.", rig.Graph.Notice);
         Assert.False(rig.Graph.IsExpanding);
         Assert.Equal(GraphSamples.KKey, rig.Graph.SelectedNode);
+    }
+
+    /// <summary>An expansion is told as a toast of its sort (sketch TO1a).</summary>
+    [Fact]
+    public async Task AnExpansionIsToldAsAToast()
+    {
+        var rig = new Rig();
+        var toasts = new List<ToastRequest>();
+        rig.Graph.ToastWanted += (_, request) => toasts.Add(request);
+        rig.Graph.Choose(GraphSamples.KKey, null);
+
+        await rig.Graph.ExpandAsync();
+
+        var toast = Assert.Single(toasts);
+        Assert.Equal(ToastKind.Success, toast.Kind);
+        Assert.Equal("2 nya tx i grafen.", toast.Title);
+    }
+
+    /// <summary>A failed expansion is an error with its fault's message and <em>Försök igen</em>.</summary>
+    [Fact]
+    public async Task AFailedExpansionIsAnErrorThatCanBeTriedAgain()
+    {
+        var rig = new Rig();
+        var toasts = new List<ToastRequest>();
+        rig.Graph.ToastWanted += (_, request) => toasts.Add(request);
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        rig.Source.ExpandFailure = new InvalidOperationException("Källan svarade fel.");
+
+        await rig.Graph.ExpandAsync();
+
+        var toast = Assert.Single(toasts);
+        Assert.Equal(ToastKind.Error, toast.Kind);
+        Assert.Equal(GraphViewModel.ExpandFailedText, toast.Title);
+        Assert.Equal("Källan svarade fel.", toast.Text);
+        Assert.Equal(GraphViewModel.RetryText, toast.ActionText);
+        rig.Source.ExpandFailure = null;
+        toast.Action!();
+        Assert.Equal(2, rig.Source.Expansions.Count);
     }
 
     /// <summary>Offline, an expansion that brought nothing says why honestly (principle 9).</summary>

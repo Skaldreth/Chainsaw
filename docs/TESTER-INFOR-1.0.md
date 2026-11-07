@@ -935,3 +935,19 @@ ligger bredvid `Chainsaw.exe`.
 - `%LOCALAPPDATA%\Chainsaw\Bevakning\` har `plan.bin`, `progress.bin`, `status.json`, `queue\…` och, medan ett ärende
   är öppet, `held\…`. Öppna `plan.bin` och en fil i `queue` i en texteditor: inga adresser ska gå att läsa (DPAPI).
   Kopiera `plan.bin` till en annan Windows-användare: bakgrunden där bevakar ingenting.
+
+## Meddelanden och polering (TO1a, 2026-11-07)
+
+- [ ] Expandera en adress: en grön toast *N nya tx i grafen* glider in nere till höger och tonar ut efter några
+      sekunder; strecket i nederkanten krymper, och hovring stoppar det.
+- [ ] Koppla ner utgången och expandera: en toast säger varför. Ett fel ligger kvar tills det stängs med krysset, och
+      *Försök igen* gör om expansionen.
+- [ ] Sju toasts i rad: högst fem står, den äldsta tonar ut när en sjätte kommer.
+- [ ] Lås med Ctrl+L: inga toasts ligger kvar över låsskärmen.
+- [ ] Med animeringar avstängda i Windows dyker en toast upp utan glidning och försvinner utan att tona.
+- [ ] Bildspråkets *?* nere till höger i grafen är tydligt, med ett skarpt frågetecken och en ring på 1,5 px.
+- [ ] Inspektörens vänsterkant har ett litet grepp mitt på; vilar pekaren där en stund tonar en mörkgrå linje in längs
+      hela kanten.
+- [ ] Etikett, Bryt upp och Annan kedja går att spara utan skäl.
+- [ ] *Inställningar → Källor → Prova alla nu* och en expansion fungerar (felet *The media type asked for is not
+      valid* är borta).

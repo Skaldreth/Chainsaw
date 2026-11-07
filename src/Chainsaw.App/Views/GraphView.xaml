@@ -73,12 +73,11 @@
             <views:GraphStartView x:Name="StartView" DataContext="{Binding Start}"
                                   Visibility="{Binding IsShown, Converter={StaticResource Visible}}" />
 
-            <!-- What was traced and how, and what the last step said: top left, beside the pill's column. -->
+            <!-- What was traced and how: top left, beside the pill's column. -->
             <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="84,14,0,0" MaxWidth="520"
                         IsHitTestVisible="False">
                 <TextBlock Text="{Binding TraceText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}" />
-                <TextBlock Text="{Binding Notice}" FontSize="13" Foreground="{StaticResource Brush.TextMuted}"
-                           TextWrapping="Wrap" Margin="0,4,0,0" />
+                <!-- What the last step said goes to the toaster (sketch TO1a), not here. -->
             </StackPanel>
 
             <!-- The graph's corner: the switch, the method (always shown) and the amounts on the lines. -->

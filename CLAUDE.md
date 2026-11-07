@@ -411,6 +411,11 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Guiden** (användarens önskemål 2026-11-06): förklaringar inne i programmet, som avsnitt man kan läsa, i stil med de
   förklarande anteckningarna till höger i skisserna. En heuristik, ett slut på spåret eller ett begrepp (UTXO, växeladress,
   CoinJoin, peel chain) har ett *?* som öppnar rätt avsnitt. Texterna ligger i repot och skrivs medan funktionerna byggs.
+- **Meddelanden är TO1a** (användarens beslut 2026-11-07): en gemensam toaster nere till höger (`Toaster`) som alla
+  delar säger fel, varningar, lyckat och information genom, var och en med sin färg och ikon (inte accenten). Den nya
+  glider in längst ner och skjuter de äldre uppåt, högst fem; lyckat och information tonar ut efter några sekunder
+  (hovring stoppar), fel och varningar ligger kvar tills de stängs. En toast kan ha en åtgärd (*Försök igen*).
+  Toasterna töms när Chainsaw låses.
 - **Visa aldrig påhittade data** eller funktioner som inte finns. Saknas något, skriv det ärligt ("Inte byggt än", "Offline").
 - **Kortkommandon** är viktiga och visas i menyer och verktygstips.
 - **Ikoner** ritas på ett rutnät på 24 × 24 med runda ändar, i samma stil som Lucide, och visas med `GridIcon`, som håller
@@ -482,7 +487,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2a och IN2b väntar på val |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
@@ -491,4 +496,4 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | SO1a vald |
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b; byggd i etapp 22 |
-| **Meddelanden** | TO1a (toastern nere till höger) | Väntar på ok |
+| **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |

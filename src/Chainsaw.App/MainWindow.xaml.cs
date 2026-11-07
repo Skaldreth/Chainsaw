@@ -62,6 +62,7 @@ public partial class MainWindow : Window
     /// <param name="background">
     /// The background watching: the plan, the hold on the open case and its state, started here.
     /// </param>
+    /// <param name="toaster">The toaster (sketch TO1a), which every part can say something through.</param>
     public MainWindow(
         ShellViewModel shell,
         GateViewModel gate,
@@ -70,7 +71,8 @@ public partial class MainWindow : Window
         GuideViewModel guide,
         MonitoringViewModel monitoring,
         WatchRunner watchRunner,
-        BackgroundLink background)
+        BackgroundLink background,
+        Toaster toaster)
     {
         InitializeComponent();
         _shell = shell;
@@ -83,6 +85,17 @@ public partial class MainWindow : Window
         ExitPanelView.Attach(shell.ExitPanel);
         SettingsDialog.Attach(shell.Settings);
         GraphPage.Attach(graph);
+        Toasts.Attach(toaster);
+        CrashGuard.Toaster = toaster;
+        graph.ToastWanted += (_, request) => toaster.Show(request);
+        gate.PropertyChanged += (_, _) =>
+        {
+            // Nothing stands over the lock screen: a toast may name an address or a case.
+            if (!gate.IsShellVisible)
+            {
+                toaster.Clear();
+            }
+        };
         GuidePage.Attach(guide);
         GuidePanel.Attach(guidePanel);
         WireGuide(graph, guide);
