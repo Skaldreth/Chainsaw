@@ -32,6 +32,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   väg ut och inga uppslag görs medan Chainsaw är låst. Ska låsningen också koppla ner utgången?
 - **Bara https** (etapp 4): `IExitHttp` vägrar `http`, så att utgången aldrig ser innehållet. En egen Esplora i ett
   lokalt nät över `http` går då inte att nå. Räcker det, eller ska `http` tillåtas för en uttryckligen betrodd källa?
+- **Tröskelvärdena i klustringen** (etapp 6, valda av sessionen): växeln slås ihop automatiskt vid minst tre tecken
+  och inget emot, i en tx med två outputs; en peel chain kräver tre kända hopp och att det som går vidare är minst fyra
+  gånger det som skalas av; ett jämnt belopp är en multipel av 0,001 BTC; en möjlig CoinJoin (två lika stora outputs)
+  gör allt i tx:en till förslag. Pröva med kryptospåraren, särskilt om peel chain ska slå ihop automatiskt.
 - **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Användaren frågar kryptospåraren vilken som används i praktiken (planerat 2026-11-08).
 
 ## Väntar på skiss
@@ -76,10 +80,22 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 ### Klustring och heuristiker
 - **Troliga utgångar ur en mixer** (CLAUDE.md, *Mixers är vanliga*): belopp minus avgift, tidsfönster, adresstyp och kända
   mönster per mixer. Kandidater som användaren godkänner eller avfärdar. Fråga kryptospåraren vilka mixers som syns oftast.
-- **Common-input-ownership:** alla inputs i en tx har samma ägare, utom i CoinJoin.
-- **Växeladress:** typ av adress, runda belopp, ny adress, optimal växel, samma skripttyp som inputs.
-- **Känna igen mönster:** peel chain, CoinJoin (Wasabi, Whirlpool, JoinMarket), konsolidering, börsens sweep till hot wallet.
-- **Tjänster ur beteende:** en börs insättningsadresser, utbetalningar i batch.
+- **Tjänster ur beteende:** en börs insättningsadresser (många insättningar som sveps till samma hot wallet),
+  utbetalningar i batch, konsolidering. Etapp 6 slår ihop insättningsadresserna i en sweep men säger inte *börs*.
+- **Godkänna ett förslag och ångra en uppbrytning** (etapp 6): förslag syns men kan inte göras till en
+  sammanslagning, och en uppbrytning kan inte tas tillbaka. Båda behöver en egen förseglad post med vem och varför
+  (en manuell sammanslagning som en egen *analys*, `user v1`). Byggs med gränssnittet för kluster.
+- **Fler tecken för växeln:** jämna belopp i SEK eller USD vid tx:ens tid (kräver kurser), plånbokens fingeravtryck
+  (tx-version, locktime, RBF, ordningen på outputs), och adressens hela historik från källan i stället för bara det
+  ärendet känner till (*ny adress* är nu *inte sedd i ärendet*).
+- **Fler mönster för CoinJoin:** Wasabi 2:s exakta lista över standardbelopp, nyare Whirlpool-pooler (efterföljarna
+  till Samourai), JoinMarkets avgifter och fidelity bonds, och PayJoin (syns inte på kedjan; kan bara anas).
+- **Peel chain med fler inputs** (ett hopp som fylls på) och kedjor där växeln inte är den största outputen.
+- **En version som dras tillbaka:** visar det sig att en heuristik i en version slog ihop fel ska dess slutsatser kunna
+  sluta räknas utan att tas bort (princip 8), till exempel med en förseglad post *dras tillbaka* per version.
+- **Stora ärenden i klustringen:** klustren byggs om ur alla förseglade slutsatser vid varje fråga, och en körning
+  läser alla fingeravtryck. Det räcker för tusentals tx; för större ärenden behövs ett register bredvid (som Chains
+  har) eller en cache som byggs om när något nytt förseglas.
 - **Mönsterigenkänning** (kanske en lokal modell senare): läggs till som ännu en analys med namn och version.
 
 ### Attribution
@@ -182,6 +198,6 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ### Övrigt
 - **Länken `chainsaw:`** registrerad för användaren, ett exemplar av Chainsaw som tar emot länkar, och vänta på upplåsning.
-- **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` (UTXO och adresstyper finns; kvar är
-  växeladress, CoinJoin, peel chain, varje heuristik, spårningsmetoderna, varför ett spår tar slut).
+- **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` (UTXO, adresstyper, common-input-ownership,
+  växeladress, CoinJoin och peel chain finns; kvar är spårningsmetoderna och varför ett spår tar slut).
 - **Testdata:** `/testdata` med påhittade ärenden och syntetiska tx-mönster, bara i Debug.

@@ -82,3 +82,20 @@ ansluten utgång.
   ansluten* utan att något går ut på nätet.
 - `/verify` på ett ärende med hämtade svar är grönt, och svarens SHA-256 stämmer med `sha256sum` av samma svar hämtat
   med `curl` genom samma utgång (så länge svaret inte har ändrats).
+
+## Klustringen (etapp 6, Clustering)
+
+Klustringen har inget gränssnitt än. Det provas när grafen kan hämta tx och visa kluster, helst tillsammans med
+kryptospåraren.
+
+- En känd Whirlpool-mix, en Wasabi 2-runda och en JoinMarket-tx känns igen som CoinJoin, spåret tar slut där, och
+  ingen av deras inputs slås ihop.
+- En börs sweep slår ihop insättningsadresserna, men kunderna som betalade in hamnar inte i börsens kluster.
+- En batchutbetalning från en börs gör ingen kund till en del av börsen.
+- En känd peel chain känns igen när minst tre hopp är hämtade, och bara de stora outputarna slås ihop.
+- *Varför?* på varje adress i ett kluster visar heuristik, version och tx, och tx:en går att slå upp i en annan
+  blockutforskare.
+- En uppbrytning står kvar efter att ärendet stängts och öppnats, och efter att samma tx hämtats och analyserats igen.
+- Jämför några kluster med kryptospårarens verktyg: slår Chainsaw ihop för mycket eller för lite? Skriv ner varje
+  skillnad, så att tröskelvärdena kan prövas (TODO, *Väntar på beslut*).
+- `/verify` är grönt efter klustring och uppbrytningar.
