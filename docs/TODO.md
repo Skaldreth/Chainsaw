@@ -32,13 +32,28 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 
 ### Polering först (användarens beslut 2026-11-07: inget nytt byggs förrän det som finns känns bra)
 
-Inventeringen av appen mot besluten, i ordning efter vad som gör mest för första intrycket:
-Väntar på val (2026-11-07): **IN2a eller IN2b**, inspektörens åtgärder som ikoner (användaren: rörigt, inte
-professionellt), och **TO1a**, en gemensam toaster nere till höger för fel, varningar, lyckat och information (högst
-fem, staplas uppåt, tonar ut). Toastern ska ta över grafens Notice och sidornas egna felrader. Expansionen av
-`bc1qtm7…3xfz` misslyckas på Windows men inte här (parsern, kontrollen mot bytes och grafen klarar adressens
-coinbase-tx); felet säger nu varför, så orsaken kan läsas nästa gång. *Prova alla nu* kraschade; nu fångas felet och
-sägs på sidan, och inget fel stänger Chainsaw (`crash.log`).
+**Användarens lista 2026-11-07, tas i tur och ordning** (ingen punkt går före någon annan; så polerar användaren):
+1. **TO1a, toastern** (godkänd): fel, varning, lyckat och information nere till höger, högst fem, staplas uppåt och
+   tonar ut. Tar över grafens Notice, och fel som ingen fångat. *Pågår.*
+2. **IN2b, ikonlisten vid noden** (godkänd): Expandera, Etikett, Bevaka, Bryt upp, Annan kedja och Kopiera som
+   ikoner ovanför den valda noden; inspektören blir ren läsning, med *Varför?* som rund ikon.
+3. **IN1b, formulären vid noden:** Etikett (och Bryt upp och Annan kedja, samma skiss) fälls ut i en ruta bredvid noden
+   i grafen, inte i inspektören.
+4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. Ett prov här mot mempool.space med samma adress gav
+   50 tx och resten tillbakahållet, alltså fungerar Tracing och Chains; orsaken i appen är inte hittad. Provet tog
+   **nästan 6 minuter för 53 uppslag**, vilket är för långsamt (takten per endpoint?).
+5. **Grafens hörn uppe till höger:** ikoner i stället för knappar (Förslag, Områden, växeln, FIFO, Alla belopp).
+6. **Inspektörens skugga** går upp över titelraden i ovankant.
+7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissas om.
+8. **Undermenyn Nytt** i pillret ska animeras när den visas.
+9. **Pillret:** Tidslinje, Flöde, Exponering och Begäran (och de andra som inte är byggda) ska vara nedtonade.
+10. **Byta ärende i titelraden** går inte (ÄV1a, godkänd).
+11. **Grafens ikon i pillret** säger för lite; en mer beskrivande ikon skissas.
+
+Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
+två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
+bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje vid hovring; piller med 1,5 px kant.
+
 1. **Felrättningar utan ny form:** inaktuella rader i TESTER-INFOR (väntar tills etapp 27 är inne, som skriver i
    samma fil). (Rättat 2026-11-07: GateView och Windows som utgång, *Kättingen* i stället för *Teckenfältet*, en
    text för offline, *Ctrl+K* ur `ViewTable`, hovring på `Toggle.Switch`, bildspråkets *?* nere till höger.)
