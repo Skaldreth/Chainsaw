@@ -1,0 +1,157 @@
+using System.Globalization;
+using Chainsaw.SharedKernel;
+
+namespace Chainsaw.Modules.Pricing.Contracts;
+
+/// <summary>
+/// The price of one unit of a chain's currency at a time in a currency: a calculation from one or two rates, each a
+/// fact from a named source (principle 2). <see cref="Steps"/> shows how it was worked out, in Swedish, so that a user
+/// can ask <i>why?</i> and redo it with any calculator (principle 3).
+/// </summary>
+public sealed record Price
+{
+    /// <summary>The Swedish culture the steps are written in.</summary>
+    private static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
+
+    /// <summary>A rate as the source gave it, with every decimal and no trailing zeros added.</summary>
+    private const string ExactFormat = "#,##0.############################";
+
+    /// <summary>An amount of money for the user, with two decimals.</summary>
+    private const string MoneyFormat = "#,##0.00";
+
+    /// <summary>Creates a price from the rates it is worked out from.</summary>
+    /// <param name="at">The time asked about.</param>
+    /// <param name="currency">The currency counted in.</param>
+    /// <param name="cryptoRate">The crypto rate.</param>
+    /// <param name="fiatRate">
+    /// The rate that converts the crypto rate's currency into <paramref name="currency"/>, or <see langword="null"/>
+    /// when the crypto rate is already in it.
+    /// </param>
+    /// <exception cref="ArgumentException">The rates do not fit together or with the currency.</exception>
+    public Price(DateTimeOffset at, FiatCurrency currency, CryptoRate cryptoRate, FiatRate? fiatRate)
+    {
+        ArgumentNullException.ThrowIfNull(cryptoRate);
+        if (fiatRate is null ? cryptoRate.Quote != currency
+            : fiatRate.Currency != cryptoRate.Quote || fiatRate.Base != currency)
+        {
+            throw new ArgumentException("The rates do not lead to the currency.", nameof(fiatRate));
+        }
+
+        At = at;
+        Currency = currency;
+        CryptoRate = cryptoRate;
+        FiatRate = fiatRate;
+        UnitPrice = fiatRate is null ? cryptoRate.Close : cryptoRate.Close * fiatRate.PerUnit;
+    }
+
+    /// <summary>Gets the chain whose currency is priced.</summary>
+    public Chain Chain => CryptoRate.Chain;
+
+    /// <summary>Gets the time asked about.</summary>
+    public DateTimeOffset At { get; }
+
+    /// <summary>Gets the currency counted in.</summary>
+    public FiatCurrency Currency { get; }
+
+    /// <summary>Gets the price of one unit, exact (the rates multiplied, not rounded).</summary>
+    public decimal UnitPrice { get; }
+
+    /// <summary>Gets the crypto rate.</summary>
+    public CryptoRate CryptoRate { get; }
+
+    /// <summary>Gets the rate that converts into the currency, when one was needed.</summary>
+    public FiatRate? FiatRate { get; }
+
+    /// <summary>Gets the sealed responses the price is built on.</summary>
+    public IReadOnlyList<RateOrigin> Origins =>
+        FiatRate is null ? [CryptoRate.Origin] : [CryptoRate.Origin, FiatRate.Origin];
+
+    /// <summary>Gets how the price was worked out, one line per step, in Swedish.</summary>
+    public IReadOnlyList<string> Steps
+    {
+        get
+        {
+            var asset = Chain.Code();
+            var crypto = CryptoRate;
+            var steps = new List<string>
+            {
+                $"1 {asset} = {Exact(crypto.Close)} {crypto.Quote.Code()}: {Name(crypto.Origin.Source)}, " +
+                $"{crypto.Market}, sista priset för {Period(crypto)} (UTC).",
+            };
+            if (FiatRate is { } fiat)
+            {
+                var moved = fiat.Date == fiat.AskedDate
+                    ? string.Empty
+                    : $" ({Day(fiat.AskedDate)} saknar kurs, senaste dagen före används)";
+                steps.Add(
+                    $"1 {fiat.Currency.Code()} = {Exact(fiat.PerUnit)} {fiat.Base.Code()}: " +
+                    $"{Name(fiat.Origin.Source)}, serien {fiat.Series}, kursen för {Day(fiat.Date)}{moved}.");
+                steps.Add(
+                    $"1 {asset} = {Exact(crypto.Close)} × {Exact(fiat.PerUnit)} = {Exact(UnitPrice)} " +
+                    $"{Currency.Code()}.");
+            }
+
+            return steps;
+        }
+    }
+
+    /// <summary>Values an amount of bitcoin at this price.</summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns>The value with its steps.</returns>
+    /// <exception cref="InvalidOperationException">The price is not for Bitcoin.</exception>
+    public Valuation ValueOf(Satoshi amount)
+    {
+        if (Chain != Chain.Bitcoin)
+        {
+            throw new InvalidOperationException("Only a price for Bitcoin values satoshi.");
+        }
+
+        var bitcoin = amount.ToBitcoin();
+        var value = bitcoin * UnitPrice;
+        var rounded = Math.Round(value, 2, MidpointRounding.AwayFromZero);
+        var line = $"{Exact(bitcoin)} {Chain.Code()} × {Exact(UnitPrice)} = {Exact(value)} {Currency.Code()}, " +
+            $"avrundat {rounded.ToString(MoneyFormat, Swedish)} {Currency.Code()}.";
+        return new Valuation(this, bitcoin, value, rounded, [.. Steps, line]);
+    }
+
+    /// <summary>Writes a number exactly as it is, in Swedish.</summary>
+    /// <param name="value">The number.</param>
+    /// <returns>For example <c>35 619</c> or <c>10,4567</c>.</returns>
+    private static string Exact(decimal value) => value.ToString(ExactFormat, Swedish);
+
+    /// <summary>Writes a day.</summary>
+    /// <param name="day">The day.</param>
+    /// <returns>For example <c>2023-11-14</c>.</returns>
+    private static string Day(DateOnly day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    /// <summary>Writes a crypto rate's period.</summary>
+    /// <param name="rate">The rate.</param>
+    /// <returns>For example <c>2023-11-14 22:00–23:00</c>.</returns>
+    private static string Period(CryptoRate rate)
+    {
+        var start = rate.PeriodStart.UtcDateTime;
+        var end = rate.PeriodEnd.UtcDateTime;
+        var startText = start.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        var endFormat = start.Date == end.Date ? "HH:mm" : "yyyy-MM-dd HH:mm";
+        return $"{startText}–{end.ToString(endFormat, CultureInfo.InvariantCulture)}";
+    }
+
+    /// <summary>Gives a source's name for the user.</summary>
+    /// <param name="source">The source's stable name.</param>
+    /// <returns>For example <c>Riksbanken</c>.</returns>
+    private static string Name(string source) => source switch
+    {
+        "bitstamp" => "Bitstamp",
+        "riksbank" => "Riksbanken",
+        _ => source,
+    };
+}
+
+/// <summary>An amount valued at a price, with the steps that lead there (principle 3).</summary>
+/// <param name="Price">The price.</param>
+/// <param name="Amount">The amount in the chain's currency.</param>
+/// <param name="Value">The value, exact.</param>
+/// <param name="Rounded">The value rounded to two decimals (half away from zero), as shown.</param>
+/// <param name="Steps">How it was worked out, one line per step, in Swedish.</param>
+public sealed record Valuation(
+    Price Price, decimal Amount, decimal Value, decimal Rounded, IReadOnlyList<string> Steps);

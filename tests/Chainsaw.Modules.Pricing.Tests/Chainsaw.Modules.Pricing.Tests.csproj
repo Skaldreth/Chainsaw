@@ -13,5 +13,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Pricing\Chainsaw.Modules.Pricing\Chainsaw.Modules.Pricing.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Cases\Chainsaw.Modules.Cases\Chainsaw.Modules.Cases.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Responses\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
