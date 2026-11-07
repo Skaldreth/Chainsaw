@@ -26,6 +26,10 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
   common-input-ownership, växeladress med tecken och tröskel, peel chain som bara föreslår), slutsatser och
   uppbrytningar förseglade, kluster som förklarar varje adress och uppbrytningar som håller. Guiden har fått fyra
   avsnitt. Inget gränssnitt.
+- **Etapp 7, Tracing** (2026-11-07, DEV-LOG): grafen som modell (aktörer, kluster, tx med flera ägare, kanter,
+  hopp och tid, kant till annan kedja), expansion genom `IBitcoinSource`, FIFO och haircut som aldrig skapar eller
+  tappar pengar, slut på spåret med orsak, länkar till andra kedjor förseglade, och grafen visas ur ärendet utan att
+  något skickas (`LookupMode.CaseOnly` i Chains). Guiden har fått två avsnitt. Inget gränssnitt.
 
 ## Nattkörningen 2026-11-07
 
@@ -39,7 +43,7 @@ session. Etapperna i ordning; en etapp som är klar markeras här av huvudsessio
 | 4 | **Network:** utgångarna som modell och `IExitHttp`, som **vägrar** när ingen utgång är ansluten (princip 4); WireGuard-tunneln själv senare | Klar |
 | 5 | **Chains:** Bitcoin-modellen (block, tx, inputs, outputs, adresser i `Satoshi`), `IBitcoinSource`, Esplora-källan genom `IExitHttp`, varje råsvar sparat med SHA-256 och blockhöjd i ärendet, offline ur ärendet; tester mot syntetiska svar | Klar |
 | 6 | **Clustering:** heuristikerna common-input-ownership v1, CoinJoin v1 (stoppar sammanslagning), växeladress v1 och peel chain v1, med namn, version och tx; kluster med sammanslagningar och uppbrytningar som minns; tester mot ett facit av syntetiska mönster | Klar |
-| 7 | **Tracing:** grafen som modell (aktörer, adresser, tx, kanter, kant till annan kedja), spårningsmetoderna FIFO och haircut, slut på spåret med orsak; tester | Väntar |
+| 7 | **Tracing:** grafen som modell (aktörer, adresser, tx, kanter, kant till annan kedja), spårningsmetoderna FIFO och haircut, slut på spåret med orsak; tester | Klar |
 | 8 | **Attribution:** etiketter med ursprung, OFAC-listans kryptoadresser ur en sparad fil, etikettbiblioteket som smittar mellan ärenden (CLAUDE.md, *Etiketter smittar*); tester | Väntar |
 
 Gränssnittet byggs inte i natt utöver det som redan är godkänt. Huvudsessionen skissar i slutet av natten det som behövs

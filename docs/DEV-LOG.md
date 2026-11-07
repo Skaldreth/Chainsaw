@@ -399,3 +399,96 @@ facit av syntetiska mönster:
 - stora ärenden.
 
 **Återstår:** att grafen kör `Analyse` när tx hämtas och visar kluster, förslag och *varför?* (skissas först).
+
+## Etapp 7 (2026-11-07): Tracing, grafen som modell och spårningsmetoderna
+
+Modulen `Tracing` utan gränssnitt: `ITracingService` (startpunkter, expansion, grafen, länkar till andra kedjor,
+platser och spårning), `ITracingMethod` (en metod som ett steg med namn och version) och `ITrailEndClassifier` (det
+som känner igen var spåret tar slut), registrerade i `AddTracingModule`.
+
+- **Grafen** (`TraceGraph`) byggs varje gång ur ärendet:
+  - en nod per aktör: kluster ur Clustering, en ensam adress, en tx vars inputs har flera ägare (till exempel en
+    CoinJoin), ett mynt utan adress och en tx på en annan kedja;
+  - en kant per par av aktörer med överföringarna summerade, deras tx, block och tid;
+  - en kant *fortsätter på annan kedja* till tx:en som användaren knutit för hand;
+  - varje nod vet sitt hopp från startpunkten (negativt före den), när pengarna först kom dit, hur långt den är
+    expanderad, varför spåret tar slut där och var användaren ställt den i fri yta och i hoppkolumner;
+  - varje kant vet om den går framåt, i sidled eller tillbaka (en båge).
+- **Expansionen** är ett steg som läser genom `IBitcoinSource`: en adress historik (nyaste först, högst 50 tx som
+  förval) eller en tx och de tx som spenderar dess utgångar, och för varje ny tx vart dess utgångar gick. Efteråt körs
+  klustringen över grafens tx. Grafen växer bara så (princip 7).
+- **Att visa grafen skickar ingenting** (princip 4 och 6): den läses med det nya läget `LookupMode.CaseOnly` i Chains.
+  Det som kan ha ändrats säger det, och det som saknas är *inte expanderat ännu*.
+- **FIFO v1 och haircut v1:**
+  - FIFO lägger inputs efter varandra på en linje och klipper av outputs i ordning, med avgiften sist.
+  - Haircut fördelar i proportion, i hela satoshi, med största rest för det som blir över.
+  - Positionerna (`TaintSet`) gör att FIFO håller ihop pengar genom flera hopp.
+  - Varje tx kontrolleras: det som gick in är exakt outputs plus avgift. Summan av alla slut kontrolleras mot det
+    spårade. En metod som skapar eller tappar pengar vägras.
+- **Ett spårat belopp är en slutsats** (`TracedAmount`): metod, version, tx det räknades genom och `Explain()`, som
+  säger att det är en bedömning. Varje slut, mynt, kant och tx säger också om något det bygger på kan ändras (en
+  obekräftad tx eller ett svar som inte kunde frågas om).
+- **Slut på spåret med orsak** (`TrailEndReason`):
+  - Inte slut än: *inte expanderad ännu*, *ligger kvar* och *uppgifterna går inte ihop*.
+  - Riktiga slut: avgift till minerare, kan aldrig spenderas (OP_RETURN), CoinJoin (känd, ur Clusterings slutsats),
+    mixer, privacy coin, annan kedja (med fortsättningen när den är knuten), börs och okänd tjänst.
+  - Mixer, börs, brygga och okänd tjänst kommer från etiketter (Attribution) genom `ITrailEndClassifier`.
+- **Lagring i ärendet:**
+  - Vanlig data som får ändras: startpunkter, expansioner och platser. Startpunkter får en rad i journalen.
+  - Förseglat: länkarna till andra kedjor och när de tas tillbaka (`tracing.cross_chain`), med en rad i journalen.
+  - Inget som räknas fram ur kedjan sparas.
+- **Guiden:** `sparningsmetoder.md` (*Spårningsmetoder: FIFO och haircut*) och `sparet-tar-slut.md` (*Varför ett spår
+  tar slut*).
+
+**Egna beslut:**
+- **LIFO och poison byggs inte.** Kontraktet tar emot dem, men LIFO behöver en definition och poison ger inga belopp
+  som går jämnt ut. Står i TODO.
+- **`LookupMode.CaseOnly` och `LookupStatus.NotInCase` i Chains** (granskningen omgång 1): utan dem frågade varje
+  visning av grafen nätet om varje tx och förseglade svaren igen.
+- **En tx med inputs från flera aktörer är en egen nod**, eftersom det inte går att läsa vilken input som betalade
+  vilken output. Växel tillbaka till samma aktör blir ingen kant.
+- **Spåret följs inte in i en börs egna flyttar** (till exempel börsens sweep), eftersom pengarna då blandas med andra
+  kunders.
+- **En startpunkt i form av en tx** lägger aktörerna som betalar in i hopp 0. En startpunkt längre fram i samma flöde
+  som en annan vägras när man spårar, så att inget räknas två gånger.
+- **Ett mynt fortsätter på en annan kedja på ett ställe i taget.** En ny länk görs efter att den gamla tagits tillbaka.
+- **En expansion av samma adress eller tx igen behåller det den förra tog med sig**; grafen krymper aldrig av sig själv.
+- **En bekräftad tx som spenderar ett mynt vinner över en obekräftad**, som kan ha ersatts (RBF).
+- **Spårningen är synkron** och snabb för hundratals tx. Gränssnittet anropar den utanför UI-tråden. En
+  `TraceAsync` står i TODO.
+
+**Granskningen:** fyra omgångar.
+- **Omgång 1** gav tre I och nio M:
+  - **I:** en ny expansion med lägre gräns tog tyst bort tx ur grafen.
+  - **I:** varje visning frågade nätet om allt igen.
+  - **I:** linjen in i en CoinJoin visade inget spårat belopp.
+  - **M:** motstridiga uppgifter, obekräftade spenderare, `with` på grafen, långsamma sökningar, sidbläddring som inte
+    går framåt, tom adress, coinbase, utbredning och dokument.
+- **Omgång 2** gav ett I och sex M:
+  - **I:** en ersatt obekräftad tx kunde vinna över den bekräftade, och slutet sade inte att det kunde ändras.
+  - **M:** dubbla uppslag, gamla sidor, linjer in i en tx vid motstridiga uppgifter, guiden, dokumentation och
+    tillbakatagna länkar.
+- **Omgång 3** gav två I och tre M:
+  - **I:** ett slut vid en tx som kan ersättas sade inte att det kunde ändras.
+  - **I:** två länkar från samma mynt dubblade beloppet på linjerna.
+  - **M:** tre mindre fynd. En obekräftad spenderare i grafen vinner fortfarande över ett sparat *ospenderad* och
+    märks *kan ha ändrats*; granskaren godtog det.
+- **Omgång 4:** inga C eller I. Tre M rättades:
+  - ett slut vid en CoinJoin pekar på tx-noden;
+  - kanter och tx säger om de kan ändras;
+  - kanten till en annan kedja är en bedömning.
+
+Ingen omgång hittade ett belopp som skapades eller försvann. Alla C och I är rättade och har regressionstester: 67
+tester i Tracing (bland dem slumpade flöden för båda metoderna), 135 i Chains och 715 i hela lösningen.
+
+**Kvar i TODO:**
+- LIFO och poison;
+- hur långt en expansion får breda ut sig;
+- att fråga om alla mynt som kan ha flyttats;
+- `TraceAsync`;
+- stora grafer;
+- tidsfönster för en adress historik;
+- att spara vald metod;
+- att hitta fortsättningen på en annan kedja själv.
+
+**Återstår:** grafen (GR4) som ritar modellen, och Attribution som ger börser, mixers och bryggor.

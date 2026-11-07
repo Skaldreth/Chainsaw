@@ -178,6 +178,9 @@ public sealed class ReviewTests : IDisposable
 
         Assert.All(result.Ends, end => Assert.True(end.MayBeOutdated));
         Assert.True(Assert.Single(result.Coins, coin => coin.Coin.Txid == pending.Txid).MayBeOutdated);
+        Assert.True(Assert.Single(result.Transactions).MayBeOutdated);
+        Assert.All(result.Edges.Where(edge => edge.EdgeKey.Contains(Wpkh("c").Value, StringComparison.Ordinal)),
+            edge => Assert.True(edge.MayBeOutdated));
     }
 
     [Fact]

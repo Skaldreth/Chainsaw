@@ -367,7 +367,8 @@ internal sealed class TraceCalculator
             }
         }
 
-        return new TracedTransaction(txid, traced, [.. taint.Outputs.Select(set => set.Amount)], taint.Fee);
+        return new TracedTransaction(
+            txid, traced, [.. taint.Outputs.Select(set => set.Amount)], taint.Fee, mayChange || MayChange(txid));
     }
 
     /// <summary>Checks that a method neither created nor lost money in a transaction.</summary>
@@ -402,11 +403,29 @@ internal sealed class TraceCalculator
             Amount(holding.Taint.Amount, holding.Through),
             coin,
             ending.Transaction,
-            NodeOf(coin, Output(coin))?.Key,
+            EndNode(coin, ending),
             ending.Explanation,
             ending.Basis,
             ending.Continuations,
             ending.MayBeOutdated || holding.MayBeOutdated);
+    }
+
+    /// <summary>
+    /// Gives the node an end stops at: the transaction's node when the trail really ends at a transaction drawn as a
+    /// node of its own (for example a CoinJoin), otherwise the node that holds the coin.
+    /// </summary>
+    /// <param name="coin">The coin.</param>
+    /// <param name="ending">How it ends.</param>
+    /// <returns>The node's key, or <see langword="null"/>.</returns>
+    private string? EndNode(Outpoint coin, Ending ending)
+    {
+        if (ending.Transaction is { } txid && ending.Reason.EndsTrail()
+            && _graph.Node(NodeKeys.Transaction(txid)) is { } node)
+        {
+            return node.Key;
+        }
+
+        return NodeOf(coin, Output(coin))?.Key;
     }
 
     /// <summary>
@@ -449,6 +468,7 @@ internal sealed class TraceCalculator
         {
             var sum = Satoshi.Zero;
             var through = new SortedSet<string>(StringComparer.Ordinal);
+            var mayChange = false;
             foreach (var transfer in edge.Transfers)
             {
                 var paidOut = transfer.Coin.Txid == transfer.Txid;
@@ -457,12 +477,14 @@ internal sealed class TraceCalculator
                 {
                     sum += holding.Taint.Amount;
                     through.UnionWith(holding.Through);
+                    mayChange |= holding.MayBeOutdated || _steps[transfer.Coin].MayBeOutdated
+                        || _steps[transfer.Coin].End?.MayBeOutdated == true;
                 }
             }
 
             if (sum != Satoshi.Zero)
             {
-                edges.Add(new TracedEdge(edge.Key, Amount(sum, through)));
+                edges.Add(new TracedEdge(edge.Key, Amount(sum, through), mayChange));
             }
         }
 

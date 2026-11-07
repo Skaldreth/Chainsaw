@@ -188,7 +188,9 @@ public enum EdgeDirection
 
 /// <summary>
 /// The transfers from one actor to another, summed. Each transfer and its amount is a fact from the chain; which
-/// actor an address belongs to is Clustering's conclusion, so the sum per pair of actors rests on it.
+/// actor an address belongs to is Clustering's conclusion, so the sum per pair of actors rests on it. An edge that
+/// continues on another chain rests on the user's link (a judgement), and its amount is the coin's on Bitcoin, not
+/// what arrived on the other chain.
 /// </summary>
 /// <param name="Key">The edge's key: the kind and the two nodes' keys.</param>
 /// <param name="From">The sending node's key.</param>

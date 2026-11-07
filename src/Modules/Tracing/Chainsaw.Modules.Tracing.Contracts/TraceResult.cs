@@ -82,12 +82,15 @@ public sealed record TracedCoin(
 /// <param name="In">The traced amount that went in.</param>
 /// <param name="Outputs">The traced amount of each output, in order (zero where none).</param>
 /// <param name="Fee">The traced amount that went to the fee.</param>
-public sealed record TracedTransaction(Txid Txid, Satoshi In, IReadOnlyList<Satoshi> Outputs, Satoshi Fee);
+/// <param name="MayBeOutdated">Whether the transaction, or a step on the way to it, may change.</param>
+public sealed record TracedTransaction(
+    Txid Txid, Satoshi In, IReadOnlyList<Satoshi> Outputs, Satoshi Fee, bool MayBeOutdated);
 
 /// <summary>The traced money that moved along one edge of the graph.</summary>
 /// <param name="EdgeKey">The edge.</param>
 /// <param name="Amount">How much, as a conclusion.</param>
-public sealed record TracedEdge(string EdgeKey, TracedAmount Amount);
+/// <param name="MayBeOutdated">Whether a step the amount rests on may change.</param>
+public sealed record TracedEdge(string EdgeKey, TracedAmount Amount, bool MayBeOutdated);
 
 /// <summary>
 /// The result of a trace: where the traced money went by one method, and where it stops. Everything in it is a
