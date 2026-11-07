@@ -1,3 +1,5 @@
+using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Chainsaw.Modules.Clustering.Tests;
@@ -16,5 +18,26 @@ public sealed class ClusteringModuleTests
     public void AddClusteringModule_refuses_a_missing_container()
     {
         Assert.Throws<ArgumentNullException>(() => ClusteringModule.AddClusteringModule(null!));
+    }
+
+    [Fact]
+    public void The_module_registers_four_heuristics_coinjoin_first_and_its_sealed_tables()
+    {
+        using var provider = new ServiceCollection().AddClusteringModule().BuildServiceProvider();
+
+        var service = provider.GetRequiredService<IClusteringService>();
+        Assert.Equal(
+            ["coinjoin v1", "common-input-ownership v1", "change-address v1", "peel-chain v1"],
+            service.Heuristics.Select(heuristic => heuristic.ToString()));
+        var schema = Assert.Single(provider.GetServices<ICaseSchemaContributor>());
+        Assert.Equal("clustering", schema.Module);
+        Assert.Equal(["clustering.evidence", "clustering.splits"], schema.SealedChains.Select(chain => chain.Name));
+    }
+
+    [Fact]
+    public void Two_analyses_with_the_same_name_and_version_are_refused()
+    {
+        Assert.Throws<ArgumentException>(() => new ClusteringService(
+            [new CommonInputOwnershipHeuristic(), new CommonInputOwnershipHeuristic()]));
     }
 }
