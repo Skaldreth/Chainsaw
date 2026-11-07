@@ -37,9 +37,6 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     /// <summary>The length of a TRON address's version byte and payload.</summary>
     private const int TronAddressBytes = 21;
 
-    /// <summary>The number of hex digits in an Ethereum address, after <c>0x</c>.</summary>
-    private const int EthereumAddressDigits = 40;
-
     /// <summary>The number of hex digits in a transaction hash on every known chain.</summary>
     private const int TransactionDigits = 64;
 
@@ -120,24 +117,23 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
         };
     }
 
-    /// <summary>Recognises an Ethereum address or transaction hash: <c>0x</c> and 40 or 64 hex digits.</summary>
+    /// <summary>
+    /// Recognises an Ethereum address or transaction hash: <c>0x</c> and 40 or 64 hex digits. An address in mixed case
+    /// must carry the right EIP-55 checksum (<see cref="EthereumAddress"/>), since a wrong letter makes it another
+    /// address; then the text is not recognised.
+    /// </summary>
     /// <param name="text">The trimmed text.</param>
     /// <returns>The result, or <see langword="null"/>.</returns>
-    /// <remarks>The EIP-55 checksum in an address's letter case is not checked; Ethereum is not built yet.</remarks>
     private static ChainStartPoint? RecogniseEthereum(string text)
     {
-        if (!text.StartsWith("0x", StringComparison.OrdinalIgnoreCase) || !IsHex(text.AsSpan(2)))
+        if (EthereumAddress.TryParse(text, out var address))
         {
-            return null;
+            return new(SharedKernel.Chain.Ethereum, StartPointKind.Address, address.Value, null);
         }
 
-        var lower = "0x" + text[2..].ToLowerInvariant();
-        return (text.Length - 2) switch
-        {
-            EthereumAddressDigits => new(SharedKernel.Chain.Ethereum, StartPointKind.Address, lower, null),
-            TransactionDigits => new(SharedKernel.Chain.Ethereum, StartPointKind.Transaction, lower, null),
-            _ => null,
-        };
+        return EthereumTxHash.TryParse(text, out var hash)
+            ? new(SharedKernel.Chain.Ethereum, StartPointKind.Transaction, hash.Value, null)
+            : null;
     }
 
     /// <summary>Recognises a TRON address: Base58Check with the version byte 0x41 and 20 bytes after it.</summary>

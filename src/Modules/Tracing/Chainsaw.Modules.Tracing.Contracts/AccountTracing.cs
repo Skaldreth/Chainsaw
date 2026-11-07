@@ -6,8 +6,8 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 /// A tracing method for the account model, where an address holds one balance per asset and money that comes in
 /// mixes with what is already there: given an account's transfers and fees in one asset in time order and how much of
 /// each incoming transfer is traced, it says how much of the traced money leaves with each outgoing transfer, goes to
-/// fees and stays. No account chain is built yet; the contract is here so that one is added without anything for
-/// Bitcoin changing.
+/// fees and stays. FIFO v1 and haircut v1 are registered for every account chain (Ethereum first); Chainsaw checks
+/// every answer and refuses a method that creates or loses money.
 /// </summary>
 public interface IAccountTracingMethod : ITracingMethod
 {
