@@ -144,8 +144,6 @@ berörda testerna och pusha. Saknas en commit, eller är arbetet halvfärdigt, g
   Det var ännu inte committat.
 - `agent-a590e627fec3f3248`: **startvyns högar GR8a** (punkt 21), med högen ritad som grafens samlingsnod och samma
   stöt och centrering. Den fick besked om att återanvända `PileFanLayout`.
-- **Oberoende granskning** av EX1/EX2b-etappen (merge `3e27ee1`). Den rapporterar fynd men ändrar inget. Kör om den
-  om rapporten saknas.
 - **Skissen IN4** (`HoldingsFlip.dc.html` i scratchpadens `canvas/project/`): innehavet vänds med Alt + klick. Den är
   inte publicerad. Gör om den om filen saknas.
 
@@ -155,6 +153,8 @@ berörda testerna och pusha. Saknas en commit, eller är arbetet halvfärdigt, g
 - **IN4**: innehavet (punkt 28) när skissen är publicerad.
 
 **Godkänt och inte byggt.** Bygg i den här ordningen, en etapp i taget i grafen eftersom filerna är gemensamma:
+0. **Rätta granskningens fel i EX1/EX2b först** (TODO, *Ledtrådsnoden och samlingsnoden*, *Den oberoende granskningen*),
+   framför allt punkt 1–4.
 1. **Bildspråkets ruta GR7a** (punkt 17).
 2. **Kommentarsnoden KN1a**, med Gawks Markdown-parser, storlekshandtag och sparad i ärendet (punkt 24–25).
 3. **Soptunnan SO1a**, också för ärenden i startvyn, med frågan om bevakningar (punkt 20).

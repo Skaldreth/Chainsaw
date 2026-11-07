@@ -443,6 +443,33 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   bryggornas egna händelser. I v1 knyts den för hand.
 
 #### Ledtrådsnoden och samlingsnoden (EX1, EX2b, byggda 2026-11-07)
+
+**Den oberoende granskningen 2026-11-07** (fel att rätta före nästa etapp i grafen, de allvarligaste först):
+1. **Ledtråden räknar fel för en tx-expansion:** `PileRules.cs:195` räknar den expanderade tx:en själv. Med maximum + 1
+   spenderande tx ritas ingen ledtråd. Dra bort den expanderade tx:en och testa med maximum + 1.
+2. **En delvis lyckad omexpansion skriver `held_back = 0`** (`GraphStateStore.SaveExpansion`), till exempel efter 429
+   mitt i, och ledtråden försvinner för gott. Behåll den tidigare `HeldBack` när expansionen inte blev komplett.
+3. **Dolda OP_RETURN går inte att visa igen** efter att toasten tonat ut eller ärendet öppnats på nytt. Lägg en
+   markering eller ikon i grafens hörnrad när några är dolda, aldrig tyst.
+4. **Med *Visa dem* byggs scenen om på UI-tråden** (`GraphScene.WithUnspendable`). Skicka valet in i
+   `LoadAsync`/`ExpandAsync` så att scenen byggs i bakgrunden.
+5. **Valvyns ritning allokerar per bildruta:** `GraphCanvas.Fan.cs` gör ny `Pen` och nya `FormattedText` per kort och
+   ritar kort utanför bild. Krocktestet för beloppen (`GraphCanvas.cs:714`) är O(k²). Cacha per kort, hoppa över det
+   som inte syns och lägg krocktestet i ett rutnät.
+6. **Högens summa blandar in och ut** (`GraphFold.SumBetween`). Summera per riktning.
+7. **`FollowFan` nollställer valvyns filter och urval** vid varje uppdatering. För över dem till den nya vymodellen.
+8. **Kända fel som också är verkliga:**
+   - *Lägg tillbaka* raderar bara under den nuvarande representanten. Radera för alla medlemmar.
+   - Expansionernas ordning följer `expanded_utc`, som skrivs över. Lägg till `first_expanded_utc`.
+   - Bevakade noder och bevakningens motparter kan vikas in i en hög, så att vaktlinjen och ringarna försvinner. Låt
+     `GraphFold` hålla dem utanför.
+9. **Mindre fel:**
+   - Högens och ledtrådens nycklar bygger på ankarets representant.
+   - Ledtrådens linje är en `Transfer` med beloppet 0. Ge den en egen sort.
+   - Ett högerklick när valvyn är öppen öppnar menyn för en nedtonad nod.
+   - Reglagen för lägsta och högsta filtrerar två gånger.
+   - Villkoret för sidan upprepas tre gånger i `PileNode`.
+   - Två rader är över 120 tecken och några tal i `Fan.cs` saknar namn.
 - **Ledtrådsnoden fäller inte ut tx:erna:** de som hölls tillbaka är inte hämtade, så ett klick hämtar nästa 50
   (de nya motparterna hamnar i högen när de är många) i stället för att fälla ut dem runt adressen som i EX1. Att
   fälla ut kräver att hela historiken hämtas (för 1 759 tx ett par hundra uppslag); det kan göras när takten mot
