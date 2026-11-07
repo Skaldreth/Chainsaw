@@ -135,6 +135,22 @@ public interface ITracingService
     void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position);
 
     /// <summary>
+    /// Picks actors out of their piles (sketch EX2b), so that the graph draws them as nodes of their own; they stay
+    /// picked when the case is opened again. Ordinary data like the places, with no line in the journal: the pile is
+    /// arrangement, and every fact stays in the graph whatever is picked (principle 1).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="nodeKeys">The actors' node keys, from <see cref="GraphPile.Members"/>.</param>
+    void PickFromPile(ICase @case, IReadOnlyCollection<string> nodeKeys);
+
+    /// <summary>
+    /// Puts actors that were picked out back in their piles; an actor that was never picked is left as it is.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="nodeKeys">The actors' node keys, from <see cref="GraphPile.PickedOut"/>.</param>
+    void ReturnToPile(ICase @case, IReadOnlyCollection<string> nodeKeys);
+
+    /// <summary>
     /// Traces money through the graph by a method: from the seeds, through every transaction in the graph, to where
     /// it stops. Every traced unit ends somewhere, with a reason.
     /// </summary>
@@ -232,6 +248,12 @@ public sealed record GraphViewState(
     /// <summary>Gets the view of an unchanged graph: FIFO, the free surface, every amount, fitted.</summary>
     public static GraphViewState Default { get; } =
         new(TracingMethodKind.Fifo, GraphLayout.Free, GraphAmountLabels.All, null);
+
+    /// <summary>
+    /// Gets whether the graph shows the outputs that can never be spent and carry nothing (OP_RETURN, 0 BTC), which it
+    /// hides by default (the user's decision 2026-11-07).
+    /// </summary>
+    public bool ShowUnspendable { get; init; }
 }
 
 /// <summary>What to expand: one Bitcoin address or transaction, or one Ethereum address or transaction.</summary>

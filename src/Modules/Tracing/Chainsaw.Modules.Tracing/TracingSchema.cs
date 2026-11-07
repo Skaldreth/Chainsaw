@@ -83,6 +83,23 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The third version: what an expansion held back (how many transactions it took and how many there are), so that
+    /// the clue <c>+N tx</c> is drawn when the case is opened again (sketch EX1), and which actors the user picked out
+    /// of the piles (sketch EX2b), and whether the graph shows the outputs that can never be spent. Ordinary data
+    /// like the places.
+    /// </summary>
+    private const string Version3 = """
+        ALTER TABLE tracing_expansions ADD COLUMN held_back INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE tracing_expansions ADD COLUMN held_back_taken INTEGER;
+        ALTER TABLE tracing_expansions ADD COLUMN held_back_available INTEGER;
+        ALTER TABLE tracing_view ADD COLUMN show_unspendable INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE tracing_picked (
+            member_key TEXT PRIMARY KEY,
+            picked_utc TEXT NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -91,6 +108,7 @@ internal sealed class TracingSchema : ICaseSchemaContributor
     [
         new(1, "Spårningens graf (start, expanderat, platser) och länkar till andra kedjor", Version1),
         new(2, "Grafens läge: spårningsmetod, vy, belopp och det som syns", Version2),
+        new(3, "Det som hölls tillbaka vid en expansion och det som plockats ur högarna", Version3),
     ];
 
     /// <inheritdoc/>

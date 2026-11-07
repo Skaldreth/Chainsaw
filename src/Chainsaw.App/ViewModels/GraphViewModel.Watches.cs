@@ -27,6 +27,9 @@ public enum NodeMenuAction
 
     /// <summary>Kopiera adress (Ctrl+C).</summary>
     Copy,
+
+    /// <summary>Lägg tillbaka i högen: an actor picked out of a pile goes back into it (sketch EX2b).</summary>
+    ReturnToPile,
 }
 
 /// <summary>A row of the node's menu.</summary>
@@ -99,6 +102,7 @@ public sealed partial class GraphViewModel
         Add(Forms.CanSplit, NodeMenuAction.Split, "Bryt upp", "U", "Icon.Split");
         Add(Forms.CanCrossChain, NodeMenuAction.CrossChain, "Annan kedja", "K", "Icon.Link");
         Add(node.Node.Addresses.Count > 0, NodeMenuAction.Copy, "Kopiera adress", "Ctrl+C", "Icon.Copy");
+        Add(CanReturnToPile, NodeMenuAction.ReturnToPile, "Lägg tillbaka i högen", "", "Icon.Layers");
         NodeTools = tools;
 
         void Add(bool applies, NodeMenuAction action, string label, string key, string icon)
@@ -195,6 +199,9 @@ public sealed partial class GraphViewModel
                 break;
             case NodeMenuAction.Expand:
                 ExpandCommand.Execute(null);
+                break;
+            case NodeMenuAction.ReturnToPile:
+                _ = ReturnToPileAsync();
                 break;
             default:
                 CopyAddress();

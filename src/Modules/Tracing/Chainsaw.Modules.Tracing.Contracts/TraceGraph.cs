@@ -71,6 +71,16 @@ public sealed record TraceGraph(
     /// </summary>
     public AccountGraph Account { get; init; } = AccountGraph.Empty;
 
+    /// <summary>
+    /// Gets the piles (sketch EX2b): the many new counterparties of an expansion, kept in one node per side of the
+    /// expanded actor. Their members stay in <see cref="Nodes"/> and <see cref="Edges"/>, since they are facts; the
+    /// graph draws them in the pile until the user picks them out.
+    /// </summary>
+    public IReadOnlyList<GraphPile> Piles { get; init; } = [];
+
+    /// <summary>Gets what the expansions held back, one clue per actor (sketch EX1).</summary>
+    public IReadOnlyList<HeldBackClue> HeldBack { get; init; } = [];
+
     /// <summary>Gives a node by its key.</summary>
     /// <param name="key">The key.</param>
     /// <returns>The node, or <see langword="null"/>.</returns>
@@ -141,6 +151,18 @@ public enum GraphNodeKind
 
     /// <summary>A transaction on another chain that the user linked to (purple).</summary>
     OtherChain,
+
+    /// <summary>
+    /// A pile of counterparties (<see cref="GraphPile"/>, sketch EX2b), as the graph draws it; never in
+    /// <see cref="TraceGraph.Nodes"/>, whose actors are the pile's members.
+    /// </summary>
+    Pile,
+
+    /// <summary>
+    /// What an expansion held back (<see cref="HeldBackClue"/>, sketch EX1), as the graph draws it; never in
+    /// <see cref="TraceGraph.Nodes"/>.
+    /// </summary>
+    HeldBack,
 }
 
 /// <summary>How far a node has been expanded.</summary>
@@ -412,6 +434,12 @@ public sealed record Expansion(
     /// <see cref="Transactions"/>.
     /// </summary>
     public IReadOnlyList<EthereumTxHash> EthereumTransactions { get; init; } = [];
+
+    /// <summary>
+    /// Gets what the newest expansion held back at its limit, or <see langword="null"/> when it brought in everything
+    /// it found (or a lookup failed, which <see cref="IsComplete"/> says).
+    /// </summary>
+    public ExpansionHoldBack? HeldBack { get; init; }
 
     /// <summary>Gets what was expanded, as the case stores it: the address or the transaction.</summary>
     public string Subject =>
