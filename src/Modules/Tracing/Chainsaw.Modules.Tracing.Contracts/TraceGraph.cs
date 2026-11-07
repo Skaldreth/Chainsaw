@@ -304,6 +304,19 @@ public sealed record AssetTransfer(
     /// </summary>
     public long Position { get; init; }
 
+    /// <summary>
+    /// Gets an account chain's block as the movement's answer gave it: its height and time, and its hash when known.
+    /// It is set also when <see cref="Block"/> is not, because the case lacks the block's hash; the movement is
+    /// confirmed all the same. <see langword="null"/> on a UTXO chain and while unconfirmed.
+    /// </summary>
+    public EthereumBlockReference? AccountBlock { get; init; }
+
+    /// <summary>Gets the block's height, with or without its hash; <see langword="null"/> while unconfirmed.</summary>
+    public long? Height => Block?.Height ?? AccountBlock?.Height;
+
+    /// <summary>Gets the block's time, with or without its hash; <see langword="null"/> while unconfirmed.</summary>
+    public DateTimeOffset? Time => Block?.Time ?? AccountBlock?.Time;
+
     /// <summary>Gives the transfer of an Ethereum movement, as an edge carries it.</summary>
     /// <param name="transfer">The movement.</param>
     /// <param name="block">Its block with the hash, or <see langword="null"/> while unconfirmed or the hash is not
@@ -317,6 +330,7 @@ public sealed record AssetTransfer(
         {
             Movement = transfer.Kind,
             Position = transfer.Position,
+            AccountBlock = transfer.Block,
         };
     }
 

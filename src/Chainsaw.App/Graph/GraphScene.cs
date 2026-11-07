@@ -449,6 +449,9 @@ public sealed record GraphScene(
     /// <summary>What a balance row says when the account's history is not read, so nothing is known to be left.</summary>
     public const string NotReadNote = "Inte expanderad: saldot är okänt";
 
+    /// <summary>What a balance row says when the account's history is read only in part.</summary>
+    public const string PartlyReadNote = "Delvis expanderad: saldot är okänt";
+
     /// <summary>
     /// Gives an account's balance per asset along the graph's lines (sketch TK1a), with the fees it paid counted out
     /// of its ether. What is left is only known when the account's history is read (it is expanded); otherwise the
@@ -467,6 +470,7 @@ public sealed record GraphScene(
             .ThenBy(asset => asset.Symbol, StringComparer.Ordinal)
             .ToList();
         var read = node.Addresses.All(graph.Account.ReadAccounts.Contains);
+        var unknown = node.Addresses.Any(graph.Account.PartlyRead.Contains) ? PartlyReadNote : NotReadNote;
         var rows = new List<TokenBalanceRow>();
         foreach (var asset in assets)
         {
@@ -479,7 +483,7 @@ public sealed record GraphScene(
             }
 
             var row = TokenMarks.Balance(incoming, outgoing);
-            rows.Add(read ? row : row with { Left = "–", Note = NotReadNote, CanBeFrozen = false, FreezeText = null });
+            rows.Add(read ? row : row with { Left = "–", Note = unknown, CanBeFrozen = false, FreezeText = null });
         }
 
         if (!rows.Any(row => row.Name == Asset.Ether.Symbol) && node.Chain == Chain.Ethereum)
@@ -489,7 +493,7 @@ public sealed record GraphScene(
             {
                 var paid = fees.Aggregate(AssetAmount.Zero(Asset.Ether), (sum, fee) => sum + fee.Amount);
                 var row = TokenMarks.Balance(AssetAmount.Zero(Asset.Ether), paid);
-                rows.Insert(0, read ? row : row with { Left = "–", Note = NotReadNote });
+                rows.Insert(0, read ? row : row with { Left = "–", Note = unknown });
             }
         }
 

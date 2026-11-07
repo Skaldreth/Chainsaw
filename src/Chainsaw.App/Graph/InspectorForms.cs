@@ -195,9 +195,9 @@ public static class InspectorForms
                     .Select(transfer => (Transfer: transfer, Movement: MovementOf(transfer)))
                     .Where(pair => !movements.Contains(pair.Movement))
                     .DistinctBy(pair => pair.Movement)
-                    .OrderByDescending(pair => pair.Transfer.Block?.Time ?? DateTimeOffset.MaxValue)
+                    .OrderByDescending(pair => pair.Transfer.Time ?? DateTimeOffset.MaxValue)
                     .ThenBy(pair => pair.Transfer.Transaction.Id, StringComparer.Ordinal)
-                    .Select(pair => new IncomingCoin(null, pair.Transfer.Amount, pair.Transfer.Block?.Time)
+                    .Select(pair => new IncomingCoin(null, pair.Transfer.Amount, pair.Transfer.Time)
                     {
                         Movement = pair.Movement,
                     }),

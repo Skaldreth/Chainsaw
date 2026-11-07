@@ -115,7 +115,15 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   - **Kurs per överföring:** varje rörelse värderas vid sitt blocks tid med Pricings förvalda upplösning; en expansion
     ber om högst 30 kurser, resten hämtas vid nästa. Värdet visas bara för linjer på Ethereum (Bitcoins linjer har inget
     värde än, TODO under *Kurser*).
-  - **Egna ytor (Z) och områdena** tar inte Ethereum-noder (`OwnArea` lagrar Bitcoin-adresser och txid).
+  - **Egna ytor (Z) och områdena** tar inte Ethereum-noder (`OwnArea` lagrar Bitcoin-adresser och txid;
+    `GraphAreas.MembersOf` läser bara `GraphAddresses`), så valda Ethereum-aktörer ger en tom yta (granskningen av
+    etapp 23b, M4). Använd `Node.Addresses`, eller säg att det inte går.
+  - **En start-tx som inte finns i ärendet** (Ethereum, och likadant för Bitcoin) blir bara en rad i grafens problem;
+    det finns ingen nod att expandera, så den hämtas inte från appen. Hämta den när startpunkten läggs till, eller visa
+    en nod som kan expanderas (granskningen av etapp 23b, M1).
+  - **Den förseglade länkens kolumner** `from_txid` och `from_output` håller för en Ethereum-rörelse `token:0x…` och
+    positionen; det står i koden men inte i någon beskrivning av tabellerna för den som kontrollerar raderna för hand
+    (granskningen av etapp 23b, M6).
   - **Kontrollerna (KF1a)** körs inte på Ethereum; listan säger det. Kontoheuristikerna och Tornado Cash nedan.
   - **OFAC:s ETH-adresser** (`Digital Currency Address - ETH`) läses inte; sanktionskontrollen är Bitcoins.
   - **Länk till annan kedja från Ethereum** lagras i samma förseglade kolumner som ett mynt (`token:0x…` och

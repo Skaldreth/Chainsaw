@@ -28,6 +28,9 @@ internal sealed class FakeEthereumSource : IEthereumSource
     /// <summary>Whether the internal history leaves out the blocks' hashes, as Blockscout's does.</summary>
     public bool InternalWithoutHash { get; set; } = true;
 
+    /// <summary>Whether a block's own lookup fails, so that a hash the history lacked stays unknown.</summary>
+    public bool BlocksFail { get; set; }
+
     public void Add(params EthereumTransaction[] transactions)
     {
         foreach (var transaction in transactions)
@@ -113,6 +116,11 @@ internal sealed class FakeEthereumSource : IEthereumSource
         }
 
         Lookups++;
+        if (BlocksFail)
+        {
+            return Task.FromResult(Answer<EthereumBlockReference>(LookupStatus.Failed, null));
+        }
+
         _givenBlocks.Add(height);
         return Task.FromResult(Answer(LookupStatus.Fetched, block));
     }

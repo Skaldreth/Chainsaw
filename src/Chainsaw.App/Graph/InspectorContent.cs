@@ -285,7 +285,10 @@ public sealed record InspectorContent(
         foreach (var transfer in edge.Transfers.DistinctBy(transfer => transfer.Transaction))
         {
             lines.Add(transfer.Transaction.Id);
-            lines.Add(BlockText(transfer.Block));
+            lines.Add(transfer.Block is null && transfer.AccountBlock is { } known
+                ? string.Create(
+                    CultureInfo.InvariantCulture, $"Block {known.Height} · hashen saknas i ärendet; expandera igen")
+                : BlockText(transfer.Block));
         }
 
         return Limit(lines, MostDetails * 2);
@@ -455,7 +458,9 @@ public sealed record InspectorContent(
 
         yield return edge.Value is { } value
             ? new WhyLine(
-                $"Värdet {value.Text} vid tx:ens tid: " + string.Join(" ", value.Steps), GuideTopic.Prices)
+                $"Värdet {value.Text} gäller hela linjens belopp på kedjan, inte bara den spårade delen, vid "
+                + "varje tx:s tid: " + string.Join(" ", value.Steps),
+                GuideTopic.Prices)
             : new WhyLine(
                 "Ingen kurs: ärendet har inte kursen för varje rörelse på linjen vid dess tid, så inget värde "
                 + "visas hellre än ett påhittat. Kurserna hämtas när grafen expanderas.",

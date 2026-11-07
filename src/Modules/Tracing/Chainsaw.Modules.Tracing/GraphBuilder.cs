@@ -65,7 +65,7 @@ internal sealed class GraphBuilder
         var starts = StartNodes(problems);
         var hops = Hops(starts);
         _firstReceived = _edges
-            .SelectMany(pair => pair.Value.Select(transfer => (pair.Key.To, transfer.Block?.Time)))
+            .SelectMany(pair => pair.Value.Select(transfer => (pair.Key.To, transfer.Time)))
             .Where(pair => pair.Time is not null)
             .GroupBy(pair => pair.To, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Min(pair => pair.Time!.Value), StringComparer.Ordinal);
@@ -101,6 +101,7 @@ internal sealed class GraphBuilder
                 account.Transfers, account.Fees, account.Transactions, account.ReadAccounts, account.Swaps())
             {
                 MayBeOutdated = account.MayBeOutdated,
+                PartlyRead = account.PartlyRead,
             },
         };
     }
@@ -628,7 +629,7 @@ internal sealed class GraphBuilder
         Dictionary<string, int> hops)
     {
         var ordered = transfers
-            .OrderBy(transfer => transfer.Block?.Height ?? long.MaxValue)
+            .OrderBy(transfer => transfer.Height ?? long.MaxValue)
             .ThenBy(transfer => transfer.Transaction.Id, StringComparer.Ordinal)
             .ThenBy(transfer => transfer.Coin?.Index ?? -1)
             .ThenBy(transfer => transfer.Position)
@@ -644,7 +645,7 @@ internal sealed class GraphBuilder
             kind,
             ordered.Aggregate(AssetAmount.Zero(asset), (sum, transfer) => sum + transfer.Amount),
             ordered,
-            ordered.Select(transfer => transfer.Block?.Time).OfType<DateTimeOffset>().Cast<DateTimeOffset?>().Min(),
+            ordered.Select(transfer => transfer.Time).OfType<DateTimeOffset>().Cast<DateTimeOffset?>().Min(),
             direction);
     }
 

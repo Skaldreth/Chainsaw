@@ -441,7 +441,13 @@ internal sealed class TracingService : ITracingService
         var before = state.EthereumTransactions
             .Concat(state.EthereumHistories.SelectMany(expansion => expansion.EthereumTransactions)).ToHashSet();
         var step = request.EthereumAddress is { } address
-            ? await _ethereum.ExpandAddressAsync(@case, address, request.MaximumTransactions, cancellationToken)
+            ? await _ethereum.ExpandAddressAsync(
+                    @case,
+                    address,
+                    request.MaximumTransactions,
+                    state.EthereumHistories.Where(expansion => expansion.EthereumAddress == address)
+                        .SelectMany(expansion => expansion.EthereumTransactions).ToHashSet(),
+                    cancellationToken)
                 .ConfigureAwait(false)
             : await _ethereum.ExpandTransactionAsync(@case, request.EthereumTransaction!, cancellationToken)
                 .ConfigureAwait(false);

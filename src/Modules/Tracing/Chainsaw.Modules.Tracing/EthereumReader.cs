@@ -32,12 +32,17 @@ internal sealed class EthereumReader(IEthereumSource source)
     /// <param name="case">The open case.</param>
     /// <param name="address">The address.</param>
     /// <param name="maximum">The most transactions.</param>
+    /// <param name="earlier">What earlier expansions of the address brought in, whose pages are read again.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The transactions it brought in, newest first, and what went wrong.</returns>
     public async Task<EthereumStep> ExpandAddressAsync(
-        ICase @case, EthereumAddress address, int maximum, CancellationToken cancellationToken)
+        ICase @case,
+        EthereumAddress address,
+        int maximum,
+        IReadOnlySet<EthereumTxHash> earlier,
+        CancellationToken cancellationToken)
     {
-        var walk = await WalkAsync(@case, address, LookupMode.AsNeeded, maximum, null, cancellationToken)
+        var walk = await WalkAsync(@case, address, LookupMode.AsNeeded, maximum, earlier, cancellationToken)
             .ConfigureAwait(false);
         if (!walk.Answered)
         {
@@ -117,12 +122,13 @@ internal sealed class EthereumReader(IEthereumSource source)
         var transfers = new List<EthereumTransfer>();
         var fees = new List<EthereumFee>();
         var read = new HashSet<ChainAddress>();
+        var partly = new HashSet<ChainAddress>();
         var outdated = new HashSet<ChainAddress>();
         foreach (var expansion in state.EthereumHistories)
         {
             var address = expansion.EthereumAddress!;
             var wanted = expansion.EthereumTransactions.ToHashSet();
-            var walk = await WalkAsync(@case, address, LookupMode.CaseOnly, null, wanted, cancellationToken)
+            var walk = await WalkAsync(@case, address, LookupMode.CaseOnly, null, null, cancellationToken)
                 .ConfigureAwait(false);
             if (!walk.Answered)
             {
@@ -130,7 +136,9 @@ internal sealed class EthereumReader(IEthereumSource source)
                 continue;
             }
 
-            read.Add(address.ToChainAddress());
+            // Only an expansion that brought in all it found carries money on; one held back at the limit or left
+            // incomplete has a gap in its ledger, so the money stops there instead of being counted through it.
+            (expansion.IsComplete ? read : partly).Add(address.ToChainAddress());
             if (walk.Outdated)
             {
                 outdated.Add(address.ToChainAddress());
@@ -155,7 +163,7 @@ internal sealed class EthereumReader(IEthereumSource source)
         var blocks = await FetchBlocksAsync(
             @case, data.Transfers.Select(transfer => transfer.Block), LookupMode.CaseOnly, cancellationToken)
             .ConfigureAwait(false);
-        return data with { BlockHashes = blocks.Hashes, Problems = problems };
+        return data with { BlockHashes = blocks.Hashes, Problems = problems, PartlyRead = partly };
     }
 
     /// <summary>
@@ -179,14 +187,15 @@ internal sealed class EthereumReader(IEthereumSource source)
 
     /// <summary>
     /// Goes through an address's three histories, page by page from the newest. On expansion it stops a history once
-    /// it holds more than the limit of transactions; when reading the case it goes on until it has seen every wanted
-    /// transaction or the history ends.
+    /// it holds more than the limit of transactions and every earlier transaction (<paramref name="wanted"/>) has been
+    /// seen; when reading the case it goes on until the case has no further page, so that no movement of a wanted
+    /// transaction on a later page is lost.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="address">The address.</param>
     /// <param name="mode">Whether the source may be asked.</param>
     /// <param name="maximum">The limit on expansion, or <see langword="null"/> when reading.</param>
-    /// <param name="wanted">The transactions to find when reading, or <see langword="null"/>.</param>
+    /// <param name="wanted">On expansion, what earlier expansions brought in, or <see langword="null"/>.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The movements and fees, each once, and what was said.</returns>
     private async Task<HistoryWalk> WalkAsync(
@@ -224,14 +233,11 @@ internal sealed class EthereumReader(IEthereumSource source)
                     break;
                 }
 
-                if (maximum is { } limit && hashes.Count > limit)
+                // An expansion goes on past its limit until it has also read the pages that hold what earlier
+                // expansions brought in, so that the case's pages reach them from the newest page again.
+                if (maximum is { } limit && hashes.Count > limit && (wanted is null || wanted.All(walk.Has)))
                 {
                     walk.MoreThanRead = true;
-                    break;
-                }
-
-                if (wanted is not null && wanted.All(walk.Has))
-                {
                     break;
                 }
 
@@ -261,7 +267,8 @@ internal sealed class EthereumReader(IEthereumSource source)
         var missing = known.Select(block => block.Height).Where(height => !hashes.ContainsKey(height)).Distinct()
             .Order().ToList();
         var unknown = 0;
-        foreach (var height in missing.Take(MostBlockLookups))
+        var most = mode == LookupMode.CaseOnly ? missing.Count : MostBlockLookups;
+        foreach (var height in missing.Take(most))
         {
             var lookup = await source.GetBlockAsync(@case, height, mode, cancellationToken).ConfigureAwait(false);
             if (lookup.Value?.Hash is { } hash)
@@ -274,12 +281,12 @@ internal sealed class EthereumReader(IEthereumSource source)
             }
         }
 
-        unknown += Math.Max(0, missing.Count - MostBlockLookups);
+        unknown += Math.Max(0, missing.Count - most);
         var problem = unknown == 0
             ? null
             : string.Format(
                 CultureInfo.InvariantCulture,
-                "Hashen saknas för {0} block; deras rörelser ritas streckade tills blocken har hämtats.",
+                "Hashen saknas för {0} block; deras rörelser ritas streckade och utan hash tills blocken har hämtats.",
                 unknown);
         return (hashes, problem);
     }

@@ -7,8 +7,8 @@ namespace Chainsaw.App.Graph;
 /// <summary>
 /// Chooses the movements the traced money starts in on Ethereum, from the start points, as <see cref="SeedPicker"/>
 /// does for Bitcoin's coins: every movement the graph shows paid to a start address, of every asset, and a start
-/// transaction's movements to others than the account that signed it. A movement that leaves an account the money of
-/// another seed reaches is left out, since it would be counted twice.
+/// transaction's movements to others than the account that signed it. A movement that leaves an account after another
+/// seed's money has reached it is left out, since it would be counted twice.
 /// </summary>
 /// <remarks>Which movements are traced is the user's choice, not a conclusion; until it can be chosen in the graph
 /// (TODO), this is the choice, and the inspector says so.</remarks>
@@ -39,42 +39,41 @@ public static class AccountSeedPicker
         }
 
         var distinct = chosen.Distinct().ToList();
-        var reached = new HashSet<EthereumAddress>();
-        foreach (var seed in distinct)
-        {
-            reached.UnionWith(Reached(transfers, seed));
-        }
-
-        return [.. distinct.Where(seed => !reached.Contains(seed.From)).Select(AccountSeed.Of)];
+        var kept = distinct.Where(seed => !distinct.Any(other => other != seed
+                && other.Amount.Asset == seed.Amount.Asset
+                && Arrival(transfers, other).TryGetValue(seed.From, out var arrived)
+                && arrived.CompareTo(AccountGraph.ChainOrder(seed)) < 0))
+            .ToList();
+        return [.. kept.Select(AccountSeed.Of)];
     }
 
     /// <summary>
-    /// Gives every account the money of a movement can reach in the graph, however many steps on, in the same asset
-    /// and not earlier in the chain's order. It errs towards tracing less, never towards counting twice.
+    /// Gives when the money of a movement can first reach each account in the graph, however many steps on, in the
+    /// same asset: a movement carries it on only when it leaves an account after the money arrived there. Only another
+    /// seed's reach can leave a seed out, and only when it arrives at the seed's sender before the seed leaves; that
+    /// errs towards tracing less, never towards counting twice.
     /// </summary>
     /// <param name="transfers">The graph's movements.</param>
     /// <param name="seed">The movement.</param>
-    /// <returns>The accounts.</returns>
-    private static HashSet<EthereumAddress> Reached(IReadOnlyList<EthereumTransfer> transfers, EthereumTransfer seed)
+    /// <returns>The earliest arrival at each account it reaches, in chain order.</returns>
+    private static Dictionary<EthereumAddress, (long, string, long, int)> Arrival(
+        IReadOnlyList<EthereumTransfer> transfers, EthereumTransfer seed)
     {
-        var reached = new HashSet<EthereumAddress>();
-        var waiting = new Queue<(EthereumAddress Account, (long, string, long, int) After)>();
-        waiting.Enqueue((seed.To, AccountGraph.ChainOrder(seed)));
-        while (waiting.TryDequeue(out var next))
+        var arrival = new Dictionary<EthereumAddress, (long, string, long, int)>
         {
-            if (!reached.Add(next.Account))
+            [seed.To] = AccountGraph.ChainOrder(seed),
+        };
+        foreach (var transfer in transfers.Where(transfer => transfer.Amount.Asset == seed.Amount.Asset)
+            .OrderBy(AccountGraph.ChainOrder))
+        {
+            var order = AccountGraph.ChainOrder(transfer);
+            if (arrival.TryGetValue(transfer.From, out var at) && at.CompareTo(order) < 0
+                && !arrival.ContainsKey(transfer.To))
             {
-                continue;
-            }
-
-            foreach (var transfer in transfers.Where(transfer => transfer.From == next.Account
-                && transfer.Amount.Asset == seed.Amount.Asset
-                && AccountGraph.ChainOrder(transfer).CompareTo(next.After) > 0))
-            {
-                waiting.Enqueue((transfer.To, AccountGraph.ChainOrder(transfer)));
+                arrival[transfer.To] = order;
             }
         }
 
-        return reached;
+        return arrival;
     }
 }

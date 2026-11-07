@@ -16,8 +16,8 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 /// <param name="Fees">Every fee the graph knows an account paid, each transaction once.</param>
 /// <param name="Transactions">The transactions read whole (start points and expanded transactions), by hash.</param>
 /// <param name="ReadAccounts">
-/// The accounts whose own history the graph has read, so that their ledgers are as complete as the history read; money
-/// that reaches any other account stops there as <em>not expanded yet</em>.
+/// The accounts whose own history the graph has read whole (the expansion was complete), so that their ledgers can
+/// carry money on; money that reaches any other account stops there as <em>not expanded yet</em>.
 /// </param>
 /// <param name="Swaps">The swaps the transactions show, in the transfers' order.</param>
 public sealed record AccountGraph(
@@ -36,6 +36,12 @@ public sealed record AccountGraph(
     /// answer the case could not renew); the traced amounts that rest on them say so.
     /// </summary>
     public IReadOnlySet<ChainAddress> MayBeOutdated { get; init; } = new HashSet<ChainAddress>();
+
+    /// <summary>
+    /// Gets the accounts whose history was read only in part: held back at the limit, or left incomplete. Their ledger
+    /// has a gap, so money that reaches them stops there, and no balance is shown for them.
+    /// </summary>
+    public IReadOnlySet<ChainAddress> PartlyRead { get; init; } = new HashSet<ChainAddress>();
 
     /// <summary>Gets whether the part holds anything.</summary>
     public bool IsEmpty => Transfers.Count == 0 && Fees.Count == 0 && Transactions.Count == 0 && ReadAccounts.Count == 0;

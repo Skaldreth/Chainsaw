@@ -28,6 +28,12 @@ internal sealed record AccountData(
     /// <summary>Gets each block's hash by height, where the case has it.</summary>
     public IReadOnlyDictionary<long, string> BlockHashes { get; init; } = new Dictionary<long, string>();
 
+    /// <summary>
+    /// Gets the accounts whose history was read only in part (held back at the limit or incomplete); they do not carry
+    /// money on.
+    /// </summary>
+    public IReadOnlySet<ChainAddress> PartlyRead { get; init; } = new HashSet<ChainAddress>();
+
     /// <summary>Gets what could not be read, in Swedish.</summary>
     public IReadOnlyList<string> Problems { get; init; } = [];
 
@@ -124,6 +130,7 @@ internal sealed record AccountData(
         {
             return null;
         }
+
 
         var text = block.Hash ?? BlockHashes.GetValueOrDefault(block.Height);
         return BlockHash.TryParseEthereum(text, out var hash) ? new BlockReference(block.Height, hash, block.Time) : null;

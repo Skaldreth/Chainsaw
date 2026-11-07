@@ -293,8 +293,25 @@ public sealed class EthereumGraphTests
 
         var seeds = AccountSeedPicker.Pick(graph);
 
-        // The mule's USDT and the swap's ether back to S both come from accounts the seeds' money reaches.
-        Assert.Equal([AccountSeed.Of(EthSamples.Transfers[0]), AccountSeed.Of(EthSamples.Transfers[1])], seeds);
+        // The mule's USDT leaves S after the victim's USDT reached S; the swap's ether is another asset.
+        Assert.Equal(
+            [AccountSeed.Of(EthSamples.Transfers[0]), AccountSeed.Of(EthSamples.Transfers[1]),
+                AccountSeed.Of(EthSamples.Transfers[4])],
+            seeds);
+    }
+
+    [Fact]
+    public void A_seed_is_kept_when_its_own_money_later_returns_to_its_sender()
+    {
+        var exchange = EthSamples.Address('9');
+        var back = EthSamples.Move(5, EthereumTransferKind.Token, exchange, EthSamples.S, EthSamples.Usdt(1_000), 1);
+        var deposit = EthSamples.Move(6, EthereumTransferKind.Token, EthSamples.S, exchange, EthSamples.Usdt(900), 1);
+        var graph = EthSamples.Graph() with
+        {
+            Account = EthSamples.Graph().Account with { Transfers = [back, deposit] },
+        };
+
+        Assert.Equal([AccountSeed.Of(back)], AccountSeedPicker.Pick(graph));
     }
 
     [Fact]
@@ -363,7 +380,9 @@ public sealed class EthereumGraphTests
 
         var request = Assert.Single(tracing.AccountTraced);
         Assert.Equal(TracingMethodKind.Haircut, request.Method);
-        Assert.Equal([AccountSeed.Of(EthSamples.Transfers[0]), AccountSeed.Of(EthSamples.Transfers[1])],
+        Assert.Equal(
+            [AccountSeed.Of(EthSamples.Transfers[0]), AccountSeed.Of(EthSamples.Transfers[1]),
+                AccountSeed.Of(EthSamples.Transfers[4])],
             request.Seeds);
         Assert.All(prices.Asked, asked => Assert.Equal(PriceLookupMode.CaseOnly, asked.Mode));
         Assert.Contains(prices.Asked, asked => asked.Request.Asset == KnownTokens.EthereumUsdt);
@@ -389,7 +408,7 @@ public sealed class EthereumGraphTests
             CancellationToken.None);
 
         Assert.Contains(prices.Asked, asked => asked.Mode == PriceLookupMode.AsNeeded);
-        Assert.Equal(GraphSource.TraceFailedText, expansion.Scene.Snapshot.TraceProblem);
+        Assert.Equal(GraphSource.AccountTraceFailedText, expansion.Scene.Snapshot.TraceProblem);
         Assert.Null(expansion.Scene.Snapshot.AccountTrace);
     }
 }

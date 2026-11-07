@@ -45,6 +45,12 @@ internal static class AccountTraceCalculator
                 ?? throw new ArgumentException($"The seed {seed.Transaction} is not a movement in the graph.",
                     nameof(seeds)))
             .ToList();
+        if (seeded.FirstOrDefault(transfer => transfer.From == transfer.To) is { } own)
+        {
+            throw new ArgumentException(
+                $"The seed {own.Transaction} moves money from an account to itself; nothing leaves to be traced.",
+                nameof(seeds));
+        }
         var assets = seeded.Select(transfer => transfer.Amount.Asset).Distinct().ToList();
         var traces = assets.Select(asset =>
                 new AssetTracer(graph, method, asset, [.. seeded.Where(transfer => transfer.Amount.Asset == asset)])
@@ -74,6 +80,12 @@ internal static class AccountTraceCalculator
         /// <summary>The traced part of each movement.</summary>
         private readonly Dictionary<EthereumTransfer, BigInteger> _traced = [];
 
+        /// <summary>
+        /// The movements the user linked to another chain, with their links: their traced money continues there and
+        /// never enters the receiver's ledger.
+        /// </summary>
+        private readonly Dictionary<EthereumTransfer, List<CrossChainLink>> _linked = [];
+
         /// <summary>The traced money each account that carries it sent to fees and keeps, by the last round.</summary>
         private readonly Dictionary<ChainAddress, AccountTaint> _taints = [];
 
@@ -94,6 +106,20 @@ internal static class AccountTraceCalculator
             foreach (var seed in seeds)
             {
                 _traced[seed] = seed.Amount.Units;
+            }
+
+            foreach (var link in graph.CrossChainLinks)
+            {
+                if (link.FromTransfer is { } movement && _transfers.FirstOrDefault(movement.Is) is { } transfer)
+                {
+                    if (!_linked.TryGetValue(transfer, out var links))
+                    {
+                        links = [];
+                        _linked.Add(transfer, links);
+                    }
+
+                    links.Add(link);
+                }
             }
         }
 
@@ -147,7 +173,8 @@ internal static class AccountTraceCalculator
         private bool Carry(ChainAddress account)
         {
             var entries = new List<(EthereumTransfer? Transfer, AccountEntry Entry)>();
-            foreach (var transfer in _transfers.Where(transfer => Touches(transfer, account)))
+            foreach (var transfer in _transfers.Where(transfer => Touches(transfer, account)
+                && !(transfer.To.Value == account.Value && _linked.ContainsKey(transfer))))
             {
                 var incoming = transfer.To.Value == account.Value;
                 var traced = incoming ? _traced.GetValueOrDefault(transfer) : BigInteger.Zero;
@@ -219,7 +246,23 @@ internal static class AccountTraceCalculator
         {
             var ends = new List<TraceEnd>();
             var carrying = carriers.ToHashSet();
-            var arrived = _transfers.Where(transfer => _traced.GetValueOrDefault(transfer) > 0)
+            foreach (var (transfer, links) in _linked.Where(pair => _traced.GetValueOrDefault(pair.Key) > 0))
+            {
+                var node = _graph.NodeOf(transfer.To.ToChainAddress());
+                ends.Add(new TraceEnd(
+                    TrailEndReason.OtherChain,
+                    Amount(_traced[transfer], [transfer.Transaction]),
+                    null,
+                    null,
+                    node?.Key,
+                    $"Fortsätter på {links[0].To.Chain} enligt användarens länk till {links[0].To.Id}.",
+                    [],
+                    links,
+                    transfer.Block is null));
+            }
+
+            var arrived = _transfers.Where(transfer => _traced.GetValueOrDefault(transfer) > 0
+                    && !_linked.ContainsKey(transfer))
                 .GroupBy(transfer => transfer.To.ToChainAddress());
             foreach (var group in arrived.OrderBy(group => group.Key.Value, StringComparer.Ordinal))
             {
@@ -239,8 +282,11 @@ internal static class AccountTraceCalculator
                 }
                 else
                 {
-                    ends.Add(End(TrailEndReason.NotExpanded, amount, node?.Key, through,
-                        "Adressens historik är inte expanderad; expandera den för att spåra vidare.", [], outdated));
+                    var text = _graph.Account.PartlyRead.Contains(group.Key)
+                        ? "Adressens historik är bara delvis läst (gränsen nåddes eller ett uppslag var ofullständigt), "
+                            + "så pengarna förs inte vidare genom den; det kan saknas rörelser däremellan."
+                        : "Adressens historik är inte expanderad; expandera den för att spåra vidare.";
+                    ends.Add(End(TrailEndReason.NotExpanded, amount, node?.Key, through, text, [], outdated));
                 }
             }
 

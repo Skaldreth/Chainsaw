@@ -117,6 +117,11 @@ public sealed class GraphSource(
     public const string LimitReachedText =
         "Gränsen för en expansion nåddes; expandera igen för resten.";
 
+    /// <summary>What the trace says when the movements on Ethereum cannot be traced.</summary>
+    public const string AccountTraceFailedText =
+        "Spårningen på Ethereum kunde inte räknas: startpunkternas rörelser ligger i varandras flöde, så samma pengar "
+        + "skulle räknas två gånger. Ethereums linjer visas utan spårade belopp.";
+
     /// <summary>What the trace says when the graph does not yet show a coin to start in.</summary>
     public const string NothingToTraceText =
         "Inget att spåra än: startpunktens mynt finns inte i grafen. Välj startpunkten och expandera den.";
@@ -368,7 +373,7 @@ public sealed class GraphSource(
             catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
             {
                 // The seeds lie in each other's flow, or a method broke its contract; shown without traced amounts.
-                problem = TraceFailedText;
+                problem = AccountTraceFailedText;
             }
         }
 
@@ -384,7 +389,7 @@ public sealed class GraphSource(
                 // The seeds do not hold together (for example a coin whose amount the case lacks), or the trace
                 // refused its own result (a method that would create or lose money, transactions in a ring); the
                 // graph is still shown, honestly without traced amounts.
-                problem = TraceFailedText;
+                problem = problem is null ? TraceFailedText : problem + " " + TraceFailedText;
             }
         }
 
@@ -450,19 +455,19 @@ public sealed class GraphSource(
             var valuations = new List<Valuation>();
             foreach (var transfer in edge.Transfers)
             {
-                if (transfer.Block is not { } block)
+                if (transfer.Time is not { } time)
                 {
                     break;
                 }
 
-                var key = (transfer.Amount.Asset, block.Time);
+                var key = (transfer.Amount.Asset, time);
                 if (!known.TryGetValue(key, out var price))
                 {
                     var lookupMode = mode == PriceLookupMode.AsNeeded && asked < MostRateLookups
                         ? PriceLookupMode.AsNeeded
                         : PriceLookupMode.CaseOnly;
                     asked += lookupMode == PriceLookupMode.AsNeeded ? 1 : 0;
-                    price = await PriceOf(@case, transfer.Amount.Asset, block.Time, lookupMode, cancellationToken)
+                    price = await PriceOf(@case, transfer.Amount.Asset, time, lookupMode, cancellationToken)
                         .ConfigureAwait(false);
                     known[key] = price;
                 }

@@ -258,6 +258,109 @@ public sealed class EthereumGraphTests : IDisposable
     }
 
     [Fact]
+    public async Task A_partly_read_account_does_not_carry_the_money_and_says_why()
+    {
+        Chain();
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer, 2));
+        var graph = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumTransaction(Hash("pay-usdt")))).Graph;
+        var seeds = new[] { AccountSeed.Of(Usdt1000ToScammer(graph)) };
+
+        var result = await _harness.Service.TraceAccountsAsync(
+            graph, new AccountTraceRequest(TracingMethodKind.Fifo, seeds));
+
+        Assert.Contains(Scammer.ToChainAddress(), graph.Account.PartlyRead);
+        Assert.DoesNotContain(Scammer.ToChainAddress(), graph.Account.ReadAccounts);
+        var end = Assert.Single(result.Ends);
+        Assert.Equal(TrailEndReason.NotExpanded, end.Reason);
+        Assert.Contains("delvis läst", end.Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_link_to_another_chain_ends_the_movements_money_there()
+    {
+        Chain();
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer));
+        var before = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumAddress(Mule))).Graph;
+        var toExchange = before.Account.Transfers.Single(transfer => transfer.To == Exchange);
+        var target = new ChainTransactionRef(SharedKernel.Chain.Tron, new string('c', 64));
+        _harness.Service.LinkCrossChain(_harness.Case, AccountSeed.Of(toExchange), target, "Bryggan enligt kvittot.");
+        var graph = await _harness.Load();
+
+        var result = await _harness.Service.TraceAccountsAsync(graph, new AccountTraceRequest(
+            TracingMethodKind.Fifo, [AccountSeed.Of(Usdt1000ToScammer(graph))]));
+
+        var link = Assert.Single(graph.CrossChainLinks);
+        Assert.Equal(AccountSeed.Of(toExchange), link.FromTransfer);
+        Assert.Contains(graph.Edges, edge => edge.Kind == GraphEdgeKind.ContinuesOnOtherChain);
+        var end = Assert.Single(result.Ends, end => end.Reason == TrailEndReason.OtherChain);
+        Assert.Equal(Usdt(600), end.Amount.Amount);
+        Assert.Same(link, Assert.Single(end.Continuations));
+        Assert.DoesNotContain(result.Ends, end => end.Reason == TrailEndReason.NotExpanded
+            && end.NodeKey == graph.NodeOf(Exchange.ToChainAddress())!.Key);
+        Assert.True(_harness.Verify().IsIntact);
+        Assert.False(_harness.Service.UnlinkCrossChain(_harness.Case, link with { Sequence = -1 }, null));
+        Assert.True(_harness.Service.UnlinkCrossChain(_harness.Case, link, null));
+        Assert.Empty((await _harness.Load()).CrossChainLinks);
+    }
+
+    [Fact]
+    public async Task Expanding_again_keeps_the_earlier_transactions_readable_from_the_case()
+    {
+        Chain();
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer, 2));
+        var newer = Enumerable.Range(0, 4).Select(index => Tx(
+            "later-" + index, 200 + index, Scammer, 0.001m, Eth(Scammer, Exchange, 0.01m))).ToArray();
+        _harness.Ethereum.Add(newer);
+
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer, 2));
+        var graph = await _harness.Load();
+
+        Assert.DoesNotContain(graph.Problems, problem => problem.Contains("finns inte", StringComparison.Ordinal));
+        var transactions = graph.Account.Transfers.Select(transfer => transfer.Transaction).ToHashSet();
+        Assert.Contains(Hash("swap"), transactions);
+        Assert.Contains(Hash("later-3"), transactions);
+    }
+
+    [Fact]
+    public async Task A_movement_whose_block_hash_is_unknown_is_still_confirmed_with_its_height_and_time()
+    {
+        _harness.Ethereum.Add(Tx("internal", 100, Victim, 0.001m,
+            (EthereumTransferKind.Internal, Pool, Scammer, Ether(1m))));
+        _harness.Ethereum.BlocksFail = true;
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+
+        var result = await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer));
+
+        var transfer = result.Graph.Edges.SelectMany(edge => edge.Transfers).Single();
+        Assert.Null(transfer.Block);
+        Assert.Equal(100, transfer.Height);
+        Assert.NotNull(result.Graph.Edges.Single().FirstTime);
+        Assert.Contains("Hashen saknas", result.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_seed_from_an_account_to_itself_is_refused_as_such()
+    {
+        _harness.Ethereum.Add(Tx("self", 100, Scammer, 0.001m, Eth(Scammer, Scammer, 1m)));
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        var graph = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumAddress(Scammer))).Graph;
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => _harness.Service.TraceAccountsAsync(graph,
+            new AccountTraceRequest(TracingMethodKind.Fifo, [AccountSeed.Of(graph.Account.Transfers.Single())])));
+        Assert.Contains("itself", error.Message, StringComparison.Ordinal);
+    }
+
+    private static EthereumTransfer Usdt1000ToScammer(TraceGraph graph) =>
+        graph.Account.Transfers.Single(transfer => transfer.To == Scammer && transfer.From == Victim
+            && transfer.Amount.Asset == KnownTokens.EthereumUsdt);
+
+    [Fact]
     public async Task The_account_methods_are_offered_for_ethereum()
     {
         Assert.Equal([TracingMethodKind.Fifo, TracingMethodKind.Haircut],
