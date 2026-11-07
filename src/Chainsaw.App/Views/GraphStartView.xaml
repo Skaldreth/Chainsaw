@@ -110,7 +110,7 @@
 
         <!-- A form of start point: a pill with a dot, its name and its short form, lit when the text matches. -->
         <DataTemplate x:Key="FormChip" DataType="{x:Type vm:StartPointForm}">
-            <Border x:Name="Chip" Height="24" Padding="9,0" CornerRadius="12" BorderThickness="1" Margin="3,0"
+            <Border x:Name="Chip" Height="24" Padding="9,0" CornerRadius="12" BorderThickness="1.5" Margin="3,0"
                     BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Surface}"
                     ToolTip="{Binding Tip}">
                 <StackPanel Orientation="Horizontal">

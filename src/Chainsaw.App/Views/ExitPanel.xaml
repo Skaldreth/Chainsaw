@@ -112,7 +112,7 @@
                     <controls:GridIcon Size="18" Data="{StaticResource Icon.Laptop}" Foreground="{StaticResource Brush.TextMuted}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Chainsaw på den här datorn" />
                     <Line Grid.Column="1" Style="{StaticResource RouteLine}" />
-                    <Border Grid.Column="2" CornerRadius="13" BorderThickness="1" Padding="6,3,9,3" VerticalAlignment="Center">
+                    <Border Grid.Column="2" CornerRadius="13" BorderThickness="1.5" Padding="6,3,9,3" VerticalAlignment="Center">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="BorderBrush" Value="{StaticResource Brush.Error}" />

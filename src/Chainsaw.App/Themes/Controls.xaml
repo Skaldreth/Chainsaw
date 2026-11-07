@@ -658,7 +658,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Box" Background="{TemplateBinding Background}"
-                            BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="15">
+                            BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1.5" CornerRadius="15">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>

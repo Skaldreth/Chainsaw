@@ -58,7 +58,7 @@
                 <!-- The honest state of the watching (sketch BV1a): it runs, also in the background through Windows (solid,
                      green), waits for the exit (dashed, yellow), or the background is off (dashed, grey). -->
                 <Grid DockPanel.Dock="Right" Height="30" ToolTip="{Binding BackgroundTip}">
-                    <Border CornerRadius="15" BorderThickness="1" Background="{StaticResource Brush.Surface}">
+                    <Border CornerRadius="15" BorderThickness="1.5" Background="{StaticResource Brush.Surface}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />

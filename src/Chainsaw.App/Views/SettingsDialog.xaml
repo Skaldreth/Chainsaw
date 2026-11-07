@@ -286,7 +286,7 @@
                     Command="{Binding DataContext.ShowChipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="15" BorderThickness="1"
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="15" BorderThickness="1.5"
                                 BorderBrush="{StaticResource Brush.BorderStrong}" Padding="{TemplateBinding Padding}">
                             <ContentPresenter VerticalAlignment="Center" />
                         </Border>
