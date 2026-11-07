@@ -204,7 +204,34 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsOpen), nameof(IsLabelOpen), nameof(IsSplitOpen), nameof(IsCrossChainOpen))]
     [NotifyPropertyChangedFor(nameof(SubmitText), nameof(CanSubmit))]
+    [NotifyPropertyChangedFor(nameof(FormTitle), nameof(FormKey), nameof(FormIcon))]
     public partial InspectorForm Form { get; private set; }
+
+    /// <summary>Gets the open form's name, at the top of its panel by the node (sketch IN1b).</summary>
+    public string FormTitle => Form switch
+    {
+        InspectorForm.Label => "Etikett",
+        InspectorForm.Split => "Bryt upp",
+        InspectorForm.CrossChain => "Annan kedja",
+        _ => string.Empty,
+    };
+
+    /// <summary>Gets the open form's key in the graph.</summary>
+    public string FormKey => Form switch
+    {
+        InspectorForm.Label => "L",
+        InspectorForm.Split => "U",
+        InspectorForm.CrossChain => "K",
+        _ => string.Empty,
+    };
+
+    /// <summary>Gets the open form's icon, as a resource key.</summary>
+    public string FormIcon => Form switch
+    {
+        InspectorForm.Split => "Icon.Split",
+        InspectorForm.CrossChain => "Icon.Link",
+        _ => "Icon.Tag",
+    };
 
     /// <summary>Gets whether a form is open, so that the inspector's facts give way to it.</summary>
     public bool IsOpen => Form != InspectorForm.None;

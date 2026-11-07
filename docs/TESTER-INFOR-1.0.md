@@ -951,3 +951,9 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Etikett, Bryt upp och Annan kedja går att spara utan skäl.
 - [ ] *Inställningar → Källor → Prova alla nu* och en expansion fungerar (felet *The media type asked for is not
       valid* är borta).
+- [ ] Välj en nod: en list med ikoner står ovanför den (Expandera i accent först), bara de som går att använda; för
+      musen över en ikon för namnet och tangenten. Panorera, zooma och dra noden: listen följer med. Nära överkanten
+      hamnar listen under noden.
+- [ ] Tryck L (eller etikettikonen): formuläret fälls ut i en ruta till höger om noden med en pil mot den; nära
+      högerkanten till vänster. Esc stänger, Enter sparar. Samma för U och K.
+- [ ] Inspektören har inga knappar längre, bara *Varför?* som rund ikon i huvudet och kopiera vid adresserna.

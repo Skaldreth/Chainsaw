@@ -429,6 +429,25 @@ public sealed class GraphViewModelTests
         Assert.Equal(GraphSamples.KKey, rig.Graph.SelectedNode);
     }
 
+    /// <summary>The chosen node's actions over it (sketch IN2b) are only those that apply, Expandera first.</summary>
+    [Fact]
+    public void TheNodesActionsAreOnlyThoseThatApply()
+    {
+        var rig = new Rig();
+
+        rig.Graph.Choose(GraphSamples.KKey, null);
+
+        var actions = rig.Graph.NodeTools.Select(tool => tool.Action).ToList();
+        Assert.Equal(NodeMenuAction.Expand, actions[0]);
+        Assert.Contains(NodeMenuAction.Copy, actions);
+        Assert.Equal(rig.Graph.Forms.CanSplit, actions.Contains(NodeMenuAction.Split));
+        Assert.True(rig.Graph.HasNodeTools);
+
+        rig.Graph.Choose(null, null);
+
+        Assert.Empty(rig.Graph.NodeTools);
+    }
+
     /// <summary>An expansion is told as a toast of its sort (sketch TO1a).</summary>
     [Fact]
     public async Task AnExpansionIsToldAsAToast()

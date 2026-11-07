@@ -36,10 +36,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 1. **TO1a, toastern** (godkänd): fel, varning, lyckat och information nere till höger, högst fem, staplas uppåt och
    tonar ut. Tar över grafens Notice, och fel som ingen fångat. *Byggd 2026-11-07*; sidornas egna felrader (Källor,
    Bevakning) går över till toastern när de sidorna ses över.
-2. **IN2b, ikonlisten vid noden** (godkänd): Expandera, Etikett, Bevaka, Bryt upp, Annan kedja och Kopiera som
-   ikoner ovanför den valda noden; inspektören blir ren läsning, med *Varför?* som rund ikon.
-3. **IN1b, formulären vid noden:** Etikett (och Bryt upp och Annan kedja, samma skiss) fälls ut i en ruta bredvid noden
-   i grafen, inte i inspektören.
+2. **IN2b, ikonlisten vid noden:** *byggd 2026-11-07*, med bara de åtgärder som går att använda.
+3. **IN1b, formulären vid noden:** *byggd 2026-11-07* för Etikett, Bryt upp och Annan kedja.
 4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. Ett prov här mot mempool.space med samma adress gav
    50 tx och resten tillbakahållet, alltså fungerar Tracing och Chains; orsaken i appen är inte hittad. Provet tog
    **nästan 6 minuter för 53 uppslag**, vilket är för långsamt (takten per endpoint?).
@@ -55,6 +53,15 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 13. **Bevakningens tomma läge** ser inte professionellt ut: en större ikon i mitten med en förklarande text under att
     det är tomt; knapparna och pillret uppe till höger (*Bevakar medan Chainsaw är öppet*, *Ny bevakning …*) görs om.
 14. **Bevakningens högra panel** står kvar när den är tom; den ska bara synas när en bevakning är vald.
+15. **Statusraden längst ner** (*Uppslag går genom Windows*) upprepar titelraden och tas bort.
+16. **Pillret efter läget:** utan öppet ärende visas bara det som går att använda där, och knappar som kommer och går
+    animeras in och ut. Bildspråkets *?* behövs inte heller på den tomma grafen.
+17. **Bildspråkets ruta** bakom *?* är stökig och designas om; den får ta större plats.
+18. **Kommandoraden längst ner** behövs i princip aldrig: den döljs och fälls fram med Ctrl+K, som Spotlight i macOS.
+19. **Sonarpulsen runt *Nytt ärende*** i den tomma grafen känns ofärdig och arbetas om.
+20. **Soptunnan (SO1a)** byggs, och finns redan i startvyn: där kan man slänga ärenden.
+21. **Startvyn grupperar ärenden** som grafen grupperar tx (samlingsnoden, EX2b); ett ärende som dras ut hamnar på
+    startsidan. Skissas.
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;

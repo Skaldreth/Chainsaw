@@ -46,6 +46,50 @@
                            VerticalAlignment="Center" Margin="6,0,0,0" />
             </StackPanel>
         </DataTemplate>
+        <!--
+          An action over the chosen node (sketch IN2b): a 34 px square with the icon at 18 px; Expandera, the main one, in
+          the accent. Never holds the keyboard, so that E, L, B, U and K go on working in the graph.
+        -->
+        <Style x:Key="Button.NodeTool" TargetType="Button">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="8"
+                                BorderThickness="1.5" BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsMouseOver" Value="True" />
+                        <Condition Property="Tag" Value="{x:Null}" />
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                </MultiTrigger>
+                <Trigger Property="Tag" Value="Main">
+                    <Setter Property="Background" Value="{StaticResource Brush.Accent}" />
+                    <Setter Property="Foreground" Value="{StaticResource Brush.OnAccent}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <UserControl.InputBindings>
@@ -72,6 +116,86 @@
             <!-- With no case, or no start point, the empty graph guides instead (sketch GR6c). -->
             <views:GraphStartView x:Name="StartView" DataContext="{Binding Start}"
                                   Visibility="{Binding IsShown, Converter={StaticResource Visible}}" />
+
+            <!--
+              The chosen node's actions as icons over it (sketch IN2b), only those that apply; under the node when there
+              is no room above. The view keeps it at the node through pans, zooms and drags.
+            -->
+            <Grid x:Name="NodeTools" HorizontalAlignment="Left" VerticalAlignment="Top"
+                  Visibility="{Binding HasNodeTools, Converter={StaticResource Visible}}" SizeChanged="OnOverNodeSized">
+                <Border CornerRadius="12" Background="{StaticResource Brush.SurfaceRaised}" IsHitTestVisible="False">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.45" Color="Black" />
+                    </Border.Effect>
+                </Border>
+                <Border CornerRadius="12" Padding="3" BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}"
+                        Background="{StaticResource Brush.SurfaceRaised}">
+                    <ItemsControl ItemsSource="{Binding NodeTools}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:NodeMenuRow}">
+                                <Button x:Name="Tool" Style="{StaticResource Button.NodeTool}" IsEnabled="{Binding IsEnabled}"
+                                        AutomationProperties.Name="{Binding Label}" CommandParameter="{Binding}"
+                                        Command="{Binding DataContext.RunMenuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Button.ToolTip>
+                                        <TextBlock>
+                                            <Run Text="{Binding Label, Mode=OneWay}" />
+                                            <Run Text="{Binding Key, Mode=OneWay}" Foreground="{StaticResource Brush.TextDim}" />
+                                        </TextBlock>
+                                    </Button.ToolTip>
+                                    <controls:GridIcon Size="18"
+                                                       Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                </Button>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Action}" Value="{x:Static vm:NodeMenuAction.Expand}">
+                                        <Setter TargetName="Tool" Property="Tag" Value="Main" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </Grid>
+
+            <!--
+              The open form (Etikett L, Bryt upp U, Annan kedja K) in a panel beside the node (sketch IN1b), to its right,
+              or its left when there is no room, with a small arrow pointing at it.
+            -->
+            <Grid x:Name="NodeForm" HorizontalAlignment="Left" VerticalAlignment="Top" Width="316"
+                  Visibility="{Binding Forms.IsOpen, Converter={StaticResource Visible}}" SizeChanged="OnOverNodeSized">
+                <Border CornerRadius="12" Background="{StaticResource Brush.Floating}" IsHitTestVisible="False">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="36" ShadowDepth="12" Direction="270" Opacity="0.5" Color="Black" />
+                    </Border.Effect>
+                </Border>
+                <Border CornerRadius="12" Padding="14" BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}"
+                        Background="{StaticResource Brush.Floating}">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,4">
+                            <controls:GridIcon DockPanel.Dock="Left" Size="16" Foreground="{StaticResource Brush.Accent}"
+                                               VerticalAlignment="Center"
+                                               Data="{Binding Forms.FormIcon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding Forms.FormKey}" FontSize="12"
+                                       Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Forms.FormTitle}" FontSize="14" FontWeight="SemiBold" Margin="8,0,0,0"
+                                       VerticalAlignment="Center" />
+                        </DockPanel>
+                        <views:InspectorFormsView DataContext="{Binding Forms}" />
+                    </StackPanel>
+                </Border>
+                <Border x:Name="Caret" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Background="{StaticResource Brush.Floating}" BorderBrush="{StaticResource Brush.BorderStrong}"
+                        BorderThickness="1.5,0,0,1.5" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False">
+                    <Border.RenderTransform>
+                        <RotateTransform x:Name="CaretTurn" Angle="45" />
+                    </Border.RenderTransform>
+                </Border>
+            </Grid>
 
             <!-- What was traced and how: top left, beside the pill's column. -->
             <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="84,14,0,0" MaxWidth="520"
@@ -351,6 +475,11 @@
                               Visibility="{Binding HasInspection, Converter={StaticResource Visible}}">
                     <StackPanel Margin="18" DataContext="{Binding Inspection}">
                         <DockPanel>
+                            <!-- Varför? as a round icon in the heading's corner (sketch IN2b): the Guide's answers. -->
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Help}" Margin="8,0,0,0"
+                                    VerticalAlignment="Center" AutomationProperties.Name="Varför?"
+                                    ToolTip="Varför? Förklaringen i Guiden, bredvid grafen"
+                                    Command="{Binding DataContext.AskWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                             <Border x:Name="HeadFrame" Width="30" Height="30" BorderThickness="1.5" DockPanel.Dock="Left"
                                     BorderBrush="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}">
                                 <Border.Style>
@@ -522,18 +651,6 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- The forms (sketch IN1a): Etikett (L), Bryt upp (U) and Annan kedja (K), folded out here. -->
-                        <views:InspectorFormsView
-                            DataContext="{Binding DataContext.Forms, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-
-                        <!-- Expanding: one step through Tracing and Chains, never on the UI thread. -->
-                        <Button Style="{StaticResource Button.Secondary}" Height="34" Margin="0,4,0,0"
-                                Content="{Binding DataContext.ExpandText, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                Command="{Binding DataContext.ExpandCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                IsEnabled="{Binding DataContext.CanExpand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                Visibility="{Binding CanExpand, Converter={StaticResource Visible}}"
-                                ToolTip="Hämta ett steg till härifrån (E)" />
-
                         <!-- Addresses, txids and blocks in full, so that every step can be checked against the chain. -->
                         <ItemsControl ItemsSource="{Binding Details}" Focusable="False" Margin="0,14,0,0">
                             <ItemsControl.ItemTemplate>
@@ -554,10 +671,6 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- Varför? opens the Guide beside the graph with the answers on top (sketch GD1b). -->
-                        <Button Style="{StaticResource Button.Link}" Content="Varför?" Margin="0,10,0,0"
-                                Command="{Binding DataContext.AskWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                AutomationProperties.Name="Varför?" ToolTip="Förklaringen i Guiden, bredvid grafen" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

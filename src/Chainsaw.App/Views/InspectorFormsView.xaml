@@ -37,17 +37,6 @@
             </Setter>
         </Style>
 
-        <!-- One of the three buttons: an icon, the word and the key (sketch IN1a). -->
-        <Style x:Key="Button.Action" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
-            <!-- L, U and K reach them; never holding the keyboard, Enter in a form always stores it. -->
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Height" Value="32" />
-            <Setter Property="Padding" Value="6,0" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Margin" Value="0,0,6,0" />
-            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
-        </Style>
-
         <!-- A choice among several (a source, a chain): grey, lighter when chosen; never takes the keyboard. -->
         <Style x:Key="Button.Chip" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
             <Setter Property="Focusable" Value="False" />
@@ -104,86 +93,9 @@
     </UserControl.Resources>
 
     <StackPanel Visibility="{Binding HasNode, Converter={StaticResource Visible}}">
-        <!-- ===== The three buttons ===== -->
-        <UniformGrid Columns="3" Margin="0,4,-6,0">
-            <Button x:Name="LabelButton" ToolTip="{Binding LabelToolTip}" IsEnabled="{Binding CanLabel}"
-                    AutomationProperties.Name="Etikett" Command="{Binding OpenCommand}"
-                    CommandParameter="{x:Static graph:InspectorForm.Label}">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource Button.Action}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsLabelOpen}" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
-                                <Setter Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
-                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-                            </DataTrigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.35" />
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <StackPanel Orientation="Horizontal">
-                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Tag}"
-                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    <TextBlock Text="Etikett" Margin="5,0,0,0" />
-                    <TextBlock Text="L" Margin="5,0,0,0" Foreground="{StaticResource Brush.TextDim}" />
-                </StackPanel>
-            </Button>
-            <Button x:Name="SplitButton" ToolTip="{Binding SplitToolTip}" IsEnabled="{Binding CanSplit}"
-                    AutomationProperties.Name="Bryt upp" Command="{Binding OpenCommand}"
-                    CommandParameter="{x:Static graph:InspectorForm.Split}">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource Button.Action}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsSplitOpen}" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
-                                <Setter Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
-                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-                            </DataTrigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.35" />
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <StackPanel Orientation="Horizontal">
-                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Split}"
-                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    <TextBlock Text="Bryt upp" Margin="5,0,0,0" />
-                    <TextBlock Text="U" Margin="5,0,0,0" Foreground="{StaticResource Brush.TextDim}" />
-                </StackPanel>
-            </Button>
-            <Button x:Name="ChainButton" ToolTip="{Binding CrossChainToolTip}" IsEnabled="{Binding CanCrossChain}"
-                    AutomationProperties.Name="Annan kedja" Command="{Binding OpenCommand}"
-                    CommandParameter="{x:Static graph:InspectorForm.CrossChain}">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource Button.Action}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsCrossChainOpen}" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
-                                <Setter Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
-                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-                            </DataTrigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.35" />
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <StackPanel Orientation="Horizontal">
-                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Link}"
-                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    <TextBlock Text="Annan kedja" Margin="5,0,0,0" />
-                    <TextBlock Text="K" Margin="5,0,0,0" Foreground="{StaticResource Brush.TextDim}" />
-                </StackPanel>
-            </Button>
-        </UniformGrid>
-
         <!-- ===== The open form: Esc cancels, Enter stores ===== -->
-        <Border x:Name="FormPanel" Margin="0,10,0,4" Padding="12,2,12,12" CornerRadius="8" BorderThickness="1"
-                BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.SurfaceRaised}"
-                Visibility="{Binding IsOpen, Converter={StaticResource Visible}}">
+        <!-- The panel by the node (sketch IN1b) gives the frame; here only the fields. -->
+        <Border x:Name="FormPanel" Visibility="{Binding IsOpen, Converter={StaticResource Visible}}">
             <Border.InputBindings>
                 <KeyBinding Key="Enter" Command="{Binding SubmitCommand}" />
                 <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />

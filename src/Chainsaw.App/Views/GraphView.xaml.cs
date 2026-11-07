@@ -18,8 +18,30 @@ public partial class GraphView : UserControl
     /// <summary>The node's menu's height, for keeping it inside the page.</summary>
     private const double MenuHeight = 220;
 
+    /// <summary>The space between the chosen node and its actions over it (sketch IN2b).</summary>
+    private const double ToolGap = 10;
+
+    /// <summary>The space between the chosen node and its form beside it (sketch IN1b).</summary>
+    private const double FormGap = 16;
+
+    /// <summary>How far what stands over a node keeps from the page's edges.</summary>
+    private const double EdgeSpace = 8;
+
+    /// <summary>How far above the node's middle the form's heading stands, so that the arrow meets the heading.</summary>
+    private const double FormLift = 26;
+
+    /// <summary>Half the arrow's side, and the space it keeps from the form's corners.</summary>
+    private const double CaretHalf = 6;
+
+    /// <summary>The space the arrow keeps from the form's rounded corners.</summary>
+    private const double CaretInset = 14;
+
     /// <summary>Creates the page.</summary>
-    public GraphView() => InitializeComponent();
+    public GraphView()
+    {
+        InitializeComponent();
+        Canvas.Drawn += (_, _) => PlaceOverNode();
+    }
 
     /// <summary>The inspector's width in sketch GR4, in device-independent pixels.</summary>
     private const double InspectorWidth = 280;
@@ -71,6 +93,11 @@ public partial class GraphView : UserControl
                     Math.Max(0, Math.Min(at.Y, Canvas.ActualHeight - MenuHeight)), 0, 0);
             }
 
+            if (e.PropertyName is nameof(GraphViewModel.SelectedNode) or nameof(GraphViewModel.HasNodeTools))
+            {
+                PlaceOverNode();
+            }
+
             if (e.PropertyName == nameof(GraphViewModel.IsWatchFormOpen) && !model.IsWatchFormOpen
                 && IsKeyboardFocusWithin)
             {
@@ -97,6 +124,55 @@ public partial class GraphView : UserControl
             }
         };
     }
+
+    /// <summary>Keeps what stands over the chosen node at it once its size is known.</summary>
+    /// <param name="sender">The actions or the form.</param>
+    /// <param name="e">The size.</param>
+    private void OnOverNodeSized(object sender, SizeChangedEventArgs e) => PlaceOverNode();
+
+    /// <summary>
+    /// Puts the chosen node's actions over it (under it when there is no room above, sketch IN2b) and its open form
+    /// beside it, to the right or else to the left, with the arrow at the node's middle (sketch IN1b).
+    /// </summary>
+    private void PlaceOverNode()
+    {
+        if (DataContext is not GraphViewModel model || Canvas.NodeOnScreen(model.SelectedNode) is not { } node)
+        {
+            return;
+        }
+
+        var width = Canvas.ActualWidth;
+        var height = Canvas.ActualHeight;
+        var toolsWidth = NodeTools.ActualWidth;
+        var toolsHeight = NodeTools.ActualHeight;
+        var above = node.Top - ToolGap - toolsHeight;
+        NodeTools.Margin = new Thickness(
+            Within(node.Left + (node.Width / 2) - (toolsWidth / 2), EdgeSpace, width - toolsWidth - EdgeSpace),
+            above >= EdgeSpace ? above : node.Bottom + ToolGap,
+            0,
+            0);
+
+        var formWidth = NodeForm.Width;
+        var formHeight = NodeForm.ActualHeight;
+        var right = node.Right + FormGap + formWidth <= width - EdgeSpace;
+        var middle = node.Top + (node.Height / 2);
+        var top = Within(middle - FormLift, EdgeSpace, height - formHeight - EdgeSpace);
+        NodeForm.Margin = new Thickness(right ? node.Right + FormGap : node.Left - FormGap - formWidth, top, 0, 0);
+        Caret.Margin = new Thickness(
+            right ? -CaretHalf - 1 : formWidth - CaretHalf - 1,
+            Within(middle - top - CaretHalf, CaretInset, formHeight - CaretInset - (2 * CaretHalf)),
+            0,
+            0);
+        CaretTurn.Angle = right ? 45 : 225;
+    }
+
+    /// <summary>Keeps a value between two bounds; when they cross, the lower one wins.</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="lowest">The lower bound.</param>
+    /// <param name="highest">The upper bound.</param>
+    /// <returns>The value within the bounds.</returns>
+    private static double Within(double value, double lowest, double highest) =>
+        Math.Max(lowest, Math.Min(value, highest));
 
     /// <summary>Shows the inspector, or folds it away when no case is open and there is nothing to inspect.</summary>
     /// <param name="shown">Whether the inspector is shown.</param>

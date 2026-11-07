@@ -50,7 +50,9 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
    ikoner, linjer och små markeringar** i stället för text och förklaringar i grafen och dialogerna (användarens krav
    2026-11-07). Smakfullt och stilrent, men alltid med en funktion. Viktig information, som beloppet på en linje, får stå
    kvar; förklaringar och detaljer visas på hovring, när något väljs eller i Guiden.
-   En graf som växer okontrollerat är ett fel, inte en funktion.
+   En graf som växer okontrollerat är ett fel, inte en funktion. **Komplexitet är till för att döljas** och visas när
+   den är aktuell, eller genom smart design; brus, komplexitet och stökig mjukvara är ett stort nej i Chainsaw
+   (användarens krav 2026-11-07). En knapp som inte går att använda just nu visas inte, och en tom panel tas bort.
 8. **Moduler äger inte utredningen.** En datakälla, en heuristik eller en kedja ska kunna bytas utan att ärenden, hämtad
    historik eller slutsatser försvinner.
 9. **Offline fungerar.** Allt som har hämtats ligger i ärendet, så ett ärende kan öppnas och arbetas med utan nät. Det som
@@ -361,8 +363,12 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   kant och går över i menyn, en enda form med samma yta, kant och skugga och ett rundat inre hörn. Det är det allmänna
   sättet att visa undermenyer i pillret; Nytt är den första.
   **Fönstret har runda hörn som Gawk** (Windows 11 ritar dem, `Interop/WindowFrame.cs`; användarens beslut 2026-11-07).
-- **Inspektörens formulär är IN1a** (användarens beslut 2026-11-07): Etikett (L), Bryt upp (U) och Annan kedja (K) fälls
-  ut i inspektören till höger. **Utgångarna är UT1a**: utgången i titelraden fäller ut en ruta med utgångarna, anslut och
+- **Åtgärderna står vid noden, IN2b och IN1b** (användarens beslut 2026-11-07, ersätter IN1a): den valda noden får en
+  liten flytande list med ikoner ovanför sig (Expandera i accent, Etikett, Bevaka, Bryt upp, Annan kedja, Kopiera),
+  bara de som går att använda på noden, och under noden när det är trångt ovanför. Etikett (L), Bryt upp (U) och Annan
+  kedja (K) fälls ut i en ruta bredvid noden med en liten pil mot den, inte i inspektören. **Inspektören är ren
+  läsning:** huvudet med *Varför?* som rund ikon, fakta, historik och adresserna med kopiera. **Skälet är frivilligt**
+  i alla formulär (användarens beslut 2026-11-07). **Utgångarna är UT1a**: utgången i titelraden fäller ut en ruta med utgångarna, anslut och
   koppla ner, *Lägg till WireGuard-fil …* och vägen till källorna. **Guiden är GD1b**: en panel från höger bredvid
   arbetet, öppnad från *Varför?*, *?* och spårningsmetoden, med svaret för det valda överst och *Öppna i Guide* till
   hela vyn (F1).

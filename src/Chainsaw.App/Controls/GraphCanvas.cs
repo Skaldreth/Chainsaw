@@ -148,11 +148,33 @@ public sealed partial class GraphCanvas : FrameworkElement
         InvalidateVisual();
     }
 
+    /// <summary>
+    /// Raised each time the surface is drawn, after a pan, a zoom, a drag or a new graph, so that what stands over a
+    /// node (its actions and forms, sketches IN2b and IN1b) follows it.
+    /// </summary>
+    public event EventHandler? Drawn;
+
+    /// <summary>Gives where a node's frame stands on the screen, in this control's coordinates.</summary>
+    /// <param name="nodeKey">The node.</param>
+    /// <returns>The frame, or <see langword="null"/> when the node is not in the graph.</returns>
+    public Rect? NodeOnScreen(string? nodeKey)
+    {
+        if (nodeKey is null || _model is null || !_model.Places.TryGetValue(nodeKey, out var place))
+        {
+            return null;
+        }
+
+        var frame = GraphSizes.NodeFrame(place);
+        var corner = _viewport.ToScreen(new GraphPoint(frame.X, frame.Y));
+        return new Rect(corner.X, corner.Y, frame.Width * _viewport.Zoom, frame.Height * _viewport.Zoom);
+    }
+
     /// <summary>Draws what is on screen: the hop columns, the lines, their amounts and the nodes.</summary>
     /// <param name="drawingContext">Where to draw.</param>
     protected override void OnRender(DrawingContext drawingContext)
     {
         ArgumentNullException.ThrowIfNull(drawingContext);
+        Drawn?.Invoke(this, EventArgs.Empty);
 
         // A transparent ground, so that the empty surface takes the pointer too.
         drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(RenderSize));

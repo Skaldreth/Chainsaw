@@ -136,12 +136,21 @@ public sealed partial class GraphViewModel : ObservableObject
         History.Saved += (_, notice) => _ = RefreshThenSayAsync(notice);
         History.Failed += (_, text) => Tell(ToastKind.Error, text);
 
-        // A form (L, U or K) opens among the facts, so the facts are shown.
+        // The node's actions over it follow the chosen node, its facts, the expansion and the forms (sketch IN2b).
         Forms.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(InspectorFormsViewModel.Form) && Forms.IsOpen)
+            if (e.PropertyName is nameof(InspectorFormsViewModel.CanLabel) or nameof(InspectorFormsViewModel.CanSplit)
+                or nameof(InspectorFormsViewModel.CanCrossChain))
             {
-                History.ShowFacts();
+                ShowNodeTools();
+            }
+        };
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(SelectedNode) or nameof(Inspection) or nameof(IsExpanding) or nameof(Scene)
+                or nameof(WatchOverlay))
+            {
+                ShowNodeTools();
             }
         };
         session.Changed += (_, _) => OnCaseChanged();

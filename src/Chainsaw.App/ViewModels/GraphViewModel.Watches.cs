@@ -68,6 +68,48 @@ public sealed partial class GraphViewModel
     [ObservableProperty]
     public partial IReadOnlyList<NodeMenuRow> MenuRows { get; private set; } = [];
 
+    /// <summary>
+    /// Gets the chosen node's actions as icons over it (sketch IN2b), in the sketch's order: only those that apply to the
+    /// node, since an action that cannot be used is noise (principle 7); empty when no node is chosen.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNodeTools))]
+    public partial IReadOnlyList<NodeMenuRow> NodeTools { get; private set; } = [];
+
+    /// <summary>Gets whether the chosen node has its actions over it.</summary>
+    public bool HasNodeTools => NodeTools.Count > 0;
+
+    /// <summary>Gives the chosen node's actions over it again, after what they depend on changed.</summary>
+    internal void ShowNodeTools()
+    {
+        if (Scene?.Node(SelectedNode) is not { } node || _session.Current is null)
+        {
+            NodeTools = [];
+            return;
+        }
+
+        var tools = new List<NodeMenuRow>();
+        if (Inspection?.CanExpand == true)
+        {
+            tools.Add(new(NodeMenuAction.Expand, "Expandera", "E", "Icon.Plus", CanExpand));
+        }
+
+        Add(Forms.CanLabel, NodeMenuAction.Label, "Etikett", "L", "Icon.Tag");
+        Add(CanWatch(node), NodeMenuAction.Watch, "Bevaka", "B", "Icon.Eye");
+        Add(Forms.CanSplit, NodeMenuAction.Split, "Bryt upp", "U", "Icon.Split");
+        Add(Forms.CanCrossChain, NodeMenuAction.CrossChain, "Annan kedja", "K", "Icon.Link");
+        Add(node.Node.Addresses.Count > 0, NodeMenuAction.Copy, "Kopiera adress", "Ctrl+C", "Icon.Copy");
+        NodeTools = tools;
+
+        void Add(bool applies, NodeMenuAction action, string label, string key, string icon)
+        {
+            if (applies)
+            {
+                tools.Add(new(action, label, key, icon, true));
+            }
+        }
+    }
+
     /// <summary>Gets whether the node's menu is open.</summary>
     public bool IsMenuOpen => MenuNode is not null;
 

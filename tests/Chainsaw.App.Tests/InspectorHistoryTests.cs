@@ -36,10 +36,10 @@ public sealed class InspectorHistoryTests
         Assert.True(rig.History.IsShown);
         Assert.False(rig.History.IsFactsShown);
 
+        // The form opens beside the node (sketch IN1b), so the inspector's tab stays.
         rig.Forms.Open(InspectorForm.Label);
-        Assert.False(rig.History.IsShown);
+        Assert.True(rig.History.IsShown);
 
-        rig.History.ShowHistory();
         rig.Graph.Choose(null, GraphSamples.VK);
         Assert.False(rig.History.IsShown);
     }
