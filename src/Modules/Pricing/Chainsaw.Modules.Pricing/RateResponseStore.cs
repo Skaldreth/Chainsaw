@@ -216,7 +216,25 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
             throw new CaseException(CaseError.Corrupt);
         }
 
-        var origin = new RateOrigin(
+        try
+        {
+            return new StoredRateResponse(kind, subject, OriginOf(row, sha256), body);
+        }
+        catch (Exception exception) when (exception is UriFormatException or JsonException or FormatException
+            or OverflowException or InvalidCastException)
+        {
+            throw new CaseException(CaseError.Corrupt);
+        }
+    }
+
+    /// <summary>Reads a sealed response's origin from its row.</summary>
+    /// <param name="row">The row.</param>
+    /// <param name="sha256">The SHA-256 of its bytes.</param>
+    /// <returns>The origin.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it has no operator.</exception>
+    private static RateOrigin OriginOf(DbDataReader row, byte[] sha256)
+    {
+        return new RateOrigin(
             row.GetInt64(row.GetOrdinal("sequence")),
             row.GetString(row.GetOrdinal("source")),
             new Uri(row.GetString(row.GetOrdinal("url"))),
@@ -226,7 +244,6 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
             JsonSerializer.Deserialize<OperatorProfile>(row.GetString(row.GetOrdinal("fetched_by")))
                 ?? throw new CaseException(CaseError.Corrupt),
             Convert.ToHexStringLower(sha256));
-        return new StoredRateResponse(kind, subject, origin, body);
     }
 
     /// <summary>Adds a parameter to a command.</summary>

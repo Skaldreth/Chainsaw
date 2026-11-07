@@ -87,7 +87,11 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
             throw new ExitNotConnectedException();
         }
 
-        Sent.Add(request);
+        lock (Sent)
+        {
+            Sent.Add(request);
+        }
+
         if (Failure is { } failure)
         {
             throw new ExitException(failure);

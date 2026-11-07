@@ -124,6 +124,17 @@ ansluten utgång.
 - `/verify` på ett ärende med hämtade svar är grönt, och svarens SHA-256 stämmer med `sha256sum` av samma svar hämtat
   med `curl` genom samma utgång (så länge svaret inte har ändrats).
 
+## Kurserna (etapp 14, Pricing)
+
+Pricing har inget gränssnitt än. Det provas när beloppen i SEK visas, och först med en ansluten utgång.
+
+- Kursen för en känd tx stämmer med Bitstamps egen graf för samma timme (sista priset) och med Riksbankens kurs för
+  samma dag på riksbank.se.
+- En tx på en lördag får fredagens kurs från Riksbanken, och stegen säger det.
+- Samma kurs hämtas inte två gånger: två uppslag för samma timme ger bara ett nytt svar i ärendet.
+- Utan utgång: en kurs som redan är hämtad visas ur ärendet, och en ny säger *Offline* utan att något går ut.
+- Många tx på en gång (en graf med tx över flera månader) ger inga fel 429 från Riksbanken.
+
 ## Klustringen (etapp 6, Clustering)
 
 Klustringen har inget gränssnitt än. Det provas när grafen kan hämta tx och visa kluster, helst tillsammans med

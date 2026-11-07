@@ -36,7 +36,8 @@ alltid perioden, så att avståndet till tidpunkten syns.
 Riksbankens kurs gäller för en **bankdag** i svensk tid. För en helg eller helgdag används den senaste bankdagen före, och
 det står i stegen. Dagens kurs sätts under dagen, så före dess står det att den inte är publicerad än (eller att dagen
 kanske inte är en bankdag). Riksbanken tar bara emot några få uppslag i minuten utan nyckel, så Chainsaw frågar en gång
-i taget, med tolv sekunders mellanrum, och ett svar täcker en hel månad.
+i taget, med tolv sekunders mellanrum, och ett svar täcker en hel månad. En dag räknas som passerad först sex timmar
+efter midnatt, så att en kurs som publiceras sent inte missas.
 
 ## Så ser stegen ut
 

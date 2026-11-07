@@ -378,6 +378,7 @@ public sealed class ServiceTests : IDisposable
         _harness.Http.AnswerText(riksbank, """[{"date":"2026-11-05","value":9.5}]""");
 
         var waiting = await _harness.PriceAsync(at);
+        _harness.Clock.UtcNow += TimeSpan.FromMinutes(16);
         _harness.Http.AnswerText(
             riksbank, """[{"date":"2026-11-05","value":9.5},{"date":"2026-11-06","value":9.6}]""");
         var published = await _harness.PriceAsync(at);
@@ -575,6 +576,7 @@ public sealed class ReviewRegressionTests : IDisposable
             SELECT source, 'SEKUSDPMI', '2026-10-23', '2026-11-06', '2026-11-06', sequence
             FROM pricing_raw_responses WHERE source = 'riksbank'
             """);
+        _harness.Clock.UtcNow += TimeSpan.FromMinutes(16);
 
         var lookup = await _harness.PriceAsync(at);
 
@@ -655,8 +657,140 @@ public sealed class ReviewRegressionTests : IDisposable
         Assert.Contains("Throwing", harness.RawRows()[0].Source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Shares_one_bitstamp_request_among_lookups_of_the_same_period()
+    {
+        _harness.AnswerAll();
+
+        var lookups = await Task.WhenAll(Enumerable.Range(0, 8).Select(
+            second => _harness.PriceAsync(Fixtures.At.AddSeconds(second), FiatCurrency.Usd)));
+
+        Assert.All(lookups, lookup => Assert.Equal(30123.45m, lookup.Value!.UnitPrice));
+        Assert.Single(_harness.Http.Sent);
+        Assert.Single(_harness.RawRows());
+    }
+
+    [Fact]
+    public async Task Asks_the_riksbank_once_for_a_day_without_a_final_rate()
+    {
+        // Saturday 2026-11-07: the rate cannot be final today, and asking again at once cannot help.
+        _harness.Clock.UtcNow = new DateTimeOffset(2026, 11, 7, 12, 0, 0, TimeSpan.Zero);
+        var times = Enumerable.Range(0, 6)
+            .Select(minute => new DateTimeOffset(2026, 11, 7, 9, minute, 0, TimeSpan.Zero));
+        _harness.AnswerCandle(new DateTimeOffset(2026, 11, 7, 9, 0, 0, TimeSpan.Zero), "1");
+        _harness.Http.AnswerText(
+            $"{Fixtures.Riksbank}Observations/SEKUSDPMI/2026-10-24/2026-11-07",
+            """[{"date":"2026-11-06","value":9.6}]""");
+
+        var lookups = await Task.WhenAll(times.Select(at => _harness.PriceAsync(at)));
+
+        Assert.All(lookups, lookup => Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status));
+        Assert.Single(_harness.Http.Sent, request => request.Uri.Host == "riksbank.test");
+    }
+
+    [Fact]
+    public async Task Counts_a_day_as_passed_only_six_hours_after_midnight()
+    {
+        // Sunday 2026-11-08 at 00:30 in Stockholm: Saturday may still get a late rate, so nothing is kept as final.
+        _harness.Clock.UtcNow = new DateTimeOffset(2026, 11, 7, 23, 30, 0, TimeSpan.Zero);
+        var at = new DateTimeOffset(2026, 11, 7, 9, 30, 0, TimeSpan.Zero);
+        _harness.AnswerCandle(at, "1");
+        _harness.Http.AnswerText(
+            $"{Fixtures.Riksbank}Observations/SEKUSDPMI/2026-10-24/2026-11-07",
+            """[{"date":"2026-11-06","value":9.6}]""");
+
+        var early = await _harness.PriceAsync(at);
+        _harness.Clock.UtcNow = new DateTimeOffset(2026, 11, 8, 5, 0, 1, TimeSpan.Zero);
+        var later = await _harness.PriceAsync(at);
+
+        Assert.Equal(PriceLookupStatus.NotAvailable, early.Status);
+        Assert.Equal(9.6m, later.Value!.FiatRate!.PerUnit);
+        Assert.Equal(1, _harness.Count("pricing_fiat_ranges"));
+    }
+
+    [Fact]
+    public async Task Stops_at_the_riksbank_limit_for_a_day()
+    {
+        _harness.Http.Failure = Chainsaw.Modules.Network.Contracts.ExitError.Timeout;
+        _harness.AnswerAll();
+        await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+        _harness.Http.Failure = null;
+        await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+        _harness.Http.Failure = Chainsaw.Modules.Network.Contracts.ExitError.Timeout;
+        for (var request = 0; request < 1_000; request++)
+        {
+            await _harness.PriceAsync(Fixtures.At);
+        }
+
+        _harness.Http.Failure = null;
+        var sent = _harness.Http.Sent.Count;
+
+        var lookup = await _harness.PriceAsync(Fixtures.At);
+
+        Assert.Equal(PriceLookupStatus.Failed, lookup.Status);
+        Assert.Contains("1 000", lookup.Problem, StringComparison.Ordinal);
+        Assert.Equal(sent, _harness.Http.Sent.Count);
+    }
+
+    [Fact]
+    public async Task Spaces_the_next_request_also_after_a_timeout()
+    {
+        var interval = TimeSpan.FromMilliseconds(400);
+        using var harness = new Harness(new PricingOptions
+        {
+            BitstampBaseUri = new Uri(Fixtures.Bitstamp),
+            RiksbankBaseUri = new Uri(Fixtures.Riksbank),
+            RiksbankInterval = interval,
+        });
+        harness.AnswerAll();
+        await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+        harness.Http.Failure = Chainsaw.Modules.Network.Contracts.ExitError.Timeout;
+        await harness.PriceAsync(Fixtures.At);
+        harness.Http.Failure = null;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        await harness.PriceAsync(Fixtures.At);
+
+        Assert.True(watch.Elapsed >= interval - TimeSpan.FromMilliseconds(100), watch.Elapsed.ToString());
+    }
+
+    [Fact]
+    public async Task Lets_the_next_lookup_go_when_one_waiting_for_the_riksbank_is_cancelled()
+    {
+        using var harness = new Harness(new PricingOptions
+        {
+            BitstampBaseUri = new Uri(Fixtures.Bitstamp),
+            RiksbankBaseUri = new Uri(Fixtures.Riksbank),
+            RiksbankInterval = TimeSpan.FromSeconds(30),
+        });
+        harness.AnswerAll();
+        await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+        harness.Http.Failure = Chainsaw.Modules.Network.Contracts.ExitError.Timeout;
+        await harness.PriceAsync(Fixtures.At);
+        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harness.Prices.GetPriceAsync(
+            harness.Case, new PriceRequest(Chain.Bitcoin, Fixtures.At), cancellationToken: cancel.Token));
+        var offline = await harness.Prices.GetPriceAsync(
+            harness.Case, new PriceRequest(Chain.Bitcoin, Fixtures.At), PriceLookupMode.CaseOnly);
+
+        Assert.Equal(PriceLookupStatus.NotInCase, offline.Status);
+    }
+
+    [Fact]
+    public async Task Answers_a_source_that_gives_an_address_the_exit_refuses()
+    {
+        using var harness = new Harness(
+            before: services => services.AddSingleton<ICryptoRateSource>(new Throwing(http: true)));
+
+        var lookup = await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+
+        Assert.Equal(PriceLookupStatus.Failed, lookup.Status);
+        Assert.Empty(harness.RawRows());
+    }
+
     /// <summary>A replaced source whose reader throws something other than its contract says.</summary>
-    private sealed class Throwing : ICryptoRateSource
+    private sealed class Throwing(bool http = false) : ICryptoRateSource
     {
         public string Name => "Throwing";
 
@@ -666,7 +800,7 @@ public sealed class ReviewRegressionTests : IDisposable
 
         public Uri RequestUri(
             Chain chain, FiatCurrency quote, PriceResolution resolution, DateTimeOffset periodStart) =>
-            new("https://throwing.test/");
+            http ? throw new InvalidOperationException("No address.") : new("https://throwing.test/");
 
         public RateCandle? ReadCandle(
             ReadOnlySpan<byte> body, Chain chain, FiatCurrency quote, PriceResolution resolution,

@@ -19,8 +19,9 @@ public sealed record PricingOptions
     public FiatCurrency KronaVia { get; init; } = FiatCurrency.Usd;
 
     /// <summary>
-    /// Gets the shortest time between two requests to the Riksbank, which allows 5 anonymous requests a minute (and
-    /// 1 000 a day) from one IP address; 12 seconds by default.
+    /// Gets the shortest time between two requests to the Riksbank, which allows 5 anonymous requests a minute from one
+    /// IP address; 12 seconds by default. It guards only that limit: the limit of 1 000 a day is counted separately,
+    /// and computers that share an exit share both limits without knowing it.
     /// </summary>
     public TimeSpan RiksbankInterval { get; init; } = TimeSpan.FromSeconds(12);
 

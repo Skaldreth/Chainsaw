@@ -35,6 +35,9 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   emot i grafen, och från en startpunkts-tx:s betalningar till andra än betalarna; ett mynt längre fram i samma flöde
   tas bort. Ska användaren välja mynten själv (till exempel offrets betalningar, eller ett belopp av ett mynt), och hur
   ska det se ut? Behöver en skiss.
+- **Bitstamp som kurskälla i tjänsten** (etapp 14, valt av sessionen): öppen historik utan nyckel, men villkoren för
+  kommersiellt bruk är oklara (se *Kurser*). Bekräfta att Bitstamp får användas, eller välj en annan källa; källan kan
+  bytas utan att något annat ändras.
 
 ## Bygga härnäst
 
@@ -189,9 +192,28 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   profil som ändras räknas som en annan person; ett stabilt operatörs-id i Security vore bättre.
 - **Etiketter på tx** (till exempel en känd brygga eller swap): `ClassifyTransaction` ger inget från etiketter än.
 
-### Kurser
-- Kursen vid tx:ens tid i vald valuta (SEK som förval), med källa, sparad i ärendet. Riksbankens kurser för SEK mot USD och
-  EUR kan vara ett bra underlag; kryptokursen från en källa med historik per minut eller timme. Välj källor och skriv in dem.
+### Kurser (etapp 14)
+- **Kurserna i gränssnittet:** beloppen i SEK på grafens linjer och i inspektören, stegen bakom *Varför?*, och valet av
+  valuta och upplösning i inställningarna (nu bara `PricingOptions` och per anrop). Kräver skiss.
+- **Bitstamps villkor för data:** API-sidan säger både att data får användas och spridas vidare för kommersiella syften
+  och att företag som vill använda den kommersiellt ska teckna ett licensavtal (partners@bitstamp.net). Användarvillkoren
+  gick inte att läsa (tom sida 2026-11-07). Kontrollera vad som gäller för en myndighets interna, icke-kommersiella
+  bruk innan Chainsaw används i tjänsten.
+- **Inte kontrollerat i dokumentationen** (bara med ett riktigt anrop 2026-11-07): att Riksbankens adress
+  `Observations/{serie}/{från}/{till}` är den dokumenterade (FAQ:n nämner datumintervall men visade inte formen), att
+  värdet är kronor per *en* enhet (stämmer med nivån, cirka 10 kr per dollar), vilken tid på dagen kursen sätts, och
+  att Bitstamps perioder börjar på jämna multipler av sin längd från 1970 och att en period utan handel har volym noll
+  och föregående pris.
+- **Perioder före källans historik** (granskningen, M6): ett svar utan kurs (Bitstamp före 2011, Riksbanken före 1993)
+  sparas men pekas inte ut som slutligt, så varje uppslag frågar igen och sparar ett nytt svar. Kan pekas ut som
+  *ingen kurs* när perioden är slut.
+- **Fler källor och tokens:** ETH och TRX (och USDT/USDC, som i praktiken är dollar) när Ethereum och TRON byggs; en
+  andra kryptokälla att jämföra med (till exempel Kraken eller Coinbase för nyare perioder); Riksbankens nyckel (200
+  anrop i minuten) i valvet om gränsen på 5 i minuten blir ett problem.
+- **Medelkurs eller stängningskurs:** Chainsaw tar sista priset i perioden. Fråga kryptospåraren om rapporterna brukar
+  använda dagens stängning, medelpris eller något annat.
+- **Ett gemensamt lager för råsvar:** Chains och Pricing har var sin likadan tabell och kod för förseglade råsvar. Kan
+  bli ett kontrakt i Cases när en tredje modul behöver det.
 
 ### Begäran om uppgifter
 - **Mallar** för en begäran till börser, på svenska och engelska, med tx, tider, belopp och insättningsadresser.

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Network.Contracts;
@@ -26,6 +27,18 @@ internal sealed class PriceService : IPriceService
     /// </summary>
     private const int AheadDays = 31;
 
+    /// <summary>
+    /// How many requests the Riksbank allows from one IP address a day without a key. Counted per computer only:
+    /// computers that share an exit share the limit without knowing it.
+    /// </summary>
+    private const int FiatDailyLimit = 1_000;
+
+    /// <summary>How long an answer without a final rate is given again instead of sending the same request.</summary>
+    private static readonly TimeSpan PendingReuse = TimeSpan.FromMinutes(15);
+
+    /// <summary>How long after midnight in the fiat source's calendar a day counts as passed.</summary>
+    private static readonly TimeSpan DayPassMargin = TimeSpan.FromHours(6);
+
     /// <summary>The HTTP status for too many requests.</summary>
     private const int TooManyRequestsStatus = 429;
 
@@ -35,13 +48,26 @@ internal sealed class PriceService : IPriceService
     /// </summary>
     private static readonly TimeSpan SettleMargin = TimeSpan.FromMinutes(5);
 
+    /// <summary>The crypto periods being fetched now, by case and subject, so that lookups share one request.</summary>
+    private readonly ConcurrentDictionary<string, Lazy<Task<PriceLookup<CryptoRate>>>> _cryptoFlights = new();
+
     /// <summary>Lets one request at a time go to the fiat source.</summary>
     private readonly SemaphoreSlim _fiatGate = new(1, 1);
 
-    /// <summary>
-    /// When the last request to the fiat source was answered, as <see cref="Environment.TickCount64"/>.
-    /// </summary>
+    /// <summary>When the last request to the fiat source was sent, as <see cref="Environment.TickCount64"/>.</summary>
     private long? _lastFiatRequest;
+
+    /// <summary>The day, in the fiat source's calendar, that <see cref="_fiatRequestsToday"/> counts.</summary>
+    private DateOnly _fiatRequestDay;
+
+    /// <summary>How many requests went to the fiat source on <see cref="_fiatRequestDay"/>.</summary>
+    private int _fiatRequestsToday;
+
+    /// <summary>
+    /// Answers from the fiat source without a final rate, by case and request, with when they came; only used inside
+    /// <see cref="_fiatGate"/>.
+    /// </summary>
+    private readonly Dictionary<string, (PriceLookup<FiatRate> Lookup, DateTimeOffset At)> _pendingFiat = [];
 
     /// <summary>The source of crypto rates.</summary>
     private readonly ICryptoRateSource _crypto;
@@ -157,36 +183,24 @@ internal sealed class PriceService : IPriceService
             : $"Källan har ingen kurs för {request.Chain.Code()} i {quote.Code()}. Inget skickades.";
     }
 
-    /// <summary>Gives the crypto rate for the period that holds a time: from the case, or from the source.</summary>
+    /// <summary>
+    /// Gives the crypto rate for the period that holds a time: from the case, or from the source. Lookups of the same
+    /// period at once share one request.
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="chain">The chain.</param>
     /// <param name="quote">The currency.</param>
     /// <param name="resolution">The length of the period.</param>
     /// <param name="at">The time.</param>
     /// <param name="mode">Whether the source may be asked.</param>
-    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <param name="cancellationToken">Stops the wait; a request that is already shared runs to its end.</param>
     /// <returns>The rate, or why there is none.</returns>
     private async Task<PriceLookup<CryptoRate>> CryptoRateAsync(
         ICase @case, Chain chain, FiatCurrency quote, PriceResolution resolution, DateTimeOffset at,
         PriceLookupMode mode, CancellationToken cancellationToken)
     {
-        var start = resolution.PeriodStart(at);
-        var end = start.AddSeconds(resolution.Seconds());
-        var settlesAt = end + SettleMargin;
-        var subject = $"{chain.Code()}-{quote.Code()}/{resolution.Seconds().ToString(CultureInfo.InvariantCulture)}/" +
-            start.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
-
-        // The index is not sealed: a stored candle counts only when its own sealed time shows it was final.
-        CryptoRate? Read(StoredRateResponse response) =>
-            response.Origin.ReceivedUtc >= settlesAt
-            && _crypto.ReadCandle(response.Body, chain, quote, resolution, start) is { } candle
-                ? Rate(chain, quote, resolution, start, end, candle, response.Origin)
-                : null;
-
-        var stored = await Task.Run(
-            () => @case.Read(reader => _store.Latest(reader, _crypto.Name, RateKinds.CryptoCandle, subject)),
-            cancellationToken).ConfigureAwait(false);
-        if (stored is not null && Quietly(() => Read(stored)) is { } kept)
+        var query = new CandleQuery(chain, quote, resolution, resolution.PeriodStart(at));
+        if (await StoredCryptoRateAsync(@case, query, cancellationToken).ConfigureAwait(false) is { } kept)
         {
             return new PriceLookup<CryptoRate>(PriceLookupStatus.FromCase, kept, [kept.Origin], null);
         }
@@ -196,15 +210,78 @@ internal sealed class PriceService : IPriceService
             return Missing<CryptoRate>(PriceLookupStatus.NotInCase, "Läst bara ur ärendet; inget skickades.");
         }
 
-        var period = $"{Time(start)}–{Time(end)} UTC";
-        if (settlesAt > _clock.UtcNow)
+        if (query.SettlesAt > _clock.UtcNow)
         {
             return Missing<CryptoRate>(PriceLookupStatus.NotAvailable,
-                $"Perioden {period} är inte avslutad hos källan än, så kursen är inte satt. Inget skickades.");
+                $"Perioden {query.Period} är inte avslutad hos källan än, så kursen är inte satt. " +
+                "Inget skickades.");
         }
 
-        var sent = await SendAsync(_crypto.RequestUri(chain, quote, resolution, start), cancellationToken)
-            .ConfigureAwait(false);
+        // Keyed by the case too: a response is sealed in one case only.
+        var key = $"{@case.Path}|{query.Subject}";
+        var flight = _cryptoFlights.GetOrAdd(key, _ => new Lazy<Task<PriceLookup<CryptoRate>>>(
+            () => SharedCryptoFetchAsync(@case, query, key)));
+        return await flight.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Fetches a period once for every lookup waiting for it: reads the case again first (an earlier request may just
+    /// have sealed it), and lets the next lookup start afresh when done. It runs to its end even if a caller stops
+    /// waiting, so that a response that was sent for is always sealed.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="query">The period.</param>
+    /// <param name="key">The case and the period, under which the fetch is shared.</param>
+    /// <returns>The rate, or why there is none.</returns>
+    private async Task<PriceLookup<CryptoRate>> SharedCryptoFetchAsync(ICase @case, CandleQuery query, string key)
+    {
+        try
+        {
+            if (await StoredCryptoRateAsync(@case, query, CancellationToken.None).ConfigureAwait(false) is { } kept)
+            {
+                return new PriceLookup<CryptoRate>(PriceLookupStatus.FromCase, kept, [kept.Origin], null);
+            }
+
+            return await FetchCryptoRateAsync(@case, query).ConfigureAwait(false);
+        }
+        finally
+        {
+            _cryptoFlights.TryRemove(key, out _);
+        }
+    }
+
+    /// <summary>Finds a final crypto rate for a period in the case.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="query">The period.</param>
+    /// <param name="cancellationToken">Stops the lookup before it starts.</param>
+    /// <returns>The rate, or <see langword="null"/>.</returns>
+    private Task<CryptoRate?> StoredCryptoRateAsync(ICase @case, CandleQuery query, CancellationToken cancellationToken)
+    {
+        // The index is not sealed: a stored candle counts only when its own sealed time shows it was final.
+        CryptoRate? Read(StoredRateResponse response) =>
+            response.Origin.ReceivedUtc >= query.SettlesAt
+            && _crypto.ReadCandle(response.Body, query.Chain, query.Quote, query.Resolution, query.Start)
+                is { } candle
+                ? Rate(query, candle, response.Origin)
+                : null;
+
+        return Task.Run(
+            () => @case.Read(reader =>
+                _store.Latest(reader, _crypto.Name, RateKinds.CryptoCandle, query.Subject) is { } stored
+                    ? Quietly(() => Read(stored))
+                    : null),
+            cancellationToken);
+    }
+
+    /// <summary>Asks the crypto source for a period, seals the response and reads the candle.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="query">The period.</param>
+    /// <returns>The rate, or why there is none.</returns>
+    private async Task<PriceLookup<CryptoRate>> FetchCryptoRateAsync(ICase @case, CandleQuery query)
+    {
+        var sent = await SendAsync(
+            () => _crypto.RequestUri(query.Chain, query.Quote, query.Resolution, query.Start),
+            null, CancellationToken.None).ConfigureAwait(false);
         if (sent.Response is not { } response)
         {
             return Missing<CryptoRate>(sent.Status, sent.Problem!);
@@ -217,12 +294,13 @@ internal sealed class PriceService : IPriceService
         {
             try
             {
-                candle = _crypto.ReadCandle(response.Body.Span, chain, quote, resolution, start);
-                if (candle is null || settlesAt > response.ReceivedAt)
+                candle = _crypto.ReadCandle(
+                    response.Body.Span, query.Chain, query.Quote, query.Resolution, query.Start);
+                if (candle is null || query.SettlesAt > response.ReceivedAt)
                 {
                     // A period that may not have ended at the source can still change, so it is never kept.
                     candle = null;
-                    problem = $"Källan har ingen avslutad kurs för perioden {period}.";
+                    problem = $"Källan har ingen avslutad kurs för perioden {query.Period}.";
                 }
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
@@ -232,7 +310,7 @@ internal sealed class PriceService : IPriceService
             }
         }
 
-        var sealedResponse = await SealAsync(@case, _crypto.Name, RateKinds.CryptoCandle, subject, sent,
+        var sealedResponse = await SealAsync(@case, _crypto.Name, RateKinds.CryptoCandle, query.Subject, sent,
             (transaction, saved) =>
             {
                 if (candle is not null)
@@ -243,9 +321,31 @@ internal sealed class PriceService : IPriceService
         var origin = sealedResponse.Origin;
         return candle is null
             ? new PriceLookup<CryptoRate>(StatusOf(failed), null, [origin], problem)
-            : new PriceLookup<CryptoRate>(
-                PriceLookupStatus.Fetched, Rate(chain, quote, resolution, start, end, candle, origin), [origin],
-                null);
+            : new PriceLookup<CryptoRate>(PriceLookupStatus.Fetched, Rate(query, candle, origin), [origin], null);
+    }
+
+    /// <summary>One period of a crypto price history to look up.</summary>
+    /// <param name="Chain">The chain.</param>
+    /// <param name="Quote">The currency.</param>
+    /// <param name="Resolution">The length of the period.</param>
+    /// <param name="Start">The period's start.</param>
+    private sealed record CandleQuery(Chain Chain, FiatCurrency Quote, PriceResolution Resolution, DateTimeOffset Start)
+    {
+        /// <summary>Gets the period's end.</summary>
+        public DateTimeOffset End => Start.AddSeconds(Resolution.Seconds());
+
+        /// <summary>Gets when the period's candle is final: <see cref="SettleMargin"/> after its end.</summary>
+        public DateTimeOffset SettlesAt => End + SettleMargin;
+
+        /// <summary>
+        /// Gets the subject the response is stored under, for example <c>BTC-USD/3600/1699999200</c>.
+        /// </summary>
+        public string Subject =>
+            $"{Chain.Code()}-{Quote.Code()}/{Resolution.Seconds().ToString(CultureInfo.InvariantCulture)}/" +
+            Start.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>Gets the period for the user, for example <c>2023-11-14 22:00–2023-11-14 23:00 UTC</c>.</summary>
+        public string Period => $"{Time(Start)}–{Time(End)} UTC";
     }
 
     /// <summary>
@@ -284,8 +384,27 @@ internal sealed class PriceService : IPriceService
                 return new PriceLookup<FiatRate>(PriceLookupStatus.FromCase, meanwhile, [meanwhile.Origin], null);
             }
 
+            var (from, to) = FiatRange(day);
+            var key = $"{@case.Path}|{RateResponseStore.FiatSubject(series, from, to)}";
+            if (_pendingFiat.TryGetValue(key, out var pending)
+                && _clock.UtcNow - pending.At < PendingReuse)
+            {
+                // The same request was answered a moment ago without a final rate; asking again cannot help yet.
+                return pending.Lookup;
+            }
+
+            if (DailyLimitReached())
+            {
+                return Missing<FiatRate>(PriceLookupStatus.Failed,
+                    "Riksbankens gräns på 1 000 uppslag om dagen är nådd från den här datorn. Inget skickades; " +
+                    "försök igen i morgon.");
+            }
+
             await SpaceFiatRequestAsync(cancellationToken).ConfigureAwait(false);
-            return await FetchFiatRateAsync(@case, currency, series, day, cancellationToken).ConfigureAwait(false);
+            var lookup = await FetchFiatRateAsync(@case, currency, series, day, from, to, cancellationToken)
+                .ConfigureAwait(false);
+            RememberPending(key, lookup);
+            return lookup;
         }
         finally
         {
@@ -313,6 +432,63 @@ internal sealed class PriceService : IPriceService
             }))),
             cancellationToken);
 
+    /// <summary>
+    /// Gives the days to ask the fiat source for: <see cref="LookbackDays"/> before the day, and up to
+    /// <see cref="AheadDays"/> after it as long as they have passed, so that one response serves a month.
+    /// </summary>
+    /// <param name="day">The day asked about.</param>
+    /// <returns>The first and last day.</returns>
+    private (DateOnly From, DateOnly To) FiatRange(DateOnly day)
+    {
+        var today = Today();
+        var to = day < today ? Min(day.AddDays(AheadDays), today.AddDays(-1)) : day;
+        return (day.AddDays(-LookbackDays), to);
+    }
+
+    /// <summary>
+    /// Gives the first day that has not surely passed at a time: a day counts as passed only
+    /// <see cref="DayPassMargin"/> after its midnight, since the computer's clock may be ahead and the source may
+    /// publish a day's rate late.
+    /// </summary>
+    /// <param name="time">The time.</param>
+    /// <returns>Every day before this one has passed.</returns>
+    private DateOnly PassedBefore(DateTimeOffset time) => DayOf(time - DayPassMargin);
+
+    /// <summary>Remembers an answer without a final rate, so that the same request is not sent again at once.</summary>
+    /// <param name="key">The case and the request's subject.</param>
+    /// <param name="lookup">The answer.</param>
+    private void RememberPending(string key, PriceLookup<FiatRate> lookup)
+    {
+        var now = _clock.UtcNow;
+        foreach (var old in _pendingFiat.Where(entry => now - entry.Value.At >= PendingReuse)
+            .Select(entry => entry.Key).ToList())
+        {
+            _pendingFiat.Remove(old);
+        }
+
+        if (lookup.Status == PriceLookupStatus.NotAvailable)
+        {
+            _pendingFiat[key] = (lookup, now);
+        }
+        else
+        {
+            _pendingFiat.Remove(key);
+        }
+    }
+
+    /// <summary>Counts a request to the fiat source towards the spacing and the day's limit.</summary>
+    private void CountFiatRequest()
+    {
+        _lastFiatRequest = Environment.TickCount64;
+        var today = Today();
+        _fiatRequestsToday = today == _fiatRequestDay ? _fiatRequestsToday + 1 : 1;
+        _fiatRequestDay = today;
+    }
+
+    /// <summary>Gets whether this computer has made the fiat source's daily number of requests today.</summary>
+    /// <returns><see langword="true"/> when no more may be sent today.</returns>
+    private bool DailyLimitReached() => _fiatRequestDay == Today() && _fiatRequestsToday >= FiatDailyLimit;
+
     /// <summary>Waits until the last request to the fiat source is far enough behind.</summary>
     /// <param name="cancellationToken">Stops the wait.</param>
     /// <returns>A task that completes when a request may be sent.</returns>
@@ -335,21 +511,21 @@ internal sealed class PriceService : IPriceService
     /// <param name="currency">The foreign currency.</param>
     /// <param name="series">The series.</param>
     /// <param name="day">The day asked about.</param>
+    /// <param name="from">The first day to ask for.</param>
+    /// <param name="to">The last day to ask for.</param>
     /// <param name="cancellationToken">Stops the request.</param>
     /// <returns>The rate, or why there is none.</returns>
     private async Task<PriceLookup<FiatRate>> FetchFiatRateAsync(
-        ICase @case, FiatCurrency currency, string series, DateOnly day, CancellationToken cancellationToken)
+        ICase @case, FiatCurrency currency, string series, DateOnly day, DateOnly from, DateOnly to,
+        CancellationToken cancellationToken)
     {
-        var today = Today();
-        var from = day.AddDays(-LookbackDays);
-        var to = day < today ? Min(day.AddDays(AheadDays), today.AddDays(-1)) : day;
-        var sent = await SendAsync(_fiat.RequestUri(currency, from, to), cancellationToken).ConfigureAwait(false);
+        var sent = await SendAsync(() => _fiat.RequestUri(currency, from, to), CountFiatRequest, cancellationToken)
+            .ConfigureAwait(false);
         if (sent.Response is not { } response)
         {
             return Missing<FiatRate>(sent.Status, sent.Problem!);
         }
 
-        _lastFiatRequest = Environment.TickCount64;
         FiatObservation? picked = null;
         DateOnly? finalTo = null;
         var problem = Unusable(response);
@@ -360,9 +536,9 @@ internal sealed class PriceService : IPriceService
             {
                 var observations = _fiat.ReadObservations(response.Body.Span, currency, from, to);
                 picked = Pick(observations, day);
-                var received = DayOf(response.ReceivedAt);
-                var final = to < received || observations.Any(observation => observation.Date == day);
-                finalTo = to < received ? to : observations.LastOrDefault()?.Date;
+                var passed = PassedBefore(response.ReceivedAt);
+                var final = to < passed || observations.Any(observation => observation.Date == day);
+                finalTo = to < passed ? to : observations.LastOrDefault()?.Date;
                 problem = FiatProblem(series, day, from, picked, final);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
@@ -389,7 +565,8 @@ internal sealed class PriceService : IPriceService
 
     /// <summary>
     /// Decides from a sealed response alone whether its rate for a day is final: the day must be one that was asked
-    /// for, and either have passed when the response arrived or have its own rate (a published rate does not change).
+    /// for, and either have passed (see <see cref="PassedBefore"/>) when the response arrived or have its own rate (a
+    /// published rate does not change).
     /// </summary>
     /// <param name="origin">The sealed response's origin.</param>
     /// <param name="from">The first day asked for.</param>
@@ -400,7 +577,7 @@ internal sealed class PriceService : IPriceService
     private bool FinalFor(
         RateOrigin origin, DateOnly from, DateOnly to, IReadOnlyList<FiatObservation> observations, DateOnly day) =>
         day >= from && day <= to
-        && (day < DayOf(origin.ReceivedUtc) || observations.Any(observation => observation.Date == day));
+        && (day < PassedBefore(origin.ReceivedUtc) || observations.Any(observation => observation.Date == day));
 
     /// <summary>Says why fiat rates that were read give no rate for the day, if they do not.</summary>
     /// <param name="series">The series.</param>
@@ -446,19 +623,16 @@ internal sealed class PriceService : IPriceService
         };
 
     /// <summary>Makes a crypto rate from what the source said.</summary>
-    /// <param name="chain">The chain.</param>
-    /// <param name="quote">The currency.</param>
-    /// <param name="resolution">The length of the period.</param>
-    /// <param name="start">The period's start.</param>
-    /// <param name="end">The period's end.</param>
+    /// <param name="query">The period.</param>
     /// <param name="candle">The period as the source gave it.</param>
     /// <param name="origin">The sealed response.</param>
     /// <returns>The rate.</returns>
-    private CryptoRate Rate(
-        Chain chain, FiatCurrency quote, PriceResolution resolution, DateTimeOffset start, DateTimeOffset end,
-        RateCandle candle, RateOrigin origin) =>
-        new(chain, quote, resolution, start, end, candle.Market, candle.Open, candle.High, candle.Low, candle.Close,
-            candle.Volume, origin) { SourceName = _crypto.DisplayName };
+    private CryptoRate Rate(CandleQuery query, RateCandle candle, RateOrigin origin) =>
+        new(query.Chain, query.Quote, query.Resolution, query.Start, query.End, candle.Market, candle.Open,
+            candle.High, candle.Low, candle.Close, candle.Volume, origin)
+        {
+            SourceName = _crypto.DisplayName,
+        };
 
     /// <summary>The text for a response that cannot be read.</summary>
     private const string UnreadableProblem =
@@ -495,11 +669,14 @@ internal sealed class PriceService : IPriceService
     private sealed record Sent(
         ExitResponse? Response, OperatorProfile? FetchedBy, PriceLookupStatus Status, string? Problem);
 
-    /// <summary>Sends a request through the exit, when an operator can be named.</summary>
-    /// <param name="uri">The address, which never names the case.</param>
+    /// <summary>Sends a request through the exit, when an operator can be named; never throws for a failure.</summary>
+    /// <param name="uri">
+    /// Gives the address, which never names the case; a source's failure to give one is answered.
+    /// </param>
+    /// <param name="sending">Called just before the request goes to the exit, or <see langword="null"/>.</param>
     /// <param name="cancellationToken">Stops the request.</param>
     /// <returns>The response, or why there is none.</returns>
-    private async Task<Sent> SendAsync(Uri uri, CancellationToken cancellationToken)
+    private async Task<Sent> SendAsync(Func<Uri> uri, Action? sending, CancellationToken cancellationToken)
     {
         var fetchedBy = CurrentOperator(out var noOperator);
         if (fetchedBy is null)
@@ -509,7 +686,8 @@ internal sealed class PriceService : IPriceService
 
         try
         {
-            var request = ExitRequest.Get(uri) with { Accept = "application/json" };
+            var request = ExitRequest.Get(uri()) with { Accept = "application/json" };
+            sending?.Invoke();
             var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
             return new Sent(response, fetchedBy, PriceLookupStatus.Fetched, null);
         }
@@ -521,6 +699,12 @@ internal sealed class PriceService : IPriceService
         catch (ExitException exception)
         {
             return new Sent(null, null, PriceLookupStatus.Failed, exception.Message);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // A replaced source that gives no address, or one the exit refuses (not https).
+            return new Sent(null, null, PriceLookupStatus.Failed,
+                "Källans adress gick inte att bygga eller är inte tillåten. Inget skickades.");
         }
     }
 
