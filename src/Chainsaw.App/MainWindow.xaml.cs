@@ -42,6 +42,9 @@ public partial class MainWindow : Window
     /// <summary>The Guide's panel beside the work (sketch GD1b).</summary>
     private readonly GuidePanelViewModel _guidePanel;
 
+    /// <summary>The graph, whose inspector's open form takes Esc before the Guide's panel (sketch IN1a).</summary>
+    private readonly GraphViewModel _graph;
+
     /// <summary>Asks the gate now and then whether the automatic lock is due.</summary>
     private readonly DispatcherTimer _idleTimer;
 
@@ -62,6 +65,7 @@ public partial class MainWindow : Window
         _shell = shell;
         _gate = gate;
         _guidePanel = guidePanel;
+        _graph = graph;
         DataContext = shell;
         Gate.Attach(gate);
         NewCasePanel.Attach(shell.NewCase);
@@ -135,8 +139,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// The keys of the open Guide panel, wherever the keyboard is: Esc closes it, and F1 takes its place to the view
-    /// Guide (as <em>Öppna i Guide</em>). The command bar, Nytt ärende, an open submenu and the exits' panel keep
-    /// their own Esc.
+    /// Guide (as <em>Öppna i Guide</em>). The command bar, Nytt ärende, an open submenu, the exits' panel and an open
+    /// form in the graph's inspector keep their own Esc.
     /// </summary>
     /// <param name="sender">The window.</param>
     /// <param name="e">The key.</param>
@@ -155,7 +159,7 @@ public partial class MainWindow : Window
         }
 
         if (e.Key != Key.Escape || _shell.OpenSubmenu is not null || _shell.ExitPanel.IsOpen
-            || CommandBox.IsKeyboardFocusWithin)
+            || CommandBox.IsKeyboardFocusWithin || _graph.Forms.IsOpen)
         {
             return;
         }

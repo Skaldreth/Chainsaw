@@ -1280,3 +1280,45 @@ bort och byta namn på en utgång, ett kortkommando, raden i en vägrad fil och 
 
 **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Guiden*). Beslutet om metoden och *?* (TODO, *Väntar på
 beslut*). Figurerna, sökningen och det som återstår i panelen (TODO).
+
+## Etapp 16 (2026-11-07): grafen efter GR5 (variant A) och IN1a
+
+Startpunkten är neutral, nodernas namn har adressen under, och inspektören har formulären Etikett (L), Bryt upp (U) och
+Annan kedja (K). Allt som skrivs går genom modulerna (Attribution `Add`, Clustering `Split`, Tracing
+`LinkCrossChain`), som förseglar det med en rad i journalen; grafen läses sedan om ur ärendet.
+
+- **GR5:** `GraphScene.SortOf` ger inte längre startpunkten sorten *Offer*; offret är bara en etikett. Startpunkten
+  ritas med en ljus flagga uppe till vänster (`NodeBadge.StartPoint`, `Icon.Flag`, `Brush.Mark.Start`), först bland
+  markeringarna i legenden, med *Startpunkt* i verktygstipset och under inspektörens rubrik.
+- **Namnen:** `NodeView` har `Subject` (adressen, tx:en eller id:t i sin helhet) och `IsNamed`. Ytan skriver namnet
+  och adressen nedtonad under, eller bara adressen i ljusgrått; adressen förkortas i mitten med `SubjectText.Fit`
+  bara så mycket som bredden kräver (mätt med texten, början och de fyra sista tecknen kvar). Noden är kvar på
+  132 × 40.
+- **IN1a:** `InspectorFormsViewModel` (utan WPF) och `Views/InspectorFormsView.xaml`, under fakta i inspektören.
+  Reglerna ligger i `Graph/InspectorForms.cs`, skrivvägen i `Graph/GraphEditor.cs` (`IGraphEditor`, i bakgrunden).
+  L, U och K i grafen; Esc stänger formuläret före valet, Enter sparar.
+  - **Etikett:** på en adress `ForAddress`, på ett kluster `ForCluster`. Sorterna är alla `LabelKind` utom
+    *Sanktionerad*, offret och okänd först, sedan legendens ordning. *Okänd* med namn är ett eget namn.
+  - **Bryt upp:** klustret läses med `GetCluster`, varje rad har heuristikens korta namn (*CIO v1*). `BreakOut` ger en
+    `SplitRequest` per sammanslagen länk som går mellan en vald adress och en som stannar, med länkens heuristik.
+    Klustret läses igen strax före sparningen (så att länkar som kommit sedan också bryts) och efteråt, och en adress
+    som fortfarande är kvar sägs. Alla adresser kan inte väljas. Uppbrytningarna sparas en i taget; misslyckas en
+    sägs hur många som sparades.
+  - **Annan kedja:** Ethereum och TRON; Litecoin och Solana tonade med *Inte byggt än* (som i skissen). Tx:en känns
+    igen när den skrivs; `0x` byter till Ethereum, men vanlig hex flyttas aldrig till TRON av sig själv (den kan vara
+    båda). Mynten som kom in till aktören och inte redan är knutna erbjuds, största först; finns flera väljs ett.
+- **Egna beslut:**
+  - Formulären fälls ut **under fakta** (uppdraget), inte i stället för dem som i skissen.
+  - Källorna *Beställningen* och *Svar från börs* sparas som egna etiketter med det först i skälet; en öppen källa
+    får användarens namn på källan och *läst åååå-mm-dd* som version (TODO).
+  - *Sprid inte* är tonad för *Offer*, eftersom Attribution aldrig sprider ett offers etiketter.
+  - Annan kedja erbjuds bara på en adress eller ett kluster som tagit emot mynt.
+- **Granskningen:** omgång 1 gav inga C, tre I (uppbrytning ur ett gammalt kluster, Enter klickade på en rad i stället
+  för att spara, egen etikett *Sanktionerad* ritad som en träff i listan) och sex M; alla rättade utom M4 (test mot
+  den riktiga klustringen), som står i TODO. Omgång 2 gav ett I: uppbrytningens egna varningar kunde försvinna med
+  formuläret när grafen lästes om; nu läses grafen om först efter kontrollen, och det ett formulär som stängs har att
+  säga flyttas till grafens rad. Fyra M rättade: en kontroll som inte gick att läsa sägs som sådan, bara den senaste
+  läsningen av klustret visas, Enter sparar också efter ett klick på knapparna eller *Sprid inte*, och Esc stänger
+  ett öppet formulär före Guidens panel (etapp 18).
+- **Återstår:** ta tillbaka en etikett eller länk i grafen och ångra en uppbrytning (behöver skiss), egna källor för
+  beställningen och börsens svar. Inte provat på Windows (`docs/TESTER-INFOR-1.0.md`).

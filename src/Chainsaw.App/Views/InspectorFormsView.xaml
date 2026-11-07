@@ -39,6 +39,8 @@
 
         <!-- One of the three buttons: an icon, the word and the key (sketch IN1a). -->
         <Style x:Key="Button.Action" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
+            <!-- L, U and K reach them; never holding the keyboard, Enter in a form always stores it. -->
+            <Setter Property="Focusable" Value="False" />
             <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="6,0" />
             <Setter Property="FontSize" Value="12" />
@@ -267,6 +269,7 @@
                              Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" />
                     <ToggleButton Style="{StaticResource Toggle.Switch}" Margin="0,12,0,0" IsChecked="{Binding DoNotSpread}"
                                   AutomationProperties.Name="Sprid inte" IsEnabled="{Binding IsSpreadOptional}"
+                                  Focusable="False"
                                   ToolTipService.ShowOnDisabled="True"
                                   ToolTip="Håller etiketten borta från biblioteket och andra ärenden. Ett offer sprids aldrig.">
                         <StackPanel Orientation="Horizontal">

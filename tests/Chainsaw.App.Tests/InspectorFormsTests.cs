@@ -388,6 +388,48 @@ public sealed class InspectorFormsTests
         Assert.True(rig.Forms.IsSplitOpen);
     }
 
+    /// <summary>
+    /// When the graph read again after a split no longer has the chosen node, the form closes, and what the check found
+    /// is said in the graph's notice instead of vanishing with it.
+    /// </summary>
+    [Fact]
+    public async Task SplitWarningOutlivesItsForm()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        rig.Forms.Open(InspectorForm.Split);
+        rig.Forms.ToggleMember(rig.Forms.Members[1]);
+        rig.Forms.Reason = "Skäl";
+        rig.Editor.SplitsHold = false;
+        var graph = GraphSamples.Graph();
+        rig.Source.Scene = () => GraphSamples.Scene(graph: graph with
+        {
+            Nodes = [.. graph.Nodes.Where(node => node.Key != GraphSamples.KKey)],
+            Edges = [.. graph.Edges.Where(edge => edge.From != GraphSamples.KKey && edge.To != GraphSamples.KKey)],
+        });
+
+        await rig.Forms.SubmitCommand.ExecuteAsync(null);
+
+        Assert.False(rig.Forms.IsOpen);
+        Assert.Contains("fortfarande i klustret", rig.Graph.Notice, StringComparison.Ordinal);
+    }
+
+    /// <summary>A form closed by choosing another node hands what it said to the graph's notice.</summary>
+    [Fact]
+    public async Task ErrorMovesToTheNoticeWhenTheFormCloses()
+    {
+        var rig = new Rig();
+        rig.Editor.Failure = new CaseException(CaseError.Closed);
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.Forms.Open(InspectorForm.Label);
+        rig.Forms.Reason = "Skäl";
+        await rig.Forms.SubmitCommand.ExecuteAsync(null);
+
+        rig.Graph.Choose(GraphSamples.EKey, null);
+
+        Assert.Contains("ärendet är stängt", rig.Graph.Notice, StringComparison.Ordinal);
+    }
+
     /// <summary>A refreshed graph reads the open split form's cluster again, keeping the picks still in it.</summary>
     [Fact]
     public async Task RefreshReadsTheMembersAgain()

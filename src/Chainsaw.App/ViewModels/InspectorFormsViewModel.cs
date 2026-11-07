@@ -135,6 +135,10 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     /// <summary>What the form says when the cluster could not be read.</summary>
     public const string MembersFailedText = "Klustrets adresser kunde inte läsas ur ärendet.";
 
+    /// <summary>What the form says when the splits were stored but the cluster could not be read to check them.</summary>
+    public const string UncheckedText =
+        "Uppbrytningarna är sparade, men klustret kunde inte läsas för att kontrollera dem.";
+
     /// <summary>What the form says when a picked address is still in the cluster after the splits.</summary>
     public const string StillInClusterText =
         "Uppbrytningarna är sparade, men en annan länk håller kvar dem; öppna Bryt upp igen.";
@@ -162,6 +166,9 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
 
     /// <summary>Counts the forms opened, so that a cluster read for an earlier one is dropped.</summary>
     private int _opened;
+
+    /// <summary>Counts the readings of the cluster's addresses, so that only the latest is shown.</summary>
+    private int _memberReads;
 
     /// <summary>Creates the forms.</summary>
     /// <param name="session">The open case.</param>
@@ -363,6 +370,12 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         OnPropertyChanged(nameof(CrossChainToolTip));
         if (!same || !IsAllowed(Form))
         {
+            // What the closing form had to say moves to the graph's notice instead of vanishing with it.
+            if (IsOpen && Error.Length > 0)
+            {
+                Failed?.Invoke(this, Error);
+            }
+
             Close();
         }
         else if (Form == InspectorForm.CrossChain)
@@ -509,29 +522,28 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         Error = string.Empty;
         try
         {
-            var stored = form switch
+            var problem = form switch
             {
                 InspectorForm.Label => await StoreLabelAsync(openCase),
                 InspectorForm.Split => await StoreSplitsAsync(openCase),
                 _ => await StoreLinkAsync(openCase),
             };
-            if (stored && _session.Current == openCase && Form == form && opened == _opened)
+            if (problem is not null)
+            {
+                // An empty problem is a form that was not complete after all; nothing was stored or is to be said.
+                if (problem.Length > 0)
+                {
+                    Say(problem, opened);
+                }
+            }
+            else if (_session.Current == openCase && Form == form && opened == _opened)
             {
                 Close();
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            // Said in the form only while it is the same one; otherwise in the notice that outlives it.
-            var text = Failure(exception);
-            if (opened == _opened)
-            {
-                Error = text;
-            }
-            else
-            {
-                Failed?.Invoke(this, text);
-            }
+            Say(Failure(exception), opened);
         }
         finally
         {
@@ -555,29 +567,46 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         return $"{SaveFailedText}: {why}.";
     }
 
+    /// <summary>
+    /// Says what went wrong: in the form while it is the same one, otherwise in the graph's notice, which outlives it.
+    /// </summary>
+    /// <param name="text">What to say.</param>
+    /// <param name="opened">The form's number when the store began.</param>
+    private void Say(string text, int opened)
+    {
+        if (opened == _opened)
+        {
+            Error = text;
+        }
+        else
+        {
+            Failed?.Invoke(this, text);
+        }
+    }
+
     /// <summary>Sets the label, sealed with a line in the journal.</summary>
     /// <param name="openCase">The open case.</param>
-    /// <returns><see langword="true"/> when it was stored.</returns>
-    private async Task<bool> StoreLabelAsync(ICase openCase)
+    /// <returns>What to say when it was not stored, or <see langword="null"/> when it was.</returns>
+    private async Task<string?> StoreLabelAsync(ICase openCase)
     {
         if (LabelDraft() is not { } draft)
         {
-            return false;
+            return string.Empty;
         }
 
         await _editor.AddLabelAsync(openCase, draft);
         Saved?.Invoke(this, EventArgs.Empty);
-        return true;
+        return null;
     }
 
     /// <summary>Stores the splits that break the picked addresses out; those stored hold also when one fails.</summary>
     /// <param name="openCase">The open case.</param>
     /// <returns><see langword="true"/> when every split was stored.</returns>
-    private async Task<bool> StoreSplitsAsync(ICase openCase)
+    private async Task<string?> StoreSplitsAsync(ICase openCase)
     {
         if (_cluster is not { } shown || !HasReason(Reason))
         {
-            return false;
+            return string.Empty;
         }
 
         // The cluster is read again just before, so that links that came since the rows were read are split too.
@@ -585,46 +614,62 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         var fresh = await _editor.ReadClusterAsync(openCase, shown.Start, CancellationToken.None);
         var requests = InspectorForms.BreakOut(fresh, [.. picked.Where(fresh.Contains)], Reason);
         var outcome = await _editor.SplitAsync(openCase, requests);
+        var problem = outcome.Failure is { } failure
+            ? string.Create(
+                CultureInfo.InvariantCulture,
+                $"{outcome.Stored} av {requests.Count} uppbrytningar sparades. {Failure(failure)}")
+            : await CheckBrokenOutAsync(openCase, shown.Start, picked);
+
+        // The graph is read again only after the check, so that the form it may close has said what it found.
         if (outcome.Stored > 0)
         {
             Saved?.Invoke(this, EventArgs.Empty);
         }
 
-        if (outcome.Failure is { } failure)
+        return problem;
+    }
+
+    /// <summary>
+    /// Checks against the case, never assumes, that the picked addresses have left the cluster: one still in it is
+    /// said, not hidden.
+    /// </summary>
+    /// <param name="openCase">The open case.</param>
+    /// <param name="start">The address the cluster was read from.</param>
+    /// <param name="picked">The picked addresses.</param>
+    /// <returns>What to say, or <see langword="null"/> when they all left.</returns>
+    private async Task<string?> CheckBrokenOutAsync(ICase openCase, BitcoinAddress start, List<BitcoinAddress> picked)
+    {
+        Cluster after;
+        try
         {
-            Error = string.Create(
-                CultureInfo.InvariantCulture,
-                $"{outcome.Stored} av {requests.Count} uppbrytningar sparades. {Failure(failure)}");
-            return false;
+            after = await _editor.ReadClusterAsync(openCase, start, CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return UncheckedText;
         }
 
-        // Checked against the case, never assumed: an address still in the cluster is said, not hidden.
-        var after = await _editor.ReadClusterAsync(openCase, shown.Start, CancellationToken.None);
         var staying = picked.Count(after.Contains);
-        if (staying > 0)
-        {
-            Error = string.Create(
+        return staying == 0
+            ? null
+            : string.Create(
                 CultureInfo.InvariantCulture,
                 $"{staying} av de valda adresserna är fortfarande i klustret. {StillInClusterText}");
-            return false;
-        }
-
-        return true;
     }
 
     /// <summary>Links the chosen coin to the transaction on the other chain, sealed with a line in the journal.</summary>
     /// <param name="openCase">The open case.</param>
-    /// <returns><see langword="true"/> when it was stored.</returns>
-    private async Task<bool> StoreLinkAsync(ICase openCase)
+    /// <returns>What to say when it was not stored, or <see langword="null"/> when it was.</returns>
+    private async Task<string?> StoreLinkAsync(ICase openCase)
     {
         if (ChosenCoin() is not { } coin || RecognisedTx is not { } target)
         {
-            return false;
+            return string.Empty;
         }
 
         await _editor.LinkCrossChainAsync(openCase, coin.Coin, target, Reason.Trim());
         Saved?.Invoke(this, EventArgs.Empty);
-        return true;
+        return null;
     }
 
     /// <summary>Gives the label the form says, or <see langword="null"/> while something it needs is missing.</summary>
@@ -775,6 +820,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
             return;
         }
 
+        var read = ++_memberReads;
         if (Members.Count == 0)
         {
             MembersNotice = ReadingMembersText;
@@ -782,7 +828,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         try
         {
             var cluster = await _editor.ReadClusterAsync(openCase, first, CancellationToken.None);
-            if (opened != _opened)
+            if (opened != _opened || read != _memberReads)
             {
                 return;
             }
@@ -803,7 +849,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            if (opened == _opened)
+            if (opened == _opened && read == _memberReads)
             {
                 MembersNotice = MembersFailedText;
             }
