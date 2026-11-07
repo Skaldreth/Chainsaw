@@ -86,7 +86,16 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
   - **En bevakning läggs till** (användarens beslut 2026-11-07) för hand i vyn Bevakning, eller i grafen genom att
     högerklicka på en nod och välja *Bevaka …*. Den gäller **inkommande, utgående eller båda**, och kan **filtreras på
     motparter**: utgående till någon av flera valda mottagare (1:n) och inkommande från någon av flera valda avsändare
-    (n:1); en tom lista betyder alla. Formen skissas som BV1.
+    (n:1); en tom lista betyder alla.
+  - **Vyn Bevakning är BV1a** (användarens beslut 2026-11-07): en lista med en rad per bevakning (läge, kedja, riktning,
+    motparter som brickor, senast kontrollerad, prick för nya träffar), den valda med detaljer och träffar till höger,
+    *Ny bevakning …* med samma formulär som högerklicket i grafen (riktning, mottagare och avsändare som brickor,
+    tillgång, minsta belopp), och bakgrundens läge ärligt i vyns huvud.
+  - **I grafen är bevakningen BV2a**: en bevakad nod har ett öga i hörnet, och en tunn **prickad vaktlinje** i
+    bevakningens egen dova ton går till varje vald motpart, med ett litet öga mitt på; linjer i den bevakade riktningen
+    får ett mjukt sken, och utan filter står korta prickade strålar vid porten. Vid en träff blir vaktlinjen en riktig
+    linje med beloppet, och **ringarna på linjen är animerade** (användarens beslut 2026-11-07), tills träffen är sedd;
+    de står stilla när Windows har animeringar avstängda. När bakgrunden väntar på utgången blir det grått.
 - **Redovisa:** hur rapporten byggs bestäms när vi kommer dit (användarens beslut 2026-11-06).
 
 **Mixers är vanliga** i utredningarna (användarens observation 2026-11-07) och är en egen sort i grafen. Spåret tar slut
@@ -419,5 +428,5 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
-| **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser) | Skissas |
+| **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten) | BV1a och BV2a valda, med animerade ringar vid träff |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b; byggd i etapp 22 |
