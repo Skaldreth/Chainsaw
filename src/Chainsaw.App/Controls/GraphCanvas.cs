@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
@@ -79,10 +81,14 @@ public sealed class GraphCanvas : FrameworkElement
     /// <summary>The press, drag and click under way.</summary>
     private readonly GraphGesture _gesture = new();
 
+    /// <summary>The hovered node's details, opened and closed by the canvas as the pointer moves between nodes.</summary>
+    private readonly ToolTip _hoverTip = new() { Placement = PlacementMode.Mouse };
+
     /// <summary>Creates the surface, which takes the keyboard when clicked.</summary>
     public GraphCanvas()
     {
         Focusable = true;
+        _hoverTip.PlacementTarget = this;
         FocusVisualStyle = null;
         ClipToBounds = true;
         SizeChanged += (_, _) => FitIfPending();
@@ -249,6 +255,8 @@ public sealed class GraphCanvas : FrameworkElement
     {
         base.OnMouseLeave(e);
         _model?.HoverAt(null, Tolerance);
+        _hoverTip.IsOpen = false;
+        _hoverTip.Content = null;
     }
 
     /// <summary>Zooms around the pointer.</summary>
@@ -270,7 +278,9 @@ public sealed class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnKeyDown(e);
-        if (_model is null || (Keyboard.Modifiers & ~ModifierKeys.Shift) != ModifierKeys.None)
+        var plus = e.Key is Key.OemPlus or Key.Add;
+        var allowed = plus ? ModifierKeys.Shift : ModifierKeys.None;
+        if (_model is null || (Keyboard.Modifiers & ~allowed) != ModifierKeys.None)
         {
             return;
         }
@@ -328,7 +338,16 @@ public sealed class GraphCanvas : FrameworkElement
         model.HoverAt(surface, Tolerance);
         var hit = model.HitTest(surface, Tolerance);
         Cursor = hit.Node is not null || hit.Edge is not null ? Cursors.Hand : null;
-        ToolTip = model.Scene?.Node(hit.Node)?.ToolTip;
+        var text = model.Scene?.Node(hit.Node)?.ToolTip;
+        if (text == _hoverTip.Content as string)
+        {
+            return;
+        }
+
+        // WPF's tooltip service only asks when the element under the pointer changes, so the canvas drives its own.
+        _hoverTip.IsOpen = false;
+        _hoverTip.Content = text;
+        _hoverTip.IsOpen = text is not null;
     }
 
     /// <summary>Turns WPF's point into the graph's.</summary>

@@ -75,7 +75,12 @@ public sealed class GraphSource(
     /// </summary>
     public const int MostNewTransactions = 100;
 
-    /// <summary>What an expansion says when it stopped at <see cref="MostNewTransactions"/>.</summary>
+    /// <summary>The most lookups one expansion makes, so that a large cluster is not asked address by address.</summary>
+    public const int MostLookups = 10;
+
+    /// <summary>
+    /// What an expansion says when it stopped at <see cref="MostNewTransactions"/> or <see cref="MostLookups"/>.
+    /// </summary>
     public const string LimitReachedText =
         "Gränsen för en expansion nåddes; expandera igen för resten.";
 
@@ -115,7 +120,7 @@ public sealed class GraphSource(
                 foreach (var request in requests)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (added >= MostNewTransactions)
+                    if (added >= MostNewTransactions || outcomes.Count >= MostLookups)
                     {
                         outcomes.Add(ExpansionOutcome.NotExpanded);
                         problems.Add(LimitReachedText);

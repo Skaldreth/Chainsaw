@@ -185,4 +185,19 @@ public sealed class GraphSourceTests
         Assert.Equal(ExpansionOutcome.Partly, result.Outcome);
         Assert.Equal([GraphSource.LimitReachedText], result.Problems);
     }
+
+    /// <summary>An expansion makes at most ten lookups, however many addresses a cluster has.</summary>
+    [Fact]
+    public async Task ExpansionStopsAtTenLookups()
+    {
+        _tracing.Tracer = (_, _) => GraphSamples.Trace();
+        _tracing.NewPerExpansion = [GraphSamples.TxidOf(0)];
+        var requests = Enumerable.Range(10, 15).Select(n => ExpansionRequest.ForAddress(GraphSamples.Address(n))).ToList();
+
+        var result = await Source.ExpandAsync(_case, requests, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Equal(GraphSource.MostLookups, _tracing.Expanded.Count);
+        Assert.Equal(ExpansionOutcome.Partly, result.Outcome);
+        Assert.Equal([GraphSource.LimitReachedText], result.Problems);
+    }
 }

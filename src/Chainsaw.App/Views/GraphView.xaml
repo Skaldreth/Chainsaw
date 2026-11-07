@@ -78,8 +78,8 @@
                 <Border BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="FreeButton" ToolTip="Fri yta"
-                                AutomationProperties.Name="Fri yta" Command="{Binding ShowLayoutCommand}"
-                                CommandParameter="{x:Static contracts:GraphLayout.Free}">
+                                AutomationProperties.Name="Fri yta" CommandParameter="{x:Static contracts:GraphLayout.Free}"
+                                Command="{Binding ShowLayoutCommand}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource Button.Segment}">
                                     <Style.Triggers>
@@ -95,8 +95,9 @@
                                                Data="{StaticResource Icon.Layout.Free}" />
                         </Button>
                         <Button x:Name="HopsButton" ToolTip="Hoppkolumner"
-                                AutomationProperties.Name="Hoppkolumner" Command="{Binding ShowLayoutCommand}"
-                                CommandParameter="{x:Static contracts:GraphLayout.HopColumns}">
+                                AutomationProperties.Name="Hoppkolumner"
+                                CommandParameter="{x:Static contracts:GraphLayout.HopColumns}"
+                                Command="{Binding ShowLayoutCommand}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource Button.Segment}">
                                     <Style.Triggers>
@@ -187,7 +188,7 @@
                         </StackPanel>
                     </WrapPanel>
                     <Button Style="{StaticResource Button.Link}" Content="Guiden: Grafen och bildspråket" Margin="0,4,0,0"
-                            Command="{Binding OpenGuideTopicCommand}" CommandParameter="{x:Static graph:GuideTopic.Graph}" />
+                            CommandParameter="{x:Static graph:GuideTopic.Graph}" Command="{Binding OpenGuideTopicCommand}" />
                 </StackPanel>
             </Border>
         </Grid>

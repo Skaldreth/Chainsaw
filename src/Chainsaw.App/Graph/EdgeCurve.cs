@@ -21,11 +21,11 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
     /// <summary>How much more an arc rises for each unit it spans sideways.</summary>
     private const double ArcLiftPerSpan = 0.12;
 
-    /// <summary>How far a loop between two nodes in one column reaches out to the right, at the least.</summary>
-    private const double SideLoop = 40;
-
-    /// <summary>How much further the loop reaches for each unit between the two nodes.</summary>
-    private const double SideLoopPerSpan = 0.25;
+    /// <summary>
+    /// How far a loop between two nodes in one column reaches out to the right: within the gap to the next column, so
+    /// that it never runs behind that column's nodes.
+    /// </summary>
+    private const double SideLoop = (GraphSizes.LaneSpacing - GraphSizes.NodeWidth) * 0.8;
 
     /// <summary>How many straight pieces a curve is cut into when it is measured.</summary>
     private const int Pieces = 24;
@@ -51,7 +51,7 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
         {
             // In one column: a loop out to the right, from side to side, never a line through the nodes between.
             var right = from.X + width;
-            var reach = Math.Max(SideLoop, Math.Abs(to.Y - from.Y) * SideLoopPerSpan);
+            const double reach = SideLoop;
             return new EdgeCurve(
                 new GraphPoint(right, from.Y + half),
                 new GraphPoint(right + reach, from.Y + half),

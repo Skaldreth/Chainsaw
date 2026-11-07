@@ -569,18 +569,62 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>
     /// Remembers the free place of each node that appears for the first time and that the case has no place for, so
-    /// that a later expansion, which moves the hop columns, does not move it on the free surface.
+    /// that a later expansion, which moves the hop columns, does not move it on the free surface. A node that comes
+    /// later goes in its column below every node already standing there, never on top of one.
     /// </summary>
     /// <param name="scene">The scene.</param>
     private void KeepFirstFreePlaces(GraphScene scene)
     {
-        foreach (var node in scene.Snapshot.Graph.Nodes)
+        var nodes = scene.Snapshot.Graph.Nodes;
+        var standing = nodes
+            .Select(node => FreePlaceOf(node))
+            .OfType<GraphPoint>()
+            .ToList();
+        var first = _firstFree.Count == 0;
+        foreach (var node in nodes.Where(node => FreePlaceOf(node) is null))
         {
-            if (!node.Positions.ContainsKey(GraphLayout.Free) && !_firstFree.ContainsKey(node.Key))
-            {
-                _firstFree[node.Key] = scene.Columns[node.Key];
-            }
+            var column = scene.Columns[node.Key];
+            var place = first ? column : BelowStanding(column, standing);
+            _firstFree[node.Key] = place;
+            standing.Add(place);
         }
+    }
+
+    /// <summary>Gives where a node stands on the free surface now: dragged, kept or stored in the case.</summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The place, or <see langword="null"/> when it has none yet.</returns>
+    private GraphPoint? FreePlaceOf(GraphNode node)
+    {
+        if (_moved.TryGetValue((node.Key, GraphLayout.Free), out var moved))
+        {
+            return moved;
+        }
+
+        if (_firstFree.TryGetValue(node.Key, out var kept))
+        {
+            return kept;
+        }
+
+        return node.Positions.TryGetValue(GraphLayout.Free, out var saved) ? new GraphPoint(saved.X, saved.Y) : null;
+    }
+
+    /// <summary>Gives a place in a column under every node standing in it, or the column's place if free.</summary>
+    /// <param name="column">The node's place in its hop column.</param>
+    /// <param name="standing">The places of the nodes that already stand on the free surface.</param>
+    /// <returns>The place.</returns>
+    public static GraphPoint BelowStanding(GraphPoint column, IReadOnlyCollection<GraphPoint> standing)
+    {
+        ArgumentNullException.ThrowIfNull(standing);
+        var frame = GraphSizes.NodeFrame(column);
+        var inColumn = standing
+            .Where(place => GraphSizes.NodeFrame(place).Right > frame.X && place.X < frame.Right)
+            .ToList();
+        if (!inColumn.Any(place => GraphSizes.NodeFrame(place).Intersects(frame)))
+        {
+            return column;
+        }
+
+        return new GraphPoint(column.X, inColumn.Max(place => place.Y) + GraphSizes.RowSpacing);
     }
 
     /// <summary>Fills the inspector for what is chosen, and asks Clustering about a chosen cluster.</summary>

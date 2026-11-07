@@ -464,6 +464,40 @@ public sealed class GraphViewModelTests
         Assert.NotEqual(before.X, rig.Graph.Places[GraphSamples.EKey].X);
     }
 
+    /// <summary>
+    /// A node that arrives among the nodes of a column goes below them on the free surface, never on top of one
+    /// (regression).
+    /// </summary>
+    [Fact]
+    public async Task NewNodeNeverLandsOnAnOldOne()
+    {
+        var rig = new Rig();
+        var earlier = GraphSamples.Node("address:x", GraphNodeKind.Address, [GraphSamples.Address(8)], 1);
+        var nodes = GraphSamples.Graph().Nodes.ToList();
+        nodes.Insert(2, earlier);
+        var grown = GraphSamples.Graph() with { Nodes = nodes };
+        rig.Source.Expansion = new GraphExpansion(GraphSamples.Scene(graph: grown), ExpansionOutcome.Expanded, 1, []);
+        rig.Graph.Choose(GraphSamples.UKey, null);
+
+        await rig.Graph.ExpandAsync();
+
+        var frames = rig.Graph.Places.ToDictionary(pair => pair.Key, pair => GraphSizes.NodeFrame(pair.Value));
+        var x = frames["address:x"];
+        Assert.All(frames.Where(pair => pair.Key != "address:x"), pair => Assert.False(pair.Value.Intersects(x)));
+    }
+
+    /// <summary>A place below every standing node of the column, or the column's own place when it is free.</summary>
+    [Fact]
+    public void BelowStandingFindsAFreeRow()
+    {
+        var column = new GraphPoint(16, 36);
+
+        Assert.Equal(column, GraphViewModel.BelowStanding(column, [new GraphPoint(400, 36)]));
+        Assert.Equal(
+            new GraphPoint(16, 164 + GraphSizes.RowSpacing),
+            GraphViewModel.BelowStanding(column, [new GraphPoint(16, 36), new GraphPoint(20, 164)]));
+    }
+
     /// <summary>A graph source whose expansion waits for the test, and otherwise answers as another source.</summary>
     /// <param name="inner">The other source.</param>
     /// <param name="expansion">The expansion's answer.</param>

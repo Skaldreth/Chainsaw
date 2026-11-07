@@ -367,3 +367,14 @@ offline och se att det sägs ärligt). Grafen är förstavyn.
   med metod, version och tx (en bedömning); för en nod etiketten och dess ursprung, klustrets heuristiker med version
   och tx, varför spåret tar slut. Länkarna *Guiden: …* visar vyn Guide (inte byggd än) och svaret ovanför
   kommandoraden säger var avsnittet finns.
+
+**Efter granskningen**
+- Ett klick på en nod eller linje väljer den (inspektören fylls); ett drag flyttar noden och sparas en gång.
+- Växelns två ikoner och länken *Guiden: Grafen och bildspråket* i legenden är klickbara direkt när vyn visas (inte
+  tonade).
+- Håll pekaren över en nod: ett verktygstips med sort, markeringar och om den är expanderad; flytta till en annan
+  nod: tipset byter innehåll.
+- Expandera så att en ny nod kommer i en kolumn som redan har noder på den fria ytan: den hamnar under dem, aldrig ovanpå.
+- Två noder i samma kolumn med en linje mellan sig: linjen går som en liten båge ut till höger, inte genom noderna.
+- Expandera ett kluster med många adresser: högst tio uppslag och högst 100 nya tx per tryck, och svaret säger att
+  gränsen nåddes.
