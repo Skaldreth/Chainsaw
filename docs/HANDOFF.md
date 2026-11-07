@@ -112,7 +112,7 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 | 18 | **Guiden GD1b:** panelen bredvid arbetet ur `docs/guide/`, öppnad från *Varför?*, *?* och spårningsmetoden, och vyn Guide (F1) | Klar |
 | 19 | **Inställningarna ST1a och Windows som utgång:** dialogen med Nätverk (Windows eller VPN), Låsning, Kurser, Profil och Om; `IExitHttp` genom Windows; utgångarnas ruta och titelraden i läget Windows | Klar |
 | 20 | **Grafen och spårningen oberoende av kedjan:** belopp med kedja och tillgång, kanter som överföringar, spårningsmetoderna och heuristikerna bakom ett kontrakt per sorts kedja (UTXO eller konton); Bitcoin oförändrat, inget nytt gränssnitt. Parallellt med 19 | Pågår |
-| 21 | **Ta tillbaka och ångra (AN1b):** fliken Historik i inspektören, tillbakatagande som förseglad post i Attribution, Clustering och Tracing, biblioteket följer, ångrad uppbrytning med bekräftelse. Startas när 19 är klar | Väntar |
+| 21 | **Ta tillbaka och ångra (AN1b):** fliken Historik i inspektören, tillbakatagande som förseglad post i Attribution, Clustering och Tracing, biblioteket följer, ångrad uppbrytning med bekräftelse. Startad när 19 var klar | Pågår |
 | 22 | **Kontroller och förslag (KF1a) med områden:** ramverket för kontroller och förslag (analys med namn och version, förseglade), listan Ctrl+J, områdena och egna ytor (Z), först med CoinJoin, peel chain och mixerns kandidater. Startas när 20 är klar | Väntar |
 | 23 | **Ethereum och ERC-20 (TK1a), första delen:** källan, kontomodellen och tokenmärkena. Startas när 20 är klar; delas i flera etapper | Väntar |
 
