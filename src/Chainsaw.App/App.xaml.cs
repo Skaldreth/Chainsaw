@@ -169,6 +169,7 @@ public partial class App : Application
                 .AddSingleton<SanctionListImport>()
                 .AddSingleton<ExitWay>()
                 .AddSingleton<ExitPanelViewModel>()
+                .AddSingleton<CasePickerViewModel>()
                 .AddSingleton<SourcesViewModel>()
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()

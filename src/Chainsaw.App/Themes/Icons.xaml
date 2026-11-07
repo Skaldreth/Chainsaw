@@ -29,6 +29,8 @@
 
     <!-- The lock screen and the first-run setup (sketches ID7 and FS1a). -->
     <Geometry x:Key="Icon.Shield">M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z</Geometry>
+    <!-- The case picker's Verifiera (sketch ÄV1a): the shield with a check in it. -->
+    <Geometry x:Key="Icon.ShieldCheck">M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4</Geometry>
     <Geometry x:Key="Icon.Lock">M6 11h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z M8 11V7a4 4 0 0 1 8 0v4</Geometry>
     <Geometry x:Key="Icon.Download">M12 3v12 M7 10l5 5 5-5 M4 20h16</Geometry>
 

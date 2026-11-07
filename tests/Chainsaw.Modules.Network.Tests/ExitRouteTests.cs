@@ -279,6 +279,20 @@ public sealed class ExitRouteTests
     }
 
     [Fact]
+    public void The_tunnel_to_a_proxy_on_the_local_network_names_no_source()
+    {
+        // The handler opens the proxy's tunnel with CONNECT to the proxy's own address, which once made a proxy on
+        // the local network count as a source that points into it, and every lookup through Windows failed.
+        using var connect = new HttpRequestMessage(HttpMethod.Connect, new Uri("http://10.0.0.8:8080"));
+        using var get = new HttpRequestMessage(HttpMethod.Get, new Uri("https://chain.example/api"));
+
+        Assert.Null(WindowsHandlerFactory.RequestedSource(connect));
+        Assert.False(WindowsHandlerFactory.IsSource(
+            new DnsEndPoint("10.0.0.8", 8080), WindowsHandlerFactory.RequestedSource(connect)));
+        Assert.Equal(get.RequestUri, WindowsHandlerFactory.RequestedSource(get));
+    }
+
+    [Fact]
     public void A_name_that_points_only_into_the_computer_or_a_private_network_is_refused()
     {
         var global = IPAddress.Parse("2001:4860:4860::8888");

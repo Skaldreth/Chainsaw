@@ -311,6 +311,7 @@ internal sealed class GraphBuilder
         : AddNode(new NodeDraft(NodeKeys.Coin(new Outpoint(transaction.Txid, output.Index)), GraphNodeKind.Coin)
         {
             Coin = new Outpoint(transaction.Txid, output.Index),
+            Unspendable = output.ScriptType == BitcoinScriptType.OpReturn,
         }).Key;
 
     /// <summary>Gives the transfer of an output.</summary>
@@ -591,6 +592,10 @@ internal sealed class GraphBuilder
                     { IsComplete: true } => NodeExpansion.Expanded,
                     _ => NodeExpansion.Partly,
                 };
+            case GraphNodeKind.Coin when draft.Unspendable:
+                // Nothing can ever spend it, so the graph already has all there is (an OP_RETURN, such as the
+                // witness commitment in every coinbase); it is not shown as waiting to be expanded.
+                return NodeExpansion.Expanded;
             default:
                 return NodeExpansion.NotExpanded;
         }
@@ -700,6 +705,12 @@ internal sealed class GraphBuilder
 
         /// <summary>Gets the coin of a coin node.</summary>
         public Outpoint? Coin { get; init; }
+
+        /// <summary>
+        /// Gets whether the coin can never be spent (<c>OP_RETURN</c>), so that nothing follows it and expanding it
+        /// can bring nothing.
+        /// </summary>
+        public bool Unspendable { get; init; }
 
         /// <summary>Gets the other chain's transaction.</summary>
         public ChainTransactionRef? OtherChain { get; init; }

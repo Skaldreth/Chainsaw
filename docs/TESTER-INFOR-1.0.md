@@ -612,6 +612,13 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
   hämtningar av AIA, spärrlistor eller rötter från Windows Update.
 - Med Windows och en proxy som kräver inloggning: uppslaget misslyckas ärligt (Chainsaw skickar inte dina
   Windows-uppgifter till proxyn; se TODO).
+- Med Windows och en proxy på datorn eller det lokala nätet (till exempel `10.x.x.x:8080` eller en PAC-fil som pekar
+  dit): uppslagen går genom proxyn och lyckas. Tidigare misslyckades varje uppslag med *Uppslaget misslyckades på vägen
+  genom utgången*, eftersom tunneln till proxyn togs för en källa som pekade in i det lokala nätet.
+- Expandera `bc1qtm7ye0wm085hhv88japwkalmwkt3amec5z9c7a3unv05tfg6y2pstr3xfz` (en poolens adress med över 1 700 tx)
+  med bara mempool påslagen: *Delvis expanderad: 50 nya tx* på ungefär 15 s, inte minuter. Varje tx är en coinbase med
+  en OP_RETURN, som står som en nod utan adress: den kan inte expanderas (E gör inget), och den visas inte som *Inte
+  expanderad ännu*. Med både mempool och Blockstream påslagna går det ungefär dubbelt så fort.
 - Med Windows och en källas namn som pekar på datorn eller det lokala nätet (till exempel genom `hosts`): uppslaget
   vägras.
 - Byt tillbaka till VPN medan en expansion pågår genom Windows: den stoppas, och utan ansluten utgång görs inga fler
@@ -985,3 +992,25 @@ ligger bredvid `Chainsaw.exe`.
       fälls in animerat, stäng det och de fälls bort (en vy som kräver ett ärende byter då till grafen).
 - [ ] Tidslinje, Flöde, Exponering, Begäran och Etiketter är nedtonade, och tipset säger *Inte byggt än*. Terminal
       finns inte längre.
+
+## Statusraden och kommandoraden som Spotlight (polering 2026-11-07)
+- [ ] Statusraden längst ner är borta; utgången står bara i titelraden, och hovring på den säger vart uppslagen går.
+- [ ] När en källa ber Chainsaw vänta syns en liten gul prick till vänster om utgången i titelraden, med texten på hovring; den försvinner när väntan är över.
+- [ ] Kommandoraden syns inte förrän Ctrl+K eller Ctrl+F; då kommer den som Spotlight i övre delen, 640 px bred, med förstoringsglas och större text, över en mjuk mörkning, och tonar in med en liten rörelse (direkt med animeringar avstängda).
+- [ ] Esc, ett klick utanför (också i titelraden) och ett kommando som lyckas döljer raden; tangentbordet går tillbaka dit det var.
+- [ ] Ett kommando som misslyckas låter raden stå kvar med felet i rött under fältet.
+- [ ] *Alla ärenden …* i den tomma grafen öppnar raden med "/open " och markören sist, och Tab fyller i ärendenumret.
+- [ ] Ett svar som kommer när raden är dold (nytt ärende skapat, sanktionslista importerad) visas som en toast.
+- [ ] Nytt → Startpunkt med ett ärende öppet tar fram raden med förklaringen; en chainsaw:-länk tar fram den med adressen ifylld.
+- [ ] Med Guidens panel öppen står raden mitt i ytan bredvid panelen; Ctrl+K medan Nytt ärende är öppet gör ingenting.
+
+## Ärendeväljaren (ÄV1a)
+- [ ] Klicka på ärendet i titelraden (eller *Inget ärende öppet*): ärendeväljaren fälls ut under det med samma yta, kant och skugga som utgångarnas ruta och glider in mjukt (stilla med animeringar avstängda).
+- [ ] Ctrl+O öppnar den med markören i *Sök ärendenummer*; Esc stänger den och tangentbordet går tillbaka till ärendet i titelraden.
+- [ ] Ett klick utanför stänger den utan att klicket når det som ligger under; ett klick på ärendet igen fäller in den.
+- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Kontrollerat nu · inget ändrat* (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
+- [ ] Listan visar ärendena med det senast ändrade först, med nummer och *ändrad i dag 14:02*; det öppna har accentstreck och brickan *Öppet*.
+- [ ] Sökfältet filtrerar på ärendenummer och räknaren följer med; utan träff står *Inget ärende har det numret.*
+- [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
+- [ ] *Nytt ärende … Ctrl+N* stänger rutan och öppnar panelen Nytt ärende.
+- [ ] Ärendeväljaren, utgångarnas ruta och kommandoraden är aldrig öppna samtidigt, och ärendeväljaren stängs när Chainsaw låses.

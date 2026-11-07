@@ -548,8 +548,9 @@ internal sealed class GateRig
         ExitPanel = new ExitPanelViewModel(Exit, Way, Exits, Picker, Ui);
         Settings = new SettingsViewModel(
             new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build);
+        Toaster = new Toaster(Ui);
         Shell = new ShellViewModel(
-            Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui);
+            Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui, toaster: Toaster);
         Links = new LinkInbox(Shell);
         LockScreen = new LockViewModel(Vault, Way, AutoLock, Build);
         FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow);
@@ -557,6 +558,9 @@ internal sealed class GateRig
     }
 
     public InlineUi Ui { get; } = new();
+
+    /// <summary>The toaster, which says an answer that comes while the command bar is hidden.</summary>
+    public Toaster Toaster { get; }
 
     public TestLibrary Library { get; } = new();
 

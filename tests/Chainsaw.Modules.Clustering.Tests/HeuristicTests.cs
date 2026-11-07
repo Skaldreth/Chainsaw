@@ -67,6 +67,28 @@ public sealed class HeuristicTests
     }
 
     [Fact]
+    public void The_change_signs_ask_where_each_output_was_seen_only_once()
+    {
+        // An exchange's batch payout with a few hundred outputs once asked this for every pair of outputs, which
+        // made one expansion spend seconds in the change heuristic alone.
+        var batch = Tx("big-batch").In(Wpkh("exchange"), 100_000_000);
+        for (var index = 0; index < 200; index++)
+        {
+            batch = batch.Out(Wpkh($"customer-{index}"), 400_000 + index);
+        }
+
+        var payout = batch.Build();
+        var known = new CountingContext(new KnownTransactions([payout]));
+
+        var result = new ChangeAddressHeuristic().Analyse(payout, known);
+
+        Assert.Equal(payout.Outputs.Count, known.SeenBeforeAsked);
+        Assert.Equal(
+            new ChangeAddressHeuristic().Analyse(payout, Nothing).Findings.Select(finding => finding.Reason),
+            result.Findings.Select(finding => finding.Reason));
+    }
+
+    [Fact]
     public void Change_back_to_an_input_address_is_a_sign_but_merges_nothing_new()
     {
         var back = Tx("back").In(Wpkh("self"), 5_000_000).Out(Wpkh("other"), 1_234_567).Out(Wpkh("self"), 3_712_345)
@@ -233,5 +255,23 @@ public sealed class HeuristicTests
     public void A_heuristic_id_has_a_plain_name_and_a_version_from_one(string name, int version)
     {
         Assert.ThrowsAny<ArgumentException>(() => new HeuristicId(name, version));
+    }
+
+    /// <summary>What the case knows, counting how often a heuristic asks where an address was seen.</summary>
+    private sealed class CountingContext(IHeuristicContext inner) : IHeuristicContext
+    {
+        public int SeenBeforeAsked { get; private set; }
+
+        public int Count => inner.Count;
+
+        public BitcoinTransaction? Find(Txid txid) => inner.Find(txid);
+
+        public BitcoinTransaction? FindSpender(Txid txid, int outputIndex) => inner.FindSpender(txid, outputIndex);
+
+        public BitcoinTransaction? SeenBefore(BitcoinAddress address, BitcoinTransaction transaction)
+        {
+            SeenBeforeAsked++;
+            return inner.SeenBefore(address, transaction);
+        }
     }
 }

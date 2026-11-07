@@ -256,7 +256,10 @@ public sealed record InspectorContent(
         GraphNodeKind.Address or GraphNodeKind.Cluster =>
             [.. node.GraphAddresses.Select(address => ExpansionRequest.ForAddress(address))],
         GraphNodeKind.Transaction when node.Transaction is { } txid => [ExpansionRequest.ForTransaction(txid)],
-        GraphNodeKind.Coin when node.Coin is { } coin => [ExpansionRequest.ForTransaction(coin.Txid)],
+        // A coin that can never be spent (OP_RETURN) is all there is: expanding it would ask again for the transaction
+        // the graph has and could only say that there was nothing new, so it is not offered (principle 7).
+        GraphNodeKind.Coin when node.Coin is { } coin && node.Expansion != NodeExpansion.Expanded =>
+            [ExpansionRequest.ForTransaction(coin.Txid)],
         _ => [],
     };
 

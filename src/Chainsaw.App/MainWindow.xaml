@@ -121,7 +121,6 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="36" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="28" />
                 </Grid.RowDefinitions>
 
                 <!-- ===== Title bar: logo, case, watch, exit, window buttons ===== -->
@@ -131,8 +130,26 @@
                         <Image DockPanel.Dock="Left" Source="{StaticResource Logo.Small}" Width="16" Height="16"
                                Margin="14,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                         <TextBlock DockPanel.Dock="Left" Text="Chainsaw" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <TextBlock DockPanel.Dock="Left" Text="{Binding CaseTitle}" Foreground="{StaticResource Brush.TextDim}"
-                                   FontSize="14" Margin="18,0,0,0" VerticalAlignment="Center" />
+                        <!-- The case, or Inget ärende öppet: a click (or Ctrl+O) folds out the case picker (sketch ÄV1a). -->
+                        <Button x:Name="CaseChip" DockPanel.Dock="Left" Margin="9,0,0,0" VerticalAlignment="Center"
+                                Command="{Binding CasePicker.ToggleCommand}" ToolTip="Ärenden (Ctrl+O)"
+                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Ärenden">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Button.Chip}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CasePicker.IsOpen}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource Brush.SubmenuHover}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding CaseTitle}" Foreground="{StaticResource Brush.TextDim}" FontSize="14"
+                                           VerticalAlignment="Center" MaxWidth="420" TextTrimming="CharacterEllipsis" />
+                                <controls:GridIcon Size="12" Data="{StaticResource Icon.ChevronDown}" Margin="6,0,0,0"
+                                                   VerticalAlignment="Center" Foreground="{StaticResource Brush.TextDim}" />
+                            </StackPanel>
+                        </Button>
 
                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.WindowClose}" Click="OnClose"
                                 WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Stäng">
@@ -185,13 +202,32 @@
                                                    VerticalAlignment="Center" Foreground="{StaticResource Brush.TextDim}" />
                             </StackPanel>
                         </Button>
+
+                        <!--
+                          A source asks Chainsaw to wait, or is asked no faster than its pace: a small amber dot beside the
+                          exit, only while it lasts, with the words on hover.
+                        -->
+                        <Border DockPanel.Dock="Right" Background="Transparent" Padding="6" Margin="0,0,2,0"
+                                VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True"
+                                AutomationProperties.Name="{Binding WaitText}"
+                                Visibility="{Binding IsWaiting, Converter={StaticResource VisibleWhen}}">
+                            <Border.ToolTip>
+                                <StackPanel MaxWidth="320">
+                                    <TextBlock Text="{Binding WaitText}" Foreground="{StaticResource Brush.Pending}" />
+                                    <TextBlock TextWrapping="Wrap" Margin="0,4,0,0">
+                                        En källa ber Chainsaw vänta, eller frågas inte fortare än sin takt. Arbetet går vidare.
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border.ToolTip>
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.Pending}" />
+                        </Border>
                     </DockPanel>
                 </Border>
 
                 <Grid Grid.Row="1">
                     <!--
-                      ===== The page: its content, and the command bar floating at the bottom. The page has no header of its
-                      own (decided 2026-11-07): the pill's chosen icon says which view it is, and the space is the view's. =====
+                      ===== The page. It has no header of its own (decided 2026-11-07): the pill's chosen icon says which view
+                      it is, and the space is the view's. =====
                     -->
                     <Grid>
 
@@ -218,63 +254,6 @@
                                        HorizontalAlignment="Center" Margin="0,4,0,0" />
                         </StackPanel>
 
-                        <!-- The command bar: search and commands are here and nowhere else (decided 2026-11-07). -->
-                        <StackPanel x:Name="CommandArea" VerticalAlignment="Bottom" HorizontalAlignment="Center"
-                                    Margin="0,0,0,20">
-                            <!-- The answer above the bar, or the hint for what is written; an error in the error colour. -->
-                            <TextBlock Text="{Binding ShownAbove}" FontSize="13" MaxWidth="560" TextWrapping="Wrap"
-                                       HorizontalAlignment="Center" Margin="0,0,0,8" LineHeight="18">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
-                                        <Style.Triggers>
-                                            <Trigger Property="Text" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </Trigger>
-                                            <DataTrigger Binding="{Binding IsShowingError}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <Grid Width="560" Height="44">
-                                <!-- The shadow lies in a layer of its own: an effect on the bar would blur its text. -->
-                                <Border CornerRadius="12" Background="{StaticResource Brush.Floating}">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.45" Color="Black" />
-                                    </Border.Effect>
-                                </Border>
-                                <Border CornerRadius="12" Background="{StaticResource Brush.Floating}"
-                                        BorderThickness="1" Padding="14,0">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource Self}}" Value="True">
-                                                    <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <DockPanel>
-                                        <TextBlock DockPanel.Dock="Left" Text="&gt;" FontFamily="{StaticResource Font.Mono}"
-                                                   Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <TextBlock DockPanel.Dock="Right" Text="{x:Static nav:ViewTable.CommandGesture}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
-                                                   VerticalAlignment="Center" Margin="10,0,0,0" />
-                                        <TextBox x:Name="CommandBox" Style="{StaticResource TextBox.Command}"
-                                                 Tag="Sök adress, tx eller etikett, eller skriv /kommando"
-                                                 Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}"
-                                                 AutomationProperties.Name="Kommandorad" PreviewKeyDown="OnCommandKey">
-                                            <TextBox.InputBindings>
-                                                <KeyBinding Key="Enter" Command="{Binding SubmitCommand}" />
-                                                <KeyBinding Key="Escape" Command="{Binding ClearCommandCommand}" />
-                                            </TextBox.InputBindings>
-                                        </TextBox>
-                                    </DockPanel>
-                                </Border>
-                            </Grid>
-                        </StackPanel>
                     </Grid>
 
                     <!--
@@ -287,7 +266,7 @@
                       ===== The pill (decided 2026-11-07, after Gawk's Byggare): the views as round icons, the name on hover,
                       floating over the page at the left edge, centred in height ===== -->
                     <Grid HorizontalAlignment="Left" VerticalAlignment="Center" Margin="18,0,0,0">
-                        <!-- The shadow lies in a layer of its own, as under the command bar. -->
+                        <!-- The shadow lies in a layer of its own: an effect on the pill would blur its icons. -->
                         <Border Style="{StaticResource Border.Pill}">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="32" ShadowDepth="10" Direction="270" Opacity="0.45" Color="Black" />
@@ -311,50 +290,110 @@
                     <Canvas x:Name="SubmenuLayer" ClipToBounds="False">
                         <views:PillSubmenu x:Name="Submenu" />
                     </Canvas>
-                </Grid>
 
-                <!-- ===== Status line: where lookups go, honestly offline while no exit is connected ===== -->
-                <Border Grid.Row="2" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
-                        BorderThickness="0,1,0,0">
-                    <StackPanel Orientation="Horizontal" Margin="14,0" VerticalAlignment="Center">
-                        <Ellipse Width="7" Height="7" Margin="0,0,6,0">
-                            <Ellipse.Style>
-                                <Style TargetType="Ellipse">
-                                    <Setter Property="Fill" Value="{StaticResource Brush.TextFaint}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsExitLive}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
-                        <TextBlock Text="{Binding SourceText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}" />
-                        <TextBlock Text="{Binding WaitText}" FontSize="13" Foreground="{StaticResource Brush.Pending}" Margin="12,0,0,0"
-                                   ToolTip="En källa ber Chainsaw vänta, eller frågas inte fortare än sin takt. Arbetet går vidare."
-                                   Visibility="{Binding IsWaiting, Converter={StaticResource VisibleWhen}}" />
-                    </StackPanel>
-                </Border>
+                    <!--
+                      ===== The command bar (decided 2026-11-07): search and commands are here and nowhere else. It is
+                      hidden until Ctrl+K or Ctrl+F brings it up like Spotlight, in the upper third over a soft darkening;
+                      Esc, a click outside or a command that did what it was asked hides it again. ===== -->
+                    <Grid x:Name="CommandLayer" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="3*" />
+                        </Grid.RowDefinitions>
+                        <Rectangle x:Name="CommandDim" Grid.RowSpan="2" Fill="#59000000" MouseDown="OnCommandOutside" />
+                        <Grid x:Name="CommandPanel" Grid.Row="1" Width="640" VerticalAlignment="Top"
+                              HorizontalAlignment="Center" RenderTransformOrigin="0.5,0">
+                            <Grid.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="CommandScale" />
+                                    <TranslateTransform x:Name="CommandSlide" />
+                                </TransformGroup>
+                            </Grid.RenderTransform>
+                            <!-- The shadow lies in a layer of its own: an effect on the bar would blur its text. -->
+                            <Border CornerRadius="14" Background="{StaticResource Brush.Floating}">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="40" ShadowDepth="12" Direction="270" Opacity="0.55" Color="Black" />
+                                </Border.Effect>
+                            </Border>
+                            <Border CornerRadius="14" Background="{StaticResource Brush.Floating}"
+                                    BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1.5">
+                                <StackPanel>
+                                    <DockPanel Height="56" Margin="18,0">
+                                        <controls:GridIcon DockPanel.Dock="Left" Size="20" Data="{StaticResource Icon.Search}"
+                                                           Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center"
+                                                           Margin="0,0,12,0" />
+                                        <TextBlock DockPanel.Dock="Right" Text="Esc" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                                        <TextBox x:Name="CommandBox" Style="{StaticResource TextBox.Command}" FontSize="16"
+                                                 Tag="Sök adress, tx eller etikett, eller skriv /kommando"
+                                                 Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Kommandorad" PreviewKeyDown="OnCommandKey">
+                                            <TextBox.InputBindings>
+                                                <KeyBinding Key="Enter" Command="{Binding SubmitCommand}" />
+                                                <KeyBinding Key="Escape" Command="{Binding CloseCommandBarCommand}" />
+                                            </TextBox.InputBindings>
+                                        </TextBox>
+                                    </DockPanel>
+                                    <!-- The answer under the field, or the hint for what is written; an error in the error colour. -->
+                                    <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1.5,0,0" Padding="18,10,18,12">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShownAbove}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding ShownAbove}" FontSize="13" TextWrapping="Wrap" LineHeight="18">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsShowingError}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </Grid>
 
                 <!--
                   The exits' panel (sketch UT1a), folded out under the exit in the title bar, its right edge at the chip's.
                   A click anywhere else under the title bar folds it in, and goes no further.
                 -->
-                <Grid Grid.Row="1" Grid.RowSpan="2"
+                <Grid Grid.Row="1"
                       Visibility="{Binding ExitPanel.IsOpen, Converter={StaticResource VisibleWhen}}">
                     <Rectangle Fill="Transparent" MouseDown="OnExitPanelOutside" />
                     <views:ExitPanel x:Name="ExitPanelView" HorizontalAlignment="Right" VerticalAlignment="Top"
                                      Margin="0,4,152,0" />
                 </Grid>
 
+                <!--
+                  The case picker (sketch ÄV1a), folded out under the case in the title bar, its left edge at the chip's.
+                  A click anywhere else under the title bar folds it in, and goes no further.
+                -->
+                <Grid x:Name="CasePickerLayer" Grid.Row="1" Grid.RowSpan="2"
+                      Visibility="{Binding CasePicker.IsOpen, Converter={StaticResource VisibleWhen}, FallbackValue=Collapsed}">
+                    <Rectangle Fill="Transparent" MouseDown="OnCasePickerOutside" />
+                    <views:CasePicker x:Name="CasePickerView" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                      Margin="100,4,0,0" />
+                </Grid>
+
                 <!-- Nytt ärende (NC1a): over everything under the title bar, with the rest darkened. -->
-                <views:NewCasePanel x:Name="NewCasePanel" Grid.Row="1" Grid.RowSpan="2" />
+                <views:NewCasePanel x:Name="NewCasePanel" Grid.Row="1" />
 
                 <!-- The settings (ST1a): a dialog in the middle, over everything under the title bar, the rest darkened. -->
-                <views:SettingsDialog x:Name="SettingsDialog" Grid.Row="1" Grid.RowSpan="2" />
+                <views:SettingsDialog x:Name="SettingsDialog" Grid.Row="1" />
 
                 <!-- The toaster (TO1a): at the lower right, over everything under the title bar, dialogs too. -->
-                <views:ToastHost x:Name="Toasts" Grid.Row="1" Grid.RowSpan="2" />
+                <views:ToastHost x:Name="Toasts" Grid.Row="1" />
             </Grid>
 
             <!-- The gate: the lock screen (ID7) or the first-run setup (FS1a) on the field, in place of everything. -->

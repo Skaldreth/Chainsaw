@@ -38,25 +38,30 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
    Bevakning) går över till toastern när de sidorna ses över.
 2. **IN2b, ikonlisten vid noden:** *byggd 2026-11-07*, med bara de åtgärder som går att använda.
 3. **IN1b, formulären vid noden:** *byggd 2026-11-07* för Etikett, Bryt upp och Annan kedja.
-4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. Ett prov här mot mempool.space med samma adress gav
-   50 tx och resten tillbakahållet, alltså fungerar Tracing och Chains; orsaken i appen är inte hittad. Provet tog
-   **nästan 6 minuter för 53 uppslag**, vilket är för långsamt (takten per endpoint?).
+4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. *Rättat 2026-11-07, väntar på prov på Windows:* med
+   appens hela sammansättning (GraphSource, modulerna och utgången genom Windows) ger startpunkten 50 tx; *Inget nytt*
+   kom bara från de OP_RETURN-noder som varje coinbase har (adressen är en pools), som nu inte kan expanderas. En
+   proxy på det lokala nätet fällde varje uppslag genom Windows; rättat. Långsamheten: de 6 minuterna var provets
+   stillastående testklocka (takten 250 ms lades på varje tur), men appen läste också om hela adressidor per tx och
+   växelheuristiken var kvadratisk i antal outputs; rättat, och var mynten tog vägen frågas fyra i taget i
+   endpointens takt. Beslut 2026-11-07: OP_RETURN-utgångar på 0 BTC **döljs**, och en toast som ligger kvar extra länge säger
+   hur många som döljs, med en knapp som visar dem. Byggs med ledtrådsnoden och samlingsnoden (punkt 22).
 5. **Grafens hörn uppe till höger:** *byggt 2026-11-07* som en rad ikoner med prick när något finns.
 6. **Inspektörens skugga** över titelraden: *rättad 2026-11-07* (sidan klipper vid sin kant).
 7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissad 2026-11-07: BV3a (bara
    riktningen syns, resten som tillval) och BV3b (bevakningen som en mening), båda vid noden; **BV3a vald och byggd 2026-11-07**.
 8. **Undermenyn Nytt** i pillret: *animerad 2026-11-07* (växer ut ur knappen och tonar in).
 9. **Pillret:** *klart 2026-11-07*, vyer som inte är byggda är nedtonade.
-10. **Byta ärende i titelraden** går inte (ÄV1a, godkänd).
+10. **Byta ärende i titelraden:** *ÄV1a byggd 2026-11-07* (klick på ärendet eller Ctrl+O).
 11. **Grafens ikon i pillret** säger för lite; en mer beskrivande ikon skissas.
 12. **Terminal:** *borttagen 2026-11-07*.
 13. **Bevakningens tomma läge** (*byggt 2026-11-07*) såg inte professionellt ut: en större ikon i mitten med en förklarande text under att
     det är tomt; knapparna och pillret uppe till höger (*Bevakar medan Chainsaw är öppet*, *Ny bevakning …*) görs om.
 14. **Bevakningens högra panel:** *klart 2026-11-07*, syns bara när en bevakning är vald.
-15. **Statusraden längst ner** (*Uppslag går genom Windows*) upprepar titelraden och tas bort.
+15. **Statusraden längst ner:** *borttagen 2026-11-07*; väntan är en gul prick vid utgången.
 16. **Pillret efter läget:** *klart 2026-11-07*, och bildspråkets *?* syns bara med ett ärende.
 17. **Bildspråkets ruta** bakom *?* är stökig och designas om; den får ta större plats.
-18. **Kommandoraden längst ner** behövs i princip aldrig: den döljs och fälls fram med Ctrl+K, som Spotlight i macOS.
+18. **Kommandoraden:** *dold 2026-11-07*, fälls fram med Ctrl+K som Spotlight; svar när den är dold blir en toast.
 19. **Sonarpulsen runt *Nytt ärende*:** *omgjord 2026-11-07*, tre tunna ringar ur nodens egen kant.
 20. **Soptunnan (SO1a)** byggs, och finns redan i startvyn: där kan man slänga ärenden.
 21. **Startvyn grupperar ärenden** som grafen grupperar tx (samlingsnoden, EX2b); ett ärende som dras ut hamnar på
@@ -65,7 +70,17 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     Ledtrådsnoden `+N tx` och samlingsnoden (EX1a, EX1b och EX2b, godkända) byggs, så att grafen aldrig växer
     okontrollerat (princip 7). Byggs som en etapp, eftersom urvalet sparas i ärendet.
 23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
-    WireGuard-fil* hör hemma i Inställningar, inte där. Skissas om.
+    WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald 2026-11-07**, byggs.
+24. **En ren kommentarsnod i grafen** (användarens önskemål 2026-11-07): en nod som bara är en anteckning, skriven i
+    Markdown. Gawks Markdown-parser tas över (`Gawk.SharedKernel/Text/Markdown.cs`, `Views/MarkdownView.cs`,
+    `Views/Editor/MarkdownEditor.cs` och `MarkdownColorizer.cs`). Kommentaren skrivs **direkt i noden** ute i grafen, inte i en
+    panel. Skissas (KN1a, KN1b); den sparas i ärendet.
+25. **Ändra storlek på noder** (användarens önskemål 2026-11-07): vissa noder ska kunna dras till egen storlek,
+    först kommentarsnoden (handtagen skissas i KN1); vilka fler (samlingsnoden?) avgörs med skissen. Storleken sparas
+    med grafens läge.
+26. **Sidan Källor i inställningarna** (KL1a) ser stökig ut (användarens skärmdump 2026-11-07): kedjebrickorna,
+    lägesväljaren med förklaring, raderna med adress, stapel, ms, brytare och kryss, och *Prova alla nu* syns på en
+    gång. Komplexiteten döljs där det går men ingen information tappas. Skissas om (KL2a, KL2b).
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
