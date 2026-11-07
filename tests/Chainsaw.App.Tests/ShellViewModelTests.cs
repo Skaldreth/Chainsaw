@@ -2,6 +2,7 @@ using Chainsaw.App.Navigation;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel.Commands;
 
 namespace Chainsaw.App.Tests;
 
@@ -99,7 +100,7 @@ public sealed class ShellViewModelTests
     }
 
     [Fact]
-    public async Task Escape_clears_the_text_and_the_answer()
+    public async Task Clearing_empties_the_text_and_the_answer()
     {
         var shell = Shell();
         shell.CommandText = "x";
@@ -109,6 +110,105 @@ public sealed class ShellViewModelTests
 
         Assert.Empty(shell.CommandText);
         Assert.Empty(shell.CommandAnswer);
+    }
+
+    [Fact]
+    public void The_command_bar_is_hidden_until_it_is_brought_up()
+    {
+        var shell = Shell();
+        var wanted = 0;
+        shell.CommandBarWanted += (_, _) => wanted++;
+        Assert.False(shell.IsCommandBarOpen);
+
+        shell.OpenCommandBarCommand.Execute(null);
+
+        Assert.True(shell.IsCommandBarOpen);
+        Assert.Equal(1, wanted);
+    }
+
+    [Fact]
+    public async Task Escape_hides_the_bar_and_its_answer_but_keeps_the_text()
+    {
+        var shell = Shell();
+        shell.OpenCommandBar();
+        shell.CommandText = "/open X9";
+        await shell.SubmitAsync();
+        Assert.True(shell.IsCommandBarOpen);
+        Assert.NotEmpty(shell.CommandAnswer);
+
+        shell.CloseCommandBarCommand.Execute(null);
+
+        Assert.False(shell.IsCommandBarOpen);
+        Assert.Empty(shell.CommandAnswer);
+        Assert.Equal("/open X9", shell.CommandText);
+    }
+
+    [Fact]
+    public async Task A_command_that_did_what_it_was_asked_hides_the_bar_and_the_toaster_says_the_answer()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("A1", 1);
+        var shell = rig.Shell;
+        shell.OpenCommandBar();
+        shell.CommandText = "/open A1";
+
+        await shell.SubmitAsync();
+
+        Assert.False(shell.IsCommandBarOpen);
+        var toast = Assert.Single(rig.Toaster.Toasts);
+        Assert.Equal(shell.CommandAnswer, toast.Title);
+        Assert.Equal(ToastKind.Information, toast.Kind);
+    }
+
+    [Fact]
+    public async Task A_failed_command_keeps_the_bar_up_and_says_nothing_through_the_toaster()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var shell = rig.Shell;
+        shell.OpenCommandBar();
+        shell.CommandText = "/open X9";
+
+        await shell.SubmitAsync();
+
+        Assert.True(shell.IsCommandBarOpen);
+        Assert.True(shell.IsShowingError);
+        Assert.Empty(rig.Toaster.Toasts);
+    }
+
+    [Fact]
+    public void An_answer_while_the_bar_is_hidden_is_said_by_the_toaster_and_not_shown_when_it_comes_up()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var shell = rig.Shell;
+
+        shell.Say(CommandReply.Failed("Något gick fel."));
+
+        var toast = Assert.Single(rig.Toaster.Toasts);
+        Assert.Equal(ToastKind.Error, toast.Kind);
+        shell.OpenCommandBar();
+        Assert.Empty(shell.ShownAbove);
+    }
+
+    [Fact]
+    public void Showing_a_view_hides_the_command_bar()
+    {
+        var shell = Shell();
+        shell.OpenCommandBar();
+
+        shell.ShowCommand.Execute(AppView.Guide);
+
+        Assert.False(shell.IsCommandBarOpen);
+    }
+
+    [Fact]
+    public void The_command_bar_stays_hidden_while_nytt_arende_lies_over_the_page()
+    {
+        var shell = Shell();
+        shell.NewCase.Show();
+
+        shell.OpenCommandBar();
+
+        Assert.False(shell.IsCommandBarOpen);
     }
 
     [Fact]
