@@ -119,6 +119,12 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             parts.Missing("Tx:en är obekräftad: om den lyckas och vad den flyttar avgörs först när den körs i ett block.");
         }
 
+        if (transaction.Unread > 0)
+        {
+            parts.Missing(string.Create(CultureInfo.InvariantCulture,
+                $"{transaction.Unread} Transfer-händelser i tx:ens logg gick inte att läsa som ERC-20; de räknas inte."));
+        }
+
         if (transaction.Outcome != EthereumOutcome.Failed && !transaction.Value.IsZero && transaction.Receiver is null)
         {
             parts.Missing("Källan sa inte vem som tog emot tx:ens ether (ett kontrakt som skapades); den räknas inte.");
@@ -272,7 +278,9 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             calls => calls.IsIncomplete ? null : height);
     }
 
-    /// <summary>The lookup of a token's decimals and symbol, which its contract never changes.</summary>
+    /// <summary>
+    /// The lookup of a token's decimals and symbol, which its contract never changes once the source has them.
+    /// </summary>
     /// <param name="contract">The token's contract.</param>
     /// <returns>The query.</returns>
     private LookupQuery<TokenInfo> TokenQuery(EthereumAddress contract)
@@ -286,8 +294,9 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             _ => ResponseIndex.None,
             reader => SourceLookups.StoredAs(
                 _lookups.Store.Latest(reader, EthereumResponseKinds.Token, contract.Value), Parse),
-            _ => null,
-            NeverChanges: true);
+            // Decimals never change once the source has them; an answer without them (the source may not have read
+            // a new token yet) is asked again. Block 0 is always deep.
+            info => info.Asset is null ? null : 0L);
     }
 
     /// <summary>The lookup of the chain's height, which always changes.</summary>

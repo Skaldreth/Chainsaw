@@ -340,4 +340,41 @@ public sealed class EthereumSourceTests
         Assert.Equal(3, lookup.Value.Transfers.Count);
         Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single().FailedSince);
     }
+
+    [Fact]
+    public async Task ALogALaundererWroteNeverMakesTheTransactionUnreadable()
+    {
+        using var harness = new EthereumHarness();
+        var junk = EthereumTxHash.Parse("0x" + Fixtures.Repeat("b5", 32));
+        harness.Answer(EthereumHarness.TxUrl(junk), "tx-b5-junk-log.json");
+        harness.Answer(EthereumHarness.InternalUrl(junk), "tx-b5-internal.json");
+        harness.Answer(EthereumHarness.Url("v2/blocks/900"), "block-900.json");
+
+        var lookup = await harness.Source.GetTransactionAsync(harness.Case, junk);
+
+        Assert.Equal(KnownTokens.EthereumUsdt, Assert.Single(lookup.Value!.Transfers).Amount.Asset);
+        Assert.False(lookup.Value.IsComplete);
+        Assert.Contains(lookup.Notes, note => note.StartsWith("2 Transfer-händelser", StringComparison.Ordinal));
+        Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single().FailedSince);
+    }
+
+    [Fact]
+    public async Task AMinedTransactionWithoutItsOutcomeIsNotUsed()
+    {
+        using var harness = new EthereumHarness();
+        harness.Answer(EthereumHarness.TxUrl(EthereumHarness.H1), "tx-no-success.json");
+
+        Assert.Equal(LookupStatus.Failed,
+            (await harness.Source.GetTransactionAsync(harness.Case, EthereumHarness.H1)).Status);
+    }
+
+    [Fact]
+    public async Task OnlyAnEtherscanStyleStatusZeroSaysNotFound()
+    {
+        using var harness = new EthereumHarness();
+        harness.Answer(EthereumHarness.TxUrl(EthereumHarness.H1), "gateway-not-found.json");
+
+        Assert.Equal(LookupStatus.Failed,
+            (await harness.Source.GetTransactionAsync(harness.Case, EthereumHarness.H1)).Status);
+    }
 }

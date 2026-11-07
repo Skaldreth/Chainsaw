@@ -126,6 +126,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
     finns i ingen av de tre historikerna.
   - **Startpunkten med fel kontrollsumma** säger bara *känns inte igen*; den borde säga att EIP-55-kontrollsumman inte
     stämmer. `0X` (stort X) tas inte längre som Ethereum (granskningen av etapp 23, M).
+  - **En Blockscout som ligger efter** kan ge en kort äldre sida som räknas som slutlig, eftersom djupet räknas från
+    den högsta höjden ärendet känner (också från en annan endpoint). Samma modell som Bitcoin. Och en sida där en
+    tokens decimaler saknades (källan har inte läst tokenen än) blir slutlig med posten överhoppad (`Skipped`).
+    Pröva med etapp 25:s marginal för *efter*.
   - **`BitcoinLookup<T>`** används av båda kedjorna och borde heta `ChainLookup<T>`; byts när ingen annan etapp rör
     Chains.
 - **Tornado Cash** (användarens fråga 2026-11-07) kommer med Ethereum: kontrakten känns igen som mixer och blir *Spåret

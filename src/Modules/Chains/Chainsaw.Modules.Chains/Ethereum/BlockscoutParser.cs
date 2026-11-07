@@ -30,10 +30,14 @@ internal sealed record TokenLog(EthereumAddress Contract, EthereumAddress From, 
 /// <param name="Fee">The gas used times the price per gas, in wei.</param>
 /// <param name="Outcome">How it ended.</param>
 /// <param name="Tokens">The ERC-20 <c>Transfer</c> events in its logs that move something, in their order.</param>
+/// <param name="Unread">
+/// How many logs with the <c>Transfer</c> topic could not be read as an ERC-20 transfer (another shape, such as an old
+/// token's, or an address that is not one); the transaction is then incomplete.
+/// </param>
 internal sealed record TransactionInfo(
     EthereumTxHash Hash, long? Height, DateTimeOffset? Time, EthereumAddress From, EthereumAddress? To,
     EthereumAddress? Receiver, BigInteger Value, BigInteger Fee, EthereumOutcome Outcome,
-    IReadOnlyList<TokenLog> Tokens);
+    IReadOnlyList<TokenLog> Tokens, int Unread);
 
 /// <summary>An internal transaction as the source lists it.</summary>
 /// <param name="From">The contract that sent the ether.</param>
@@ -115,10 +119,19 @@ internal static class BlockscoutParser
         var height = OptionalHeight(result, "blockNumber");
         var outcome = OutcomeOf(result, height);
         var tokens = new List<TokenLog>();
+        var unread = 0;
         if (outcome == EthereumOutcome.Succeeded && result.TryGetProperty("logs", out var logs)
             && logs.ValueKind == JsonValueKind.Array)
         {
-            tokens.AddRange(logs.EnumerateArray().Select(TransferOf).OfType<TokenLog>());
+            foreach (var log in logs.EnumerateArray())
+            {
+                var (transfer, unreadable) = TransferOf(log);
+                unread += unreadable ? 1 : 0;
+                if (transfer is not null)
+                {
+                    tokens.Add(transfer);
+                }
+            }
         }
 
         var to = OptionalAddress(result, "to");
@@ -132,7 +145,8 @@ internal static class BlockscoutParser
             Whole(result, "value"),
             outcome == EthereumOutcome.Pending ? BigInteger.Zero : Whole(result, "gasUsed") * Whole(result, "gasPrice"),
             outcome,
-            tokens);
+            tokens,
+            unread);
     });
 
     /// <summary>Reads a transaction's internal transactions from <c>txlistinternal&amp;txhash=</c>.</summary>
@@ -211,6 +225,12 @@ internal static class BlockscoutParser
                     }
                 }
 
+                if (history == EthereumHistory.Internal && !MovesEther(item))
+                {
+                    // A failed or empty call moves nothing, and a failed creation has no receiver at all.
+                    continue;
+                }
+
                 var from = Address(String(item, "from"));
                 var to = Receiver(item);
                 if (from != address && to != address)
@@ -268,8 +288,9 @@ internal static class BlockscoutParser
                         new AssetAmount(Asset.Ether, value), 0, block));
                 }
 
-                if (from == address)
+                if (from == address && block is not null)
                 {
+                    // A pending transaction has paid nothing yet; its fee is known once it is in a block.
                     var fee = Whole(item, "gasUsed") * Whole(item, "gasPrice");
                     fees.Add(new EthereumFee(hash, from, new AssetAmount(Asset.Ether, fee), succeeded, block));
                 }
@@ -300,44 +321,52 @@ internal static class BlockscoutParser
         }
     }
 
-    /// <summary>Reads an ERC-20 <c>Transfer</c> from a log, or gives <see langword="null"/> for any other
-    /// event.</summary>
+    /// <summary>
+    /// Reads an ERC-20 <c>Transfer</c> from a log. Any other event is not one; an ERC-721 <c>Transfer</c> (four topics:
+    /// the fourth is a token id, not an amount) and a transfer of zero (anyone can make a token contract write one from
+    /// any address, address poisoning) are not counted. A log with the topic in any other shape (an old token's, or a
+    /// topic that is not an address) is unread, so that one log a launderer wrote never makes the transaction
+    /// unreadable.
+    /// </summary>
     /// <param name="log">The log.</param>
-    /// <returns>The transfer, or <see langword="null"/>.</returns>
-    private static TokenLog? TransferOf(JsonElement log)
+    /// <returns>The transfer or <see langword="null"/>, and whether it is a Transfer that could not be read.</returns>
+    private static (TokenLog? Transfer, bool Unread) TransferOf(JsonElement log)
     {
         if (!log.TryGetProperty("topics", out var topicsElement) || topicsElement.ValueKind != JsonValueKind.Array)
         {
-            return null;
+            return (null, false);
         }
 
         var topics = topicsElement.EnumerateArray()
             .Where(topic => topic.ValueKind == JsonValueKind.String).Select(topic => topic.GetString()!).ToList();
-
-        // ERC-20's Transfer has three topics and the amount as one word of data; ERC-721's has the token id as a
-        // fourth topic, which is not an amount, so it is not read.
-        // A transfer of zero is left out: anyone can make a token contract write one from any address (address
-        // poisoning), and it moves nothing.
-        var data = OptionalString(log, "data") ?? string.Empty;
-        if (topics.Count != 3 || !string.Equals(topics[0], TransferTopic, StringComparison.OrdinalIgnoreCase)
-            || data.Length != 66 || Quantity(data).IsZero)
+        if (topics.Count == 0 || !string.Equals(topics[0], TransferTopic, StringComparison.OrdinalIgnoreCase)
+            || topics.Count == 4)
         {
-            return null;
+            return (null, false);
         }
 
-        return new TokenLog(
-            Address(String(log, "address")), Word(topics[1]), Word(topics[2]), Quantity(data),
-            long.Parse(String(log, "index"), NumberStyles.None, CultureInfo.InvariantCulture));
+        var data = OptionalString(log, "data") ?? string.Empty;
+        var contract = OptionalAddress(log, "address");
+        if (topics.Count != 3 || data.Length != 66 || contract is null
+            || !long.TryParse(OptionalString(log, "index"), NumberStyles.None, CultureInfo.InvariantCulture,
+                out var index)
+            || Word(topics[1]) is not { } from || Word(topics[2]) is not { } to
+            || !TryQuantity(data, out var units))
+        {
+            return (null, true);
+        }
+
+        return units.IsZero ? (null, false) : (new TokenLog(contract, from, to, units, index), false);
     }
 
     /// <summary>Reads an address from a 32-byte topic, which must be zero above its 20 bytes.</summary>
     /// <param name="topic">The topic, <c>0x</c> and 64 hex digits.</param>
-    /// <returns>The address.</returns>
-    /// <exception cref="FormatException">It is not an address padded with zeros.</exception>
-    private static EthereumAddress Word(string topic) =>
+    /// <returns>The address, or <see langword="null"/> when it is not one padded with zeros.</returns>
+    private static EthereumAddress? Word(string topic) =>
         EthereumTxHash.IsHash(topic) && topic.AsSpan(2, 24).IndexOfAnyExcept('0') < 0
-            ? Address("0x" + topic[26..])
-            : throw new FormatException("A topic is not an address.");
+            && EthereumAddress.TryParse("0x" + topic[26..], out var address)
+            ? address
+            : null;
 
     /// <summary>Makes a token of a contract, a symbol and decimals, recognising USDT and USDC by contract.</summary>
     /// <param name="contract">The contract.</param>
@@ -391,7 +420,8 @@ internal static class BlockscoutParser
 
         // Etherscan-style APIs answer an unknown transaction or token with 200, status 0 and no result.
         var empty = !root.TryGetProperty("result", out var missing) || missing.ValueKind == JsonValueKind.Null;
-        throw empty && message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+        throw empty && OptionalString(root, "status") == "0"
+            && message.Contains("not found", StringComparison.OrdinalIgnoreCase)
             ? new SourceNotFoundException()
             : new FormatException("The source did not answer: " + message);
     }
@@ -475,9 +505,13 @@ internal static class BlockscoutParser
             return EthereumOutcome.Pending;
         }
 
-        return result.TryGetProperty("success", out var success) && success.ValueKind == JsonValueKind.True
-            ? EthereumOutcome.Succeeded
-            : EthereumOutcome.Failed;
+        if (!result.TryGetProperty("success", out var success)
+            || success.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        {
+            throw new FormatException("A transaction in a block says whether it succeeded.");
+        }
+
+        return success.ValueKind == JsonValueKind.True ? EthereumOutcome.Succeeded : EthereumOutcome.Failed;
     }
 
     /// <summary>
@@ -533,6 +567,18 @@ internal static class BlockscoutParser
         BigInteger.TryParse(String(item, name), NumberStyles.None, CultureInfo.InvariantCulture, out var value)
             ? value
             : throw new FormatException($"{name} is not a whole number.");
+
+    /// <summary>Reads a data word, <c>0x</c> and hex, as a whole number, or says it is not one.</summary>
+    /// <param name="hex">The text.</param>
+    /// <param name="value">The number.</param>
+    /// <returns><see langword="true"/> when it is one.</returns>
+    private static bool TryQuantity(string hex, out BigInteger value)
+    {
+        value = BigInteger.Zero;
+        return hex.StartsWith("0x", StringComparison.Ordinal) && hex.Length > 2
+            && BigInteger.TryParse("0" + hex[2..], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture,
+                out value);
+    }
 
     /// <summary>Reads a JSON-RPC quantity or a data word, <c>0x</c> and hex, as a whole number.</summary>
     /// <param name="hex">The text.</param>

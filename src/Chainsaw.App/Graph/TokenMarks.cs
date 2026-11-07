@@ -85,7 +85,7 @@ public static class TokenMarks
             : "Utgivare: " + issuer.Name;
         var freeze = canBeFrozen
             ? string.Create(CultureInfo.InvariantCulture,
-                $"{issuer!.Name} kan frysa {AmountText.WithUnit(left)} på adressen. ")
+                $"{issuer!.Name} kan frysa {AmountText.WithUnit(left)} på adressen, enligt historiken i ärendet. ")
                 + "Frysning begärs hos utgivaren, inte hos börsen."
             : null;
         var glyph = Glyph(asset);

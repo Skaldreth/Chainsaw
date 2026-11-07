@@ -68,6 +68,20 @@ write("tx-b2-internal.json", {"status": "0", "message": "No internal transaction
 write("tx-other.json", {"status": "1", "message": "OK", "result": {
     "hash": H3, "blockNumber": "900", "timeStamp": TIME, "from": A, "to": B, "value": "5", "gasUsed": "1",
     "gasPrice": "1", "success": True, "logs": []}})
+H5 = "0x" + "b5" * 32
+write("tx-b5-junk-log.json", {"status": "1", "message": "OK", "result": {
+    "hash": H5, "blockNumber": "900", "timeStamp": TIME, "from": A, "to": ROUTER, "value": "0", "gasUsed": "1",
+    "gasPrice": "1", "success": True, "logs": [
+        log(USDT, A, B, 7_000_000, 1),
+        {"address": ROUTER, "topics": [TRANSFER, "0x" + "ff" * 32, word(B), None], "data": amount(5), "index": "2"},
+        {"address": ROUTER, "topics": [TRANSFER, None, None, None], "data": "0x" + word(A)[2:] + word(B)[2:]
+         + amount(5)[2:], "index": "3"},
+    ]}})
+write("tx-b5-internal.json", {"status": "0", "message": "No internal transactions found", "result": []})
+write("tx-no-success.json", {"status": "1", "message": "OK", "result": {
+    "hash": H1, "blockNumber": "900", "timeStamp": TIME, "from": A, "to": B, "value": "1", "gasUsed": "1",
+    "gasPrice": "1", "logs": []}})
+write("gateway-not-found.json", {"message": "Not Found"})
 write("tx-unknown.json", {"status": "0", "message": "Transaction not found", "result": None})
 write("tx-pending.json", {"status": "1", "message": "OK", "result": {
     "hash": H4, "blockNumber": None, "timeStamp": None, "from": A, "to": B, "value": "3", "gasPrice": "1",
@@ -102,7 +116,10 @@ write("history-tokens.json", {"status": "1", "message": "OK", "result": [
 write("history-internal.json", {"status": "2", "message": "Some internal transactions have not been processed",
                                 "result": [{"transactionHash": H3, "blockNumber": "899", "timeStamp": TIME,
                                             "from": C, "to": A, "value": "9", "isError": "0", "index": "0",
-                                            "contractAddress": "", "type": "call"}]})
+                                            "contractAddress": "", "type": "call"},
+                                           {"transactionHash": H1, "blockNumber": "898", "timeStamp": TIME,
+                                            "from": A, "to": "", "value": "4", "isError": "1", "index": "0",
+                                            "contractAddress": "", "type": "create"}]})
 write("history-empty.json", {"status": "0", "message": "No transactions found", "result": []})
 write("history-stranger.json", {"status": "1", "message": "OK", "result": [entry(H1, B, C, 1, 900)]})
 write("history-full.json", {"status": "1", "message": "OK", "result": [
