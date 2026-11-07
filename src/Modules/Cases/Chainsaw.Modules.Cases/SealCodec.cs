@@ -14,7 +14,9 @@ internal static class SealCodec
     /// <summary>The size of a hash.</summary>
     public const int HashSize = 32;
 
-    /// <summary>The domain that every sealed hash starts with, so that it cannot be mistaken for another hash.</summary>
+    /// <summary>
+    /// The domain that every sealed hash starts with, so that it cannot be mistaken for another hash.
+    /// </summary>
     private const string Domain = "chainsaw/seal/v1";
 
     /// <summary>The tag of SQL NULL.</summary>

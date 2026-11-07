@@ -20,6 +20,22 @@ internal static class JournalRecords
     /// <summary>The round-trip format of times in the journal.</summary>
     private const string TimeFormat = "O";
 
+    /// <summary>The prefix of the kinds only the Cases module writes (see <c>CaseJournalKinds</c>).</summary>
+    private const string ReservedPrefix = "case.";
+
+    /// <summary>Checks a draft from another module, which may not use the Cases module's own kinds.</summary>
+    /// <param name="draft">The draft.</param>
+    /// <exception cref="ArgumentException">The draft is not allowed, or its kind is reserved.</exception>
+    public static void ValidateFromModule(JournalDraft draft)
+    {
+        Validate(draft);
+        if (draft.Kind.StartsWith(ReservedPrefix, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "Kinds that start with case. are written only by the Cases module.", nameof(draft));
+        }
+    }
+
     /// <summary>Checks a draft.</summary>
     /// <param name="draft">The draft.</param>
     /// <exception cref="ArgumentException">The kind, summary or details are not allowed.</exception>

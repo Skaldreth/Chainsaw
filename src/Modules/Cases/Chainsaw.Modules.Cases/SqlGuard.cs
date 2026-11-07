@@ -30,7 +30,9 @@ internal sealed class SqlGuard
     /// <summary>SQLite's table for AUTOINCREMENT counters, which an insert into a module's table may write.</summary>
     private const string SequenceTable = "sqlite_sequence";
 
-    /// <summary>The prefix of SQLite3 Multiple Ciphers' functions, which change the cipher for the whole process.</summary>
+    /// <summary>
+    /// The prefix of SQLite3 Multiple Ciphers' functions, which change the cipher for the whole process.
+    /// </summary>
     private const string CipherFunctionPrefix = "sqlite3mc";
 
     /// <summary>
@@ -57,7 +59,9 @@ internal sealed class SqlGuard
     /// <summary>The Cases module's own tables, which only it writes.</summary>
     private readonly FrozenSet<string> _caseTables;
 
-    /// <summary>The sealed tables, whose records can never be changed or removed; grows when the registry is read.</summary>
+    /// <summary>
+    /// The sealed tables, whose records can never be changed or removed; grows when the registry is read.
+    /// </summary>
     private ImmutableHashSet<string> _sealedTables;
 
     /// <summary>Creates the guard for a set of tables, in <see cref="GuardMode.Idle"/>.</summary>

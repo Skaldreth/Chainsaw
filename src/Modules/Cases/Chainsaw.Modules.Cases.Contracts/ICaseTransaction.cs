@@ -1,6 +1,8 @@
 namespace Chainsaw.Modules.Cases.Contracts;
 
-/// <summary>Writes to an open case inside <see cref="ICase.Write{T}"/>; everything commits or rolls back together.</summary>
+/// <summary>
+/// Writes to an open case inside <see cref="ICase.Write{T}"/>; everything commits or rolls back together.
+/// </summary>
 public interface ICaseTransaction : ICaseReader
 {
     /// <summary>Adds one entry to the journal, sealed in the hash chain, in this transaction.</summary>

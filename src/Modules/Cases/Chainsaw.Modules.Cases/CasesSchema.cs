@@ -2,7 +2,9 @@ using Chainsaw.Modules.Cases.Contracts;
 
 namespace Chainsaw.Modules.Cases;
 
-/// <summary>The Cases module's own tables: what the case says about itself, the chains' heads and the journal.</summary>
+/// <summary>
+/// The Cases module's own tables: what the case says about itself, the chains' heads and the journal.
+/// </summary>
 internal sealed class CasesSchema : ICaseSchemaContributor
 {
     /// <summary>The module name of the Cases module's own schema.</summary>

@@ -20,4 +20,11 @@ public enum CaseProblem
     /// rolled-back or shortened case could not be checked.
     /// </summary>
     AnchorsUnreadable,
+
+    /// <summary>
+    /// The journal records that the case, when it was opened, did not match what this computer had recorded (an
+    /// older copy, a change made outside Chainsaw, or missing or unreadable anchors); the
+    /// <see cref="CaseJournalKinds.AnchorsReplaced"/> entries say what.
+    /// </summary>
+    AnchorsReplaced,
 }

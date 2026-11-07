@@ -23,6 +23,11 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <summary>The cases that are open now.</summary>
     private readonly HashSet<Case> _open = [];
 
+    /// <summary>
+    /// Counts the locks of the vault, so that an opening that a lock and an unlock overtook is closed.
+    /// </summary>
+    private long _locks;
+
     /// <summary>The background closing started by the last lock of the vault.</summary>
     private Task _closing = Task.CompletedTask;
 
@@ -76,6 +81,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <inheritdoc />
     public ICase Create(string caseNumber)
     {
+        var locks = LockCount();
         var paths = PathsFor(caseNumber);
         RequireUnlocked();
         var profile = CurrentProfile();
@@ -103,7 +109,10 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             var info = new CaseInfo(header.CaseId, caseNumber, _services.Clock.UtcNow.ToUniversalTime());
             WriteInfo(database, info);
             var opened = new Case(
-                _services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget);
+                _services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget)
+            {
+                LocksAtOpening = locks,
+            };
             (database, fileKey, anchorKey) = (null, null, null);
             FinishOpening(opened, () =>
             {
@@ -133,6 +142,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <inheritdoc />
     public ICase Open(string caseNumber)
     {
+        var locks = LockCount();
         var paths = PathsFor(caseNumber);
         RequireExists(paths);
         RequireUnlocked();
@@ -148,7 +158,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 throw new CaseException(CaseError.NoAccess);
             }
 
-            return OpenLocked(paths, lockFile, header, fileKey, openedWithPassword: false);
+            return OpenLocked(paths, lockFile, header, fileKey, (false, locks));
         }
         catch
         {
@@ -166,6 +176,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     public ICase OpenWithPassword(string path, ReadOnlySpan<char> password)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var locks = LockCount();
         var paths = new CasePaths(System.IO.Path.GetFullPath(path));
         RequireExists(paths);
         RequireUnlocked();
@@ -179,7 +190,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 throw new CaseException(CaseError.NoAccess);
             }
 
-            return OpenLocked(paths, lockFile, header, fileKey, openedWithPassword: true);
+            return OpenLocked(paths, lockFile, header, fileKey, (true, locks));
         }
         catch
         {
@@ -216,25 +227,27 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="lockFile">The held lock; the case takes it over, a failure leaves it to the caller.</param>
     /// <param name="header">The header the key was opened from.</param>
     /// <param name="fileKey">The file key; the case takes it over, a failure leaves it to the caller.</param>
-    /// <param name="openedWithPassword">Whether the sharing password was used, for the journal.</param>
+    /// <param name="opening">
+    /// Whether the sharing password was used (for the journal) and the count of vault locks when the opening began.
+    /// </param>
     /// <returns>The open case.</returns>
     private Case OpenLocked(
-        CasePaths paths, FileStream lockFile, CaseHeader header, byte[] fileKey, bool openedWithPassword)
+        CasePaths paths,
+        FileStream lockFile,
+        CaseHeader header,
+        byte[] fileKey,
+        (bool WithPassword, long Locks) opening)
     {
         var recovering = File.Exists(paths.WorkingCopy);
         CaseDatabase? database = null;
         byte[]? anchorKey = null;
         try
         {
-            if (!recovering)
-            {
-                CaseFiles.Extract(paths, header.CaseId);
-            }
-            else if (!CaseFiles.BelongsTogether(paths))
-            {
-                // The case file was replaced after the working copy was taken from it: neither is overwritten.
-                throw new CaseException(CaseError.Conflict);
-            }
+            // A recovered working copy must belong to the case file as it is now; if the file was replaced after the
+            // working copy was taken from it, neither is overwritten.
+            var caseFileHash = recovering
+                ? CaseFiles.MatchingBase(paths) ?? throw new CaseException(CaseError.Conflict)
+                : CaseFiles.Extract(paths, header.CaseId);
 
             anchorKey = DeriveAnchorKey();
             database = OpenWorkingCopy(paths, fileKey, header.CaseId, recovering);
@@ -245,10 +258,15 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             }
 
             var opened = Construct(
-                () => new Case(_services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget),
+                () => new Case(
+                    _services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget)
+                {
+                    CaseFileHash = caseFileHash,
+                    LocksAtOpening = opening.Locks,
+                },
                 recovering);
             (database, anchorKey) = (null, null);
-            FinishOpening(opened, () => JournalOpening(opened, recovering, applied, openedWithPassword));
+            FinishOpening(opened, () => JournalOpening(opened, recovering, applied, opening.WithPassword));
             return opened;
         }
         catch
@@ -285,7 +303,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         }
     }
 
-    /// <summary>Builds the case, which reads its chains; a page that does not authenticate makes the file corrupt.</summary>
+    /// <summary>
+    /// Builds the case, which reads its chains; a page that does not authenticate makes the file corrupt.
+    /// </summary>
     /// <param name="construct">Builds the case.</param>
     /// <param name="recovering">Whether the working copy was left by an interrupted session.</param>
     /// <returns>The case.</returns>
@@ -351,8 +371,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             finish();
             Track(opened);
 
-            // A lock after this check finds the case among the open ones and closes it.
-            if (_services.Vault.State != VaultState.Unlocked)
+            // A lock after this check finds the case among the open ones and closes it; a lock before it, even one
+            // followed by an unlock, shows in the count.
+            if (_services.Vault.State != VaultState.Unlocked || LockCount() != opened.LocksAtOpening)
             {
                 throw new CaseException(CaseError.VaultLocked);
             }
@@ -387,10 +408,10 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="paths">The case's files.</param>
     private static void DeleteWorkingFiles(CasePaths paths)
     {
-        File.Delete(paths.WorkingBase);
         File.Delete(paths.WorkingCopy);
         File.Delete(paths.WorkingJournal);
         File.Delete(paths.WorkingCopyTemporary);
+        File.Delete(paths.WorkingBase);
     }
 
     /// <summary>Derives the key that authenticates this computer's anchors.</summary>
@@ -618,6 +639,16 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             [CreatedDetails.Schema] = Case.SchemaDetails(opened.Database),
         });
 
+    /// <summary>Gives the number of locks of the vault so far.</summary>
+    /// <returns>The count.</returns>
+    private long LockCount()
+    {
+        lock (_openGate)
+        {
+            return _locks;
+        }
+    }
+
     /// <summary>Remembers an open case.</summary>
     /// <param name="opened">The case.</param>
     /// <returns>The same case.</returns>
@@ -658,6 +689,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         {
             // The cases are taken now, so that a case opened after the vault is unlocked again is not closed by a
             // closing that waited behind a slow save.
+            _locks++;
             List<Case> open = [.. _open];
             foreach (var item in open)
             {

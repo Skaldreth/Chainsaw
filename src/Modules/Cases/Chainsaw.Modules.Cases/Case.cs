@@ -41,7 +41,9 @@ internal sealed class Case : ICase
     /// <summary>Called once when the case has closed, so that the store forgets it.</summary>
     private readonly Action<Case> _onClosed;
 
-    /// <summary>The chains in the case: this build's and those registered by modules this build does not know.</summary>
+    /// <summary>
+    /// The chains in the case: this build's and those registered by modules this build does not know.
+    /// </summary>
     private readonly IReadOnlyList<SealedChain> _chains;
 
     /// <summary>The registered definitions by chain name.</summary>
@@ -56,14 +58,22 @@ internal sealed class Case : ICase
     /// </summary>
     private readonly Dictionary<string, IReadOnlyList<string>> _shapes = new(StringComparer.Ordinal);
 
-    /// <summary>The header with the current envelopes.</summary>
-    private CaseHeader _header;
+    /// <summary>
+    /// The header with the current envelopes; replaced as a whole, so it can be read without the gate.
+    /// </summary>
+    private volatile CaseHeader _header;
 
     /// <summary>The connection; <see langword="null"/> after close.</summary>
-    private CaseDatabase? _database;
+    private volatile CaseDatabase? _database;
 
     /// <summary>Whether another module's work is running, so that nested calls are refused.</summary>
     private bool _inWork;
+
+    /// <summary>
+    /// Whether the anchor file could not be read when the case was opened; the anchors are then neither compared nor
+    /// moved in this session.
+    /// </summary>
+    private bool _anchorsUnavailable;
 
     /// <summary>Whether the journal has recorded why the anchors are replaced at the next save.</summary>
     private bool _replaceAnchors;
@@ -123,32 +133,26 @@ internal sealed class Case : ICase
     /// <inheritdoc />
     public CaseInfo Info { get; }
 
+    /// <summary>
+    /// Gets or sets the SHA-256 of the case file as it is on disk now (the file the working copy belongs to), or
+    /// <see langword="null"/> before a new case is first saved. A save records it next to the new file's hash until
+    /// the new file is in place, so that any number of failed saves still recover.
+    /// </summary>
+    internal byte[]? CaseFileHash { get; set; }
+
+    /// <summary>Gets the store's count of vault locks when the opening began.</summary>
+    internal long LocksAtOpening { get; init; }
+
     /// <inheritdoc />
     public string Path => _paths.CaseFile;
 
     /// <inheritdoc />
-    public bool IsClosed
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _closing || _database is null;
-            }
-        }
-    }
+    /// <remarks>Never waits for an operation that runs, so that the user interface can always ask.</remarks>
+    public bool IsClosed => _closing || _database is null;
 
     /// <inheritdoc />
-    public bool HasSharingPassword
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return HasSharingPasswordUnlocked();
-            }
-        }
-    }
+    /// <remarks>Reads the header the last operation left, without waiting for one that runs.</remarks>
+    public bool HasSharingPassword => HasSharingPasswordUnlocked();
 
     /// <summary>Gets the open database, for <see cref="CaseTransaction"/> and the tests.</summary>
     internal CaseDatabase Database => _database ?? throw new CaseException(CaseError.Closed);
@@ -223,7 +227,7 @@ internal sealed class Case : ICase
     /// <inheritdoc />
     public JournalEntry AppendJournal(JournalDraft draft)
     {
-        JournalRecords.Validate(draft);
+        JournalRecords.ValidateFromModule(draft);
         lock (_gate)
         {
             EnsureIdle();
@@ -345,10 +349,11 @@ internal sealed class Case : ICase
             {
                 SaveUnlocked();
                 ReleaseDatabase();
-                // The base goes first: a working copy left without its base is a conflict, never a false recovery.
-                File.Delete(_paths.WorkingBase);
+                // The base goes last: a working copy that is left behind still belongs to the file it was just
+                // saved to, and is recovered rather than taken for a conflict.
                 File.Delete(_paths.WorkingCopy);
                 File.Delete(_paths.WorkingJournal);
+                File.Delete(_paths.WorkingBase);
             }
             finally
             {
@@ -435,8 +440,9 @@ internal sealed class Case : ICase
                     return ([CaseProblem.DatabaseUnsound], []);
                 }
 
+                TryReadAnchors(out var anchors);
                 return CaseChecks.Run(
-                    database, transaction, Info, _chains, _registered, _invalidRegistrations, ReadAnchors());
+                    database, transaction, Info, _chains, _registered, _invalidRegistrations, anchors);
             }
             catch (SqliteException)
             {
@@ -487,8 +493,9 @@ internal sealed class Case : ICase
         // Until the new file has replaced the old, the working copy belongs to both, so that a failed or interrupted
         // replace still recovers instead of becoming a conflict.
         var saved = hash.GetHashAndReset();
-        CaseFiles.WriteBase(_paths, [.. CaseFiles.ReadBase(_paths).TakeLast(1), saved]);
+        CaseFiles.WriteBase(_paths, CaseFileHash is null ? [saved] : [CaseFileHash, saved]);
         File.Move(_paths.SaveFile, _paths.CaseFile, overwrite: true);
+        CaseFileHash = saved;
         CaseFiles.WriteBase(_paths, [saved]);
         WriteAnchors();
     }
@@ -520,7 +527,13 @@ internal sealed class Case : ICase
     /// <returns><see langword="true"/> when something was journalled.</returns>
     internal bool ReconcileAnchors()
     {
-        var anchors = ReadAnchors();
+        if (!TryReadAnchors(out var anchors))
+        {
+            // The file is held by another program just now: nothing is concluded, and the anchors are left alone.
+            _anchorsUnavailable = true;
+            return false;
+        }
+
         if (anchors is null)
         {
             JournalAnchors("Ankarna på den här datorn gick inte att läsa och ersätts", AnchorProblem.Unreadable, []);
@@ -569,16 +582,10 @@ internal sealed class Case : ICase
     /// <param name="missed">The anchors that the case no longer reaches.</param>
     private void JournalAnchors(string summary, AnchorProblem problem, IReadOnlyList<ChainAnchor> missed)
     {
-        var details = JsonSerializer.Serialize(new
-        {
-            problem = problem.ToString(),
-            anchors = missed.Select(anchor => new
-            {
-                chain = anchor.Chain,
-                sequence = anchor.Sequence,
-                hash = Convert.ToHexStringLower(anchor.Hash),
-            }),
-        });
+        var details = JsonSerializer.Serialize(new AnchorDetails(
+            problem.ToString(),
+            [.. missed.Select(anchor => new AnchorDetail(
+                anchor.Chain, anchor.Sequence, Convert.ToHexStringLower(anchor.Hash)))]));
         AppendOwnJournal(new JournalDraft(CaseJournalKinds.AnchorsReplaced, summary, details));
         _replaceAnchors = true;
     }
@@ -590,8 +597,8 @@ internal sealed class Case : ICase
     /// </summary>
     private void WriteAnchors()
     {
-        var anchors = _replaceAnchors ? [] : ReadAnchors();
-        if (anchors is null)
+        IReadOnlyList<ChainAnchor>? anchors = [];
+        if (_anchorsUnavailable || (!_replaceAnchors && !TryReadAnchors(out anchors)) || anchors is null)
         {
             return;
         }
@@ -623,9 +630,21 @@ internal sealed class Case : ICase
     }
 
     /// <summary>Reads this computer's anchors of the case.</summary>
-    /// <returns>The anchors, or <see langword="null"/> when they are unreadable.</returns>
-    private IReadOnlyList<ChainAnchor>? ReadAnchors() =>
-        AnchorStore.Read(_services.Options.AnchorDirectory, Info.Id, _anchorKey);
+    /// <param name="anchors">The anchors, or <see langword="null"/> when they are malformed or changed.</param>
+    /// <returns><see langword="false"/> when the file could not be read just now.</returns>
+    private bool TryReadAnchors(out IReadOnlyList<ChainAnchor>? anchors)
+    {
+        try
+        {
+            anchors = AnchorStore.Read(_services.Options.AnchorDirectory, Info.Id, _anchorKey);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            anchors = null;
+            return false;
+        }
+    }
 
     /// <summary>Seals a record as the Cases module.</summary>
     /// <param name="transaction">The transaction.</param>

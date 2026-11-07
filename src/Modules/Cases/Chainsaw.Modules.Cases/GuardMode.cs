@@ -1,6 +1,8 @@
 namespace Chainsaw.Modules.Cases;
 
-/// <summary>Who is running SQL on a case's connection right now, which decides what <see cref="SqlGuard"/> allows.</summary>
+/// <summary>
+/// Who is running SQL on a case's connection right now, which decides what <see cref="SqlGuard"/> allows.
+/// </summary>
 internal enum GuardMode
 {
     /// <summary>

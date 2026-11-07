@@ -50,9 +50,13 @@ internal static class AnchorStore
     /// <param name="caseId">The case id.</param>
     /// <param name="key">The anchor key.</param>
     /// <returns>
-    /// The anchors (empty when there is no file), or <see langword="null"/> when the file is unreadable or its tag
+    /// The anchors (empty when there is no file), or <see langword="null"/> when the file is malformed or its tag
     /// does not hold.
     /// </returns>
+    /// <exception cref="IOException">
+    /// The file could not be read just now (for example held by another program).
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">The file could not be read just now.</exception>
     public static IReadOnlyList<ChainAnchor>? Read(string directory, Guid caseId, ReadOnlySpan<byte> key)
     {
         var path = PathFor(directory, caseId, key);
@@ -82,8 +86,8 @@ internal static class AnchorStore
                 .Select(anchor => new ChainAnchor(anchor.Chain, anchor.Sequence, Convert.FromHexString(anchor.Hash)))
                 .ToList();
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException
-            or InvalidOperationException or FormatException or ArgumentException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException
+            or FormatException or ArgumentException)
         {
             return null;
         }

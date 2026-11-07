@@ -3,7 +3,9 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Cases;
 
-/// <summary>What every open case needs from outside: keys, the operator, the clock, the options and the schema.</summary>
+/// <summary>
+/// What every open case needs from outside: keys, the operator, the clock, the options and the schema.
+/// </summary>
 /// <param name="Vault">The vault, for its state.</param>
 /// <param name="PurposeKeys">The vault's keys per purpose, for this vault's envelopes.</param>
 /// <param name="Profiles">The operator profile, for the journal.</param>

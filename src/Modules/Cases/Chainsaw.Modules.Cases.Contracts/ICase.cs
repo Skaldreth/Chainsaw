@@ -29,7 +29,9 @@ public interface ICase : IDisposable
     /// <summary>Gets whether the file has a sharing envelope that opens with a password.</summary>
     bool HasSharingPassword { get; }
 
-    /// <summary>Runs work that only reads, in one read transaction; any attempt to write is refused by SQLite.</summary>
+    /// <summary>
+    /// Runs work that only reads, in one read transaction; any attempt to write is refused by SQLite.
+    /// </summary>
     /// <typeparam name="T">What the work returns.</typeparam>
     /// <param name="work">The work; it must not keep the reader after it returns.</param>
     /// <returns>What the work returned.</returns>

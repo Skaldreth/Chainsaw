@@ -14,7 +14,9 @@ internal sealed class CaseDatabase : IDisposable
     /// <summary>The cipher, set explicitly so that a change of the library's default never changes the files.</summary>
     private const string Cipher = "chacha20";
 
-    /// <summary>The settings for every connection: durable writes, no data left in freed pages, no shared cache.</summary>
+    /// <summary>
+    /// The settings for every connection: durable writes, no data left in freed pages, no shared cache.
+    /// </summary>
     private const string ConnectionPragmas =
         "PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL; PRAGMA secure_delete = ON; "
         + "PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF; PRAGMA temp_store = MEMORY;";
@@ -56,7 +58,9 @@ internal sealed class CaseDatabase : IDisposable
     /// <param name="databaseKey">The 32-byte database key.</param>
     /// <param name="guard">The guard for the case's tables.</param>
     /// <returns>The open database.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when the file does not open with the key.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/> when the file does not open with the key.
+    /// </exception>
     public static CaseDatabase Open(string path, ReadOnlySpan<byte> databaseKey, SqlGuard guard)
     {
         var builder = new SqliteConnectionStringBuilder

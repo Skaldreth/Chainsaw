@@ -47,6 +47,11 @@ internal static class CaseChecks
             problems.Add(CaseProblem.AnchorsUnreadable);
         }
 
+        if (HasReplacedAnchors(database, transaction))
+        {
+            problems.Add(CaseProblem.AnchorsReplaced);
+        }
+
         var results = new List<ChainVerification>();
         foreach (var chain in chains)
         {
@@ -124,6 +129,17 @@ internal static class CaseChecks
 
         var first = JournalRecords.Read(database, transaction, 1, 1).FirstOrDefault();
         return first is { Sequence: 1, Kind: CaseJournalKinds.Created } && CreatedFor(first.Details, info, createdUtc);
+    }
+
+    /// <summary>Checks whether the journal records that the anchors were ever replaced.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool HasReplacedAnchors(CaseDatabase database, SqliteTransaction transaction)
+    {
+        using var command = database.Command("SELECT count(*) FROM journal WHERE kind = $kind", transaction);
+        command.Parameters.AddWithValue("$kind", CaseJournalKinds.AnchorsReplaced);
+        return command.ExecuteScalar() is long count && count > 0;
     }
 
     /// <summary>Checks that a table has its protecting triggers and that they abort.</summary>

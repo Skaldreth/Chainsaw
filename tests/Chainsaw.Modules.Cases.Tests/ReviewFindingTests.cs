@@ -161,7 +161,8 @@ public sealed class ReviewFindingTests : IDisposable
             Assert.Equal(CaseJournalKinds.AnchorsReplaced, entry.Kind);
             Assert.Contains("Diverged", entry.Details, StringComparison.Ordinal);
             Assert.Contains(laterHash, entry.Details, StringComparison.Ordinal);
-            Assert.True(new CaseVerifier(_fixture.Clock).Verify(rolledBack).IsIntact);
+            Assert.Equal(
+                [CaseProblem.AnchorsReplaced], new CaseVerifier(_fixture.Clock).Verify(rolledBack).Problems);
         }
 
         using var again = store.Open("A1");
@@ -285,6 +286,57 @@ public sealed class ReviewFindingTests : IDisposable
     }
 
     [Fact]
+    public void A_list_of_values_cannot_run_sql_while_the_cases_module_seals()
+    {
+        using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
+
+        var error = Record.Exception(() => opened.Write(transaction =>
+            transaction.AppendSealed("test.sealed", new SneakyValues(transaction))));
+
+        Assert.Null(error);
+        Assert.Single(opened.ReadJournal());
+        Assert.True(new CaseVerifier(_fixture.Clock).Verify(opened).IsIntact);
+    }
+
+    [Fact]
+    public void Modules_cannot_write_the_cases_modules_own_journal_kinds()
+    {
+        using var opened = _fixture.CreateStore().Create("A1");
+
+        Assert.Throws<ArgumentException>(() => opened.AppendJournal(
+            new JournalDraft(CaseJournalKinds.AnchorsReplaced, "Låtsas")));
+        Assert.Throws<ArgumentException>(() => opened.Write(transaction =>
+            transaction.AppendJournal(new JournalDraft(CaseJournalKinds.Recovered, "Låtsas"))));
+    }
+
+    [Fact]
+    public void Repeated_failed_saves_still_recover_into_the_file_on_disk()
+    {
+        var store = _fixture.CreateStore();
+        var path = _fixture.CaseFile("A1");
+        using (store.Create("A1"))
+        {
+        }
+
+        var opened = (Case)store.Open("A1");
+        opened.AppendJournal(new JournalDraft("test.note", "Bara i arbetskopian"));
+        var original = File.ReadAllBytes(path);
+        File.Delete(path);
+        Directory.CreateDirectory(path);
+        File.WriteAllText(Path.Combine(path, "hinder"), "x");
+        Assert.ThrowsAny<IOException>(opened.Save);
+        Assert.ThrowsAny<IOException>(opened.Save);
+        Directory.Delete(path, recursive: true);
+        File.WriteAllBytes(path, original);
+        opened.Abandon();
+
+        using var recovered = store.Open("A1");
+
+        Assert.Contains(recovered.ReadJournal(), entry => entry.Summary == "Bara i arbetskopian");
+        Assert.Equal(CaseJournalKinds.Recovered, recovered.ReadJournal()[^1].Kind);
+    }
+
+    [Fact]
     public void A_reader_hands_out_no_statement_handle()
     {
         using var opened = _fixture.CreateStore().Create("A1");
@@ -370,6 +422,36 @@ public sealed class ReviewFindingTests : IDisposable
         var anchor = Directory.GetFiles(_fixture.AnchorDirectory).Single();
 
         Assert.DoesNotContain("HEMLIGT-NUMMER", File.ReadAllText(anchor, Encoding.UTF8), StringComparison.Ordinal);
+    }
+
+    /// <summary>A list of values whose indexer tries to run SQL, as a module could.</summary>
+    private sealed class SneakyValues(ICaseTransaction transaction) : IReadOnlyList<object?>
+    {
+        public int Count => 2;
+
+        public object? this[int index]
+        {
+            get
+            {
+                // Runs while the list is copied with the work's rights: the journal stays out of reach.
+                _ = Record.Exception(() =>
+                {
+                    using var command = transaction.CreateCommand("DELETE FROM chain_head");
+                    command.ExecuteNonQuery();
+                });
+                return index == 0 ? "anteckning" : 1L;
+            }
+        }
+
+        public IEnumerator<object?> GetEnumerator()
+        {
+            for (var index = 0; index < Count; index++)
+            {
+                yield return this[index];
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     private sealed class RealSchema : ICaseSchemaContributor

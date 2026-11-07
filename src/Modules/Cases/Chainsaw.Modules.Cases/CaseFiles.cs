@@ -33,10 +33,11 @@ internal static class CaseFiles
     /// </summary>
     /// <param name="paths">The case's files.</param>
     /// <param name="caseId">The case id the key was opened for; the header must still say it.</param>
+    /// <returns>The SHA-256 of the case file the working copy was taken from.</returns>
     /// <exception cref="Contracts.CaseException">
     /// <see cref="Contracts.CaseError.Corrupt"/> when the file changed in between.
     /// </exception>
-    public static void Extract(CasePaths paths, Guid caseId)
+    public static byte[] Extract(CasePaths paths, Guid caseId)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using var input = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
@@ -58,8 +59,10 @@ internal static class CaseFiles
         }
 
         // The base is written before the working copy gets its name, so that a working copy always has its base.
-        WriteBase(paths, [hash.GetHashAndReset()]);
+        var caseFileHash = hash.GetHashAndReset();
+        WriteBase(paths, [caseFileHash]);
         File.Move(paths.WorkingCopyTemporary, paths.WorkingCopy);
+        return caseFileHash;
     }
 
     /// <summary>Records the hashes of the case files the working copy belongs to.</summary>
@@ -69,13 +72,19 @@ internal static class CaseFiles
     /// </param>
     public static void WriteBase(CasePaths paths, IEnumerable<byte[]> caseFileHashes)
     {
-        using var output = new FileStream(paths.WorkingBase, FileMode.Create, FileAccess.Write, FileShare.None);
-        foreach (var hash in caseFileHashes)
+        // Written aside and moved into place, so that a crash never leaves a half-written base.
+        var temporary = paths.WorkingBase + ".tmp";
+        using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            output.Write(hash);
+            foreach (var hash in caseFileHashes)
+            {
+                output.Write(hash);
+            }
+
+            output.Flush(flushToDisk: true);
         }
 
-        output.Flush(flushToDisk: true);
+        File.Move(temporary, paths.WorkingBase, overwrite: true);
     }
 
     /// <summary>Reads the recorded hashes; none when the base is missing or malformed.</summary>
@@ -97,17 +106,17 @@ internal static class CaseFiles
     /// is the one the working copy was taken from or last saved to, or the one a save was writing when it stopped.
     /// </summary>
     /// <param name="paths">The case's files.</param>
-    /// <returns><see langword="true"/> when the case file's hash is recorded.</returns>
-    public static bool BelongsTogether(CasePaths paths)
+    /// <returns>The case file's SHA-256 when it is recorded; otherwise <see langword="null"/>.</returns>
+    public static byte[]? MatchingBase(CasePaths paths)
     {
         var recorded = ReadBase(paths);
         if (recorded.Count == 0)
         {
-            return false;
+            return null;
         }
 
         using var input = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
         var actual = SHA256.HashData(input);
-        return recorded.Any(hash => CryptographicOperations.FixedTimeEquals(hash, actual));
+        return recorded.Any(hash => CryptographicOperations.FixedTimeEquals(hash, actual)) ? actual : null;
     }
 }
