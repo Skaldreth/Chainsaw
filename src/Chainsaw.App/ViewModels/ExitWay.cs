@@ -22,8 +22,8 @@ public sealed class ExitWay
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(ui);
         _route = route;
-        Status = connection.Status;
-        Route = route.Current;
+
+        // Followed first and read after, so that a change in between is never lost.
         connection.StatusChanged += (_, status) => ui.Post(() =>
         {
             Status = status;
@@ -34,6 +34,8 @@ public sealed class ExitWay
             Route = _route.Current;
             Changed?.Invoke(this, EventArgs.Empty);
         });
+        Status = connection.Status;
+        Route = route.Current;
     }
 
     /// <summary>Raised on the UI thread after the way or the exit's status has changed.</summary>

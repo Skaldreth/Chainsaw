@@ -44,6 +44,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   dess länk *Guiden: Grafen och bildspråket* öppnar panelen. I GD1b öppnade ett klick på metoden och på *?* Guiden
   direkt; då behövs en annan väg att byta metod och se bildspråket. Bekräfta eller välj.
 
+- **Formuläret för att byta huvudnyckel** (etapp 19, valt av sessionen): ST1a har bara knappen *Byt …*. Den fäller ut
+  tre fält under raden (nuvarande, ny, upprepa) med Avbryt och *Byt huvudnyckel*, som förstagångsinställningens steg.
+  Bekräfta formen eller skissa den.
+- **Windows som utgång är alltid grönt** (etapp 19, granskningen M): med Windows valt visar titelraden grön prick och
+  grafen säger inte *Offline*, också när datorn saknar nät. Chainsaw kan inte veta om Windows når källorna förrän ett
+  uppslag görs; `NetworkChange` kunde säga när datorn inte har något nät alls. Bekräfta eller välj.
+
 ## Bygga härnäst
 - **Etapp 20, grafen och spårningen oberoende av kedjan** (användarens beslut 2026-11-07, startas när 16 och 19 är klara):
   belopp som vet sin kedja och tillgång (coin eller token med decimaler), kanter som överföringar i stället för mynt
@@ -358,6 +365,13 @@ Hur kontrollerna och förslagen visas samlat (en lista att gå igenom, markering
   Chainsaw skickar aldrig Windows-användarens uppgifter till den (`DefaultProxyCredentials` är tomt), eftersom en
   proxy som hittas automatiskt (WPAD) annars kunde få dem. En sådan proxy svarar 407 och uppslaget misslyckas ärligt.
   Om det behövs i tjänsten: ett val i inställningarna, bara för en proxy som är inställd för hand.
+- **Felen nämner utgången också genom Windows** (etapp 19, granskningen M): *Svaret kom inte i tid genom utgången*
+  och *Utgången kopplades ner medan uppslaget pågick* (`ExitException`) står också när uppslaget gick genom Windows
+  eller när vägen ut byttes. Texter efter vägen (leasen vet den) behövs.
+- **En ansluten utgång i läget Windows** (etapp 19, granskningen M): listan i rutan är tonad och går inte att använda,
+  så en ansluten utgång kopplas ner bara genom att välja VPN igen. Strömknappen kunde vara kvar för den som är på.
+- **Intranätnamn genom en proxy** (etapp 19, granskningen M): med Windows och en proxy slår proxyn upp namnet, så
+  Chainsaws kontroll av adresser som inte är globala gäller bara direkta anslutningar.
 - **Namnuppslag med Windows** (etapp 19): källans namn slås upp av datorn (eller proxyn), som i varje program på
   datorn; det är meningen med valet. Adresser som inte är globala vägras ändå vid en direkt anslutning.
 - **Ett kortkommando för utgångarna** (etapp 17): rutan öppnas bara med musen eller Tab till utgången i titelraden.

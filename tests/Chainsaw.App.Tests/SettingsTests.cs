@@ -376,6 +376,77 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
+    public async Task A_failed_profile_save_is_tried_again()
+    {
+        _rig.Profiles.Save(new OperatorProfile("Alex Berg", "Utredare", "Kryptogruppen"));
+        Settings.Open();
+        Assert.True(SpinWait.SpinUntil(() => Settings.ProfileName == "Alex Berg", Wait));
+        _rig.Profiles.Failure = new VaultException(VaultError.Locked);
+        Settings.ProfileUnit = "Annan enhet";
+        await Settings.SaveProfileAsync();
+        _rig.Profiles.Failure = null;
+
+        await Settings.SaveProfileAsync();
+
+        Assert.Equal("Annan enhet", _rig.Profiles.Saved!.Organization);
+        Assert.False(Settings.HasProfileError);
+    }
+
+    [Fact]
+    public void Closing_the_dialog_saves_a_field_being_written_in()
+    {
+        _rig.Profiles.Save(new OperatorProfile("Alex Berg", "Utredare", "Kryptogruppen"));
+        Settings.Open();
+        Assert.True(SpinWait.SpinUntil(() => Settings.ProfileName == "Alex Berg", Wait));
+        Settings.ProfileTitle = "Analytiker";
+
+        Settings.Close();
+
+        Assert.True(SpinWait.SpinUntil(() => _rig.Profiles.Saved!.Title == "Analytiker", Wait));
+    }
+
+    [Fact]
+    public async Task A_second_press_while_the_key_is_changed_leaves_the_first_busy_and_clears_its_keys()
+    {
+        var gate = new TaskCompletionSource();
+        var vault = new SlowVault(gate.Task);
+        var settings = new SettingsViewModel(
+            new AppSettings(), _rig.SettingsStore, _rig.Way, _rig.ExitPanel, _rig.AutoLock, _rig.Prices,
+            _rig.Profiles, vault, _rig.Cases, _rig.Build);
+        settings.Open();
+        settings.ToggleChangeKey();
+        var first = settings.ChangeMasterKeyAsync(
+            new TestEntry("correct horse battery"), new TestEntry("a much longer new key"),
+            new TestEntry("a much longer new key"));
+        Assert.True(settings.IsKeyBusy);
+        var second = new TestEntry("correct horse battery");
+
+        await settings.ChangeMasterKeyAsync(second, new TestEntry("x"), new TestEntry("x"));
+
+        Assert.True(settings.IsKeyBusy);
+        Assert.True(second.AllCleared);
+        gate.SetResult();
+        await first;
+        Assert.False(settings.IsKeyBusy);
+        Assert.Equal(SettingsViewModel.KeyChangedText, settings.KeyText);
+    }
+
+    [Fact]
+    public void A_choice_of_vpn_that_cannot_be_written_removes_a_file_that_says_windows()
+    {
+        var store = _rig.SettingsStore;
+        store.Save(new AppSettings { ExitRoute = ExitRoute.Windows });
+
+        store.ForgetIfWindows();
+        Assert.False(File.Exists(store.FilePath));
+        Assert.Equal(ExitRoute.Vpn, store.Load().ExitRoute);
+
+        store.Save(new AppSettings { ExitRoute = ExitRoute.Vpn, AutoLockMinutes = 30 });
+        store.ForgetIfWindows();
+        Assert.Equal(30, store.Load().AutoLockMinutes);
+    }
+
+    [Fact]
     public async Task Nothing_is_saved_before_the_profile_has_been_read()
     {
         await Settings.SaveProfileAsync();
@@ -533,5 +604,28 @@ public sealed class SettingsTests : IDisposable
     public void A_lock_time_is_written_as_the_sketch_writes_it(int minutes, string label)
     {
         Assert.Equal(label, SettingsViewModel.LockLabel(minutes));
+    }
+
+    /// <summary>A vault whose change of master key waits until the test lets it go.</summary>
+    private sealed class SlowVault(Task released) : IVault
+    {
+        public VaultState State => VaultState.Unlocked;
+
+        public event EventHandler<VaultState>? StateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public void Create(ReadOnlySpan<char> masterKey) => throw new NotSupportedException();
+
+        public void Unlock(ReadOnlySpan<char> masterKey) => throw new NotSupportedException();
+
+        public void Lock()
+        {
+        }
+
+        public void ChangeMasterKey(ReadOnlySpan<char> currentMasterKey, ReadOnlySpan<char> newMasterKey) =>
+            released.Wait();
     }
 }

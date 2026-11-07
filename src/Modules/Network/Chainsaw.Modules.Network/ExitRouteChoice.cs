@@ -4,8 +4,8 @@ namespace Chainsaw.Modules.Network;
 
 /// <summary>
 /// The way out chosen in the settings, and the pipeline through Windows. A request takes the way and, through Windows,
-/// a token that is cancelled when Windows is left, in one step under the same lock that changes the way, so a request
-/// can never leave through Windows after VPN has been chosen.
+/// a token that is cancelled when Windows is left, in one step under the same lock that changes the way: no new request
+/// leaves through Windows once VPN is chosen, and the requests in flight through it are cancelled.
 /// </summary>
 internal sealed class ExitRouteChoice : IExitRoute, IDisposable
 {
@@ -68,6 +68,13 @@ internal sealed class ExitRouteChoice : IExitRoute, IDisposable
                 return;
             }
 
+            if (_disposed)
+            {
+                // The application ends: the way is only noted, since nothing leaves any more.
+                _route = route;
+                return;
+            }
+
             if (_route == ExitRoute.Windows)
             {
                 left = _stopping;
@@ -91,20 +98,56 @@ internal sealed class ExitRouteChoice : IExitRoute, IDisposable
     /// <summary>Takes what one request through Windows needs, when Windows is the way chosen now.</summary>
     /// <param name="lease">The pipeline and the token that stops it, when Windows is chosen.</param>
     /// <returns><see langword="true"/> when Windows is the way chosen.</returns>
+    /// <exception cref="ExitException">
+    /// <see cref="ExitError.RequestFailed"/>: the pipeline could not be built, for example the certificate stores.
+    /// </exception>
     public bool TryLeaseWindows(out ExitLease lease)
     {
-        lock (_gate)
+        while (true)
         {
-            if (_route == ExitRoute.Windows && !_disposed)
+            lock (_gate)
             {
-                _windows ??= new HttpMessageInvoker(_handlers.Create(), disposeHandler: true);
-                lease = new ExitLease(Guid.Empty, _windows, _stopping.Token, ExitRoute.Windows);
-                return true;
-            }
-        }
+                if (_route != ExitRoute.Windows || _disposed)
+                {
+                    lease = default;
+                    return false;
+                }
 
-        lease = default;
-        return false;
+                if (_windows is { } windows)
+                {
+                    lease = new ExitLease(Guid.Empty, windows, _stopping.Token, ExitRoute.Windows);
+                    return true;
+                }
+            }
+
+            // Built outside the lock, since it reads the certificate stores; installed only if the way is unchanged.
+            var built = Build();
+            lock (_gate)
+            {
+                if (_route == ExitRoute.Windows && !_disposed && _windows is null)
+                {
+                    _windows = built;
+                    continue;
+                }
+            }
+
+            built.Dispose();
+        }
+    }
+
+    /// <summary>Builds the pipeline through Windows.</summary>
+    /// <returns>The pipeline.</returns>
+    /// <exception cref="ExitException">It could not be built.</exception>
+    private HttpMessageInvoker Build()
+    {
+        try
+        {
+            return new HttpMessageInvoker(_handlers.Create(), disposeHandler: true);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            throw new ExitException(ExitError.RequestFailed, exception);
+        }
     }
 
     /// <summary>Stops the requests through Windows and frees the pipeline when the application ends.</summary>

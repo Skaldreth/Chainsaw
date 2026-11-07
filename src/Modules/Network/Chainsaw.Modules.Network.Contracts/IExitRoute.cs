@@ -17,9 +17,10 @@ public interface IExitRoute
     event EventHandler<ExitRoute>? Changed;
 
     /// <summary>
-    /// Chooses the way out. Leaving <see cref="ExitRoute.Windows"/> stops every request still in flight through it
-    /// before this returns, so that nothing leaves around the exit once VPN is chosen. Choosing the same way again is
-    /// harmless. A connected exit (VPN) stays connected either way.
+    /// Chooses the way out. Once VPN is chosen no new request leaves through Windows, and leaving
+    /// <see cref="ExitRoute.Windows"/> cancels the requests still in flight through it (what a socket has already
+    /// written cannot be called back). Choosing the same way again is harmless. A connected exit (VPN) stays connected
+    /// either way.
     /// </summary>
     /// <param name="route">The way out.</param>
     /// <exception cref="ArgumentOutOfRangeException">The value is not a known way out.</exception>

@@ -1324,3 +1324,91 @@ Annan kedja (K). Allt som skrivs går genom modulerna (Attribution `Add`, Cluste
   och den andra (Esc när fokus står utanför formuläret och grafen) står i TODO.
 - **Återstår:** ta tillbaka en etikett eller länk i grafen och ångra en uppbrytning (behöver skiss), egna källor för
   beställningen och börsens svar. Inte provat på Windows (`docs/TESTER-INFOR-1.0.md`).
+
+
+## Etapp 19 (2026-11-07): inställningarna (ST1a) och Windows som utgång
+
+**Network: Windows eller VPN**
+- `ExitRoute` (Vpn, Windows) och `IExitRoute` (`ExitRouteChoice`) i Network. Vägen vid start kommer ur
+  `NetworkOptions.Route`, som appen sätter ur `settings.json`. Förvalet är VPN.
+- `ExitHttp` tar en lease genom Windows bara när Windows är valt, under samma lås som byter vägen. Annars tar den
+  utgångens lease, som förut.
+  - Med VPN valt och ingen ansluten utgång vägras uppslaget innan något byggs. Windows-vägens pipeline byggs aldrig
+    (testat).
+  - När Windows lämnas avbryts uppslagen som pågår genom den, och pipelinen släpps.
+  - Pipelinen byggs utanför låset (den läser certifikatarkiven), och ett fel där blir `ExitException(RequestFailed)`.
+- **Pipelinen genom Windows** (`WindowsHandlerFactory`):
+  - Den går genom systemets proxy (`HttpClient.DefaultProxy`, också PAC och automatisk identifiering).
+  - Inga kakor, inga omdirigeringar, inga inloggningsuppgifter och inga spårhuvuden. HTTP/1.1 och inga återupptagna
+    TLS-sessioner.
+  - Samma kedjepolicy utan nedladdningar (AIA, spärrlistor, Windows Update).
+  - Vid en direkt anslutning till källan slås namnet upp här, och adresser som inte är globala vägras, som i tunneln.
+- **Princip 1, med minsta ingreppet i kontrakten:**
+  - `ExitResponse` fick en positionell `Route` och de två hjälparna `ExitIdText` och `RouteText`.
+  - Chains och Pricing förseglar en ny kolumn, `exit_route` (`vpn` eller `windows`). `exit_id` är NULL genom
+    Windows.
+  - Schemats steg 1 ändrades i stället för ett nytt steg (före 1.0 får schemat ändras). Gamla testärenden öppnas inte.
+- **Pricing:** `IPriceDefaults` gör att valutan och upplösningen ur inställningarna gäller nästa uppslag utan omstart.
+
+**Dialogen ST1a** (`Views/SettingsDialog`, `ViewModels/SettingsViewModel`, `Settings/SettingsMenu`)
+- **Öppna och stänga:**
+  - Ctrl+, eller kugghjulet i pillret öppnar dialogen över vyn som visas. Vyn byts inte, och pillrets markering står
+    kvar.
+  - Esc, ×, ett klick på det mörka, Ctrl+K, en annan vy, Nytt ärende och låsning stänger den.
+  - Med Nytt ärende öppet öppnas den inte.
+- **Nätverk:**
+  - Korten Windows och VPN.
+  - Under VPN står utgångarna genom samma `ExitPanelViewModel` som rutan i titelraden (`ShowInSettingsAsync`,
+    `LeaveSettings`), med steget *Lägg till WireGuard-fil*.
+  - Raden *Bara https · Alltid*.
+- **Låsning:** 5, 15 och 30 min och 1 h (`AutoLock.Change`, räknat från senaste aktivitet), och brytaren *När Windows
+  låses*. Viloläge och en frånkopplad session låser alltid.
+- **Kurser:** SEK, USD eller EUR, minut, timme eller dag, och källorna.
+- **Profil:**
+  - Namn, titel och enhet läses när dialogen öppnas. De sparas när ett fält lämnas, med Enter och när dialogen
+    stängs.
+  - Ett tomt namn sparas inte.
+  - *Byt …* fäller ut tre lösenordsfält mot `IVault.ChangeMasterKey`. Tecknen töms alltid.
+- **Om Chainsaw:**
+  - Version och commit.
+  - Återställningsnyckelns fingeravtryck, eller *Ingen inbyggd nyckel*.
+  - *Visa* fäller ut licenserna ur `THIRD_PARTY.md`, som byggs in och visas med Guidens renderare.
+- **Utseende och Länkar** är tonade med *Inte byggt än*.
+- **Ändringar gäller direkt** och skrivs till `settings.json` utanför UI-tråden, en skrivning i taget. Valen sparas
+  som ord (`"ExitRoute": "Windows"`), och okända värden blir förval (VPN).
+- **Läget Windows:**
+  - Titelraden säger *Windows* (grön prick) och statusraden *Uppslag går genom Windows*.
+  - Rutan UT1a visar vägen dator → Windows → källor. Utgångarna är tonade, med *Inställningar …* till sidan Nätverk.
+  - Låsskärmen har en egen rad, och grafen är inte offline (`ExitWay` samlar vägen och utgångens läge på UI-tråden).
+
+**Egna beslut:**
+- **Inga Windows-uppgifter till proxyn** (`DefaultProxyCredentials` tomt): en proxy som hittas med WPAD kunde annars
+  få dem. Står i TODO.
+- **En ansluten utgång står kvar** när Windows väljs. Den används inte, men den används igen när VPN väljs.
+- **Formuläret för huvudnyckeln** finns inte i skissen. Det står i TODO under *Väntar på beslut*.
+- **Förstagångsinställningen** erbjuder inte valet. Det kräver en ändring av FS1a (TODO).
+- **Inställningar i pillret är en dialog**, inte en sida, så `Show(AppView.Settings)` öppnar dialogen.
+- **Om valet VPN inte kan skrivas** tas en `settings.json` som säger Windows bort, så att nästa start blir VPN.
+
+**Granskningen:**
+- **Omgång 1:** inga C, två I och tretton M. Inget uppslag kan gå direkt när VPN är valt.
+  - **I:**
+    - En profil som inte gick att spara försöktes aldrig igen, och felet försvann.
+    - Ett misslyckat VPN-val kunde ge Windows vid nästa start.
+  - **M rättade:**
+    - Dokumentationen om pågående uppslag.
+    - `Choose` efter dispose.
+    - Pipelinen byggs utanför låset, och ett fel där är ett `ExitException`.
+    - Upptaget-flaggan för huvudnyckeln vid en andra tryckning.
+    - `ExitWay` följer innan den läser.
+    - Ett oväntat fel stoppar inte senare sparningar.
+    - En profil som skrivs sparas när dialogen stängs.
+    - Radlängder.
+  - **M i TODO:** felens texter om utgången genom Windows, grön prick med Windows utan nät, en ansluten utgång i läget
+    Windows, och intranätnamn genom en proxy.
+
+**Tester:** Network 226 (ExitRouteTests), App 500 (SettingsTests), Chains och Pricing med den förseglade vägen.
+1 646 i hela lösningen. Bygget utan varningar.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Inställningarna och Windows som utgång*), Utseende och
+Länkar, valet i förstagångsinställningen, och besluten i TODO.

@@ -58,6 +58,28 @@ public sealed class AppSettingsStore(string directory)
         }
     }
 
+    /// <summary>
+    /// Removes the file when it says Windows, after a choice of VPN could not be written, so that the next start takes
+    /// the defaults (VPN). A file that cannot be read or removed is left as it is.
+    /// </summary>
+    public void ForgetIfWindows()
+    {
+        lock (_writing)
+        {
+            try
+            {
+                if (File.Exists(FilePath) && Load().ExitRoute == Modules.Network.Contracts.ExitRoute.Windows)
+                {
+                    File.Delete(FilePath);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Nothing more can be done; the dialog says that the settings were not saved.
+            }
+        }
+    }
+
     /// <summary>Writes the settings, replacing the file in one step.</summary>
     /// <param name="settings">The settings.</param>
     public void Save(AppSettings settings)

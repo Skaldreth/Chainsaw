@@ -110,7 +110,7 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 | 16 | **Grafen GR5 och IN1a:** startpunkten neutral med flagga, nodernas namn med adressen nedtonad, formulären Etikett (L), Bryt upp (U) och Annan kedja (K) i inspektören. Startad när 15 var klar | Klar |
 | 17 | **Utgångarna UT1a:** rutan under utgången i titelraden, anslut och koppla ner, lägg till WireGuard-fil, vägen till källorna | Klar |
 | 18 | **Guiden GD1b:** panelen bredvid arbetet ur `docs/guide/`, öppnad från *Varför?*, *?* och spårningsmetoden, och vyn Guide (F1) | Klar |
-| 19 | **Inställningarna ST1a och Windows som utgång:** dialogen med Nätverk (Windows eller VPN), Låsning, Kurser, Profil och Om; `IExitHttp` genom Windows; utgångarnas ruta och titelraden i läget Windows | Pågår |
+| 19 | **Inställningarna ST1a och Windows som utgång:** dialogen med Nätverk (Windows eller VPN), Låsning, Kurser, Profil och Om; `IExitHttp` genom Windows; utgångarnas ruta och titelraden i läget Windows | Klar |
 | 20 | **Grafen och spårningen oberoende av kedjan:** belopp med kedja och tillgång, kanter som överföringar, spårningsmetoderna och heuristikerna bakom ett kontrakt per sorts kedja (UTXO eller konton); Bitcoin oförändrat, inget nytt gränssnitt. Parallellt med 19 | Pågår |
 
 ## Nästa steg

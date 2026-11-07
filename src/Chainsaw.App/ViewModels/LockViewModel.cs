@@ -19,7 +19,8 @@ public sealed partial class LockViewModel : ObservableObject
     public const string ExitStaysText = "Utgången står kvar, men Chainsaw slår inte upp något medan det är låst.";
 
     /// <summary>What the lock screen says when lookups go through Windows (decided 2026-11-07).</summary>
-    public const string WindowsWaitsText = "Uppslag går genom Windows. Chainsaw slår inte upp något medan det är låst.";
+    public const string WindowsWaitsText =
+        "Uppslag går genom Windows. Chainsaw slår inte upp något medan det är låst.";
 
     /// <summary>What the lock screen says when the vault did not open for a reason it does not name.</summary>
     public const string UnknownFailureText = "Valvet gick inte att öppna.";

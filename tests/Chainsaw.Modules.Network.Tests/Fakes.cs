@@ -171,8 +171,15 @@ internal sealed class RecordingWindowsHandlerFactory : IWindowsHandlerFactory
 
     public List<RecordingHandler> Handlers { get; } = [];
 
+    public bool Fails { get; set; }
+
     public HttpMessageHandler Create()
     {
+        if (Fails)
+        {
+            throw new System.Security.Cryptography.CryptographicException("The stores cannot be read.");
+        }
+
         var handler = new RecordingHandler((request, token) => Answer(request, token));
         Handlers.Add(handler);
         return handler;
@@ -188,8 +195,10 @@ internal sealed class FakeClock : IClock
 /// <summary>The module's parts wired together with fakes, the way the container wires them.</summary>
 internal sealed class NetworkHarness
 {
-    public NetworkHarness(NetworkOptions? options = null, IExitHandlerFactory? handlers = null)
+    public NetworkHarness(
+        NetworkOptions? options = null, IExitHandlerFactory? handlers = null, bool failingWindows = false)
     {
+        WindowsHandlers.Fails = failingWindows;
         Options = options ?? new NetworkOptions();
         Records = new ExitRecords(Secrets);
         Connection = new ExitConnection(Records, Connector, handlers ?? Handlers);

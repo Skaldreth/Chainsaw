@@ -198,6 +198,27 @@ public sealed class ExitRouteTests
     }
 
     [Fact]
+    public void Choosing_a_way_after_the_module_ends_is_harmless()
+    {
+        _harness.Route.Choose(ExitRoute.Windows);
+        _harness.Route.Dispose();
+
+        _harness.Route.Choose(ExitRoute.Vpn);
+
+        Assert.Equal(ExitRoute.Vpn, _harness.Route.Current);
+    }
+
+    [Fact]
+    public async Task A_windows_pipeline_that_cannot_be_built_fails_as_the_exit_does()
+    {
+        var harness = new NetworkHarness(new NetworkOptions { Route = ExitRoute.Windows }, failingWindows: true);
+
+        var exception = await Assert.ThrowsAsync<ExitException>(() => harness.Http.SendAsync(ExitRequest.Get(Address)));
+
+        Assert.Equal(ExitError.RequestFailed, exception.Error);
+    }
+
+    [Fact]
     public void The_container_gives_one_choice_and_refuses_an_unknown_way_at_the_start()
     {
         using var provider = new ServiceCollection()

@@ -287,6 +287,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
+        // A field being written in is saved as it stands, as leaving it would; its fields are read before this returns.
+        _ = SaveProfileAsync();
         _shown++;
         IsOpen = false;
         IsChangingKey = false;
@@ -402,6 +404,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         var shown = _shown;
+        var before = _savedProfile;
         _savedProfile = profile;
         try
         {
@@ -411,6 +414,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             if (shown == _shown)
             {
+                // Not saved: the next Enter or leaving a field tries again.
+                _savedProfile = before;
                 ProfileError = ProfileFailedText;
             }
         }
@@ -441,13 +446,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         var currentKey = current.Take();
         var nextKey = next.Take();
         var repeatKey = repeat.Take();
+        if (IsKeyBusy || !IsChangingKey)
+        {
+            // A second press while the first is running, or no form: only the keys taken are cleared.
+            Secret.Clear(currentKey);
+            Secret.Clear(nextKey);
+            Secret.Clear(repeatKey);
+            return;
+        }
+
         try
         {
-            if (IsKeyBusy || !IsChangingKey)
-            {
-                return;
-            }
-
             if (KeyProblem(nextKey, repeatKey) is { } problem)
             {
                 ShowKeyText(problem, isError: true);
@@ -582,11 +591,29 @@ public sealed partial class SettingsViewModel : ObservableObject
         await before;
         try
         {
-            await Task.Run(() => _store.Save(settings));
+            await Task.Run(() => SaveOrForget(settings));
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             ErrorText = SaveFailedText;
+        }
+    }
+
+    /// <summary>
+    /// Writes the settings. When they cannot be written while VPN is chosen, the file is removed if it can be, so that
+    /// the next start falls back to the defaults, VPN, and never to a Windows that an older file still says.
+    /// </summary>
+    /// <param name="settings">The settings.</param>
+    private void SaveOrForget(AppSettings settings)
+    {
+        try
+        {
+            _store.Save(settings);
+        }
+        catch (Exception) when (settings.ExitRoute == ExitRoute.Vpn)
+        {
+            _store.ForgetIfWindows();
+            throw;
         }
     }
 
