@@ -612,6 +612,20 @@ public sealed class ReviewRegressionTests : IDisposable
             _harness.AnswerCandle(at, "2");
         }
 
+        // Whichever lookup goes first asks for the days around its own day; each such request has an answer.
+        foreach (var at in days)
+        {
+            var day = DateOnly.FromDateTime(at.UtcDateTime);
+            var (from, to) = (day.AddDays(-14), day.AddDays(31));
+            var rates = Enumerable.Range(0, to.DayNumber - from.DayNumber + 1)
+                .Select(offset => from.AddDays(offset))
+                .Where(date => date.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday)
+                .Select(date => $$$"""{"date":"{{{date:yyyy-MM-dd}}}","value":10.5}""");
+            _harness.Http.AnswerText(
+                $"{Fixtures.Riksbank}Observations/SEKUSDPMI/{from:yyyy-MM-dd}/{to:yyyy-MM-dd}",
+                $"[{string.Join(",", rates)}]");
+        }
+
         var lookups = await Task.WhenAll(days.Select(at => _harness.PriceAsync(at)));
 
         Assert.All(lookups, lookup => Assert.NotNull(lookup.Value));
