@@ -70,7 +70,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     Ledtrådsnoden `+N tx` och samlingsnoden (EX1a, EX1b och EX2b, godkända) byggs, så att grafen aldrig växer
     okontrollerat (princip 7). Byggs som en etapp, eftersom urvalet sparas i ärendet.
 23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
-    WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald 2026-11-07**, byggs.
+    WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald och byggd 2026-11-07.**
 24. **En ren kommentarsnod i grafen** (användarens önskemål 2026-11-07): en nod som bara är en anteckning, skriven i
     Markdown. Gawks Markdown-parser tas över (`Gawk.SharedKernel/Text/Markdown.cs`, `Views/MarkdownView.cs`,
     `Views/Editor/MarkdownEditor.cs` och `MarkdownColorizer.cs`). Kommentaren skrivs **direkt i noden** ute i grafen, inte i en
@@ -81,6 +81,17 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 26. **Sidan Källor i inställningarna** (KL1a) ser stökig ut (användarens skärmdump 2026-11-07): kedjebrickorna,
     lägesväljaren med förklaring, raderna med adress, stapel, ms, brytare och kryss, och *Prova alla nu* syns på en
     gång. Komplexiteten döljs där det går men ingen information tappas. Skissas om (KL2a, KL2b).
+27. **Ett testärende med allt** (användarens önskemål 2026-11-07): `/testdata` i Debug-bygget, som i Gawk, skapar ett
+    påhittat ärende där all funktionalitet syns utan att leta upp en riktig adress. Kedjedata kommer från en påhittad
+    källa som bara finns i Debug, så expansionerna fungerar offline. Fylls på när något nytt byggs.
+28. **Innehav per adress** (användarens önskemål 2026-11-07): adressens saldo och totala summa (in och ut), som
+    fakta från kedjan vid en blockhöjd (Esplora ger `chain_stats`), i inspektören och kanske svagt på noden. Hur det
+    visas på noden skissas.
+29. **Panorering:** *byggd 2026-11-07*, höger- och mittknappen panorerar (också över en nod) och ytan glider vidare
+    som i Gawk; ett högerklick utan rörelse öppnar nodens meny. Vänsterknappen drar bara noder.
+30. **Använd ytan** (användarens önskemål 2026-11-07, skärmdump): grafen lägger motparterna i en enda lång kolumn och
+    linjerna buntas; den automatiska layouten ska sprida ut dem över ytan (flera kolumner, i en båge eller ett rutnät)
+    när det blir många, i stället för en kolumn. Tas med i etappen för samlingsnoden (punkt 22).
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;

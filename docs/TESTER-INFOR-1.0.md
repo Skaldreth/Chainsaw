@@ -469,22 +469,32 @@ Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunnel
   prick och namnet, och statusraden *Uppslag går genom utgången …*.
 - Hovring över utgången visar statusradens text. Fönstret går fortfarande att dra i titelraden runt knappen.
 
-**Rutan**
-- Ett klick på utgången fäller ut rutan under den, med högerkanten mot knappens. Knappen är upplyst medan rutan är ute.
-  Ett nytt klick, Esc eller ett klick någon annanstans under titelraden fäller in den (klicket går inte vidare till
-  grafen). Esc och utfällning med tangentbordet: fokus går in i rutan och tillbaka till knappen.
-- Överst vägen: datorn, en linje, utgången, en linje, källorna. Grön och hel när en utgång är ansluten (med dess
-  namn), röd och streckad med *Ingen* annars, också medan en utgång ansluter.
-- Utgångarna i valvet i namnordning: grå prick (inte ansluten), gul *Ansluter …*, grön *Ansluten*, röd med orsaken
-  (*Tunneln finns inte*, *Gick inte att ansluta*, *Förbindelsen förlorad*, *Filen godtas inte*, *Servern svarar inte*).
-  Den valda utgången har ett magentafärgat streck till vänster. Inga utgångar: *Inga utgångar i valvet*.
-- Strömknappen ansluter (verktygstips *Anslut*) och är upplyst med *Koppla ner* när utgången är ansluten eller
-  ansluter. Anslut en andra utgång medan en är ansluten: den första kopplas ner, bara en är ansluten. Koppla ner medan
-  en utgång ansluter: försöket avbryts. Gränssnittet ska inte frysa medan tunneln startar.
-- Ingen rad om den offentliga adressen (skissens *Syns som …*) finns; den är inte byggd.
+Rutan under utgången provas under *Utgångsrutan (UT2b)*.
 
-**Lägg till WireGuard-fil …**
-- Öppnar Windows filväljare (*.conf*). Rutan står kvar medan filväljaren är öppen. Avbryt ändrar inget.
+## Utgångsrutan (UT2b)
+
+**Rutan**
+- Ett klick på utgången i titelraden fäller ut rutan (300 px, runda hörn, skugga) under den, med högerkanten mot
+  knappens. Ett nytt klick, Esc eller ett klick någon annanstans under titelraden fäller in den. Med tangentbordet går
+  fokus till den första strömknappen, eller till *Inställningar för anslutning* när det inte finns någon.
+- Överst vägen som en stor bild: tre ringar på rad, *Datorn* (laptop), utgången i mitten (störst) och *Blockkedjor*
+  (server), med etiketterna under. Sidoringarna är grå på upphöjd yta.
+- VPN med en ansluten utgång: mittringen och globen är gröna med en mycket svag grön ton inuti, linjerna hela och
+  gröna, och under mittringen står utgångens namn (till exempel *Stockholm*). Ingen rad *Ansluten* under.
+- VPN utan ansluten utgång, också medan en ansluter: mittringen röd med röd glob, linjerna streckade och röda, och
+  *Offline* under.
+- Windows: mittringen visar en skärm i grönt, *Windows* under, linjerna hela och gröna, och ingen lista med utgångar.
+- Med VPN: under en avdelare utgångarna i namnordning, rader på 48 px med en prick (grå, gul medan den ansluter, grön
+  ansluten, röd vid fel), namnet och en rund strömknapp utan ram. Hovring över en röd rad visar orsaken (*Tunneln finns
+  inte*, *Servern svarar inte* …). Strömknappen ansluter (*Anslut*) och är ifylld med *Koppla ner* när utgången är
+  ansluten eller ansluter. Anslut en andra: den första kopplas ner. Gränssnittet fryser inte medan tunneln startar.
+- Inga utgångar i valvet: en dämpad rad *Inga utgångar i valvet*.
+- Rutan har ingen *Lägg till WireGuard-fil …* och inget steg med fil, namn och Spara.
+- Längst ner under en avdelare *Inställningar för anslutning* med kugghjulet och *Ctrl+,* till höger; hovringen följer
+  rutans runda hörn. Ett klick fäller in rutan och öppnar inställningarna på sidan Nätverk.
+
+**Lägg till WireGuard-fil … (Inställningar › Nätverk, under VPN)**
+- Öppnar Windows filväljare (*.conf*). Dialogen står kvar medan filväljaren är öppen. Avbryt ändrar inget.
 - En riktig WireGuard-fil från VPN-tjänsten: filens namn och *Giltig* i grönt, namnet ifyllt ur filnamnet med fokus
   och markerat, *Krypteras i valvet*. Spara (eller Enter) lägger den i listan, inte vald, och en ansluten utgång står
   kvar. Avbryt eller Esc går tillbaka till listan.
@@ -492,9 +502,9 @@ Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och, när tunnel
   IP-adress* i rött och Spara går inte att trycka; två `[Peer]` ger *Ska ha en [Peer]*. En bild eller en tom fil ger
   ett rött besked, ingen krasch.
 - Ändra filen mellan valet och Spara så att den blir fel: Spara sparar inget och visar vad som saknas.
-- Lås Chainsaw (Ctrl+L) med rutan ute eller under steget: efter upplåsning är rutan stängd och filen glömd. En fil som
+- Lås Chainsaw (Ctrl+L) under steget: efter upplåsning är dialogen stängd och filen glömd. En fil som
   väljs efter att Chainsaw låsts medan filväljaren var öppen används inte.
-- Anslut den nya utgången: tunneln startar och vägen blir grön (kräver tunneln från etapp 13 och nät).
+- Anslut den nya utgången: tunneln startar och vägen i utgångsrutan blir grön (kräver tunneln från etapp 13 och nät).
 
 ## Guiden (etapp 18, GD1b)
 
@@ -604,7 +614,8 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
 
 **Nätverk: Windows eller VPN**
 - Två kort, *Windows* och *VPN*; det valda har magentafärgad ram. VPN är förvalt första gången.
-- Under VPN står utgångarna som i rutan i titelraden (anslut och koppla ner med strömknappen, *Lägg till WireGuard-fil …*).
+- Under VPN står utgångarna (anslut och koppla ner med strömknappen) och *Lägg till WireGuard-fil …*, som bara finns
+  här och inte i rutan i titelraden.
 - Välj Windows: titelraden säger *Windows* med grön prick, statusraden *Uppslag går genom Windows*, och grafen säger inte
   *Offline*. En expansion i grafen hämtar genom datorns eget nät.
 - Med Windows: kontrollera med Wireshark eller Resursövervakaren att uppslag går till källan, eller till proxyn om Windows
@@ -1014,3 +1025,16 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
 - [ ] *Nytt ärende … Ctrl+N* stänger rutan och öppnar panelen Nytt ärende.
 - [ ] Ärendeväljaren, utgångarnas ruta och kommandoraden är aldrig öppna samtidigt, och ärendeväljaren stängs när Chainsaw låses.
+
+## Ikonlisten vid noden och zoomen (polering 2026-11-07)
+- [ ] Välj en nod och zooma ut: ikonlisten ovanför noden krymper med grafen ner till tre fjärdedelar av sin storlek, och står kvar centrerad över noden.
+- [ ] Zooma ut ännu mer (under ungefär 45 %): listen försvinner; E, L, B och de andra tangenterna fungerar ändå, och listen kommer tillbaka när man zoomar in.
+
+## Panorering i grafen (polering 2026-11-07)
+- [ ] Håll höger musknapp och dra, var som helst i grafen och också över en nod: ytan följer med och pekaren blir ett fyrpilskors.
+- [ ] Samma sak med mittknappen (hjulet nedtryckt).
+- [ ] Släpp i farten: ytan glider vidare och saktar in mjukt; ett nytt tryck eller hjulet fångar den. Släpp stilla: den står kvar.
+- [ ] Ett högerklick utan att dra öppnar nodens meny som förut, och ingen meny kommer efter en panorering.
+- [ ] Vänsterknappen på tom yta panorerar inte längre; den drar noder och väljer.
+- [ ] Med animeringar avstängda i Windows glider ytan inte efter släppet.
+- [ ] Grafens läge (var man panorerat) finns kvar när ärendet öppnas igen.

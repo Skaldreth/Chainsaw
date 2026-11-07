@@ -153,23 +153,23 @@ public sealed class ExitPanelTests
     }
 
     [Fact]
-    public async Task A_save_that_ends_after_the_panel_closed_shows_nothing()
+    public async Task A_save_that_ends_after_the_settings_closed_shows_nothing()
     {
         using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
         var rig = new Rig();
-        await rig.OpenAsync();
+        await rig.Panel.ShowInSettingsAsync();
         rig.Picker.WireGuardPath = file.Path;
         await rig.Panel.AddFileAsync();
         using var adding = new ManualResetEventSlim();
         rig.Store.AddGate = adding;
 
         var save = rig.Panel.SaveAsync();
-        rig.Panel.Close();
+        rig.Panel.LeaveSettings();
         adding.Set();
         await save;
 
         Assert.Single(rig.Store.Added);
-        Assert.False(rig.Panel.IsOpen);
+        Assert.False(rig.Panel.IsInSettings);
         Assert.False(rig.Panel.IsAdding);
         Assert.False(rig.Panel.HasError);
     }
@@ -229,7 +229,7 @@ public sealed class ExitPanelTests
     {
         using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
         var rig = new Rig();
-        await rig.OpenAsync();
+        await rig.Panel.ShowInSettingsAsync();
         rig.Picker.WireGuardPath = file.Path;
 
         await rig.Panel.AddFileAsync();
@@ -247,7 +247,7 @@ public sealed class ExitPanelTests
     {
         using var file = new TempFile("trasig.conf", WireGuardCheckTests.Valid.Replace("Endpoint", "# Endpoint"));
         var rig = new Rig();
-        await rig.OpenAsync();
+        await rig.Panel.ShowInSettingsAsync();
         rig.Picker.WireGuardPath = file.Path;
 
         await rig.Panel.AddFileAsync();
@@ -260,7 +260,7 @@ public sealed class ExitPanelTests
     public async Task A_cancelled_dialog_changes_nothing()
     {
         var rig = new Rig();
-        await rig.OpenAsync();
+        await rig.Panel.ShowInSettingsAsync();
 
         await rig.Panel.AddFileAsync();
 
@@ -273,7 +273,7 @@ public sealed class ExitPanelTests
     {
         using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
         var rig = new Rig();
-        await rig.OpenAsync();
+        await rig.Panel.ShowInSettingsAsync();
         rig.Picker.WireGuardPath = file.Path;
         await rig.Panel.AddFileAsync();
         rig.Panel.NewName = "  Göteborg ";
@@ -293,7 +293,7 @@ public sealed class ExitPanelTests
     {
         using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
         var rig = new Rig();
-        await rig.OpenAsync();
+        await rig.Panel.ShowInSettingsAsync();
         rig.Picker.WireGuardPath = file.Path;
         await rig.Panel.AddFileAsync();
         File.WriteAllText(file.Path, "[Interface]\n");
@@ -311,7 +311,7 @@ public sealed class ExitPanelTests
     {
         using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
         var rig = new Rig();
-        await rig.OpenAsync();
+        await rig.Panel.ShowInSettingsAsync();
         rig.Picker.WireGuardPath = file.Path;
         await rig.Panel.AddFileAsync();
         rig.Store.AddFailure = new ArgumentException("refused", "configuration");
@@ -327,7 +327,7 @@ public sealed class ExitPanelTests
     {
         using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
         var rig = new Rig();
-        await rig.OpenAsync();
+        await rig.Panel.ShowInSettingsAsync();
         rig.Picker.WireGuardPath = file.Path;
         await rig.Panel.AddFileAsync();
 
@@ -337,20 +337,58 @@ public sealed class ExitPanelTests
     }
 
     [Fact]
-    public async Task Closing_the_panel_forgets_the_file()
+    public async Task Leaving_the_settings_forgets_the_file()
+    {
+        using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
+        var rig = new Rig();
+        await rig.Panel.ShowInSettingsAsync();
+        rig.Picker.WireGuardPath = file.Path;
+        await rig.Panel.AddFileAsync();
+
+        rig.Panel.LeaveSettings();
+
+        Assert.False(rig.Panel.IsInSettings);
+        Assert.False(rig.Panel.IsAdding);
+        Assert.Empty(rig.Panel.FileName);
+        Assert.False(rig.Panel.CanSave);
+    }
+
+    [Fact]
+    public async Task The_panel_has_no_step_that_adds_a_file()
     {
         using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
         var rig = new Rig();
         await rig.OpenAsync();
         rig.Picker.WireGuardPath = file.Path;
+
+        await rig.Panel.AddFileAsync();
+
+        Assert.Equal(0, rig.Picker.AskedForWireGuard);
+        Assert.False(rig.Panel.IsAdding);
+    }
+
+    [Fact]
+    public async Task Closing_the_panel_leaves_the_settings_step_alone()
+    {
+        using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
+        var rig = new Rig();
+        await rig.Panel.ShowInSettingsAsync();
+        rig.Picker.WireGuardPath = file.Path;
         await rig.Panel.AddFileAsync();
 
         rig.Panel.Close();
 
-        Assert.False(rig.Panel.IsOpen);
-        Assert.False(rig.Panel.IsAdding);
-        Assert.Empty(rig.Panel.FileName);
-        Assert.False(rig.Panel.CanSave);
+        Assert.True(rig.Panel.IsAdding);
+        Assert.Equal("se-got-02.conf", rig.Panel.FileName);
+    }
+
+    [Fact]
+    public async Task The_middle_of_the_route_says_offline_without_a_connected_exit()
+    {
+        var rig = new Rig();
+        await rig.OpenAsync();
+
+        Assert.Equal("Offline", rig.Panel.RouteText);
     }
 
     [Fact]

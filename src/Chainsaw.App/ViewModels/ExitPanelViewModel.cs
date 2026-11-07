@@ -8,17 +8,17 @@ using CommunityToolkit.Mvvm.Input;
 namespace Chainsaw.App.ViewModels;
 
 /// <summary>
-/// The exits' panel under the exit in the title bar (sketch UT1a): the route from the computer through the exit to the
-/// sources, green while lookups can go and red and dashed while they cannot, the exits in the vault with their state,
-/// a button that connects or disconnects each (only one is connected at a time), and the step that adds a WireGuard
-/// file. With Windows chosen as the way out (sketch ST1a) the route goes through Windows and the exits are toned, with
-/// the way to the settings. The settings' page Nätverk shows the same exits through this view model. Everything that
-/// reaches the vault or the tunnel runs off the UI thread. It knows nothing of WPF.
+/// The exits' panel under the exit in the title bar (sketch UT2b): the route from the computer through the exit to the
+/// chains as a large picture, green while lookups can go and red and dashed while they cannot, and with VPN the exits
+/// in the vault with their state and a button that connects or disconnects each (only one is connected at a time).
+/// With Windows chosen as the way out (sketch ST1a) the route goes through Windows and no exits are shown. The
+/// settings' page Nätverk shows the same exits through this view model, and only there is a WireGuard file added.
+/// Everything that reaches the vault or the tunnel runs off the UI thread. It knows nothing of WPF.
 /// </summary>
 public sealed partial class ExitPanelViewModel : ObservableObject
 {
-    /// <summary>What the route says in place of an exit while none is connected.</summary>
-    public const string NoRouteText = "Ingen";
+    /// <summary>What the middle of the route says while no lookups can go: no exit is connected.</summary>
+    public const string NoRouteText = "Offline";
 
     /// <summary>What the route says when lookups go through Windows.</summary>
     public const string WindowsRouteText = "Windows";
@@ -131,7 +131,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// <summary>Gets whether Windows is the way out, so that the list says where to change it.</summary>
     public bool IsWindowsMode => !IsVpnMode;
 
-    /// <summary>Gets whether the step that adds a file is shown in place of the list.</summary>
+    /// <summary>Gets whether the settings' step that adds a file is shown in place of the list.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsListing))]
     public partial bool IsAdding { get; private set; }
@@ -204,19 +204,24 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         _ = RefreshAsync();
     }
 
-    /// <summary>Folds the panel in and leaves the step that adds a file (Esc, a click outside, a lock).</summary>
+    /// <summary>
+    /// Folds the panel in (Esc, a click outside, a lock). The settings' step that adds a file is left alone, since it
+    /// does not belong to the panel.
+    /// </summary>
     [RelayCommand]
     public void Close()
     {
-        if (!IsOpen && !IsAdding)
+        if (!IsOpen)
         {
             return;
         }
 
-        _shown++;
         IsOpen = false;
-        CancelAdd();
-        ErrorText = string.Empty;
+        if (!IsInSettings)
+        {
+            _shown++;
+            ErrorText = string.Empty;
+        }
     }
 
     /// <summary>
@@ -240,7 +245,8 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Asks for the settings' page Nätverk (<em>Inställningar …</em> under a toned list), and folds the panel in.
+    /// <em>Inställningar för anslutning</em>: asks for the settings' page Nätverk, where the way out is chosen and a
+    /// WireGuard file is added, and folds the panel in.
     /// </summary>
     [RelayCommand]
     public void OpenSettings()
@@ -274,14 +280,15 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// <em>Lägg till WireGuard-fil …</em>: asks for a file with Windows' dialog, checks it off the UI thread and
-    /// shows the step with its name and the check. The file's text is cleared as soon as it is checked.
+    /// <em>Lägg till WireGuard-fil …</em> on the settings' page Nätverk: asks for a file with Windows' dialog, checks
+    /// it off the UI thread and shows the step with its name and the check. The file's text is cleared as soon as it is
+    /// checked. The panel under the title bar has no such step (sketch UT2b).
     /// </summary>
     /// <returns>A task that completes when the step is shown, or the reason it is not.</returns>
     [RelayCommand]
     public async Task AddFileAsync()
     {
-        if (IsBusy || !IsVpnMode || _picker.PickWireGuardFile() is not { } path)
+        if (IsBusy || !IsVpnMode || !IsInSettings || _picker.PickWireGuardFile() is not { } path)
         {
             return;
         }
@@ -292,7 +299,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         try
         {
             var verdict = await Task.Run(() => CheckFile(path));
-            if (shown != _shown || !(IsOpen || IsInSettings))
+            if (shown != _shown || !IsInSettings)
             {
                 return;
             }
@@ -502,7 +509,8 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Makes the route green through Windows or with the connected exit's name, or red and dashed with <em>Ingen</em>.
+    /// Makes the route green through Windows or with the connected exit's name, or red and dashed with
+    /// <em>Offline</em>.
     /// </summary>
     private void ShowRoute()
     {

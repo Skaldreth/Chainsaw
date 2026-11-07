@@ -28,6 +28,12 @@ public partial class GraphView : UserControl
     /// <summary>How far what stands over a node keeps from the page's edges.</summary>
     private const double EdgeSpace = 8;
 
+    /// <summary>The smallest the node's actions are drawn, as a share of their own size.</summary>
+    private const double SmallestTools = 0.75;
+
+    /// <summary>The zoom under which the node's actions are hidden, since the nodes are then too small to act on.</summary>
+    private const double ToolsHiddenBelow = 0.45;
+
     /// <summary>How far above the node's middle the form's heading stands, so that the arrow meets the heading.</summary>
     private const double FormLift = 26;
 
@@ -150,9 +156,9 @@ public partial class GraphView : UserControl
         }
 
         var width = Canvas.ActualWidth;
-        var height = Canvas.ActualHeight;
-        var toolsWidth = NodeTools.ActualWidth;
-        var toolsHeight = NodeTools.ActualHeight;
+        var scale = ScaleTools(Canvas.Zoom);
+        var toolsWidth = NodeTools.ActualWidth * scale;
+        var toolsHeight = NodeTools.ActualHeight * scale;
         var above = node.Top - ToolGap - toolsHeight;
         NodeTools.Margin = new Thickness(
             Within(node.Left + (node.Width / 2) - (toolsWidth / 2), EdgeSpace, width - toolsWidth - EdgeSpace),
@@ -162,6 +168,23 @@ public partial class GraphView : UserControl
 
         PlaceBeside(NodeForm, Caret, CaretTurn, node);
         PlaceBeside(WatchPanel, WatchCaret, WatchCaretTurn, node);
+    }
+
+    /// <summary>
+    /// Sizes the node's actions after the zoom, so that they never dwarf a graph seen from afar: they shrink with it
+    /// down to <see cref="SmallestTools"/>, and below <see cref="ToolsHiddenBelow"/> they fade away, while their keys
+    /// still work.
+    /// </summary>
+    /// <param name="zoom">The graph's zoom.</param>
+    /// <returns>The scale the actions are drawn at.</returns>
+    private double ScaleTools(double zoom)
+    {
+        var scale = Math.Clamp(zoom, SmallestTools, 1);
+        NodeTools.RenderTransform = new ScaleTransform(scale, scale);
+        var shown = zoom >= ToolsHiddenBelow;
+        NodeTools.Opacity = shown ? 1 : 0;
+        NodeTools.IsHitTestVisible = shown;
+        return scale;
     }
 
     /// <summary>

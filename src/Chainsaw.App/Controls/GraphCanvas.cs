@@ -154,6 +154,9 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// </summary>
     public event EventHandler? Drawn;
 
+    /// <summary>How much the graph is zoomed: 1 is the graph's own size.</summary>
+    public double Zoom => _viewport.Zoom;
+
     /// <summary>Gives where a node's frame stands on the screen, in this control's coordinates.</summary>
     /// <param name="nodeKey">The node.</param>
     /// <returns>The frame, or <see langword="null"/> when the node is not in the graph.</returns>
@@ -225,6 +228,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseLeftButtonDown(e);
+        StopGlide();
         CloseHoverTip();
         Focus();
         _model?.CloseMenu();
@@ -254,6 +258,11 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
+        if (MovePan(e))
+        {
+            return;
+        }
+
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
         if (!_gesture.IsPressed)
@@ -262,16 +271,12 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
-        var (dx, dy) = _gesture.Move(at);
+        // The left button only drags nodes; the right and the middle button pan (GraphCanvas.Pan.cs).
+        _gesture.Move(at);
         if (_gesture.IsDragging && _gesture.Node is { } node)
         {
             var wanted = new GraphPoint(surface.X - _gesture.Grip.X, surface.Y - _gesture.Grip.Y);
             _model.MoveNode(node, _gesture.NodePlace, wanted);
-        }
-        else if (dx != 0 || dy != 0)
-        {
-            _viewport = _viewport.Pan(dx, dy);
-            InvalidateVisual();
         }
     }
 
@@ -295,6 +300,11 @@ public sealed partial class GraphCanvas : FrameworkElement
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        if (_panButton is not null)
+        {
+            StopPan();
+        }
+
         var (end, node) = _gesture.End();
         if (end == GestureEnd.DropNode)
         {
@@ -317,6 +327,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseWheel(e);
+        StopGlide();
         var at = e.GetPosition(this);
         var factor = e.Delta > 0 ? Viewport.WheelStep : 1 / Viewport.WheelStep;
         _viewport = _viewport.ZoomAt(new GraphPoint(at.X, at.Y), factor);
@@ -470,12 +481,20 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
     }
 
-    /// <summary>Opens the node's menu on a right click (sketch BV2a), or closes it over empty surface.</summary>
+    /// <summary>
+    /// Ends a pan with the right button, or, when the press did not move, opens the node's menu (sketch BV2a) or
+    /// closes it over empty surface.
+    /// </summary>
     /// <param name="e">The release.</param>
     protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseRightButtonUp(e);
+        if (EndPan(e))
+        {
+            return;
+        }
+
         CloseHoverTip();
         Focus();
         var at = e.GetPosition(this);
