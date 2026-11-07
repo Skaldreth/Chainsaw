@@ -102,8 +102,8 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             SchemaMigrator.Run(database, _services.Catalog);
             var info = new CaseInfo(header.CaseId, caseNumber, _services.Clock.UtcNow.ToUniversalTime());
             WriteInfo(database, info);
-            var opened = Track(new Case(
-                _services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget));
+            var opened = new Case(
+                _services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget);
             (database, fileKey, anchorKey) = (null, null, null);
             FinishOpening(opened, () =>
             {
@@ -244,9 +244,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 throw new CaseException(recovering ? CaseError.Conflict : CaseError.Corrupt);
             }
 
-            var opened = Track(Construct(
+            var opened = Construct(
                 () => new Case(_services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget),
-                recovering));
+                recovering);
             (database, anchorKey) = (null, null);
             FinishOpening(opened, () => JournalOpening(opened, recovering, applied, openedWithPassword));
             return opened;
@@ -301,13 +301,17 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         }
     }
 
-    /// <summary>Journals what opening the case did, and saves when anything was journalled.</summary>
+    /// <summary>
+    /// Journals what opening the case did (and what does not match this computer's anchors), and saves when anything
+    /// was journalled.
+    /// </summary>
     /// <param name="opened">The open case.</param>
     /// <param name="recovered">Whether a working copy was recovered.</param>
     /// <param name="applied">The schema steps that ran.</param>
     /// <param name="withPassword">Whether the sharing password was used.</param>
     private static void JournalOpening(Case opened, bool recovered, IReadOnlyList<string> applied, bool withPassword)
     {
+        var anchorsJournalled = opened.ReconcileAnchors();
         if (recovered)
         {
             opened.AppendOwnJournal(new JournalDraft(
@@ -328,13 +332,16 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 CaseJournalKinds.OpenedWithPassword, "Ärendet öppnades med delningslösenordet"));
         }
 
-        if (recovered || applied.Count > 0 || withPassword)
+        if (recovered || applied.Count > 0 || withPassword || anchorsJournalled)
         {
             opened.SaveUnlocked();
         }
     }
 
-    /// <summary>Runs the last step of opening; a failure closes the case and leaves the files as they were.</summary>
+    /// <summary>
+    /// Runs the last step of opening while the case is not yet known to the store, so that nothing else can touch it,
+    /// and then hands it to the store; a vault locked in between closes it. A failure closes the case.
+    /// </summary>
     /// <param name="opened">The case.</param>
     /// <param name="finish">The step.</param>
     private void FinishOpening(Case opened, Action finish)
@@ -342,10 +349,19 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             finish();
+            Track(opened);
+
+            // A lock after this check finds the case among the open ones and closes it.
             if (_services.Vault.State != VaultState.Unlocked)
             {
                 throw new CaseException(CaseError.VaultLocked);
             }
+        }
+        catch (SqliteException exception)
+        {
+            // A page that does not authenticate shows up when the opening reads the chains or the anchors.
+            opened.Dispose();
+            throw new CaseException(CaseError.Corrupt, exception);
         }
         catch
         {
@@ -371,9 +387,10 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="paths">The case's files.</param>
     private static void DeleteWorkingFiles(CasePaths paths)
     {
+        File.Delete(paths.WorkingBase);
         File.Delete(paths.WorkingCopy);
         File.Delete(paths.WorkingJournal);
-        File.Delete(paths.WorkingBase);
+        File.Delete(paths.WorkingCopyTemporary);
     }
 
     /// <summary>Derives the key that authenticates this computer's anchors.</summary>
@@ -484,13 +501,30 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <returns>The open database.</returns>
     private CaseDatabase OpenWorkingCopy(CasePaths paths, byte[] fileKey, Guid caseId, bool recovering)
     {
+        var database = default(CaseDatabase);
         try
         {
-            return OpenDatabase(paths.WorkingCopy, fileKey, caseId);
+            database = OpenDatabase(paths.WorkingCopy, fileKey, caseId);
+
+            // The registered sealed tables are guarded before any schema step runs, also those of modules this
+            // build does not know.
+            using var scope = database.As(GuardMode.Internal);
+            if (HashChain.TableExists(database, null, HashChain.RegistryTable))
+            {
+                database.AddSealed(HashChain.ReadRegistry(database, null).Chains.Select(chain => chain.Table));
+            }
+
+            return database;
         }
         catch (CaseException exception) when (recovering && exception.Error == CaseError.Corrupt)
         {
+            database?.Dispose();
             throw new CaseException(CaseError.Conflict, exception);
+        }
+        catch (SqliteException exception)
+        {
+            database?.Dispose();
+            throw new CaseException(recovering ? CaseError.Conflict : CaseError.Corrupt, exception);
         }
     }
 
@@ -580,6 +614,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         {
             [CreatedDetails.CaseId] = info.Id.ToString("D"),
             [CreatedDetails.CaseNumber] = info.CaseNumber,
+            [CreatedDetails.CreatedUtc] = info.CreatedUtc.ToString("O", CultureInfo.InvariantCulture),
             [CreatedDetails.Schema] = Case.SchemaDetails(opened.Database),
         });
 
@@ -621,19 +656,19 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
         lock (_openGate)
         {
-            foreach (var item in _open)
+            // The cases are taken now, so that a case opened after the vault is unlocked again is not closed by a
+            // closing that waited behind a slow save.
+            List<Case> open = [.. _open];
+            foreach (var item in open)
             {
                 item.BeginClosing();
             }
 
-            _closing = _closing.ContinueWith(_ => CloseAll(), TaskScheduler.Default);
+            _closing = _closing.ContinueWith(_ => Close(open), TaskScheduler.Default);
         }
     }
 
-    /// <summary>
-    /// Closes every open case; a case whose save fails keeps its working copy for recovery, and a failure in one case
-    /// never keeps the others open.
-    /// </summary>
+    /// <summary>Closes every open case; a case whose save fails keeps its working copy for recovery.</summary>
     private void CloseAll()
     {
         List<Case> open;
@@ -642,7 +677,14 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             open = [.. _open];
         }
 
-        foreach (var item in open)
+        Close(open);
+    }
+
+    /// <summary>Closes cases one by one; a failure in one never keeps the others open.</summary>
+    /// <param name="cases">The cases.</param>
+    private static void Close(IEnumerable<Case> cases)
+    {
+        foreach (var item in cases)
         {
             try
             {

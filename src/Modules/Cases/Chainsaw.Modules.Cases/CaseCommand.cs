@@ -100,7 +100,7 @@ internal sealed class CaseCommand(SqliteCommand inner, Func<bool> isActive) : Db
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
     {
         EnsureActive();
-        return inner.ExecuteReader(behavior & ~CommandBehavior.CloseConnection);
+        return new CaseDataReader(inner.ExecuteReader(behavior & ~CommandBehavior.CloseConnection), isActive);
     }
 
     /// <inheritdoc />

@@ -11,8 +11,12 @@ namespace Chainsaw.Modules.Cases;
 /// </summary>
 internal static class CaseChecks
 {
-    /// <summary>The triggers that protect the case information.</summary>
-    private static readonly string[] CaseInfoTriggers = ["seal_case_info_no_update", "seal_case_info_no_delete"];
+    /// <summary>The Cases module's own tables that are protected by triggers, and those triggers.</summary>
+    private static readonly (string Table, string[] Triggers)[] ProtectedCaseTables =
+    [
+        ("case_info", ["seal_case_info_no_update", "seal_case_info_no_delete"]),
+        (HashChain.RegistryTable, ["seal_sealed_chain_no_update", "seal_sealed_chain_no_delete"]),
+    ];
 
     /// <summary>Runs the checks.</summary>
     /// <param name="database">The database.</param>
@@ -97,38 +101,61 @@ internal static class CaseChecks
     /// <returns><see langword="true"/> when it holds.</returns>
     private static bool CaseInfoHolds(CaseDatabase database, SqliteTransaction transaction, CaseInfo info)
     {
-        using (var triggers = database.Command(
-            "SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND tbl_name = 'case_info' "
-            + "AND name IN ($update, $delete) AND sql LIKE '%RAISE(ABORT%'",
-            transaction))
+        if (!ProtectedCaseTables.All(item => HasTriggers(database, transaction, item.Table, item.Triggers)))
         {
-            triggers.Parameters.AddWithValue("$update", CaseInfoTriggers[0]);
-            triggers.Parameters.AddWithValue("$delete", CaseInfoTriggers[1]);
-            if (triggers.ExecuteScalar() is not long count || count != CaseInfoTriggers.Length)
+            return false;
+        }
+
+        string createdUtc;
+        using (var row = database.Command("SELECT case_id, case_number, created_utc FROM case_info", transaction))
+        using (var reader = row.ExecuteReader())
+        {
+            if (!reader.Read() || reader.GetString(0) != info.Id.ToString("D") || reader.GetString(1) != info.CaseNumber)
             {
                 return false;
             }
-        }
 
-        using (var row = database.Command("SELECT case_id, case_number FROM case_info", transaction))
-        using (var reader = row.ExecuteReader())
-        {
-            if (!reader.Read() || reader.GetString(0) != info.Id.ToString("D") || reader.GetString(1) != info.CaseNumber
-                || reader.Read())
+            createdUtc = reader.GetString(2);
+            if (reader.Read())
             {
                 return false;
             }
         }
 
         var first = JournalRecords.Read(database, transaction, 1, 1).FirstOrDefault();
-        return first is { Sequence: 1, Kind: CaseJournalKinds.Created } && CreatedFor(first.Details, info);
+        return first is { Sequence: 1, Kind: CaseJournalKinds.Created } && CreatedFor(first.Details, info, createdUtc);
+    }
+
+    /// <summary>Checks that a table has its protecting triggers and that they abort.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="table">The table.</param>
+    /// <param name="triggers">The trigger names.</param>
+    /// <returns><see langword="true"/> when every trigger is there.</returns>
+    private static bool HasTriggers(
+        CaseDatabase database, SqliteTransaction transaction, string table, IReadOnlyList<string> triggers)
+    {
+        var found = 0;
+        foreach (var trigger in triggers)
+        {
+            using var command = database.Command(
+                "SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND tbl_name = $table AND name = $name "
+                + "AND sql LIKE '%RAISE(ABORT%'",
+                transaction);
+            command.Parameters.AddWithValue("$table", table);
+            command.Parameters.AddWithValue("$name", trigger);
+            found += command.ExecuteScalar() is long count ? (int)count : 0;
+        }
+
+        return found == triggers.Count;
     }
 
     /// <summary>Checks that the details of the first journal entry name this case.</summary>
     /// <param name="details">The details.</param>
     /// <param name="info">The case information.</param>
-    /// <returns><see langword="true"/> when the id and number match.</returns>
-    private static bool CreatedFor(string? details, CaseInfo info)
+    /// <param name="createdUtc">The creation time as written in the case information.</param>
+    /// <returns><see langword="true"/> when the id, number and creation time match.</returns>
+    private static bool CreatedFor(string? details, CaseInfo info, string createdUtc)
     {
         try
         {
@@ -136,7 +163,8 @@ internal static class CaseChecks
             var root = document.RootElement;
             return root.TryGetProperty(CreatedDetails.CaseId, out var id) && id.GetString() == info.Id.ToString("D")
                 && root.TryGetProperty(CreatedDetails.CaseNumber, out var number)
-                && number.GetString() == info.CaseNumber;
+                && number.GetString() == info.CaseNumber
+                && root.TryGetProperty(CreatedDetails.CreatedUtc, out var created) && created.GetString() == createdUtc;
         }
         catch (JsonException)
         {

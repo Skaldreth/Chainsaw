@@ -7,6 +7,9 @@ namespace Chainsaw.Modules.Cases;
 /// </summary>
 internal static class CaseFiles
 {
+    /// <summary>The size of a SHA-256 hash.</summary>
+    private const int HashSize = 32;
+
     /// <summary>The size of the copy buffer.</summary>
     private const int BufferSize = 81920;
 
@@ -48,40 +51,63 @@ internal static class CaseFiles
         input.ReadExactly(header);
         hash.AppendData(header);
         using (var output = new FileStream(
-            paths.WorkingCopy, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize))
+            paths.WorkingCopyTemporary, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize))
         {
             CopyHashing(input, output, hash);
             output.Flush(flushToDisk: true);
         }
 
-        WriteBase(paths, hash.GetHashAndReset());
+        // The base is written before the working copy gets its name, so that a working copy always has its base.
+        WriteBase(paths, [hash.GetHashAndReset()]);
+        File.Move(paths.WorkingCopyTemporary, paths.WorkingCopy);
     }
 
-    /// <summary>Records the hash of the case file the working copy now belongs to.</summary>
+    /// <summary>Records the hashes of the case files the working copy belongs to.</summary>
     /// <param name="paths">The case's files.</param>
-    /// <param name="caseFileHash">The SHA-256 of the case file.</param>
-    public static void WriteBase(CasePaths paths, byte[] caseFileHash)
+    /// <param name="caseFileHashes">
+    /// The SHA-256 of the case file now and, during a save, of the file that is about to replace it.
+    /// </param>
+    public static void WriteBase(CasePaths paths, IEnumerable<byte[]> caseFileHashes)
     {
         using var output = new FileStream(paths.WorkingBase, FileMode.Create, FileAccess.Write, FileShare.None);
-        output.Write(caseFileHash);
+        foreach (var hash in caseFileHashes)
+        {
+            output.Write(hash);
+        }
+
         output.Flush(flushToDisk: true);
+    }
+
+    /// <summary>Reads the recorded hashes; none when the base is missing or malformed.</summary>
+    /// <param name="paths">The case's files.</param>
+    /// <returns>The hashes.</returns>
+    public static IReadOnlyList<byte[]> ReadBase(CasePaths paths)
+    {
+        if (!File.Exists(paths.WorkingBase))
+        {
+            return [];
+        }
+
+        var bytes = File.ReadAllBytes(paths.WorkingBase);
+        return bytes.Length is 0 || bytes.Length % HashSize != 0 ? [] : [.. bytes.Chunk(HashSize)];
     }
 
     /// <summary>
     /// Checks that a working copy left by an interrupted session belongs to the case file as it is now: the case file
-    /// has not been replaced since the working copy was taken from it or saved to it.
+    /// is the one the working copy was taken from or last saved to, or the one a save was writing when it stopped.
     /// </summary>
     /// <param name="paths">The case's files.</param>
-    /// <returns><see langword="true"/> when the recorded hash is the case file's.</returns>
+    /// <returns><see langword="true"/> when the case file's hash is recorded.</returns>
     public static bool BelongsTogether(CasePaths paths)
     {
-        if (!File.Exists(paths.WorkingBase))
+        var recorded = ReadBase(paths);
+        if (recorded.Count == 0)
         {
             return false;
         }
 
-        var recorded = File.ReadAllBytes(paths.WorkingBase);
         using var input = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
-        return CryptographicOperations.FixedTimeEquals(recorded, SHA256.HashData(input));
+        var actual = SHA256.HashData(input);
+        return recorded.Any(hash => CryptographicOperations.FixedTimeEquals(hash, actual));
     }
 }

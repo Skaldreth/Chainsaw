@@ -23,4 +23,10 @@ public static class CaseJournalKinds
 
     /// <summary>An envelope for the operator's vault was added.</summary>
     public const string OperatorAccessAdded = "case.operator-access-added";
+
+    /// <summary>
+    /// The case did not match what this computer recorded when it last saved it (an older copy, a change made outside
+    /// Chainsaw, or anchors that were missing or unreadable); the details say what, and the anchors were replaced.
+    /// </summary>
+    public const string AnchorsReplaced = "case.anchors-replaced";
 }

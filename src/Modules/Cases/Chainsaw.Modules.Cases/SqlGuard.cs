@@ -72,6 +72,12 @@ internal sealed class SqlGuard
     /// <summary>Gets or sets who runs SQL now.</summary>
     public GuardMode Mode { get; set; } = GuardMode.Idle;
 
+    /// <summary>
+    /// Gets or sets the managed thread that the mode belongs to. A statement prepared on any other thread is refused,
+    /// so that a module cannot borrow the Cases module's rights by running SQL on a second thread while Cases works.
+    /// </summary>
+    public int OwnerThread { get; set; }
+
     /// <summary>Adds sealed tables, for example those of modules this build does not know.</summary>
     /// <param name="tables">The tables.</param>
     public void AddSealed(IEnumerable<string> tables) => _sealedTables = _sealedTables.Union(tables);
@@ -86,7 +92,8 @@ internal sealed class SqlGuard
     public int Authorize(int action, string? first, string? second)
     {
         var kind = (SqliteAction)action;
-        if (Mode == GuardMode.Idle || IsAlwaysDenied(kind, first, second))
+        if (Mode == GuardMode.Idle || Environment.CurrentManagedThreadId != OwnerThread
+            || IsAlwaysDenied(kind, first, second))
         {
             return Deny;
         }

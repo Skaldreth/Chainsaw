@@ -10,12 +10,18 @@ internal sealed record CasePaths(string CaseFile)
     /// <summary>Gets the encrypted working copy that SQLite works on while the case is open.</summary>
     public string WorkingCopy => CaseFile + ".work";
 
+    /// <summary>
+    /// Gets the file a new working copy is written to before it gets its name, so that a half-written one is never
+    /// taken for a working copy.
+    /// </summary>
+    public string WorkingCopyTemporary => WorkingCopy + ".tmp";
+
     /// <summary>Gets SQLite's rollback journal for the working copy (encrypted like the working copy).</summary>
     public string WorkingJournal => WorkingCopy + "-journal";
 
     /// <summary>
-    /// Gets the file that records the SHA-256 of the case file the working copy was last taken from or saved to, so
-    /// that a working copy is only recovered into the file it belongs to.
+    /// Gets the file that records the SHA-256 of the case file the working copy was last taken from or saved to (and,
+    /// during a save, of the file being written), so that a working copy is only recovered into a file it belongs to.
     /// </summary>
     public string WorkingBase => WorkingCopy + ".base";
 

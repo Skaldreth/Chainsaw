@@ -109,9 +109,14 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Konflikt med arbetskopian:** när en arbetskopia inte hör till ärendefilen (filen har bytts ut) vägras öppningen och
   båda lämnas orörda. Gränssnittet behöver visa det och låta användaren välja (öppna filen, eller spara arbetskopian
   som ett eget ärende).
+- **Ankarna i valvet:** ankarfilen kan tas bort eller bytas mot en äldre (tillsammans med en äldre `.cut`) av den som
+  kan skriva i `%LOCALAPPDATA%`. En borttagen fil märks och skrivs i journalen när valvet har ett eget kuvert i ärendet,
+  men en återspelad äldre fil märks inte. Det kräver en räknare per ärende i valvet (en ändring i Security), så att
+  ankaret inte kan bli äldre (granskningen etapp 3, omgång 2).
 - **Ankarna och flera datorer:** ankarna är per valv och dator. Ett ärende som arbetats med på en annan dator och sedan
   kopieras tillbaka är fortfarande en förlängning av kedjan och godtas, men ett ärende som två datorer ändrat
-  parallellt visar *Tillbakarullat* på den ena. Hur det ska förklaras i gränssnittet bestäms med `/verify`.
+  parallellt får en rad *case.anchors-replaced* i journalen på den ena när det öppnas, med de ankare som inte nåddes.
+  Hur det ska förklaras i gränssnittet bestäms med `/verify`.
 
 ### Övrigt
 - **Länken `chainsaw:`** registrerad för användaren, ett exemplar av Chainsaw som tar emot länkar, och vänta på upplåsning.

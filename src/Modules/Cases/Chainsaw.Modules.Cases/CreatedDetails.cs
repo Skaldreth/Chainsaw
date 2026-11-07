@@ -9,6 +9,9 @@ internal static class CreatedDetails
     /// <summary>The case number.</summary>
     public const string CaseNumber = "caseNumber";
 
+    /// <summary>When the case was created, in UTC, as written in the case information.</summary>
+    public const string CreatedUtc = "createdUtc";
+
     /// <summary>The schema versions the case was created with.</summary>
     public const string Schema = "schema";
 }

@@ -139,7 +139,7 @@ public sealed class ReviewFindingTests : IDisposable
     }
 
     [Fact]
-    public void A_case_replaced_by_an_older_copy_is_shown_as_rolled_back()
+    public void A_case_replaced_by_an_older_copy_is_sealed_in_the_journal_once()
     {
         var store = _fixture.CreateStore();
         var path = _fixture.CaseFile("A1");
@@ -148,52 +148,34 @@ public sealed class ReviewFindingTests : IDisposable
         }
 
         var older = File.ReadAllBytes(path);
+        string laterHash;
         using (var opened = store.Open("A1"))
         {
-            opened.AppendJournal(new JournalDraft("test.note", "Senare"));
-        }
-
-        File.WriteAllBytes(path, older);
-        using var rolledBack = store.Open("A1");
-
-        var journal = new CaseVerifier(_fixture.Clock).Verify(rolledBack).Chains[0];
-
-        Assert.Equal(new ChainBreak(2, ChainBreakReason.RolledBack), journal.Break);
-    }
-
-    [Fact]
-    public void A_rolled_back_case_keeps_its_old_anchor_when_it_is_saved_again()
-    {
-        var store = _fixture.CreateStore();
-        var path = _fixture.CaseFile("A1");
-        using (store.Create("A1"))
-        {
-        }
-
-        var older = File.ReadAllBytes(path);
-        using (var opened = store.Open("A1"))
-        {
-            opened.AppendJournal(new JournalDraft("test.note", "Senare"));
+            laterHash = opened.AppendJournal(new JournalDraft("test.note", "Senare")).Hash;
         }
 
         File.WriteAllBytes(path, older);
         using (var rolledBack = store.Open("A1"))
         {
-            rolledBack.AppendJournal(new JournalDraft("test.note", "Ovanpå den gamla"));
+            var entry = rolledBack.ReadJournal()[^1];
+            Assert.Equal(CaseJournalKinds.AnchorsReplaced, entry.Kind);
+            Assert.Contains("Diverged", entry.Details, StringComparison.Ordinal);
+            Assert.Contains(laterHash, entry.Details, StringComparison.Ordinal);
+            Assert.True(new CaseVerifier(_fixture.Clock).Verify(rolledBack).IsIntact);
         }
 
         using var again = store.Open("A1");
-        var journal = new CaseVerifier(_fixture.Clock).Verify(again).Chains[0];
-        Assert.Equal(ChainBreakReason.RolledBack, journal.Break?.Reason);
+        Assert.Single(again.ReadJournal(), item => item.Kind == CaseJournalKinds.AnchorsReplaced);
     }
 
     [Fact]
-    public void A_chain_cut_and_rewritten_with_the_key_is_shown_as_rolled_back()
+    public void A_chain_cut_and_rewritten_with_the_key_is_sealed_in_the_journal()
     {
         var store = _fixture.CreateStore();
+        string removedHash;
         using (var opened = store.Create("A1"))
         {
-            opened.AppendJournal(new JournalDraft("test.note", "Ska bort"));
+            removedHash = opened.AppendJournal(new JournalDraft("test.note", "Ska bort")).Hash;
         }
 
         CaseFileSurgery.Change(_fixture, "A1", connection =>
@@ -207,13 +189,13 @@ public sealed class ReviewFindingTests : IDisposable
         });
         using var cut = store.Open("A1");
 
-        Assert.Equal(
-            new ChainBreak(2, ChainBreakReason.RolledBack),
-            new CaseVerifier(_fixture.Clock).Verify(cut).Chains[0].Break);
+        var entry = cut.ReadJournal(fromSequence: 2).Single();
+        Assert.Equal(CaseJournalKinds.AnchorsReplaced, entry.Kind);
+        Assert.Contains(removedHash, entry.Details, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Changed_anchors_are_reported()
+    public void Changed_anchors_are_sealed_in_the_journal()
     {
         var store = _fixture.CreateStore();
         using (store.Create("A1"))
@@ -225,7 +207,96 @@ public sealed class ReviewFindingTests : IDisposable
         File.WriteAllText(anchor, text.Replace("\"tag\":\"", "\"tag\":\"AA", StringComparison.Ordinal));
         using var reopened = store.Open("A1");
 
-        Assert.Contains(CaseProblem.AnchorsUnreadable, new CaseVerifier(_fixture.Clock).Verify(reopened).Problems);
+        var entry = reopened.ReadJournal()[^1];
+        Assert.Equal(CaseJournalKinds.AnchorsReplaced, entry.Kind);
+        Assert.Contains("Unreadable", entry.Details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Removed_anchors_of_a_case_this_vault_has_saved_are_sealed_in_the_journal()
+    {
+        var store = _fixture.CreateStore();
+        using (store.Create("A1"))
+        {
+        }
+
+        Directory.Delete(_fixture.AnchorDirectory, recursive: true);
+        using var reopened = store.Open("A1");
+
+        var entry = reopened.ReadJournal()[^1];
+        Assert.Equal(CaseJournalKinds.AnchorsReplaced, entry.Kind);
+        Assert.Contains("Missing", entry.Details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_colleague_without_an_own_envelope_has_no_anchors_to_miss()
+    {
+        string path;
+        using (var opened = _fixture.CreateStore().Create("A1"))
+        {
+            opened.SetSharingPassword(CaseFixture.Password);
+            path = opened.Path;
+        }
+
+        using var colleague = new CaseFixture("vault-b");
+        using var shared = colleague.CreateStore().OpenWithPassword(path, CaseFixture.Password);
+
+        Assert.DoesNotContain(shared.ReadJournal(), entry => entry.Kind == CaseJournalKinds.AnchorsReplaced);
+    }
+
+    [Fact]
+    public void Statements_left_in_an_open_reader_get_no_more_rights_than_the_work()
+    {
+        using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
+
+        // Whether the rest fails loudly or is never run, none of it may take effect.
+        _ = Record.Exception(() => opened.Write(transaction =>
+        {
+            var command = transaction.CreateCommand(
+                "SELECT 1; CREATE TRIGGER evil BEFORE INSERT ON journal BEGIN SELECT RAISE(IGNORE); END; "
+                + "INSERT INTO chain_head (chain, sequence, hash) VALUES ('x', 1, x'00')");
+            var reader = command.ExecuteReader();
+            return reader.Read();
+        }));
+
+        opened.AppendJournal(new JournalDraft("test.note", "Syns fortfarande"));
+        Assert.Equal(2, opened.ReadJournal().Count);
+        var verification = new CaseVerifier(_fixture.Clock).Verify(opened);
+        Assert.True(verification.IsIntact);
+        Assert.DoesNotContain(verification.Chains, chain => chain.Chain == "x");
+    }
+
+    [Fact]
+    public void Sql_from_another_thread_during_a_write_is_refused()
+    {
+        using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
+
+        var error = opened.Write(transaction =>
+        {
+            using var command = transaction.CreateCommand("INSERT INTO test_notes (note) VALUES ('annan tråd')");
+            Exception? failure = null;
+            var thread = new Thread(() => failure = Record.Exception(() => command.ExecuteNonQuery()));
+            thread.Start();
+            thread.Join();
+            return failure;
+        });
+
+        Assert.IsType<SqliteException>(error);
+    }
+
+    [Fact]
+    public void A_reader_hands_out_no_statement_handle()
+    {
+        using var opened = _fixture.CreateStore().Create("A1");
+
+        var type = opened.Read(reader =>
+        {
+            using var command = reader.CreateCommand("SELECT 1");
+            using var rows = command.ExecuteReader();
+            return rows.GetType();
+        });
+
+        Assert.False(typeof(SqliteDataReader).IsAssignableFrom(type));
     }
 
     [Fact]

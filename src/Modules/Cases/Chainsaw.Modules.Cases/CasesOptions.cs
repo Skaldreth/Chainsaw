@@ -6,18 +6,27 @@ public sealed class CasesOptions
     /// <summary>The PBKDF2-SHA512 iterations for a new sharing password (the same as for the master key).</summary>
     public const int DefaultSharingIterations = 600_000;
 
+    /// <summary>The application's folder under the local application data folder.</summary>
+    private const string ApplicationFolder = "Chainsaw";
+
+    /// <summary>The name of the cases folder.</summary>
+    private const string CasesFolder = "Ärenden";
+
+    /// <summary>The name of the anchors folder.</summary>
+    private const string AnchorsFolder = "Ankare";
+
     /// <summary>
     /// Gets or sets the folder that holds the case files. The application uses
     /// <c>%LOCALAPPDATA%\Chainsaw\Ärenden</c>, which is not synchronised to the cloud the way Documents often is;
     /// tests use a temporary folder. The folder is created when the first case is created.
     /// </summary>
-    public string Directory { get; set; } = DefaultDirectory("Ärenden");
+    public string Directory { get; set; } = DefaultDirectory(CasesFolder);
 
     /// <summary>
     /// Gets or sets the folder for this computer's anchors of the cases' chains (see <c>AnchorStore</c>). The
     /// application uses <c>%LOCALAPPDATA%\Chainsaw\Ankare</c>.
     /// </summary>
-    public string AnchorDirectory { get; set; } = DefaultDirectory("Ankare");
+    public string AnchorDirectory { get; set; } = DefaultDirectory(AnchorsFolder);
 
     /// <summary>
     /// Gets or sets the iterations used when a sharing password is set. Only tests lower it, to stay fast; the count
@@ -32,5 +41,5 @@ public sealed class CasesOptions
     /// <param name="name">The folder's name.</param>
     /// <returns>The full path of the folder.</returns>
     private static string DefaultDirectory(string name) =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Chainsaw", name);
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), ApplicationFolder, name);
 }

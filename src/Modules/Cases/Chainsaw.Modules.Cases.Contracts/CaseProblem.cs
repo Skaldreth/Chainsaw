@@ -10,8 +10,8 @@ public enum CaseProblem
     DatabaseUnsound,
 
     /// <summary>
-    /// The case information (id, number, creation time) or its protecting triggers have been changed, or the
-    /// journal does not begin with the entry that created this case.
+    /// The case information (id, number, creation time) or the triggers that protect the Cases module's own tables
+    /// have been changed, or the journal does not begin with the entry that created this case.
     /// </summary>
     CaseInfoChanged,
 

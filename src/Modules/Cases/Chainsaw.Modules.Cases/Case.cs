@@ -65,6 +65,9 @@ internal sealed class Case : ICase
     /// <summary>Whether another module's work is running, so that nested calls are refused.</summary>
     private bool _inWork;
 
+    /// <summary>Whether the journal has recorded why the anchors are replaced at the next save.</summary>
+    private bool _replaceAnchors;
+
     /// <summary>Set, without waiting for the gate, when the vault is locked and the case is about to close.</summary>
     private volatile bool _closing;
 
@@ -162,12 +165,21 @@ internal sealed class Case : ICase
             var reader = new CaseTransaction(this, transaction, writable: false);
             try
             {
+                // The handle ends inside the work's scope: disposing a reader the work left open runs the rest of its
+                // statements, which must have no more rights than the work had.
                 using var workScope = database.As(GuardMode.Reading);
-                return work(reader);
+                try
+                {
+                    return work(reader);
+                }
+                finally
+                {
+                    reader.End();
+                }
             }
             finally
             {
-                ExitWork(reader);
+                _inWork = false;
             }
         }
     }
@@ -187,16 +199,23 @@ internal sealed class Case : ICase
                 T result;
                 using (database.As(GuardMode.Writing))
                 {
-                    result = work(writer);
+                    // As in Read: the rest of a reader left open runs with the work's rights, before the commit.
+                    try
+                    {
+                        result = work(writer);
+                    }
+                    finally
+                    {
+                        writer.End();
+                    }
                 }
 
-                ExitWork(writer);
                 transaction.Commit();
                 return result;
             }
             finally
             {
-                ExitWork(writer);
+                _inWork = false;
             }
         }
     }
@@ -326,9 +345,10 @@ internal sealed class Case : ICase
             {
                 SaveUnlocked();
                 ReleaseDatabase();
+                // The base goes first: a working copy left without its base is a conflict, never a false recovery.
+                File.Delete(_paths.WorkingBase);
                 File.Delete(_paths.WorkingCopy);
                 File.Delete(_paths.WorkingJournal);
-                File.Delete(_paths.WorkingBase);
             }
             finally
             {
@@ -464,8 +484,12 @@ internal sealed class Case : ICase
             output.Flush(flushToDisk: true);
         }
 
-        CaseFiles.WriteBase(_paths, hash.GetHashAndReset());
+        // Until the new file has replaced the old, the working copy belongs to both, so that a failed or interrupted
+        // replace still recovers instead of becoming a conflict.
+        var saved = hash.GetHashAndReset();
+        CaseFiles.WriteBase(_paths, [.. CaseFiles.ReadBase(_paths).TakeLast(1), saved]);
         File.Move(_paths.SaveFile, _paths.CaseFile, overwrite: true);
+        CaseFiles.WriteBase(_paths, [saved]);
         WriteAnchors();
     }
 
@@ -487,13 +511,86 @@ internal sealed class Case : ICase
     }
 
     /// <summary>
-    /// Moves each chain's anchor to its head, but only where the chain still reaches its old anchor: a case that was
-    /// rolled back or rewritten keeps its old anchors, so that the verification goes on showing it. Unreadable
-    /// anchors are left as they are for the same reason.
+    /// Compares the case with this computer's anchors when it is opened, and seals what does not match in the
+    /// journal: chains that no longer reach their anchors (the case was rolled back, rewritten, or replaced by a copy
+    /// that went another way), anchors that cannot be read, and anchors that are missing although this vault has
+    /// saved the case before. The anchors are then replaced at the next save, since the journal now holds the
+    /// evidence; without the entry the anchors would stay behind for ever and hide a later rollback.
+    /// </summary>
+    /// <returns><see langword="true"/> when something was journalled.</returns>
+    internal bool ReconcileAnchors()
+    {
+        var anchors = ReadAnchors();
+        if (anchors is null)
+        {
+            JournalAnchors("Ankarna på den här datorn gick inte att läsa och ersätts", AnchorProblem.Unreadable, []);
+            return true;
+        }
+
+        if (anchors.Count == 0)
+        {
+            if (!VaultHasEnvelope())
+            {
+                return false;
+            }
+
+            JournalAnchors("Ankarna på den här datorn saknas och ersätts", AnchorProblem.Missing, []);
+            return true;
+        }
+
+        var database = Database;
+        List<ChainAnchor> missed;
+        using (database.As(GuardMode.Internal))
+        using (var transaction = database.Begin(deferred: true))
+        {
+            missed =
+            [
+                .. anchors.Where(anchor =>
+                    _chains.FirstOrDefault(chain => chain.Name == anchor.Chain) is not { } chain
+                    || !CaseChecks.Reaches(database, transaction, chain, anchor)),
+            ];
+        }
+
+        if (missed.Count == 0)
+        {
+            return false;
+        }
+
+        JournalAnchors(
+            "Ärendet når inte längre det den här datorn sparade senast (äldre kopia eller ändrat)",
+            AnchorProblem.Diverged,
+            missed);
+        return true;
+    }
+
+    /// <summary>Seals an anchor problem in the journal and lets the next save replace the anchors.</summary>
+    /// <param name="summary">The summary.</param>
+    /// <param name="problem">What was wrong.</param>
+    /// <param name="missed">The anchors that the case no longer reaches.</param>
+    private void JournalAnchors(string summary, AnchorProblem problem, IReadOnlyList<ChainAnchor> missed)
+    {
+        var details = JsonSerializer.Serialize(new
+        {
+            problem = problem.ToString(),
+            anchors = missed.Select(anchor => new
+            {
+                chain = anchor.Chain,
+                sequence = anchor.Sequence,
+                hash = Convert.ToHexStringLower(anchor.Hash),
+            }),
+        });
+        AppendOwnJournal(new JournalDraft(CaseJournalKinds.AnchorsReplaced, summary, details));
+        _replaceAnchors = true;
+    }
+
+    /// <summary>
+    /// Moves each chain's anchor to its head, but only where the chain still reaches its old anchor, unless the
+    /// journal has just recorded why the anchors are replaced. A case that was changed while it was open elsewhere in
+    /// this process keeps its old anchors, so that the verification goes on showing it.
     /// </summary>
     private void WriteAnchors()
     {
-        var anchors = ReadAnchors();
+        var anchors = _replaceAnchors ? [] : ReadAnchors();
         if (anchors is null)
         {
             return;
@@ -522,6 +619,7 @@ internal sealed class Case : ICase
         }
 
         AnchorStore.Write(_services.Options.AnchorDirectory, Info.Id, _anchorKey, [.. updated.Values]);
+        _replaceAnchors = false;
     }
 
     /// <summary>Reads this computer's anchors of the case.</summary>
@@ -596,14 +694,6 @@ internal sealed class Case : ICase
         return Database;
     }
 
-    /// <summary>Ends a module's work: the handle and its commands stop working.</summary>
-    /// <param name="scope">The handle given to the work.</param>
-    private void ExitWork(CaseTransaction scope)
-    {
-        scope.End();
-        _inWork = false;
-    }
-
     /// <summary>Refuses a closed or closing case and calls made from inside a module's work.</summary>
     /// <exception cref="CaseException"><see cref="CaseError.Closed"/>.</exception>
     /// <exception cref="InvalidOperationException">
@@ -637,13 +727,20 @@ internal sealed class Case : ICase
         try
         {
             ReleaseDatabase();
-            CryptographicOperations.ZeroMemory(_fileKey);
-            CryptographicOperations.ZeroMemory(_anchorKey);
-            _lock.Dispose();
         }
         finally
         {
-            _onClosed(this);
+            _database = null;
+            CryptographicOperations.ZeroMemory(_fileKey);
+            CryptographicOperations.ZeroMemory(_anchorKey);
+            try
+            {
+                _lock.Dispose();
+            }
+            finally
+            {
+                _onClosed(this);
+            }
         }
     }
 

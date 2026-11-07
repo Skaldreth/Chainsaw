@@ -119,15 +119,27 @@ public sealed class HashChainTests : IDisposable
     }
 
     [Fact]
-    public void A_removed_last_record_and_a_moved_head_still_break_the_head()
+    public void A_removed_last_record_and_a_moved_head_are_sealed_in_the_journal_when_the_case_is_opened()
     {
+        string removedHash;
+        using (var before = _store.Open("A1"))
+        {
+            removedHash = before.ReadJournal(fromSequence: 5).Single().Hash;
+        }
+
         Tamper(
             "DROP TRIGGER seal_journal_no_delete",
             "DELETE FROM journal WHERE sequence = 5",
-            "UPDATE chain_head SET sequence = 4 WHERE chain = 'cases.journal'",
+            "UPDATE chain_head SET sequence = 4, hash = (SELECT hash FROM journal WHERE sequence = 4) "
+            + "WHERE chain = 'cases.journal'",
             HashChain.Triggers("journal")[1].Sql);
 
-        Assert.Equal(new ChainBreak(4, ChainBreakReason.HeadMismatch), Verify().Chains[0].Break);
+        using var opened = _store.Open("A1");
+        var entry = opened.ReadJournal(fromSequence: 5).Single();
+
+        Assert.Equal(CaseJournalKinds.AnchorsReplaced, entry.Kind);
+        Assert.Contains("Diverged", entry.Details, StringComparison.Ordinal);
+        Assert.Contains(removedHash, entry.Details, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -168,7 +180,8 @@ public sealed class HashChainTests : IDisposable
         var entry = opened.AppendJournal(new JournalDraft("test.note", "Efter borttagningen"));
         var journal = new CaseVerifier(_fixture.Clock).Verify(opened).Chains[0];
 
-        Assert.Equal(6, entry.Sequence);
+        Assert.Equal(7, entry.Sequence);
+        Assert.Equal(CaseJournalKinds.AnchorsReplaced, opened.ReadJournal(fromSequence: 6, maximumCount: 1)[0].Kind);
         Assert.Equal(new ChainBreak(5, ChainBreakReason.SequenceGap), journal.Break);
     }
 

@@ -24,6 +24,9 @@ internal static class HashChain
     /// <summary>The column with a record's hash.</summary>
     public const string HashColumn = "hash";
 
+    /// <summary>The Cases module's registry of sealed chains.</summary>
+    public const string RegistryTable = "sealed_chain";
+
     /// <summary>What <c>PRAGMA quick_check</c> answers, alone, for a sound database.</summary>
     private const string QuickCheckSound = "ok";
 

@@ -104,16 +104,17 @@ internal sealed class CaseDatabase : IDisposable
     public SqliteTransaction Begin(bool deferred = false) => _connection.BeginTransaction(deferred);
 
     /// <summary>
-    /// Lets SQL run as someone until the scope is disposed, which gives the mode back. Outside every scope the guard
-    /// is <see cref="GuardMode.Idle"/> and refuses everything.
+    /// Lets SQL run as someone, on the calling thread only, until the scope is disposed, which gives the mode back.
+    /// Outside every scope the guard is <see cref="GuardMode.Idle"/> and refuses everything.
     /// </summary>
     /// <param name="mode">Who runs SQL in the scope.</param>
     /// <returns>The scope.</returns>
     public GuardScope As(GuardMode mode)
     {
-        var previous = _guard.Mode;
+        var scope = new GuardScope(_guard, _guard.Mode, _guard.OwnerThread);
         _guard.Mode = mode;
-        return new GuardScope(_guard, previous);
+        _guard.OwnerThread = Environment.CurrentManagedThreadId;
+        return scope;
     }
 
     /// <summary>Adds sealed tables to the guard, for example those of modules this build does not know.</summary>
