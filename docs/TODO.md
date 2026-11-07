@@ -7,6 +7,8 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står användarens egna beslut.
 
+- **WireGuard i bakgrunden** (etapp 27): ska en utgångs WireGuard-fil kunna sparas under DPAPI utanför valvet, så att
+  bakgrunden kan bevaka genom VPN när Chainsaw är stängt? I dag nej (säkrast): bakgrunden går bara genom Windows.
 - **Återkallade återställningsnycklar** (etapp 9): en bytt nyckels kuvert ligger kvar, och tas bort först när nyckeln
   återkallas med en rad `REVOKED` i `organization-recovery-key.pem`. Att ta bort alla andra nycklars kuvert vid ett
   byte prövades men vägrades i granskningen: en äldre version eller en annan organisations Chainsaw tog då bort den
@@ -628,7 +630,6 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   (`IAttributionService.CheckSanctions`); det görs när grafen byggs.
 
 ### Låsskärmen och förstagångsinställningen (etapp 10)
-- **Raden om bevakningen** på låsskärmen (*En bevakning har slagit till*) när Monitoring finns.
 - **Inställningarna, Utseende:** fältets scen och rörelse (skissens val; nu Drift och stilla kätting) är tonade med
   *Inte byggt än* i ST1a.
 - **Låsning mitt i inställningen** avslutar den: efter upplåsning visas skalet, och utgången och första ärendet erbjuds
@@ -641,8 +642,6 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 
 ### Bevakning (etapp 26)
-- **Bakgrundsprocessen när Chainsaw är stängt** (etapp 27): eget flöde till samma `IWatchCheck`, DPAPI, kö som förs in
-  i ärendet, aviseringssätten i inställningarna och raden på låsskärmen.
 - **Starten från en höjd i fas** (granskningen omgång 1, M5): starten är kedjans höjd från `GetTipHeightAsync`, som
   frågar vilken endpoint som helst; ligger den ett block efter kan pengar i det nyaste blocket före bevakningen räknas
   som en träff. Höjden borde komma från en endpoint i fas (eller provets högsta höjd).
@@ -667,6 +666,24 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   (streckat) i stället för som fakta i historiken och listan.
 - **Varje råsvar förseglas** också för bevakningen: höjden en gång i minuten och adressernas första sida vid varje nytt
   block. Ärendet växer med bevakningar som går länge; att slå ihop lika svar (samma hash) vore en ändring i Chains.
+
+### Bevakning i bakgrunden (etapp 27)
+- **Meddelandet mitt på skärmen** (användarens beslut 2026-11-07) är byggt bakom samma gränssnitt som de andra sätten
+  (`ScreenMessage`, i dag en Windows-meddelanderuta överst) men **visas inte i inställningarna** förrän formen är skissad
+  och godkänd. Skissa det (ST1a-raden och själva meddelandet), bygg formen och lägg raden under Låsning.
+- **VPN i bakgrunden:** WireGuard-filerna ligger krypterade i valvet, så bakgrunden kan inte starta en tunnel utan
+  huvudnyckeln och gör inga uppslag med VPN vald. Att lägga en utgångs nycklar under DPAPI utanför valvet kräver
+  användarens beslut (*Väntar på beslut*).
+- **Kluster i bakgrunden** följer klustringen som den var när planen skrevs (när ärendet senast var öppet), inte nya
+  adresser som kommer med senare.
+- **Ett ärende som tas bort eller flyttas** ligger kvar i planen och bevakas tills det öppnas och dess bevakningar
+  pausas. Rensa planen från ärenden som inte längre finns (ärendenas id i `Ärenden`).
+- **Höjden som inte ledde till någon kontroll** förs inte in i något ärende (den hör inte till ett ärende); höjden som en
+  kontroll byggde på förs in med ärendets första post i varvet.
+- **Endpoints med API-nyckel** fungerar inte i bakgrunden (nyckeln ligger i valvet); de hoppas över och nästa tas.
+- **Aviseringen i Windows** kommer från en ikon i meddelandefältet (`Shell_NotifyIcon`), som Windows visar som en toast.
+  En riktig toast med appens identitet (AUMID) kräver att Chainsaw registreras som app; pröva om det behövs.
+- **Lyssna på ljudet** och justera skriptet (`tools/sounds/coin-swoosh.py`) efter användarens öra.
 
 ### Historik, ta tillbaka och ångra (etapp 21)
 - **Hämtad i historiken:** en adress visar *Först in* med blocket men inte när den hämtades, eftersom

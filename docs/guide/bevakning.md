@@ -34,8 +34,8 @@ En träff är ett faktum från kedjan som bevakningen plockat ut. Vad den betyde
 
 ## Hur den frågar
 
-- Bara **medan Chainsaw är öppet och upplåst**. Att bevaka när Chainsaw är stängt är inte byggt än, och vyns huvud säger
-  ärligt *Bevakar medan Chainsaw är öppet*.
+- **Medan Chainsaw är öppet och upplåst** frågar Chainsaw själv. **När Chainsaw är stängt eller låst** tar en liten
+  bakgrundsprocess över (se *När Chainsaw är stängt* nedan). Vyns huvud säger ärligt vilket som gäller.
 - **Hur ofta** väljs per bevakning i formuläret: *Varje block* (förval) eller högst var 1, 5 eller 15 minut. Kedjans höjd
   frågas högst en gång i minuten, och en bevakning läser sina adresser när ett nytt block har kommit och dess tid har gått.
 - Bara **genom utgången**. Utan ansluten utgång, när VPN är valt, eller med kedjans källor *Av*, frågas ingenting, och
@@ -55,3 +55,21 @@ En träff är ett faktum från kedjan som bevakningen plockat ut. Vad den betyde
 - Vid en **träff** blir vaktlinjen en riktig linje med beloppet, och **ringar** rör sig runt den tills du har sett
   träffen (välj noden i grafen eller bevakningen i vyn). Har Windows animeringar avstängda står ringarna stilla.
 - Pillrets öga får en **prick** när en bevakning har nya träffar.
+
+## När Chainsaw är stängt
+
+Bevakningen går vidare i en **egen liten bakgrundsprocess** (`Chainsaw.Watcher`), som startar med Windows så länge en
+bevakning är aktiv. Den stängs av under *Inställningar → Låsning* (*Bevaka när Chainsaw är stängt*).
+
+- Den vet **bara det bevakningen kräver**: adresserna, filtren och ett slumpat id för ärendet, krypterat för din
+  Windows-användare (DPAPI). Den öppnar aldrig ärendet eller valvet och har aldrig huvudnyckeln.
+- Den gör **samma kontroll** som Chainsaw, mot samma endpoints, i samma takt och bara mot en endpoint i fas.
+- Den går **bara ut genom Windows som utgång**. VPN-utgångarna ligger krypterade i valvet, så med VPN vald gör den inga
+  uppslag alls, och vyns huvud säger *Bakgrunden väntar på utgången*.
+- Det den ser läggs i en **kö**, krypterad på samma sätt. När ärendet öppnas och låses upp förs kön in: råsvaren förseglas
+  med sin SHA-256, träffarna förseglas med en rad i journalen (*slog till i bakgrunden*), och inget förs in två gånger.
+  Råsvaren säger att de hämtades av *Chainsaw i bakgrunden*.
+- Ett ärende som är öppet i Chainsaw lämnas åt Chainsaw.
+- När en bevakning slår till **säger den bara det**: en avisering i Windows och ett mynt-swoosh, som väljs under
+  *Inställningar → Låsning*. Aldrig adressen, beloppet eller ärendet. Låsskärmen säger *En bevakning har slagit till* tills
+  ärendet öppnas.

@@ -20,3 +20,9 @@ kopieras till `licenses/chainsaw-tunnel/` bredvid programmet.
 
 Apache 2.0 kräver att licensen följer med och att en eventuell NOTICE-fil gör det; varken gVisor eller btree har någon.
 Ingen modul har en licens med copyleft (GPL eller liknande).
+
+## Bevakningens ljud (`src/Chainsaw.Watcher/Sounds/coin-swoosh.wav`)
+
+Mynt-swooshet med skramlet är **Chainsaws eget**: det räknas fram ur siffror av `tools/sounds/coin-swoosh.py` (bara
+Pythons standardbibliotek, med fast slumpfrö, så att samma fil kommer ut varje gång). Ingen inspelning eller ljudfil från
+någon annan används, och ingen licens behövs.

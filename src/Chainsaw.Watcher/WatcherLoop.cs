@@ -43,6 +43,9 @@ internal sealed class WatcherLoop
     /// <summary>Its progress per watch.</summary>
     private Dictionary<(Guid, string), BackgroundProgress> _progress;
 
+    /// <summary>Whether the progress changed since it was last written.</summary>
+    private bool _progressChanged;
+
     /// <summary>The plan read last.</summary>
     private BackgroundPlan _plan = BackgroundPlan.Empty;
 
@@ -211,6 +214,7 @@ internal sealed class WatcherLoop
                 Guid.NewGuid(), caseId, watch.WatchId, QueuedKind.Started, watch.Filter, height, height, null, [], [],
                 Responses(scratch, tipResponses), now));
             _progress[(caseId, watch.WatchId)] = progress with { StartHeight = height };
+            _progressChanged = true;
             return;
         }
 
@@ -241,6 +245,7 @@ internal sealed class WatcherLoop
         }
 
         round.Failing |= result.Status == WatchFeedStatus.Failed;
+        _progressChanged = true;
         _progress[(caseId, watch.WatchId)] = progress with
         {
             StartHeight = progress.StartHeight ?? start,
@@ -353,14 +358,24 @@ internal sealed class WatcherLoop
         return own.CheckedUtc > plan.CheckedUtc ? own : plan;
     }
 
-    /// <summary>Writes the progress, keeping only the watches still in the plan.</summary>
+    /// <summary>
+    /// Writes the progress when it changed, keeping only the watches still in the plan, so that a quiet round writes
+    /// nothing to the disk.
+    /// </summary>
     private void KeepProgress()
     {
         var inPlan = _plan.Cases
             .SelectMany(@case => @case.Watches.Select(watch => (@case.CaseId, watch.WatchId)))
             .ToHashSet();
-        _progress = _progress.Where(each => inPlan.Contains(each.Key)).ToDictionary();
+        var kept = _progress.Where(each => inPlan.Contains(each.Key)).ToDictionary();
+        if (!_progressChanged && kept.Count == _progress.Count)
+        {
+            return;
+        }
+
+        _progress = kept;
         _parts.Progress.Write([.. _progress.Values]);
+        _progressChanged = false;
     }
 
     /// <summary>Writes the status when it has changed.</summary>

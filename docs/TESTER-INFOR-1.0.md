@@ -868,3 +868,49 @@ start (en endpoint måste vara *i fas* för att bevakningen ska fråga).
 - Lås Chainsaw (Ctrl+L) och vänta på ett block: inga uppslag görs (utgångens trafik står still); efter upplåsning
   fortsätter bevakningen.
 - Ett stort Ethereum-ärende med bevakning: grafen ska inte kännas trög medan ringarna rör sig.
+
+## Bevakningen, andra delen: när Chainsaw är stängt (etapp 27)
+
+Kräver Windows som utgång (*Inställningar → Nätverk*), ett ärende med en aktiv bevakning och att `Chainsaw.Watcher.exe`
+ligger bredvid `Chainsaw.exe`.
+
+**Inställningarna (ST1a, Låsning)**
+- Tre nya rader med reglage: *Bevaka när Chainsaw är stängt*, *Avisering i Windows* och *Ljud*, alla på från början.
+  Reglaget blir rosa och knappen går till höger när det är på. Meddelandet mitt på skärmen finns **inte** som rad (väntar
+  på skiss).
+
+**Processen**
+- Med en aktiv bevakning: `Chainsaw.Watcher.exe` syns i Aktivitetshanteraren (låg prioritet), utan fönster och utan
+  ikon i aktivitetsfältet. Den ska använda lite minne (kontrollera ungefär hur mycket, gärna under 60 MB) och nästan ingen
+  CPU mellan kontrollerna.
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` har värdet `Chainsaw.Watcher` med sökvägen. Pausa eller ta
+  bort alla bevakningar, eller slå av *Bevaka när Chainsaw är stängt*: värdet försvinner och processen avslutas inom
+  några sekunder.
+- Starta `Chainsaw.Watcher.exe` två gånger för hand: bara en process blir kvar. `Chainsaw.Watcher.exe --stop` stoppar den.
+- Logga ut och in med en aktiv bevakning: processen startar av sig själv.
+- Döda processen i Aktivitetshanteraren medan Chainsaw är öppet: Chainsaw startar den igen inom någon minut.
+
+**Bevakningen när Chainsaw är stängt**
+- Lägg en bevakning på en aktiv adress (eller en egen testadress du kan skicka till), stäng Chainsaw och vänta på en tx i
+  ett nytt block. En avisering i Windows säger **bara** *En bevakning har slagit till.* och *Öppna Chainsaw och lås upp
+  för att se den.*, och mynt-swooshet spelas. Ingen adress, inget belopp, inget ärende.
+- `Chainsaw.Watcher.exe --test-alert` visar aviseringen och spelar ljudet en gång, utan någon träff (lyssna: låter det
+  som ett mynt som flyger förbi och skramlar ner?).
+- Starta Chainsaw: låsskärmen har raden *En bevakning har slagit till. Den visas efter upplåsning.* med en rosa prick.
+- Lås upp och öppna ärendet: inom några sekunder står träffen i vyn Bevakning och i grafen (ringarna), journalen har
+  *Bevakningen av … slog till i bakgrunden* och *Bakgrundens bevakning förd in: …*, och `/verify` säger att ärendet är
+  helt. Raden på låsskärmen är borta nästa gång Chainsaw låses.
+- Lås Chainsaw (Ctrl+L) med ärendet öppet och vänta på en träff: bakgrunden tar över medan det är låst.
+- Medan ärendet är öppet frågar bakgrunden inte efter det ärendets adresser (bara Chainsaw gör det).
+
+**Huvudet i vyn Bevakning (BV1a)**
+- Windows som utgång och bakgrunden på: *Går i bakgrunden · genom Windows · i fas med …* (grön prick, hel ram).
+- VPN som utgång: *Bakgrunden väntar på utgången · bevakar bara medan Chainsaw är öppet* (gul, streckad ram); hovra
+  för förklaringen om valvet.
+- Bakgrunden av: *Bakgrunden är av · bevakar bara medan Chainsaw är öppet* (grå, streckad ram).
+- Ta bort `Chainsaw.Watcher.exe` och starta om: *Bakgrunden går inte · …* (gul).
+
+**Filerna**
+- `%LOCALAPPDATA%\Chainsaw\Bevakning\` har `plan.bin`, `progress.bin`, `status.json`, `queue\…` och, medan ett ärende
+  är öppet, `held\…`. Öppna `plan.bin` och en fil i `queue` i en texteditor: inga adresser ska gå att läsa (DPAPI).
+  Kopiera `plan.bin` till en annan Windows-användare: bakgrunden där bevakar ingenting.
