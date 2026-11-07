@@ -161,6 +161,7 @@ public sealed class LibraryTests : IDisposable
         _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB");
         _harness.Library.Absorb(_harness.Case);
         using var other = _harness.Create(OtherCaseNumber);
+        _harness.Profiles.Profile = new("Kollega Kollegasson", "Analytiker", "Enheten");
         _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB", "Eget svar", @case: other);
 
         _harness.Library.ShareInto(other, [address]);

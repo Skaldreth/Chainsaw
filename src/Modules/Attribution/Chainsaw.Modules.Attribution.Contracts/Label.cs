@@ -13,13 +13,19 @@ namespace Chainsaw.Modules.Attribution.Contracts;
 /// <param name="Entries">The sealed labels it is merged from, oldest first; never empty.</param>
 public sealed record Label(LabelSubject Subject, LabelKind Kind, string? Name, IReadOnlyList<LabelEntry> Entries)
 {
-    /// <summary>Gets the distinct origins, oldest first.</summary>
+    /// <summary>
+    /// Gets the distinct origins, oldest first. When the case has the same origin both from its own check and as a
+    /// copy from another case, its own is shown, since it carries the reason.
+    /// </summary>
     public IReadOnlyList<LabelOrigin> Origins { get; } =
-        [.. Entries.DistinctBy(entry => entry.Origin.OriginId).Select(entry => entry.Origin)];
+    [
+        .. Entries.GroupBy(entry => entry.Origin.OriginId)
+            .Select(group => (group.FirstOrDefault(entry => !entry.Origin.IsFromOtherCase) ?? group.First()).Origin),
+    ];
 
     /// <summary>
-    /// Gets the number of independent origins: every version of the same sanction list counts once, since a newer
-    /// list repeating an older one confirms nothing.
+    /// Gets the number of independent origins (see <see cref="LabelOrigin.IndependenceKey"/>): one person, one
+    /// analysis or one sanction list counts once, whatever versions or cases it comes through.
     /// </summary>
     public int IndependentOrigins => Origins.Select(origin => origin.IndependenceKey).Distinct().Count();
 

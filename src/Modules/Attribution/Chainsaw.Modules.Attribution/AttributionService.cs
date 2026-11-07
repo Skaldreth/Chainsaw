@@ -43,13 +43,18 @@ internal sealed class AttributionService(
         var operatorProfile = profiles.Get();
         return @case.Write(transaction =>
         {
-            // The same operator setting the same label again (a double click) is one judgement, not a confirmation.
+            // Exactly the same label again from the same operator (a double click) is not sealed twice; anything
+            // that differs (the reason, the note, Sprid inte, a newer version) is sealed as said.
             var same = LabelStore.Read(transaction).Active.FirstOrDefault(label => label.Subject == draft.Subject
                 && label.Kind == draft.Kind
                 && LabelStore.NameKey(label.Name) == LabelStore.NameKey(name)
+                && label.DoNotSpread == draft.DoNotSpread
                 && label.Origin.Source == draft.Source
                 && label.Origin.SourceName == sourceName
-                && label.Origin.SetBy == operatorProfile);
+                && label.Origin.SourceVersion == sourceVersion
+                && label.Origin.Reason == reason
+                && label.Origin.Note == note
+                && label.Origin.SetBy.Name == operatorProfile?.Name);
             if (same is not null)
             {
                 return same;
@@ -156,6 +161,8 @@ internal sealed class AttributionService(
         }
 
         var list = matches[^1].Match!.List;
+        var lists = string.Join(", ", matches.Select(found => found.Match!.List).DistinctBy(used => used.Sha256)
+            .Select(used => used.Version));
         var hits = matches
             .SelectMany(found => found.Match!.Hits
                 .Where(hit => hit.Currency == OfacSdnParser.BitcoinCurrency)
@@ -190,12 +197,10 @@ internal sealed class AttributionService(
                     "{0} adresser på {1} ({2})",
                     drafts.Count,
                     list.Name,
-                    list.Version),
+                    lists),
                 JsonSerializer.Serialize(new
                 {
                     list = list.Name,
-                    sha256 = list.Sha256,
-                    published = list.PublishDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     hits = drafts.Select(found => new
                     {
                         address = found.Address.Value,

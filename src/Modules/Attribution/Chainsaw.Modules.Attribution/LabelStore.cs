@@ -140,10 +140,13 @@ internal sealed record StoredLabels(IReadOnlyList<LabelEntry> All, IReadOnlySet<
             (LabelStore.Key(label.Origin.OriginId, label.Subject, label.Kind, label.Name), label.Origin.Source)),
     ];
 
+    /// <summary>Gets the identities of every label, also those taken back, however the case got them.</summary>
+    private HashSet<LabelKey> AnyWay => field ??= [.. Keys.Select(known => known.Key)];
+
     /// <summary>Says whether the case has, or has had, a label.</summary>
     /// <param name="key">The label's identity.</param>
     /// <returns><see langword="true"/> when it has, also when it is taken back.</returns>
-    public bool Has(LabelKey key) => Keys.Any(known => known.Key == key);
+    public bool Has(LabelKey key) => AnyWay.Contains(key);
 
     /// <summary>Says whether the case has, or has had, a label that it got in a particular way.</summary>
     /// <param name="key">The label's identity.</param>

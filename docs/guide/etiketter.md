@@ -73,7 +73,8 @@ krypterat med en nyckel ur valvet:
 In i ett annat ärende följer bara **vem** som satte etiketten, **när**, **vad** den säger och vilken sorts källa den
 kom från. En etikett kan märkas **Sprid inte**; då lämnar den aldrig sitt ärende. En etikett på ett **offer** sprids
 aldrig, hur den än är märkt, och inte heller någon annan etikett på offrets adresser eller kluster (till exempel
-offrets eget konto på en börs), eftersom den kan avslöja vem som drabbats.
+offrets eget konto på en börs), eftersom den kan avslöja vem som drabbats. En etikett som redan hade spridits innan
+offret märktes ligger kvar i de andra ärendena; ska den bort därifrån tar du tillbaka den i ärendet där den sattes.
 
 Etikettens **namn** följer med. Skriv därför aldrig ett ärendenummer eller en misstänkts namn i namnet; det hör hemma
 i anteckningen, som stannar i ärendet.
@@ -81,7 +82,6 @@ i anteckningen, som stannar i ärendet.
 ## Flera ursprung är en bekräftelse
 
 Samma etikett (samma adress, sort och namn) från flera håll slås ihop till en. Kommer den från **flera oberoende
-ursprung**, till exempel din egen etikett och en kollegas, visas det som en bekräftelse. Samma ursprung som kommer
-tillbaka genom flera ärenden räknas bara en gång, och samma etikett satt två gånger av samma person i samma ärende
-blir bara en. Säger två etiketter olika saker om samma adress visas båda, den med
+ursprung**, till exempel din egen etikett och en kollegas, visas det som en bekräftelse. En person, en analys eller en
+sanktionslista räknas bara en gång, hur många gånger, versioner eller ärenden den än kommer genom. Säger två etiketter olika saker om samma adress visas båda, den med
 flest ursprung först.

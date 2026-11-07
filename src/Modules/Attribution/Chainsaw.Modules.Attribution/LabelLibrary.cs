@@ -72,11 +72,11 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
             .Where(label => LabelRules.MaySpread(label) && !nearVictim(label))
             .ToList();
 
-        // A label set here and then taken back, or that now touches a victim, is withdrawn everywhere: the copies
-        // other cases got from the library are taken back there too, and it is never given again.
+        // A label set here and then taken back is withdrawn everywhere: the copies other cases got from the library
+        // are taken back there too, and it is never given again. A label near a victim only stays out (above).
         var withdrawn = inCase.All
             .Where(label => label.Origin.Source is not (LabelSource.OtherCase or LabelSource.SanctionList)
-                && (inCase.Retracted.Contains(label.Sequence) || nearVictim(label)))
+                && inCase.Retracted.Contains(label.Sequence))
             .Select(label => label.Origin.OriginId)
             .ToHashSet(StringComparer.Ordinal);
         labels.RemoveAll(label => withdrawn.Contains(label.Origin.OriginId));
@@ -84,7 +84,10 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         lock (_gate)
         {
             var document = Load();
-            document.Withdrawn.UnionWith(withdrawn);
+            // Only what the library has held needs remembering; anything else never reached another case.
+            document.Withdrawn.UnionWith(document.Labels
+                .Select(stored => stored.OriginId)
+                .Where(withdrawn.Contains));
             foreach (var stored in document.Labels)
             {
                 stored.Cases.Remove(caseId);
@@ -140,6 +143,11 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
                     && !stored.Cases.ContainsKey(caseId) && stored.Kind != LabelKind.Victim
                     && !withdrawn.Contains(stored.OriginId)),
             ];
+        }
+
+        if (candidates.Count == 0 && !@case.Read(reader => HasWithdrawnCopies(LabelStore.Read(reader), withdrawn)))
+        {
+            return [];
         }
 
         return @case.Write(transaction =>
@@ -199,9 +207,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
     private static void TakeBackWithdrawn(
         ICaseTransaction transaction, StoredLabels inCase, IReadOnlySet<string> withdrawn)
     {
-        var copies = inCase.Active
-            .Where(label => label.Origin.IsFromOtherCase && withdrawn.Contains(label.Origin.OriginId))
-            .ToList();
+        var copies = WithdrawnCopies(inCase, withdrawn).ToList();
         if (copies.Count == 0)
         {
             return;
@@ -219,6 +225,20 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
             LabelStore.SealRetract(transaction, copy, WithdrawnReason, journal);
         }
     }
+
+    /// <summary>Says whether the case holds copies of withdrawn labels.</summary>
+    /// <param name="inCase">The case's labels.</param>
+    /// <param name="withdrawn">The withdrawn origins.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool HasWithdrawnCopies(StoredLabels inCase, IReadOnlySet<string> withdrawn) =>
+        WithdrawnCopies(inCase, withdrawn).Any();
+
+    /// <summary>Gives the case's copies from other cases of labels that were withdrawn where they were set.</summary>
+    /// <param name="inCase">The case's labels.</param>
+    /// <param name="withdrawn">The withdrawn origins.</param>
+    /// <returns>The copies that are not taken back yet.</returns>
+    private static IEnumerable<LabelEntry> WithdrawnCopies(StoredLabels inCase, IReadOnlySet<string> withdrawn) =>
+        inCase.Active.Where(label => label.Origin.IsFromOtherCase && withdrawn.Contains(label.Origin.OriginId));
 
     /// <summary>
     /// Gives a test for whether a label is near a victim in the case: on an address or a cluster that holds, or

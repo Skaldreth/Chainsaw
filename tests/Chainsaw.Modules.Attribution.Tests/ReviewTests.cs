@@ -143,4 +143,73 @@ public sealed class ReviewTests : IDisposable
         Assert.Contains(list.Sha256, label.Origin.OriginId, StringComparison.Ordinal);
         Assert.Contains(list.Sha256, _harness.Case.ReadJournal().Last().Details, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void N1_a_victim_label_set_later_does_not_take_back_copies_elsewhere_and_can_be_undone()
+    {
+        var address = Wpkh("victim-later");
+        _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen");
+        _harness.Library.Absorb(_harness.Case);
+        using var second = _harness.Create("2026-0202");
+        _harness.Library.ShareInto(second, [address]);
+        var victim = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Victim);
+        _harness.Library.Absorb(_harness.Case);
+
+        _harness.Library.ShareInto(second, [address]);
+        Assert.Single(_harness.Labels.GetLabels(second, address));
+        Assert.Empty(_harness.Library.List());
+
+        _harness.Labels.Retract(_harness.Case, victim.Sequence, "Fel adress");
+        _harness.Library.Absorb(_harness.Case);
+        Assert.Single(_harness.Library.List());
+    }
+
+    [Fact]
+    public void N2_the_case_own_sanction_hit_is_shown_beside_a_copy()
+    {
+        var address = Wpkh("own-shown");
+        _harness.Sanctions.Import(new SdnFile().Xbt("9001", "SYNTETISK", address.Value).Stream());
+        _harness.Labels.CheckSanctions(_harness.Case, [address]);
+        _harness.Library.Absorb(_harness.Case);
+        using var other = _harness.Create("2026-0202");
+        _harness.Library.ShareInto(other, [address]);
+        _harness.Labels.CheckSanctions(other, [address]);
+
+        var label = Assert.Single(_harness.Labels.GetLabels(other, address));
+
+        Assert.False(label.IsOnlyFromOtherCases);
+        Assert.Contains("uid 9001", label.Explain(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void N3_setting_the_same_label_again_as_do_not_spread_is_sealed_but_confirms_nothing()
+    {
+        var address = Wpkh("changed-mind");
+        _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "B");
+
+        var second = _harness.Own(
+            LabelSubject.ForAddress(address), LabelKind.Exchange, "B", "Börsens svar", doNotSpread: true);
+
+        Assert.True(second.DoNotSpread);
+        Assert.Equal(2, _harness.Labels.GetEntries(_harness.Case).Count);
+        Assert.False(Assert.Single(_harness.Labels.GetLabels(_harness.Case, address)).IsConfirmed);
+    }
+
+    [Fact]
+    public void N3_a_newer_version_of_an_analysis_is_sealed_but_confirms_nothing()
+    {
+        var address = Wpkh("analysis-v2");
+        var draft = new LabelDraft(LabelSubject.ForAddress(address), LabelKind.Exchange, null, "Sweep")
+        {
+            Source = LabelSource.Behaviour,
+            SourceName = "exchange-sweep",
+            SourceVersion = "v1",
+        };
+        _harness.Labels.Add(_harness.Case, draft);
+
+        var newer = _harness.Labels.Add(_harness.Case, draft with { SourceVersion = "v2" });
+
+        Assert.Equal("v2", newer.Origin.SourceVersion);
+        Assert.False(Assert.Single(_harness.Labels.GetLabels(_harness.Case, address)).IsConfirmed);
+    }
 }

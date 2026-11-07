@@ -21,9 +21,9 @@ public interface ILabelLibrary
 {
     /// <summary>
     /// Takes in the labels of an open case that may spread, replacing what the library had from that case. A label
-    /// set in this case and then taken back, or that is on or near an address labelled as a victim, is withdrawn:
-    /// it leaves the library, is never given again, and its copies in other cases are taken back there the next
-    /// time those cases are given labels (<see cref="ShareInto"/>).
+    /// on or near an address labelled as a victim stays out. A label set in this case and then taken back is
+    /// withdrawn: it leaves the library, is never given again, and its copies in other cases are taken back there
+    /// the next time those cases are given labels (<see cref="ShareInto"/>).
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <returns>What changed.</returns>

@@ -173,6 +173,13 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Biblioteket:** ärenden som tagits bort ligger kvar som innehavare, två kopior av samma ärende (samma id) skriver
   över varandra, och ett bibliotek som inte går att läsa (skadat eller från ett annat valv) stoppar varje inläsning
   tills det byggs om. Bygg om biblioteket ur ärendena, och ta bort ett ärendes etiketter (granskningen etapp 8, M8).
+- **Offret märks efter att en etikett spridits** (granskningen etapp 8, omgång 2): etiketten hålls utanför
+  biblioteket från det ärendet, men kopior som redan nått andra ärenden ligger kvar tills etiketten tas tillbaka där
+  den sattes. Att dra tillbaka dem automatiskt skulle avslöja för de andra ärendena när någon märkte ett offer.
+  `NearVictim` räknar hela offrets kluster; är offrets adress en börs insättningsadress kan klustret vara börsens,
+  och då hålls alla etiketter på det klustret i det ärendet utanför biblioteket (säkert, men brett).
+- **Minnet för tillbakadragna etiketter** (`Withdrawn` i biblioteket) växer och rensas aldrig (granskningen etapp 8,
+  omgång 2, M).
 - **Etiketter på tx** (till exempel en känd brygga eller swap): `ClassifyTransaction` ger inget från etiketter än.
 
 ### Kurser
