@@ -3,15 +3,27 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Chainsaw.App.ViewModels;
 
-/// <summary>An icon in the rail: the view it opens, whether it is shown, and a dot when something waits there.</summary>
+/// <summary>
+/// An icon in the rail: the view it opens or the submenu that folds out of it (sketch PN1), whether it is shown, and a
+/// dot when something waits there.
+/// </summary>
 public sealed partial class RailItemViewModel : ObservableObject
 {
     /// <summary>Creates the icon for a view.</summary>
     /// <param name="entry">The view's entry in <see cref="ViewTable"/>.</param>
-    public RailItemViewModel(ViewEntry entry) => Entry = entry;
+    public RailItemViewModel(ViewEntry entry)
+    {
+        Entry = entry;
+        Submenu = SubmenuTable.For(entry.View) is { } rows ? new SubmenuViewModel(rows) : null;
+    }
 
     /// <summary>Gets the view's entry: name, icon and shortcut.</summary>
     public ViewEntry Entry { get; }
+
+    /// <summary>
+    /// Gets the submenu that folds out of the icon, or <see langword="null"/> when the icon opens its view directly.
+    /// </summary>
+    public SubmenuViewModel? Submenu { get; }
 
     /// <summary>Gets or sets whether this view is the one shown.</summary>
     [ObservableProperty]

@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Chainsaw.App.Controls;
 using Chainsaw.App.Interop;
@@ -51,6 +53,7 @@ public partial class MainWindow : Window
         BindViewKeys();
         BindCommandKeys();
         BindLockKey();
+        WatchSubmenus();
         WatchActivity();
         _idleTimer = new DispatcherTimer(
             IdleCheck, DispatcherPriority.Background, (_, _) => gate.CheckIdle(), Dispatcher);
@@ -88,6 +91,11 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowGate()
     {
+        if (!_gate.IsShellVisible)
+        {
+            _shell.DismissSubmenus();
+        }
+
         ShellRoot.Visibility = _gate.IsShellVisible ? Visibility.Visible : Visibility.Collapsed;
         Gate.Visibility = _gate.IsGateVisible ? Visibility.Visible : Visibility.Collapsed;
         CommandManager.InvalidateRequerySuggested();
@@ -128,6 +136,93 @@ public partial class MainWindow : Window
         {
             InputBindings.Add(new KeyBinding(_gate.LockCommand, gesture));
         }
+    }
+
+    /// <summary>
+    /// Follows the pill's submenus (sketch PN1): the open one is shown over its button, the keyboard goes back to the
+    /// button when a menu closes by Esc, a click outside or a choice, a click outside closes it, and so does leaving
+    /// the window. An action that wants the command bar gets it.
+    /// </summary>
+    private void WatchSubmenus()
+    {
+        _shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.OpenSubmenu))
+            {
+                ShowSubmenu();
+            }
+        };
+        foreach (var item in _shell.Items)
+        {
+            if (item.Submenu is { } menu)
+            {
+                menu.Closed += (_, returnFocus) =>
+                {
+                    if (returnFocus)
+                    {
+                        ButtonOf(item)?.Focus();
+                    }
+                };
+            }
+        }
+
+        _shell.CommandBarWanted += (_, _) => FocusCommandBar();
+        PreviewMouseDown += OnPreviewMouseDown;
+        Deactivated += (_, _) => _shell.DismissSubmenus();
+    }
+
+    /// <summary>Shows the open submenu with its tab over its button, or hides it when none is open.</summary>
+    private void ShowSubmenu()
+    {
+        var item = _shell.OpenSubmenu;
+        var button = item is null ? null : ButtonOf(item);
+        if (item is null || button is null)
+        {
+            Submenu.Show(null, default);
+            return;
+        }
+
+        Submenu.Show(item, button.TranslatePoint(default, SubmenuLayer));
+    }
+
+    /// <summary>Closes an open submenu when the pointer presses outside it, before the press reaches its target.</summary>
+    /// <param name="sender">The window.</param>
+    /// <param name="e">The press.</param>
+    private void OnPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_shell.OpenSubmenu?.Submenu is { } menu
+            && !(e.OriginalSource is DependencyObject target && (target == Submenu || Submenu.IsAncestorOf(target))))
+        {
+            menu.Close();
+        }
+    }
+
+    /// <summary>Finds the pill's button of an icon.</summary>
+    /// <param name="item">The icon.</param>
+    /// <returns>The button, or <see langword="null"/> when it is not shown.</returns>
+    private Button? ButtonOf(RailItemViewModel item) => FindButton(ShellRoot, item);
+
+    /// <summary>Looks through the visual tree for the button whose data is the icon.</summary>
+    /// <param name="parent">Where to look.</param>
+    /// <param name="item">The icon.</param>
+    /// <returns>The button, or <see langword="null"/>.</returns>
+    private static Button? FindButton(DependencyObject parent, RailItemViewModel item)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is Button { DataContext: var data } button && ReferenceEquals(data, item))
+            {
+                return button;
+            }
+
+            if (FindButton(child, item) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Every key, click, wheel and move in the window puts off the automatic lock.</summary>

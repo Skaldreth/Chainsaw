@@ -150,6 +150,8 @@ public partial class App : Application
                 .AddSingleton<IShellCommand, VerifyCommand>()
                 .AddSingleton<IShellCommand, LockCommand>()
                 .AddSingleton<CommandRegistry>()
+                .AddSingleton<IFilePicker, WpfFilePicker>()
+                .AddSingleton<SanctionListImport>()
                 .AddSingleton<ShellViewModel>()
                 .AddSingleton<LinkInbox>()
                 .AddSingleton<LockViewModel>()

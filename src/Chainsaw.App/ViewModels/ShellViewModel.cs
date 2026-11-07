@@ -40,6 +40,12 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The UI thread, where the exit's changes are shown.</summary>
     private readonly IUiThread _ui;
 
+    /// <summary>The import of a sanction list, from the menu Nytt.</summary>
+    private readonly SanctionListImport _sanctions;
+
+    /// <summary>Whether a sanction list is being imported, so that a second import waits for the first.</summary>
+    private bool _importing;
+
     /// <summary>The ways to finish the text that Tab goes through.</summary>
     private IReadOnlyList<string> _completions = [];
 
@@ -56,6 +62,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="workflow">The cases, whose list is read anew when the shell is shown.</param>
     /// <param name="exit">The connection to the exit, shown in the title bar and the status line.</param>
     /// <param name="exits">The exits, for the connected exit's name.</param>
+    /// <param name="sanctions">The import of a sanction list, from the menu Nytt.</param>
     /// <param name="ui">The UI thread.</param>
     public ShellViewModel(
         CaseSession session,
@@ -64,21 +71,36 @@ public sealed partial class ShellViewModel : ObservableObject
         CaseWorkflow workflow,
         IExitConnection exit,
         IExitStore exits,
+        SanctionListImport sanctions,
         IUiThread ui)
     {
         _session = session;
+        _sanctions = sanctions;
         _commands = commands;
         _exits = exits;
         _ui = ui;
         _workflow = workflow;
         NewCase = newCase;
         workflow.CasesListed += (_, _) => ui.Post(() => CommandHint = _commands.Hint(CommandText));
-        session.Changed += (_, _) => OnPropertyChanged(nameof(CaseTitle));
+        session.Changed += (_, _) => OnCaseChanged();
         newCase.Created += (_, reply) => OnCreated(reply);
         exit.StatusChanged += (_, status) => ui.Post(() => ShowExit(status));
         Top = ViewTable.In(RailGroup.Top).Select(e => new RailItemViewModel(e)).ToList();
         Work = ViewTable.In(RailGroup.Work).Select(e => new RailItemViewModel(e)).ToList();
         Bottom = ViewTable.In(RailGroup.Bottom).Select(e => new RailItemViewModel(e)).ToList();
+        foreach (var menu in Submenus)
+        {
+            menu.Chosen += (_, action) => OnChosen(action);
+            menu.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(SubmenuViewModel.IsOpen))
+                {
+                    OnPropertyChanged(nameof(OpenSubmenu));
+                }
+            };
+        }
+
+        OnCaseChanged();
         Show(ViewTable.Start);
         ShowExit(exit.Status);
     }
@@ -97,6 +119,12 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets every view of the rail, from the top down.</summary>
     public IEnumerable<RailItemViewModel> Items => Top.Concat(Work).Concat(Bottom);
+
+    /// <summary>Gets the icon whose submenu is open, or <see langword="null"/> when none is.</summary>
+    public RailItemViewModel? OpenSubmenu => Items.FirstOrDefault(item => item.Submenu?.IsOpen == true);
+
+    /// <summary>Raised when an action wants the keyboard in the command bar, for example Nytt → Startpunkt.</summary>
+    public event EventHandler? CommandBarWanted;
 
     /// <summary>Gets the view shown.</summary>
     [ObservableProperty]
@@ -150,13 +178,51 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     public partial string SourceText { get; private set; } = OfflineText;
 
+    /// <summary>Gets the submenus of the rail's icons.</summary>
+    private IEnumerable<SubmenuViewModel> Submenus =>
+        Items.Select(item => item.Submenu).OfType<SubmenuViewModel>();
+
     /// <summary>
-    /// Shows a view and marks its icon in the rail. *Nytt* is not a page but the panel from the right (NC1a).
+    /// Presses an icon in the pill (a click, or Enter or Space on it): an icon with a submenu folds it out, or in when
+    /// it is out (sketch PN1); any other icon shows its view.
+    /// </summary>
+    /// <param name="item">The icon.</param>
+    [RelayCommand]
+    public void Press(RailItemViewModel item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (item.Submenu is not { } menu)
+        {
+            Show(item.Entry.View);
+            return;
+        }
+
+        foreach (var other in Submenus.Where(other => !ReferenceEquals(other, menu)))
+        {
+            other.Dismiss();
+        }
+
+        menu.Toggle();
+    }
+
+    /// <summary>Closes any open submenu without taking the keyboard back, for example when Chainsaw locks.</summary>
+    public void DismissSubmenus()
+    {
+        foreach (var menu in Submenus)
+        {
+            menu.Dismiss();
+        }
+    }
+
+    /// <summary>
+    /// Shows a view and marks its icon in the rail, and closes any open submenu. *Nytt* is not a page but the panel
+    /// from the right (NC1a), which its shortcut opens directly.
     /// </summary>
     /// <param name="view">The view to show.</param>
     [RelayCommand]
     public void Show(AppView view)
     {
+        DismissSubmenus();
         if (view == AppView.New)
         {
             NewCase.Show();
@@ -278,6 +344,84 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Called when the shell is shown: the case files are listed anew off the UI thread.</summary>
     public void OnShown() => _ = _workflow.RefreshCasesAsync();
+
+    /// <summary>
+    /// Does what a row of a submenu stands for. A row that is not built, or needs a case that is not open, cannot be
+    /// chosen, so only what is built arrives here.
+    /// </summary>
+    /// <param name="action">The row's action.</param>
+    private void OnChosen(SubmenuAction action)
+    {
+        switch (action)
+        {
+            case SubmenuAction.StartPoint:
+                AddStartPoint();
+                break;
+            case SubmenuAction.ImportSanctionList:
+                _ = ImportSanctionListAsync();
+                break;
+            case SubmenuAction.NewCase:
+                NewCase.Show();
+                break;
+            default:
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Nytt → Startpunkt: with a case open the keyboard goes to the command bar, where an address or a tx and Enter add
+    /// a start point (etapp 11); with none, Nytt ärende opens, since a start point starts a case.
+    /// </summary>
+    private void AddStartPoint()
+    {
+        if (_session.Current is null)
+        {
+            NewCase.Show();
+            return;
+        }
+
+        CommandBarWanted?.Invoke(this, EventArgs.Empty);
+        if (CommandText.Length == 0)
+        {
+            Answer(CommandReply.Done(
+                $"Skriv en adress eller en tx och tryck Enter, så blir den en startpunkt i {_session.DisplayName}."));
+        }
+    }
+
+    /// <summary>Nytt → Importera sanktionslista …: asks for the file and says what was imported, or why not.</summary>
+    /// <returns>A task that completes when the answer is shown.</returns>
+    private async Task ImportSanctionListAsync()
+    {
+        if (_importing)
+        {
+            return;
+        }
+
+        _importing = true;
+        try
+        {
+            if (await _sanctions.ImportAsync() is { } reply)
+            {
+                Answer(reply);
+            }
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    /// <summary>Names the case in the title bar and says which rows of the submenus can be chosen.</summary>
+    private void OnCaseChanged()
+    {
+        var hasCase = _session.Current is not null;
+        foreach (var menu in Submenus)
+        {
+            menu.Update(hasCase);
+        }
+
+        OnPropertyChanged(nameof(CaseTitle));
+    }
 
     /// <summary>Shows an answer above the bar.</summary>
     /// <param name="reply">The answer.</param>

@@ -1,6 +1,8 @@
 using Chainsaw.App.Commands;
 using Chainsaw.App.ViewModels;
+using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
@@ -374,7 +376,8 @@ internal sealed class GateRig
                 new LockCommand(LockSignal),
             ],
             input);
-        Shell = new ShellViewModel(Session, Commands, NewCase, Workflow, Exit, Exits, Ui);
+        Sanctions = new SanctionListImport(SanctionLists, Picker);
+        Shell = new ShellViewModel(Session, Commands, NewCase, Workflow, Exit, Exits, Sanctions, Ui);
         Links = new LinkInbox(Shell);
         LockScreen = new LockViewModel(Vault, Exit, AutoLock, BuildInfo.Parse("0.1.0+abcdef0123456"), Ui);
         FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow);
@@ -399,6 +402,12 @@ internal sealed class GateRig
 
     public TestVerifier Verifier { get; } = new();
 
+    public TestSanctionLists SanctionLists { get; } = new();
+
+    public TestFilePicker Picker { get; } = new();
+
+    public SanctionListImport Sanctions { get; }
+
     public LockSignal LockSignal { get; } = new();
 
     public CaseSession Session { get; } = new();
@@ -420,4 +429,53 @@ internal sealed class GateRig
     public FirstRunViewModel FirstRun { get; }
 
     public GateViewModel Gate { get; }
+}
+
+/// <summary>A file dialog that gives what the test set, and counts how often it was asked.</summary>
+internal sealed class TestFilePicker : IFilePicker
+{
+    public string? Path { get; set; }
+
+    public int Asked { get; private set; }
+
+    public string? PickSanctionList()
+    {
+        Asked++;
+        return Path;
+    }
+}
+
+/// <summary>Sanction lists that keep what was imported, or fail as the test set.</summary>
+internal sealed class TestSanctionLists : ISanctionLists
+{
+    public List<byte[]> Imported { get; } = [];
+
+    public SanctionListException? Failure { get; set; }
+
+    public SanctionListInfo Info { get; set; } = new(
+        "OFAC SDN",
+        new string('a', 64),
+        new DateOnly(2026, 11, 1),
+        DateTimeOffset.UnixEpoch,
+        new Dictionary<string, int> { ["XBT"] = 3, ["ETH"] = 2 },
+        0);
+
+    public SanctionListInfo? Current => Imported.Count > 0 ? Info : null;
+
+    public SanctionListInfo Import(Stream content)
+    {
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
+
+        using var copy = new MemoryStream();
+        content.CopyTo(copy);
+        Imported.Add(copy.ToArray());
+        return Info;
+    }
+
+    public IReadOnlyList<SanctionListInfo> List() => Current is { } list ? [list] : [];
+
+    public SanctionMatch? Find(BitcoinAddress address) => throw new NotSupportedException();
 }

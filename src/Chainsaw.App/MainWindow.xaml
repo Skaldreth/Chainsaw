@@ -21,11 +21,14 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <!-- An icon of the pill: the view's icon, the tooltip with its shortcut, and a dot when something waits there. -->
+        <!--
+          An icon of the pill: the view's icon, the tooltip with its shortcut, and a dot when something waits there. A
+          press shows the view, or folds out the icon's submenu (sketch PN1).
+        -->
         <DataTemplate x:Key="RailItem" DataType="{x:Type vm:RailItemViewModel}">
             <Button x:Name="Item" Style="{StaticResource Button.Rail}"
-                    Command="{Binding DataContext.ShowCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                    CommandParameter="{Binding Entry.View}" ToolTip="{Binding Entry.ToolTip}"
+                    Command="{Binding DataContext.PressCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    CommandParameter="{Binding}" ToolTip="{Binding Entry.ToolTip}"
                     AutomationProperties.Name="{Binding Entry.Name}">
                 <Grid Width="38" Height="38">
                     <controls:GridIcon x:Name="Icon" Size="20" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -216,6 +219,13 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+
+                    <!--
+                      ===== An open submenu of the pill (sketch PN1), over the pill and the page, with its tab laid exactly
+                      over the button it folds out of ===== -->
+                    <Canvas x:Name="SubmenuLayer" ClipToBounds="False">
+                        <views:PillSubmenu x:Name="Submenu" />
+                    </Canvas>
                 </Grid>
 
                 <!-- ===== Status line: where lookups go, honestly offline while no exit is connected ===== -->
