@@ -61,7 +61,8 @@ public enum WatchFeedStatus
     Partial,
 
     /// <summary>
-    /// The source could not be asked (no exit, the chain off, no endpoint in step); nothing new is known.
+    /// The source could not be asked (it was offline, or only the case answered); nothing new is known. A lookup with no
+    /// endpoint in step is <see cref="Failed"/>, with its problem saying so.
     /// </summary>
     NotAsked,
 

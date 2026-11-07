@@ -171,14 +171,15 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         var hashes = await BlockHashesAsync(transfers.Values, downTo, origins, problems, cancellationToken)
             .ConfigureAwait(false);
 
-        // A block whose hash could not be had is read again: the check only moves on above it.
+        // A block whose hash could not be had is read again: the check moves on no further than the lowest of them, so
+        // that the next check reads back to every one.
         var hashless = transfers.Values.Select(transfer => transfer.Block).OfType<EthereumBlockReference>()
             .Where(block => block.Height > downTo && !hashes.ContainsKey(block.Height))
             .Select(block => (long?)block.Height)
-            .Max();
+            .Min();
         if (hashless is { } missing)
         {
-            completeAbove = Math.Max(completeAbove ?? missing, missing);
+            completeAbove = Math.Min(completeAbove ?? missing, missing - 1);
         }
 
         if (completeAbove is not null && status == WatchFeedStatus.Read)

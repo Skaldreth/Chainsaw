@@ -33,16 +33,16 @@ public static class WatchWords
 
     /// <summary>The head's tooltip when lookups fail.</summary>
     public const string FailingTip =
-        "Källan svarade inte, eller svarade fel, vid senaste kontrollen. Bevakningen frågar igen vid nästa kontroll; " +
-        "se Inställningar → Källor.";
+        "Källan kunde inte frågas eller svarade fel vid senaste kontrollen; bevakningens rad säger varför. " +
+        "Bevakningen försöker igen vid nästa kontroll.";
 
     /// <summary>The head when the last check could not ask the source (it was offline, or only the case answered).</summary>
     public const string NoSourceText = "Kunde inte fråga källan · försöker igen";
 
     /// <summary>The head's tooltip when no endpoint is in step.</summary>
     public const string NoSourceTip =
-        "Bevakningen frågar bara en endpoint som svarade på den högsta höjden när endpointarna provades. " +
-        "Prova alla nu under Inställningar → Källor.";
+        "Källan var inte nåbar vid senaste kontrollen, och bara det ärendet redan har kunde läsas. " +
+        "Bevakningen försöker igen vid nästa kontroll.";
 
     /// <summary>The head while Chainsaw is locked (never shown, since the window is then hidden).</summary>
     public const string LockedText = "Låst · inga uppslag görs";

@@ -285,6 +285,29 @@ public sealed class MonitoringServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Blocks_without_a_hash_far_apart_are_all_read_again_at_the_next_check()
+    {
+        var node = Synthetic.Eth("eth-node");
+        _harness.Service.Add(
+            _harness.Case,
+            new WatchSubject(WatchSubjectKind.Address, Synthetic.On(node), "0x…node"),
+            new WatchFilter(Chain.Ethereum, WatchDirection.Out, [], [], null, null));
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Ethereum, 21_000_000);
+        _harness.Ethereum.Holds(node, EthereumHistory.Internal,
+            Synthetic.Transfer("low", EthereumTransferKind.Internal, node, Synthetic.Eth("x"), Synthetic.Ether(1),
+                21_000_020, withHash: false),
+            Synthetic.Transfer("high", EthereumTransferKind.Internal, node, Synthetic.Eth("y"), Synthetic.Ether(2),
+                21_000_200, withHash: false, position: 1));
+
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Ethereum, 21_000_300);
+        _harness.Ethereum.BlockHashes[21_000_020] = Synthetic.EthBlockHash(21_000_020);
+        _harness.Ethereum.BlockHashes[21_000_200] = Synthetic.EthBlockHash(21_000_200);
+        var second = await _harness.Service.CheckAsync(_harness.Case, Chain.Ethereum, 21_000_301);
+
+        Assert.Equal(2, second.Hits.Count());
+    }
+
+    [Fact]
     public void Seen_hits_are_noted_and_never_move_back()
     {
         _harness.Service.MarkSeen(_harness.Case, "w", 5);

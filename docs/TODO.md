@@ -628,7 +628,7 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **Pausen** räknar det som hände under pausen som träffar när bevakningen återupptas (inget tappas). Bekräfta eller
   välj att räkna från återupptagandet.
 - **Mycket aktiva adresser:** en kontroll läser högst fem sidor bakåt. Har en adress fler nya tx än så går kontrollen
-  vidare från det äldsta block den läste och sparar luckan (*tx i block N–M lästes inte*) med kontrollen; tx i luckan
+  vidare från det äldsta block den läste och sparar luckan (*tx under block N kan ha missats*) med kontrollen; tx i luckan
   kan ha missats. Samma när källan inte kan bläddra längre (en full sida i ett block) eller inte läst historiken
   färdigt. Läs luckan i efterhand med en markör, eller med källans egen bevakning (websocket).
 - **Motparter som kluster** följer inte klustringen: en Ctrl+klickad klusternod lägger dess adresser då, inte de som
