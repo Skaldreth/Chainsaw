@@ -180,11 +180,12 @@ tests/                      xUnit, ett testprojekt per modul
 - **Samma stil som Gawk, egen identitet** (användarens beslut 2026-11-06): mörkt tema i neutrala gråtoner, tangentbordsfokus,
   en flytande kommandorad för power users, svenska i gränssnittet. Loggan är **en kätting** (användarens beslut 2026-11-07, skiss
   ID5): **Chainsaw är blockkedjan som såg**, en ordlek. Länkar som går i varandra, varannan framifrån och varannan från
-  kanten; i variant B är en länk ett öga. Bitcoin-myntet (ID1) och sågkedjan (ID3) är avvisade. Låsskärmen och
+  kanten; i variant B är en länk ett brett, lågt öga. Bitcoin-myntet (ID1) och sågkedjan (ID3) är avvisade. Låsskärmen och
   förstagångsinställningen har teckenfältet i ASCII-stil, som i Gawk, och på låsskärmen **löper kättingen uppifrån och ner
   i vänsterdelen**, skriven i tecken, ganska stor men inte överdriven, och rör sig sakta (skiss ID7).
 - **Färger:** Gawks gråskala (bakgrund `#191919`, paneler `#1F1F1F`, upphöjt `#262626`, markerat `#333333`, text `#EFEFEF` /
-  `#B4B4B4` / `#8F8F8F`, lyckat `#8CC98F`, fel `#EC8C8C`) med en **egen accentfärg** som bestäms i skisserna.
+  `#B4B4B4` / `#8F8F8F`, lyckat `#8CC98F`, fel `#EC8C8C`) med en **egen accentfärg: Magenta `#E070B0`** (användarens beslut 2026-11-07, skiss ID6). Accenten betyder alltid offrens
+  pengar och det valda, och krockar inte med grafens färger för börs, risk, annan kedja och tjänst.
 - **Typsnitt:** Segoe UI Variable, Cascadia Mono bara för hashar, txid och adresser i inspektören samt terminalen.
 - **Grafen är hjärtat.** Det är där man arbetar mest. Den bygger på idéerna från Gawks Byggare (en duk med noder, portar och
   kopplingar), anpassad för spårning. Scrubbern, tidslinjen och kolumner med kort tas över i formen.
