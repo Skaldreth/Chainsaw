@@ -307,7 +307,7 @@
         </Grid>
 
         <!-- ===== The inspector (sketch GR4): what is chosen, its facts, Varför? and the Guide ===== -->
-        <Border Grid.Column="1" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
+        <Border x:Name="Inspector" Grid.Column="1" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
                 BorderThickness="1,0,0,0">
             <Grid>
                 <TextBlock Text="Välj en aktör eller en linje." FontSize="13" Foreground="{StaticResource Brush.TextDim}"

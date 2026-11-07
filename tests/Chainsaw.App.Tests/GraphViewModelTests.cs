@@ -148,6 +148,20 @@ public sealed class GraphViewModelTests
         Assert.Equal(GraphViewModel.NoCaseText, rig.Graph.EmptyText);
         Assert.Empty(rig.Source.Loads);
         Assert.True(rig.Graph.IsOffline);
+        Assert.False(rig.Graph.HasCase);
+    }
+
+    /// <summary>The inspector is there only while a case is open, since without one there is nothing to inspect.</summary>
+    [Fact]
+    public void InspectorFollowsTheOpenCase()
+    {
+        var rig = new Rig(open: false);
+
+        rig.Session.Open(rig.Case);
+        Assert.True(rig.Graph.HasCase);
+
+        rig.Session.Forget();
+        Assert.False(rig.Graph.HasCase);
     }
 
     /// <summary>An opened case is read by FIFO, shown, placed and fitted to the screen.</summary>

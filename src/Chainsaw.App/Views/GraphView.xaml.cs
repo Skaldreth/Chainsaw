@@ -21,6 +21,9 @@ public partial class GraphView : UserControl
     /// <summary>Creates the page.</summary>
     public GraphView() => InitializeComponent();
 
+    /// <summary>The inspector's width in sketch GR4, in device-independent pixels.</summary>
+    private const double InspectorWidth = 280;
+
     /// <summary>
     /// Moves the graph's corner (the switch, the method and the amounts) out from under a panel that lies over the
     /// page's right side, such as the Guide's (sketch GD1b), so that it can still be seen and used.
@@ -65,6 +68,14 @@ public partial class GraphView : UserControl
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(Canvas));
             }
         };
+        model.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.HasCase))
+            {
+                ShowInspector(model.HasCase);
+            }
+        };
+        ShowInspector(model.HasCase);
         model.CopyWanted += (_, text) => CopyText(text);
         model.Forms.PropertyChanged += (_, e) =>
         {
@@ -75,6 +86,14 @@ public partial class GraphView : UserControl
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(Canvas));
             }
         };
+    }
+
+    /// <summary>Shows the inspector, or folds it away when no case is open and there is nothing to inspect.</summary>
+    /// <param name="shown">Whether the inspector is shown.</param>
+    private void ShowInspector(bool shown)
+    {
+        InspectorColumn.Width = new GridLength(shown ? InspectorWidth : 0);
+        Inspector.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Copies a node's address to the clipboard; a clipboard held by another program is left alone.</summary>

@@ -173,6 +173,12 @@ public sealed partial class GraphViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(MethodText), nameof(TraceText))]
     public partial GraphScene? Scene { get; private set; }
 
+    /// <summary>
+    /// Gets whether a case is open. Without one there is nothing to inspect, so the inspector is not shown.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool HasCase { get; private set; }
+
     /// <summary>Gets what the page says in place of the graph; empty while a graph is shown.</summary>
     [ObservableProperty]
     public partial string EmptyText { get; private set; } = NoCaseText;
@@ -629,6 +635,7 @@ public sealed partial class GraphViewModel : ObservableObject
         _work.Dispose();
         _work = new CancellationTokenSource();
         var version = ++_version;
+        HasCase = _session.Current is not null;
         if (_session.Current is not { } openCase)
         {
             Clear(NoCaseText);
