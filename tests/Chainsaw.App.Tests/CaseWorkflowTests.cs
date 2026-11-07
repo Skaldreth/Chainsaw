@@ -187,9 +187,41 @@ public sealed class CaseWorkflowTests
         rig.Cases.AddFile("2025-0001", 5);
         rig.Cases.AddFile("B7", 2);
         await rig.Workflow.OpenAsync("B7");
+        await rig.Workflow.RefreshCasesAsync();
 
         Assert.Equal(["2026-0117", "2025-0001", "2026-0100"], rig.Workflow.SuggestCaseNumbers(string.Empty));
         Assert.Equal(["2026-0117", "2026-0100"], rig.Workflow.SuggestCaseNumbers("2026"));
+    }
+
+    [Fact]
+    public async Task A_creation_cut_short_by_a_lock_says_that_the_case_exists_and_what_was_not_done()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.DuringCreate = () => rig.Vault.Lock();
+        rig.Tracing.Failure = new CaseException(CaseError.Closed);
+
+        var creation = await rig.Workflow.CreateAsync(
+            new NewCaseRequest("A1", string.Empty, [ChainStartPoint.Recognise(Samples.Address)]), null);
+
+        Assert.False(creation.IsCreated);
+        Assert.Contains("A1 skapades", creation.Reply.Text, StringComparison.Ordinal);
+        Assert.Contains("lades inte till", creation.Reply.Text, StringComparison.Ordinal);
+        Assert.Contains("/open A1", creation.Reply.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_case_forgotten_at_a_lock_is_closed_before_it_is_opened_again()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("A1", 1);
+        await rig.Workflow.OpenAsync("A1");
+        var first = (TestCase)rig.Session.Current!;
+        rig.Session.Forget();
+
+        await rig.Workflow.OpenAsync("A1");
+
+        Assert.Equal(1, first.Disposed);
+        Assert.NotSame(first, rig.Session.Current);
     }
 
     [Fact]

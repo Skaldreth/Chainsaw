@@ -77,10 +77,16 @@ public sealed partial class FirstRunViewModel : ObservableObject
     public partial string StartPointText { get; set; } = string.Empty;
 
     /// <summary>Gets what Chains recognises in the start point, for the line under the field.</summary>
-    public StartPointLine StartPoint => new(ChainStartPoint.Recognise(StartPointText));
+    public StartPointLine StartPoint => new(Links.StartPointText.Parse(StartPointText));
 
     /// <summary>Gets whether a start point is written, so that the line under the field is shown.</summary>
     public bool HasStartPoint => StartPointText.Trim().Length > 0;
+
+    /// <summary>
+    /// Gets the answer from creating the first case, or <see langword="null"/>; the shell shows it after the setup,
+    /// so that a title or start point that could not be added is said.
+    /// </summary>
+    public SharedKernel.Commands.CommandReply? CreationReply { get; private set; }
 
     /// <summary>Gets why the last step did not go on, or an empty text.</summary>
     [ObservableProperty]
@@ -457,6 +463,7 @@ public sealed partial class FirstRunViewModel : ObservableObject
             return;
         }
 
+        CreationReply = creation.Reply;
         Completed?.Invoke(this, EventArgs.Empty);
     }
 }

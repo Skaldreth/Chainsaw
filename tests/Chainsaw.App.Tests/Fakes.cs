@@ -374,7 +374,7 @@ internal sealed class GateRig
                 new LockCommand(LockSignal),
             ],
             input);
-        Shell = new ShellViewModel(Session, Commands, NewCase, Exit, Exits, Ui);
+        Shell = new ShellViewModel(Session, Commands, NewCase, Workflow, Exit, Exits, Ui);
         Links = new LinkInbox(Shell);
         LockScreen = new LockViewModel(Vault, Exit, AutoLock, BuildInfo.Parse("0.1.0+abcdef0123456"), Ui);
         FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow);

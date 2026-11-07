@@ -1,3 +1,4 @@
+using Chainsaw.App.Links;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.SharedKernel.Commands;
@@ -140,7 +141,8 @@ public sealed partial class NewCaseViewModel : ObservableObject
     /// <summary>Recognises the start points again whenever the text changes.</summary>
     /// <param name="value">The new text.</param>
     partial void OnStartPointsTextChanged(string value) =>
-        StartPoints = Lines(value).Take(MaximumLines + 1).Select(l => new StartPointLine(ChainStartPoint.Recognise(l)))
+        StartPoints = Lines(value).Take(MaximumLines + 1)
+            .Select(line => new StartPointLine(StartPointText.Parse(line)))
             .ToList();
 
     /// <summary>Splits the start points into lines that are not empty.</summary>

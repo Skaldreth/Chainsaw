@@ -246,6 +246,21 @@ public sealed class FirstRunViewModelTests
     }
 
     [Fact]
+    public async Task A_start_point_that_fails_in_the_first_case_is_said_in_the_shell()
+    {
+        var rig = await AtFirstCase();
+        rig.FirstRun.CaseNumber = "2026-0117";
+        rig.FirstRun.StartPointText = Samples.Address;
+        rig.Tracing.Failure = new CaseException(CaseError.NoOperatorProfile);
+
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+
+        Assert.True(rig.Gate.IsShellVisible);
+        Assert.True(rig.Shell.IsShowingError);
+        Assert.Contains("lades inte till", rig.Shell.CommandAnswer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task An_unknown_start_point_creates_no_first_case()
     {
         var rig = await AtFirstCase();

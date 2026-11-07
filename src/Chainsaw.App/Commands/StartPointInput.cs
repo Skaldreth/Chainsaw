@@ -1,3 +1,4 @@
+using Chainsaw.App.Links;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.SharedKernel.Commands;
@@ -35,7 +36,7 @@ public sealed class StartPointInput
     /// <returns>The answer.</returns>
     public async Task<CommandReply> RunAsync(string text)
     {
-        var startPoint = ChainStartPoint.Recognise(text);
+        var startPoint = StartPointText.Parse(text);
         if (!startPoint.IsRecognised)
         {
             return CommandReply.Failed(

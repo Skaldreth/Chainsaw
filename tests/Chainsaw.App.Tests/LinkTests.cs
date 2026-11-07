@@ -134,4 +134,45 @@ public sealed class LinkTests
 
         Assert.Equal(GateMode.Unlocked, rig.Gate.Mode);
     }
+
+    [Fact]
+    public async Task A_tron_tx_link_never_becomes_a_bitcoin_start_point()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+
+        rig.Links.Receive("chainsaw:tron/" + Samples.Txid);
+
+        Assert.Equal("tron:" + Samples.Txid, rig.NewCase.StartPointsText);
+        Assert.Equal("TRON", rig.NewCase.StartPoints.Single().ChainLabel);
+        rig.NewCase.CaseNumber = "A1";
+        await rig.NewCase.CreateAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+        Assert.Empty(rig.Tracing.Added);
+        Assert.Equal(AppJournalKinds.StartPointNoted, rig.Cases.Cases[0].Journal.Single().Kind);
+    }
+
+    [Fact]
+    public void A_link_never_replaces_what_is_written_in_the_bar()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Session.Open(new TestCase("A1"));
+        rig.Shell.CommandText = "/verify";
+
+        rig.Links.Receive("chainsaw:bitcoin/" + Samples.Address);
+
+        Assert.Equal("/verify", rig.Shell.CommandText);
+        Assert.Contains(Samples.Address, rig.Shell.CommandAnswer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_link_while_the_new_case_panel_is_shown_is_added_there()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Session.Open(new TestCase("A1"));
+        rig.NewCase.Show();
+
+        rig.Links.Receive("chainsaw:bitcoin/" + Samples.Address);
+
+        Assert.Equal(Samples.Address, rig.NewCase.StartPointsText);
+        Assert.Empty(rig.Shell.CommandText);
+    }
 }

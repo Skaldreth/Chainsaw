@@ -74,17 +74,39 @@ public partial class App : Application
     /// <param name="e">The exit arguments.</param>
     protected override void OnExit(ExitEventArgs e)
     {
-        if (_host is not null)
+        try
         {
-            _host.Services.GetRequiredService<CaseSession>().CloseNow();
-
-            // The modules stop on the thread pool, since a handler that posts to this thread must never wait for it.
-            Task.Run(() => _host.StopAsync()).Wait(StopTimeout);
-            _host.Dispose();
+            if (_host is not null)
+            {
+                _host.Services.GetRequiredService<CaseSession>().CloseNow();
+                StopModules(_host);
+            }
         }
+        finally
+        {
+            // Disposing the host disposes the case store, which closes every case still open, also one that a lock
+            // or a creation left closing in the background.
+            _host?.Dispose();
+            _instance?.Dispose();
+            base.OnExit(e);
+        }
+    }
 
-        _instance?.Dispose();
-        base.OnExit(e);
+    /// <summary>
+    /// Stops the modules on the thread pool, since a handler that posts to this thread must never wait for it; a module
+    /// that fails to stop does not keep the others, or the host's disposal, from running.
+    /// </summary>
+    /// <param name="host">The host.</param>
+    private static void StopModules(IHost host)
+    {
+        try
+        {
+            Task.Run(() => host.StopAsync()).Wait(StopTimeout);
+        }
+        catch (AggregateException)
+        {
+            // A module failed to stop; the host's disposal still closes what is held.
+        }
     }
 
     /// <summary>

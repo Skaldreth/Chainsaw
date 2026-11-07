@@ -12,8 +12,17 @@ namespace Chainsaw.App.ViewModels;
 /// </remarks>
 public sealed class CaseSession
 {
+    /// <summary>The closing that <see cref="Forget"/> started in the background, or a completed task.</summary>
+    private Task _closing = Task.CompletedTask;
+
     /// <summary>Gets the open case, or <see langword="null"/> when none is open.</summary>
     public ICase? Current { get; private set; }
+
+    /// <summary>
+    /// Gets a task that completes when a case forgotten in the background (at a lock) has been saved and closed, so
+    /// that opening it again does not meet its own lock file and say that another Chainsaw uses it.
+    /// </summary>
+    public Task Settled => _closing;
 
     /// <summary>Gets the open case's number and title for the title bar, or an empty text when none is open.</summary>
     public string DisplayName => Current is { } open ? NameOf(open) : string.Empty;
@@ -91,7 +100,7 @@ public sealed class CaseSession
         }
 
         Current = null;
-        _ = Task.Run(() => DisposeQuietly(openCase));
+        _closing = Task.Run(() => DisposeQuietly(openCase));
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

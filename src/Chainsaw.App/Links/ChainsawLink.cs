@@ -1,5 +1,4 @@
 using Chainsaw.Modules.Chains.Contracts;
-using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Links;
 
@@ -15,17 +14,6 @@ public static class ChainsawLink
 
     /// <summary>The longest link that is read at all; a start point on any known chain is far shorter.</summary>
     public const int MaximumLength = 200;
-
-    /// <summary>The chain names a link may use, and the chain each means.</summary>
-    private static readonly Dictionary<string, Chain> ChainNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["bitcoin"] = Chain.Bitcoin,
-        ["btc"] = Chain.Bitcoin,
-        ["ethereum"] = Chain.Ethereum,
-        ["eth"] = Chain.Ethereum,
-        ["tron"] = Chain.Tron,
-        ["trx"] = Chain.Tron,
-    };
 
     /// <summary>
     /// Reads a link: <c>chainsaw:bitcoin/bc1q…</c>, also with <c>//</c> after the colon and a slash at the end, as
@@ -47,7 +35,7 @@ public static class ChainsawLink
         rest = rest.StartsWith("//", StringComparison.Ordinal) ? rest[2..] : rest;
         rest = rest.EndsWith('/') ? rest[..^1] : rest;
         var slash = rest.IndexOf('/', StringComparison.Ordinal);
-        if (slash <= 0 || !ChainNames.TryGetValue(rest[..slash], out var chain))
+        if (slash <= 0 || !StartPointText.TryChain(rest[..slash], out var chain))
         {
             return false;
         }

@@ -1,4 +1,5 @@
 using Chainsaw.App.Commands;
+using Chainsaw.App.Links;
 using Chainsaw.App.Navigation;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
@@ -33,6 +34,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The exits, for the connected exit's name.</summary>
     private readonly IExitStore _exits;
 
+    /// <summary>The cases, listed anew when the shell is shown.</summary>
+    private readonly CaseWorkflow _workflow;
+
     /// <summary>The UI thread, where the exit's changes are shown.</summary>
     private readonly IUiThread _ui;
 
@@ -49,6 +53,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="session">The open case, named in the title bar.</param>
     /// <param name="commands">The command bar's commands.</param>
     /// <param name="newCase">Nytt ärende.</param>
+    /// <param name="workflow">The cases, whose list is read anew when the shell is shown.</param>
     /// <param name="exit">The connection to the exit, shown in the title bar and the status line.</param>
     /// <param name="exits">The exits, for the connected exit's name.</param>
     /// <param name="ui">The UI thread.</param>
@@ -56,6 +61,7 @@ public sealed partial class ShellViewModel : ObservableObject
         CaseSession session,
         CommandRegistry commands,
         NewCaseViewModel newCase,
+        CaseWorkflow workflow,
         IExitConnection exit,
         IExitStore exits,
         IUiThread ui)
@@ -64,7 +70,9 @@ public sealed partial class ShellViewModel : ObservableObject
         _commands = commands;
         _exits = exits;
         _ui = ui;
+        _workflow = workflow;
         NewCase = newCase;
+        workflow.CasesListed += (_, _) => ui.Post(() => CommandHint = _commands.Hint(CommandText));
         session.Changed += (_, _) => OnPropertyChanged(nameof(CaseTitle));
         newCase.Created += (_, reply) => OnCreated(reply);
         exit.StatusChanged += (_, status) => ui.Post(() => ShowExit(status));
@@ -232,24 +240,44 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Offers a start point from a <c>chainsaw:</c> link. Nothing is written: with a case open it is put in the bar,
-    /// for Enter to add; with none it fills in Nytt ärende.
+    /// Offers a start point from a <c>chainsaw:</c> link. Nothing is written: with Nytt ärende shown it is added as a
+    /// line there; with a case open it is put in an empty bar, for Enter to add; with none it fills in Nytt ärende.
+    /// The value is written with its chain when it is not Bitcoin (<see cref="StartPointText"/>), so that a TRON tx is
+    /// never read as a Bitcoin txid. What the user is writing in the bar is never replaced.
     /// </summary>
     /// <param name="startPoint">The recognised start point.</param>
     public void Offer(ChainStartPoint startPoint)
     {
         ArgumentNullException.ThrowIfNull(startPoint);
-        if (_session.Current is null)
+        var text = StartPointText.Write(startPoint);
+        if (NewCase.IsOpen || _session.Current is null)
         {
-            NewCase.Show(startPoint.Value);
+            NewCase.Show(text);
             return;
         }
 
-        CommandText = startPoint.Value;
+        if (CommandText.Length > 0)
+        {
+            Answer(CommandReply.Done($"Från en länk: {text}. Raden har redan text, så den lades inte in."));
+            return;
+        }
+
+        CommandText = text;
         Answer(startPoint.IsSupported
             ? CommandReply.Done($"Från en länk: Enter lägger den som startpunkt i {_session.DisplayName}.")
             : CommandReply.Failed("Från en länk: " + CaseWorkflow.NotBuiltText(startPoint)));
     }
+
+    /// <summary>Shows an answer that came from elsewhere, for example the first case of the setup.</summary>
+    /// <param name="reply">The answer.</param>
+    public void Say(CommandReply reply)
+    {
+        ArgumentNullException.ThrowIfNull(reply);
+        Answer(reply);
+    }
+
+    /// <summary>Called when the shell is shown: the case files are listed anew off the UI thread.</summary>
+    public void OnShown() => _ = _workflow.RefreshCasesAsync();
 
     /// <summary>Shows an answer above the bar.</summary>
     /// <param name="reply">The answer.</param>

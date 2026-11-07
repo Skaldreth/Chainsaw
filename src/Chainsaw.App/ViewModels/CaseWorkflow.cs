@@ -48,6 +48,12 @@ public sealed class CaseWorkflow
     /// <summary>Keeps two openings, creations or closings from running at once.</summary>
     private bool _busy;
 
+    /// <summary>
+    /// The case files as last listed off the UI thread, so that suggestions never read the folder while typing
+    /// (principle 6).
+    /// </summary>
+    private IReadOnlyList<CaseFileInfo> _files = [];
+
     /// <summary>Creates the workflow.</summary>
     /// <param name="cases">The cases folder.</param>
     /// <param name="tracing">Where start points are added.</param>
@@ -64,26 +70,31 @@ public sealed class CaseWorkflow
     /// <summary>Gets whether an opening, creation or closing runs.</summary>
     public bool IsBusy => _busy;
 
+    /// <summary>Raised on the UI thread when the case files have been listed anew.</summary>
+    public event EventHandler? CasesListed;
+
+    /// <summary>
+    /// Lists the case files off the UI thread for the suggestions; called when the shell is shown and after every
+    /// opening, creation and closing. A folder that cannot be read gives no suggestions.
+    /// </summary>
+    /// <returns>A task that completes when the list is replaced.</returns>
+    public async Task RefreshCasesAsync()
+    {
+        _files = await ListAsync() ?? [];
+        CasesListed?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>
     /// Suggests case numbers for <c>/open</c>: the cases in the folder whose number starts with what is written, the
     /// most recently saved first (the case worked on last), without the one that is open.
     /// </summary>
     /// <param name="prefix">What is written so far.</param>
     /// <returns>The case numbers.</returns>
+    /// <remarks>Reads the list made by <see cref="RefreshCasesAsync"/>, never the folder.</remarks>
     public IReadOnlyList<string> SuggestCaseNumbers(string prefix)
     {
-        IReadOnlyList<CaseFileInfo> files;
-        try
-        {
-            files = _cases.List();
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return [];
-        }
-
         var open = _session.Current?.Info.CaseNumber;
-        return files
+        return _files
             .Where(file => file.CaseNumber.StartsWith(prefix.Trim(), StringComparison.OrdinalIgnoreCase))
             .Where(file => !string.Equals(file.CaseNumber, open, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(file => file.LastWrittenUtc)
@@ -111,6 +122,12 @@ public sealed class CaseWorkflow
 
         return await RunAlone(async () =>
         {
+            // Checked before the open case is closed, so that a mistyped number does not cost the user that case.
+            if (await ListAsync() is { } files && !files.Any(file => SameNumber(file.CaseNumber, number)))
+            {
+                return CommandReply.Failed(CaseTexts.For(CaseError.NotFound));
+            }
+
             var closed = await CloseCurrentAsync();
             ICase opened;
             try
@@ -166,6 +183,13 @@ public sealed class CaseWorkflow
         var isCreated = false;
         var reply = await RunAlone(async () =>
         {
+            // Checked before the open case is closed: a number that exists (also the open case's) is refused at once.
+            if (_session.Current is { } current && SameNumber(current.Info.CaseNumber, request.CaseNumber)
+                || (await ListAsync() ?? []).Any(file => SameNumber(file.CaseNumber, request.CaseNumber)))
+            {
+                return CommandReply.Failed(CaseTexts.For(CaseError.AlreadyExists));
+            }
+
             var closed = await CloseCurrentAsync();
             (ICase Case, List<string> Missed) created;
             try
@@ -179,7 +203,7 @@ public sealed class CaseWorkflow
 
             if (!Keep(created.Case))
             {
-                return CommandReply.Failed(LockedMeanwhileText);
+                return CommandReply.Failed(LockedAfterCreation(created.Case.Info.CaseNumber, created.Missed));
             }
 
             _session.Open(created.Case);
@@ -324,6 +348,40 @@ public sealed class CaseWorkflow
         return false;
     }
 
+    /// <summary>
+    /// Says that a case was created but closed again because Chainsaw locked, what was not done, and how to open it.
+    /// </summary>
+    /// <param name="number">The case number.</param>
+    /// <param name="missed">What could not be done after the case existed.</param>
+    /// <returns>The text.</returns>
+    private static string LockedAfterCreation(string number, IReadOnlyList<string> missed)
+    {
+        var notDone = missed.Count == 0 ? string.Empty : $" Det som inte hann göras: {string.Join(", ", missed)}.";
+        return $"Ärendet {number} skapades, men Chainsaw låstes, så det stängdes.{notDone} "
+            + $"Öppna det med /open {number}.";
+    }
+
+    /// <summary>Tells whether two case numbers name the same file (Windows ignores the case of letters).</summary>
+    /// <param name="first">One number.</param>
+    /// <param name="second">The other.</param>
+    /// <returns><see langword="true"/> when they are the same.</returns>
+    private static bool SameNumber(string first, string second) =>
+        string.Equals(first, second, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Lists the case files off the UI thread.</summary>
+    /// <returns>The files, or <see langword="null"/> when the folder cannot be read.</returns>
+    private async Task<IReadOnlyList<CaseFileInfo>?> ListAsync()
+    {
+        try
+        {
+            return await Task.Run(_cases.List);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Saves and closes the open case, if there is one.</summary>
     /// <returns>Its name, whether it was saved, and what to say before the next answer when it was not.</returns>
     private async Task<(string Name, bool Saved, string Prefix)> CloseCurrentAsync()
@@ -354,6 +412,8 @@ public sealed class CaseWorkflow
         _busy = true;
         try
         {
+            // A case that a lock started closing in the background must be closed before it can be opened again.
+            await _session.Settled;
             return await work();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -367,6 +427,7 @@ public sealed class CaseWorkflow
         finally
         {
             _busy = false;
+            _ = RefreshCasesAsync();
         }
     }
 }

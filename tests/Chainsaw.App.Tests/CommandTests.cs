@@ -47,11 +47,12 @@ public sealed class CommandTests
     }
 
     [Fact]
-    public void Tab_completes_a_command_name_and_then_a_case_number_worked_on_last_first()
+    public async Task Tab_completes_a_command_name_and_then_a_case_number_worked_on_last_first()
     {
         var rig = new GateRig(VaultState.Unlocked);
         rig.Cases.AddFile("2026-0100", 60);
         rig.Cases.AddFile("2026-0117", 1);
+        await rig.Workflow.RefreshCasesAsync();
         var shell = rig.Shell;
 
         shell.CommandText = "/op";
@@ -73,6 +74,7 @@ public sealed class CommandTests
     {
         var rig = new GateRig(VaultState.Unlocked);
         rig.Cases.AddFile("2026-0117", 1);
+        await rig.Workflow.RefreshCasesAsync();
 
         var reply = await rig.Commands.RunAsync("/open");
 
@@ -201,6 +203,48 @@ public sealed class CommandTests
 
         Assert.Equal("TRON är inte byggt än, så det kan inte bli en startpunkt.", tron.Text);
         Assert.Contains("inte byggd än", text.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_mistyped_number_does_not_close_the_open_case()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("A1", 1);
+        await rig.Workflow.OpenAsync("A1");
+        var open = (TestCase)rig.Session.Current!;
+
+        var reply = await rig.Commands.RunAsync("/open A9");
+
+        Assert.True(reply.IsError);
+        Assert.Same(open, rig.Session.Current);
+        Assert.Equal(0, open.Disposed);
+    }
+
+    [Fact]
+    public async Task A_new_case_with_the_open_cases_number_does_not_close_it()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        await rig.Workflow.CreateAsync(new NewCaseRequest("A1", string.Empty, []), null);
+        var open = (TestCase)rig.Session.Current!;
+
+        var creation = await rig.Workflow.CreateAsync(new NewCaseRequest("a1", string.Empty, []), null);
+
+        Assert.False(creation.IsCreated);
+        Assert.Equal(CaseTexts.For(CaseError.AlreadyExists), creation.Reply.Text);
+        Assert.Equal(0, open.Disposed);
+    }
+
+    [Fact]
+    public async Task A_tron_value_written_with_its_chain_is_never_taken_for_bitcoin()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        await rig.Workflow.CreateAsync(new NewCaseRequest("A1", string.Empty, []), null);
+
+        var reply = await rig.Commands.RunAsync("tron:" + Samples.Txid);
+
+        Assert.True(reply.IsError);
+        Assert.Contains("TRON", reply.Text, StringComparison.Ordinal);
+        Assert.Empty(rig.Tracing.Added);
     }
 
     /// <summary>A command that fails in an unexpected way.</summary>

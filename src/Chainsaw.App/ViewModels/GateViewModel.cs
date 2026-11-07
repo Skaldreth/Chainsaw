@@ -65,6 +65,7 @@ public sealed partial class GateViewModel : ObservableObject
         lockSignal.Requested += (_, _) => Lock();
         if (Mode == GateMode.Unlocked)
         {
+            shell.OnShown();
             links.Open();
         }
     }
@@ -167,6 +168,10 @@ public sealed partial class GateViewModel : ObservableObject
         if (Mode == GateMode.FirstRun && _vault.State == VaultState.Unlocked)
         {
             Open();
+            if (FirstRun.CreationReply is { } reply)
+            {
+                _shell.Say(reply);
+            }
         }
     }
 
@@ -189,6 +194,7 @@ public sealed partial class GateViewModel : ObservableObject
     {
         _autoLock.Touch();
         Mode = GateMode.Unlocked;
+        _shell.OnShown();
         _links.Open();
     }
 }

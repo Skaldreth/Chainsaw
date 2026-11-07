@@ -16,7 +16,7 @@ public static class CaseTexts
 
     /// <summary>What is said when the title cannot be stored.</summary>
     public static readonly string InvalidTitle =
-        $"Titeln får ha högst {CaseTitleRules.MaximumLength} tecken.";
+        $"Titeln får ha högst {CaseTitleRules.MaximumLength} tecken och inga styrtecken.";
 
     /// <summary>Gives the text for why a case could not be created, opened or closed.</summary>
     /// <param name="error">The reason.</param>
