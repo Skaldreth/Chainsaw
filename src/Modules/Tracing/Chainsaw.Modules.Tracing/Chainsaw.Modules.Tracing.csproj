@@ -7,6 +7,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Chainsaw.Modules.Tracing.Contracts\Chainsaw.Modules.Tracing.Contracts.csproj" />
+    <ProjectReference Include="..\..\Clustering\Chainsaw.Modules.Clustering.Contracts\Chainsaw.Modules.Clustering.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Chainsaw.Modules.Tracing.Tests" />
