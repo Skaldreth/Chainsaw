@@ -13,5 +13,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Chains\Chainsaw.Modules.Chains\Chainsaw.Modules.Chains.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Cases\Chainsaw.Modules.Cases\Chainsaw.Modules.Cases.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Esplora\*.json;Esplora\*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
