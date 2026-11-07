@@ -182,7 +182,8 @@ tests/                      xUnit, ett testprojekt per modul
   ID5): **Chainsaw är blockkedjan som såg**, en ordlek. Länkar som går i varandra, varannan framifrån och varannan från
   kanten; i variant B är en länk ett brett, lågt öga. Bitcoin-myntet (ID1) och sågkedjan (ID3) är avvisade. Låsskärmen och
   förstagångsinställningen har teckenfältet i ASCII-stil, som i Gawk, och på låsskärmen **löper kättingen uppifrån och ner
-  i vänsterdelen**, skriven i tecken, ganska stor men inte överdriven, och rör sig sakta (skiss ID7).
+  i vänsterdelen**, skriven i tecken, ganska stor men inte överdriven, och **står still** (användarens beslut
+  2026-11-07); bara teckenfältet bakom lever (skiss ID7).
 - **Färger:** Gawks gråskala (bakgrund `#191919`, paneler `#1F1F1F`, upphöjt `#262626`, markerat `#333333`, text `#EFEFEF` /
   `#B4B4B4` / `#8F8F8F`, lyckat `#8CC98F`, fel `#EC8C8C`) med en **egen accentfärg: Magenta `#E070B0`** (användarens beslut 2026-11-07, skiss ID6). Accenten betyder alltid offrens
   pengar och det valda, och krockar inte med grafens färger för börs, risk, annan kedja och tjänst.
