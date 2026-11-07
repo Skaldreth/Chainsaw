@@ -247,7 +247,11 @@ Samma arbetssätt som Gawk (användarens beslut 2026-11-06):
 - **Inget tappas bort:** allt som diskuteras men inte byggs nu står i `docs/TODO.md`.
 - **Processen efter storleken:** rena gränssnittsändringar byggs direkt och granskas av sessionen själv mot skissen. Ändringar
   som skriver i ärendet eller rör principerna byggs som en etapp med oberoende granskning av en granskande agent.
-  Sessionen bygger själv och lämnar aldrig bygget till en annan session.
+  Sessionen bygger själv och lämnar aldrig bygget till en annan session, **utom i en nattkörning**.
+- **Nattkörning** (användarens beslut 2026-11-07, som i Gawk): när användaren sover byggs en etapp i taget, **var och en i
+  en ny session** så att den får en färsk kontext. Huvudsessionen orkestrerar: startar etappen, väntar på rapporten,
+  kontrollerar bygget och testerna och startar nästa. Hur en etapp byggs står i `docs/HANDOFF.md` under *Så byggs
+  etapperna*. Gränssnitt som inte är skissat och godkänt byggs aldrig i en nattkörning; det skissas i stället och väntar.
 - **Korta meddelanden:** användaren skriver ofta kort medan arbetet pågår. Ta hand om dem i ordning och säg kort vad som görs.
 - **README nämner aldrig Polisen**, varken myndigheten eller ord som pekar dit. Skriv *utredning* och *beställning*.
 - **Testning:** molnmiljön är Linux och kan inte köra WPF (bygget fungerar med `EnableWindowsTargeting`). Användaren provar

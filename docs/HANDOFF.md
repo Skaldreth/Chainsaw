@@ -11,6 +11,45 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
 - **Etapp 1, skalet SH1b och temat** (2026-11-07, DEV-LOG): titelraden, ikonlisten, tomma sidor per vy, kommandoraden
   längst ner och statusraden. 41 tester gröna. **Inte provat på Windows**, se `docs/TESTER-INFOR-1.0.md`.
 
+## Nattkörningen 2026-11-07
+
+Användaren sover. Huvudsessionen (`session_013CLefr2kGog3dCFdfqN1yx`) orkestrerar, och varje etapp byggs i en egen ny
+session. Etapperna i ordning; en etapp som är klar markeras här av huvudsessionen.
+
+| Etapp | Innehåll | Läge |
+| --- | --- | --- |
+| 2 | **Security:** huvudnyckeln (PBKDF2-SHA512, 600 000 iterationer), datanyckeln (AES-256-GCM) som lindas in, valvet i `%LOCALAPPDATA%\Chainsaw\` för API-nycklar, operatörsprofilen, låst och upplåst läge | Väntar |
+| 3 | **Cases:** ärendefilen `.cut` (SQLite3 Multiple Ciphers, nyckel ur valvet), schemamigreringar per modul, journalen och hashkedjan som bara fylls på, `/verify` som tjänst | Väntar |
+| 4 | **Network:** utgångarna som modell och `IExitHttp`, som **vägrar** när ingen utgång är ansluten (princip 4); WireGuard-tunneln själv senare | Väntar |
+| 5 | **Chains:** Bitcoin-modellen (block, tx, inputs, outputs, adresser i `Satoshi`), `IBitcoinSource`, Esplora-källan genom `IExitHttp`, varje råsvar sparat med SHA-256 och blockhöjd i ärendet, offline ur ärendet; tester mot syntetiska svar | Väntar |
+| 6 | **Clustering:** heuristikerna common-input-ownership v1, CoinJoin v1 (stoppar sammanslagning), växeladress v1 och peel chain v1, med namn, version och tx; kluster med sammanslagningar och uppbrytningar som minns; tester mot ett facit av syntetiska mönster | Väntar |
+| 7 | **Tracing:** grafen som modell (aktörer, adresser, tx, kanter, kant till annan kedja), spårningsmetoderna FIFO och haircut, slut på spåret med orsak; tester | Väntar |
+| 8 | **Attribution:** etiketter med ursprung, OFAC-listans kryptoadresser ur en sparad fil, etikettbiblioteket som smittar mellan ärenden (CLAUDE.md, *Etiketter smittar*); tester | Väntar |
+
+Gränssnittet byggs inte i natt utöver det som redan är godkänt. Huvudsessionen skissar i slutet av natten det som behövs
+härnäst (förstagångsinställningen och Nytt ärende) så att användaren kan välja på morgonen.
+
+### Så byggs etapperna
+
+1. Läs `CLAUDE.md`, denna fil och `docs/DEV-LOG.md`. Installera .NET med `apt-get update && apt-get install -y
+   dotnet-sdk-10.0`. Hämta grenen `claude/busy-cray-wj01k4` och arbeta på den.
+2. Bygg bara etappens innehåll. Modulär monolit: publika typer i `*.Contracts`, `internal` i implementationen, moduler
+   beror bara på varandras Contracts. Varje typ och metod har XML-dokumentation (också `internal` och `private`). Koden
+   och kommentarerna på engelska, professionell C#, rader under ungefär 120 tecken.
+3. Skriv tester för allt som byggs (xUnit, i modulens testprojekt). Heuristiker testas mot ett facit av syntetiska tx.
+   Inga riktiga adresser eller ärenden i testerna; nätet används aldrig i testerna.
+4. `dotnet build Chainsaw.slnx` utan varningar och `dotnet test Chainsaw.slnx` gröna.
+5. **Oberoende granskning:** starta en granskande agent (Agent-verktyget) som läser diffen mot principerna i CLAUDE.md
+   och letar fel, och märker fynden C (kritiskt), I (viktigt) eller M (mindre). Rätta alla C och I; M rättas eller skrivs
+   i `docs/TODO.md`. Granska igen tills inga C eller I återstår.
+6. Skriv en post i `docs/DEV-LOG.md` (egna beslut, avsteg, det som återstår), uppdatera tabellen ovan (bara den egna
+   etappens rad: *Klar*), lägg öppna punkter i `docs/TODO.md` och det som ska provas på Windows i
+   `docs/TESTER-INFOR-1.0.md`.
+7. Committa med ett beskrivande meddelande och pusha till `claude/busy-cray-wj01k4`.
+8. Skicka en rapport till huvudsessionen med `send_message` (session `session_013CLefr2kGog3dCFdfqN1yx`): vad som byggts,
+   antal tester, granskningens resultat och commit. Stötte etappen på ett beslut som bara användaren kan ta: välj det
+   säkraste, skriv det i TODO under *Väntar på beslut* och säg det i rapporten.
+
 ## Nästa steg
 
 1. **Prova skalet på Windows** efter `docs/TESTER-INFOR-1.0.md` och skicka skärmdumpar.
