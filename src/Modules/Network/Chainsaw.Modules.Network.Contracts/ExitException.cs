@@ -41,7 +41,7 @@ public class ExitException : Exception
         ExitError.ResponseTooLarge => "Svaret var större än vad Chainsaw tar emot.",
         ExitError.RequestFailed => "Uppslaget misslyckades på vägen genom utgången.",
         ExitError.ConnectionLost => "Utgången kopplades ner medan uppslaget pågick.",
-        ExitError.Offline => "Datorn har inget nät. Chainsaw gör inga uppslag förrän nätet är tillbaka.",
+        ExitError.Offline => "Datorn når inte internet. Chainsaw gör inga uppslag förrän nätet är tillbaka.",
         ExitError.NotLocal =>
             "Adressen pekar inte på datorn eller ett privat nät. En lokal endpoint nås bara där, och inget skickades.",
         _ => "Uppslaget genom utgången misslyckades.",

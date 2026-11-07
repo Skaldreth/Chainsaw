@@ -38,7 +38,13 @@ public static class NetworkModule
         services.AddSingleton<IWindowsHandlerFactory, WindowsHandlerFactory>();
         services.AddSingleton<ExitRouteChoice>();
         services.AddSingleton<IExitRoute>(provider => provider.GetRequiredService<ExitRouteChoice>());
-        services.TryAddSingleton<INetworkPresence, NetworkPresence>();
+        services.TryAddSingleton<INetworkSignals, WindowsNetworkSignals>();
+        services.TryAddSingleton<IInternetProbe>(provider => new InternetProbe(
+            provider.GetRequiredService<IWindowsHandlerFactory>(), TimeProvider.System));
+        services.TryAddSingleton<INetworkPresence>(provider => new NetworkPresence(
+            provider.GetRequiredService<INetworkSignals>(),
+            provider.GetRequiredService<IInternetProbe>(),
+            TimeProvider.System));
         services.AddSingleton<IExitHttp, ExitHttp>();
 
         // The user's own node on the computer or a private network: straight there, never through the way out.

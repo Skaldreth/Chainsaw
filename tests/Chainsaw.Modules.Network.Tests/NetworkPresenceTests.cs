@@ -5,8 +5,8 @@ namespace Chainsaw.Modules.Network.Tests;
 
 /// <summary>
 /// Windows as the way out without a network (CLAUDE.md, <em>Windows som utgång</em>): nothing leaves and the refusal
-/// says offline honestly, VPN is unaffected, and lookups go again when the network is back. The presence itself tells
-/// each real change once, and a listener that throws never keeps it from the others.
+/// says offline honestly, VPN is unaffected, and lookups go again when the network is back. The presence itself is
+/// tested in <see cref="PresenceProbingTests"/>.
 /// </summary>
 public sealed class NetworkPresenceTests
 {
@@ -24,7 +24,7 @@ public sealed class NetworkPresenceTests
             () => _harness.Http.SendAsync(ExitRequest.Get(Address)));
 
         Assert.Equal(ExitError.Offline, refusal.Error);
-        Assert.Contains("inget nät", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("når inte internet", refusal.Message, StringComparison.Ordinal);
         Assert.All(_harness.WindowsHandlers.Handlers, handler => Assert.Empty(handler.Requests));
     }
 
@@ -65,51 +65,6 @@ public sealed class NetworkPresenceTests
     }
 
     [Fact]
-    public void The_presence_tells_each_real_change_once()
-    {
-        using var presence = new NetworkPresence();
-        var told = new List<bool>();
-        presence.Changed += (_, available) => told.Add(available);
-        var start = presence.IsAvailable;
-
-        presence.Set(start);
-        presence.Set(!start);
-        presence.Set(!start);
-        presence.Set(start);
-
-        Assert.Equal([!start, start], told);
-        Assert.Equal(start, presence.IsAvailable);
-    }
-
-    [Fact]
-    public void A_listener_that_throws_never_keeps_the_change_from_the_others()
-    {
-        using var presence = new NetworkPresence();
-        var told = false;
-        presence.Changed += (_, _) => throw new InvalidOperationException("listener");
-        presence.Changed += (_, _) => told = true;
-
-        presence.Set(!presence.IsAvailable);
-
-        Assert.True(told);
-    }
-
-    [Fact]
-    public void After_dispose_no_change_is_followed()
-    {
-        var presence = new NetworkPresence();
-        var start = presence.IsAvailable;
-        var told = 0;
-        presence.Changed += (_, _) => told++;
-
-        presence.Dispose();
-        presence.Set(!start);
-
-        Assert.Equal(0, told);
-        Assert.Equal(start, presence.IsAvailable);
-    }
-
-    [Fact]
     public void The_module_registers_the_presence_and_keeps_one_already_registered()
     {
         var fake = new FakePresence();
@@ -117,7 +72,11 @@ public sealed class NetworkPresenceTests
             .AddSingleton<INetworkPresence>(fake)
             .AddNetworkModule()
             .BuildServiceProvider();
-        using var plain = new ServiceCollection().AddNetworkModule().BuildServiceProvider();
+        // Without a network, so that the real presence sends no probe from the tests.
+        using var plain = new ServiceCollection()
+            .AddSingleton<INetworkSignals>(new FakeSignals { HasNetwork = false })
+            .AddNetworkModule()
+            .BuildServiceProvider();
 
         Assert.Same(fake, withFake.GetRequiredService<INetworkPresence>());
         Assert.IsType<NetworkPresence>(plain.GetRequiredService<INetworkPresence>());

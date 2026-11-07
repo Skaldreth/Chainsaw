@@ -25,7 +25,8 @@ public enum ExitError
     NotLocal,
 
     /// <summary>
-    /// Windows is the way out and the computer has no network (<see cref="INetworkPresence"/>), so nothing was sent.
+    /// Windows is the way out and the computer does not reach the internet (<see cref="INetworkPresence"/>), so nothing
+    /// was sent.
     /// </summary>
     Offline,
 }

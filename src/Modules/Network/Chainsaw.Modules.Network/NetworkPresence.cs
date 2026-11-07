@@ -1,31 +1,74 @@
-using System.Net.NetworkInformation;
 using Chainsaw.Modules.Network.Contracts;
 
 namespace Chainsaw.Modules.Network;
 
 /// <summary>
-/// Follows whether the computer has a network, from <see cref="NetworkChange.NetworkAvailabilityChanged"/>, and reads
-/// it at the start with <see cref="NetworkInterface.GetIsNetworkAvailable()"/>. Windows counts a network as available
-/// when any interface other than loopback and tunnels is up, so this says <em>no network</em> only when the computer
-/// truly has none, never that the internet answers.
+/// Whether the internet answers through the way out through Windows: the computer has a network
+/// (<see cref="INetworkSignals"/>) <em>and</em> the last probe (<see cref="IInternetProbe"/>) reached the internet. A
+/// network alone is not enough, since a Wi-Fi with a login page is a network that reaches nothing (CLAUDE.md,
+/// <em>Windows som utgång</em>: green only while the computer reaches the internet).
 /// </summary>
+/// <remarks>
+/// The probe runs in the background: at the start, at once when the network comes, goes or changes address, every
+/// <see cref="SettledInterval"/> while it reaches the internet and every <see cref="RetryInterval"/> while it does not,
+/// so that Chainsaw turns green soon after the login. Without a network no probe is sent. Until the first probe has
+/// answered, the network alone counts, so that the start is not red for nothing.
+/// </remarks>
 internal sealed class NetworkPresence : INetworkPresence, IDisposable
 {
-    /// <summary>Guards the value, so that a change and a read never cross.</summary>
+    /// <summary>How long to wait between probes while the internet answers.</summary>
+    internal static readonly TimeSpan SettledInterval = TimeSpan.FromSeconds(60);
+
+    /// <summary>How long to wait between probes while the network has not reached the internet.</summary>
+    internal static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(10);
+
+    /// <summary>Guards the state, so that a change and a read never cross.</summary>
     private readonly Lock _gate = new();
 
-    /// <summary>Whether the computer has a network, as last told.</summary>
-    private bool _available;
+    /// <summary>Where the network's signals come from.</summary>
+    private readonly INetworkSignals _signals;
 
-    /// <summary>Whether the module has been disposed, after which no change is followed.</summary>
+    /// <summary>Asks whether the internet answers.</summary>
+    private readonly IInternetProbe _probe;
+
+    /// <summary>Times the waits between probes.</summary>
+    private readonly TimeProvider _time;
+
+    /// <summary>Told each wait the loop starts, with its length (<see langword="null"/>: until the network comes).</summary>
+    private readonly Action<TimeSpan?>? _waiting;
+
+    /// <summary>Stops the loop; the loop disposes it when it ends.</summary>
+    private readonly CancellationTokenSource _stop = new();
+
+    /// <summary>Whether the computer has a network, as last told.</summary>
+    private bool _hasNetwork;
+
+    /// <summary>Whether the last probe reached the internet; <see langword="null"/> before the first has answered.</summary>
+    private bool? _reached;
+
+    /// <summary>Whether the presence has been disposed, after which no change is told.</summary>
     private bool _disposed;
 
-    /// <summary>Creates the presence and starts following Windows.</summary>
-    public NetworkPresence()
+    /// <summary>Completed when the network's signals change, so that the loop probes at once.</summary>
+    private TaskCompletionSource _wake = NewWake();
+
+    /// <summary>Creates the presence and starts following the network and probing.</summary>
+    /// <param name="signals">Where the network's signals come from.</param>
+    /// <param name="probe">Asks whether the internet answers.</param>
+    /// <param name="time">Times the waits; the tests move it by hand.</param>
+    /// <param name="waiting">Told each wait the loop starts; only the tests listen.</param>
+    internal NetworkPresence(
+        INetworkSignals signals, IInternetProbe probe, TimeProvider time, Action<TimeSpan?>? waiting = null)
     {
+        _signals = signals;
+        _probe = probe;
+        _time = time;
+        _waiting = waiting;
+
         // Followed first and read after, so that a change in between is never lost.
-        NetworkChange.NetworkAvailabilityChanged += OnAvailabilityChanged;
-        _available = NetworkInterface.GetIsNetworkAvailable();
+        signals.Changed += OnSignalsChanged;
+        _hasNetwork = signals.HasNetwork;
+        _ = Task.Run(() => RunAsync(_stop.Token));
     }
 
     /// <inheritdoc />
@@ -38,46 +81,160 @@ internal sealed class NetworkPresence : INetworkPresence, IDisposable
         {
             lock (_gate)
             {
-                return _available;
+                return AvailableLocked();
             }
         }
     }
 
-    /// <summary>Stops following Windows.</summary>
+    /// <summary>Stops following the network and probing.</summary>
     public void Dispose()
     {
         lock (_gate)
         {
-            _disposed = true;
-        }
-
-        NetworkChange.NetworkAvailabilityChanged -= OnAvailabilityChanged;
-    }
-
-    /// <summary>Keeps the new value and tells it, once per real change.</summary>
-    /// <param name="sender">Not used.</param>
-    /// <param name="e">Whether the computer has a network now.</param>
-    private void OnAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e) => Set(e.IsAvailable);
-
-    /// <summary>Keeps a value and tells it when it differs from the last.</summary>
-    /// <param name="available">Whether the computer has a network now.</param>
-    internal void Set(bool available)
-    {
-        lock (_gate)
-        {
-            if (_disposed || _available == available)
+            if (_disposed)
             {
                 return;
             }
 
-            _available = available;
+            _disposed = true;
+        }
+
+        _signals.Changed -= OnSignalsChanged;
+        _stop.Cancel();
+    }
+
+    /// <summary>Creates a wake that continues its waiter off the signalling thread.</summary>
+    /// <returns>The wake.</returns>
+    private static TaskCompletionSource NewWake() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Reads the network again, tells a change and wakes the loop to probe at once.</summary>
+    /// <param name="sender">Not used.</param>
+    /// <param name="e">Not used.</param>
+    private void OnSignalsChanged(object? sender, EventArgs e)
+    {
+        var hasNetwork = _signals.HasNetwork;
+        Update(() => _hasNetwork = hasNetwork);
+        lock (_gate)
+        {
+            _wake.TrySetResult();
+        }
+    }
+
+    /// <summary>Probes while the network is there, and waits as long as the last answer says.</summary>
+    /// <param name="token">Stops the loop.</param>
+    /// <returns>A task that ends when the presence is disposed.</returns>
+    private async Task RunAsync(CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                var wake = ArmWake();
+                var wait = await ProbeOnceAsync(token).ConfigureAwait(false);
+                await WaitAsync(wait, wake, token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // Disposed.
+        }
+        finally
+        {
+            _stop.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Replaces the wake before probing, so that a signal during the probe makes the loop probe again at once.
+    /// </summary>
+    /// <returns>The task the coming wait also ends on.</returns>
+    private Task ArmWake()
+    {
+        lock (_gate)
+        {
+            _wake = NewWake();
+            return _wake.Task;
+        }
+    }
+
+    /// <summary>Probes once when the computer has a network, and keeps the answer.</summary>
+    /// <param name="token">Stops the probe.</param>
+    /// <returns>How long to wait before the next probe, or <see langword="null"/> for until the network changes.</returns>
+    private async Task<TimeSpan?> ProbeOnceAsync(CancellationToken token)
+    {
+        lock (_gate)
+        {
+            if (!_hasNetwork)
+            {
+                return null;
+            }
+        }
+
+        var reached = await ReachesAsync(token).ConfigureAwait(false);
+        Update(() => _reached = reached);
+        return reached ? SettledInterval : RetryInterval;
+    }
+
+    /// <summary>Asks the probe, counting a probe that throws as not reached.</summary>
+    /// <param name="token">Stops the probe.</param>
+    /// <returns>Whether the internet answered.</returns>
+    private async Task<bool> ReachesAsync(CancellationToken token)
+    {
+        try
+        {
+            return await _probe.ReachesInternetAsync(token).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException && !token.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Waits the time given, or until the network's signals change.</summary>
+    /// <param name="wait">How long, or <see langword="null"/> for until the signals change.</param>
+    /// <param name="wake">Ends the wait when the signals change.</param>
+    /// <param name="token">Stops the wait.</param>
+    /// <returns>A task that ends when the next probe is due.</returns>
+    private async Task WaitAsync(TimeSpan? wait, Task wake, CancellationToken token)
+    {
+        using var delayStop = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var delay = Task.Delay(wait ?? Timeout.InfiniteTimeSpan, _time, delayStop.Token);
+        _waiting?.Invoke(wait);
+        await Task.WhenAny(delay, wake).ConfigureAwait(false);
+        await delayStop.CancelAsync().ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+    }
+
+    /// <summary>Tells whether lookups may go, while the gate is held.</summary>
+    /// <returns>A network, and the internet reached or not yet probed.</returns>
+    private bool AvailableLocked() => _hasNetwork && (_reached ?? true);
+
+    /// <summary>Changes the state and tells the new value when it differs, once per real change.</summary>
+    /// <param name="change">Changes the state, under the gate.</param>
+    private void Update(Action change)
+    {
+        bool after;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            var before = AvailableLocked();
+            change();
+            after = AvailableLocked();
+            if (before == after)
+            {
+                return;
+            }
         }
 
         foreach (var handler in Changed?.GetInvocationList().Cast<EventHandler<bool>>() ?? [])
         {
             try
             {
-                handler(this, available);
+                handler(this, after);
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {

@@ -37,7 +37,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>What the exit's tooltip says when Windows is the way out and the computer has no network.</summary>
     public const string WindowsOfflineSourceText =
-        "Offline: datorn har inget nät. Det ärendet redan har visas, men inget nytt hämtas.";
+        "Offline: datorn når inte internet. Det ärendet redan har visas, men inget nytt hämtas.";
 
     /// <summary>
     /// What Chainsaw says while no exit is connected (principle 9), in the exit's tooltip and in the graph alike, so
