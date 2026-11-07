@@ -360,6 +360,12 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Tokens är TK1a** (användarens beslut 2026-11-07): linjerna behåller bildspråket (accent och tjocklek), tokenen står
   som ett litet märke först i beloppet (₮, Ξ) med SEK litet under, en swap är ett litet piller på linjen (₮ → Ξ), och
   inspektören listar saldot per token med utgivaren och snöflingan *Kan frysas*.
+- **Soptunnan** (användarens beslut 2026-11-07): en ikon nere till vänster som, när man drar något nära, växer animerat
+  till en yta att släppa på. **Allt som går att dra går att slänga.** Att slänga är **bara ett filter**: inget tas bort
+  ur ärendet (princip 1), det slängda döljs och kan läggas tillbaka. Slängs något mitt i grafen som har kopplingar vidare,
+  bevakningar eller liknande, **varnar** Chainsaw att det också åker ned i soptunnan, och det som följer med hänger under
+  det man slängde. Soptunnan har en **egen vy** med allt som slängts, som ett träd: det man slängde överst och det som
+  följde med under, i flera led. Formen skissas (SO1).
 - **Begäran är BG1b** (användarens beslut 2026-11-07, ändrat från BG1a samma dag): vyn Begäran i pillret listar alla
   uttag som spårade pengar nått i ärendet, med den valda begäran som stor förhandsvisning av Markdown-filen till höger,
   brickor för vilka insättningar som tas med och för spåret dit, och *Exportera .md …*. Exporterade filer står under
@@ -456,4 +462,5 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
 | **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten) | BV1a och BV2a valda, med animerade ringar vid träff |
 | **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald |
+| **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | Ritas |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor) | KF1a vald, med områdena från KF1b; byggd i etapp 22 |

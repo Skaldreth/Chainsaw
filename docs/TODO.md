@@ -39,6 +39,10 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 
 ## Väntar på skiss
 
+- **Soptunnan** (CLAUDE.md, användarens beslut 2026-11-07): släppytan nere till vänster, varningen med det som följer
+  med och vyn med det slängda som ett träd. Skissas (SO1). Sessionens förslag: en bevakning på något som slängs pausas
+  och går igen när det läggs tillbaka.
+
 - **Förstagångsinställningens steg Utgång** (etapp 19): erbjuder bara en WireGuard-fil eller *Senare*, och VPN är
   förvalt. Valet *Windows* eller *VPN* där, som de två korten i ST1a, behöver en ändring av FS1a.
 
