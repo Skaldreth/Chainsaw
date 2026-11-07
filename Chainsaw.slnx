@@ -45,6 +45,7 @@
     <Project Path="src/Modules/Requests/Chainsaw.Modules.Requests/Chainsaw.Modules.Requests.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Chainsaw.App.Tests/Chainsaw.App.Tests.csproj" />
     <Project Path="tests/Chainsaw.SharedKernel.Tests/Chainsaw.SharedKernel.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Cases.Tests/Chainsaw.Modules.Cases.Tests.csproj" />
     <Project Path="tests/Chainsaw.Modules.Security.Tests/Chainsaw.Modules.Security.Tests.csproj" />

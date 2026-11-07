@@ -136,6 +136,10 @@ den låses upp, och användaren väljer ärende.
 ```
 src/
   Chainsaw.App/             WPF-skal: fönster, tema, vyer (MVVM), grafen, kommandorad, inställningar, guiden
+    Navigation/             Vyerna och deras kortkommandon i en tabell, utan WPF (testas i tests/Chainsaw.App.Tests)
+    ViewModels/             Vymodellerna, utan WPF (testas i tests/Chainsaw.App.Tests)
+    Controls/               Egna kontroller och det som behöver WPF: GridIcon, kortkommandon, omvandlare
+    Themes/                 Colors, Icons (24-rutnätet), Logo (kättingen), Controls
   Chainsaw.SharedKernel/    Klocka, operatör, kommandon, resultat, kedjor och belopp (satoshi, wei) som egna typer
   Modules/
     Cases/                  Ärenden (en krypterad .cut-fil per ärende), journal, kommandologg, hashkedja
@@ -211,6 +215,11 @@ tests/                      xUnit, ett testprojekt per modul
   pengarna spenderas** (spel som två spelkort, handel, presentkort), **rött är risk och slut på spåret** (darknet, garantimarknad,
   mixer, CoinJoin, sanktionerad). Markeringen **Kan frysas** (en snöflinga) sitter på adresser med USDT eller USDC, eftersom
   utgivaren kan frysa dem på begäran.
+- **Skalet är SH1b** (användarens beslut 2026-11-07, byggt): en smal **ikonlist** till vänster med vyernas ikoner och
+  namnet på hovring, i ordningen Nytt · Graf, Tidslinje, Flöde, Exponering, Begäran, Bevakning, Etiketter · Terminal,
+  Guide, Inställningar (`src/Chainsaw.App/Navigation/ViewTable.cs`, som också ger kortkommandona). **Sök och kommandon
+  finns bara i den flytande raden längst ner** (Ctrl+K eller Ctrl+F), aldrig i huvudet eller som egen vy. Antal visas som
+  en prick på ikonen, inte som en siffra.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
   Etiketter, Terminal och Guide.
@@ -219,6 +228,8 @@ tests/                      xUnit, ett testprojekt per modul
   CoinJoin, peel chain) har ett *?* som öppnar rätt avsnitt. Texterna ligger i repot och skrivs medan funktionerna byggs.
 - **Visa aldrig påhittade data** eller funktioner som inte finns. Saknas något, skriv det ärligt ("Inte byggt än", "Offline").
 - **Kortkommandon** är viktiga och visas i menyer och verktygstips.
+- **Ikoner** ritas på ett rutnät på 24 × 24 med runda ändar, i samma stil som Lucide, och visas med `GridIcon`, som håller
+  linjen 1,5 px på skärmen i alla storlekar (sätt aldrig en egen linjebredd). 20 px i listen, 16 px i knappar, minst 12 px.
 
 ## Arbetssätt
 

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <!--
+    Chainsaw.App is a WPF program, which tests cannot load where there is no Windows desktop runtime, as in the cloud.
+    The parts that use no WPF on purpose are compiled in here instead: the views' table in Navigation/ and the shell's
+    view models in ViewModels/.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\Chainsaw.App\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\ViewModels\*.cs" Link="ViewModels\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

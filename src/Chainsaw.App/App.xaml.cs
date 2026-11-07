@@ -9,6 +9,7 @@ using Chainsaw.Modules.Tracing;
 using Chainsaw.Modules.Pricing;
 using Chainsaw.Modules.Monitoring;
 using Chainsaw.Modules.Requests;
+using Chainsaw.App.ViewModels;
 using Chainsaw.SharedKernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,8 +17,7 @@ using Microsoft.Extensions.Hosting;
 namespace Chainsaw.App;
 
 /// <summary>
-/// The application: builds the host with every module and shows the main window. The shell itself is drawn after the
-/// sketches SH1a and SH1b are decided; until then the window is empty.
+/// The application: builds the host with every module and shows the main window with the shell (sketch SH1b).
 /// </summary>
 public partial class App : Application
 {
@@ -47,7 +47,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    /// <summary>Registers the clock, every module and the main window in one container.</summary>
+    /// <summary>Registers the clock, every module, the shell and the main window in one container.</summary>
     /// <returns>The host, not yet started.</returns>
     private static IHost BuildHost() =>
         Host.CreateDefaultBuilder()
@@ -63,6 +63,7 @@ public partial class App : Application
                 .AddPricingModule()
                 .AddMonitoringModule()
                 .AddRequestsModule()
-                    .AddSingleton<MainWindow>())
+                    .AddSingleton<ShellViewModel>()
+                .AddSingleton<MainWindow>())
             .Build();
 }
