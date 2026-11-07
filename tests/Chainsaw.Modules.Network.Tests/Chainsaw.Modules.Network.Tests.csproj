@@ -13,5 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Network\Chainsaw.Modules.Network\Chainsaw.Modules.Network.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Security\Chainsaw.Modules.Security\Chainsaw.Modules.Security.csproj" />
   </ItemGroup>
 </Project>

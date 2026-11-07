@@ -55,6 +55,7 @@ public sealed class SecurityModuleTests : IDisposable
         provider.GetRequiredService<IApiKeyStore>().Save(new ApiKey("esplora", "", "secret-value-1"));
         provider.GetRequiredService<IOperatorProfileStore>().Save(new OperatorProfile("Test Operator", "", ""));
         provider.GetRequiredService<IPurposeKeys>().DeriveKey("cases/file-key", new byte[32]);
+        provider.GetRequiredService<IVaultSecrets>().Save("network/exits/a", "value");
 
         Assert.True(File.Exists(Path.Combine(_directory, VaultFile.FileName)));
         Assert.Equal("secret-value-1", provider.GetRequiredService<IApiKeyStore>().Find("esplora")?.Secret);

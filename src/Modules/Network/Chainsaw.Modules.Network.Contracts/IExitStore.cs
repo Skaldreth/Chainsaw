@@ -1,0 +1,44 @@
+namespace Chainsaw.Modules.Network.Contracts;
+
+/// <summary>
+/// The exits Chainsaw knows, and the one the program uses. The exits and their configurations are kept encrypted in
+/// the vault, so every member needs an unlocked vault and throws the vault's own exception (locked) otherwise.
+/// </summary>
+public interface IExitStore
+{
+    /// <summary>Lists the exits, ordered by name.</summary>
+    /// <returns>The exits, without their configurations.</returns>
+    IReadOnlyList<ExitInfo> List();
+
+    /// <summary>Adds an exit and stores its configuration in the vault.</summary>
+    /// <param name="name">The name; not blank, at most <see cref="ExitRules.MaximumNameLength"/> characters.</param>
+    /// <param name="place">The country or city; may be empty, at most <see cref="ExitRules.MaximumPlaceLength"/>.</param>
+    /// <param name="kind">The sort of tunnel.</param>
+    /// <param name="configuration">
+    /// The tunnel's configuration, for WireGuard the text of the <c>.conf</c> file; not blank, at most
+    /// <see cref="ExitRules.MaximumConfigurationLength"/> characters. It holds the private key and is never logged.
+    /// </param>
+    /// <returns>The new exit with its id.</returns>
+    /// <exception cref="ArgumentException">A value is not allowed.</exception>
+    ExitInfo Add(string name, string place, ExitKind kind, string configuration);
+
+    /// <summary>
+    /// Removes an exit and its configuration. When it is the selected exit, the selection is cleared and the exit is
+    /// disconnected first.
+    /// </summary>
+    /// <param name="id">The exit.</param>
+    /// <returns><see langword="true"/> when an exit was removed.</returns>
+    Task<bool> RemoveAsync(Guid id);
+
+    /// <summary>Finds the program's selected exit.</summary>
+    /// <returns>The exit, or <see langword="null"/> when none is selected.</returns>
+    ExitInfo? FindSelected();
+
+    /// <summary>
+    /// Selects the exit the program uses, or clears the selection. A connected exit that is no longer selected is
+    /// disconnected first, so a request can never leave through an exit the user has not chosen.
+    /// </summary>
+    /// <param name="id">The exit, or <see langword="null"/> to select none.</param>
+    /// <exception cref="ArgumentException">No exit has the id.</exception>
+    Task SelectAsync(Guid? id);
+}

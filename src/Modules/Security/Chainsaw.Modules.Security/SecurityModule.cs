@@ -4,8 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Chainsaw.Modules.Security;
 
 /// <summary>
-/// Registers the module Security: the vault with the master key, the API keys, the operator profile and the keys
-/// derived for other modules.
+/// Registers the module Security: the vault with the master key, the API keys, the operator profile, other modules'
+/// named secrets and the keys derived for them.
 /// </summary>
 public static class SecurityModule
 {
@@ -30,6 +30,7 @@ public static class SecurityModule
         services.AddSingleton<IApiKeyStore, ApiKeyStore>();
         services.AddSingleton<IOperatorProfileStore, OperatorProfileStore>();
         services.AddSingleton<IPurposeKeys, PurposeKeys>();
+        services.AddSingleton<IVaultSecrets, VaultSecrets>();
         return services;
     }
 }
