@@ -70,7 +70,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     Ledtrådsnoden `+N tx` och samlingsnoden (EX1a, EX1b och EX2b, godkända) byggs, så att grafen aldrig växer
     okontrollerat (princip 7). Byggs som en etapp, eftersom urvalet sparas i ärendet.
 23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
-    WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald 2026-11-07**, byggs.
+    WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald och byggd 2026-11-07.**
 24. **En ren kommentarsnod i grafen** (användarens önskemål 2026-11-07): en nod som bara är en anteckning, skriven i
     Markdown. Gawks Markdown-parser tas över (`Gawk.SharedKernel/Text/Markdown.cs`, `Views/MarkdownView.cs`,
     `Views/Editor/MarkdownEditor.cs` och `MarkdownColorizer.cs`). Kommentaren skrivs **direkt i noden** ute i grafen, inte i en
