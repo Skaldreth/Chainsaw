@@ -120,6 +120,13 @@ fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händ
   kursen vid en tidpunkt, och kursen sparas i ärendet med källa. Valutan att räkna i ställs in (SEK som förval).
 - **Uppslag kräver inget godkännande** (användarens beslut 2026-11-06), men går alltid genom vald utgång (princip 4).
 - Källornas API-nycklar ligger i valvet, aldrig i ärendet.
+- **Källornas adresser hanteras per kedja** (användarens beslut 2026-11-07): användaren lägger till, prioriterar och tar
+  bort endpoints för varje kedja i inställningarna, och väljer ett av tre lägen per kedja:
+  - **Snabbast** (förval): Chainsaw provar endpointarna när den startar, genom utgången och med ett uppslag som inte
+    säger något om ärendet (kedjans höjd), och använder den snabbaste som svarar rätt.
+  - **Prioriterad lista:** endpointarna används i användarens ordning, och nästa tas när en inte svarar.
+  - **Av:** inga uppslag görs för kedjan, och det visas ärligt.
+  Varje sparat råsvar säger vilken endpoint det kom från (princip 1).
 
 ### Öppna med en adress
 
