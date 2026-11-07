@@ -14,7 +14,7 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   ska kunna frågas oftare.
 - **Rapporten:** hur redovisningen byggs (som i Gawk med bilagor, eller enklare underlag för underrättelse). Bestäms när vi
   kommer dit.
-- **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Fråga kryptospåraren vilken som används i praktiken.
+- **Spårningsmetod som förval:** FIFO, LIFO, haircut eller poison. Användaren frågar kryptospåraren vilken som används i praktiken (planerat 2026-11-08).
 
 ## Väntar på skiss
 
