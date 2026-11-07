@@ -32,17 +32,30 @@ internal sealed class BackgroundPlanFile(BackgroundFolder folder) : IBackgroundP
     /// <inheritdoc/>
     public BackgroundPlan Read()
     {
+        TryRead(out var plan);
+        return plan;
+    }
+
+    /// <inheritdoc/>
+    public bool TryRead(out BackgroundPlan plan)
+    {
         try
         {
-            return folder.ReadProtected(FilePath, BackgroundPurposes.Plan) is { } json
+            plan = folder.ReadProtected(FilePath, BackgroundPurposes.Plan) is { } json
                 ? BackgroundCodec.DecodePlan(json)
                 : BackgroundPlan.Empty;
+            return true;
         }
-        catch (Exception exception) when (exception is InvalidDataException or IOException
-            or UnauthorizedAccessException or PlatformNotSupportedException)
+        catch (Exception exception) when (exception is InvalidDataException or PlatformNotSupportedException)
         {
-            // A plan that cannot be read watches nothing; Chainsaw writes it anew at the next change.
-            return BackgroundPlan.Empty;
+            // A plan that is not this user's, or broken, watches nothing; Chainsaw writes it anew at the next change.
+            plan = BackgroundPlan.Empty;
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            plan = BackgroundPlan.Empty;
+            return false;
         }
     }
 
@@ -92,7 +105,7 @@ internal sealed class WatchQueue(BackgroundFolder folder) : IWatchQueue
     public void Add(QueuedCheck entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        var mark = entry.Matches.Count > 0 ? HitMark : string.Empty;
+        var mark = entry.HasNewHits ? HitMark : string.Empty;
         var name = $"{entry.Utc.UtcTicks.ToString("D19", CultureInfo.InvariantCulture)}-{entry.Id:N}{mark}{Ending}";
         folder.WriteProtected(Path.Combine(CaseFolder(entry.CaseId), name), BackgroundPurposes.Queue,
             BackgroundCodec.Encode(entry));
@@ -194,7 +207,14 @@ internal sealed class WatchQueue(BackgroundFolder folder) : IWatchQueue
     /// <param name="caseId">The case.</param>
     /// <param name="id">The entry.</param>
     /// <returns>The file, or <see langword="null"/>.</returns>
-    private string? Find(Guid caseId, Guid id) => Files(caseId).FirstOrDefault(path => IdOf(path) == id);
+    private string? Find(Guid caseId, Guid id)
+    {
+        // The id is in the name: the folder is searched for it, not listed and sorted, so a long queue stays quick.
+        var path = CaseFolder(caseId);
+        return Directory.Exists(path)
+            ? Directory.EnumerateFiles(path, $"*-{id:N}*{Ending}").FirstOrDefault(each => IdOf(each) == id)
+            : null;
+    }
 
     /// <summary>Reads an entry's id from its file's name.</summary>
     /// <param name="path">The file.</param>

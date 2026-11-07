@@ -206,6 +206,23 @@ public sealed class BackgroundLinkTests
         Assert.Equal((waiting, off), (view.IsWaiting, view.IsOff));
     }
 
+    [Theory]
+    [InlineData(BackgroundState.Failing, BackgroundMode.Failing, WatchWords.BackgroundFailingText)]
+    [InlineData(BackgroundState.SourcesOff, BackgroundMode.SourcesOff, WatchWords.BackgroundSourcesOffText)]
+    public async Task What_the_running_background_says_of_itself_is_shown(
+        BackgroundState state, BackgroundMode mode, string text)
+    {
+        _fakes.Status.Status = new BackgroundStatus(state, null, TestWatchSource.At, 3);
+        var (_, link) = Link(Windows);
+        var view = new MonitoringViewModel(link.Board, new WatchFormViewModel(link.Board), new TestClock(), link);
+
+        await link.WriteCaseAsync();
+
+        Assert.Equal(mode, link.Mode);
+        Assert.Equal(text, view.BackgroundText);
+        Assert.True(view.IsWaiting);
+    }
+
     [Fact]
     public async Task The_endpoint_in_step_follows_the_background_s_word()
     {
@@ -335,6 +352,12 @@ internal sealed class BackgroundFakes
         public BackgroundPlan Plan { get; private set; } = BackgroundPlan.Empty;
 
         public BackgroundPlan Read() => Plan;
+
+        public bool TryRead(out BackgroundPlan plan)
+        {
+            plan = Plan;
+            return true;
+        }
 
         public DateTimeOffset? WrittenAt() => null;
 

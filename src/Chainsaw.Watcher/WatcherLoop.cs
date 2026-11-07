@@ -155,7 +155,9 @@ internal sealed class WatcherLoop
             return;
         }
 
-        round.InStepWith ??= await InStepAsync(chain, cancellationToken).ConfigureAwait(false);
+        // Every chain's endpoints are tried, also when another chain has already named one in step.
+        var inStep = await InStepAsync(chain, cancellationToken).ConfigureAwait(false);
+        round.InStepWith ??= inStep;
         var state = _chains.TryGetValue(chain, out var known) ? known : _chains[chain] = new ChainState();
         var now = _parts.Clock.UtcNow;
         var unstarted = work.Any(each => StartOf(each.Case, each.Watch) is null);
@@ -180,9 +182,13 @@ internal sealed class WatcherLoop
         foreach (var (caseId, watch) in work)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var withTip = given.Add(caseId) ? tipResponses : [];
-            await CheckAsync(scratch, feed, caseId, watch, tip, withTip, round, cancellationToken)
-                .ConfigureAwait(false);
+            var withTip = given.Contains(caseId) ? [] : tipResponses;
+            if (await CheckAsync(scratch, feed, caseId, watch, tip, withTip, round, cancellationToken)
+                .ConfigureAwait(false))
+            {
+                // The height's responses go with the case's first entry that is queued, once.
+                given.Add(caseId);
+            }
         }
     }
 
@@ -195,8 +201,8 @@ internal sealed class WatcherLoop
     /// <param name="tipResponses">The height's responses, for the case's first entry of the round.</param>
     /// <param name="round">What the round has seen.</param>
     /// <param name="cancellationToken">Stops the check.</param>
-    /// <returns>A task that completes when it is done.</returns>
-    private async Task CheckAsync(
+    /// <returns><see langword="true"/> when an entry was queued.</returns>
+    private async Task<bool> CheckAsync(
         ScratchCase scratch,
         IWatchFeed feed,
         Guid caseId,
@@ -215,13 +221,16 @@ internal sealed class WatcherLoop
                 Responses(scratch, tipResponses), now));
             _progress[(caseId, watch.WatchId)] = progress with { StartHeight = height };
             _progressChanged = true;
-            return;
+
+            // Kept at once: a stop or crash must never let a later run set another start.
+            KeepProgress();
+            return true;
         }
 
         var last = Later(watch.Checked, progress.Checked);
         if (!WatchSchedule.IsDue(watch.Filter.Pace, last, height, now))
         {
-            return;
+            return false;
         }
 
         var mark = scratch.Mark();
@@ -229,21 +238,35 @@ internal sealed class WatcherLoop
             watch.Addresses, watch.Filter, feed, start, WatchSchedule.DownTo(start, last), cancellationToken)
             .ConfigureAwait(false);
         var checkedNow = WatchSchedule.After(last?.Height ?? start, result, result.Problems, height, now);
-        var fetched = tipResponses.Concat(scratch.SealedSince(SealedResponses.Chain, mark)).ToList();
-        _parts.Queue.Add(new QueuedCheck(
-            Guid.NewGuid(), caseId, watch.WatchId, QueuedKind.Checked, watch.Filter, start, height, checkedNow,
-            result.Matches, result.Origins, Responses(scratch, fetched), now));
 
+        // What the check fetched now, and what it rests on that an earlier check of the round already had in memory
+        // (a settled page, a block's hash), so that every hit's origins come into the case with it (principle 1).
+        var fetched = tipResponses.Concat(scratch.SealedSince(SealedResponses.Chain, mark))
+            .Concat(result.Origins)
+            .ToList();
+
+        // Only a hit above where the watch was read, not known to the case and not told before, is said: a hit in the
+        // look-back the open Chainsaw already sealed is never told again.
+        var readThrough = last?.Height ?? start;
         var alerted = progress.Alerted.ToList();
-        foreach (var key in result.Matches.Select(match => WatchSchedule.Key(watch.WatchId, match)))
+        var fresh = false;
+        foreach (var match in result.Matches.Where(match => match.Block.Height > readThrough))
         {
-            if (!alerted.Contains(key, StringComparer.Ordinal))
+            var key = WatchSchedule.Key(watch.WatchId, match);
+            if (!alerted.Contains(key, StringComparer.Ordinal) && !watch.Known.Contains(key, StringComparer.Ordinal))
             {
                 alerted.Add(key);
-                round.NewHits = true;
+                fresh = true;
             }
         }
 
+        _parts.Queue.Add(new QueuedCheck(
+            Guid.NewGuid(), caseId, watch.WatchId, QueuedKind.Checked, watch.Filter, start, height, checkedNow,
+            result.Matches, result.Origins, Responses(scratch, fetched), now)
+        {
+            HasNewHits = fresh,
+        });
+        round.NewHits |= fresh;
         round.Failing |= result.Status == WatchFeedStatus.Failed;
         _progressChanged = true;
         _progress[(caseId, watch.WatchId)] = progress with
@@ -252,6 +275,8 @@ internal sealed class WatcherLoop
             Checked = checkedNow,
             Alerted = alerted.Count > AlertedKept ? alerted[^AlertedKept..] : alerted,
         };
+        KeepProgress();
+        return true;
     }
 
     /// <summary>Reads the responses sealed in the case in memory, to go into the queue.</summary>
@@ -326,8 +351,13 @@ internal sealed class WatcherLoop
             return;
         }
 
-        _planWritten = written;
-        _plan = _parts.Plan.Read();
+        // A plan that cannot be read just now (held by Chainsaw's write or a scanner) keeps the last one, and is read
+        // again at the next round; only a missing or foreign plan means nothing to watch.
+        if (_parts.Plan.TryRead(out var plan))
+        {
+            _planWritten = written;
+            _plan = plan;
+        }
     }
 
     /// <summary>Gives a watch's start: the case's, or the one the background set.</summary>
@@ -374,8 +404,17 @@ internal sealed class WatcherLoop
         }
 
         _progress = kept;
-        _parts.Progress.Write([.. _progress.Values]);
-        _progressChanged = false;
+        try
+        {
+            _parts.Progress.Write([.. _progress.Values]);
+            _progressChanged = false;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or System.Security.Cryptography.CryptographicException)
+        {
+            // A file held for a moment (a virus scanner): written again at the next change or round.
+            _progressChanged = true;
+        }
     }
 
     /// <summary>Writes the status when it has changed.</summary>

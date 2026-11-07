@@ -681,6 +681,14 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **Endpoints med API-nyckel** fungerar inte i bakgrunden (nyckeln ligger i valvet); de hoppas över och nästa tas.
 - **Aviseringen i Windows** kommer från en ikon i meddelandefältet (`Shell_NotifyIcon`), som Windows visar som en toast.
   En riktig toast med appens identitet (AUMID) kräver att Chainsaw registreras som app; pröva om det behövs.
+- **Kön växer** med en post per kontroll (på Ethereum ungefär en i minuten per bevakning), med alla råsvar, så länge
+  ärendet inte öppnas (granskningen omgång 1, M3). Slå ihop poster per bevakning eller sätt ett tak, och säg det.
+- **Sammanfattningsraden i journalen** (*Bakgrundens bevakning förd in*) skrivs efter posterna; kraschar Chainsaw
+  mitt i kan den saknas för de poster som redan förts in (granskningen omgång 1, M2). Träffarna har alltid sin egen rad.
+- **Två takter mot samma endpoints** (granskningen omgång 1, M7): medan Chainsaw är öppet har appen och bakgrunden var
+  sin takt per endpoint, för olika ärenden. Tillsammans kan de fråga fortare än en endpoint vill; `429` följs ändå.
+- **Adresserna ligger kvar i planen** (under DPAPI) när bakgrunden slås av, så att den kan slås på igen utan att varje
+  ärende öppnas (granskningen omgång 1, M8). Överväg att tömma planen när den är av.
 - **Lyssna på ljudet** och justera skriptet (`tools/sounds/coin-swoosh.py`) efter användarens öra.
 
 ### Historik, ta tillbaka och ångra (etapp 21)

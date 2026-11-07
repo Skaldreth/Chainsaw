@@ -185,4 +185,110 @@ public sealed class WatcherLoopTests : IDisposable
         Assert.Equal(800_010, progress.Checked!.Height);
         Assert.Equal(2, progress.Alerted.Count);
     }
+
+    [Fact]
+    public async Task Every_chain_s_endpoints_are_tried_also_when_another_chain_has_one_in_step()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        var service = _world.App<IMonitoringService>();
+        service.Add(
+            _world.Case,
+            new WatchSubject(WatchSubjectKind.Address, Modules.Monitoring.Tests.Synthetic.On(
+                Modules.Monitoring.Tests.Synthetic.Eth("e")), "0x…e"),
+            new WatchFilter(Chain.Ethereum, WatchDirection.Both, [], [], null, null));
+        _world.WritePlan();
+        _world.Height(800_010);
+
+        await Loop.RunOnceAsync();
+
+        var ethereum = _world.Background<IChainSources>().Get(Chain.Ethereum);
+        Assert.All(ethereum.Endpoints, endpoint => Assert.NotNull(endpoint.Probe));
+        Assert.Contains(
+            _world.Http.Sent, request => !request.Uri.AbsoluteUri.StartsWith(World.Base, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Two_watches_on_one_address_both_carry_the_responses_their_hits_rest_on()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        await _world.WatchAsync();
+        _world.WritePlan();
+        _world.Height(800_010);
+        _world.Clock.UtcNow += TimeSpan.FromMinutes(5);
+
+        await Loop.RunOnceAsync();
+
+        var ids = Queue.List(_world.Case.Info.Id);
+        Assert.Equal(2, ids.Count);
+        foreach (var entry in ids.Select(id => Queue.Read(_world.Case.Info.Id, id)!))
+        {
+            Assert.NotEmpty(entry.Origins);
+            Assert.Subset(entry.Responses.Select(response => response.Sequence).ToHashSet(), entry.Origins.ToHashSet());
+        }
+
+        var import = _world.App<IBackgroundWatches>().Import(_world.Case);
+        Assert.Equal(4, import.Hits.Count);
+        Assert.All(import.Hits, hit => Assert.NotEmpty(hit.Origins));
+    }
+
+    [Fact]
+    public async Task A_hit_the_open_Chainsaw_already_sealed_is_never_told_again()
+    {
+        await _world.UseTestEndpointAsync();
+        var watch = await _world.WatchAsync();
+        var plan = _world.WritePlan();
+        var known = plan.Cases.Single().Watches.Single() with
+        {
+            Known =
+            [
+                $"{watch.Id}|{World.Spent}|Out|BTC",
+                $"{watch.Id}|{World.Coinbase}|In|BTC",
+            ],
+        };
+        _world.App<IBackgroundPlan>().Update(current => current.With(
+            current.Cases.Single() with { Watches = [known] }));
+        _world.Height(800_010);
+        _world.Clock.UtcNow += TimeSpan.FromMinutes(5);
+
+        await Loop.RunOnceAsync();
+
+        Assert.Empty(_world.Alerts.Raised);
+        Assert.False(Queue.HasHits());
+        Assert.Single(Queue.List(_world.Case.Info.Id));
+    }
+
+    [Fact]
+    public async Task A_start_set_by_the_background_is_kept_at_once()
+    {
+        await _world.UseTestEndpointAsync();
+        _world.App<IMonitoringService>().Add(
+            _world.Case,
+            new WatchSubject(WatchSubjectKind.Address, new ChainAddress(Chain.Bitcoin, World.Watched), "x"),
+            new WatchFilter(Chain.Bitcoin, WatchDirection.Both, [], [], null, null));
+        _world.WritePlan();
+        _world.Height(799_999);
+
+        await Loop.RunOnceAsync();
+
+        Assert.Equal(799_999, Assert.Single(_world.App<IBackgroundProgressFile>().Read()).StartHeight);
+    }
+
+    [Fact]
+    public async Task A_plan_that_cannot_be_read_just_now_keeps_the_last_one()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        _world.WritePlan(ExitRoute.Vpn);
+        Assert.True(await Loop.RunOnceAsync());
+        var path = Path.Combine(_world.AppData, BackgroundNames.Folder, "plan.bin");
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+
+        using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.False(_world.App<IBackgroundPlan>().TryRead(out _));
+            Assert.True(await Loop.RunOnceAsync());
+        }
+    }
 }

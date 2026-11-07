@@ -70,9 +70,7 @@ internal static class Program
         using var services = WatcherServices.Build(WatcherServices.AppData);
         var plan = services.GetRequiredService<IBackgroundPlan>().Read();
         var ways = plan.Alerts == WatchAlerts.None ? WatchAlerts.Windows | WatchAlerts.Sound : plan.Alerts;
+        // The ways show on threads of their own, which the process waits for before it ends.
         services.GetRequiredService<IAlerts>().Raise(ways);
-
-        // The ways show on threads of their own; the process waits for them.
-        Thread.Sleep(TimeSpan.FromSeconds(12));
     }
 }

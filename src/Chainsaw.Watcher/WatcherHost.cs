@@ -56,6 +56,18 @@ internal sealed class WatcherRun(
             {
                 return RunEnd.Stopped;
             }
+            catch (Exception exception) when (exception is not (OperationCanceledException or OutOfMemoryException))
+            {
+                // Nothing may take the quiet process down (a file held, a disk full): it waits a round and goes on.
+                try
+                {
+                    await delay(Tick, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return RunEnd.Stopped;
+                }
+            }
 
             if (Stamp() != sources)
             {

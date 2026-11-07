@@ -200,7 +200,8 @@ public sealed class BackgroundFilesTests : IDisposable
         var checkedAt = new WatchChecked(Time(4), 900_002, WatchFeedStatus.Read, null) { Tip = 900_003 };
         progress.Write([new BackgroundProgress(id, "w", 900_000, checkedAt, ["w|tx|Out|BTC"])]);
         var read = Assert.Single(progress.Read());
-        Assert.Equal((id, "w", 900_000L, checkedAt), (read.CaseId, read.WatchId, read.StartHeight!.Value, read.Checked));
+        Assert.Equal(
+            (id, "w", 900_000L, checkedAt), (read.CaseId, read.WatchId, read.StartHeight!.Value, read.Checked));
         Assert.Equal(["w|tx|Out|BTC"], read.Alerted);
     }
 
@@ -221,7 +222,10 @@ public sealed class BackgroundFilesTests : IDisposable
         return new QueuedCheck(
             Guid.NewGuid(), caseId, "w1", QueuedKind.Checked,
             new WatchFilter(Chain.Bitcoin, WatchDirection.Both, [], [], null, null), 900_000, 900_004,
-            new WatchChecked(utc, 900_004, WatchFeedStatus.Read, null), matches, hit ? [7] : [], [response], utc);
+            new WatchChecked(utc, 900_004, WatchFeedStatus.Read, null), matches, hit ? [7] : [], [response], utc)
+        {
+            HasNewHits = hit,
+        };
     }
 }
 

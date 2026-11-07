@@ -10,8 +10,11 @@ namespace Chainsaw.Watcher;
 /// </summary>
 internal sealed partial class WindowsNotification : IAlertChannel
 {
-    /// <summary>How long the icon stays, so that the notification can be read.</summary>
-    private static readonly TimeSpan Shown = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// How long the icon stays, so that the notification can be read and stays in the notification centre a while;
+    /// Windows removes it with the icon.
+    /// </summary>
+    private static readonly TimeSpan Shown = TimeSpan.FromMinutes(1);
 
     /// <inheritdoc/>
     public WatchAlerts Way => WatchAlerts.Windows;
@@ -24,7 +27,8 @@ internal sealed partial class WindowsNotification : IAlertChannel
             return;
         }
 
-        var thread = new Thread(Run) { IsBackground = true, Name = "Chainsaw notification" };
+        // Not a background thread: the process waits for it before it ends, so that the icon is always taken away.
+        var thread = new Thread(Run) { IsBackground = false, Name = "Chainsaw notification" };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
     }
@@ -322,7 +326,8 @@ internal sealed partial class CoinSound : IAlertChannel
             return;
         }
 
-        var thread = new Thread(Play) { IsBackground = true, Name = "Chainsaw sound" };
+        // Not a background thread: the sound plays to its end also when the process ends meanwhile.
+        var thread = new Thread(Play) { IsBackground = false, Name = "Chainsaw sound" };
         thread.Start();
     }
 

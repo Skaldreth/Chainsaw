@@ -15,7 +15,7 @@ public enum BackgroundMode
     /// <summary>The user has turned it off.</summary>
     Off,
 
-    /// <summary>VPN is the way out, which the background cannot connect without the vault: it looks nothing up.</summary>
+    /// <summary>VPN is the way out, which the background cannot connect without the vault: nothing is asked.</summary>
     NeedsWindows,
 
     /// <summary>It should run but does not (it could not be started).</summary>
@@ -23,6 +23,12 @@ public enum BackgroundMode
 
     /// <summary>It runs, through Windows.</summary>
     Running,
+
+    /// <summary>It runs, but its lookups fail; it tries again.</summary>
+    Failing,
+
+    /// <summary>It runs, but the watched chains' sources are off, so it looks nothing up.</summary>
+    SourcesOff,
 }
 
 /// <summary>
@@ -82,7 +88,9 @@ public sealed class BackgroundLink : IDisposable
     /// <param name="board">The open case's watches.</param>
     /// <param name="ui">The UI thread.</param>
     /// <param name="settings">The settings at the start.</param>
-    /// <param name="delay">Waits between rounds; <see cref="Task.Delay(TimeSpan, CancellationToken)"/> when none.</param>
+    /// <param name="delay">
+    /// Waits between rounds; <see cref="Task.Delay(TimeSpan, CancellationToken)"/> when none.
+    /// </param>
     public BackgroundLink(
         BackgroundParts parts,
         CaseSession session,
@@ -146,12 +154,22 @@ public sealed class BackgroundLink : IDisposable
     public async Task ImportAsync(ICase @case)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        if (_parts.Queue.List(@case.Info.Id).Count == 0)
+        BackgroundImport result;
+        try
         {
+            if (_parts.Queue.List(@case.Info.Id).Count == 0)
+            {
+                return;
+            }
+
+            result = await Task.Run(() => _parts.Watches.Import(@case)).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The queue could not be read just now; the runner's own checks go on, and the next round tries again.
             return;
         }
 
-        var result = await Task.Run(() => _parts.Watches.Import(@case)).ConfigureAwait(false);
         if (result.Entries > 0 || result.Hits.Count > 0)
         {
             _board.Checked(@case, result.Hits);
@@ -180,10 +198,8 @@ public sealed class BackgroundLink : IDisposable
 
         var status = _parts.Status.Read();
         var hits = _parts.Queue.HasHits();
-        var mode = ModeOf(plan, running);
-        var inStep = mode == BackgroundMode.Running && status?.State == BackgroundState.Running
-            ? status.InStepWith
-            : null;
+        var mode = ModeOf(plan, running, status);
+        var inStep = mode == BackgroundMode.Running ? status?.InStepWith : null;
         await PostAsync(() =>
         {
             if (_session.Current is not null && _hold is null)
@@ -213,8 +229,9 @@ public sealed class BackgroundLink : IDisposable
     /// <summary>Gives what the background does, for a plan.</summary>
     /// <param name="plan">The plan.</param>
     /// <param name="running">Whether the process runs.</param>
+    /// <param name="status">What the process says it does, if anything.</param>
     /// <returns>The mode.</returns>
-    private BackgroundMode ModeOf(BackgroundPlan plan, bool running)
+    private BackgroundMode ModeOf(BackgroundPlan plan, bool running, BackgroundStatus? status)
     {
         if (!_settings.WatchInBackground)
         {
@@ -231,7 +248,18 @@ public sealed class BackgroundLink : IDisposable
             return BackgroundMode.NeedsWindows;
         }
 
-        return running ? BackgroundMode.Running : BackgroundMode.NotRunning;
+        if (!running)
+        {
+            return BackgroundMode.NotRunning;
+        }
+
+        // What the running process says itself: its lookups fail, or the chains are off.
+        return status?.State switch
+        {
+            BackgroundState.Failing => BackgroundMode.Failing,
+            BackgroundState.SourcesOff => BackgroundMode.SourcesOff,
+            _ => BackgroundMode.Running,
+        };
     }
 
     /// <summary>Says whether the background should run: on, a watch active, and Windows as the way out.</summary>

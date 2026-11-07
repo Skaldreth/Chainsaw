@@ -551,6 +551,14 @@ public sealed partial class MonitoringViewModel : ObservableObject
                 (BackgroundText, BackgroundTip, IsWaiting) =
                     (WatchWords.BackgroundWaitsText, WatchWords.BackgroundWaitsTip, true);
                 break;
+            case BackgroundMode.Failing:
+                (BackgroundText, BackgroundTip, IsWaiting) =
+                    (WatchWords.BackgroundFailingText, WatchWords.BackgroundFailingTip, true);
+                break;
+            case BackgroundMode.SourcesOff:
+                (BackgroundText, BackgroundTip, IsWaiting) =
+                    (WatchWords.BackgroundSourcesOffText, WatchWords.BackgroundSourcesOffTip, true);
+                break;
             case BackgroundMode.NotRunning:
                 (BackgroundText, BackgroundTip, IsWaiting) =
                     (WatchWords.BackgroundStoppedText, WatchWords.BackgroundStoppedTip, true);

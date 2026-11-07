@@ -30,7 +30,8 @@ public static class WatchWords
         "i ärendet när det öppnas och låses upp.";
 
     /// <summary>The head when VPN is the way out, which the background cannot use (sketch BV1a, waiting).</summary>
-    public const string BackgroundWaitsText = "Bakgrunden väntar på utgången · bevakar bara medan Chainsaw är öppet";
+    public const string BackgroundWaitsText =
+        "Bakgrunden väntar på utgången · bevakar bara medan Chainsaw är öppet";
 
     /// <summary>The head's tooltip when VPN is the way out.</summary>
     public const string BackgroundWaitsTip =
@@ -43,6 +44,22 @@ public static class WatchWords
     /// <summary>The head's tooltip when the background is off.</summary>
     public const string BackgroundOffTip =
         "Slå på bakgrunden i Inställningar för att bevaka när Chainsaw är stängt.";
+
+    /// <summary>The head when the background runs but its lookups fail.</summary>
+    public const string BackgroundFailingText = "Går i bakgrunden · uppslagen misslyckas";
+
+    /// <summary>The head's tooltip when the background's lookups fail.</summary>
+    public const string BackgroundFailingTip =
+        "Bakgrundsprocessen kunde inte fråga källorna vid senaste kontrollen och försöker igen. Inget av ärendet " +
+        "skickades.";
+
+    /// <summary>The head when the background runs but the watched chains' sources are off.</summary>
+    public const string BackgroundSourcesOffText = "Går i bakgrunden · källorna är av, inga uppslag görs";
+
+    /// <summary>The head's tooltip when the watched chains' sources are off.</summary>
+    public const string BackgroundSourcesOffTip =
+        "Källorna för de bevakade kedjorna är avstängda i Inställningar → Källor. " +
+        "Bakgrunden frågar inget förrän de slås på.";
 
     /// <summary>The head when the background should run but does not.</summary>
     public const string BackgroundStoppedText = "Bakgrunden går inte · bevakar bara medan Chainsaw är öppet";

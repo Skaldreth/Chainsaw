@@ -33,7 +33,8 @@ internal static class BackgroundCodec
                 [.. watch.Addresses.Select(address => address.Value)],
                 WatchCodec.Encode(watch.Filter),
                 watch.StartHeight,
-                Of(watch.Checked)))]))]));
+                Of(watch.Checked),
+                [.. watch.Known]))]))]));
 
     /// <summary>Reads the plan.</summary>
     /// <param name="json">The UTF-8 JSON.</param>
@@ -54,7 +55,10 @@ internal static class BackgroundCodec
                     [.. watch.Addresses.Select(value => new ChainAddress(filter.Chain, value))],
                     filter,
                     watch.Start,
-                    Of(watch.Checked));
+                    Of(watch.Checked))
+                {
+                    Known = watch.Known ?? [],
+                };
             })],
             WatchCodec.Time(@case.WrittenUtc)));
 
@@ -87,7 +91,8 @@ internal static class BackgroundCodec
             [.. match.Counterparties.Select(party => party.Value)]))],
         [.. entry.Origins],
         [.. entry.Responses],
-        WatchCodec.Text(entry.Utc)));
+        WatchCodec.Text(entry.Utc),
+        entry.HasNewHits));
 
     /// <summary>Reads a queued entry.</summary>
     /// <param name="json">The UTF-8 JSON.</param>
@@ -120,7 +125,10 @@ internal static class BackgroundCodec
             [.. matches],
             text.Origins,
             text.Responses,
-            WatchCodec.Time(text.Utc));
+            WatchCodec.Time(text.Utc))
+        {
+            HasNewHits = text.HasNewHits,
+        };
     });
 
     /// <summary>Writes the background's progress.</summary>
@@ -217,8 +225,9 @@ internal static class BackgroundCodec
     /// <param name="Filter">Its filter, as the case seals it.</param>
     /// <param name="Start">Its start.</param>
     /// <param name="Checked">How far it is read.</param>
+    /// <param name="Known">The hits the case has in the look-back.</param>
     private sealed record WatchText(
-        string WatchId, List<string> Addresses, string Filter, long? Start, CheckedText? Checked);
+        string WatchId, List<string> Addresses, string Filter, long? Start, CheckedText? Checked, List<string>? Known);
 
     /// <summary>How far a watch is read, as stored.</summary>
     /// <param name="Utc">When it was checked.</param>
@@ -242,6 +251,7 @@ internal static class BackgroundCodec
     /// <param name="Origins">What the matches rest on.</param>
     /// <param name="Responses">The raw responses.</param>
     /// <param name="Utc">When.</param>
+    /// <param name="HasNewHits">Whether the background told of a hit in it.</param>
     private sealed record EntryText(
         int Version,
         Guid Id,
@@ -255,7 +265,8 @@ internal static class BackgroundCodec
         List<MatchText> Matches,
         List<long> Origins,
         List<SealedResponse> Responses,
-        string Utc);
+        string Utc,
+        bool HasNewHits);
 
     /// <summary>A match as stored.</summary>
     /// <param name="Transaction">The tx.</param>

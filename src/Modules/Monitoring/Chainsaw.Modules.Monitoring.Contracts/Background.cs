@@ -42,7 +42,14 @@ public sealed record BackgroundWatch(
     IReadOnlyList<ChainAddress> Addresses,
     WatchFilter Filter,
     long? StartHeight,
-    WatchChecked? Checked);
+    WatchChecked? Checked)
+{
+    /// <summary>
+    /// Gets the hits the case already has in the look-back above where the watch is read
+    /// (<see cref="WatchSchedule.Key"/>), so that the background never tells of one the open Chainsaw sealed.
+    /// </summary>
+    public IReadOnlyList<string> Known { get; init; } = [];
+}
 
 /// <summary>A case's active watches as the background process knows them, by the case's random id only.</summary>
 /// <param name="CaseId">The case's id (<see cref="CaseInfo.Id"/>), never its number or title.</param>
@@ -80,12 +87,22 @@ public sealed record BackgroundPlan(
     }
 }
 
-/// <summary>Reads and writes the plan, protected for the Windows user. Chainsaw writes it; the background reads it.</summary>
+/// <summary>
+/// Reads and writes the plan, protected for the Windows user. Chainsaw writes it; the background reads it.
+/// </summary>
 public interface IBackgroundPlan
 {
     /// <summary>Reads the plan.</summary>
     /// <returns>The plan, or <see cref="BackgroundPlan.Empty"/> when none is written or it cannot be read.</returns>
     BackgroundPlan Read();
+
+    /// <summary>
+    /// Reads the plan, telling a plan that cannot be read just now (held by a write or a scanner) apart from one that
+    /// is missing or not this user's.
+    /// </summary>
+    /// <param name="plan">The plan; <see cref="BackgroundPlan.Empty"/> when missing or foreign.</param>
+    /// <returns><see langword="false"/> when it could not be read now and should be read again later.</returns>
+    bool TryRead(out BackgroundPlan plan);
 
     /// <summary>Gets when the plan was last written, so that the background reads it again only then.</summary>
     /// <returns>The time, or <see langword="null"/> when there is no plan.</returns>
@@ -138,7 +155,14 @@ public sealed record QueuedCheck(
     IReadOnlyList<WatchMatch> Matches,
     IReadOnlyList<long> Origins,
     IReadOnlyList<SealedResponse> Responses,
-    DateTimeOffset Utc);
+    DateTimeOffset Utc)
+{
+    /// <summary>
+    /// Gets whether a match is one the background told of: above where the watch was read and not known to the case.
+    /// The queue marks such an entry, so that the lock screen can say that a watch has hit.
+    /// </summary>
+    public bool HasNewHits { get; init; }
+}
 
 /// <summary>
 /// The queue of what the background process saw, one protected file per entry, written in one step so that it
@@ -159,7 +183,9 @@ public interface IWatchQueue
     /// <param name="caseId">The case.</param>
     /// <param name="id">The entry.</param>
     /// <returns>The entry, or <see langword="null"/> when it is gone.</returns>
-    /// <exception cref="InvalidDataException">It cannot be read; it is set aside so that it is not read again.</exception>
+    /// <exception cref="InvalidDataException">
+    /// It cannot be read; it is set aside so that it is not read again.
+    /// </exception>
     QueuedCheck? Read(Guid caseId, Guid id);
 
     /// <summary>Removes an entry once it is in the case.</summary>
@@ -188,7 +214,9 @@ public interface ICaseHolds
 {
     /// <summary>Holds a case.</summary>
     /// <param name="caseId">The case.</param>
-    /// <returns>Releases the hold; <see langword="null"/> when it could not be taken (another Chainsaw holds it).</returns>
+    /// <returns>
+    /// Releases the hold; <see langword="null"/> when it could not be taken (another Chainsaw holds it).
+    /// </returns>
     IDisposable? Hold(Guid caseId);
 
     /// <summary>Says whether a case is held by a running Chainsaw.</summary>
@@ -295,7 +323,9 @@ public interface IBackgroundWatches
     BackgroundImport Import(ICase @case);
 }
 
-/// <summary>Gives the feed that reads a chain through a case's sources, for the open Chainsaw and the background.</summary>
+/// <summary>
+/// Gives the feed that reads a chain through a case's sources, for the open Chainsaw and the background.
+/// </summary>
 public interface IWatchFeeds
 {
     /// <summary>Gives the feed for a chain.</summary>

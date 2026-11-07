@@ -56,7 +56,9 @@ public partial class MainWindow : Window
     /// <param name="guide">The view Guide (F1).</param>
     /// <param name="monitoring">The view Bevakning (sketch BV1a).</param>
     /// <param name="watchRunner">The watches' checks while Chainsaw is open and unlocked, started here.</param>
-    /// <param name="background">The background watching: the plan, the hold on the open case and its state, started here.</param>
+    /// <param name="background">
+    /// The background watching: the plan, the hold on the open case and its state, started here.
+    /// </param>
     public MainWindow(
         ShellViewModel shell,
         GateViewModel gate,

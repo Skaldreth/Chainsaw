@@ -171,7 +171,8 @@ internal sealed class ScratchCase : ICase
     /// <inheritdoc/>
     public void Dispose() => Close();
 
-    /// <summary>Seals a record: the next number in its chain, and a hash over the previous one and the content.</summary>
+    /// <summary>Seals a record: the next number in its chain, and a hash over the previous hash and the content.
+    /// </summary>
     /// <param name="transaction">The write.</param>
     /// <param name="chainName">The chain.</param>
     /// <param name="values">The content, in the chain's column order.</param>

@@ -69,7 +69,9 @@ public sealed class WindowsBackgroundProcess : IBackgroundProcess
     }
 }
 
-/// <summary>Starts the background process at sign-in through the user's <c>Run</c> key (HKCU), never the machine's.</summary>
+/// <summary>
+/// Starts the background process at sign-in through the user's <c>Run</c> key (HKCU), never the machine's.
+/// </summary>
 public sealed class RunKeyAutostart : IAutostart
 {
     /// <summary>The user's <c>Run</c> key.</summary>

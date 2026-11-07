@@ -130,6 +130,41 @@ public sealed class BackgroundImportTests : IDisposable
     }
 
     [Fact]
+    public async Task A_check_counted_from_another_start_counts_only_above_the_case_s_start()
+    {
+        var watch = await StartedWatch();
+        Queue.Add(Hit(watch, 900_003) with { Start = 899_990 });
+        Queue.Add(Hit(watch, 899_995) with { Start = 899_990, Id = Guid.NewGuid() });
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Equal(900_003, Assert.Single(result.Hits).Match.Block.Height);
+    }
+
+    [Fact]
+    public async Task A_change_of_only_the_pace_keeps_the_background_s_hits()
+    {
+        var watch = await StartedWatch();
+        Queue.Add(Hit(watch, 900_003));
+        _harness.Service.Change(_harness.Case, watch.Id, watch.Filter with { Pace = WatchPace.FifteenMinutes });
+
+        Assert.Single(Background.Import(_harness.Case).Hits);
+    }
+
+    [Fact]
+    public async Task The_plan_carries_the_hits_the_case_has_in_the_look_back()
+    {
+        var watch = await StartedWatch();
+        Queue.Add(Hit(watch, 900_003));
+        Background.Import(_harness.Case);
+
+        var described = Assert.Single(Background.Describe(_harness.Case, Seen).Watches);
+
+        var hit = _harness.Service.GetHits(_harness.Case).Single();
+        Assert.Equal([WatchSchedule.Key(watch.Id, hit.Match)], described.Known);
+    }
+
+    [Fact]
     public async Task Money_at_or_below_the_start_is_not_a_hit()
     {
         var watch = await StartedWatch();

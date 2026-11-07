@@ -34,14 +34,20 @@ internal sealed class BackgroundWatches(
     {
         ArgumentNullException.ThrowIfNull(@case);
         var checkedAt = service.GetChecked(@case);
+        var hits = service.GetHits(@case);
         var watches = service.GetWatches(@case)
             .Where(watch => watch.State == WatchState.Active && Watchable.Contains(watch.Chain))
-            .Select(watch => new BackgroundWatch(
-                watch.Id,
-                service.AddressesOf(@case, watch).Addresses,
-                watch.Filter,
-                watch.StartHeight,
-                checkedAt.GetValueOrDefault(watch.Id)))
+            .Select(watch =>
+            {
+                var last = checkedAt.GetValueOrDefault(watch.Id);
+                var lookBack = (last?.Height ?? watch.StartHeight ?? 0) - WatchRules.Lookback;
+                return new BackgroundWatch(
+                    watch.Id, service.AddressesOf(@case, watch).Addresses, watch.Filter, watch.StartHeight, last)
+                {
+                    Known = [.. hits.Where(hit => hit.WatchId == watch.Id && hit.Match.Block.Height > lookBack)
+                        .Select(hit => WatchSchedule.Key(hit.WatchId, hit.Match))],
+                };
+            })
             .ToList();
         return new BackgroundCase(@case.Info.Id, watches, utc);
     }
@@ -56,7 +62,17 @@ internal sealed class BackgroundWatches(
         var problems = new List<string>();
         var responses = 0;
         var entries = 0;
-        foreach (var id in queue.List(caseId))
+        IReadOnlyList<Guid> ids;
+        try
+        {
+            ids = queue.List(caseId);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return BackgroundImport.None;
+        }
+
+        foreach (var id in ids)
         {
             QueuedCheck? entry;
             try
@@ -66,6 +82,10 @@ internal sealed class BackgroundWatches(
             catch (InvalidDataException)
             {
                 problems.Add(UnreadableText);
+                continue;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
                 continue;
             }
 
@@ -90,6 +110,11 @@ internal sealed class BackgroundWatches(
                 problems.Add(UnreadableText);
                 continue;
             }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // The entry's file is held just now; it is brought in at the next round.
+                continue;
+            }
 
             done.Add(id);
         }
@@ -109,7 +134,14 @@ internal sealed class BackgroundWatches(
             @case.Save();
             foreach (var id in done)
             {
-                queue.Remove(caseId, id);
+                try
+                {
+                    queue.Remove(caseId, id);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // Left for the next round, which finds it already in the case and removes it.
+                }
             }
         }
 
@@ -137,8 +169,7 @@ internal sealed class BackgroundWatches(
 
         MarkImported(transaction, key);
         var watch = WatchStore.ReadWatches(transaction).FirstOrDefault(each => each.Id == entry.WatchId);
-        if (watch is null || watch.State != WatchState.Active
-            || WatchCodec.Encode(watch.Filter) != WatchCodec.Encode(entry.Filter))
+        if (watch is null || watch.State != WatchState.Active || !SameFilter(watch.Filter, entry.Filter))
         {
             return [];
         }
@@ -149,7 +180,9 @@ internal sealed class BackgroundWatches(
             return [];
         }
 
-        if (watch.StartHeight != entry.Start || entry.Checked is not { } checkedAt)
+        // A check counted from another start than the case's (one the background set before a crash, say) still
+        // stands: only money above the case's own start is a hit.
+        if (watch.StartHeight is not { } start || entry.Checked is not { } checkedAt)
         {
             return [];
         }
@@ -163,7 +196,8 @@ internal sealed class BackgroundWatches(
         var known = WatchStore.ReadHits(transaction).Select(hit => WatchSchedule.Key(hit.WatchId, hit.Match))
             .ToHashSet(StringComparer.Ordinal);
         var fresh = entry.Matches
-            .Where(match => match.Block.Height > entry.Start && known.Add(WatchSchedule.Key(watch.Id, match)))
+            .Where(match => match.Block.Height > Math.Max(start, entry.Start)
+                && known.Add(WatchSchedule.Key(watch.Id, match)))
             .ToList();
         if (fresh.Count == 0)
         {
@@ -193,6 +227,17 @@ internal sealed class BackgroundWatches(
             })));
         return [.. fresh.Select(match => WatchStore.SealHit(transaction, watch, match, origins, journal))];
     }
+
+    /// <summary>
+    /// Says whether a watch still looks for what a check looked for: the same filter, how often aside, since a change
+    /// of the pace changes nothing of what is a hit.
+    /// </summary>
+    /// <param name="watch">The watch's filter now.</param>
+    /// <param name="checkedWith">The filter the check ran with.</param>
+    /// <returns><see langword="true"/> when they are the same.</returns>
+    private static bool SameFilter(WatchFilter watch, WatchFilter checkedWith) =>
+        WatchCodec.Encode(watch with { Pace = WatchPace.EveryBlock })
+        == WatchCodec.Encode(checkedWith with { Pace = WatchPace.EveryBlock });
 
     /// <summary>Seals the start the background set, when the watch still has none.</summary>
     /// <param name="transaction">The case's write.</param>
