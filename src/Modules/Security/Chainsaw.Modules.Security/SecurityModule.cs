@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Security.Contracts;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Chainsaw.Modules.Security;
 
@@ -31,6 +32,20 @@ public static class SecurityModule
         services.AddSingleton<IOperatorProfileStore, OperatorProfileStore>();
         services.AddSingleton<IPurposeKeys, PurposeKeys>();
         services.AddSingleton<IVaultSecrets, VaultSecrets>();
+        return services.AddUserDataProtection();
+    }
+
+    /// <summary>
+    /// Adds only the protection for the signed-in Windows user (DPAPI), without the vault: what the background watching
+    /// needs. A protector already registered (a test's) is kept.
+    /// </summary>
+    /// <param name="services">The container to add to.</param>
+    /// <returns>The same container.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
+    public static IServiceCollection AddUserDataProtection(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<IUserDataProtector, DpapiProtector>();
         return services;
     }
 }

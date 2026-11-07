@@ -1,3 +1,4 @@
+using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Pricing.Contracts;
 
@@ -36,6 +37,30 @@ public sealed record AppSettings
     /// Gets the crypto rate's resolution; an hour by default, since a block's time is only roughly right.
     /// </summary>
     public PriceResolution Resolution { get; init; } = PriceResolution.Hour;
+
+    /// <summary>
+    /// Gets whether the watching goes on when Chainsaw is closed, in the background process (decided 2026-11-07); on by
+    /// default, and the user can turn it off.
+    /// </summary>
+    public bool WatchInBackground { get; init; } = true;
+
+    /// <summary>Gets whether a hit is said with a notification in Windows; on by default.</summary>
+    public bool AlertInWindows { get; init; } = true;
+
+    /// <summary>Gets whether a hit is said with the coin swoosh; on by default.</summary>
+    public bool AlertWithSound { get; init; } = true;
+
+    /// <summary>
+    /// Gets whether a hit is said with a message in the middle of the screen. Built, but not offered in the settings
+    /// until its sketch is approved; off by default.
+    /// </summary>
+    public bool AlertOnScreen { get; init; }
+
+    /// <summary>Gets the ways a hit is said, as the background process reads them.</summary>
+    public WatchAlerts Alerts =>
+        (AlertInWindows ? WatchAlerts.Windows : WatchAlerts.None)
+        | (AlertWithSound ? WatchAlerts.Sound : WatchAlerts.None)
+        | (AlertOnScreen ? WatchAlerts.Screen : WatchAlerts.None);
 
     /// <summary>Gets the automatic lock's time, kept within the allowed range.</summary>
     public TimeSpan AutoLockTimeout =>

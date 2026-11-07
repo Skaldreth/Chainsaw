@@ -56,6 +56,7 @@ public partial class MainWindow : Window
     /// <param name="guide">The view Guide (F1).</param>
     /// <param name="monitoring">The view Bevakning (sketch BV1a).</param>
     /// <param name="watchRunner">The watches' checks while Chainsaw is open and unlocked, started here.</param>
+    /// <param name="background">The background watching: the plan, the hold on the open case and its state, started here.</param>
     public MainWindow(
         ShellViewModel shell,
         GateViewModel gate,
@@ -63,7 +64,8 @@ public partial class MainWindow : Window
         GuidePanelViewModel guidePanel,
         GuideViewModel guide,
         MonitoringViewModel monitoring,
-        WatchRunner watchRunner)
+        WatchRunner watchRunner,
+        BackgroundLink background)
     {
         InitializeComponent();
         _shell = shell;
@@ -81,6 +83,8 @@ public partial class MainWindow : Window
         WireGuide(graph, guide);
         WireWatches(shell, graph, monitoring);
         watchRunner.Start();
+        shell.Settings.SettingsChanged += (_, settings) => background.Apply(settings);
+        background.Start();
         gate.PropertyChanged += OnGateChanged;
         ShowGate();
 

@@ -167,6 +167,14 @@ public sealed class WatchBoard
         }
     });
 
+    /// <summary>Says a problem from any thread, for example an entry from the background that could not be read.</summary>
+    /// <param name="problem">The problem, in Swedish.</param>
+    public void Report(string problem) => _ui.Post(() =>
+    {
+        Problem = problem;
+        Changed?.Invoke(this, EventArgs.Empty);
+    });
+
     /// <summary>Notes that the user has seen a watch's hits, when it has new ones.</summary>
     /// <param name="watchId">The watch.</param>
     /// <returns>A task that completes when it is noted and read back.</returns>

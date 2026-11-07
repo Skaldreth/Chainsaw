@@ -15,9 +15,41 @@ public static class WatchWords
 
     /// <summary>The head's tooltip while it runs.</summary>
     public const string RunningTip =
-        "Bevakningarna kontrolleras bara medan Chainsaw är öppet och upplåst, genom utgången och bara mot en " +
-        "endpoint " +
-        "i fas med kedjan. Att bevaka när Chainsaw är stängt är inte byggt än.";
+        "Bevakningarna kontrolleras medan Chainsaw är öppet och upplåst, genom utgången och bara mot en endpoint " +
+        "i fas med kedjan.";
+
+    /// <summary>The head while the background process watches through Windows (sketch BV1a).</summary>
+    public const string BackgroundRunningText = "Går i bakgrunden · genom Windows";
+
+    /// <summary>What follows when the background says which endpoint in step it asks.</summary>
+    public const string InStepText = " · i fas med {0}";
+
+    /// <summary>The head's tooltip while the background process watches.</summary>
+    public const string BackgroundRunningTip =
+        "Bakgrundsprocessen vet bara adresserna och ärendets id. Den ser inget av ärendet. Det den ser förs in " +
+        "i ärendet när det öppnas och låses upp.";
+
+    /// <summary>The head when VPN is the way out, which the background cannot use (sketch BV1a, waiting).</summary>
+    public const string BackgroundWaitsText = "Bakgrunden väntar på utgången · bevakar bara medan Chainsaw är öppet";
+
+    /// <summary>The head's tooltip when VPN is the way out.</summary>
+    public const string BackgroundWaitsTip =
+        "VPN-utgången ligger krypterad i valvet, så bakgrunden kan inte ansluta den när Chainsaw är stängt och " +
+        "gör då inga uppslag. Välj Windows som utgång för att bevaka också då.";
+
+    /// <summary>The head when the user has turned the background off (sketch BV1a, off).</summary>
+    public const string BackgroundOffText = "Bakgrunden är av · bevakar bara medan Chainsaw är öppet";
+
+    /// <summary>The head's tooltip when the background is off.</summary>
+    public const string BackgroundOffTip =
+        "Slå på bakgrunden i Inställningar för att bevaka när Chainsaw är stängt.";
+
+    /// <summary>The head when the background should run but does not.</summary>
+    public const string BackgroundStoppedText = "Bakgrunden går inte · bevakar bara medan Chainsaw är öppet";
+
+    /// <summary>The head's tooltip when the background should run but does not.</summary>
+    public const string BackgroundStoppedTip =
+        "Bakgrundsprocessen kunde inte startas. Chainsaw försöker igen en gång i minuten.";
 
     /// <summary>The head when no exit is connected.</summary>
     public const string NoExitText = "Väntar på utgången · inga uppslag görs";
@@ -52,7 +84,7 @@ public static class WatchWords
     public const string LockedText = "Låst · inga uppslag görs";
 
     /// <summary>The line in the form under the rows.</summary>
-    public const string FormNote = "Bevakar medan Chainsaw är öppet, genom utgången.";
+    public const string FormNote = "Frågar källan genom utgången; vyns huvud säger om det går också i bakgrunden.";
 
     /// <summary>The text of a watch never checked.</summary>
     public const string NeverCheckedText = "Inte kontrollerad än";

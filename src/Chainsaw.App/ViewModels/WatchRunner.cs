@@ -6,11 +6,11 @@ namespace Chainsaw.App.ViewModels;
 
 /// <summary>
 /// Runs the watches in the background while Chainsaw is open and unlocked (CLAUDE.md, <em>Bevaka</em>; the process
-/// that runs when Chainsaw is closed is stage 27). Every few seconds it looks at the open case's active watches; for
-/// each chain whose gate is open it asks the chain's height at most once a minute (at once for a watch without a
-/// start), and the Monitoring module checks the watches that are due: a new block has come and each watch's own pace
-/// allows. Locked, without an exit or with the chain off, nothing is asked (the module's gate). It knows nothing of
-/// WPF.
+/// that runs when Chainsaw is closed is <c>Chainsaw.Watcher</c>). Every few seconds it looks at the open case's active
+/// watches; for each chain whose gate is open it asks the chain's height at most once a minute (at once for a watch
+/// without a start), and the Monitoring module checks the watches that are due: a new block has come and each watch's
+/// own pace allows. Locked, without an exit or with the chain off, nothing is asked (the module's gate). First in each
+/// round it brings in what the background process saw while Chainsaw was closed. It knows nothing of WPF.
 /// </summary>
 public sealed class WatchRunner : IDisposable
 {
@@ -35,6 +35,9 @@ public sealed class WatchRunner : IDisposable
     /// <summary>What the runner knows per chain.</summary>
     private readonly Dictionary<Chain, ChainState> _chains = [];
 
+    /// <summary>Brings what the background process saw into the open case before the checks, or nothing.</summary>
+    private readonly Func<ICase, Task>? _import;
+
     /// <summary>The case the states belong to, so that another case starts afresh.</summary>
     private ICase? _case;
 
@@ -44,14 +47,22 @@ public sealed class WatchRunner : IDisposable
     /// <param name="delay">
     /// Waits between rounds; <see cref="Task.Delay(TimeSpan, CancellationToken)"/> when none.
     /// </param>
+    /// <param name="import">
+    /// Brings what the background process saw into the open case (<see cref="BackgroundLink.ImportAsync"/>), first in
+    /// each round, so that it and the checks never write the case's watches at once; none when not given.
+    /// </param>
     public WatchRunner(
-        WatchBoard board, IClock clock, Func<TimeSpan, CancellationToken, Task>? delay = null)
+        WatchBoard board,
+        IClock clock,
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        Func<ICase, Task>? import = null)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(clock);
         _board = board;
         _clock = clock;
         _delay = delay ?? Task.Delay;
+        _import = import;
     }
 
     /// <summary>Starts the loop off the UI thread; it runs until <see cref="Dispose"/>.</summary>
@@ -78,6 +89,19 @@ public sealed class WatchRunner : IDisposable
         {
             _case = openCase;
             _chains.Clear();
+        }
+
+        if (_import is not null)
+        {
+            try
+            {
+                await _import(openCase).ConfigureAwait(false);
+            }
+            catch (CaseException)
+            {
+                // The case was closed or locked meanwhile; the next round looks at the case open then.
+                return;
+            }
         }
 
         var active = _board.Snapshot.Watches.Where(watch => watch.State == WatchState.Active).ToList();

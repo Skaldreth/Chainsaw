@@ -10,6 +10,7 @@ using Chainsaw.Modules.Checks;
 using Chainsaw.Modules.Pricing;
 using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Monitoring;
+using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Requests;
 using Chainsaw.App.Commands;
 using Chainsaw.App.Controls;
@@ -150,6 +151,7 @@ public partial class App : Application
                     Resolution = settings.Resolution,
                 })
                 .AddMonitoringModule()
+                .AddBackgroundWatchFiles()
                 .AddRequestsModule()
                 .AddSingleton<CaseSession>()
                 .AddSingleton<CaseWorkflow>()
@@ -176,8 +178,27 @@ public partial class App : Application
                 .AddSingleton<WatchBoard>()
                 .AddSingleton<WatchFormViewModel>()
                 .AddSingleton<MonitoringViewModel>()
+                .AddSingleton<IBackgroundProcess, WindowsBackgroundProcess>()
+                .AddSingleton<IAutostart, RunKeyAutostart>()
+                .AddSingleton(provider => new BackgroundParts(
+                    provider.GetRequiredService<IBackgroundWatches>(),
+                    provider.GetRequiredService<IBackgroundPlan>(),
+                    provider.GetRequiredService<ICaseHolds>(),
+                    provider.GetRequiredService<IWatchQueue>(),
+                    provider.GetRequiredService<IBackgroundStatusFile>(),
+                    provider.GetRequiredService<IBackgroundProcess>(),
+                    provider.GetRequiredService<IAutostart>(),
+                    provider.GetRequiredService<IClock>()))
+                .AddSingleton(provider => new BackgroundLink(
+                    provider.GetRequiredService<BackgroundParts>(),
+                    provider.GetRequiredService<CaseSession>(),
+                    provider.GetRequiredService<WatchBoard>(),
+                    provider.GetRequiredService<IUiThread>(),
+                    settings))
                 .AddSingleton(provider => new WatchRunner(
-                    provider.GetRequiredService<WatchBoard>(), provider.GetRequiredService<IClock>()))
+                    provider.GetRequiredService<WatchBoard>(),
+                    provider.GetRequiredService<IClock>(),
+                    import: provider.GetRequiredService<BackgroundLink>().ImportAsync))
                 .AddSingleton(_ => GuideLibrary.Load())
                 .AddSingleton<GuidePanelViewModel>()
                 .AddSingleton<GuideViewModel>()

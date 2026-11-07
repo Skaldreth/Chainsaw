@@ -149,15 +149,23 @@ public sealed partial class MonitoringViewModel : ObservableObject
     /// <param name="board">The watches.</param>
     /// <param name="form">The form, shared with the graph.</param>
     /// <param name="clock">The clock.</param>
-    public MonitoringViewModel(WatchBoard board, WatchFormViewModel form, IClock clock)
+    /// <param name="background">The background watching, whose state the head says; none in some tests.</param>
+    public MonitoringViewModel(
+        WatchBoard board, WatchFormViewModel form, IClock clock, BackgroundLink? background = null)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(form);
         ArgumentNullException.ThrowIfNull(clock);
         _board = board;
         _clock = clock;
+        _background = background;
         Form = form;
         board.Changed += (_, _) => Show();
+        if (background is not null)
+        {
+            background.Changed += (_, _) => Show();
+        }
+
         Show();
     }
 
@@ -207,6 +215,13 @@ public sealed partial class MonitoringViewModel : ObservableObject
     /// <summary>Gets whether the watching waits (yellow, dashed) rather than runs.</summary>
     [ObservableProperty]
     public partial bool IsWaiting { get; private set; }
+
+    /// <summary>Gets whether the background is off (grey, dashed): it watches only while Chainsaw is open.</summary>
+    [ObservableProperty]
+    public partial bool IsOff { get; private set; }
+
+    /// <summary>The background watching, or <see langword="null"/>.</summary>
+    private readonly BackgroundLink? _background;
 
     /// <summary>Gets whether the removal's confirmation is open.</summary>
     [ObservableProperty]
@@ -509,7 +524,45 @@ public sealed partial class MonitoringViewModel : ObservableObject
         }
         else
         {
-            (BackgroundText, BackgroundTip, IsWaiting) = (WatchWords.RunningText, WatchWords.RunningTip, false);
+            ShowBackground();
+            return;
+        }
+
+        IsOff = false;
+    }
+
+    /// <summary>
+    /// Shows, when Chainsaw itself watches without trouble, what happens when it is closed (sketch BV1a): the
+    /// background goes through Windows, waits for the exit (VPN), is off, or does not run.
+    /// </summary>
+    private void ShowBackground()
+    {
+        IsOff = false;
+        switch (_background?.Mode)
+        {
+            case BackgroundMode.Running:
+                var inStep = _background.InStepWith is { } name
+                    ? string.Format(CultureInfo.InvariantCulture, WatchWords.InStepText, name)
+                    : string.Empty;
+                (BackgroundText, BackgroundTip, IsWaiting) =
+                    (WatchWords.BackgroundRunningText + inStep, WatchWords.BackgroundRunningTip, false);
+                break;
+            case BackgroundMode.NeedsWindows:
+                (BackgroundText, BackgroundTip, IsWaiting) =
+                    (WatchWords.BackgroundWaitsText, WatchWords.BackgroundWaitsTip, true);
+                break;
+            case BackgroundMode.NotRunning:
+                (BackgroundText, BackgroundTip, IsWaiting) =
+                    (WatchWords.BackgroundStoppedText, WatchWords.BackgroundStoppedTip, true);
+                break;
+            case BackgroundMode.Off:
+                (BackgroundText, BackgroundTip, IsWaiting) =
+                    (WatchWords.BackgroundOffText, WatchWords.BackgroundOffTip, false);
+                IsOff = true;
+                break;
+            default:
+                (BackgroundText, BackgroundTip, IsWaiting) = (WatchWords.RunningText, WatchWords.RunningTip, false);
+                break;
         }
     }
 }

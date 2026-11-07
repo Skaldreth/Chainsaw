@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Chainsaw.App/Chainsaw.App.csproj" />
     <Project Path="src/Chainsaw.SharedKernel/Chainsaw.SharedKernel.csproj" />
+    <Project Path="src/Chainsaw.Watcher/Chainsaw.Watcher.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />
   <Folder Name="/src/Modules/Cases/">

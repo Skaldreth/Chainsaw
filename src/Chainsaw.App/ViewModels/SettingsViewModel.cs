@@ -222,6 +222,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool LocksWithWindows { get; private set; }
 
+    /// <summary>Gets whether the watching goes on when Chainsaw is closed.</summary>
+    [ObservableProperty]
+    public partial bool WatchesInBackground { get; private set; }
+
+    /// <summary>Gets whether a hit is said with a notification in Windows.</summary>
+    [ObservableProperty]
+    public partial bool AlertsInWindows { get; private set; }
+
+    /// <summary>Gets whether a hit is said with the coin swoosh.</summary>
+    [ObservableProperty]
+    public partial bool AlertsWithSound { get; private set; }
+
     /// <summary>Gets what went wrong with the settings' file, or an empty text.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
@@ -361,6 +373,24 @@ public sealed partial class SettingsViewModel : ObservableObject
         _autoLock.Change(settings.AutoLockTimeout);
         Save(settings);
     }
+
+    /// <summary>Raised on the UI thread when the settings change, with them.</summary>
+    public event EventHandler<AppSettings>? SettingsChanged;
+
+    /// <summary>Gets the settings in force.</summary>
+    public AppSettings Current => _settings;
+
+    /// <summary>Turns the watching when Chainsaw is closed on or off (the switch).</summary>
+    [RelayCommand]
+    public void ToggleWatchInBackground() => Save(_settings with { WatchInBackground = !_settings.WatchInBackground });
+
+    /// <summary>Turns the notification in Windows on or off (the switch).</summary>
+    [RelayCommand]
+    public void ToggleAlertInWindows() => Save(_settings with { AlertInWindows = !_settings.AlertInWindows });
+
+    /// <summary>Turns the coin swoosh on or off (the switch).</summary>
+    [RelayCommand]
+    public void ToggleAlertWithSound() => Save(_settings with { AlertWithSound = !_settings.AlertWithSound });
 
     /// <summary>Turns the lock with Windows on or off (the switch).</summary>
     [RelayCommand]
@@ -583,6 +613,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         SettingsChoice.Mark(CurrencyChoices, _settings.Currency);
         SettingsChoice.Mark(ResolutionChoices, _settings.Resolution);
         LocksWithWindows = _settings.LockWithWindows;
+        WatchesInBackground = _settings.WatchInBackground;
+        AlertsInWindows = _settings.AlertInWindows;
+        AlertsWithSound = _settings.AlertWithSound;
     }
 
     /// <summary>Marks the card of the way out chosen now.</summary>
@@ -598,6 +631,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _settings = settings;
         ShowChoices();
         ErrorText = string.Empty;
+        SettingsChanged?.Invoke(this, settings);
         var before = _saving;
         _saving = SaveAfterAsync(before, settings, ++_writes);
     }

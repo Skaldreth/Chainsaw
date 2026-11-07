@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- No console window: the watching is quiet. Plain net10.0, so that its logic is tested on any machine. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Chainsaw.Watcher</AssemblyName>
+    <RootNamespace>Chainsaw.Watcher</RootNamespace>
+    <AssemblyTitle>Chainsaw bevakning</AssemblyTitle>
+    <ApplicationIcon>..\..\assets\logo\chainsaw.ico</ApplicationIcon>
+    <!-- Small and quiet: one heap, no background GC thread, no culture data. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The generated calls into Windows (alerts, single instance) pass their values by pointer. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The coin swoosh, made by tools/sounds/coin-swoosh.py. -->
+    <EmbeddedResource Include="Sounds\coin-swoosh.wav" LogicalName="Chainsaw.Watcher.coin-swoosh.wav" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" />
+    <PackageReference Include="SQLite3MC.PCLRaw.bundle" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Chainsaw.SharedKernel\Chainsaw.SharedKernel.csproj" />
+    <ProjectReference Include="..\Modules\Security\Chainsaw.Modules.Security\Chainsaw.Modules.Security.csproj" />
+    <ProjectReference Include="..\Modules\Network\Chainsaw.Modules.Network\Chainsaw.Modules.Network.csproj" />
+    <ProjectReference Include="..\Modules\Chains\Chainsaw.Modules.Chains\Chainsaw.Modules.Chains.csproj" />
+    <ProjectReference Include="..\Modules\Monitoring\Chainsaw.Modules.Monitoring\Chainsaw.Modules.Monitoring.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Chainsaw.Watcher.Tests" />
+  </ItemGroup>
+</Project>

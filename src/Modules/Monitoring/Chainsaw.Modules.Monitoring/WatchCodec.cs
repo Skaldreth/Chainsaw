@@ -123,8 +123,7 @@ internal static class WatchCodec
     /// <param name="watchId">The watch.</param>
     /// <param name="match">The match.</param>
     /// <returns>The key.</returns>
-    public static string Key(string watchId, WatchMatch match) =>
-        string.Join('|', watchId, match.Transaction, match.Direction, match.Amount.Asset.ToString());
+    public static string Key(string watchId, WatchMatch match) => WatchSchedule.Key(watchId, match);
 
     /// <summary>Gives an asset's stored form.</summary>
     /// <param name="asset">The asset.</param>

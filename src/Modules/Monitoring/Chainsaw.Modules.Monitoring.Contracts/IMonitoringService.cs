@@ -279,4 +279,7 @@ public static class MonitoringJournalKinds
 
     /// <summary>A check found hits and sealed them.</summary>
     public const string Hit = "monitoring.hit";
+
+    /// <summary>What the background process saw was brought into the case.</summary>
+    public const string Imported = "monitoring.imported";
 }

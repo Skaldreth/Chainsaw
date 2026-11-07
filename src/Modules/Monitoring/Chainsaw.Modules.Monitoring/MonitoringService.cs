@@ -16,6 +16,7 @@ namespace Chainsaw.Modules.Monitoring;
 /// <param name="bitcoin">Bitcoin's source.</param>
 /// <param name="ethereum">Ethereum's source.</param>
 /// <param name="clustering">The clustering, which says a cluster's addresses at each check.</param>
+/// <param name="feeds">The feeds that read a chain through the case's sources.</param>
 /// <param name="clock">The clock.</param>
 internal sealed class MonitoringService(
     IWatchCheck check,
@@ -23,17 +24,15 @@ internal sealed class MonitoringService(
     IBitcoinSource bitcoin,
     IEthereumSource ethereum,
     IClusteringService clustering,
+    IWatchFeeds feeds,
     IClock clock) : IMonitoringService
 {
     /// <summary>What a check says when a cluster has more addresses than one check reads.</summary>
     public const string TooManyAddressesText =
         "Klustret har {0} adresser; en kontroll läser de {1} första, så resten bevakas inte nu.";
 
-    /// <summary>
-    /// How much earlier than its pace a watch may be checked, since the height is asked once a minute and a check takes
-    /// time: without it a watch of one minute would wait for two.
-    /// </summary>
-    public static readonly TimeSpan Tolerance = TimeSpan.FromSeconds(10);
+    /// <summary>How much earlier than its pace a watch may be checked (<see cref="WatchSchedule.Tolerance"/>).</summary>
+    public static readonly TimeSpan Tolerance = WatchSchedule.Tolerance;
 
     /// <summary>What a check says when a cluster's addresses could not be read.</summary>
     public const string NoClusterText = "Klustrets adresser kunde inte läsas; bara {0} kontrollerades.";
@@ -195,7 +194,7 @@ internal sealed class MonitoringService(
     {
         ArgumentNullException.ThrowIfNull(@case);
         var open = gate.For(chain);
-        if (open != WatchGate.Open || FeedFor(@case, chain) is not { } feed)
+        if (open != WatchGate.Open || feeds.For(@case, chain) is not { } feed)
         {
             return new WatchRun(chain, open, height, [], clock.UtcNow);
         }
@@ -213,10 +212,10 @@ internal sealed class MonitoringService(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var start = watch.StartHeight!.Value;
-            var last = checkedBefore.TryGetValue(watch.Id, out var before) ? before.Height : start;
             var (addresses, notes) = AddressesOf(@case, watch);
             var result = await check.CheckAsync(
-                addresses, watch.Filter, feed, start, Math.Max(start, last - WatchRules.Lookback), cancellationToken)
+                addresses, watch.Filter, feed, start,
+                WatchSchedule.DownTo(start, checkedBefore.GetValueOrDefault(watch.Id)), cancellationToken)
                 .ConfigureAwait(false);
             var fresh = result.Matches.Where(match => !known.Contains(WatchCodec.Key(watch.Id, match))).ToList();
             var problems = notes.Concat(result.Problems).ToList();
@@ -239,25 +238,8 @@ internal sealed class MonitoringService(
     public static bool IsDue(Watch watch, WatchChecked? last, long height, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(watch);
-        if (last is null)
-        {
-            return true;
-        }
-
-        var newBlock = height > last.Tip || last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
-        return newBlock && now - last.CheckedUtc >= watch.Filter.Pace.Interval() - Tolerance;
+        return WatchSchedule.IsDue(watch.Filter.Pace, last, height, now);
     }
-
-    /// <summary>Gives the feed that reads a chain through the case's sources.</summary>
-    /// <param name="case">The open case.</param>
-    /// <param name="chain">The chain.</param>
-    /// <returns>The feed, or <see langword="null"/> for a chain that cannot be watched yet.</returns>
-    private IWatchFeed? FeedFor(ICase @case, Chain chain) => chain switch
-    {
-        Chain.Bitcoin => new BitcoinCaseFeed(bitcoin, @case),
-        Chain.Ethereum => new EthereumCaseFeed(ethereum, @case),
-        _ => null,
-    };
 
     /// <summary>
     /// Gives a watch's addresses now: the address, or the cluster's addresses as the clustering puts them, the anchor
@@ -266,7 +248,7 @@ internal sealed class MonitoringService(
     /// <param name="case">The open case.</param>
     /// <param name="watch">The watch.</param>
     /// <returns>The addresses, and what to say about them.</returns>
-    private (IReadOnlyList<ChainAddress> Addresses, IReadOnlyList<string> Notes) AddressesOf(ICase @case, Watch watch)
+    public (IReadOnlyList<ChainAddress> Addresses, IReadOnlyList<string> Notes) AddressesOf(ICase @case, Watch watch)
     {
         var anchor = watch.Subject.Anchor;
         if (watch.Subject.Kind != WatchSubjectKind.Cluster || !BitcoinAddress.TryParse(anchor.Value, out var start))
@@ -348,8 +330,6 @@ internal sealed class MonitoringService(
         long height,
         DateTimeOffset started)
     {
-        var problem = problems.Count == 0 ? null : string.Join(' ', problems);
-        var through = Math.Max(height, result.Highest ?? height);
         return @case.Write(transaction =>
         {
             // The height is only moved on when every address was read back to where the check was, so that a failed,
@@ -365,16 +345,8 @@ internal sealed class MonitoringService(
 
             var previous = WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id)?.Height
                 ?? watch.StartHeight!.Value;
-            var kept = result.Status switch
-            {
-                WatchFeedStatus.Read => through,
-                WatchFeedStatus.Partial when result.CompleteAbove is { } above => Math.Max(previous, above),
-                _ => previous,
-            };
             WatchStore.WriteChecked(
-                transaction,
-                watch.Id,
-                new WatchChecked(started, kept, result.Status, problem) { Tip = Math.Max(height, kept) });
+                transaction, watch.Id, WatchSchedule.After(previous, result, problems, height, started));
             if (fresh.Count == 0)
             {
                 return (IReadOnlyList<WatchHit>)[];

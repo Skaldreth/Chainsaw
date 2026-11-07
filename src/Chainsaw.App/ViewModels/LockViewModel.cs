@@ -22,6 +22,12 @@ public sealed partial class LockViewModel : ObservableObject
     public const string WindowsWaitsText =
         "Uppslag går genom Windows. Chainsaw slår inte upp något medan det är låst.";
 
+    /// <summary>
+    /// What the lock screen says when the background process saw a hit while Chainsaw was closed or locked (sketch
+    /// ID8c): only that, never what or where.
+    /// </summary>
+    public const string WatchHitText = "En bevakning har slagit till. Den visas efter upplåsning.";
+
     /// <summary>What the lock screen says when the vault did not open for a reason it does not name.</summary>
     public const string UnknownFailureText = "Valvet gick inte att öppna.";
 
@@ -39,7 +45,9 @@ public sealed partial class LockViewModel : ObservableObject
     /// <param name="exit">The way out and the exit; its changes are told on the UI thread.</param>
     /// <param name="autoLock">The automatic lock, whose time is shown.</param>
     /// <param name="build">The build, shown in the corner.</param>
-    public LockViewModel(IVault vault, ExitWay exit, AutoLock autoLock, BuildInfo build)
+    /// <param name="background">The background watching, which says whether a hit waits; none in some tests.</param>
+    public LockViewModel(
+        IVault vault, ExitWay exit, AutoLock autoLock, BuildInfo build, BackgroundLink? background = null)
     {
         _vault = vault;
         _exit = exit;
@@ -49,7 +57,16 @@ public sealed partial class LockViewModel : ObservableObject
         AboutDetails = $"Chainsaw {build.Version}, commit {build.Commit ?? "okänd"}.";
         ExitText = TextFor(exit);
         exit.Changed += (_, _) => ExitText = TextFor(exit);
+        if (background is not null)
+        {
+            HasWatchHit = background.HasQueuedHits;
+            background.Changed += (_, _) => HasWatchHit = background.HasQueuedHits;
+        }
     }
+
+    /// <summary>Gets whether a watch has hit while Chainsaw was closed or locked (the line with the dot).</summary>
+    [ObservableProperty]
+    public partial bool HasWatchHit { get; private set; }
 
     /// <summary>Gets why the last attempt failed, or an empty text.</summary>
     [ObservableProperty]

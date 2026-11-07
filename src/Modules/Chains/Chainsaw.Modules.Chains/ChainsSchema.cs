@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 
 namespace Chainsaw.Modules.Chains;
 
@@ -12,7 +13,7 @@ internal sealed class ChainsSchema : ICaseSchemaContributor
     public const string ModuleName = "chains";
 
     /// <summary>The sealed chain of raw responses.</summary>
-    public const string RawResponsesChain = "chains.raw_responses";
+    public const string RawResponsesChain = SealedResponses.Chain;
 
     /// <summary>The table of the raw responses.</summary>
     public const string RawResponsesTable = "chains_raw_responses";

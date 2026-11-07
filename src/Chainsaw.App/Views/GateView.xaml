@@ -96,6 +96,14 @@
                                                Data="{StaticResource Icon.Shield}" />
                             <TextBlock Text="{Binding ExitText}" Style="{StaticResource Text.Note}" />
                         </DockPanel>
+                        <!-- A watch has hit while Chainsaw was closed or locked (sketch ID8c): only that. -->
+                        <DockPanel Margin="0,10,0,0" Visibility="{Binding HasWatchHit, Converter={StaticResource Visible}}">
+                            <Border DockPanel.Dock="Left" Width="14" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Fill="{StaticResource Brush.Accent}" HorizontalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="{x:Static vm:LockViewModel.WatchHitText}" Style="{StaticResource Text.Note}"
+                                       Foreground="{StaticResource Brush.Text}" />
+                        </DockPanel>
                         <DockPanel Margin="0,10,0,0">
                             <controls:GridIcon DockPanel.Dock="Left" Size="14" Margin="0,0,10,0" VerticalAlignment="Center"
                                                Data="{StaticResource Icon.Lock}" />

@@ -46,6 +46,7 @@ public static class ChainsModule
         sources?.Invoke(sourcesOptions);
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<ICaseSchemaContributor, ChainsSchema>();
+        services.AddSingleton<IResponseTransfer, ResponseTransfer>();
 
         // Each sort of API is registered here; another chain (Ethereum, TRON) only adds its own.
         services.AddSingleton<ISourceApi>(new EsploraApi(settings));

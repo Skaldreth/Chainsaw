@@ -78,11 +78,25 @@ internal sealed class MonitoringSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The second version: the background's entries brought into the case, by id, so that none is brought in twice.
+    /// </summary>
+    private const string Version2 = """
+        CREATE TABLE monitoring_imported (
+            entry_id TEXT PRIMARY KEY,
+            imported_utc TEXT NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
     /// <inheritdoc/>
-    public IReadOnlyList<CaseSchemaStep> Steps { get; } = [new(1, "Bevakningar och träffar", Version1)];
+    public IReadOnlyList<CaseSchemaStep> Steps { get; } =
+    [
+        new(1, "Bevakningar och träffar", Version1),
+        new(2, "Bakgrundens kontroller som förts in", Version2),
+    ];
 
     /// <inheritdoc/>
     public IReadOnlyList<SealedChain> SealedChains { get; } =

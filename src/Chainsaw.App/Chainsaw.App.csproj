@@ -47,5 +47,7 @@
     <ProjectReference Include="..\Modules\Pricing\Chainsaw.Modules.Pricing\Chainsaw.Modules.Pricing.csproj" />
     <ProjectReference Include="..\Modules\Monitoring\Chainsaw.Modules.Monitoring\Chainsaw.Modules.Monitoring.csproj" />
     <ProjectReference Include="..\Modules\Requests\Chainsaw.Modules.Requests\Chainsaw.Modules.Requests.csproj" />
+    <!-- The background watching (stage 27), built next to Chainsaw.exe (its types are all internal); Chainsaw starts it. -->
+    <ProjectReference Include="..\Chainsaw.Watcher\Chainsaw.Watcher.csproj" />
   </ItemGroup>
 </Project>
