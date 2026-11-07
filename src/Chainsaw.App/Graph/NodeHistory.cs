@@ -384,8 +384,16 @@ public static class NodeHistory
             coins.Add(own);
         }
 
+        var movements = scene.Snapshot.Graph.Edges
+            .Where(edge => edge.To == node.Key && edge.Kind == GraphEdgeKind.Transfer)
+            .SelectMany(edge => edge.Transfers)
+            .Where(transfer => transfer.Movement is not null)
+            .Select(InspectorForms.MovementOf)
+            .ToHashSet();
         foreach (var entry in data.Links.Where(entry =>
-            coins.Contains(entry.Link.From) || (node.Node.OtherChain is { } other && entry.Link.To == other)))
+            (entry.Link.From is { } coin && coins.Contains(coin))
+            || (entry.Link.FromTransfer is { } movement && movements.Contains(movement))
+            || (node.Node.OtherChain is { } other && entry.Link.To == other)))
         {
             var link = entry.Link;
             var chain = GraphScene.ChainShortName(link.To.Chain);

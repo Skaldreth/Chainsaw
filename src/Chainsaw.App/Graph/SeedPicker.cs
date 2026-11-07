@@ -23,7 +23,15 @@ public static class SeedPicker
         var coins = new List<Outpoint>();
         foreach (var start in graph.StartPoints)
         {
-            coins.AddRange(start.Address is { } address ? PaidTo(graph, address) : PaidBy(graph, start.Txid!));
+            if (start.Address is { } address)
+            {
+                coins.AddRange(PaidTo(graph, address));
+            }
+            else if (start.Txid is { } txid)
+            {
+                // An Ethereum start point's movements are chosen by AccountSeedPicker.
+                coins.AddRange(PaidBy(graph, txid));
+            }
         }
 
         var distinct = coins.Distinct().ToList();

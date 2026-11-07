@@ -236,6 +236,52 @@ internal static class GraphStateStore
     }
 
     /// <summary>
+    /// Seals a link from an Ethereum movement to another chain. The movement is stored in the same columns as a coin:
+    /// its kind and transaction as <c>token:0x…</c> where the coin's txid stands, and its position where the
+    /// output's index stands; a Bitcoin txid never holds a colon, so the two never mix.
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="from">The movement.</param>
+    /// <param name="to">The other chain's transaction.</param>
+    /// <param name="reason">Why.</param>
+    /// <param name="journal">The journal entry that records it.</param>
+    /// <returns>The link.</returns>
+    public static CrossChainLink SealLink(
+        ICaseTransaction transaction, AccountSeed from, ChainTransactionRef to, string reason, JournalEntry journal)
+    {
+        var record = transaction.AppendSealed(
+            TracingSchema.CrossChainChain,
+            [LinkAction, null, MovementText(from), from.Position, to.Chain.ToString(), to.Id, reason,
+                journal.Sequence, Text(journal.Utc)]);
+        return new CrossChainLink(record.Sequence, null, to, reason, journal.Sequence, journal.Utc)
+        {
+            FromTransfer = from,
+        };
+    }
+
+    /// <summary>Writes an Ethereum movement's kind and transaction as the link's record stores them.</summary>
+    /// <param name="from">The movement.</param>
+    /// <returns>For example <c>token:0x…</c>.</returns>
+    private static string MovementText(AccountSeed from) =>
+        from.Kind.ToString().ToLowerInvariant() + ":" + from.Transaction.Value;
+
+    /// <summary>Reads where a stored link's money left: a coin, or an Ethereum movement.</summary>
+    /// <param name="text">The stored txid or movement.</param>
+    /// <param name="index">The stored output's index or position.</param>
+    /// <returns>The coin or the movement.</returns>
+    private static (Outpoint? Coin, AccountSeed? Movement) ReadFrom(string text, long index)
+    {
+        var colon = text.IndexOf(':', StringComparison.Ordinal);
+        if (colon < 0)
+        {
+            return (new Outpoint(Txid.Parse(text), checked((int)index)), null);
+        }
+
+        var kind = Enum.Parse<EthereumTransferKind>(text[..colon], ignoreCase: true);
+        return (null, new AccountSeed(EthereumTxHash.Parse(text[(colon + 1)..]), kind, index));
+    }
+
+    /// <summary>
     /// Seals that a link is taken back, as a new record; the link's own record is never touched. A taking back without
     /// a reason is stored with an empty reason, since the column holds text.
     /// </summary>
@@ -248,8 +294,10 @@ internal static class GraphStateStore
     {
         transaction.AppendSealed(
             TracingSchema.CrossChainChain,
-            [UnlinkAction, link.Sequence, link.From.Txid.Value, (long)link.From.Index, link.To.Chain.ToString(),
-                link.To.Id, reason ?? string.Empty, journal.Sequence, Text(journal.Utc)]);
+            [UnlinkAction, link.Sequence,
+                link.From is { } coin ? coin.Txid.Value : MovementText(link.FromTransfer!),
+                link.From is { } output ? output.Index : link.FromTransfer!.Position,
+                link.To.Chain.ToString(), link.To.Id, reason ?? string.Empty, journal.Sequence, Text(journal.Utc)]);
     }
 
     /// <summary>Reads the start points.</summary>
@@ -344,13 +392,17 @@ internal static class GraphStateStore
                 continue;
             }
 
+            var (coin, movement) = ReadFrom(rows.GetString(3), rows.GetInt64(4));
             links.Add(new CrossChainLink(
                 rows.GetInt64(0),
-                new Outpoint(Txid.Parse(rows.GetString(3)), checked((int)rows.GetInt64(4))),
+                coin,
                 new ChainTransactionRef(Enum.Parse<Chain>(rows.GetString(5)), rows.GetString(6)),
                 rows.GetString(7),
                 rows.GetInt64(8),
-                Time(rows, 9)));
+                Time(rows, 9))
+            {
+                FromTransfer = movement,
+            });
         }
 
         return

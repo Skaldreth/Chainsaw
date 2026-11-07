@@ -5,6 +5,7 @@ using Chainsaw.App.Guide;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -606,7 +607,7 @@ public sealed partial class ChecksViewModel : ObservableObject
             _checks = run.Checks;
             StatusText = string.Create(
                 CultureInfo.InvariantCulture,
-                $"Kördes {Stamp(run.RanUtc)} på {run.Transactions} tx");
+                $"Kördes {Stamp(run.RanUtc)} på {run.Transactions} tx") + AccountNote(scene);
             Problem = string.Join(" ", run.Problems);
             Rebuild();
         }
@@ -620,6 +621,22 @@ public sealed partial class ChecksViewModel : ObservableObject
                 Problem = RunFailedText;
             }
         }
+    }
+
+    /// <summary>
+    /// What the list says when the graph has Ethereum: the analyses are written for the UTXO model (CoinJoin, peel
+    /// chain, the mixer's candidates and the wallets from Clustering) and are not run on an account chain.
+    /// </summary>
+    public const string AccountChainsText =
+        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum än; Ethereum-delen är inte kontrollerad.";
+
+    /// <summary>Says, after the status, that the checks did not run on the graph's Ethereum part.</summary>
+    /// <param name="scene">The graph.</param>
+    /// <returns>The note with a leading separator, or an empty text.</returns>
+    public static string AccountNote(GraphScene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        return scene.Nodes.Any(node => node.Node.Chain != Chain.Bitcoin) ? ". " + AccountChainsText : string.Empty;
     }
 
     /// <summary>Says which checks concern an actor, for the inspector's <em>Här</em>.</summary>

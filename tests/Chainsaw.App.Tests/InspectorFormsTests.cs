@@ -87,6 +87,19 @@ internal sealed class TestGraphEditor : IGraphEditor
         return Task.CompletedTask;
     }
 
+    public List<(AccountSeed Movement, ChainTransactionRef Target, string Reason)> MovementLinks { get; } = [];
+
+    public Task LinkCrossChainAsync(ICase @case, AccountSeed movement, ChainTransactionRef target, string reason)
+    {
+        if (Failure is { } failure)
+        {
+            throw failure;
+        }
+
+        MovementLinks.Add((movement, target, reason));
+        return Task.CompletedTask;
+    }
+
     /// <summary>Gets or sets what the history reads; empty by default.</summary>
     public NodeHistoryData History { get; set; } = new([], [], [], null, new Dictionary<long, string>());
 

@@ -68,6 +68,7 @@
     <Geometry x:Key="Icon.Kind.Ban">M5.6 5.6l12.8 12.8 M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z</Geometry>
     <Geometry x:Key="Icon.Kind.Check">M5 12.5l4.5 4.5L19 7.5</Geometry>
     <!-- A start point's mark (sketch GR5, variant A): a small flag. -->
+    <Geometry x:Key="Icon.Snow">M12 3v18 M4.2 7.5l15.6 9 M4.2 16.5l15.6-9 M9.5 4.5L12 7l2.5-2.5 M9.5 19.5L12 17l2.5 2.5</Geometry>
     <Geometry x:Key="Icon.Flag">M5 21V4 M5 4h11l-2 4 2 4H5</Geometry>
     <!-- The inspector's forms (sketch IN1a): break a cluster up, link to another chain, keep a label in the case. -->
     <Geometry x:Key="Icon.Split">M12 3v6 M12 9l-6 6v6 M12 9l6 6v6</Geometry>

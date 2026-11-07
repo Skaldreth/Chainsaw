@@ -368,6 +368,23 @@ internal sealed class TestTracing : ITracingService
 
     public IReadOnlyList<TracingMethodId> Methods => [];
 
+    public IReadOnlyList<TracingMethodId> AccountMethods => [];
+
+    public Func<TraceGraph, AccountTraceRequest, AccountTraceResult>? AccountTracer { get; set; }
+
+    public List<AccountTraceRequest> AccountTraced { get; } = [];
+
+    public Task<AccountTraceResult> TraceAccountsAsync(
+        TraceGraph graph, AccountTraceRequest request, CancellationToken cancellationToken = default)
+    {
+        AccountTraced.Add(request);
+        return Task.FromResult(AccountTracer?.Invoke(graph, request)
+            ?? new AccountTraceResult(new TracingMethodId(request.Method, 1), request.Seeds, []));
+    }
+
+    public CrossChainLink LinkCrossChain(ICase @case, AccountSeed from, ChainTransactionRef to, string reason) =>
+        throw new NotSupportedException();
+
     public TraceGraph? Graph { get; set; }
 
     public Func<TraceGraph, TraceRequest, TraceResult>? Tracer { get; set; }

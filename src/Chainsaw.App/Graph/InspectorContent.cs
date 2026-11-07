@@ -53,6 +53,21 @@ public sealed record InspectorContent(
     public bool CanExpand => Expansion.Count > 0;
 
     /// <summary>
+    /// Gets the balance per token of a chosen account on Ethereum (sketch TK1a), with its issuer and the snowflake;
+    /// empty otherwise.
+    /// </summary>
+    public IReadOnlyList<TokenBalanceRow> Balances { get; init; } = [];
+
+    /// <summary>Gets whether the chosen node has a balance per token to show.</summary>
+    public bool HasBalances => Balances.Count > 0;
+
+    /// <summary>Gets what the snowflake's box says, when something at the account can be frozen.</summary>
+    public string? FreezeText => Balances.Select(row => row.FreezeText).OfType<string>().FirstOrDefault();
+
+    /// <summary>Gets whether the snowflake's box is shown.</summary>
+    public bool HasFreezeText => FreezeText is not null;
+
+    /// <summary>
     /// Gets whether the chosen node is a start point, which the inspector says under its heading with the flag
     /// (sketch GR5); the node keeps its own sort.
     /// </summary>
@@ -67,13 +82,20 @@ public sealed record InspectorContent(
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(node);
         var model = node.Node;
-        var facts = new List<InspectorFact>
-        {
-            new("In", AmountText.WithUnit(node.In)),
-            new("Ut", AmountText.WithUnit(node.Out)),
-            new("Spårat in", Traced(scene, node.TracedIn)),
-            new("Sort", node.Look.Name),
-        };
+        var facts = model.Chain == Chain.Bitcoin
+            ? new List<InspectorFact>
+            {
+                new("In", AmountText.WithUnit(node.In)),
+                new("Ut", AmountText.WithUnit(node.Out)),
+                new("Spårat in", Traced(scene, node.TracedIn)),
+                new("Sort", node.Look.Name),
+            }
+            : new List<InspectorFact>
+            {
+                new("Kedja", model.Chain.ToString()),
+                new("Spårat in", TracedPerAsset(scene, node.TracedIns)),
+                new("Sort", node.Look.Name),
+            };
         if (model.Hop is { } hop)
         {
             facts.Add(new InspectorFact("Hopp", HopLayout.NameOf(hop)));
@@ -95,6 +117,7 @@ public sealed record InspectorContent(
             ExpansionOf(model))
         {
             IsStartPoint = model.IsStartPoint,
+            Balances = node.Balances,
         };
     }
 
@@ -110,12 +133,25 @@ public sealed record InspectorContent(
         var transactions = model.Transfers.Select(transfer => transfer.Transaction).Distinct().Count();
         var facts = new List<InspectorFact>
         {
-            new("Belopp", AmountText.WithUnit(model.Amount)),
+            new("Belopp", AmountWithMark(model.Amount)),
             new("Spårat", Traced(scene, edge.Traced)),
             new("Tid", model.FirstTime is { } time ? Time(time) : "Obekräftad"),
             new("Tx", transactions.ToString(CultureInfo.InvariantCulture)),
-            new("Kontroll", Checked(scene, BitcoinTransactions(model))),
         };
+        if (model.Amount.Asset.Chain == Chain.Bitcoin)
+        {
+            facts.Add(new InspectorFact("Kontroll", Checked(scene, BitcoinTransactions(model))));
+        }
+        else
+        {
+            facts.Insert(1, new InspectorFact("Värde", edge.Value?.Text ?? NoRateText));
+        }
+
+        if (edge.Swap is { } swap)
+        {
+            facts.Add(new InspectorFact("Swap", swap));
+        }
+
         var title = $"{scene.Node(model.From)?.Name ?? model.From} → {scene.Node(model.To)?.Name ?? model.To}";
         return new InspectorContent(
             title, EdgeIcon, edge.Ink, NodeShape.Round, facts, EdgeDetails(model), EdgeWhy(scene, edge), []);
@@ -151,6 +187,31 @@ public sealed record InspectorContent(
             : string.Create(CultureInfo.InvariantCulture, $"{verified} av {transactions.Count} tx mot bytes");
     }
 
+    /// <summary>What a line on Ethereum says when the case has no rate for every movement on it.</summary>
+    public const string NoRateText = "Ingen kurs";
+
+    /// <summary>Writes an amount with the token's mark first (sketch TK1a), for example <c>₮ 600,0000 USDT</c>.</summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns>The text.</returns>
+    public static string AmountWithMark(AssetAmount amount) =>
+        TokenMarks.Glyph(amount.Asset) is { Length: > 0 } glyph
+            ? glyph + " " + AmountText.WithUnit(amount)
+            : AmountText.WithUnit(amount);
+
+    /// <summary>Writes the traced amounts that came in per asset, or that there is no trace.</summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="amounts">The traced amounts, one per asset.</param>
+    /// <returns>For example <c>₮ 600,0000 USDT · Ξ 0,1000 ETH</c>, <c>0</c> or <see cref="NoTraceText"/>.</returns>
+    private static string TracedPerAsset(GraphScene scene, IReadOnlyList<AssetAmount> amounts)
+    {
+        if (!scene.Snapshot.HasTrace)
+        {
+            return NoTraceText;
+        }
+
+        return amounts.Count == 0 ? "0" : string.Join(" · ", amounts.Select(AmountWithMark));
+    }
+
     /// <summary>What a traced amount says when there is no trace to read it from.</summary>
     public const string NoTraceText = "Ingen spårning";
 
@@ -168,7 +229,7 @@ public sealed record InspectorContent(
     /// <param name="amount">The traced amount.</param>
     /// <returns>The amount with its unit, or <see cref="NoTraceText"/>.</returns>
     private static string Traced(GraphScene scene, AssetAmount amount) =>
-        scene.Snapshot.Trace is null ? NoTraceText : AmountText.WithUnit(amount);
+        scene.Snapshot.HasTrace ? AmountText.WithUnit(amount) : NoTraceText;
 
     /// <summary>Gives a line's Bitcoin transactions, which can be checked against their own bytes.</summary>
     /// <param name="edge">The line.</param>
@@ -187,6 +248,11 @@ public sealed record InspectorContent(
     /// <returns>The lookups; empty when it cannot be expanded.</returns>
     private static IReadOnlyList<ExpansionRequest> ExpansionOf(GraphNode node) => node.Kind switch
     {
+        GraphNodeKind.Address when node.Accounts.Count > 0 =>
+        [
+            .. node.Accounts.Where(account => account.Chain == Chain.Ethereum)
+                .Select(account => ExpansionRequest.ForEthereumAddress(EthereumAddress.Parse(account.Value))),
+        ],
         GraphNodeKind.Address or GraphNodeKind.Cluster =>
             [.. node.GraphAddresses.Select(address => ExpansionRequest.ForAddress(address))],
         GraphNodeKind.Transaction when node.Transaction is { } txid => [ExpansionRequest.ForTransaction(txid)],
@@ -204,6 +270,7 @@ public sealed record InspectorContent(
             GraphNodeKind.Transaction when node.Transaction is { } txid => [txid.Value],
             GraphNodeKind.Coin when node.Coin is { } coin => [coin.ToString()],
             GraphNodeKind.OtherChain when node.OtherChain is { } other => [other.ToString()],
+            _ when node.Accounts.Count > 0 => node.Accounts.Select(GraphScene.Written),
             _ => node.GraphAddresses.Select(address => address.Value),
         };
         return Limit(lines.ToList());
@@ -263,6 +330,11 @@ public sealed record InspectorContent(
             why.Add(new WhyLine("Ingen etikett: ärendet vet inte vem som äger adressen.", GuideTopic.Labels));
         }
 
+        if (node.Balances.FirstOrDefault(row => row.CanBeFrozen) is { FreezeText: { } freeze })
+        {
+            why.Add(new WhyLine("Kan frysas: " + freeze, GuideTopic.CanBeFrozen));
+        }
+
         why.AddRange(model.Ends.Select(end =>
             EndLine($"{end.Reason.Describe()}: {end.Explanation} ({end.Source})", end.Reason)));
         why.AddRange(TraceWhy(scene, node));
@@ -293,7 +365,7 @@ public sealed record InspectorContent(
     /// <returns>The answers.</returns>
     private static IEnumerable<WhyLine> TraceWhy(GraphScene scene, NodeView node)
     {
-        if (scene.Snapshot.Trace is not { } trace)
+        if (!scene.Snapshot.HasTrace)
         {
             if (scene.Snapshot.TraceProblem is { } problem)
             {
@@ -303,23 +375,34 @@ public sealed record InspectorContent(
             yield break;
         }
 
+        var method = scene.MethodText;
         if (node.TracedIn.Units.Sign > 0)
         {
             yield return new WhyLine(
-                $"Spårat hit: {AmountText.WithUnit(node.TracedIn)} enligt {trace.Method}. Det är en bedömning "
+                $"Spårat hit: {AmountText.WithUnit(node.TracedIn)} enligt {method}. Det är en bedömning "
                 + "enligt metoden, inte ett faktum på kedjan.",
                 GuideTopic.Methods);
         }
 
-        foreach (var end in trace.Ends.Where(end => end.NodeKey == node.Key).GroupBy(end => end.Reason))
+        foreach (var amount in node.TracedIns)
+        {
+            yield return new WhyLine(
+                $"Spårat hit: {AmountWithMark(amount)} enligt {method}, räknat för sig per tillgång i "
+                + "kontomodellen. Det är en bedömning enligt metoden, inte ett faktum på kedjan.",
+                GuideTopic.AccountModel);
+        }
+
+        var ends = (scene.Snapshot.Trace?.Ends ?? []).Concat(scene.Snapshot.AccountTrace?.Ends ?? []);
+        foreach (var end in ends.Where(end => end.NodeKey == node.Key)
+            .GroupBy(end => (end.Reason, end.Amount.Amount.Asset)))
         {
             var amount = end.Skip(1).Aggregate(end.First().Amount.Amount, (sum, item) => sum + item.Amount.Amount);
             var outdated = end.Any(item => item.MayBeOutdated) ? " Det kan ha ändrats sedan ärendet frågade." : "";
             yield return new WhyLine(
-                $"{end.Key.Describe()}: {AmountText.WithUnit(amount)} stannar här. {end.First().Explanation}"
+                $"{end.Key.Reason.Describe()}: {AmountText.WithUnit(amount)} stannar här. {end.First().Explanation}"
                 + outdated,
                 GuideTopic.TrailEnds,
-                GuideTopics.EndHeading(end.Key));
+                GuideTopics.EndHeading(end.Key.Reason));
         }
     }
 
@@ -334,12 +417,49 @@ public sealed record InspectorContent(
             return new WhyLine(traced.Amount.Explain(), GuideTopic.Methods);
         }
 
-        if (scene.Snapshot.Trace is null)
+        if (!scene.Snapshot.HasTrace)
         {
             return new WhyLine(scene.Snapshot.TraceProblem ?? NoTraceText + ".", GuideTopic.Methods);
         }
 
         return new WhyLine($"Inga av de spårade pengarna gick här enligt {scene.MethodText}.", GuideTopic.Methods);
+    }
+
+    /// <summary>Answers what is particular to a line on Ethereum: the token, the swap and its value.</summary>
+    /// <param name="edge">The line.</param>
+    /// <returns>The answers.</returns>
+    private static IEnumerable<WhyLine> EthereumWhy(EdgeView edge)
+    {
+        var asset = edge.Edge.Amount.Asset;
+        if (asset.Kind == AssetKind.Token)
+        {
+            var issuer = KnownTokens.IssuerOf(asset);
+            yield return new WhyLine(
+                issuer is null
+                    ? $"Token {asset.Symbol} med kontraktet {asset.Contract}; Chainsaw känner inte kontraktet, och "
+                        + "symbolen kan vem som helst välja. Överföringarna är kontraktets egna Transfer-händelser."
+                    : $"{asset.Symbol} från {issuer.Name}, igenkänd på kontraktet {asset.Contract}, aldrig på "
+                        + "symbolen.",
+                GuideTopic.Tokens);
+        }
+
+        foreach (var swap in edge.Swaps)
+        {
+            yield return new WhyLine(
+                $"Swap i tx {swap.Transaction}: adressen skickade {AmountText.WithUnit(swap.Sold)} och fick "
+                + $"{AmountText.WithUnit(swap.Bought)} tillbaka i samma tx. Pengarna bytte token men inte ägare, så "
+                + "det är inget slut på spåret. Att det var en swap är en läsning av rörelserna; spårningen följer "
+                + "inte bytet än, utan räknar varje tillgång för sig.",
+                GuideTopic.Tokens);
+        }
+
+        yield return edge.Value is { } value
+            ? new WhyLine(
+                $"Värdet {value.Text} vid tx:ens tid: " + string.Join(" ", value.Steps), GuideTopic.Prices)
+            : new WhyLine(
+                "Ingen kurs: ärendet har inte kursen för varje rörelse på linjen vid dess tid, så inget värde "
+                + "visas hellre än ett påhittat. Kurserna hämtas när grafen expanderas.",
+                GuideTopic.Prices);
     }
 
     /// <summary>Says how far a node is expanded, when not all the way.</summary>
@@ -376,13 +496,12 @@ public sealed record InspectorContent(
         var why = new List<WhyLine>();
         if (model.Kind == GraphEdgeKind.ContinuesOnOtherChain)
         {
-            var coins = model.Transfers.Select(transfer => transfer.Coin).OfType<Outpoint>().ToHashSet();
             why.AddRange(scene.Snapshot.Graph.CrossChainLinks
-                .Where(link => coins.Contains(link.From))
+                .Where(link => InspectorForms.Carries(model, link))
                 .Select(link => new WhyLine(
                     $"Fortsätter på {link.To.Chain}: användarens bedömning "
-                    + $"{link.RecordedUtc.UtcDateTime:yyyy-MM-dd HH:mm} UTC: {link.Reason}. Beloppet är myntets på "
-                    + "Bitcoin, inte det som kom fram på den andra kedjan.",
+                    + $"{link.RecordedUtc.UtcDateTime:yyyy-MM-dd HH:mm} UTC: {link.Reason}. Beloppet är det som "
+                    + $"lämnade {link.FromChain}, inte det som kom fram på den andra kedjan.",
                     GuideTopic.TrailEnds)));
         }
         else
@@ -391,9 +510,14 @@ public sealed record InspectorContent(
                 || scene.Node(model.To)?.Node.Kind == GraphNodeKind.Cluster;
             var facts = "Beloppet är summan av " + model.Transfers.Count.ToString(CultureInfo.InvariantCulture)
                 + " överföringar på kedjan, som är fakta.";
+            var account = model.Amount.Asset.Chain != Chain.Bitcoin;
             why.Add(new WhyLine(
                 clustered ? facts + " Att adresserna hör till klustret är klustringens slutsats." : facts,
-                GuideTopic.Utxo));
+                account ? GuideTopic.AccountModel : GuideTopic.Utxo));
+            if (account)
+            {
+                why.AddRange(EthereumWhy(edge));
+            }
         }
 
         why.Add(TracedWhy(scene, edge));

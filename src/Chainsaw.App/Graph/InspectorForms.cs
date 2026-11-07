@@ -56,11 +56,28 @@ public sealed record ChainOption(string Name, Chain? Chain)
     public bool IsBuilt => Chain is not null;
 }
 
-/// <summary>A coin that came into the chosen node and can be linked to another chain.</summary>
-/// <param name="Coin">The coin.</param>
+/// <summary>
+/// A coin, or an Ethereum movement, that came into the chosen node and can be linked to another chain. Exactly one of
+/// <see cref="Coin"/> and <see cref="Movement"/> is set.
+/// </summary>
+/// <param name="Coin">The Bitcoin coin, or <see langword="null"/> for an Ethereum movement.</param>
 /// <param name="Amount">Its amount.</param>
 /// <param name="Time">When it came, or <see langword="null"/> while unconfirmed.</param>
-public sealed record IncomingCoin(Outpoint Coin, AssetAmount Amount, DateTimeOffset? Time);
+public sealed record IncomingCoin(Outpoint? Coin, AssetAmount Amount, DateTimeOffset? Time)
+{
+    /// <summary>Gets the Ethereum movement, or <see langword="null"/> for a Bitcoin coin.</summary>
+    public AccountSeed? Movement { get; init; }
+
+    /// <summary>Gets the chain the money is on.</summary>
+    public Chain Chain => Movement is null ? Chain.Bitcoin : Chain.Ethereum;
+
+    /// <summary>Gets the transaction it came in, as its chain writes it.</summary>
+    public string TransactionId => Coin?.Txid.Value ?? Movement!.Transaction.Value;
+
+    /// <summary>Writes what it is in full: the coin, or the movement's transaction and position.</summary>
+    public string Written => Coin?.ToString() ?? string.Create(
+        CultureInfo.InvariantCulture, $"{Movement!.Transaction.Value}#{Movement.Position}");
+}
 
 /// <summary>
 /// The rules of the inspector's forms (sketch IN1a), without WPF: what each form may act on, the sorts, sources and
@@ -131,6 +148,7 @@ public static class InspectorForms
         ArgumentNullException.ThrowIfNull(node);
         return node.Node switch
         {
+            { Kind: GraphNodeKind.Address, Accounts: [var account, ..] } => LabelSubject.ForAccount(account),
             { Kind: GraphNodeKind.Address, GraphAddresses: [var address, ..] } => LabelSubject.ForAddress(address),
             { Kind: GraphNodeKind.Cluster, GraphAddresses: [var address, ..] } => LabelSubject.ForCluster(address),
             _ => null,
@@ -162,18 +180,62 @@ public static class InspectorForms
             return [];
         }
 
-        var linked = scene.Snapshot.Graph.CrossChainLinks.Select(link => link.From).ToHashSet();
+        var links = scene.Snapshot.Graph.CrossChainLinks;
+        var linked = links.Select(link => link.From).OfType<Outpoint>().ToHashSet();
+        var incoming = scene.Snapshot.Graph.Edges
+            .Where(edge => edge.To == node.Key && edge.Kind == GraphEdgeKind.Transfer)
+            .SelectMany(edge => edge.Transfers)
+            .ToList();
+        if (node.Node.Accounts.Count > 0)
+        {
+            var movements = links.Select(link => link.FromTransfer).OfType<AccountSeed>().ToHashSet();
+            return
+            [
+                .. incoming.Where(transfer => transfer.Movement is not null)
+                    .Select(transfer => (Transfer: transfer, Movement: MovementOf(transfer)))
+                    .Where(pair => !movements.Contains(pair.Movement))
+                    .DistinctBy(pair => pair.Movement)
+                    .OrderByDescending(pair => pair.Transfer.Block?.Time ?? DateTimeOffset.MaxValue)
+                    .ThenBy(pair => pair.Transfer.Transaction.Id, StringComparer.Ordinal)
+                    .Select(pair => new IncomingCoin(null, pair.Transfer.Amount, pair.Transfer.Block?.Time)
+                    {
+                        Movement = pair.Movement,
+                    }),
+            ];
+        }
+
         return
         [
-            .. scene.Snapshot.Graph.Edges
-                .Where(edge => edge.To == node.Key && edge.Kind == GraphEdgeKind.Transfer)
-                .SelectMany(edge => edge.Transfers)
+            .. incoming
                 .Where(transfer => transfer.Coin is { } coin && !linked.Contains(coin))
                 .DistinctBy(transfer => transfer.Coin)
                 .OrderByDescending(transfer => transfer.Amount.Units)
                 .ThenBy(transfer => transfer.Coin!.ToString(), StringComparer.Ordinal)
                 .Select(transfer => new IncomingCoin(transfer.Coin!, transfer.Amount, transfer.Block?.Time)),
         ];
+    }
+
+    /// <summary>Gives the Ethereum movement a line's transfer is.</summary>
+    /// <param name="transfer">The transfer; it has a movement.</param>
+    /// <returns>The movement.</returns>
+    public static AccountSeed MovementOf(AssetTransfer transfer)
+    {
+        ArgumentNullException.ThrowIfNull(transfer);
+        return new AccountSeed(
+            EthereumTxHash.Parse(transfer.Transaction.Id), transfer.Movement!.Value, transfer.Position);
+    }
+
+    /// <summary>Says whether a line carries the money a link leaves from.</summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="link">The link.</param>
+    /// <returns>Whether it does.</returns>
+    public static bool Carries(GraphEdge edge, CrossChainLink link)
+    {
+        ArgumentNullException.ThrowIfNull(edge);
+        ArgumentNullException.ThrowIfNull(link);
+        return edge.Transfers.Any(transfer => link.From is { } coin
+            ? transfer.Coin == coin
+            : transfer.Movement is not null && MovementOf(transfer) == link.FromTransfer);
     }
 
     /// <summary>

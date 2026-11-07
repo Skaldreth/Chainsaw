@@ -20,7 +20,9 @@ internal static class AccountTraceCalculator
     /// <param name="seeds">The movements the money starts in.</param>
     /// <param name="cancellationToken">Stops the trace between rounds.</param>
     /// <returns>The result per asset.</returns>
-    /// <exception cref="ArgumentException">There are no seeds, or a seed is not in the graph or is given twice.</exception>
+    /// <exception cref="ArgumentException">
+    /// There are no seeds, or a seed is not in the graph or is given twice.
+    /// </exception>
     /// <exception cref="InvalidOperationException">
     /// A method broke its contract, the accounts do not settle, or the seeds lie in each other's flow.
     /// </exception>

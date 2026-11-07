@@ -17,8 +17,8 @@ public enum StartPointKind
 
 /// <summary>
 /// Recognises a start point on every chain Chainsaw knows of, for the start points of a new case, the command line
-/// and <c>chainsaw:</c> links. Only Bitcoin can be traced yet; an Ethereum or TRON value is recognised so that the
-/// user is told honestly that its chain is not built, rather than that the text is wrong.
+/// and <c>chainsaw:</c> links. Bitcoin and Ethereum can be traced; a TRON value is recognised so that the user is told
+/// honestly that its chain is not built, rather than that the text is wrong.
 /// </summary>
 /// <param name="Chain">The chain, or <see langword="null"/> when the text is not recognised.</param>
 /// <param name="Kind">Whether it is an address or a transaction.</param>
@@ -44,8 +44,8 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     private static readonly System.Buffers.SearchValues<char> HexDigits =
         System.Buffers.SearchValues.Create("0123456789abcdefABCDEF");
 
-    /// <summary>Gets whether Chainsaw can trace from this start point now: only Bitcoin is built.</summary>
-    public bool IsSupported => Chain == SharedKernel.Chain.Bitcoin;
+    /// <summary>Gets whether Chainsaw can trace from this start point now: Bitcoin and Ethereum are built.</summary>
+    public bool IsSupported => Chain is SharedKernel.Chain.Bitcoin or SharedKernel.Chain.Ethereum;
 
     /// <summary>Gets whether the text was recognised on some chain.</summary>
     public bool IsRecognised => Kind != StartPointKind.Unknown;

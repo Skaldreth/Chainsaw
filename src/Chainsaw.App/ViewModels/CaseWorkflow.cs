@@ -273,29 +273,40 @@ public sealed class CaseWorkflow
         }
     }
 
-    /// <summary>
-    /// Says that a start point's chain cannot be traced yet. Ethereum's source is built, but its graph comes in the
-    /// next part of the stage, which the text says honestly.
-    /// </summary>
+    /// <summary>Says that a start point's chain cannot be traced yet (TRON).</summary>
     /// <param name="startPoint">The start point.</param>
     /// <returns>The text.</returns>
     public static string NotBuiltText(ChainStartPoint startPoint) => startPoint.Chain switch
     {
-        Chain.Ethereum =>
-            "Ethereum känns igen, men grafen för Ethereum är inte byggd än, så det kan inte bli en startpunkt.",
         { } chain => $"{CaseTexts.ChainName(chain)} är inte byggt än, så det kan inte bli en startpunkt.",
         _ => "Det känns inte igen som en adress eller en tx.",
     };
 
-    /// <summary>Gives the Tracing start point for a Bitcoin start point.</summary>
+    /// <summary>Gives the Tracing start point for a Bitcoin or Ethereum start point.</summary>
     /// <param name="startPoint">The recognised start point.</param>
     /// <returns>The start point, or <see langword="null"/> when its chain is not built.</returns>
-    private static TraceStartPoint? ToTrace(ChainStartPoint startPoint) => startPoint.Bitcoin switch
+    public static TraceStartPoint? ToTrace(ChainStartPoint startPoint)
     {
-        { Address: { } address } => TraceStartPoint.ForAddress(address),
-        { Txid: { } txid } => TraceStartPoint.ForTransaction(txid),
-        _ => null,
-    };
+        ArgumentNullException.ThrowIfNull(startPoint);
+        if (startPoint.Chain == Chain.Ethereum)
+        {
+            return startPoint.Kind switch
+            {
+                StartPointKind.Address when EthereumAddress.TryParse(startPoint.Value, out var address) =>
+                    TraceStartPoint.ForEthereumAddress(address),
+                StartPointKind.Transaction when EthereumTxHash.TryParse(startPoint.Value, out var hash) =>
+                    TraceStartPoint.ForEthereumTransaction(hash),
+                _ => null,
+            };
+        }
+
+        return startPoint.Bitcoin switch
+        {
+            { Address: { } address } => TraceStartPoint.ForAddress(address),
+            { Txid: { } txid } => TraceStartPoint.ForTransaction(txid),
+            _ => null,
+        };
+    }
 
     /// <summary>
     /// Creates the case and adds what goes with it, off the UI thread. Only the creation itself may fail the whole;
@@ -324,7 +335,7 @@ public sealed class CaseWorkflow
     }
 
     /// <summary>
-    /// Adds a Bitcoin start point through Tracing; a start point on a chain that is not built is written in the
+    /// Adds a Bitcoin or Ethereum start point through Tracing; one on a chain that is not built is written in the
     /// journal instead, so that it is not lost.
     /// </summary>
     /// <param name="created">The new case.</param>

@@ -98,12 +98,12 @@ public sealed partial class CoinChoice(IncomingCoin coin) : ObservableObject
 
     /// <summary>Gets the row's text: the amount and the transaction it came in.</summary>
     public string Text { get; } =
-        $"{AmountText.WithUnit(coin.Amount)} · tx {GraphScene.Shorten(coin.Coin.Txid.Value)}";
+        $"{AmountText.WithUnit(coin.Amount)} · tx {GraphScene.Shorten(coin.TransactionId)}";
 
     /// <summary>Gets the coin in full and when it came.</summary>
     public string ToolTip { get; } = coin.Time is { } time
-        ? $"{coin.Coin} · {InspectorContent.Time(time)}"
-        : $"{coin.Coin} · obekräftad";
+        ? $"{coin.Written} · {InspectorContent.Time(time)}"
+        : $"{coin.Written} · obekräftad";
 
     /// <summary>Gets whether it is chosen.</summary>
     [ObservableProperty]
@@ -354,7 +354,8 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     {
         InspectorForm.Label => LabelDraft() is not null,
         InspectorForm.Split => SplitRequests().Count > 0,
-        InspectorForm.CrossChain => ChosenCoin() is not null && RecognisedTx is not null && HasReason(Reason),
+        InspectorForm.CrossChain => ChosenCoin() is { } coin && RecognisedTx is { } target
+            && target.Chain != coin.Chain && HasReason(Reason),
         _ => false,
     };
 
@@ -673,7 +674,15 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
             return string.Empty;
         }
 
-        await _editor.LinkCrossChainAsync(openCase, coin.Coin, target, Reason.Trim());
+        if (coin.Movement is { } movement)
+        {
+            await _editor.LinkCrossChainAsync(openCase, movement, target, Reason.Trim());
+        }
+        else
+        {
+            await _editor.LinkCrossChainAsync(openCase, coin.Coin!, target, Reason.Trim());
+        }
+
         Saved?.Invoke(this, EventArgs.Empty);
         return null;
     }
@@ -801,13 +810,20 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     /// <summary>Lists the coins that came into the chosen node and can be linked, keeping the one chosen.</summary>
     private void FillCoins()
     {
-        var chosen = Coins.FirstOrDefault(coin => coin.IsChosen)?.Coin.Coin;
+        var chosen = Coins.FirstOrDefault(coin => coin.IsChosen)?.Coin;
         Coins.Clear();
         if (_scene is { } scene && _node is { } node)
         {
             foreach (var coin in InspectorForms.IncomingCoins(scene, node))
             {
-                Coins.Add(new CoinChoice(coin) { IsChosen = coin.Coin == chosen });
+                Coins.Add(new CoinChoice(coin) { IsChosen = coin == chosen });
+            }
+
+            if (node.Node.Chain == TargetChain)
+            {
+                // A link leads off the chain the money is on; from Ethereum, TRON is the first other built chain.
+                SelectChain(InspectorForms.Chains.First(option => option.Chain is { } chain && chain != node.Node.Chain)
+                    .Chain!.Value);
             }
         }
 

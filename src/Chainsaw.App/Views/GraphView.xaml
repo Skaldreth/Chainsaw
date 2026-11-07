@@ -382,6 +382,59 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!-- The balance per token (sketch TK1a): in, out and left, the issuer and the snowflake. -->
+                        <StackPanel Visibility="{Binding HasBalances, Converter={StaticResource Visible}}" Margin="0,0,0,10">
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="58" />
+                                    <ColumnDefinition Width="58" />
+                                    <ColumnDefinition Width="58" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Token" FontSize="11" Foreground="{StaticResource Brush.TextDim}" />
+                                <TextBlock Grid.Column="1" Text="In" FontSize="11" TextAlignment="Right" Foreground="{StaticResource Brush.TextDim}" />
+                                <TextBlock Grid.Column="2" Text="Ut" FontSize="11" TextAlignment="Right" Foreground="{StaticResource Brush.TextDim}" />
+                                <TextBlock Grid.Column="3" Text="Kvar" FontSize="11" TextAlignment="Right" Foreground="{StaticResource Brush.TextDim}" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Balances}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type graph:TokenBalanceRow}">
+                                        <Grid Margin="0,0,0,6" ToolTip="{Binding FreezeText}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="58" />
+                                                <ColumnDefinition Width="58" />
+                                                <ColumnDefinition Width="58" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Glyph}" FontSize="12.5" FontWeight="SemiBold" Margin="0,0,5,0" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="12.5" />
+                                                    <controls:GridIcon Size="12" Margin="5,0,0,0" VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource Brush.Mark.Freeze}"
+                                                                       Data="{StaticResource Icon.Snow}"
+                                                                       Visibility="{Binding CanBeFrozen, Converter={StaticResource Visible}}" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Note}" FontSize="10.5" Foreground="{StaticResource Brush.TextDim}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding In}" FontSize="11.5" TextAlignment="Right" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Out}" FontSize="11.5" TextAlignment="Right" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="3" Text="{Binding Left}" FontSize="11.5" TextAlignment="Right" TextTrimming="CharacterEllipsis" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Border Background="{StaticResource Brush.SurfaceRaised}" CornerRadius="6" Padding="10,8" Margin="0,4,0,0"
+                                    Visibility="{Binding HasFreezeText, Converter={StaticResource Visible}}">
+                                <DockPanel>
+                                    <controls:GridIcon DockPanel.Dock="Left" Size="14" Margin="0,1,8,0" VerticalAlignment="Top"
+                                                       Foreground="{StaticResource Brush.Mark.Freeze}" Data="{StaticResource Icon.Snow}" />
+                                    <TextBlock Text="{Binding FreezeText}" FontSize="11.5" TextWrapping="Wrap" />
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+
                         <!-- Här (sketch KF1a): the checks and suggestions that concern the chosen actor. -->
                         <ItemsControl Focusable="False" Margin="0,0,0,10"
                                       ItemsSource="{Binding DataContext.Checks.Here, RelativeSource={RelativeSource AncestorType=UserControl}}">

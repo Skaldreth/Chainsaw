@@ -33,8 +33,12 @@ internal sealed class TestAttribution : IAttributionService
             .ToDictionary(address => address, address => Labels[address]);
     }
 
+    public Dictionary<ChainAddress, IReadOnlyList<Label>> AccountLabels { get; } = [];
+
     public IReadOnlyDictionary<ChainAddress, IReadOnlyList<Label>> GetLabels(
-        ICase @case, IReadOnlyCollection<ChainAddress> addresses) => throw new NotSupportedException();
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
+        addresses.Distinct().Where(AccountLabels.ContainsKey)
+            .ToDictionary(address => address, address => AccountLabels[address]);
 
     public LabelEntry Add(ICase @case, LabelDraft draft) => throw new NotSupportedException();
 

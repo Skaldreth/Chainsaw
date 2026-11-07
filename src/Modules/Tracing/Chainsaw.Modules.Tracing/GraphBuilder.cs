@@ -232,18 +232,24 @@ internal sealed class GraphBuilder
         }
     }
 
-    /// <summary>Adds an edge to another chain for every link from a coin in the graph.</summary>
+    /// <summary>Adds an edge to another chain for every link from a coin or an Ethereum movement in the graph.</summary>
     private void AddCrossChainLinks()
     {
         foreach (var link in _data.State.Links)
         {
-            if (!_data.Transactions.TryGetValue(link.From.Txid, out var entry)
-                || link.From.Index >= entry.Transaction.Outputs.Count)
+            if (link.FromTransfer is { } movement)
+            {
+                AddAccountLink(link, movement);
+                continue;
+            }
+
+            if (link.From is not { } coin || !_data.Transactions.TryGetValue(coin.Txid, out var entry)
+                || coin.Index >= entry.Transaction.Outputs.Count)
             {
                 continue;
             }
 
-            var output = entry.Transaction.Outputs[link.From.Index];
+            var output = entry.Transaction.Outputs[coin.Index];
             var target = AddNode(new NodeDraft(NodeKeys.OtherChain(link.To), GraphNodeKind.OtherChain)
             {
                 OtherChain = link.To,
@@ -254,6 +260,30 @@ internal sealed class GraphBuilder
                 target.Key,
                 Paid(entry.Transaction, output));
         }
+    }
+
+    /// <summary>
+    /// Adds the edge of a link from an Ethereum movement: from the account that received the movement (the bridge or
+    /// the swap) to the other chain's transaction, carrying the movement's amount.
+    /// </summary>
+    /// <param name="link">The link.</param>
+    /// <param name="movement">The movement it leaves from.</param>
+    private void AddAccountLink(CrossChainLink link, AccountSeed movement)
+    {
+        if (_data.Account.Transfers.FirstOrDefault(movement.Is) is not { } transfer)
+        {
+            return;
+        }
+
+        var target = AddNode(new NodeDraft(NodeKeys.OtherChain(link.To), GraphNodeKind.OtherChain)
+        {
+            OtherChain = link.To,
+        });
+        AddTransfer(
+            GraphEdgeKind.ContinuesOnOtherChain,
+            AccountNode(transfer.To).Key,
+            target.Key,
+            AssetTransfer.OfEthereum(transfer, _data.Account.BlockOf(transfer.Block)));
     }
 
     /// <summary>

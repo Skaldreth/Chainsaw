@@ -537,6 +537,12 @@ public sealed partial class GraphCanvas : FrameworkElement
         var model = _model!;
         if (!model.Labels.Shows(edge.IsTraced, model.HoveredEdge == edge.Key, model.IsFocused, near.Contains(edge.Key)))
         {
+            // The swap is not an amount, so the gallring never hides it.
+            if (edge.Swap is { } alone)
+            {
+                DrawSwap(dc, alone, new Point(curve.Middle.X, curve.Middle.Y - 7));
+            }
+
             return;
         }
 
@@ -544,11 +550,52 @@ public sealed partial class GraphCanvas : FrameworkElement
             ? GraphPalette.Find(this, "Brush.TextDim")
             : GraphPalette.Brush(this, edge.Ink);
         var text = Text(edge.Label, 11, ink, FontWeights.Normal);
+        var glyph = edge.Glyph.Length > 0 ? Text(edge.Glyph, 11, ink, FontWeights.SemiBold) : null;
+        var glyphWidth = glyph is null ? 0 : glyph.Width + 3;
+        var value = edge.Value is { } worth
+            ? Text(worth.Text, 9.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal)
+            : null;
+        var width = Math.Max(text.Width + glyphWidth, value?.Width ?? 0);
+        var height = text.Height + (value?.Height ?? 0);
         var middle = curve.Middle;
-        var box = new Rect(
-            middle.X - (text.Width / 2) - 5, middle.Y - (text.Height / 2) - 1, text.Width + 10, text.Height + 2);
+        var box = new Rect(middle.X - (width / 2) - 5, middle.Y - (text.Height / 2) - 1, width + 10, height + 2);
         dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
-        dc.DrawText(text, new Point(box.X + 5, box.Y + 1));
+        var left = middle.X - ((text.Width + glyphWidth) / 2);
+        if (glyph is not null)
+        {
+            dc.DrawText(glyph, new Point(left, box.Y + 1));
+        }
+
+        dc.DrawText(text, new Point(left + glyphWidth, box.Y + 1));
+        if (value is not null)
+        {
+            dc.DrawText(value, new Point(middle.X - (value.Width / 2), box.Y + 1 + text.Height));
+        }
+
+        if (edge.Swap is { } swap)
+        {
+            DrawSwap(dc, swap, new Point(middle.X, box.Bottom + 4));
+        }
+    }
+
+    /// <summary>
+    /// Draws a swap's pill under a line's amount (sketch TK1a): <c>₮ → Ξ</c> in the other chain's purple on a dark
+    /// pill, since the money changes token but not owner.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="swap">The pill's text.</param>
+    /// <param name="top">The middle of the pill's top edge.</param>
+    private void DrawSwap(DrawingContext dc, string swap, Point top)
+    {
+        var text = Text(swap, 10, GraphPalette.Find(this, "Brush.Kind.OtherChain"), FontWeights.SemiBold);
+        var pill = new Rect(top.X - (text.Width / 2) - 7, top.Y, text.Width + 14, text.Height + 2);
+        dc.DrawRoundedRectangle(
+            GraphPalette.Find(this, "Brush.Graph.SwapPill"),
+            new Pen(GraphPalette.Find(this, "Brush.Graph.ChainFrame"), 1),
+            pill,
+            pill.Height / 2,
+            pill.Height / 2);
+        dc.DrawText(text, new Point(pill.X + 7, pill.Y + 1));
     }
 
     /// <summary>Draws a node: its frame, icon, name, count, marks and the other chain's name.</summary>

@@ -183,6 +183,37 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
+    public CrossChainLink LinkCrossChain(ICase @case, AccountSeed from, ChainTransactionRef to, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(from);
+        ArgumentNullException.ThrowIfNull(to);
+        CheckReason(reason);
+        if (to.Chain == Chain.Ethereum)
+        {
+            throw new ArgumentException("A link to another chain leads off Ethereum.", nameof(to));
+        }
+
+        return @case.Write(transaction =>
+        {
+            if (GraphStateStore.Read(transaction).Links.Any(link => link.FromTransfer == from))
+            {
+                throw new ArgumentException(
+                    "The movement already continues on another chain; take that link back first.", nameof(from));
+            }
+
+            var text = string.Create(
+                CultureInfo.InvariantCulture,
+                $"{from.Kind.ToString().ToLowerInvariant()}:{from.Transaction.Value}#{from.Position}");
+            var journal = transaction.AppendJournal(new JournalDraft(
+                TracingJournalKinds.CrossChainLinked,
+                string.Format(CultureInfo.InvariantCulture, "Fortsätter på annan kedja: {0} → {1}", text, to),
+                JsonSerializer.Serialize(new { from = text, chain = to.Chain.ToString(), to = to.Id, reason })));
+            return GraphStateStore.SealLink(transaction, from, to, reason, journal);
+        });
+    }
+
+    /// <inheritdoc/>
     public bool UnlinkCrossChain(ICase @case, CrossChainLink link, string? reason)
     {
         ArgumentNullException.ThrowIfNull(@case);
@@ -208,7 +239,7 @@ internal sealed class TracingService : ITracingService
                 string.Format(
                     CultureInfo.InvariantCulture,
                     "Länken till annan kedja togs tillbaka: {0} → {1}",
-                    stored.From,
+                    stored.FromText,
                     stored.To),
                 JsonSerializer.Serialize(new { link = stored.Sequence, reason })));
             GraphStateStore.SealUnlink(transaction, stored, reason, journal);

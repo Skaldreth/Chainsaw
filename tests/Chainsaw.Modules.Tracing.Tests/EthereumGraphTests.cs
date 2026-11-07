@@ -62,7 +62,8 @@ public sealed class EthereumGraphTests : IDisposable
         var graph = result.Graph;
         var scammer = graph.NodeOf(Scammer.ToChainAddress())!;
         Assert.Equal(NodeExpansion.Expanded, scammer.Expansion);
-        var usdtIn = Assert.Single(graph.Edges, edge => edge.To == scammer.Key && edge.Amount.Asset == KnownTokens.EthereumUsdt);
+        var usdtIn = Assert.Single(
+            graph.Edges, edge => edge.To == scammer.Key && edge.Amount.Asset == KnownTokens.EthereumUsdt);
         Assert.Equal(Usdt(1_000), usdtIn.Amount);
         var ethIn = Assert.Single(graph.Edges, edge => edge.To == scammer.Key && edge.Amount.Asset == Asset.Ether
             && edge.From == graph.NodeOf(Victim.ToChainAddress())!.Key);
@@ -261,7 +262,8 @@ public sealed class EthereumGraphTests : IDisposable
     {
         Assert.Equal([TracingMethodKind.Fifo, TracingMethodKind.Haircut],
             _harness.Service.AccountMethods.Select(id => id.Kind));
-        Assert.Equal(_harness.Service.Methods.Select(id => id.Kind), _harness.Service.AccountMethods.Select(id => id.Kind));
+        Assert.Equal(
+            _harness.Service.Methods.Select(id => id.Kind), _harness.Service.AccountMethods.Select(id => id.Kind));
         await Task.CompletedTask;
     }
 }

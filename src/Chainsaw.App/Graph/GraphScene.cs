@@ -20,7 +20,34 @@ public sealed record GraphSnapshot(
     TracingMethodKind Method,
     IReadOnlyList<TraceSeed> Seeds,
     TraceResult? Trace,
-    string? TraceProblem);
+    string? TraceProblem)
+{
+    /// <summary>Gets the movements the trace on Ethereum starts in (<see cref="AccountSeedPicker"/>).</summary>
+    public IReadOnlyList<AccountSeed> AccountSeeds { get; init; } = [];
+
+    /// <summary>Gets the trace on Ethereum, per asset, or <see langword="null"/> when there is none.</summary>
+    public AccountTraceResult? AccountTrace { get; init; }
+
+    /// <summary>
+    /// Gets what each line on Ethereum was worth at the time, by the line's key, when Pricing has a rate for every
+    /// movement on it (sketch TK1a: SEK small under the amount); a line without is missing, and shows no value.
+    /// </summary>
+    public IReadOnlyDictionary<string, EdgeValue> Values { get; init; } = new Dictionary<string, EdgeValue>();
+
+    /// <summary>Gets whether any trace was counted, on any chain.</summary>
+    public bool HasTrace => Trace is not null || AccountTrace is not null;
+}
+
+/// <summary>What a line was worth when its movements were made, by the rates in the case.</summary>
+/// <param name="Rounded">The value, rounded to whole units of the currency.</param>
+/// <param name="Currency">The currency's code, for example <c>SEK</c>.</param>
+/// <param name="Steps">How it was counted, rate by rate, for <em>Varför?</em>.</param>
+public sealed record EdgeValue(decimal Rounded, string Currency, IReadOnlyList<string> Steps)
+{
+    /// <summary>Gets the value as the line writes it small under the amount, for example <c>≈ 546 000 kr</c>.</summary>
+    public string Text => "≈ " + Rounded.ToString("#,##0", System.Globalization.CultureInfo.GetCultureInfo("sv-SE"))
+        + (Currency == "SEK" ? " kr" : " " + Currency);
+}
 
 /// <summary>How a line is dashed (sketch GR3a): dashed always means uncertain.</summary>
 public enum EdgeDash
@@ -73,6 +100,15 @@ public sealed record NodeView(
     /// <summary>Gets the node's key.</summary>
     public string Key => Node.Key;
 
+    /// <summary>
+    /// Gets the balance per token on an account chain (sketch TK1a): in, out and what is left of each asset along the
+    /// graph's lines, with its issuer and whether it can be frozen; empty on Bitcoin.
+    /// </summary>
+    public IReadOnlyList<TokenBalanceRow> Balances { get; init; } = [];
+
+    /// <summary>Gets how much of the traced money came in, per asset, on an account chain (conclusion).</summary>
+    public IReadOnlyList<AssetAmount> TracedIns { get; init; } = [];
+
     /// <summary>Gets whether the trace starts here, drawn as the flag in the top-left corner (sketch GR5).</summary>
     public bool IsStartPoint => Node.IsStartPoint;
 
@@ -120,6 +156,21 @@ public sealed record EdgeView(
 
     /// <summary>Gets whether the line carries traced money.</summary>
     public bool IsTraced => Traced.Units.Sign > 0;
+
+    /// <summary>Gets the token's mark that stands first in the amount (sketch TK1a), or an empty text.</summary>
+    public string Glyph { get; init; } = string.Empty;
+
+    /// <summary>Gets what the line was worth at the time, small under the amount, or <see langword="null"/>.</summary>
+    public EdgeValue? Value { get; init; }
+
+    /// <summary>
+    /// Gets the swap's pill on the line (sketch TK1a), for example <c>₮ → Ξ</c>, when a transaction on it shows that
+    /// the sender swapped what it sent for another asset; otherwise <see langword="null"/>.
+    /// </summary>
+    public string? Swap { get; init; }
+
+    /// <summary>Gets the swaps the pill rests on.</summary>
+    public IReadOnlyList<TokenSwap> Swaps { get; init; } = [];
 }
 
 /// <summary>
@@ -150,7 +201,8 @@ public sealed record GraphScene(
         Edges.ToDictionary(edge => edge.Key, StringComparer.Ordinal);
 
     /// <summary>Gets the method the trace was made by, as the user sees it, or the asked method's name.</summary>
-    public string MethodText => Snapshot.Trace?.Method.ToString() ?? MethodName(Snapshot.Method);
+    public string MethodText =>
+        Snapshot.Trace?.Method.ToString() ?? Snapshot.AccountTrace?.Method.ToString() ?? MethodName(Snapshot.Method);
 
     /// <summary>Gives a node by its key.</summary>
     /// <param name="key">The key.</param>
@@ -180,12 +232,23 @@ public sealed record GraphScene(
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var graph = snapshot.Graph;
-        var traced = (snapshot.Trace?.Edges ?? []).ToDictionary(edge => edge.EdgeKey, StringComparer.Ordinal);
+        var traced = (snapshot.Trace?.Edges ?? []).Concat(snapshot.AccountTrace?.Edges ?? [])
+            .ToDictionary(edge => edge.EdgeKey, StringComparer.Ordinal);
         var largest = traced.Values.Select(edge => edge.Amount.Amount)
-            .Where(amount => amount.Asset == Shown)
-            .DefaultIfEmpty(AssetAmount.Zero(Shown))
-            .Max();
-        var edges = graph.Edges.Select(edge => BuildEdge(edge, traced.GetValueOrDefault(edge.Key), largest)).ToList();
+            .GroupBy(amount => amount.Asset)
+            .ToDictionary(group => group.Key, group => group.Max());
+        var swaps = graph.Account.Swaps;
+        var edges = graph.Edges.Select(edge => BuildEdge(
+                edge,
+                traced.GetValueOrDefault(edge.Key),
+                largest.TryGetValue(edge.Amount.Asset, out var most) ? most : AssetAmount.Zero(edge.Amount.Asset)) with
+            {
+                Glyph = TokenMarks.Glyph(edge.Amount.Asset),
+                Value = snapshot.Values.GetValueOrDefault(edge.Key),
+                Swaps = SwapsOn(edge, swaps),
+            })
+            .Select(edge => edge.Swaps.Count == 0 ? edge : edge with { Swap = SwapText(edge.Swaps) })
+            .ToList();
         var nodes = graph.Nodes.Select(node => BuildNode(node, snapshot, edges)).ToList();
         var (lanes, columns) = HopLayout.Arrange(graph.Nodes);
         return new GraphScene(snapshot, nodes, edges, lanes, columns);
@@ -221,6 +284,13 @@ public sealed record GraphScene(
 
         return (nodes, edges);
     }
+
+    /// <summary>Shortens an Ethereum address so that <c>0x</c> and four digits stay: <c>0x8f3a…e5d9</c>.</summary>
+    /// <param name="text">The address.</param>
+    /// <returns>The short name.</returns>
+    private static string ShortAccount(string text) => text.StartsWith("0x", StringComparison.Ordinal)
+        ? string.Concat("0x", Shorten(text[2..]))
+        : Shorten(text);
 
     /// <summary>Shortens a long name to its ends, as the graph writes addresses and txids: <c>bc1q…x0wl</c>.</summary>
     /// <param name="text">The name.</param>
@@ -266,8 +336,51 @@ public sealed record GraphScene(
             (_, true) => GraphInk.Accent,
             _ => GraphInk.Untraced,
         };
-        return new EdgeView(
-            edge, amount, traced, ink, dash, EdgeWidth.For(amount, largest), AmountText.OnLine(edge.Amount, amount));
+        var label = AmountText.OnLine(edge.Amount, amount);
+        if (edge.Amount.Asset != Asset.Bitcoin && TokenMarks.Glyph(edge.Amount.Asset).Length == 0)
+        {
+            // A token without a mark is named by its symbol, so that a bare number never stands for an unknown asset.
+            label += " " + edge.Amount.Asset.Symbol;
+        }
+
+        return new EdgeView(edge, amount, traced, ink, dash, EdgeWidth.For(amount, largest), label);
+    }
+
+    /// <summary>
+    /// Gives the swaps a line carries the sold side of: the line leaves the account that swapped, in the asset it sold,
+    /// in the swap's transaction.
+    /// </summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="swaps">The graph's swaps.</param>
+    /// <returns>The swaps; empty for most lines.</returns>
+    private static IReadOnlyList<TokenSwap> SwapsOn(GraphEdge edge, IReadOnlyList<TokenSwap> swaps) =>
+    [
+        .. swaps.Where(swap => edge.Kind == GraphEdgeKind.Transfer
+            && edge.Amount.Asset == swap.Sold.Asset
+            && edge.From == AccountKey(swap.Account)
+            && edge.Transfers.Any(transfer => transfer.Transaction.Id == swap.Transaction.Value)),
+    ];
+
+    /// <summary>Writes a swap's pill: the sold asset's mark, an arrow and the bought one's (<c>₮ → Ξ</c>).</summary>
+    /// <param name="swaps">The swaps on the line, at least one.</param>
+    /// <returns>The pill's text; several different swaps on one line are joined.</returns>
+    private static string SwapText(IReadOnlyList<TokenSwap> swaps) => string.Join(" · ", swaps
+        .Select(swap => $"{MarkOf(swap.Sold.Asset)} → {MarkOf(swap.Bought.Asset)}")
+        .Distinct(StringComparer.Ordinal));
+
+    /// <summary>Gives an asset's mark, or its symbol when it has none.</summary>
+    /// <param name="asset">The asset.</param>
+    /// <returns>The mark.</returns>
+    private static string MarkOf(Asset asset) =>
+        TokenMarks.Glyph(asset) is { Length: > 0 } glyph ? glyph : asset.Symbol;
+
+    /// <summary>Gives the key of an account's node, as Tracing writes it.</summary>
+    /// <param name="account">The account.</param>
+    /// <returns>The key.</returns>
+    public static string AccountKey(ChainAddress account)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        return "account:" + account.Chain + ":" + account.Value;
     }
 
     /// <summary>Builds how an actor is drawn.</summary>
@@ -281,10 +394,17 @@ public sealed record GraphScene(
         var incoming = edges.Where(edge => edge.Edge.To == node.Key && edge.Edge.Kind == GraphEdgeKind.Transfer);
         var outgoing = edges.Where(edge => edge.Edge.From == node.Key && edge.Edge.Kind == GraphEdgeKind.Transfer);
         var tracedIn = Sum(edges.Where(edge => edge.Edge.To == node.Key).Select(edge => edge.Traced));
+        var tracedIns = node.Chain == Chain.Bitcoin
+            ? []
+            : edges.Where(edge => edge.Edge.To == node.Key && edge.IsTraced)
+                .GroupBy(edge => edge.Traced.Asset)
+                .Select(group => group.Skip(1).Aggregate(group.First().Traced, (sum, edge) => sum + edge.Traced))
+                .ToList();
+        var balances = node.Chain == Chain.Bitcoin ? [] : Balances(node, snapshot.Graph, edges);
         var sort = SortOf(node, labels);
         var primary = labels.FirstOrDefault(label => VisualLanguage.SortOf(label.Kind) == sort);
         var badges = new List<NodeBadge>();
-        if (VisualLanguage.IsCashOut(sort) && tracedIn.Units.Sign > 0)
+        if (VisualLanguage.IsCashOut(sort) && (tracedIn.Units.Sign > 0 || tracedIns.Count > 0))
         {
             badges.Add(NodeBadge.CashOutFound);
         }
@@ -297,6 +417,11 @@ public sealed record GraphScene(
         if (sort != NodeSort.Sanctioned && labels.Any(label => label.Kind == LabelKind.Sanctioned))
         {
             badges.Add(NodeBadge.Sanctioned);
+        }
+
+        if (balances.Any(row => row.CanBeFrozen))
+        {
+            badges.Add(NodeBadge.CanBeFrozen);
         }
 
         var expandable = node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster or GraphNodeKind.Transaction;
@@ -314,8 +439,70 @@ public sealed record GraphScene(
             Sum(outgoing.Select(edge => edge.Edge.Amount)),
             tracedIn,
             SubjectOf(node),
-            name is not null);
+            name is not null)
+        {
+            Balances = balances,
+            TracedIns = tracedIns,
+        };
     }
+
+    /// <summary>What a balance row says when the account's history is not read, so nothing is known to be left.</summary>
+    public const string NotReadNote = "Inte expanderad: saldot är okänt";
+
+    /// <summary>
+    /// Gives an account's balance per asset along the graph's lines (sketch TK1a), with the fees it paid counted out
+    /// of its ether. What is left is only known when the account's history is read (it is expanded); otherwise the
+    /// row says so and no snowflake is set, since it would rest on a guess.
+    /// </summary>
+    /// <param name="node">The account's node.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="edges">The lines.</param>
+    /// <returns>The rows, the chain's own coin first, then by symbol.</returns>
+    private static List<TokenBalanceRow> Balances(GraphNode node, TraceGraph graph, IReadOnlyList<EdgeView> edges)
+    {
+        var lines = edges.Where(edge => edge.Edge.Kind == GraphEdgeKind.Transfer).ToList();
+        var assets = lines.Where(edge => edge.Edge.From == node.Key || edge.Edge.To == node.Key)
+            .Select(edge => edge.Edge.Amount.Asset).Distinct()
+            .OrderBy(asset => asset.Kind == AssetKind.Native ? 0 : 1)
+            .ThenBy(asset => asset.Symbol, StringComparer.Ordinal)
+            .ToList();
+        var read = node.Addresses.All(graph.Account.ReadAccounts.Contains);
+        var rows = new List<TokenBalanceRow>();
+        foreach (var asset in assets)
+        {
+            var incoming = Total(asset, lines.Where(edge => edge.Edge.To == node.Key));
+            var outgoing = Total(asset, lines.Where(edge => edge.Edge.From == node.Key));
+            if (asset.Kind == AssetKind.Native)
+            {
+                outgoing = graph.Account.Fees.Where(fee => node.Addresses.Contains(fee.Payer.ToChainAddress()))
+                    .Aggregate(outgoing, (sum, fee) => sum + fee.Amount);
+            }
+
+            var row = TokenMarks.Balance(incoming, outgoing);
+            rows.Add(read ? row : row with { Left = "–", Note = NotReadNote, CanBeFrozen = false, FreezeText = null });
+        }
+
+        if (!rows.Any(row => row.Name == Asset.Ether.Symbol) && node.Chain == Chain.Ethereum)
+        {
+            var fees = graph.Account.Fees.Where(fee => node.Addresses.Contains(fee.Payer.ToChainAddress())).ToList();
+            if (fees.Count > 0)
+            {
+                var paid = fees.Aggregate(AssetAmount.Zero(Asset.Ether), (sum, fee) => sum + fee.Amount);
+                var row = TokenMarks.Balance(AssetAmount.Zero(Asset.Ether), paid);
+                rows.Insert(0, read ? row : row with { Left = "–", Note = NotReadNote });
+            }
+        }
+
+        return rows;
+    }
+
+    /// <summary>Adds the amounts of some lines in one asset.</summary>
+    /// <param name="asset">The asset.</param>
+    /// <param name="lines">The lines.</param>
+    /// <returns>The sum.</returns>
+    private static AssetAmount Total(Asset asset, IEnumerable<EdgeView> lines) => lines
+        .Where(edge => edge.Edge.Amount.Asset == asset)
+        .Aggregate(AssetAmount.Zero(asset), (sum, edge) => sum + edge.Edge.Amount);
 
     /// <summary>
     /// Gives an actor's sort: its kind in the model, then its labels (a sanction is a mark when another label says
@@ -376,8 +563,23 @@ public sealed record GraphScene(
             coin.Txid.Value + ":" + coin.Index.ToString(System.Globalization.CultureInfo.InvariantCulture),
         GraphNodeKind.OtherChain when node.OtherChain is { } other => other.Id,
         _ when node.GraphAddresses.Count > 0 => node.GraphAddresses[0].Value,
+        _ when node.Accounts.Count > 0 => Written(node.Accounts[0]),
         _ => node.Key,
     };
+
+    /// <summary>
+    /// Writes an address as its chain's tools do: an Ethereum address with its EIP-55 checksum, others as they are.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The text.</returns>
+    public static string Written(ChainAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return address.Chain == Chain.Ethereum
+            && Chainsaw.Modules.Chains.Contracts.EthereumAddress.TryParse(address.Value, out var ethereum)
+            ? ethereum.Checksummed
+            : address.Value;
+    }
 
     /// <summary>Gives an actor's name when no label names it: what it is, shortened.</summary>
     /// <param name="node">The actor.</param>
@@ -389,6 +591,7 @@ public sealed record GraphScene(
             Shorten(coin.Txid.Value) + ":" + coin.Index.ToString(System.Globalization.CultureInfo.InvariantCulture),
         GraphNodeKind.OtherChain when node.OtherChain is { } other => Shorten(other.Id),
         _ when node.GraphAddresses.Count > 0 => Shorten(node.GraphAddresses[0].Value),
+        _ when node.Accounts.Count > 0 => ShortAccount(Written(node.Accounts[0])),
         _ => Shorten(node.Key),
     };
 

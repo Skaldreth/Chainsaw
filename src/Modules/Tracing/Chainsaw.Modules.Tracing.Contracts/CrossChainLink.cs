@@ -63,19 +63,35 @@ public sealed partial record ChainTransactionRef
 }
 
 /// <summary>
-/// The user's link from a Bitcoin coin (the payment into a bridge or a swap) to the transaction where the money
-/// continues on another chain. It is the user's judgement, sealed in the case with who made it and why.
+/// The user's link from a Bitcoin coin or an Ethereum movement (the payment into a bridge or a swap) to the
+/// transaction where the money continues on another chain. It is the user's judgement, sealed in the case with who
+/// made it and why. Exactly one of <see cref="From"/> and <see cref="FromTransfer"/> is set.
 /// </summary>
 /// <param name="Sequence">The record's number in the sealed chain <c>tracing.cross_chain</c>.</param>
-/// <param name="From">The Bitcoin coin that went into the bridge or swap.</param>
+/// <param name="From">The Bitcoin coin that went into the bridge or swap, or <see langword="null"/> on Ethereum.</param>
 /// <param name="To">The transaction on the other chain.</param>
 /// <param name="Reason">Why the user links them, in their words.</param>
 /// <param name="JournalSequence">The journal entry that records who linked them and when.</param>
 /// <param name="RecordedUtc">When the link was made.</param>
 public sealed record CrossChainLink(
     long Sequence,
-    Outpoint From,
+    Outpoint? From,
     ChainTransactionRef To,
     string Reason,
     long JournalSequence,
-    DateTimeOffset RecordedUtc);
+    DateTimeOffset RecordedUtc)
+{
+    /// <summary>
+    /// Gets the Ethereum movement that went into the bridge or swap, or <see langword="null"/> for a Bitcoin coin.
+    /// </summary>
+    public AccountSeed? FromTransfer { get; init; }
+
+    /// <summary>Gets the chain the money left.</summary>
+    public Chain FromChain => FromTransfer is null ? Chain.Bitcoin : Chain.Ethereum;
+
+    /// <summary>Writes where the money left: the coin, or the movement's kind and transaction.</summary>
+    public string FromText => From?.ToString()
+        ?? string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{FromTransfer!.Kind.ToString().ToLowerInvariant()}:{FromTransfer.Transaction.Value}"
+            + $"#{FromTransfer.Position}");
+}

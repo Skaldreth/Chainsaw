@@ -88,6 +88,23 @@ public interface ITracingService
     CrossChainLink LinkCrossChain(ICase @case, Outpoint from, ChainTransactionRef to, string reason);
 
     /// <summary>
+    /// Links an Ethereum movement (the payment into a bridge or a swap) to the transaction where the money continues on
+    /// another chain: the user's judgement, sealed, with a line in the journal.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="from">The movement that went into the bridge or swap.</param>
+    /// <param name="to">The transaction on the other chain; not Ethereum.</param>
+    /// <param name="reason">Why, at most 1 000 characters.</param>
+    /// <returns>The link.</returns>
+    /// <exception cref="ArgumentException">
+    /// The target is on Ethereum, the movement already has a link in force, or the reason is empty or too long.
+    /// </exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    CrossChainLink LinkCrossChain(ICase @case, AccountSeed from, ChainTransactionRef to, string reason);
+
+    /// <summary>
     /// Takes back a link to another chain. Nothing is removed: the link stays sealed, and a new sealed record of the
     /// taking back, with who, when and the reason if one is given, says it no longer counts. A link taken back cannot
     /// be taken back again; it is made anew instead.
@@ -217,7 +234,7 @@ public sealed record GraphViewState(
         new(TracingMethodKind.Fifo, GraphLayout.Free, GraphAmountLabels.All, null);
 }
 
-/// <summary>What to expand: exactly one of a Bitcoin address or transaction, or an Ethereum address or transaction.</summary>
+/// <summary>What to expand: one Bitcoin address or transaction, or one Ethereum address or transaction.</summary>
 /// <param name="Address">The Bitcoin address whose history to bring in, or <see langword="null"/>.</param>
 /// <param name="Txid">The Bitcoin transaction to follow forward, or <see langword="null"/>.</param>
 /// <param name="MaximumTransactions">

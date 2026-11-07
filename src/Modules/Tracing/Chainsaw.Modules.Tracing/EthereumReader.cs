@@ -388,7 +388,7 @@ internal sealed class EthereumReader(IEthereumSource source)
 internal sealed record EthereumStep(
     IReadOnlyList<EthereumTxHash> Transactions, string? Problem, bool Answered, ExpansionHoldBack? HeldBack = null)
 {
-    /// <summary>Gets what the user should know that does not make the step incomplete, or <see langword="null"/>.</summary>
+    /// <summary>Gets what the user should know that does not make the step incomplete.</summary>
     public string? Notes { get; init; }
 }
 

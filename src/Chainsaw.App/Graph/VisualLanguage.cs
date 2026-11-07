@@ -37,6 +37,9 @@ public enum GraphInk
 
     /// <summary>The light disc of the start point's flag (sketch GR5, variant A).</summary>
     StartMark,
+
+    /// <summary>The snowflake <em>Kan frysas</em>: a pale ice blue, apart from the exchanges' blue.</summary>
+    Freeze,
 }
 
 /// <summary>A node's frame: the shape says what it is (sketch GR3a).</summary>
@@ -139,6 +142,12 @@ public enum NodeBadge
     /// marks but on the other side, so that it never collides with them. The node keeps its sort.
     /// </summary>
     StartPoint,
+
+    /// <summary>
+    /// <em>Kan frysas</em> (a snowflake): USDT or USDC is left at the address according to the history in the case,
+    /// and its issuer can freeze it on request (CLAUDE.md, sketch TK1a).
+    /// </summary>
+    CanBeFrozen,
 }
 
 /// <summary>How a sort is drawn.</summary>
@@ -191,7 +200,7 @@ public static class VisualLanguage
     ];
 
     /// <summary>
-    /// Gets every mark that Chainsaw can set now; the watched and freezable marks wait for their modules. The start
+    /// Gets every mark that Chainsaw can set now; the watched mark waits for its module. The start
     /// point's flag is drawn in the other corner (<see cref="NodeView.IsStartPoint"/>), the rest in the top-right one.
     /// </summary>
     public static IReadOnlyList<BadgeLook> Badges { get; } =
@@ -200,6 +209,7 @@ public static class VisualLanguage
         new(NodeBadge.CashOutFound, "Uttag funnet", "Icon.Kind.Check", GraphInk.CashOut),
         new(NodeBadge.FromOtherCase, "Etikett från ett annat ärende", "Icon.Tag", GraphInk.Cluster),
         new(NodeBadge.Sanctioned, "Sanktionerad", "Icon.Kind.Ban", GraphInk.Sanctioned),
+        new(NodeBadge.CanBeFrozen, "Kan frysas", "Icon.Snow", GraphInk.Freeze),
     ];
 
     /// <summary>Gives how a sort is drawn.</summary>

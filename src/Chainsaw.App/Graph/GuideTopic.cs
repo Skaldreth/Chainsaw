@@ -44,6 +44,18 @@ public enum GuideTopic
 
     /// <summary><em>Mixerns troliga utgångar</em>.</summary>
     MixerCandidates,
+
+    /// <summary><em>Kontomodellen</em>: how Ethereum keeps balances, and how they are traced.</summary>
+    AccountModel,
+
+    /// <summary><em>ERC-20 och tokens</em>: tokens, their marks and swaps.</summary>
+    Tokens,
+
+    /// <summary><em>Kan frysas</em>: USDT and USDC that their issuer can freeze.</summary>
+    CanBeFrozen,
+
+    /// <summary><em>Kurser och omräkning</em>: the value at the time, in SEK.</summary>
+    Prices,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -75,6 +87,10 @@ public static class GuideTopics
         GuideTopic.Checks => "kontroller-och-forslag",
         GuideTopic.Areas => "omraden",
         GuideTopic.MixerCandidates => "mixerns-kandidater",
+        GuideTopic.AccountModel => "kontomodellen",
+        GuideTopic.Tokens => "erc-20",
+        GuideTopic.CanBeFrozen => "kan-frysas",
+        GuideTopic.Prices => "kurser",
         _ => "utxo-modellen",
     };
 
@@ -95,6 +111,10 @@ public static class GuideTopics
         GuideTopic.Checks => "Kontroller och förslag",
         GuideTopic.Areas => "Områden i grafen",
         GuideTopic.MixerCandidates => "Mixerns troliga utgångar",
+        GuideTopic.AccountModel => "Kontomodellen",
+        GuideTopic.Tokens => "ERC-20 och tokens",
+        GuideTopic.CanBeFrozen => "Kan frysas",
+        GuideTopic.Prices => "Kurser och omräkning",
         _ => "UTXO-modellen",
     };
 

@@ -44,6 +44,14 @@ public interface IGraphEditor
     /// <returns>A task that completes when it is stored.</returns>
     Task LinkCrossChainAsync(ICase @case, Outpoint coin, ChainTransactionRef target, string reason);
 
+    /// <summary>Links an Ethereum movement to the transaction where the money continues on another chain.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="movement">The movement that went into the bridge or swap.</param>
+    /// <param name="target">The other chain's transaction.</param>
+    /// <param name="reason">Why.</param>
+    /// <returns>A task that completes when it is sealed.</returns>
+    Task LinkCrossChainAsync(ICase @case, AccountSeed movement, ChainTransactionRef target, string reason);
+
     /// <summary>
     /// Reads what the inspector's <em>Historik</em> shows for a node (sketch AN1b): its labels, splits and links, also
     /// those taken back, its cluster, and who wrote each journal entry they name.
@@ -170,6 +178,16 @@ public sealed class GraphEditor(
     }
 
     /// <inheritdoc/>
+    public Task LinkCrossChainAsync(ICase @case, AccountSeed movement, ChainTransactionRef target, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(movement);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(reason);
+        return Task.Run(() => tracing.LinkCrossChain(@case, movement, target, reason));
+    }
+
+    /// <inheritdoc/>
     public Task<NodeHistoryData> ReadHistoryAsync(ICase @case, GraphNode node, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@case);
@@ -183,8 +201,12 @@ public sealed class GraphEditor(
                 IReadOnlyCollection<BitcoinAddress> addresses = cluster is null
                     ? node.GraphAddresses
                     : [.. cluster.Addresses.Union(node.GraphAddresses)];
-                var labels = attribution.GetHistory(@case, addresses);
-                var splits = WholeBreakingsOut(clustering.GetSplitHistory(@case), addresses.ToHashSet());
+                var labels = node.Accounts.Count > 0
+                    ? attribution.GetHistory(@case, node.Accounts)
+                    : attribution.GetHistory(@case, addresses);
+                var splits = node.Accounts.Count > 0
+                    ? []
+                    : WholeBreakingsOut(clustering.GetSplitHistory(@case), addresses.ToHashSet());
                 var links = tracing.GetCrossChainHistory(@case);
                 cancellationToken.ThrowIfCancellationRequested();
                 var operators = new Dictionary<long, string>();

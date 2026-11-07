@@ -103,7 +103,8 @@ internal sealed class FakeEthereumSource : IEthereumSource
     public Task<BitcoinLookup<EthereumBlockReference>> GetBlockAsync(
         ICase @case, long height, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
     {
-        var block = new EthereumBlockReference(height, HashOf(height), new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddSeconds(12 * height));
+        var block = new EthereumBlockReference(
+            height, HashOf(height), new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddSeconds(12 * height));
         if (mode == LookupMode.CaseOnly || !Online)
         {
             return Task.FromResult(_givenBlocks.Contains(height)
@@ -116,7 +117,8 @@ internal sealed class FakeEthereumSource : IEthereumSource
         return Task.FromResult(Answer(LookupStatus.Fetched, block));
     }
 
-    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default) =>
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
         Task.FromResult(Answer(LookupStatus.Fetched, new EthereumTip(1_000)));
 
     private static bool Kind(EthereumHistory history, EthereumTransferKind kind) => history switch

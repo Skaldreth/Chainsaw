@@ -1,8 +1,11 @@
 using System.Globalization;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
 
@@ -75,12 +78,23 @@ public interface IGraphSource
 /// The label library, which gives the graph's addresses the labels set in other cases (CLAUDE.md, <em>Etiketter
 /// smittar</em>); <see langword="null"/> where there is none.
 /// </param>
+/// <param name="prices">
+/// The rates, which give the lines on Ethereum their value in SEK at the time (sketch TK1a); <see langword="null"/>
+/// where there are none, and the lines then show no value.
+/// </param>
 public sealed class GraphSource(
     ITracingService tracing,
     IAttributionService attribution,
     IClusteringService clustering,
-    ILabelLibrary? library = null) : IGraphSource
+    ILabelLibrary? library = null,
+    IPriceService? prices = null) : IGraphSource
 {
+    /// <summary>
+    /// The most rates one expansion asks the source for, so that a long history does not flood Pricing's source; the
+    /// rest are asked for at the next expansion, and until then their lines show no value.
+    /// </summary>
+    public const int MostRateLookups = 30;
+
     /// <summary>The most links of a cluster that <em>Varför?</em> writes out.</summary>
     public const int MostClusterLinks = 12;
 
@@ -116,7 +130,8 @@ public sealed class GraphSource(
             {
                 var graph = await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
                 graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
-                return await ComposeAsync(@case, graph, method, cancellationToken).ConfigureAwait(false);
+                return await ComposeAsync(@case, graph, method, PriceLookupMode.CaseOnly, cancellationToken)
+                    .ConfigureAwait(false);
             },
             cancellationToken);
     }
@@ -149,7 +164,7 @@ public sealed class GraphSource(
 
                     var result = await tracing.ExpandAsync(@case, request, cancellationToken).ConfigureAwait(false);
                     outcomes.Add(result.Outcome);
-                    added += result.NewTransactions.Count;
+                    added += result.NewCount;
                     graph = result.Graph;
                     if (result.Problem is { } problem && !problems.Contains(problem))
                     {
@@ -159,7 +174,8 @@ public sealed class GraphSource(
 
                 graph ??= await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
                 graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
-                var scene = await ComposeAsync(@case, graph, method, cancellationToken).ConfigureAwait(false);
+                var scene = await ComposeAsync(@case, graph, method, PriceLookupMode.AsNeeded, cancellationToken)
+                    .ConfigureAwait(false);
                 return new GraphExpansion(scene, Combine(outcomes), added, problems);
             },
             cancellationToken);
@@ -215,14 +231,17 @@ public sealed class GraphSource(
         ICase @case, TraceGraph graph, CancellationToken cancellationToken)
     {
         var addresses = graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList();
-        if (library is null || addresses.Count == 0)
+        var accounts = graph.Nodes.SelectMany(node => node.Accounts).Distinct().ToList();
+        if (library is null || addresses.Count + accounts.Count == 0)
         {
             return graph;
         }
 
         try
         {
-            if (library.ShareInto(@case, addresses).Count == 0)
+            var shared = addresses.Count == 0 ? 0 : library.ShareInto(@case, addresses).Count;
+            shared += accounts.Count == 0 ? 0 : library.ShareInto(@case, accounts).Count;
+            if (shared == 0)
             {
                 return graph;
             }
@@ -306,10 +325,15 @@ public sealed class GraphSource(
     /// <param name="case">The open case.</param>
     /// <param name="graph">The graph.</param>
     /// <param name="method">The tracing method.</param>
+    /// <param name="rates">Whether Pricing may ask its source for the rates the lines on Ethereum lack.</param>
     /// <param name="cancellationToken">Stops the trace.</param>
     /// <returns>The scene.</returns>
     private async Task<GraphScene> ComposeAsync(
-        ICase @case, TraceGraph graph, TracingMethodKind method, CancellationToken cancellationToken)
+        ICase @case,
+        TraceGraph graph,
+        TracingMethodKind method,
+        PriceLookupMode rates,
+        CancellationToken cancellationToken)
     {
         var byAddress = attribution.GetLabels(
             @case, graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList());
@@ -327,9 +351,27 @@ public sealed class GraphSource(
             }
         }
 
+        AddAccountLabels(@case, graph, labels);
+
         var seeds = SeedPicker.Pick(graph);
+        var accountSeeds = AccountSeedPicker.Pick(graph);
         TraceResult? trace = null;
-        var problem = seeds.Count == 0 && graph.StartPoints.Count > 0 ? NothingToTraceText : null;
+        AccountTraceResult? accountTrace = null;
+        var problem = seeds.Count + accountSeeds.Count == 0 && graph.StartPoints.Count > 0 ? NothingToTraceText : null;
+        if (accountSeeds.Count > 0)
+        {
+            try
+            {
+                accountTrace = await tracing.TraceAccountsAsync(
+                    graph, new AccountTraceRequest(method, accountSeeds), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+            {
+                // The seeds lie in each other's flow, or a method broke its contract; shown without traced amounts.
+                problem = TraceFailedText;
+            }
+        }
+
         if (seeds.Count > 0)
         {
             try
@@ -346,6 +388,126 @@ public sealed class GraphSource(
             }
         }
 
-        return GraphScene.Build(new GraphSnapshot(graph, labels, method, seeds, trace, problem));
+        var values = await ValuesAsync(@case, graph, rates, cancellationToken).ConfigureAwait(false);
+        return GraphScene.Build(new GraphSnapshot(graph, labels, method, seeds, trace, problem)
+        {
+            AccountSeeds = accountSeeds,
+            AccountTrace = accountTrace,
+            Values = values,
+        });
+    }
+
+    /// <summary>Adds the labels on the graph's Ethereum addresses, read once for all of them.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="labels">The labels by node key, added to.</param>
+    private void AddAccountLabels(ICase @case, TraceGraph graph, Dictionary<string, IReadOnlyList<Label>> labels)
+    {
+        var accounts = graph.Nodes.Where(node => node.Accounts.Count > 0).ToList();
+        if (accounts.Count == 0)
+        {
+            return;
+        }
+
+        var byAccount = attribution.GetLabels(@case, accounts.SelectMany(node => node.Accounts).Distinct().ToList());
+        foreach (var node in accounts)
+        {
+            var found = node.Accounts.SelectMany(account => byAccount.GetValueOrDefault(account) ?? [])
+                .OrderByDescending(label => label.IndependentOrigins)
+                .ToList();
+            if (found.Count > 0)
+            {
+                labels[node.Key] = found;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Values the lines on Ethereum at the time of their movements, in the currency Pricing is set to: each movement
+    /// at its block's time, by the rate of its asset (ether, USDT or USDC by contract). A line gets a value only when
+    /// every movement on it has a rate; otherwise none is shown, never a guess. Reading the graph uses only the case's
+    /// rates; an expansion may ask the source for at most <see cref="MostRateLookups"/>.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The values by line key.</returns>
+    private async Task<IReadOnlyDictionary<string, EdgeValue>> ValuesAsync(
+        ICase @case, TraceGraph graph, PriceLookupMode mode, CancellationToken cancellationToken)
+    {
+        var values = new Dictionary<string, EdgeValue>(StringComparer.Ordinal);
+        if (prices is null)
+        {
+            return values;
+        }
+
+        var asked = 0;
+        var known = new Dictionary<(Asset, DateTimeOffset), Price?>();
+        foreach (var edge in graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.Transfer
+            && edge.Amount.Asset.Chain == Chain.Ethereum))
+        {
+            var valuations = new List<Valuation>();
+            foreach (var transfer in edge.Transfers)
+            {
+                if (transfer.Block is not { } block)
+                {
+                    break;
+                }
+
+                var key = (transfer.Amount.Asset, block.Time);
+                if (!known.TryGetValue(key, out var price))
+                {
+                    var lookupMode = mode == PriceLookupMode.AsNeeded && asked < MostRateLookups
+                        ? PriceLookupMode.AsNeeded
+                        : PriceLookupMode.CaseOnly;
+                    asked += lookupMode == PriceLookupMode.AsNeeded ? 1 : 0;
+                    price = await PriceOf(@case, transfer.Amount.Asset, block.Time, lookupMode, cancellationToken)
+                        .ConfigureAwait(false);
+                    known[key] = price;
+                }
+
+                if (price is null)
+                {
+                    break;
+                }
+
+                valuations.Add(price.ValueOf(transfer.Amount));
+            }
+
+            if (valuations.Count == edge.Transfers.Count && valuations.Count > 0)
+            {
+                values[edge.Key] = new EdgeValue(
+                    Math.Round(valuations.Sum(valuation => valuation.Value), 0, MidpointRounding.AwayFromZero),
+                    valuations[0].Price.Currency.Code(),
+                    [.. valuations.SelectMany(valuation => valuation.Steps).Distinct()]);
+            }
+        }
+
+        return values;
+    }
+
+    /// <summary>Asks Pricing for an asset's rate at a time; a failure is no rate, never an error in the graph.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="asset">The asset.</param>
+    /// <param name="at">The time.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The price, or <see langword="null"/>.</returns>
+    private async Task<Price?> PriceOf(
+        ICase @case, Asset asset, DateTimeOffset at, PriceLookupMode mode, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var lookup = await prices!.GetPriceAsync(
+                @case, new PriceRequest(asset.Chain, at) { Asset = asset }, mode, cancellationToken)
+                .ConfigureAwait(false);
+            return lookup.Value;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
+            or CaseException)
+        {
+            return null;
+        }
     }
 }

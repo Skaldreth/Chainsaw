@@ -50,7 +50,7 @@ public sealed class ChainStartPointTests
         Assert.Equal((Chain.Ethereum, StartPointKind.Address), (address.Chain, address.Kind));
         Assert.Equal("0x" + new string('a', 40), address.Value);
         Assert.Equal((Chain.Ethereum, StartPointKind.Transaction), (transaction.Chain, transaction.Kind));
-        Assert.False(address.IsSupported);
+        Assert.True(address.IsSupported);
     }
 
     [Theory]
