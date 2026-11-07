@@ -24,7 +24,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// <summary>What the panel says when the exits could not be read.</summary>
     public const string ListFailedText = "Utgångarna gick inte att läsa.";
 
-    /// <summary>What the panel says when an exit could not be chosen, for example if it was removed meanwhile.</summary>
+    /// <summary>What the panel says when an exit could not be chosen, such as one removed meanwhile.</summary>
     public const string ChooseFailedText = "Utgången gick inte att välja.";
 
     /// <summary>What the panel says when the exit could not be disconnected.</summary>
@@ -64,7 +64,16 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// </summary>
     private int _attempt;
 
-    /// <summary>Counts the times the panel opened or closed, so that a late answer is not shown after a close.</summary>
+    /// <summary>
+    /// Cancels the connect that runs, when the user disconnects or connects another exit. Network cancels an attempt
+    /// it has begun by itself; this also stops one that is queued but not yet begun.
+    /// </summary>
+    private CancellationTokenSource? _connecting;
+
+    /// <summary>Counts the reads of the exits, so that an older read never replaces a newer one.</summary>
+    private int _refresh;
+
+    /// <summary>Counts the times the panel opened or closed, so a late answer is not shown after a close.</summary>
     private int _shown;
 
     /// <summary>The WireGuard file being added; only its path is kept, never its text.</summary>
@@ -222,9 +231,12 @@ public sealed partial class ExitPanelViewModel : ObservableObject
             CheckText = WireGuardCheck.TextFor(verdict);
             IsAdding = true;
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            ErrorText = ReadFailedText;
+            if (shown == _shown)
+            {
+                ErrorText = ReadFailedText;
+            }
         }
         finally
         {
@@ -298,10 +310,11 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     public async Task RefreshAsync()
     {
         var shown = _shown;
+        var refresh = ++_refresh;
         try
         {
             var (exits, selected) = await Task.Run(() => (_exits.List(), _exits.FindSelected()?.Id));
-            if (shown != _shown)
+            if (shown != _shown || refresh != _refresh)
             {
                 return;
             }
@@ -319,7 +332,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            if (shown == _shown)
+            if (shown == _shown && refresh == _refresh)
             {
                 ErrorText = exception is VaultException ? LockedText : ListFailedText;
             }
@@ -335,6 +348,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     private async Task ConnectAsync(ExitRowViewModel row)
     {
         var attempt = ++_attempt;
+        CancellationToken token;
         ErrorText = string.Empty;
         try
         {
@@ -356,14 +370,18 @@ public sealed partial class ExitPanelViewModel : ObservableObject
                 {
                     return;
                 }
+
+                _connecting?.Cancel();
+                _connecting = new CancellationTokenSource();
+                token = _connecting.Token;
             }
             finally
             {
                 _choosing.Release();
             }
 
-            // A later choice of another exit cancels this attempt in Network, so the gate is not held while it runs.
-            await Task.Run(() => _connection.ConnectAsync());
+            // The gate is not held while the tunnel starts: a later connect or a disconnect cancels this one.
+            await Task.Run(() => _connection.ConnectAsync(token), token);
         }
         catch (OperationCanceledException)
         {
@@ -383,6 +401,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     private async Task DisconnectAsync()
     {
         ++_attempt;
+        _connecting?.Cancel();
         ErrorText = string.Empty;
         try
         {
@@ -412,7 +431,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     {
         IsLive = _status.State == ExitState.Connected;
         var connected = IsLive ? Rows.FirstOrDefault(row => row.Id == _status.ExitId) : null;
-        RouteText = connected?.Name ?? (IsLive ? "Ansluten" : NoRouteText);
+        RouteText = connected?.Name ?? (IsLive ? ExitRowViewModel.ConnectedText : NoRouteText);
     }
 
     /// <summary>Reads and checks a WireGuard file, and clears its text.</summary>

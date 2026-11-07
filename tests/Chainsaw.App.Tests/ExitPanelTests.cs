@@ -105,6 +105,76 @@ public sealed class ExitPanelTests
     }
 
     [Fact]
+    public async Task A_second_connect_cancels_a_first_that_is_still_starting()
+    {
+        var rig = new Rig();
+        await rig.OpenAsync();
+        rig.Connection.HoldNext = true;
+
+        var first = rig.Panel.PowerAsync(rig.Row("Stockholm"));
+        await rig.Connection.Held.Task;
+        await rig.Panel.PowerAsync(rig.Row("Amsterdam"));
+        await first;
+
+        Assert.True(rig.Connection.HeldWasCancelled);
+        Assert.Equal(Amsterdam.Id, rig.Store.Selected);
+        Assert.Equal(ExitRowState.Connected, rig.Row("Amsterdam").State);
+        Assert.False(rig.Panel.HasError);
+    }
+
+    [Fact]
+    public async Task A_disconnect_cancels_a_connect_that_is_still_starting()
+    {
+        var rig = new Rig();
+        await rig.OpenAsync();
+        rig.Connection.HoldNext = true;
+
+        var connect = rig.Panel.PowerAsync(rig.Row("Stockholm"));
+        await rig.Connection.Held.Task;
+        rig.Connection.Set(new ExitStatus(ExitState.Connecting, Stockholm.Id, null));
+        await rig.Panel.PowerAsync(rig.Row("Stockholm"));
+        await connect;
+
+        Assert.True(rig.Connection.HeldWasCancelled);
+        Assert.Equal(ExitRowState.Off, rig.Row("Stockholm").State);
+    }
+
+    [Fact]
+    public async Task An_exit_removed_meanwhile_cannot_be_chosen_and_says_so()
+    {
+        var rig = new Rig();
+        await rig.OpenAsync();
+        rig.Store.Failure = new ArgumentException("No exit has the id.", "id");
+
+        await rig.Panel.PowerAsync(rig.Row("Stockholm"));
+
+        Assert.Equal(ExitPanelViewModel.ChooseFailedText, rig.Panel.ErrorText);
+        Assert.Equal(0, rig.Connection.Connects);
+    }
+
+    [Fact]
+    public async Task A_save_that_ends_after_the_panel_closed_shows_nothing()
+    {
+        using var file = new TempFile("se-got-02.conf", WireGuardCheckTests.Valid);
+        var rig = new Rig();
+        await rig.OpenAsync();
+        rig.Picker.WireGuardPath = file.Path;
+        await rig.Panel.AddFileAsync();
+        using var adding = new ManualResetEventSlim();
+        rig.Store.AddGate = adding;
+
+        var save = rig.Panel.SaveAsync();
+        rig.Panel.Close();
+        adding.Set();
+        await save;
+
+        Assert.Single(rig.Store.Added);
+        Assert.False(rig.Panel.IsOpen);
+        Assert.False(rig.Panel.IsAdding);
+        Assert.False(rig.Panel.HasError);
+    }
+
+    [Fact]
     public async Task A_failure_to_connect_is_shown_on_the_row_not_thrown()
     {
         var rig = new Rig();
@@ -357,6 +427,8 @@ public sealed class ExitPanelTests
 
         public Task SelectGate { get; set; } = Task.CompletedTask;
 
+        public ManualResetEventSlim? AddGate { get; set; }
+
         public IReadOnlyList<ExitInfo> List() =>
             Failure is null ? Known.OrderBy(exit => exit.Name).ToList() : throw Failure;
 
@@ -366,6 +438,8 @@ public sealed class ExitPanelTests
             {
                 throw AddFailure;
             }
+
+            AddGate?.Wait(TimeSpan.FromSeconds(10));
 
             Added.Add((name, configuration));
             var exit = new ExitInfo(Guid.NewGuid(), name, place, kind);
@@ -404,12 +478,38 @@ public sealed class ExitPanelTests
 
         public event EventHandler<ExitStatus>? StatusChanged;
 
-        public Task<ExitStatus> ConnectAsync(CancellationToken cancellationToken = default)
+        public bool HoldNext { get; set; }
+
+        public TaskCompletionSource Held { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool HeldWasCancelled { get; private set; }
+
+        public async Task<ExitStatus> ConnectAsync(CancellationToken cancellationToken = default)
+        {
+            if (HoldNext)
+            {
+                HoldNext = false;
+                Held.SetResult();
+                try
+                {
+                    await Task.Delay(Timeout.Infinite, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    HeldWasCancelled = true;
+                    throw;
+                }
+            }
+
+            return Connect();
+        }
+
+        private ExitStatus Connect()
         {
             Connects++;
             var id = Store?.Selected ?? throw new InvalidOperationException("No exit is selected.");
             Set(Outcome(id));
-            return Task.FromResult(Status);
+            return Status;
         }
 
         public Task DisconnectAsync()

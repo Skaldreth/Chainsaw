@@ -34,12 +34,48 @@ public sealed class WireGuardCheckTests
         Assert.Equal(verdict, WireGuardCheck.Check(Without(key)));
 
     [Fact]
-    public void A_key_in_the_wrong_section_does_not_count()
+    public void A_key_in_the_wrong_section_is_unknown()
     {
         var text = Without("Endpoint").Replace("DNS = 10.64.0.1", "DNS = 10.64.0.1\nEndpoint = vpn.example.org:1");
 
-        Assert.Equal(WireGuardVerdict.NoEndpoint, WireGuardCheck.Check(text));
+        Assert.Equal(WireGuardVerdict.UnknownKey, WireGuardCheck.Check(text));
     }
+
+    [Theory]
+    [InlineData("[Interface", WireGuardVerdict.BrokenHeader)]
+    [InlineData("[", WireGuardVerdict.BrokenHeader)]
+    [InlineData("[Foo]", WireGuardVerdict.UnknownSection)]
+    [InlineData("Address", WireGuardVerdict.LineWithoutEquals)]
+    [InlineData("= 10.64.0.9", WireGuardVerdict.UnknownKey)]
+    [InlineData("Colour = blue", WireGuardVerdict.UnknownKey)]
+    [InlineData("MTU = 1280\nMTU = 1420", WireGuardVerdict.RepeatedKey)]
+    public void A_line_the_helper_refuses_is_refused(string line, WireGuardVerdict verdict) =>
+        Assert.Equal(verdict, WireGuardCheck.Check(Valid.Replace("DNS = 10.64.0.1", "DNS = 10.64.0.1\n" + line)));
+
+    [Fact]
+    public void A_key_before_the_first_section_is_refused() =>
+        Assert.Equal(WireGuardVerdict.KeyBeforeSection, WireGuardCheck.Check("MTU = 1280\n" + Valid));
+
+    [Theory]
+    [InlineData("Address = 10.64.0.3/32")]
+    [InlineData("DNS = 10.64.0.2")]
+    [InlineData("PostUp = echo")]
+    [InlineData("PostUp = echo\nPostUp = echo")]
+    public void Keys_the_helper_takes_again_or_ignores_pass(string line) =>
+        Assert.Equal(
+            WireGuardVerdict.Valid,
+            WireGuardCheck.Check(Valid.Replace("DNS = 10.64.0.1", "DNS = 10.64.0.1\n" + line)));
+
+    [Fact]
+    public void The_same_key_in_two_sections_is_not_repeated() =>
+        Assert.Equal(
+            WireGuardVerdict.Valid,
+            WireGuardCheck.Check(Valid.Replace("[Peer]", "[Peer]\nPersistentKeepalive = 25")
+                .Replace("DNS = 10.64.0.1", "DNS = 10.64.0.1\nMTU = 1280")));
+
+    [Fact]
+    public void A_file_with_line_breaks_of_only_carriage_returns_is_refused_as_the_helper_refuses_it() =>
+        Assert.Equal(WireGuardVerdict.BrokenHeader, WireGuardCheck.Check(Valid.ReplaceLineEndings("\r")));
 
     [Fact]
     public void Keys_are_read_without_regard_to_case() =>
@@ -53,7 +89,13 @@ public sealed class WireGuardCheckTests
 
     [Fact]
     public void A_file_without_an_interface_is_refused() =>
-        Assert.Equal(WireGuardVerdict.NotOneInterface, WireGuardCheck.Check(Valid.Replace("[Interface]", "[Other]")));
+        Assert.Equal(
+            WireGuardVerdict.NotOneInterface,
+            WireGuardCheck.Check(Valid.AsSpan(Valid.IndexOf("[Peer]", StringComparison.Ordinal))));
+
+    [Fact]
+    public void Two_interfaces_are_refused() =>
+        Assert.Equal(WireGuardVerdict.NotOneInterface, WireGuardCheck.Check(Valid + "\n[Interface]\nMTU = 1280"));
 
     [Theory]
     [InlineData("DNS = vpn.example.org")]

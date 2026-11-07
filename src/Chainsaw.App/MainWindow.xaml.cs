@@ -220,17 +220,31 @@ public partial class MainWindow : Window
         Submenu.Show(item, button.TranslatePoint(default, SubmenuLayer));
     }
 
+    /// <summary>Tells whether an element is a part, or is itself, of another.</summary>
+    /// <param name="target">The element pressed; one not drawn (a run of text) counts as outside.</param>
+    /// <param name="part">The other element.</param>
+    /// <returns><see langword="true"/> when it is within.</returns>
+    private static bool IsWithin(DependencyObject? target, Visual part) =>
+        target is Visual visual && (visual == part || part.IsAncestorOf(visual));
+
     /// <summary>
-    /// Closes an open submenu when the pointer presses outside it, before the press reaches its target.
+    /// Closes an open submenu, or the exits' panel, when the pointer presses outside it, before the press reaches its
+    /// target.
     /// </summary>
     /// <param name="sender">The window.</param>
     /// <param name="e">The press.</param>
     private void OnPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        var inside = e.OriginalSource is DependencyObject target && (target == Submenu || Submenu.IsAncestorOf(target));
-        if (_shell.OpenSubmenu?.Submenu is { } menu && !inside)
+        var target = e.OriginalSource as DependencyObject;
+        if (_shell.OpenSubmenu?.Submenu is { } menu && !IsWithin(target, Submenu))
         {
             menu.Close();
+        }
+
+        // The title bar lies outside the space that catches clicks around the exits' panel.
+        if (_shell.ExitPanel.IsOpen && !IsWithin(target, ExitPanelView) && !IsWithin(target, ExitChip))
+        {
+            _shell.ExitPanel.Close();
         }
     }
 
@@ -382,6 +396,7 @@ public partial class MainWindow : Window
     /// <summary>Moves the keyboard to the command bar and selects what is written there.</summary>
     private void FocusCommandBar()
     {
+        _shell.ExitPanel.Close();
         CommandBox.Focus();
         CommandBox.SelectAll();
     }

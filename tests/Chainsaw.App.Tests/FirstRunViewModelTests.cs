@@ -103,7 +103,7 @@ public sealed class FirstRunViewModelTests
     {
         var rig = await AtExit();
         var file = Path.Combine(Path.GetTempPath(), $"Stockholm-{Guid.NewGuid():N}.conf");
-        await File.WriteAllTextAsync(file, "[Interface]\nPrivateKey = x\nDNS = 10.0.0.1\n");
+        await File.WriteAllTextAsync(file, WireGuardCheckTests.Valid);
         try
         {
             await rig.FirstRun.AddExitAsync(file);
@@ -115,7 +115,7 @@ public sealed class FirstRunViewModelTests
 
         var added = Assert.Single(rig.Exits.Added);
         Assert.StartsWith("Stockholm-", added.Name, StringComparison.Ordinal);
-        Assert.Contains("DNS = 10.0.0.1", added.Configuration, StringComparison.Ordinal);
+        Assert.Equal(WireGuardCheckTests.Valid, added.Configuration);
         Assert.NotNull(rig.Exits.Selected);
         Assert.True(rig.FirstRun.HasExit);
         Assert.Equal(FirstRunStep.FirstCase, rig.FirstRun.Step);
@@ -127,6 +127,7 @@ public sealed class FirstRunViewModelTests
         var rig = await AtExit();
         rig.Exits.Failure = new ArgumentException("The configuration must name a DNS server.", "configuration");
         var file = Path.GetTempFileName();
+        await File.WriteAllTextAsync(file, WireGuardCheckTests.Valid);
         try
         {
             await rig.FirstRun.AddExitAsync(file);
@@ -139,6 +140,26 @@ public sealed class FirstRunViewModelTests
         Assert.Equal(FirstRunStep.Exit, rig.FirstRun.Step);
         Assert.Contains("DNS =", rig.FirstRun.ErrorText, StringComparison.Ordinal);
         Assert.DoesNotContain("configuration", rig.FirstRun.ErrorText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_file_that_fails_the_check_says_what_is_missing_and_is_not_stored()
+    {
+        var rig = await AtExit();
+        var file = Path.GetTempFileName();
+        await File.WriteAllTextAsync(file, WireGuardCheckTests.Valid.Replace("Address", "# Address"));
+        try
+        {
+            await rig.FirstRun.AddExitAsync(file);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+
+        Assert.Empty(rig.Exits.Added);
+        Assert.Equal(FirstRunStep.Exit, rig.FirstRun.Step);
+        Assert.Contains("Saknar Address", rig.FirstRun.ErrorText, StringComparison.Ordinal);
     }
 
     [Fact]

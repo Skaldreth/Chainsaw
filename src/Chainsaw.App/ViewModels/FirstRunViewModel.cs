@@ -227,19 +227,13 @@ public sealed partial class FirstRunViewModel : ObservableObject
         try
         {
             var name = ExitNames.FromFile(path);
-            var exit = await Task.Run(() =>
+            var (exit, verdict) = await Task.Run(() => StoreExit(path, name));
+            if (exit is null)
             {
-                var text = WireGuardFile.Read(path)
-                    ?? throw new ArgumentException("The file is too large.", "configuration");
-                try
-                {
-                    return _exits.Add(name, string.Empty, ExitKind.WireGuard, new string(text));
-                }
-                finally
-                {
-                    Secret.Clear(text);
-                }
-            });
+                ErrorText = $"WireGuard-filen gick inte att använda: {WireGuardCheck.TextFor(verdict)}.";
+                return;
+            }
+
             ExitName = exit.Name;
             await SelectExitAsync(exit);
             Step = FirstRunStep.FirstCase;
@@ -264,6 +258,34 @@ public sealed partial class FirstRunViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Reads, checks and stores a WireGuard file in the vault, and clears its text; it becomes a string only for
+    /// <see cref="IExitStore.Add"/>.
+    /// </summary>
+    /// <param name="path">The file.</param>
+    /// <param name="name">The exit's name.</param>
+    /// <returns>The stored exit, or <see langword="null"/> and what the check found.</returns>
+    private (ExitInfo? Exit, WireGuardVerdict Verdict) StoreExit(string path, string name)
+    {
+        var text = WireGuardFile.Read(path);
+        if (text is null)
+        {
+            return (null, WireGuardVerdict.TooLarge);
+        }
+
+        try
+        {
+            var verdict = WireGuardCheck.Check(text);
+            return verdict == WireGuardVerdict.Valid
+                ? (_exits.Add(name, string.Empty, ExitKind.WireGuard, new string(text)), verdict)
+                : (null, verdict);
+        }
+        finally
+        {
+            Secret.Clear(text);
         }
     }
 

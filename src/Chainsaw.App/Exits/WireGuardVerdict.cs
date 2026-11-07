@@ -12,6 +12,24 @@ public enum WireGuardVerdict
     /// <summary>The file is larger than a configuration may be.</summary>
     TooLarge,
 
+    /// <summary>A section's header has no closing <c>]</c>.</summary>
+    BrokenHeader,
+
+    /// <summary>A section the tunnel does not know, such as <c>[Foo]</c>.</summary>
+    UnknownSection,
+
+    /// <summary>A line that is neither a header nor <c>key = value</c>.</summary>
+    LineWithoutEquals,
+
+    /// <summary>A key before the first section.</summary>
+    KeyBeforeSection,
+
+    /// <summary>A key the tunnel does not know in its section.</summary>
+    UnknownKey,
+
+    /// <summary>A key that may only be given once is given twice in its section.</summary>
+    RepeatedKey,
+
     /// <summary>The file has no <c>[Interface]</c>, or more than one.</summary>
     NotOneInterface,
 
