@@ -119,6 +119,17 @@ internal static class HashChain
         return names;
     }
 
+    /// <summary>Counts a sealed table's records.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain.</param>
+    /// <returns>The number of records.</returns>
+    public static long CountRecords(CaseDatabase database, SqliteTransaction transaction, SealedChain chain)
+    {
+        using var command = database.Command($"SELECT count(*) FROM {chain.Table}", transaction);
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
     /// <summary>Reads one record's stored hash.</summary>
     /// <param name="database">The database.</param>
     /// <param name="transaction">The transaction.</param>

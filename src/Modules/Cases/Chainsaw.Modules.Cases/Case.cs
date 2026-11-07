@@ -174,14 +174,7 @@ internal sealed class Case : ICase
             // The handle ends inside the work's scope: the rest of a reader the work left open runs with no more
             // rights than the work had.
             using var workScope = database.As(GuardMode.Reading);
-            try
-            {
-                return work(reader);
-            }
-            finally
-            {
-                reader.End();
-            }
+            return RunWork(work, reader);
         }
     }
 
@@ -200,14 +193,7 @@ internal sealed class Case : ICase
             using (database.As(GuardMode.Writing))
             {
                 // As in Read: the rest of a reader left open runs with the work's rights, before the commit.
-                try
-                {
-                    result = work(writer);
-                }
-                finally
-                {
-                    writer.End();
-                }
+                result = RunWork(work, writer);
             }
 
             transaction.Commit();
@@ -445,6 +431,41 @@ internal sealed class Case : ICase
                 return ([CaseProblem.DatabaseUnsound], []);
             }
         }
+    }
+
+    /// <summary>
+    /// Runs a module's work and then ends its handle. When the work fails, its own failure is what the caller sees,
+    /// with a failure to end the handle attached; when only ending fails, that failure is thrown.
+    /// </summary>
+    /// <typeparam name="THandle">The handle's type.</typeparam>
+    /// <typeparam name="T">What the work returns.</typeparam>
+    /// <param name="work">The work.</param>
+    /// <param name="handle">The handle given to the work.</param>
+    /// <returns>What the work returned.</returns>
+    private static T RunWork<THandle, T>(Func<THandle, T> work, CaseTransaction handle)
+        where THandle : ICaseReader
+    {
+        T result;
+        try
+        {
+            result = work((THandle)(ICaseReader)handle);
+        }
+        catch (Exception workFailure)
+        {
+            try
+            {
+                handle.End();
+            }
+            catch (Exception endFailure)
+            {
+                throw new AggregateException(workFailure, endFailure);
+            }
+
+            throw;
+        }
+
+        handle.End();
+        return result;
     }
 
     /// <summary>Records something the Cases module did, in a transaction of its own.</summary>

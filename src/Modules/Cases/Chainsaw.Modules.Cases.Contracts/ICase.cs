@@ -44,6 +44,9 @@ public interface ICase : IDisposable
     /// <typeparam name="T">What the work returns.</typeparam>
     /// <param name="work">The work; it must not keep the transaction after it returns.</param>
     /// <returns>What the work returned.</returns>
+    /// <exception cref="AggregateException">
+    /// The work failed and so did running the rest of a reader it left open; the work's failure comes first.
+    /// </exception>
     T Write<T>(Func<ICaseTransaction, T> work);
 
     /// <summary>Adds one entry to the journal in a transaction of its own.</summary>

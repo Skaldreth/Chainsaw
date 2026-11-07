@@ -496,6 +496,39 @@ public sealed class ReviewFindingTests : IDisposable
     }
 
     [Fact]
+    public void A_module_cannot_rename_a_table_into_another_modules_sealed_table()
+    {
+        var squatter = new SquatterSchema(
+            "CREATE TABLE sq (sequence INTEGER PRIMARY KEY, note TEXT NOT NULL, amount INTEGER NOT NULL, "
+            + "hash BLOB NOT NULL) STRICT; INSERT INTO sq VALUES (1, 'förfalskad', 1, x'00'); "
+            + "ALTER TABLE sq RENAME TO test_sealed;");
+
+        Assert.Throws<InvalidOperationException>(() => _fixture.CreateStore(squatter, new TestSchema()).Create("A1"));
+    }
+
+    [Fact]
+    public void A_sealed_table_must_start_empty()
+    {
+        Assert.Throws<InvalidOperationException>(() => _fixture.CreateStore(new FilledSchema()).Create("A1"));
+    }
+
+    [Fact]
+    public void The_works_own_failure_is_kept_when_ending_it_also_fails()
+    {
+        using var opened = _fixture.CreateStore(new TestSchema()).Create("A1");
+
+        var error = Assert.Throws<AggregateException>(() => opened.Write<int>(transaction =>
+        {
+            var command = transaction.CreateCommand("SELECT 1; UPDATE journal SET summary = 'y'");
+            var reader = command.ExecuteReader();
+            reader.Read();
+            throw new ApplicationException("Arbetet misslyckades");
+        }));
+
+        Assert.IsType<ApplicationException>(error.InnerExceptions[0]);
+    }
+
+    [Fact]
     public void A_missing_step_is_refused_as_an_argument()
     {
         Assert.Throws<ArgumentException>(() => _fixture.CreateStore(new TestSchema([null!])));
@@ -683,16 +716,32 @@ public sealed class ReviewFindingTests : IDisposable
     }
 
     /// <summary>A module that runs before the test module and tries to create its sealed table.</summary>
-    private sealed class SquatterSchema : ICaseSchemaContributor
+    private sealed class SquatterSchema(
+        string sql = "CREATE TABLE test_sealed (sequence INTEGER PRIMARY KEY, hash BLOB NOT NULL) STRICT;")
+        : ICaseSchemaContributor
     {
         public string Module => "a_squatter";
 
-        public IReadOnlyList<CaseSchemaStep> Steps { get; } =
-        [
-            new(1, "Ockupera", "CREATE TABLE test_sealed (sequence INTEGER PRIMARY KEY, hash BLOB NOT NULL) STRICT;"),
-        ];
+        public IReadOnlyList<CaseSchemaStep> Steps { get; } = [new(1, "Ockupera", sql)];
 
         public IReadOnlyList<SealedChain> SealedChains { get; } = [];
+    }
+
+    /// <summary>A module whose step puts a record in its sealed table before it is sealed.</summary>
+    private sealed class FilledSchema : ICaseSchemaContributor
+    {
+        public string Module => "filled";
+
+        public IReadOnlyList<CaseSchemaStep> Steps { get; } =
+        [
+            new(
+                1,
+                "Fylld",
+                "CREATE TABLE filled_records (sequence INTEGER PRIMARY KEY, note TEXT, hash BLOB NOT NULL) STRICT; "
+                + "INSERT INTO filled_records VALUES (1, 'före', x'00');"),
+        ];
+
+        public IReadOnlyList<SealedChain> SealedChains { get; } = [new("filled.records", "filled_records", ["note"])];
     }
 
     /// <summary>A contributor that changes its answers after the store has checked them.</summary>

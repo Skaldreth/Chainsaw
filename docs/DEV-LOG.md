@@ -118,3 +118,19 @@ förseglade poster i samma transaktion), `ICaseSchemaContributor` (schemasteg pe
   att ta bort och frös efter en avvikelse, öppningen skrev utan lås. Den gav också åtta M.
 - Omgång 3 gav ett C (en moduls lista med värden kördes medan Cases förseglade) och två I: två misslyckade sparningar
   gav konflikt, och `/verify` visade inte en återställning som journalen redan skrivit in. Den gav också sju M.
+- Omgång 4 gav tre C: en modul kunde försegla direkt i journalens kedja, parallella anrop på en transaktion kunde
+  lämna vakten i Cases läge, och en bidragsgivare kunde svara annorlunda efter kontrollen (namn och kolumner). Rättat
+  med kedjor per modul, transaktioner bundna till arbetets tråd och kopior av bidragsgivarna.
+- Omgång 5 gav ett C: en läsare som stängdes från en undantagshanterare medan Cases förseglade körde sina sista satser
+  med Cases rättigheter. Rättat: läsare och kommandon kör ingenting utanför arbetet, förseglingen har ett eget smalt
+  läge, och en operation kan inte startas inifrån en annan.
+- Omgång 6 gav ett I (en misslyckad BEGIN lämnade ärendet låst för alltid) och fyra M.
+- Omgång 7 hittade inga C eller I; två M (byta namn på en tabell till en annan moduls förseglade tabell, och arbetets
+  eget fel som skymdes) är rättade.
+
+Alla C och I är rättade och har regressionstester (150 tester i modulen). Kvar i TODO: ankarfil som återspelas
+(kräver en räknare i valvet), HMAC över hela filen, nyckelrotation, vem som förseglade en post, hur en konflikt och
+ankarnas avvikelser visas i gränssnittet, och var ärendena ska ligga.
+
+**Återstår:** gränssnittet för att skapa, öppna, dela och verifiera ärenden; att appen sparar ofta; `/verify` i
+kommandoraden; att andra moduler (Chains i etapp 5) registrerar sina tabeller och förseglar sina råsvar.

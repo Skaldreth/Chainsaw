@@ -55,7 +55,7 @@ internal static class SchemaMigrator
             var current = versions.GetValueOrDefault(contributor.Module!);
             foreach (var step in contributor.Steps.Where(step => step.Version > current))
             {
-                RunStep(database, contributor, step);
+                RunStep(database, contributor, step, catalog.Chains.Select(chain => chain.Table).ToList());
                 applied.Add(string.Create(CultureInfo.InvariantCulture, $"{contributor.Module} {step.Version}"));
             }
         }
@@ -89,11 +89,20 @@ internal static class SchemaMigrator
     /// <param name="database">The database.</param>
     /// <param name="contributor">The step's module.</param>
     /// <param name="step">The step.</param>
-    private static void RunStep(CaseDatabase database, ContributorSnapshot contributor, CaseSchemaStep step)
+    /// <param name="sealedTables">Every sealed table this build knows.</param>
+    private static void RunStep(
+        CaseDatabase database, ContributorSnapshot contributor, CaseSchemaStep step, IReadOnlyList<string> sealedTables)
     {
         using var transaction = database.Begin();
         var newTables = contributor.SealedChains
             .Where(chain => !HashChain.TableExists(database, transaction, chain.Table))
+            .ToList();
+        var own = contributor.SealedChains.Select(chain => chain.Table).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var registered = HashChain.TableExists(database, transaction, HashChain.RegistryTable)
+            ? HashChain.ReadRegistry(database, transaction).Chains.Select(chain => chain.Table)
+            : [];
+        var missingOthers = sealedTables.Concat(registered)
+            .Where(table => !own.Contains(table) && !HashChain.TableExists(database, transaction, table))
             .ToList();
         try
         {
@@ -112,8 +121,24 @@ internal static class SchemaMigrator
                 exception);
         }
 
+        // A step may not create another module's sealed table, also not by renaming one of its own (SQLite tells the
+        // guard only the old name), and a sealed table it creates must start empty.
+        if (missingOthers.Any(table => HashChain.TableExists(database, transaction, table)))
+        {
+            throw new InvalidOperationException(string.Create(
+                CultureInfo.InvariantCulture,
+                $"The schema step {step.Version} of the module {contributor.Module} created another module's table."));
+        }
+
         foreach (var chain in newTables.Where(chain => HashChain.TableExists(database, transaction, chain.Table)))
         {
+            if (HashChain.CountRecords(database, transaction, chain) != 0)
+            {
+                throw new InvalidOperationException(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"The schema step {step.Version} of the module {contributor.Module} put records in a sealed table."));
+            }
+
             HashChain.InstallTriggers(database, transaction, chain);
         }
 
