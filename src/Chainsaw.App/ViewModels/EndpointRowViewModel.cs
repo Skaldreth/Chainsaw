@@ -133,7 +133,8 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
             : 0;
         IsInUse = view.InUse;
         InUseTip = mode == SourceMode.Fastest ? "Snabbast just nu, används" : "Används nu";
-        var behind = endpoint.Enabled && probe?.Outcome == ProbeOutcome.Behind;
+        // The mark says that Snabbast passes it over; in Prioriterad the user's order holds, so it is not shown there.
+        var behind = endpoint.Enabled && probe?.Outcome == ProbeOutcome.Behind && mode == SourceMode.Fastest;
         Note = behind ? BehindText(probe!) : string.Empty;
         NoteTip = behind ? probe!.Problem ?? string.Empty : string.Empty;
         Position = (index + 1).ToString(CultureInfo.InvariantCulture);

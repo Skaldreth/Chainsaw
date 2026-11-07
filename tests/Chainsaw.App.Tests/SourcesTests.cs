@@ -275,6 +275,34 @@ public sealed class SourcesTests
         Assert.False(page.IsAdding);
     }
 
+    [Fact]
+    public void The_chips_dot_is_red_when_nothing_can_be_used_and_grey_before_a_round()
+    {
+        var page = Create();
+        Assert.Equal(EndpointDot.Untried, page.Chips[0].Dot);
+
+        _sources.Probes[MempoolId] = Probe(MempoolId, ProbeOutcome.Failed, 182);
+        _sources.Probes[LanId] = Probe(LanId, ProbeOutcome.Failed, 38);
+        _sources.NoneUsable = true;
+        page.ShowChip(page.Chips[0]);
+
+        Assert.Equal(EndpointDot.Failed, page.Chips[0].Dot);
+        Assert.DoesNotContain(page.Rows, row => row.IsInUse);
+    }
+
+    [Fact]
+    public async Task The_mark_for_one_behind_shows_only_in_snabbast()
+    {
+        _sources.Probes[LanId] = Probe(LanId, ProbeOutcome.Behind, 38) with { BlocksBehind = 1 };
+        var page = Create();
+        Assert.True(page.Rows[1].HasNote);
+
+        await page.ChooseModeAsync(page.ModeChoices[1]);
+
+        Assert.False(page.Rows[1].HasNote);
+        Assert.Equal(EndpointDot.Behind, page.Rows[1].Dot);
+    }
+
     private SourcesViewModel Create() =>
         new(_sources, new ExitWay(_route, _exit, new InlineUi()), _vault, _keys, new InlineUi(), TimeZoneInfo.Utc);
 
@@ -293,6 +321,8 @@ public sealed class SourcesTests
         public Dictionary<Guid, EndpointProbe> Probes { get; } = [];
 
         public DateTimeOffset? ProbedAt { get; set; }
+
+        public bool NoneUsable { get; set; }
 
         public SourceMode Mode { get; private set; }
 
@@ -315,7 +345,7 @@ public sealed class SourcesTests
 
         public ChainSourcesView Get(Chain chain)
         {
-            var first = Mode == SourceMode.Off
+            var first = Mode == SourceMode.Off || NoneUsable
                 ? null
                 : Endpoints.Where(e => e.Enabled && Probes.GetValueOrDefault(e.Id)?.Outcome != ProbeOutcome.Behind)
                     .Select(e => (Guid?)e.Id).FirstOrDefault();

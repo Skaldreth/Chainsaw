@@ -76,7 +76,8 @@ public sealed class ChainSourcesTests : IDisposable
         Assert.Equal(TimeSpan.FromMilliseconds(38), behind.Duration);
         Assert.Contains("2 block efter", behind.Problem, StringComparison.Ordinal);
         Assert.Equal(2, behind.BlocksBehind);
-        Assert.Equal([Fast, Slow], sources.Plan(Chain.Bitcoin).Endpoints.Select(p => p.Endpoint.Address.AbsoluteUri));
+        Assert.Equal(
+            [Fast, Slow, Lagging], sources.Plan(Chain.Bitcoin).Endpoints.Select(p => p.Endpoint.Address.AbsoluteUri));
         Assert.Equal(_clock.UtcNow, view.ProbedAt);
     }
 
@@ -94,6 +95,8 @@ public sealed class ChainSourcesTests : IDisposable
         Assert.Equal(ProbeOutcome.Failed, view.Endpoints[1].Probe!.Outcome);
         Assert.Equal(ProbeOutcome.Failed, view.Endpoints[2].Probe!.Outcome);
         Assert.Equal(Slow, view.InUse!.Endpoint.Address.AbsoluteUri);
+        Assert.False(sources.AnsweredProbe(Chain.Bitcoin, view.Endpoints[1].Endpoint.Id));
+        Assert.True(sources.AnsweredProbe(Chain.Bitcoin, view.Endpoints[0].Endpoint.Id));
         Assert.Equal(
             [Slow, Fast, Lagging], sources.Plan(Chain.Bitcoin).Endpoints.Select(p => p.Endpoint.Address.AbsoluteUri));
     }
@@ -357,6 +360,51 @@ public sealed class ChainSourcesTests : IDisposable
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sources.ProbeAsync(Chain.Bitcoin, cancel.Token));
         Assert.Null(sources.Get(Chain.Bitcoin).ProbedAt);
+    }
+
+    [Fact]
+    public async Task One_behind_is_still_asked_when_the_one_that_was_highest_is_switched_off()
+    {
+        var sources = Create(Endpoints(Fast, Lagging));
+        Height(Fast, 921_404, 180);
+        Height(Lagging, 921_403, 38);
+        await sources.ProbeAsync(Chain.Bitcoin);
+
+        await sources.SetEnabledAsync(Chain.Bitcoin, sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Id, false);
+
+        var planned = Assert.Single(sources.Plan(Chain.Bitcoin).Endpoints);
+        Assert.Equal(Lagging, planned.Endpoint.Address.AbsoluteUri);
+        Assert.Equal(Lagging, sources.Get(Chain.Bitcoin).InUse!.Endpoint.Address.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task No_star_when_every_endpoint_failed_its_probe()
+    {
+        var sources = Create(Endpoints(Fast, Slow));
+        _http.FailingHosts.Add("fast.example");
+        _http.FailingHosts.Add("slow.example");
+
+        await sources.ProbeAsync(Chain.Bitcoin);
+
+        Assert.Null(sources.Get(Chain.Bitcoin).InUse);
+        Assert.Equal(2, sources.Plan(Chain.Bitcoin).Endpoints.Count);
+    }
+
+    [Fact]
+    public async Task A_round_that_sends_nothing_does_not_drop_a_round_under_way()
+    {
+        var sources = Create(Endpoints(Fast));
+        Height(Fast, 921_404, 180);
+        var gate = new TaskCompletionSource();
+        _http.Gate = gate.Task;
+        var running = sources.ProbeAsync(Chain.Bitcoin);
+        _vault.State = VaultState.Locked;
+
+        Assert.Equal(ProbeRun.NotSent, await sources.ProbeAsync(Chain.Bitcoin));
+        gate.SetResult();
+        Assert.Equal(ProbeRun.Probed, await running);
+
+        Assert.NotNull(sources.Get(Chain.Bitcoin).ProbedAt);
     }
 
     private ChainSources Create(BitcoinSourceOptions options, string? directory = null) =>

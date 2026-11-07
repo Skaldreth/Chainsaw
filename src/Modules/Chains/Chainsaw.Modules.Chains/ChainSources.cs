@@ -27,6 +27,9 @@ internal sealed class ChainSources : IChainSources
     /// <summary>How long an endpoint has to answer a probe; a slower one is not the fastest anyway.</summary>
     public static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(10);
 
+    /// <summary>What a probe says when the vault is locked.</summary>
+    private const string LockedText = "Valvet är låst. Inget skickades.";
+
     /// <summary>The sorts of API, by code.</summary>
     private readonly IReadOnlyDictionary<string, ISourceApi> _apis;
 
@@ -98,7 +101,7 @@ internal sealed class ChainSources : IChainSources
         lock (_gate)
         {
             var state = State(chain);
-            var first = Order(state).FirstOrDefault()?.Id;
+            var first = Order(state).FirstOrDefault(endpoint => Usable(state, endpoint))?.Id;
             var endpoints = state.Endpoints.Select(endpoint => new EndpointView(
                 endpoint,
                 state.Probes.GetValueOrDefault(endpoint.Id),
@@ -134,6 +137,23 @@ internal sealed class ChainSources : IChainSources
     /// <param name="chain">The chain.</param>
     /// <param name="id">The endpoint.</param>
     public void Answered(Chain chain, Guid id) => Note(chain, id, failed: false);
+
+    /// <summary>
+    /// Gets whether an endpoint answered its latest probe right and has not failed a lookup since, so that its
+    /// <em>not found</em> can be believed.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <returns><see langword="true"/> when it did.</returns>
+    public bool AnsweredProbe(Chain chain, Guid id)
+    {
+        lock (_gate)
+        {
+            var state = State(chain);
+            return !state.FailedSince.Contains(id)
+                && state.Probes.GetValueOrDefault(id)?.Outcome == ProbeOutcome.Answered;
+        }
+    }
 
     /// <summary>Gives the header an endpoint's key is sent in, from the vault.</summary>
     /// <param name="endpoint">The endpoint.</param>
@@ -213,17 +233,18 @@ internal sealed class ChainSources : IChainSources
             }
 
             endpoints = [.. state.Endpoints.Where(e => e.Enabled).Select(e => new PlannedEndpoint(e, _apis[e.Api]))];
+            if (endpoints.Count == 0)
+            {
+                return ProbeRun.NoneOn;
+            }
+
+            if (IsLocked)
+            {
+                return ProbeRun.NotSent;
+            }
+
+            // Counted only for a round that is sent, so that one that sends nothing never drops a running one.
             round = ++state.Round;
-        }
-
-        if (endpoints.Count == 0)
-        {
-            return ProbeRun.NoneOn;
-        }
-
-        if (IsLocked)
-        {
-            return ProbeRun.NotSent;
         }
 
         EndpointProbe[] probes;
@@ -252,7 +273,7 @@ internal sealed class ChainSources : IChainSources
         var (checkedAddress, sort) = Check(chain, address, api);
         if (IsLocked)
         {
-            return NotSent(Guid.Empty, "Valvet är låst. Inget skickades.");
+            return NotSent(Guid.Empty, LockedText);
         }
 
         try
@@ -272,8 +293,10 @@ internal sealed class ChainSources : IChainSources
 
     /// <summary>
     /// Orders a chain's endpoints that are on for a lookup. In Fastest, those that answered right come first, the
-    /// fastest first, then those not tried, then those that failed; one that lags behind in height is left out. In
-    /// Priority, the user's order. Either way an endpoint that failed a lookup since it was tried comes last.
+    /// fastest first, then those not tried, then those that failed, and one that lags behind in height last: it is
+    /// only asked when no other answers, so that switching off the one that was highest never leaves the chain
+    /// without a source. In Priority, the user's order. Either way an endpoint that failed a lookup since it was
+    /// tried comes after those that did not.
     /// </summary>
     /// <param name="state">The chain's state, under the lock.</param>
     /// <returns>The endpoints to ask, first first.</returns>
@@ -288,7 +311,6 @@ internal sealed class ChainSources : IChainSources
         if (state.Mode == SourceMode.Fastest)
         {
             on = on
-                .Where(endpoint => state.Probes.GetValueOrDefault(endpoint.Id)?.Outcome != ProbeOutcome.Behind)
                 .OrderBy(endpoint => Rank(state.Probes.GetValueOrDefault(endpoint.Id)))
                 .ThenBy(endpoint => state.Probes.GetValueOrDefault(endpoint.Id)?.Duration ?? TimeSpan.MaxValue);
         }
@@ -296,13 +318,25 @@ internal sealed class ChainSources : IChainSources
         return on.OrderBy(endpoint => state.FailedSince.Contains(endpoint.Id)).ToList();
     }
 
-    /// <summary>Ranks a probe for Fastest: answered, not tried, failed.</summary>
+    /// <summary>
+    /// Gets whether an endpoint can be shown as the one used (★): it did not fail its probe or a lookup since. An
+    /// endpoint not tried yet counts, since the next lookup asks it.
+    /// </summary>
+    /// <param name="state">The chain's state, under the lock.</param>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <returns><see langword="true"/> when it is expected to answer.</returns>
+    private static bool Usable(ChainState state, SourceEndpoint endpoint) =>
+        !state.FailedSince.Contains(endpoint.Id)
+        && state.Probes.GetValueOrDefault(endpoint.Id)?.Outcome is not (ProbeOutcome.Failed or ProbeOutcome.NotSent);
+
+    /// <summary>Ranks a probe for Fastest: answered, not tried, failed, behind.</summary>
     /// <param name="probe">The probe, if any.</param>
     /// <returns>The rank, lowest first.</returns>
     private static int Rank(EndpointProbe? probe) => probe?.Outcome switch
     {
         ProbeOutcome.Answered => 0,
         ProbeOutcome.Failed => 2,
+        ProbeOutcome.Behind => 3,
         _ => 1,
     };
 
@@ -321,7 +355,7 @@ internal sealed class ChainSources : IChainSources
                 Outcome = ProbeOutcome.Behind,
                 BlocksBehind = highest - probe.Height,
                 Problem = string.Create(CultureInfo.InvariantCulture,
-                    $"Höjd {probe.Height:N0} mot {highest:N0}: {highest - probe.Height} block efter. Används inte.")
+                    $"Höjd {probe.Height:N0} mot {highest:N0}: {highest - probe.Height} block efter. Används bara när ingen annan svarar.")
                     .Replace(',', ' '),
             }
             : probe)];
@@ -343,6 +377,11 @@ internal sealed class ChainSources : IChainSources
         Guid id, Uri address, ISourceApi api, string? apiKey, bool withHash, CancellationToken cancellationToken)
     {
         var at = _clock.UtcNow;
+        if (IsLocked)
+        {
+            return NotSent(id, LockedText, at);
+        }
+
         if (WithKey(apiKey, api, api.HeightRequest(address), out var problem) is not { } heightRequest)
         {
             return NotSent(id, problem!, at);
@@ -358,7 +397,17 @@ internal sealed class ChainSources : IChainSources
         string? hash = null;
         if (withHash)
         {
-            var hashRequest = WithKey(apiKey, api, api.HashRequest(address, answer.Value), out _)!;
+            if (IsLocked)
+            {
+                return NotSent(id, LockedText, at);
+            }
+
+            if (WithKey(apiKey, api, api.HashRequest(address, answer.Value), out var hashKeyProblem)
+                is not { } hashRequest)
+            {
+                return NotSent(id, hashKeyProblem!, at);
+            }
+
             var (read, hashProblem) = await AskAsync(hashRequest, api.ReadHash, cancellationToken)
                 .ConfigureAwait(false);
             if (read is null)

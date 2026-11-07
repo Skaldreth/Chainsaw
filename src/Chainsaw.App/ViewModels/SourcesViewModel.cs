@@ -581,7 +581,10 @@ public sealed partial class SourcesViewModel : ObservableObject
         return -1;
     }
 
-    /// <summary>Shows a chip's dot: grey when off or not built, green when one is used, red when none answers.</summary>
+    /// <summary>
+    /// Shows a chip's dot: grey when off, not built or not tried, green when the one used answered right, red when none
+    /// can be used.
+    /// </summary>
     /// <param name="chip">The chip.</param>
     private void ShowDot(SourceChainChip chip)
     {
@@ -596,9 +599,13 @@ public sealed partial class SourcesViewModel : ObservableObject
         {
             chip.Dot = EndpointDot.Off;
         }
+        else if (view.InUse is not { } used)
+        {
+            chip.Dot = EndpointDot.Failed;
+        }
         else
         {
-            chip.Dot = view.InUse is null ? EndpointDot.Failed : EndpointDot.Answered;
+            chip.Dot = used.Probe?.Outcome is ProbeOutcome.Answered ? EndpointDot.Answered : EndpointDot.Untried;
         }
     }
 

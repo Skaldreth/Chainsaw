@@ -420,12 +420,14 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         // gives an answer that cannot be used. Every response is sealed with the endpoint it came from (principle 1).
         var failures = new List<ResponseOrigin>();
         var problem = NoneOnText;
+        string? notFound = null;
         foreach (var planned in plan.Endpoints)
         {
             var endpoint = planned.Endpoint;
             if (_sources.WithKey(endpoint, planned.Api, Request(endpoint.Address, query.Path), out var keyProblem)
                 is not { } request)
             {
+                _sources.Failed(Chain.Bitcoin, endpoint.Id);
                 problem = keyProblem!;
                 continue;
             }
@@ -465,11 +467,17 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
             if (response.StatusCode == NotFoundStatus)
             {
-                // The source says it does not know it: an answer, not a failure, so no other endpoint is asked.
+                // The source says it does not know it. From an endpoint that answered its probe right that is an
+                // answer, and no other endpoint is asked; from one that did not (a wrong path, a node still
+                // syncing), the next is asked, so that one broken endpoint never says that a tx does not exist.
                 failures.Add(sealedResponse.Origin);
-                return stored is null
-                    ? new BitcoinLookup<T>(LookupStatus.NotFound, null, failures, interpretProblem)
-                    : Fallback(stored, LookupStatus.Failed, interpretProblem!, failures);
+                notFound = interpretProblem;
+                if (_sources.AnsweredProbe(Chain.Bitcoin, endpoint.Id))
+                {
+                    break;
+                }
+
+                continue;
             }
 
             _sources.Failed(Chain.Bitcoin, endpoint.Id);
@@ -477,7 +485,12 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             problem = interpretProblem!;
         }
 
-        return Fallback(stored, LookupStatus.Failed, problem, failures);
+        if (notFound is not null && stored is null)
+        {
+            return new BitcoinLookup<T>(LookupStatus.NotFound, null, failures, notFound);
+        }
+
+        return Fallback(stored, LookupStatus.Failed, notFound ?? problem, failures);
     }
 
     /// <summary>Reads a fresh response, or says why it cannot be used.</summary>

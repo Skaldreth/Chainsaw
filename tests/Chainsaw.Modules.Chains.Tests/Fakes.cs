@@ -77,6 +77,9 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
     /// <summary>Hosts whose requests fail on the way, as a dead endpoint's do.</summary>
     public HashSet<string> FailingHosts { get; } = [];
 
+    /// <summary>A task every request waits for before it answers, or <see langword="null"/>.</summary>
+    public Task? Gate { get; set; }
+
     public List<ExitRequest> Sent { get; } = [];
 
     public int Refused { get; private set; }
@@ -87,8 +90,13 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
 
     public void AnswerBytes(string url, byte[] body, int status) => _answers[url] = (status, body, "text/plain");
 
-    public Task<ExitResponse> SendAsync(ExitRequest request, CancellationToken cancellationToken = default)
+    public async Task<ExitResponse> SendAsync(ExitRequest request, CancellationToken cancellationToken = default)
     {
+        if (Gate is { } gate)
+        {
+            await gate;
+        }
+
         if (!Connected)
         {
             Refused++;
@@ -111,9 +119,9 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
             ? answer
             : (404, Encoding.UTF8.GetBytes("Not found"), "text/plain");
         var sent = clock.UtcNow;
-        return Task.FromResult(new ExitResponse(
+        return new ExitResponse(
             request.Uri, Route == ExitRoute.Vpn ? ExitId : Guid.Empty, status, contentType, body, sent,
-            sent.AddMilliseconds(Milliseconds.GetValueOrDefault(request.Uri.Host, 120)), Route));
+            sent.AddMilliseconds(Milliseconds.GetValueOrDefault(request.Uri.Host, 120)), Route);
     }
 }
 

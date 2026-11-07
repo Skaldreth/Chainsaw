@@ -6,7 +6,10 @@ public enum ProbeOutcome
     /// <summary>It answered with the chain's height, as high as the highest any endpoint answered.</summary>
     Answered,
 
-    /// <summary>It answered, but with a lower height than another endpoint: it lags behind and is not used.</summary>
+    /// <summary>
+    /// It answered, but with a lower height than another endpoint: it lags behind, and Snabbast asks it only when no
+    /// other answers.
+    /// </summary>
     Behind,
 
     /// <summary>It answered wrongly, with an error or not in time.</summary>

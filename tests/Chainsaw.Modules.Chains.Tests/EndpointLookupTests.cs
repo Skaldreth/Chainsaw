@@ -70,16 +70,19 @@ public sealed class EndpointLookupTests : IDisposable
     }
 
     [Fact]
-    public async Task Not_found_is_an_answer_and_no_other_endpoint_is_asked()
+    public async Task Not_found_from_an_endpoint_that_answered_its_probe_is_an_answer_and_no_other_is_asked()
     {
-        var (second, _) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        _harness.AnswerAll();
+        _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        _harness.Http.FailingHosts.Add("second.example");
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        _harness.Http.Sent.Clear();
 
-        var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Real);
 
         Assert.Equal(LookupStatus.NotFound, lookup.Status);
         Assert.Equal(["esplora.test"], _harness.Http.Sent.Select(r => r.Uri.Host));
         Assert.DoesNotContain(_harness.Sources.Get(Chain.Bitcoin).Endpoints, e => e.FailedSince);
-        Assert.NotEqual(Guid.Empty, second.Id);
     }
 
     [Fact]
@@ -139,5 +142,35 @@ public sealed class EndpointLookupTests : IDisposable
         Assert.Equal(LookupStatus.Offline, lookup.Status);
         Assert.Equal(1, _harness.Http.Refused);
         Assert.DoesNotContain(_harness.Sources.Get(Chain.Bitcoin).Endpoints, e => e.FailedSince);
+    }
+
+    [Fact]
+    public async Task Not_found_from_an_endpoint_that_did_not_answer_its_probe_asks_the_next()
+    {
+        _harness.AnswerAll();
+        var (second, _) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+        await _harness.Sources.MoveAsync(Chain.Bitcoin, second.Id, -1);
+
+        var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Fetched, lookup.Status);
+        Assert.Equal("second.example", _harness.Http.Sent[0].Uri.Host);
+        Assert.Contains("esplora.test", lookup.Origins.Select(o => o.Endpoint));
+    }
+
+    [Fact]
+    public async Task A_missing_key_puts_the_endpoint_last()
+    {
+        _harness.AnswerAll();
+        var (second, _) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", "missing");
+        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+        await _harness.Sources.MoveAsync(Chain.Bitcoin, second.Id, -1);
+
+        var lookup = await _harness.Source.GetTipHeightAsync(_harness.Case);
+
+        Assert.Equal(LookupStatus.Fetched, lookup.Status);
+        Assert.Equal(["esplora.test"], _harness.Http.Sent.Select(r => r.Uri.Host));
+        Assert.True(_harness.Sources.Get(Chain.Bitcoin).Endpoints[0].FailedSince);
     }
 }

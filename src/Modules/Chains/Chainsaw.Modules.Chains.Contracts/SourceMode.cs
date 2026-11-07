@@ -7,7 +7,8 @@ public enum SourceMode
 {
     /// <summary>
     /// The default: the endpoints are tried at the start (and with <em>Prova alla nu</em>) by asking only for the
-    /// chain's height, and the fastest that answers right is used; one that lags behind the others in height is not.
+    /// chain's height, and the fastest that answers right is used; one that lags behind the others in height is only
+    /// asked when no other answers.
     /// </summary>
     Fastest,
 
