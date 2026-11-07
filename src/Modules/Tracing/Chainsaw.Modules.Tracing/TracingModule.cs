@@ -9,10 +9,10 @@ namespace Chainsaw.Modules.Tracing;
 /// </summary>
 /// <remarks>
 /// The methods are registered as <see cref="ITracingMethod"/>, each for the model and chains in its
-/// <see cref="ITracingMethod.Scope"/> (FIFO and haircut for every UTXO chain), and the recognisers of the trail's ends as
-/// <see cref="ITrailEndClassifier"/>; another of either (Attribution's labels, a local model later) is added by
-/// registering one more. The service needs <c>IBitcoinSource</c> (Chains), <c>IClusteringService</c> (Clustering)
-/// and <c>IClock</c>.
+/// <see cref="ITracingMethod.Scope"/> (FIFO and haircut for every UTXO chain), and the recognisers of the trail's
+/// ends as <see cref="ITrailEndClassifier"/>; another of either (Attribution's labels, a local model later) is added
+/// by registering one more. The service needs <c>IBitcoinSource</c> (Chains), <c>IClusteringService</c>
+/// (Clustering) and <c>IClock</c>.
 /// </remarks>
 public static class TracingModule
 {

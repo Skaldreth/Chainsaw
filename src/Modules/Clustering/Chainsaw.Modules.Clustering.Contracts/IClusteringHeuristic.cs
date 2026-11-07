@@ -24,8 +24,8 @@ public interface IClusteringHeuristic
 
 /// <summary>
 /// A heuristic for the UTXO model: it takes a transaction and what the case knows around it, and gives proposals and
-/// findings with their reasons. Bitcoin's transaction format is the UTXO contract's, which Litecoin and Zcash's
-/// transparent part share.
+/// findings with their reasons. It reads Bitcoin's transaction and addresses, the only UTXO chain Chainsaw has; the
+/// next UTXO chain (Litecoin, Zcash's transparent part) gives the contract a transaction and addresses of its own.
 /// </summary>
 /// <remarks>
 /// An analysis is pure: the same transaction and context always give the same result, it keeps no state and writes

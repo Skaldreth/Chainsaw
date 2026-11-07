@@ -31,11 +31,12 @@ public sealed class ModelTests
     }
 
     [Fact]
-    public void A_method_that_does_not_implement_its_models_contract_is_refused()
+    public void A_method_that_does_not_implement_its_models_contract_is_refused_for_its_chain_only()
     {
         ITracingMethod[] methods = [new FifoMethod(), new MisplacedMethod()];
 
-        Assert.Throws<ArgumentException>(() => TracingMethods.For<IUtxoTracingMethod>(methods, Chain.Bitcoin));
+        Assert.Throws<ArgumentException>(() => TracingMethods.For<IAccountTracingMethod>(methods, Chain.Ethereum));
+        Assert.Single(TracingMethods.For<IUtxoTracingMethod>(methods, Chain.Bitcoin));
     }
 
     [Fact]
@@ -102,43 +103,44 @@ public sealed class ModelTests
         var usdt = Asset.Token(Chain.Ethereum, "0x" + new string('d', 40), "USDT", 6);
 
         Assert.Equal("transfer|a|b", GraphBuilder.EdgeKey(GraphEdgeKind.Transfer, "a", "b", Asset.Bitcoin));
-        Assert.Equal("other-chain|a|b", GraphBuilder.EdgeKey(GraphEdgeKind.ContinuesOnOtherChain, "a", "b", Asset.Ether));
+        Assert.Equal(
+            "other-chain|a|b", GraphBuilder.EdgeKey(GraphEdgeKind.ContinuesOnOtherChain, "a", "b", Asset.Bitcoin));
+        Assert.Equal("transfer|a|b|Ethereum", GraphBuilder.EdgeKey(GraphEdgeKind.Transfer, "a", "b", Asset.Ether));
         Assert.Equal(
             "transfer|a|b|Ethereum:0x" + new string('d', 40),
             GraphBuilder.EdgeKey(GraphEdgeKind.Transfer, "a", "b", usdt));
     }
 
     [Fact]
-    public void The_account_contract_carries_wei_beyond_64_bits_without_losing_any()
+    public void The_account_contract_carries_wei_beyond_64_bits_and_fees_without_losing_any()
     {
-        var hash = "0x" + new string('1', 64);
         var thousand = AssetAmount.Parse(Asset.Ether, "1000");
         var ledger = new AccountLedger(
             Account,
+            Asset.Ether,
             AssetAmount.Parse(Asset.Ether, "3000"),
             [
-                In(hash, thousand, traced: thousand),
-                Out("0x" + new string('2', 64), AssetAmount.Parse(Asset.Ether, "2000")),
+                Entry('1', thousand, TransferDirection.In, traced: thousand),
+                Entry('2', AssetAmount.Parse(Asset.Ether, "2000"), TransferDirection.Out),
+                Entry('3', AssetAmount.Parse(Asset.Ether, "0.4"), TransferDirection.Fee),
             ]);
 
         var taint = new ProportionalAccounts().Propagate(ledger);
 
-        // 1 000 of 4 000 ether is traced, so a quarter of the 2 000 that leave: 500 ether, 5 × 10^20 wei.
+        // 1 000 of 4 000 ether is traced, so a quarter of the 2 000 that leave: 500 ether, 5 × 10^20 wei. Of the
+        // 2 000 left, 500 are traced, so a quarter of the 0.4 ether gas: 0.1 ether.
         var outgoing = Assert.Single(taint.Outgoing);
         Assert.Equal(AssetAmount.Parse(Asset.Ether, "500"), outgoing);
         Assert.True(outgoing.Units > long.MaxValue);
-        Assert.Equal(thousand, outgoing + taint.Remaining);
+        Assert.Equal(AssetAmount.Parse(Asset.Ether, "0.1"), taint.Fees);
+        Assert.Equal(thousand, outgoing + taint.Fees + taint.Remaining);
     }
 
-    private static AccountEntry In(string hash, AssetAmount amount, AssetAmount traced) => new(
-        new AssetTransfer(new ChainTransactionRef(Chain.Ethereum, hash), amount, null, null),
-        TransferDirection.In,
-        traced);
-
-    private static AccountEntry Out(string hash, AssetAmount amount) => new(
-        new AssetTransfer(new ChainTransactionRef(Chain.Ethereum, hash), amount, null, null),
-        TransferDirection.Out,
-        AssetAmount.Zero(amount.Asset));
+    private static AccountEntry Entry(
+        char hash, AssetAmount amount, TransferDirection direction, AssetAmount? traced = null) => new(
+        new AssetTransfer(new ChainTransactionRef(Chain.Ethereum, "0x" + new string(hash, 64)), amount, null, null),
+        direction,
+        traced ?? AssetAmount.Zero(amount.Asset));
 
     /// <summary>
     /// A made-up method for accounts that lets each outgoing transfer take the traced share of the balance, to show
@@ -154,6 +156,7 @@ public sealed class ModelTests
         {
             var balance = ledger.Opening.Units;
             var traced = BigInteger.Zero;
+            var fees = BigInteger.Zero;
             var outgoing = new List<AssetAmount>();
             foreach (var entry in ledger.Entries)
             {
@@ -165,11 +168,20 @@ public sealed class ModelTests
                 }
 
                 var share = balance.IsZero ? BigInteger.Zero : traced * entry.Transfer.Amount.Units / balance;
-                outgoing.Add(new AssetAmount(ledger.Opening.Asset, share));
+                if (entry.Direction == TransferDirection.Fee)
+                {
+                    fees += share;
+                }
+                else
+                {
+                    outgoing.Add(new AssetAmount(ledger.Asset, share));
+                }
+
                 (balance, traced) = (balance - entry.Transfer.Amount.Units, traced - share);
             }
 
-            return new AccountTaint(outgoing, new AssetAmount(ledger.Opening.Asset, traced));
+            return new AccountTaint(
+                outgoing, new AssetAmount(ledger.Asset, fees), new AssetAmount(ledger.Asset, traced));
         }
     }
 

@@ -33,7 +33,7 @@ public sealed record ChainScope
     public LedgerModel Model { get; }
 
     /// <summary>Gets the chains named, or null for every chain of the model.</summary>
-    public IReadOnlyList<Chain>? Chains => _chains;
+    public IReadOnlyList<Chain>? Chains => _chains is null ? null : Array.AsReadOnly(_chains);
 
     /// <summary>Gives a scope of every chain of a model, as for a tracing method that only counts amounts.</summary>
     /// <param name="model">The model.</param>
@@ -47,7 +47,11 @@ public sealed record ChainScope
     /// <param name="more">Further chains.</param>
     /// <returns>The scope.</returns>
     /// <exception cref="ArgumentException">The chains are of different models.</exception>
-    public static ChainScope Only(Chain chain, params Chain[] more) => new(chain.Model(), [chain, .. more]);
+    public static ChainScope Only(Chain chain, params Chain[] more)
+    {
+        ArgumentNullException.ThrowIfNull(more);
+        return new(chain.Model(), [chain, .. more]);
+    }
 
     /// <summary>Says whether the scope covers a chain.</summary>
     /// <param name="chain">The chain.</param>

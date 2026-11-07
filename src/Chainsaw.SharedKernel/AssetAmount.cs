@@ -10,18 +10,23 @@ namespace Chainsaw.SharedKernel;
 /// </summary>
 public readonly record struct AssetAmount : IComparable<AssetAmount>
 {
+    /// <summary>The asset; null only in <c>default</c>, which is not a valid amount.</summary>
+    private readonly Asset? _asset;
+
     /// <summary>Creates an amount.</summary>
     /// <param name="asset">The asset.</param>
     /// <param name="units">How many of its smallest unit; may be negative only as a difference.</param>
     /// <exception cref="ArgumentNullException"><paramref name="asset"/> is null.</exception>
     public AssetAmount(Asset asset, BigInteger units)
     {
-        Asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
         Units = units;
     }
 
     /// <summary>Gets the asset.</summary>
-    public Asset Asset { get; }
+    /// <exception cref="InvalidOperationException">The amount is <c>default</c>, which has no asset.</exception>
+    public Asset Asset =>
+        _asset ?? throw new InvalidOperationException("An amount without an asset is not valid.");
 
     /// <summary>Gets how many of the asset's smallest unit.</summary>
     public BigInteger Units { get; }
@@ -41,7 +46,10 @@ public readonly record struct AssetAmount : IComparable<AssetAmount>
 
     /// <summary>Parses an amount written with the asset's decimals, for example <c>1.5</c> ether.</summary>
     /// <param name="asset">The asset.</param>
-    /// <param name="text">The amount in whole units, with <c>.</c> before the decimals and invariant digits.</param>
+    /// <param name="text">
+    /// The amount in whole units, with <c>.</c> before the decimals and invariant digits; a leading <c>-</c> only for
+    /// a difference.
+    /// </param>
     /// <returns>The amount.</returns>
     /// <exception cref="FormatException">The text is not a number, or has more decimals than the asset.</exception>
     public static AssetAmount Parse(Asset asset, string text)
@@ -70,7 +78,7 @@ public readonly record struct AssetAmount : IComparable<AssetAmount>
     /// <returns>The amount in satoshi.</returns>
     /// <exception cref="InvalidOperationException">The amount is not bitcoin.</exception>
     /// <exception cref="OverflowException">The amount does not fit in 64 bits.</exception>
-    public Satoshi ToSatoshi() => Asset == Asset.Bitcoin
+    public Satoshi ToSatoshi() => Asset == SharedKernel.Asset.Bitcoin
         ? new Satoshi((long)Units)
         : throw new InvalidOperationException($"{Asset} is not counted in satoshi.");
 
@@ -141,7 +149,7 @@ public readonly record struct AssetAmount : IComparable<AssetAmount>
 
     /// <summary>Writes the amount and the asset's symbol, for example <c>0.51200000 BTC</c>.</summary>
     /// <returns>The amount with all its decimals, a space and the symbol.</returns>
-    public override string ToString() => Asset is null ? "0" : ToDecimalString() + " " + Asset.Symbol;
+    public override string ToString() => _asset is null ? "0" : ToDecimalString() + " " + _asset.Symbol;
 
     /// <summary>Checks that two amounts are of the same asset.</summary>
     /// <param name="left">The first amount.</param>
@@ -149,7 +157,7 @@ public readonly record struct AssetAmount : IComparable<AssetAmount>
     /// <returns>The asset.</returns>
     /// <exception cref="InvalidOperationException">They are not.</exception>
     private static Asset Same(AssetAmount left, AssetAmount right) =>
-        left.Asset is not null && left.Asset == right.Asset
+        left.Asset == right.Asset
             ? left.Asset
             : throw new InvalidOperationException(
                 $"Amounts of {left.Asset} and {right.Asset} cannot be counted together.");

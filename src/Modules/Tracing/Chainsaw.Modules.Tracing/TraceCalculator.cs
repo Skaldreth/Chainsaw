@@ -403,7 +403,14 @@ internal sealed class TraceCalculator
                 .All(fits => fits)
             && taint.Fee >= 0
             && taint.Fee <= transaction.Fee.Value;
-        var given = fits ? taint.Outputs.Aggregate(taint.Fee, (sum, set) => checked(sum + set.Units)) : -1;
+        if (!fits)
+        {
+            throw new InvalidOperationException(string.Create(
+                CultureInfo.InvariantCulture,
+                $"{_method.Id} gave amounts that do not fit the outputs of {transaction.Txid}; refused."));
+        }
+
+        var given = taint.Outputs.Aggregate(taint.Fee, (sum, set) => checked(sum + set.Units));
         if (given != traced)
         {
             throw new InvalidOperationException(string.Create(

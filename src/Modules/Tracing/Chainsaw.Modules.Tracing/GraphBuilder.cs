@@ -548,8 +548,9 @@ internal sealed class GraphBuilder
     };
 
     /// <summary>
-    /// Gives an edge's key. An edge of the chain's own coin has the key it always had, so that what the case
-    /// remembers about Bitcoin's edges stays; a token's edge between the same actors adds its chain and contract.
+    /// Gives an edge's key. An edge of bitcoin has the key it always had, so that what the case remembers about
+    /// Bitcoin's edges stays; an edge of another chain's coin adds the chain, and a token's adds its chain and
+    /// contract, so that two assets between the same actors never share a key.
     /// </summary>
     /// <param name="kind">The kind.</param>
     /// <param name="from">The sender's key.</param>
@@ -559,7 +560,14 @@ internal sealed class GraphBuilder
     internal static string EdgeKey(GraphEdgeKind kind, string from, string to, Asset asset)
     {
         var key = (kind == GraphEdgeKind.Transfer ? "transfer|" : "other-chain|") + from + "|" + to;
-        return asset.Kind == AssetKind.Native ? key : key + "|" + asset.Chain + ":" + asset.Contract;
+        if (asset == Asset.Bitcoin)
+        {
+            return key;
+        }
+
+        return asset.Kind == AssetKind.Native
+            ? key + "|" + asset.Chain
+            : key + "|" + asset.Chain + ":" + asset.Contract;
     }
 
     /// <summary>A node while the graph is being built.</summary>

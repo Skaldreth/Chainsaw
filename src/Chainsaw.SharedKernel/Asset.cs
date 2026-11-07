@@ -16,9 +16,10 @@ public enum AssetKind
 }
 
 /// <summary>
-/// Something an amount is counted in: a chain's own coin or a token on it. Two assets are the same only when the
-/// chain, the kind, the contract and the decimals are; a token is known by its contract, never by its symbol, since
-/// anyone can issue a token called USDT.
+/// Something an amount is counted in: a chain's own coin or a token on it. Two assets are the same when the chain,
+/// the kind and the contract are: a token is known by its contract, never by its symbol (anyone can issue a token
+/// called USDT, and two sources may spell one token's symbol differently). The decimals only say how its smallest
+/// unit is written, which the chain does not change, so they do not tell two assets apart either.
 /// </summary>
 public sealed record Asset
 {
@@ -99,6 +100,16 @@ public sealed record Asset
         var trimmed = contract?.Trim();
         return chain == Chain.Ethereum ? trimmed?.ToLowerInvariant() : trimmed;
     }
+
+    /// <summary>Says whether two assets are the same: the same chain, kind and contract.</summary>
+    /// <param name="other">The other asset.</param>
+    /// <returns>Whether they are.</returns>
+    public bool Equals(Asset? other) =>
+        other is not null && Chain == other.Chain && Kind == other.Kind
+        && string.Equals(Contract, other.Contract, StringComparison.Ordinal);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => HashCode.Combine(Chain, Kind, Contract);
 
     /// <summary>Writes the symbol, and for a token where it lives, for example <c>USDT (Tron:TR7…)</c>.</summary>
     /// <returns>The symbol, and the chain and contract of a token.</returns>

@@ -27,7 +27,13 @@ public sealed class AssetTests
         var fake = Asset.Token(Chain.Ethereum, "0x" + new string('1', 40), "USDT", 6);
         var onTron = Asset.Token(Chain.Tron, UsdtOnTron, "USDT", 6);
 
-        Assert.Equal(usdt, Asset.Token(Chain.Ethereum, UsdtOnEthereum.ToUpperInvariant().Replace("0X", "0x"), "USDT", 6));
+        Assert.Equal(
+            usdt, Asset.Token(Chain.Ethereum, UsdtOnEthereum.ToUpperInvariant().Replace("0X", "0x"), "USDT", 6));
+        Assert.Equal(usdt, Asset.Token(Chain.Ethereum, UsdtOnEthereum, "USD₮", 6));
+        Assert.Equal(usdt.GetHashCode(), Asset.Token(Chain.Ethereum, UsdtOnEthereum, "USD₮", 6).GetHashCode());
+        Assert.Equal(
+            new AssetAmount(usdt, 2),
+            new AssetAmount(usdt, 1) + new AssetAmount(Asset.Token(Chain.Ethereum, UsdtOnEthereum, "USD₮", 6), 1));
         Assert.Equal(UsdtOnEthereum.ToLowerInvariant(), usdt.Contract);
         Assert.NotEqual(usdt, fake);
         Assert.NotEqual(usdt, onTron);
@@ -102,6 +108,8 @@ public sealed class AssetTests
         Assert.Throws<InvalidOperationException>(() => ether.ToSatoshi());
         Assert.NotEqual(ether, usdt);
         Assert.True(AssetAmount.Zero(Asset.Ether).IsZero);
+        Assert.Throws<InvalidOperationException>(() => default(AssetAmount).Asset);
+        Assert.Throws<InvalidOperationException>(() => default(AssetAmount) + bitcoin);
     }
 
     [Fact]
@@ -147,5 +155,7 @@ public sealed class AssetTests
         Assert.NotEqual(accounts, ChainScope.Only(Chain.Ethereum, Chain.Tron));
         Assert.Equal("Account: Ethereum, Tron", ChainScope.Only(Chain.Tron, Chain.Ethereum).ToString());
         Assert.Throws<ArgumentException>(() => ChainScope.Only(Chain.Bitcoin, Chain.Ethereum));
+        Assert.Throws<ArgumentNullException>(() => ChainScope.Only(Chain.Ethereum, null!));
+        Assert.IsNotType<Chain[]>(ethereum.Chains);
     }
 }

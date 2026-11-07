@@ -42,7 +42,7 @@ public sealed class ScopeTests
     [Fact]
     public void A_heuristic_for_bitcoin_without_the_utxo_contract_is_refused()
     {
-        var heuristics = new IClusteringHeuristic[] { new AccountHeuristic("misplaced", ChainScope.Only(Chain.Bitcoin)) };
+        IClusteringHeuristic[] heuristics = [new AccountHeuristic("misplaced", ChainScope.Only(Chain.Bitcoin))];
 
         Assert.Throws<ArgumentException>(() => new ClusteringService(heuristics));
     }
