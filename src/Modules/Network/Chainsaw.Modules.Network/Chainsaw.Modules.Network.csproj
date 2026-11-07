@@ -10,6 +10,11 @@
     <ProjectReference Include="..\..\Security\Chainsaw.Modules.Security.Contracts\Chainsaw.Modules.Security.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The shipped WireGuard helper's hash, so that only that copy is started (HelperProcessStarter). -->
+    <EmbeddedResource Include="..\..\..\..\tools\Chainsaw.Tunnel\dist\chainsaw-tunnel.exe.sha256"
+                      LogicalName="Chainsaw.Modules.Network.chainsaw-tunnel.exe.sha256" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Chainsaw.Modules.Network.Tests" />
   </ItemGroup>
 </Project>

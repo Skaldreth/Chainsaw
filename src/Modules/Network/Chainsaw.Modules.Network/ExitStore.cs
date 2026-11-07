@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using System.Net;
 using Chainsaw.Modules.Network.Contracts;
 
 namespace Chainsaw.Modules.Network;
@@ -6,11 +6,8 @@ namespace Chainsaw.Modules.Network;
 /// <summary>The exits in the vault and the program's selected exit.</summary>
 /// <param name="records">The exits as secrets in the vault.</param>
 /// <param name="connection">The connection, which is disconnected before its exit is deselected or removed.</param>
-internal sealed partial class ExitStore(ExitRecords records, ExitConnection connection) : IExitStore
+internal sealed class ExitStore(ExitRecords records, ExitConnection connection) : IExitStore
 {
-    /// <summary>A WireGuard line that names a DNS server, for example <c>DNS = 10.64.0.1</c>.</summary>
-    private static readonly Regex DnsLine = DnsLinePattern();
-
     /// <inheritdoc />
     public IReadOnlyList<ExitInfo> List() => records.List();
 
@@ -32,10 +29,11 @@ internal sealed partial class ExitStore(ExitRecords records, ExitConnection conn
                 nameof(configuration));
         }
 
-        if (!DnsLine.IsMatch(configuration))
+        if (!NamesDnsServer(configuration))
         {
             throw new ArgumentException(
-                "The configuration must name a DNS server (DNS =), so that names are resolved inside the tunnel.",
+                "The configuration must name a DNS server by its IP address (DNS =) under [Interface], so that names "
+                + "are resolved inside the tunnel.",
                 nameof(configuration));
         }
 
@@ -102,8 +100,35 @@ internal sealed partial class ExitStore(ExitRecords records, ExitConnection conn
         }
     }
 
-    /// <summary>Builds the pattern for <see cref="DnsLine"/>.</summary>
-    /// <returns>The compiled pattern.</returns>
-    [GeneratedRegex(@"^[ \t]*DNS[ \t]*=[ \t]*\S", RegexOptions.IgnoreCase | RegexOptions.Multiline)]
-    private static partial Regex DnsLinePattern();
+    /// <summary>
+    /// Tells whether a WireGuard file names a DNS server by its IP address under <c>[Interface]</c>, for example
+    /// <c>DNS = 10.64.0.1</c>. A value that is not an address is a search domain in wg-quick and names no server. The
+    /// helper checks the whole file when it starts the tunnel; this only catches the missing server early.
+    /// </summary>
+    /// <param name="configuration">The WireGuard file.</param>
+    /// <returns><see langword="true"/> when a server is named.</returns>
+    internal static bool NamesDnsServer(string configuration)
+    {
+        var section = string.Empty;
+        foreach (var raw in configuration.Split('\n'))
+        {
+            var line = raw.Split('#', 2)[0].Trim();
+            if (line.StartsWith('['))
+            {
+                section = line.Trim('[', ']', ' ', '\t');
+                continue;
+            }
+
+            var parts = line.Split('=', 2);
+            var isDns = parts.Length == 2
+                && section.Equals("Interface", StringComparison.OrdinalIgnoreCase)
+                && parts[0].Trim().Equals("DNS", StringComparison.OrdinalIgnoreCase);
+            if (isDns && parts[1].Split(',').Any(item => IPAddress.TryParse(item.Trim(), out _)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

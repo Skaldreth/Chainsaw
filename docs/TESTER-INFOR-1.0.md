@@ -52,11 +52,10 @@ Valvet har inget gränssnitt än; det provas när förstagångsinställningen oc
 
 ## Utgångarna (etapp 4, Network)
 
-Utgångarna har inget gränssnitt än, och tunneln (Chainsaws eget exemplar av hjälpprogrammet för WireGuard) är inte
-byggd. Det provas när tunneln och inställningarna för utgångar byggs.
+Utgångarna har inget gränssnitt för att ansluta än; tunneln själv provas för sig (*WireGuard-tunneln*, etapp 13).
 
 - `vault.json` innehåller inget om utgångarna i klartext: inte namnet, platsen, id:t eller WireGuard-filens text.
-- Att ansluta en utgång utan tunnel ger *misslyckades* (tunneln finns inte), och ett uppslag ger *Ingen utgång är
+- Att ansluta en utgång utan `chainsaw-tunnel.exe` bredvid programmet ger *misslyckades* (tunneln finns inte), och ett uppslag ger *Ingen utgång är
   ansluten* utan att något går ut på nätet (kontrollera med Resursövervakaren eller Wireshark att Chainsaw inte öppnar
   någon anslutning).
 - När tunneln finns: med en ansluten utgång går uppslaget bara till tunnelns SOCKS5-port på `127.0.0.1`, och datorn
@@ -65,12 +64,47 @@ byggd. Det provas när tunneln och inställningarna för utgångar byggs.
 - Certifikatkedjor byggs utan nedladdningar och bara mot de rötter som redan finns i Windows certifikatarkiv. Kontrollera
   med Wireshark att uppslag mot en källa vars rot saknas lokalt inte får Windows att hämta roten från Windows Update
   (`ctldl.windowsupdate.com`) och inte hämtar AIA eller spärrlistor; uppslaget ska i stället misslyckas.
-- En utgång vars WireGuard-fil saknar `DNS =` vägras när den läggs till.
+- En utgång vars WireGuard-fil saknar `DNS =` med en IP-adress under `[Interface]` vägras när den läggs till.
 - Rötterna på Windows: på en ny användarprofil (få rötter installerade) går uppslag mot vanliga källor att göra? Syns
   rötterna under *Tredjeparts rotcertifikatutfärdare* (AuthRoot) i det Chainsaw läser? Följs Windows egna
   begränsningar för en rot (spärrade certifikat i *Ej betrodda certifikat*, begränsade användningsområden,
   *distrust after*-datum)? Chainsaw tar bort rötter som ligger i *Ej betrodda certifikat*, men inte de andra.
 
+
+## WireGuard-tunneln (etapp 13)
+
+Hjälpprogrammet `chainsaw-tunnel.exe` ligger bredvid `Chainsaw.exe` (och licenserna i `licenses\chainsaw-tunnel\`).
+Appen har inget gränssnitt för att ansluta än, så programmet provas för sig i PowerShell med en riktig WireGuard-fil
+från utgångens leverantör (filen ligger redan på disken; Chainsaw själv skriver den aldrig dit):
+
+```powershell
+cd <Chainsaws mapp>
+$line = @{ configuration = (Get-Content -Raw .\utgang.conf); username = 'u1'; password = 'p1' } | ConvertTo-Json -Compress
+$psi = New-Object System.Diagnostics.ProcessStartInfo '.\chainsaw-tunnel.exe'
+$psi.UseShellExecute = $false; $psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true
+$p = [System.Diagnostics.Process]::Start($psi)
+$p.StandardInput.WriteLine($line); $p.StandardInput.Flush()
+$p.StandardOutput.ReadLine()          # {"port":NNNNN} inom 15 sekunder, eller {"error":"..."}
+curl.exe --socks5-hostname u1:p1@127.0.0.1:NNNNN https://api.ipify.org   # utgångens adress, inte datorns
+$p.StandardInput.Close()              # programmet ska avslutas inom någon sekund
+```
+
+- Första raden är `{"port":…}` när servern har svarat. Med fel nyckel, en server som inte svarar eller utan nät:
+  `{"error":"handshake"}` eller `{"error":"endpoint"}` inom ungefär 15 sekunder, och programmet avslutas.
+- `curl` visar utgångens offentliga adress. Wireshark på det vanliga nätkortet visar bara UDP till serverns port (och en
+  DNS-fråga om serverns eget namn om `Endpoint` är ett namn), ingen DNS-fråga om `api.ipify.org` och ingen TCP.
+- Fel lösenord (`u1:fel@…`) och ingen inloggning (`--socks5-hostname 127.0.0.1:NNNNN`) vägras.
+- `curl.exe --socks5-hostname u1:p1@127.0.0.1:NNNNN https://127.0.0.1/`, `https://192.168.1.1/` och ett namn som pekar
+  på `127.0.0.1` (till exempel `https://localtest.me/`) vägras utan att något går ut.
+- `netstat -ano | findstr NNNNN` visar att porten bara lyssnar på `127.0.0.1`.
+- Programmet har inget fönster, skriver ingenting på stderr och skapar inga filer (Process Monitor).
+- Avsluta PowerShell-fönstret i stället för att stänga stdin: programmet ska avslutas av sig självt.
+- Dra ur nätkabeln medan tunneln är uppe: inom ungefär tre och en halv minut skriver programmet
+  `{"stopped":"lost"}` och avslutas.
+- Byt ut `chainsaw-tunnel.exe` mot en annan fil med samma namn: Chainsaw vägrar starta den (*tunneln finns inte*) när
+  anslutningen byggs i appen. Prova också att filen inte kan skrivas över medan Chainsaw startar den.
+- När utgångarnas gränssnitt finns: anslut, gör ett uppslag, och kontrollera att `chainsaw-tunnel.exe` försvinner ur
+  Aktivitetshanteraren när utgången kopplas ner, när Chainsaw stängs och när Chainsaw avslutas i Aktivitetshanteraren.
 
 ## Bitcoin-källan (etapp 5, Chains)
 

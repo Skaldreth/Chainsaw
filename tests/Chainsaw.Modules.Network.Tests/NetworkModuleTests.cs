@@ -67,7 +67,7 @@ public sealed class NetworkModuleTests : IDisposable
     }
 
     [Fact]
-    public async Task Without_a_tunnel_the_container_connects_nothing_and_refuses_every_request()
+    public async Task Without_the_helper_next_to_the_program_the_container_connects_nothing_and_refuses_every_request()
     {
         using var provider = BuildProvider();
         provider.GetRequiredService<IVault>().Create(MasterKey);
@@ -84,7 +84,7 @@ public sealed class NetworkModuleTests : IDisposable
     }
 
     [Fact]
-    public void A_registered_tunnel_replaces_the_unavailable_one()
+    public void A_registered_tunnel_replaces_the_wireguard_helper()
     {
         var connector = new FakeConnector();
         using var provider = new ServiceCollection()
@@ -93,6 +93,15 @@ public sealed class NetworkModuleTests : IDisposable
             .BuildServiceProvider();
 
         Assert.Same(connector, provider.GetRequiredService<IExitConnector>());
+    }
+
+    [Fact]
+    public void The_container_connects_with_the_wireguard_helper()
+    {
+        using var provider = new ServiceCollection().AddNetworkModule().BuildServiceProvider();
+
+        Assert.IsType<WireGuardConnector>(provider.GetRequiredService<IExitConnector>());
+        Assert.IsType<HelperProcessStarter>(provider.GetRequiredService<ITunnelProcessStarter>());
     }
 
     [Fact]

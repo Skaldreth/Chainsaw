@@ -59,7 +59,8 @@ public sealed class ExitConnectionTests
     public async Task Without_a_tunnel_connecting_fails_honestly()
     {
         var harness = new NetworkHarness();
-        var connection = new ExitConnection(harness.Records, new UnavailableExitConnector(), harness.Handlers);
+        var connection = new ExitConnection(
+            harness.Records, new WireGuardConnector(new MissingHelper(), new NetworkOptions()), harness.Handlers);
         var exit = await harness.SelectedExitAsync();
 
         var status = await connection.ConnectAsync();

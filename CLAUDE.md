@@ -153,6 +153,7 @@ src/
     Monitoring/             Bevakning av adresser och kluster
     Requests/               Begäran om uppgifter till börser, mallar
 tools/Chainsaw.Recovery/    Administratörens verktyg för organisationens återställningsnyckel (konsolprogram)
+tools/Chainsaw.Tunnel/      Chainsaws hjälpprogram för WireGuard (Go, wireguard-go och gVisor), byggt till dist/ och skickat med appen
 tests/                      xUnit, ett testprojekt per modul och ett för verktyget
 assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG i 256 px, programikonen chainsaw.ico och
                             kättingens skarv (chainsaw-chain-joint.svg) för låsskärmen
@@ -206,6 +207,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Bara https ut** (användarens beslut 2026-11-07): `IExitHttp` vägrar `http`, så att utgången aldrig ser innehållet.
 - **Utgångar:** Chainsaw har ett **eget exemplar** av hjälpprogrammet för WireGuard och egna utgångar, och är inte beroende
   av att Gawk är igång (användarens beslut 2026-11-07). Samma sorts tunnel som Gawk, men Chainsaws egen.
+  Hjälpprogrammet (`tools/Chainsaw.Tunnel`, etapp 13) är en egen process per tunnel: WireGuard i användarläge utan
+  nätverkskort, SOCKS5 bara på `127.0.0.1` med slumpat användarnamn och lösenord per tunnel, konfigurationen på stdin,
+  namn slås upp inne i tunneln, och processen stoppar när stdin stängs. Chainsaw startar det bara om dess SHA-256 är
+  den Chainsaw byggdes med.
 
 ## Gränssnitt
 

@@ -218,28 +218,20 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   valvet. Byggs med bevakningen.
 
 ### Utgångar (Network)
-- **Tunneln:** Chainsaws eget exemplar av hjälpprogrammet för WireGuard (CLAUDE.md, *Säkerhet*), kopplat in bakom
-  `IExitConnector`. Det ska köra WireGuard i användarläge (som wireguard-go med en SOCKS5-port, i stil med wireproxy),
-  lyssna bara på `127.0.0.1`, ta konfigurationen ur valvet utan att skriva den till disk, säga till genom
-  `IExitTunnel.Stopped` när tunneln faller, och skickas med Chainsaw i stället för att hämtas. Tills dess misslyckas
-  varje anslutning ärligt med *TunnelUnavailable*. Välj implementation och granska licensen.
-- **Tunnelns port kan tas över** (granskningen etapp 4, I): SOCKS5-porten på `127.0.0.1` kräver nu ett slumpat
-  användarnamn och lösenord per tunnel, så att andra program inte kan använda den. Men om tunnelns process dör och ett
-  annat program hinner lyssna på samma port innan `Stopped` slår till, kan Chainsaws nästa uppslag gå till fel proxy.
-  Bäst är att köra tunneln i Chainsaws egen process och låta `ConnectCallback` ge en ström direkt ur tunneln i stället
-  för en lokal port. Bestäms när tunneln byggs.
+- **Tunnelns port kan tas över** (granskningen etapp 4, I; beslutet etapp 13): tunneln är en egen process med
+  SOCKS5 på `127.0.0.1`, användarnamn och lösenord per tunnel. Om processen dör och ett annat program hinner lyssna på
+  samma port innan Chainsaw märker det (stdout stängs och processen avslutas, normalt inom millisekunder) kan ett
+  uppslag gå till fel proxy; det programmet ser bara namnet (TLS hela vägen) men kan skicka uppslaget direkt från
+  datorns nät. Det stängs helt med ett bevis åt andra hållet: hjälpprogrammet visar att det känner en hemlighet innan
+  Chainsaw skickar något (en egen SOCKS5-metod i `ConnectCallback`), eller med en ström över stdin/stdout i stället
+  för en port. Görs om bevakningsprocessen eller fleranvändardatorer gör risken större.
 - **Svarshuvuden som ursprung:** `ExitResponse` har bara status, medietyp och den råa kroppen. Behöver Chains huvuden
   som `Date` eller `ETag` som en del av ursprunget läggs de till då (granskningen etapp 4, M).
 - **Certifikatkedjor som saknar en mellanliggande nivå:** för att operativsystemet inte ska hämta något runt utgången
   (AIA och spärrlistor) hämtas inga certifikat och spärrar kontrolleras inte. En källa som skickar en ofullständig kedja
   går då inte att nå. Spärrkontroll genom utgången kan byggas senare om det behövs (granskningen etapp 4, C).
-- **Tunnelns namnuppslag:** tunnelns proxy ska slå upp namn inne i tunneln (med WireGuard-filens `DNS =`), aldrig
-  med datorns resolver, och vägra ansluta till en adress på datorn eller ett privat nät också när ett namn pekar dit
-  (kontraktet i `IExitTunnel` säger det). Prova det med den riktiga tunneln.
 - **Rötter som läggs till medan Chainsaw är igång:** de betrodda rötterna läses när en utgång ansluts. En rot som
   Windows lägger till senare gäller från nästa anslutning.
-- **Kontrollen av `DNS =`** godtar raden också under `[Peer]` och ett värde som inte är en adress. Kan skärpas till
-  `[Interface]` och en giltig IP-adress när tunneln byggs (granskningen etapp 4, M).
 - **Rötternas begränsningar på Windows:** med Chainsaws egen rotlista följs inte Windows egna begränsningar för en rot
   (användningsområden, *distrust after*). Prova på Windows (TESTER-INFOR) och bestäm om de ska läsas in.
 - **Stoppen när programmet avslutas:** `Dispose` väntar (högst fem sekunder) på tunnelstoppen som finns när den
@@ -247,7 +239,14 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   ett litet fönster mellan att den anslutna utgången tas och att dess stopp registreras. Viktigt när tunneln är en
   egen process (granskningen etapp 4, omgång 5, M).
 - **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
-  titelraden (skissas först).
+  titelraden (skissas först). Felen har egna skäl sedan etapp 13: *filen godtas inte* (`ConfigurationRefused`),
+  *servern svarar inte* (`NoAnswer`), *tunneln finns inte* och *förbindelsen förlorad*.
+- **Tunnelns hjälpprogram och Go:** `chainsaw-tunnel.exe` är byggd med Go 1.24.7 och checkad in med sin hash; den
+  byggs om med `tools/Chainsaw.Tunnel/build.sh` när beroendena uppdateras (säkerhetsfixar i wireguard-go eller gVisor).
+  `dotnet test` kör inte Go-testerna; de körs av byggskriptet. Signera programmet med organisationens certifikat när
+  Chainsaw signeras.
+- **Tunnelns IPv6:** servern nås över IPv4 när `Endpoint` är ett namn med båda sorterna. En utgång som bara svarar på
+  IPv6 når man med en adress i `Endpoint`.
 - **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan
   valvet. Hur den får konfigurationen (DPAPI för Windows-användaren) bestäms med bevakningen.
 - **Kontroll av utgången:** fråga en källa vilken offentlig adress uppslagen kommer ifrån, så att användaren ser att

@@ -33,8 +33,9 @@ public static class NetworkModule
         services.AddSingleton<IExitStore, ExitStore>();
         services.AddSingleton<IExitHttp, ExitHttp>();
 
-        // Until Chainsaw's own WireGuard tunnel is built, connecting fails honestly; the tunnel replaces this.
-        services.TryAddSingleton<IExitConnector, UnavailableExitConnector>();
+        // Chainsaw's own WireGuard helper; without it next to the program, connecting fails honestly.
+        services.TryAddSingleton<ITunnelProcessStarter, HelperProcessStarter>();
+        services.TryAddSingleton<IExitConnector, WireGuardConnector>();
         return services;
     }
 }

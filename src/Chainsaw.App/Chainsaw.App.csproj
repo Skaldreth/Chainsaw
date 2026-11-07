@@ -17,6 +17,14 @@
     <Using Include="System.IO" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Chainsaw's own WireGuard helper (tools/Chainsaw.Tunnel), started by the Network module from next to the program. -->
+    <None Include="..\..\tools\Chainsaw.Tunnel\dist\chainsaw-tunnel.exe" Link="chainsaw-tunnel.exe"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- The helper's licenses (THIRD_PARTY.md) follow it. -->
+    <None Include="..\..\tools\Chainsaw.Tunnel\licenses\*.txt" LinkBase="licenses\chainsaw-tunnel"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>

@@ -104,7 +104,7 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 
 | Etapp | Innehåll | Läge |
 | --- | --- | --- |
-| 13 | **WireGuard-tunneln:** Chainsaws eget hjälpprogram (`tools/Chainsaw.Tunnel`), kopplat bakom `IExitConnector`, bara `127.0.0.1`, konfigurationen ur valvet utan disk, namnuppslag i tunneln | Pågår |
+| 13 | **WireGuard-tunneln:** Chainsaws eget hjälpprogram (`tools/Chainsaw.Tunnel`), kopplat bakom `IExitConnector`, bara `127.0.0.1`, konfigurationen ur valvet utan disk, namnuppslag i tunneln | Klar |
 | 14 | **Kurser (Pricing):** kursen vid en tidpunkt i vald valuta (SEK som förval) genom `IExitHttp`, med källa och råsvar förseglat i ärendet, offline ur ärendet | Pågår |
 | 15 | **Datalagret och spårningen:** txid mot tx:ens bytes, utgångar som aldrig kan spenderas, adressens sammanfattning, spårningen i bakgrunden, gränser för expansionen, spårningsmetod, läge och zoom sparade i ärendet, etikettbiblioteket när ett ärende öppnas | Pågår |
 

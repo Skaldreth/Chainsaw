@@ -22,6 +22,13 @@ public sealed class NetworkOptions
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
+    /// Gets or sets how long the WireGuard helper may take to start the tunnel, from its start until the exit's server
+    /// has answered a handshake. 30 seconds by default: the helper itself waits at most 15 seconds for the handshake
+    /// and 10 for the server's name.
+    /// </summary>
+    public TimeSpan TunnelStartTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// Gets or sets the largest response body that is accepted, in bytes. 32 MiB by default, far more than an address
     /// or a transaction from Esplora.
     /// </summary>
@@ -39,6 +46,16 @@ public sealed class NetworkOptions
     /// </summary>
     internal bool AllowLocalTargets { get; set; }
 
+    /// <summary>
+    /// Gets or sets where the WireGuard helper is. Only the tests set it; Chainsaw uses the helper next to the program.
+    /// </summary>
+    internal string? TunnelHelperPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the SHA-256 the helper must have. Only the tests set it; Chainsaw uses the hash it was built with.
+    /// </summary>
+    internal byte[]? TunnelHelperSha256 { get; set; }
+
     /// <summary>Refuses limits that would make every request fail or never end.</summary>
     /// <exception cref="ArgumentOutOfRangeException">A limit is zero, negative or too long.</exception>
     internal void Validate()
@@ -47,6 +64,9 @@ public sealed class NetworkOptions
         ArgumentOutOfRangeException.ThrowIfGreaterThan(RequestTimeout, LongestTimeout, nameof(RequestTimeout));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(ConnectTimeout, TimeSpan.Zero, nameof(ConnectTimeout));
         ArgumentOutOfRangeException.ThrowIfGreaterThan(ConnectTimeout, LongestTimeout, nameof(ConnectTimeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
+            TunnelStartTimeout, TimeSpan.Zero, nameof(TunnelStartTimeout));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(TunnelStartTimeout, LongestTimeout, nameof(TunnelStartTimeout));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(MaximumResponseBytes, 0, nameof(MaximumResponseBytes));
     }
 }

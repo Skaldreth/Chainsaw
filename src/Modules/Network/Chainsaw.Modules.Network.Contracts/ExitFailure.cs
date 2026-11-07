@@ -11,4 +11,13 @@ public enum ExitFailure
 
     /// <summary>The tunnel stopped after it was connected.</summary>
     ConnectionLost,
+
+    /// <summary>
+    /// The tunnel refused the exit's configuration, for example a WireGuard file with a broken key, more than one
+    /// peer or no name server.
+    /// </summary>
+    ConfigurationRefused,
+
+    /// <summary>The exit's server did not answer, or its name could not be resolved; often no network.</summary>
+    NoAnswer,
 }
