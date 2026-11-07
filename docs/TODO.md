@@ -84,6 +84,14 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 27. **Ett testärende med allt** (användarens önskemål 2026-11-07): `/testdata` i Debug-bygget, som i Gawk, skapar ett
     påhittat ärende där all funktionalitet syns utan att leta upp en riktig adress. Kedjedata kommer från en påhittad
     källa som bara finns i Debug, så expansionerna fungerar offline. Fylls på när något nytt byggs.
+28. **Innehav per adress** (användarens önskemål 2026-11-07): adressens saldo och totala summa (in och ut), som
+    fakta från kedjan vid en blockhöjd (Esplora ger `chain_stats`), i inspektören och kanske svagt på noden. Hur det
+    visas på noden skissas.
+29. **Panorering:** *byggd 2026-11-07*, höger- och mittknappen panorerar (också över en nod) och ytan glider vidare
+    som i Gawk; ett högerklick utan rörelse öppnar nodens meny. Vänsterknappen drar bara noder.
+30. **Använd ytan** (användarens önskemål 2026-11-07, skärmdump): grafen lägger motparterna i en enda lång kolumn och
+    linjerna buntas; den automatiska layouten ska sprida ut dem över ytan (flera kolumner, i en båge eller ett rutnät)
+    när det blir många, i stället för en kolumn. Tas med i etappen för samlingsnoden (punkt 22).
 
 Klart ur listan 2026-11-07: *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
 två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;

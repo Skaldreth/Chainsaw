@@ -1029,3 +1029,12 @@ ligger bredvid `Chainsaw.exe`.
 ## Ikonlisten vid noden och zoomen (polering 2026-11-07)
 - [ ] Välj en nod och zooma ut: ikonlisten ovanför noden krymper med grafen ner till tre fjärdedelar av sin storlek, och står kvar centrerad över noden.
 - [ ] Zooma ut ännu mer (under ungefär 45 %): listen försvinner; E, L, B och de andra tangenterna fungerar ändå, och listen kommer tillbaka när man zoomar in.
+
+## Panorering i grafen (polering 2026-11-07)
+- [ ] Håll höger musknapp och dra, var som helst i grafen och också över en nod: ytan följer med och pekaren blir ett fyrpilskors.
+- [ ] Samma sak med mittknappen (hjulet nedtryckt).
+- [ ] Släpp i farten: ytan glider vidare och saktar in mjukt; ett nytt tryck eller hjulet fångar den. Släpp stilla: den står kvar.
+- [ ] Ett högerklick utan att dra öppnar nodens meny som förut, och ingen meny kommer efter en panorering.
+- [ ] Vänsterknappen på tom yta panorerar inte längre; den drar noder och väljer.
+- [ ] Med animeringar avstängda i Windows glider ytan inte efter släppet.
+- [ ] Grafens läge (var man panorerat) finns kvar när ärendet öppnas igen.

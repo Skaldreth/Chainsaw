@@ -177,7 +177,8 @@ den låses upp, och användaren väljer ärende.
   Multiple Ciphers. Samma val som Gawk, men **koden kopieras inte** från Gawk (användarens beslut 2026-11-06). Det som tas
   över är designstilen, temat och gränssnittets komponenter (scrubbern, tidslinjen, tavlan med kolumner och
   kort), skrivna om för Chainsaw. Undantag: **Gawks Markdown-parser och -visare får tas över** (användarens beslut
-  2026-11-07), för kommentarsnoden i grafen.
+  2026-11-07), för kommentarsnoden i grafen, och **Gawks mjuka panorering** (`Motion/`: VelocityTracker, Easing,
+  FrameClock; användarens beslut 2026-11-07).
 - **Modulär monolit med separation of concerns.** Varje modul består av ett `*.Contracts`-projekt (publika gränssnitt och
   typer) och ett implementationsprojekt med `internal`-typer, och registreras med `services.AddXxxModule()`. Moduler beror
   bara på varandras Contracts. Ingen logik ligger i vyer eller knappar.
@@ -334,6 +335,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   på en gång. Resten ligger kvar i högen.
 - **Utgångar som aldrig kan spenderas** (OP_RETURN, 0 BTC) **döljs** i grafen (användarens beslut 2026-11-07): en toast
   som ligger kvar längre än vanligt säger hur många som döljs, med en knapp som visar dem.
+- **Panorering** (användarens beslut 2026-11-07): höger- och mittknappen panorerar grafen, också över en nod, och
+  ytan glider vidare och saktar in när man släpper i farten, som i Gawk. Ett högerklick utan rörelse öppnar nodens meny.
+  Vänsterknappen drar noder och väljer. **Grafen använder ytan**: många motparter sprids ut, aldrig i en lång kolumn.
 - **Delete slänger** den valda noden, eller de valda, i soptunnan, var som helst i grafen och också i högen
   (användarens beslut 2026-11-07), med samma varning som när man drar dit något som har kopplingar vidare.
 - **Den tomma grafen guidar, GR6c** (användarens beslut 2026-11-07): utan ärende står
