@@ -444,7 +444,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         {
             var transaction = SourceLookups.StoredAs(response, body => response.Kind == ResponseKinds.Transaction
                 ? _parser.ParseTransaction(body, txid)
-                : _parser.ParseTransactionList(body).FirstOrDefault(candidate => candidate.Txid == txid));
+                : _parser.ParseTransactionInList(body, txid));
             if (transaction is { } found && (bytes is null || RawTransactionReader.Compare(found.Value, bytes) is null))
             {
                 return found;

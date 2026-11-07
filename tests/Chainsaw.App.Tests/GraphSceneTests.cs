@@ -405,6 +405,37 @@ public sealed partial class GraphSceneTests
         Assert.False(cluster.IsStartPoint);
     }
 
+    /// <summary>
+    /// A coin that can never be spent (an OP_RETURN, as in every coinbase) offers no expansion, which could only say
+    /// <em>Inget nytt att hämta</em>; a coin that may still be spent can be expanded.
+    /// </summary>
+    [Fact]
+    public void InspectorOffersNoExpansionForACoinThatCanNeverBeSpent()
+    {
+        var graph = GraphSamples.Graph();
+        var burnt = new Outpoint(GraphSamples.Tx[3], 1);
+        var open = new Outpoint(GraphSamples.Tx[2], 2);
+        graph = graph with
+        {
+            Nodes = [.. graph.Nodes, Coin("coin:burnt", burnt, NodeExpansion.Expanded), Coin("coin:open", open)],
+        };
+        var scene = GraphSamples.Scene(graph: graph);
+
+        var unspendable = InspectorContent.ForNode(scene, scene.Node("coin:burnt")!);
+        var spendable = InspectorContent.ForNode(scene, scene.Node("coin:open")!);
+
+        Assert.False(unspendable.CanExpand);
+        Assert.Equal([ExpansionRequest.ForTransaction(open.Txid)], spendable.Expansion);
+    }
+
+    /// <summary>A coin node without an address.</summary>
+    /// <param name="key">Its key.</param>
+    /// <param name="coin">The coin.</param>
+    /// <param name="expansion">How far it is expanded.</param>
+    /// <returns>The node.</returns>
+    private static GraphNode Coin(string key, Outpoint coin, NodeExpansion expansion = NodeExpansion.NotExpanded) =>
+        GraphSamples.Node(key, GraphNodeKind.Coin, [], hop: 3, expansion: expansion) with { Coin = coin };
+
     /// <summary>The trail's end at a node is said with its reason, its source and its section.</summary>
     [Fact]
     public void InspectorSaysWhyTheTrailEnds()

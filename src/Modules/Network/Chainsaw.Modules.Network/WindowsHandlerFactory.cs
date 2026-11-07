@@ -39,8 +39,18 @@ internal sealed class WindowsHandlerFactory(NetworkOptions options) : IWindowsHa
                 CertificateChainPolicy = SocksHandlerFactory.OfflineChainPolicy(),
             },
             ConnectCallback = (context, cancellationToken) => ConnectAsync(
-                context.DnsEndPoint, context.InitialRequestMessage.RequestUri, cancellationToken),
+                context.DnsEndPoint, RequestedSource(context.InitialRequestMessage), cancellationToken),
         };
+
+    /// <summary>
+    /// Gives the source a connection is opened for. The handler opens the tunnel to the system's proxy with a
+    /// <c>CONNECT</c> request whose address is the proxy's own, so that request names no source: the connection goes
+    /// to the proxy, which may well be on the computer or the local network.
+    /// </summary>
+    /// <param name="message">The request that opens the connection.</param>
+    /// <returns>The source's address, or <see langword="null"/> for the proxy's tunnel.</returns>
+    internal static Uri? RequestedSource(HttpRequestMessage message) =>
+        message.Method == HttpMethod.Connect ? null : message.RequestUri;
 
     /// <summary>
     /// Opens a socket. A connection to the source itself (no proxy) resolves the name here and refuses every address

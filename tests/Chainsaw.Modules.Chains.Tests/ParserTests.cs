@@ -65,6 +65,24 @@ public sealed class ParserTests
     }
 
     [Fact]
+    public void One_transaction_is_read_out_of_a_page_without_reading_the_others()
+    {
+        // The other entry does not add up; reading the whole page for each of its transactions made a large graph
+        // slow to show, so only the one asked for is read.
+        var page = Encoding.UTF8.GetBytes(
+            $"[{Fixtures.Text("tx-unconfirmed.json")},{{\"txid\":\"{Fixtures.Repeat("cc", 32)}\"}}," +
+            $"{Fixtures.Text("tx-confirmed.json")}]");
+
+        var transaction = _parser.ParseTransactionInList(page, Fixtures.Confirmed);
+
+        Assert.Equal(Fixtures.Confirmed, transaction!.Txid);
+        Assert.Equal(800_000, transaction.Block!.Height);
+        Assert.Null(_parser.ParseTransactionInList(page, Fixtures.Older));
+        Assert.Throws<EsploraFormatException>(
+            () => _parser.ParseTransactionInList(page, Txid.Parse(Fixtures.Repeat("cc", 32))));
+    }
+
+    [Fact]
     public void The_confirmed_transactions_fee_is_exact()
     {
         var transaction = _parser.ParseTransaction(Fixtures.Bytes("tx-confirmed.json"), Fixtures.Confirmed);

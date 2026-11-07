@@ -612,6 +612,13 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
   hämtningar av AIA, spärrlistor eller rötter från Windows Update.
 - Med Windows och en proxy som kräver inloggning: uppslaget misslyckas ärligt (Chainsaw skickar inte dina
   Windows-uppgifter till proxyn; se TODO).
+- Med Windows och en proxy på datorn eller det lokala nätet (till exempel `10.x.x.x:8080` eller en PAC-fil som pekar
+  dit): uppslagen går genom proxyn och lyckas. Tidigare misslyckades varje uppslag med *Uppslaget misslyckades på vägen
+  genom utgången*, eftersom tunneln till proxyn togs för en källa som pekade in i det lokala nätet.
+- Expandera `bc1qtm7ye0wm085hhv88japwkalmwkt3amec5z9c7a3unv05tfg6y2pstr3xfz` (en poolens adress med över 1 700 tx)
+  med bara mempool påslagen: *Delvis expanderad: 50 nya tx* på ungefär 15 s, inte minuter. Varje tx är en coinbase med
+  en OP_RETURN, som står som en nod utan adress: den kan inte expanderas (E gör inget), och den visas inte som *Inte
+  expanderad ännu*. Med både mempool och Blockstream påslagna går det ungefär dubbelt så fort.
 - Med Windows och en källas namn som pekar på datorn eller det lokala nätet (till exempel genom `hosts`): uppslaget
   vägras.
 - Byt tillbaka till VPN medan en expansion pågår genom Windows: den stoppas, och utan ansluten utgång görs inga fler
