@@ -102,6 +102,7 @@ public sealed class WireGuardCheckTests
     [InlineData("DNS = 10")]
     [InlineData("# DNS = 10.64.0.1")]
     [InlineData("DNS =")]
+    [InlineData("DNS = [::1]")]
     public void A_dns_line_without_a_plain_address_names_no_server(string line) =>
         Assert.Equal(WireGuardVerdict.NoDnsServer, WireGuardCheck.Check(Valid.Replace("DNS = 10.64.0.1", line)));
 
@@ -115,6 +116,10 @@ public sealed class WireGuardCheckTests
     [Fact]
     public void Windows_line_ends_are_read() =>
         Assert.Equal(WireGuardVerdict.Valid, WireGuardCheck.Check(Valid.ReplaceLineEndings("\r\n")));
+
+    [Fact]
+    public void A_line_longer_than_the_helper_reads_is_too_large() =>
+        Assert.Equal(WireGuardVerdict.TooLarge, WireGuardCheck.Check(Valid + "\n# " + new string('é', 33_000)));
 
     [Fact]
     public void An_empty_file_is_empty() =>

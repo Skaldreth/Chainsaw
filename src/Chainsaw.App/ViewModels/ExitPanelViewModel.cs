@@ -371,9 +371,11 @@ public sealed partial class ExitPanelViewModel : ObservableObject
                     return;
                 }
 
-                _connecting?.Cancel();
+                var replaced = _connecting;
                 _connecting = new CancellationTokenSource();
                 token = _connecting.Token;
+                replaced?.Cancel();
+                replaced?.Dispose();
             }
             finally
             {

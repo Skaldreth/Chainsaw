@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using Chainsaw.Modules.Network.Contracts;
 
 namespace Chainsaw.App.Exits;
@@ -15,6 +16,9 @@ public static class WireGuardCheck
 {
     /// <summary>The words shown beside a file that passed.</summary>
     public const string ValidText = "Giltig";
+
+    /// <summary>The longest line the helper reads, in UTF-8 bytes (its scanner's buffer), not counted inclusive.</summary>
+    private const int MaximumLineBytes = 64 * 1024;
 
     /// <summary>The keys of <c>[Interface]</c> the helper reads, as <c>config.go</c> names them.</summary>
     private static readonly string[] InterfaceKeys = ["PrivateKey", "Address", "DNS", "MTU"];
@@ -52,6 +56,11 @@ public static class WireGuardCheck
             var end = rest.IndexOf('\n');
             var line = end < 0 ? rest : rest[..end];
             rest = end < 0 ? [] : rest[(end + 1)..];
+            if (Encoding.UTF8.GetByteCount(line) >= MaximumLineBytes)
+            {
+                return WireGuardVerdict.TooLarge;
+            }
+
             if (reader.Read(line) is { } refused)
             {
                 return refused;
@@ -117,8 +126,9 @@ public static class WireGuardCheck
     {
         foreach (var range in value.Split(','))
         {
+            // .NET reads a bracketed IPv6 address, which the helper and the store refuse.
             var item = value[range].Trim();
-            if (IPAddress.TryParse(item, out var address) && IsPlain(address, item))
+            if (!item.Contains('[') && IPAddress.TryParse(item, out var address) && IsPlain(address, item))
             {
                 return true;
             }

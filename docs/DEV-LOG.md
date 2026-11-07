@@ -1215,3 +1215,11 @@ inte ändrat.
   (bara `\r`); en anslutning i kö kunde starta efter en nedkoppling; Ctrl+K och klick i titelraden lämnade rutan ute;
   ett läsfel kunde visas efter stängning och andra fel slapp ut; en magisk sträng; läsningar i fel ordning;
   förstagångsinställningen kontrollerade inte filen; fler tester. Långa XAML-rader lämnades (projektets stil).
+- Omgång 2: inga C eller I, tre M, alla rättade: en DNS-adress inom hakparenteser (`[::1]`) godtogs av kontrollen men
+  vägras av hjälpprogrammet och `ExitStore`; en rad på 64 KiB eller mer (hjälpprogrammets gräns) säger nu *För stor*;
+  ersatta `CancellationTokenSource` frigörs.
+
+**Tester:** 412 i appen (85 nya för utgångarna och kontrollen). Bygget utan varningar.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Utgångarna*); kontrollen av den offentliga adressen, ta
+bort och byta namn på en utgång, ett kortkommando, raden i en vägrad fil och Windows som utgång i rutan (TODO).
