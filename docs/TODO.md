@@ -18,7 +18,7 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 
 ## Väntar på skiss
 
-- **Fler sorter av uttag i bildspråket** (diskuterat 2026-11-07, inte bestämt): förslaget är att allt där pengar lämnar
+- **Fler sorter av uttag i bildspråket** (skissat i GR3c 2026-11-07, väntar på användarens ok): förslaget är att allt där pengar lämnar
   kedjan är blått med egen ikon (börs, OTC och P2P, kryptoautomat, kryptokort och betaltjänst), att det som spenderar är
   gult (spel, handel, presentkort) och att darknetmarknader är röda. Därtill en markering **Kan frysas** för stablecoins
   vars utgivare kan frysa en adress (USDT, USDC), eftersom det är en egen väg för att stoppa pengarna. Fråga
