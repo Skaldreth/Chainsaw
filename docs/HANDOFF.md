@@ -132,6 +132,7 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 - pillret följer ärendet, Terminal borta, ÄV1a med Ctrl+O, Spotlight-kommandoraden (Ctrl+K), statusraden borta;
 - Bevakningens tomma läge, UT2b, grafens ikon IK1 *Förgrening*;
 - Windows utan nät och utan internet: ett https-prov genom proxyn, inte ping;
+- **testärendet `/testdata`** (bara i Debug): `TEST-0001` med en påhittad kedja offline, se TESTER-INFOR;
 - mempool-rättelsen och panorering med höger- och mittknappen som i Gawk (`Motion/`);
 - ikonlisten krymper vid zoom;
 - **etappen EX1/EX2b**: ledtrådsnoden, samlingsnoden med valvyn, dolda OP_RETURN med en kvardröjande toast, och att
@@ -140,8 +141,6 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 **Agenter som arbetade när sessionen rensades.** De ligger i worktrees under `.claude/worktrees/`, committar men pushar inte.
 Finns en commit på grenen, slå ihop den med `git merge worktree-agent-<id>`, behåll båda sidor i dokumenten, kör de
 berörda testerna och pusha. Saknas en commit, eller är arbetet halvfärdigt, gör om uppgiften.
-- `agent-acb8dc3c7028fbf03`: **testärendet `/testdata`** (punkt 27), bara i Debug, med en påhittad kedjekälla.
-  Det var ännu inte committat.
 - `agent-a590e627fec3f3248`: **startvyns högar GR8a** (punkt 21), med högen ritad som grafens samlingsnod och samma
   stöt och centrering. Den fick besked om att återanvända `PileFanLayout`.
 - **Skissen IN4** (`HoldingsFlip.dc.html` i scratchpadens `canvas/project/`): innehavet vänds med Alt + klick. Den är

@@ -60,6 +60,9 @@ public sealed class TestCaseTests : IDisposable
         var build = await BuildAsync();
         using var @case = _harness.Get<ICaseStore>().Open(build.CaseNumber);
 
+        // The hub is left for the user to expand; once expanded, what it held back is the clue node (EX1).
+        await _harness.Get<ITracingService>().ExpandAsync(
+            @case, ExpansionRequest.ForAddress(_harness.Get<TestActors>().Hub.Address!));
         var scene = await Source().LoadAsync(@case, TracingMethodKind.Fifo, CancellationToken.None);
 
         var sorts = scene.Nodes.Select(node => node.Look.Sort).ToHashSet();
