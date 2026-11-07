@@ -1,4 +1,5 @@
 using Chainsaw.App.Commands;
+using Chainsaw.App.Graph;
 using Chainsaw.App.Links;
 using Chainsaw.App.Navigation;
 using Chainsaw.Modules.Chains.Contracts;
@@ -138,8 +139,11 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets the view shown.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CurrentEntry))]
+    [NotifyPropertyChangedFor(nameof(CurrentEntry), nameof(IsGraphShown))]
     public partial AppView Current { get; private set; }
+
+    /// <summary>Gets whether the graph is shown (sketch GR4), the one view that is built.</summary>
+    public bool IsGraphShown => Current == AppView.Graph;
 
     /// <summary>Gets the entry of the view shown: its name and icon for the header and the empty page.</summary>
     public ViewEntry CurrentEntry => ViewTable.For(Current);
@@ -349,6 +353,18 @@ public sealed partial class ShellViewModel : ObservableObject
         Answer(startPoint.IsSupported
             ? CommandReply.Done($"Från en länk: Enter lägger den som startpunkt i {_session.DisplayName}.")
             : CommandReply.Failed("Från en länk: " + CaseWorkflow.NotBuiltText(startPoint)));
+    }
+
+    /// <summary>
+    /// Shows the Guide for a section that a <em>Varför?</em> in the graph asks for. The Guide is not built as a view yet,
+    /// so the answer says so honestly and names where the section's text lies.
+    /// </summary>
+    /// <param name="topic">The section.</param>
+    public void ShowGuide(GuideTopic topic)
+    {
+        Show(AppView.Guide);
+        Answer(CommandReply.Done(
+            $"Guiden är inte byggd som vy än. Avsnittet {topic.Title()} finns i docs/guide/{topic.FileName()}.md."));
     }
 
     /// <summary>Shows an answer that came from elsewhere, for example the first case of the setup.</summary>

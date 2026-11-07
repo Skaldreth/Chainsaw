@@ -21,6 +21,8 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleWhen" />
+
         <!--
           An icon of the pill: the view's icon, the tooltip with its shortcut, and a dot when something waits there. A
           press shows the view, or folds out the icon's submenu (sketch PN1).
@@ -130,8 +132,13 @@
                     -->
                     <Grid>
 
-                        <!-- No view is built yet: the page says so, with the view's icon, and never shows made-up data. -->
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80">
+                        <!-- The graph (sketch GR4), the one view that is built. -->
+                        <views:GraphView x:Name="GraphPage"
+                                         Visibility="{Binding IsGraphShown, Converter={StaticResource VisibleWhen}}" />
+
+                        <!-- A view that is not built yet: the page says so, with the view's icon, and never shows made-up data. -->
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80"
+                                    Visibility="{Binding IsGraphShown, Converter={x:Static controls:InvertVisibility.Instance}}">
                             <controls:GridIcon Size="40" Foreground="{StaticResource Brush.TextFaint}" HorizontalAlignment="Center"
                                                Data="{Binding CurrentEntry.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
                             <TextBlock Text="{Binding CurrentEntry.Name}" FontSize="14" Foreground="{StaticResource Brush.TextDim}"

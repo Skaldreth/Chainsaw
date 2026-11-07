@@ -11,6 +11,7 @@ using Chainsaw.Modules.Monitoring;
 using Chainsaw.Modules.Requests;
 using Chainsaw.App.Commands;
 using Chainsaw.App.Controls;
+using Chainsaw.App.Graph;
 using Chainsaw.App.Interop;
 using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
@@ -152,6 +153,8 @@ public partial class App : Application
                 .AddSingleton<CommandRegistry>()
                 .AddSingleton<IFilePicker, WpfFilePicker>()
                 .AddSingleton<SanctionListImport>()
+                .AddSingleton<IGraphSource, GraphSource>()
+                .AddSingleton<GraphViewModel>()
                 .AddSingleton<ShellViewModel>()
                 .AddSingleton<LinkInbox>()
                 .AddSingleton<LockViewModel>()

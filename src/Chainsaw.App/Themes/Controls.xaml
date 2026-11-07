@@ -418,4 +418,100 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- A button in the graph's corner (sketch GR4): 30 px, a grey frame, the method or the amounts. -->
+    <Style x:Key="Button.Graph" TargetType="Button">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+        <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Box" Property="Opacity" Value="0.6" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <!-- One half of the graph's switch between the free surface and the hop columns: an icon, no frame of its own. -->
+    <Style x:Key="Button.Segment" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+    </Style>
+
+    <!-- The legend's ? in the graph's corner (sketch GR4): a small round button. -->
+    <Style x:Key="Button.Help" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1" CornerRadius="14">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.TextDim}" />
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A link in the inspector, to the Guide or to Varför?: small accent text, underlined on hover. -->
+    <Style x:Key="Button.Link" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <TextBlock x:Name="Label" Text="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

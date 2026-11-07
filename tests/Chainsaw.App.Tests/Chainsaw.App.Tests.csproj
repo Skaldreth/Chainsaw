@@ -20,11 +20,13 @@
     <ProjectReference Include="..\..\src\Modules\Chains\Chainsaw.Modules.Chains.Contracts\Chainsaw.Modules.Chains.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Tracing\Chainsaw.Modules.Tracing.Contracts\Chainsaw.Modules.Tracing.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Attribution\Chainsaw.Modules.Attribution.Contracts\Chainsaw.Modules.Attribution.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Clustering\Chainsaw.Modules.Clustering.Contracts\Chainsaw.Modules.Clustering.Contracts.csproj" />
   </ItemGroup>
   <!--
     Chainsaw.App is a WPF program, which tests cannot load where there is no Windows desktop runtime, as in the cloud.
     The parts that use no WPF on purpose are compiled in here instead: the views' table in Navigation/, the view
-    models in ViewModels/, the commands in Commands/, the links in Links/, the field behind the lock screen in Field/ and the settings in Settings/.
+    models in ViewModels/, the commands in Commands/, the links in Links/, the field behind the lock screen in Field/, the settings in Settings/ and the
+    graph's layout, look and hit tests in Graph/.
   -->
   <ItemGroup>
     <Compile Include="..\..\src\Chainsaw.App\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
@@ -33,5 +35,6 @@
     <Compile Include="..\..\src\Chainsaw.App\Settings\*.cs" Link="Settings\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Commands\*.cs" Link="Commands\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Links\*.cs" Link="Links\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Graph\*.cs" Link="Graph\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

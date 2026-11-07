@@ -45,7 +45,8 @@ public partial class MainWindow : Window
     /// <summary>Creates the window with the shell, the gate, and its shortcuts from <see cref="ViewTable"/>.</summary>
     /// <param name="shell">The shell's view model.</param>
     /// <param name="gate">The gate's view model.</param>
-    public MainWindow(ShellViewModel shell, GateViewModel gate)
+    /// <param name="graph">The graph's view model (sketch GR4).</param>
+    public MainWindow(ShellViewModel shell, GateViewModel gate, GraphViewModel graph)
     {
         InitializeComponent();
         _shell = shell;
@@ -53,6 +54,8 @@ public partial class MainWindow : Window
         DataContext = shell;
         Gate.Attach(gate);
         NewCasePanel.Attach(shell.NewCase);
+        GraphPage.Attach(graph);
+        graph.GuideWanted += (_, topic) => shell.ShowGuide(topic);
         gate.PropertyChanged += OnGateChanged;
         ShowGate();
 

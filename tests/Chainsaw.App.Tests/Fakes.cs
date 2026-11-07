@@ -312,8 +312,16 @@ internal sealed class TestTracing : ITracingService
 
     public IReadOnlyList<TracingMethodId> Methods => [];
 
+    public TraceGraph? Graph { get; set; }
+
+    public Func<TraceGraph, TraceRequest, TraceResult>? Tracer { get; set; }
+
+    public List<TraceRequest> Traced { get; } = [];
+
+    public List<ExpansionRequest> Expanded { get; } = [];
+
     public Task<TraceGraph> LoadAsync(ICase @case, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException();
+        Graph is { } graph ? Task.FromResult(graph) : throw new NotSupportedException();
 
     public bool AddStartPoint(ICase @case, TraceStartPoint startPoint)
     {
@@ -334,8 +342,13 @@ internal sealed class TestTracing : ITracingService
     public bool RemoveStartPoint(ICase @case, TraceStartPoint startPoint) => throw new NotSupportedException();
 
     public Task<ExpansionResult> ExpandAsync(
-        ICase @case, ExpansionRequest request, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException();
+        ICase @case, ExpansionRequest request, CancellationToken cancellationToken = default)
+    {
+        Expanded.Add(request);
+        var outcome = Expanded.Count == 1 ? ExpansionOutcome.Expanded : ExpansionOutcome.NotExpanded;
+        var problem = outcome == ExpansionOutcome.NotExpanded ? "Ingen utgång är ansluten." : null;
+        return Task.FromResult(new ExpansionResult(outcome, [], problem, Graph ?? throw new NotSupportedException()));
+    }
 
     public CrossChainLink LinkCrossChain(ICase @case, Outpoint from, ChainTransactionRef to, string reason) =>
         throw new NotSupportedException();
@@ -345,7 +358,11 @@ internal sealed class TestTracing : ITracingService
     public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position) =>
         throw new NotSupportedException();
 
-    public TraceResult Trace(TraceGraph graph, TraceRequest request) => throw new NotSupportedException();
+    public TraceResult Trace(TraceGraph graph, TraceRequest request)
+    {
+        Traced.Add(request);
+        return Tracer is { } tracer ? tracer(graph, request) : throw new NotSupportedException();
+    }
 }
 
 /// <summary>A verifier that gives what the test set.</summary>

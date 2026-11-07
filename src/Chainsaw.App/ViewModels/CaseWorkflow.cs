@@ -76,6 +76,9 @@ public sealed class CaseWorkflow
     /// <summary>Raised on the UI thread when the case files have been listed anew.</summary>
     public event EventHandler? CasesListed;
 
+    /// <summary>Raised when a start point has been added to the open case, so that the graph reads it anew.</summary>
+    public event EventHandler? StartPointAdded;
+
     /// <summary>
     /// Lists the case files off the UI thread for the suggestions; called when the shell is shown and after every
     /// opening, creation and closing. A folder that cannot be read gives no suggestions.
@@ -240,6 +243,11 @@ public sealed class CaseWorkflow
         try
         {
             var added = await Task.Run(() => _tracing.AddStartPoint(openCase, traced));
+            if (added)
+            {
+                StartPointAdded?.Invoke(this, EventArgs.Empty);
+            }
+
             var shown = CaseTexts.Shorten(startPoint.Value);
             return CommandReply.Done(added ? $"Startpunkten {shown} lades till." : $"{shown} är redan en startpunkt.");
         }

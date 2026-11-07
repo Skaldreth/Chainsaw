@@ -1,0 +1,155 @@
+using Chainsaw.App.Graph;
+using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
+
+namespace Chainsaw.App.Tests;
+
+/// <summary>Labels by address, as Attribution would give them; nothing else is used by the graph.</summary>
+internal sealed class TestAttribution : IAttributionService
+{
+    public Dictionary<BitcoinAddress, IReadOnlyList<Label>> Labels { get; } = [];
+
+    public IReadOnlyList<Label> GetLabels(ICase @case, BitcoinAddress address) => Labels.GetValueOrDefault(address) ?? [];
+
+    public LabelEntry Add(ICase @case, LabelDraft draft) => throw new NotSupportedException();
+
+    public bool Retract(ICase @case, long sequence, string reason) => throw new NotSupportedException();
+
+    public IReadOnlyList<LabelEntry> GetEntries(ICase @case) => throw new NotSupportedException();
+
+    public IReadOnlyList<Label> GetLabels(ICase @case) => throw new NotSupportedException();
+
+    public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>A clustering that knows one cluster; nothing else is used by the graph.</summary>
+internal sealed class TestClustering : IClusteringService
+{
+    public List<BitcoinAddress> Asked { get; } = [];
+
+    public IReadOnlyList<HeuristicId> Heuristics => [];
+
+    public Cluster GetCluster(ICase @case, BitcoinAddress address)
+    {
+        Asked.Add(address);
+        return new Cluster(address, [new ClusterMember(address, null, null)], [], [], [], []);
+    }
+
+    public ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions) =>
+        throw new NotSupportedException();
+
+    public ClusterSplit Split(ICase @case, SplitRequest request) => throw new NotSupportedException();
+
+    public IReadOnlyList<ClusterLink>? ExplainConnection(ICase @case, BitcoinAddress from, BitcoinAddress to) =>
+        throw new NotSupportedException();
+
+    public TransactionConclusions GetConclusions(ICase @case, Txid txid) => throw new NotSupportedException();
+}
+
+/// <summary>The graph's way into the modules: labels, seeds, the trace and the expansion, off the UI thread.</summary>
+public sealed class GraphSourceTests
+{
+    /// <summary>The fakes and the source.</summary>
+    private readonly TestTracing _tracing = new() { Graph = GraphSamples.Graph() };
+
+    /// <summary>The labels.</summary>
+    private readonly TestAttribution _attribution = new();
+
+    /// <summary>The clusters.</summary>
+    private readonly TestClustering _clustering = new();
+
+    /// <summary>The case.</summary>
+    private readonly TestCase _case = new("2026-0001");
+
+    /// <summary>Gives the source over the fakes.</summary>
+    private GraphSource Source => new(_tracing, _attribution, _clustering);
+
+    /// <summary>
+    /// The graph is read with each node's labels (a cluster's once, however many addresses carry it), traced by the
+    /// asked method from the start's coins.
+    /// </summary>
+    [Fact]
+    public async Task LoadsLabelsAndTraces()
+    {
+        var label = GraphSamples.Label(GraphSamples.K1, LabelKind.Exchange, "Börs A");
+        _attribution.Labels[GraphSamples.K1] = [label];
+        _attribution.Labels[GraphSamples.K2] = [label];
+        _tracing.Tracer = (_, _) => GraphSamples.Trace();
+
+        var scene = await Source.LoadAsync(_case, TracingMethodKind.Haircut, CancellationToken.None);
+
+        Assert.Equal([label], scene.Snapshot.Labels[GraphSamples.KKey]);
+        Assert.False(scene.Snapshot.Labels.ContainsKey(GraphSamples.UKey));
+        var request = Assert.Single(_tracing.Traced);
+        Assert.Equal(TracingMethodKind.Haircut, request.Method);
+        Assert.Equal([new TraceSeed(new Outpoint(GraphSamples.Tx[0], 0))], request.Seeds);
+        Assert.NotNull(scene.Snapshot.Trace);
+        Assert.Null(scene.Snapshot.TraceProblem);
+    }
+
+    /// <summary>A trace that cannot be counted leaves the graph shown without amounts, and says so.</summary>
+    [Fact]
+    public async Task FailedTraceIsSaid()
+    {
+        _tracing.Tracer = (_, _) => throw new ArgumentException("seed");
+
+        var scene = await Source.LoadAsync(_case, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Null(scene.Snapshot.Trace);
+        Assert.Equal(GraphSource.TraceFailedText, scene.Snapshot.TraceProblem);
+        Assert.Equal(5, scene.Nodes.Count);
+    }
+
+    /// <summary>A start whose coins the graph does not show yet is not traced, and the graph says to expand it.</summary>
+    [Fact]
+    public async Task NothingToTraceIsSaid()
+    {
+        _tracing.Graph = GraphSamples.Graph() with
+        {
+            StartPoints = [TraceStartPoint.ForAddress(GraphSamples.Address(77))],
+        };
+
+        var scene = await Source.LoadAsync(_case, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Empty(_tracing.Traced);
+        Assert.Equal(GraphSource.NothingToTraceText, scene.Snapshot.TraceProblem);
+    }
+
+    /// <summary>An expansion makes each lookup in turn and sums up how it went, with each problem once.</summary>
+    [Fact]
+    public async Task ExpansionMakesEveryLookup()
+    {
+        _tracing.Tracer = (_, _) => GraphSamples.Trace();
+        ExpansionRequest[] requests =
+        [
+            ExpansionRequest.ForAddress(GraphSamples.K1),
+            ExpansionRequest.ForAddress(GraphSamples.K2),
+            ExpansionRequest.ForAddress(GraphSamples.E),
+        ];
+
+        var result = await Source.ExpandAsync(_case, requests, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Equal(requests, _tracing.Expanded);
+        Assert.Equal(ExpansionOutcome.Partly, result.Outcome);
+        Assert.Equal(["Ingen utgång är ansluten."], result.Problems);
+        Assert.Equal(5, result.Scene.Nodes.Count);
+    }
+
+    /// <summary>Only a cluster is asked of Clustering, from its first address.</summary>
+    [Fact]
+    public async Task OnlyClustersAreExplained()
+    {
+        var graph = GraphSamples.Graph();
+
+        var cluster = await Source.ExplainClusterAsync(_case, graph.Node(GraphSamples.KKey)!, CancellationToken.None);
+        var address = await Source.ExplainClusterAsync(_case, graph.Node(GraphSamples.UKey)!, CancellationToken.None);
+
+        Assert.Single(cluster);
+        Assert.Empty(address);
+        Assert.Equal([GraphSamples.K1], _clustering.Asked);
+    }
+}
