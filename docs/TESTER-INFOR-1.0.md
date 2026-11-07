@@ -5,6 +5,8 @@ Det som är byggt men inte kan provas i molnmiljön (Linux), per område: vad ma
 ## Start
 
 - `dotnet run --project src/Chainsaw.App`: fönstret öppnas mitt på skärmen, mörkt, med egen titelrad och utan fel.
+- Utan valv (`%LOCALAPPDATA%\Chainsaw\vault.json` saknas) öppnas förstagångsinställningen; med valv öppnas låsskärmen.
+  Skalet (ikonlisten, kommandoraden) syns aldrig förrän valvet är upplåst.
 
 ## Skalet (etapp 1, SH1b)
 
@@ -156,3 +158,54 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows; appen har inget gränssni
 - `open --vault %LOCALAPPDATA%\Chainsaw` på operatörens dator, efter ett nytt valv: operatören öppnar sedan ärendet
   med sin nya huvudnyckel.
 - Inmatning med åäö i lösenorden (konsolens teckentabell) fungerar i både `keygen` och `open`.
+
+## Låsskärmen och förstagångsinställningen (etapp 10, ID7a och FS1a)
+
+Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i ett mindre fönster.
+
+**Teckenfältet och kättingen**
+- Fältet rör sig långsamt (scenen Drift), är tyst runt formuläret och syns inte bakom texten.
+- Kättingen står still i magenta från topp till botten i vänsterdelen, rak, med loggans skarv och en rak bit med hål
+  mellan skarvarna; den är ungefär lika stor som i skissen och tar inte över sidan.
+- Håll Ctrl och rör musen över fältet: en ljus lykta följer musen med ett kort spår; släpp Ctrl och den tonar bort.
+  Ctrl+L under tiden låser inte om låsskärmen redan visas.
+- Stäng av animeringar i Windows (Inställningar, Hjälpmedel, Visuella effekter, *Animeringseffekter* av): fältet står
+  still. Lyktan fungerar fortfarande.
+- Minimera fönstret och lås upp: Chainsaw använder ingen märkbar processor (Aktivitetshanteraren) medan fältet inte syns.
+- Fältet är skarpt på en skärm med 150 % skalning, och när fönstret flyttas mellan skärmar med olika skalning.
+- Fältet hackar inte och gränssnittet känns inte trögt medan det rör sig (skriv i fältet för huvudnyckeln).
+
+**Låsskärmen**
+- Titelraden har bara loggan, *Chainsaw* och fönsterknapparna; fönstret går att dra, maximera och stänga.
+- Markören står i fältet för huvudnyckeln. Fel nyckel och Enter: *Fel huvudnyckel. Valvet öppnades inte.*, fältet töms
+  och markören står kvar. Rätt nyckel: skalet visas efter ungefär en sekund, utan att fönstret fryser (knappen säger
+  *Låser upp …* under tiden).
+- Raderna under formuläret: utgången (*Utgången ansluts efter upplåsning …*) och *Låses automatiskt efter 15 minuter
+  utan aktivitet.*
+- *Om Chainsaw · <commit>* i hörnet, där commit är samma som `git log -1`; klick visar version, commit och
+  teckenfältets ursprung.
+
+**Förstagångsinställningen**
+- Strecken överst fylls steg för steg, och *Steg n av 4* står under dem. Tillbaka och Nästa går mellan stegen, Enter i
+  ett fält går vidare.
+- Välkommen utan namn går inte vidare. Huvudnyckel med färre än 12 tecken, eller två olika, ger ett fel och töms.
+- Efter Huvudnyckel finns `vault.json`, och operatörsprofilen är sparad (syns i journalen när ett ärende skapas).
+- Tillbaka till Huvudnyckel efter att valvet är skapat säger *Huvudnyckeln är vald och valvet är skapat.* och har inga
+  fält.
+- Utgång: *Lägg till en WireGuard-fil* öppnar Windows filväljare. En fil med `DNS =` sparas (inget om den i klartext i
+  `vault.json`) och nästa steg säger att utgången är sparad; en fil utan `DNS =` ger ett fel. *Senare* går vidare.
+- Första ärendet: ett ärendenummer skapar `%LOCALAPPDATA%\Chainsaw\Ärenden\<nummer>.cut` och titelraden visar numret;
+  ett nummer med `/` vägras; *Hoppa över* går till skalet utan ärende.
+
+**Låsning**
+- Ctrl+L i skalet: låsskärmen visas direkt, kommandoradens text är borta efter upplåsning, och ett öppet ärende är
+  stängt (titelraden säger *Inget ärende öppet*).
+- Lås Windows (Win+L) och logga in igen: Chainsaw visar låsskärmen. Samma efter viloläge.
+- Låt Chainsaw stå orört i 15 minuter: låsskärmen visas. Ändra `AutoLockMinutes` i `%LOCALAPPDATA%\Chainsaw\settings.json`
+  till 1, starta om, och kontrollera att låsningen kommer efter en minut och att raden på låsskärmen säger *1 minut*.
+- Medan låst: Ctrl+1 till Ctrl+7, Ctrl+N, Ctrl+K och Ctrl+F gör ingenting, Tab når inget i skalet, och Alt+Tab och
+  Aktivitetsfältets förhandsbild visar bara låsskärmen.
+- Skärmläsaren (Berättaren) läser bara låsskärmen när Chainsaw är låst.
+- Huvudnyckeln går inte att hitta i en minnesdump av Chainsaw efter upplåsning (Aktivitetshanteraren, *Skapa
+  dumpfil*, sök efter nyckeln som UTF-16 med till exempel `strings -el`). Gör det med en nyckel som bara används för
+  provet.
