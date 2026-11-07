@@ -79,13 +79,23 @@ public sealed class RecoveryPublicKey : IEquatable<RecoveryPublicKey>
     /// </summary>
     /// <param name="text">The text.</param>
     /// <returns>The key, or <see langword="null"/> when the text has no <c>PUBLIC KEY</c> block.</returns>
-    /// <exception cref="CryptographicException">The block is not a P-384 public key.</exception>
+    /// <exception cref="CryptographicException">
+    /// The block is not a P-384 public key, or the text holds more than one.
+    /// </exception>
     public static RecoveryPublicKey? FromPem(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        if (!text.Contains($"-----BEGIN {PemLabel}-----", StringComparison.Ordinal))
+        var begin = $"-----BEGIN {PemLabel}-----";
+        var first = text.IndexOf(begin, StringComparison.Ordinal);
+        if (first < 0)
         {
             return null;
+        }
+
+        if (text.IndexOf(begin, first + begin.Length, StringComparison.Ordinal) >= 0)
+        {
+            // Two keys would leave it to chance which one cases are made for.
+            throw new CryptographicException("The text holds more than one public key.");
         }
 
         var fields = PemEncoding.Find(text);

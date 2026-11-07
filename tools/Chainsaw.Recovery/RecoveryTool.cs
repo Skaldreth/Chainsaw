@@ -212,9 +212,17 @@ internal static class RecoveryTool
 
         using var session = CaseSession.WithoutVault();
         var fingerprints = session.Store.ReadRecoveryFingerprints(line.Positional[0]);
+        var revoked = new Modules.Cases.CasesOptions().RevokedRecoveryKeys;
         foreach (var fingerprint in fingerprints)
         {
-            console.Out($"Kuvert för {RecoveryPublicKey.FormatFingerprint(fingerprint)}");
+            var mark = revoked.Contains(fingerprint) ? " (återkallad)" : string.Empty;
+            console.Out($"Kuvert för {RecoveryPublicKey.FormatFingerprint(fingerprint)}{mark}");
+        }
+
+        if (revoked.Contains(key.Fingerprint))
+        {
+            console.Out($"Nej: {key.DisplayFingerprint} är återkallad, och kuvertet tas bort när ärendet öppnas.");
+            return ExitCodes.NotCovered;
         }
 
         if (fingerprints.Contains(key.Fingerprint, StringComparer.Ordinal))

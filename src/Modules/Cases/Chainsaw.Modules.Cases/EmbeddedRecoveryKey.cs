@@ -18,8 +18,14 @@ internal static class EmbeddedRecoveryKey
     /// <summary>The name of the embedded resource.</summary>
     public const string ResourceName = "Chainsaw.Modules.Cases.organization-recovery-key.pem";
 
-    /// <summary>The start of a line that revokes an earlier key.</summary>
-    public const string RevokedPrefix = "REVOKED ";
+    /// <summary>The keyword that starts a line revoking an earlier key: <c>REVOKED &lt;fingerprint&gt;</c>.</summary>
+    public const string RevokedKeyword = "REVOKED";
+
+    /// <summary>The characters that may come before the keyword when the line is written as a list.</summary>
+    private static readonly char[] ListMarkers = ['-', '*', '•'];
+
+    /// <summary>Every kind of line break, so that a file saved with CR, LF or CRLF reads the same.</summary>
+    private static readonly char[] LineBreaks = ['\r', '\n'];
 
     /// <summary>The text that marks a private key, which must never be built in.</summary>
     private const string PrivateKeyMarker = "PRIVATE KEY";
@@ -67,10 +73,10 @@ internal static class EmbeddedRecoveryKey
                 $"The resource {ResourceName} does not hold a P-384 public key.", exception);
         }
 
-        var revoked = text.Split('\n')
-            .Select(line => line.Trim())
-            .Where(line => line.StartsWith(RevokedPrefix, StringComparison.Ordinal))
-            .Select(line => ReadFingerprint(line[RevokedPrefix.Length..]))
+        var revoked = text.Split(LineBreaks)
+            .Select(RevokedFingerprintText)
+            .OfType<string>()
+            .Select(ReadFingerprint)
             .ToHashSet(StringComparer.Ordinal);
         if (key is not null && revoked.Contains(key.Fingerprint))
         {
@@ -80,13 +86,32 @@ internal static class EmbeddedRecoveryKey
         return new RecoveryKeyConfiguration(key, revoked);
     }
 
+    /// <summary>
+    /// Gives the text after the keyword when a line is meant as a revocation: its first word is <c>REVOKED</c> in any
+    /// case, after any whitespace or list marker, and followed by any whitespace or a colon. Every such line must then
+    /// hold a fingerprint, so that a revocation can never be ignored because of its spelling.
+    /// </summary>
+    /// <param name="line">The line.</param>
+    /// <returns>The text after the keyword, or <see langword="null"/> when the line is no revocation.</returns>
+    private static string? RevokedFingerprintText(string line)
+    {
+        var rest = line.TrimStart().TrimStart(ListMarkers).TrimStart();
+        if (!rest.StartsWith(RevokedKeyword, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var after = rest[RevokedKeyword.Length..];
+        return after.Length == 0 || char.IsWhiteSpace(after[0]) || after[0] == ':' ? after.TrimStart(':') : null;
+    }
+
     /// <summary>Reads a fingerprint as written by people: upper or lower case, with or without spaces.</summary>
     /// <param name="text">The text after the prefix.</param>
     /// <returns>The fingerprint in lowercase without spaces.</returns>
     /// <exception cref="InvalidOperationException">It is not 64 hexadecimal digits.</exception>
     private static string ReadFingerprint(string text)
     {
-        var fingerprint = text.Replace(" ", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
+        var fingerprint = new string([.. text.Where(character => !char.IsWhiteSpace(character))]).ToLowerInvariant();
         return fingerprint.Length == FingerprintLength && fingerprint.All(char.IsAsciiHexDigitLower)
             ? fingerprint
             : throw new InvalidOperationException($"The resource {ResourceName} has a malformed revoked key.");

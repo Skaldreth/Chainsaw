@@ -39,7 +39,7 @@ public sealed class CasesOptions
     /// Gets the fingerprints of earlier recovery keys that are revoked: their envelopes are removed from every case
     /// that is opened. Envelopes for keys that are merely unknown are never removed. Only tests set their own.
     /// </summary>
-    internal IReadOnlySet<string> RevokedRecoveryKeys { get; set; } = BuiltIn.Revoked;
+    public IReadOnlySet<string> RevokedRecoveryKeys { get; internal set; } = BuiltIn.Revoked;
 
     /// <summary>The configuration built into the module, read once.</summary>
     private static RecoveryKeyConfiguration BuiltIn => BuiltInConfiguration.Value;

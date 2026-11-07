@@ -589,7 +589,7 @@ Inget gränssnitt i appen.
   `organization-recovery-key.pem`; utan nyckel i filen är ingen konfigurerad, och en ogiltig nyckel eller en privat
   nyckel i filen stoppar appen.
 - **När kuvertet läggs till:** när ärendet skapas, och när ett ärende som saknar kuvert för den inbyggda nyckeln öppnas
-  (journalen `case.recovery-access-added`, sparad med huvudet). `ICaseStore.OpenWithRecoveryKey` öppnar med den
+  (journalen `case.recovery-access-changed`, sparad med huvudet). `ICaseStore.OpenWithRecoveryKey` öppnar med den
   privata nyckeln och journalför `case.opened-with-recovery-key` med administratörens namn och fingeravtrycket.
 - **Verktyget:** `keygen` (privata nyckeln som krypterad PKCS #8 med PBKDF2-HMAC-SHA512, 600 000 iterationer och
   AES-256-CBC, lösenord minst 16 tecken två gånger, aldrig överskrivning, aldrig i ett git-repo, 0600 på Unix, läses
@@ -619,6 +619,10 @@ Inget gränssnitt i appen.
   annan organisations) tog bort den nyare nyckelns kuvert och lade tillbaka den gamla; nu tas bara uttryckligen
   återkallade nycklar bort. M rättade: konstanter i stället för upprepade strängar, och verktyget städar sitt
   tillfälliga valv innan det säger att det lyckades.
+- Omgång 3: inga C, ett I och fyra M, alla rättade. I: en återkallelse med en annan stavning (gemener, tabb, kolon,
+  punktlista, CR) ignorerades tyst; nu läses varje rad som börjar med ordet, och en sådan rad utan giltigt
+  fingeravtryck stoppar appen. M: två publika nycklar i resursen vägras, förklaringen i resursen innehåller inte
+  längre nyckelordet, `check` säger *Nej* för en återkallad nyckel, och DEV-LOG har rätt journalkod.
 
 **Återstår:** gränssnittet som visar nyckelns fingeravtryck och när den saknas, att administratören skapar nyckeln och
 bygger in den, och att byta ärendets filnyckel (för att stänga en röjd nyckel i kopior som redan lämnats ut).

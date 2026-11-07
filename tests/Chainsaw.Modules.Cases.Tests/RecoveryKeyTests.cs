@@ -181,7 +181,41 @@ public sealed class RecoveryKeyTests : IDisposable
     }
 
     [Theory]
+    [InlineData("REVOKED {0}")]
+    [InlineData("revoked {0}")]
+    [InlineData("Revoked: {0}")]
+    [InlineData("REVOKED\t{0}")]
+    [InlineData("REVOKED\u00A0{0}")]
+    [InlineData("- REVOKED {0}")]
+    [InlineData("  * revoked:{0}\r")]
+    public void Every_spelling_of_a_revocation_is_read(string line)
+    {
+        var parsed = EmbeddedRecoveryKey.Parse(
+            "Förklaring\r" + string.Format(System.Globalization.CultureInfo.InvariantCulture, line,
+                RecoveryPublicKey.FormatFingerprint(OpenSslFingerprint)) + "\rSlut");
+
+        Assert.Equal([OpenSslFingerprint], parsed.Revoked);
+    }
+
+    [Fact]
+    public void Two_public_keys_in_the_built_in_text_are_refused()
+    {
+        var key = RecoveryPublicKey.FromPrivateKey(_privateKey);
+
+        Assert.Throws<InvalidOperationException>(
+            () => EmbeddedRecoveryKey.Parse(key.ExportPem() + "\n" + OpenSslPublicKey));
+    }
+
+    [Fact]
+    public void A_word_that_only_starts_like_the_keyword_is_no_revocation()
+    {
+        Assert.Empty(EmbeddedRecoveryKey.Parse("REVOKEDNESS är inget ord").Revoked);
+    }
+
+    [Theory]
     [InlineData("REVOKED 1234")]
+    [InlineData("revoked")]
+    [InlineData("REVOKED: inte ett fingeravtryck")]
     [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----")]
     public void Built_in_text_that_does_not_hold_stops_the_build_from_running(string line)
     {
