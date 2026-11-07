@@ -377,6 +377,45 @@ public sealed class EndpointPaceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_new_answer_lower_than_a_kept_probe_is_behind_and_its_not_found_is_not_believed()
+    {
+        _harness.AnswerAll();
+        var second = await AddSecondAsync();
+        Height(Tip, 900_000);
+        Height(SecondTip, 899_000);
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        var first = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Id;
+        _harness.Sources.AskedToWait(Chain.Bitcoin, first, TimeSpan.FromMinutes(5));
+        Height(SecondTip, 899_050);
+
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+
+        var view = _harness.Sources.Get(Chain.Bitcoin);
+        Assert.Equal(ProbeOutcome.Answered, view.Endpoints[0].Probe!.Outcome);
+        var lower = view.Endpoints.Single(e => e.Endpoint.Id == second.Id).Probe!;
+        Assert.Equal(ProbeOutcome.Behind, lower.Outcome);
+        Assert.Equal(950, lower.BlocksBehind);
+        Assert.False(_harness.Sources.TrustsNotFound(Chain.Bitcoin, second.Id));
+        Assert.Equal(first, Assert.Single(_harness.Sources.Plan(Chain.Bitcoin, inStep: true).Endpoints).Endpoint.Id);
+    }
+
+    [Fact]
+    public async Task A_probe_round_that_only_waited_keeps_a_failed_lookups_pause()
+    {
+        _harness.AnswerAll();
+        Height(Tip, 800_010);
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        var id = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint.Id;
+        _harness.Sources.Failed(Chain.Bitcoin, id);
+        _harness.Sources.AskedToWait(Chain.Bitcoin, id, TimeSpan.FromMinutes(5));
+
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+
+        Assert.True(_harness.Sources.Get(Chain.Bitcoin).Endpoints[0].FailedSince);
+        Assert.Empty(_harness.Sources.Plan(Chain.Bitcoin, inStep: true).Endpoints);
+    }
+
+    [Fact]
     public async Task A_probe_is_not_sent_when_the_endpoint_asked_to_wait_while_the_probe_waited_for_its_turn()
     {
         _harness.AnswerAll();

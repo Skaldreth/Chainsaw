@@ -326,6 +326,12 @@ internal sealed class SourceLookups
             {
                 await _sources.DelayAsync(turn.Wait, cancellationToken).ConfigureAwait(false);
             }
+            catch (OperationCanceledException)
+            {
+                // Cancelled before anything was sent: the turn goes back.
+                _sources.Pacer.Release(turn);
+                throw;
+            }
             finally
             {
                 if (noticed)

@@ -430,7 +430,7 @@ internal sealed class ChainSources : IChainSources
             return ProbeRun.NotSent;
         }
 
-        Keep(chain, round, Ranked(probes));
+        Keep(chain, round, probes);
         return ProbeRun.Probed;
     }
 
@@ -874,19 +874,23 @@ internal sealed class ChainSources : IChainSources
                 return;
             }
 
-            // A probe that only waited says nothing about its endpoint: the earlier probe stands, measured against this
-            // round's highest height, so that an endpoint left behind since is never counted as in step.
+            // A probe that only waited says nothing about its endpoint: its earlier probe stands, with its pause if a
+            // lookup failed through it. Every probe is then measured against the highest height of them all, kept ones
+            // too, so that neither a kept one nor a new one counts as in step when another is known to be higher.
             var earlier = new Dictionary<Guid, EndpointProbe>(state.Probes);
-            var highest = probes.Where(p => p.Outcome == ProbeOutcome.Answered).Max(p => p.Height);
+            var merged = probes.Select(probe =>
+                IsWait(probe) && earlier.TryGetValue(probe.EndpointId, out var kept) ? Unranked(kept) : probe);
             state.Probes.Clear();
-            foreach (var probe in probes)
+            foreach (var probe in Ranked([.. merged]))
             {
-                state.Probes[probe.EndpointId] = IsWait(probe) && earlier.TryGetValue(probe.EndpointId, out var kept)
-                    ? Against(kept, highest)
-                    : probe;
+                state.Probes[probe.EndpointId] = probe;
             }
 
-            state.FailedSince.Clear();
+            foreach (var probe in probes.Where(probe => !IsWait(probe)))
+            {
+                state.FailedSince.Remove(probe.EndpointId);
+            }
+
             state.ProbedAt = _clock.UtcNow;
         }
 
@@ -894,23 +898,15 @@ internal sealed class ChainSources : IChainSources
     }
 
     /// <summary>
-    /// Measures a probe kept from an earlier round against a newer round's highest height: lower by more than
-    /// <see cref="HeightMargin"/> is behind, and lower at all is not in step.
+    /// Gives a probe kept from an earlier round as it answered, before it was measured against that round, so that it
+    /// can be measured against the new one.
     /// </summary>
     /// <param name="kept">The earlier probe.</param>
-    /// <param name="highest">The newer round's highest height, or <see langword="null"/> when none answered.</param>
-    /// <returns>The probe as it stands now.</returns>
-    private static EndpointProbe Against(EndpointProbe kept, long? highest)
-    {
-        if (kept.Height is not { } height || highest is not { } top || height >= top
-            || kept.Outcome is not (ProbeOutcome.Answered or ProbeOutcome.Behind))
-        {
-            return kept;
-        }
-
-        return Ranked([kept with { Outcome = ProbeOutcome.Answered, BlocksBehind = null, Problem = null },
-            new EndpointProbe(Guid.Empty, ProbeOutcome.Answered, top, null, null, kept.At, null)])[0];
-    }
+    /// <returns>An answer as <see cref="ProbeOutcome.Answered"/> without how far behind it was; any other as it is.</returns>
+    private static EndpointProbe Unranked(EndpointProbe kept) =>
+        kept.Outcome is ProbeOutcome.Answered or ProbeOutcome.Behind
+            ? kept with { Outcome = ProbeOutcome.Answered, BlocksBehind = null, Problem = null }
+            : kept;
 
     /// <summary>
     /// Notes a lookup's outcome through an endpoint, telling only a change. A failure starts or doubles the pause
