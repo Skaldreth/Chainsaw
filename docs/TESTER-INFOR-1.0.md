@@ -119,3 +119,21 @@ Spårningen har inget gränssnitt än. Det provas när grafen (GR4) är byggd, h
   öppnats; tas den tillbaka står den kvar förseglad, och `/verify` är grönt.
 - Nodernas platser i fri yta och i hoppkolumner står kvar efter att ärendet stängts och öppnats.
 
+
+## Etiketterna (etapp 8, Attribution)
+
+Etiketterna har inget gränssnitt än. Det provas när grafen och vyn Etiketter är byggda.
+
+- Importera OFAC:s riktiga SDN-lista (`sdn.xml`, sparad från OFAC:s webbplats): importen går på några sekunder,
+  antalet adresser per valuta stämmer ungefär med listan, och filen ligger orörd i
+  `%LOCALAPPDATA%\Chainsaw\Sanktionslistor` med sin SHA-256 i namnet. Jämför hashen med `Get-FileHash`.
+- En känd sanktionerad adress (ur listan) som expanderas i ett ärende märks *Sanktionerad*, och *varför?* visar listans
+  datum, hash, postens uid och program.
+- En egen etikett *Börs* på en adress gör att spåret slutar där med *Börs, uttag funnet*, och *varför?* säger att det är
+  en bedömning med vem, när och varför.
+- Två ärenden: en etikett i det första syns i det andra som *från ett annat ärende* när samma adress finns där, utan
+  ärendenummer, anteckning eller skäl. En etikett märkt *Sprid inte* och en etikett på ett offer syns inte.
+- En kollegas ärendefil (öppnad med delningslösenordet) ger sina etiketter till biblioteket, och de syns sedan i egna
+  ärenden med samma adresser.
+- `%LOCALAPPDATA%\Chainsaw\Etiketter\bibliotek.bin` går inte att läsa i en texteditor (krypterad).
+- `/verify` är grönt efter etiketter, tillbakatagningar och etiketter från andra ärenden.
