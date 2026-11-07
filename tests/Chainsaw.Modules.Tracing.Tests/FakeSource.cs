@@ -1,3 +1,4 @@
+using Chainsaw.SharedKernel;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
@@ -227,4 +228,13 @@ internal sealed class FakeLabels : ITrailEndClassifier
             : [];
 
     public IReadOnlyList<TrailEndHint> ClassifyTransaction(ICase @case, BitcoinTransaction transaction) => [];
+
+    public Dictionary<ChainAddress, TrailEndReason> Accounts { get; } = [];
+
+    public IReadOnlyDictionary<ChainAddress, IReadOnlyList<TrailEndHint>> ClassifyAccounts(
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
+        addresses.Distinct().Where(Accounts.ContainsKey).ToDictionary(
+            address => address,
+            address => (IReadOnlyList<TrailEndHint>)[new TrailEndHint(
+                Accounts[address], "test-labels v1", $"Märkt i testet som {Accounts[address].Describe()}.")]);
 }

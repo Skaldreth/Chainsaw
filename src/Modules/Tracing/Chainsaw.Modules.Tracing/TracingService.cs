@@ -29,11 +29,21 @@ internal sealed class TracingService : ITracingService
     /// <summary>The newest version of each tracing method for Bitcoin's coins.</summary>
     private readonly IReadOnlyDictionary<TracingMethodKind, IUtxoTracingMethod> _methods;
 
+    /// <summary>The newest version of each tracing method for Ethereum's accounts.</summary>
+    private readonly IReadOnlyDictionary<TracingMethodKind, IAccountTracingMethod> _accountMethods;
+
+    /// <summary>Why Ethereum has no tracing methods, when they are registered wrongly; otherwise null.</summary>
+    private readonly string? _accountProblem;
+
+    /// <summary>Ethereum's facts, read for the graph.</summary>
+    private readonly EthereumReader _ethereum;
+
     /// <summary>The clock.</summary>
     private readonly IClock _clock;
 
     /// <summary>Creates the service.</summary>
     /// <param name="source">Bitcoin's facts.</param>
+    /// <param name="ethereum">Ethereum's facts.</param>
     /// <param name="clustering">The clusters and the analyses.</param>
     /// <param name="classifiers">What recognises the ends of the trail.</param>
     /// <param name="methods">
@@ -45,6 +55,7 @@ internal sealed class TracingService : ITracingService
     /// </exception>
     public TracingService(
         IBitcoinSource source,
+        IEthereumSource ethereum,
         IClusteringService clustering,
         IEnumerable<ITrailEndClassifier> classifiers,
         IEnumerable<ITracingMethod> methods,
@@ -53,13 +64,20 @@ internal sealed class TracingService : ITracingService
         _source = source;
         _clustering = clustering;
         _classifiers = [.. classifiers];
-        _methods = TracingMethods.For<IUtxoTracingMethod>(methods, Chain.Bitcoin);
+        var all = methods.ToList();
+        _methods = TracingMethods.For<IUtxoTracingMethod>(all, Chain.Bitcoin);
+        _accountMethods = AccountMethodsFor(all, out _accountProblem);
+        _ethereum = new EthereumReader(ethereum);
         _clock = clock;
     }
 
     /// <inheritdoc/>
     public IReadOnlyList<TracingMethodId> Methods =>
         [.. _methods.Values.Select(method => method.Id).OrderBy(id => id.Kind)];
+
+    /// <inheritdoc/>
+    public IReadOnlyList<TracingMethodId> AccountMethods =>
+        [.. _accountMethods.Values.Select(method => method.Id).OrderBy(id => id.Kind)];
 
     /// <inheritdoc/>
     public Task<TraceGraph> LoadAsync(ICase @case, CancellationToken cancellationToken = default)
@@ -118,13 +136,19 @@ internal sealed class TracingService : ITracingService
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(request);
-        if ((request.Address is null) == (request.Txid is null))
+        var subjects = new object?[]
+        {
+            request.Address, request.Txid, request.EthereumAddress, request.EthereumTransaction,
+        }.Count(subject => subject is not null);
+        if (subjects != 1)
         {
             throw new ArgumentException("Expand either an address or a transaction.", nameof(request));
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(request.MaximumTransactions, 1, nameof(request));
-        return Task.Run(() => ExpandCoreAsync(@case, request, cancellationToken), cancellationToken);
+        return request.EthereumAddress is null && request.EthereumTransaction is null
+            ? Task.Run(() => ExpandCoreAsync(@case, request, cancellationToken), cancellationToken)
+            : Task.Run(() => ExpandEthereumAsync(@case, request, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -246,6 +270,22 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
+    public Task<AccountTraceResult> TraceAccountsAsync(
+        TraceGraph graph, AccountTraceRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(request);
+        if (!_accountMethods.TryGetValue(request.Method, out var method))
+        {
+            throw new ArgumentException(
+                _accountProblem ?? "The tracing method is not registered for Ethereum.", nameof(request));
+        }
+
+        return Task.Run(
+            () => AccountTraceCalculator.Trace(graph, method, request.Seeds, cancellationToken), cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public GraphViewState GetView(ICase @case)
     {
         ArgumentNullException.ThrowIfNull(@case);
@@ -283,6 +323,28 @@ internal sealed class TracingService : ITracingService
             GraphStateStore.SaveView(transaction, view, utc);
             return changed;
         });
+    }
+
+    /// <summary>
+    /// Gives Ethereum's tracing methods. A method registered wrongly for Ethereum never stops Bitcoin (as for the
+    /// heuristics): Ethereum then has none, and a trace there is refused with why.
+    /// </summary>
+    /// <param name="methods">Every registered method.</param>
+    /// <param name="problem">Why there are none, or <see langword="null"/>.</param>
+    /// <returns>The newest version of each method for Ethereum, by kind.</returns>
+    private static IReadOnlyDictionary<TracingMethodKind, IAccountTracingMethod> AccountMethodsFor(
+        IReadOnlyList<ITracingMethod> methods, out string? problem)
+    {
+        try
+        {
+            problem = null;
+            return TracingMethods.For<IAccountTracingMethod>(methods, Chain.Ethereum);
+        }
+        catch (ArgumentException exception)
+        {
+            problem = exception.Message;
+            return new Dictionary<TracingMethodKind, IAccountTracingMethod>();
+        }
     }
 
     /// <summary>Names a method with the version that counts by it, for example <c>FIFO v1</c>.</summary>
@@ -330,6 +392,50 @@ internal sealed class TracingService : ITracingService
             Build(@case, data))
         {
             HeldBack = step.HeldBack,
+        };
+    }
+
+    /// <summary>
+    /// Expands an Ethereum address's history or an Ethereum transaction, records what came in and builds the graph.
+    /// The clustering analyses are Bitcoin's and do not run.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="request">What to expand.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>What came in and the graph.</returns>
+    private async Task<ExpansionResult> ExpandEthereumAsync(
+        ICase @case, ExpansionRequest request, CancellationToken cancellationToken)
+    {
+        var state = @case.Read(GraphStateStore.Read);
+        var before = state.EthereumTransactions
+            .Concat(state.EthereumHistories.SelectMany(expansion => expansion.EthereumTransactions)).ToHashSet();
+        var step = request.EthereumAddress is { } address
+            ? await _ethereum.ExpandAddressAsync(@case, address, request.MaximumTransactions, cancellationToken)
+                .ConfigureAwait(false)
+            : await _ethereum.ExpandTransactionAsync(@case, request.EthereumTransaction!, cancellationToken)
+                .ConfigureAwait(false);
+        if (!step.Answered)
+        {
+            var unchanged = await LoadAsync(@case, cancellationToken).ConfigureAwait(false);
+            return new ExpansionResult(ExpansionOutcome.NotExpanded, [], step.Problem, unchanged);
+        }
+
+        var expansion = new Expansion(null, null, [], step.Problem is null, _clock.UtcNow)
+        {
+            EthereumAddress = request.EthereumAddress,
+            EthereumTransaction = request.EthereumTransaction,
+            EthereumTransactions = step.Transactions,
+        };
+        @case.Write(transaction => GraphStateStore.SaveExpansion(transaction, expansion));
+        var data = await ReadDataAsync(@case, cancellationToken).ConfigureAwait(false);
+        return new ExpansionResult(
+            expansion.IsComplete ? ExpansionOutcome.Expanded : ExpansionOutcome.Partly,
+            [],
+            Join(step.Problem, step.Notes),
+            Build(@case, data))
+        {
+            HeldBack = step.HeldBack,
+            NewEthereumTransactions = [.. step.Transactions.Where(hash => !before.Contains(hash))],
         };
     }
 
@@ -554,7 +660,10 @@ internal sealed class TracingService : ITracingService
                 answer.Value, answer.Status == LookupStatus.FromCaseMayBeOutdated));
         }
 
-        return new GraphData(state, transactions, spends, problems);
+        var account = state.EthereumTransactions.Count > 0 || state.EthereumHistories.Count > 0
+            ? await _ethereum.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false)
+            : AccountData.Empty;
+        return new GraphData(state, transactions, spends, problems) { Account = account };
     }
 
     /// <summary>Builds the graph with the clusters and the ends of the trail.</summary>
@@ -571,6 +680,7 @@ internal sealed class TracingService : ITracingService
         var addresses = GraphAddresses(data);
         var clusters = _clustering.GetClusters(@case, addresses);
         var ends = AddressEnds(@case, addresses);
+        var accountEnds = AccountEnds(@case, data);
         return GraphBuilder.Build(data, new GraphKnowledge(
             address => clusters.TryGetValue(address, out var cluster)
                 ? [.. cluster.Addresses]
@@ -579,7 +689,40 @@ internal sealed class TracingService : ITracingService
                 ? ends.GetValueOrDefault(address) ?? []
                 : [.. _classifiers.SelectMany(classifier => classifier.ClassifyAddress(@case, address))],
             transaction => [.. _classifiers.SelectMany(
-                classifier => classifier.ClassifyTransaction(@case, transaction))]));
+                classifier => classifier.ClassifyTransaction(@case, transaction))])
+        {
+            AccountEnds = account => accountEnds.GetValueOrDefault(account) ?? [],
+        });
+    }
+
+    /// <summary>
+    /// Asks every classifier once about the Ethereum addresses the graph shows, and joins their hints per address.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="data">The data.</param>
+    /// <returns>The hints of each address that has any.</returns>
+    private Dictionary<ChainAddress, IReadOnlyList<TrailEndHint>> AccountEnds(ICase @case, GraphData data)
+    {
+        var ends = new Dictionary<ChainAddress, IReadOnlyList<TrailEndHint>>();
+        var addresses = data.State.StartPoints.Select(start => start.EthereumAddress).OfType<EthereumAddress>()
+            .Concat(data.Account.Transfers.SelectMany(transfer => new[] { transfer.From, transfer.To }))
+            .Concat(data.Account.Transactions.Values.Select(transaction => transaction.From))
+            .Select(address => address.ToChainAddress())
+            .ToHashSet();
+        if (addresses.Count == 0)
+        {
+            return ends;
+        }
+
+        foreach (var classifier in _classifiers)
+        {
+            foreach (var (address, hints) in classifier.ClassifyAccounts(@case, addresses))
+            {
+                ends[address] = ends.TryGetValue(address, out var earlier) ? [.. earlier, .. hints] : hints;
+            }
+        }
+
+        return ends;
     }
 
     /// <summary>Gives every address the graph shows: the start addresses and those its transactions touch.</summary>

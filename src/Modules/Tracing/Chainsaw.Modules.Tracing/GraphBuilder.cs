@@ -60,6 +60,8 @@ internal sealed class GraphBuilder
         }
 
         AddCrossChainLinks();
+        AddAccounts();
+        problems.AddRange(_data.Account.Problems);
         var starts = StartNodes(problems);
         var hops = Hops(starts);
         _firstReceived = _edges
@@ -68,7 +70,7 @@ internal sealed class GraphBuilder
             .GroupBy(pair => pair.To, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Min(pair => pair.Time!.Value), StringComparer.Ordinal);
         _expansions = _data.State.Expansions
-            .GroupBy(expansion => expansion.Address?.Value ?? expansion.Txid!.Value, StringComparer.Ordinal)
+            .GroupBy(expansion => expansion.Subject, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
         var transactionEnds = transactions
             .Select(tx => (tx.Txid, Ends: _knowledge.TransactionEnds(tx)))
@@ -85,6 +87,7 @@ internal sealed class GraphBuilder
             .OrderBy(edge => edge.FirstTime ?? DateTimeOffset.MaxValue)
             .ThenBy(edge => edge.Key, StringComparer.Ordinal)
             .ToList();
+        var account = _data.Account;
         return new TraceGraph(
             _data.State.StartPoints,
             nodes,
@@ -92,7 +95,55 @@ internal sealed class GraphBuilder
             new UtxoGraph(_data.Transactions, Spends(transactions), transactionEnds),
             _data.State.Links,
             _data.State.Expansions,
-            problems);
+            problems)
+        {
+            Account = new AccountGraph(
+                account.Transfers, account.Fees, account.Transactions, account.ReadAccounts, account.Swaps())
+            {
+                MayBeOutdated = account.MayBeOutdated,
+            },
+        };
+    }
+
+    /// <summary>
+    /// Makes a node for every Ethereum address in the graph (the start addresses and those the movements touch) and
+    /// an edge per pair of accounts and asset for the movements. The account model's heuristics are not built yet, so
+    /// every address is its own actor.
+    /// </summary>
+    private void AddAccounts()
+    {
+        var account = _data.Account;
+        var addresses = _data.State.StartPoints.Select(start => start.EthereumAddress).OfType<EthereumAddress>()
+            .Concat(account.Transfers.SelectMany(transfer => new[] { transfer.From, transfer.To }))
+            .Concat(account.Transactions.Values.Select(transaction => transaction.From))
+            .Distinct()
+            .OrderBy(address => address.Value, StringComparer.Ordinal);
+        foreach (var address in addresses)
+        {
+            AccountNode(address);
+        }
+
+        foreach (var transfer in account.Transfers.Where(transfer => transfer.From != transfer.To))
+        {
+            AddTransfer(
+                GraphEdgeKind.Transfer,
+                AccountNode(transfer.From).Key,
+                AccountNode(transfer.To).Key,
+                AssetTransfer.OfEthereum(transfer, account.BlockOf(transfer.Block)));
+        }
+    }
+
+    /// <summary>Gives the node of an Ethereum address, making it the first time.</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The node.</returns>
+    private NodeDraft AccountNode(EthereumAddress address)
+    {
+        var chainAddress = address.ToChainAddress();
+        return AddNode(new NodeDraft(NodeKeys.Account(chainAddress), GraphNodeKind.Address)
+        {
+            Chain = Chain.Ethereum,
+            Accounts = [chainAddress],
+        });
     }
 
     /// <summary>
@@ -281,7 +332,22 @@ internal sealed class GraphBuilder
         var starts = new List<string>();
         foreach (var start in _data.State.StartPoints)
         {
-            if (start.Address is { } address)
+            if (start.EthereumAddress is { } account)
+            {
+                starts.Add(AccountNode(account).Key);
+            }
+            else if (start.EthereumTransaction is { } hash)
+            {
+                if (_data.Account.Transactions.TryGetValue(hash, out var whole))
+                {
+                    starts.Add(AccountNode(whole.From).Key);
+                }
+                else if (!problems.Any(problem => problem.Contains(hash.Value, StringComparison.Ordinal)))
+                {
+                    problems.Add($"Startpunkten {hash} finns inte i ärendet än; den visas när den har hämtats.");
+                }
+            }
+            else if (start.Address is { } address)
             {
                 starts.Add(_byAddress[address].Key);
             }
@@ -433,12 +499,14 @@ internal sealed class GraphBuilder
         DateTimeOffset? firstReceived = _firstReceived.TryGetValue(draft.Key, out var first) ? first : null;
         IReadOnlyList<TrailEndHint> ends = draft.Kind switch
         {
+            GraphNodeKind.Address when draft.Accounts.Count > 0 =>
+                [.. draft.Accounts.SelectMany(_knowledge.AccountEnds).Distinct()],
             GraphNodeKind.Address or GraphNodeKind.Cluster =>
                 [.. draft.Addresses.SelectMany(_knowledge.AddressEnds).Distinct()],
             GraphNodeKind.Transaction => transactionEnds.GetValueOrDefault(draft.Transaction!) ?? [],
             _ => [],
         };
-        return new GraphNode(
+        var node = new GraphNode(
             draft.Key,
             draft.Kind,
             draft.Addresses,
@@ -452,6 +520,7 @@ internal sealed class GraphBuilder
             Expansion(draft),
             ends,
             Positions(draft));
+        return draft.Accounts.Count == 0 ? node : node with { Chain = draft.Chain, Accounts = draft.Accounts };
     }
 
     /// <summary>Says how far a node has been expanded.</summary>
@@ -459,6 +528,16 @@ internal sealed class GraphBuilder
     /// <returns>How far.</returns>
     private NodeExpansion Expansion(NodeDraft draft)
     {
+        if (draft.Accounts.Count > 0)
+        {
+            return _expansions.GetValueOrDefault(draft.Accounts[0].Value) switch
+            {
+                null => NodeExpansion.NotExpanded,
+                { IsComplete: true } => NodeExpansion.Expanded,
+                _ => NodeExpansion.Partly,
+            };
+        }
+
         switch (draft.Kind)
         {
             case GraphNodeKind.Address or GraphNodeKind.Cluster:
@@ -489,7 +568,7 @@ internal sealed class GraphBuilder
     /// <returns>The places by layout.</returns>
     private Dictionary<GraphLayout, NodePosition> Positions(NodeDraft draft)
     {
-        var keys = draft.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster
+        var keys = draft.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster && draft.Accounts.Count == 0
             ? draft.Addresses.Select(NodeKeys.Address)
             : [NodeKeys.Position(draft.Key)];
         return keys
@@ -522,6 +601,8 @@ internal sealed class GraphBuilder
             .OrderBy(transfer => transfer.Block?.Height ?? long.MaxValue)
             .ThenBy(transfer => transfer.Transaction.Id, StringComparer.Ordinal)
             .ThenBy(transfer => transfer.Coin?.Index ?? -1)
+            .ThenBy(transfer => transfer.Position)
+            .ThenBy(transfer => transfer.Movement)
             .ToList();
         var direction = hops.TryGetValue(from, out var fromHop) && hops.TryGetValue(to, out var toHop)
             ? Direction(toHop - fromHop)
@@ -589,5 +670,11 @@ internal sealed class GraphBuilder
 
         /// <summary>Gets the other chain's transaction.</summary>
         public ChainTransactionRef? OtherChain { get; init; }
+
+        /// <summary>Gets the chain an account is on.</summary>
+        public Chain Chain { get; init; } = Chain.Bitcoin;
+
+        /// <summary>Gets the node's addresses on an account chain; empty on Bitcoin.</summary>
+        public IReadOnlyList<ChainAddress> Accounts { get; init; } = [];
     }
 }

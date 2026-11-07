@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Tracing;
 
@@ -21,6 +22,14 @@ internal static class NodeKeys
     /// <param name="representative">The representative address.</param>
     /// <returns>The key.</returns>
     public static string Cluster(BitcoinAddress representative) => ClusterPrefix + representative.Value;
+
+    /// <summary>The prefix of an address's node on an account chain.</summary>
+    public const string AccountPrefix = "account:";
+
+    /// <summary>The key of an address's node on an account chain: the chain and the address.</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The key, for example <c>account:Ethereum:0x…</c>.</returns>
+    public static string Account(ChainAddress address) => AccountPrefix + address.Chain + ":" + address.Value;
 
     /// <summary>The key of a transaction's node.</summary>
     /// <param name="txid">The transaction.</param>

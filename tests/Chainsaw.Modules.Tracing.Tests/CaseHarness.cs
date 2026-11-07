@@ -30,6 +30,7 @@ internal sealed class CaseHarness : IDisposable
         services.AddSingleton<IOperatorProfileStore>(Profiles);
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IBitcoinSource>(Source);
+        services.AddSingleton<IEthereumSource>(Ethereum);
         services.AddCasesModule(options =>
         {
             options.Directory = _directory;
@@ -50,6 +51,8 @@ internal sealed class CaseHarness : IDisposable
     public FakeClock Clock { get; } = new();
 
     public FakeSource Source { get; } = new();
+
+    public FakeEthereumSource Ethereum { get; } = new();
 
     public FakeLabels Labels { get; } = new();
 
