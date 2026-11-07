@@ -183,7 +183,8 @@ internal sealed class NetworkHarness
         };
     }
 
-    public const string Configuration = "[Interface]\nPrivateKey = test-private-key-not-real\n";
+    public const string Configuration =
+        "[Interface]\nPrivateKey = test-private-key-not-real\nDNS = 10.64.0.1\n";
 
     public FakeSecrets Secrets { get; } = new();
 

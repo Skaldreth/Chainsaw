@@ -72,7 +72,8 @@ public sealed class NetworkModuleTests : IDisposable
         using var provider = BuildProvider();
         provider.GetRequiredService<IVault>().Create(MasterKey);
         var store = provider.GetRequiredService<IExitStore>();
-        var exit = store.Add("Exit A", "Stockholm", ExitKind.WireGuard, "[Interface]\nPrivateKey = not-real\n");
+        var configuration = "[Interface]\nPrivateKey = not-real\nDNS = 10.64.0.1\n";
+        var exit = store.Add("Exit A", "Stockholm", ExitKind.WireGuard, configuration);
         await store.SelectAsync(exit.Id);
 
         var status = await provider.GetRequiredService<IExitConnection>().ConnectAsync();
@@ -103,7 +104,8 @@ public sealed class NetworkModuleTests : IDisposable
         {
             provider.GetRequiredService<IVault>().Create(MasterKey);
             var store = provider.GetRequiredService<IExitStore>();
-            id = store.Add("Exit-name-marker", "Place-marker", ExitKind.WireGuard, "[Interface]\n" + marker).Id;
+            var configuration = "[Interface]\nDNS = 10.64.0.1\n" + marker;
+            id = store.Add("Exit-name-marker", "Place-marker", ExitKind.WireGuard, configuration).Id;
             await store.SelectAsync(id);
         }
 

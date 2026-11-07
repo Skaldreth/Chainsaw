@@ -16,7 +16,8 @@ public interface IExitStore
     /// <param name="kind">The sort of tunnel.</param>
     /// <param name="configuration">
     /// The tunnel's configuration, for WireGuard the text of the <c>.conf</c> file; not blank, at most
-    /// <see cref="ExitRules.MaximumConfigurationLength"/> characters. It holds the private key and is never logged.
+    /// <see cref="ExitRules.MaximumConfigurationLength"/> characters, and with a <c>DNS =</c> line, so that names are
+    /// resolved inside the tunnel. It holds the private key and is never logged.
     /// </param>
     /// <returns>The new exit with its id.</returns>
     /// <exception cref="ArgumentException">A value is not allowed.</exception>

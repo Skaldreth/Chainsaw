@@ -106,6 +106,8 @@ public sealed class ExitHttpTests
         await _harness.Http.SendAsync(ExitRequest.Get(Address));
 
         var request = Assert.Single(_harness.Handlers.Handlers[0].Requests);
+        Assert.Equal(HttpVersion.Version11, request.Version);
+        Assert.Equal(HttpVersionPolicy.RequestVersionExact, request.VersionPolicy);
         var header = Assert.Single(request.Headers.NonValidated);
         Assert.Equal("User-Agent", header.Key);
         Assert.Equal(NetworkOptions.UserAgent, header.Value.ToString());
@@ -167,6 +169,22 @@ public sealed class ExitHttpTests
     [InlineData("https://[fe80::1]/tx")]
     [InlineData("https://[fd00::1]/tx")]
     [InlineData("https://[::ffff:192.168.1.1]/tx")]
+    [InlineData("https://2130706433/tx")]
+    [InlineData("https://0x7f.1/tx")]
+    [InlineData("https://0177.0.0.1/tx")]
+    [InlineData("https://127.0.0.1./tx")]
+    [InlineData("https://localhost./tx")]
+    [InlineData("https://224.0.0.1/tx")]
+    [InlineData("https://240.0.0.1/tx")]
+    [InlineData("https://255.255.255.255/tx")]
+    [InlineData("https://198.18.0.1/tx")]
+    [InlineData("https://192.0.0.8/tx")]
+    [InlineData("https://[::127.0.0.1]/tx")]
+    [InlineData("https://[::ffff:0:7f00:1]/tx")]
+    [InlineData("https://[64:ff9b::7f00:1]/tx")]
+    [InlineData("https://[2002:7f00:1::]/tx")]
+    [InlineData("https://[fec0::1]/tx")]
+    [InlineData("https://[ff02::1]/tx")]
     public async Task An_address_on_the_computer_or_a_private_network_is_refused(string address)
     {
         await _harness.ConnectedExitAsync();
@@ -181,6 +199,9 @@ public sealed class ExitHttpTests
     [InlineData("https://172.32.0.1/tx")]
     [InlineData("https://8.8.8.8/tx")]
     [InlineData("https://[2001:db8::1]/tx")]
+    [InlineData("https://[2002:808:808::1]/tx")]
+    [InlineData("https://[::ffff:8.8.8.8]/tx")]
+    [InlineData("https://[64:ff9b::808:808]/tx")]
     [InlineData("https://localhost.example/tx")]
     public async Task A_public_address_is_allowed(string address)
     {

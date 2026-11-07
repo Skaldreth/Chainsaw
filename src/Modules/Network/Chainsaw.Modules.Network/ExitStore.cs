@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Chainsaw.Modules.Network.Contracts;
 
 namespace Chainsaw.Modules.Network;
@@ -5,8 +6,11 @@ namespace Chainsaw.Modules.Network;
 /// <summary>The exits in the vault and the program's selected exit.</summary>
 /// <param name="records">The exits as secrets in the vault.</param>
 /// <param name="connection">The connection, which is disconnected before its exit is deselected or removed.</param>
-internal sealed class ExitStore(ExitRecords records, ExitConnection connection) : IExitStore
+internal sealed partial class ExitStore(ExitRecords records, ExitConnection connection) : IExitStore
 {
+    /// <summary>A WireGuard line that names a DNS server, for example <c>DNS = 10.64.0.1</c>.</summary>
+    private static readonly Regex DnsLine = DnsLinePattern();
+
     /// <inheritdoc />
     public IReadOnlyList<ExitInfo> List() => records.List();
 
@@ -25,6 +29,13 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
             // The message names the rule only; the configuration holds a private key and is never part of a message.
             throw new ArgumentException(
                 $"The configuration must not be blank or longer than {ExitRules.MaximumConfigurationLength} characters.",
+                nameof(configuration));
+        }
+
+        if (!DnsLine.IsMatch(configuration))
+        {
+            throw new ArgumentException(
+                "The configuration must name a DNS server (DNS =), so that names are resolved inside the tunnel.",
                 nameof(configuration));
         }
 
@@ -90,4 +101,9 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
             throw new ArgumentException($"The text is blank or longer than {maximumLength} characters.", parameterName);
         }
     }
+
+    /// <summary>Builds the pattern for <see cref="DnsLine"/>.</summary>
+    /// <returns>The compiled pattern.</returns>
+    [GeneratedRegex(@"^[ \t]*DNS[ \t]*=[ \t]*\S", RegexOptions.IgnoreCase | RegexOptions.Multiline)]
+    private static partial Regex DnsLinePattern();
 }

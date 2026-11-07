@@ -224,5 +224,8 @@ public sealed class SocksPipelineTests : IAsyncLifetime
         Assert.Equal(
             System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck,
             handler.SslOptions.CertificateChainPolicy.RevocationMode);
+        Assert.Equal(
+            System.Security.Cryptography.X509Certificates.X509ChainTrustMode.CustomRootTrust,
+            handler.SslOptions.CertificateChainPolicy.TrustMode);
     }
 }

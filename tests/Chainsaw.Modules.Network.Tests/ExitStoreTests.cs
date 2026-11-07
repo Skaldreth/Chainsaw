@@ -62,6 +62,26 @@ public sealed class ExitStoreTests
         Assert.Empty(_harness.Secrets.All);
     }
 
+    [Theory]
+    [InlineData("[Interface]\nPrivateKey = k\n")]
+    [InlineData("[Interface]\nPrivateKey = k\n# DNS = 10.64.0.1\n")]
+    [InlineData("[Interface]\nPrivateKey = k\nDNS =\n")]
+    public void A_configuration_without_a_dns_server_is_refused(string configuration)
+    {
+        Assert.Throws<ArgumentException>(() => _harness.Store.Add("Exit", "", ExitKind.WireGuard, configuration));
+        Assert.Empty(_harness.Secrets.All);
+    }
+
+    [Theory]
+    [InlineData("[Interface]\nPrivateKey = k\nDNS = 10.64.0.1\n")]
+    [InlineData("[Interface]\r\nPrivateKey = k\r\n  dns=10.64.0.1, 10.64.0.2\r\n")]
+    public void A_configuration_with_a_dns_server_is_accepted(string configuration)
+    {
+        _harness.Store.Add("Exit", "", ExitKind.WireGuard, configuration);
+
+        Assert.Single(_harness.Secrets.All);
+    }
+
     [Fact]
     public void The_message_of_a_refused_configuration_does_not_contain_it()
     {

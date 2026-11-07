@@ -161,6 +161,71 @@ public sealed class ExitConnectionRaceTests
         }
     }
 
+    [Fact]
+    public async Task A_cancellation_just_after_the_exit_is_published_leaves_it_connected_and_usable()
+    {
+        await _harness.SelectedExitAsync();
+        using var cancel = new CancellationTokenSource();
+        _harness.Connection.StatusChanged += (_, status) =>
+        {
+            if (status.State == ExitState.Connected)
+            {
+                cancel.Cancel();
+            }
+        };
+
+        var status = await _harness.Connection.ConnectAsync(cancel.Token);
+
+        Assert.Equal(ExitState.Connected, status.State);
+        Assert.True(_harness.Connection.TryLease(out _));
+        Assert.False(_harness.Connector.Tunnels[0].Disposed);
+        await _harness.Http.SendAsync(ExitRequest.Get(new Uri("https://chain.example/")));
+    }
+
+    [Fact]
+    public async Task A_proxy_written_as_an_ipv4_mapped_address_is_used_as_ipv4()
+    {
+        _harness.Connector.Proxy = new IPEndPoint(IPAddress.Parse("::ffff:127.0.0.1"), 49_300);
+
+        await _harness.ConnectedExitAsync();
+
+        Assert.Equal(new IPEndPoint(IPAddress.Loopback, 49_300), Assert.Single(_harness.Handlers.Proxies));
+    }
+
+    [Fact]
+    public async Task Removing_another_exit_does_not_cancel_an_attempt_to_connect_the_selected_one()
+    {
+        await _harness.SelectedExitAsync("Exit A");
+        var other = _harness.Store.Add("Exit B", "Oslo", ExitKind.WireGuard, NetworkHarness.Configuration);
+        _harness.Connector.Gate = new TaskCompletionSource();
+
+        var connecting = _harness.Connection.ConnectAsync();
+        var removing = _harness.Store.RemoveAsync(other.Id);
+        _harness.Connector.Gate.SetResult();
+
+        Assert.Equal(ExitState.Connected, (await connecting).State);
+        Assert.True(await removing);
+    }
+
+    [Fact]
+    public async Task Disposing_waits_for_a_tunnel_that_is_stopping_after_it_fell()
+    {
+        await _harness.ConnectedExitAsync();
+        var tunnel = _harness.Connector.Tunnels[0];
+        var slowStop = new TaskCompletionSource();
+        tunnel.StopGate = slowStop.Task;
+        tunnel.Drop();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            slowStop.SetResult();
+        });
+
+        _harness.Connection.Dispose();
+
+        Assert.True(tunnel.Disposed);
+    }
+
     /// <summary>A connector that hands over its tunnel only when told to, whatever its token says.</summary>
     private sealed class HandOverAfterConnector(Task release) : IExitConnector
     {

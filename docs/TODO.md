@@ -110,6 +110,11 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
 - **Certifikatkedjor som saknar en mellanliggande nivå:** för att operativsystemet inte ska hämta något runt utgången
   (AIA och spärrlistor) hämtas inga certifikat och spärrar kontrolleras inte. En källa som skickar en ofullständig kedja
   går då inte att nå. Spärrkontroll genom utgången kan byggas senare om det behövs (granskningen etapp 4, C).
+- **Tunnelns namnuppslag:** tunnelns proxy ska slå upp namn inne i tunneln (med WireGuard-filens `DNS =`), aldrig
+  med datorns resolver, och vägra ansluta till en adress på datorn eller ett privat nät också när ett namn pekar dit
+  (kontraktet i `IExitTunnel` säger det). Prova det med den riktiga tunneln.
+- **Rötter som läggs till medan Chainsaw är igång:** de betrodda rötterna läses när en utgång ansluts. En rot som
+  Windows lägger till senare gäller från nästa anslutning.
 - **Gränssnittet för utgångar:** lägga till en WireGuard-fil, välja utgång, ansluta och koppla ner, och läget i
   titelraden (skissas först).
 - **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan

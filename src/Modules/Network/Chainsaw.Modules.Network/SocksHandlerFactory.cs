@@ -50,13 +50,44 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
     /// computer's network, around the exit. A server that sends an incomplete chain therefore fails.
     /// </summary>
     /// <returns>The policy, new for each pipeline since a policy is mutable.</returns>
-    internal static X509ChainPolicy OfflineChainPolicy() => new()
+    internal static X509ChainPolicy OfflineChainPolicy()
     {
-        DisableCertificateDownloads = true,
+        var policy = new X509ChainPolicy
+        {
+            DisableCertificateDownloads = true,
 
-        // Set explicitly: a policy's default is Online, which would fetch revocation lists around the exit.
-        RevocationMode = X509RevocationMode.NoCheck,
-    };
+            // Set explicitly: a policy's default is Online, which would fetch revocation lists around the exit.
+            RevocationMode = X509RevocationMode.NoCheck,
+
+            // Only the roots already on the computer: with the system's own trust, Windows fetches a missing root of
+            // its root programme from Windows Update, straight from the computer's network.
+            TrustMode = X509ChainTrustMode.CustomRootTrust,
+        };
+        policy.CustomTrustStore.AddRange(InstalledRoots());
+        return policy;
+    }
+
+    /// <summary>Reads the trusted roots installed for the user and the computer, as they are now.</summary>
+    /// <returns>The roots; a store that cannot be opened adds none.</returns>
+    private static X509Certificate2Collection InstalledRoots()
+    {
+        var roots = new X509Certificate2Collection();
+        foreach (var location in new[] { StoreLocation.CurrentUser, StoreLocation.LocalMachine })
+        {
+            try
+            {
+                using var store = new X509Store(StoreName.Root, location);
+                store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
+                roots.AddRange(store.Certificates);
+            }
+            catch (System.Security.Cryptography.CryptographicException)
+            {
+                // A store that does not exist or cannot be read gives no roots; chains to them then fail.
+            }
+        }
+
+        return roots;
+    }
 
     /// <summary>
     /// Opens the handler's socket, but only to the tunnel's proxy. Any other endpoint is refused before a socket is

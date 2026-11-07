@@ -58,6 +58,9 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
     /// </summary>
     private readonly HashSet<CancellationTokenSource> _attempts = [];
 
+    /// <summary>The tunnel stops still running on the thread pool (guarded by <see cref="_gate"/>).</summary>
+    private readonly HashSet<Task> _pendingStops = [];
+
     /// <summary>Whether the connection is disposed; a tunnel that is started afterwards is stopped at once.</summary>
     private bool _disposed;
 
@@ -145,7 +148,12 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
     /// <returns>What the change gave.</returns>
     public async Task<T> ChangeExitsAsync<T>(Func<Guid, bool> leaveConnected, Func<T> change)
     {
-        CancelAttempt();
+        // An attempt connects the selected exit, so it is cancelled only when that exit may not stay.
+        if (_records.SelectedId() is not { } selected || !leaveConnected(selected))
+        {
+            CancelAttempt();
+        }
+
         await _operation.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -203,10 +211,18 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
             finally
             {
                 // Off the caller's thread, so that a tunnel that awaits on a captured context cannot deadlock.
-                Task.Run(active.StopTunnelAsync).Wait(DisposeStopLimit);
+                TrackStop(Task.Run(active.StopTunnelAsync));
             }
         }
 
+        // Also the stops begun when a tunnel fell on its own, so that no helper is cut off when the application ends.
+        Task[] stops;
+        lock (_gate)
+        {
+            stops = [.. _pendingStops];
+        }
+
+        Task.WaitAll(stops, DisposeStopLimit);
         RaiseLatest();
 
         // The semaphore is not disposed: an operation in flight still releases it when it ends.
@@ -287,12 +303,13 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         var (invoker, stopped) = pipeline.Value;
         var active = new ActiveExit(exitId, tunnel, invoker);
         bool disposed;
+        bool publish;
         lock (_gate)
         {
-            // Checked under the same lock as the publication, so that a disconnect or a dispose that has cancelled
-            // the attempt can never be overtaken by it.
+            // Decided once, under the same lock as the publication: a disconnect or a dispose that cancelled the
+            // attempt before this point stops it; one that comes after takes the published exit down as usual.
             disposed = _disposed;
-            var publish = !disposed && !cancellationToken.IsCancellationRequested;
+            publish = !disposed && !cancellationToken.IsCancellationRequested;
             if (publish)
             {
                 _active = active;
@@ -306,13 +323,13 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
             }
         }
 
-        if (disposed || cancellationToken.IsCancellationRequested)
+        if (!publish)
         {
             active.Stop();
             await active.StopTunnelAsync().ConfigureAwait(false);
             RaiseLatest();
             ObjectDisposedException.ThrowIf(disposed, this);
-            cancellationToken.ThrowIfCancellationRequested();
+            throw new OperationCanceledException(cancellationToken);
         }
 
         // Watched after it is published, so that a tunnel that has already stopped is noticed at once.
@@ -364,11 +381,19 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
 
     /// <summary>Copies an address, so that a change to the original cannot reach the copy.</summary>
     /// <param name="address">The address.</param>
-    /// <returns>An equal, separate address.</returns>
-    private static IPAddress CopyOf(IPAddress address) =>
-        address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+    /// <returns>An equal, separate address; IPv4 for an IPv4-mapped one.</returns>
+    private static IPAddress CopyOf(IPAddress address)
+    {
+        // An IPv4 address written as IPv6 becomes plain IPv4, since an IPv6 socket on Windows cannot reach it.
+        if (address.IsIPv4MappedToIPv6)
+        {
+            return address.MapToIPv4();
+        }
+
+        return address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
             ? new IPAddress(address.GetAddressBytes(), address.ScopeId)
             : new IPAddress(address.GetAddressBytes());
+    }
 
     /// <summary>
     /// Stops the exit when its tunnel stops on its own; the state becomes failed with the connection lost. Runs inside
@@ -392,11 +417,11 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         }
 
         active.Stop();
-        _ = Task.Run(async () =>
+        TrackStop(Task.Run(async () =>
         {
             await active.StopTunnelAsync().ConfigureAwait(false);
             RaiseLatest();
-        });
+        }));
     }
 
     /// <summary>Disconnects the connected exit, if any; the caller holds the operation gate.</summary>
@@ -539,6 +564,28 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
                 // Dropped; see the summary of RaiseLatest.
             }
         }
+    }
+
+    /// <summary>Keeps a tunnel stop running on the thread pool until it ends, so that disposal can wait for it.</summary>
+    /// <param name="stop">The stop.</param>
+    private void TrackStop(Task stop)
+    {
+        lock (_gate)
+        {
+            _pendingStops.Add(stop);
+        }
+
+        stop.ContinueWith(
+            ended =>
+            {
+                lock (_gate)
+                {
+                    _pendingStops.Remove(ended);
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     /// <summary>Cancels every attempt to connect that has begun, also those still waiting for their turn.</summary>

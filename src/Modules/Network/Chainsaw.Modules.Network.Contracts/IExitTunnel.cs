@@ -2,7 +2,11 @@ using System.Net;
 
 namespace Chainsaw.Modules.Network.Contracts;
 
-/// <summary>A running tunnel to an exit. Disposing it stops the tunnel.</summary>
+/// <summary>
+/// A running tunnel to an exit. Disposing it stops the tunnel. The tunnel's proxy must resolve every name inside the
+/// tunnel (with the DNS server of the exit's configuration), never with the computer's own resolver, and must refuse
+/// to connect to an address on the computer or a private network, also when a name resolves to one.
+/// </summary>
 public interface IExitTunnel : IAsyncDisposable
 {
     /// <summary>

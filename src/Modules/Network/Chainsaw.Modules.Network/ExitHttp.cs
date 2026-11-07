@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.SharedKernel;
@@ -127,7 +128,12 @@ internal sealed class ExitHttp(ExitConnection connection, NetworkOptions options
     private static HttpRequestMessage BuildMessage(ExitRequest request)
     {
         var method = request.Method == ExitMethod.Post ? HttpMethod.Post : HttpMethod.Get;
-        var message = new HttpRequestMessage(method, request.Uri);
+        var message = new HttpRequestMessage(method, request.Uri)
+        {
+            // HTTP/1.1 exactly: HTTP/3 runs over UDP (QUIC), which neither the proxy nor the socket guard would carry.
+            Version = HttpVersion.Version11,
+            VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+        };
         message.Headers.TryAddWithoutValidation("User-Agent", NetworkOptions.UserAgent);
         message.Headers.ExpectContinue = false;
         if (request.Accept is not null)
