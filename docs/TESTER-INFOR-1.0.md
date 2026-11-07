@@ -220,7 +220,7 @@ Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i et
 ## Ärenden i appen (etapp 11, NC1a)
 
 **Nytt ärende**
-- Ctrl+N, ikonen *Nytt* i pillret och `/new` öppnar panelen från höger; resten av fönstret mörkas. Esc, Avbryt, × och
+- Ctrl+N, *Nytt → Ärende* i pillret och `/new` öppnar panelen från höger; resten av fönstret mörkas. Esc, Avbryt, × och
   ett klick på det mörka stänger den, och nästa gång är fälten tomma.
 - `/new 2026-0117` fyller i ärendenumret. Ctrl+Enter skapar.
 - Startpunkter, en per rad: under fältet står `BTC` och *Bitcoin-adress* eller *Bitcoin-tx* för varje rad, en
@@ -270,3 +270,39 @@ Jämför med skisserna ID7a och FS1a på canvasen, gärna i 1440 × 900 och i et
 
 **Förstagångsinställningen**
 - Första ärendet har nu *Titel* och *Startpunkt*, med raden om kedjan under startpunkten.
+
+## Undermenyer i pillret (etapp 11b, PN1)
+
+**Formen**
+- Klicka på *Nytt*: knappens runda form växer till en flik förbi pillrets högra kant och går över i menyn, som hänger
+  från flikens överkant. Under fliken möts de i ett rundat inre hörn. Flik och meny är en form med samma yta, en tunn
+  kant runt hela och en skugga under, och kanten är skarp (inte suddig) i 100 % och 150 % skalning.
+- Fliken ligger exakt över knappen (ikonen hoppar inte), och pillrets knapp syns inte igenom.
+- Raderna: Startpunkt S, Etikett E, Bevakning B, Begäran R, linje, Importera sanktionslista … I, linje, Ärende Ctrl+N.
+  Kortkommandona står till höger i grått.
+
+**Tonat och ärligt**
+- Utan ärende: Etikett, Bevakning och Begäran är tonade (grå text, vanlig pil, ingen markering på hovring), och
+  hovring visar *Inte byggt än: …*. Startpunkt, Importera sanktionslista och Ärende går att välja.
+- Med ett ärende öppet: samma rader är tonade, eftersom Etikett, Bevakning och Begäran inte är byggda.
+- Ett klick på en tonad rad gör inget och menyn står kvar.
+
+**Tangentbordet**
+- Tab till *Nytt* och Enter (eller Space) fäller ut menyn; Startpunkt är markerad. ↓ och ↑ hoppar över linjer och
+  tonade rader och går runt; Home och End går till första och sista. Enter väljer.
+- Medan menyn är öppen väljer S, I direkt; E, B och R gör inget. Ctrl+N öppnar Nytt ärende och stänger menyn.
+- Esc och ← stänger, och fokus står på *Nytt* igen (Enter öppnar igen). Tab lämnar inte menyn.
+- Ctrl+1 … Ctrl+7 stänger menyn och visar vyn. Ctrl+K stänger menyn och lägger markören i kommandoraden.
+- Ctrl+L med menyn öppen: låsskärmen visas, och efter upplåsning är menyn stängd.
+
+**Musen**
+- Ett klick utanför menyn stänger den; ett klick på en annan knapp i pillret stänger menyn och visar den vyn.
+- Ett klick på fliken stänger menyn. Byt till ett annat fönster (Alt+Tab): menyn är stängd när du kommer tillbaka.
+
+**Raderna**
+- *Startpunkt* utan ärende öppnar Nytt ärende. Med ett ärende öppet står markören i kommandoraden och ovanför står
+  *Skriv en adress eller en tx och tryck Enter, så blir den en startpunkt i …*; står det redan text i raden lämnas den.
+- *Importera sanktionslista …* öppnar Windows filväljare (XML). Välj en sparad SDN-lista från OFAC: svaret ovanför
+  raden säger *OFAC SDN publicerad … är importerad: n adresser, m för Bitcoin.* En annan XML-fil ger *Filen är inte en
+  SDN-lista i XML.* Avbryt säger inget. Listan ligger i `%LOCALAPPDATA%\Chainsaw` (etapp 8).
+- *Ärende* öppnar Nytt ärende.
