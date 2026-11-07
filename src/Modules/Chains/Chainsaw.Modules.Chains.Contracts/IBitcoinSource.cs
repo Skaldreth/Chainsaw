@@ -53,7 +53,8 @@ public interface IBitcoinSource
     /// <returns>The page.</returns>
     /// <exception cref="NotSupportedException">The source cannot ask in the mode.</exception>
     Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
-        ICase @case, BitcoinAddress address, Txid? after, LookupMode mode, CancellationToken cancellationToken = default)
+        ICase @case, BitcoinAddress address, Txid? after, LookupMode mode,
+        CancellationToken cancellationToken = default)
         => mode == LookupMode.AsNeeded
             ? GetAddressTransactionsAsync(@case, address, after, cancellationToken)
             : throw new NotSupportedException("The source cannot ask in that mode.");

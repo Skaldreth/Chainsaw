@@ -13,7 +13,8 @@ namespace Chainsaw.Modules.Chains;
 /// <see cref="IExitHttp"/> only (or straight to the user's own node when the endpoint is marked local, see
 /// <see cref="ChainSources.SendAsync"/>), each response sealed in the case with its endpoint before it is used
 /// (principle 1), and from the case again, saying so, when no endpoint can be asked (principle 9). An endpoint that
-/// fails, does not answer or asks Chainsaw to wait is left quietly for the others (decided 2026-11-07). A chain's source
+/// fails, does not answer or asks Chainsaw to wait is left quietly for the others (decided 2026-11-07). A chain's
+/// source
 /// says what to ask and how to read it (<see cref="LookupQuery{T}"/>).
 /// </summary>
 internal sealed class SourceLookups
@@ -27,7 +28,8 @@ internal sealed class SourceLookups
     /// <summary>The HTTP status of a source that cannot answer now.</summary>
     private const int UnavailableStatus = 503;
 
-    /// <summary>How long an endpoint that says it is asked too fast, without saying for how long, is waited for.</summary>
+    /// <summary>How long an endpoint that says it is asked too fast, without saying for how long, is waited
+    /// for.</summary>
     public static readonly TimeSpan DefaultBusyWait = TimeSpan.FromSeconds(30);
 
     /// <summary>
@@ -71,7 +73,8 @@ internal sealed class SourceLookups
     /// <param name="chain">The chain.</param>
     /// <param name="chainName">The chain's name in the texts for the user, for example <c>Bitcoin</c>.</param>
     /// <param name="operators">The operator profile.</param>
-    /// <param name="sources">The chains' endpoints, which also say the way to each (<see cref="ChainSources.SendAsync"/>).</param>
+    /// <param name="sources">The chains' endpoints, which also say the way to each (<see
+    /// cref="ChainSources.SendAsync"/>).</param>
     /// <param name="store">The chain's sealed responses.</param>
     /// <param name="safeConfirmations">How deep an answer's block must be before it is never fetched again.</param>
     /// <param name="refreshHeight">
@@ -334,7 +337,8 @@ internal sealed class SourceLookups
     /// <c>Retry-After</c>.
     /// </summary>
     /// <param name="response">The response.</param>
-    /// <returns>How long, <see cref="DefaultBusyWait"/> when a 429 does not say; <see langword="null"/> when it does not ask.</returns>
+    /// <returns>How long, <see cref="DefaultBusyWait"/> when a 429 does not say; <see langword="null"/> when it does
+    /// not ask.</returns>
     public static TimeSpan? AsksToWait(ExitResponse response)
     {
         ArgumentNullException.ThrowIfNull(response);
@@ -354,7 +358,8 @@ internal sealed class SourceLookups
     /// The value, or <see langword="null"/> and the problem in Swedish, and what the source said when there is no
     /// value: that it does not know what was asked (HTTP 404, or a body that says so, <see
     /// cref="SourceNotFoundException"/>, as the Etherscan-style APIs answer 200 with <c>status 0</c>), that it is asked
-    /// too fast (<see cref="AsksToWait"/>, or a body that says so, <see cref="SourceBusyException"/>), or that it failed.
+    /// too fast (<see cref="AsksToWait"/>, or a body that says so, <see cref="SourceBusyException"/>), or that it
+    /// failed.
     /// </returns>
     private static (T? Value, string? Problem, Outcome Outcome) Interpret<T>(
         LookupQuery<T> query, ExitResponse response)

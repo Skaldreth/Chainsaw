@@ -37,7 +37,8 @@ public sealed partial class SourceChainChip(string name, Chain? chain, bool isBu
 
 /// <summary>
 /// The settings' page Källor (sketch KL1a, decided 2026-11-07): the chains as chips, each built chain's mode
-/// (Snabbast, Prioriterad or Av), its endpoints with their latest probe, the form that adds one (only https, the sort of
+/// (Snabbast, Prioriterad or Av), its endpoints with their latest probe, the form that adds one (only https, the sort
+/// of
 /// API, a key from the vault, and <em>Prova</em>), and <em>Prova alla nu</em>. The endpoints are tried once when
 /// Chainsaw is unlocked and the exit allows lookups; never before. It knows nothing of WPF.
 /// </summary>
@@ -470,7 +471,8 @@ public sealed partial class SourcesViewModel : ObservableObject
         KeyChoices.FirstOrDefault(c => c.IsSelected)?.Value is string { Length: > 0 } service ? service : null;
 
     /// <summary>
-    /// Tries every built chain that is not off, once, when the vault is unlocked and the exit allows lookups (CLAUDE.md:
+    /// Tries every built chain that is not off, once, when the vault is unlocked and the exit allows lookups
+    /// (CLAUDE.md:
     /// <em>Snabbast</em> tries them at the start, through the exit). A round in which nothing could be sent is made
     /// again the next time both hold.
     /// </summary>

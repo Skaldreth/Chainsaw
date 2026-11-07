@@ -4,7 +4,6 @@ using Chainsaw.App.Navigation;
 using Chainsaw.App.Settings;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
-using Chainsaw.SharedKernel;
 using Chainsaw.SharedKernel.Commands;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -32,9 +31,6 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>What the status line says while no exit is connected: nothing can be looked up (principle 9).</summary>
     public const string OfflineText = "Offline: ingen utgång ansluten, så inget nytt kan hämtas";
-
-    /// <summary>What the status line says while a lookup waits for a source; the chains follow.</summary>
-    public const string WaitingText = "Väntar på källan";
 
     /// <summary>What the bar says when a sanction list is chosen while one is being imported.</summary>
     public const string ImportRunningText = "En sanktionslista importeras redan.";
@@ -561,9 +557,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private void ShowExit()
     {
         IsExitLive = _way.IsLive;
-        WaitText = _way.ChainsWaiting.Count == 0
-            ? string.Empty
-            : WaitingText + " · " + string.Join(", ", _way.ChainsWaiting.Order().Select(ChainName));
+        WaitText = _way.WaitText;
         if (_way.IsWindows)
         {
             (ExitText, SourceText) = (WindowsText, WindowsSourceText);
@@ -583,11 +577,6 @@ public sealed partial class ShellViewModel : ObservableObject
             _ = NameExitAsync(id);
         }
     }
-
-    /// <summary>Gives a chain's name as the status line writes it.</summary>
-    /// <param name="chain">The chain.</param>
-    /// <returns>For example <c>Bitcoin</c> or <c>TRON</c>.</returns>
-    private static string ChainName(Chain chain) => chain == Chain.Tron ? "TRON" : chain.ToString();
 
     /// <summary>
     /// Reads the connected exit's name from the vault off the UI thread, and shows it if the exit is still connected.

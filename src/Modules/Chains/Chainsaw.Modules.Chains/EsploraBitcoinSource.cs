@@ -56,7 +56,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
     /// <summary>Creates the source.</summary>
     /// <param name="sources">
-    /// The chains' endpoints, of which Bitcoin's are asked, each the only way it may be: through the exit, or straight to
+    /// The chains' endpoints, of which Bitcoin's are asked, each the only way it may be: through the exit, or straight
+    /// to
     /// the user's own node.
     /// </param>
     /// <param name="operators">The operator profile.</param>
@@ -92,7 +93,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
-        ICase @case, BitcoinAddress address, Txid? after, LookupMode mode, CancellationToken cancellationToken = default)
+        ICase @case, BitcoinAddress address, Txid? after, LookupMode mode,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(address);

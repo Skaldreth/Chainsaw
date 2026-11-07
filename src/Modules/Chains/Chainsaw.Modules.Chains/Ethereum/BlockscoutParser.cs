@@ -412,7 +412,11 @@ internal static class BlockscoutParser
         return KnownTokens.Canonical(Asset.Token(Chain.Ethereum, contract.Value, shown, places));
     }
 
-    /// <summary>Reads a body as JSON and turns every failure into a <see cref="FormatException"/>.</summary>
+    /// <summary>
+    /// Reads a body as JSON and turns every failure into a <see cref="FormatException"/>; a body that says the source
+    /// is
+    /// asked too fast throws <see cref="SourceBusyException"/>, so that it is waited for and not counted as broken.
+    /// </summary>
     /// <typeparam name="T">What is read.</typeparam>
     /// <param name="body">The body.</param>
     /// <param name="read">Reads the root.</param>
@@ -422,6 +426,11 @@ internal static class BlockscoutParser
         try
         {
             using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                ThrowIfBusy(document.RootElement);
+            }
+
             return read(document.RootElement);
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException

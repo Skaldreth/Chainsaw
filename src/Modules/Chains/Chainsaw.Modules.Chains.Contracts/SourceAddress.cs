@@ -17,7 +17,8 @@ public static class SourceAddress
     /// <summary>The longest name of an endpoint.</summary>
     public const int MaximumNameLength = 80;
 
-    /// <summary>What an address on the computer or a private network says when the endpoint is not marked local.</summary>
+    /// <summary>What an address on the computer or a private network says when the endpoint is not marked
+    /// local.</summary>
     public const string LocalNeedsMarkText = "En adress på datorn eller ett privat nät kräver att den märks Lokal.";
 
     /// <summary>What a global IP address says when the endpoint is marked local.</summary>

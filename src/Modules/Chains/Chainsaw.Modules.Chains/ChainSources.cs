@@ -45,7 +45,8 @@ internal sealed class ChainSources : IChainSources
     /// <summary>How long an endpoint that failed a lookup is passed over first; each new failure doubles it.</summary>
     public static readonly TimeSpan FirstPause = TimeSpan.FromMinutes(1);
 
-    /// <summary>The longest an endpoint that keeps failing is passed over before it is tried in its place again.</summary>
+    /// <summary>The longest an endpoint that keeps failing is passed over before it is tried in its place
+    /// again.</summary>
     public static readonly TimeSpan LongestPause = TimeSpan.FromMinutes(30);
 
     /// <summary>What a probe says when the vault is locked.</summary>
@@ -267,7 +268,8 @@ internal sealed class ChainSources : IChainSources
     /// <param name="id">The endpoint.</param>
     public void Failed(Chain chain, Guid id) => Note(chain, id, failed: true);
 
-    /// <summary>Notes that a lookup through an endpoint was answered, so that an earlier failure is forgotten.</summary>
+    /// <summary>Notes that a lookup through an endpoint was answered, so that an earlier failure is
+    /// forgotten.</summary>
     /// <param name="chain">The chain.</param>
     /// <param name="id">The endpoint.</param>
     public void Answered(Chain chain, Guid id) => Note(chain, id, failed: false);
@@ -903,7 +905,8 @@ internal sealed class ChainSources : IChainSources
         /// <summary>Gets or sets when the endpoints were last tried.</summary>
         public DateTimeOffset? ProbedAt { get; set; }
 
-        /// <summary>Gets or sets the number of the latest round, so that an older round's results are dropped.</summary>
+        /// <summary>Gets or sets the number of the latest round, so that an older round's results are
+        /// dropped.</summary>
         public int Round { get; set; }
     }
 }

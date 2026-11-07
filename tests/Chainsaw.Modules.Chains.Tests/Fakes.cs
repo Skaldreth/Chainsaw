@@ -111,7 +111,8 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
 
     public void AnswerBytes(string url, byte[] body, int status) => _answers[url] = (status, body, "text/plain");
 
-    /// <summary>Answers an address with a status that asks Chainsaw to wait, with or without <c>Retry-After</c>.</summary>
+    /// <summary>Answers an address with a status that asks Chainsaw to wait, with or without
+    /// <c>Retry-After</c>.</summary>
     public void AnswerBusy(string url, TimeSpan? retryAfter, int status = 429)
     {
         _answers[url] = (status, "slow down"u8.ToArray(), "text/plain");
@@ -174,7 +175,10 @@ internal sealed class FakeLocalHttp(FakeClock clock) : ILocalHttp
 
     public List<ExitRequest> Sent { get; } = [];
 
-    public void Answer(string url, string fixture, int status = 200) => _answers[url] = (status, Fixtures.Bytes(fixture));
+    public void Answer(string url, string fixture, int status = 200) =>
+        _answers[url] = (status, Fixtures.Bytes(fixture));
+
+    public void AnswerBytes(string url, byte[] body, int status) => _answers[url] = (status, body);
 
     public Task<ExitResponse> SendAsync(ExitRequest request, CancellationToken cancellationToken = default)
     {

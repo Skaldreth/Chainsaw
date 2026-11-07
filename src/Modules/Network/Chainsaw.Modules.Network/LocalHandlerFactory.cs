@@ -45,7 +45,8 @@ internal sealed class LocalHandlerFactory(NetworkOptions options) : ILocalHandle
     /// <param name="endpoint">The node's host and port.</param>
     /// <param name="cancellationToken">Stops the connection.</param>
     /// <returns>The stream.</returns>
-    /// <exception cref="ExitException"><see cref="ExitError.NotLocal"/>: the name points only to global addresses.</exception>
+    /// <exception cref="ExitException"><see cref="ExitError.NotLocal"/>: the name points only to global
+    /// addresses.</exception>
     internal static async ValueTask<Stream> ConnectAsync(DnsEndPoint endpoint, CancellationToken cancellationToken)
     {
         var addresses = LocalOnly(

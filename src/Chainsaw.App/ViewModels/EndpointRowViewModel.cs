@@ -91,7 +91,8 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     /// <summary>Gets whether the yellow mark is shown.</summary>
     public bool HasNote => Note.Length > 0;
 
-    /// <summary>Gets whether the user marked it as their own node, asked straight there and never through the exit.</summary>
+    /// <summary>Gets whether the user marked it as their own node, asked straight there and never through the
+    /// exit.</summary>
     [ObservableProperty]
     public partial bool IsLocal { get; private set; }
 
@@ -127,7 +128,8 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     /// <param name="mode">The chain's mode.</param>
     /// <param name="index">Its place in the list, from 0.</param>
     /// <param name="count">How many the list has.</param>
-    /// <param name="timeZone">The time zone a wait's end is shown in; the computer's when <see langword="null"/>.</param>
+    /// <param name="timeZone">The time zone a wait's end is shown in; the computer's when <see
+    /// langword="null"/>.</param>
     public void Show(EndpointView view, SourceMode mode, int index, int count, TimeZoneInfo? timeZone = null)
     {
         ArgumentNullException.ThrowIfNull(view);

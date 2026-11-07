@@ -303,6 +303,87 @@ public sealed class SourcesTests
         Assert.Equal(EndpointDot.Behind, page.Rows[1].Dot);
     }
 
+    [Fact]
+    public async Task Lokal_lets_an_address_on_a_private_network_be_added_and_tried_as_the_own_node()
+    {
+        var page = Create();
+        page.ToggleAdd();
+        page.NewAddress = "https://192.168.1.20/api";
+
+        Assert.Equal(SourceAddress.LocalNeedsMarkText, page.AddressProblem);
+        Assert.False(page.CanAdd);
+        await page.AddAsync();
+        Assert.Empty(_sources.Added);
+
+        page.ToggleLocal();
+
+        Assert.True(page.NewLocal);
+        Assert.Empty(page.AddressProblem);
+        Assert.True(page.CanAdd);
+        _sources.TryAnswer = new EndpointProbe(Guid.Empty, ProbeOutcome.Answered, 921_404, "ab",
+            TimeSpan.FromMilliseconds(4), DateTimeOffset.UnixEpoch, null);
+        await page.TryAsync();
+        Assert.Equal([true], _sources.TriedLocal);
+
+        await page.AddAsync();
+
+        Assert.True(Assert.Single(_sources.Added).Local);
+        Assert.True(page.Rows[2].IsLocal);
+        Assert.False(page.Rows[0].IsLocal);
+    }
+
+    [Fact]
+    public void Lokal_refuses_a_global_address_and_is_off_again_in_a_new_form()
+    {
+        var page = Create();
+        page.ToggleAdd();
+        page.ToggleLocal();
+        page.NewAddress = "https://8.8.8.8/";
+
+        Assert.Equal(SourceAddress.LocalMustBeLocalText, page.AddressProblem);
+
+        page.CancelAdd();
+        page.ToggleAdd();
+
+        Assert.False(page.NewLocal);
+    }
+
+    [Fact]
+    public void An_endpoint_that_asked_to_wait_is_marked_and_one_block_behind_is_not()
+    {
+        _sources.Probes[MempoolId] = Probe(MempoolId, ProbeOutcome.Answered, 182) with { BlocksBehind = 1 };
+        _sources.WaitUntil[LanId] = new DateTimeOffset(2026, 11, 7, 9, 12, 30, TimeSpan.Zero);
+
+        var page = Create();
+
+        Assert.False(page.Rows[0].HasNote);
+        Assert.Equal(EndpointDot.Answered, page.Rows[0].Dot);
+        Assert.Contains("ett block efter", page.Rows[0].DotTip, StringComparison.Ordinal);
+        Assert.Equal(EndpointRowViewModel.WaitingText, page.Rows[1].Note);
+        Assert.Contains("09:12:30", page.Rows[1].NoteTip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_wait_for_a_source_is_told_while_it_lasts_and_goes_after()
+    {
+        var way = new ExitWay(_route, _exit, new InlineUi(), _sources);
+        var told = 0;
+        way.Changed += (_, _) => told++;
+
+        _sources.WaitingUntil = DateTimeOffset.UnixEpoch;
+        _sources.Tell();
+
+        Assert.Contains(Chain.Bitcoin, way.ChainsWaiting);
+        Assert.Equal("Väntar på källan · Bitcoin", way.WaitText);
+
+        _sources.WaitingUntil = null;
+        _sources.Tell();
+
+        Assert.Empty(way.ChainsWaiting);
+        Assert.Empty(way.WaitText);
+        Assert.Equal(2, told);
+    }
+
     private SourcesViewModel Create() =>
         new(_sources, new ExitWay(_route, _exit, new InlineUi()), _vault, _keys, new InlineUi(), TimeZoneInfo.Utc);
 
@@ -319,6 +400,12 @@ public sealed class SourcesTests
         ];
 
         public Dictionary<Guid, EndpointProbe> Probes { get; } = [];
+
+        public Dictionary<Guid, DateTimeOffset> WaitUntil { get; } = [];
+
+        public DateTimeOffset? WaitingUntil { get; set; }
+
+        public void Tell() => Changed?.Invoke(this, Chain.Bitcoin);
 
         public DateTimeOffset? ProbedAt { get; set; }
 
@@ -352,8 +439,14 @@ public sealed class SourcesTests
                 : Endpoints.Where(e => e.Enabled && Probes.GetValueOrDefault(e.Id)?.Outcome != ProbeOutcome.Behind)
                     .Select(e => (Guid?)e.Id).FirstOrDefault();
             return new ChainSourcesView(chain, Mode,
-                [.. Endpoints.Select(e => new EndpointView(e, Probes.GetValueOrDefault(e.Id), false, e.Id == first))],
-                ProbedAt);
+                [.. Endpoints.Select(e => new EndpointView(e, Probes.GetValueOrDefault(e.Id), false, e.Id == first)
+                {
+                    WaitUntil = WaitUntil.TryGetValue(e.Id, out var until) ? until : null,
+                })],
+                ProbedAt)
+            {
+                WaitingUntil = WaitingUntil,
+            };
         }
 
         public Task SetModeAsync(Chain chain, SourceMode mode) => Change(() => Mode = mode);

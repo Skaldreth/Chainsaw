@@ -189,6 +189,22 @@ internal sealed class RecordingWindowsHandlerFactory : IWindowsHandlerFactory
     }
 }
 
+/// <summary>Builds recording handlers for the way to the user's own node, and counts them.</summary>
+internal sealed class RecordingLocalHandlerFactory : ILocalHandlerFactory
+{
+    public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> Answer { get; set; } =
+        (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([]) });
+
+    public List<RecordingHandler> Handlers { get; } = [];
+
+    public HttpMessageHandler Create()
+    {
+        var handler = new RecordingHandler((request, token) => Answer(request, token));
+        Handlers.Add(handler);
+        return handler;
+    }
+}
+
 /// <summary>A clock that moves only when told to.</summary>
 internal sealed class FakeClock : IClock
 {

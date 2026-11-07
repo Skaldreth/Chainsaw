@@ -48,7 +48,8 @@ public static class SourcePace
     /// </summary>
     public static readonly TimeSpan Public = TimeSpan.FromMilliseconds(250);
 
-    /// <summary>The pace of the user's own node: no pause of Chainsaw's own; only a node that asks to wait slows it.</summary>
+    /// <summary>The pace of the user's own node: no pause of Chainsaw's own; only a node that asks to wait slows
+    /// it.</summary>
     public static readonly TimeSpan Local = TimeSpan.Zero;
 
     /// <summary>The longest pace that is kept; a longer one in the file is cut to it.</summary>

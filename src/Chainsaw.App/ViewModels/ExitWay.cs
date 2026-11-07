@@ -11,6 +11,9 @@ namespace Chainsaw.App.ViewModels;
 /// </summary>
 public sealed class ExitWay
 {
+    /// <summary>What the status line says while a lookup waits for a source; the chains follow.</summary>
+    public const string WaitingText = "Väntar på källan";
+
     /// <summary>The way chosen in the settings.</summary>
     private readonly IExitRoute _route;
 
@@ -24,7 +27,8 @@ public sealed class ExitWay
     /// <param name="route">The way chosen in the settings.</param>
     /// <param name="connection">The connection to the exit (VPN).</param>
     /// <param name="ui">The UI thread, where changes are told.</param>
-    /// <param name="sources">The chains' endpoints, whose mode Av is followed; none when <see langword="null"/>.</param>
+    /// <param name="sources">The chains' endpoints, whose mode Av is followed; none when <see
+    /// langword="null"/>.</param>
     public ExitWay(IExitRoute route, IExitConnection connection, IUiThread ui, IChainSources? sources = null)
     {
         ArgumentNullException.ThrowIfNull(route);
@@ -83,6 +87,14 @@ public sealed class ExitWay
     /// </summary>
     public IReadOnlySet<Chain> ChainsWaiting => _waiting;
 
+    /// <summary>
+    /// Gets what the status line says while a lookup waits for a source, such as <c>Väntar på källan · Bitcoin</c>, or
+    /// empty when none waits.
+    /// </summary>
+    public string WaitText => _waiting.Count == 0
+        ? string.Empty
+        : WaitingText + " · " + string.Join(", ", _waiting.Order().Select(ChainName));
+
     /// <summary>Gets whether lookups can go now: through Windows, or through a connected exit.</summary>
     public bool IsLive => IsWindows || Status.State == ExitState.Connected;
 
@@ -100,6 +112,11 @@ public sealed class ExitWay
             Changed?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    /// <summary>Gives a chain's name as the status line writes it.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns>For example <c>Bitcoin</c> or <c>TRON</c>.</returns>
+    private static string ChainName(Chain chain) => chain == Chain.Tron ? "TRON" : chain.ToString();
 
     /// <summary>Reads whether a chain's sources are off, and whether its lookups wait for a source.</summary>
     /// <param name="sources">The chains' endpoints.</param>
