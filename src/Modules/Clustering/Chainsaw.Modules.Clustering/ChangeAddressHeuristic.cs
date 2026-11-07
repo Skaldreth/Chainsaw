@@ -50,7 +50,8 @@ internal sealed class ChangeAddressHeuristic : IClusteringHeuristic
         var against = scored.Skip(1).Max(entry => entry.Signs.Signs.Count);
         if (signs.Count == 0 || signs.Count <= against)
         {
-            return HeuristicResult.Nothing(Identity, transaction.Txid);
+            // A tie rests on the same sightings as a finding would, so a narrower run must not replace it either.
+            return HeuristicResult.Nothing(Identity, transaction.Txid) with { Basis = seenIn };
         }
 
         var merge = outputs.Count <= AutomaticMergeOutputs && signs.Count >= AutomaticMergeSigns && against == 0;

@@ -108,6 +108,12 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   en slutsats vars underlag den saknar, men en tx som aldrig hämtats in i ärendet kan analyseras. Bättre: Clustering
   läser tx:en ur ärendet genom Chains (kontrakt för det i `Chains.Contracts`), och varje slutsats pekar på det
   förseglade råsvaret och blocket (höjd och hash) den bygger på (princip 1).
+  Tills dess kan en tx som analyseras första gången i en snäv körning få en sammanslagning av växeln som en bredare
+  körning skulle vägra (den betalda adressen har setts i en tx som inte skickades med); den står kvar tills en bredare
+  körning ersätter den (granskningen etapp 6, omgång 3, M).
+- **Journalen och körningar som hålls tillbaka:** varje körning som håller tillbaka något skriver en rad i journalen,
+  också när inget sparas. Om appen anropar `Analyse` ofta med få tx kan journalen fyllas; överväg då att bara skriva
+  när något sparas eller att samla raderna (granskningen etapp 6, omgång 3, M).
 - **Uppbrytning av ett par som inte hör ihop:** en uppbrytning får göras i förväg, mellan två adresser som inte är i
   samma kluster. Gränssnittet bör föreslå länken på vägen mellan dem (`ExplainConnection`) och varna när de inte hör
   ihop.

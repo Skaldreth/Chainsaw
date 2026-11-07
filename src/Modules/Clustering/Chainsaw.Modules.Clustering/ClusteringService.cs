@@ -251,7 +251,7 @@ internal sealed class ClusteringService : IClusteringService
 
     /// <summary>
     /// Weighs the results of one transaction and fingerprints them. A finding that cannot be stored (a kind not
-    /// declared on <see cref="HeuristicFinding"/>) fails the transaction, not the run.
+    /// declared on <see cref="HeuristicFinding"/>, or one whose JSON fails) fails the transaction, not the run.
     /// </summary>
     /// <param name="results">Every analysis's result of the transaction.</param>
     /// <returns>The weighed results with their fingerprints, or <see langword="null"/> when one cannot be stored.</returns>
@@ -261,14 +261,17 @@ internal sealed class ClusteringService : IClusteringService
         {
             return [.. ResultWeighing.Weigh(results).Select(result => (result, EvidenceStore.Fingerprint(result)))];
         }
-        catch (NotSupportedException)
+#pragma warning disable CA1031 // A finding that cannot be written fails its own transaction (CLAUDE.md, Arkitektur).
+        catch (Exception exception) when (exception is not OperationCanceledException)
+#pragma warning restore CA1031
         {
             return null;
         }
     }
 
     /// <summary>
-    /// Says whether the run knows every transaction that any stored result of a transaction rests on. The results of
+    /// Says whether the run knows every transaction that any counting stored result of a transaction (the highest
+    /// version of each analysis) rests on. The results of
     /// a transaction are weighed together, so they are replaced together or not at all: a narrower run never takes
     /// back what a wider one concluded.
     /// </summary>
@@ -279,6 +282,8 @@ internal sealed class ClusteringService : IClusteringService
     private static bool KnowsBasis(
         Txid txid, Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest, HashSet<Txid> known) =>
         latest.Where(entry => entry.Key.Txid == txid)
+            .GroupBy(entry => entry.Key.Heuristic.Name)
+            .Select(group => group.MaxBy(entry => entry.Key.Heuristic.Version))
             .SelectMany(entry => entry.Value.Basis)
             .All(known.Contains);
 

@@ -295,3 +295,107 @@ Alla C och I är rättade och har regressionstester: 133 tester i Chains, 564 i 
 - att jämföra flera källor.
 
 **Återstår:** att kommandoraden och grafen använder källan, kurserna och den riktiga tunneln.
+
+## Etapp 6 (2026-11-07): Clustering, heuristikerna och klustren
+
+Modulen `Clustering` utan gränssnitt: `IClusteringHeuristic` (en analys som ett steg med namn och version),
+`IClusteringService` (kör analyserna, sparar slutsatserna, bygger klustren, uppbrytningar och *varför?*) och
+`ClusteringSchema`, registrerade i `AddClusteringModule`. En ny analys, till exempel en lokal modell senare
+(princip 5), läggs till genom att registrera ännu en `IClusteringHeuristic`.
+
+- **Fyra analyser i v1**, som körs i ordning på varje tx och vägs mot varandra innan något sparas:
+  - **`coinjoin v1`** letar efter lika stora outputs (inte damm) till olika adresser, och inputs från flera adresser
+    och flera tidigare tx.
+    - Whirlpool, Wasabi och JoinMarket (med ett udda belopp) är *kända*. Spåret tar slut med orsak, och allt annat i
+      tx:en stoppas.
+    - Övriga lika belopp är en *möjlig* CoinJoin. Allt i tx:en blir då förslag, och spåret går vidare.
+  - **`common-input-ownership v1`:** alla inputs i en tx slås ihop.
+  - **`change-address v1`:** fem tecken räknas, men bara när de skiljer outputarna åt:
+    - samma skripttyp som inputs;
+    - de andra beloppen är jämna;
+    - ny adress när de andra är kända;
+    - optimal växel;
+    - tillbaka till en inputs adress.
+
+    Måttet är *n av 5 tecken, m mot*. Växeln slås ihop bara vid minst tre tecken, inget emot och två outputs
+    (`AutomaticMergeSigns`, `AutomaticMergeOutputs`); annars blir det ett förslag.
+  - **`peel-chain v1`** känner igen minst tre kända hopp i rad (en input, två outputs, den stora minst fyra gånger den
+    lilla). Den **föreslår** det som går vidare som växel och sparar de andra hoppens txid.
+- **Vägningen per tx:**
+  - En CoinJoin sänker de andra analysernas förslag.
+  - Två analyser som pekar ut olika växel, i ett förslag eller i ett fynd, tar ut varandras sammanslagningar.
+- **Förseglat** i `clustering.evidence` och `clustering.splits`. Varje post har analys och version, tx, adresser,
+  styrka, skäl, varför styrkan sänktes, fynd (JSON med enum som namn), underlag (de andra tx:erna), fingeravtryck och
+  körningens journalrad.
+  - En körning ger en rad i journalen (`clustering.analysed`), en uppbrytning likaså (`clustering.split`).
+  - Det som räknas läses bara ur de förseglade tabellerna: per tx och analysnamn räknas den högsta versionen och dess
+    nyaste körning. Äldre resultat står kvar förseglade.
+- **Klustren byggs varje gång de efterfrågas** ur förslagen, i den ordning resultaten först dök upp, med alla
+  uppbrytningar.
+  - Varje medlem säger vilken länk som förde in den och från vilken medlem, och `ExplainConnection` ger vägen länk för
+    länk.
+  - En sammanslagning som skulle föra ihop två uppbrutna adresser slår inte ihop något av sina adresser. Kommer den
+    från den heuristik uppbrytningen nämner vägras den (`RefusedBySplit`); kommer den från en annan syns den som
+    förslag (`SuggestedAfterSplit`).
+- **Guiden:** `common-input-ownership.md`, `vaxeladress.md`, `peel-chain.md` och `coinjoin.md`.
+
+**Egna beslut:**
+- **Klustren lagras inte**, bara slutsatserna och uppbrytningarna. Då kan inget kluster ändras utan att en förseglad
+  post gör det, och en uppbrytning gäller också slutsatser som kommer senare.
+- **Peel chain v1 slår aldrig ihop** (granskningen visade att formen inte räcker för att se var ägaren byter). Står i
+  TODO som fråga till kryptospåraren.
+- **Tröskelvärdena** (tre tecken, tre hopp, fyra gånger, 0,001 BTC som jämnt belopp) är valda av sessionen och står i
+  TODO under *Väntar på beslut*.
+- **En möjlig CoinJoin gör förslag**, en känd stoppar. Reglerna lutar åt att hellre se en CoinJoin än att slå ihop
+  främlingar, men bara kända mönster avslutar spåret.
+- **En uppbrytning nämner heuristiken** (namnet, alla versioner) och måste vara en som körs. Den får göras i förväg,
+  också mellan adresser som inte är i samma kluster.
+- **Underlaget kommer från anroparen:** `Analyse` tar de tx som ska analyseras och använder dem som det analysen vet.
+  - Varje slutsats sparar vilka andra tx den bygger på.
+  - En tx:s resultat byts ut tillsammans, och bara när körningen känner till hela underlaget; annars hålls de tillbaka
+    (`HeldBack`), och det står i journalen.
+- **En analys som misslyckas**, eller ger ett resultat som inte går ihop, gör att inget om den tx:en sparas. En
+  misslyckad CoinJoin-analys får aldrig låta de andra slå ihop en CoinJoin.
+- **Ett resultat som inte säger något** sparas inte första gången, bara när det ersätter ett som sade något.
+
+**Granskningen:** tre omgångar.
+- **Omgång 1** gav ett C och sex I:
+  - **C:** peel chain slog ihop offret som betalade in i kedjan och börsens insättningsadress i dess slut, och genom
+    börsens sweep alla andra kunder.
+  - **I:** oenighet om växeln räknades inte när växeln bara stod i ett fynd.
+  - **I:** lika jämna belopp (en batch med uttag) var en *känd* CoinJoin som avslutade spåret.
+  - **I:** en ny versions CoinJoin nådde inte en äldre versions sammanslagningar.
+  - **I:** en felaktig analys kunde försegla ett förslag som bröt alla kluster för alltid.
+  - **I:** vilken länk som gav vika för en uppbrytning berodde på ordningen förseglingen skedde i.
+  - **I:** slutsatser som byggde på andra tx sparade inte vilka, och en snävare körning kunde ta tillbaka dem.
+
+  Den gav också sju M. Alla är rättade eller står i TODO.
+- **Omgång 2** gav ett C och två I:
+  - **C:** ett offers vanliga betalningar fick betalningen till bedragaren att se ut som ett inre hopp. Rättat genom
+    att peel chain bara föreslår.
+  - **I:** en snävare körning kunde ta tillbaka en oenighet och återställa en sammanslagning. Rättat: en tx:s resultat
+    byts ut tillsammans.
+  - **I:** en ny sorts fynd stoppade hela körningen. Rättat: det fäller bara den egna tx:en.
+- **Omgång 3:** inga C eller I. M1 (oavgjort utan underlag), M3 (andra fel vid skrivning av fynd) och M4 (underlag
+  från en version som inte räknas) är rättade; M2 och M5 står i TODO.
+
+Alla C och I är rättade och har regressionstester: 86 tester i Clustering, 648 i hela lösningen. Testerna går mot ett
+facit av syntetiska mönster:
+- betalning med växel och med svaga tecken;
+- konsolidering;
+- börsens sweep med insättare;
+- batchutbetalning;
+- lika stora uttag;
+- Whirlpool, Wasabi 1 och 2, JoinMarket och möjlig CoinJoin;
+- damm;
+- peel chain med offret före och börsen efter;
+- uppbrytningar som hålls.
+
+**Kvar i TODO:**
+- att godkänna förslag och ångra uppbrytningar;
+- underlaget ur ärendet, med länk till råsvaret och blocket;
+- fler tecken och CoinJoin-mönster;
+- att dra tillbaka en version;
+- stora ärenden.
+
+**Återstår:** att grafen kör `Analyse` när tx hämtas och visar kluster, förslag och *varför?* (skissas först).

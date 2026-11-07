@@ -22,6 +22,10 @@ Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i 
 - **Etapp 5, Chains** (2026-11-07, DEV-LOG): Bitcoin-modellen, adresser och txid med kontrollsummor,
   `IBitcoinSource` och Esplora-källan genom `IExitHttp`, varje råsvar förseglat i ärendet, det som inte kan ändras
   hämtas aldrig igen, och offline svarar ärendet. Guiden har fått *UTXO-modellen* och *Adresstyper*. Inget gränssnitt.
+- **Etapp 6, Clustering** (2026-11-07, DEV-LOG): fyra heuristiker som steg med namn och version (CoinJoin stoppar,
+  common-input-ownership, växeladress med tecken och tröskel, peel chain som bara föreslår), slutsatser och
+  uppbrytningar förseglade, kluster som förklarar varje adress och uppbrytningar som håller. Guiden har fått fyra
+  avsnitt. Inget gränssnitt.
 
 ## Nattkörningen 2026-11-07
 
@@ -34,7 +38,7 @@ session. Etapperna i ordning; en etapp som är klar markeras här av huvudsessio
 | 3 | **Cases:** ärendefilen `.cut` (SQLite3 Multiple Ciphers, nyckel ur valvet), schemamigreringar per modul, journalen och hashkedjan som bara fylls på, `/verify` som tjänst | Klar |
 | 4 | **Network:** utgångarna som modell och `IExitHttp`, som **vägrar** när ingen utgång är ansluten (princip 4); WireGuard-tunneln själv senare | Klar |
 | 5 | **Chains:** Bitcoin-modellen (block, tx, inputs, outputs, adresser i `Satoshi`), `IBitcoinSource`, Esplora-källan genom `IExitHttp`, varje råsvar sparat med SHA-256 och blockhöjd i ärendet, offline ur ärendet; tester mot syntetiska svar | Klar |
-| 6 | **Clustering:** heuristikerna common-input-ownership v1, CoinJoin v1 (stoppar sammanslagning), växeladress v1 och peel chain v1, med namn, version och tx; kluster med sammanslagningar och uppbrytningar som minns; tester mot ett facit av syntetiska mönster | Väntar |
+| 6 | **Clustering:** heuristikerna common-input-ownership v1, CoinJoin v1 (stoppar sammanslagning), växeladress v1 och peel chain v1, med namn, version och tx; kluster med sammanslagningar och uppbrytningar som minns; tester mot ett facit av syntetiska mönster | Klar |
 | 7 | **Tracing:** grafen som modell (aktörer, adresser, tx, kanter, kant till annan kedja), spårningsmetoderna FIFO och haircut, slut på spåret med orsak; tester | Väntar |
 | 8 | **Attribution:** etiketter med ursprung, OFAC-listans kryptoadresser ur en sparad fil, etikettbiblioteket som smittar mellan ärenden (CLAUDE.md, *Etiketter smittar*); tester | Väntar |
 
