@@ -46,11 +46,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
   en tx:s spenderare efter belopp). Användarens idé 2026-11-07: en **ledtrådsnod** `+243 tx` vid adressen; ett klick
   skickar de andra noderna bort i en cirkulär stöt (en övergång), centrerar på ledtråden, som byts mot alla tx runt
   om, och användaren väljer vilka som plockas ut i den stora vyn. Inspektören bör också visa om en tx är kontrollerad
-  mot sina bytes och om den bytt block (omorganisation). Skissas (EX1).
-- **Tidslinjen under grafen** (GR4): användarens idé 2026-11-07: som **tidszoner på en världskarta**, smala lodräta
-  linjer som kan böja sig för att få in noderna, men som visas raka i hoppkolumnerna och den automatiska layouten.
-  Formen från Gawks tidslinje: tona in och ut i ändarna, en prick med sonar, prickad linje. Ett klick visar grafen vid
-  en tid (det som kom senare bleknar), *Till nu* går tillbaka. Skissas (TL1).
+  mot sina bytes och om den bytt block (omorganisation). EX1a och EX1b valda som två lägen (CLAUDE.md); filtren och
+  samlingsnoden skissas i EX2.
+- **Tidslinjen under grafen är TL1a** (CLAUDE.md): byggs efter bevakningen.
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.
 - **Guidens figurer** (GD1b och GD1a): skisserna har små figurer i avsnitten (UTXO, common-input-ownership, växeln,

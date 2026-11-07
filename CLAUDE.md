@@ -305,6 +305,17 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   linjens tjocklek är beloppet och **streckat betyder alltid osäkert**. **Viktig information får stå kvar** (användarens
   beslut 2026-11-07): beloppet står alltid på linjerna, och användaren kan gallra till bara de spårade eller inga när grafen
   blir stor. Bildspråket finns bakom ett *?* i grafens hörn.
+- **Tidslinjen under grafen är TL1a** (användarens beslut 2026-11-07): tunna prickade tidsband mellan dygnen över hela
+  ytan, som tonar in och ut i ändarna och böjer sig runt aktörer som dragits ur sitt dygn (raka i hoppkolumnerna och den
+  automatiska layouten), och en list längst ner med ett streck per tx. Ett klick ger en hel linje vid tiden med en
+  sonarprick i listen, och det som kom senare bleknar; *Till nu* går tillbaka.
+- **Det som hölls tillbaka** vid en expansion (fler än 50 tx) är en streckad ledtrådsnod `+243 tx`. Ett klick skickar
+  grafen ut i en cirkulär stöt och fäller ut tx:erna runt adressen, där användaren väljer vilka som plockas ut
+  (användarens beslut 2026-11-07: **EX1a och EX1b båda**, som två lägen i samma vy, spiralen och tidsbågen). Här är bruset
+  störst, så vyn har **filter** som rensar: ett reglage för lägsta och högsta belopp, in, ut eller alla, och mer som
+  skissas i EX2. Det som är av extra intresse (kommer från eller går till en aktör med negativ etikett) **pulserar med
+  sonar**. Var många utplockade motparter hamnar i grafen skissas i EX2 (användarens idé: en samlingsnod, där grafen
+  delas i två med ett ljusare lager, skugga och en animerad öppning, och en kompakt lista med noderna).
 - **Startpunkten är neutral** (användarens beslut 2026-11-07): en startpunkt behåller sin sort (okänd, kluster, tjänst)
   och får en egen markering som startpunkt, eftersom den lika gärna kan vara den misstänktes plånbok som offrets. Offret
   är en etikett, inte startpunktens sort. Markeringen är **en liten flagga i hörnet** som de andra markeringarna (skiss GR5
@@ -434,7 +445,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog) | NC1a vald och byggd, utan sidans rubrik |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1 och EX1 väntar på användaren |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden i EX2 |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret) | UT1a vald |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald |
