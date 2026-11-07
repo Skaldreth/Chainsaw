@@ -12,6 +12,9 @@ public static class ViewTable
     /// <summary>The second shortcut to the command bar: search is done there and nowhere else (2026-11-07).</summary>
     public const string SearchGesture = "Ctrl+F";
 
+    /// <summary>The shortcut that locks Chainsaw at once: the vault, the case and everything shown.</summary>
+    public const string LockGesture = "Ctrl+L";
+
     /// <summary>Gets every view in the order of the rail.</summary>
     public static IReadOnlyList<ViewEntry> All { get; } =
     [

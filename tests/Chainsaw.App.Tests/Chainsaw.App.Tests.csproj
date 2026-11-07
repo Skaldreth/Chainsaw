@@ -11,13 +11,22 @@
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+  <!-- The view models talk to the modules through their contracts only, as the program does. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Chainsaw.SharedKernel\Chainsaw.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Security\Chainsaw.Modules.Security.Contracts\Chainsaw.Modules.Security.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Network\Chainsaw.Modules.Network.Contracts\Chainsaw.Modules.Network.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Cases\Chainsaw.Modules.Cases.Contracts\Chainsaw.Modules.Cases.Contracts.csproj" />
+  </ItemGroup>
   <!--
     Chainsaw.App is a WPF program, which tests cannot load where there is no Windows desktop runtime, as in the cloud.
-    The parts that use no WPF on purpose are compiled in here instead: the views' table in Navigation/ and the shell's
-    view models in ViewModels/.
+    The parts that use no WPF on purpose are compiled in here instead: the views' table in Navigation/, the view
+    models in ViewModels/, the field behind the lock screen in Field/ and the settings in Settings/.
   -->
   <ItemGroup>
     <Compile Include="..\..\src\Chainsaw.App\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\ViewModels\*.cs" Link="ViewModels\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Field\*.cs" Link="Field\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Settings\*.cs" Link="Settings\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

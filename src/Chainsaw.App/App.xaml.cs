@@ -9,6 +9,8 @@ using Chainsaw.Modules.Tracing;
 using Chainsaw.Modules.Pricing;
 using Chainsaw.Modules.Monitoring;
 using Chainsaw.Modules.Requests;
+using Chainsaw.App.Controls;
+using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
 using Chainsaw.SharedKernel;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +19,8 @@ using Microsoft.Extensions.Hosting;
 namespace Chainsaw.App;
 
 /// <summary>
-/// The application: builds the host with every module and shows the main window with the shell (sketch SH1b).
+/// The application: builds the host with every module and shows the main window, which starts with the first-run
+/// setup when there is no vault (sketch FS1a) and with the lock screen otherwise (sketch ID7).
 /// </summary>
 public partial class App : Application
 {
@@ -47,12 +50,20 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    /// <summary>Registers the clock, every module, the shell and the main window in one container.</summary>
+    /// <summary>
+    /// Registers the clock, every module, the settings, the gate, the shell and the main window in one container.
+    /// </summary>
     /// <returns>The host, not yet started.</returns>
-    private static IHost BuildHost() =>
+    private IHost BuildHost() =>
         Host.CreateDefaultBuilder()
             .ConfigureServices(services => services
                     .AddSingleton<IClock, SystemClock>()
+                    .AddSingleton<IUiThread>(new WpfUiThread(Dispatcher))
+                    .AddSingleton(new AppSettingsStore().Load())
+                    .AddSingleton(BuildInfo.From(typeof(App).Assembly))
+                    .AddSingleton(provider => new AutoLock(
+                        provider.GetRequiredService<IClock>(),
+                        provider.GetRequiredService<AppSettings>().AutoLockTimeout))
                 .AddCasesModule()
                 .AddSecurityModule()
                 .AddNetworkModule()
@@ -63,7 +74,11 @@ public partial class App : Application
                 .AddPricingModule()
                 .AddMonitoringModule()
                 .AddRequestsModule()
+                    .AddSingleton<CaseSession>()
                     .AddSingleton<ShellViewModel>()
+                    .AddSingleton<LockViewModel>()
+                    .AddSingleton<FirstRunViewModel>()
+                    .AddSingleton<GateViewModel>()
                 .AddSingleton<MainWindow>())
             .Build();
 }

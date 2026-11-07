@@ -10,6 +10,10 @@
     <AssemblyName>Chainsaw</AssemblyName>
     <RootNamespace>Chainsaw.App</RootNamespace>
   </PropertyGroup>
+  <!-- WPF projects leave System.IO out of the implicit usings; the parts shared with the tests need it. -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />

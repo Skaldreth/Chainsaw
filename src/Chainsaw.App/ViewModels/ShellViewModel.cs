@@ -16,9 +16,18 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>What the command bar answers while no commands are built.</summary>
     public const string NoCommandsText = "Kommandon och sökning är inte byggda än";
 
+    /// <summary>What the title bar says while no case is open.</summary>
+    public const string NoCaseText = "Inget ärende öppet";
+
+    /// <summary>The window's open case, named in the title bar.</summary>
+    private readonly CaseSession _session;
+
     /// <summary>Creates the shell with every view of <see cref="ViewTable"/> and the start view shown.</summary>
-    public ShellViewModel()
+    /// <param name="session">The open case, named in the title bar.</param>
+    public ShellViewModel(CaseSession session)
     {
+        _session = session;
+        session.Changed += (_, _) => OnPropertyChanged(nameof(CaseTitle));
         Top = ViewTable.In(RailGroup.Top).Select(e => new RailItemViewModel(e)).ToList();
         Work = ViewTable.In(RailGroup.Work).Select(e => new RailItemViewModel(e)).ToList();
         Bottom = ViewTable.In(RailGroup.Bottom).Select(e => new RailItemViewModel(e)).ToList();
@@ -53,8 +62,8 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     public partial string CommandAnswer { get; private set; } = string.Empty;
 
-    /// <summary>Gets the case in the title bar. No case is open until cases are built.</summary>
-    public string CaseTitle => "Inget ärende öppet";
+    /// <summary>Gets the case in the title bar: its number, or that none is open.</summary>
+    public string CaseTitle => _session.Current is { } openCase ? openCase.Info.CaseNumber : NoCaseText;
 
     /// <summary>Gets what the status line says about the source.</summary>
     public string SourceText => NoSourceText;

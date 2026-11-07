@@ -1,0 +1,154 @@
+using Chainsaw.Modules.Security.Contracts;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace Chainsaw.App.ViewModels;
+
+/// <summary>
+/// The gate in front of the shell: shows the first-run setup when there is no vault, the lock screen when it is
+/// locked, and the shell only while it is open. Locking (Ctrl+L, inactivity, Windows locked) hides everything first,
+/// empties the command bar, forgets the open case and then locks the vault.
+/// </summary>
+public sealed partial class GateViewModel : ObservableObject
+{
+    /// <summary>The vault that decides what is shown.</summary>
+    private readonly IVault _vault;
+
+    /// <summary>The shell, whose command bar is emptied when Chainsaw locks.</summary>
+    private readonly ShellViewModel _shell;
+
+    /// <summary>The open case, forgotten when Chainsaw locks.</summary>
+    private readonly CaseSession _session;
+
+    /// <summary>The automatic lock after inactivity.</summary>
+    private readonly AutoLock _autoLock;
+
+    /// <summary>Creates the gate and chooses what is shown first from the vault's state.</summary>
+    /// <param name="vault">The vault.</param>
+    /// <param name="lockScreen">The lock screen.</param>
+    /// <param name="firstRun">The first-run setup.</param>
+    /// <param name="shell">The shell.</param>
+    /// <param name="session">The open case.</param>
+    /// <param name="autoLock">The automatic lock.</param>
+    /// <param name="ui">The UI thread, where the vault's changes are shown.</param>
+    public GateViewModel(
+        IVault vault,
+        LockViewModel lockScreen,
+        FirstRunViewModel firstRun,
+        ShellViewModel shell,
+        CaseSession session,
+        AutoLock autoLock,
+        IUiThread ui)
+    {
+        _vault = vault;
+        _shell = shell;
+        _session = session;
+        _autoLock = autoLock;
+        LockScreen = lockScreen;
+        FirstRun = firstRun;
+        Mode = vault.State switch
+        {
+            VaultState.NotCreated => GateMode.FirstRun,
+            VaultState.Unlocked => GateMode.Unlocked,
+            _ => GateMode.Locked,
+        };
+        vault.StateChanged += (_, state) => ui.Post(() => OnVaultChanged(state));
+        firstRun.Completed += (_, _) => Open();
+    }
+
+    /// <summary>Gets the lock screen.</summary>
+    public LockViewModel LockScreen { get; }
+
+    /// <summary>Gets the first-run setup.</summary>
+    public FirstRunViewModel FirstRun { get; }
+
+    /// <summary>Gets what the window shows.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsShellVisible), nameof(IsLockVisible), nameof(IsFirstRunVisible))]
+    [NotifyPropertyChangedFor(nameof(IsGateVisible))]
+    [NotifyCanExecuteChangedFor(nameof(LockCommand))]
+    public partial GateMode Mode { get; private set; }
+
+    /// <summary>Gets whether the shell is shown; only while the vault is open.</summary>
+    public bool IsShellVisible => Mode == GateMode.Unlocked;
+
+    /// <summary>Gets whether the gate's page (the field with the lock screen or the setup) is shown.</summary>
+    public bool IsGateVisible => Mode != GateMode.Unlocked;
+
+    /// <summary>Gets whether the lock screen is shown.</summary>
+    public bool IsLockVisible => Mode == GateMode.Locked;
+
+    /// <summary>Gets whether the first-run setup is shown.</summary>
+    public bool IsFirstRunVisible => Mode == GateMode.FirstRun;
+
+    /// <summary>
+    /// Locks Chainsaw now (Ctrl+L): hides the shell, empties the command bar, forgets the case and locks the vault.
+    /// Before the vault exists there is nothing to lock.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanLock))]
+    public void Lock()
+    {
+        if (_vault.State == VaultState.NotCreated)
+        {
+            return;
+        }
+
+        HideEverything();
+        _vault.Lock();
+    }
+
+    /// <summary>Records that the user did something, which puts off the automatic lock.</summary>
+    public void Touch() => _autoLock.Touch();
+
+    /// <summary>Locks when the time without activity has run out; the window asks now and then.</summary>
+    public void CheckIdle()
+    {
+        if (_vault.State == VaultState.Unlocked && Mode != GateMode.Locked && _autoLock.IsDue())
+        {
+            Lock();
+        }
+    }
+
+    /// <summary>Locks because Windows was locked, the session was disconnected or the computer is going to sleep.</summary>
+    public void OnWindowsLocked()
+    {
+        if (_vault.State == VaultState.Unlocked)
+        {
+            Lock();
+        }
+    }
+
+    /// <summary>Tells whether there is anything to lock.</summary>
+    /// <returns><see langword="true"/> unless the lock screen is already shown.</returns>
+    private bool CanLock() => Mode != GateMode.Locked;
+
+    /// <summary>Shows what the vault's new state allows.</summary>
+    /// <param name="state">The vault's state.</param>
+    private void OnVaultChanged(VaultState state)
+    {
+        if (state == VaultState.Locked)
+        {
+            HideEverything();
+        }
+        else if (state == VaultState.Unlocked && Mode == GateMode.Locked)
+        {
+            Open();
+        }
+    }
+
+    /// <summary>Shows the lock screen in place of everything else and lets go of what the shell held.</summary>
+    private void HideEverything()
+    {
+        Mode = GateMode.Locked;
+        _shell.ClearCommand();
+        _session.Forget();
+        LockScreen.Reset();
+    }
+
+    /// <summary>Shows the shell and starts the time without activity anew.</summary>
+    private void Open()
+    {
+        _autoLock.Touch();
+        Mode = GateMode.Unlocked;
+    }
+}

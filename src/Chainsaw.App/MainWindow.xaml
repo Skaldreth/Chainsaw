@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Chainsaw.App.Controls"
         xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+        xmlns:views="clr-namespace:Chainsaw.App.Views"
         Title="Chainsaw" Width="1440" Height="900" MinWidth="960" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Brush.Background}"
@@ -54,151 +55,157 @@
     <!-- Maximised, a window with its own chrome reaches past the screen's edge; the border keeps it inside. -->
     <Border x:Name="Frame">
         <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="36" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="28" />
-            </Grid.RowDefinitions>
+            <!-- The shell is in the visual tree only while the vault is open; locked, it is collapsed behind the gate. -->
+            <Grid x:Name="ShellRoot" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="36" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="28" />
+                </Grid.RowDefinitions>
 
-            <!-- ===== Title bar: logo, case, watch, exit, window buttons ===== -->
-            <Border Grid.Row="0" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
-                    BorderThickness="0,0,0,1">
-                <DockPanel LastChildFill="False">
-                    <Image DockPanel.Dock="Left" Source="{StaticResource Logo.Small}" Width="16" Height="16"
-                           Margin="14,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
-                    <TextBlock DockPanel.Dock="Left" Text="Chainsaw" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock DockPanel.Dock="Left" Text="{Binding CaseTitle}" Foreground="{StaticResource Brush.TextDim}"
-                               FontSize="13" Margin="18,0,0,0" VerticalAlignment="Center" />
+                <!-- ===== Title bar: logo, case, watch, exit, window buttons ===== -->
+                <Border Grid.Row="0" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
+                        BorderThickness="0,0,0,1">
+                    <DockPanel LastChildFill="False">
+                        <Image DockPanel.Dock="Left" Source="{StaticResource Logo.Small}" Width="16" Height="16"
+                               Margin="14,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                        <TextBlock DockPanel.Dock="Left" Text="Chainsaw" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding CaseTitle}" Foreground="{StaticResource Brush.TextDim}"
+                                   FontSize="13" Margin="18,0,0,0" VerticalAlignment="Center" />
 
-                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.WindowClose}" Click="OnClose"
-                            WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Stäng">
-                        <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" StrokeThickness="1"
-                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
-                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Window}" Click="OnMaximize"
-                            WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Maximera">
-                        <Path Data="M0.5,0.5 L9.5,0.5 L9.5,9.5 L0.5,9.5 Z" Width="10" Height="10" StrokeThickness="1"
-                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
-                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Window}" Click="OnMinimize"
-                            WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Minimera">
-                        <Path Data="M0,5 L10,5" Width="10" Height="10" StrokeThickness="1"
-                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.WindowClose}" Click="OnClose"
+                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Stäng">
+                            <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" StrokeThickness="1"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Window}" Click="OnMaximize"
+                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Maximera">
+                            <Path Data="M0.5,0.5 L9.5,0.5 L9.5,9.5 L0.5,9.5 Z" Width="10" Height="10" StrokeThickness="1"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Window}" Click="OnMinimize"
+                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Minimera">
+                            <Path Data="M0,5 L10,5" Width="10" Height="10" StrokeThickness="1"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
 
-                    <!-- No exit is connected until the network is built: a grey dot and the honest words. -->
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center"
-                                ToolTip="Utgångar är inte byggda än">
-                        <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.TextFaint}" Margin="0,0,6,0" />
-                        <TextBlock Text="Ingen utgång" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Grid Grid.Row="1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="56" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <!-- ===== The rail (sketch SH1b): icons only, the name on hover ===== -->
-                <Border Grid.Column="0" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
-                        BorderThickness="0,0,1,0">
-                    <DockPanel Margin="0,8">
-                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Top}" ItemTemplate="{StaticResource RailItem}"
-                                      HorizontalAlignment="Center" Focusable="False" />
-                        <Border DockPanel.Dock="Top" Style="{StaticResource Line.Rail}" />
-                        <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding Bottom}"
-                                      ItemTemplate="{StaticResource RailItem}" HorizontalAlignment="Center" Focusable="False" />
-                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Work}" ItemTemplate="{StaticResource RailItem}"
-                                      HorizontalAlignment="Center" Focusable="False" />
+                        <!-- No exit is connected until the network is built: a grey dot and the honest words. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center"
+                                    ToolTip="Utgångar är inte byggda än">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.TextFaint}" Margin="0,0,6,0" />
+                            <TextBlock Text="Ingen utgång" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                        </StackPanel>
                     </DockPanel>
                 </Border>
 
-                <!-- ===== The page: its header, its content, and the command bar floating at the bottom ===== -->
-                <Grid Grid.Column="1">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="52" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="56" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-                    <Border Grid.Row="0" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1">
-                        <TextBlock Text="{Binding CurrentEntry.Name}" FontSize="18" FontWeight="SemiBold"
-                                   Margin="20,0,0,0" VerticalAlignment="Center" />
+                    <!-- ===== The rail (sketch SH1b): icons only, the name on hover ===== -->
+                    <Border Grid.Column="0" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
+                            BorderThickness="0,0,1,0">
+                        <DockPanel Margin="0,8">
+                            <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Top}" ItemTemplate="{StaticResource RailItem}"
+                                          HorizontalAlignment="Center" Focusable="False" />
+                            <Border DockPanel.Dock="Top" Style="{StaticResource Line.Rail}" />
+                            <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding Bottom}"
+                                          ItemTemplate="{StaticResource RailItem}" HorizontalAlignment="Center" Focusable="False" />
+                            <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Work}" ItemTemplate="{StaticResource RailItem}"
+                                          HorizontalAlignment="Center" Focusable="False" />
+                        </DockPanel>
                     </Border>
 
-                    <!-- No view is built yet: the page says so, with the view's icon, and never shows made-up data. -->
-                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80">
-                        <controls:GridIcon Size="40" Foreground="{StaticResource Brush.TextFaint}" HorizontalAlignment="Center"
-                                           Data="{Binding CurrentEntry.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
-                        <TextBlock Text="{Binding CurrentEntry.Name}" FontSize="14" Foreground="{StaticResource Brush.TextDim}"
-                                   HorizontalAlignment="Center" Margin="0,12,0,0" />
-                        <TextBlock Text="Inte byggt än" FontSize="12.5" Foreground="{StaticResource Brush.TextFaint}"
-                                   HorizontalAlignment="Center" Margin="0,4,0,0" />
-                    </StackPanel>
+                    <!-- ===== The page: its header, its content, and the command bar floating at the bottom ===== -->
+                    <Grid Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="52" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
 
-                    <!-- The command bar: search and commands are here and nowhere else (decided 2026-11-07). -->
-                    <StackPanel Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20">
-                        <TextBlock Text="{Binding CommandAnswer}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
-                                   HorizontalAlignment="Center" Margin="0,0,0,8">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Style.Triggers>
-                                        <Trigger Property="Text" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <Grid Width="560" Height="44">
-                            <!-- The shadow lies in a layer of its own: an effect on the bar would blur its text. -->
-                            <Border CornerRadius="12" Background="{StaticResource Brush.Floating}">
-                                <Border.Effect>
-                                    <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.45" Color="Black" />
-                                </Border.Effect>
-                            </Border>
-                            <Border CornerRadius="12" Background="{StaticResource Brush.Floating}"
-                                    BorderThickness="1" Padding="14,0">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+                        <Border Grid.Row="0" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1">
+                            <TextBlock Text="{Binding CurrentEntry.Name}" FontSize="18" FontWeight="SemiBold"
+                                       Margin="20,0,0,0" VerticalAlignment="Center" />
+                        </Border>
+
+                        <!-- No view is built yet: the page says so, with the view's icon, and never shows made-up data. -->
+                        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80">
+                            <controls:GridIcon Size="40" Foreground="{StaticResource Brush.TextFaint}" HorizontalAlignment="Center"
+                                               Data="{Binding CurrentEntry.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                            <TextBlock Text="{Binding CurrentEntry.Name}" FontSize="14" Foreground="{StaticResource Brush.TextDim}"
+                                       HorizontalAlignment="Center" Margin="0,12,0,0" />
+                            <TextBlock Text="Inte byggt än" FontSize="12.5" Foreground="{StaticResource Brush.TextFaint}"
+                                       HorizontalAlignment="Center" Margin="0,4,0,0" />
+                        </StackPanel>
+
+                        <!-- The command bar: search and commands are here and nowhere else (decided 2026-11-07). -->
+                        <StackPanel Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20">
+                            <TextBlock Text="{Binding CommandAnswer}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                       HorizontalAlignment="Center" Margin="0,0,0,8">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource Self}}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
-                                            </DataTrigger>
+                                            <Trigger Property="Text" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </Trigger>
                                         </Style.Triggers>
                                     </Style>
-                                </Border.Style>
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Left" Text="&gt;" FontFamily="{StaticResource Font.Mono}"
-                                               Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                    <TextBlock DockPanel.Dock="Right" Text="Ctrl+K" FontSize="11" Foreground="{StaticResource Brush.TextDim}"
-                                               VerticalAlignment="Center" Margin="10,0,0,0" />
-                                    <TextBox x:Name="CommandBox" Style="{StaticResource TextBox.Command}"
-                                             Tag="Sök adress, tx eller etikett, eller skriv /kommando"
-                                             Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}"
-                                             AutomationProperties.Name="Kommandorad">
-                                        <TextBox.InputBindings>
-                                            <KeyBinding Key="Enter" Command="{Binding SubmitCommand}" />
-                                            <KeyBinding Key="Escape" Command="{Binding ClearCommandCommand}" />
-                                        </TextBox.InputBindings>
-                                    </TextBox>
-                                </DockPanel>
-                            </Border>
-                        </Grid>
-                    </StackPanel>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <Grid Width="560" Height="44">
+                                <!-- The shadow lies in a layer of its own: an effect on the bar would blur its text. -->
+                                <Border CornerRadius="12" Background="{StaticResource Brush.Floating}">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.45" Color="Black" />
+                                    </Border.Effect>
+                                </Border>
+                                <Border CornerRadius="12" Background="{StaticResource Brush.Floating}"
+                                        BorderThickness="1" Padding="14,0">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource Self}}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Left" Text="&gt;" FontFamily="{StaticResource Font.Mono}"
+                                                   Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock DockPanel.Dock="Right" Text="Ctrl+K" FontSize="11" Foreground="{StaticResource Brush.TextDim}"
+                                                   VerticalAlignment="Center" Margin="10,0,0,0" />
+                                        <TextBox x:Name="CommandBox" Style="{StaticResource TextBox.Command}"
+                                                 Tag="Sök adress, tx eller etikett, eller skriv /kommando"
+                                                 Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Kommandorad">
+                                            <TextBox.InputBindings>
+                                                <KeyBinding Key="Enter" Command="{Binding SubmitCommand}" />
+                                                <KeyBinding Key="Escape" Command="{Binding ClearCommandCommand}" />
+                                            </TextBox.InputBindings>
+                                        </TextBox>
+                                    </DockPanel>
+                                </Border>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
+
+                <!-- ===== Status line: the source, honestly none until the data layer is built ===== -->
+                <Border Grid.Row="2" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
+                        BorderThickness="0,1,0,0">
+                    <StackPanel Orientation="Horizontal" Margin="14,0" VerticalAlignment="Center">
+                        <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.TextFaint}" Margin="0,0,6,0" />
+                        <TextBlock Text="{Binding SourceText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                    </StackPanel>
+                </Border>
             </Grid>
 
-            <!-- ===== Status line: the source, honestly none until the data layer is built ===== -->
-            <Border Grid.Row="2" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
-                    BorderThickness="0,1,0,0">
-                <StackPanel Orientation="Horizontal" Margin="14,0" VerticalAlignment="Center">
-                    <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.TextFaint}" Margin="0,0,6,0" />
-                    <TextBlock Text="{Binding SourceText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
-                </StackPanel>
-            </Border>
+            <!-- The gate: the lock screen (ID7) or the first-run setup (FS1a) on the field, in place of everything. -->
+            <views:GateView x:Name="Gate" />
         </Grid>
     </Border>
 </Window>
