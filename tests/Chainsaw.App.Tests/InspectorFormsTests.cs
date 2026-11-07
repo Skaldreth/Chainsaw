@@ -386,9 +386,9 @@ public sealed class InspectorFormsTests
         Assert.False(rig.Forms.IsOpen);
     }
 
-    /// <summary>When a split fails part way, those stored are said and the graph is read again.</summary>
+    /// <summary>A breaking out the case refuses stores nothing: the failure is said, and the graph is not read again.</summary>
     [Fact]
-    public async Task PartlyStoredSplitsAreSaid()
+    public async Task ARefusedBreakingOutIsSaid()
     {
         var rig = new Rig();
         var a = GraphSamples.Address(20);
@@ -401,7 +401,6 @@ public sealed class InspectorFormsTests
             [],
             []);
         rig.Editor.Failure = new CaseException(CaseError.Closed);
-        rig.Editor.FailAfter = 1;
         rig.Graph.Choose(GraphSamples.KKey, null);
         rig.Forms.Open(InspectorForm.Split);
         rig.Forms.ToggleMember(rig.Forms.Members[1]);
@@ -410,9 +409,10 @@ public sealed class InspectorFormsTests
 
         await rig.Forms.SubmitCommand.ExecuteAsync(null);
 
-        Assert.StartsWith("1 av 2 uppbrytningar sparades.", rig.Forms.Error, StringComparison.Ordinal);
+        Assert.StartsWith(InspectorFormsViewModel.SaveFailedText, rig.Forms.Error, StringComparison.Ordinal);
         Assert.True(rig.Forms.IsSplitOpen);
-        Assert.Equal(loads + 1, rig.Source.Loads.Count);
+        Assert.Equal(loads, rig.Source.Loads.Count);
+        Assert.Empty(rig.Editor.Splits);
     }
 
     /// <summary>

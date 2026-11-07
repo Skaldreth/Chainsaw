@@ -51,6 +51,10 @@ som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
   grafen säger inte *Offline*, också när datorn saknar nät. Chainsaw kan inte veta om Windows når källorna förrän ett
   uppslag görs; `NetworkChange` kunde säga när datorn inte har något nät alls. Bekräfta eller välj.
 
+- **Vems egen etikett** (etapp 21, granskningen M4): historiken räknar varje egen etikett i ärendet som användarens,
+  också en som en kollega satte i en fil som lämnats över. Tas den tillbaka dras den tillbaka ur biblioteket överallt.
+  Ska bara den som satte etiketten kunna ta tillbaka den, eller räcker det att tillbakatagandet säger vem?
+
 ## Bygga härnäst
 
 
@@ -508,6 +512,18 @@ Hur kontrollerna och förslagen visas samlat (en lista att gå igenom, markering
 - **WireGuard-filens text** läses som fästa tecken som töms (`Exits/WireGuardFile`, etapp 17), men blir en `string`
   i anropet till `IExitStore.Add`, som tar en (samma sak som *Klartext i minnet*). Kräver ett kontrakt med tecken.
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
+
+### Historik, ta tillbaka och ångra (etapp 21)
+- **Hämtad i historiken:** en adress visar *Först in* med blocket men inte när den hämtades, eftersom
+  `IBitcoinSource.GetAddressTransactionsAsync` inte kan läsa ur ärendet utan att fråga källan. Ett läge bara ur ärendet
+  (som för tx) skulle ge raden *Hämtad · block · källa*.
+- **Ta tillbaka en egen yta** (KF1b, Z) när ytorna finns (etapp 22): samma rad och samma formulär i historiken.
+- **Kopior och sanktionsträffar i historiken** har ingen knapp (skissen: bara det egna), men tjänsten låter dem tas
+  tillbaka. Ska en kopia från ett annat ärende kunna avvisas i historiken?
+- **Äldre ärenden** (före etapp 21) har en journalrad per uppbrytning och visar en rad per länk.
+- **Test saknas** för en omläsning av grafen medan en ångring sparas (granskningen omgång 3, M4).
+- En adressnod visar inte en klusteretikett som sitter på en annan adress i ett kluster den inte är en del av i grafen
+  (granskningen omgång 1, M5).
 
 ### Övrigt
 - **Registrera länken `chainsaw:`** för användaren (HKCU\Software\Classes\chainsaw med `URL Protocol` och

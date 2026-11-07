@@ -1502,3 +1502,61 @@ tillgångar). Bygget är utan varningar.
 
 **Återstår:** inget att prova på Windows utöver det som redan står där; gränssnittet ska se ut som förut. Det som
 fortfarande är bundet till Bitcoin står i TODO under *Kedjor och data*.
+
+## Etapp 21 (2026-11-07): ta tillbaka och ångra (AN1b)
+
+Inspektören har flikarna **Fakta** och **Historik · N**. Historiken visar nodens händelser i tidsordning, och det
+användaren själv sparat kan tas tillbaka eller ångras som en **ny förseglad post** med vem, när och ett frivilligt skäl.
+Inget tas bort; det gamla står kvar överstruket och tonat, med tillbakatagandet som en egen rad.
+
+- **Attribution:** `Retract` tar ett frivilligt skäl, och tillbakatagandets post (samma kedja `attribution.labels`)
+  sparar nu vem och när i de kolumner som fanns. `GetHistory(case, adresser)` ger etiketterna med sitt
+  tillbakatagande (`LabelHistoryEntry`, `LabelRetraction`); `CanRetract` gäller egna etiketter och öppna källor.
+  Biblioteket drar tillbaka en etikett överallt bara när den var användarens egen (egen eller öppen källa); en kopia, en
+  sanktionsträff eller en analys etikett som tas tillbaka lämnar bara biblioteket från det ärendet.
+- **Clustering:** schemasteg 2 med tabellen och den förseglade kedjan `clustering.split_undos`. `UndoSplits` ångrar
+  alla eller inga under en journalrad (`clustering.split-undone`), `PreviewUndoSplits` säger utan att spara vilka
+  adresser som slås ihop igen och med vilken heuristik (samma regler som klustren byggs med), och `GetSplitHistory`
+  ger uppbrytningarna med sin ångring. Klustren räknar bara uppbrytningar som inte är ångrade. **En uppbrytning
+  sparas nu som en enda:** `Split(case, lista)` förseglar alla eller inga under en journalrad, och appen använder den.
+- **Tracing:** `UnlinkCrossChain` tar ett frivilligt skäl (sparat som tom text, eftersom kolumnen är text) och
+  `GetCrossChainHistory` ger länkarna med sitt tillbakatagande.
+- **Appen:** `Graph/NodeHistory.cs` skriver raderna (*Först in* med blocket, *Klustrad* per heuristik, etiketter,
+  *Uppbruten · N ut* per journalrad, länkar och tillbakatagandena), `InspectorHistoryViewModel` (utan WPF) flikarna,
+  formuläret och bekräftelsen, `GraphEditor` läser historiken och skriver genom modulerna, och efter en tillbakatagen
+  etikett körs `ILabelLibrary.Absorb` direkt. Går biblioteket inte att uppdatera sägs det i grafens rad.
+  `Views/InspectorHistoryView.xaml` ritar raderna på en tunn tidslinje med ikonens ram streckad för det automatiska.
+  Enter sparar, Esc avbryter (också från grafen), och L, U eller K byter till Fakta.
+- **Guiden:** *Historik: ta tillbaka och ångra* i `grafen.md`.
+- **Facit från etapp 20** (`Golden/bitcoin-flow.txt`) är uppdaterat för klustringens nya schemasteg och kedja; inget
+  annat i det skiljer.
+
+**Egna beslut:**
+- **Bekräftelsen är formuläret självt:** *Ångra* fäller ut *Slås ihop igen* med adresserna och heuristiken, och knappen
+  går inte att trycka förrän listan är läst. Högst 12 adresser listas, resten räknas (*+N till*). Slås inget ihop
+  (en annan uppbrytning håller, eller ingen heuristik binder) sägs det, och ångringen går ändå att spara.
+- **Skälet är frivilligt** för att ta tillbaka och ångra (användarens beslut), men fortfarande krav när något sätts.
+- **En uppbrytning är en journalrad:** etapp 16 sparade en uppbrytning per länk; nu sparas de tillsammans så att de kan
+  visas och ångras som en. Äldre ärenden visar en rad per länk (schemat får ändras före 1.0).
+- **Tjänsten låter fortfarande sanktionsträffar och kopior tas tillbaka** (etapp 8, testat); i historiken har bara de
+  egna en knapp, som skissen säger.
+- **Hämtad** för en adress visas inte: Chains har inget sätt att läsa en adress ur ärendet utan att fråga källan. I
+  stället står *Först in* med blocket (ett faktum ur kedjan). TODO.
+- **Egen yta** finns inte än (etapp 22 bygger dem samtidigt); att ta tillbaka en sådan står i TODO.
+
+**Granskningen:** tre omgångar.
+- **Omgång 1:** inga C, tre I och fem M. I: en uppbrytning grupperades per heuristik och kunde bara ångras till hälften;
+  *N ut* ändrades efter en ångring och från andra sidan; en tillbakatagen etikett från en analys drogs tillbaka ur
+  biblioteket överallt. M: skör gruppering, lång bekräftelse, en omläsning stängde formuläret, korta namn på
+  heuristiken; en kollegas egen etikett räknas som användarens (frågan står i TODO). Alla utom den sista rättade.
+- **Omgång 2:** inga C, ett I och fem M. I: en uppbrytning vars länkar inte delade adress lästes inte hel från den
+  utbrutna adressen; rättat genom att läsa per journalrad i hela historiken. M rättade: gamla texter efter
+  alla-eller-inga, en omläsning under en pågående sparning, en gammal bekräftelse som stod kvar; två står i TODO.
+- **Omgång 3:** inga C eller I. Tre M rättade (en gammal `<returns>`, en gren som inte kunde nås, historiken lästes två
+  gånger); ett test för omläsning under en pågående sparning står i TODO.
+
+**Tester:** 1 739 gröna i hela lösningen, varav nya i Attribution (historik, frivilligt skäl, biblioteket), Clustering
+(ångra, bekräftelsen, alla-eller-inga), Tracing (länkarnas historik) och appen (raderna, flikarna, formuläret,
+bekräftelsen, biblioteket). Bygget är utan varningar.
+
+**Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Historik, ta tillbaka och ångra*).

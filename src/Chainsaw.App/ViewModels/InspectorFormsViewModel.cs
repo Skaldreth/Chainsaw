@@ -609,7 +609,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
 
     /// <summary>Stores the splits that break the picked addresses out, as one breaking out, all or none.</summary>
     /// <param name="openCase">The open case.</param>
-    /// <returns><see langword="true"/> when every split was stored.</returns>
+    /// <returns>What to say, or <see langword="null"/> when the picked addresses were broken out.</returns>
     private async Task<string?> StoreSplitsAsync(ICase openCase)
     {
         if (_cluster is not { } shown || !HasReason(Reason))
@@ -622,14 +622,9 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         var fresh = await _editor.ReadClusterAsync(openCase, shown.Start, CancellationToken.None);
         var requests = InspectorForms.BreakOut(fresh, [.. picked.Where(fresh.Contains)], Reason);
         var outcome = await _editor.SplitAsync(openCase, requests);
-        var problem = outcome.Failure switch
-        {
-            null => await CheckBrokenOutAsync(openCase, shown.Start, picked),
-            { } failure when outcome.Stored == 0 => Failure(failure),
-            { } failure => string.Create(
-                CultureInfo.InvariantCulture,
-                $"{outcome.Stored} av {requests.Count} uppbrytningar sparades. {Failure(failure)}"),
-        };
+        var problem = outcome.Failure is { } failure
+            ? Failure(failure)
+            : await CheckBrokenOutAsync(openCase, shown.Start, picked);
 
         // The graph is read again only after the check, so that the form it may close has said what it found.
         if (outcome.Stored > 0)

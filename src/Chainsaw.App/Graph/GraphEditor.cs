@@ -184,7 +184,7 @@ public sealed class GraphEditor(
                     ? node.GraphAddresses
                     : [.. cluster.Addresses.Union(node.GraphAddresses)];
                 var labels = attribution.GetHistory(@case, addresses);
-                var splits = WholeBreakingsOut(@case, clustering.GetSplitHistory(@case, addresses));
+                var splits = WholeBreakingsOut(clustering.GetSplitHistory(@case), addresses.ToHashSet());
                 var links = tracing.GetCrossChainHistory(@case);
                 cancellationToken.ThrowIfCancellationRequested();
                 var operators = new Dictionary<long, string>();
@@ -251,20 +251,19 @@ public sealed class GraphEditor(
     }
 
     /// <summary>
-    /// Widens the splits that touch a node to the whole breakings out they belong to (the splits stored under the same
-    /// journal entry), so that a breaking out is shown and undone as one from any of its addresses.
+    /// Gives the whole breakings out (the splits stored under the same journal entry) that touch a node's addresses,
+    /// so that a breaking out is shown and undone as one from any of its addresses.
     /// </summary>
-    /// <param name="case">The open case.</param>
-    /// <param name="touching">The splits that touch the node.</param>
+    /// <param name="all">Every split in the case, read once.</param>
+    /// <param name="addresses">The node's addresses.</param>
     /// <returns>Every split of those breakings out, oldest first.</returns>
-    private IReadOnlyList<SplitHistoryEntry> WholeBreakingsOut(ICase @case, IReadOnlyList<SplitHistoryEntry> touching)
+    private static IReadOnlyList<SplitHistoryEntry> WholeBreakingsOut(
+        IReadOnlyList<SplitHistoryEntry> all, IReadOnlySet<BitcoinAddress> addresses)
     {
-        if (touching.Count == 0)
-        {
-            return touching;
-        }
-
-        var journals = touching.Select(entry => entry.Split.JournalSequence).ToHashSet();
-        return [.. clustering.GetSplitHistory(@case).Where(entry => journals.Contains(entry.Split.JournalSequence))];
+        var journals = all
+            .Where(entry => addresses.Contains(entry.Split.First) || addresses.Contains(entry.Split.Second))
+            .Select(entry => entry.Split.JournalSequence)
+            .ToHashSet();
+        return [.. all.Where(entry => journals.Contains(entry.Split.JournalSequence))];
     }
 }
