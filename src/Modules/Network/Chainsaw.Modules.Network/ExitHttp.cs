@@ -142,7 +142,7 @@ internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route,
             throw new ArgumentException("A body needs a valid media type.", nameof(request));
         }
 
-        if (request.Accept is not null && !MediaTypeWithQualityHeaderValue.TryParse(request.Accept, out _))
+        if (request.Accept is not null && AcceptedTypes(request.Accept) is null)
         {
             throw new ArgumentException("The media type asked for is not valid.", nameof(request));
         }
@@ -151,6 +151,28 @@ internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route,
         {
             throw new ArgumentException("The key's header is not allowed or its value cannot be sent.", nameof(request));
         }
+    }
+
+    /// <summary>
+    /// Reads the media types asked for: one, or a list split by commas (<c>application/json, text/plain</c>), as the
+    /// <c>Accept</c> header allows. A single parse of the whole list fails, which once stopped every Esplora lookup.
+    /// </summary>
+    /// <param name="accept">The header's value.</param>
+    /// <returns>The types, or <see langword="null"/> when one of them is not valid or there are none.</returns>
+    internal static IReadOnlyList<MediaTypeWithQualityHeaderValue>? AcceptedTypes(string accept)
+    {
+        var types = new List<MediaTypeWithQualityHeaderValue>();
+        foreach (var part in accept.Split(',', StringSplitOptions.TrimEntries))
+        {
+            if (!MediaTypeWithQualityHeaderValue.TryParse(part, out var type))
+            {
+                return null;
+            }
+
+            types.Add(type);
+        }
+
+        return types.Count == 0 ? null : types;
     }
 
     /// <summary>Gives the response's media type exactly as the server wrote it.</summary>
@@ -175,9 +197,9 @@ internal sealed class ExitHttp(ExitConnection connection, ExitRouteChoice route,
         };
         message.Headers.TryAddWithoutValidation("User-Agent", NetworkOptions.UserAgent);
         message.Headers.ExpectContinue = false;
-        if (request.Accept is not null)
+        foreach (var type in request.Accept is null ? [] : AcceptedTypes(request.Accept) ?? [])
         {
-            message.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse(request.Accept));
+            message.Headers.Accept.Add(type);
         }
 
         if (request.Credential is { } credential)

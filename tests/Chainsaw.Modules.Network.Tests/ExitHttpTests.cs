@@ -117,6 +117,28 @@ public sealed class ExitHttpTests
     }
 
     [Fact]
+    public async Task A_list_of_media_types_is_asked_for_as_Esplora_asks()
+    {
+        await _harness.ConnectedExitAsync();
+
+        await _harness.Http.SendAsync(ExitRequest.Get(Address) with { Accept = "application/json, text/plain" });
+
+        var request = Assert.Single(_harness.Handlers.Handlers[0].Requests);
+        Assert.Equal(["application/json", "text/plain"], request.Headers.Accept.Select(type => type.MediaType));
+    }
+
+    [Fact]
+    public async Task A_list_with_one_media_type_that_is_not_valid_is_refused()
+    {
+        await _harness.ConnectedExitAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _harness.Http.SendAsync(ExitRequest.Get(Address) with { Accept = "application/json, nonsense" }));
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _harness.Http.SendAsync(ExitRequest.Get(Address) with { Accept = " , " }));
+    }
+
+    [Fact]
     public async Task A_post_sends_its_body_and_media_type_and_accept_when_asked()
     {
         await _harness.ConnectedExitAsync();
