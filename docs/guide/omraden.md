@@ -15,7 +15,8 @@ Menyn *Områden i grafen* i grafens hörn väljer vilka sorter som ritas:
 
 - **Förvirring**, rött för mixer och CoinJoin och sand för lager på lager (peel chain), ur [kontrollerna och
   förslagen](kontroller-och-forslag.md);
-- **Plånböcker**, grått, där klustringen föreslår att adresser har samma ägare men inte slog ihop dem;
+- **Plånböcker**, grått, där klustringen föreslår att adresser har samma ägare men inte slog ihop dem; ett sådant
+  förslag kan [godkännas](kontroller-och-forslag.md);
 - **Tjänster**, blått, där samma tjänsts etikett sitter på flera aktörer;
 - **Annan kedja**, lila, där pengarna fortsätter på en annan kedja genom en länk du gjort;
 - **Tid**, prickat utan fyllning, runt aktörer som pengarna passerade inom två timmar;

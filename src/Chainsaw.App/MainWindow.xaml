@@ -303,14 +303,15 @@
 
                     <!--
                       ===== The command bar (decided 2026-11-07): search and commands are here and nowhere else. It is
-                      hidden until Ctrl+K or Ctrl+F brings it up like Spotlight, in the upper third over a soft darkening;
-                      Esc, a click outside or a command that did what it was asked hides it again. ===== -->
+                      hidden until Ctrl+K or Ctrl+F brings it up like Spotlight, near the top; Esc, a click outside or a
+                      command that did what it was asked hides it again. Nothing is darkened, since the chosen search
+                      row is shown in the graph under it (sketch KR1a). ===== -->
                     <Grid x:Name="CommandLayer" Visibility="Collapsed">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="30" />
                             <RowDefinition Height="*" />
-                            <RowDefinition Height="3*" />
                         </Grid.RowDefinitions>
-                        <Rectangle x:Name="CommandDim" Grid.RowSpan="2" Fill="#59000000" MouseDown="OnCommandOutside" />
+                        <Rectangle x:Name="CommandDim" Grid.RowSpan="2" Fill="Transparent" MouseDown="OnCommandOutside" />
                         <!--
                           At most 640 wide, and narrower when the window or the space beside the Guide's panel is, so
                           that it is never cut (a stretch held back by MaxWidth is centred).
@@ -338,8 +339,16 @@
                                                            Margin="0,0,12,0" />
                                         <TextBlock DockPanel.Dock="Right" Text="Esc" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                                                    VerticalAlignment="Center" Margin="12,0,0,0" />
+                                        <!-- The chain what is written is recognised on (sketch KR1a), for example ₿ Bitcoin. -->
+                                        <Border DockPanel.Dock="Right" Height="22" CornerRadius="11" Padding="8,0" Margin="12,0,0,0"
+                                                BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1"
+                                                VerticalAlignment="Center" ToolTip="Känns igen som en adress eller en tx på kedjan"
+                                                Visibility="{Binding Search.HasChain, Converter={StaticResource VisibleWhen}}">
+                                            <TextBlock Text="{Binding Search.ChainText}" FontSize="12" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource Brush.TextMuted}" />
+                                        </Border>
                                         <TextBox x:Name="CommandBox" Style="{StaticResource TextBox.Command}" FontSize="16"
-                                                 Tag="Sök adress, tx eller etikett, eller skriv /kommando"
+                                                 Tag="Sök etikett, adress, tx, kluster eller begrepp, eller skriv /kommando"
                                                  Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}"
                                                  AutomationProperties.Name="Kommandorad" PreviewKeyDown="OnCommandKey">
                                             <TextBox.InputBindings>
@@ -372,6 +381,8 @@
                                             </TextBlock.Style>
                                         </TextBlock>
                                     </Border>
+                                    <!-- The search (sketch KR1a): the best hit, the groups and the keys. -->
+                                    <views:CommandSearchList x:Name="SearchList" />
                                 </StackPanel>
                             </Border>
                         </Grid>

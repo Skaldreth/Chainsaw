@@ -12,7 +12,7 @@ namespace Chainsaw.App.Tests;
 
 /// <summary>
 /// Made-up checks on the made-up graph of <see cref="GraphSamples"/>: V is a mixer whose likely outputs are U and E,
-/// a CoinJoin around K and E, and a wallet the clustering proposes for W and V.
+/// a CoinJoin around K and E, and a wallet the clustering proposes for W and V, to approve or dismiss.
 /// </summary>
 internal static class CheckSamples
 {
@@ -69,10 +69,11 @@ internal static class CheckSamples
 
     public static StoredCheck Wallet() => new(
         4,
-        new HeuristicId("wallet-proposals", 1),
+        new HeuristicId(CheckAnalysisNames.Wallets, 1),
         "Plånböcker",
         new CheckFinding(
-            W.Value, CheckKind.Check, AreaSort.Wallet, "Samma plånbok troligt", "change-address v1", "Klustringen …",
+            W.Value, CheckKind.Suggestion, AreaSort.Wallet, "Samma plånbok troligt", "change-address v1",
+            "Klustringen …",
             [W, V], [], [], []),
         3,
         new DateTimeOffset(2026, 11, 7, 13, 2, 0, TimeSpan.Zero),
@@ -89,7 +90,11 @@ internal static class CheckSamples
 /// <summary>A Checks module in memory: runs give what the test says, and what is stored is remembered.</summary>
 internal sealed class TestCheckSource : ICheckSource
 {
-    public List<StoredCheck> Checks { get; } = [CheckSamples.Mixer(), CheckSamples.CoinJoin(), CheckSamples.Wallet()];
+    /// <summary>
+    /// Gets the checks a run gives: by default the mixer's suggestion and the CoinJoin; a test that is about wallets
+    /// adds <see cref="CheckSamples.Wallet"/>, which is a suggestion that waits too.
+    /// </summary>
+    public List<StoredCheck> Checks { get; } = [CheckSamples.Mixer(), CheckSamples.CoinJoin()];
 
     public List<OwnArea> Areas { get; } = [];
 
@@ -129,8 +134,17 @@ internal sealed class TestCheckSource : ICheckSource
                 checks, 0, graph.Transactions.Count, new DateTimeOffset(2026, 11, 7, 13, 2, 0, TimeSpan.Zero), []);
     }
 
+    /// <summary>Gets or sets what the next decision throws, as the module does when it refuses; then cleared.</summary>
+    public Exception? DecideFailure { get; set; }
+
     public async Task<IReadOnlyList<CheckDecision>> DecideAsync(ICase @case, IReadOnlyList<DecisionRequest> requests)
     {
+        if (DecideFailure is { } failure)
+        {
+            DecideFailure = null;
+            throw failure;
+        }
+
         Batches++;
         var first = Decisions.Count;
         Decisions.AddRange(requests);

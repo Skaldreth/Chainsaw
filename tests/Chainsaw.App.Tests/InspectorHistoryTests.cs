@@ -138,6 +138,111 @@ public sealed class InspectorHistoryTests
         Assert.Equal("Kim", rows[2].Sub);
     }
 
+    /// <summary>
+    /// The user's merges of one approval (one journal entry) are one dashed row with Ångra and all their sequences; an
+    /// undone merge is struck through and its undoing is a row; the user's links are not counted twice as Klustrad.
+    /// </summary>
+    [Fact]
+    public void AMergeOfTheUsersIsOneRowAndItsUndoingAnother()
+    {
+        var first = Merge(1, GraphSamples.K1, GraphSamples.U, Morning, 5);
+        var second = Merge(2, GraphSamples.K2, GraphSamples.U, Morning, 5);
+        var later = Merge(3, GraphSamples.K1, GraphSamples.E, Morning.AddHours(1), 7);
+        var undo = new ClusterMergeUndo(4, 3, "Fel plånbok", 8, Morning.AddHours(2));
+        var link = new ClusterLink(MergeStoreEvidence(first), LinkState.Merged);
+        var cluster = new Cluster(
+            GraphSamples.K1,
+            [new ClusterMember(GraphSamples.K1, null, null), new ClusterMember(GraphSamples.U, link, GraphSamples.K1)],
+            [link],
+            [],
+            [],
+            []);
+        var data = Data(cluster: cluster, operators: new Dictionary<long, string> { [5] = "Max", [8] = "Kim" }) with
+        {
+            Merges = [new(first, null), new(second, null), new(later, undo)],
+        };
+
+        var rows = NodeHistory.Build(GraphSamples.Scene(), Node(GraphSamples.KKey), data);
+
+        Assert.Equal(
+            [NodeHistory.MergeText, NodeHistory.MergeText, "Ångrad: sammanslagningen"], rows.Select(row => row.Text));
+        Assert.All(rows.Take(2), row => Assert.Equal(HistoryKind.Merge, row.Kind));
+        Assert.Equal([1L, 2L], rows[0].MergeSequences);
+        Assert.Equal(HistoryUndo.UndoMerge, rows[0].Undo);
+        Assert.True(rows[0].CanUndo);
+        Assert.True(rows[0].IsDashed);
+        Assert.Equal(NodeHistory.UndoText, rows[0].UndoText);
+        Assert.Equal("Max · 3 adresser · common-input-ownership v1", rows[0].Sub);
+        Assert.True(rows[1].IsWithdrawn);
+        Assert.False(rows[1].CanUndo);
+        Assert.Equal("Kim · Fel plånbok", rows[2].Sub);
+        Assert.DoesNotContain(rows, row => row.Kind == HistoryKind.Clustered);
+    }
+
+    /// <summary>Ångra on the user's merge undoes it through the editor with the reason, and closes the form.</summary>
+    [Fact]
+    public async Task UndoingAMergeOfTheUsersGoesThroughTheEditor()
+    {
+        var rig = new Rig();
+        rig.Editor.History = Data() with
+        {
+            Merges = [new(Merge(3, GraphSamples.U, GraphSamples.E, Morning, 5), null)],
+        };
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.History.Toggle(Assert.Single(rig.History.Rows));
+        Assert.Equal(NodeHistory.UndoText, rig.History.SubmitText);
+        Assert.True(rig.History.IsMergeOpen);
+        Assert.True(rig.History.IsConfirmOpen);
+        Assert.False(rig.History.IsSplitOpen);
+        Assert.True(rig.History.CanSubmit);
+        Assert.Empty(rig.History.Rejoined);
+        rig.History.Reason = "  Fel plånbok ";
+        var runs = rig.Checks.Runs;
+
+        await rig.History.SubmitCommand.ExecuteAsync(null);
+
+        Assert.Equal(("merge", "3", (string?)"Fel plånbok"), Assert.Single(rig.Editor.Undone));
+        Assert.False(rig.History.IsOpen);
+
+        // The approval is taken back with the merge, so the panel KF2b is read again with the graph.
+        Assert.True(rig.Checks.Runs > runs);
+    }
+
+    /// <summary>
+    /// Undoing a merge of the user's that held a heuristic's link back shows first what merges again (AN1b); a merge
+    /// that no longer holds says so and cannot be stored.
+    /// </summary>
+    [Fact]
+    public void UndoingAMergeShowsWhatMergesAgainFirst()
+    {
+        var rig = new Rig();
+        var merge = Merge(3, GraphSamples.U, GraphSamples.E, Morning, 5);
+        var link = new ClusterLink(
+            new ClusterEvidence(
+                9, new HeuristicId(HeuristicNames.CommonInputOwnership, 1), GraphSamples.Tx[1],
+                [GraphSamples.E, GraphSamples.K1], EvidenceStrength.Merge, "Inputs i samma tx.", null, null, 6,
+                Morning),
+            LinkState.Merged);
+        rig.Editor.MergePreview = new UndoMergePreview(
+            [merge], [new ClusterMember(GraphSamples.K1, link, null)], [link.Evidence.Heuristic]);
+        rig.Editor.History = Data() with { Merges = [new(merge, null)] };
+        rig.Graph.Choose(GraphSamples.UKey, null);
+
+        rig.History.Toggle(Assert.Single(rig.History.Rows));
+
+        Assert.Equal("CIO v1", Assert.Single(rig.History.Rejoined).Heuristic);
+        Assert.Equal("CIO v1", rig.History.RejoinHeuristics);
+        Assert.True(rig.History.CanSubmit);
+
+        rig.Editor.MergePreview = new UndoMergePreview([], [], []);
+        rig.History.Cancel();
+        rig.History.Toggle(Assert.Single(rig.History.Rows));
+
+        Assert.Empty(rig.History.Rejoined);
+        Assert.NotEmpty(rig.History.RejoinNotice);
+        Assert.False(rig.History.CanSubmit);
+    }
+
     /// <summary>A breaking out reads the same from the address that went out, before and after an undo.</summary>
     [Fact]
     public void ABreakingOutReadsTheSameFromItsOtherSide()
@@ -486,6 +591,25 @@ public sealed class InspectorHistoryTests
         long sequence, BitcoinAddress first, BitcoinAddress second, DateTimeOffset when, long journal) =>
         new(sequence, first, second, HeuristicNames.ChangeAddress, "Två ägare", journal, when);
 
+    /// <summary>Gives a merge of the user's own, approved from a common-input-ownership proposal.</summary>
+    /// <param name="sequence">Its sequence.</param>
+    /// <param name="first">One address.</param>
+    /// <param name="second">The other.</param>
+    /// <param name="when">When.</param>
+    /// <param name="journal">Its journal entry.</param>
+    /// <returns>The merge.</returns>
+    private static ClusterMerge Merge(
+        long sequence, BitcoinAddress first, BitcoinAddress second, DateTimeOffset when, long journal) =>
+        new(sequence, [first, second], GraphSamples.Tx[0], new HeuristicId(HeuristicNames.CommonInputOwnership, 1),
+            "Alla inputs har samma ägare.", null, new MergeOrigin("checks.decisions", sequence), journal, when);
+
+    /// <summary>Gives a merge as the clusters count it, as Clustering gives it in a cluster's links.</summary>
+    /// <param name="merge">The merge.</param>
+    /// <returns>The evidence.</returns>
+    private static ClusterEvidence MergeStoreEvidence(ClusterMerge merge) => new(
+        merge.Sequence, UserMerges.Id, merge.Txid, merge.Addresses, EvidenceStrength.Merge, UserMerges.Explain(merge),
+        null, null, merge.JournalSequence, merge.RecordedUtc);
+
     /// <summary>Gives what the history reads.</summary>
     /// <param name="labels">The labels.</param>
     /// <param name="splits">The splits.</param>
@@ -510,7 +634,7 @@ public sealed class InspectorHistoryTests
                 new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), Session);
             Graph = new GraphViewModel(
                 Session, workflow, Source, TestWays.For(new TestExitConnection()), new InlineUi(), Editor,
-                new TestClock());
+                new TestClock(), Checks);
             Session.Open(new TestCase("2026-0001"));
         }
 
@@ -519,6 +643,8 @@ public sealed class InspectorHistoryTests
         public TestGraphSource Source { get; } = new();
 
         public TestGraphEditor Editor { get; } = new();
+
+        public TestCheckSource Checks { get; } = new();
 
         public GraphViewModel Graph { get; }
 

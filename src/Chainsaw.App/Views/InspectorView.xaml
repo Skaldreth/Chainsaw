@@ -168,6 +168,7 @@
 
                     <!-- Varför? as a round icon in the heading's corner: the Guide's answers beside the graph. -->
                     <Button Grid.Column="2" Style="{StaticResource Button.Why}" VerticalAlignment="Center"
+                            Visibility="{Binding HasWhy, Converter={StaticResource Visible}}"
                             AutomationProperties.Name="Varför?" ToolTip="Varför? Förklaringen i Guiden, bredvid grafen"
                             Command="{Binding DataContext.AskWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                     <Button Grid.Column="3" Style="{StaticResource Button.CloseInspector}" VerticalAlignment="Center"
@@ -194,7 +195,7 @@
                             <TextBlock Text="Fakta" />
                         </Button>
                         <Button Command="{Binding ShowHistoryCommand}" AutomationProperties.Name="Historik"
-                                ToolTip="Det som hänt med noden, i tidsordning">
+                                ToolTip="Det som hänt, i tidsordning">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource Button.InspectorTab}">
                                     <Style.Triggers>
