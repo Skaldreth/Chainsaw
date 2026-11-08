@@ -182,6 +182,8 @@ public partial class App : Application
                 .AddSingleton<ICheckSource, CheckSource>()
                 .AddSingleton<IGraphComments, GraphComments>()
                 .AddSingleton<Toaster>()
+                .AddSingleton<ITrashSource, TrashSource>()
+                .AddSingleton<CaseTrash>()
                 .AddSingleton<GraphViewModel>()
                 .AddSingleton<IWatchSource, WatchSource>()
                 .AddSingleton<WatchBoard>()

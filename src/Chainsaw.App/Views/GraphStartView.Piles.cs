@@ -88,6 +88,7 @@ public partial class GraphStartView
             }
         };
         PreviewKeyDown += OnPileKey;
+        Bin.Opened += (_, _) => _model?.OpenTrash();
     }
 
     /// <summary>Makes a node on the ring: a loose case, or a pile drawn as the graph's pile node.</summary>
@@ -380,6 +381,7 @@ public partial class GraphStartView
             Canvas.SetLeft(lift.Ghost, at.X - lift.Grip.X);
             Canvas.SetTop(lift.Ghost, at.Y - lift.Grip.Y);
             ShowDropTarget(at);
+            _model?.LiftNear(Bin.DistanceFrom(at, this));
             return;
         }
 
@@ -402,6 +404,13 @@ public partial class GraphStartView
 
         e.Handled = true;
         var target = _dropTarget?.Tag;
+        if (_model?.DropOnBin(lift.CaseNumber) == true)
+        {
+            // Thrown in the trash (sketch SO1a): nothing else takes the drop.
+            EndLift();
+            return;
+        }
+
         EndLift();
         switch (target)
         {
@@ -455,6 +464,7 @@ public partial class GraphStartView
         }
 
         _model?.Drop();
+        _model?.Bin.EndDrag();
     }
 
     /// <summary>Puts a lifted case back where it was, when the pointer is lost or Esc is pressed.</summary>

@@ -115,6 +115,10 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="suppliers">The suppliers of attribution (Chainabuse first); none where they are not wired.</param>
     /// <param name="switches">Which suppliers are on, from the page Källor; none where they are not wired.</param>
     /// <param name="comments">The graph's comments (sketch KN1a); none where they are not wired.</param>
+    /// <param name="trash">The graph's trash (sketch SO1a); none where it is not wired, and nothing can be thrown.</param>
+    /// <param name="caseTrash">
+    /// The cases thrown on the start page, shared with the window; a trash in memory when none is given.
+    /// </param>
     public GraphViewModel(
         CaseSession session,
         CaseWorkflow workflow,
@@ -126,7 +130,9 @@ public sealed partial class GraphViewModel : ObservableObject
         ICheckSource? checks = null,
         IAttributionProviders? suppliers = null,
         AttributionSwitches? switches = null,
-        IGraphComments? comments = null)
+        IGraphComments? comments = null,
+        ITrashSource? trash = null,
+        CaseTrash? caseTrash = null)
     {
         _suppliers = suppliers;
         _switches = switches;
@@ -175,6 +181,7 @@ public sealed partial class GraphViewModel : ObservableObject
                 ShowNodeTools();
             }
         };
+        UseTrash(trash, caseTrash ?? new CaseTrash(clock));
         session.Changed += (_, _) => OnCaseChanged();
         workflow.StartPointAdded += (_, _) => ui.Post(() => _ = RefreshAsync());
         exit.Changed += (_, _) => ShowWay(exit);
@@ -398,6 +405,16 @@ public sealed partial class GraphViewModel : ObservableObject
     {
         get
         {
+            if (TrashWarning is { } warning && Scene is { } shown)
+            {
+                // What would follow with a throw stands out while the rest is toned down (sketch SO1a).
+                var keys = warning.Keys;
+                return (keys, shown.Edges
+                    .Where(edge => keys.Contains(edge.Edge.From) && keys.Contains(edge.Edge.To))
+                    .Select(edge => edge.Key)
+                    .ToHashSet(StringComparer.Ordinal));
+            }
+
             if (Checks.Focus is { } focus && Scene is { } scene)
             {
                 return (focus, scene.Edges
@@ -411,7 +428,8 @@ public sealed partial class GraphViewModel : ObservableObject
     }
 
     /// <summary>Gets whether something is chosen, so that the rest is drawn faint.</summary>
-    public bool IsFocused => SelectedNode is not null || SelectedEdge is not null || Checks.Focus is not null;
+    public bool IsFocused =>
+        SelectedNode is not null || SelectedEdge is not null || Checks.Focus is not null || TrashWarning is not null;
 
     /// <summary>Shows a layout; each keeps its own places (sketch GR4).</summary>
     /// <param name="layout">The layout.</param>
@@ -778,6 +796,7 @@ public sealed partial class GraphViewModel : ObservableObject
         try
         {
             var scene = await _source.LoadAsync(openCase, Reading, _work.Token);
+            await ReadTrashAsync(openCase, _work.Token);
             if (version == _version)
             {
                 Show(scene, fit, keepNotice);
@@ -871,6 +890,9 @@ public sealed partial class GraphViewModel : ObservableObject
         Labels = AmountLabelMode.All;
         _showUnspendable = false;
         CloseFan();
+        TrashWarning = null;
+        _trash = TrashFilter.Empty;
+        _lastThrow = null;
         Scene = null;
         SelectedNode = null;
         SelectedEdge = null;
@@ -985,7 +1007,8 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="keepNotice">Whether the notice stays instead of the graph's problems.</param>
     private void Show(GraphScene scene, bool fit, bool keepNotice = false)
     {
-        Scene = scene;
+        Scene = scene.WithTrash(_trash);
+        scene = Scene;
         EmptyText = scene.Snapshot.Graph.StartPoints.Count == 0 && scene.Nodes.Count == 0 ? NoStartPointsText : "";
         if (!keepNotice || Notice.Length == 0)
         {
@@ -1005,6 +1028,7 @@ public sealed partial class GraphViewModel : ObservableObject
         ShowWatches();
         _ = Checks.FollowAsync(scene);
         FollowFan();
+        ShowTrash();
         OnPropertyChanged(nameof(MethodToolTip));
         if (fit)
         {
@@ -1025,6 +1049,7 @@ public sealed partial class GraphViewModel : ObservableObject
         ShowWatches();
         _ = Checks.FollowAsync(null);
         CloseFan();
+        ShowTrash();
     }
 
     /// <summary>Works out every node's place and every line's curve in the layout shown, and draws again.</summary>

@@ -409,6 +409,12 @@ public static class TracingJournalKinds
     /// <summary>The user changed the tracing method the graph's amounts are counted by.</summary>
     public const string MethodChanged = "tracing.method-changed";
 
+    /// <summary>The user threw nodes of the graph in the trash (sketch SO1a); nothing left the case.</summary>
+    public const string Trashed = "tracing.trashed";
+
+    /// <summary>The user put nodes back from the trash.</summary>
+    public const string Restored = "tracing.restored";
+
     /// <summary>The user wrote a comment on the graph (sketch KN1a).</summary>
     public const string CommentAdded = "tracing.comment-added";
 

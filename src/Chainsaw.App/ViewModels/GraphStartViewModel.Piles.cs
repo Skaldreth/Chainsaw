@@ -111,7 +111,7 @@ public sealed partial class GraphStartViewModel
 
     /// <summary>
     /// Gets the case that is lifted (dragged) on the ring, or <see langword="null"/>. While a case is lifted, the trash
-    /// grows in the lower left corner to be dropped on (sketch SO1a, not built yet: see <c>docs/TODO.md</c>).
+    /// grows in the lower left corner to be dropped on (sketch SO1a, <see cref="Bin"/>).
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLifting))]
@@ -327,7 +327,7 @@ public sealed partial class GraphStartViewModel
 
         var piled = new HashSet<string>(_piles.SelectMany(pile => pile.CaseNumbers), StringComparer.OrdinalIgnoreCase);
         var loose = files.Values
-            .Where(file => !piled.Contains(file.CaseNumber))
+            .Where(file => !piled.Contains(file.CaseNumber) && !IsThrown(file.CaseNumber))
             .OrderByDescending(file => file.LastWrittenUtc)
             .Where((file, index) => index < RecentCount || _released.Contains(file.CaseNumber))
             .ToList();

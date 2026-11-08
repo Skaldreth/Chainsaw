@@ -2653,6 +2653,40 @@ Geometrin står utan WPF i `Graph/TimeAxis.cs`, `Graph/TimeBands.cs`, `Graph/Tim
   ram när formuläret är öppet), och formuläret utan egen ruta. Klustringens slutsatser är nedtonade som fakta.
 - 10 nya tester i `InspectorContentTests`; tre tester ändrade (*Sort* och *Kedja* står nu i raden under rubriken).
 
+## Soptunnan (SO1a, 2026-11-08)
+
+Byggd som en etapp, eftersom den skriver i ärendet.
+
+- **Modellen (Tracing):** `IGraphTrash` med `TrashThrow`, `TrashMember` och regeln `TrashTree.Follow` i Contracts.
+  Varje slängning och varje återläggning är en förseglad post i en egen kedja (`tracing_trash.records`, en egen
+  `TrashSchema`-bidragare bredvid `TracingSchema`, så att versionerna inte krockar med grafens tillstånd) med en rad i
+  journalen (`tracing.trashed`, `tracing.restored`) i samma transaktion. Det som ligger i soptunnan läses genom att
+  spela upp posterna; inget tas någonsin bort, och grafens platser rörs inte, så det som läggs tillbaka står där det
+  stod.
+- **Vad som följer med:** det som bara nås genom det slängda, räknat på den **ritade** grafen (högar och ledtrådar
+  ingår) och åt båda håll, så att en avsändare som bara syns vid den slängda följer med i stället för att bli kvar
+  ensam. Startpunkterna är ankare; slängs den enda startpunkten står noder utan inkommande linje i deras ställe.
+- **Nycklar:** en aktör på Bitcoin hittas igen på alla sina adresser (`TrashFilter.KeysOf`), så att ett kluster som
+  växt eller fått en annan representant förblir dolt.
+- **Grafen:** `GraphFold` tar bort det slängda (aktörer, högar med sina kort, ledtrådar vid en slängd aktör), och en
+  linje med ena änden i soptunnan blir en kort streckad stump med *i soptunnan* vid den andra nodens port
+  (`GraphCanvas.Trash.cs`). Medan varningen är öppen får det som följer med en streckad ram och resten tonas ned.
+- **Bevakat slängs inte i tysthet:** varningen öppnas alltid när något bevakat följer med, och varje bevakad rad har
+  en strömbrytare *Avsluta* (på som förval). De som lämnas på avslutas genom Monitoring (egen förseglad post, skälet
+  *Slängdes i soptunnan*) innan slängningen skrivs; de andra fortsätter, och vyn visar *bevakas* på raden.
+- **Startvyn:** ett lyft ärende får soptunnan att växa nere till vänster; släppt där döljs det på startsidan.
+  Sparas i `%LOCALAPPDATA%\Chainsaw\trash.json` som högarna (`CaseTrashStore`), aldrig i ärendet, och filen ligger
+  kvar på disken. Ett ärende som läggs tillbaka står bland de lösa igen oavsett ålder.
+- **Egna beslut och avsteg från skissen:** vyn öppnas genom ett klick på soptunnan och lägger sig över grafen (ingen
+  egen ikon i pillret, som i skissen); den har också en del *Ärenden från startsidan*. Skissens *pausas* för
+  bevakningar är ersatt av frågan om att avsluta (CLAUDE.md, *Bevakat slängs inte i tysthet*). Noden krymper inte när
+  den närmar sig soptunnan som i skissen. Ctrl+Z ångrar bara den senaste slängningen i sessionen. Delete slänger den
+  valda noden, de valda korten i en utfälld hög eller aktörerna valda för en yta.
+- **Återstår (TODO):** kommentarsnoder och egna ytor går inte att slänga än (kommentarsnoden byggs parallellt), en
+  hel hög i startvyn kan inte dras till soptunnan, och testärendet (`/testdata`) har ingen slängning.
+- Tester: 19 i `Chainsaw.Modules.Tracing.Tests` (`TrashTests`, `TrashTreeTests`) och 35 i `Chainsaw.App.Tests`
+  (`TrashTests.cs`, `StartTrashTests.cs`).
+
 ## Delarna tillsammans och mixer efter mixer (2026-11-08)
 
 - **Två nya analyser, inte en utvidgad `mixer-outputs`:** `mixer-parts v1` (*Delarna tillsammans*, förslag) och

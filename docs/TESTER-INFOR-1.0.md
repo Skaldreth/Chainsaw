@@ -1383,6 +1383,26 @@ några steg).
       *Ångra* som ett litet piller under raden. Ett klick fäller ut skälet under; pillret får accentens ram så länge.
       Det tillbakatagna står kvar överstruket och nedtonat.
 
+## Soptunnan (SO1a)
+
+- Dra en nod mot soptunnan nere till vänster i grafen: ikonen växer till en rund yta, och nära blir den ljus med en
+  ringvåg och *Släpp*. Släpp en ände (till exempel damm): den döljs direkt, och toasten säger *Slängde 1 aktör* med
+  *Ångra · Ctrl+Z*, som lägger tillbaka den där den stod.
+- Släpp en nod mitt i grafen: rutan *Det här följer med* öppnas vid soptunnan med trädet, det som följer med får en
+  streckad ram och resten tonas ned. Esc stänger utan att något händer; Enter slänger alla.
+- En linje till något i soptunnan blir en kort streckad stump med *i soptunnan* vid porten. Inget rött.
+- Välj en nod och tryck Delete: samma sak som att dra den. I en utfälld hög: Shift-klicka kort och tryck Delete.
+- Släng något som är bevakat (eller har en bevakning längre ner): raden har ett öga och *Avsluta*. Med *Avsluta* på
+  avslutas bevakningen (syns i vyn Bevakning); med den av fortsätter den, och soptunnans vy säger *bevakas*.
+- Klicka på soptunnan: vyn visar en slängning per rad (när, vem, hur många) med det slängda överst och resten indraget
+  under. *Lägg tillbaka* på en rad tar med det som ligger under; *Lägg tillbaka allt* tar hela slängningen. Esc eller
+  krysset går tillbaka till grafen.
+- Stäng och öppna ärendet: det slängda är fortfarande dolt. `/verify` säger att allt är orört.
+- Startvyn utan ärende: lyft ett ärende, dra det mot soptunnan och släpp. Det försvinner från startsidan, toasten har
+  *Ångra*, och filen ligger kvar i `%LOCALAPPDATA%\Chainsaw\Ärenden`. Soptunnans vy listar det under *Ärenden från
+  startsidan* med *Lägg tillbaka*. Starta om Chainsaw: det är fortfarande dolt.
+- Med animeringar avstängda i Windows står ringvågen stilla.
+
 ## Kommentarsnoden (KN1a)
 - [ ] Välj en nod och tryck **N** (eller ikonen *Kommentar* i listen över noden, eller *Kommentar …* i högerklicket):
       en lapp öppnas uppe till höger om noden med en tunn prickad tråd till den och en prick vid noden. Tomma lappen är

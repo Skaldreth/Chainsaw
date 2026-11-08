@@ -1,0 +1,104 @@
+<UserControl x:Class="Chainsaw.App.Views.TrashWarningView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance Type=vm:TrashWarningViewModel}"
+             mc:Ignorable="d" Width="344">
+
+    <!--
+      The warning by the bin (sketch SO1a): what is thrown on top and what follows under it as a tree, the watches
+      among them asked about one by one, and Avbryt · Esc and Släng alla N · Enter. The graph meanwhile frames what
+      follows dashed and tones the rest down. Only wiring; the graph's view model holds what happens.
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="TrashTemplates.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="Visible" />
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <Border Background="{StaticResource Brush.SurfaceRaised}" BorderBrush="{StaticResource Brush.BorderHover}"
+                BorderThickness="1" CornerRadius="12" Padding="14,14,14,12">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="40" ShadowDepth="16" Direction="270" Opacity="0.55" Color="Black" />
+            </Border.Effect>
+            <StackPanel>
+                <DockPanel>
+                    <controls:GridIcon Size="16" Data="{StaticResource Icon.Trash}" Foreground="{StaticResource Brush.Text}"
+                                       Margin="0,0,8,0" VerticalAlignment="Center" />
+                    <TextBlock Text="{x:Static vm:TrashWarningViewModel.Head}" FontSize="13.5" FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                </DockPanel>
+                <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                           TextWrapping="Wrap" LineHeight="17" Margin="0,10,0,0" />
+
+                <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0" Margin="0,10,0,0"
+                        Padding="0,6,0,0">
+                    <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto" Focusable="False">
+                        <ItemsControl ItemsSource="{Binding Rows}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:TrashRowViewModel}">
+                                    <DockPanel Height="27" LastChildFill="False">
+                                        <Border DockPanel.Dock="Left" Width="{Binding Indent}" />
+                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}"
+                                                   Style="{StaticResource Text.TrashGlyph}" />
+                                        <ContentPresenter DockPanel.Dock="Left" Content="{Binding}" Margin="3,0,7,0"
+                                                          ContentTemplate="{StaticResource Trash.Kind}" />
+                                        <TextBlock x:Name="Name" DockPanel.Dock="Left" Text="{Binding Name}" FontSize="12.5"
+                                                   Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding WarningRole}" FontSize="11"
+                                                   Foreground="{StaticResource Brush.TextFaint}" VerticalAlignment="Center"
+                                                   Margin="8,0,0,0" />
+                                        <!-- A watch is never thrown in silence: end it, or keep it on. -->
+                                        <ToggleButton DockPanel.Dock="Right" Style="{StaticResource Toggle.Switch}"
+                                                      IsChecked="{Binding EndsWatches}" FontSize="11"
+                                                      Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsWatched, Converter={StaticResource Visible}}"
+                                                      ToolTip="På: bevakningen avslutas när den slängs. Av: den fortsätter.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <controls:GridIcon Size="12" Data="{StaticResource Icon.Eye}"
+                                                                   Foreground="{StaticResource Brush.Watch}" Margin="0,0,4,0" />
+                                                <TextBlock Text="Avsluta" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </ToggleButton>
+                                    </DockPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsRoot}" Value="True">
+                                            <Setter TargetName="Name" Property="FontWeight" Value="SemiBold" />
+                                            <Setter TargetName="Name" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <TextBlock Text="{x:Static vm:TrashWarningViewModel.Foot}" FontSize="11" Foreground="{StaticResource Brush.TextFaint}"
+                           TextWrapping="Wrap" Margin="0,8,0,0" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                    <Button Style="{StaticResource Button.TrashQuiet}" Content="Avbryt · Esc" Margin="0,0,8,0"
+                            Height="30" FontSize="12.5" Click="OnCancel" />
+                    <Button Style="{StaticResource Button.TrashConfirm}" Content="{Binding ConfirmText}"
+                            Click="OnConfirm" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- The small caret toward the bin, at the warning's lower left. -->
+        <Border Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-6,0,0,26"
+                Background="{StaticResource Brush.SurfaceRaised}" BorderBrush="{StaticResource Brush.BorderHover}"
+                BorderThickness="1,0,0,1" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False">
+            <Border.RenderTransform>
+                <RotateTransform Angle="45" />
+            </Border.RenderTransform>
+        </Border>
+    </Grid>
+</UserControl>

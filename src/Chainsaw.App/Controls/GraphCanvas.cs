@@ -212,6 +212,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         var (nearNodes, nearEdges) = _model.Near;
         var edges = GraphHitTest.VisibleEdges(scene, _model.Curves, visible).ToList();
         DrawWatchGlows(drawingContext, visible);
+        DrawTrashStubs(drawingContext, visible);
         foreach (var edge in edges)
         {
             DrawEdge(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
@@ -235,6 +236,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         {
             DrawFlying(drawingContext, node, _model.Places[node.Key], nearNodes);
         }
+
+        DrawTrashPending(drawingContext);
 
         drawingContext.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
         DrawCandidates(drawingContext, visible);
@@ -309,6 +312,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         {
             var wanted = new GraphPoint(surface.X - _gesture.Grip.X, surface.Y - _gesture.Grip.Y);
             _model.MoveNode(node, _gesture.NodePlace, wanted);
+            NodeDragged?.Invoke(this, e.GetPosition(this));
         }
     }
 
@@ -409,12 +413,19 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
+        if (_model is not null && e.Key == Key.Z && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            _ = _model.UndoThrowAsync();
+            e.Handled = true;
+            return;
+        }
+
         if (_model is null || (Keyboard.Modifiers & ~allowed) != ModifierKeys.None)
         {
             return;
         }
 
-        if (FanKey(e.Key))
+        if (TrashKey(e.Key) || FanKey(e.Key))
         {
             e.Handled = true;
             return;
@@ -522,7 +533,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         // A pan is stored when the press ends, not on every move.
         _model.ViewportChanged(_viewport);
-        if (end == GestureEnd.DropNode && node is not null)
+        if (end == GestureEnd.DropNode && node is not null && !_model.DropOnBin(node))
         {
             _ = _model.DropNodeAsync(node);
         }

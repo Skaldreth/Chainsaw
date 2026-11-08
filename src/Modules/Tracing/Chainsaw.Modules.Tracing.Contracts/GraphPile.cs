@@ -53,6 +53,9 @@ public sealed record GraphPile(
 
     /// <summary>The prefix of a single address's node key.</summary>
     public const string AddressKeyPrefix = "address:";
+
+    /// <summary>The prefix of an address's node key on an account chain: then the chain and the address.</summary>
+    public const string AccountKeyPrefix = "account:";
 }
 
 /// <summary>

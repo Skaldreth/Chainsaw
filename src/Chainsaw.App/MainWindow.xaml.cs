@@ -157,6 +157,8 @@ public partial class MainWindow : Window
 
         // The piles on the start page (sketch GR8a) are kept on this computer, next to the settings.
         _ = start.UsePilesAsync(new Settings.CasePileStore());
+        // The cases thrown on the start page (sketch SO1a) are kept on this computer too; the files stay on the disk.
+        _ = _graph.CaseTrash.UseAsync(new Settings.CaseTrashStore(), new WpfUiThread(Dispatcher));
         shell.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(ShellViewModel.ExitText) or nameof(ShellViewModel.IsExitLive))

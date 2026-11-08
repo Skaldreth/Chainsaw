@@ -64,12 +64,13 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 17. **Bildspråkets ruta:** *GR7a byggd 2026-11-08* (`Views/GraphLegendView`).
 18. **Kommandoraden:** *dold 2026-11-07*, fälls fram med Ctrl+K som Spotlight; svar när den är dold blir en toast.
 19. **Sonarpulsen runt *Nytt ärende*:** *omgjord 2026-11-07*, tre tunna ringar ur nodens egen kant.
-20. **Soptunnan (SO1a)** byggs, och finns redan i startvyn: där kan man slänga ärenden.
+20. **Soptunnan (SO1a):** *byggd 2026-11-08, väntar på prov på Windows* (grafen, Delete, varningen med bevakningarna,
+    vyn och startvyn). Det som återstår: kommentarsnoder (KN1a) och egna ytor går inte att slänga än, en hel hög i
+    startvyn kan inte dras till soptunnan, noden krymper inte när den närmar sig soptunnan som i skissen, och
+    testärendet (`/testdata`) har ingen slängning.
 21. **Startvyn grupperar ärenden:** *byggt 2026-11-07, väntar på prov på Windows* (GR8a, högen ritad som grafens
-    samlingsnod och utfälld som den, med stöt och centrering). Det som återstår: soptunnan i startvyn (SO1a, punkt
-    20), som ska växa nere till vänster medan ett ärende lyfts (`GraphStartViewModel.IsLifting`, platsen är märkt i
-    `GraphStartView.xaml`); att dra en hel hög (till soptunnan eller på en annan hög); tangentbordet för högarna (en
-    hög tar inte fokus med Tab); och att grafens samlingsnod får samma stöt och centrering genom `FanOutLayer`.
+    samlingsnod och utfälld som den, med stöt och centrering). Det som återstår: att dra en hel hög (till soptunnan
+    eller på en annan hög); tangentbordet för högarna (en hög tar inte fokus med Tab); och att grafens samlingsnod får samma stöt och centrering genom `FanOutLayer`.
 22. **En expansion ritar allt rakt ut:** *byggt 2026-11-07, väntar på prov på Windows:* ledtrådsnoden `+N tx`,
     samlingsnoden (EX2b) med valvyn i två lägen (EX1a, EX1b) och filtren, urvalet sparat i ärendet; omgjort efter
     skissen 2026-11-08. Det som återstår står under *Spårning (Tracing)*, *Ledtrådsnoden, valvyn och samlingsnoden*.
@@ -150,10 +151,8 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
    finns); Bevaka och Kopiera saknas i inspektören; passa in (F) och zoom bara i verktygstips; dubbelklick på en nod
    expanderar inte; inget högerklick eller inklistring på tom yta.
 6. **Tomma lägen:** Bevakning utan ärende ger ingen väg vidare; inget ärende föreslås efter upplåsning.
-7. Därefter det godkända: EX1/EX2b, SO1a med Delete, BG1b.
+7. Därefter det godkända: EX1/EX2b, BG1b.
 
-- **Soptunnan (SO1a)**, se CLAUDE.md *Soptunnan*, med Delete på valda noder: byggs som en etapp, eftersom den skriver i
-  ärendet. Bevakningar på det som slängs (och längre ner i grenen) avslutas efter en fråga, se CLAUDE.md.
 - **Allt följer med en etikett** (CLAUDE.md, *Etiketter smittar*, användarens beslut 2026-11-07): etapp 8 för bara
   vem, när, etiketten och källans sort in i ett annat ärende; ärendenumret, anteckningen, skälet, titeln och enheten
   ska också följa med. Sessionens egen regel att en etikett på ett offer aldrig sprids står kvar tills användaren säger

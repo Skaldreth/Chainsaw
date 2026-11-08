@@ -774,6 +774,24 @@
                     Command="{Binding ToggleLegendCommand}" />
             <views:GraphLegendView HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,18,64"
                                    Visibility="{Binding IsLegendOpen, Converter={StaticResource Visible}}" />
+
+            <!-- The trash's own view (sketch SO1a), over the graph and the start page, opened by a click on the bin. -->
+            <views:TrashView DataContext="{Binding TrashView}"
+                             Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
+
+            <!--
+              The warning by the bin (sketch SO1a), with its caret toward it: the tree of what follows, and the watches
+              among them asked about. Enter throws and Esc closes it.
+            -->
+            <views:TrashWarningView x:Name="TrashWarning" DataContext="{Binding TrashWarning}"
+                                    HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="84,0,0,70"
+                                    Visibility="{Binding DataContext.HasTrashWarning, ElementName=Canvas,
+                                                 Converter={StaticResource Visible}}" />
+
+            <!-- The bin in the lower left corner (sketch SO1a): grows while a node is dragged near it. -->
+            <views:TrashBin x:Name="Bin" DataContext="{Binding Bin}"
+                            Visibility="{Binding DataContext.ShowsCorner, ElementName=Canvas,
+                                         Converter={StaticResource Visible}}" />
         </Grid>
 
         <!--

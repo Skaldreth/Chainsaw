@@ -45,7 +45,11 @@ internal sealed class CaseHarness : IDisposable
         Store = _provider.GetRequiredService<ICaseStore>();
         Case = Store.Create(CaseNumber);
         Service = _provider.GetRequiredService<ITracingService>();
+        Trash = _provider.GetRequiredService<IGraphTrash>();
     }
+
+    /// <summary>Gets the graph's trash (sketch SO1a).</summary>
+    public IGraphTrash Trash { get; }
 
     /// <summary>
     /// The journal's time zone, fixed so that the facit does not depend on the computer's zone (Windows in Sweden
