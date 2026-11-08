@@ -1139,3 +1139,36 @@ ligger bredvid `Chainsaw.exe`.
   länge det finns mer att läsa; vid slutet försvinner toningen.
 - Ctrl+W med ett öppet ärende: ärendet sparas och stängs och startvyn visas. Utan ärende händer inget. *Stäng* i
   ärendeväljaren säger Ctrl+W i sitt tips.
+
+## Sidan Källor (KL2b) och Chainabuse
+
+- [ ] Ctrl+, → *Källor*: en mittkolumn med Bitcoin, Ethereum, TRON och Solana (prick, namn och under det läget och
+      antalet påslagna, till exempel *Snabbast · 2 av 2*; Solana säger *Inte byggt än*). Den valda raden ligger på den
+      upphöjda ytan, utan färgad list i kanten. Sidan rullar inte med rubriken; mittkolumnen går hela vägen ner.
+- [ ] Till höger: kedjans namn, lägets namn och tre ikoner (blixt, numrerad lista, strömbrytare). Hovra en ikon: namnet
+      i fetstil och vad läget gör. Den valda ikonen står i accenten (Av i kräm).
+- [ ] *ANVÄNDS*: den som används är ett upphöjt kort med prick, namn, ★, svarstiden stort (*146 ms*), adressen i
+      Cascadia Mono och *Höjd 921 404* (hashen bara efter *Prova* i formuläret, inte efter provet vid start). Ingen
+      stapel under kortet. Hovra kortet: brytaren och × kommer fram.
+- [ ] *RESERVER efter svarstid* i Snabbast: tysta rader med prick, namn, hus för egen nod, *↓ N block efter* i gult,
+      *Väntar* med klocka, *Svarar inte* i rött, och svarstiden till höger, utan staplar. Hovra en rad: adressen, brytaren
+      och × kommer fram, och raden blir tydlig. Tab till brytaren visar den också.
+- [ ] Stäng av en endpoint: den hamnar under *Avstängda · 1*, som är ihopfälld. Ett klick fäller ut den: streckad ram,
+      tom prick, nyckelikon om den har en API-nyckel, brytaren för att slå på igen och × på hovring.
+- [ ] *Prioriterad*: *RESERVER i din ordning, dra i greppet*, grepp och nummer (1, 2, 3 bland de påslagna) på kortet
+      och raderna. Dra en reserv i greppet upp över kortet: den blir den som används. Alt+↑/↓ med fokus på greppet
+      flyttar och fokus följer med, också förbi avstängda.
+- [ ] *Av*: en streckad ruta säger *Inga uppslag för Bitcoin …*, inget kort, rubriken *ENDPOINTS används inte medan
+      läget är Av*, raderna tonade. *Prova alla nu* är tonad.
+- [ ] Foten: *+ Lägg till endpoint …* med streckad ram (formuläret fälls ut ovanför foten, fokus i adressen; Esc fäller
+      in), *Provade hh:mm* och *Prova alla nu* med pilarna i en ring.
+- [ ] *Etiketter* under kedjorna: *Chainabuse*, *Av* under namnet och tom prick. Ett klick visar namnet, raden
+      *Rapporter om bedrägerier, från allmänheten och partner (TRM Labs)*, brytaren (av), *API-NYCKEL* med ett maskerat
+      fält och *Spara*, och noten *En vanlig nyckel ger 10 anrop i månaden; uppslag görs när du ber om det.* Ingen knapp
+      för uppslag.
+- [ ] Slå på Chainabuse: raden säger *På · ingen nyckel* med gul prick. Skriv en nyckel och tryck Enter (eller *Spara*):
+      fältet töms och ersätts av *•••••••••••• Sparad i valvet* med *Ta bort*; raden säger *På* med grön prick. Nyckeln
+      visas aldrig igen i klartext. Kontrollera i Valvet att nyckeln ligger under tjänsten *Chainabuse*.
+- [ ] *Ta bort*: nyckeln försvinner ur valvet och fältet kommer tillbaka.
+- [ ] Starta om Chainsaw: Chainabuse är fortfarande på (`"AttributionProviders": [ "chainabuse" ]` i
+      `%LOCALAPPDATA%\Chainsaw\settings.json`). Stäng av: listan blir tom.

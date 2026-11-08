@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Chainsaw.App.Settings;
+using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.SharedKernel;
@@ -8,7 +10,11 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Chainsaw.App.ViewModels;
 
-/// <summary>A chain as a chip at the top of the page Källor; one that is not built yet is toned.</summary>
+/// <summary>
+/// A chain as a row in the middle column of the page Källor (sketch KL2b): its dot, its name and under it the mode and
+/// how many endpoints are on (<c>Snabbast · 3 av 4</c>); one that is not built yet is toned and says so. The chosen one
+/// lies on the raised surface, with no strip at its edge (the user's decision 2026-11-08).
+/// </summary>
 /// <param name="name">The chain's name.</param>
 /// <param name="chain">The chain, or <see langword="null"/> for one Chainsaw does not know yet (Solana).</param>
 /// <param name="isBuilt">Whether Chainsaw has a sort of API for it.</param>
@@ -33,13 +39,20 @@ public sealed partial class SourceChainChip(string name, Chain? chain, bool isBu
     /// <summary>Gets its dot: the one used answers, none answers, or it is off.</summary>
     [ObservableProperty]
     public partial EndpointDot Dot { get; set; } = EndpointDot.Off;
+
+    /// <summary>Gets the line under the name: the mode and how many are on, or that it is not built yet.</summary>
+    [ObservableProperty]
+    public partial string Sub { get; set; } = SettingsViewModel.NotBuiltText;
 }
 
 /// <summary>
-/// The settings' page Källor (sketch KL1a, decided 2026-11-07): the chains as chips, each built chain's mode (Snabbast,
-/// Prioriterad or Av), its endpoints with their latest probe, the form that adds one (only https, the sort of API, a
-/// key from the vault, and <em>Prova</em>), and <em>Prova alla nu</em>. The endpoints are tried once when Chainsaw is
-/// unlocked and the exit allows lookups; never before. It knows nothing of WPF.
+/// The settings' page Källor (sketch KL2b, decided 2026-11-08 without the lines at the items): in a middle column the
+/// chains, each with its mode and how many endpoints are on, and under the heading <em>Etiketter</em> the suppliers of
+/// attribution. To the right the shown chain's mode as three icons, the endpoint in use as a raised card, the reserves
+/// (by latency in Snabbast, in the user's order with handles in Prioriterad), those switched off folded together, the
+/// form that adds one (only https, the sort of API, a key from the vault, and <em>Prova</em>), and <em>Prova alla
+/// nu</em>. The endpoints are tried once when Chainsaw is unlocked and the exit allows lookups; never before. It knows
+/// nothing of WPF.
 /// </summary>
 public sealed partial class SourcesViewModel : ObservableObject
 {
@@ -111,8 +124,17 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <param name="keys">The API keys.</param>
     /// <param name="ui">The UI thread.</param>
     /// <param name="timeZone">The time zone of the probe's time; the computer's when <see langword="null"/>.</param>
+    /// <param name="providers">The suppliers of attribution, or <see langword="null"/> where there are none.</param>
+    /// <param name="switches">Which suppliers are on, or <see langword="null"/> where there are none.</param>
     public SourcesViewModel(
-        IChainSources sources, ExitWay way, IVault vault, IApiKeyStore keys, IUiThread ui, TimeZoneInfo? timeZone = null)
+        IChainSources sources,
+        ExitWay way,
+        IVault vault,
+        IApiKeyStore keys,
+        IUiThread ui,
+        TimeZoneInfo? timeZone = null,
+        IAttributionProviders? providers = null,
+        AttributionSwitches? switches = null)
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(way);
@@ -125,7 +147,11 @@ public sealed partial class SourcesViewModel : ObservableObject
         _timeZone = timeZone ?? TimeZoneInfo.Local;
         Chips = [.. ChainNames.Select(c => new SourceChainChip(
             c.Name, c.Chain, c.Chain is { } chain && sources.Chains.Contains(chain)))];
-        ModeChoices = [.. Modes.Select(mode => new SettingsChoice(mode.Label, mode.Mode))];
+        ModeChoices = [.. Modes.Select(mode => new SettingsChoice(mode.Label, mode.Mode) { Hint = mode.Hint })];
+        Suppliers = providers is null || switches is null
+            ? []
+            : [.. providers.Providers.Select(info => new AttributionSupplierViewModel(info, switches, keys))];
+        vault.StateChanged += (_, _) => ui.Post(ShowSupplierStates);
         sources.Changed += (_, chain) => ui.Post(() => ShowChain(chain));
         way.Changed += (_, _) => _ = ProbeAtStartAsync();
         vault.StateChanged += (_, _) => ui.Post(() => _ = ProbeAtStartAsync());
@@ -148,6 +174,64 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>Gets the keys the form offers: none, and the services in the vault.</summary>
     public ObservableCollection<SettingsChoice> KeyChoices { get; } = [];
 
+    /// <summary>Gets the suppliers of attribution, under the heading <em>Etiketter</em>.</summary>
+    public IReadOnlyList<AttributionSupplierViewModel> Suppliers { get; }
+
+    /// <summary>Gets whether there are suppliers, so that the heading <em>Etiketter</em> shows.</summary>
+    public bool HasSuppliers => Suppliers.Count > 0;
+
+    /// <summary>Gets the reserves: those switched on but not used now, by latency in Snabbast, else in order.</summary>
+    public ObservableCollection<EndpointRowViewModel> Reserves { get; } = [];
+
+    /// <summary>Gets those switched off, folded together under <em>Avstängda · N</em>.</summary>
+    public ObservableCollection<EndpointRowViewModel> Disabled { get; } = [];
+
+    /// <summary>Gets the supplier shown, or <see langword="null"/> while a chain is shown.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSupplierShown), nameof(IsChainShown))]
+    public partial AttributionSupplierViewModel? Supplier { get; private set; }
+
+    /// <summary>Gets whether a supplier of attribution is shown to the right.</summary>
+    public bool IsSupplierShown => Supplier is not null;
+
+    /// <summary>Gets whether a chain is shown to the right.</summary>
+    public bool IsChainShown => Supplier is null;
+
+    /// <summary>Gets the endpoint in use, shown as the raised card, or <see langword="null"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasInUse))]
+    public partial EndpointRowViewModel? InUseRow { get; private set; }
+
+    /// <summary>Gets whether there is an endpoint in use to show as the card.</summary>
+    public bool HasInUse => InUseRow is not null;
+
+    /// <summary>Gets whether there are reserves to show.</summary>
+    [ObservableProperty]
+    public partial bool HasReserves { get; private set; }
+
+    /// <summary>Gets whether there are endpoints switched off.</summary>
+    [ObservableProperty]
+    public partial bool HasDisabled { get; private set; }
+
+    /// <summary>Gets the folding group's title, such as <c>Avstängda · 1</c>.</summary>
+    [ObservableProperty]
+    public partial string DisabledTitle { get; private set; } = string.Empty;
+
+    /// <summary>Gets whether those switched off are folded out.</summary>
+    [ObservableProperty]
+    public partial bool IsDisabledOpen { get; private set; }
+
+    /// <summary>Gets the reserves' heading: <c>RESERVER</c>, or <c>ENDPOINTS</c> when none is in use.</summary>
+    [ObservableProperty]
+    public partial string ReservesTitle { get; private set; } = string.Empty;
+
+    /// <summary>Gets the quiet words beside the heading, such as <c>efter svarstid</c>.</summary>
+    [ObservableProperty]
+    public partial string ReservesHint { get; private set; } = string.Empty;
+
+    /// <summary>Gets the shown chain's mode in words, beside the three icons.</summary>
+    public string ModeName => Modes.First(mode => mode.Mode == Mode).Label;
+
     /// <summary>Gets the chip shown.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ChainName), nameof(IsBuilt), nameof(IsNotBuilt), nameof(NotBuiltText))]
@@ -167,7 +251,8 @@ public sealed partial class SourcesViewModel : ObservableObject
 
     /// <summary>Gets the shown chain's mode.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ModeHint), nameof(IsPriority), nameof(IsOff), nameof(OffText), nameof(CanProbe))]
+    [NotifyPropertyChangedFor(
+        nameof(ModeHint), nameof(ModeName), nameof(IsPriority), nameof(IsOff), nameof(OffText), nameof(CanProbe))]
     public partial SourceMode Mode { get; private set; }
 
     /// <summary>Gets what the mode does.</summary>
@@ -263,8 +348,16 @@ public sealed partial class SourcesViewModel : ObservableObject
             each.IsSelected = ReferenceEquals(each, chip);
         }
 
+        foreach (var supplier in Suppliers)
+        {
+            supplier.IsSelected = false;
+        }
+
+        Supplier = null;
         Chip = chip;
         Rows.Clear();
+        IsDisabledOpen = false;
+        ShowGroups();
         CancelAdd();
         ApiChoices.Clear();
         if (chip.Chain is { } chain && chip.IsBuilt)
@@ -312,22 +405,76 @@ public sealed partial class SourcesViewModel : ObservableObject
         return Save(chain => _sources.RemoveAsync(chain, row.Id));
     }
 
-    /// <summary>Moves an endpoint up one place (Alt+↑ in Prioriterad).</summary>
+    /// <summary>Moves an endpoint up one place among those switched on (Alt+↑ in Prioriterad).</summary>
     /// <param name="row">The endpoint.</param>
+    /// <returns>A task that completes when the change is written.</returns>
     [RelayCommand]
-    public Task MoveUpAsync(EndpointRowViewModel row)
+    public Task MoveUpAsync(EndpointRowViewModel row) => MoveBesideAsync(row, -1);
+
+    /// <summary>Moves an endpoint down one place among those switched on (Alt+↓ in Prioriterad).</summary>
+    /// <param name="row">The endpoint.</param>
+    /// <returns>A task that completes when the change is written.</returns>
+    [RelayCommand]
+    public Task MoveDownAsync(EndpointRowViewModel row) => MoveBesideAsync(row, 1);
+
+    /// <summary>
+    /// Moves an endpoint to another's place in the user's order, as when it is dragged by its handle in Prioriterad;
+    /// dragged to the top it becomes the one used.
+    /// </summary>
+    /// <param name="row">The endpoint dragged.</param>
+    /// <param name="target">The endpoint whose place it takes.</param>
+    /// <returns>A task that completes when the change is written.</returns>
+    public Task MoveToAsync(EndpointRowViewModel row, EndpointRowViewModel target)
     {
         ArgumentNullException.ThrowIfNull(row);
-        return Save(chain => _sources.MoveAsync(chain, row.Id, -1));
+        ArgumentNullException.ThrowIfNull(target);
+        var steps = Rows.IndexOf(target) - Rows.IndexOf(row);
+        if (!IsPriority || steps == 0 || Rows.IndexOf(row) < 0 || Rows.IndexOf(target) < 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Save(chain => _sources.MoveAsync(chain, row.Id, steps));
     }
 
-    /// <summary>Moves an endpoint down one place (Alt+↓ in Prioriterad).</summary>
-    /// <param name="row">The endpoint.</param>
+    /// <summary>Folds those switched off out or in (<em>Avstängda · N</em>).</summary>
     [RelayCommand]
-    public Task MoveDownAsync(EndpointRowViewModel row)
+    public void ToggleDisabled() => IsDisabledOpen = !IsDisabledOpen;
+
+    /// <summary>Shows a supplier of attribution to the right, instead of a chain.</summary>
+    /// <param name="supplier">The supplier.</param>
+    [RelayCommand]
+    public void ShowSupplier(AttributionSupplierViewModel supplier)
+    {
+        ArgumentNullException.ThrowIfNull(supplier);
+        CancelAdd();
+        foreach (var chip in Chips)
+        {
+            chip.IsSelected = false;
+        }
+
+        foreach (var each in Suppliers)
+        {
+            each.IsSelected = ReferenceEquals(each, supplier);
+        }
+
+        supplier.ShowState();
+        Supplier = supplier;
+    }
+
+    /// <summary>Moves an endpoint past its neighbour among those switched on, which the user sees in order.</summary>
+    /// <param name="row">The endpoint.</param>
+    /// <param name="direction">−1 for up, 1 for down.</param>
+    /// <returns>A task that completes when the change is written.</returns>
+    private Task MoveBesideAsync(EndpointRowViewModel row, int direction)
     {
         ArgumentNullException.ThrowIfNull(row);
-        return Save(chain => _sources.MoveAsync(chain, row.Id, 1));
+        var on = Rows.Where(each => each.IsOn).ToList();
+        var index = on.IndexOf(row);
+        var next = index + direction;
+        return index < 0 || next < 0 || next >= on.Count
+            ? Task.CompletedTask
+            : Save(chain => _sources.MoveAsync(chain, row.Id, Rows.IndexOf(on[next]) - Rows.IndexOf(row)));
     }
 
     /// <summary>Tries the shown chain's endpoints now (<em>Prova alla nu</em>), through the exit.</summary>
@@ -467,8 +614,8 @@ public sealed partial class SourcesViewModel : ObservableObject
     public static string AnswerText(EndpointProbe probe)
     {
         ArgumentNullException.ThrowIfNull(probe);
-        var height = (probe.Height ?? 0).ToString("N0", CultureInfo.InvariantCulture).Replace(',', ' ');
-        var hash = probe.BlockHash is { Length: > 12 } full ? $"{full[..8]}…{full[^4..]}" : probe.BlockHash ?? "–";
+        var height = EndpointRowViewModel.HeightText(probe.Height ?? 0);
+        var hash = probe.BlockHash is { } full ? EndpointRowViewModel.ShortHash(full) : "–";
         var milliseconds = (int)Math.Round(probe.Duration?.TotalMilliseconds ?? 0);
         return string.Create(CultureInfo.InvariantCulture, $"Höjd {height} · {hash} · {milliseconds} ms");
     }
@@ -592,8 +739,18 @@ public sealed partial class SourcesViewModel : ObservableObject
                 }
             }
 
-            row.Show(endpoint, view.Mode, index, view.Endpoints.Count, _timeZone);
         }
+
+        // The user sees only those switched on in order, so the places and the moves count among them.
+        var on = view.Endpoints.Where(endpoint => endpoint.Endpoint.Enabled).ToList();
+        foreach (var endpoint in view.Endpoints)
+        {
+            var place = on.IndexOf(endpoint);
+            Rows[IndexOf(endpoint.Endpoint.Id)].Show(
+                endpoint, view.Mode, (place, place < 0 ? 0 : on.Count), place + 1, _timeZone);
+        }
+
+        ShowGroups();
 
         // A wait the source asked for is shown until it is over: the page is shown again when the first wait still
         // ahead is over, and plans the next then.
@@ -648,8 +805,84 @@ public sealed partial class SourcesViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Sorts the rows into the card in use, the reserves and those switched off (sketch KL2b). In Snabbast the
+    /// reserves stand by their latest latency, those not measured last; in Prioriterad and Av in the user's order.
+    /// </summary>
+    private void ShowGroups()
+    {
+        var used = IsOff ? null : Rows.FirstOrDefault(row => row.IsInUse && row.IsOn);
+        var reserves = Rows.Where(row => row.IsOn && !ReferenceEquals(row, used)).ToList();
+        if (Mode == SourceMode.Fastest)
+        {
+            reserves = [.. reserves.OrderBy(row => row.Milliseconds ?? int.MaxValue)];
+        }
+
+        InUseRow = used;
+        Sync(Reserves, reserves);
+        Sync(Disabled, [.. Rows.Where(row => !row.IsOn)]);
+        HasReserves = Reserves.Count > 0;
+        HasDisabled = Disabled.Count > 0;
+        DisabledTitle = "Avstängda · " + Disabled.Count.ToString(CultureInfo.InvariantCulture);
+        (ReservesTitle, ReservesHint) = ReservesHeading(used is not null);
+    }
+
+    /// <summary>Gives the reserves' heading and the quiet words beside it, after the mode and the card.</summary>
+    /// <param name="hasUsed">Whether an endpoint is in use.</param>
+    /// <returns>The heading and the words.</returns>
+    private (string Title, string Hint) ReservesHeading(bool hasUsed)
+    {
+        if (IsOff)
+        {
+            return ("ENDPOINTS", "används inte medan läget är Av");
+        }
+
+        if (!hasUsed)
+        {
+            return ("ENDPOINTS", "ingen svarar rätt just nu");
+        }
+
+        return IsPriority ? ("RESERVER", "i din ordning, dra i greppet") : ("RESERVER", "efter svarstid");
+    }
+
+    /// <summary>Makes a list hold the given rows in order, keeping the instances so that the focus stays.</summary>
+    /// <param name="list">The shown list.</param>
+    /// <param name="rows">The rows it is to hold.</param>
+    private static void Sync(ObservableCollection<EndpointRowViewModel> list, IReadOnlyList<EndpointRowViewModel> rows)
+    {
+        for (var i = list.Count - 1; i >= 0; i--)
+        {
+            if (!rows.Contains(list[i]))
+            {
+                list.RemoveAt(i);
+            }
+        }
+
+        for (var index = 0; index < rows.Count; index++)
+        {
+            var at = list.IndexOf(rows[index]);
+            if (at < 0)
+            {
+                list.Insert(index, rows[index]);
+            }
+            else if (at != index)
+            {
+                list.Move(at, index);
+            }
+        }
+    }
+
+    /// <summary>Reads the suppliers' switches and keys again, as when the vault is unlocked or locked.</summary>
+    private void ShowSupplierStates()
+    {
+        foreach (var supplier in Suppliers)
+        {
+            supplier.ShowState();
+        }
+    }
+
+    /// <summary>
     /// Shows a chip's dot: grey when off, not built or not tried, green when the one used answered right, yellow when
-    /// it lags behind, red when none can be used.
+    /// it lags behind, red when none can be used; and the line under its name, such as <c>Snabbast · 3 av 4</c>.
     /// </summary>
     /// <param name="chip">The chip.</param>
     private void ShowDot(SourceChainChip chip)
@@ -657,10 +890,15 @@ public sealed partial class SourcesViewModel : ObservableObject
         if (chip.Chain is not { } chain || !chip.IsBuilt)
         {
             chip.Dot = EndpointDot.Off;
+            chip.Sub = SettingsViewModel.NotBuiltText;
             return;
         }
 
         var view = _sources.Get(chain);
+        var on = view.Endpoints.Count(endpoint => endpoint.Endpoint.Enabled);
+        chip.Sub = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{Modes.First(mode => mode.Mode == view.Mode).Label} · {on} av {view.Endpoints.Count}");
         if (view.Mode == SourceMode.Off)
         {
             chip.Dot = EndpointDot.Off;

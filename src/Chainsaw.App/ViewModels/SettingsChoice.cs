@@ -13,6 +13,9 @@ public sealed partial class SettingsChoice(string label, object value) : Observa
     /// <summary>Gets what choosing it sets.</summary>
     public object Value { get; } = value;
 
+    /// <summary>Gets what the option does, shown on hovering when the option is only an icon; empty for none.</summary>
+    public string Hint { get; init; } = string.Empty;
+
     /// <summary>Gets whether it is the option chosen.</summary>
     [ObservableProperty]
     public partial bool IsSelected { get; set; }

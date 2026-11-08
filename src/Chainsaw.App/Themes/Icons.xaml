@@ -43,6 +43,13 @@
     <Geometry x:Key="Icon.ChevronUp">M6 15l6-6 6 6</Geometry>
     <Geometry x:Key="Icon.Bolt">M13 3L5 13.5h6L10 21l8-10.5h-6z</Geometry>
     <Geometry x:Key="Icon.List">M9 6h11 M9 12h11 M9 18h11 M4.5 6h.01 M4.5 12h.01 M4.5 18h.01</Geometry>
+    <!-- The page Källor (sketch KL2b): Prioriterad as a numbered list, the own node, one behind, trying them all and
+         the folding group of those switched off. -->
+    <Geometry x:Key="Icon.ListOrdered">M10 6h11 M10 12h11 M10 18h11 M4 6h1v4 M4 10h2 M6 18H4c0-1 2-2 2-3s-1-1.5-2-1</Geometry>
+    <Geometry x:Key="Icon.Home">M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z</Geometry>
+    <Geometry x:Key="Icon.ArrowDown">M12 5v14 M6 13l6 6 6-6</Geometry>
+    <Geometry x:Key="Icon.Refresh">M21 12a9 9 0 0 1-15.5 6.2L3 16 M3 12a9 9 0 0 1 15.5-6.2L21 8 M21 3v5h-5 M3 21v-5h5</Geometry>
+    <Geometry x:Key="Icon.ChevronRight">M9 6l6 6-6 6</Geometry>
     <Geometry x:Key="Icon.Pulse">M3 12h4l2.5-6 5 12 2.5-6h4</Geometry>
     <Geometry x:Key="Icon.Key">M8.5 15.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M11.5 11.5H21 M18 11.5v3 M15 11.5v2</Geometry>
     <Geometry x:Key="Icon.File">M6 3h8l4 4v14H6z M13 3v5h5</Geometry>

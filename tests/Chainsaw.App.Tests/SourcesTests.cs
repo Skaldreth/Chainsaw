@@ -65,8 +65,8 @@ public sealed class SourcesTests
         Assert.Equal(EndpointDot.Behind, lan.Dot);
         Assert.Equal("2 block efter", lan.Note);
         Assert.False(lan.IsInUse);
-        Assert.Equal(64 * 38 / 300.0, lan.BarWidth, 3);
-        Assert.True(mempool.BarWidth > lan.BarWidth);
+        Assert.Equal("182", mempool.MillisecondsNumber);
+        Assert.Equal("Höjd 921 404", mempool.AnswerText);
         Assert.Equal("https://mempool.space/api", mempool.Address);
         Assert.Equal("Provade 09:12", page.ProbeText);
         Assert.Equal(EndpointDot.Answered, page.Chips[0].Dot);

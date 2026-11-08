@@ -91,7 +91,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <param name="vault">The vault.</param>
     /// <param name="cases">The cases, for the recovery key built in.</param>
     /// <param name="build">The build, for the version.</param>
-    /// <param name="sources">The page Källor (sketch KL1a), or <see langword="null"/> where there is none.</param>
+    /// <param name="sources">The page Källor (sketch KL2b), or <see langword="null"/> where there is none.</param>
+    /// <param name="suppliers">
+    /// The switches of the suppliers of attribution, whose names are written to the file when they change, or
+    /// <see langword="null"/> where there are none.
+    /// </param>
     public SettingsViewModel(
         AppSettings settings,
         AppSettingsStore store,
@@ -103,7 +107,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         IVault vault,
         ICaseStore cases,
         BuildInfo build,
-        SourcesViewModel? sources = null)
+        SourcesViewModel? sources = null,
+        AttributionSwitches? suppliers = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(cases);
@@ -131,6 +136,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         RecoveryKeyText = cases.RecoveryKey?.DisplayFingerprint ?? NoRecoveryKeyText;
         HasRecoveryKey = cases.RecoveryKey is not null;
         way.Changed += (_, _) => ShowWay();
+        if (suppliers is not null)
+        {
+            suppliers.Changed += (_, _) => Save(_settings with { AttributionProviders = suppliers.Enabled });
+        }
+
         ShowPage(SettingsMenu.Start);
         ShowChoices();
         ShowWay();

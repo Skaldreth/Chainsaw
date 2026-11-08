@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Chainsaw.App.Controls;
 using Chainsaw.App.ViewModels;
@@ -23,8 +24,17 @@ public partial class SettingsDialog : UserControl
     /// <summary>The field with the new master key again.</summary>
     private readonly PasswordEntry _repeat;
 
+    /// <summary>The field with a supplier's API key, read as characters.</summary>
+    private readonly PasswordEntry _supplierKey;
+
     /// <summary>The settings, once attached.</summary>
     private SettingsViewModel? _settings;
+
+    /// <summary>The endpoint being dragged by its handle in Prioriterad, or <see langword="null"/>.</summary>
+    private EndpointRowViewModel? _dragged;
+
+    /// <summary>Whether a move made by the drag is being written, so that the next waits for it.</summary>
+    private bool _movingByDrag;
 
     /// <summary>Creates the dialog.</summary>
     public SettingsDialog()
@@ -33,6 +43,7 @@ public partial class SettingsDialog : UserControl
         _current = new PasswordEntry(CurrentKeyBox);
         _next = new PasswordEntry(NewKeyBox);
         _repeat = new PasswordEntry(RepeatKeyBox);
+        _supplierKey = new PasswordEntry(SupplierKeyBox);
     }
 
     /// <summary>Shows the settings and follows when they open and close.</summary>
@@ -96,14 +107,138 @@ public partial class SettingsDialog : UserControl
         return true;
     }
 
-    /// <summary>Puts the focus on an endpoint's handle after its row moved.</summary>
+    /// <summary>Puts the focus on an endpoint's handle after its row moved, in the card or the reserves.</summary>
     /// <param name="row">The endpoint.</param>
-    private void FocusHandle(EndpointRowViewModel row)
+    private void FocusHandle(EndpointRowViewModel row) =>
+        FindHandle(SourcesPage, row)?.Focus();
+
+    /// <summary>Finds the handle of an endpoint's row under an element.</summary>
+    /// <param name="parent">Where to look.</param>
+    /// <param name="row">The endpoint.</param>
+    /// <returns>The handle, or <see langword="null"/>.</returns>
+    private static Button? FindHandle(DependencyObject parent, EndpointRowViewModel row)
     {
-        if (SourceRows.ItemContainerGenerator.ContainerFromItem(row) is ContentPresenter presenter
-            && presenter.ContentTemplate?.FindName("Handle", presenter) is Button handle)
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
         {
-            handle.Focus();
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is Button { Name: "Handle" } handle && ReferenceEquals(handle.DataContext, row))
+            {
+                return handle;
+            }
+
+            if (FindHandle(child, row) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Starts dragging an endpoint by its handle in Prioriterad (sketch KL2b).</summary>
+    /// <param name="sender">The handle.</param>
+    /// <param name="e">The press.</param>
+    private void OnHandleDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: EndpointRowViewModel row } handle
+            || _settings?.Sources is not { IsPriority: true })
+        {
+            return;
+        }
+
+        _dragged = row;
+        handle.Focus();
+        Mouse.Capture(SourcesPage, CaptureMode.SubTree);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Moves the dragged endpoint to the place of the row under the pointer, so that the list follows the drag; one
+    /// dragged to the top becomes the one used.
+    /// </summary>
+    /// <param name="sender">The page.</param>
+    /// <param name="e">The move.</param>
+    private async void OnDragMove(object sender, MouseEventArgs e)
+    {
+        if (_dragged is not { } dragged || _movingByDrag || _settings?.Sources is not { } sources)
+        {
+            return;
+        }
+
+        var target = RowAt(SourcesPage.InputHitTest(e.GetPosition(SourcesPage)) as DependencyObject);
+        if (target is null || ReferenceEquals(target, dragged) || !target.IsOn)
+        {
+            return;
+        }
+
+        _movingByDrag = true;
+        try
+        {
+            await sources.MoveToAsync(dragged, target);
+        }
+        finally
+        {
+            _movingByDrag = false;
+        }
+    }
+
+    /// <summary>Ends a drag when the button is let go or the capture is lost.</summary>
+    /// <param name="sender">The page.</param>
+    /// <param name="e">The event.</param>
+    private void OnDragEnd(object sender, EventArgs e)
+    {
+        if (_dragged is null)
+        {
+            return;
+        }
+
+        _dragged = null;
+        if (Mouse.Captured == SourcesPage)
+        {
+            Mouse.Capture(null);
+        }
+    }
+
+    /// <summary>Finds the endpoint whose row an element lies in.</summary>
+    /// <param name="element">The element under the pointer.</param>
+    /// <returns>The endpoint, or <see langword="null"/>.</returns>
+    private static EndpointRowViewModel? RowAt(DependencyObject? element)
+    {
+        for (var at = element; at is not null; at = VisualTreeHelper.GetParent(at))
+        {
+            if (at is FrameworkElement { DataContext: EndpointRowViewModel row })
+            {
+                return row;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary><em>Spara</em> saves the supplier's key from the masked field to the vault.</summary>
+    /// <param name="sender">The button.</param>
+    /// <param name="e">The click.</param>
+    private async void OnSaveSupplierKey(object sender, RoutedEventArgs e) => await SaveSupplierKeyAsync();
+
+    /// <summary>Enter in the supplier's key field saves it.</summary>
+    /// <param name="sender">The field.</param>
+    /// <param name="e">The key.</param>
+    private async void OnSupplierKeyKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            await SaveSupplierKeyAsync();
+        }
+    }
+
+    /// <summary>Gives the masked field to the supplier shown, which takes and clears what is written.</summary>
+    /// <returns>A task that completes when the vault has answered.</returns>
+    private async Task SaveSupplierKeyAsync()
+    {
+        if (_settings?.Sources?.Supplier is { } supplier)
+        {
+            await supplier.SaveKeyAsync(_supplierKey);
         }
     }
 
@@ -169,12 +304,13 @@ public partial class SettingsDialog : UserControl
         }
     }
 
-    /// <summary>Empties the master key's fields.</summary>
+    /// <summary>Empties the master key's fields and the field of a supplier's key.</summary>
     private void ClearKeys()
     {
         CurrentKeyBox.Clear();
         NewKeyBox.Clear();
         RepeatKeyBox.Clear();
+        SupplierKeyBox.Clear();
     }
 
     /// <summary>
