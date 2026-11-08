@@ -118,7 +118,7 @@ nästlade tjänster, privacy coins, fördröjning och många hopp) ska Chainsaw 
 mycket som möjligt av sig självt: **kontroller** som körs på det som hämtas och **förslag** (troliga utgångar, troliga
 fortsättningar, troliga sammanslagningar) som användaren godkänner eller avfärdar. Varje kontroll och förslag är en
 analys med namn och version, är en bedömning och aldrig ett faktum (princip 2), visas som markeringar och streckat i
-stället för text (princip 7) och kan förklaras med *Varför?* (princip 3). Katalogen står i `docs/TODO.md` under
+stället för text (princip 7) och kan förklaras med *Varför?* (princip 3). Katalogen står i `docs/BACKLOG.md` under
 *Förvirringstekniker*.
 
 **Spåret tar slut** är ett eget, uttalat läge med orsak: privacy coin, mixer eller CoinJoin, brygga eller swap till annan
@@ -487,7 +487,8 @@ Samma arbetssätt som Gawk (användarens beslut 2026-11-06):
 - **Förklara medan vi bygger.** Användaren lär sig genom att följa flödet: när något nytt om kedjorna dyker upp (en
   heuristik, ett format) förklaras det kort, och texten blir ett avsnitt i Guiden.
 - **Beslut skrivs in direkt** i rätt dokument (CLAUDE.md, HANDOFF, TODO), committas och pushas så fort det är taget.
-- **Inget tappas bort:** allt som diskuteras men inte byggs nu står i `docs/TODO.md`.
+- **Inget tappas bort:** allt som diskuteras men inte byggs nu står i `docs/TODO.md` (det som behövs till 1.0) eller
+  `docs/BACKLOG.md` (efter 1.0 och de mindre fynden från granskningarna).
 - **Processen efter storleken:** rena gränssnittsändringar byggs direkt och granskas av sessionen själv mot skissen. Ändringar
   som skriver i ärendet eller rör principerna byggs som en etapp med oberoende granskning av en granskande agent.
   Sessionen bygger själv och lämnar aldrig bygget till en annan session, **utom i en nattkörning**.
@@ -513,14 +514,15 @@ Varje uppgift står på ett ställe. Historiken finns i git.
 | --- | --- | --- |
 | `CLAUDE.md` | Specifikation, arkitektur, gränssnitt och arbetssätt | Alltid (automatiskt) |
 | `docs/HANDOFF.md` | Läget nu och nästa steg, kort | I början av varje session |
-| `docs/TODO.md` | Backloggen: önskemål, öppna frågor och idéer som inte är byggda | När nästa uppgift väljs |
+| `docs/TODO.md` | Vägen till 1.0: frågor som väntar på användaren och det som ska byggas, i ordning | När nästa uppgift väljs |
+| `docs/BACKLOG.md` | Efter 1.0: nya förmågor och de mindre fynden från granskningarna, per område | När något i området byggs |
 | `docs/KRYPTOSPARAREN.md` | Frågorna till kryptospåraren, med vad Chainsaw gör i dag | När kryptospåraren tittar på systemet |
 | `docs/DEV-LOG.md` | En post per byggd etapp: egna beslut, avsteg och det som återstår | När en etapp byggs eller granskas |
 | `docs/TESTER-INFOR-1.0.md` | Det som ska provas på Windows före 1.0 | När det fylls på eller när användaren testar |
 | `docs/ATERSTALLNINGSNYCKEL.md` | För administratören: återställningsnyckeln skapas, förvaras och används | När nyckeln skapas eller ett ärende ska öppnas |
 
 - **HANDOFF hålls kort.** Det som är klart tas bort. Ett beslut som ska gälla framåt flyttas hit.
-- **En punkt i TODO som byggs** tas bort därifrån.
+- **En punkt i TODO eller BACKLOG som byggs** tas bort därifrån.
 - **Skisserna** finns på canvasen. Dokumenten nämner bara skissens namn där det behövs.
 
 ### Skisserna

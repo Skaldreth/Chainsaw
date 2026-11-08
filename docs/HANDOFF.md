@@ -2,7 +2,7 @@
 
 Senast uppdaterad: 2026-11-08.
 
-Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i `CLAUDE.md`, backloggen i `docs/TODO.md`,
+Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i `CLAUDE.md`, vägen till 1.0 i `docs/TODO.md`, det som kommer efter i `docs/BACKLOG.md`,
 och vad varje etapp byggde i `docs/DEV-LOG.md`.
 
 ## Läget
@@ -55,7 +55,7 @@ där de hör hemma (CLAUDE.md eller TODO) och stryks ur listan.
 4. `dotnet build Chainsaw.slnx` utan varningar och `dotnet test Chainsaw.slnx` gröna.
 5. **Oberoende granskning:** starta en granskande agent (Agent-verktyget) som läser diffen mot principerna i CLAUDE.md
    och letar fel, och märker fynden C (kritiskt), I (viktigt) eller M (mindre). Rätta alla C och I; M rättas eller skrivs
-   i `docs/TODO.md`. Granska igen tills inga C eller I återstår.
+   i `docs/BACKLOG.md`. Granska igen tills inga C eller I återstår.
 6. Skriv en post i `docs/DEV-LOG.md` (egna beslut, avsteg, det som återstår), lägg etappen under *Läget* ovan,
    lägg öppna punkter i `docs/TODO.md` och det som ska provas på Windows i
    `docs/TESTER-INFOR-1.0.md`.
