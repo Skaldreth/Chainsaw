@@ -19,7 +19,7 @@ public sealed partial class GuideSectionsTests
         ("Klustring", ["bryta-upp-kluster"]),
         ("Arbeta i grafen",
             ["inspektoren", "rora-sig-i-grafen", "tidslinjen", "det-som-holls-tillbaka", "historik", "annan-kedja",
-                "dolda-utgangar"]),
+                "dolda-utgangar", "soptunnan", "kommentarer"]),
         ("Etiketter", ["etikettbiblioteket", "chainabuse"]),
         ("Uttag och begäran", ["borser", "begaran"]),
         ("Förvirring",

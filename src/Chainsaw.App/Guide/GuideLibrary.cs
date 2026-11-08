@@ -31,7 +31,7 @@ public sealed class GuideLibrary
         ("Spårning", ["grafen", "sparningsmetoder", "sparet-tar-slut", "kurser"]),
         ("Arbeta i grafen",
             ["inspektoren", "rora-sig-i-grafen", "tidslinjen", "det-som-holls-tillbaka", "historik", "annan-kedja",
-                "dolda-utgangar"]),
+                "dolda-utgangar", "soptunnan", "kommentarer"]),
         ("Etiketter", ["etiketter", "etikettbiblioteket", "chainabuse"]),
         ("Uttag och begäran", ["borser", "begaran"]),
         ("Bevakning", ["bevakning"]),

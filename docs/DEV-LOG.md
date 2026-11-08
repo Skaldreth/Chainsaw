@@ -2846,3 +2846,6 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   sammanslagen).
 - Avsteg: soptunnan, kommentarsnoden och innehavet på nodens baksida fick inga avsnitt, eftersom de inte är byggda;
   de skrivs när de byggs.
+- Efter sammanslagningen: *Soptunnan* och *Kommentarer i grafen* med tre nya figurer (`s-soptunnan`,
+  `s-soptunnan-vyn`, `s-kommentar`), i gruppen *Arbeta i grafen*; ärendeväljaren, kortkommandona, *Röra sig i
+  grafen*, ordlistan och inspektören (× *Stäng · Esc*, ikonen *Kommentar*) uppdaterade.

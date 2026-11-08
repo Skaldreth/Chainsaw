@@ -36,6 +36,12 @@ valda och de spårade går först, och resten syns på hovring.
 Spårningsmetoden (FIFO eller haircut) väljs också i huvudet och syns alltid. Se
 [Spårningsmetoder](sparningsmetoder.md).
 
+## Rensa och anteckna
+
+Det som inte hör till utredningen slänger du i soptunnan nere till vänster (Delete, eller dra dit det). Inget tas
+bort ur ärendet, och allt kan läggas tillbaka. Se [Soptunnan](soptunnan.md). Egna tankar skriver du på en lapp i
+grafen med N, se [Kommentarer i grafen](kommentarer.md).
+
 ## Varför det är byggt så
 
 Grafen är där man arbetar mest, och den får aldrig kännas trög (princip 6): den ritar bara det som syns, och allt tungt

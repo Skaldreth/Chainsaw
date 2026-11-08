@@ -38,7 +38,8 @@ Utan öppet ärende står *Nytt ärende* mitt på ytan, med de senaste ärendena
 Högarna sparas **på datorn**, aldrig i ärendena, så en kollega som får en fil ser inte dina högar. Ett ärende som inte
 längre finns i mappen lämnar sin hög av sig själv.
 
-Att slänga ärenden i soptunnan är inte byggt än.
+Ett ärende som du lyfter kan släppas i **soptunnan** nere till vänster. Det döljs då bara på startsidan på den här
+datorn; filen ligger kvar. Se [Soptunnan](soptunnan.md).
 
 ## Var ärendena ligger
 

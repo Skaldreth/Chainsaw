@@ -17,6 +17,7 @@ att använda på just den noden**:
 | Bryt upp | U | Bara på ett kluster, se [Bryta upp ett kluster](bryta-upp-kluster.md) |
 | Annan kedja | K | Knyter fortsättningen, se [Fortsättningen på en annan kedja](annan-kedja.md) |
 | Fråga om rapporter | R | Frågar Chainabuse, när den är påslagen, se [Chainabuse](chainabuse.md) |
+| Kommentar | N | Skriver en lapp knuten till noden, se [Kommentarer i grafen](kommentarer.md) |
 | Kopiera adress | Ctrl+C | Kopierar adressen |
 
 Etikett, Bryt upp och Annan kedja fälls ut i en liten ruta bredvid noden, med en pil mot den. **Skälet är alltid
@@ -25,6 +26,9 @@ frivilligt.** Esc stänger rutan. Ett högerklick utan rörelse öppnar nodens m
 ## Inspektören
 
 Till höger står **inspektören** så länge något är valt. Den är ren läsning: inget ändras där.
+
+Bredvid *Varför?* i huvudet står ett **×** (*Stäng · Esc*) som stänger inspektören och släpper valet. **Esc** eller ett
+klick på tom yta i grafen gör samma sak.
 
 ![En vald nod och inspektören bredvid: huvudet med Varför?, fakta och adressen med kopiera](figur:s-inspektoren)
 
