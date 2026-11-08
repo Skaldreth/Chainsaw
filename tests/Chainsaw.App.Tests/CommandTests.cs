@@ -161,9 +161,34 @@ public sealed class CommandTests
         var reply = await rig.Commands.RunAsync("/verify");
 
         Assert.False(reply.IsError);
+        Assert.True(reply.IsWarning);
         var lines = reply.Text.Split(Environment.NewLine);
         Assert.Equal("Hashkedjan är hel: 1 kedjor och 3 poster stämmer.", lines[0]);
-        Assert.Equal(Commands.VerificationText.AnchorNote, lines[1]);
+        Assert.Equal(Commands.VerificationText.AnchorWarning, lines[1]);
+    }
+
+    [Theory]
+    [InlineData(AnchorReplacementProblem.Missing, false)]
+    [InlineData(AnchorReplacementProblem.Unreadable, false)]
+    [InlineData(AnchorReplacementProblem.Diverged, true)]
+    [InlineData(AnchorReplacementProblem.RolledBack, true)]
+    public void A_replaced_anchor_warns_only_when_the_cause_lies_in_the_file(
+        AnchorReplacementProblem problem, bool warns)
+    {
+        var verification = new CaseVerification(
+            DateTimeOffset.UnixEpoch,
+            [CaseProblem.AnchorsReplaced],
+            [new ChainVerification("cases.journal", 3, 3, "ab", null)]);
+        var replaced = new AnchorReplacement(4, DateTimeOffset.UnixEpoch, problem, [], []);
+
+        var reply = Commands.VerificationText.Describe(verification, replaced);
+
+        Assert.False(reply.IsError);
+        Assert.Equal(warns, reply.IsWarning);
+        Assert.EndsWith(
+            warns ? Commands.VerificationText.AnchorWarning : Commands.VerificationText.AnchorNote,
+            reply.Text,
+            StringComparison.Ordinal);
     }
 
     [Fact]

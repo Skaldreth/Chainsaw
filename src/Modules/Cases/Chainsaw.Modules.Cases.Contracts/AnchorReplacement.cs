@@ -83,6 +83,24 @@ public sealed record AnchorReplacement(
         }
     }
 
+    /// <summary>
+    /// Gets whether the cause lies in the case file rather than in this computer: the case no longer reached the anchor
+    /// (an older copy, or changed elsewhere), the anchor file was put back from a copy, or the problem is unknown. A
+    /// missing or unreadable anchor says nothing about the file.
+    /// </summary>
+    public bool ConcernsTheFile =>
+        Problem is not (AnchorReplacementProblem.Missing or AnchorReplacementProblem.Unreadable);
+
+    /// <summary>Reads the latest replacement of the anchors from a case's journal; off the UI thread.</summary>
+    /// <param name="openCase">The case.</param>
+    /// <returns>The replacement, or <see langword="null"/> when the anchors were never replaced.</returns>
+    public static AnchorReplacement? LatestIn(ICase openCase)
+    {
+        ArgumentNullException.ThrowIfNull(openCase);
+        var entry = openCase.ReadJournal().LastOrDefault(item => item.Kind == CaseJournalKinds.AnchorsReplaced);
+        return entry is null ? null : FromJournal(entry);
+    }
+
     /// <summary>Gives a chain's anchor before, or <see langword="null"/>.</summary>
     /// <param name="chain">The chain's name.</param>
     /// <returns>The anchor.</returns>

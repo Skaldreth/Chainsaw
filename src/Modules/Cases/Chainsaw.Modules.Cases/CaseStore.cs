@@ -568,7 +568,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         byte[] fileKey,
         Opening opening)
     {
-        // An interrupted replacement of the file key leaves only copies; the case file, old or new, is whole.
+        // An interrupted replacement of the file key leaves only copies; the case file, old or new, is whole. Whether
+        // there were any is kept, so that the opening can say when the replacement did not happen.
+        var rekeyLeftovers = paths.HasRekeyLeftovers;
         paths.DeleteRekeyLeftovers();
         var recovering = File.Exists(paths.WorkingCopy);
         CaseDatabase? database = null;
@@ -599,6 +601,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                     CaseFileHash = caseFileHash,
                     CaseFileStamp = caseFileStamp,
                     LocksAtOpening = opening.Locks,
+                    RekeyLeftovers = rekeyLeftovers,
                 },
                 recovering);
             (database, anchorKey) = (null, null);
@@ -686,6 +689,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="opening">How the file key was opened.</param>
     private static void JournalOpening(Case opened, bool recovered, IReadOnlyList<string> applied, Opening opening)
     {
+        // Read before any line of this opening is written: the last line tells whether the replacement went through.
+        var rekeyInterrupted = opened.NoteInterruptedReplacement();
+
         // A case of its own made from a working copy has a new id, and so no anchors yet, like a new case.
         var anchorsJournalled = opening.Kind != OpeningKind.Branch && opened.ReconcileAnchors();
         if (recovered)
@@ -726,7 +732,8 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         }
 
         var recoveryAdded = opened.UpdateRecoveryEnvelopes();
-        if (recovered || applied.Count > 0 || opening.Kind != OpeningKind.Vault || anchorsJournalled || recoveryAdded)
+        if (recovered || applied.Count > 0 || opening.Kind != OpeningKind.Vault || anchorsJournalled || recoveryAdded
+            || rekeyInterrupted)
         {
             opened.SaveUnlocked();
         }

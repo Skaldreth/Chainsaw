@@ -6,15 +6,33 @@ namespace Chainsaw.App.Commands;
 /// <summary>Says what <see cref="ICaseVerifier"/> found, in plain Swedish, one line per thing that is wrong.</summary>
 public static class VerificationText
 {
-    /// <summary>What <c>/verify</c> says under a whole chain when this computer's anchor was replaced (AK1a).</summary>
+    /// <summary>
+    /// What <c>/verify</c> says under a whole chain when this computer's anchor was replaced for a reason on this
+    /// computer (missing or unreadable), AK1a.
+    /// </summary>
     public const string AnchorNote =
         "Ankaret på den här datorn byttes när ärendet öppnades (case.anchors-replaced). Verifiera i ärendeväljaren "
         + "(Ctrl+O) säger varför.";
 
+    /// <summary>
+    /// What <c>/verify</c> says, as a warning, when the anchor was replaced because of the file: an older copy, a
+    /// change elsewhere, or an anchor file put back from a copy.
+    /// </summary>
+    public const string AnchorWarning =
+        "Men filen stämde inte med det den här datorn sparade senast (case.anchors-replaced): kanske en äldre kopia "
+        + "eller ändringar på en annan dator. Verifiera i ärendeväljaren (Ctrl+O) säger varför.";
+
     /// <summary>Describes a verification.</summary>
     /// <param name="verification">The result.</param>
-    /// <returns>A done answer when everything holds, otherwise an error with where each chain breaks.</returns>
-    public static CommandReply Describe(CaseVerification verification)
+    /// <param name="replaced">
+    /// The latest replacement of the anchors from the journal, which says whether a replaced anchor concerns the file
+    /// (a warning) or only this computer; <see langword="null"/> when not known, which counts as concerning the file.
+    /// </param>
+    /// <returns>
+    /// A done answer when everything holds, a warning when the chain is whole but the file did not match this computer,
+    /// otherwise an error with where each chain breaks.
+    /// </returns>
+    public static CommandReply Describe(CaseVerification verification, AnchorReplacement? replaced = null)
     {
         ArgumentNullException.ThrowIfNull(verification);
         var records = verification.Chains.Sum(chain => chain.RecordCount);
@@ -28,7 +46,10 @@ public static class VerificationText
         if (verification.Chains.All(chain => chain.Break is null)
             && verification.Problems.All(problem => problem == CaseProblem.AnchorsReplaced))
         {
-            return CommandReply.Done($"Hashkedjan är hel: {whole}{Environment.NewLine}{AnchorNote}");
+            var first = $"Hashkedjan är hel: {whole}{Environment.NewLine}";
+            return replaced is { ConcernsTheFile: false }
+                ? CommandReply.Done(first + AnchorNote)
+                : CommandReply.Warning(first + AnchorWarning);
         }
 
         var lines = verification.Problems.Select(For)

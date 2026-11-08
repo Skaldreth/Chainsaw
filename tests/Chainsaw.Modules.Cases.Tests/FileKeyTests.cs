@@ -139,6 +139,24 @@ public sealed class FileKeyTests : IDisposable
     }
 
     [Fact]
+    public void A_vault_that_cannot_be_read_is_the_cases_own_error_and_changes_nothing()
+    {
+        var path = CreateSharedWithColleague();
+        var before = File.ReadAllBytes(path);
+        using (var opened = _owner.CreateStore().Open("A1"))
+        {
+            _owner.Vault.VerifyFailure = new Security.Contracts.VaultException(
+                Security.Contracts.VaultError.Corrupt);
+
+            var error = Assert.Throws<CaseException>(() => opened.ReplaceFileKey(FakeVault.MasterKey, default));
+
+            Assert.Equal(CaseError.VaultFailed, error.Error);
+        }
+
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
+    [Fact]
     public void A_short_new_password_is_refused_before_anything_else()
     {
         CreateSharedWithColleague();
@@ -227,6 +245,18 @@ public sealed class FileKeyTests : IDisposable
             Assert.Equal(replacedByThen, replaced);
             Assert.Equal(!replacedByThen, afterCrash.HasSharingPassword);
             Assert.True(new CaseVerifier(picture.Clock).Verify(afterCrash).Chains.All(chain => chain.Break is null));
+
+            // An interrupted replacement is said, once, when the old file is what opened.
+            Assert.Equal(!replacedByThen, afterCrash.FileKeyReplacementInterrupted);
+            Assert.Equal(
+                replacedByThen ? 0 : 1,
+                afterCrash.ReadJournal().Count(entry => entry.Kind == CaseJournalKinds.FileKeyReplacementInterrupted));
+        }
+
+        Assert.False(File.Exists(Path.Combine(picture.Directory, "A1.cut.tmp")));
+        using (var again = picture.CreateStore().Open("A1"))
+        {
+            Assert.False(again.FileKeyReplacementInterrupted);
         }
 
         Assert.False(File.Exists(Path.Combine(picture.Directory, "A1.cut.work.rekey")));

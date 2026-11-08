@@ -68,4 +68,10 @@ public static class CaseJournalKinds
     /// which (see <see cref="FileKeyReplacement"/>). Copies of the file handed out before still open with the old ones.
     /// </summary>
     public const string FileKeyReplaced = "case.file-key-replaced";
+
+    /// <summary>
+    /// A replacement of the file key was interrupted before the new file was in place: the case opened with its old
+    /// file key and envelopes, so access that was to be taken back was not, and the replacement must be done again.
+    /// </summary>
+    public const string FileKeyReplacementInterrupted = "case.file-key-replacement-interrupted";
 }

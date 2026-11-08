@@ -323,6 +323,9 @@ internal sealed class TestCase(string caseNumber) : ICase
     /// <summary>Whether this vault has an envelope of its own; a created or opened case has.</summary>
     public bool HasOwnEnvelope { get; set; } = true;
 
+    /// <summary>Whether the opening found an interrupted replacement of the file key, as the test sets it.</summary>
+    public bool FileKeyReplacementInterrupted { get; set; }
+
     /// <summary>When set, <see cref="AddOperatorAccess"/> throws it.</summary>
     public Exception? AccessFailure { get; set; }
 

@@ -384,7 +384,8 @@ public sealed partial class CasePickerViewModel : ObservableObject
         AnchorReplacement? replaced;
         try
         {
-            (verification, replaced) = await Task.Run(() => (_verifier.Verify(openCase), LatestAnchors(openCase)));
+            (verification, replaced) = await Task.Run(
+                () => (_verifier.Verify(openCase), AnchorReplacement.LatestIn(openCase)));
         }
         catch (CaseException exception)
         {
@@ -463,14 +464,6 @@ public sealed partial class CasePickerViewModel : ObservableObject
         var head = journal.HeadHash is { Length: > 16 } hash ? $" · topp {hash[..8]}…{hash[^8..]}" : string.Empty;
         return $"{rows} rader · {at}{head}";
     }
-
-    /// <summary>Reads the latest replacement of the anchors from the journal; off the UI thread.</summary>
-    /// <param name="openCase">The case.</param>
-    /// <returns>The replacement, or <see langword="null"/> when the anchors were never replaced.</returns>
-    private static AnchorReplacement? LatestAnchors(ICase openCase) => openCase.ReadJournal()
-        .LastOrDefault(entry => entry.Kind == CaseJournalKinds.AnchorsReplaced) is { } entry
-        ? AnchorReplacement.FromJournal(entry)
-        : null;
 
     /// <summary>Stäng: saves and closes the open case; the picker stays out, so that another can be chosen.</summary>
     /// <returns>A task that completes when the case is closed, or why not is said.</returns>

@@ -4050,4 +4050,15 @@ Byggt efter skisserna VT1a, LN1a och AK1a (användarens val 2026-11-08).
 - **Två datorer** avgörs ur raderna: ett ankare längre fram än filens topp är en äldre kopia, annars två datorer.
   Raden där de gick isär (*samma rader fram till 402*) står inte, eftersom raden bara sparar ankaret och toppen.
 
-**Återstår:** granskningen av VT1a (oberoende), brickan *Etikett härifrån* i LN1a, och att prova allt på Windows.
+**Granskningen** (oberoende, nyckeln, de gamla sidorna, varje kraschsteg och ankarna): inga C eller I, fyra M:
+- **M1:** `/verify` svarar nu med en gul varning (`CommandReply.Warning`, nytt) när ankaret byttes av ett skäl i filen
+  (`AnchorReplacement.ConcernsTheFile`: Diverged, RolledBack, okänt), och lugnt *klart* bara när det gäller datorn
+  (ankaret saknades eller gick inte att läsa).
+- **M2:** andra fel från valvet blir `CaseError.VaultFailed` (nytt), och ett SQLite-fel när journalraden skrivs i kopian
+  blir `Corrupt`, så att fliken Kuvert säger det i stället för ett ohanterat fel.
+- **M3:** den nya filen som skrivits bredvid (`.cut.tmp`, med den nya nyckeln och ett nytt lösenord) tas bort med de
+  andra resterna. Fanns det rester från ett byte och är journalens sista rad inte bytet, säger öppningen det med raden
+  `case.file-key-replacement-interrupted` och en varning som ligger kvar: filen har kvar sina gamla kuvert.
+- **M4** står i BACKLOG under *Säkerhet* (den gamla databasnyckeln i bibliotekets minne).
+
+**Återstår:** brickan *Etikett härifrån* i LN1a, och att prova allt på Windows.

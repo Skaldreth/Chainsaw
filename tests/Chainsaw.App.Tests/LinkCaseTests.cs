@@ -103,6 +103,19 @@ public sealed class LinkCaseTests
         Assert.True(rig.NewCase.IsOpen);
     }
 
+    [Fact]
+    public void An_interrupted_replacement_of_the_file_key_is_a_warning_once_per_opening()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var openCase = new TestCase("A1") { FileKeyReplacementInterrupted = true };
+
+        rig.Session.Open(openCase);
+        rig.Session.Open(openCase);
+
+        var toast = Assert.Single(rig.Toaster.Toasts, item => item.Kind == ToastKind.Warning);
+        Assert.Equal(ShellViewModel.ReplacementInterruptedText, toast.Text);
+    }
+
     /// <summary>A rig with one case file, unlocked after a link came while it was locked.</summary>
     /// <returns>The rig, with the picker out and listed.</returns>
     private static async Task<GateRig> UnlockedWithLinkAsync()

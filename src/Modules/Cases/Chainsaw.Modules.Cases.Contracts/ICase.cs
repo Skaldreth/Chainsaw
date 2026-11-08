@@ -149,12 +149,20 @@ public interface ICase : IDisposable
     /// </param>
     /// <returns>The replacement, as the journal tells it.</returns>
     /// <exception cref="CaseException">
-    /// <see cref="CaseError.WrongMasterKey"/>, <see cref="CaseError.PasswordTooShort"/>,
+    /// <see cref="CaseError.WrongMasterKey"/>, <see cref="CaseError.VaultFailed"/>, <see cref="CaseError.Corrupt"/>,
+    /// <see cref="CaseError.PasswordTooShort"/>,
     /// <see cref="CaseError.WouldLoseAccess"/> when this vault has no envelope of its own,
     /// <see cref="CaseError.VaultLocked"/>, <see cref="CaseError.NoOperatorProfile"/>, <see cref="CaseError.Conflict"/>
     /// when the case file was changed outside Chainsaw, or <see cref="CaseError.Closed"/>.
     /// </exception>
     FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword);
+
+    /// <summary>
+    /// Gets whether this opening found that a replacement of the file key had been interrupted before the new file was
+    /// in place, so that the case still has its old key and envelopes; the journal says it too. The user is told, since
+    /// access that was to be taken back was not.
+    /// </summary>
+    bool FileKeyReplacementInterrupted => false;
 
     /// <summary>Writes the working copy back into the case file, atomically.</summary>
     /// <exception cref="CaseException">

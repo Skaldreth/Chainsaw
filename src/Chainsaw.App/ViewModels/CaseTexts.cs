@@ -42,6 +42,7 @@ public static class CaseTexts
         CaseError.TooManyEnvelopes => "Ärendet har redan så många kuvert som en fil får ha. Inget ändrades.",
         CaseError.LockedWhileSaving => "Valvet låstes medan ärendet sparades. Det är sparat och stängt.",
         CaseError.WrongMasterKey => "Fel huvudnyckel. Inget ändrades.",
+        CaseError.VaultFailed => "Valvet gick inte att läsa, så inget ändrades i ärendet.",
         _ => "Det gick inte att göra det med ärendet.",
     };
 

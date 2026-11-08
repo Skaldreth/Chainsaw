@@ -48,6 +48,43 @@ internal sealed partial class Case
     /// </summary>
     internal Action<string>? FileKeyStep { get; set; }
 
+    /// <summary>Gets whether an interrupted replacement had left copies beside the file when the case was opened.</summary>
+    internal bool RekeyLeftovers { get; init; }
+
+    /// <inheritdoc />
+    public bool FileKeyReplacementInterrupted { get; private set; }
+
+    /// <summary>
+    /// Says in the journal, when the case is opened, that a replacement of the file key was interrupted before the new
+    /// file was in place: copies were left, and the journal's last line is not the replacement. Called before any line
+    /// of the opening is written. The caller saves.
+    /// </summary>
+    /// <returns><see langword="true"/> when the line was written.</returns>
+    internal bool NoteInterruptedReplacement()
+    {
+        if (!RekeyLeftovers || LastJournalKind() == CaseJournalKinds.FileKeyReplaced)
+        {
+            return false;
+        }
+
+        AppendOwnJournal(new JournalDraft(
+            CaseJournalKinds.FileKeyReplacementInterrupted,
+            "Ett byte av filnyckeln avbröts innan den nya filen var på plats. Filnyckeln och kuverten är de gamla, "
+            + "så bytet behöver göras om."));
+        FileKeyReplacementInterrupted = true;
+        return true;
+    }
+
+    /// <summary>Reads the kind of the journal's last line.</summary>
+    /// <returns>The kind, or <see langword="null"/> for an empty journal.</returns>
+    private string? LastJournalKind()
+    {
+        using var scope = Database.As(GuardMode.Internal);
+        using var select = Database.Command(
+            $"SELECT kind FROM {CasesSchema.Journal.Table} ORDER BY sequence DESC LIMIT 1");
+        return select.ExecuteScalar() as string;
+    }
+
     /// <inheritdoc />
     public FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword)
     {
@@ -103,7 +140,8 @@ internal sealed partial class Case
     /// <summary>Checks the master key with the vault, giving its failures the case's own errors.</summary>
     /// <param name="masterKey">The master key as typed.</param>
     /// <exception cref="CaseException">
-    /// <see cref="CaseError.WrongMasterKey"/> or <see cref="CaseError.VaultLocked"/>.
+    /// <see cref="CaseError.WrongMasterKey"/>, <see cref="CaseError.VaultLocked"/>, or
+    /// <see cref="CaseError.VaultFailed"/> when the vault cannot be read (changed, missing or replaced).
     /// </exception>
     private void VerifyMasterKey(ReadOnlySpan<char> masterKey)
     {
@@ -118,6 +156,10 @@ internal sealed partial class Case
         catch (VaultException exception) when (exception.Error == VaultError.Locked)
         {
             throw new CaseException(CaseError.VaultLocked, exception);
+        }
+        catch (VaultException exception)
+        {
+            throw new CaseException(CaseError.VaultFailed, exception);
         }
     }
 
@@ -240,6 +282,11 @@ internal sealed partial class Case
         try
         {
             entry = AppendOwnJournal(draft);
+        }
+        catch (SqliteException exception)
+        {
+            // The copy did not take the line; the case and its working copy are as they were.
+            throw new CaseException(CaseError.Corrupt, exception);
         }
         finally
         {

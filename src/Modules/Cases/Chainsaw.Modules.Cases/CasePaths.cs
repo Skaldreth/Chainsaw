@@ -41,14 +41,22 @@ internal sealed record CasePaths(string CaseFile)
     public string RekeyBackup => WorkingCopy + ".old-key";
 
     /// <summary>
-    /// Removes what an interrupted replacement of the file key may have left: none of it is ever the only copy of
-    /// anything, since the case file, old or new, is whole.
+    /// Gets whether an interrupted replacement of the file key left a copy beside the file. The new case file written
+    /// aside (<see cref="SaveFile"/>) is not counted, since an interrupted save leaves one too.
+    /// </summary>
+    public bool HasRekeyLeftovers => File.Exists(RekeyCopy) || File.Exists(RekeyBackup);
+
+    /// <summary>
+    /// Removes what an interrupted replacement of the file key may have left, the new case file written aside
+    /// included, which holds the new key under the new envelopes (a new case password among them): none of it is ever
+    /// the only copy of anything, since the case file, old or new, is whole, and the working copy is beside it.
     /// </summary>
     public void DeleteRekeyLeftovers()
     {
         File.Delete(RekeyCopy);
         File.Delete(RekeyJournal);
         File.Delete(RekeyBackup);
+        File.Delete(SaveFile);
     }
 
     /// <summary>Gets the lock file that is held open while the case is open, so that it is only opened once.</summary>
