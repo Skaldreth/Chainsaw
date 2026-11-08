@@ -62,8 +62,20 @@ internal sealed class TestTrashSource : ITrashSource
         var thrown = new TrashThrow(
             _next++, members, new OperatorProfile("Testa", "Utredare", "Enheten"), DateTimeOffset.UnixEpoch, 1);
         Throws.Add(thrown);
+        Records.Add(([.. members.Select(member => member.Key)], Record(TrashAction.Thrown, thrown.Sequence)));
         return thrown;
     }
+
+    /// <summary>Every throw and putting back, with the keys it concerned, oldest first.</summary>
+    public List<(IReadOnlyList<string> Keys, TrashRecord Record)> Records { get; } = [];
+
+    public Task<IReadOnlyList<TrashRecord>> HistoryAsync(ICase @case, string key, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<TrashRecord>>(
+            [.. Records.Where(each => each.Keys.Contains(key)).Select(each => each.Record)]);
+
+    private TrashRecord Record(TrashAction action, long throwSequence) => new(
+        Records.Count + 100, action, throwSequence, new OperatorProfile("Testa", "Utredare", "Enheten"),
+        DateTimeOffset.UnixEpoch.AddMinutes(Records.Count), 1);
 
     public Task<IReadOnlyList<TrashMember>> RestoreAsync(ICase @case, long throwSequence, string? key)
     {
@@ -75,6 +87,7 @@ internal sealed class TestTrashSource : ITrashSource
         }
 
         var back = key is null ? Throws[index].Members : Throws[index].Branch(key);
+        Records.Add(([.. back.Select(member => member.Key)], Record(TrashAction.Restored, throwSequence)));
         var left = Throws[index].Members.Where(member => !back.Contains(member)).ToList();
         if (left.Count == 0)
         {

@@ -194,7 +194,7 @@ public sealed class CommandTests
     }
 
     [Fact]
-    public async Task A_tron_address_is_honestly_not_built_and_other_text_is_not_searched()
+    public async Task A_tron_address_is_honestly_not_built_and_other_text_finds_nothing_to_add()
     {
         var rig = new GateRig(VaultState.Unlocked);
 
@@ -202,7 +202,7 @@ public sealed class CommandTests
         var text = await rig.Commands.RunAsync("Börs A");
 
         Assert.Equal("TRON är inte byggt än, så det kan inte bli en startpunkt.", tron.Text);
-        Assert.Contains("inte byggd än", text.Text, StringComparison.Ordinal);
+        Assert.Contains("Inget i ärendet eller Guiden matchar", text.Text, StringComparison.Ordinal);
     }
 
     [Fact]

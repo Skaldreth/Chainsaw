@@ -134,8 +134,9 @@
                                     <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
                                 </Border.InputBindings>
                                 <StackPanel>
-                                    <!-- Undoing a breaking out: the confirmation of what merges again. -->
-                                    <StackPanel Visibility="{Binding IsSplitOpen, Converter={StaticResource Visible}}">
+                                    <!-- Undoing a breaking out or a merge: the confirmation of what merges again. -->
+                                    <StackPanel
+                                        Visibility="{Binding IsConfirmOpen, Converter={StaticResource Visible}}">
                                         <DockPanel Margin="0,10,0,5">
                                             <TextBlock Text="{Binding RejoinHeuristics}" DockPanel.Dock="Right" FontSize="12"
                                                        Foreground="{StaticResource Brush.TextMuted}" />

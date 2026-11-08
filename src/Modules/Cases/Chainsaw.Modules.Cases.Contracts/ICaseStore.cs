@@ -132,6 +132,12 @@ public interface ICaseStore
     RecoveryPublicKey? RecoveryKey { get; }
 
     /// <summary>
+    /// Gets the fingerprints (see <see cref="RecoveryPublicKey.Fingerprint"/>) of the earlier recovery keys this
+    /// Chainsaw revokes, sorted; their envelopes are taken out of every case that is opened. Empty when none is.
+    /// </summary>
+    IReadOnlyList<string> RevokedRecoveryKeys => [];
+
+    /// <summary>
     /// Opens a case file anywhere with the organisation's private recovery key, for the administrator's tool, when
     /// the operator has lost the master key. The vault must still be unlocked, since the journal records the
     /// opening; the entry also names the administrator and the key's fingerprint.

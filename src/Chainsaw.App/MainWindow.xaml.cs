@@ -73,6 +73,9 @@ public partial class MainWindow : Window
     /// <summary>The graph, whose inspector's open form takes Esc before the Guide's panel (sketch IN1a).</summary>
     private readonly GraphViewModel _graph;
 
+    /// <summary>Whether the search opened the Guide's panel for a row, so it closes when the row is left.</summary>
+    private bool _guideFromSearch;
+
     /// <summary>Asks the gate now and then whether the automatic lock is due.</summary>
     private readonly DispatcherTimer _idleTimer;
 
@@ -129,6 +132,7 @@ public partial class MainWindow : Window
         GuidePage.Attach(guide);
         GuidePanel.Attach(guidePanel);
         WireGuide(graph, guide);
+        WireSearch(shell, graph);
         WireWatches(shell, graph, monitoring);
         WireRequests(shell, graph);
         WireEmptyGraph(shell, graph.Start);
@@ -388,6 +392,77 @@ public partial class MainWindow : Window
 
         _guide.Return();
         return true;
+    }
+
+    /// <summary>
+    /// Wires the command bar's search (sketch KR1a): it searches the open case's graph, the chosen row is shown at once
+    /// in the graph or the Guide's panel, a row taken with Enter or a click is chosen there, and a click on the start
+    /// point's row adds what is written, as Enter does.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph's view model.</param>
+    private void WireSearch(ShellViewModel shell, GraphViewModel graph)
+    {
+        var search = shell.Search;
+        SearchList.Attach(search);
+        search.UseScene(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                search.UseScene(graph.Scene);
+            }
+        };
+        search.ShowWanted += (_, row) => ShowSearchRow(row);
+        search.Accepted += (_, row) => TakeSearchRow(row);
+        SearchList.StartPointWanted += (_, _) => shell.SubmitCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Shows the chosen search row at once: its node ringed in the graph while the graph is shown, or its section in
+    /// the Guide's panel, which closes again when a row that is not the Guide's is chosen.
+    /// </summary>
+    /// <param name="row">The row, or <see langword="null"/> when none is chosen.</param>
+    private void ShowSearchRow(SearchRowViewModel? row)
+    {
+        _graph.ShowFound(_shell.IsGraphShown ? row?.NodeKey : null);
+        if (row?.GuideSection is { } section)
+        {
+            var wasOpen = _guidePanel.IsOpen;
+            if (_guidePanel.OpenSection(section) && !wasOpen)
+            {
+                _guideFromSearch = true;
+            }
+
+            return;
+        }
+
+        if (_guideFromSearch)
+        {
+            _guideFromSearch = false;
+            _guidePanel.Close();
+        }
+    }
+
+    /// <summary>
+    /// Takes a search row: the graph is shown with its node chosen, or its section stays in the Guide's panel, and the
+    /// bar is emptied and hidden.
+    /// </summary>
+    /// <param name="row">The row.</param>
+    private void TakeSearchRow(SearchRowViewModel row)
+    {
+        _guideFromSearch = false;
+        if (row.GuideSection is { } section)
+        {
+            _guidePanel.OpenSection(section);
+        }
+        else if (row.NodeKey is { } key)
+        {
+            _shell.Show(AppView.Graph);
+            _graph.ChooseFound(key);
+        }
+
+        _shell.FinishSearch();
     }
 
     /// <summary>
@@ -867,15 +942,36 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Tab in the command bar fills in (a command's name, or a case number for <c>/open</c>) instead of moving the
+    /// The arrows go through the search's rows (sketch KR1a). Tab folds out the chosen row's group while a search is
+    /// shown, and otherwise fills in (a command's name, or a case number for <c>/open</c>) instead of moving the
     /// keyboard on, and leaves the caret at the end of the text.
     /// </summary>
     /// <param name="sender">The command bar's text box.</param>
     /// <param name="e">The key.</param>
     private void OnCommandKey(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Tab || Keyboard.Modifiers != ModifierKeys.None)
+        if (Keyboard.Modifiers != ModifierKeys.None)
         {
+            return;
+        }
+
+        if (e.Key is Key.Up or Key.Down)
+        {
+            // The arrows go through the search's rows (sketch KR1a), and the graph follows.
+            _shell.Search.Move(e.Key == Key.Down ? 1 : -1);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key != Key.Tab)
+        {
+            return;
+        }
+
+        if (CommandSearchViewModel.Parse(CommandBox.Text).Term is { Length: > 0 } && _shell.Search.Unfold())
+        {
+            // Tab folds out the chosen row's group, or goes on to the next group.
+            e.Handled = true;
             return;
         }
 

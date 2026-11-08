@@ -1,0 +1,99 @@
+<Window x:Class="Chainsaw.App.Views.AlertCardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+        xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+        Title="Chainsaw · Bevakning" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ResizeMode="NoResize" SizeToContent="WidthAndHeight" ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen" FontFamily="{StaticResource Font.Ui}" FontSize="14"
+        Foreground="{StaticResource Brush.Text}" UseLayoutRounding="True" PreviewKeyDown="OnKey"
+        AutomationProperties.Name="En bevakning har slagit till">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+        <!-- One ring that runs out from the eye and fades (sketch BV4a); three, a third of the time apart. -->
+        <Style x:Key="Ring" TargetType="Ellipse">
+            <Setter Property="Width" Value="64" />
+            <Setter Property="Height" Value="64" />
+            <Setter Property="Stroke" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="StrokeThickness" Value="2" />
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+    </Window.Resources>
+
+    <!--
+      The message in the middle of the screen (sketch BV4a): a small card over every window, without darkening anything,
+      that stays until it is closed. The eye with its rings, the title, a line and the time, and two buttons: Stäng (Esc)
+      and the action (Enter). It says only that a watch has hit, never what, where or in which case.
+    -->
+    <Grid Margin="40">
+        <Border CornerRadius="18" Background="{StaticResource Brush.Floating}" IsHitTestVisible="False">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="64" ShadowDepth="24" Direction="270" Opacity="0.6" Color="Black" />
+            </Border.Effect>
+        </Border>
+        <Border Width="404" CornerRadius="18" Background="{StaticResource Brush.Floating}"
+                BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1.5" Padding="28,30,28,22"
+                MouseLeftButtonDown="OnDrag">
+            <Grid>
+                <!-- Who says it, when the card comes from the background. -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-12,-16,0,0"
+                            Visibility="{Binding ShowsFrom, Converter={StaticResource Visible}}">
+                    <Image Source="{StaticResource Logo.Small}" Width="13" Height="13" Margin="0,0,7,0"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="{x:Static vm:AlertCard.FromText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                </StackPanel>
+                <!-- The pin: it stays on top until it is closed. -->
+                <Border Width="26" Height="26" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-18,-14,0"
+                        Background="Transparent" ToolTip="{x:Static vm:AlertCard.StaysText}">
+                    <controls:GridIcon Size="15" Data="{StaticResource Icon.Pin}" Foreground="{StaticResource Brush.TextDim}" />
+                </Border>
+
+                <StackPanel HorizontalAlignment="Center">
+                    <Grid Width="96" Height="96" Margin="0,8,0,0" HorizontalAlignment="Center">
+                        <Ellipse x:Name="RingA" Style="{StaticResource Ring}"><Ellipse.RenderTransform><ScaleTransform /></Ellipse.RenderTransform></Ellipse>
+                        <Ellipse x:Name="RingB" Style="{StaticResource Ring}"><Ellipse.RenderTransform><ScaleTransform /></Ellipse.RenderTransform></Ellipse>
+                        <Ellipse x:Name="RingC" Style="{StaticResource Ring}"><Ellipse.RenderTransform><ScaleTransform /></Ellipse.RenderTransform></Ellipse>
+                        <Border Width="64" Height="64" CornerRadius="32" Background="{StaticResource Brush.AccentTint}"
+                                BorderBrush="{StaticResource Brush.Accent}" BorderThickness="2">
+                            <controls:GridIcon Size="30" Data="{StaticResource Icon.Eye}" Foreground="{StaticResource Brush.Accent}" />
+                        </Border>
+                    </Grid>
+                    <TextBlock Text="{x:Static vm:AlertCard.Title}" FontSize="19" FontWeight="SemiBold" Margin="0,14,0,0"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding Text, Mode=OneTime}" FontSize="13.5" Foreground="{StaticResource Brush.TextMuted}"
+                               TextAlignment="Center" TextWrapping="Wrap" LineHeight="20" Margin="0,12,0,0" MaxWidth="320" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                        <controls:GridIcon Size="13" Data="{StaticResource Icon.Clock}" Foreground="{StaticResource Brush.TextDim}"
+                                           Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding TimeText, Mode=OneTime}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <Grid Width="348" Margin="0,22,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1*" />
+                            <ColumnDefinition Width="1.4*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Style="{StaticResource Button.Secondary}" Height="40" Margin="0,0,4,0" Click="OnClose"
+                                ToolTip="Stäng (Esc)" AutomationProperties.Name="Stäng">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Stäng" FontWeight="SemiBold" />
+                                <TextBlock Text="Esc" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="8,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="ActionButton" Grid.Column="1" Style="{StaticResource Button.Primary}" Height="40"
+                                Margin="4,0,0,0" Click="OnAction" AutomationProperties.Name="{Binding ActionText, Mode=OneTime}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding ActionText, Mode=OneTime}" />
+                                <TextBlock Text="Enter" FontSize="11.5" FontWeight="Normal" Opacity="0.75" Margin="8,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

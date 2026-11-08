@@ -47,6 +47,7 @@ public static class NetworkModule
             provider.GetRequiredService<IInternetProbe>(),
             TimeProvider.System));
         services.AddSingleton<IExitHttp, ExitHttp>();
+        services.AddSingleton<IExitCheck, ExitCheck>();
 
         // A tunnel that falls, for example after the computer has slept, is connected again by itself.
         services.AddSingleton(provider => new ExitReconnector(

@@ -121,6 +121,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         model.PropertyChanged += OnModelChanged;
         AttachComments(model);
         AttachReach(model);
+        AttachSearch(model);
         model.ShowNodesWanted += (_, nodes) => FitTo(nodes);
         model.FitWanted += (_, _) =>
         {
@@ -258,6 +259,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawGuide(drawingContext);
         drawingContext.Pop();
         DrawFan(drawingContext, visible);
+        DrawFound(drawingContext);
         drawingContext.Pop();
         DrawTimeNames(drawingContext);
         DrawBox(drawingContext);

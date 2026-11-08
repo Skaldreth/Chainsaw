@@ -59,7 +59,12 @@ internal sealed class CheckService : ICheckService
         var (results, decisions) = @case.Read(
             reader => (CheckStore.ReadResults(reader), CheckStore.ReadDecisions(reader)));
         var (approved, dismissed) = DecisionsOf(results, decisions);
-        var input = InputOf(@case, graph) with { Approved = approved, Dismissed = dismissed };
+        var input = InputOf(@case, graph) with
+        {
+            Approved = approved,
+            Dismissed = dismissed,
+            ApprovedWallets = ApprovedWalletsOf(@case, decisions),
+        };
         var problems = new List<string>();
         var found = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding, string Content)>();
         foreach (var analysis in _analyses)
@@ -123,26 +128,245 @@ internal sealed class CheckService : ICheckService
             return [];
         }
 
+        return @case.Write(transaction => DecideIn(transaction, requests, reasons));
+    }
+
+    /// <inheritdoc/>
+    public int TakeBackMerges(ICase @case, IReadOnlyCollection<long> mergeSequences, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(mergeSequences);
+        var checkedReason = Optional(reason, CheckRules.MaximumTextLength, nameof(reason));
+        var wanted = mergeSequences.ToHashSet();
         return @case.Write(transaction =>
         {
-            var results = CheckStore.ReadResults(transaction);
-            var decisions = CheckStore.ReadDecisions(transaction);
-            var sealedNow = new List<CheckDecision>();
-            for (var index = 0; index < requests.Count; index++)
+            var merges = _clustering.GetMergeHistory(transaction)
+                .Where(entry => !entry.IsUndone && wanted.Contains(entry.Merge.Sequence))
+                .Select(entry => entry.Merge)
+                .ToList();
+            if (merges.Count == 0)
             {
-                var decision = SealOne(transaction, requests[index], reasons[index], results, decisions);
-                var key = KeyOf(requests[index]);
-                if (!decisions.TryGetValue(key, out var list))
-                {
-                    decisions[key] = list = [];
-                }
-
-                list.Add(decision);
-                sealedNow.Add(decision);
+                return 0;
             }
 
-            return (IReadOnlyList<CheckDecision>)sealedNow;
+            var before = InForceCount(transaction);
+
+            // A merge that an approval made is undone by taking the approval back, so that the suggestion waits
+            // again and the panel and the clusters say the same; the take-back undoes the approval's merges.
+            var approvals = merges.Select(merge => merge.Origin)
+                .OfType<MergeOrigin>()
+                .Where(origin => origin.Chain == CheckSchema.DecisionsChain)
+                .Select(origin => origin.Sequence)
+                .ToHashSet();
+            var inForce = CheckStore.ReadDecisions(transaction).Values
+                .Select(made => made.GroupBy(decision => decision.CandidateKey ?? string.Empty, StringComparer.Ordinal)
+                    .Select(group => group.Last()))
+                .SelectMany(latest => latest)
+                .Where(decision => decision.Verdict == CheckVerdict.Approved && approvals.Contains(decision.Sequence))
+                .OrderBy(decision => decision.Sequence)
+                .ToList();
+            var requests = inForce
+                .Select(decision => DecisionRequest.TakeBack(decision) with { Reason = checkedReason })
+                .ToList();
+            if (requests.Count > 0)
+            {
+                DecideIn(transaction, requests, [.. requests.Select(_ => checkedReason)]);
+            }
+
+            // A merge whose approval is no longer in force (or that came from elsewhere) is undone on its own.
+            var left = _clustering.GetMergeHistory(transaction)
+                .Where(entry => !entry.IsUndone && wanted.Contains(entry.Merge.Sequence))
+                .Select(entry => entry.Merge.Sequence)
+                .ToList();
+            if (left.Count > 0)
+            {
+                _clustering.UndoMerges(transaction, left, checkedReason);
+            }
+
+            return before - InForceCount(transaction);
         });
+    }
+
+    /// <summary>Counts the user's merges in force, to tell how many a taking back undid.</summary>
+    /// <param name="reader">The case's transaction.</param>
+    /// <returns>How many hold.</returns>
+    private int InForceCount(ICaseReader reader) =>
+        _clustering.GetMergeHistory(reader).Count(entry => !entry.IsUndone);
+
+    /// <summary>
+    /// Seals decisions in a transaction the caller holds, in order, each checked against what the ones before it
+    /// sealed, and follows each in the clustering when it is about a wallet.
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="requests">The decisions.</param>
+    /// <param name="reasons">The checked reasons, one per decision.</param>
+    /// <returns>The sealed decisions, in order.</returns>
+    /// <exception cref="ArgumentException">One of the decisions is refused.</exception>
+    private IReadOnlyList<CheckDecision> DecideIn(
+        ICaseTransaction transaction, IReadOnlyList<DecisionRequest> requests, IReadOnlyList<string?> reasons)
+    {
+        var results = CheckStore.ReadResults(transaction);
+        var decisions = CheckStore.ReadDecisions(transaction);
+        var sealedNow = new List<CheckDecision>();
+        for (var index = 0; index < requests.Count; index++)
+        {
+            var decision = SealOne(transaction, requests[index], reasons[index], results, decisions);
+            FollowInClustering(transaction, requests[index], decision, results);
+            var key = KeyOf(requests[index]);
+            if (!decisions.TryGetValue(key, out var list))
+            {
+                decisions[key] = list = [];
+            }
+
+            list.Add(decision);
+            sealedNow.Add(decision);
+        }
+
+        return sealedNow;
+    }
+
+    /// <summary>
+    /// Follows a decision about a wallet in the clustering, in the same transaction, so that the two are sealed
+    /// together or not at all: an approval merges the wallet's proposals as the user's judgement (<c>user v1</c>), and
+    /// taking an approval back undoes the merges it made. Any other decision is left alone.
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="request">The decision as asked for.</param>
+    /// <param name="decision">The decision as sealed.</param>
+    /// <param name="results">The sealed findings.</param>
+    /// <exception cref="ArgumentException">
+    /// The wallet's proposals are no longer stored, or the clustering refuses the merge (for example because the user
+    /// has split the addresses).
+    /// </exception>
+    private void FollowInClustering(
+        ICaseTransaction transaction,
+        DecisionRequest request,
+        CheckDecision decision,
+        Dictionary<ResultKey, SealedResult> results)
+    {
+        if (request.Analysis.Name != WalletCheck.Name)
+        {
+            return;
+        }
+
+        if (request.Verdict == CheckVerdict.Approved)
+        {
+            var finding = FindingCodec.Decode(results[KeyOf(request)].Content);
+            var merges = WalletMerges(transaction, finding);
+            if (merges.Count == 0)
+            {
+                throw new ArgumentException(
+                    "The clustering no longer proposes the wallet; run the checks again.", nameof(request));
+            }
+
+            _clustering.Merge(
+                transaction, merges, decision.Reason, new MergeOrigin(CheckSchema.DecisionsChain, decision.Sequence));
+        }
+        else if (request.Verdict == CheckVerdict.Withdrawn && request.Undoes is { } undone)
+        {
+            var made = _clustering.GetMergeHistory(transaction)
+                .Where(entry => !entry.IsUndone
+                    && entry.Merge.Origin == new MergeOrigin(CheckSchema.DecisionsChain, undone))
+                .Select(entry => entry.Merge.Sequence)
+                .ToList();
+            if (made.Count > 0)
+            {
+                _clustering.UndoMerges(transaction, made, decision.Reason);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gives the merges an approved wallet makes: one per proposal the clustering still has stored in the wallet's
+    /// transactions whose addresses all lie in the wallet as the user saw it, each resting on its own transaction and
+    /// saying what the proposal said (principle 3). Together they must join every address the user saw, and none
+    /// other, so that an approval never stands for more or less than what was approved.
+    /// </summary>
+    /// <param name="reader">The case's transaction.</param>
+    /// <param name="finding">The wallet, as sealed.</param>
+    /// <returns>The merges.</returns>
+    /// <exception cref="ArgumentException">
+    /// The proposals no longer join the wallet the user saw; the checks are run again first.
+    /// </exception>
+    private List<MergeRequest> WalletMerges(ICaseReader reader, CheckFinding finding)
+    {
+        var members = finding.Addresses.ToHashSet();
+        var proposals = finding.Basis
+            .Select(basis => basis.Txid)
+            .Distinct()
+            .SelectMany(txid => WalletCheck.ProposalsOf(_clustering.GetConclusions(reader, txid)))
+            .Where(evidence => evidence.Addresses.All(members.Contains))
+            .ToList();
+        var joined = new UnionFind<BitcoinAddress>();
+        foreach (var evidence in proposals)
+        {
+            foreach (var address in evidence.Addresses.Skip(1))
+            {
+                joined.Union(evidence.Addresses[0], address);
+            }
+        }
+
+        if (joined.Groups() is not [var only] || !only.ToHashSet().SetEquals(members))
+        {
+            throw new ArgumentException(
+                "The clustering's proposals no longer join the wallet as it was shown; run the checks again.",
+                nameof(finding));
+        }
+
+        return
+        [
+            .. proposals.Select(evidence => new MergeRequest(
+                [.. evidence.Addresses.Distinct()], evidence.Txid, evidence.Heuristic, evidence.Reason)),
+        ];
+    }
+
+    /// <summary>
+    /// Gives the wallets whose approval is in force with the merges it made that hold in the clustering, so that the
+    /// wallet analysis shows them as approved and suggests only what is new.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="decisions">The decisions, by finding, oldest first.</param>
+    /// <returns>The approved wallets, in the order they were approved.</returns>
+    private IReadOnlyList<ApprovedWallet> ApprovedWalletsOf(
+        ICase @case, Dictionary<ResultKey, List<CheckDecision>> decisions)
+    {
+        var approvals = decisions
+            .Where(entry => entry.Key.Analysis == WalletCheck.Name)
+            .Select(entry => entry.Value.LastOrDefault(decision => decision.CandidateKey is null))
+            .OfType<CheckDecision>()
+            .Where(decision => decision.Verdict == CheckVerdict.Approved)
+            .OrderBy(decision => decision.Sequence)
+            .ToList();
+        if (approvals.Count == 0)
+        {
+            return [];
+        }
+
+        var merges = _clustering.GetMergeHistory(@case)
+            .Where(entry => !entry.IsUndone && entry.Merge.Origin?.Chain == CheckSchema.DecisionsChain)
+            .Select(entry => entry.Merge)
+            .ToList();
+        var wallets = new List<ApprovedWallet>();
+        foreach (var approval in approvals)
+        {
+            var made = merges.Where(merge => merge.Origin!.Sequence == approval.Sequence).ToList();
+            if (made.Count == 0)
+            {
+                continue;
+            }
+
+            IReadOnlyList<BitcoinAddress> addresses = [.. made.SelectMany(merge => merge.Addresses).Distinct()];
+            var clusters = _clustering.GetClusters(@case, addresses);
+            var broken = addresses.Any(address => !clusters[addresses[0]].Contains(address));
+            wallets.Add(new ApprovedWallet(
+                approval.Analysis,
+                approval.FindingKey,
+                addresses,
+                [.. made.Select(merge => merge.Txid).Distinct()],
+                broken));
+        }
+
+        return wallets;
     }
 
     /// <summary>Checks a decision's verdict and reason before anything is written.</summary>

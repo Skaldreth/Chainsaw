@@ -1,6 +1,7 @@
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 
@@ -94,6 +95,24 @@ public interface IGraphEditor
     /// <param name="reason">Why, or <see langword="null"/>.</param>
     /// <returns>Whether it was taken back.</returns>
     Task<UndoOutcome> UnlinkAsync(ICase @case, CrossChainLink link, string? reason);
+
+    /// <summary>
+    /// Undoes merges of the user's own (<c>user v1</c>): a merge an approved wallet made is undone by taking the
+    /// approval back, so that the suggestion waits again (Checks); sealed, with a line in the journal.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="merges">The merges.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>Whether anything was undone.</returns>
+    Task<UndoOutcome> UndoMergesAsync(ICase @case, IReadOnlyList<long> merges, string? reason);
+
+    /// <summary>Says what undoing merges of the user's would merge again, without storing anything.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="merges">The merges.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The preview, or <see langword="null"/> when none of the merges exists.</returns>
+    Task<UndoMergePreview?> PreviewUndoMergesAsync(
+        ICase @case, IReadOnlyList<long> merges, CancellationToken cancellationToken);
 }
 
 /// <summary>How a taking back or an undoing went.</summary>
@@ -117,11 +136,13 @@ public sealed record SplitOutcome(int Stored, Exception? Failure);
 /// <param name="attribution">The labels.</param>
 /// <param name="clustering">The clusters and the splits.</param>
 /// <param name="library">The label library, which follows a label taken back.</param>
+/// <param name="checks">The checks, whose approvals made the user's merges.</param>
 public sealed class GraphEditor(
     ITracingService tracing,
     IAttributionService attribution,
     IClusteringService clustering,
-    ILabelLibrary library) : IGraphEditor
+    ILabelLibrary library,
+    ICheckService checks) : IGraphEditor
 {
     /// <summary>What the inspector says when the label library could not follow a label taken back.</summary>
     public const string LibraryLaterText =
@@ -208,9 +229,14 @@ public sealed class GraphEditor(
                     ? []
                     : WholeBreakingsOut(clustering.GetSplitHistory(@case), addresses.ToHashSet());
                 var links = tracing.GetCrossChainHistory(@case);
+                var merges = node.Accounts.Count > 0
+                    ? []
+                    : Touching(clustering.GetMergeHistory(@case), addresses.ToHashSet());
                 cancellationToken.ThrowIfCancellationRequested();
                 var operators = new Dictionary<long, string>();
-                foreach (var sequence in NodeHistoryData.JournalNeeds(labels, splits, links))
+                var needs = NodeHistoryData.JournalNeeds(labels, splits, links)
+                    .Union(NodeHistoryData.JournalNeeds(merges));
+                foreach (var sequence in needs)
                 {
                     if (@case.ReadJournal(sequence, 1) is [var entry] && entry.Sequence == sequence)
                     {
@@ -218,7 +244,7 @@ public sealed class GraphEditor(
                     }
                 }
 
-                return new NodeHistoryData(labels, splits, links, cluster, operators);
+                return new NodeHistoryData(labels, splits, links, cluster, operators) { Merges = merges };
             },
             cancellationToken);
     }
@@ -270,6 +296,39 @@ public sealed class GraphEditor(
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(link);
         return Task.Run(() => new UndoOutcome(tracing.UnlinkCrossChain(@case, link, reason)));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoOutcome> UndoMergesAsync(ICase @case, IReadOnlyList<long> merges, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(merges);
+        return Task.Run(() => new UndoOutcome(checks.TakeBackMerges(@case, merges, reason) > 0));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoMergePreview?> PreviewUndoMergesAsync(
+        ICase @case, IReadOnlyList<long> merges, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(merges);
+        return Task.Run(() => clustering.PreviewUndoMerges(@case, merges), cancellationToken);
+    }
+
+    /// <summary>
+    /// Gives the user's merges that hold one of a node's addresses, also those undone, each with the merges stored
+    /// under the same journal entry (one approval), so that the approval is shown and undone as one from any address.
+    /// </summary>
+    /// <param name="all">Every merge in the case, read once.</param>
+    /// <param name="addresses">The node's addresses.</param>
+    /// <returns>The merges, oldest first.</returns>
+    private static IReadOnlyList<MergeHistoryEntry> Touching(
+        IReadOnlyList<MergeHistoryEntry> all, IReadOnlySet<BitcoinAddress> addresses)
+    {
+        var journals = all.Where(entry => entry.Merge.Addresses.Any(addresses.Contains))
+            .Select(entry => entry.Merge.JournalSequence)
+            .ToHashSet();
+        return [.. all.Where(entry => journals.Contains(entry.Merge.JournalSequence))];
     }
 
     /// <summary>

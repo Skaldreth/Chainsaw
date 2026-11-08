@@ -1,4 +1,3 @@
-using Chainsaw.App.Guide;
 using Chainsaw.App.Links;
 using Chainsaw.App.Settings;
 using Chainsaw.Modules.Cases.Contracts;
@@ -34,9 +33,6 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>What the dialog says when the settings' file could not be written.</summary>
     public const string SaveFailedText = "Inställningarna gick inte att spara. De gäller tills Chainsaw stängs.";
-
-    /// <summary>What the About page says when Chainsaw has no recovery key built in.</summary>
-    public const string NoRecoveryKeyText = "Ingen inbyggd nyckel";
 
     /// <summary>What the profile says when the name is left empty.</summary>
     public const string NameNeededText = "Namnet behövs: det står med varje uppslag i ärendets journal.";
@@ -80,6 +76,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The link <c>chainsaw:</c> in Windows, or <see langword="null"/> where it cannot be.</summary>
     private readonly LinkRegistration? _links;
 
+    /// <summary>Shows the message and plays the sound when asked, or <see langword="null"/> where it cannot.</summary>
+    private readonly IAlertPreview? _alerts;
+
     /// <summary>The settings as they are now.</summary>
     private AppSettings _settings;
 
@@ -115,6 +114,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// The link <c>chainsaw:</c> in Windows, or <see langword="null"/> where it cannot be registered (the row is then
     /// greyed).
     /// </param>
+    /// <param name="about">
+    /// <em>Om Chainsaw</em>, shared with the lock screen; made from the cases and the build when
+    /// <see langword="null"/>.
+    /// </param>
+    /// <param name="alerts">
+    /// Shows the message in the middle of the screen and plays the sound (<em>Prova</em>, <em>Lyssna</em>), or
+    /// <see langword="null"/> where they cannot be shown.
+    /// </param>
     public SettingsViewModel(
         AppSettings settings,
         AppSettingsStore store,
@@ -128,7 +135,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         BuildInfo build,
         SourcesViewModel? sources = null,
         AttributionSwitches? suppliers = null,
-        LinkRegistration? links = null)
+        LinkRegistration? links = null,
+        AboutViewModel? about = null,
+        IAlertPreview? alerts = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(cases);
@@ -141,6 +150,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _profiles = profiles;
         _vault = vault;
         _links = links;
+        _alerts = alerts;
         Exits = exits;
         Sources = sources;
         Menu = SettingsMenu.Groups
@@ -153,9 +163,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         [
             new("Minut", PriceResolution.Minute), new("Timme", PriceResolution.Hour), new("Dag", PriceResolution.Day),
         ];
-        VersionText = $"{build.Version} · {build.ShortCommit}";
-        RecoveryKeyText = cases.RecoveryKey?.DisplayFingerprint ?? NoRecoveryKeyText;
-        HasRecoveryKey = cases.RecoveryKey is not null;
+        About = about ?? new AboutViewModel(cases, build);
         way.Changed += (_, _) => ShowWay();
         if (suppliers is not null)
         {
@@ -186,17 +194,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Gets the rate's resolutions.</summary>
     public IReadOnlyList<SettingsChoice> ResolutionChoices { get; }
 
-    /// <summary>Gets the version and the commit, under Om Chainsaw.</summary>
-    public string VersionText { get; }
+    /// <summary>Gets <em>Om Chainsaw</em>: the version, the recovery key and the licences (sketch ST2a).</summary>
+    public AboutViewModel About { get; }
 
-    /// <summary>Gets the recovery key's fingerprint, or that none is built in.</summary>
-    public string RecoveryKeyText { get; }
-
-    /// <summary>Gets whether a recovery key is built in, so that its fingerprint is written as a hash.</summary>
-    public bool HasRecoveryKey { get; }
-
-    /// <summary>Gets the licences, built in from <c>THIRD_PARTY.md</c>, or <see langword="null"/>.</summary>
-    public GuideSection? Licenses { get; } = Settings.Licenses.Load();
+    /// <summary>Gets whether the message and the sound can be tried here (<em>Prova</em>, <em>Lyssna</em>).</summary>
+    public bool CanPreviewAlerts => _alerts is not null;
 
     /// <summary>Gets whether the dialog is shown.</summary>
     [ObservableProperty]
@@ -260,11 +262,28 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets whether a hit is said with a notification in Windows.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNoAlertWay))]
     public partial bool AlertsInWindows { get; private set; }
 
     /// <summary>Gets whether a hit is said with the coin swoosh.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNoAlertWay))]
     public partial bool AlertsWithSound { get; private set; }
+
+    /// <summary>Gets whether a hit is said with the message in the middle of the screen (sketch BV4a).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNoAlertWay))]
+    public partial bool AlertsOnScreen { get; private set; }
+
+    /// <summary>
+    /// Gets whether no way is chosen, so that the page says honestly that a hit is then seen only in Bevakning while
+    /// Chainsaw is open.
+    /// </summary>
+    public bool HasNoAlertWay => !AlertsInWindows && !AlertsWithSound && !AlertsOnScreen;
+
+    /// <summary>Gets whether an exit is checked once each time it connects (sketch UT3b).</summary>
+    [ObservableProperty]
+    public partial bool ChecksExitOnConnect { get; private set; }
 
     /// <summary>Gets what went wrong with the settings' file, or an empty text.</summary>
     [ObservableProperty]
@@ -325,10 +344,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Gets whether the master key's form has something to say.</summary>
     public bool HasKeyText => KeyText.Length > 0;
 
-    /// <summary>Gets whether the licences are folded out under Om Chainsaw.</summary>
-    [ObservableProperty]
-    public partial bool IsShowingLicenses { get; private set; }
-
     /// <summary>Opens the dialog at a page, or at the page shown last (Ctrl+, or the pill's cog).</summary>
     /// <param name="page">The page, or <see langword="null"/> for the page shown last.</param>
     public void Open(SettingsPage? page = null)
@@ -367,7 +382,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _shown++;
         IsOpen = false;
         IsChangingKey = false;
-        IsShowingLicenses = false;
+        About.Reset();
         KeyText = string.Empty;
         ProfileError = string.Empty;
         ProfileName = ProfileTitle = ProfileUnit = string.Empty;
@@ -476,6 +491,23 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     public void ToggleAlertWithSound() => Save(_settings with { AlertWithSound = !_settings.AlertWithSound });
 
+    /// <summary>Turns the message in the middle of the screen on or off (the switch, sketch BV4a).</summary>
+    [RelayCommand]
+    public void ToggleAlertOnScreen() => Save(_settings with { AlertOnScreen = !_settings.AlertOnScreen });
+
+    /// <summary><em>Prova</em>: shows the message in the middle of the screen as a hit would.</summary>
+    [RelayCommand]
+    public void TryScreenMessage() => _alerts?.ShowMessage();
+
+    /// <summary><em>Lyssna</em>: plays the coin swoosh.</summary>
+    [RelayCommand]
+    public void PlaySound() => _alerts?.PlaySound();
+
+    /// <summary>Turns the check of an exit each time it connects on or off (the switch, sketch UT3b).</summary>
+    [RelayCommand]
+    public void ToggleCheckExitOnConnect() =>
+        Save(_settings with { CheckExitOnConnect = !_settings.CheckExitOnConnect });
+
     /// <summary>Turns the lock with Windows on or off (the switch).</summary>
     [RelayCommand]
     public void ToggleLockWithWindows()
@@ -506,10 +538,6 @@ public sealed partial class SettingsViewModel : ObservableObject
             ChoosePricing(_settings with { Resolution = resolution });
         }
     }
-
-    /// <summary>Folds the licences out under Om Chainsaw, or in.</summary>
-    [RelayCommand]
-    public void ToggleLicenses() => IsShowingLicenses = !IsShowingLicenses;
 
     /// <summary>
     /// Saves the profile as written, when it has changed (a field is left, or Enter). An empty name is not saved,
@@ -723,6 +751,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         WatchesInBackground = _settings.WatchInBackground;
         AlertsInWindows = _settings.AlertInWindows;
         AlertsWithSound = _settings.AlertWithSound;
+        AlertsOnScreen = _settings.AlertOnScreen;
+        ChecksExitOnConnect = _settings.CheckExitOnConnect;
+        Exits.ChecksOnConnect = _settings.CheckExitOnConnect;
     }
 
     /// <summary>Marks the card of the way out chosen now.</summary>

@@ -1,10 +1,13 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Chainsaw.App.Controls;
+using Chainsaw.App.Exits;
 using Chainsaw.App.ViewModels;
 
 namespace Chainsaw.App.Views;
@@ -345,6 +348,10 @@ public partial class SettingsDialog : UserControl
         {
             settings.Exits.CancelAdd();
         }
+        else if (settings.Exits.Rows.FirstOrDefault(row => row.IsRemoving) is { } removing)
+        {
+            settings.Exits.CancelRemove(removing);
+        }
         else if (settings.IsChangingKey)
         {
             settings.ToggleChangeKey();
@@ -405,6 +412,82 @@ public partial class SettingsDialog : UserControl
         {
             await _settings.ChangeMasterKeyAsync(_current, _next, _repeat);
         }
+    }
+
+    /// <summary>Turns a spinner in the exits' table, unless Windows has its animations turned off.</summary>
+    /// <param name="sender">The spinner's path.</param>
+    /// <param name="e">The load.</param>
+    private void OnSpinnerLoaded(object sender, RoutedEventArgs e)
+    {
+        if (SystemParameters.ClientAreaAnimation && sender is FrameworkElement { RenderTransform: RotateTransform turn })
+        {
+            var spin = new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(0.9)))
+            {
+                RepeatBehavior = RepeatBehavior.Forever,
+            };
+            turn.BeginAnimation(RotateTransform.AngleProperty, spin);
+        }
+    }
+
+    /// <summary>Stores a folded-out exit's name and place when one of its fields is left.</summary>
+    /// <param name="sender">The field.</param>
+    /// <param name="e">The focus that left.</param>
+    private void OnExitFieldLeft(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (_settings is not null && sender is FrameworkElement { DataContext: ExitRowViewModel row })
+        {
+            _settings.Exits.DescribeCommand.Execute(row);
+        }
+    }
+
+    /// <summary>Takes the country picked in a folded-out exit's list, closes the list and stores the place.</summary>
+    /// <param name="sender">The country's button; its tag is the exit's row.</param>
+    /// <param name="e">The click.</param>
+    private void OnCountryPicked(object sender, RoutedEventArgs e)
+    {
+        if (_settings is null || sender is not FrameworkElement
+            {
+                DataContext: Country country, Tag: ExitRowViewModel row,
+            })
+        {
+            return;
+        }
+
+        row.EditCountry = country;
+        if (FindPopup(sender as DependencyObject) is { } popup)
+        {
+            popup.IsOpen = false;
+        }
+
+        _settings.Exits.DescribeCommand.Execute(row);
+    }
+
+    /// <summary>Lets the country's button go up when its list closes, however it closed.</summary>
+    /// <param name="sender">The list's popup; its tag is the button.</param>
+    /// <param name="e">The close.</param>
+    private void OnCountriesClosed(object? sender, EventArgs e)
+    {
+        if (sender is Popup { Tag: ToggleButton button })
+        {
+            button.IsChecked = false;
+        }
+    }
+
+    /// <summary>Finds the popup an element of a list stands in.</summary>
+    /// <param name="element">The element.</param>
+    /// <returns>The popup, or <see langword="null"/>.</returns>
+    private static Popup? FindPopup(DependencyObject? element)
+    {
+        for (var current = element; current is not null; current = LogicalTreeHelper.GetParent(current)
+            ?? VisualTreeHelper.GetParent(current))
+        {
+            if (current is Popup popup)
+            {
+                return popup;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>A click on the dark part closes the dialog.</summary>

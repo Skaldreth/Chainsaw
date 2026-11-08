@@ -867,6 +867,28 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
   Journalen har en rad för varje.
 - Esc stänger formuläret, sedan menyn, sedan panelen, sedan valet av aktörer.
 
+## Godkänna en plånbok (2026-11-08, KF2b)
+
+- Öppna ett ärende med en tx som kan vara en CoinJoin (två inputs, två lika stora utgångar). *Förslag · N* har ett
+  förslag *Samma plånbok troligt* utan kandidater, med brickorna *Samma ägare troligt* och *Din bedömning*.
+- Tryck Enter (*Godkänn*), gärna med ett skäl: toasten säger *Förslaget godkänt*, grafen läses om och adresserna står
+  som ett kluster. Inspektörens *Varför?* på klustret säger `user v1` och *Användaren godkände förslaget från …*, och
+  *Historik* har raden *Sammanslagen av användaren* (streckad) med vem och antal adresser. Journalen har två rader:
+  beslutet och sammanslagningen.
+- Ctrl+Z (eller *Ångra* i loggen): klustret delas igen, förslaget väntar igen, och historiken har *Ångrad:
+  sammanslagningen*.
+- Godkänn igen och ångra i stället från *Historik* (*Ångra* på raden, valfritt skäl): samma resultat, och förslaget
+  väntar igen i listan.
+- *Bryt upp* (U) klustret: adressen går ut, uppbrytningen står i historiken som *Uppbruten · 1 ut* (med *Egen*), och den
+  kan ångras så att klustret är helt igen.
+- Avfärda ett plånboksförslag (X): inget slås ihop och området försvinner.
+- Efter godkännandet heter raden *Godkänd plånbok* under *Avgjort*, och *Varför?* säger *Du godkände …*. Bryt upp
+  klustret: raden heter *Godkänd plånbok, uppbruten*.
+- Bryt ut en adress ur plånboken (U) och försök sedan godkänna ett förslag som för ihop dem igen: panelen säger att
+  uppbrytningen måste ångras först, och inget sparas.
+- Hämta en tx som för en ny adress till en godkänd plånbok: ett nytt förslag med bara den nya biten väntar.
+- *Ångra* på *Sammanslagen av användaren* i *Historik* visar *Slås ihop igen* innan något sparas.
+
 ## Ethereum, första delen (etapp 23)
 
 Grafen för Ethereum är inte byggd än; det som går att prova är källan, startpunkterna, Källor och Guiden.
@@ -1119,7 +1141,7 @@ ligger bredvid `Chainsaw.exe`.
 ## Statusraden och kommandoraden som Spotlight (polering 2026-11-07)
 - [ ] Statusraden längst ner är borta; utgången står bara i titelraden, och hovring på den säger vart uppslagen går.
 - [ ] När en källa ber Chainsaw vänta syns en liten gul prick till vänster om utgången i titelraden, med texten på hovring; den försvinner när väntan är över.
-- [ ] Kommandoraden syns inte förrän Ctrl+K eller Ctrl+F; då kommer den som Spotlight i övre delen, 640 px bred, med förstoringsglas och större text, över en mjuk mörkning, och tonar in med en liten rörelse (direkt med animeringar avstängda).
+- [ ] Kommandoraden syns inte förrän Ctrl+K eller Ctrl+F; då kommer den som Spotlight nära överkanten, 640 px bred, med förstoringsglas och större text, utan mörkning (KR1a), och tonar in med en liten rörelse (direkt med animeringar avstängda).
 - [ ] Esc, ett klick utanför (också i titelraden) och ett kommando som lyckas döljer raden; tangentbordet går tillbaka dit det var.
 - [ ] Ett kommando som misslyckas låter raden stå kvar med felet i rött under fältet.
 - [ ] *Alla ärenden …* i den tomma grafen öppnar raden med "/open " och markören sist, och Tab fyller i ärendenumret.
@@ -1349,8 +1371,7 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Pennan i den utfällda högen byter namn på den.
 - [ ] Dra en hög och släpp den på en annan hög: den andra växer lite medan den tar emot, och de blir en hög med den
       dragnas ärenden överst och namnet från högen man släppte på (eller den dragnas, om den saknade namn). Släpp en
-      hög på ett löst ärende: ärendet hamnar i högen. Soptunnan växer inte när en hög dras (en hel hög går inte att
-      slänga än).
+      hög på ett löst ärende: ärendet hamnar i högen.
 - [ ] Tab når högarna som ärendena, med en terrakottaram runt den som har tangentbordet. Enter eller blanksteg fäller
       ut den, F2 skriver namnet.
 - [ ] En hög som töms försvinner.
@@ -1542,7 +1563,36 @@ några steg).
 - Släng en nod med en kommentarslapp: lappen försvinner med noden och kommer tillbaka med den.
 - Tryck Delete två gånger snabbt på samma nod: den slängs en gång.
 
+### Kommentarer, egna ytor och högar i soptunnan (2026-11-08)
+
+- [ ] Klicka på en kommentarslapp och tryck Delete: lappen och dess prickade tråd försvinner, toasten säger *Slängde 1
+      kommentar* med *Ångra · Ctrl+Z*, och Ctrl+Z lägger tillbaka den där den stod med samma text.
+- [ ] Dra en lapp mot soptunnan: soptunnan växer som för en nod, och ett släpp på den slänger lappen. Släppt utanför
+      står lappen där den släpptes.
+- [ ] Töm all text i en lapp och klicka utanför: lappen slängs (inte borttagen), och *Lägg tillbaka* i soptunnans vy ger
+      tillbaka den gamla texten.
+- [ ] Soptunnans vy visar lappen med lappens ikon i en fyrkant och dess första rad som namn, och raden räknar *1
+      kommentar*, inte *1 aktör*. Huvudets *dolda i grafen* räknar med lappen.
+- [ ] Välj en egen yta (klicka på dess bricka) och tryck Delete: ytan försvinner men aktörerna står kvar; toasten säger
+      *Slängde 1 yta*, och *Lägg tillbaka* i soptunnans vy (ytans ikon) ger tillbaka den. Krysset på brickan tar
+      fortfarande bort ytan med skäl, som förut.
+- [ ] Stäng och öppna ärendet: slängda lappar och ytor är fortfarande dolda. `/verify` säger att allt är orört.
+- [ ] Startvyn: lyft en hel hög och dra den mot soptunnan; soptunnan växer, och ett släpp slänger hela högen. Toasten
+      säger *Högen … ligger i soptunnan* med *Ångra*, som ger tillbaka högen hel med namn och ordning.
+- [ ] Fäll ut en hög och dra ett kort mot soptunnan (den syns över det dimmade): kortet slängs och högen fälls ihop med
+      ett ärende mindre. Shift-klicka flera kort och tryck Delete: alla slängs. *Ångra* lägger tillbaka dem i högen.
+- [ ] Soptunnans vy under *Ärenden från startsidan*: en slängd hög står som en rad med högens ikon, namn och antal, och
+      ärendena hängda under med ├ och └. *Lägg tillbaka högen* ger tillbaka hela, *Lägg tillbaka* på ett ärende bara
+      det, i högen.
+- [ ] Starta om Chainsaw: en slängd hög är fortfarande dold och kommer tillbaka hel (`%LOCALAPPDATA%\Chainsaw\trash.json`).
+
 ## Kommentarsnoden (KN1a)
+- [ ] Klicka på en lapp: inspektören öppnas med lappens första rad som rubrik, *Kommentar* under, utan *Varför?*, och
+      fakta om vem som skrev den, när, vem som ändrade den sist och vilken nod tråden går till. En vald nod släpps.
+- [ ] Fliken *Historik* på lappen: *Kommentar skriven*, *Texten ändrad* (med början av den nya texten), *Tråd till …*,
+      *Tråden lossad*, *Slängd i soptunnan* och *Lagd tillbaka ur soptunnan*, i tidsordning med vem och tid, utan
+      knappar. Skriv i lappen och lämna den: rubriken och historiken följer med.
+- [ ] Välj en nod medan en lapp är vald: inspektören visar noden och lappen släpps. Krysset eller Esc stänger.
 - [ ] Välj en nod och tryck **N** (eller ikonen *Kommentar* i listen över noden, eller *Kommentar …* i högerklicket):
       en lapp öppnas uppe till höger om noden med en tunn prickad tråd till den och en prick vid noden. Tomma lappen är
       en streckad kontur med *Skriv … # **fet** - lista*, och markören står i den.
@@ -1690,3 +1740,45 @@ några steg).
   inte raden.
 - En Ethereum-adress med USDT eller USDC kvar: inspektörens snöflingeruta har *Begäran om frysning …*, som öppnar
   vyn med raden *Tether · …* (isblå fyrkant) och en begäran till utgivaren med det som ligger kvar.
+
+## Sökningen i kommandoraden (KR1a)
+- [ ] Ctrl+K eller Ctrl+F och *kra* (med en etikett Kraken i ärendet): *Bästa träff* överst, stor, med rutan i nodens form och färg, *Etikett* litet bredvid och en rad om var den står och källorna; under den grupperna Etiketter, Adresser, Tx, Kluster och Guide i den ordningen, det skrivna i fetstil.
+- [ ] Den valda raden visas direkt i grafen: grafen glider så att noden hamnar under rutan, med en ring i accent och en ring som pulserar utåt, och resten tonas ner. Med animeringar avstängda hoppar grafen och ringen står still.
+- [ ] Pil upp och ner byter rad, och grafen följer med; *Visa i grafen* med Enter-tecknet står bara vid den valda raden.
+- [ ] Enter (eller ett andra klick på den valda raden) stänger rutan och lämnar noden vald i grafen; Esc stänger utan att välja något, och ringen försvinner.
+- [ ] *bc1q*: gruppen Adresser visar fyra och *4 av N · Tab visar alla*; Tab fäller ut gruppen (högst 100), och Tab igen går till nästa grupp.
+- [ ] En tx som är hämtad men inte står på någon linje säger *Hämtad, inte i grafen* och *Inte i grafen* i stället för att flytta grafen.
+- [ ] *utxo* (eller */guide utxo*): Guidens panel fälls ut från höger vid avsnittet, raden säger *Öppna i Guiden* och foten *Enter öppnar Guiden*; byter man till en rad i ärendet fälls panelen in igen. Enter lämnar panelen öppen.
+- [ ] *utxo* säger *Inget i ärendet heter utxo. Guiden svarar på begrepp.*
+- [ ] En adress som inte finns i ärendet: brickan *₿ Bitcoin* i fältet och raden *Lägg till som startpunkt* med *Inget hämtas förrän du expanderar den, och då bara adressen, genom <utgången>*; offline säger den när det kan hämtas. Enter eller ett klick lägger till startpunkten.
+- [ ] Utan öppet ärende söks bara Guiden, och raden säger det.
+- [ ] Ett stort ärende (tusentals adresser): raden hänger aldrig medan man skriver.
+- [ ] */help* listar */guide*, och */gu* med Tab fyller i kommandot.
+
+## Inställningarna mot 1.0 (BV4a, ST2a, FS2a och UT3b)
+
+- **Låsning › När en bevakning slår till:** tre rader med ikon (Avisering i Windows, Ljud, Meddelande mitt på
+  skärmen). Brickan blir terrakotta när sättet är på. *Lyssna* spelar mynt-swooshet, *Prova* visar kortet mitt på
+  skärmen. Slå av alla tre: en gul rad säger att en träff bara syns i Bevakning.
+- **Kortet mitt på skärmen:** ett litet kort med ögat och tre ringar som går ut (stilla med animeringar avstängda),
+  ingenting mörkas. Det ligger överst över alla fönster, går att dra, Esc stänger och Enter tar åtgärden. *Prova*:
+  *Visa* öppnar Bevakning.
+- **Kortet från bakgrunden:** slå på *Meddelande mitt på skärmen*, stäng Chainsaw och kör `Chainsaw.Watcher.exe
+  --test-alert`. Kortet visar *Chainsaw · Bevakning* uppe till vänster och *Öppna Chainsaw*. Med Chainsaw igång (öppet
+  eller låst) står *Visa Chainsaw*, och Enter tar fram fönstret. Bara ett kort åt gången.
+- **Om Chainsaw (inställningarna):** fingeravtrycket i fyra rader om fyra grupper, *Kopiera* blir *Kopierat* med en
+  bock, och klistrat är det gruppat. Utan inbyggd nyckel: *Ingen nyckel* och en gul streckad varning. Lägg en rad
+  `REVOKED <fingeravtryck>` i nyckelfilen: den står överstruken under *Återkallade*, hela på hovring.
+- **Om Chainsaw från låsskärmen:** *Om Chainsaw · commit* i hörnet öppnar samma sida utan menyn, med raden *Visas före
+  upplåsningen …*. Esc, × och ett klick på det mörka stänger den, och tangentbordet går tillbaka till fältet.
+- **Förstagångens steg Utgång:** Windows är förvalt, med vägen grön (Datorn, Windows, Blockkedjor) och *Fortsätt*.
+  Utan nät: rött och streckat, *Fortsätt offline*. VPN: det streckade fältet för en WireGuard-fil (släpp en fil på det
+  eller klicka), sedan raden med filen, × och strömknappen; ansluten blir vägen grön med utgångens namn. Efter
+  *Fortsätt* står samma val i Inställningar › Nätverk.
+- **Nätverk › utgångarna som tabell:** kolumnerna Utgång, Plats och Syns som. Ett klick fäller ut raden med namn,
+  land (listan) och stad, som sparas när fältet lämnas eller med Enter, och rutan *Kontroll*. *Kontrollera nu* går
+  bara på en ansluten utgång och visar adressen och landet; fel land blir gult. *Ta bort utgången …* frågar först,
+  och Esc ångrar.
+- **Kontrollera vid anslutning:** på från början. Anslut en utgång vars land är satt till något annat än där den
+  faktiskt går ut: toastern varnar en gång. Slå av: ingen fråga när den ansluts.
+

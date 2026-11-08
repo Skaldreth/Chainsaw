@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Chainsaw.Modules.Monitoring.Contracts;
 
@@ -366,25 +367,54 @@ internal sealed partial class CoinSound : IAlertChannel
 }
 
 /// <summary>
-/// The message in the middle of the screen, on top until it is closed (decided 2026-11-07). Its form is not sketched
-/// yet, so it is a plain Windows message box and the settings do not offer it until the sketch is approved (TODO).
-/// One shows at a time.
+/// The message in the middle of the screen, on top until it is closed (sketch BV4a): Chainsaw's own card, started as
+/// <c>Chainsaw.exe --watch-alert</c> from next to this program, which opens no case and no vault. Without Chainsaw's
+/// program next to it, a plain Windows message box says the same. One shows at a time.
 /// </summary>
 internal sealed partial class ScreenMessage : IAlertChannel
 {
     /// <summary><c>MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST</c>.</summary>
     private const uint Style = 0x40 | 0x10000 | 0x40000;
 
-    /// <summary>Whether one shows now: 1, else 0.</summary>
+    /// <summary>The card shown now, so that a second hit does not show a second one.</summary>
+    private Process? _card;
+
+    /// <summary>Whether a message box shows now: 1, else 0.</summary>
     private int _showing;
 
     /// <inheritdoc/>
     public WatchAlerts Way => WatchAlerts.Screen;
 
+    /// <summary>Gets Chainsaw's program next to this one.</summary>
+    internal static string Program => Path.Combine(AppContext.BaseDirectory, BackgroundNames.AppExecutable);
+
     /// <inheritdoc/>
     public void Show()
     {
-        if (!OperatingSystem.IsWindows() || Interlocked.Exchange(ref _showing, 1) == 1)
+        if (!OperatingSystem.IsWindows() || _card is { HasExited: false })
+        {
+            return;
+        }
+
+        _card?.Dispose();
+        _card = null;
+        if (File.Exists(Program))
+        {
+            _card = Process.Start(new ProcessStartInfo(Program, BackgroundNames.ScreenMessageArgument)
+            {
+                UseShellExecute = false,
+            });
+            return;
+        }
+
+        ShowBox();
+    }
+
+    /// <summary>Shows a plain message box, on a thread of its own, when Chainsaw's program is not there.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private void ShowBox()
+    {
+        if (Interlocked.Exchange(ref _showing, 1) == 1)
         {
             return;
         }

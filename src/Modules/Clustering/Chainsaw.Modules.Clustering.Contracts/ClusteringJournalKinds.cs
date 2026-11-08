@@ -11,4 +11,10 @@ public static class ClusteringJournalKinds
 
     /// <summary>The user undid a split, so that the heuristics may merge the two addresses again.</summary>
     public const string SplitUndone = "clustering.split-undone";
+
+    /// <summary>The user merged addresses that a heuristic proposed have the same owner (<c>user v1</c>).</summary>
+    public const string Merged = "clustering.merged";
+
+    /// <summary>The user undid a merge of their own, so that the addresses are no longer merged by it.</summary>
+    public const string MergeUndone = "clustering.merge-undone";
 }

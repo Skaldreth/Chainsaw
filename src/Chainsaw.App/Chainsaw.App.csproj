@@ -29,6 +29,8 @@
     <EmbeddedResource Include="..\..\docs\guide\*.md" LogicalName="Chainsaw.App.Guide.%(Filename).md" />
     <!-- The licences of what Chainsaw is built on, shown under Om Chainsaw in the settings. -->
     <EmbeddedResource Include="..\..\THIRD_PARTY.md" LogicalName="Chainsaw.App.Licenses.md" />
+    <!-- The coin swoosh (tools/sounds/coin-swoosh.py), the same as the background process plays, for Lyssna. -->
+    <EmbeddedResource Include="..\Chainsaw.Watcher\Sounds\coin-swoosh.wav" LogicalName="Chainsaw.App.coin-swoosh.wav" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AvalonEdit" />

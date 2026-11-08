@@ -46,9 +46,19 @@ public sealed partial class LockViewModel : ObservableObject
     /// <param name="autoLock">The automatic lock, whose time is shown.</param>
     /// <param name="build">The build, shown in the corner.</param>
     /// <param name="background">The background watching, which says whether a hit waits; none in some tests.</param>
+    /// <param name="about">
+    /// <em>Om Chainsaw</em> (sketch ST2a), shown over the lock screen so that the recovery key can be checked before
+    /// the unlock; none in some tests, where the corner only tells the version.
+    /// </param>
     public LockViewModel(
-        IVault vault, ExitWay exit, AutoLock autoLock, BuildInfo build, BackgroundLink? background = null)
+        IVault vault,
+        ExitWay exit,
+        AutoLock autoLock,
+        BuildInfo build,
+        BackgroundLink? background = null,
+        AboutViewModel? about = null)
     {
+        About = about;
         _vault = vault;
         _exit = exit;
         AutoLockText = autoLock.Description;
@@ -95,8 +105,28 @@ public sealed partial class LockViewModel : ObservableObject
     /// <summary>Gets the text in the corner: <c>Om Chainsaw · commit</c>.</summary>
     public string AboutText { get; }
 
-    /// <summary>Gets what *Om Chainsaw* tells: the version and the commit.</summary>
+    /// <summary>Gets what *Om Chainsaw* tells where the page cannot be shown: the version and the commit.</summary>
     public string AboutDetails { get; }
+
+    /// <summary>Gets <em>Om Chainsaw</em>, or <see langword="null"/> where it cannot be shown.</summary>
+    public AboutViewModel? About { get; }
+
+    /// <summary>Gets whether <em>Om Chainsaw</em> is shown over the lock screen (sketch ST2a).</summary>
+    [ObservableProperty]
+    public partial bool IsAboutOpen { get; private set; }
+
+    /// <summary>Shows <em>Om Chainsaw</em> over the lock screen, without the settings' menu.</summary>
+    public void OpenAbout()
+    {
+        if (About is not null)
+        {
+            About.Reset();
+            IsAboutOpen = true;
+        }
+    }
+
+    /// <summary>Closes <em>Om Chainsaw</em> (Esc, ×, a click on the dark).</summary>
+    public void CloseAbout() => IsAboutOpen = false;
 
     /// <summary>Opens the vault with what is written in the field.</summary>
     /// <param name="entry">The field; it is emptied, and the key is cleared when the vault has answered.</param>

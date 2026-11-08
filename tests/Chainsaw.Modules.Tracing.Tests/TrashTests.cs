@@ -74,6 +74,37 @@ public sealed class TrashTests : IDisposable
     }
 
     [Fact]
+    public void The_history_of_one_thing_lists_each_throw_and_putting_back_after_the_case_is_opened_again()
+    {
+        var comment = new TrashMember("comment:c1", null, "Uttag via Kraken?", "Comment");
+        var first = _harness.Trash.Throw(_harness.Case, [comment]);
+        _harness.Trash.Restore(_harness.Case, first.Sequence, null);
+        _harness.Trash.Throw(_harness.Case, Branch());
+        var second = _harness.Trash.Throw(_harness.Case, [comment]);
+
+        _harness.Reopen();
+        var history = _harness.Trash.GetHistory(_harness.Case, "comment:c1");
+
+        Assert.Equal([TrashAction.Thrown, TrashAction.Restored, TrashAction.Thrown], history.Select(each => each.Action));
+        Assert.Equal([first.Sequence, first.Sequence, second.Sequence], history.Select(each => each.ThrowSequence));
+        Assert.All(history, each => Assert.Equal("Testa Testsson", each.By.Name));
+        Assert.Equal(second.JournalSequence, history[2].JournalSequence);
+        Assert.True(history[0].Utc <= history[2].Utc);
+    }
+
+    [Fact]
+    public void The_history_of_a_member_put_back_with_a_branch_names_the_putting_back()
+    {
+        var thrown = _harness.Trash.Throw(_harness.Case, Branch());
+        _harness.Trash.Restore(_harness.Case, thrown.Sequence, "address:bc1qo4");
+
+        var history = _harness.Trash.GetHistory(_harness.Case, "cluster:bc1qx");
+
+        Assert.Equal([TrashAction.Thrown, TrashAction.Restored], history.Select(each => each.Action));
+        Assert.Empty(_harness.Trash.GetHistory(_harness.Case, "address:bc1qnever"));
+    }
+
+    [Fact]
     public void A_node_already_in_the_trash_is_not_thrown_twice_whichever_key_finds_it()
     {
         _harness.Trash.Throw(_harness.Case, Branch());
