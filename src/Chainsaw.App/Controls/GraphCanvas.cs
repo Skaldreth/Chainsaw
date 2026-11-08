@@ -422,7 +422,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
-        if (TrashKey(e.Key) || FanKey(e.Key))
+        if (TidyKey(e.Key) || TrashKey(e.Key) || FanKey(e.Key))
         {
             e.Handled = true;
             return;

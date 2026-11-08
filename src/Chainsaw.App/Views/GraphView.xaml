@@ -655,6 +655,16 @@
                                 <controls:GridIcon Size="18" Data="{StaticResource Icon.Layout.Hops}"
                                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                             </Button>
+                            <!--
+                              Sortera grafen (the user's wish 2026-11-08): only on the free surface with two actors or
+                              more, since the hop columns are sorted already; a click asks first.
+                            -->
+                            <Button Style="{StaticResource Button.NodeTool}" Command="{Binding AskTidyCommand}"
+                                    ToolTip="{x:Static vm:GraphViewModel.TidyToolTip}" AutomationProperties.Name="Sortera grafen"
+                                    Visibility="{Binding CanTidy, Converter={StaticResource Visible}}">
+                                <controls:GridIcon Size="18" Data="{StaticResource Icon.Tidy}"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                            </Button>
                             <Rectangle Width="1.5" Height="20" Margin="5,0" Fill="{StaticResource Brush.BorderStrong}" />
                             <!-- The method, always shown: a click switches it, a right click opens the Guide at it (GD1b). -->
                             <Button Style="{StaticResource Button.NodeTool}" Width="NaN" MinWidth="34"
@@ -687,6 +697,9 @@
             <!-- The form for an own area (sketch KF1b): under the corner, while it is open. -->
             <views:AreaForm DataContext="{Binding Checks}" HorizontalAlignment="Right" VerticalAlignment="Top"
                             Margin="0,56,16,0" Visibility="{Binding IsFormOpen, Converter={StaticResource Visible}}" />
+            <!-- The question before the graph is sorted: under the corner, at the icon, while it is open. -->
+            <views:TidyConfirm HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,56,16,0"
+                               Visibility="{Binding IsTidyConfirmOpen, Converter={StaticResource Visible}}" />
 
             <!--
               The watch form (sketch BV3a) in a panel beside the watched node, as the forms in IN1b, with an arrow at it;

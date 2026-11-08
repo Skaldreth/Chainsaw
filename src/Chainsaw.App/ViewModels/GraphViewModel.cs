@@ -157,6 +157,7 @@ public sealed partial class GraphViewModel : ObservableObject
         Checks.ToastWanted += (_, toast) => ToastWanted?.Invoke(this, toast);
         Comments = new CommentsViewModel(session, comments ?? NoGraphComments.Instance);
         WireComments();
+        WireTidy();
         Forms = new InspectorFormsViewModel(session, editor, clock);
         Forms.Saved += (_, _) => _ = RefreshAsync();
         Forms.Failed += (_, text) => Tell(ToastKind.Error, text);

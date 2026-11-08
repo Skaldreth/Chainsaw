@@ -135,6 +135,15 @@ public interface ITracingService
     void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position);
 
     /// <summary>
+    /// Remembers where many nodes stand in a layout in one write (ordinary data, no journal), as when the graph is
+    /// sorted: either every place is stored or none is.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="layout">The layout.</param>
+    /// <param name="positions">The places by the nodes' keys from <see cref="GraphNode.Key"/>.</param>
+    void SavePositions(ICase @case, GraphLayout layout, IReadOnlyDictionary<string, NodePosition> positions);
+
+    /// <summary>
     /// Reads what the expansions of an address held back (sketch EX1): its history past the transactions already in
     /// the graph, through the source as any lookup (every response sealed in the case, principle 1), without adding
     /// anything to the graph. Offline, it answers from what the case holds. When the newest

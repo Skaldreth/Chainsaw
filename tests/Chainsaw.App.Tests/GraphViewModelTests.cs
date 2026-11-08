@@ -112,6 +112,15 @@ internal sealed class TestGraphSource : IGraphSource
         return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
     }
 
+    /// <summary>The places stored together, one entry per write (sorting the graph).</summary>
+    public List<(GraphLayout Layout, IReadOnlyDictionary<string, GraphPoint> Places)> SavedTogether { get; } = [];
+
+    public Task SavePositionsAsync(ICase @case, GraphLayout layout, IReadOnlyDictionary<string, GraphPoint> places)
+    {
+        SavedTogether.Add((layout, places));
+        return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
+    }
+
     /// <summary>The view the case holds.</summary>
     public GraphViewState View { get; set; } = GraphViewState.Default;
 
@@ -835,6 +844,10 @@ public sealed class GraphViewModelTests
 
         public Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place) =>
             inner.SavePositionAsync(@case, nodeKey, layout, place);
+
+        public Task SavePositionsAsync(
+            ICase @case, GraphLayout layout, IReadOnlyDictionary<string, GraphPoint> places) =>
+            inner.SavePositionsAsync(@case, layout, places);
 
         public Task<GraphViewState> LoadViewAsync(ICase @case, CancellationToken cancellationToken) =>
             inner.LoadViewAsync(@case, cancellationToken);

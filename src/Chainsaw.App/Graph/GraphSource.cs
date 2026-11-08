@@ -84,6 +84,13 @@ public interface IGraphSource
     /// <returns>A task that completes when it is stored.</returns>
     Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place);
 
+    /// <summary>Remembers where many nodes stand in a layout, in one write, as when the graph is sorted.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="layout">The layout.</param>
+    /// <param name="places">The places by node.</param>
+    /// <returns>A task that completes when they are stored.</returns>
+    Task SavePositionsAsync(ICase @case, GraphLayout layout, IReadOnlyDictionary<string, GraphPoint> places);
+
     /// <summary>Picks actors out of their piles (sketch EX2b) and stores it in the case.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="nodeKeys">The actors.</param>
@@ -331,6 +338,16 @@ public sealed class GraphSource(
     {
         ArgumentNullException.ThrowIfNull(@case);
         return Task.Run(() => tracing.SavePosition(@case, nodeKey, layout, new NodePosition(place.X, place.Y)));
+    }
+
+    /// <inheritdoc/>
+    public Task SavePositionsAsync(ICase @case, GraphLayout layout, IReadOnlyDictionary<string, GraphPoint> places)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(places);
+        var positions = places.ToDictionary(
+            pair => pair.Key, pair => new NodePosition(pair.Value.X, pair.Value.Y), StringComparer.Ordinal);
+        return Task.Run(() => tracing.SavePositions(@case, layout, positions));
     }
 
     /// <inheritdoc/>

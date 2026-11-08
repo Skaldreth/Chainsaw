@@ -2900,3 +2900,27 @@ Byggd som en etapp, eftersom den skriver i ärendet.
 - **Mindre:** `GraphPile.AccountKey` är den enda regeln för en nyckel på en kontokedja (M2); att lägga tillbaka en
   del tar med det den hänger under (M3); ett ärende som slängs innan soptunnan på datorn lästs sparas, och ett fel vid
   sparandet sägs (M4); trädet går utan rekursion (M7); Delete hanteras bara när något är valt (M9).
+
+## Sortera grafen (2026-11-08)
+
+- **Byggt efter användarens beskrivning utan skiss** (användarens ord: en *auto sort* som sorterar upp en stökig graf
+  snyggt och prydligt, inte kompakt, med frågan *vill du verkligen* först, ikonen uppe till höger).
+- `Graph/TidyLayout`: kolumner per hopp (som `HopLayout`, utan hopp sist), ordningen i varje kolumn med
+  barycentermetoden (fyra svep fram och tillbaka mot grannarnas medelhöjd, stabil sortering, alltså deterministisk),
+  varje kolumn centrerad kring samma mittlinje. Raderna står 136 enheter isär (hoppkolumnernas 104 + 32) för luft
+  kring beloppen; kolumnerna `LaneSpacing`. Ett stort hopp sprids som i `HopLayout.RowsFor`, men fylls rad för rad så
+  att aktörer som dras mot samma höjd står bredvid varandra.
+- Ikonen visas bara på den fria ytan med ärende och minst två aktörer; **i hoppkolumnerna döljs den** (de är redan
+  sorterade). Frågan är en liten ruta under hörnet (`Views/TidyConfirm`), Enter och Esc både i rutan och i ytan.
+  Uträkningen görs utanför UI-tråden; flyttas ingen aktör sägs *Grafen är redan sorterad.* utan fråga.
+- Platserna sparas i **en** skrivning: nytt `ITracingService.SavePositions` (en transaktion, allt eller inget, ingen
+  journal, vanliga data som när noder dras) och `IGraphSource.SavePositionsAsync`. `SavePosition` går genom den.
+- Högar och ledtrådsnoder är noder i layouten med sitt hopp och följer sin aktör genom linjen dit. Knutna kommentarer
+  behåller avståndet till sin aktör (sparas var för sig som när de dras, genom `CommentsViewModel.Move`/`DropAsync`);
+  lösa står kvar. `CommentsViewModel` och soptunnan är orörda.
+- **Ångra** finns bara som knapp i meddelandet: Ctrl+Z hör redan till soptunnan och förslagen. Ångra lägger tillbaka
+  varje aktörs och kommentars plats exakt (också de som inte hade någon sparad plats får den de visades på) och gäller
+  bara i samma ärende.
+- Tester: `TidyLayoutTests` (7) och `GraphTidyTests` (10) i App.Tests, två i Tracing.Tests (`StateTests`).
+- Återstår: korsningar minimeras bara med barycentermetoden; linjer mellan kolumner som inte är grannar kan fortfarande
+  korsa. Ingen animering mellan platserna.
