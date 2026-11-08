@@ -87,6 +87,9 @@ internal sealed class Case : ICase
     /// <summary>The title in force, read when the case is opened and replaced when it is set.</summary>
     private volatile string _title;
 
+    /// <summary>When the case saves itself after writes; started once the case has opened.</summary>
+    private readonly AutosaveSchedule _autosave;
+
     /// <summary>Wraps an opened database; the store's create and open build it.</summary>
     /// <param name="services">The services.</param>
     /// <param name="paths">The case's files.</param>
@@ -136,6 +139,13 @@ internal sealed class Case : ICase
         }
 
         _title = ReadTitle(database);
+
+        // Made last, so that a constructor that fails leaves no timer behind.
+        _autosave = new AutosaveSchedule(
+            services.Options.Time,
+            services.Options.AutosaveQuietPeriod,
+            services.Options.AutosaveMaximumDelay,
+            OnAutosaveDue);
     }
 
     /// <inheritdoc />
@@ -210,6 +220,7 @@ internal sealed class Case : ICase
             }
 
             transaction.Commit();
+            _autosave.Written();
             return result;
         }
     }
@@ -254,6 +265,7 @@ internal sealed class Case : ICase
                 TitleSummary(normalized, _title.Length == 0),
                 JsonSerializer.Serialize(new Dictionary<string, string> { ["title"] = normalized })));
             transaction.Commit();
+            _autosave.Written();
             _title = normalized;
             return true;
         }
@@ -409,6 +421,15 @@ internal sealed class Case : ICase
     internal void BeginClosing() => _closing = true;
 
     /// <summary>
+    /// Lets the case save itself after writes, once it has opened: until then the opening does its own saving, and a
+    /// case that fails to open must never be saved by a timer.
+    /// </summary>
+    internal void StartAutosave() => _autosave.Start();
+
+    /// <summary>Gets whether the working copy holds writes that the case file does not yet; for the tests.</summary>
+    internal bool HasUnsavedWrites => _autosave.IsDirty;
+
+    /// <summary>
     /// Drops the case without saving, as if the process had died: the working copy stays for recovery. Only tests
     /// use it, to check the recovery.
     /// </summary>
@@ -549,6 +570,7 @@ internal sealed class Case : ICase
         using var transaction = Database.Begin();
         var entry = AppendJournalIn(transaction, draft);
         transaction.Commit();
+        _autosave.Written();
         return entry;
     }
 
@@ -587,6 +609,7 @@ internal sealed class Case : ICase
         CaseFileHash = saved;
         CaseFiles.WriteBase(_paths, [saved]);
         WriteAnchors();
+        _autosave.Saved();
     }
 
     /// <summary>
@@ -892,6 +915,7 @@ internal sealed class Case : ICase
         finally
         {
             _database = null;
+            _autosave.Dispose();
             CryptographicOperations.ZeroMemory(_fileKey);
             CryptographicOperations.ZeroMemory(_anchorKey);
             try
@@ -902,6 +926,70 @@ internal sealed class Case : ICase
             {
                 _onClosed(this);
             }
+        }
+    }
+
+    /// <summary>
+    /// Called on the timer's thread when a save may be due. Never waits for the gate: when another operation holds
+    /// it, the save is tried again a little later, so that the timer's thread is never held up and a closing never
+    /// waits behind it.
+    /// </summary>
+    private void OnAutosaveDue()
+    {
+        // A closing saves by itself; a lock of the vault must find nothing left to wait for.
+        if (_closing)
+        {
+            return;
+        }
+
+        if (!_gate.TryEnter())
+        {
+            _autosave.Busy();
+            return;
+        }
+
+        try
+        {
+            AutosaveUnlocked();
+        }
+        finally
+        {
+            _gate.Exit();
+        }
+    }
+
+    /// <summary>
+    /// Saves, with the gate held, when the case is open and idle and the time has come. A save that fails leaves the
+    /// writes unsaved (the working copy still holds them and is recovered after a crash) and is tried again later.
+    /// </summary>
+    private void AutosaveUnlocked()
+    {
+        if (_closing || _database is null)
+        {
+            return;
+        }
+
+        if (_inWork)
+        {
+            // The same thread is inside an operation (the timer called back from within it); try after it has ended.
+            _autosave.Busy();
+            return;
+        }
+
+        if (!_autosave.IsDue())
+        {
+            return;
+        }
+
+        using var operation = BeginOperation();
+        try
+        {
+            SaveUnlocked();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // An exception must not leave the timer's thread; the case file is untouched until the atomic replace.
+            _autosave.Failed();
         }
     }
 

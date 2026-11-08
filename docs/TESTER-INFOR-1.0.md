@@ -49,6 +49,16 @@ Valvet har inget gränssnitt än; det provas när förstagångsinställningen oc
   och stängs i bakgrunden.
 - Antivirus som låser `.cut` medan den sparas: sparningen misslyckas utan att filen förstörs, och
   arbetskopian tas tillbaka nästa gång ärendet öppnas.
+- **Spara ofta:** gör något som skriver i ärendet (en etikett, en expansion) och vänta fem sekunder: `.cut` får en ny
+  ändringstid, och en kopia av filen som tas medan ärendet är öppet går att öppna med det nya i (till exempel med
+  delningslösenordet på en annan dator). Under arbetet syns ingen paus eller fördröjning i gränssnittet.
+- **Spara ofta medan man arbetar hela tiden:** expandera och ändra utan paus i mer än en minut: `.cut` får ändå en ny
+  ändringstid ungefär en gång i minuten.
+- **Spara ofta och låsning:** lås med Ctrl+L några sekunder efter en ändring: låsskärmen kommer direkt, ärendet sparas
+  och stängs i bakgrunden, och ingen `.cut.tmp` ligger kvar i mappen.
+- **Spara ofta och en krasch:** avsluta Chainsaw i Aktivitetshanteraren efter en ändring, både före och efter att fem
+  sekunder gått: nästa gång tas arbetskopian tillbaka (*Arbetskopian från ett avbrutet pass togs tillbaka*), aldrig
+  *Konflikt*.
 
 ## Utgångarna (etapp 4, Network)
 

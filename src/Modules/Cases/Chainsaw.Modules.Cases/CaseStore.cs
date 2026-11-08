@@ -433,6 +433,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             {
                 throw new CaseException(CaseError.VaultLocked);
             }
+
+            // Only a case that has opened saves itself; a lock from here on stops it through BeginClosing.
+            opened.StartAutosave();
         }
         catch (SqliteException exception)
         {

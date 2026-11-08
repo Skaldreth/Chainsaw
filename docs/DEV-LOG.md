@@ -2948,3 +2948,34 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   som rullat in under kantrullningen; kostnaden är densamma som `VisibleNodes`, som också går igenom alla.
 - Tester: `BoxSelectionTests` (13) i App.Tests. Tracing är orört.
 - Återstår: Shift+klick på en nod väljer inget intervall (det finns ingen ordning att välja intervall i).
+
+## Spara ofta (2026-11-08)
+
+Ett öppet ärende skriver arbetskopian tillbaka till `.cut` av sig självt efter skrivningar, så att en fil som lämnas
+vidare är färsk. Förut skrevs `.cut` bara vid sparning och stängning.
+
+- **När:** fem sekunder efter den senaste skrivningen utan nya, och senast en minut efter den första osparade, så att
+  ett ärende som skrivs i hela tiden ändå sparas (`CasesOptions.AutosaveQuietPeriod` och `AutosaveMaximumDelay`,
+  interna). En skrivning är en `Write` som gått igenom, en rad i journalen och en ny titel; en `Write` som kastar räknas
+  inte. Utan nya skrivningar sparas inget.
+- **Hur:** `AutosaveSchedule` (Cases, internal) bestämmer bara när, med en timer ur en `TimeProvider`, så att testerna
+  flyttar tiden själva. Själva sparningen är den befintliga `SaveUnlocked`, som skriver en ny fil bredvid (`.cut.tmp`)
+  och flyttar den på plats i ett steg, så `.cut` blir aldrig halvskriven, och som för in den nya filens hash i basen
+  före flytten, så att en krasch mitt i blir en återtagning och aldrig en konflikt.
+- **Krockar inte:** timerns tråd väntar aldrig på ärendets grind (`Lock.TryEnter`). Är ärendet upptaget av en annan
+  läsning eller skrivning provas det igen en sekund senare, och kommer timern mitt i en operation på samma tråd sparas
+  inget då. Ett ärende som håller på att stängas (låsning av valvet, `BeginClosing`) lämnas åt stängningen, som
+  sparar själv. Timern startar först när ärendet har öppnats färdigt (`StartAutosave` i `FinishOpening`), så öppningen
+  och återtagningen efter en krasch sköter sin egen sparning, och ett ärende som inte gick att öppna sparas aldrig av en
+  timer. Timern tas bort när ärendet stängs eller överges.
+- **En sparning som misslyckas** (till exempel en fil som ett antivirus håller) lämnar `.cut` orörd och det osparade
+  kvar, och provas igen efter en minut. Den syns inte i gränssnittet än (TODO *Säga till när sparningen inte går*).
+- **Eget beslut:** sparningen journalförs inte, som en sparning för hand inte gör det; den lägger inget till i ärendet,
+  den skriver bara det som redan förseglats till filen.
+- **Avsteg:** inget gränssnitt. Medan en sparning pågår väntar en annan operation på ärendet på grinden, som vid en
+  sparning för hand; `ICase` ska anropas utanför UI-tråden, så gränssnittet låses inte.
+- Tester: `AutosaveTests` (16) och `AutosaveScheduleTests` (11) i Cases.Tests, med `FakeTimeProvider` och utan riktiga
+  väntetider: sparning efter tystnaden och inte före, en kopia av filen medan ärendet är öppet har det nya, ny skrivning
+  flyttar sparningen, senast efter en minut, inget utan skrivningar, alla sorters skrivningar, sparning för hand, ett
+  upptaget ärende (läsning på en annan tråd och timern mitt i en skrivning), en misslyckad sparning, stängning,
+  låsning av valvet, krasch före och efter en sparning av sig självt.

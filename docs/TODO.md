@@ -194,10 +194,11 @@ fungerar rättas före allt annat nedan. Särskilt:
    - Registreringen: `HKCU\Software\Classes\chainsaw` med `URL Protocol` och `shell\open\command` till
      `Chainsaw.exe "%1"`.
    - Mottagandet är byggt sedan etapp 11.
-6. **Spara ofta** [etapp]:
-   - **Varför:** `.cut` skrivs bara vid sparning och stängning, och ett ärende som lämnas vidare ska vara färskt.
-   - **Hur:** spara efter skrivningar när det är lugnt, till exempel efter några sekunder utan nya.
-   - Arbetskopian tas redan tillbaka efter en krasch, så inget går förlorat i dag.
+6. **Säga till när sparningen inte går** [direkt]: ärendet sparar sig självt efter skrivningar (Spara ofta, byggt
+   2026-11-08), och en sparning som misslyckas provas igen efter en minut utan att något sägs.
+   - Arbetskopian har allt och tas tillbaka efter en krasch, så inget går förlorat, men `.cut` är då inte färsk.
+   - Förslag: en varning i toastern (TO1a) när sparningen misslyckats några gånger i rad, och *Försök igen*. Kräver en
+     händelse på `ICase` som appen lyssnar på.
 7. **Återanslutning av tunneln** [direkt]: när tunneln faller, till exempel efter att datorn sovit, ansluter Chainsaw
    inte igen av sig själv. Viktigt för bevakningen.
 8. **Meddelandet mitt på skärmen** [skiss]: bevakningens tredje sätt att säga till.
