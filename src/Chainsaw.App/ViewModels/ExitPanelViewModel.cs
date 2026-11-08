@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Chainsaw.App.Exits;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -13,6 +14,9 @@ namespace Chainsaw.App.ViewModels;
 /// in the vault with their state and a button that connects or disconnects each (only one is connected at a time).
 /// With Windows chosen as the way out (sketch ST1a) the route goes through Windows and no exits are shown. The
 /// settings' page Nätverk shows the same exits through this view model, and only there is a WireGuard file added.
+/// There each exit folds out (sketch UT3b) with its name and place to change, <em>Ta bort …</em>, and its check: the
+/// address and country lookups are seen from, asked through the exit with <see cref="IExitCheck"/> on
+/// <em>Kontrollera nu</em> and, when the setting is on, once each time an exit connects.
 /// Everything that reaches the vault or the tunnel runs off the UI thread. It knows nothing of WPF.
 /// </summary>
 public sealed partial class ExitPanelViewModel : ObservableObject
@@ -48,6 +52,15 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// <summary>What the step says when the exit could not be stored for another reason.</summary>
     public const string SaveFailedText = "Utgången gick inte att spara.";
 
+    /// <summary>What a folded-out row says when its name is left empty.</summary>
+    public const string NameNeededText = "Utgången behöver ett namn.";
+
+    /// <summary>What a folded-out row says when its name or place could not be stored.</summary>
+    public const string DescribeFailedText = "Namnet och platsen gick inte att spara.";
+
+    /// <summary>What the page says when the exit could not be removed.</summary>
+    public const string RemoveFailedText = "Utgången gick inte att ta bort.";
+
     /// <summary>The connection to the program's exit.</summary>
     private readonly IExitConnection _connection;
 
@@ -59,6 +72,21 @@ public sealed partial class ExitPanelViewModel : ObservableObject
 
     /// <summary>Windows' file dialog.</summary>
     private readonly IFilePicker _picker;
+
+    /// <summary>The check of the way out, or <see langword="null"/> where there is none.</summary>
+    private readonly IExitCheck? _check;
+
+    /// <summary>The toaster, which says when a check finds the exit in another country; none in some tests.</summary>
+    private readonly Toaster? _toaster;
+
+    /// <summary>The clock, so that today's answer says <em>i dag</em>.</summary>
+    private readonly IClock _clock;
+
+    /// <summary>The exit that was connected last, so that a check on connecting runs once per connection.</summary>
+    private Guid? _connected;
+
+    /// <summary>The row folded out, kept across a new read of the exits.</summary>
+    private Guid? _expanded;
 
     /// <summary>
     /// Lets one connect at a time choose its exit and decide whether it still is the user's latest, so that two quick
@@ -96,14 +124,29 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// <param name="exits">The exits in the vault.</param>
     /// <param name="picker">Windows' file dialog.</param>
     /// <param name="ui">The UI thread.</param>
+    /// <param name="check">The check of the way out (sketch UT3b); none where it cannot be.</param>
+    /// <param name="toaster">
+    /// The toaster, which says when an exit is seen in another country; none in some tests.
+    /// </param>
+    /// <param name="clock">The clock; the system's when <see langword="null"/>.</param>
     public ExitPanelViewModel(
-        IExitConnection connection, ExitWay way, IExitStore exits, IFilePicker picker, IUiThread ui)
+        IExitConnection connection,
+        ExitWay way,
+        IExitStore exits,
+        IFilePicker picker,
+        IUiThread ui,
+        IExitCheck? check = null,
+        Toaster? toaster = null,
+        IClock? clock = null)
     {
         _connection = connection;
         _way = way;
         way.Changed += (_, _) => ShowRoute();
         _exits = exits;
         _picker = picker;
+        _check = check;
+        _toaster = toaster;
+        _clock = clock ?? new SystemClock();
         _status = connection.Status;
         connection.StatusChanged += (_, status) => ui.Post(() => Show(status));
         Show(_status);
@@ -163,6 +206,15 @@ public sealed partial class ExitPanelViewModel : ObservableObject
 
     /// <summary>Gets whether something went wrong.</summary>
     public bool HasError => ErrorText.Length > 0;
+
+    /// <summary>Gets whether exits can be checked here (sketch UT3b).</summary>
+    public bool CanCheck => _check is not null;
+
+    /// <summary>
+    /// Gets or sets whether an exit is checked once each time it connects (<em>Kontrollera vid anslutning</em>);
+    /// the settings set it from their file.
+    /// </summary>
+    public bool ChecksOnConnect { get; set; } = true;
 
     /// <summary>Gets whether the vault has no exits, once they have been read.</summary>
     [ObservableProperty]
@@ -281,6 +333,12 @@ public sealed partial class ExitPanelViewModel : ObservableObject
 
         _shown++;
         IsInSettings = false;
+        _expanded = null;
+        foreach (var row in Rows)
+        {
+            row.Expand(false);
+        }
+
         CancelAdd();
         ErrorText = string.Empty;
     }
@@ -399,17 +457,26 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         var refresh = ++_refresh;
         try
         {
-            var (exits, selected) = await Task.Run(() => (_exits.List(), _exits.FindSelected()?.Id));
+            var (exits, selected, sightings) = await Task.Run(ReadExits);
             if (shown != _shown || refresh != _refresh)
             {
                 return;
             }
 
+            var checking = Rows.Where(row => row.IsChecking).Select(row => row.Id).ToHashSet();
             Rows.Clear();
+            var now = _clock.UtcNow;
             foreach (var exit in exits)
             {
                 var row = new ExitRowViewModel(exit) { IsChosen = exit.Id == selected };
                 row.Show(_status);
+                row.ShowSighting(sightings.GetValueOrDefault(exit.Id), now);
+                if (checking.Contains(exit.Id))
+                {
+                    row.StartChecking();
+                }
+
+                row.Expand(IsInSettings && exit.Id == _expanded);
                 Rows.Add(row);
             }
 
@@ -423,6 +490,185 @@ public sealed partial class ExitPanelViewModel : ObservableObject
                 ErrorText = exception is VaultException ? LockedText : ListFailedText;
             }
         }
+    }
+
+    /// <summary>
+    /// Folds a row out on the settings' page with its name and place in the fields, and the others in; or folds it in
+    /// when it is out. A row folded in keeps what it showed.
+    /// </summary>
+    /// <param name="row">The row.</param>
+    [RelayCommand]
+    public void ToggleExpand(ExitRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        var expand = !row.IsExpanded;
+        foreach (var other in Rows)
+        {
+            other.Expand(expand && other == row);
+        }
+
+        _expanded = expand ? row.Id : null;
+        ErrorText = string.Empty;
+    }
+
+    /// <summary>
+    /// Stores the folded-out row's name and place (a field is left, a country chosen, or Enter), when they changed. An
+    /// empty name is not stored.
+    /// </summary>
+    /// <param name="row">The row.</param>
+    /// <returns>A task that completes when they are stored, or why not is shown.</returns>
+    [RelayCommand]
+    public async Task DescribeAsync(ExitRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        var name = row.EditName.Trim();
+        var place = ExitPlace.Compose(row.EditCountry, row.EditCity);
+        if (name.Length == 0)
+        {
+            ErrorText = NameNeededText;
+            return;
+        }
+
+        if (name.Length > ExitRules.MaximumNameLength)
+        {
+            name = name[..ExitRules.MaximumNameLength].Trim();
+        }
+
+        ErrorText = string.Empty;
+        if (name == row.Name && place == row.Place)
+        {
+            return;
+        }
+
+        var shown = _shown;
+        try
+        {
+            var exit = await Task.Run(() => _exits.Describe(row.Id, name, place));
+            row.Describe(exit);
+            ShowRoute();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            if (shown == _shown)
+            {
+                ErrorText = exception is VaultException ? LockedText : DescribeFailedText;
+            }
+        }
+    }
+
+    /// <summary><em>Ta bort utgången …</em>: asks first, under the folded-out row.</summary>
+    /// <param name="row">The row.</param>
+    [RelayCommand]
+    public void AskRemove(ExitRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        row.AskRemove(true);
+    }
+
+    /// <summary><em>Avbryt</em> (or Esc): the exit stays.</summary>
+    /// <param name="row">The row.</param>
+    [RelayCommand]
+    public void CancelRemove(ExitRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        row.AskRemove(false);
+    }
+
+    /// <summary>
+    /// <em>Ta bort</em>, once asked: removes the exit, its WireGuard file and its check from the vault, off the UI
+    /// thread; a connected exit is disconnected first by Network. The cases and what was fetched through it stay.
+    /// </summary>
+    /// <param name="row">The row.</param>
+    /// <returns>A task that completes when the exits are shown again, or why not is shown.</returns>
+    [RelayCommand]
+    public async Task RemoveAsync(ExitRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (!row.IsRemoving)
+        {
+            return;
+        }
+
+        ErrorText = string.Empty;
+        try
+        {
+            await Task.Run(() => _exits.RemoveAsync(row.Id));
+            _expanded = null;
+            await RefreshAsync();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            ErrorText = exception is VaultException ? LockedText : RemoveFailedText;
+        }
+    }
+
+    /// <summary>
+    /// <em>Kontrollera nu</em>: asks the trace through the connected exit which address and country lookups are seen
+    /// from. Nothing about a case is sent, and the answer is kept with the exit in the vault, never in a case.
+    /// </summary>
+    /// <param name="row">The row; only a connected exit can be checked.</param>
+    /// <returns>A task that completes when the answer, or that none came, is shown.</returns>
+    [RelayCommand]
+    public Task CheckNowAsync(ExitRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return row.CanCheck ? CheckAsync(row, warn: false) : Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Asks the trace through the exit and shows the answer on the row; when it leaves through another exit than the
+    /// row's meanwhile, the row is not given that answer.
+    /// </summary>
+    /// <param name="row">The row.</param>
+    /// <param name="warn">Whether a country other than the place says is told in the toaster.</param>
+    /// <returns>A task that completes when the answer, or that none came, is shown.</returns>
+    private async Task CheckAsync(ExitRowViewModel row, bool warn)
+    {
+        if (_check is not { } check)
+        {
+            return;
+        }
+
+        row.StartChecking();
+        try
+        {
+            var sighting = await Task.Run(() => check.CheckAsync());
+            var target = Rows.FirstOrDefault(other => other.Id == row.Id) ?? row;
+            if (sighting.ExitId != row.Id)
+            {
+                target.ShowCheckFailed();
+                return;
+            }
+
+            target.ShowSighting(sighting, _clock.UtcNow);
+            if (warn && target.Check == ExitCheckState.Mismatch)
+            {
+                _toaster?.Show(ToastKind.Warning, ExitCheckWords.MismatchTitle,
+                    ExitCheckWords.MismatchText(target.Name, sighting, target.Place));
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            (Rows.FirstOrDefault(other => other.Id == row.Id) ?? row).ShowCheckFailed();
+        }
+    }
+
+    /// <summary>Reads the exits, the selected one and each exit's latest check, off the UI thread.</summary>
+    /// <returns>What was read.</returns>
+    private (IReadOnlyList<ExitInfo> Exits, Guid? Selected, Dictionary<Guid, ExitSighting> Sightings) ReadExits()
+    {
+        var exits = _exits.List();
+        var selected = _exits.FindSelected()?.Id;
+        var sightings = new Dictionary<Guid, ExitSighting>();
+        foreach (var exit in exits)
+        {
+            if (_check?.FindLast(exit.Id) is { } sighting)
+            {
+                sightings[exit.Id] = sighting;
+            }
+        }
+
+        return (exits, selected, sightings);
     }
 
     /// <summary>
@@ -512,6 +758,51 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         }
 
         ShowRoute();
+        CheckOnConnect(status);
+    }
+
+    /// <summary>
+    /// Checks an exit once when it has connected, when the setting is on (<em>Kontrollera vid anslutning</em>); a
+    /// country other than its place says is told in the toaster.
+    /// </summary>
+    /// <param name="status">The program's exit status.</param>
+    private void CheckOnConnect(ExitStatus status)
+    {
+        var connected = status.State == ExitState.Connected ? status.ExitId : null;
+        var isNew = connected is not null && connected != _connected;
+        _connected = connected;
+        if (!isNew || !ChecksOnConnect || _check is null || _way.IsWindows)
+        {
+            return;
+        }
+
+        var row = Rows.FirstOrDefault(other => other.Id == connected) ?? new ExitRowViewModel(
+            new ExitInfo(connected!.Value, ExitRowViewModel.ConnectedText, string.Empty, ExitKind.WireGuard));
+        _ = CheckOnConnectAsync(row);
+    }
+
+    /// <summary>Checks an exit that has just connected, reading its place first when it has no row.</summary>
+    /// <param name="row">The exit's row, or a stand-in when the exits have not been read.</param>
+    /// <returns>A task that completes when the check is done.</returns>
+    private async Task CheckOnConnectAsync(ExitRowViewModel row)
+    {
+        if (!Rows.Contains(row))
+        {
+            try
+            {
+                var exit = await Task.Run(() => _exits.List().FirstOrDefault(other => other.Id == row.Id));
+                if (exit is not null)
+                {
+                    row.Describe(exit);
+                }
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // Without the place there is nothing to compare with; the check still runs.
+            }
+        }
+
+        await CheckAsync(row, warn: true);
     }
 
     /// <summary>

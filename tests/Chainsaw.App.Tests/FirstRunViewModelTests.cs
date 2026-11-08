@@ -118,7 +118,88 @@ public sealed class FirstRunViewModelTests
         Assert.Equal(WireGuardCheckTests.Valid, added.Configuration);
         Assert.NotNull(rig.Exits.Selected);
         Assert.True(rig.FirstRun.HasExit);
-        Assert.Equal(FirstRunStep.FirstCase, rig.FirstRun.Step);
+        Assert.Equal(FirstRunStep.Exit, rig.FirstRun.Step);
+        Assert.StartsWith("Stockholm-", rig.FirstRun.ExitFileName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_step_Utgang_has_Windows_chosen_from_the_start_with_a_live_route()
+    {
+        var rig = await AtExit();
+        var setup = rig.FirstRun;
+
+        Assert.True(setup.IsWindowsChosen);
+        Assert.False(setup.NeedsExitFile);
+        Assert.True(setup.IsRouteLive);
+        Assert.Equal("Windows", setup.RouteName);
+        Assert.Equal("Datorn når internet.", setup.RouteVerdict);
+        Assert.Equal("Fortsätt", setup.NextLabel);
+
+        await setup.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+
+        Assert.Equal(FirstRunStep.FirstCase, setup.Step);
+        Assert.Equal(Modules.Network.Contracts.ExitRoute.Windows, rig.Route.Current);
+        await rig.Settings.Saving;
+        Assert.Equal(Modules.Network.Contracts.ExitRoute.Windows, rig.SettingsStore.Load().ExitRoute);
+    }
+
+    [Fact]
+    public async Task Windows_without_a_network_says_so_and_goes_on_offline()
+    {
+        var rig = await AtExit();
+        rig.Network.Set(false);
+
+        Assert.False(rig.FirstRun.IsRouteLive);
+        Assert.Equal("Offline", rig.FirstRun.RouteName);
+        Assert.Equal("Datorn når inte internet.", rig.FirstRun.RouteVerdict);
+        Assert.Equal("Fortsätt offline", rig.FirstRun.NextLabel);
+    }
+
+    [Fact]
+    public async Task VPN_asks_for_a_file_and_goes_on_honestly_without_an_exit()
+    {
+        var rig = await AtExit();
+        var setup = rig.FirstRun;
+
+        setup.ChooseRoute(Modules.Network.Contracts.ExitRoute.Vpn);
+
+        Assert.True(setup.IsVpnChosen);
+        Assert.True(setup.NeedsExitFile);
+        Assert.False(setup.IsRouteLive);
+        Assert.Equal("Ingen utgång", setup.RouteName);
+        Assert.Equal("Inga uppslag.", setup.RouteVerdict);
+        Assert.Equal("Fortsätt utan utgång", setup.NextLabel);
+        Assert.Equal(Modules.Network.Contracts.ExitRoute.Vpn, rig.Route.Current);
+    }
+
+    [Fact]
+    public async Task A_stored_exit_that_connects_makes_the_route_live_with_its_name()
+    {
+        var rig = await AtExit();
+        rig.FirstRun.ChooseRoute(Modules.Network.Contracts.ExitRoute.Vpn);
+        var file = Path.Combine(Path.GetTempPath(), $"Stockholm-{Guid.NewGuid():N}.conf");
+        await File.WriteAllTextAsync(file, WireGuardCheckTests.Valid);
+        try
+        {
+            await rig.FirstRun.AddExitAsync(file);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+
+        Assert.False(rig.FirstRun.NeedsExitFile);
+        Assert.Equal(ExitRowViewModel.NotConnectedText, rig.FirstRun.ExitStateText);
+        Assert.Equal(rig.FirstRun.ExitName, rig.FirstRun.RouteName);
+
+        rig.Exit.Set(new Modules.Network.Contracts.ExitStatus(
+            Modules.Network.Contracts.ExitState.Connected, rig.Exits.Selected, null));
+
+        Assert.True(rig.FirstRun.IsRouteLive);
+        Assert.True(rig.FirstRun.IsExitOn);
+        Assert.Equal(ExitRowViewModel.ConnectedText, rig.FirstRun.ExitStateText);
+        Assert.Equal("Ansluten.", rig.FirstRun.RouteVerdict);
+        Assert.Equal("Fortsätt", rig.FirstRun.NextLabel);
     }
 
     [Fact]

@@ -15,6 +15,9 @@ internal sealed class ExitRecords(IVaultSecrets secrets)
     /// <summary>The prefix of the secrets that hold the exits; the id follows in the <c>N</c> format.</summary>
     internal const string ExitPrefix = "network/exits/";
 
+    /// <summary>The prefix of the secrets with each exit's latest check; the id follows in the <c>N</c> format.</summary>
+    internal const string SightingPrefix = "network/exit-sightings/";
+
     /// <summary>The name of the secret that holds the selected exit's id.</summary>
     internal const string SelectedName = "network/selected-exit";
 
@@ -82,6 +85,39 @@ internal sealed class ExitRecords(IVaultSecrets secrets)
     /// <param name="id">The exit.</param>
     /// <returns><see langword="true"/> when it was removed.</returns>
     public bool Remove(Guid id) => secrets.Remove(NameOf(id));
+
+    /// <summary>Keeps an exit's latest check, in place of the one before.</summary>
+    /// <param name="sighting">The check; its exit is the one it left through.</param>
+    public void SaveSighting(ExitSighting sighting) =>
+        secrets.Save(
+            SightingPrefix + sighting.ExitId.ToString(IdFormat), JsonSerializer.Serialize(sighting, JsonOptions));
+
+    /// <summary>Finds an exit's latest check.</summary>
+    /// <param name="id">The exit.</param>
+    /// <returns>The check, or <see langword="null"/> when there is none or it is unreadable.</returns>
+    public ExitSighting? FindSighting(Guid id)
+    {
+        var value = secrets.Find(SightingPrefix + id.ToString(IdFormat));
+        if (value is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var sighting = JsonSerializer.Deserialize<ExitSighting>(value, JsonOptions);
+            return sighting is { Address: not null, CountryCode: not null } && sighting.ExitId == id ? sighting : null;
+        }
+        catch (JsonException)
+        {
+            // An unreadable check is as none: the next check writes it anew.
+            return null;
+        }
+    }
+
+    /// <summary>Forgets an exit's latest check, as when the exit is removed.</summary>
+    /// <param name="id">The exit.</param>
+    public void RemoveSighting(Guid id) => secrets.Remove(SightingPrefix + id.ToString(IdFormat));
 
     /// <summary>Gets the selected exit's id.</summary>
     /// <returns>The id, or <see langword="null"/> when none is selected.</returns>

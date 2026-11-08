@@ -426,6 +426,15 @@ public static class BackgroundNames
     /// <summary>The value under the user's <c>Run</c> key that starts it with Windows.</summary>
     public const string RunValue = "Chainsaw.Watcher";
 
+    /// <summary>Chainsaw's own program, next to the background process's.</summary>
+    public const string AppExecutable = "Chainsaw.exe";
+
+    /// <summary>
+    /// The argument that starts Chainsaw as only the message in the middle of the screen (sketch BV4a), as the
+    /// background process does when a watch hits; it opens nothing else.
+    /// </summary>
+    public const string ScreenMessageArgument = "--watch-alert";
+
     /// <summary>What every way of telling says: only that a watch has hit (CLAUDE.md, <em>Bevaka</em>).</summary>
     public const string AlertTitle = "En bevakning har slagit till.";
 
