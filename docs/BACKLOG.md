@@ -678,3 +678,7 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   soptunnan; en slängd hög kommer tillbaka till hälften när ett av dess ärenden sparas igen (`ForgetRewritten`); en
   lapp som tappar musgreppet lämnar soptunnan förstorad (`LostMouseCapture`); historiken säger *en nod utanför
   grafen* för en nod i soptunnan; `IGraphCommentService.RemoveComment` saknar anropare.
+- **Etiketter, efter omgranskningen 2026-11-08:** skäl och anteckning följer med kopior, så en mening vid fältet
+  Anteckning borde varna för att skriva offrets namn där; `HeldBack` gäller bara på den egna datorn (en kollegas
+  bibliotek kan sprida en kopia tills ursprungsärendet öppnats där); *Visa i grafen* på en sanktionsträff i en hög
+  hittar inte högen (`GraphViewModel.ShowNode`); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
