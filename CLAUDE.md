@@ -552,6 +552,21 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     säger bara att en länk väntar, aldrig adressen.
   - **AK1a** (vald 2026-11-08): *Verifiera* säger att hashkedjan är hel och, med en lugn gul rad, att ankaret byttes;
     *Varför?* öppnar Guidens panel med förklaringen, kedjan som prickar och den troligaste orsaken streckad.
+  - **Valda 2026-11-08 (andra omgången):** **DX1b** (en DEX:s router är en liten markering i swap-pillrets hörn;
+    hovring visar vägen genom poolerna, klick öppnar *Varför?*, en aggregator visar antalet steg), **KV1a** (dra
+    tillbaka en heuristiks version i menyn på heuristikens rad i inspektörens *Varför?*, med före och efter per
+    kluster och adresserna som lämnar eller kommer tillbaka streckade i grafen), **HB1a** (en slutsats som hålls
+    tillbaka är en tyst hörnmarkering på klustret, en streckad gul ring med pausmärke; Historik har *Låt stå* och
+    *Släpp slutsatsen*), **BU1a** (bryta upp ett par i formuläret Bryt upp vid noden: vägen mellan adresserna som en
+    kedja med saxen på den svagaste länken, och en varning när de inte är i samma kluster), **DM1a** (damm och
+    adressförgiftning som två nedtonade områden; förgiftningen behåller en röd maskmarkering, och att kopiera den
+    liknande adressen jämför de två tecken för tecken med den riktiga som förval), **HP1a** (många hopp blir en linje
+    med en streckad bricka *N hopp · tid* och en pärla per hopp efter tid, som fälls ut på plats), **PX1a** (proxy
+    med inloggning är rader i Inställningar › Nätverk med en brytare som fäller ut vad som skickas, till vem och vad
+    som aldrig skickas), **UT4a** (en ansluten VPN-utgång i läget Windows: listan står kvar tonad och bara den
+    anslutna raden har färg, *används inte* och strömknappen), **KL3b** (den egna nodens certifikat: en nål på raden
+    öppnar en ruta med fingeravtrycket som rutnät, och vid byte står de två bredvid varandra) och **TJ1b** (en trolig
+    tjänst blir en etikett i en ruta vid noden, med sorterna som ikoner, och noden byter utseende medan man väljer).
   - **Tornado Cash** (användarens beslut 2026-11-08): märks *Mixer* med markeringen **tidigare sanktionerad**
     (OFAC tog bort den ur SDN-listan 2025-03-21), en liten hörnmarkering som sanktionerad men nedtonad, med datumen i
     *Varför?*.
