@@ -3,8 +3,8 @@ using Chainsaw.Modules.Cases.Contracts;
 namespace Chainsaw.Modules.Clustering;
 
 /// <summary>
-/// The Clustering module's tables in the case: everything the analyses concluded and every split the user made, both
-/// sealed, so that nothing about why addresses are merged can change silently (principles 1–3). The clusters
+/// The Clustering module's tables in the case: everything the analyses concluded, every split and every merge the user
+/// made, all sealed, so that nothing about why addresses are merged can change silently (principles 1–3). The clusters
 /// themselves are not stored; they are built from these records whenever they are asked for.
 /// </summary>
 internal sealed class ClusteringSchema : ICaseSchemaContributor
@@ -29,6 +29,31 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
 
     /// <summary>The table of the user's undoing of splits.</summary>
     public const string SplitUndosTable = "clustering_split_undos";
+
+    /// <summary>The sealed chain of the user's merges (<c>user v1</c>).</summary>
+    public const string MergesChain = "clustering.merges";
+
+    /// <summary>The table of the user's merges.</summary>
+    public const string MergesTable = "clustering_merges";
+
+    /// <summary>The sealed chain of the user's undoing of merges.</summary>
+    public const string MergeUndosChain = "clustering.merge_undos";
+
+    /// <summary>The table of the user's undoing of merges.</summary>
+    public const string MergeUndosTable = "clustering_merge_undos";
+
+    /// <summary>The sealed columns of a user's merge, in order.</summary>
+    public static readonly IReadOnlyList<string> MergeColumns =
+    [
+        "addresses", "txid", "proposal", "proposal_version", "grounds", "reason", "origin_chain", "origin_sequence",
+        "journal_sequence", "recorded_utc",
+    ];
+
+    /// <summary>The sealed columns of an undoing of a merge, in order.</summary>
+    public static readonly IReadOnlyList<string> MergeUndoColumns =
+    [
+        "merge_sequence", "reason", "journal_sequence", "recorded_utc",
+    ];
 
     /// <summary>The sealed columns of an undoing of a split, in order.</summary>
     public static readonly IReadOnlyList<string> SplitUndoColumns =
@@ -96,6 +121,35 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The third version: the user's own merges (<c>user v1</c>), for example of a wallet the user approved, and
+    /// their undoing, each sealed as a record of its own. The reason and the origin are optional.
+    /// </summary>
+    private const string Version3 = """
+        CREATE TABLE clustering_merges (
+            sequence INTEGER PRIMARY KEY,
+            addresses TEXT NOT NULL,
+            txid TEXT NOT NULL,
+            proposal TEXT NOT NULL,
+            proposal_version INTEGER NOT NULL,
+            grounds TEXT NOT NULL,
+            reason TEXT,
+            origin_chain TEXT,
+            origin_sequence INTEGER,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        CREATE TABLE clustering_merge_undos (
+            sequence INTEGER PRIMARY KEY,
+            merge_sequence INTEGER NOT NULL,
+            reason TEXT,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -104,6 +158,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
     [
         new(1, "Klustringens slutsatser och uppbrytningar (förseglade)", Version1),
         new(2, "Ångrade uppbrytningar (förseglade)", Version2),
+        new(3, "Användarens sammanslagningar och deras ångrande (förseglade)", Version3),
     ];
 
     /// <inheritdoc/>
@@ -112,5 +167,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         new(EvidenceChain, EvidenceTable, EvidenceColumns),
         new(SplitsChain, SplitsTable, SplitColumns),
         new(SplitUndosChain, SplitUndosTable, SplitUndoColumns),
+        new(MergesChain, MergesTable, MergeColumns),
+        new(MergeUndosChain, MergeUndosTable, MergeUndoColumns),
     ];
 }

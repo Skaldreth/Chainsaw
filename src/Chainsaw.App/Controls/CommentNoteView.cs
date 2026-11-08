@@ -222,6 +222,10 @@ internal sealed class CommentNoteView : Grid
         }
 
         _comments.Move(_note, new GraphPoint(_pressedFrame.X + delta.X, _pressedFrame.Y + delta.Y));
+        if (_surface is GraphCanvas canvas)
+        {
+            canvas.NoteDraggedAt(e.GetPosition(canvas));
+        }
     }
 
     /// <summary>Lets go: a drag is stored, and a click on the sheet writes in the note.</summary>
@@ -241,7 +245,12 @@ internal sealed class CommentNoteView : Grid
         _dragged = false;
         ReleaseMouseCapture();
         e.Handled = true;
-        if (dragged)
+        if (dragged && !sizing && _surface is GraphCanvas canvas && canvas.DropNoteOnBin(_note))
+        {
+            // Thrown in the trash: it stays where it stood, hidden, and comes back there when put back.
+            _comments.Move(_note, new GraphPoint(_pressedFrame.X, _pressedFrame.Y));
+        }
+        else if (dragged)
         {
             _ = _comments.DropAsync(_note);
         }

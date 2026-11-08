@@ -95,15 +95,8 @@ fungerar rättas före allt annat nedan. Särskilt:
   placeras efter samma bredd.
 
 **Soptunnan och startvyn (SO1a, GR8a)**
-- **Det som ännu inte går att slänga** [etapp]:
-  - Kommentarsnoder och egna ytor. Delete tar i dag bort en lapp förseglat direkt, utan soptunna.
-  - En hel hög i startvyn, och ett ärende som ligger i en hög.
 - **Grafens samlingsnod trycks inte ut** [direkt]: stöten och centreringen är som startvyns, men ytan bakom trycks
   inte ut lite som i `FanOutLayer` (grafen ritas i en `DrawingContext`, så det kräver en egen skalning av det dimmade).
-
-**Kommentarsnoden (KN1a)**
-- **Historiken** [etapp]: lappens förseglade poster syns inte i inspektörens *Historik* (AN1b), och en borttagen lapp
-  kan inte läggas tillbaka.
 
 **Inspektören, Nytt ärende och Guiden**
 - **Kortets baksida i dagens kurs** [direkt]: efter fråga 2 ovan.
@@ -139,8 +132,11 @@ fungerar rättas före allt annat nedan. Särskilt:
    - Arbetskopian har allt och tas tillbaka efter en krasch, så inget går förlorat, men `.cut` är då inte färsk.
    - Förslag: en varning i toastern (TO1a) när sparningen misslyckats några gånger i rad, och *Försök igen*. Kräver en
      händelse på `ICase` som appen lyssnar på.
-4. **Godkänna en plånbok** [etapp]: en sammanslagning gjord av användaren (`user v1`, förseglad med vem och varför),
-    så att plånböckernas förslag (`wallet-proposals v1`) kan godkännas.
+4. **Godkänna en plånbok, resterna** [direkt]:
+   - Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås ihop igen; det gör bara *Historik*.
+     Behöver en liten skiss.
+   - Ett förslag som ändrats sedan det förseglades ger det allmänna felet; det borde säga att kontrollerna behöver
+     köras igen.
 
 ### 4. Valt 2026-11-08 och ska byggas
 

@@ -37,7 +37,102 @@ public sealed class ChecksViewModelTests
     }
 
     [Fact]
-    public async Task Suggestions_wait_first_obfuscation_is_done_by_itself_and_wallets_are_only_areas()
+    public async Task Suggestions_wait_first_obfuscation_is_done_by_itself_and_a_wallet_waits_with_its_area()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
+
+        Assert.Equal(
+            ["Troliga utgångar ur mixern", "Samma plånbok troligt"], rig.Checks.ToDecide.Select(row => row.Title));
+        Assert.Equal(["CoinJoin, Wasabi"], rig.Checks.Done.Select(row => row.Title));
+        Assert.Equal("Förslag · 2", rig.Checks.ButtonText);
+        Assert.Contains(rig.Checks.AllAreas, area => area.Sort == AreaSort.Wallet);
+        var wallet = rig.Checks.ToDecide.Single(row => row.Check.Analysis.Name == CheckAnalysisNames.Wallets);
+        Assert.False(wallet.HasCandidates);
+        Assert.Same(SuggestionWords.Wallets, wallet.Words);
+        Assert.Equal("Godkänn", wallet.GoText);
+    }
+
+    [Fact]
+    public async Task Approving_a_wallet_seals_it_as_a_whole_and_asks_for_the_clusters_to_be_read_again()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Clear();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
+        var changed = 0;
+        rig.Checks.ClustersChanged += (_, _) => changed++;
+        rig.Checks.StartReview(null);
+        rig.Checks.Selected!.Reason = "Samma inloggning";
+        ToastRequest? toast = null;
+        rig.Checks.ToastWanted += (_, request) => toast = request;
+
+        await rig.Checks.ApproveAsync();
+
+        var request = Assert.Single(rig.Source.Decisions);
+        Assert.Equal(CheckAnalysisNames.Wallets, request.Analysis.Name);
+        Assert.Null(request.CandidateKey);
+        Assert.Equal(CheckVerdict.Approved, request.Verdict);
+        Assert.Equal("Samma inloggning", request.Reason);
+        Assert.Equal(1, changed);
+        Assert.Equal("Förslaget godkänt", toast!.Title);
+    }
+
+    [Theory]
+    [InlineData(Modules.Clustering.Contracts.MergeRefusal.AcrossSplit, ChecksViewModel.SplitFirstText)]
+    [InlineData(Modules.Clustering.Contracts.MergeRefusal.BreaksMerge, ChecksViewModel.BreaksMergeText)]
+    public async Task A_refused_wallet_says_why_and_reads_nothing_again(
+        Modules.Clustering.Contracts.MergeRefusal refusal, string text)
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Clear();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
+        var changed = 0;
+        rig.Checks.ClustersChanged += (_, _) => changed++;
+        rig.Source.DecideFailure = new Modules.Clustering.Contracts.MergeRefusedException(refusal);
+        rig.Checks.StartReview(null);
+
+        await rig.Checks.ApproveAsync();
+
+        Assert.Equal(text, rig.Checks.Problem);
+        Assert.Empty(rig.Source.Decisions);
+        Assert.Equal(0, changed);
+        Assert.Equal(1, rig.Checks.WaitingCount);
+    }
+
+    [Fact]
+    public async Task Dismissing_a_wallet_leaves_the_clusters_alone()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Clear();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
+        var changed = 0;
+        rig.Checks.ClustersChanged += (_, _) => changed++;
+        rig.Checks.StartReview(null);
+
+        await rig.Checks.DismissAsync();
+
+        Assert.Equal(CheckVerdict.Dismissed, Assert.Single(rig.Source.Decisions).Verdict);
+        Assert.Equal(0, changed);
+    }
+
+    [Theory]
+    [InlineData(CheckVerdict.Approved, true)]
+    [InlineData(CheckVerdict.Withdrawn, true)]
+    [InlineData(CheckVerdict.Dismissed, false)]
+    public void Only_a_wallets_approval_or_its_take_back_changes_the_clusters(CheckVerdict verdict, bool changes)
+    {
+        var wallet = new Modules.Clustering.Contracts.HeuristicId(CheckAnalysisNames.Wallets, 1);
+
+        Assert.Equal(changes, ChecksViewModel.ChangesClusters(new DecisionRequest(wallet, "w", null, verdict)));
+        Assert.False(ChecksViewModel.ChangesClusters(new DecisionRequest(MixerId, "deposit:0", "c", verdict)));
+    }
+
+    [Fact]
+    public async Task Suggestions_wait_first_and_obfuscation_is_done_by_itself()
     {
         var rig = await new Rig().Follow();
 
@@ -47,7 +142,6 @@ public sealed class ChecksViewModelTests
         Assert.Equal("Förslag · 1", rig.Checks.ButtonText);
         Assert.Equal("1", rig.Checks.WaitingText);
         Assert.Equal("Kördes 2026-11-07 13:02 på 4 tx", rig.Checks.StatusText);
-        Assert.Contains(rig.Checks.AllAreas, area => area.Sort == AreaSort.Wallet);
     }
 
     [Fact]
@@ -403,7 +497,9 @@ public sealed class ChecksViewModelTests
     [Fact]
     public async Task A_hidden_sort_leaves_its_fill_to_the_areas_shown()
     {
-        var rig = await new Rig().Follow();
+        var rig = new Rig();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
         ShowEverySort(rig);
         Assert.False(rig.Checks.Areas.Single(area => area.Sort == AreaSort.Wallet).IsFilled);
 
