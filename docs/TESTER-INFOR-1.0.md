@@ -3112,3 +3112,22 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
   inspektören: mörkare ton, skugga och rundat hörn mot arbetet, texten fri från skuggan, titelraden slutar där panelen
   börjar och fönstrets knappar står på panelen. Stäng panelen: titelraden går över hela bredden igen.
 
+
+## Kodgranskningen (sju varv, 2026-11-08)
+
+- **Urklipp:** kopiera en adress i grafen, i Etiketter, i Tidslinjen och en rad i en anteckning (Ctrl+C). Öppna Win+V:
+  inget av det står i historiken, och med *Synkronisera mellan enheter* på kommer det inte till andra datorer. Klistra
+  in i Chainsaw och i Anteckningar: det fungerar som vanligt. Dra en adress: draget fungerar.
+- **Senaste filer:** öppna en kollegas `.cut` och exportera en begäran. Varken filen eller exporten står under
+  Senaste i Utforskaren eller i Chainsaws hopplista.
+- **Bakgrundens träffar som tips:** låt bakgrunden hitta en träff medan Chainsaw är stängt, och öppna ärendet med VPN
+  vald men inte ansluten. Träffen står grå och streckad med *väntar på kontroll* (hovring), i BV1a och som en grå
+  streckad vaktlinje utan belopp och utan ringar i grafen. Anslut: vid nästa runda blir den en riktig träff med belopp
+  och ringar.
+- **Internetkontrollen:** välj VPN i inställningarna och se i en nätverksmonitor (Resursövervakaren, fliken Nätverk)
+  att Chainsaw inte kontaktar 1.1.1.1 eller msftconnecttest.com. Byt till Windows: kontrollen görs direkt.
+- **Ärendefilen ändrad på disken:** öppna ett ärende, ersätt `.cut`-filen i Utforskaren med en annan kopia och gör en
+  ändring i Chainsaw. Filen på disken skrivs inte över; ärendet stängs och dialogen *X gick åt två håll* erbjuder
+  *Spara som X-B*, som har ditt arbete.
+- **Länk med citattecken:** kör `chainsaw:btc/x" "--watch-alert` från Kör (Win+R): inget kort om en bevakning visas.
+- **Kraschrutan** visar bara rubriken och var loggen ligger, aldrig felets text.

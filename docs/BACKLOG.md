@@ -640,3 +640,38 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Ärendets kuvert, efter omgranskningen 2026-11-08:** kraschar Chainsaw mellan att grenen öppnats och att
   grenraden skrivits blir `/verify` röd för grenen (skriv raden under ett tillfälligt namn först); en ovanlig dubbel
   felväg i `OpenSettingAsideWorkingCopy` kan lämna arbetskopian i *Återställda* utan journalrad.
+
+## Kodgranskningen 2026-11-08 (mindre fynd som inte rättades)
+
+Rapporterna per varv ligger inte i repot; det som står kvar är detta.
+- **Virtualisering som kräver skiss:** kontrollpanelens tre listor (*Att avgöra*, *Gjort av sig självt*, *Beslutade*)
+  och papperskorgsvyns grupper är inte virtualiserade; ett stort ärende bygger en rad per post.
+- **Rapportens aktörsbrickor** ligger i en `WrapPanel` utan tak; en lasso över en stor graf gör en bricka per aktör
+  (förslag: tak på ungefär 50 och "+N till"). `TrashWarningViewModel.CountBelow`/`IsLast` är O(n²) på en stor kastning.
+- **Endpoint före startprovet:** ett uppslag kan gå till en endpoint som inte har provats än; en fel kedja med lägre
+  höjd (testnet4, Sepolia) fångas först när startprovet körs. Svar som redan ligger i äldre ärenden med orimliga höjder
+  räknas inte längre (varv 5) men ligger kvar.
+- **`/verify` och indexen:** indexen byggs inte om ur de förseglade svaren vid `/verify`; höjderna räknas bara med ett
+  förseglat svar bakom sig och under det kedjan kan ha nått (varv 5), men en ändrad höjd upp till den gränsen syns
+  inte.
+- **CoinJoin v2:** en CoinJoin vars alla inputs kommer från en och samma tidigare tx känns inte igen (`funding < 2`).
+- **Exponeringen på konton** tar inte med avgifterna, så FIFO och haircut kan skilja något från grafens spår.
+- **Bevakningen:** en tips vars Ethereum-svar aldrig blir komplett frågas en gång i minuten utan slut; om importen inte
+  kan läsa kön just nu kan rundans egen kontroll starta en ostartad bevakning högre än bakgrunden gjorde; planens skrivning
+  vid stängning görs på UI-tråden; `CaseHolds.IsHeld` kan krocka med `Hold` (bara en extra avisering).
+- **Ärendet:** en `schema_version` ändrad för hand ger `InvalidOperationException`, inte `Corrupt`; journalvyn kastar på
+  en post vars tid ändrats med nyckeln (`/verify` rapporterar den); efter *behåll båda* kan lösenord och kuvert ändå
+  journalföras i arbetskopian; ett lösenordskuvert utan `iterations` tas inte bort som svagt.
+- **Bakgrundsprocessens namn:** mutex och stopphändelse är `Local\Chainsaw.Watcher[.Stop]` och kan tas först av en annan
+  användares process i samma session (en privat objektnamnrymd vore rätt); samma för appens egen mutex.
+- **Länkröret** börjar lyssna först efter värdens start; en länk under en start längre än 3 s tappas tyst.
+- **Uppslag och kurser:** leverantörens Retry-After läser `UtcNow` i stället för `IClock` och visas i UTC; en 429 från
+  Bitstamp eller Riksbanken läser inte Retry-After (avkylningen täcker det); `BlockscoutApi.ReadHash` kontrollerar inte
+  blockets höjd; varje adressbyte i Windows nollställer återanslutningens väntan.
+- **Begäran:** insättningarnas belopp nämner en token bara med symbolen; rapportens del heter "Belopp i SEK" också med
+  en annan valuta; exponeringens förklaring skriver BTC i annat format än resten; en etikett som ser ut som en
+  webbadress blir en länk i en GFM-förhandsvisning av exporten; rapportens toppvakt jämför bara journalraden.
+- **Grafen:** "Uppbruten · N ut" räknar för lågt när en vald adress bara är länkad till en annan vald; animationer som
+  redan rullar stoppas först vid nästa omritning när Windows animeringar stängs av; ett kort som hämtar ritar om hela
+  grafen 60 gånger i sekunden.
+

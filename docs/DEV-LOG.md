@@ -4184,3 +4184,46 @@ Användarens krav: allt som står på inspektörens plats ska ligga under arbete
 **Egna beslut:** Nytt ärende (NC2a) och dialogerna mörkar resten och ligger över arbetet; de är oförändrade.
 Begärans och Rapportens förhandsvisningar är dokument, inte inspektörer, och står kvar som kort.
 
+
+## Kodgranskningen i sju varv (2026-11-08)
+
+Användaren bad om en fullständig granskning med minst sex varv: semantiska fel, säkerhet och kodkvalitet med *less is
+more*. Varje varv kördes av parallella granskande agenter, som rättade C och I med tester; huvudsessionen byggde och
+testade varje del ovanpå grenen och pushade (commits *Audit round 1 … 6*). Under granskningen pushade en annan session
+drygt 250 commits till samma gren; varv 1 granskade därför den äldre koden och varv 2 hela den nya (ungefär 150 000
+rader).
+
+- **Varv 1, per modul:** bland annat en fientlig kö från bakgrundsprocessen som kunde stoppa ärendets bevakning för
+  gott eller försegla en träff filtret inte kunde ge (C), en sanktionslista daterad i framtiden som skuggade alla
+  senare, en nyare heuristikversion som inte kunde ta tillbaka en äldre sammanslagning, `/verify` som kastade på en
+  ändrad första post och en kvarlämnad SQLite-journal som spelades in i en ny arbetskopia.
+- **Varv 2, per modul på den nya koden:** en endpoint med orimlig höjd eller fel genesis (testnet, eller en som ljuger)
+  som fick alla svar att se djupa ut och dolde omorganiseringar; en Ethereum-expansion med förlorade tx som räknades
+  som läst; exponeringen som vägrade vid en rundtur; grafen som byggdes i O(noder × linjer); Bryt upp som bara sparade
+  den första valda adressen; zoom och panorering som kunde vägras för gott; råa felmeddelanden på ett tiotal ställen.
+- **Varv 3, flöden tvärs över modulerna:** en ny titel som läste om alla vyer, en tillbakatagen etikettkopia som syntes
+  kvar, samma token-träff två gånger under olika symbol, en borttagen bevakning som bakgrunden fortsatte med, uppslag
+  genom Windows med VPN valt när planen inte kunde skrivas, högar på Ethereum i BTC, exporter av token utan kontrakt,
+  och det instabila exporttestets orsak.
+- **Varv 4, användarens tre beslut och säkerhet:** bakgrundens träffar är tips tills Chainsaws eget uppslag ger dem
+  (`monitoring.tips`, grå och streckade medan de väntar); internetkontrollen bara med Windows som väg; en ändrad
+  ärendefil skrivs aldrig över (arbetet sparas som gren); kopior utanför urklippshistoriken och molnet; filer inte i
+  Senaste; planterade utlösare rapporteras av `/verify`; en länk kan inte visa ett falskt bevakningskort.
+- **Varv 5, *less is more* och integritet:** omkring 400 rader död eller dubblerad kod borta med oförändrat beteende;
+  indexhöjder räknas bara med ett förseglat svar bakom sig och under det kedjan kan ha nått; `/verify` prövar varje
+  förseglat svar mot sin SHA-256; bakgrundens lästa höjd begränsas; ett försvagat delningslösenordskuvert vägras och tas
+  bort med journalrad.
+- **Varv 6, granskning av granskningen:** varje rättelse lästes om efter sammanslagningarna. Varv 5:s höjdfråga hade
+  gjort cachade uppslag 100 gånger långsammare (rättad); Tidslinjen kopierade förbi urklippsskyddet (ny kod); bakgrundens
+  starthöjd begränsas som den lästa höjden; exponeringen ordnar en kontos poster som spåret, så Graf och Exponering
+  stämmer; det instabila högtestet berodde på testets trådar, inte produkten.
+- **Varv 7:** rättelserna från varv 6 och det sista instabila testet.
+
+**Användarens beslut under granskningen:** txid:er får stå i bakgrundens plan; bakgrundens träffar kontrolleras mot
+kedjan innan de förseglas; internetkontrollen bara när Windows är vägen.
+
+**Egna beslut:** en ändrad ärendefil på disken räknas som en konflikt (inte som ett beslut för användaren), eftersom
+det säkra valet var givet; bakgrundens start- och lästa höjder följer användarens beslut att bakgrunden bara ger tips.
+
+**Kvar:** frågorna 12–19 i TODO (*Från kodgranskningen*) och de mindre fynden i BACKLOG (*Kodgranskningen
+2026-11-08*). Det som ska provas på Windows står i TESTER-INFOR.
