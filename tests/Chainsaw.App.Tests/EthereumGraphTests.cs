@@ -251,7 +251,7 @@ public sealed class EthereumGraphTests
 
         var content = InspectorContent.ForNode(scene, scammer);
 
-        Assert.Contains(content.Facts, fact => fact.Name == "Kedja" && fact.Value == "Ethereum");
+        Assert.Contains("Ethereum", content.Subtitle, StringComparison.Ordinal);
         Assert.DoesNotContain(content.Facts, fact => fact.Name == "In");
         Assert.True(content.HasBalances);
         Assert.True(content.HasFreezeText);

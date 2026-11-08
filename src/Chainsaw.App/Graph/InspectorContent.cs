@@ -22,13 +22,31 @@ public sealed record InspectorFact(string Name, string Value);
 /// </param>
 public sealed record WhyLine(string Text, GuideTopic? Topic, string? Heading = null);
 
-/// <summary>What the inspector shows for what is chosen (sketch GR4): a node or a line.</summary>
+/// <summary>
+/// One id the inspector writes out in full in its dark box (sketch IN2b), in Cascadia Mono with a copy button, so that
+/// it can be checked against the chain with any tool (principle 1).
+/// </summary>
+/// <param name="Value">The id: an address, a txid, a coin or the other chain's id.</param>
+/// <param name="Note">
+/// What stands small under it, for a transaction its block's height and hash; <see langword="null"/> for none.
+/// </param>
+public sealed record InspectorDetail(string Value, string? Note = null)
+{
+    /// <summary>Gets whether a note stands under the id.</summary>
+    public bool HasNote => Note is not null;
+}
+
+/// <summary>
+/// What the inspector shows for what is chosen (sketches IN2b, GR5, TK1a and AN1b): the heading with the sort's icon,
+/// the name and a line under it, the facts and the ids in full. The inspector only reads; the actions stand at the
+/// node.
+/// </summary>
 /// <param name="Title">The heading: the node's name, or the line's two ends.</param>
 /// <param name="Icon">The heading's icon's resource key.</param>
 /// <param name="Ink">The heading icon's colour.</param>
 /// <param name="Shape">The heading icon's frame.</param>
 /// <param name="Facts">The facts in the grid.</param>
-/// <param name="Details">
+/// <param name="Ids">
 /// Addresses, txids and blocks, written out in full so that they can be checked against the chain.
 /// </param>
 /// <param name="Why">The answers to <em>Varför?</em>.</param>
@@ -39,15 +57,59 @@ public sealed record InspectorContent(
     GraphInk Ink,
     NodeShape Shape,
     IReadOnlyList<InspectorFact> Facts,
-    IReadOnlyList<string> Details,
+    IReadOnlyList<InspectorDetail> Ids,
     IReadOnlyList<WhyLine> Why,
     IReadOnlyList<ExpansionRequest> Expansion)
 {
     /// <summary>The most addresses, transactions or blocks written out; the rest are counted.</summary>
     public const int MostDetails = 12;
 
+    /// <summary>What the line under the heading says for a start point (sketch IN2b).</summary>
+    public const string StartPointWord = "startpunkt";
+
+    /// <summary>What the line under a chosen line's heading starts with.</summary>
+    public const string LineWord = "Linje";
+
     /// <summary>The icon of a chosen line.</summary>
     private const string EdgeIcon = "Icon.Kind.Swap";
+
+    /// <summary>The Swedish culture numbers are written in, with a space between the thousands.</summary>
+    private static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
+
+    /// <summary>
+    /// Gets the line under the heading (sketch IN2b): the sort, the chain and, for a start point, that the trace
+    /// starts there, for example <c>Okänd · Bitcoin · startpunkt</c>. The node keeps its own sort (sketch GR5).
+    /// </summary>
+    public string Subtitle { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets whether the heading is a name (a label's or the user's own), drawn in the text's colour; a node without a
+    /// name is headed by its address shortened, in the muted grey (sketch GR5).
+    /// </summary>
+    public bool IsNamed { get; init; } = true;
+
+    /// <summary>Gets whether the heading icon's frame is dashed, as the node's is (an uncertain sort).</summary>
+    public bool IsDashed { get; init; }
+
+    /// <summary>
+    /// Gets what is said after the ids when more were left out, for example <c>och 3 till</c>; otherwise
+    /// <see langword="null"/>.
+    /// </summary>
+    public string? MoreIds { get; init; }
+
+    /// <summary>Gets whether some ids were left out.</summary>
+    public bool HasMoreIds => MoreIds is not null;
+
+    /// <summary>Gets whether there are ids to write out.</summary>
+    public bool HasIds => Ids.Count > 0;
+
+    /// <summary>
+    /// Gets the ids as lines: each id, then its note. A plain view of <see cref="Ids"/>, for reading and for tests.
+    /// </summary>
+    public IReadOnlyList<string> Details =>
+    [
+        .. Ids.SelectMany(detail => detail.Note is { } note ? [detail.Value, note] : new[] { detail.Value }),
+    ];
 
     /// <summary>Gets whether the chosen node can be expanded.</summary>
     public bool CanExpand => Expansion.Count > 0;
@@ -68,8 +130,8 @@ public sealed record InspectorContent(
     public bool HasFreezeText => FreezeText is not null;
 
     /// <summary>
-    /// Gets whether the chosen node is a start point, which the inspector says under its heading with the flag
-    /// (sketch GR5); the node keeps its own sort.
+    /// Gets whether the chosen node is a start point, which the line under the heading ends with (sketch IN2b);
+    /// the node keeps its own sort (sketch GR5).
     /// </summary>
     public bool IsStartPoint { get; init; }
 
@@ -88,14 +150,17 @@ public sealed record InspectorContent(
                 new("In", AmountText.WithUnit(node.In)),
                 new("Ut", AmountText.WithUnit(node.Out)),
                 new("Spårat in", Traced(scene, node.TracedIn)),
-                new("Sort", node.Look.Name),
             }
-            : new List<InspectorFact>
-            {
-                new("Kedja", model.Chain.ToString()),
-                new("Spårat in", TracedPerAsset(scene, node.TracedIns)),
-                new("Sort", node.Look.Name),
-            };
+            : new List<InspectorFact> { new("Spårat in", TracedPerAsset(scene, node.TracedIns)) };
+        var lines = scene.Edges.Where(edge => edge.Edge.From == node.Key || edge.Edge.To == node.Key)
+            .SelectMany(edge => edge.Edge.Transfers)
+            .ToList();
+        if (lines.Count > 0)
+        {
+            var transactions = lines.Select(transfer => transfer.Transaction).Distinct().Count();
+            facts.Add(new InspectorFact("Tx", Count(transactions)));
+        }
+
         if (model.Hop is { } hop)
         {
             facts.Add(new InspectorFact("Hopp", HopLayout.NameOf(hop)));
@@ -106,20 +171,58 @@ public sealed record InspectorContent(
             facts.Add(new InspectorFact("Först in", Time(first)));
         }
 
+        if (lines.Select(transfer => transfer.Height).Max() is { } latest)
+        {
+            facts.Add(new InspectorFact("Senast", "block " + Count(latest)));
+        }
+
+        var (ids, more) = Limit(NodeDetails(model));
         return new InspectorContent(
             node.Name,
             node.Look.Icon,
             node.Look.Ink,
             node.Look.Shape,
             facts,
-            NodeDetails(model),
+            ids,
             NodeWhy(scene, node),
             ExpansionOf(model))
         {
             IsStartPoint = model.IsStartPoint,
             Balances = node.Balances,
+            Subtitle = NodeSubtitle(node),
+            IsNamed = node.IsNamed,
+            IsDashed = node.Look.IsDashed,
+            MoreIds = more,
         };
     }
+
+    /// <summary>
+    /// Writes the line under a node's heading (sketch IN2b): its sort, its chain, how many addresses its cluster has,
+    /// and <see cref="StartPointWord"/> when the trace starts there.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>For example <c>Okänd · Bitcoin · startpunkt</c> or <c>Kluster · Bitcoin · 6 adresser</c>.</returns>
+    public static string NodeSubtitle(NodeView node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        var parts = new List<string> { node.Look.Name, node.Node.Chain.ToString() };
+        if (node.Count.Length > 0)
+        {
+            parts.Add(node.Count + " adresser");
+        }
+
+        if (node.Node.IsStartPoint)
+        {
+            parts.Add(StartPointWord);
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    /// <summary>Writes a whole number as Swedish does, with a space between the thousands.</summary>
+    /// <param name="number">The number.</param>
+    /// <returns>For example <c>974 990</c>.</returns>
+    private static string Count(long number) => number.ToString("#,##0", Swedish);
 
     /// <summary>Gives the inspector's content for a line.</summary>
     /// <param name="scene">The scene.</param>
@@ -153,8 +256,31 @@ public sealed record InspectorContent(
         }
 
         var title = $"{scene.Node(model.From)?.Name ?? model.From} → {scene.Node(model.To)?.Name ?? model.To}";
-        return new InspectorContent(
-            title, EdgeIcon, edge.Ink, NodeShape.Round, facts, EdgeDetails(model), EdgeWhy(scene, edge), []);
+        var (ids, more) = Limit(EdgeDetails(model));
+        return new InspectorContent(title, EdgeIcon, edge.Ink, NodeShape.Round, facts, ids, EdgeWhy(scene, edge), [])
+        {
+            Subtitle = EdgeSubtitle(scene, edge),
+            IsDashed = edge.Dash != EdgeDash.None,
+            MoreIds = more,
+        };
+    }
+
+    /// <summary>
+    /// Writes the line under a chosen line's heading: <see cref="LineWord"/> and its chain, and the other chain when
+    /// the money continues there.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="edge">The line.</param>
+    /// <returns>For example <c>Linje · Bitcoin</c> or <c>Linje · Bitcoin → Ethereum</c>.</returns>
+    public static string EdgeSubtitle(GraphScene scene, EdgeView edge)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(edge);
+        var subtitle = $"{LineWord} · {edge.Edge.Amount.Asset.Chain}";
+        return edge.Edge.Kind == GraphEdgeKind.ContinuesOnOtherChain
+            && scene.Node(edge.Edge.To)?.Node.OtherChain is { } other
+            ? $"{subtitle} → {other.Chain}"
+            : subtitle;
     }
 
     /// <summary>What a line says when every transaction on it is checked against its own bytes.</summary>
@@ -265,8 +391,8 @@ public sealed record InspectorContent(
 
     /// <summary>Gives a node's addresses or ids, written out in full.</summary>
     /// <param name="node">The node.</param>
-    /// <returns>The lines.</returns>
-    private static IReadOnlyList<string> NodeDetails(GraphNode node)
+    /// <returns>The ids.</returns>
+    private static List<InspectorDetail> NodeDetails(GraphNode node)
     {
         IEnumerable<string> lines = node.Kind switch
         {
@@ -276,26 +402,21 @@ public sealed record InspectorContent(
             _ when node.Accounts.Count > 0 => node.Accounts.Select(GraphScene.Written),
             _ => node.GraphAddresses.Select(address => address.Value),
         };
-        return Limit(lines.ToList());
+        return [.. lines.Select(line => new InspectorDetail(line))];
     }
 
     /// <summary>Gives a line's transactions and their blocks, so that each can be checked against the chain.</summary>
     /// <param name="edge">The line.</param>
-    /// <returns>The lines: a txid, then its block's height and hash.</returns>
-    private static IReadOnlyList<string> EdgeDetails(GraphEdge edge)
-    {
-        var lines = new List<string>();
-        foreach (var transfer in edge.Transfers.DistinctBy(transfer => transfer.Transaction))
-        {
-            lines.Add(transfer.Transaction.Id);
-            lines.Add(transfer.Block is null && transfer.AccountBlock is { } known
+    /// <returns>The ids: each txid with its block's height and hash under it.</returns>
+    private static List<InspectorDetail> EdgeDetails(GraphEdge edge) =>
+    [
+        .. edge.Transfers.DistinctBy(transfer => transfer.Transaction).Select(transfer => new InspectorDetail(
+            transfer.Transaction.Id,
+            transfer.Block is null && transfer.AccountBlock is { } known
                 ? string.Create(
                     CultureInfo.InvariantCulture, $"Block {known.Height} · hashen saknas i ärendet; expandera igen")
-                : BlockText(transfer.Block));
-        }
-
-        return Limit(lines, MostDetails * 2);
-    }
+                : BlockText(transfer.Block))),
+    ];
 
     /// <summary>Writes a block's height and hash, or that the transaction is unconfirmed.</summary>
     /// <param name="block">The block.</param>
@@ -304,14 +425,13 @@ public sealed record InspectorContent(
         ? "Obekräftad: inte i något block än"
         : string.Create(CultureInfo.InvariantCulture, $"Block {block.Height} · {block.Hash.Value}");
 
-    /// <summary>Keeps the first lines and counts the rest.</summary>
-    /// <param name="lines">The lines.</param>
-    /// <param name="most">How many to keep.</param>
-    /// <returns>The kept lines, and <c>och 3 till</c> when some were left out.</returns>
-    private static IReadOnlyList<string> Limit(IReadOnlyList<string> lines, int most = MostDetails) =>
-        lines.Count <= most
-            ? lines
-            : [.. lines.Take(most), string.Create(CultureInfo.InvariantCulture, $"och {lines.Count - most} till")];
+    /// <summary>Keeps the first <see cref="MostDetails"/> ids and counts the rest.</summary>
+    /// <param name="ids">The ids.</param>
+    /// <returns>The kept ids, and <c>och 3 till</c> when some were left out, otherwise <see langword="null"/>.</returns>
+    private static (IReadOnlyList<InspectorDetail> Kept, string? More) Limit(List<InspectorDetail> ids) =>
+        ids.Count <= MostDetails
+            ? (ids, null)
+            : ([.. ids.Take(MostDetails)], "och " + Count(ids.Count - MostDetails) + " till");
 
     /// <summary>Answers <em>Varför?</em> for a node: its start, labels, ends, traced money and expansion.</summary>
     /// <param name="scene">The scene.</param>

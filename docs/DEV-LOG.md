@@ -2538,3 +2538,28 @@ och *+ Skäl, frivilligt*) och *Allt avgjort* med ringen, sammanfattningen och l
   andra; ett IO-fel från sanktionslistan gör raden misslyckad; varje rads `CancellationTokenSource` tas bort när
   hämtningen är över.
 
+
+## Inspektören efter IN2b, GR5, TK1a och AN1b (2026-11-08, TODO 39.2)
+
+- **Egen vy:** inspektören är flyttad ur `GraphView.xaml` till `Views/InspectorView.xaml` (samma vymodell), så att
+  andra ändringar i grafen inte krockar med den. `ChecksPanel` står kvar ovanpå i grafens vy.
+- **Huvudet (IN2b):** sortens ikon i en ram på 38 px i nodens form (streckad när noden är det), rubriken 17 px, och
+  under den `InspectorContent.Subtitle`: sorten, kedjan, *N adresser* för ett kluster och *startpunkt* (ersätter
+  brickan *Startpunkt* med flaggan och fakta *Sort* och *Kedja*). En linje säger *Linje · Bitcoin* (och den andra
+  kedjan när pengarna fortsätter där). En nod utan namn har rubriken i grått (GR5, `IsNamed`). *Varför?* är en rund
+  knapp på 32 px.
+- **Fakta:** *Tx* (antalet tx på nodens linjer i grafen) och *Senast* (*block N*, högsta blockhöjden på dem) är nya,
+  som i skissen. Liksom *In* och *Ut* gäller de grafens linjer, inte adressens hela historik.
+- **Adresserna (IN2b):** `InspectorDetail` (id och en not under), i en mörk ruta i Cascadia Mono med kopiera på 30 px;
+  en linjes block står under sin txid i stället för som egen rad. `Details` finns kvar som platt lista.
+- **Saldo per token (TK1a, listan):** märket i en rund bricka, snöflingan på sin skiva, utgivaren under, det som
+  ligger kvar till höger och SEK under. SEK räknas till den senaste kursen ärendet har för tillgången
+  (`GraphSnapshot.Rates`, ur samma uppslag som linjernas värden, inga nya uppslag); tipset visar kursens tid och
+  stegen. Utan kurs visas ingen SEK. Avsteg: skissen säger *vid tiden*; dagens kurs kräver ett nytt uppslag och hör
+  till kortets baksida. Rutan om frysning har tre nya färger i `Colors.xaml` (`Brush.Freeze.*`).
+- **Avsteg:** *Begäran om frysning …* visas inte, eftersom ingen sådan begäran går att göra än (princip 7). Snöflingans
+  skiva är 18 px med ikonen 12 px (minsta ikonstorleken), inte 16/9 som i skissen. Inspektörens bredd är 340 px som
+  i IN2b (var 280).
+- **Historik (AN1b):** runda markörer på 18 px, tiden i svag text, *Ta tillbaka*/*Ångra* som piller under raden (accentens
+  ram när formuläret är öppet), och formuläret utan egen ruta. Klustringens slutsatser är nedtonade som fakta.
+- 10 nya tester i `InspectorContentTests`; tre tester ändrade (*Sort* och *Kedja* står nu i raden under rubriken).

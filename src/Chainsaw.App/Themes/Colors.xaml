@@ -67,6 +67,10 @@
     <!-- Kan frysas (sketch TK1a): a pale ice-blue disc with a dark snowflake. -->
     <SolidColorBrush x:Key="Brush.Mark.Freeze" Color="#A9DCF2" />
     <SolidColorBrush x:Key="Brush.Mark.OnFreeze" Color="#0E2633" />
+    <!-- The inspector's box that says who can freeze what is left (sketch TK1a): a cold, dark tint with pale text. -->
+    <SolidColorBrush x:Key="Brush.Freeze.Box" Color="#1B2428" />
+    <SolidColorBrush x:Key="Brush.Freeze.Edge" Color="#3F5A66" />
+    <SolidColorBrush x:Key="Brush.Freeze.Text" Color="#D6E8EF" />
     <!-- The swap's pill on a line (sketch TK1a). -->
     <SolidColorBrush x:Key="Brush.Graph.SwapPill" Color="#2A2433" />
     <!-- The start point's flag (sketch GR5, variant A): a light disc, the same form as the marks, in the other corner. -->

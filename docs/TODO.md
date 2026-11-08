@@ -109,9 +109,10 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     arbetsytor. Att bygga om, i ordning:
     1. **Kontroller och förslag**: *Löst 2026-11-08* genom KF2b (ett förslag i taget). Kvar: formuläret för en egen
        yta står fortfarande under grafens hörn (se *Kontroller, förslag och områden*).
-    2. **Inspektören** (IN2b, GR5, TK1a, AN1b): raden *Okänd · Bitcoin · startpunkt* under namnet; adressen i sin
-       mörka ruta med kopiera; saldo per token med SEK och utgivare, *Begäran om frysning …*; i Historik runda
-       markörer och *Ta tillbaka*/*Ångra* som piller under raden.
+    2. **Inspektören**: *Byggd 2026-11-08* efter IN2b, GR5, TK1a och AN1b. Kvar: *Begäran om frysning …* (TK1a)
+       visas inte förrän en begäran om frysning till utgivaren går att göra (mall i Requests, BG1b); SEK för det som
+       ligger kvar räknas till den senaste kursen ärendet har för tillgången (vid den senaste rörelsen i grafen), inte
+       till dagens kurs, som kortets baksida ska visa.
     3. **Grafen** (GR4, GR5, TK1a): tidslinjen under grafen (TL1a) saknas; noden växer inte med namn och lång adress;
        tokenmärket som liten rund bricka; swappen som piller på linjen; rubrikerna för kedjornas delar av ytan.
     4. **Bildspråkets ruta GR7a** (godkänd, inte byggd).

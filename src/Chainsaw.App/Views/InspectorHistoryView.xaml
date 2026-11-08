@@ -19,13 +19,36 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
 
-        <!-- The row's button: small and quiet; it never takes the keyboard, so that Enter stores the open form. -->
-        <Style x:Key="Button.Undo" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
+        <!--
+          The row's Ta tillbaka or Ångra (sketch AN1b): a small pill under the row, quiet until hovered, and lit in the
+          accent's frame while its form is open. It never takes the keyboard, so that Enter stores the open form.
+        -->
+        <Style x:Key="Button.Undo" TargetType="Button">
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Height" Value="24" />
-            <Setter Property="Padding" Value="8,0" />
-            <Setter Property="FontSize" Value="12.5" />
-            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Pill" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="12" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Pill" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- A quiet line in the form: what storing it means. -->
@@ -58,51 +81,52 @@
                 <DataTemplate DataType="{x:Type vm:HistoryRowViewModel}">
                     <Grid x:Name="RowGrid">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="26" />
+                            <ColumnDefinition Width="18" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- The time line, down to the next row. -->
-                        <Rectangle x:Name="Line" Width="1" Fill="{StaticResource Brush.BorderStrong}" Margin="0,24,0,0"
+                        <!-- The time line, from under the marker down to the next row. -->
+                        <Rectangle x:Name="Line" Width="1" Fill="{StaticResource Brush.Border}" Margin="0,21,0,0"
                                    HorizontalAlignment="Center" />
 
-                        <!-- The icon in a small frame: dashed for an automatic conclusion or a link. -->
-                        <Grid x:Name="Mark" Width="22" Height="22" VerticalAlignment="Top">
-                            <Rectangle x:Name="Frame" RadiusX="6" RadiusY="6" StrokeThickness="1.2"
-                                       Fill="{StaticResource Brush.Surface}"
-                                       Stroke="{Binding Event.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
+                        <!-- The round marker with the event's icon: dashed for an automatic conclusion or a link. -->
+                        <Grid x:Name="Mark" Width="18" Height="18" Margin="0,3,0,0" VerticalAlignment="Top">
+                            <Ellipse x:Name="Frame" StrokeThickness="1.5" Fill="{StaticResource Brush.Surface}"
+                                     Stroke="{Binding Event.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
                             <controls:GridIcon Size="12" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                Data="{Binding Event.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
                                                Foreground="{Binding Event.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
                         </Grid>
 
-                        <StackPanel Grid.Column="1" Margin="8,0,0,14">
+                        <StackPanel Grid.Column="1" Margin="10,0,0,12">
                             <DockPanel x:Name="Head" ToolTip="{Binding Event.ToolTip}">
-                                <Button DockPanel.Dock="Right" Margin="6,0,0,0" Style="{StaticResource Button.Undo}"
-                                        Visibility="{Binding Event.CanUndo, Converter={StaticResource Visible}}"
-                                        AutomationProperties.Name="{Binding Event.UndoText}"
-                                        Command="{Binding DataContext.ToggleCommand,
-                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <controls:GridIcon Size="12" VerticalAlignment="Center" Data="{StaticResource Icon.Undo}"
-                                                           Foreground="{StaticResource Brush.TextMuted}" />
-                                        <TextBlock Text="{Binding Event.UndoText}" Margin="5,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <TextBlock Text="{Binding Event.TimeText}" DockPanel.Dock="Right" FontSize="12"
-                                           Foreground="{StaticResource Brush.TextDim}" Margin="6,3,0,0" />
+                                <TextBlock Text="{Binding Event.TimeText}" DockPanel.Dock="Right" FontSize="11"
+                                           Foreground="{StaticResource Brush.TextFaint}" Margin="8,2,0,0" />
                                 <StackPanel>
-                                    <TextBlock x:Name="Title" Text="{Binding Event.Text}" FontSize="13.5"
-                                               TextTrimming="CharacterEllipsis" Foreground="{StaticResource Brush.Text}" />
-                                    <TextBlock x:Name="Sub" Text="{Binding Event.Sub}" FontSize="12" Margin="0,2,0,0"
-                                               TextTrimming="CharacterEllipsis" Foreground="{StaticResource Brush.TextDim}" />
+                                    <TextBlock x:Name="Title" Text="{Binding Event.Text}" FontSize="12.5"
+                                               TextWrapping="Wrap" Foreground="{StaticResource Brush.Text}" />
+                                    <TextBlock x:Name="Sub" Text="{Binding Event.Sub}" FontSize="11" Margin="0,1,0,0"
+                                               TextWrapping="Wrap" LineHeight="16" Foreground="{StaticResource Brush.TextDim}" />
                                 </StackPanel>
                             </DockPanel>
 
+                            <!-- Ta tillbaka or Ångra as a pill under the row (sketch AN1b), only on the user's own. -->
+                            <Button x:Name="Undo" Margin="0,6,0,0" Style="{StaticResource Button.Undo}"
+                                    Visibility="{Binding Event.CanUndo, Converter={StaticResource Visible}}"
+                                    AutomationProperties.Name="{Binding Event.UndoText}"
+                                    ToolTip="{Binding Event.UndoText}"
+                                    Command="{Binding DataContext.ToggleCommand,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}">
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:GridIcon Size="12" VerticalAlignment="Center" Data="{StaticResource Icon.Undo}"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    <TextBlock Text="{Binding Event.UndoText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
                             <!-- The form under the row: an optional reason, and what storing it means. -->
-                            <Border x:Name="Form" Margin="0,10,0,0" Padding="10,2,10,10" CornerRadius="8" BorderThickness="1"
-                                    BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.SurfaceRaised}"
+                            <Border x:Name="Form" Margin="0,4,0,0" Padding="0,0,0,4"
                                     Visibility="{Binding IsOpen, Converter={StaticResource Visible}}"
                                     DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                 <Border.InputBindings>
@@ -203,13 +227,19 @@
                         <DataTrigger Binding="{Binding Event.Kind}" Value="{x:Static graph:HistoryKind.Withdrawal}">
                             <Setter TargetName="Title" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
                         </DataTrigger>
+                        <!-- What Chainsaw concluded by itself reads as quietly as a fact; the user's own stand out. -->
+                        <DataTrigger Binding="{Binding Event.Kind}" Value="{x:Static graph:HistoryKind.Clustered}">
+                            <Setter TargetName="Title" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding Event.IsWithdrawn}" Value="True">
                             <Setter TargetName="Head" Property="Opacity" Value="0.45" />
                             <Setter TargetName="Mark" Property="Opacity" Value="0.45" />
                             <Setter TargetName="Title" Property="TextDecorations" Value="Strikethrough" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding IsOpen}" Value="True">
-                            <Setter TargetName="Frame" Property="Fill" Value="{StaticResource Brush.SurfaceSelected}" />
+                            <Setter TargetName="Undo" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                            <Setter TargetName="Undo" Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+                            <Setter TargetName="Undo" Property="Foreground" Value="{StaticResource Brush.Text}" />
                         </DataTrigger>
                     </DataTemplate.Triggers>
                 </DataTemplate>
