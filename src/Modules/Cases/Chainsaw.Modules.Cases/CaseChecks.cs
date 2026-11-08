@@ -45,6 +45,11 @@ internal static class CaseChecks
             problems.Add(CaseProblem.AnchorsReplaced);
         }
 
+        if (HasForeignTrigger(database, transaction))
+        {
+            problems.Add(CaseProblem.TriggerAdded);
+        }
+
         var results = new List<ChainVerification>();
         foreach (var chain in chains)
         {
@@ -202,6 +207,35 @@ internal static class CaseChecks
         using var command = database.Command("SELECT count(*) FROM journal WHERE kind = $kind", transaction);
         command.Parameters.AddWithValue("$kind", CaseJournalKinds.AnchorsReplaced);
         return command.ExecuteScalar() is long count && count > 0;
+    }
+
+    /// <summary>
+    /// Checks for a trigger that Chainsaw does not make: every trigger must be one of the Cases module's protecting
+    /// triggers or a sealed table's, exactly as created. A trigger on a table that is not sealed (for example one that
+    /// drops a module's index rows with <c>RAISE(IGNORE)</c>) is otherwise seen by no check, and runs on every write.
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns><see langword="true"/> when there is such a trigger.</returns>
+    private static bool HasForeignTrigger(CaseDatabase database, SqliteTransaction transaction)
+    {
+        using var command = database.Command(
+            "SELECT name, tbl_name, sql FROM sqlite_schema WHERE type = 'trigger'", transaction);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var name = reader.GetValue(0) as string ?? string.Empty;
+            var table = reader.GetValue(1) as string ?? string.Empty;
+            var sql = reader.GetValue(2) as string;
+            var known = CasesSchema.ProtectingTriggers.Any(trigger => trigger.Name == name && trigger.Table == table)
+                || HashChain.Triggers(table).Any(trigger => trigger.Name == name && trigger.Sql == sql);
+            if (!known)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

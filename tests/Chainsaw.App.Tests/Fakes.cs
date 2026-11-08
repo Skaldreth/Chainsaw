@@ -377,6 +377,9 @@ internal sealed class TestCase(string caseNumber) : ICase
     public void SayHowSavesGo(int failuresInARow) =>
         SaveStateChanged?.Invoke(this, new CaseSaveState(failuresInARow));
 
+    /// <summary>Says, as a save would, that the case file was replaced outside Chainsaw and was left alone.</summary>
+    public void SayFileReplaced() => SaveStateChanged?.Invoke(this, new CaseSaveState(0, FileReplaced: true));
+
     public void Close()
     {
         Disposed++;

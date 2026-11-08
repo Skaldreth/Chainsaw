@@ -13,6 +13,11 @@ public sealed class AlertCardTests
     {
         Assert.Null(AlertCard.FromArguments([], isRunning: false, At));
         Assert.Null(AlertCard.FromArguments(["chainsaw:btc/bc1qexample"], isRunning: false, At));
+        // A link with a quotation mark splits into more arguments under "%1"; it must never show the card.
+        Assert.Null(AlertCard.FromArguments(
+            ["chainsaw:btc/bc1qexample", BackgroundNames.ScreenMessageArgument], isRunning: false, At));
+        Assert.Null(AlertCard.FromArguments(
+            [BackgroundNames.ScreenMessageArgument, "chainsaw:btc/bc1qexample"], isRunning: false, At));
 
         var closed = AlertCard.FromArguments([BackgroundNames.ScreenMessageArgument], isRunning: false, At);
         var running = AlertCard.FromArguments([BackgroundNames.ScreenMessageArgument], isRunning: true, At);

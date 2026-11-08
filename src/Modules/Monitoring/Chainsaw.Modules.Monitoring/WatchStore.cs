@@ -161,6 +161,128 @@ internal static class WatchStore
         return new WatchHit(record.Sequence, watch.Id, watch.Chain, match, origins, journal.Sequence, journal.Utc);
     }
 
+    /// <summary>Reads the background's tips, oldest first, each as its latest record leaves it.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The tips.</returns>
+    public static IReadOnlyList<WatchTip> ReadTips(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand("""
+            SELECT sequence, action, tip, watch_id, entry_id, chain, txid, block_height, block_hash, block_time,
+                   direction, asset, amount, counterparties, origins, hit_sequence, journal_sequence, recorded_utc
+            FROM monitoring_tips ORDER BY sequence
+            """);
+        using var rows = command.ExecuteReader();
+        var tips = new List<WatchTip>();
+        while (rows.Read())
+        {
+            var action = Enum.Parse<WatchTipState>(rows.GetString(1));
+            var utc = WatchCodec.Time(rows.GetString(17));
+            if (action != WatchTipState.Pending)
+            {
+                // A tip is closed once; a later record of the same tip changes nothing.
+                var at = tips.FindIndex(tip => tip.Sequence == rows.GetInt64(2));
+                if (at >= 0 && tips[at].State == WatchTipState.Pending)
+                {
+                    tips[at] = tips[at] with
+                    {
+                        State = action,
+                        Hit = rows.IsDBNull(15) ? null : rows.GetInt64(15),
+                        ClosedUtc = utc,
+                    };
+                }
+
+                continue;
+            }
+
+            var chain = Enum.Parse<Chain>(rows.GetString(5));
+            var match = new WatchMatch(
+                rows.GetString(6),
+                new WatchBlock(rows.GetInt64(7), rows.GetString(8), WatchCodec.Time(rows.GetString(9))),
+                Enum.Parse<WatchDirection>(rows.GetString(10)),
+                new AssetAmount(
+                    WatchCodec.DecodeAsset(rows.GetString(11)),
+                    BigInteger.Parse(rows.GetString(12), CultureInfo.InvariantCulture)),
+                WatchCodec.DecodeAddresses(chain, rows.GetString(13)));
+            tips.Add(new WatchTip(
+                rows.GetInt64(0),
+                rows.GetString(3),
+                chain,
+                match,
+                Guid.Parse(rows.GetString(4)),
+                JsonSerializer.Deserialize<List<long>>(rows.GetString(14)) ?? [],
+                rows.GetInt64(16),
+                utc));
+        }
+
+        return tips;
+    }
+
+    /// <summary>Seals a tip the background gave, waiting for Chainsaw's own lookup.</summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="watch">The watch.</param>
+    /// <param name="entry">The queue entry it came in.</param>
+    /// <param name="match">What the background says moved.</param>
+    /// <param name="origins">The background's responses, sealed in the case.</param>
+    /// <param name="journal">The journal entry that brought it in.</param>
+    /// <returns>The sealed tip.</returns>
+    public static WatchTip SealTip(
+        ICaseTransaction transaction, Watch watch, Guid entry, WatchMatch match, IReadOnlyList<long> origins,
+        JournalEntry journal)
+    {
+        var record = transaction.AppendSealed(
+            MonitoringSchema.TipsChain,
+            [
+                nameof(WatchTipState.Pending),
+                null,
+                watch.Id,
+                entry.ToString("N"),
+                watch.Chain.ToString(),
+                match.Transaction,
+                match.Block.Height,
+                match.Block.Hash,
+                WatchCodec.Text(match.Block.Time),
+                match.Direction.ToString(),
+                WatchCodec.Encode(match.Amount.Asset),
+                WatchCodec.Units(match.Amount),
+                WatchCodec.Encode(match.Counterparties),
+                WatchCodec.Encode(watch.Filter),
+                JsonSerializer.Serialize(origins),
+                null,
+                journal.Sequence,
+                WatchCodec.Text(journal.Utc),
+            ]);
+        return new WatchTip(
+            record.Sequence, watch.Id, watch.Chain, match, entry, origins, journal.Sequence, journal.Utc);
+    }
+
+    /// <summary>Seals how a tip was closed.</summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="tip">The tip.</param>
+    /// <param name="state">Confirmed, rejected or dropped.</param>
+    /// <param name="hit">The hit it became, when confirmed.</param>
+    /// <param name="journal">The journal entry that says so.</param>
+    public static void CloseTip(
+        ICaseTransaction transaction, WatchTip tip, WatchTipState state, long? hit, JournalEntry journal) =>
+        transaction.AppendSealed(
+            MonitoringSchema.TipsChain,
+            [
+                state.ToString(), tip.Sequence, tip.WatchId, null, null, null, null, null, null, null, null, null, null,
+                null, null, hit, journal.Sequence, WatchCodec.Text(journal.Utc),
+            ]);
+
+    /// <summary>Reads the filter a tip's watch had when the tip came in.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="tip">The tip.</param>
+    /// <returns>The filter.</returns>
+    public static WatchFilter ReadTipFilter(ICaseReader reader, WatchTip tip)
+    {
+        using var command = reader.CreateCommand("SELECT filter FROM monitoring_tips WHERE sequence = $sequence");
+        Add(command, "$sequence", tip.Sequence);
+        return command.ExecuteScalar() is string json
+            ? WatchCodec.DecodeFilter(json)
+            : throw new InvalidDataException("A tip's sealed record cannot be read.");
+    }
+
     /// <summary>Reads when each watch was last checked.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>Per watch.</returns>

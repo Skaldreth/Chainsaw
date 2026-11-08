@@ -42,6 +42,22 @@ public sealed record WatchHitRow(WatchHit Hit, string Text, string When, bool Is
     public bool IsOut => Hit.Match.Direction == WatchDirection.Out;
 }
 
+/// <summary>
+/// A hit the background said it saw, in the chosen watch's details: grey and dashed while it waits for Chainsaw's own
+/// lookup, faint once the chain did not give it; never drawn as a hit (decided 2026-11-08).
+/// </summary>
+/// <param name="Tip">The tip.</param>
+/// <param name="Text">What the background says moved, in one line.</param>
+/// <param name="When">When and in which block, as the background said.</param>
+public sealed record WatchTipRow(WatchTip Tip, string Text, string When)
+{
+    /// <summary>Gets whether it waits for Chainsaw's own lookup (grey and dashed).</summary>
+    public bool IsPending => Tip.State == WatchTipState.Pending;
+
+    /// <summary>Gets how it stands, on hovering.</summary>
+    public string State => WatchWords.Tip(Tip);
+}
+
 /// <summary>A watch in the list of the view Bevakning (sketch BV1a).</summary>
 public sealed partial class WatchRowViewModel : ObservableObject
 {
@@ -227,6 +243,17 @@ public sealed partial class MonitoringViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HitsTitle), nameof(HasNoHits))]
     public partial IReadOnlyList<WatchHitRow> Hits { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the chosen watch's tips from the background that are not hits: those that wait for Chainsaw's own lookup,
+    /// and those the chain did not give or that were not checked, newest first.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTips))]
+    public partial IReadOnlyList<WatchTipRow> Tips { get; private set; } = [];
+
+    /// <summary>Gets whether the chosen watch has tips to show; the list is hidden otherwise.</summary>
+    public bool HasTips => Tips.Count > 0;
 
     /// <summary>Gets the line in the head: how many watches, active ones and new hits.</summary>
     [ObservableProperty]
@@ -509,6 +536,7 @@ public sealed partial class MonitoringViewModel : ObservableObject
         {
             Facts = [];
             Hits = [];
+            Tips = [];
             return;
         }
 
@@ -543,6 +571,10 @@ public sealed partial class MonitoringViewModel : ObservableObject
             WatchWords.Hit(hit, Name),
             WhenText(hit.Match.Block),
             snapshot.IsNew(hit)))];
+        Tips = [.. snapshot.Tips
+            .Where(tip => tip.WatchId == watch.Id && tip.State != WatchTipState.Confirmed)
+            .OrderByDescending(tip => tip.Sequence)
+            .Select(tip => new WatchTipRow(tip, WatchWords.Hit(tip.Match, Name), WhenText(tip.Match.Block)))];
         OnPropertyChanged(nameof(PauseText));
     }
 

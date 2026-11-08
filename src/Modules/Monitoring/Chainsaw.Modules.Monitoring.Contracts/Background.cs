@@ -45,8 +45,8 @@ public sealed record BackgroundWatch(
     WatchChecked? Checked)
 {
     /// <summary>
-    /// Gets the hits the case already has in the look-back above where the watch is read
-    /// (<see cref="WatchSchedule.Key"/>), so that the background never tells of one the open Chainsaw sealed.
+    /// Gets the hits and the background's tips the case already has in the look-back above where the watch is read
+    /// (<see cref="WatchSchedule.Key"/>), so that the background never tells of one the case knows.
     /// </summary>
     public IReadOnlyList<string> Known { get; init; } = [];
 }
@@ -288,10 +288,12 @@ public interface IBackgroundProgressFile
 /// <summary>What bringing the background's entries into a case did.</summary>
 /// <param name="Entries">How many entries were brought in.</param>
 /// <param name="Responses">How many raw responses were sealed.</param>
-/// <param name="Hits">The hits sealed.</param>
+/// <param name="Tips">
+/// The hits the background said it saw, sealed as tips to be checked against the chain, never as hits.
+/// </param>
 /// <param name="Problems">What could not be brought in, in Swedish.</param>
 public sealed record BackgroundImport(
-    int Entries, int Responses, IReadOnlyList<WatchHit> Hits, IReadOnlyList<string> Problems)
+    int Entries, int Responses, IReadOnlyList<WatchTip> Tips, IReadOnlyList<string> Problems)
 {
     /// <summary>Gets an import that did nothing.</summary>
     public static BackgroundImport None { get; } = new(0, 0, [], []);
@@ -315,9 +317,12 @@ public interface IBackgroundWatches
 
     /// <summary>
     /// Brings the queued entries of a case into it, oldest first, each in one write: the raw responses sealed again
-    /// unchanged after their SHA-256 is checked, a start sealed when the watch has none, the hits sealed under a line in
-    /// the journal when the watch is still active and unchanged and the hit is new, how far the watch is read, and the
-    /// entry's id, so that it is never brought in twice. The case is saved before the entries are removed.
+    /// unchanged after their SHA-256 is checked, a start sealed when the watch has none, the hits the background says
+    /// it saw sealed as tips (<see cref="WatchTip"/>) under a line in the journal when the watch is still active and
+    /// unchanged and the hit is new, how far the watch is read, and the entry's id, so that it is never brought in
+    /// twice. A tip becomes a hit only when Chainsaw's own lookup gives it
+    /// (<see cref="IMonitoringService.CheckAsync"/>).
+    /// The case is saved before the entries are removed.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <returns>What was brought in.</returns>

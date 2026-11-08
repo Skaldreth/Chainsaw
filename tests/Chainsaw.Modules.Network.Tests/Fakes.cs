@@ -238,7 +238,12 @@ internal sealed class ScriptedProbe : IInternetProbe
 
     private int _calls;
 
+    private int _cancelled;
+
     public int Calls => Volatile.Read(ref _calls);
+
+    /// <summary>Gets whether a call was stopped by its token before it was answered.</summary>
+    public bool Cancelled => Volatile.Read(ref _cancelled) == 1;
 
     public void Answer(bool reached) => _answers.Writer.TryWrite(() => reached);
 
@@ -247,7 +252,17 @@ internal sealed class ScriptedProbe : IInternetProbe
     public async Task<bool> ReachesInternetAsync(CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _calls);
-        var answer = await _answers.Reader.ReadAsync(cancellationToken);
+        Func<bool> answer;
+        try
+        {
+            answer = await _answers.Reader.ReadAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            Volatile.Write(ref _cancelled, 1);
+            throw;
+        }
+
         return answer();
     }
 }

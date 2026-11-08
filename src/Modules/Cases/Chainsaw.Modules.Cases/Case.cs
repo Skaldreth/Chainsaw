@@ -81,6 +81,13 @@ internal sealed class Case : ICase
     /// <summary>Whether the journal has recorded why the anchors are replaced at the next save.</summary>
     private bool _replaceAnchors;
 
+    /// <summary>
+    /// Set when a save found the case file changed or replaced outside Chainsaw since this session last read or wrote
+    /// it. The file is then never replaced again in this session: the working copy keeps the session's work as the
+    /// other branch (sketch ÄR1b), and every later save, the closing's included, refuses at once.
+    /// </summary>
+    private volatile bool _fileReplaced;
+
     /// <summary>Set, without waiting for the gate, when the vault is locked and the case is about to close.</summary>
     private volatile bool _closing;
 
@@ -157,6 +164,13 @@ internal sealed class Case : ICase
     /// the new file is in place, so that any number of failed saves still recover.
     /// </summary>
     internal byte[]? CaseFileHash { get; set; }
+
+    /// <summary>
+    /// Gets or sets the size and last write time of the case file as this session last read or wrote it, so that a
+    /// save tells cheaply that the file has not been replaced since; <see langword="null"/> when not known, and the
+    /// next save then hashes the file.
+    /// </summary>
+    internal CaseFiles.Stamp? CaseFileStamp { get; set; }
 
     /// <summary>Gets the store's count of vault locks when the opening began.</summary>
     internal long LocksAtOpening { get; init; }
@@ -437,6 +451,11 @@ internal sealed class Case : ICase
         {
             // The working copy is kept and recovered, with a journal entry, the next time the case is opened.
         }
+        catch (CaseException exception) when (exception.Error == CaseError.Conflict)
+        {
+            // The case file was replaced outside Chainsaw: the working copy is kept beside it, and the next opening
+            // offers it as a case of its own.
+        }
     }
 
     /// <summary>
@@ -622,11 +641,21 @@ internal sealed class Case : ICase
 
     /// <summary>
     /// Writes the case file (the header and then the working copy) to a new file that replaces the old, records the
-    /// new file's hash for recovery and moves this computer's anchors forward.
+    /// new file's hash for recovery and moves this computer's anchors forward. A case file that was changed or
+    /// replaced outside Chainsaw since this session last read or wrote it is never replaced: see
+    /// <see cref="KeepBoth"/>.
     /// </summary>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Conflict"/> when the case file was changed or replaced outside Chainsaw.
+    /// </exception>
     internal void SaveUnlocked()
     {
         _ = Database;
+        if (_fileReplaced)
+        {
+            throw new CaseException(CaseError.Conflict);
+        }
+
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using (var output = new FileStream(
             _paths.SaveFile, FileMode.Create, FileAccess.Write, FileShare.None, CopyBufferSize))
@@ -647,18 +676,52 @@ internal sealed class Case : ICase
             output.Flush(flushToDisk: true);
         }
 
+        // The time is set to the tick, so that a file another program writes in the same coarse tick of the file
+        // system's clock still gets another stamp, and the stamp of this save can be trusted at the next.
+        File.SetLastWriteTimeUtc(_paths.SaveFile, DateTime.UtcNow);
+
+        // Checked as late as can be, right before the replace, so that a file changed while this one was written is
+        // seen too.
+        var stamp = CaseFileStamp;
+        if (CaseFileHash is { } before && !CaseFiles.IsUnchanged(_paths, before, ref stamp))
+        {
+            KeepBoth();
+        }
+
+        CaseFileStamp = stamp;
+
         // Until the new file has replaced the old, the working copy belongs to both, so that a failed or interrupted
         // replace still recovers instead of becoming a conflict.
         var saved = hash.GetHashAndReset();
         CaseFiles.WriteBase(_paths, CaseFileHash is null ? [saved] : [CaseFileHash, saved]);
         File.Move(_paths.SaveFile, _paths.CaseFile, overwrite: true);
         CaseFileHash = saved;
+
+        // Taken from the path just after the replace; a program that replaces the file within that instant is the one
+        // case the stamp cannot see.
+        CaseFileStamp = CaseFiles.StampOf(_paths.CaseFile);
         CaseFiles.WriteBase(_paths, [saved]);
         WriteAnchors();
         if (_autosave.Saved())
         {
             SayHowSavesGo(new CaseSaveState(0));
         }
+    }
+
+    /// <summary>
+    /// Keeps both branches when the case file was changed or replaced outside Chainsaw while the case was open (sketch
+    /// ÄR1b, <em>gick åt två håll</em>): the file is left as it is, the save written aside is removed, and the
+    /// working copy keeps the session's work with the base of the file it belonged to, so that it is the other
+    /// branch, offered as a case of its own (<see cref="ICaseStore.SaveWorkingCopyAsCase"/>) once the case is
+    /// closed, also after a crash. The case stops saving itself, and the listeners are told once.
+    /// </summary>
+    /// <exception cref="CaseException">Always, <see cref="CaseError.Conflict"/>.</exception>
+    private void KeepBoth()
+    {
+        _fileReplaced = true;
+        File.Delete(_paths.SaveFile);
+        SayHowSavesGo(new CaseSaveState(0, FileReplaced: true));
+        throw new CaseException(CaseError.Conflict);
     }
 
     /// <summary>
@@ -1055,7 +1118,8 @@ internal sealed class Case : ICase
     /// </summary>
     private void AutosaveUnlocked()
     {
-        if (_closing || _database is null)
+        // A case whose file was replaced outside Chainsaw is never saved again in this session, so it is not tried.
+        if (_closing || _fileReplaced || _database is null)
         {
             return;
         }
@@ -1082,6 +1146,10 @@ internal sealed class Case : ICase
         catch (CaseException exception) when (exception.Error == CaseError.Closed)
         {
             // The case began closing after the checks above; the closing saves it.
+        }
+        catch (CaseException exception) when (exception.Error == CaseError.Conflict && _fileReplaced)
+        {
+            // The file was replaced outside Chainsaw; the listeners have been told once, and nothing is tried again.
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

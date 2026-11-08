@@ -512,7 +512,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             // A recovered working copy must belong to the case file as it is now; if the file was replaced after the
             // working copy was taken from it, neither is overwritten. A new one is extracted without a leftover
             // rollback journal.
-            var caseFileHash = recovering
+            var (caseFileHash, caseFileStamp) = recovering
                 ? CaseFiles.MatchingBase(paths) ?? throw new CaseException(CaseError.Conflict)
                 : CaseFiles.Extract(paths, header.CaseId);
 
@@ -529,6 +529,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                     _services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget)
                 {
                     CaseFileHash = caseFileHash,
+                    CaseFileStamp = caseFileStamp,
                     LocksAtOpening = opening.Locks,
                 },
                 recovering);

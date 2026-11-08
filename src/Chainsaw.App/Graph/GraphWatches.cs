@@ -17,6 +17,12 @@ public enum WatchLineKind
 
     /// <summary>A hit: a real line with the amount, its rings moving until the hit is seen.</summary>
     Hit,
+
+    /// <summary>
+    /// A hit the background said it saw, waiting for Chainsaw's own lookup: grey and dashed, never a fact; what it is
+    /// is said on hovering.
+    /// </summary>
+    Pending,
 }
 
 /// <summary>The eye in a watched node's corner.</summary>
@@ -135,6 +141,7 @@ public static class GraphWatches
             }
 
             var hitLines = HitLines(watch, node, hits, snapshot, nodeOf, tip, idle);
+            hitLines.AddRange(PendingLines(watch, node, snapshot.PendingOf(watch.Id), nodeOf, hitLines));
             lines.AddRange(hitLines);
             trashHits.AddRange(TrashHits(new WatchAt(watch, node, tip, idle), hits, snapshot, scene.Trash, nodeOf));
             lines.AddRange(GuardLines(watch, node, scene, nodeOf, tip, idle, hitLines));
@@ -174,7 +181,9 @@ public static class GraphWatches
         var named = snapshot.Watches.SelectMany(watch =>
             watch.Filter.Receivers.Concat(watch.Filter.Senders).Append(watch.Subject.Anchor));
         var reached = snapshot.Hits.Where(hit => inForce.Contains(hit.WatchId))
-            .SelectMany(hit => hit.Match.Counterparties);
+            .SelectMany(hit => hit.Match.Counterparties)
+            .Concat(snapshot.Tips.Where(tip => tip.State == WatchTipState.Pending && inForce.Contains(tip.WatchId))
+                .SelectMany(tip => tip.Match.Counterparties));
         return named.Concat(reached).ToHashSet();
     }
 
@@ -231,6 +240,45 @@ public static class GraphWatches
                 // that a line never claims what went to another.
                 var label = hit.Match.Counterparties.Count == 1 ? AmountText.WithUnit(hit.Match.Amount) : null;
                 lines.Add(new WatchLine(from, to, WatchLineKind.Hit, idle, tip, label, isNew, watch.Id));
+            }
+        }
+
+        return lines;
+    }
+
+    /// <summary>
+    /// Gives a grey dashed line per counterparty in the graph of a tip from the background that waits for Chainsaw's
+    /// own lookup, where no hit's line is drawn already.
+    /// </summary>
+    /// <param name="watch">The watch.</param>
+    /// <param name="node">Its node.</param>
+    /// <param name="tips">Its waiting tips, newest first.</param>
+    /// <param name="nodeOf">The nodes by address.</param>
+    /// <param name="drawn">The hit lines already given.</param>
+    /// <returns>The lines.</returns>
+    private static List<WatchLine> PendingLines(
+        Watch watch, string node, IReadOnlyList<WatchTip> tips, Dictionary<ChainAddress, string> nodeOf,
+        IReadOnlyList<WatchLine> drawn)
+    {
+        var lines = new List<WatchLine>();
+        foreach (var tip in tips)
+        {
+            var isOut = tip.Match.Direction == WatchDirection.Out;
+            foreach (var party in tip.Match.Counterparties)
+            {
+                if (!nodeOf.TryGetValue(party, out var other) || other == node)
+                {
+                    continue;
+                }
+
+                var (from, to) = isOut ? (node, other) : (other, node);
+                if (drawn.Concat(lines).Any(line => line.From == from && line.To == to))
+                {
+                    continue;
+                }
+
+                lines.Add(new WatchLine(
+                    from, to, WatchLineKind.Pending, true, WatchWords.TipPendingText, null, false, watch.Id));
             }
         }
 

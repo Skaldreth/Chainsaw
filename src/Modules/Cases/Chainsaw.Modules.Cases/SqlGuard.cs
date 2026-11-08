@@ -177,7 +177,9 @@ internal sealed class SqlGuard
         SqliteAction.CreateIndex or SqliteAction.DropIndex => !IsProtected(second),
         SqliteAction.DropTable => !IsProtected(first),
         SqliteAction.AlterTable => !IsProtected(second),
-        SqliteAction.CreateTrigger => !IsProtected(second) && !IsSealTrigger(first),
+        // Only the Cases module makes triggers (those that protect sealed tables); the verification reports any other,
+        // since a trigger runs on every later write in the case.
+        SqliteAction.CreateTrigger => false,
         SqliteAction.DropTrigger => !IsProtected(second),
 
         // DDL writes SQLite's own schema table; SQLite itself refuses direct changes to it.

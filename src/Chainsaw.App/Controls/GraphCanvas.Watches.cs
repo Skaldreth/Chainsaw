@@ -44,6 +44,9 @@ public sealed partial class GraphCanvas
     /// <summary>The time of one beat of the rings.</summary>
     private static readonly TimeSpan RingBeat = TimeSpan.FromSeconds(1.6);
 
+    /// <summary>The dashes of a tip from the background that waits for Chainsaw's own lookup: uncertain.</summary>
+    private static readonly DashStyle PendingDashes = Frozen(new DashStyle([2, 1.6], 0));
+
     /// <summary>The dots of a watch line and a ray (dotted, never dashed: dashed always means uncertain).</summary>
     private static readonly DashStyle WatchDots = Frozen(new DashStyle([0.01, 2.6], 0));
 
@@ -101,6 +104,9 @@ public sealed partial class GraphCanvas
                     break;
                 case WatchLineKind.Hit:
                     DrawHit(dc, line, curve);
+                    break;
+                case WatchLineKind.Pending:
+                    DrawPending(dc, curve);
                     break;
                 default:
                     break;
@@ -200,6 +206,43 @@ public sealed partial class GraphCanvas
             text.Height + 2);
         dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
         dc.DrawText(text, new Point(box.X + 5, box.Y + 1));
+    }
+
+    /// <summary>
+    /// Draws a tip from the background that waits for Chainsaw's own lookup: a grey dashed line with a hollow eye
+    /// halfway, never the hit's real line, amount or rings; what it is is said on hovering the eye.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="curve">Its curve.</param>
+    private void DrawPending(DrawingContext dc, EdgeCurve curve)
+    {
+        var pen = new Pen(GraphPalette.Find(this, "Brush.Watch.Idle"), 2)
+        {
+            DashStyle = PendingDashes,
+            StartLineCap = PenLineCap.Flat,
+            EndLineCap = PenLineCap.Flat,
+        };
+        dc.DrawGeometry(null, pen, Geometry(curve));
+        DrawLineEye(dc, curve.Middle, idle: true);
+    }
+
+    /// <summary>Gives what a waiting tip's eye says on hovering, or <see langword="null"/> when not on one.</summary>
+    /// <param name="surface">The pointer on the surface.</param>
+    /// <returns>The tip.</returns>
+    private string? PendingTipAt(GraphPoint surface)
+    {
+        var model = _model!;
+        foreach (var line in model.WatchOverlay.Lines.Where(line => line.Kind == WatchLineKind.Pending))
+        {
+            if (model.CurveBetween(line.From, line.To) is { } curve
+                && Math.Abs(curve.Middle.X - surface.X) <= LineEyeSize / 2
+                && Math.Abs(curve.Middle.Y - surface.Y) <= LineEyeSize / 2)
+            {
+                return line.Tip;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

@@ -37,6 +37,8 @@ public static class VerificationText
         CaseProblem.AnchorsReplaced =>
             "Ärendet stämde inte med det den här datorn sparade senast; journalen säger vad "
             + "(case.anchors-replaced).",
+        CaseProblem.TriggerAdded =>
+            "Ärendet har en utlösare som Chainsaw inte lägger dit; den påverkar det som sparas härefter.",
         _ => "Ärendet har ett fel som den här versionen inte kan beskriva.",
     };
 
