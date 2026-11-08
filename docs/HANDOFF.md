@@ -16,6 +16,9 @@ och vad varje etapp byggde i `docs/DEV-LOG.md`.
     i kommandoraden (KR1a).
   - Varje etapp som skriver i ärendet är granskad oberoende tills inga C eller I återstod; de mindre fynden står i
     `docs/BACKLOG.md`.
+- **Låsskärmen är LS1b med bandet ID8f** (2026-11-08): kedja, DNA och kedja under formuläret, ett stramt rep som
+  svajar när fönstret dras, nyckelns svar och vägen där spiralens mitt blir noden *Nytt ärende*. Felfärgen är ett klart
+  rött.
 - **Senaste körningen:** bygget har 0 varningar, och alla 16 testprojekt är gröna. Ett test i App.Tests är instabilt
   (BACKLOG).
 - **Inget är provat på Windows.**

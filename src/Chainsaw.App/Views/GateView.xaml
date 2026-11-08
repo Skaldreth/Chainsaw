@@ -28,6 +28,37 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
+        <!-- The ? in the lock screen's corner (sketch LS1b): a small ring, lighter under the pointer or the keyboard. -->
+        <Style x:Key="Gate.Help" TargetType="Button">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Ring" CornerRadius="12" BorderThickness="1" Background="Transparent"
+                                BorderBrush="{TemplateBinding BorderBrush}">
+                            <TextBlock Text="?" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource Brush.TextDim}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource Brush.TextDim}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- A card of the way out on the step Utgång (sketch FS2a): the chosen one in the accent. -->
         <Style x:Key="Gate.Card" TargetType="Button">
             <Setter Property="Cursor" Value="Hand" />
@@ -157,13 +188,15 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ===== Title bar: on the lock page only the logo and the window buttons (sketches ID8c and FS1a) ===== -->
+        <!-- ===== Title bar: on the lock page only the window buttons (sketch LS1b), in the setup also the logo ===== -->
         <Border Grid.Row="0" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
                 BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="False">
                 <Image DockPanel.Dock="Left" Source="{StaticResource Logo.Small}" Width="16" Height="16"
-                       Margin="14,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
-                <TextBlock DockPanel.Dock="Left" Text="Chainsaw" FontWeight="SemiBold" VerticalAlignment="Center" />
+                       Margin="14,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"
+                       Visibility="{Binding IsFirstRunVisible, Converter={StaticResource Visible}}" />
+                <TextBlock DockPanel.Dock="Left" Text="Chainsaw" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Visibility="{Binding IsFirstRunVisible, Converter={StaticResource Visible}}" />
 
                 <Button DockPanel.Dock="Right" Style="{StaticResource Button.WindowClose}" Click="OnClose"
                         WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Stäng">
@@ -183,71 +216,86 @@
             </DockPanel>
         </Border>
 
-        <!-- ===== The page: the chain that turns into a helix (sketch ID8c), and the form beside it ===== -->
+        <!-- ===== The page: the band of chains and helix (sketch ID8f), and the form above it ===== -->
         <Grid Grid.Row="1" Background="{StaticResource Brush.Background}" ClipToBounds="True">
-            <controls:ChainFigure />
+            <controls:ChainFigure x:Name="Figure" />
 
-            <!-- The lock screen (sketch ID8c): the form where the sketch has it on a 1440 px page. -->
-            <Grid Visibility="{Binding IsLockVisible, Converter={StaticResource Visible}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="760*" MinWidth="420" />
-                    <ColumnDefinition Width="380" />
-                    <ColumnDefinition Width="300*" />
-                </Grid.ColumnDefinitions>
+            <!--
+              The lock screen (sketch LS1b): the logo and the name above one field, in the page above the band. The button
+              comes only once something is typed; Enter is enough. Everything else is behind the ? in the corner.
+            -->
+            <Grid x:Name="LockPage" Margin="{x:Static views:GateView.BandRoom}">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="250*" />
+                    <RowDefinition Height="1.4*" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="254*" />
+                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <StackPanel x:Name="LockForm" Grid.Row="1" Grid.Column="1" DataContext="{Binding LockScreen}">
-                    <TextBlock Text="Lås upp Chainsaw" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,14" />
-                    <TextBlock Text="Huvudnyckel" FontWeight="Medium" Margin="0,0,0,8" />
-                    <PasswordBox x:Name="LockKey" Style="{StaticResource PasswordBox.Lock}" KeyDown="OnLockKeyDown"
-                                 AutomationProperties.Name="Huvudnyckel" />
+                <StackPanel x:Name="LockForm" Grid.Row="1" Width="380" DataContext="{Binding LockScreen}">
+                    <Image Source="{StaticResource Logo.Small}" Width="64" Height="64" HorizontalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="Chainsaw" FontSize="34" FontWeight="SemiBold" HorizontalAlignment="Center"
+                               Margin="0,14,0,18" />
+                    <Grid x:Name="LockField">
+                        <Grid.RenderTransform>
+                            <TranslateTransform x:Name="LockShake" />
+                        </Grid.RenderTransform>
+                        <PasswordBox x:Name="LockKey" Style="{StaticResource PasswordBox.Lock}" KeyDown="OnLockKeyDown"
+                                     PasswordChanged="OnLockKeyChanged" BorderBrush="{StaticResource Brush.BorderStrong}"
+                                     AutomationProperties.Name="Huvudnyckel" />
+                        <TextBlock x:Name="LockHint" Text="Huvudnyckel" FontSize="16" Margin="14,0" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Brush.TextDim}" IsHitTestVisible="False" />
+                    </Grid>
                     <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" Margin="0,8,0,0" />
-                    <Button Style="{StaticResource Button.Primary}" Height="44" Margin="0,14,0,0" Click="OnUnlock"
-                            Content="{Binding UnlockLabel}"
-                            IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}" />
-                    <TextBlock Text="Nyckeln låser upp valvet och ärendena. Den lagras aldrig, och utan den går ärendena inte att läsa."
-                               FontSize="13.5" Foreground="{StaticResource Brush.TextDim}" TextWrapping="Wrap"
-                               LineHeight="19" Margin="0,14,0,0" />
-
-                    <StackPanel Margin="0,26,0,0">
-                        <DockPanel>
-                            <controls:GridIcon DockPanel.Dock="Left" Size="14" Margin="0,0,10,0" VerticalAlignment="Center"
-                                               Data="{StaticResource Icon.Shield}" />
-                            <TextBlock Text="{Binding ExitText}" Style="{StaticResource Text.Note}" />
-                        </DockPanel>
-                        <!-- A watch has hit while Chainsaw was closed or locked (sketch ID8c): only that. -->
-                        <DockPanel Margin="0,10,0,0" Visibility="{Binding HasWatchHit, Converter={StaticResource Visible}}">
-                            <Border DockPanel.Dock="Left" Width="14" Margin="0,0,10,0" VerticalAlignment="Center">
-                                <Ellipse Width="8" Height="8" Fill="{StaticResource Brush.Accent}" HorizontalAlignment="Center" />
-                            </Border>
-                            <TextBlock Text="{x:Static vm:LockViewModel.WatchHitText}" Style="{StaticResource Text.Note}"
-                                       Foreground="{StaticResource Brush.Text}" />
-                        </DockPanel>
-                        <DockPanel Margin="0,10,0,0">
-                            <controls:GridIcon DockPanel.Dock="Left" Size="14" Margin="0,0,10,0" VerticalAlignment="Center"
-                                               Data="{StaticResource Icon.Lock}" />
-                            <TextBlock Text="{Binding AutoLockText}" Style="{StaticResource Text.Note}" />
-                        </DockPanel>
-                    </StackPanel>
+                    <Button x:Name="UnlockButton" Style="{StaticResource Button.Primary}" Height="44" Margin="0,14,0,0"
+                            Click="OnUnlock" Visibility="Hidden"
+                            IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding UnlockLabel}" />
+                            <TextBlock Text="Enter" FontSize="12" FontWeight="Normal" Opacity="0.75" Margin="10,0,0,0"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Grid>
 
+            <!-- The ? in the lower left corner (sketch LS1b): what the key is, the way out, the lock and a watch's hit. -->
+            <Button x:Name="HelpButton" Style="{StaticResource Gate.Help}" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                    Margin="16,0,0,14" AutomationProperties.Name="Om huvudnyckeln"
+                    Visibility="{Binding IsLockVisible, Converter={StaticResource Visible}}"
+                    MouseEnter="OnHelpShown" MouseLeave="OnHelpHidden" GotKeyboardFocus="OnHelpShown"
+                    LostKeyboardFocus="OnHelpHidden" />
+            <Popup x:Name="HelpPopup" PlacementTarget="{Binding ElementName=HelpButton}" Placement="Top"
+                   AllowsTransparency="True" VerticalOffset="-8">
+                <Border Background="{StaticResource Brush.Floating}" BorderBrush="{StaticResource Brush.BorderStrong}"
+                        BorderThickness="1" CornerRadius="8" Padding="12,10" Width="320" DataContext="{Binding LockScreen}">
+                    <StackPanel>
+                        <TextBlock Text="Huvudnyckeln låser upp valvet och ärendena. Den lagras aldrig, och utan den går ärendena inte att läsa."
+                                   FontSize="13" TextWrapping="Wrap" LineHeight="18" Foreground="{StaticResource Brush.TextMuted}" />
+                        <TextBlock Text="{Binding ExitText}" FontSize="13" TextWrapping="Wrap" LineHeight="18" Margin="0,8,0,0"
+                                   Foreground="{StaticResource Brush.TextMuted}" />
+                        <TextBlock Text="{Binding AutoLockText}" FontSize="13" TextWrapping="Wrap" LineHeight="18" Margin="0,8,0,0"
+                                   Foreground="{StaticResource Brush.TextMuted}" />
+                        <!-- A watch has hit while Chainsaw was closed or locked: only that, and only here. -->
+                        <TextBlock Text="{x:Static vm:LockViewModel.WatchHitText}" FontSize="13" TextWrapping="Wrap" LineHeight="18"
+                                   Margin="0,8,0,0" Foreground="{StaticResource Brush.Text}"
+                                   Visibility="{Binding HasWatchHit, Converter={StaticResource Visible}}" />
+                    </StackPanel>
+                </Border>
+            </Popup>
+
             <!-- The first-run setup (sketch FS1a): one step at a time beside the same figure. -->
-            <Grid Visibility="{Binding IsFirstRunVisible, Converter={StaticResource Visible}}">
+            <Grid Visibility="{Binding IsFirstRunVisible, Converter={StaticResource Visible}}"
+                  Margin="{x:Static views:GateView.FirstRunBandRoom}">
                 <Grid.ColumnDefinitions>
-                    <!-- At least clear of the chain, which moves left with a narrow window. -->
-                    <ColumnDefinition Width="700*" MinWidth="420" />
+                    <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="440" />
-                    <ColumnDefinition Width="300*" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="170*" />
+                    <RowDefinition Height="1.4*" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="174*" />
+                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
                 <StackPanel x:Name="FirstRunForm" Grid.Row="1" Grid.Column="1" DataContext="{Binding FirstRun}"
@@ -485,7 +533,7 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Om Chainsaw in the corner: the commit, and on a click the version. -->
+            <!-- Återställningsnyckel in the corner (sketch LS1b): the commit, and on a click Om Chainsaw with the key. -->
             <Button x:Name="AboutButton" Style="{StaticResource Button.About}" HorizontalAlignment="Right"
                     VerticalAlignment="Bottom" Margin="0,0,16,14" Content="{Binding LockScreen.AboutText}"
                     Click="OnAbout" />

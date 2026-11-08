@@ -483,7 +483,7 @@ public sealed partial class GraphCanvas
         var inks = new List<string>();
         if (dot.IsNegative)
         {
-            inks.Add("Brush.Error");
+            inks.Add("Brush.Kind.Risk");
         }
 
         if (dot.IsNear)

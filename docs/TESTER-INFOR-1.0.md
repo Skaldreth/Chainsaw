@@ -234,35 +234,42 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows; appen har inget gränssni
   med sin nya huvudnyckel.
 - Inmatning med åäö i lösenorden (konsolens teckentabell) fungerar i både `keygen` och `open`.
 
-## Låsskärmen och förstagångsinställningen (etapp 10, ID8c och FS1a)
+## Låsskärmen och förstagångsinställningen (etapp 10, ID8f, LS1b och FS1a)
 
-Jämför med skisserna ID8c och FS1a på canvasen, gärna i 1440 × 900 och i ett mindre fönster.
+Jämför med skisserna ID8f, LS1b och FS1a på canvasen, gärna i 1440 × 900 och i ett mindre fönster.
 
-**Kättingen som blir DNA (ID8c)**
-- Kättingen kommer in på snedden uppifrån i magenta, med loggans skarv och en rak bit med hål mellan skarvarna, och
-  står still. Ungefär mitt på diagonalen släpper länkarna: den sista länkens två stänger fortsätter utan skarv eller
-  glipa som spiralens två strängar, lika breda som stängerna.
-- Spiralen vrider sig, vidgas mot nederkanten och går ut genom nedre vänstra hörnet. Strängen bakom är mörkare, och
-  basparen är streck mellan strängarna, ljusa vid den ena och mörkare vid den andra. Inga tunna streck över länkarnas
-  hål och inga mörka skarvar mellan skarven och stängerna.
-- Inget teckenfält bakom; sidan är slät.
-- Partiklarna: små tecken (`. : · + *`) och ibland en bas (A, T, G, C) lossnar från spiralens strängar, driver sakta
-  utåt och tonar in och ut. Kättingen släpper inga.
-- I ett smalare fönster flyttar kättingen till vänster och krockar inte med formuläret.
-- Stäng av animeringar i Windows (Inställningar, Hjälpmedel, Visuella effekter, *Animeringseffekter* av): partiklarna
-  står still.
-- Minimera fönstret och lås upp: Chainsaw använder ingen märkbar processor (Aktivitetshanteraren) medan figuren inte syns.
-- Figuren och partiklarna är skarpa på en skärm med 150 % skalning, och när fönstret flyttas mellan skärmar.
-- Partiklarna hackar inte och gränssnittet känns inte trögt medan de rör sig (skriv i fältet för huvudnyckeln).
+**Bandet: kedja, DNA och kedja (ID8f, ersätter ID8c)**
+- Bandet går vågrätt under formuläret, ungefär 200 px ovanför nederkanten: en kätting från vänster, spiralen i mitten
+  (bredast på mitten) och en kätting till höger. Strängarna tonas mjukt mörkare där de går bakom, utan hårda skarvar.
+- Starten: kättingarna glider in från var sin sida och stannar hårt med ett litet darr, den långa länken mellan dem står
+  som två raka strängar och darrar av spänning, och efter ungefär 1,5 s släpper den till spiralen med en fjädrande
+  knyck, lite förbi och tillbaka. Den högra kättingen snurrar runt sin axel medan spiralen vrids och stannar upprätt.
+- Det strama repet: dra fönstret i titelraden, åt alla håll. Bandet svajar som en båge (mest på mitten, kanterna stilla)
+  och stannar efter ett par gungningar. Ett hårt ryck river aldrig isär kedjan. Maximerat fönster svajar inte.
+- Partiklarna: små tecken och ibland en bas lossnar från spiralen och driver ut; kättingarna släpper inga.
+- Stäng av animeringar i Windows (*Animeringseffekter* av): bandet står färdigt och stilla, utan start, svaj eller
+  partiklar, och upplåsningen går direkt till skalet.
+- Minimera fönstret: Chainsaw använder ingen märkbar processor medan figuren inte syns. Figuren ritas om ungefär 60
+  gånger i sekunden när den syns; skriv i fältet och dra fönstret och känn efter att inget hackar.
+- Skarpt på en skärm med 150 % skalning, och när fönstret flyttas mellan skärmar.
 
-**Låsskärmen**
-- Titelraden har bara loggan, *Chainsaw* och fönsterknapparna; fönstret går att dra, maximera och stänga.
-- Markören står i fältet för huvudnyckeln. Fel nyckel och Enter: *Fel huvudnyckel. Valvet öppnades inte.*, fältet töms
-  och markören står kvar. Rätt nyckel: skalet visas efter ungefär en sekund, utan att fönstret fryser (knappen säger
-  *Låser upp …* under tiden).
-- Raderna under formuläret: utgången (*Utgången ansluts efter upplåsning …*) och *Låses automatiskt efter 15 minuter
-  utan aktivitet.*
-- *Om Chainsaw · <commit>* i hörnet, där commit är samma som `git log -1`; klick visar version och commit.
+**Låsskärmen (LS1b)**
+- Titelraden har bara fönsterknapparna; fönstret går att dra, maximera och stänga. Mitt ovanför bandet står loggan och
+  *Chainsaw* stort, och under dem ett enda fält med *Huvudnyckel* som ledtext och en dämpad kant.
+- Markören står i fältet. Skriv: kanten blir accentfärgad, knappen *Lås upp · Enter* kommer fram (utan att något
+  hoppar), och för varje tecken lossnar en bas ur spiralen. Töm fältet: knappen och den färgade kanten försvinner.
+- Fel nyckel och Enter: bandet rycker till, pulserar **rött** (inte rosa) och släpper en pust tecken, fältet skakar till
+  med röd kant, och *Fel huvudnyckel. Valvet öppnades inte.* står under fältet. Skriv igen: kanten slutar vara röd.
+- Rätt nyckel: formuläret tonar bort, bandet sträcks, spiralen vrids åt höger tills ett helt varv ligger i mitten och
+  trycks ihop till en rundad rektangel, kättingarna glider ut åt sidorna, och rektangeln krymper till noden *Nytt
+  ärende* exakt där den står i grafens startsida. Sedan tonar sidan bort och skalet syns, med den riktiga noden precis
+  under den ritade (inget hopp). Står skalet på en annan vy, eller med ett ärende öppet, krymper rektangeln mot mitten
+  och sidan tonar bort.
+- *?* nere till vänster, på hovring eller med Tab: en ruta med vad huvudnyckeln är, utgången (*Utgången ansluts efter
+  upplåsning …*), *Låses automatiskt efter 15 minuter utan aktivitet.*, och när en bevakning har slagit till också
+  *En bevakning har slagit till. Den visas efter upplåsning.* Ingen prick någonstans.
+- *Återställningsnyckel · <commit>* nere till höger, där commit är samma som `git log -1`; ett klick visar Om Chainsaw
+  med återställningsnyckeln.
 
 **Förstagångsinställningen**
 - Strecken överst fylls steg för steg, och *Steg n av 4* står under dem. Tillbaka och Nästa går mellan stegen, Enter i
@@ -281,7 +288,7 @@ Jämför med skisserna ID8c och FS1a på canvasen, gärna i 1440 × 900 och i et
   stängt (titelraden säger *Inget ärende öppet*).
 - Lås Windows (Win+L) och logga in igen: Chainsaw visar låsskärmen. Samma efter viloläge.
 - Låt Chainsaw stå orört i 15 minuter: låsskärmen visas. Ändra `AutoLockMinutes` i `%LOCALAPPDATA%\Chainsaw\settings.json`
-  till 1, starta om, och kontrollera att låsningen kommer efter en minut och att raden på låsskärmen säger *1 minut*.
+  till 1, starta om, och kontrollera att låsningen kommer efter en minut och att raden under låsskärmens *?* säger *1 minut*.
 - Medan låst: Ctrl+1 till Ctrl+7, Ctrl+N, Ctrl+K och Ctrl+F gör ingenting, Tab når inget i skalet, och Alt+Tab och
   Aktivitetsfältets förhandsbild visar bara låsskärmen.
 - Skärmläsaren (Berättaren) läser bara låsskärmen när Chainsaw är låst.
@@ -727,11 +734,11 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
   värde i filen för hand: Chainsaw startar med VPN.
 - Rutan under utgången i titelraden i läget Windows: vägen dator → Windows → källor är grön, utgångarna är tonade och går
   inte att använda, och *Inställningar …* öppnar dialogen på Nätverk.
-- Låsskärmen säger *Uppslag går genom Windows. Chainsaw slår inte upp något medan det är låst.* med Windows valt.
+- Låsskärmens *?* säger *Uppslag går genom Windows. Chainsaw slår inte upp något medan det är låst.* med Windows valt.
 - En ansluten utgång står kvar när Windows väljs (den används inte) och används igen när VPN väljs.
 
 **Låsning, Kurser, Profil och Om**
-- *Lås efter* 5 min, 15 min, 30 min och 1 h: valet gäller direkt (räknat från senaste aktivitet), syns på låsskärmen och
+- *Lås efter* 5 min, 15 min, 30 min och 1 h: valet gäller direkt (räknat från senaste aktivitet), syns under låsskärmens *?* och
   ligger kvar efter omstart.
 - *När Windows låses* av: Win+L låser inte Chainsaw; viloläge och en frånkopplad session låser fortfarande.
 - Kurser: valuta SEK/USD/EUR och upplösning Minut/Timme/Dag sparas och ligger kvar efter omstart.
@@ -1091,10 +1098,10 @@ ligger bredvid `Chainsaw.exe`.
   för att se den.*, och mynt-swooshet spelas. Ingen adress, inget belopp, inget ärende.
 - `Chainsaw.Watcher.exe --test-alert` visar aviseringen och spelar ljudet en gång, utan någon träff (lyssna: låter det
   som ett mynt som flyger förbi och skramlar ner?).
-- Starta Chainsaw: låsskärmen har raden *En bevakning har slagit till. Den visas efter upplåsning.* med en rosa prick.
+- Starta Chainsaw: låsskärmens *?* har raden *En bevakning har slagit till. Den visas efter upplåsning.* (ingen prick).
 - Lås upp och öppna ärendet: inom några sekunder står träffen i vyn Bevakning och i grafen (ringarna), journalen har
   *Bevakningen av … slog till i bakgrunden* och *Bakgrundens bevakning förd in: …*, och `/verify` säger att ärendet är
-  helt. Raden på låsskärmen är borta nästa gång Chainsaw låses.
+  helt. Raden under låsskärmens *?* är borta nästa gång Chainsaw låses.
 - Lås Chainsaw (Ctrl+L) med ärendet öppet och vänta på en träff: bakgrunden tar över medan det är låst.
 - Medan ärendet är öppet frågar bakgrunden inte efter det ärendets adresser (bara Chainsaw gör det).
 
@@ -1915,3 +1922,11 @@ några steg).
 - [ ] Låt en VPN-tunnel falla (stäng av nätet en stund): utgångsrutan säger *Ansluter igen …* under mittringen och
       *Nästa försök kl. 14:02:31* litet under, samma tid som titelradens tips; *Försöker nu* medan ett försök pågår.
       Ringen och linjerna är fortfarande röda och streckade, eftersom inga uppslag går. Ansluten igen: utgångens namn.
+
+## Felfärgen (2026-11-08)
+
+- Fel är nu ett klart rött (`#FF6B5E`), inte rosa: felraden på låsskärmen och i formulären, toasterna för fel, vägen och
+  ringen i utgångsrutan när inga uppslag går, och Guidens figurer för fel (kontrollsumma, offline, endpoints). Texten
+  ska gå lätt att läsa på mörk botten.
+- Grafens risk är oförändrad: aktörer med negativ etikett i det som hölls tillbaka och i högen har riskfärgen, inte
+  felfärgen.

@@ -63,7 +63,7 @@ public sealed partial class LockViewModel : ObservableObject
         _exit = exit;
         AutoLockText = autoLock.Description;
         autoLock.Changed += (_, _) => AutoLockText = autoLock.Description;
-        AboutText = $"Om Chainsaw · {build.ShortCommit}";
+        AboutText = $"Återställningsnyckel · {build.ShortCommit}";
         AboutDetails = $"Chainsaw {build.Version}, commit {build.Commit ?? "okänd"}.";
         ExitText = TextFor(exit);
         exit.Changed += (_, _) => ExitText = TextFor(exit);
@@ -102,7 +102,10 @@ public sealed partial class LockViewModel : ObservableObject
     [ObservableProperty]
     public partial string AutoLockText { get; private set; }
 
-    /// <summary>Gets the text in the corner: <c>Om Chainsaw · commit</c>.</summary>
+    /// <summary>
+    /// Gets the text in the corner (sketch LS1b): <c>Återställningsnyckel · commit</c>; a click shows Om Chainsaw with the
+    /// organisation's recovery key, so it can be checked before the unlock.
+    /// </summary>
     public string AboutText { get; }
 
     /// <summary>Gets what *Om Chainsaw* tells where the page cannot be shown: the version and the commit.</summary>

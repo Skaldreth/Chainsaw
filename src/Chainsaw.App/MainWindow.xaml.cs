@@ -10,6 +10,7 @@ using Chainsaw.App.Controls;
 using Chainsaw.App.Interop;
 using Chainsaw.App.Navigation;
 using Chainsaw.App.ViewModels;
+using Chainsaw.App.Views;
 using Microsoft.Win32;
 
 namespace Chainsaw.App;
@@ -604,8 +605,40 @@ public partial class MainWindow : Window
         }
 
         ShellRoot.Visibility = _gate.IsShellVisible ? Visibility.Visible : Visibility.Collapsed;
+        if (!_gate.IsGateVisible && Gate.Visibility == Visibility.Visible)
+        {
+            // Opened from the lock screen: the page stays over the shell while the helix becomes Nytt ärende (LS1b).
+            ShellRoot.UpdateLayout();
+            if (Gate.PlayUnlock(NewCaseNode, () => Gate.Visibility = Visibility.Collapsed))
+            {
+                CommandManager.InvalidateRequerySuggested();
+                return;
+            }
+        }
+
         Gate.Visibility = _gate.IsGateVisible ? Visibility.Visible : Visibility.Collapsed;
         CommandManager.InvalidateRequerySuggested();
+    }
+
+    /// <summary>Finds the node Nytt ärende on the graph's start page, where the shell shows it.</summary>
+    /// <returns>The node, or null when the start page or the node is not shown.</returns>
+    private FrameworkElement? NewCaseNode() =>
+        Descendants(ShellRoot).OfType<GraphStartView>().FirstOrDefault(view => view.IsVisible)?.NewCaseNode;
+
+    /// <summary>Walks the visual tree under an element, depth first.</summary>
+    /// <param name="root">The element.</param>
+    /// <returns>Every visual under it.</returns>
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var below in Descendants(child))
+            {
+                yield return below;
+            }
+        }
     }
 
     /// <summary>Gives every view in the table its shortcut, so that the rail and the keys never disagree.</summary>

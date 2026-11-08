@@ -3,20 +3,48 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Chainsaw.App.Controls;
+using Chainsaw.App.Figure;
 using Chainsaw.App.ViewModels;
 using Microsoft.Win32;
 
 namespace Chainsaw.App.Views;
 
 /// <summary>
-/// The gate's page (sketches ID8c and FS1a): the chain that turns into a helix, and the lock screen's form or the first-run
-/// setup's. The view only wires the fields and the keyboard; what happens lives in <see cref="GateViewModel"/>. The
-/// master key is taken from the password boxes as characters (<see cref="PasswordEntry"/>) and never read as text.
+/// The gate's page (sketches ID8f, LS1b and FS1a): the band of chains and helix, and above it the lock screen's form or
+/// the first-run setup's. The view only wires the fields, the keyboard and the figure; what happens lives in
+/// <see cref="GateViewModel"/>. The master key is taken from the password boxes as characters
+/// (<see cref="PasswordEntry"/>) and never read as text. After the right key the page stays over the shell for a moment
+/// while the helix's middle becomes the node Nytt ärende, and then fades to show the shell with the real node under it.
 /// </summary>
 public partial class GateView : UserControl
 {
+    /// <summary>The room kept free for the band under the lock screen's form: the axis and the helix's widest half.</summary>
+    public static readonly Thickness BandRoom = new(0, 0, 0, ChainBand.AxisFromBottom + 100);
+
+    /// <summary>The room kept for the band under the setup's taller steps, which may reach a little into it.</summary>
+    public static readonly Thickness FirstRunBandRoom = new(0, 0, 0, ChainBand.AxisFromBottom + 30);
+
+    /// <summary>The node Nytt ärende's size, as the graph's start page draws it, for when it cannot be found.</summary>
+    private static readonly Size NodeSize = new(220, 54);
+
+    /// <summary>How far the field shakes after a wrong key, in pixels.</summary>
+    private const double ShakeWidth = 9;
+
+    /// <summary>Whether the last key given was wrong, so the field's edge is red until it changes.</summary>
+    private bool _wasWrong;
+
+    /// <summary>What to do once the way to the shell is over, while it runs.</summary>
+    private Action? _whenOpen;
+
+    /// <summary>The mode shown last, to tell an unlock from the lock screen from the end of the setup.</summary>
+    private GateMode _shown;
+
+    /// <summary>How many characters the lock screen's field held last, to tell a typed one from a removed one.</summary>
+    private int _typed;
     /// <summary>The lock screen's master key field, as the view model takes it.</summary>
     private readonly PasswordEntry _lockKey;
 
@@ -91,15 +119,25 @@ public partial class GateView : UserControl
         }
 
         AboutPopup.IsOpen = false;
+        HelpPopup.IsOpen = false;
         _gate.LockScreen.CloseAbout();
+        if (_gate.Mode != GateMode.Unlocked)
+        {
+            _shown = _gate.Mode;
+        }
+
         switch (_gate.Mode)
         {
             case GateMode.Locked:
                 FirstKey.Clear();
                 RepeatKey.Clear();
+                LockPage.Visibility = Visibility.Visible;
+                _wasWrong = false;
+                ShowField();
                 FocusLater(LockKey);
                 break;
             case GateMode.FirstRun:
+                LockPage.Visibility = Visibility.Collapsed;
                 FocusLater(FirstFieldOfStep());
                 break;
             default:
@@ -142,15 +180,157 @@ public partial class GateView : UserControl
         }
     }
 
-    /// <summary>Gives the lock screen's field to the vault.</summary>
+    /// <summary>
+    /// Gives the lock screen's field to the vault. A wrong key jerks the band, pulses it red and shakes the field with a
+    /// red edge; the keyboard stays in the field.
+    /// </summary>
     /// <returns>A task that completes when the vault has answered.</returns>
     private async Task UnlockAsync()
     {
-        if (_gate is not null && !await _gate.LockScreen.UnlockAsync(_lockKey))
+        if (_gate is null || LockKey.SecurePassword.Length == 0)
         {
+            return;
+        }
+
+        if (!await _gate.LockScreen.UnlockAsync(_lockKey))
+        {
+            _wasWrong = true;
+            Figure.Wrong();
+            ShakeField();
+            ShowField();
             LockKey.Focus();
         }
     }
+
+    /// <summary>
+    /// Follows the lock screen's field: a typed character lets a base go of the helix, the hint and the button follow
+    /// whether anything is typed, and the edge leaves the red of a wrong key.
+    /// </summary>
+    /// <param name="sender">The field.</param>
+    /// <param name="e">Not used.</param>
+    private void OnLockKeyChanged(object sender, RoutedEventArgs e)
+    {
+        var length = LockKey.SecurePassword.Length;
+        if (length > _typed)
+        {
+            Figure.Typed();
+        }
+
+        _typed = length;
+        _wasWrong = false;
+        ShowField();
+    }
+
+    /// <summary>
+    /// Shows the field as it stands (sketch LS1b): the hint while it is empty, a quiet edge then, the accent once
+    /// something is typed and red after a wrong key; the button only once something is typed.
+    /// </summary>
+    private void ShowField()
+    {
+        var typed = LockKey.SecurePassword.Length > 0;
+        LockHint.Visibility = typed ? Visibility.Collapsed : Visibility.Visible;
+        UnlockButton.Visibility = typed ? Visibility.Visible : Visibility.Hidden;
+        string edge;
+        if (_wasWrong)
+        {
+            edge = "Brush.Error";
+        }
+        else
+        {
+            edge = typed ? "Brush.Accent" : "Brush.BorderStrong";
+        }
+
+        LockKey.SetResourceReference(Control.BorderBrushProperty, edge);
+    }
+
+    /// <summary>Shakes the field sideways a few times and lets it settle, unless Windows' animations are off.</summary>
+    private void ShakeField()
+    {
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            return;
+        }
+
+        var shake = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(480) };
+        double[] steps = [ShakeWidth, -ShakeWidth * 0.8, ShakeWidth * 0.55, -ShakeWidth * 0.3, ShakeWidth * 0.12, 0];
+        for (var i = 0; i < steps.Length; i++)
+        {
+            shake.KeyFrames.Add(new EasingDoubleKeyFrame(steps[i], KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(80 * (i + 1)))));
+        }
+
+        LockShake.BeginAnimation(TranslateTransform.XProperty, shake);
+    }
+
+    /// <summary>
+    /// Plays the way from the lock screen to the shell (sketch LS1b), when the vault was opened from the lock screen:
+    /// the page stays over the shell while the form fades and the helix's middle becomes the node Nytt ärende where it
+    /// stands, and then fades itself to show the shell with the real node under the drawn one.
+    /// </summary>
+    /// <param name="node">Finds the node Nytt ärende on the shell, once it is laid out; null when it is not shown.</param>
+    /// <param name="whenOpen">What to do once the way is over: hide the page.</param>
+    /// <returns>Whether the way is played; otherwise the page is hidden at once.</returns>
+    public bool PlayUnlock(Func<FrameworkElement?> node, Action whenOpen)
+    {
+        if (_shown != GateMode.Locked || !IsVisible || Figure.ActualWidth < 1)
+        {
+            return false;
+        }
+
+        _whenOpen = whenOpen;
+        IsHitTestVisible = false;
+        LockPage.Visibility = Visibility.Visible;
+        Figure.Stepped += OnUnlockStep;
+        Figure.Right(NodeBounds(node()));
+        return true;
+    }
+
+    /// <summary>Gives where the node stands on the figure, or a node's size in the middle of the page without it.</summary>
+    /// <param name="node">The node, or null.</param>
+    /// <returns>Its bounds on the figure.</returns>
+    private Rect NodeBounds(FrameworkElement? node)
+    {
+        if (node is { IsVisible: true, ActualWidth: > 0 } && PresentationSource.FromVisual(node) is not null)
+        {
+            return node.TransformToVisual(Figure).TransformBounds(new Rect(node.RenderSize));
+        }
+
+        return new Rect(
+            (Figure.ActualWidth - NodeSize.Width) / 2, (Figure.ActualHeight - NodeSize.Height) / 2, NodeSize.Width, NodeSize.Height);
+    }
+
+    /// <summary>Fades the form and then the page with the figure's way, and lets the page go once it is over.</summary>
+    /// <param name="sender">The figure.</param>
+    /// <param name="e">Not used.</param>
+    private void OnUnlockStep(object? sender, EventArgs e)
+    {
+        var motion = Figure.Motion;
+        LockForm.Opacity = 1 - motion.FormGone();
+        Opacity = 1 - motion.PageGone();
+        if (!motion.IsUnlocked)
+        {
+            return;
+        }
+
+        Figure.Stepped -= OnUnlockStep;
+        var whenOpen = _whenOpen;
+        _whenOpen = null;
+        whenOpen?.Invoke();
+        Opacity = 1;
+        LockForm.Opacity = 1;
+        IsHitTestVisible = true;
+        _shown = GateMode.Unlocked;
+    }
+
+    /// <summary>Shows what the ? tells: the key, the way out, the lock and a watch's hit.</summary>
+    /// <param name="sender">The ?.</param>
+    /// <param name="e">Not used.</param>
+    private void OnHelpShown(object sender, RoutedEventArgs e) => HelpPopup.IsOpen = true;
+
+    /// <summary>Hides what the ? tells once neither the pointer nor the keyboard is on it.</summary>
+    /// <param name="sender">The ?.</param>
+    /// <param name="e">Not used.</param>
+    private void OnHelpHidden(object sender, RoutedEventArgs e) =>
+        HelpPopup.IsOpen = HelpButton.IsMouseOver || HelpButton.IsKeyboardFocused;
 
     /// <summary>Goes on from the setup's step.</summary>
     /// <param name="sender">The button.</param>

@@ -552,7 +552,7 @@ public sealed partial class GraphCanvas
         if (HeldBackChoice.GroupOf(look.Sort) == CounterpartyGroup.Risk)
         {
             dc.DrawEllipse(
-                GraphPalette.Find(this, "Brush.Error"),
+                GraphPalette.Find(this, "Brush.Kind.Risk"),
                 PenOf(GraphPalette.Find(this, "Brush.Background"), 1.5),
                 new Point(rect.Right, rect.Y),
                 NegativeDot / 2,

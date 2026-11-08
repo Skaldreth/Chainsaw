@@ -25,7 +25,7 @@ public partial class GraphStartView : UserControl
     public GraphStartView()
     {
         InitializeComponent();
-        FirstNewCase.Content = NewCaseNode();
+        FirstNewCase.Content = MakeNewCaseNode();
         Course.ItemsSource = CourseDots();
         GhostExpand.Child = Ghost("Expandera", "E på en aktör", "Icon.Plus", "Brush.TextMuted",
             "Hämtar aktörens tx genom utgången och ritar motparterna. Belopp och spårad andel står på linjerna.");
@@ -97,7 +97,8 @@ public partial class GraphStartView : UserControl
     {
         Ring.Children.Clear();
         var middle = new Grid();
-        middle.Children.Add(NewCaseNode());
+        _ringNewCase = MakeNewCaseNode();
+        middle.Children.Add(_ringNewCase);
         var hint = new TextBlock
         {
             Text = "Börja en ny spårning, eller öppna ett ärende runt om.", FontSize = 13,
@@ -136,9 +137,19 @@ public partial class GraphStartView : UserControl
         FootLine.ToolTip = model.IsOnline ? "Alla uppslag går genom den här utgången" : model.FootTip;
     }
 
+    /// <summary>
+    /// Gets the node Nytt ärende that is shown: in the ring of recent cases or alone the first time; null when neither
+    /// is shown. The lock screen's helix becomes it on the way to the shell (sketch LS1b).
+    /// </summary>
+    public FrameworkElement? NewCaseNode =>
+        new[] { _ringNewCase, FirstNewCase.Content as FrameworkElement }.FirstOrDefault(node => node is { IsVisible: true });
+
+    /// <summary>The node Nytt ärende in the middle of the ring of recent cases, once the ring is shown.</summary>
+    private Button? _ringNewCase;
+
     /// <summary>Makes the node Nytt ärende, the step the user stands at.</summary>
     /// <returns>The node.</returns>
-    private Button NewCaseNode()
+    private Button MakeNewCaseNode()
     {
         var node = new Button
         {

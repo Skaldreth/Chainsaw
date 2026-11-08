@@ -9,21 +9,31 @@ using Chainsaw.App.Figure;
 namespace Chainsaw.App.Controls;
 
 /// <summary>
-/// The figure behind the lock screen and the first-run setup (sketch ID8c): the chain in the accent that turns into a
-/// double helix, drawn as shapes, with the particles drifting off the helix. The shapes are laid out by
-/// <see cref="DnaFigure"/> once per size and kept as one frozen drawing; only the particles move, about thirty times a
-/// second, while the figure is shown and Windows has its animations on. Otherwise they stand still and the timer rests.
+/// The figure under the lock screen's form and the first-run setup (sketches ID8f and LS1b): two chains in the accent and
+/// the double helix between them, drawn as shapes, with the particles drifting off the helix. <see cref="BandMotion"/>
+/// moves it; this draws it about sixty times a second while it is shown, and feeds it the window's acceleration so the
+/// band swings when the window is dragged. With Windows' animations off it stands still at rest and the timer rests,
+/// except for the short way to the shell after the right key.
 /// </summary>
 public sealed class ChainFigure : FrameworkElement
 {
-    /// <summary>About thirty frames a second, as the sketch.</summary>
-    private static readonly TimeSpan FrameTime = TimeSpan.FromMilliseconds(33);
+    /// <summary>About sixty frames a second, so the swing and the morph run smoothly.</summary>
+    private static readonly TimeSpan FrameTime = TimeSpan.FromMilliseconds(16);
 
-    /// <summary>The longest step the particles take at once, so that a pause never makes them jump.</summary>
-    private static readonly TimeSpan LongestStep = TimeSpan.FromMilliseconds(100);
+    /// <summary>The longest step taken at once, so that a pause never makes the figure jump.</summary>
+    private static readonly TimeSpan LongestStep = TimeSpan.FromMilliseconds(50);
 
     /// <summary>The accent, should the theme not give it.</summary>
     private static readonly Color FallbackAccent = Color.FromRgb(0xC5, 0x5A, 0x3D);
+
+    /// <summary>The red of the pulse after a wrong key, should the theme not give it.</summary>
+    private static readonly Color FallbackPulse = Color.FromRgb(0xD7, 0x32, 0x2B);
+
+    /// <summary>The largest window acceleration passed on, so a window snapped across the screen never throws the band.</summary>
+    private const double LargestPush = 40000;
+
+    /// <summary>The darker half of a rung, as a share of the accent.</summary>
+    private const double DarkRung = 0.62;
 
     /// <summary>One joint, as a frozen shape in the logo's units.</summary>
     private static readonly Geometry Joint = Frozen(Geometry.Parse(ChainLink.Joint));
@@ -31,10 +41,10 @@ public sealed class ChainFigure : FrameworkElement
     /// <summary>One link's bars below its joint, as a frozen shape in the logo's units.</summary>
     private static readonly Geometry Bars = Frozen(Geometry.Parse(ChainLink.Bars));
 
-    /// <summary>The particles, moved by the timer.</summary>
-    private readonly DnaParticles _particles = new(new Random());
+    /// <summary>The motion, stepped by the timer.</summary>
+    private readonly BandMotion _motion = new(new Random());
 
-    /// <summary>Moves the particles while the figure is shown.</summary>
+    /// <summary>Steps the motion while the figure is shown.</summary>
     private readonly DispatcherTimer _timer;
 
     /// <summary>Measures the time between two steps.</summary>
@@ -43,11 +53,11 @@ public sealed class ChainFigure : FrameworkElement
     /// <summary>The particles' characters, made once per screen scale.</summary>
     private readonly Dictionary<(char Character, bool IsBase), FormattedText> _glyphs = [];
 
-    /// <summary>The figure for the current size, or <see langword="null"/> before the first frame.</summary>
-    private DnaFigure? _figure;
+    /// <summary>The brushes of the accent's shades, by shade and red tint, made once each.</summary>
+    private readonly Dictionary<(int Shade, int Tint), SolidColorBrush> _brushes = [];
 
-    /// <summary>The figure's shapes, drawn under the particles.</summary>
-    private Drawing? _drawing;
+    /// <summary>The window's place and speed at the last step, to tell its acceleration.</summary>
+    private (Point Place, Vector Speed, Vector Push)? _window;
 
     /// <summary>Creates the figure; it takes no input of its own and never takes focus.</summary>
     public ChainFigure()
@@ -59,17 +69,62 @@ public sealed class ChainFigure : FrameworkElement
         Loaded += (_, _) =>
         {
             SystemParameters.StaticPropertyChanged += OnSystemChanged;
-            UpdateTimer();
+            Restart();
         };
         Unloaded += (_, _) =>
         {
             SystemParameters.StaticPropertyChanged -= OnSystemChanged;
             UpdateTimer();
         };
-        IsVisibleChanged += (_, _) => UpdateTimer();
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible)
+            {
+                Restart();
+            }
+            else
+            {
+                UpdateTimer();
+            }
+        };
     }
 
-    /// <summary>Draws the figure's shapes and the particles over them.</summary>
+    /// <summary>Occurs after each step, so the page can fade its form and itself on the way to the shell.</summary>
+    public event EventHandler? Stepped;
+
+    /// <summary>Gets the motion, which tells how far the way to the shell has come.</summary>
+    public BandMotion Motion => _motion;
+
+    /// <summary>Starts the figure again from the start, as when the lock screen is shown.</summary>
+    public void Restart()
+    {
+        _motion.Restart();
+        _motion.IsStill = !SystemParameters.ClientAreaAnimation;
+        _window = null;
+        UpdateTimer();
+        InvalidateVisual();
+    }
+
+    /// <summary>A character was typed in the field: a base lets go of the helix.</summary>
+    public void Typed() => _motion.Typed();
+
+    /// <summary>A wrong key: the band jerks, pulses red and lets a puff of characters go.</summary>
+    public void Wrong()
+    {
+        _motion.Wrong();
+        InvalidateVisual();
+    }
+
+    /// <summary>The right key: the lens in the middle becomes the node Nytt ärende where it stands.</summary>
+    /// <param name="node">Where the node stands, in this figure's own coordinates.</param>
+    public void Right(Rect node)
+    {
+        _motion.Right(new NodeTarget(node.X, node.Y, node.Width, node.Height, 10));
+        UpdateTimer();
+        InvalidateVisual();
+    }
+
+    /// <summary>Draws the frame: the links, the strands behind, the node's face, the rungs, the strands in front, the particles.</summary>
     /// <param name="drawingContext">The drawing context.</param>
     protected override void OnRender(DrawingContext drawingContext)
     {
@@ -78,14 +133,32 @@ public sealed class ChainFigure : FrameworkElement
             return;
         }
 
-        if (_figure is null || _figure.Width != ActualWidth || _figure.Height != ActualHeight)
+        var frame = _motion.Frame(ActualWidth, ActualHeight);
+        var accent = Accent();
+        var pulse = TryFindResource("Color.ErrorPulse") is Color red ? red : FallbackPulse;
+        Brush Shade(double share) => ShadeBrush(accent, pulse, share, frame.Tint);
+
+        foreach (var link in frame.Links)
         {
-            _figure = new DnaFigure(ActualWidth, ActualHeight);
-            _drawing = Compose(_figure, Accent());
-            _particles.Fill(_figure);
+            DrawLink(drawingContext, link, Shade(1));
         }
 
-        drawingContext.DrawDrawing(_drawing);
+        DrawStrands(drawingContext, frame.Back, Shade);
+        if (frame.Node is { } face && face.Alpha > 0)
+        {
+            var target = face.Target;
+            drawingContext.PushOpacity(face.Alpha);
+            drawingContext.DrawRoundedRectangle(
+                TryFindResource("Brush.Surface") as Brush ?? Brushes.Black,
+                null,
+                new Rect(target.X, target.Y, target.Width, target.Height),
+                target.Radius,
+                target.Radius);
+            drawingContext.Pop();
+        }
+
+        DrawRungs(drawingContext, frame.Rungs, Shade(1), Shade(DarkRung));
+        DrawStrands(drawingContext, frame.Front, Shade);
         DrawParticles(drawingContext);
     }
 
@@ -107,110 +180,109 @@ public sealed class ChainFigure : FrameworkElement
         return geometry;
     }
 
-    /// <summary>Gives a colour darkened by a factor.</summary>
-    /// <param name="color">The colour.</param>
-    /// <param name="factor">The factor, below 1.</param>
-    /// <returns>The darker colour.</returns>
-    private static Color Darker(Color color, double factor) => Color.FromRgb(
-        (byte)Math.Round(color.R * factor), (byte)Math.Round(color.G * factor), (byte)Math.Round(color.B * factor));
-
-    /// <summary>Gives a frozen brush.</summary>
-    /// <param name="color">Its colour.</param>
-    /// <returns>The brush.</returns>
-    private static SolidColorBrush Brush(Color color)
+    /// <summary>Draws one link: its joint and, unless it is the last before the helix, its bars.</summary>
+    /// <param name="drawingContext">The drawing context.</param>
+    /// <param name="link">The link.</param>
+    /// <param name="brush">Its colour.</param>
+    private static void DrawLink(DrawingContext drawingContext, LinkPose link, Brush brush)
     {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
-    }
-
-    /// <summary>
-    /// Puts the figure's shapes together, back to front as the sketch: the chain, the strands behind, the rungs (light
-    /// from strand one, darker from strand two) and the strands in front, each strand shaded by its depth.
-    /// </summary>
-    /// <param name="figure">The figure.</param>
-    /// <param name="accent">The accent.</param>
-    /// <returns>The frozen drawing.</returns>
-    private static Drawing Compose(DnaFigure figure, Color accent)
-    {
-        var light = Brush(accent);
-        var group = new DrawingGroup();
-        foreach (var joint in figure.Joints)
+        if (link.Alpha <= 0.01 || Math.Abs(link.Squash) < 0.01)
         {
-            var place = new Matrix();
-            place.Scale(joint.Scale, joint.Scale);
-            place.Rotate(joint.Angle);
-            place.Translate(joint.X, joint.Y);
-            var link = new DrawingGroup { Transform = new MatrixTransform(place) };
-            link.Children.Add(new GeometryDrawing(light, null, Joint));
-            if (joint.HasBars)
-            {
-                link.Children.Add(new GeometryDrawing(light, null, Bars));
-            }
-
-            group.Children.Add(link);
+            return;
         }
 
-        AddStrands(group, figure.Back, accent);
-        var rungs = Pen(light, DnaFigure.RungThickness, PenLineCap.Round);
-        var darkRungs = Pen(Brush(Darker(accent, 0.62)), DnaFigure.RungThickness, PenLineCap.Round);
-        foreach (var rung in figure.Rungs)
+        var place = new Matrix();
+        place.Scale(link.Scale * link.Squash, link.Scale);
+        place.Rotate(link.Angle);
+        place.Translate(link.X, link.Y);
+        drawingContext.PushOpacity(link.Alpha);
+        drawingContext.PushTransform(new MatrixTransform(place));
+        drawingContext.DrawGeometry(brush, null, Joint);
+        if (link.HasBars)
         {
-            group.Children.Add(new GeometryDrawing(null, rungs, Line(rung.First, rung.Middle)));
-            group.Children.Add(new GeometryDrawing(null, darkRungs, Line(rung.Middle, rung.Second)));
+            drawingContext.DrawGeometry(brush, null, Bars);
         }
 
-        AddStrands(group, figure.Front, accent);
-        group.Freeze();
-        return group;
+        drawingContext.Pop();
+        drawingContext.Pop();
     }
 
-    /// <summary>Adds the stretches of strand, each in its shade of the accent, with one pen per shade.</summary>
-    /// <param name="group">The drawing.</param>
+    /// <summary>Draws the stretches of strand, each in its shade and width.</summary>
+    /// <param name="drawingContext">The drawing context.</param>
     /// <param name="stretches">The stretches.</param>
-    /// <param name="accent">The accent the shades are taken from.</param>
-    private static void AddStrands(DrawingGroup group, IEnumerable<StrandStretch> stretches, Color accent)
+    /// <param name="shade">Gives the brush of a shade.</param>
+    private static void DrawStrands(
+        DrawingContext drawingContext, IEnumerable<StrandStretch> stretches, Func<double, Brush> shade)
     {
-        var pens = new Dictionary<double, Pen>();
         foreach (var stretch in stretches)
         {
-            if (!pens.TryGetValue(stretch.Shade, out var pen))
+            if (stretch.Alpha <= 0.01 || stretch.Points.Count < 2)
             {
-                pen = Pen(Brush(Darker(accent, stretch.Shade)), DnaFigure.StrandThickness, PenLineCap.Flat);
-                pens[stretch.Shade] = pen;
+                continue;
             }
 
-            var points = stretch.Points;
             var geometry = new StreamGeometry();
             using (var context = geometry.Open())
             {
-                context.BeginFigure(new Point(points[0].X, points[0].Y), false, false);
-                context.PolyLineTo(points.Skip(1).Select(p => new Point(p.X, p.Y)).ToList(), true, true);
+                context.BeginFigure(new Point(stretch.Points[0].X, stretch.Points[0].Y), false, false);
+                context.PolyLineTo(stretch.Points.Skip(1).Select(p => new Point(p.X, p.Y)).ToList(), true, true);
             }
 
             geometry.Freeze();
-            group.Children.Add(new GeometryDrawing(null, pen, geometry));
+            var pen = new Pen(shade(stretch.Shade), stretch.Width) { LineJoin = PenLineJoin.Round };
+            pen.Freeze();
+            drawingContext.PushOpacity(stretch.Alpha);
+            drawingContext.DrawGeometry(null, pen, geometry);
+            drawingContext.Pop();
         }
     }
 
-    /// <summary>Gives a frozen pen with round joins.</summary>
-    /// <param name="brush">Its colour.</param>
-    /// <param name="thickness">Its thickness.</param>
-    /// <param name="cap">Its ends.</param>
-    /// <returns>The pen.</returns>
-    private static Pen Pen(Brush brush, double thickness, PenLineCap cap)
+    /// <summary>Draws the rungs: a light half from strand one and a darker half from strand two.</summary>
+    /// <param name="drawingContext">The drawing context.</param>
+    /// <param name="rungs">The rungs.</param>
+    /// <param name="light">The light half's colour.</param>
+    /// <param name="dark">The dark half's colour.</param>
+    private static void DrawRungs(DrawingContext drawingContext, IEnumerable<RungPose> rungs, Brush light, Brush dark)
     {
-        var pen = new Pen(brush, thickness) { LineJoin = PenLineJoin.Round, StartLineCap = cap, EndLineCap = cap };
-        pen.Freeze();
-        return pen;
+        var lightPen = new Pen(light, ChainBand.RungThickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+        var darkPen = new Pen(dark, ChainBand.RungThickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+        lightPen.Freeze();
+        darkPen.Freeze();
+        foreach (var rung in rungs)
+        {
+            if (rung.Alpha <= 0.01)
+            {
+                continue;
+            }
+
+            drawingContext.PushOpacity(rung.Alpha);
+            drawingContext.DrawLine(lightPen, new Point(rung.First.X, rung.First.Y), new Point(rung.Middle.X, rung.Middle.Y));
+            drawingContext.DrawLine(darkPen, new Point(rung.Middle.X, rung.Middle.Y), new Point(rung.Second.X, rung.Second.Y));
+            drawingContext.Pop();
+        }
     }
 
-    /// <summary>Gives a frozen straight line.</summary>
-    /// <param name="from">Its start.</param>
-    /// <param name="to">Its end.</param>
-    /// <returns>The line.</returns>
-    private static Geometry Line(FigurePoint from, FigurePoint to) =>
-        Frozen(new LineGeometry(new Point(from.X, from.Y), new Point(to.X, to.Y)));
+    /// <summary>Gives the accent at a share of its lightness, turned towards the pulse's red by a tint; made once each.</summary>
+    /// <param name="accent">The accent.</param>
+    /// <param name="pulse">The pulse's red.</param>
+    /// <param name="share">The share of the accent's lightness.</param>
+    /// <param name="tint">How far it has turned red.</param>
+    /// <returns>The frozen brush.</returns>
+    private SolidColorBrush ShadeBrush(Color accent, Color pulse, double share, double tint)
+    {
+        var key = ((int)Math.Round(share * 100), (int)Math.Round(tint * 40));
+        if (_brushes.TryGetValue(key, out var known))
+        {
+            return known;
+        }
+
+        byte Mix(byte from, byte to) =>
+            (byte)Math.Round(Math.Clamp((from + ((to - from) * key.Item2 / 40.0)) * key.Item1 / 100.0, 0, 255));
+        var brush = new SolidColorBrush(Color.FromRgb(Mix(accent.R, pulse.R), Mix(accent.G, pulse.G), Mix(accent.B, pulse.B)));
+        brush.Freeze();
+        _brushes[key] = brush;
+        return brush;
+    }
 
     /// <summary>Gives the theme's accent.</summary>
     /// <returns>The accent.</returns>
@@ -220,7 +292,7 @@ public sealed class ChainFigure : FrameworkElement
     /// <param name="drawingContext">The drawing context.</param>
     private void DrawParticles(DrawingContext drawingContext)
     {
-        foreach (var particle in _particles.Items)
+        foreach (var particle in _motion.Particles)
         {
             var alpha = particle.Alpha;
             if (alpha <= 0.01)
@@ -230,7 +302,7 @@ public sealed class ChainFigure : FrameworkElement
 
             var glyph = Glyph(particle.Character, particle.IsBase);
             drawingContext.PushOpacity(alpha);
-            drawingContext.DrawText(glyph, new Point(particle.X - glyph.Width / 2, particle.Y - glyph.Height / 2));
+            drawingContext.DrawText(glyph, new Point(particle.X - (glyph.Width / 2), particle.Y - (glyph.Height / 2)));
             drawingContext.Pop();
         }
     }
@@ -248,9 +320,11 @@ public sealed class ChainFigure : FrameworkElement
 
         var family = TryFindResource("Font.Mono") as FontFamily ?? new FontFamily("Consolas");
         var weight = isBase ? FontWeights.SemiBold : FontWeights.Medium;
+        var brush = new SolidColorBrush(Accent());
+        brush.Freeze();
         var text = new FormattedText(
             character.ToString(), CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal), 11, Brush(Accent()),
+            new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal), 11, brush,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
         _glyphs[(character, isBase)] = text;
         return text;
@@ -263,14 +337,16 @@ public sealed class ChainFigure : FrameworkElement
     {
         if (e.PropertyName == nameof(SystemParameters.ClientAreaAnimation))
         {
+            _motion.IsStill = !SystemParameters.ClientAreaAnimation;
             UpdateTimer();
+            InvalidateVisual();
         }
     }
 
-    /// <summary>Runs the timer while the figure is shown and Windows animates, and rests it otherwise.</summary>
+    /// <summary>Runs the timer while the figure is shown and moves, and rests it otherwise.</summary>
     private void UpdateTimer()
     {
-        var run = IsLoaded && IsVisible && SystemParameters.ClientAreaAnimation;
+        var run = IsLoaded && IsVisible && _motion.IsMoving;
         if (run && !_timer.IsEnabled)
         {
             _clock.Restart();
@@ -282,17 +358,49 @@ public sealed class ChainFigure : FrameworkElement
         }
     }
 
-    /// <summary>Moves the particles on and draws again, unless the window is minimised.</summary>
+    /// <summary>
+    /// Gives the window's acceleration since the last step, smoothed: what a rope hanging in it would feel. It is in
+    /// the window's own scale, so a drag across a screen of another scale feels the same.
+    /// </summary>
+    /// <param name="seconds">The time since the last step.</param>
+    /// <returns>The acceleration, in pixels a second².</returns>
+    private FigurePoint WindowPush(double seconds)
+    {
+        if (Window.GetWindow(this) is not { } window || seconds <= 0 || window.WindowState != WindowState.Normal)
+        {
+            _window = null;
+            return default;
+        }
+
+        var place = new Point(window.Left, window.Top);
+        if (_window is not { } was)
+        {
+            _window = (place, default, default);
+            return default;
+        }
+
+        var speed = (place - was.Place) / seconds;
+        var push = (was.Push * 0.6) + ((speed - was.Speed) / seconds * 0.4);
+        _window = (place, speed, push);
+        return new FigurePoint(Math.Clamp(push.X, -LargestPush, LargestPush), Math.Clamp(push.Y, -LargestPush, LargestPush));
+    }
+
+    /// <summary>Moves the figure on and draws again, unless the window is minimised.</summary>
     private void Advance()
     {
         var step = _clock.Elapsed < LongestStep ? _clock.Elapsed : LongestStep;
         _clock.Restart();
-        if (_figure is null || Window.GetWindow(this) is not { WindowState: not WindowState.Minimized })
+        if (Window.GetWindow(this) is not { WindowState: not WindowState.Minimized })
         {
             return;
         }
 
-        _particles.Step(_figure, step.TotalSeconds);
+        _motion.Step(step.TotalSeconds, WindowPush(step.TotalSeconds));
         InvalidateVisual();
+        Stepped?.Invoke(this, EventArgs.Empty);
+        if (!_motion.IsMoving || _motion.IsUnlocked)
+        {
+            UpdateTimer();
+        }
     }
 }

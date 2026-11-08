@@ -105,7 +105,7 @@ public sealed class LockViewModelTests
     {
         var rig = new GateRig(VaultState.Locked);
 
-        Assert.Equal("Om Chainsaw · abcdef0", rig.LockScreen.AboutText);
+        Assert.Equal("Återställningsnyckel · abcdef0", rig.LockScreen.AboutText);
         Assert.StartsWith("Chainsaw ", rig.LockScreen.AboutDetails, StringComparison.Ordinal);
         Assert.Equal("Låses automatiskt efter 15 minuter utan aktivitet.", rig.LockScreen.AutoLockText);
     }

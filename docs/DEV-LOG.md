@@ -3736,3 +3736,45 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
 - **Avsteg och egna beslut:** ingen skiss visar återanslutningen i UT2b; ringen och linjerna står kvar röda och
   streckade, eftersom inga uppslag går (det säkraste), och bara texten ändras. Kommentarer (WPF-element) och
   verktygstips följer inte med när ytan trycks ut, eftersom de ligger under det dimmade.
+
+## Låsskärmen LS1b, bandet ID8f och felfärgen (2026-11-08)
+
+Byggt efter skisserna ID8f och LS1b (omgång 2) och användarens beslut samma dag.
+
+- **Figuren:** `Figure/ChainBand.cs` ersätter den diagonala `DnaFigure`: två kättingar och spiralen vågrätt under
+  formuläret, axeln 204 px ovanför nederkanten (högst 55 % ner på en låg sida). Spiralens vridning rundas till hela varv,
+  så att den högra kättingen står upprätt när den vridits klart; under vridningen snurrar den runt sin axel
+  (`RightSquash`). Strängarna tonas i 16 steg efter djupet som förut.
+- **Rörelsen:** `Figure/BandMotion.cs` (utan WPF, testad): starten (kättingarna glider in, darr, släpper med en fjäder),
+  det strama repet (tre svängningar av en sträng fäst 60 px utanför fönstrets kanter, 2,2 Hz, ett häng på 7 px som gör
+  att även ett ryck i sidled svänger bågen, högst 18 px per svängning), nyckelns svar och vägen till noden.
+  `DnaParticles` följer bandet och har fått pusten (`Burst`) och basen för ett tecken (`LetGoBase`).
+- **Ritaren:** `ChainFigure` ritar om bandet ungefär 60 gånger i sekunden medan det syns och läser fönstrets
+  acceleration ur `Window.Left/Top`. Med animeringar avstängda står figuren i vila och timern vilar.
+- **Formuläret LS1b:** loggan och namnet ovanför ett fält med ledtext; knappen *Lås upp · Enter* syns bara med text i
+  fältet (dold med `Hidden`, så att inget hoppar); kanten är dämpad, accent med text och röd efter fel nyckel. *?* nere
+  till vänster visar förklaringen, utgången, låsningen och en bevakningsträff. Hörnet säger *Återställningsnyckel ·
+  commit* och öppnar Om Chainsaw som förut.
+- **Vägen till skalet:** `MainWindow.ShowGate` låter låsskärmen ligga kvar över skalet när valvet öppnas från
+  låsskärmen (`GateView.PlayUnlock`). Noden *Nytt ärende* hittas i grafens startsida (`GraphStartView.NewCaseNode`)
+  efter en layout av skalet, och linsen i spiralens mitt blir den: bandet sträcks, spiralen vrids åt höger till nästa
+  lins, linsen trycks ihop till en rundad rektangel, kättingarna och resten glider ut, och rektangeln krymper till
+  nodens ram med dess yta under. Sedan tonar sidan bort och den riktiga noden syns under den ritade.
+- **Felfärgen:** `Brush.Error` är `#FF6B5E` (klart rött, 4,6:1 eller mer mot botten, panelerna och det flytande),
+  tonerna `ErrorTint` och `ErrorEdge` följer med, och `Color.ErrorPulse` `#D7322B` är låsskärmens puls (bara former,
+  aldrig text). Där felfärgen betydde risk i grafen (motpart med negativ etikett i det som hölls tillbaka och i högen)
+  används nu `Brush.Kind.Risk`.
+
+**Egna beslut och avsteg från skissen:**
+- Raderna under formuläret (utgången, låsningen, bevakningens träff) finns inte längre på sidan; de står under *?*, så
+  att inget försvinner men sidan är ren. Bevakningens prick är borttagen (användarens beslut).
+- Felraden *Fel huvudnyckel …* står kvar under fältet, eftersom den är ärlig och läses av skärmläsaren; skissen visade
+  bara rycket och den röda kanten.
+- Noden ritas inte med plus, namn och sonar i figuren: den riktiga noden syns när sidan tonar bort, så att de två aldrig
+  skiljer sig. Står skalet inte på startsidan krymper linsen mot mitten.
+- Förstagångsinställningen ligger nu ovanför bandet; dess högsta steg kan nå en bit ned i bandets övre del i ett lågt
+  fönster.
+- Partiklarna tonas inte röda vid pulsen (de ritas med färdiga tecken i accenten).
+
+**Återstår:** att prova allt på Windows (`docs/TESTER-INFOR-1.0.md`). Grafens risk (`Kind.Risk`, `Area.Red`) är
+fortfarande den ljusa rosa tonen; det är ett eget beslut om grafens färger.

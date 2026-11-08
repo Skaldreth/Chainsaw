@@ -43,11 +43,17 @@
     <SolidColorBrush x:Key="Brush.SuccessTint" Color="#2F3A33" />
     <SolidColorBrush x:Key="Brush.PendingTint" Color="#3A3630" />
     <SolidColorBrush x:Key="Brush.PendingEdge" Color="#6B5A3A" />
-    <SolidColorBrush x:Key="Brush.ErrorTint" Color="#3A2E31" />
-    <SolidColorBrush x:Key="Brush.ErrorEdge" Color="#6B4547" />
+    <SolidColorBrush x:Key="Brush.ErrorTint" Color="#3B2B29" />
+    <SolidColorBrush x:Key="Brush.ErrorEdge" Color="#7A3D37" />
 
     <SolidColorBrush x:Key="Brush.Success" Color="#8CC98F" />
-    <SolidColorBrush x:Key="Brush.Error" Color="#EC8C8C" />
+    <!--
+      An error: a clear red, not pink (the user's decision 2026-11-08), light enough to be read as text on the background,
+      the panels and the floating surfaces (4.6:1 or more). Kept apart from the graph's risk, which is a kind, not a fault.
+    -->
+    <SolidColorBrush x:Key="Brush.Error" Color="#FF6B5E" />
+    <!-- The lock screen's pulse after a wrong key (sketch LS1b): a deep red for the chain's shapes, never for text. -->
+    <Color x:Key="Color.ErrorPulse">#D7322B</Color>
     <!-- Something under way, such as an exit being connected (sketch UT1a). -->
     <SolidColorBrush x:Key="Brush.Pending" Color="#E0B872" />
     <!-- The close button of the window under the pointer, as in Windows. -->
