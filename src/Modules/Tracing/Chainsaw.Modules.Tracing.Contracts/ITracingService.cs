@@ -408,4 +408,16 @@ public static class TracingJournalKinds
 
     /// <summary>The user changed the tracing method the graph's amounts are counted by.</summary>
     public const string MethodChanged = "tracing.method-changed";
+
+    /// <summary>The user wrote a comment on the graph (sketch KN1a).</summary>
+    public const string CommentAdded = "tracing.comment-added";
+
+    /// <summary>The user changed a comment's text.</summary>
+    public const string CommentEdited = "tracing.comment-edited";
+
+    /// <summary>The user tied a comment's thread to another node, or untied it.</summary>
+    public const string CommentAnchored = "tracing.comment-anchored";
+
+    /// <summary>The user removed a comment.</summary>
+    public const string CommentRemoved = "tracing.comment-removed";
 }

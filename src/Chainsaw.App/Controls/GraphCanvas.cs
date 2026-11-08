@@ -121,6 +121,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         _model = model;
         model.Redraw += (_, _) => InvalidateVisual();
         model.PropertyChanged += OnModelChanged;
+        AttachComments(model);
         model.ShowNodesWanted += (_, nodes) => FitTo(nodes);
         model.FitWanted += (_, _) =>
         {
@@ -188,6 +189,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         // A transparent ground, so that the empty surface takes the pointer too.
         drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(RenderSize));
+        PlaceComments();
         if (_model?.Scene is not { } scene)
         {
             KeepRings(false);
@@ -211,6 +213,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         DrawAreas(drawingContext, visible);
+        DrawCommentThreads(drawingContext, visible);
         var (nearNodes, nearEdges) = _model.Near;
         var edges = GraphHitTest.VisibleEdges(scene, _model.Curves, visible).ToList();
         DrawWatchGlows(drawingContext, visible);
@@ -258,7 +261,9 @@ public sealed partial class GraphCanvas : FrameworkElement
         _model?.CloseMenu();
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
-        if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressArea(surface)))
+        _model?.Comments.Select(null);
+        if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressThread(surface)
+            || PressForComment(e, surface) || PressArea(surface)))
         {
             e.Handled = true;
             return;
@@ -289,7 +294,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
-        if (MoveHeldBack(at) || MoveFan(at, surface))
+        if (MoveHeldBack(at) || MoveFan(at, surface) || MoveForComments(surface))
         {
             return;
         }
@@ -319,7 +324,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseLeftButtonUp(e);
         var released = ToGraph(e.GetPosition(this));
-        if (ReleaseHeldBack(released) || ReleaseFan(_viewport.ToSurface(released)))
+        if (ReleaseHeldBack(released) || ReleaseFan(_viewport.ToSurface(released))
+            || ReleaseThread(_viewport.ToSurface(released)))
         {
             e.Handled = true;
             return;
@@ -337,6 +343,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         base.OnLostMouseCapture(e);
         ForgetFanPress();
+        _threadNote = null;
         _viewPressed = false;
         _lasso = null;
         if (_panButton is not null)
@@ -390,6 +397,11 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnKeyDown(e);
+        if (CommentKey(e))
+        {
+            return;
+        }
+
         var plus = e.Key is Key.OemPlus or Key.Add;
         var allowed = plus ? ModifierKeys.Shift : ModifierKeys.None;
         if (_model is not null && e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
@@ -551,9 +563,9 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         CloseHoverTip();
         Focus();
-        if (_blast != BlastPhase.None || _model?.Fan is not null)
+        if (_blast != BlastPhase.None || _model?.Fan is not null || _commentLayer?.IsMouseOver == true)
         {
-            // Over the selection view or a fanned pile, the graph under it takes no menu.
+            // Over the selection view, a fanned pile or a note, the graph under it takes no menu.
             e.Handled = true;
             return;
         }

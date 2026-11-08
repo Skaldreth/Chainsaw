@@ -26,6 +26,18 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         "recorded_utc",
     ];
 
+    /// <summary>The sealed chain of the graph's comments (sketch KN1a).</summary>
+    public const string CommentsChain = "tracing.comments";
+
+    /// <summary>The table of the graph's comments.</summary>
+    public const string CommentsTable = "tracing_comments";
+
+    /// <summary>The sealed columns of a comment's record, in order.</summary>
+    public static readonly IReadOnlyList<string> CommentColumns =
+    [
+        "action", "comment_id", "body", "anchor", "x", "y", "set_by", "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The first version of the tables.</summary>
     private const string Version1 = """
         CREATE TABLE tracing_start_points (
@@ -109,6 +121,34 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         ALTER TABLE tracing_expansions ADD COLUMN first_expanded_utc TEXT;
         """;
 
+    /// <summary>
+    /// The fifth version: the graph's comments (sketch KN1a). What a comment says, its first place, its thread and its
+    /// removal are sealed with who and when; where it was moved to and its size are ordinary data like the places.
+    /// </summary>
+    private const string Version5 = """
+        CREATE TABLE tracing_comments (
+            sequence INTEGER PRIMARY KEY,
+            action TEXT NOT NULL,
+            comment_id TEXT NOT NULL,
+            body TEXT NOT NULL,
+            anchor TEXT,
+            x REAL,
+            y REAL,
+            set_by TEXT NOT NULL,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        CREATE TABLE tracing_comment_places (
+            comment_id TEXT PRIMARY KEY,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            width REAL,
+            height REAL,
+            updated_utc TEXT NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -119,9 +159,13 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         new(2, "Grafens läge: spårningsmetod, vy, belopp och det som syns", Version2),
         new(3, "Det som hölls tillbaka vid en expansion och det som plockats ur högarna", Version3),
         new(4, "Utplockade tx ur det som hölls tillbaka, och när en expansion gjordes första gången", Version4),
+        new(5, "Kommentarer i grafen, förseglade med vem och när, och var de står", Version5),
     ];
 
     /// <inheritdoc/>
     public IReadOnlyList<SealedChain> SealedChains { get; } =
-        [new(CrossChainChain, CrossChainTable, CrossChainColumns)];
+    [
+        new(CrossChainChain, CrossChainTable, CrossChainColumns),
+        new(CommentsChain, CommentsTable, CommentColumns),
+    ];
 }

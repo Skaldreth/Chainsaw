@@ -74,13 +74,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     skissen 2026-11-08. Det som återstår står under *Spårning (Tracing)*, *Ledtrådsnoden, valvyn och samlingsnoden*.
 23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
     WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald och byggd 2026-11-07.**
-24. **En ren kommentarsnod i grafen** (användarens önskemål 2026-11-07): en nod som bara är en anteckning, skriven i
-    Markdown. Gawks Markdown-parser tas över (`Gawk.SharedKernel/Text/Markdown.cs`, `Views/MarkdownView.cs`,
-    `Views/Editor/MarkdownEditor.cs` och `MarkdownColorizer.cs`). Kommentaren skrivs **direkt i noden** ute i grafen, inte i en
-    panel. **KN1a vald 2026-11-07**; byggs som en etapp efter samlingsnoden (samma filer i grafen), sparas i ärendet.
-25. **Ändra storlek på noder** (användarens önskemål 2026-11-07): vissa noder ska kunna dras till egen storlek,
-    först kommentarsnoden (handtagen skissas i KN1); vilka fler (samlingsnoden?) avgörs med skissen. Storleken sparas
-    med grafens läge.
+25. **Ändra storlek på noder** (användarens önskemål 2026-11-07): *kommentarsnoden byggd 2026-11-08 (KN1a)*; vilka
+    fler noder som får handtaget (samlingsnoden EX2b, egna ytor) avgörs när de skissas. Storleken sparas med grafens
+    läge.
 28. **Innehav per adress** (användarens beslut 2026-11-07, efter IN3a–d som inte blev rätt): innehavet är **dolt** på
     noden. **Alt + klick** på en nod vänder den som ett kort, och baksidan visar beloppen: det som ligger kvar i rätt
     tecken (₿, Ξ, ₮; inte ett B) och samma belopp i inställd valuta (SEK) till dagens kurs. **Inspektören** visar allt
@@ -525,6 +521,20 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **In, ut eller alla** i högen är fortfarande två högar, en på var sida om adressen; valvyn har filtret.
 - **Startvyn grupperar ärenden** (punkt 21) använder fortfarande spiralen (`PileFanLayout.Centres`); grafens hög har
   ringen (`PileFanLayout.Ring`). Samma ring i startvyn kräver korten i skissens storlek där.
+
+### Kommentarsnoden (KN1a, byggd 2026-11-08)
+
+- **I hoppkolumnerna** står lapparna kvar på sin plats från den fria ytan, och tråden kan bli lång. Ska en lapp ha en
+  egen plats per läge, eller följa sin nod?
+- **En lapp följer inte sin nod** när noden dras; bara tråden följer. Kanske ska en knuten lapp flytta med.
+- **Historiken:** lappens förseglade poster (`IGraphCommentService.GetCommentHistory`) syns inte i inspektörens
+  *Historik* (AN1b), och en borttagen lapp kan inte läggas tillbaka i gränssnittet. Soptunnan (SO1a) bör ta lappen
+  när den byggs, i stället för att Delete tar bort den.
+- **Skrivandet:** Enter i en lista fortsätter inte listan och Tab drar inte in (Gawks `MarkdownEdits` är inte
+  övertagen); radavståndet medan man skriver är AvalonEdits, tätare än de 1,55 som ritas; hjulet över en lapp som
+  skrivs i zoomar inte grafen.
+- **Länkar:** `chainsaw:` till något som inte finns i grafen säger det bara; kanske ska det kunna bli en startpunkt.
+- **N med vald nod** knyter lappen till noden (skissen säger det bara om ikonen i nodens list). Fråga användaren.
 
 ### Attribution
 - **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.

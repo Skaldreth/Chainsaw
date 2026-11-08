@@ -28,6 +28,9 @@ public enum NodeMenuAction
     /// <summary>Kopiera adress (Ctrl+C).</summary>
     Copy,
 
+    /// <summary>Kommentar (N): a comment about the node, tied to it by a thread (sketch KN1a).</summary>
+    Comment,
+
     /// <summary>Lägg tillbaka i högen: an actor picked out of a pile goes back into it (sketch EX2b).</summary>
     ReturnToPile,
 
@@ -105,6 +108,7 @@ public sealed partial class GraphViewModel
 
         Add(Forms.CanLabel, NodeMenuAction.Label, "Etikett", "L", "Icon.Tag");
         Add(CanWatch(node), NodeMenuAction.Watch, "Bevaka", "B", "Icon.Eye");
+        Add(true, NodeMenuAction.Comment, CommentToolText, CommentKey, "Icon.Note");
         Add(Forms.CanSplit, NodeMenuAction.Split, "Bryt upp", "U", "Icon.Split");
         Add(Forms.CanCrossChain, NodeMenuAction.CrossChain, "Annan kedja", "K", "Icon.Link");
         Add(CanAskSuppliers(node), NodeMenuAction.AskSuppliers, SuppliersToolText, "R", "Icon.Shield");
@@ -169,6 +173,7 @@ public sealed partial class GraphViewModel
             new(NodeMenuAction.Split, "Bryt upp …", "U", "Icon.Split", Forms.CanSplit),
             new(NodeMenuAction.CrossChain, "Annan kedja …", "K", "Icon.Link", Forms.CanCrossChain),
             new(NodeMenuAction.Watch, "Bevaka …", "B", "Icon.Eye", CanWatch(node)),
+            new(NodeMenuAction.Comment, CommentToolText + " …", CommentKey, "Icon.Note", true),
             new(NodeMenuAction.Expand, "Expandera", "E", "Icon.Plus", CanExpand, HasGapBefore: true),
             new(NodeMenuAction.Copy, "Kopiera adress", "Ctrl+C", "Icon.Copy", hasAddress),
         ];
@@ -212,6 +217,9 @@ public sealed partial class GraphViewModel
                 break;
             case NodeMenuAction.AskSuppliers:
                 _ = AskSuppliersAsync();
+                break;
+            case NodeMenuAction.Comment:
+                BeginComment(default);
                 break;
             default:
                 CopyAddress();

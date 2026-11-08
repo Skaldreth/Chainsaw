@@ -114,6 +114,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// </param>
     /// <param name="suppliers">The suppliers of attribution (Chainabuse first); none where they are not wired.</param>
     /// <param name="switches">Which suppliers are on, from the page Källor; none where they are not wired.</param>
+    /// <param name="comments">The graph's comments (sketch KN1a); none where they are not wired.</param>
     public GraphViewModel(
         CaseSession session,
         CaseWorkflow workflow,
@@ -124,7 +125,8 @@ public sealed partial class GraphViewModel : ObservableObject
         IClock clock,
         ICheckSource? checks = null,
         IAttributionProviders? suppliers = null,
-        AttributionSwitches? switches = null)
+        AttributionSwitches? switches = null,
+        IGraphComments? comments = null)
     {
         _suppliers = suppliers;
         _switches = switches;
@@ -147,6 +149,8 @@ public sealed partial class GraphViewModel : ObservableObject
         Checks.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
         Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
         Checks.ToastWanted += (_, toast) => ToastWanted?.Invoke(this, toast);
+        Comments = new CommentsViewModel(session, comments ?? NoGraphComments.Instance);
+        WireComments();
         Forms = new InspectorFormsViewModel(session, editor, clock);
         Forms.Saved += (_, _) => _ = RefreshAsync();
         Forms.Failed += (_, text) => Tell(ToastKind.Error, text);

@@ -70,6 +70,8 @@ internal sealed class CaseHarness : IDisposable
 
     public ITracingService Service { get; }
 
+    public IGraphCommentService Comments => _provider.GetRequiredService<IGraphCommentService>();
+
     public Task<TraceGraph> Load() => Service.LoadAsync(Case);
 
     public async Task<ExpansionResult> Expand(BitcoinTransaction transaction) =>

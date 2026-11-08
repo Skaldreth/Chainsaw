@@ -31,6 +31,7 @@ public static class TracingModule
         services.AddSingleton<ITracingMethod, AccountHaircutMethod>();
         services.AddSingleton<ITrailEndClassifier, CoinJoinTrailEnds>();
         services.AddSingleton<ITracingService, TracingService>();
+        services.AddSingleton<IGraphCommentService, GraphCommentService>();
         return services;
     }
 }

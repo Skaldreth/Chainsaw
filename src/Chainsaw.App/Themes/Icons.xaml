@@ -102,6 +102,10 @@
     <!-- A pile as a deck of cards (sketch EX2b): a card in front, the edge of the one behind, a mark on the front. -->
     <Geometry x:Key="Icon.Stack">M4 8.5h13v11H4z M7 5.5h13v11 M10.5 12h2</Geometry>
     <Geometry x:Key="Icon.Pen">M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4</Geometry>
+    <!-- A comment on the graph (sketch KN1a): a sheet with a folded corner and two lines. -->
+    <Geometry x:Key="Icon.Note">M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5z M15 3v6h6 M7 13h6 M7 17h8</Geometry>
+    <!-- The grip in a comment's lower right corner that drags it to its own size (sketch KN1a). -->
+    <Geometry x:Key="Icon.Resize">M21 9L9 21 M21 16l-5 5</Geometry>
     <Geometry x:Key="Icon.Trash">M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13</Geometry>
     <Geometry x:Key="Icon.Cross">M6 6l12 12 M18 6L6 18</Geometry>
     <Geometry x:Key="Icon.Check">M5 12.5l4.5 4.5L19 7.5</Geometry>

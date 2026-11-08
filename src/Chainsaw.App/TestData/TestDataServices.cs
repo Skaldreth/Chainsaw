@@ -47,7 +47,10 @@ public static class TestDataServices
             provider.GetRequiredService<IAttributionService>(),
             provider.GetService<ILabelLibrary>(),
             provider.GetRequiredService<IMonitoringService>(),
-            provider.GetRequiredService<ICheckService>()));
+            provider.GetRequiredService<ICheckService>())
+        {
+            Comments = provider.GetService<IGraphCommentService>(),
+        });
         services.AddSingleton<TestCaseBuilder>();
         services.AddSingleton<IShellCommand, TestDataCommand>();
         return services;
