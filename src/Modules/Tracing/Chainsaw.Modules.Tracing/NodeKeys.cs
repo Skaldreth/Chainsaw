@@ -8,7 +8,7 @@ namespace Chainsaw.Modules.Tracing;
 internal static class NodeKeys
 {
     /// <summary>The prefix of a single address's node.</summary>
-    public const string AddressPrefix = "address:";
+    public const string AddressPrefix = GraphPile.AddressKeyPrefix;
 
     /// <summary>The prefix of a cluster's node.</summary>
     public const string ClusterPrefix = "cluster:";
@@ -16,7 +16,7 @@ internal static class NodeKeys
     /// <summary>The key of a single address's node.</summary>
     /// <param name="address">The address.</param>
     /// <returns>The key.</returns>
-    public static string Address(BitcoinAddress address) => AddressPrefix + address.Value;
+    public static string Address(BitcoinAddress address) => GraphPile.MemberKey(address);
 
     /// <summary>The key of a cluster's node, named by its representative address.</summary>
     /// <param name="representative">The representative address.</param>

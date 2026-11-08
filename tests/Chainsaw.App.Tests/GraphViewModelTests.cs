@@ -57,6 +57,30 @@ internal sealed class TestGraphSource : IGraphSource
     public Task<IReadOnlyList<WhyLine>> ExplainClusterAsync(
         ICase @case, GraphNode node, CancellationToken cancellationToken) => Task.FromResult(ClusterLines);
 
+    /// <summary>What the selection view opens with, or <see langword="null"/> for a failure.</summary>
+    public Func<HeldBackClue, HeldBackChoices>? HeldBack { get; set; }
+
+    /// <summary>The transactions brought in from what was held back, per pick.</summary>
+    public List<IReadOnlyCollection<Txid>> Taken { get; } = [];
+
+    public Task<HeldBackChoices> ListHeldBackAsync(
+        ICase @case, HeldBackClue clue, GraphScene scene, CancellationToken cancellationToken) =>
+        HeldBack is { } make
+            ? Task.FromResult(make(clue))
+            : Task.FromException<HeldBackChoices>(new InvalidOperationException("Offline"));
+
+    public Task<GraphExpansion> TakeHeldBackAsync(
+        ICase @case,
+        BitcoinAddress address,
+        IReadOnlyCollection<Txid> transactions,
+        TracingMethodKind method,
+        CancellationToken cancellationToken)
+    {
+        Taken.Add(transactions);
+        return Task.FromResult(
+            Expansion ?? new GraphExpansion(Scene(), ExpansionOutcome.Expanded, transactions.Count, []));
+    }
+
     public Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place)
     {
         Saved.Add((nodeKey, layout, place));
@@ -728,5 +752,17 @@ public sealed class GraphViewModelTests
 
         public Task ReturnToPileAsync(ICase @case, IReadOnlyCollection<string> nodeKeys) =>
             inner.ReturnToPileAsync(@case, nodeKeys);
+
+        public Task<HeldBackChoices> ListHeldBackAsync(
+            ICase @case, HeldBackClue clue, GraphScene scene, CancellationToken cancellationToken) =>
+            inner.ListHeldBackAsync(@case, clue, scene, cancellationToken);
+
+        public Task<GraphExpansion> TakeHeldBackAsync(
+            ICase @case,
+            BitcoinAddress address,
+            IReadOnlyCollection<Txid> transactions,
+            TracingMethodKind method,
+            CancellationToken cancellationToken) =>
+            inner.TakeHeldBackAsync(@case, address, transactions, method, cancellationToken);
     }
 }

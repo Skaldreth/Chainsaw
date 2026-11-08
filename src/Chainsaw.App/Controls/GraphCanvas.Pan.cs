@@ -87,8 +87,9 @@ public sealed partial class GraphCanvas
     /// <param name="button">The button that holds the pan.</param>
     private void BeginPan(MouseButtonEventArgs e, MouseButton button)
     {
-        if (_panButton is not null || _gesture.IsPressed)
+        if (_panButton is not null || _gesture.IsPressed || _blast != BlastPhase.None)
         {
+            // The selection view stands still: it is drawn in screen units, not on the surface.
             return;
         }
 

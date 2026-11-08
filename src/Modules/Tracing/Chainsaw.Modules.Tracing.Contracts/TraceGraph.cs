@@ -441,6 +441,18 @@ public sealed record Expansion(
     /// </summary>
     public ExpansionHoldBack? HeldBack { get; init; }
 
+    /// <summary>
+    /// Gets the transactions the user picked out of what the expansion held back (sketch EX2), also in
+    /// <see cref="Transactions"/>; empty when none were.
+    /// </summary>
+    public IReadOnlyList<Txid> Chosen { get; init; } = [];
+
+    /// <summary>
+    /// Gets when the subject was first expanded, which orders the expansions, so that one expanded again keeps its
+    /// place; <see langword="null"/> before it is stored.
+    /// </summary>
+    public DateTimeOffset? FirstExpandedUtc { get; init; }
+
     /// <summary>Gets what was expanded, as the case stores it: the address or the transaction.</summary>
     public string Subject =>
         Address?.Value ?? Txid?.Value ?? EthereumAddress?.Value ?? EthereumTransaction!.Value;

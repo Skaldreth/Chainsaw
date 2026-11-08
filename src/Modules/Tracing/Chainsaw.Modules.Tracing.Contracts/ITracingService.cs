@@ -135,6 +135,35 @@ public interface ITracingService
     void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position);
 
     /// <summary>
+    /// Reads what the expansions of an address held back (sketch EX1): its history past the transactions already in
+    /// the graph, through the source as any lookup (every response sealed in the case, principle 1), without adding
+    /// anything to the graph. Offline, it answers from what the case holds.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address that was expanded.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The transactions held back, newest first.</returns>
+    Task<HeldBackList> ListHeldBackAsync(
+        ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Brings chosen transactions that an address's expansion held back into the graph (sketch EX2: <em>Plocka
+    /// ut</em>), as part of that expansion: their new counterparties lie in the address's pile when they are many. A
+    /// transaction that does not touch the address is left out.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address that was expanded.</param>
+    /// <param name="transactions">The chosen transactions.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>What came in, and the graph after it.</returns>
+    /// <exception cref="ArgumentException">There are no transactions.</exception>
+    Task<ExpansionResult> TakeHeldBackAsync(
+        ICase @case,
+        BitcoinAddress address,
+        IReadOnlyCollection<Txid> transactions,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Picks actors out of their piles (sketch EX2b), so that the graph draws them as nodes of their own; they stay
     /// picked when the case is opened again. Ordinary data like the places, with no line in the journal: the pile is
     /// arrangement, and every fact stays in the graph whatever is picked (principle 1).

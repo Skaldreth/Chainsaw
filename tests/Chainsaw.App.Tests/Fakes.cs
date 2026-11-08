@@ -451,6 +451,25 @@ internal sealed class TestTracing : ITracingService
             outcome, NewPerExpansion, problem, Graph ?? throw new NotSupportedException()));
     }
 
+    public HeldBackList? HeldBack { get; set; }
+
+    public List<IReadOnlyCollection<Txid>> Taken { get; } = [];
+
+    public Task<HeldBackList> ListHeldBackAsync(
+        ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default) =>
+        Task.FromResult(HeldBack ?? new HeldBackList(address, [], true, null));
+
+    public Task<ExpansionResult> TakeHeldBackAsync(
+        ICase @case,
+        BitcoinAddress address,
+        IReadOnlyCollection<Txid> transactions,
+        CancellationToken cancellationToken = default)
+    {
+        Taken.Add(transactions);
+        return Task.FromResult(new ExpansionResult(
+            ExpansionOutcome.Expanded, [.. transactions], null, Graph ?? throw new NotSupportedException()));
+    }
+
     public CrossChainLink LinkCrossChain(ICase @case, Outpoint from, ChainTransactionRef to, string reason) =>
         throw new NotSupportedException();
 

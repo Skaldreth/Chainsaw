@@ -1059,25 +1059,52 @@ ligger bredvid `Chainsaw.exe`.
       några sekunder, och inga uppslag görs. Logga in på sidan: inom cirka 10 s blir titelraden grön och säger *Windows*.
 - [ ] I ett nät där ping (ICMP) är spärrat men https går genom datorns proxy visas *Windows* ändå grönt.
 
-## Ledtrådsnoden och samlingsnoden (EX1, EX2b)
-- [ ] Expandera en adress med många tx (till exempel en börs eller en pool med över 1 000): grafen får 50 tx, och vid
-      adressen står en streckad rund nod `+1 709 tx` (eller `+ fler tx` när källan inte sa hur många) med en tunn
-      streckad linje till adressen.
-- [ ] Ett klick på `+N tx` hämtar nästa 50; siffran minskar och noden försvinner när allt är hämtat.
-- [ ] Har expansionen fler än åtta nya motparter på en sida ritas de inte var för sig: en fyrkantig nod som en
-      kortlek (*Avsändare* till vänster, *Mottagare* till höger) med antalet och summan, och en tjock linje med summan.
-- [ ] En motpart med etikett (börs, sanktion, offer) eller som spårade pengar når står alltid kvar som egen nod.
-- [ ] Ett klick på högen dimmar resten av grafen och fäller ut korten i en spiral, störst närmast; ikonen med klockan
-      i listen längst ner byter till tidsbågen, tidigast överst. Korten överlappar aldrig, också med hundratals.
-- [ ] Reglagen i listen gallrar på belopp (lägsta och högsta, logaritmiskt), *Damm* döljer belopp under 0,0001 BTC och
-      räknaren säger till exempel `12 av 40`.
-- [ ] Klick väljer ett kort, Shift-klick väljer fler; *Plocka ut* eller Enter plockar ut de valda, som blir egna noder.
-- [ ] Dra ett kort ut på den dimmade grafen och släpp: det blir en egen nod där det släpptes, och de andra valda
-      följer med under det. Resten ligger kvar i högen.
-- [ ] Esc eller ett klick på den dimmade grafen stänger högen.
-- [ ] Stäng ärendet och öppna det igen: de utplockade står kvar som egna noder, högen och `+N tx` finns kvar.
-- [ ] Välj en utplockad nod: ikonlisten har *Lägg tillbaka i högen*, som lägger tillbaka den.
-- [ ] Verifiera ärendet efteråt: inget har ändrats i det förseglade (högen är bara hur grafen ritas).
+## Ledtrådsnoden, valvyn och högen (EX1, EX2, EX2b, omgjort 2026-11-08)
+- [ ] Expandera en adress med många tx (över 50): vid adressen står en streckad pill `+ 243 tx` med en tunn streckad
+      linje från adressen och under pillen, litet, *äldre än 2026-03-02* (den äldsta tx som togs med).
+- [ ] Ett klick på pillen: två ringar går ut från den, grafens noder flyger ut åt alla håll (de närmaste först) och
+      adressen glider till mitten. Medan historiken läses står bara adressen kvar med *Läser historiken …*.
+- [ ] Valvyn: tx:erna som prickar i en spiral runt adressen (nyast innerst), färgen efter motpartens sort (blått uttag,
+      grått okänt, rött risk, gult spel), större prick för större belopp, fylld för ut och ihålig för in. Filterpanelen
+      till vänster, raden *bc1q…x0wl · 243 tx som hölls tillbaka · visas 42 av 243* överst, knapparna uppe till höger
+      och listen längst ner tonar in när prickarna har kommit ut. Grafens hörn och *?* syns inte under tiden.
+- [ ] Förval: ±48 h runt den spårade ankomsten (streckad accentlinje i tidsreglaget) och *Dölj damm* på. Utan spårade
+      pengar till adressen: *Allt*. Räknaren säger *42 av 243*.
+- [ ] Beloppsreglaget har fördelningen bakom sig; dra ändarna och texten blir till exempel *0,01 – allt BTC*. *In*,
+      *Ut*, *Alla*, tidsfönstret (dra bandet längs tiden, eller ±48 h, ±7 d, Allt), motpartens grupper, *Bara de som
+      inte finns i grafen* och *Gruppera per motpart* (en prick per motpart med antalet i) gallrar som de säger.
+      *Återställ* tar tillbaka förvalen. Den sista gruppen går inte att släcka.
+- [ ] En motpart med röd etikett (mixer, darknet, sanktion) pulserar med röd sonar; en utbetalning strax under det
+      spårade beloppet (97–100 %) pulserar i accenten. En motpart som redan är en nod har en liten ihålig ring i
+      hörnet, en etikett från ett annat ärende en liten romb. Hovra en prick: en ruta säger *Ut till … · belopp*, txid
+      och tid i UTC och varför den är markerad. Med animeringar avstängda i Windows står sonaren still.
+- [ ] *Tidsbåge*: prickarna i en båge över adressen, vinkeln är tiden och avståndet beloppet, med streckade bågar för
+      0,01, 0,1 och 1 BTC, dagar (eller månader) i ytterkanten och den spårade ankomsten som en streckad accentstråle.
+      *Tid* och *Belopp* (bara i spiralen) byter ordning; spiralen säger då månader eller *störst*, *< 1 BTC* …
+- [ ] Klick väljer en prick (ring i accenten), ett nytt klick släpper den; Shift-klick väljer alla mellan den förra och
+      denna. *Lasso · L*: dra en ring runt prickar. *Största 10*, *Välj pulserande* (bara när något pulserar) och
+      *Rensa* (bara när något är valt). Listen säger *12 valda · 4,97 BTC · 12 motparter* och *Plocka ut 12 · Enter*
+      blir terrakotta.
+- [ ] *Avbryt · Esc* eller Esc: grafen kommer tillbaka (noderna landar, de närmaste först). Enter eller *Plocka ut*:
+      grafen kommer tillbaka och de valda tx:erna hämtas in; är de fler än åtta nya motparter på en sida hamnar de i en
+      hög. Pillen säger nu *231 tx* och under den *12 plockade · äldst 2025-08-04*.
+- [ ] Utan nät och utan sparad historik: ett fel säger *Det som hölls tillbaka kunde inte läsas.* med *Försök igen*,
+      och grafen kommer tillbaka. Ett ärende som läst historiken förut öppnar valvyn också offline.
+- [ ] En tx-expansion med fler mottagare än gränsen har också en pill; ett klick där hämtar nästa del (ingen valvy).
+- [ ] Högen ritas som en kortlek (två kort bakom), *12 mottagare* och *4,97 BTC · 12 tx*, med en grå linje som är
+      tjockare ju mer den bär och säger *4,97 BTC · 12 tx*.
+- [ ] Ett klick på högen dimmar resten av grafen och korten flyger ut i en ring runt den (tolv i den inre, resten i
+      yttre ringar, aldrig på varandra), med en liten studs. Varje kort har sortens ikon, namnet och *0,038 BTC · 1 tx*;
+      ett kort med röd etikett har en röd prick i hörnet. Ett nytt klick på högen, Esc eller ett klick på det dimmade
+      fäller ihop den.
+- [ ] Klick väljer ett kort, Shift-klick fler. Dra ett kort ut på det dimmade och släpp: det blir en egen nod där, de
+      andra valda under det, och högen säger *11 mottagare*. Släpps kortet på högen ligger det kvar. Enter plockar ut de
+      valda på sina vanliga platser.
+- [ ] Högerklick och hjulet gör inget medan högen är utfälld eller valvyn är öppen.
+- [ ] Stäng ärendet och öppna det igen: de utplockade står kvar, högen och pillen med *12 plockade* finns kvar.
+- [ ] Välj en utplockad nod i ett kluster: *Lägg tillbaka i högen* lägger tillbaka den, också om klustrets
+      representant har bytts sedan den plockades ut.
+- [ ] Verifiera ärendet efteråt: verifieringen går igenom (historiken som lästes är förseglad som andra svar).
 
 ## Utgångar utan mottagare döljs (OP_RETURN)
 - [ ] Expandera en adress som tillhör en pool (coinbase-tx med OP_RETURN på 0 BTC): noderna för OP_RETURN syns inte,

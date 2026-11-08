@@ -7,34 +7,60 @@ using Chainsaw.App.ViewModels;
 namespace Chainsaw.App.Controls;
 
 /// <summary>
-/// The fanned pile (sketches EX1a, EX1b and EX2b): the rest of the graph dims, the cards lie around the pile, a click
-/// chooses one, Shift-click more, and a card dragged out onto the dimmed graph is picked out where it is dropped, with
-/// the other chosen cards under it. A click on the dimmed graph, or Esc, closes the fan.
+/// The pile (sketch EX2b): drawn as a deck of cards, and fanned out as tiles in a ring around it over the dimmed graph.
+/// A click chooses a tile, Shift-click more, and a tile dragged out onto the dimmed graph is picked out where it is
+/// dropped, with the other chosen under it. A click on the pile or the dimmed graph, or Esc, folds it again.
 /// </summary>
 public sealed partial class GraphCanvas
 {
-    /// <summary>How far the pointer must move, in screen units, before a press on a card becomes a drag.</summary>
-    private const double CardDragDistance = 4;
+    /// <summary>How far the pointer must move, in screen units, before a press on a tile becomes a drag.</summary>
+    private const double CardDragDistance = 6;
 
-    /// <summary>How dark the dimmed graph is under the fan.</summary>
-    private const double FanDimOpacity = 0.78;
+    /// <summary>How much the graph dims behind a fanned pile (sketch EX2b: to 30 %).</summary>
+    private const double FanDim = 0.7;
 
-    /// <summary>A card's corner radius.</summary>
-    private const double CardRadius = 7;
+    /// <summary>A tile's corner radius.</summary>
+    private const double TileRadius = 9;
 
-    /// <summary>The card pressed in the fan, or <see langword="null"/>.</summary>
+    /// <summary>The frame round a tile's icon.</summary>
+    private const double TileIconBox = 22;
+
+    /// <summary>The icon in a tile's frame.</summary>
+    private const double TileIconSize = 12;
+
+    /// <summary>How far each card behind the deck's front lies (sketch EX2b: 5 and 10).</summary>
+    private const double DeckStep = 5;
+
+    /// <summary>How far the dragged tile is turned, in degrees (sketch EX2b: −2°).</summary>
+    private const double DragTilt = -2;
+
+    /// <summary>The red dot of a negative label on a tile.</summary>
+    private const double NegativeDot = 8;
+
+    /// <summary>The tile pressed in the fan, or <see langword="null"/>.</summary>
     private string? _cardPressed;
 
-    /// <summary>Where on screen the card was pressed.</summary>
+    /// <summary>Where on screen the tile was pressed.</summary>
     private GraphPoint _cardPressAt;
 
-    /// <summary>Where on the surface a dragged card is now, or <see langword="null"/> while it is not dragged.</summary>
+    /// <summary>
+    /// Where on the surface a dragged tile is now, or <see langword="null"/> while it is not dragged.
+    /// </summary>
     private GraphPoint? _cardDraggedTo;
 
-    /// <summary>Whether the press under way is on the dimmed graph around an open fan.</summary>
+    /// <summary>Whether the press under way is on the dimmed graph or the pile.</summary>
     private bool _fanBackgroundPressed;
 
-    /// <summary>Takes a press while a pile is fanned out: on a card, on the pile, or on the dimmed graph.</summary>
+    /// <summary>How open the pile is, from 0 (folded) to 1 (fanned out).</summary>
+    private double _fanOpen;
+
+    /// <summary>The fan drawn, kept while it folds after the model let it go.</summary>
+    private PileFanViewModel? _fanShown;
+
+    /// <summary>When the pile began to open or fold, and from how open.</summary>
+    private (DateTime Start, double From, double To)? _fanMove;
+
+    /// <summary>Takes a press while a pile is fanned out: on a tile, on the pile, or on the dimmed graph.</summary>
     /// <param name="at">The press on screen.</param>
     /// <param name="surface">The press on the surface.</param>
     /// <returns><see langword="true"/> when the fan took it.</returns>
@@ -53,7 +79,7 @@ public sealed partial class GraphCanvas
         return true;
     }
 
-    /// <summary>Moves a pressed card, once the pointer has gone far enough to make it a drag.</summary>
+    /// <summary>Moves a pressed tile, once the pointer has gone far enough to make it a drag.</summary>
     /// <param name="at">The pointer on screen.</param>
     /// <param name="surface">The pointer on the surface.</param>
     /// <returns><see langword="true"/> when the fan took the move.</returns>
@@ -67,7 +93,7 @@ public sealed partial class GraphCanvas
         if (_cardPressed is null)
         {
             // While the pile is fanned out, the graph under it is dimmed and takes no hovering.
-            Cursor = fan.CardAt(surface) is null ? null : Cursors.Hand;
+            Cursor = fan.CardAt(surface) is null && !OnPile(fan, surface) ? null : Cursors.Hand;
             return true;
         }
 
@@ -77,13 +103,14 @@ public sealed partial class GraphCanvas
         }
 
         _cardDraggedTo = surface;
+        Cursor = Cursors.SizeAll;
         InvalidateVisual();
         return true;
     }
 
     /// <summary>
-    /// Lets go in the fan: a dragged card is picked out where it lands, unless it lands on another card; a click on a
-    /// card chooses it (Shift adds); a click on the dimmed graph closes the fan.
+    /// Lets go in the fan: a dragged tile is picked out where it lands, unless it lands back on the pile; a click on a
+    /// tile chooses it (Shift adds); a click on the pile or the dimmed graph folds it.
     /// </summary>
     /// <param name="surface">Where it was let go, on the surface.</param>
     /// <returns><see langword="true"/> when the fan took it.</returns>
@@ -96,12 +123,11 @@ public sealed partial class GraphCanvas
 
         var card = _cardPressed;
         var dragged = _cardDraggedTo is not null;
-        _cardPressed = null;
-        _cardDraggedTo = null;
         var background = _fanBackgroundPressed;
-        _fanBackgroundPressed = false;
+        ForgetFanPress();
         ReleaseMouseCapture();
-        if (card is not null && dragged && fan.CardAt(surface) is null)
+        Cursor = null;
+        if (card is not null && dragged && !OnPile(fan, surface))
         {
             var grip = new GraphPoint(
                 surface.X - (GraphSizes.NodeWidth / 2), surface.Y - (GraphSizes.NodeHeight / 2));
@@ -111,7 +137,7 @@ public sealed partial class GraphCanvas
         {
             fan.Click(card, (Keyboard.Modifiers & ModifierKeys.Shift) != 0);
         }
-        else if (background && !OnPile(fan, surface))
+        else if (background)
         {
             fan.Close();
         }
@@ -128,11 +154,16 @@ public sealed partial class GraphCanvas
         _fanBackgroundPressed = false;
     }
 
-    /// <summary>The fan's keys: Esc closes it, Enter picks the chosen cards out.</summary>
+    /// <summary>The fan's keys and the selection view's: Esc folds or closes, Enter picks out, L lassoes.</summary>
     /// <param name="key">The key.</param>
-    /// <returns><see langword="true"/> when the fan took it.</returns>
+    /// <returns><see langword="true"/> when the fan or the view took it.</returns>
     private bool FanKey(Key key)
     {
+        if (HeldBackKey(key))
+        {
+            return true;
+        }
+
         if (_model?.Fan is not { } fan)
         {
             return false;
@@ -151,78 +182,279 @@ public sealed partial class GraphCanvas
         }
     }
 
-    /// <summary>Says whether a point lies on the fanned pile's own node.</summary>
+    /// <summary>Says whether a point lies on the fanned pile's own deck.</summary>
     /// <param name="fan">The fan.</param>
     /// <param name="surface">The point.</param>
     /// <returns><see langword="true"/> when it does.</returns>
-    private bool OnPile(PileFanViewModel fan, GraphPoint surface) =>
-        _model!.Places.TryGetValue(fan.Pile.Key, out var place) && GraphSizes.NodeFrame(place).Contains(surface);
+    private bool OnPile(PileFanViewModel fan, GraphPoint surface)
+    {
+        if (!_model!.Places.TryGetValue(fan.Pile.Key, out var place))
+        {
+            return false;
+        }
+
+        var frame = GraphSizes.NodeFrame(place);
+        var deck = new GraphRect(frame.X, frame.Y, frame.Width + (2 * DeckStep), frame.Height + (2 * DeckStep));
+        return deck.Contains(surface);
+    }
 
     /// <summary>
-    /// Draws the fan over the graph: the dimmed ground, the pile again on top, a faint line to every card, the cards,
-    /// and the cards being dragged at the pointer.
+    /// Follows the model's fan: opening starts the ring's motion from the pile, folding plays it back with the last
+    /// fan drawn. Without animations it opens and folds at once.
+    /// </summary>
+    private void FollowFanMotion()
+    {
+        var fan = _model?.Fan;
+        var target = fan is null ? 0.0 : 1.0;
+        if (fan is not null)
+        {
+            _fanShown = fan;
+        }
+
+        if (_fanMove is { } moving ? moving.To == target : _fanOpen == target)
+        {
+            return;
+        }
+
+        if (!AnimationsOn)
+        {
+            _fanOpen = target;
+            _fanMove = null;
+            InvalidateVisual();
+            return;
+        }
+
+        _fanMove = (DateTime.UtcNow, _fanOpen, target);
+        KeepMoving();
+    }
+
+    /// <summary>Moves the pile's opening one frame on.</summary>
+    /// <returns><see langword="true"/> while it still moves.</returns>
+    private bool StepFan()
+    {
+        if (_fanMove is not { } move)
+        {
+            return false;
+        }
+
+        var t = HeldBackMotion.Unit((DateTime.UtcNow - move.Start) / HeldBackMotion.FanTime);
+        _fanOpen = move.From + ((move.To - move.From) * HeldBackMotion.EaseInOut(t));
+        if (t < 1)
+        {
+            return true;
+        }
+
+        _fanMove = null;
+        if (move.To == 0)
+        {
+            _fanShown = null;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Draws the fan over the graph: the dimmed ground, the pile again on top, and its tiles flying out to their ring,
+    /// with the tiles being dragged at the pointer.
     /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="visible">The visible part of the surface.</param>
     private void DrawFan(DrawingContext dc, GraphRect visible)
     {
-        if (_model?.Fan is not { } fan || _model.Scene?.Node(fan.Pile.Key) is not { } pile)
+        if (_fanOpen <= 0 || _fanShown is not { } fan || _model?.Scene?.Node(fan.Pile.Key) is not { } pile
+            || !_model.Places.TryGetValue(pile.Key, out var place))
         {
             return;
         }
 
-        dc.PushOpacity(FanDimOpacity);
+        dc.PushOpacity(FanDim * _fanOpen);
         dc.DrawRectangle(
             GraphPalette.Find(this, "Brush.Background"),
             null,
             new Rect(visible.X, visible.Y, visible.Width, visible.Height));
         dc.Pop();
-        var spoke = new Pen(GraphPalette.Find(this, "Brush.Border"), 1);
-        foreach (var card in fan.Shown)
-        {
-            var frame = PileFanLayout.CardFrame(fan.Places[card.Key]);
-            dc.DrawLine(spoke, ToPoint(fan.Centre), ToPoint(frame.Centre));
-        }
-
-        DrawNode(dc, pile, _model.Places[pile.Key], new HashSet<string>(StringComparer.Ordinal) { pile.Key });
+        DrawPile(dc, pile, place, open: true);
         var lifted = _cardDraggedTo is not null && _cardPressed is { } pressed ? fan.Taking(pressed) : [];
-        foreach (var card in fan.Shown.Where(card => !lifted.Contains(card.Key)))
+        for (var index = 0; index < fan.Shown.Count; index++)
         {
-            DrawCard(dc, card, fan.Places[card.Key], fan.Selected.Contains(card.Key));
+            var card = fan.Shown[index];
+            if (lifted.Contains(card.Key))
+            {
+                continue;
+            }
+
+            var (travel, opacity, scale) = HeldBackMotion.Tile(index, fan.Shown.Count, _fanOpen);
+            var centre = HeldBackMotion.Lerp(fan.Centre, fan.Places[card.Key], travel);
+            if (!PileFanLayout.TileFrame(centre).Intersects(visible))
+            {
+                continue;
+            }
+
+            dc.PushOpacity(opacity);
+            dc.PushTransform(new ScaleTransform(scale, scale, centre.X, centre.Y));
+            DrawTile(dc, card, centre, fan.Selected.Contains(card.Key));
+            dc.Pop();
+            dc.Pop();
         }
 
         if (_cardDraggedTo is { } to)
         {
-            for (var index = 0; index < lifted.Count; index++)
-            {
-                var card = fan.Pile.Cards.First(one => one.Key == lifted[index]);
-                var place = new GraphPoint(
-                    to.X - (PileFanLayout.CardWidth / 2), to.Y - (PileFanLayout.CardHeight / 2) + (index * 6));
-                DrawCard(dc, card, place, true);
-            }
+            DrawDragged(dc, fan, lifted, to);
         }
     }
 
     /// <summary>
-    /// Draws a card: a small frame with the sort's colour, its name and the amount between it and the actor.
+    /// Draws the tiles being dragged at the pointer, turned a little, the first on top; the frame is lighter where they
+    /// can be dropped.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="fan">The fan.</param>
+    /// <param name="lifted">The tiles dragged.</param>
+    /// <param name="to">The pointer on the surface.</param>
+    private void DrawDragged(DrawingContext dc, PileFanViewModel fan, IReadOnlyList<string> lifted, GraphPoint to)
+    {
+        dc.PushTransform(new RotateTransform(DragTilt, to.X, to.Y));
+        for (var index = lifted.Count - 1; index >= 0; index--)
+        {
+            var card = fan.Pile.Cards.First(one => one.Key == lifted[index]);
+            DrawTile(dc, card, new GraphPoint(to.X, to.Y + (index * DeckStep)), !OnPile(fan, to));
+        }
+
+        dc.Pop();
+    }
+
+    /// <summary>
+    /// Draws a tile (sketch EX2b): the sort's icon in its frame, the name, and what moved between it and the pile's
+    /// actor; a red dot for a negative label; the accent frame when chosen.
     /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="card">The card.</param>
-    /// <param name="place">Its top-left corner.</param>
+    /// <param name="centre">The tile's centre.</param>
     /// <param name="chosen">Whether it is chosen.</param>
-    private void DrawCard(DrawingContext dc, PileCard card, GraphPoint place, bool chosen)
+    private void DrawTile(DrawingContext dc, PileCard card, GraphPoint centre, bool chosen)
     {
-        var frame = new Rect(place.X, place.Y, PileFanLayout.CardWidth, PileFanLayout.CardHeight);
-        var pen = chosen
+        var frame = PileFanLayout.TileFrame(centre);
+        var rect = new Rect(frame.X, frame.Y, frame.Width, frame.Height);
+        var edge = chosen
             ? new Pen(GraphPalette.Find(this, "Brush.Accent"), 1.5)
-            : new Pen(GraphPalette.Brush(this, card.Node.Look.Ink), 1);
+            : new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1);
+        dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.SurfaceRaised"), edge, rect, TileRadius, TileRadius);
+        var look = card.Node.Look;
+        var iconCorner = new Point(rect.X + 7, rect.Y + ((rect.Height - TileIconBox) / 2));
+        DrawSmallIcon(dc, look, GraphPalette.Brush(this, look.Ink), iconCorner, TileIconBox, TileIconSize);
+        var left = iconCorner.X + TileIconBox + 8;
+        var room = rect.Right - 9 - left;
+        var title = card.Node.IsNamed ? card.Node.Name : card.Node.Subject;
+        var name = Fitted(title, 12, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold, room);
+        var line = Text(card.Line, 10.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var top = rect.Y + ((rect.Height - name.Height - line.Height + 2) / 2);
+        dc.DrawText(name, new Point(left, top));
+        dc.DrawText(line, new Point(left, top + name.Height - 2));
+        if (HeldBackChoice.GroupOf(look.Sort) == CounterpartyGroup.Risk)
+        {
+            dc.DrawEllipse(
+                GraphPalette.Find(this, "Brush.Error"),
+                new Pen(GraphPalette.Find(this, "Brush.Background"), 1.5),
+                new Point(rect.Right, rect.Y),
+                NegativeDot / 2,
+                NegativeDot / 2);
+        }
+    }
+
+    /// <summary>
+    /// Draws a pile as a deck of cards (sketch EX2b): two cards behind the front, the stack's icon, the count of
+    /// counterparties and what moved with how many transactions; lighter while it is fanned out.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="node">The pile's node.</param>
+    /// <param name="place">Its top-left corner.</param>
+    /// <param name="open">Whether it is fanned out.</param>
+    private void DrawPile(DrawingContext dc, NodeView node, GraphPoint place, bool open)
+    {
+        var front = new Rect(place.X, place.Y, GraphSizes.NodeWidth, GraphSizes.NodeHeight);
+        for (var step = 2; step >= 1; step--)
+        {
+            var behind = front;
+            behind.Offset(step * DeckStep, step * DeckStep);
+            dc.DrawRoundedRectangle(
+                GraphPalette.Find(this, "Brush.Background"),
+                new Pen(GraphPalette.Find(this, step == 2 ? "Brush.Border" : "Brush.BorderStrong"), 1),
+                behind,
+                NodeRadius,
+                NodeRadius);
+        }
+
+        var chosen = _model!.SelectedNode == node.Key;
+        var frameKey = open || _model.HoveredNode == node.Key ? "Brush.BorderHover" : "Brush.BorderStrong";
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, chosen ? "Brush.SurfaceRaised" : "Brush.Surface"), pen, frame, CardRadius, CardRadius);
-        var name = Fitted(card.Node.Subject, 10.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.Medium,
-            PileFanLayout.CardWidth - 12);
-        dc.DrawText(name, new Point(place.X + 6, place.Y + 2));
-        var amount = Text(AmountText.Number(card.Amount), 9.5, GraphPalette.Find(this, "Brush.TextDim"),
-            FontWeights.Normal);
-        dc.DrawText(amount, new Point(place.X + 6, place.Y + PileFanLayout.CardHeight - amount.Height - 2));
+            GraphPalette.Find(this, open ? "Brush.SurfaceSelected" : "Brush.Surface"),
+            new Pen(GraphPalette.Find(this, chosen ? "Brush.Accent" : frameKey), chosen ? 1.5 : 1),
+            front,
+            NodeRadius,
+            NodeRadius);
+        var muted = GraphPalette.Find(this, "Brush.TextMuted");
+        var iconCorner = new Point(front.X + NodePadding, front.Y + ((front.Height - IconBox) / 2));
+        DrawSmallIcon(dc, node.Look, muted, iconCorner, IconBox, IconSize);
+        var left = iconCorner.X + IconBox + NodeGap;
+        var room = front.Right - NodePadding - left;
+        var name = Fitted(node.Name, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold, room);
+        var sub = Fitted(node.Subject, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal, room);
+        var top = front.Y + ((front.Height - name.Height - sub.Height + 2) / 2);
+        dc.DrawText(name, new Point(left, top));
+        dc.DrawText(sub, new Point(left, top + name.Height - 2));
+    }
+
+    /// <summary>
+    /// Draws a clue (sketch EX1): a dashed pill with a plus and the count, and under it, small, what it says about the
+    /// time; centred at the top of its node's place.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="node">The clue's node.</param>
+    /// <param name="place">Its top-left corner.</param>
+    private void DrawClue(DrawingContext dc, NodeView node, GraphPoint place)
+    {
+        const double PillHeight = 30;
+        const double Plus = 12;
+        const double Pad = 13;
+        var hovered = _model!.HoveredNode == node.Key;
+        var words = node.Name.TrimStart('+').Trim();
+        var count = Text(words, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
+        var width = Pad + Plus + 7 + count.Width + Pad;
+        var middle = place.X + (GraphSizes.NodeWidth / 2);
+        var pill = new Rect(middle - (width / 2), place.Y, width, PillHeight);
+        var pen = new Pen(GraphPalette.Find(this, hovered ? "Brush.Text" : "Brush.TextDim"), 1.5)
+        {
+            DashStyle = FrameDash,
+        };
+        dc.DrawRoundedRectangle(
+            GraphPalette.Find(this, hovered ? "Brush.SurfaceRaised" : "Brush.Surface"),
+            pen,
+            pill,
+            PillHeight / 2,
+            PillHeight / 2);
+        var plusCorner = new Point(pill.X + Pad, pill.Y + ((PillHeight - Plus) / 2));
+        DrawGlyph(dc, "Icon.Plus", GraphPalette.Find(this, "Brush.TextMuted"), plusCorner, Plus);
+        dc.DrawText(count, new Point(plusCorner.X + Plus + 7, pill.Y + ((PillHeight - count.Height) / 2)));
+        if (node.Subject.Length > 0)
+        {
+            var line = Text(node.Subject, 11, GraphPalette.Find(this, "Brush.TextFaint"), FontWeights.Normal);
+            dc.DrawText(line, new Point(middle - (line.Width / 2), pill.Bottom + 4));
+        }
+    }
+
+    /// <summary>Draws a sort's icon in its round or square frame at a size.</summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="look">The sort's look.</param>
+    /// <param name="ink">The colour.</param>
+    /// <param name="corner">The frame's top-left corner.</param>
+    /// <param name="box">The frame's size.</param>
+    /// <param name="size">The icon's size.</param>
+    private void DrawSmallIcon(DrawingContext dc, SortLook look, Brush ink, Point corner, double box, double size)
+    {
+        var radius = look.Shape == NodeShape.Round ? box / 2 : 6;
+        var pen = new Pen(ink, 1.5) { DashStyle = look.IsDashed ? FrameDash : DashStyles.Solid };
+        dc.DrawRoundedRectangle(null, pen, new Rect(corner, new Size(box, box)), radius, radius);
+        var offset = (box - size) / 2;
+        DrawGlyph(dc, look.Icon, ink, new Point(corner.X + offset, corner.Y + offset), size);
     }
 }

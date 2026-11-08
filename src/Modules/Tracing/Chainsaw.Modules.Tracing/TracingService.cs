@@ -159,6 +159,34 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
+    public Task<HeldBackList> ListHeldBackAsync(
+        ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(address);
+        return Task.Run(() => ListHeldBackCoreAsync(@case, address, cancellationToken), cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<ExpansionResult> TakeHeldBackAsync(
+        ICase @case,
+        BitcoinAddress address,
+        IReadOnlyCollection<Txid> transactions,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(address);
+        ArgumentNullException.ThrowIfNull(transactions);
+        if (transactions.Count == 0)
+        {
+            throw new ArgumentException("Pick at least one transaction.", nameof(transactions));
+        }
+
+        return Task.Run(
+            () => TakeHeldBackCoreAsync(@case, address, transactions, cancellationToken), cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public CrossChainLink LinkCrossChain(ICase @case, Outpoint from, ChainTransactionRef to, string reason)
     {
         ArgumentNullException.ThrowIfNull(@case);
@@ -619,6 +647,124 @@ internal sealed class TracingService : ITracingService
 
             after = page.Value.NextAfter;
         }
+    }
+
+    /// <summary>
+    /// Reads an address's history, newest first, and keeps what the graph does not hold yet: what its expansions held
+    /// back. Every page goes through the source as an expansion's does, so it is sealed in the case (principle 1) and
+    /// read from there offline (principle 9).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>What was held back.</returns>
+    private async Task<HeldBackList> ListHeldBackCoreAsync(
+        ICase @case, BitcoinAddress address, CancellationToken cancellationToken)
+    {
+        var inGraph = @case.Read(GraphStateStore.Read).Transactions.ToHashSet();
+        var seen = new HashSet<Txid>();
+        var held = new List<HeldBackTransaction>();
+        string? problem = null;
+        Txid? after = null;
+        while (seen.Count < HeldBackList.Most)
+        {
+            var page = await _source.GetAddressTransactionsAsync(@case, address, after, cancellationToken)
+                .ConfigureAwait(false);
+            if (page.Value is null)
+            {
+                return new HeldBackList(address, held, false, Join(problem, Problem(page.Status, page.Problem)));
+            }
+
+            if (page.Status == LookupStatus.FromCaseMayBeOutdated)
+            {
+                problem ??= Outdated(page);
+            }
+
+            var before = seen.Count;
+            foreach (var transaction in page.Value.Transactions.Where(tx => seen.Add(tx.Txid)))
+            {
+                if (!inGraph.Contains(transaction.Txid) && HeldBackReader.Read(transaction, address) is { } one)
+                {
+                    held.Add(one);
+                }
+            }
+
+            if (page.Value.NextAfter is null)
+            {
+                return new HeldBackList(address, held, true, problem);
+            }
+
+            if (page.Value.NextAfter == after || seen.Count == before)
+            {
+                const string SamePage = "Källan gav samma sida igen; historiken lästes så långt den gick.";
+                return new HeldBackList(address, held, false, Join(problem, SamePage));
+            }
+
+            after = page.Value.NextAfter;
+        }
+
+        return new HeldBackList(address, held, false, Join(problem, string.Format(
+            CultureInfo.InvariantCulture,
+            "Adressens historik är längre än {0} tx; de nyaste {0} lästes.",
+            HeldBackList.Most)));
+    }
+
+    /// <summary>
+    /// Brings chosen held-back transactions into the address's expansion: each is read (from the case when it is
+    /// there), one that does not touch the address is left out, and what the expansion held back stays, so that its
+    /// clue counts what is left.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="transactions">The chosen transactions.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>What came in and the graph.</returns>
+    private async Task<ExpansionResult> TakeHeldBackCoreAsync(
+        ICase @case,
+        BitcoinAddress address,
+        IReadOnlyCollection<Txid> transactions,
+        CancellationToken cancellationToken)
+    {
+        var state = @case.Read(GraphStateStore.Read);
+        var before = state.Transactions.ToHashSet();
+        var earlier = state.Expansions.FirstOrDefault(expansion => expansion.Address == address);
+        var taken = new List<Txid>();
+        string? problem = null;
+        foreach (var txid in transactions.Distinct())
+        {
+            var lookup = await _source.GetTransactionAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+                .ConfigureAwait(false);
+            if (lookup.Value is null)
+            {
+                problem = Join(problem, Problem(lookup.Status, lookup.Problem));
+                continue;
+            }
+
+            if (HeldBackReader.Read(lookup.Value, address) is not null)
+            {
+                taken.Add(txid);
+            }
+        }
+
+        if (taken.Count == 0)
+        {
+            var unchanged = await LoadAsync(@case, cancellationToken).ConfigureAwait(false);
+            return new ExpansionResult(ExpansionOutcome.NotExpanded, [], problem, unchanged);
+        }
+
+        var expansion = new Expansion(address, null, taken, earlier?.IsComplete ?? true, _clock.UtcNow)
+        {
+            Chosen = taken,
+        };
+        @case.Write(transaction => GraphStateStore.SaveExpansion(transaction, expansion));
+        await FetchSpendsAsync(@case, taken, cancellationToken).ConfigureAwait(false);
+        var data = await ReadDataAsync(@case, cancellationToken).ConfigureAwait(false);
+        _clustering.Analyse(@case, [.. data.Transactions.Values.Select(entry => entry.Transaction)]);
+        return new ExpansionResult(
+            problem is null ? ExpansionOutcome.Expanded : ExpansionOutcome.Partly,
+            [.. taken.Where(txid => !before.Contains(txid))],
+            problem,
+            Build(@case, data));
     }
 
     /// <summary>

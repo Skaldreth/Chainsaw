@@ -70,8 +70,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     `GraphStartView.xaml`); att dra en hel hög (till soptunnan eller på en annan hög); tangentbordet för högarna (en
     hög tar inte fokus med Tab); och att grafens samlingsnod får samma stöt och centrering genom `FanOutLayer`.
 22. **En expansion ritar allt rakt ut:** *byggt 2026-11-07, väntar på prov på Windows:* ledtrådsnoden `+N tx`,
-    samlingsnoden (EX2b) med valvyn i två lägen (EX1a, EX1b) och filtren, urvalet sparat i ärendet. Det som återstår
-    står under *Spårning (Tracing)*, *Ledtrådsnoden och samlingsnoden*.
+    samlingsnoden (EX2b) med valvyn i två lägen (EX1a, EX1b) och filtren, urvalet sparat i ärendet; omgjort efter
+    skissen 2026-11-08. Det som återstår står under *Spårning (Tracing)*, *Ledtrådsnoden, valvyn och samlingsnoden*.
 23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
     WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald och byggd 2026-11-07.**
 24. **En ren kommentarsnod i grafen** (användarens önskemål 2026-11-07): en nod som bara är en anteckning, skriven i
@@ -486,50 +486,34 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
   bryggornas egna händelser. I v1 knyts den för hand.
 
-#### Ledtrådsnoden och samlingsnoden (EX1, EX2b, byggda 2026-11-07)
+#### Ledtrådsnoden, valvyn och samlingsnoden (EX1, EX2, EX2b, omgjorda 2026-11-08)
 
-**Den oberoende granskningen 2026-11-07** (fel att rätta före nästa etapp i grafen, de allvarligaste först):
-1. **Ledtråden räknar fel för en tx-expansion:** `PileRules.cs:195` räknar den expanderade tx:en själv. Med maximum + 1
-   spenderande tx ritas ingen ledtråd. Dra bort den expanderade tx:en och testa med maximum + 1.
-2. **En delvis lyckad omexpansion skriver `held_back = 0`** (`GraphStateStore.SaveExpansion`), till exempel efter 429
-   mitt i, och ledtråden försvinner för gott. Behåll den tidigare `HeldBack` när expansionen inte blev komplett.
-3. **Dolda OP_RETURN går inte att visa igen** efter att toasten tonat ut eller ärendet öppnats på nytt. Lägg en
-   markering eller ikon i grafens hörnrad när några är dolda, aldrig tyst.
-4. **Med *Visa dem* byggs scenen om på UI-tråden** (`GraphScene.WithUnspendable`). Skicka valet in i
-   `LoadAsync`/`ExpandAsync` så att scenen byggs i bakgrunden.
-5. **Valvyns ritning allokerar per bildruta:** `GraphCanvas.Fan.cs` gör ny `Pen` och nya `FormattedText` per kort och
-   ritar kort utanför bild. Krocktestet för beloppen (`GraphCanvas.cs:714`) är O(k²). Cacha per kort, hoppa över det
-   som inte syns och lägg krocktestet i ett rutnät.
-6. **Högens summa blandar in och ut** (`GraphFold.SumBetween`). Summera per riktning.
-7. **`FollowFan` nollställer valvyns filter och urval** vid varje uppdatering. För över dem till den nya vymodellen.
-8. **Kända fel som också är verkliga:**
-   - *Lägg tillbaka* raderar bara under den nuvarande representanten. Radera för alla medlemmar.
-   - Expansionernas ordning följer `expanded_utc`, som skrivs över. Lägg till `first_expanded_utc`.
-   - Bevakade noder och bevakningens motparter kan vikas in i en hög, så att vaktlinjen och ringarna försvinner. Låt
-     `GraphFold` hålla dem utanför.
-9. **Mindre fel:**
-   - Högens och ledtrådens nycklar bygger på ankarets representant.
-   - Ledtrådens linje är en `Transfer` med beloppet 0. Ge den en egen sort.
-   - Ett högerklick när valvyn är öppen öppnar menyn för en nedtonad nod.
-   - Reglagen för lägsta och högsta filtrerar två gånger.
-   - Villkoret för sidan upprepas tre gånger i `PileNode`.
-   - Två rader är över 120 tecken och några tal i `Fan.cs` saknar namn.
-- **Ledtrådsnoden fäller inte ut tx:erna:** de som hölls tillbaka är inte hämtade, så ett klick hämtar nästa 50
-  (de nya motparterna hamnar i högen när de är många) i stället för att fälla ut dem runt adressen som i EX1. Att
-  fälla ut kräver att hela historiken hämtas (för 1 759 tx ett par hundra uppslag); det kan göras när takten mot
-  källorna är provad, gärna med ett tidsfönster (se *Tidsfönster för en adress historik*).
-- **Det som återstår av EX2 i valvyn:** sonar för motpart med negativ etikett och för belopp nära det spårade (i dag
-  hålls en motpart med etikett eller spårade pengar alltid utanför högen i stället), fördelningen bakom
-  beloppsreglaget, tidsfönstret ±48 h, motpartens sort, *Bara de som inte finns i grafen* (allt i en hög finns inte
-  i grafen), *Gruppera per motpart*, hörnmärkena för etikett från ett annat ärende, och hovring på korten.
-- **In, ut eller alla** är i dag två högar, en på var sida om adressen, i stället för ett filter i en gemensam hög.
-- **En bevakad aktör kan hamna i en hög** om bevakningen lades från vyn Bevakning; den borde hållas utanför som de
-  med etikett.
-- **Ordningen mellan expansionerna** läses efter senaste expansionstid, så en adress som expanderas igen (ledtråden)
-  kommer efter senare expansioner; en motpart som båda tog in kan då flytta mellan högarna. Spara första tiden.
-- **Ett kluster vars representant byts** efter att en aktör plockats ut: *Lägg tillbaka* tar bort raden under den
-  nya representanten och hittar inte den gamla.
-- **Startvyn grupperar ärenden** (punkt 21) kan använda samma hög och samma valvy.
+Omgjort efter skissen 2026-11-08: valvyn med spiral och tidsbåge, filterpanelen, markeringarna och den cirkulära stöten,
+högen som kortlek och korten i en ring. Rättat ur granskningen 2026-11-07: ledtrådens räkning för en tx-expansion,
+`held_back` som nollställdes av en delvis omexpansion, högens summa per riktning, valvyns filter och urval som
+nollställdes, *Lägg tillbaka* under alla medlemmar, `first_expanded_utc`, högerklick över valvyn och högen, reglagen
+som filtrerade två gånger och villkoret för sidan. Kvar:
+- **Dolda OP_RETURN går inte att visa igen** efter att toasten tonat ut eller ärendet öppnats på nytt. Lägg en
+  markering eller ikon i grafens hörnrad när några är dolda, aldrig tyst.
+- **Med *Visa dem* byggs scenen om på UI-tråden** (`GraphScene.WithUnspendable`). Skicka valet in i
+  `LoadAsync`/`ExpandAsync` så att scenen byggs i bakgrunden.
+- **Ritningen allokerar per bildruta:** högens kort och valvyns prickar gör nya `Pen` och `FormattedText` per bildruta
+  (kort utanför bild hoppas nu över), och krocktestet för beloppen (`GraphCanvas.DrawAmount`) är O(k²). Cacha per
+  kort och lägg krocktestet i ett rutnät.
+- **Bevakade noder och bevakningens motparter kan vikas in i en hög**, så att vaktlinjen och ringarna försvinner. Låt
+  `GraphFold` hålla dem utanför (rör `GraphWatches`, som en annan ändring arbetar i).
+- **Högens och ledtrådens nycklar bygger på ankarets representant**, och ledtrådens linje är en `Transfer` med
+  beloppet 0; ge den en egen sort.
+- **Valvyn finns bara för en Bitcoin-adress:** en tx-expansions mottagare och en Ethereum-adress hämtar fortfarande
+  nästa del med ett klick. Historiken läses högst 2 000 tx bakåt (`HeldBackList.Most`); längre historik behöver ett
+  tidsfönster mot källan (se *Tidsfönster för en adress historik*).
+- **Avsteg från skissen:** pillen står där hopplayouten lägger den i adressens kolumn, inte alltid rakt under adressen;
+  högens linje har summan mitt på linjen, inte vid högen; inspektörens kolumn står kvar bredvid valvyn; motpartens
+  grupp *Spel* omfattar all gul sort (spel, handel, presentkort) som i skissen. Etiketten *Rapporterad* (Chainabuse)
+  har ingen form än och räknas som okänd i valvyn.
+- **In, ut eller alla** i högen är fortfarande två högar, en på var sida om adressen; valvyn har filtret.
+- **Startvyn grupperar ärenden** (punkt 21) använder fortfarande spiralen (`PileFanLayout.Centres`); grafens hög har
+  ringen (`PileFanLayout.Ring`). Samma ring i startvyn kräver korten i skissens storlek där.
 
 ### Attribution
 - **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.
@@ -889,8 +873,9 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   steg för var och en, så att historiken (AN1b) har något att visa direkt.
 - **Kollegans etiketter** (Garantitorget, Nordbörsen) ligger kvar i etikettbiblioteket på datorn efter `/testdata`. De
   gäller bara påhittade adresser och kan aldrig träffa en riktig, men biblioteket saknar ännu ett sätt att rensa dem.
-- **Ledtrådsnoden, samlingsnoden och dolda OP_RETURN** byggs av en annan agent; Navet (66 tx, många motparter) och
-  gruvbelöningens OP_RETURN finns i testärendet för dem.
+- **Valvyn i testärendet:** Navet (66 tx, många motparter) och gruvbelöningens OP_RETURN finns i testärendet; en
+  adress med en spårad ankomst, en mixer och en utbetalning nära det spårade beloppet bland det som hölls tillbaka
+  saknas, så att sonaren och tidsfönstret runt ankomsten syns i `/testdata`.
 
 ### Övrigt
 - **Registrera länken `chainsaw:`** för användaren (HKCU\Software\Classes\chainsaw med `URL Protocol` och
