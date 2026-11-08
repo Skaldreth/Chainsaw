@@ -23,6 +23,8 @@ public static class ChecksModule
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<ICaseSchemaContributor, CheckSchema>();
         services.AddSingleton<ICheckAnalysis, MixerOutputsCheck>();
+        services.AddSingleton<ICheckAnalysis, MixerPartsCheck>();
+        services.AddSingleton<ICheckAnalysis, MixerChainCheck>();
         services.AddSingleton<ICheckAnalysis, CoinJoinCheck>();
         services.AddSingleton<ICheckAnalysis, PeelChainCheck>();
         services.AddSingleton<ICheckAnalysis, WalletCheck>();

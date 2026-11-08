@@ -621,7 +621,7 @@ public sealed partial class ChecksViewModel : ObservableObject
 
         var lines = new List<WhyLine> { new(row.Check.Finding.Why, TopicOf(row.Check)) };
         lines.AddRange(row.Candidates.Select(c => new WhyLine(
-            $"{c.ScoreText} · {c.ShortAddress}: {c.Candidate.Reason}", GuideTopic.MixerCandidates)));
+            $"{c.ScoreText} · {c.ShortAddress}: {c.Candidate.Reason}", TopicOf(row.Check))));
         lines.Add(new WhyLine(
             $"{row.AnalysisText} förseglade det {Stamp(row.Check.RecordedUtc)}, med tx och block det bygger på. "
             + "Allt här är en bedömning, aldrig ett faktum.",
@@ -907,6 +907,7 @@ public sealed partial class ChecksViewModel : ObservableObject
     private static GuideTopic TopicOf(StoredCheck check) => check.Analysis.Name switch
     {
         "mixer-outputs" => GuideTopic.MixerCandidates,
+        "mixer-parts" or "mixer-chain" => GuideTopic.MixerChain,
         "coinjoin-area" => GuideTopic.CoinJoin,
         "peel-chain-area" => GuideTopic.PeelChain,
         _ => GuideTopic.Areas,

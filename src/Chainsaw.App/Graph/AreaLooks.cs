@@ -61,7 +61,7 @@ public static class AreaLooks
     /// <returns>The look.</returns>
     public static AreaLook OfAnalysis(string analysis, AreaSort sort) => analysis switch
     {
-        "mixer-outputs" => new("Icon.Kind.Mixer", AreaTint.Red),
+        "mixer-outputs" or "mixer-parts" or "mixer-chain" => new("Icon.Kind.Mixer", AreaTint.Red),
         "coinjoin-area" => new("Icon.Kind.CoinJoin", AreaTint.Red),
         "peel-chain-area" => new(PeelIcon, AreaTint.Sand),
         _ => Of(sort),

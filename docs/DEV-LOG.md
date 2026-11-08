@@ -2652,3 +2652,31 @@ Geometrin står utan WPF i `Graph/TimeAxis.cs`, `Graph/TimeBands.cs`, `Graph/Tim
 - **Historik (AN1b):** runda markörer på 18 px, tiden i svag text, *Ta tillbaka*/*Ångra* som piller under raden (accentens
   ram när formuläret är öppet), och formuläret utan egen ruta. Klustringens slutsatser är nedtonade som fakta.
 - 10 nya tester i `InspectorContentTests`; tre tester ändrade (*Sort* och *Kedja* står nu i raden under rubriken).
+
+## Delarna tillsammans och mixer efter mixer (2026-11-08)
+
+- **Två nya analyser, inte en utvidgad `mixer-outputs`:** `mixer-parts v1` (*Delarna tillsammans*, förslag) och
+  `mixer-chain v1` (*Mixer efter mixer*, kontroll). Skälet: `CheckCandidate` är en utgång, och en kombination av delar
+  passar modellen bäst som ett eget förslag där varje del är en kandidat (KF2b-panelen och besluten per kandidat
+  fungerar som de är). En egen analys har egen version och egna beslut, så `mixer-outputs v1` hittar exakt som förut
+  (dess tester är orörda) och ett beslut om en hel utgång blandas inte ihop med ett om en del. Insättningar och
+  utbetalningar läses på ett ställe (`MixerDeposits`), som de tre analyserna delar.
+- **Delarna:** två till fyra utbetalningar inom 7 dygn, var och en minst en tiondel av insättningen (så att ingen del
+  ensam kan vara en hel utgång; de ligger inte i båda förslagen), med summan inom insättningen minus 0–10 % avgift.
+  Poäng: avgiften 0,45, tiden (medel) 0,2, spridningen (andel delar i egna block) 0,15, adresstypen (medel) 0,2; lägst
+  0,5. Lika poäng avgörs av färre delar och sedan nycklarna. **Gränsen:** bara de 20 utbetalningarna närmast efter
+  insättningen prövas, vilket ger högst 6 175 kombinationer per insättning, och grenar som redan är för stora följs
+  inte. Bara den bästa kombinationen visas; `Why` säger hur många som passade.
+- **Mixer efter mixer:** `CheckInput` har fått `Approved` (godkända kandidater med mynt), som `CheckService` bygger ur
+  besluten i kraft. Kedjan följer godkänt före troligt, sedan poäng, och går genom hela utgångar och delar. En ny
+  insättning i en känd mixer får mixerns förslag av sig själv (testat). En CoinJoin (klustringens fynd, igenkänd eller
+  möjlig) avslutar kedjan. Högst 10 steg. Steget visar sin avgift: insättningen minus utgången, eller minus alla delar
+  för en del. Kontrollen förseglas på nytt när ett godkännande ändrar vilken väg den följer.
+- **Panelen:** nya brickor för båda; för delarna räknas *trolig avgift* mot alla delar som inte är avfärdade
+  (`SuggestionWords.CandidatesAreParts`). Guiden har ett nytt avsnitt, *Mixer efter mixer och delarna*.
+- **En granskare bör titta på:** att `Approved` byggs ur senaste beslutet per kandidat (`CheckService.ApprovedOf`) och
+  att en ändring där inte kan göra resultaten icke-deterministiska; vikterna och gränserna i `MixerPartsCheck` (risken
+  att en kombination passar av en slump i en stor graf); att `MixerOutputsCheck` efter omskrivningen till
+  `MixerDeposits` ger samma resultat (samma tester gröna); att kedjans text aldrig kallar ett steg ett faktum.
+- **Återstår:** se TODO (testärendet, andra bästa kombinationen, okända mixers mitt i en kedja, delar som går in i
+  nästa mixer tillsammans).

@@ -29,6 +29,9 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
     /// <summary>The lowest score a candidate is kept at.</summary>
     public const double LowestScore = 0.4;
 
+    /// <summary>What a different address type still counts.</summary>
+    public const double OtherTypeScore = 0.4;
+
     /// <summary>The weight of the amount in the score.</summary>
     private const double AmountWeight = 0.5;
 
@@ -37,9 +40,6 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
 
     /// <summary>The weight of the address type in the score.</summary>
     private const double TypeWeight = 0.2;
-
-    /// <summary>What a different address type still counts.</summary>
-    private const double OtherTypeScore = 0.4;
 
     /// <summary>What the time counts at the end of the window.</summary>
     private const double LatestTimeScore = 0.2;
@@ -60,36 +60,11 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
     public IReadOnlyList<CheckFinding> Run(CheckInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        var mixer = input.Mixers.SelectMany(known => known.Addresses).ToHashSet();
-        if (mixer.Count == 0)
-        {
-            return [];
-        }
-
-        var findings = new List<CheckFinding>();
-        var deposits = input.Transactions
-            .Where(transaction => transaction.Block is not null)
-            .OrderBy(transaction => transaction.Block!.Height)
-            .ThenBy(transaction => transaction.Txid.Value, StringComparer.Ordinal);
-        foreach (var deposit in deposits)
-        {
-            var depositors = deposit.Inputs.Select(i => i.Address).OfType<BitcoinAddress>()
-                .Where(address => !mixer.Contains(address)).ToHashSet();
-            if (depositors.Count == 0)
-            {
-                continue;
-            }
-
-            foreach (var output in deposit.Outputs.Where(o => o.Address is { } a && mixer.Contains(a)))
-            {
-                if (Describe(input, deposit, output, depositors, mixer) is { } finding)
-                {
-                    findings.Add(finding);
-                }
-            }
-        }
-
-        return findings;
+        var mixer = MixerDeposits.AddressesOf(input);
+        return
+        [
+            .. MixerDeposits.Of(input, mixer).Select(deposit => Describe(input, deposit, mixer)).OfType<CheckFinding>(),
+        ];
     }
 
     /// <summary>
@@ -121,109 +96,104 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
         ? 0
         : 1 - ((1 - LatestTimeScore) * (after / Window));
 
-    /// <summary>Describes one deposit's candidates, or nothing when it has none.</summary>
-    /// <param name="input">The input.</param>
-    /// <param name="deposit">The transaction that paid into the mixer.</param>
-    /// <param name="output">The output that paid into it.</param>
-    /// <param name="depositors">The depositor's addresses.</param>
-    /// <param name="mixer">The mixer's known addresses.</param>
-    /// <returns>The suggestion, or <see langword="null"/>.</returns>
-    private CheckFinding? Describe(
-        CheckInput input,
-        BitcoinTransaction deposit,
-        BitcoinOutput output,
-        IReadOnlySet<BitcoinAddress> depositors,
-        IReadOnlySet<BitcoinAddress> mixer)
-    {
-        var type = deposit.Inputs.Where(i => i.Address is not null && depositors.Contains(i.Address))
-            .GroupBy(i => i.Address!.Type).OrderByDescending(group => group.Count()).First().Key;
-        var candidates = new List<(CheckCandidate Candidate, BitcoinTransaction Transaction)>();
-        foreach (var later in input.Transactions.Where(t => t.Block?.Height > deposit.Block!.Height))
-        {
-            if (later.Inputs.Any(i => i.Address is not null && depositors.Contains(i.Address)))
-            {
-                continue;
-            }
+    /// <summary>Gives the score of an address type: full for the depositor's, <see cref="OtherTypeScore"/> else.</summary>
+    /// <param name="deposit">The deposit.</param>
+    /// <param name="address">The payout's address.</param>
+    /// <returns>The score.</returns>
+    public static double TypeScore(MixerDeposit deposit, BitcoinAddress address) =>
+        address.Type == deposit.Type ? 1 : OtherTypeScore;
 
-            foreach (var paid in later.Outputs)
+    /// <summary>Writes whether a payout's address type is the depositor's, for a candidate's reason.</summary>
+    /// <param name="deposit">The deposit.</param>
+    /// <param name="address">The payout's address.</param>
+    /// <returns>For example <c>samma adresstyp (P2WPKH)</c>.</returns>
+    public static string TypeText(MixerDeposit deposit, BitcoinAddress address) => address.Type == deposit.Type
+        ? $"samma adresstyp ({deposit.Type.ShortName()})"
+        : $"annan adresstyp ({address.Type.ShortName()} mot {deposit.Type.ShortName()})";
+
+    /// <summary>
+    /// Weighs every payout after a deposit as a candidate, best first: the same weighing the suggestion shows, so
+    /// that <c>mixer-chain</c> follows the same likely outputs.
+    /// </summary>
+    /// <param name="input">The input.</param>
+    /// <param name="deposit">The deposit.</param>
+    /// <param name="mixer">The mixers' known addresses.</param>
+    /// <returns>The candidates with their transactions, best first; empty when none.</returns>
+    internal static IReadOnlyList<(CheckCandidate Candidate, BitcoinTransaction Transaction)> Weigh(
+        CheckInput input, MixerDeposit deposit, IReadOnlySet<BitcoinAddress> mixer)
+    {
+        var weighed = new List<(CheckCandidate Candidate, BitcoinTransaction Transaction)>();
+        foreach (var payout in MixerDeposits.PayoutsAfter(input, deposit, mixer))
+        {
+            if (Candidate(deposit, payout) is { } candidate)
             {
-                if (Candidate(deposit, output, type, later, paid, depositors, mixer) is { } candidate)
-                {
-                    candidates.Add((candidate, later));
-                }
+                weighed.Add((candidate, payout.Transaction));
             }
         }
 
-        var best = candidates
-            .OrderByDescending(item => item.Candidate.Score)
-            .ThenBy(item => item.Candidate.Key, StringComparer.Ordinal)
-            .ToList();
+        return
+        [
+            .. weighed
+                .OrderByDescending(item => item.Candidate.Score)
+                .ThenBy(item => item.Candidate.Key, StringComparer.Ordinal),
+        ];
+    }
+
+    /// <summary>Describes one deposit's candidates, or nothing when it has none.</summary>
+    /// <param name="input">The input.</param>
+    /// <param name="deposit">The deposit into the mixer.</param>
+    /// <param name="mixer">The mixers' known addresses.</param>
+    /// <returns>The suggestion, or <see langword="null"/>.</returns>
+    private CheckFinding? Describe(CheckInput input, MixerDeposit deposit, IReadOnlySet<BitcoinAddress> mixer)
+    {
+        var best = Weigh(input, deposit, mixer);
         if (best.Count == 0)
         {
             return null;
         }
 
-        var amount = CheckText.Btc(output.Amount);
+        var amount = CheckText.Btc(deposit.Output.Amount);
         var why = $"{Id} letar i grafen efter utbetalningar som kan vara insättningens {amount} BTC efter mixerns "
             + $"avgift (0–{CheckText.Percent(MostFee)}), inom {CheckText.Span(Window)} efter insättningen i block "
-            + $"{deposit.Block!.Height}, och väger in om adresstypen är insättarens ({type.ShortName()}). Poängen väger "
-            + "beloppet till hälften, tiden till tre tiondelar och adresstypen till en femtedel. En kandidat är en "
-            + "bedömning, aldrig ett faktum: mixern betalar ut från andra mynt, så ingen tx på kedjan knyter dem ihop. "
-            + "Bara det som finns i grafen prövas.";
+            + $"{deposit.Block.Height}, och väger in om adresstypen är insättarens ({deposit.Type.ShortName()}). "
+            + "Poängen väger beloppet till hälften, tiden till tre tiondelar och adresstypen till en femtedel. En "
+            + "kandidat är en bedömning, aldrig ett faktum: mixern betalar ut från andra mynt, så ingen tx på kedjan "
+            + "knyter dem ihop. Bara det som finns i grafen prövas.";
         return new CheckFinding(
-            $"{deposit.Txid.Value}:{output.Index}",
+            deposit.Key,
             CheckKind.Suggestion,
             AreaSort.Obfuscation,
             "Troliga utgångar ur mixern",
             $"{amount} in · belopp minus avgift, tid och adresstyp",
             why,
-            [output.Address!, .. best.Select(item => item.Candidate.Address).Distinct()],
+            [deposit.Output.Address!, .. best.Select(item => item.Candidate.Address).Distinct()],
             [],
-            [CheckBasis.Of(deposit), .. best.Select(item => item.Transaction).Distinct().Select(CheckBasis.Of)],
+            [
+                CheckBasis.Of(deposit.Transaction),
+                .. best.Select(item => item.Transaction).Distinct().Select(CheckBasis.Of),
+            ],
             [.. best.Select(item => item.Candidate)]);
     }
 
-    /// <summary>Weighs one output as a candidate for a deposit.</summary>
-    /// <param name="deposit">The deposit's transaction.</param>
-    /// <param name="output">The deposit's output.</param>
-    /// <param name="type">The depositor's address type.</param>
-    /// <param name="later">A later transaction.</param>
-    /// <param name="paid">One of its outputs.</param>
-    /// <param name="depositors">The depositor's addresses.</param>
-    /// <param name="mixer">The mixer's known addresses.</param>
+    /// <summary>Weighs one payout as a candidate for a deposit.</summary>
+    /// <param name="deposit">The deposit.</param>
+    /// <param name="payout">A payout after it.</param>
     /// <returns>The candidate, or <see langword="null"/> when it is not one.</returns>
-    private static CheckCandidate? Candidate(
-        BitcoinTransaction deposit,
-        BitcoinOutput output,
-        BitcoinScriptType type,
-        BitcoinTransaction later,
-        BitcoinOutput paid,
-        IReadOnlySet<BitcoinAddress> depositors,
-        IReadOnlySet<BitcoinAddress> mixer)
+    private static CheckCandidate? Candidate(MixerDeposit deposit, MixerPayout payout)
     {
-        if (paid.Address is not { } address)
-        {
-            return null;
-        }
-
-        if (mixer.Contains(address) || depositors.Contains(address) || output.Amount.Value <= 0
-            || paid.Amount.Value > output.Amount.Value)
-        {
-            return null;
-        }
-
-        var fee = (double)(output.Amount.Value - paid.Amount.Value) / output.Amount.Value;
-        var after = later.Block!.Time - deposit.Block!.Time;
+        var deposited = deposit.Output.Amount;
+        var paid = payout.Output.Amount;
+        var fee = (double)(deposited.Value - paid.Value) / deposited.Value;
         var feeScore = FeeScore(fee);
-        var timeScore = TimeScore(after);
+        var timeScore = TimeScore(payout.After);
         if (feeScore <= 0 || timeScore <= 0)
         {
             return null;
         }
 
-        var sameType = address.Type == type;
         var score = Math.Round(
-            (AmountWeight * feeScore) + (TimeWeight * timeScore) + (TypeWeight * (sameType ? 1 : OtherTypeScore)),
+            (AmountWeight * feeScore) + (TimeWeight * timeScore)
+                + (TypeWeight * TypeScore(deposit, payout.Address)),
             2,
             MidpointRounding.AwayFromZero);
         if (score < LowestScore)
@@ -231,12 +201,10 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
             return null;
         }
 
-        var typeText = sameType
-            ? $"samma adresstyp ({type.ShortName()})"
-            : $"annan adresstyp ({address.Type.ShortName()} mot {type.ShortName()})";
-        var reason = $"{CheckText.Btc(paid.Amount)} ut mot {CheckText.Btc(output.Amount)} in, avgift "
-            + $"{CheckText.Percent(fee)}; {CheckText.Span(after)} senare; {typeText}";
+        var reason = $"{CheckText.Btc(paid)} ut mot {CheckText.Btc(deposited)} in, avgift "
+            + $"{CheckText.Percent(fee)}; {CheckText.Span(payout.After)} senare; "
+            + TypeText(deposit, payout.Address);
         return new CheckCandidate(
-            $"{later.Txid.Value}:{paid.Index}", address, later.Txid, paid.Index, paid.Amount, score, reason);
+            payout.Key, payout.Address, payout.Transaction.Txid, payout.Output.Index, paid, score, reason);
     }
 }

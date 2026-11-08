@@ -28,7 +28,7 @@ public sealed class GuideLibrary
         ("Spårning", ["grafen", "sparningsmetoder", "sparet-tar-slut", "kurser"]),
         ("Etiketter", ["etiketter"]),
         ("Bevakning", ["bevakning"]),
-        ("Förvirring", ["kontroller-och-forslag", "mixerns-kandidater", "omraden"]),
+        ("Förvirring", ["kontroller-och-forslag", "mixerns-kandidater", "mixer-efter-mixer", "omraden"]),
     ];
 
     /// <summary>The sections by id.</summary>
