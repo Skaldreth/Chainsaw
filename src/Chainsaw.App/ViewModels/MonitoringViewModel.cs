@@ -102,9 +102,6 @@ public sealed partial class WatchRowViewModel : ObservableObject
         ? "Kluster · " + WatchWords.Short(Watch.Subject.Anchor)
         : WatchWords.Short(Watch.Subject.Anchor);
 
-    /// <summary>Gets whether the node is a cluster rather than an address.</summary>
-    public bool IsCluster => Watch.Subject.Kind == WatchSubjectKind.Cluster;
-
     /// <summary>
     /// Gets how the watched node is drawn, as in the graph (sketch BV1a): its sort's icon and colour, round for an actor
     /// we know nothing of and square for a service or a cluster.

@@ -577,8 +577,13 @@ public sealed class GraphTrashTests
     [InlineData(1, 0, "Slängde 1 aktör")]
     [InlineData(5, 1, "Slängde 5 aktörer · bevakningen avslutad")]
     [InlineData(3, 2, "Slängde 3 aktörer · 2 bevakningar avslutade")]
-    public void The_toast_says_how_many_and_the_watches_ended(int count, int ended, string expected) =>
-        Assert.Equal(expected, GraphViewModel.ThrownText(count, ended));
+    public void The_toast_says_how_many_and_the_watches_ended(int count, int ended, string expected)
+    {
+        var members = Enumerable.Range(0, count)
+            .Select(index => new TrashMember($"address:a{index}", null, "A", "Unknown"))
+            .ToList();
+        Assert.Equal(expected, GraphViewModel.ThrownText(members, ended));
+    }
 }
 
 /// <summary>The bin's growth (sketch SO1a) and the tree's rows.</summary>
