@@ -671,18 +671,18 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Kan frysas** syns inte i testärendet: det kräver USDT eller USDC på Ethereum, och Blockscout-källan går inte lika
   lätt att fejka som Esplora (tx, kvitton med Transfer-loggar, tokenuppgifter). En påhittad Ethereum-källa på samma sätt
   (en egen `ISourceApi` i Debug) och en del av berättelsen på Ethereum fyller luckan; TRON när den kedjan byggs.
-- **Kurser** för testärendets tider hämtas från Bitstamp som i ett riktigt ärende (bara tiden skickas, aldrig
-  adresserna). En påhittad kurskälla i Debug skulle göra testärendet helt fritt från nätet.
-- **Uppbrytning** och **ett avgjort förslag** finns inte från början; användaren provar dem själv. Lägg gärna till ett
-  steg för var och en, så att historiken (AN1b) har något att visa direkt.
 - **Kollegans etiketter** (Garantitorget, Nordbörsen) ligger kvar i etikettbiblioteket på datorn efter `/testdata`. De
   gäller bara påhittade adresser och kan aldrig träffa en riktig, men biblioteket saknar ännu ett sätt att rensa dem.
 - **Valvyn i testärendet:** Navet (66 tx, många motparter) och gruvbelöningens OP_RETURN finns i testärendet; en
   adress med en spårad ankomst, en mixer och en utbetalning nära det spårade beloppet bland det som hölls tillbaka
   saknas, så att markeringen och tidsfönstret runt ankomsten syns i `/testdata`.
-- **Det som byggts 2026-11-08** saknas: en insättning som betalas ut i delar (`mixer-parts`), mixer efter mixer
-  (`mixer-chain`), något i soptunnan (också en slängd kommentar och en slängd egen yta), en kommentarsnod med en
-  ändrad text så att dess historik har något att visa, och en egen yta.
+- **Delarna tillsammans** i testärendet är en slump: kombinationen hittas bland skalningskedjans och navets
+  utbetalningar. En avsiktlig utbetalning i delar ur en mixer (helst Virveln, med egna mynt att betala ur) vore
+  tydligare.
+- **Högar** i testärendet: grafens samlingsnod kommer först när användaren expanderar Navet, och startvyns högar
+  (GR8a) sparas på datorn och läses bara när startvyn visas, så `/testdata` lägger inga ärenden i en hög.
+- **Bara Bitcoin** i det bytta blocket och i kurserna: en tx på Ethereum som bytt block väntar på att Ethereums svar
+  jämförs (TODO, *Bytt block på Ethereum*).
 
 ## Övrigt
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` och byggs in i programmet. Ett nytt avsnitt

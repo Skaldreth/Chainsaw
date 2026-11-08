@@ -171,7 +171,7 @@ internal static class BackgroundCodec
             && amount.Asset.Chain == filter.Chain
             && (filter.Asset is not { } asset || asset == amount.Asset)
             && amount.Units.Sign > 0
-            && (filter.Minimum is not { } minimum || minimum.Asset != amount.Asset || amount >= minimum)
+            && (filter.Minimum is not { } minimum || minimum.Asset != amount.Asset || amount.Units >= minimum.Units)
             && (chosen.Count == 0 || match.Counterparties.All(chosen.Contains));
     }
 

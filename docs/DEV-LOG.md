@@ -3736,3 +3736,29 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
 - **Avsteg och egna beslut:** ingen skiss visar återanslutningen i UT2b; ringen och linjerna står kvar röda och
   streckade, eftersom inga uppslag går (det säkraste), och bara texten ändras. Kommentarer (WPF-element) och
   verktygstips följer inte med när ytan trycks ut, eftersom de ligger under det dimmade.
+
+## Testärendet påfyllt och TESTER-INFOR ordnad (2026-11-08)
+
+- **Byggt:** `/testdata` (berättelse version 2) har nu påhittade kurser (`TestDataPricing` i Pricing, Debug, med
+  `TestRatesHttp` i appen och `TestDataPriceRouter`), så att grafen i testärendet aldrig skickar kursuppslag; ett bytt
+  block på sista skalningshoppet (svaret i en adresslista säger ett föräldralöst block på samma höjd, tx:ens eget svar
+  det riktiga, `TestChain.Orphaning`); en sanktionsträff ur en påhittad lista (`TestDataSanctionLists`, bara medan
+  testärendet byggs, så ingen riktig lista importeras eller ersätts); Virveln, en andra mixer som mixerns näst
+  troligaste utgång går in i (*Mixer efter mixer*); en möjlig CoinJoin vid Sydbörsen vars plånbok godkänns; mixerns
+  troligaste utgång godkänd med resten kvar att avgöra; påfyllnaden uppbruten; kommentaren ändrad; och en kommentar
+  och en egen yta i soptunnan. Åtta nya tester i `TestCaseStoryTests` (kurser, bytt block, sanktion, besluten,
+  soptunnan, begäran och rapport, exponering), 27 i projektet.
+- **Rättat på vägen:** att godkänna en plånbok med många förslag (en skalningskedja, sex adresser) föll på journalens
+  gräns på 1 000 tecken i `ClusteringService.Merge`. Raden säger nu antal adresser och delar när allt inte får plats;
+  detaljerna har alltid varje del.
+- **Egna beslut:** plånboken som godkänns är en egen liten möjlig CoinJoin vid Sydbörsen, inte skalningskedjans:
+  att slå ihop skalningskedjan till en nod gömmer kedjan i grafen och trängde ihop beloppen runt Navet. Uppbrytningen
+  gäller påfyllnaden (inte bedragarens tre adresser, vars enda länk annars bryts helt). Sanktionen kommer ur en lista i
+  stället för som öppen källa, så att den hamnar under SANKTIONSTRÄFFAR i ET1a.
+- **TESTER-INFOR:** ordnad efter område (start, skalet, ärenden, utgångar, inställningar, grafen, förslag, etiketter,
+  bevakning, begäran och rapport, Guiden, testärendet). Struket: förord om att gränssnittet saknas, statusraden,
+  Terminal, NC1a:s startpunktsfält, IN1a:s knappar i inspektören, det första Bevaka-formuläret (BV3a gäller),
+  magenta och rosa (terrakotta och bevakningens turkos), *Skälet krävs*, Ethereum *inte byggt än*, och UT1a:s rad.
+  *Små rättelser* är fördelade på sina områden. Sonaren står kvar i valvyn (EX2) och tidslinjen (TL1a), där
+  CLAUDE.md fortfarande säger den.
+- **Kvar:** se `docs/BACKLOG.md`, *Testärendet (/testdata)*.

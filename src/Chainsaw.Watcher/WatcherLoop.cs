@@ -250,9 +250,9 @@ internal sealed class WatcherLoop
         }
 
         var mark = scratch.Mark();
-        var result = await _parts.Check.CheckAsync(
-            watch.Addresses, watch.Filter, feed, start, WatchSchedule.DownTo(start, last), cancellationToken)
-            .ConfigureAwait(false);
+        var downTo = WatchSchedule.DownTo(start, last);
+        var result = await _parts.Check
+            .CheckAsync(watch.Addresses, watch.Filter, feed, start, downTo, cancellationToken).ConfigureAwait(false);
         var checkedNow = WatchSchedule.After(last?.Height ?? start, result, result.Problems, height, now);
 
         // What the check fetched now, and what it rests on that an earlier check of the round already had in memory
@@ -262,10 +262,11 @@ internal sealed class WatcherLoop
             .ToList();
 
         // Only a hit not known to the case and not told before is said: one in the look-back the open Chainsaw already
-        // sealed is never told again, and one an endpoint indexed late is told when it is first seen.
+        // sealed is never told again, and one an endpoint indexed late is told when it is first seen. One below the
+        // look-back (a history page reaches further back) was read by an earlier check, which sealed or told it.
         var alerted = progress.Alerted.ToList();
         var fresh = false;
-        foreach (var match in result.Matches)
+        foreach (var match in result.Matches.Where(match => match.Block.Height > downTo))
         {
             var key = WatchSchedule.Key(watch.WatchId, match);
             if (!alerted.Contains(key, StringComparer.Ordinal) && !watch.Known.Contains(key, StringComparer.Ordinal))

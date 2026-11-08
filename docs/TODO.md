@@ -76,8 +76,7 @@ byggt; det som står här är rester. Inget nytt byggs förrän det som finns k�
 
 ### 1. Provet på Windows
 
-Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTER-INFOR-1.0.md` (rensas och ordnas
-uppifrån och ner [pågår]), och det som inte fungerar rättas före allt annat nedan. Särskilt:
+Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTER-INFOR-1.0.md`, ordnad uppifrån och ner, och det som inte fungerar rättas före allt annat nedan. Särskilt:
 - **Kraschen vid start** (`NewCasePanel`) är rättad men inte bekräftad.
 - **Expansionen gav *Inget nytt att hämta*** med mempool vald (rättat 2026-11-07, väntar på prov).
 - **Allt som byggdes 2026-11-08** är osett: KF2b, NC2a, KN1a, SO1a, GR7a, TL1a/TL2a, IN4a, GR9a, BG1b, ET1a, EP1b,
@@ -95,9 +94,6 @@ uppifrån och ner [pågår]), och det som inte fungerar rättas före allt annat
 - **Inställningarna:** *Syns som* på utgångens tips i titelraden, och kontrollen av Windows som utgång.
 - **Sökningen (KR1a):** det slängda i soptunnan söks, med *Lägg tillbaka*.
 - **Det instabila testet** i App.Tests.
-
-**Testärendet** (`/testdata`): det som byggts sedan det byggdes om, ett bytt block och påhittade kurser, så att det
-aldrig skickar riktiga uppslag (listan i `docs/BACKLOG.md`, *Testärendet*).
 
 ### 3. Kvar efter omgången
 

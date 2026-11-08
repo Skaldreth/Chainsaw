@@ -1,0 +1,209 @@
+#if DEBUG
+using Chainsaw.App.Graph;
+using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
+
+namespace Chainsaw.App.TestData;
+
+/// <summary>
+/// Checks the graph's addresses against the sanction lists while the test case is built, when the made-up list
+/// (<see cref="TestDataSanctionLists"/>) has the story's sanctioned actor on it: a sanction hit for the view Etiketter
+/// (sketch ET1a) without a real list being imported.
+/// </summary>
+public sealed record SanctionCheckStep : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var graph = await run.Services.Tracing.LoadAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        var addresses = graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList();
+        using var scope = TestDataScope.Building();
+        if (run.Services.Attribution.CheckSanctions(run.Case, addresses).Added.Count == 0)
+        {
+            run.Note("Sanktionskontrollen gav ingen träff på den påhittade listan.");
+        }
+    }
+}
+
+/// <summary>
+/// Gives a transaction a changed block (sketch GR9a), as a reorganisation does: the source first answers it, in an
+/// address's list, in an orphaned block at the same height, and then, asked for the transaction itself, in its own
+/// block. Both answers are sealed in the case (principle 1), and the graph marks the transaction as moved.
+/// </summary>
+/// <param name="Transaction">The story's label for the transaction; it must not have been looked up yet.</param>
+/// <param name="Receiver">An address the transaction pays, whose list is asked for first.</param>
+public sealed record ReorganisationStep(string Transaction, TestAddress Receiver) : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.Services.Bitcoin is not { } bitcoin || Receiver.Address is not { } receiver)
+        {
+            run.Note("Det bytta blocket kunde inte göras: Bitcoin-källan finns inte.");
+            return;
+        }
+
+        using (run.Chain.Orphaning(Transaction))
+        {
+            await bitcoin.GetAddressTransactionsAsync(run.Case, receiver, null, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        await bitcoin.GetTransactionAsync(run.Case, run.TxidOf(Transaction), cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        var changes = await bitcoin.GetBlockChangesAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        if (!changes.Any(change => change.TransactionId == run.TxidOf(Transaction).Value))
+        {
+            run.Note($"Blocket för {Transaction} syns inte som bytt.");
+        }
+    }
+}
+
+/// <summary>Changes a comment's text, as the user does in the note, so that its history has something.</summary>
+/// <param name="About">The actor the comment is tied to.</param>
+/// <param name="Text">The new Markdown.</param>
+public sealed record EditCommentStep(TestAddress About, string Text) : ITestStep
+{
+    /// <inheritdoc/>
+    public Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var anchor = About.Address is { } address ? GraphPile.MemberKey(address) : null;
+        var comment = run.Services.Comments?.GetComments(run.Case).FirstOrDefault(each => each.Anchor == anchor);
+        if (comment is null || run.Services.Comments!.EditComment(run.Case, comment.Id, Text) is null)
+        {
+            run.Note("Kommentaren kunde inte ändras.");
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Writes a comment and throws it in the trash, as the user does by dragging the note to the bin (sketch SO1a): the
+/// note is hidden in the graph and stands in the trash's view, and stays in the case as it was written.
+/// </summary>
+/// <param name="Text">The comment's Markdown.</param>
+/// <param name="Place">Where it stood on the free surface.</param>
+public sealed record ThrownCommentStep(string Text, NodePosition Place) : ITestStep
+{
+    /// <inheritdoc/>
+    public Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.Services.Comments is not { } comments || run.Services.Trash is not { } trash)
+        {
+            run.Note("Den slängda kommentaren kunde inte göras: kommentarerna eller soptunnan finns inte.");
+            return Task.CompletedTask;
+        }
+
+        var comment = comments.AddComment(run.Case, new GraphCommentDraft(Text, null, Place));
+        trash.Throw(run.Case, [TrashKeys.Comment(comment.Id, comment.Text)]);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Draws an own area and throws it in the trash, as the user does from the area's menu (sketch SO1a): only the area is
+/// hidden, its actors stay, and it stays in the case as it was drawn.
+/// </summary>
+/// <param name="Name">The area's name.</param>
+/// <param name="Members">The addresses in it.</param>
+/// <param name="Note">Why it was drawn.</param>
+public sealed record ThrownAreaStep(string Name, IReadOnlyList<TestAddress> Members, string Note) : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.Services.Trash is not { } trash)
+        {
+            run.Note("Den slängda ytan kunde inte göras: soptunnan finns inte.");
+            return;
+        }
+
+        await new OwnAreaStep(Name, Members, Note).RunAsync(run, cancellationToken).ConfigureAwait(false);
+        var area = run.Services.Checks.GetAreas(run.Case).Last(each => each.Name == Name);
+        trash.Throw(run.Case, [TrashKeys.Area(area.Id, area.Name)]);
+    }
+}
+
+/// <summary>
+/// Breaks an address out of its cluster, as the user does with Bryt upp (U): one split per merged link that joins it
+/// to the rest, so that the inspector's history (sketch AN1b) has a split to undo.
+/// </summary>
+/// <param name="Leaving">The address that leaves its cluster.</param>
+/// <param name="Reason">Why, as the user would write it.</param>
+public sealed record SplitStep(TestAddress Leaving, string Reason) : ITestStep
+{
+    /// <inheritdoc/>
+    public Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.Services.Clustering is not { } clustering || Leaving.Address is not { } address)
+        {
+            run.Note("Uppbrytningen kunde inte göras: klustringen finns inte.");
+            return Task.CompletedTask;
+        }
+
+        var requests = InspectorForms.BreakOut(clustering.GetCluster(run.Case, address), [address], Reason);
+        if (requests.Count == 0)
+        {
+            run.Note($"{Leaving.Label} var inte sammanslagen med något att bryta upp.");
+            return Task.CompletedTask;
+        }
+
+        clustering.Split(run.Case, requests);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Decides some of the suggestions, as the user does in the panel (sketch KF2b): approves a proposed wallet, so that
+/// an approved wallet stands in the graph, and approves the mixer's likeliest way out while the other candidates still
+/// wait, so that a suggestion shows an approval next to what is left to decide. The checks run again afterwards, so
+/// that what follows from the approvals is sealed.
+/// </summary>
+/// <param name="Wallet">An address in the proposed wallet to approve.</param>
+/// <param name="Reason">The reason given with the decisions.</param>
+public sealed record DecideStep(TestAddress Wallet, string Reason) : ITestStep
+{
+    /// <summary>The name of the analysis that suggests the mixer's likely ways out.</summary>
+    public const string MixerOutputs = "mixer-outputs";
+
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var checks = run.Services.Checks;
+        var graph = await run.Services.Tracing.LoadAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        var suggestions = checks.Run(run.Case, graph).Checks
+            .Where(check => check.Finding.Kind == CheckKind.Suggestion)
+            .ToList();
+        var requests = new List<DecisionRequest>();
+        if (suggestions.FirstOrDefault(check => check.Analysis.Name == CheckAnalysisNames.Wallets
+                && check.Finding.Addresses.Any(address => address == Wallet.Address)) is { } wallet)
+        {
+            requests.Add(new DecisionRequest(wallet.Analysis, wallet.Finding.Key, null, CheckVerdict.Approved, Reason));
+        }
+
+        if (suggestions.FirstOrDefault(check => check.Analysis.Name == MixerOutputs) is { } outputs
+            && outputs.Finding.Candidates.MaxBy(candidate => candidate.Score) is { } likeliest)
+        {
+            requests.Add(new DecisionRequest(
+                outputs.Analysis, outputs.Finding.Key, likeliest.Key, CheckVerdict.Approved, Reason));
+        }
+
+        if (requests.Count < 2)
+        {
+            run.Note($"Kontrollerna gav inte både plånboken med {Wallet.Label} och mixerns utgångar att godkänna.");
+        }
+
+        checks.DecideAll(run.Case, requests);
+        var after = await run.Services.Tracing.LoadAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        checks.Run(run.Case, after);
+    }
+}
+#endif
