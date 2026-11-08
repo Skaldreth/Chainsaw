@@ -17,7 +17,13 @@ internal sealed class TestGraphSource : IGraphSource
 {
     public List<TracingMethodKind> Loads { get; } = [];
 
+    /// <summary>How each reading of the graph was asked for, method and hidden outputs both.</summary>
+    public List<GraphReading> Readings { get; } = [];
+
     public List<IReadOnlyList<ExpansionRequest>> Expansions { get; } = [];
+
+    /// <summary>How each expansion asked for the graph to be read again.</summary>
+    public List<GraphReading> ExpansionReadings { get; } = [];
 
     public List<(string Key, GraphLayout Layout, GraphPoint Place)> Saved { get; } = [];
 
@@ -34,9 +40,10 @@ internal sealed class TestGraphSource : IGraphSource
 
     public IReadOnlyList<WhyLine> ClusterLines { get; set; } = [new("Länk", GuideTopic.CommonInputOwnership)];
 
-    public Task<GraphScene> LoadAsync(ICase @case, TracingMethodKind method, CancellationToken cancellationToken)
+    public Task<GraphScene> LoadAsync(ICase @case, GraphReading reading, CancellationToken cancellationToken)
     {
-        Loads.Add(method);
+        Loads.Add(reading.Method);
+        Readings.Add(reading);
         if (Failure is not null)
         {
             return Task.FromException<GraphScene>(Failure);
@@ -48,10 +55,11 @@ internal sealed class TestGraphSource : IGraphSource
     public Task<GraphExpansion> ExpandAsync(
         ICase @case,
         IReadOnlyList<ExpansionRequest> requests,
-        TracingMethodKind method,
+        GraphReading reading,
         CancellationToken cancellationToken)
     {
         Expansions.Add(requests);
+        ExpansionReadings.Add(reading);
         return ExpandFailure is { } failure
             ? Task.FromException<GraphExpansion>(failure)
             : Task.FromResult(Expansion ?? new GraphExpansion(Scene(), ExpansionOutcome.Expanded, 2, []));
@@ -84,7 +92,7 @@ internal sealed class TestGraphSource : IGraphSource
     public Task<GraphExpansion> TakeHeldBackAsync(
         ICase @case,
         IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Txid>> picks,
-        TracingMethodKind method,
+        GraphReading reading,
         CancellationToken cancellationToken)
     {
         foreach (var (address, transactions) in picks)
@@ -793,13 +801,13 @@ public sealed class GraphViewModelTests
     /// <param name="expansion">The expansion's answer.</param>
     private sealed class SlowExpansion(TestGraphSource inner, Task<GraphExpansion> expansion) : IGraphSource
     {
-        public Task<GraphScene> LoadAsync(ICase @case, TracingMethodKind method, CancellationToken cancellationToken) =>
-            inner.LoadAsync(@case, method, cancellationToken);
+        public Task<GraphScene> LoadAsync(ICase @case, GraphReading reading, CancellationToken cancellationToken) =>
+            inner.LoadAsync(@case, reading, cancellationToken);
 
         public Task<GraphExpansion> ExpandAsync(
             ICase @case,
             IReadOnlyList<ExpansionRequest> requests,
-            TracingMethodKind method,
+            GraphReading reading,
             CancellationToken cancellationToken) => expansion;
 
         public Task<IReadOnlyList<WhyLine>> ExplainClusterAsync(
@@ -827,9 +835,9 @@ public sealed class GraphViewModelTests
         public Task<GraphExpansion> TakeHeldBackAsync(
             ICase @case,
             IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Txid>> picks,
-            TracingMethodKind method,
+            GraphReading reading,
             CancellationToken cancellationToken) =>
-            inner.TakeHeldBackAsync(@case, picks, method, cancellationToken);
+            inner.TakeHeldBackAsync(@case, picks, reading, cancellationToken);
     }
 }
 

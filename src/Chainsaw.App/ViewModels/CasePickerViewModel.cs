@@ -292,8 +292,6 @@ public sealed partial class CasePickerViewModel : ObservableObject
         {
             ErrorText = reply.Text;
         }
-
-        await _workflow.RefreshCasesAsync();
     }
 
     /// <summary>Nytt ärende …: folds the picker in and asks for the panel from the right.</summary>

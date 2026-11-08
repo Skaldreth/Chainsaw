@@ -160,6 +160,22 @@ public sealed class GraphSourceTests
         Assert.Null(scene.Snapshot.TraceProblem);
     }
 
+    /// <summary>
+    /// The scene is built the way the reading asks, with the outputs that can never be spent shown or hidden, so that
+    /// the view never builds it again on the UI thread.
+    /// </summary>
+    [Fact]
+    public async Task TheSceneIsBuiltWithTheHiddenOutputsAsTheReadingAsks()
+    {
+        _tracing.Tracer = (_, _) => GraphSamples.Trace();
+        var shown = await Source.LoadAsync(
+            _case, new GraphReading(TracingMethodKind.Fifo, ShowUnspendable: true), CancellationToken.None);
+        var hidden = await Source.LoadAsync(_case, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.True(shown.ShowsUnspendable);
+        Assert.False(hidden.ShowsUnspendable);
+    }
+
     /// <summary>A trace that cannot be counted leaves the graph shown without amounts, and says so.</summary>
     [Fact]
     public async Task FailedTraceIsSaid()

@@ -34,8 +34,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 
 **Användarens lista 2026-11-07, tas i tur och ordning** (ingen punkt går före någon annan; så polerar användaren):
 1. **TO1a, toastern** (godkänd): fel, varning, lyckat och information nere till höger, högst fem, staplas uppåt och
-   tonar ut. Tar över grafens Notice, och fel som ingen fångat. *Byggd 2026-11-07*; sidornas egna felrader (Källor,
-   Bevakning) går över till toastern när de sidorna ses över.
+   tonar ut. Tar över grafens Notice, och fel som ingen fångat. *Byggd 2026-11-07*, och följer skissen
+   punkt för punkt sedan 2026-11-08. Bevakningens felrad är en toast sedan 2026-11-08; Källors egen felrad går över
+   till toastern när den sidan ses över.
 2. **IN2b, ikonlisten vid noden:** *byggd 2026-11-07*, med bara de åtgärder som går att använda.
 3. **IN1b, formulären vid noden:** *byggd 2026-11-07* för Etikett, Bryt upp och Annan kedja.
 4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. *Rättat 2026-11-07, väntar på prov på Windows:* med
@@ -75,13 +76,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     skissen 2026-11-08. Det som återstår står under *Spårning (Tracing)*, *Ledtrådsnoden, valvyn och samlingsnoden*.
 23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
     WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald och byggd 2026-11-07.**
-24. **En ren kommentarsnod i grafen** (användarens önskemål 2026-11-07): en nod som bara är en anteckning, skriven i
-    Markdown. Gawks Markdown-parser tas över (`Gawk.SharedKernel/Text/Markdown.cs`, `Views/MarkdownView.cs`,
-    `Views/Editor/MarkdownEditor.cs` och `MarkdownColorizer.cs`). Kommentaren skrivs **direkt i noden** ute i grafen, inte i en
-    panel. **KN1a vald 2026-11-07**; byggs som en etapp efter samlingsnoden (samma filer i grafen), sparas i ärendet.
-25. **Ändra storlek på noder** (användarens önskemål 2026-11-07): vissa noder ska kunna dras till egen storlek,
-    först kommentarsnoden (handtagen skissas i KN1); vilka fler (samlingsnoden?) avgörs med skissen. Storleken sparas
-    med grafens läge.
+25. **Ändra storlek på noder** (användarens önskemål 2026-11-07): *kommentarsnoden byggd 2026-11-08 (KN1a)*; vilka
+    fler noder som får handtaget (samlingsnoden EX2b, egna ytor) avgörs när de skissas. Storleken sparas med grafens
+    läge.
 28. **Innehav per adress** (användarens beslut 2026-11-07, efter IN3a–d som inte blev rätt): innehavet är **dolt** på
     noden. **Alt + klick** på en nod vänder den som ett kort, och baksidan visar beloppen: det som ligger kvar i rätt
     tecken (₿, Ξ, ₮; inte ett B) och samma belopp i inställd valuta (SEK) till dagens kurs. **Inspektören** visar allt
@@ -119,8 +116,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
        tokenmärket som liten rund bricka; swappen som piller på linjen; rubrikerna för kedjornas delar av ytan.
     4. **Bildspråkets ruta GR7a**: *byggd 2026-11-08*.
     5. **Guiden** (GD1b): skissens små diagram inne i avsnitten saknas.
-    6. Små: BV1a (kedjan som bricka, bakgrundens läge i ram, knapparna längst ner), TO1a (färgat streck i nederkanten
-       för fel och varningar).
 41. **Källor är KL2b** (användarens beslut 2026-11-08), utan den färgade kanten vid det valda, strecken vid
     svarstiderna och strecket under endpointen som används (*mindre AI-slop*). Chainabuse får en rad under
     *Etiketter* i samma lista. Byggs.
@@ -131,9 +126,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     (en sida); `address` är en sträng och ingen batch-endpoint finns dokumenterad, fast guiden säger *one or more*.
     Prova en gång med två adresser kommaseparerade när nyckeln finns (kostar ett anrop), eller fråga Chainabuse; går
     det kan ett kluster frågas i ett anrop.
-40. **Två App-tester faller ibland** (`CasePickerTests.Stang_closes_the_case_and_the_picker_stays_out`,
-    `SettingsTests.The_lock_screen_says_that_lookups_go_through_windows`, och tidigare en låstidstest): gröna när de
-    körs om. Troligen delat tillstånd mellan tester som körs parallellt; utreds.
 34. **Linjer genom noder** (kvar efter att testärendets trängsel rättades 2026-11-08): när ett hopp med fler än åtta
     aktörer sprids över två kolumner går en linje till den andra kolumnen rakt genom en nod i den första (i
     testärendet linjen till CoinJoin). Beloppen hålls redan undan; linjerna kunde böjas runt noderna, eller aktörer med
@@ -431,10 +423,9 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
 Allt som används för att förvirra spårningen ska kännas igen och analyseras, med så mycket automatiska kontroller och
 förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Katalogen, med det som redan står ovan och under Spårning:
 - **Centrala mixers:** kända adresser och mönster per mixer, troliga utgångar ur belopp minus avgift och tid.
-- **Mixer efter mixer** (chaining, användarens fråga 2026-11-08): en godkänd utgång ur en mixer som går in i en mixer
-  till (eller samma mixer igen, eller en CoinJoin) är ett vanligt sätt att lägga lager på lager. Kontroll: en kandidat
-  vars pengar når en ny mixer markeras som *mixer efter mixer*, och mixerns förslag körs då på nytt från den
-  insättningen, så att kedjan kan följas steg för steg; beloppet och avgifterna summeras längs kedjan.
+- **Mixer efter mixer** (byggt 2026-11-08 som `mixer-chain v1`). Återstår: en mixer utan etikett mitt i kedjan syns
+  inte (förslag: känna igen en trolig mixer ur beteende); när flera delar går in i nästa mixer tillsammans följs bara
+  en av dem, och stegets belopp är den delen; kedjan grenar sig inte när två utgångar går till olika mixers.
 - **CoinJoin** (Wasabi, Whirlpool och efterföljare, JoinMarket): finns som heuristik (etapp 6), fler mönster ovan.
   Förslag: utgångar ur CoinJoin som slås ihop igen efteråt (toxic change, ihopslagning av mixade mynt).
 - **Tornado Cash och andra zk-mixers:** under *Kedjor och data*.
@@ -458,16 +449,18 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 ### Kontroller, förslag och områden (etapp 22)
 - **Mixerns kandidater ur kedjan:** `mixer-outputs v1` prövar bara det som finns i grafen. Att söka igenom blocken i
   tidsfönstret efter insättningen (genom utgången, med gränser) behövs för att hitta kandidater som inte är hämtade.
-  Också kända avgifter och belopp per mixer, och en insättning som betalas ut i flera delar.
+  Också kända avgifter och belopp per mixer.
 - **En godkänd kandidat i spårningen:** att godkänna en kandidat förseglar beslutet men gör den inte till en
   startpunkt eller en kant i spåret. Ska en godkänd kandidat kunna bli en ny startpunkt (med beloppet), och hur visas det?
 - **Godkänna en plånbok:** plånböckernas områden (`wallet-proposals v1`) är bara kontroller, eftersom en sammanslagning
   av användaren inte finns i Clustering (se *Godkänna ett förslag och ångra en uppbrytning* ovan).
 - **Lasso** för att välja aktörer till en egen yta (KF1b): bara Ctrl+klick är byggt.
 - **Formuläret för en egen yta** står under grafens hörn, inte vid de valda aktörerna som i skissen.
-- **Delarna tillsammans:** flera kandidater kan godkännas (byggt 2026-11-08), men analysen väger varje utgång mot
-  hela insättningen. En analys som prövar kombinationer (två eller flera utbetalningar som tillsammans blir beloppet
-  minus avgift, spridda över tid) och visar summan av de godkända mot insättningen behövs.
+- **Delarna tillsammans** (byggt 2026-11-08 som `mixer-parts v1`). Återstår: bara den bästa kombinationen visas (den
+  näst bästa kunde visas när en del avfärdas); fler än fyra delar och fler än de 20 första utbetalningarna prövas
+  inte; samma utbetalning kan stå både som hel utgång i `mixer-outputs` och, för en annan insättning, som del.
+- **Testärendet** (`/testdata`) har ingen insättning som betalas ut i delar och ingen mixer efter mixer än; lades inte
+  till 2026-11-08 eftersom testärendets layout byggdes om samtidigt.
 - **Växeladressen i KF2b** (bandens bredd efter belopp, kolumnen *SEDD*) är inte byggd: det finns ingen analys som
   föreslår växeladresser som förslag (Clustering gör det själv). Bilden kan bara rita band efter poäng.
 - **Brickorna under förslaget** står i en tabell i appen per analys (`SuggestionWords`), utan siffror (skissens *48 h*
@@ -511,15 +504,13 @@ nollställdes, *Lägg tillbaka* under alla medlemmar, `first_expanded_utc`, hög
 som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Dolda OP_RETURN går inte att visa igen** efter att toasten tonat ut eller ärendet öppnats på nytt. Lägg en
   markering eller ikon i grafens hörnrad när några är dolda, aldrig tyst.
-- **Med *Visa dem* byggs scenen om på UI-tråden** (`GraphScene.WithUnspendable`). Skicka valet in i
-  `LoadAsync`/`ExpandAsync` så att scenen byggs i bakgrunden.
-- **Ritningen allokerar per bildruta:** högens kort och valvyns prickar gör nya `Pen` och `FormattedText` per bildruta
-  (kort utanför bild hoppas nu över), och krocktestet för beloppen (`GraphCanvas.DrawAmount`) är O(k²). Cacha per
-  kort och lägg krocktestet i ett rutnät.
-- **Bevakade noder och bevakningens motparter kan vikas in i en hög**, så att vaktlinjen och ringarna försvinner. Låt
-  `GraphFold` hålla dem utanför (rör `GraphWatches`, som en annan ändring arbetar i).
-- **Högens och ledtrådens nycklar bygger på ankarets representant**, och ledtrådens linje är en `Transfer` med
-  beloppet 0; ge den en egen sort.
+- **Byggt 2026-11-08:** scenen byggs i bakgrunden med *Visa dem* (`GraphReading`), pennor och texter i högen, valvyn
+  och beloppen cachas (`DrawCache`) och beloppens krocktest ligger i ett rutnät (`RoomGrid`), bevakade adresser och
+  bevakningarnas motparter viks aldrig in i en hög, ledtrådens linje är `GraphEdgeKind.HeldBack`, och högens och
+  ledtrådens nycklar följer var de senast flyttades i stället för ankarets representant. Kvar av det:
+  - Valvyns streckade guide och rombens hörnmärke byggs som ny geometri per bildruta; de kan cachas per vy.
+  - En bevakad aktör i en hög är kvar som medlem i Tracings hög och ritas bara för sig. Om en sådan ska räknas i
+    högens *N mottagare* i modellen (till exempel i en begäran) avgörs när det behövs.
 - **Valvyn finns bara för en Bitcoin-adress:** en tx-expansions mottagare och en Ethereum-adress hämtar fortfarande
   nästa del med ett klick. Historiken läses högst 2 000 tx bakåt (`HeldBackList.Most`), och högst 500 till runt den
   spårade ankomsten när grafen har en tx vid adressen att läsa bakåt från; längre historik behöver ett tidsfönster
@@ -531,6 +522,20 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **In, ut eller alla** i högen är fortfarande två högar, en på var sida om adressen; valvyn har filtret.
 - **Startvyn grupperar ärenden** (punkt 21) använder fortfarande spiralen (`PileFanLayout.Centres`); grafens hög har
   ringen (`PileFanLayout.Ring`). Samma ring i startvyn kräver korten i skissens storlek där.
+
+### Kommentarsnoden (KN1a, byggd 2026-11-08)
+
+- **I hoppkolumnerna** står lapparna kvar på sin plats från den fria ytan, och tråden kan bli lång. Ska en lapp ha en
+  egen plats per läge, eller följa sin nod?
+- **En lapp följer inte sin nod** när noden dras; bara tråden följer. Kanske ska en knuten lapp flytta med.
+- **Historiken:** lappens förseglade poster (`IGraphCommentService.GetCommentHistory`) syns inte i inspektörens
+  *Historik* (AN1b), och en borttagen lapp kan inte läggas tillbaka i gränssnittet. Soptunnan (SO1a) bör ta lappen
+  när den byggs, i stället för att Delete tar bort den.
+- **Skrivandet:** Enter i en lista fortsätter inte listan och Tab drar inte in (Gawks `MarkdownEdits` är inte
+  övertagen); radavståndet medan man skriver är AvalonEdits, tätare än de 1,55 som ritas; hjulet över en lapp som
+  skrivs i zoomar inte grafen.
+- **Länkar:** `chainsaw:` till något som inte finns i grafen säger det bara; kanske ska det kunna bli en startpunkt.
+- **N med vald nod** knyter lappen till noden (skissen säger det bara om ikonen i nodens list). Fråga användaren.
 
 ### Attribution
 - **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.
@@ -816,6 +821,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 
 ### Bevakning (etapp 26)
+- **Huvudets räknare efter BV1a** (2026-11-08): skissen säger *2 nya träffar sedan 09:10*; vyn säger bara antalet,
+  eftersom när användaren senast tittade inte sparas som en tid. Spara den med *sedd* om den ska stå där.
 - **Starten från en höjd i fas** (granskningen omgång 1, M5): starten är kedjans höjd från `GetTipHeightAsync`, som
   frågar vilken endpoint som helst; ligger den ett block efter kan pengar i det nyaste blocket före bevakningen räknas
   som en träff. Höjden borde komma från en endpoint i fas (eller provets högsta höjd).

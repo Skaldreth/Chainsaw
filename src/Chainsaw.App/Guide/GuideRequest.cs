@@ -26,7 +26,7 @@ public sealed record GuideRequest(GuideTopic Topic, string? Heading, GuideContex
     /// <summary>The order in which a <em>Varför?</em> picks the section to open: the most telling first.</summary>
     private static readonly GuideTopic[] Preference =
     [
-        GuideTopic.TrailEnds, GuideTopic.MixerCandidates, GuideTopic.CoinJoin, GuideTopic.CommonInputOwnership,
+        GuideTopic.TrailEnds, GuideTopic.MixerCandidates, GuideTopic.MixerChain, GuideTopic.CoinJoin, GuideTopic.CommonInputOwnership,
         GuideTopic.ChangeAddress, GuideTopic.PeelChain, GuideTopic.StartPoints, GuideTopic.Labels, GuideTopic.Methods,
         GuideTopic.Utxo, GuideTopic.Checks, GuideTopic.Areas, GuideTopic.Graph,
     ];

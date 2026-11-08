@@ -180,6 +180,7 @@ public partial class App : Application
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphEditor, GraphEditor>()
                 .AddSingleton<ICheckSource, CheckSource>()
+                .AddSingleton<IGraphComments, GraphComments>()
                 .AddSingleton<Toaster>()
                 .AddSingleton<ITrashSource, TrashSource>()
                 .AddSingleton<CaseTrash>()

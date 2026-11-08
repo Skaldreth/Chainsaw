@@ -115,6 +115,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         _model = model;
         model.Redraw += (_, _) => InvalidateVisual();
         model.PropertyChanged += OnModelChanged;
+        AttachComments(model);
         model.ShowNodesWanted += (_, nodes) => FitTo(nodes);
         model.FitWanted += (_, _) =>
         {
@@ -182,6 +183,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         // A transparent ground, so that the empty surface takes the pointer too.
         drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(RenderSize));
+        PlaceComments();
         if (_model?.Scene is not { } scene)
         {
             KeepRings(false);
@@ -206,6 +208,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         DrawTimeBands(drawingContext, visible);
         DrawAreas(drawingContext, visible);
+        DrawCommentThreads(drawingContext, visible);
         var (nearNodes, nearEdges) = _model.Near;
         var edges = GraphHitTest.VisibleEdges(scene, _model.Curves, visible).ToList();
         DrawWatchGlows(drawingContext, visible);
@@ -215,7 +218,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawEdge(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
         }
 
-        var taken = new List<Rect>();
+        var taken = new RoomGrid();
         foreach (var edge in AmountOrder(edges, nearEdges))
         {
             drawingContext.PushOpacity(LaterAmountOpacity(edge.Key));
@@ -259,7 +262,9 @@ public sealed partial class GraphCanvas : FrameworkElement
         _model?.CloseMenu();
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
-        if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressArea(surface)))
+        _model?.Comments.Select(null);
+        if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressThread(surface)
+            || PressForComment(e, surface) || PressArea(surface)))
         {
             e.Handled = true;
             return;
@@ -290,7 +295,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
-        if (MoveHeldBack(at) || MoveFan(at, surface))
+        if (MoveHeldBack(at) || MoveFan(at, surface) || MoveForComments(surface))
         {
             return;
         }
@@ -321,7 +326,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseLeftButtonUp(e);
         var released = ToGraph(e.GetPosition(this));
-        if (ReleaseHeldBack(released) || ReleaseFan(_viewport.ToSurface(released)))
+        if (ReleaseHeldBack(released) || ReleaseFan(_viewport.ToSurface(released))
+            || ReleaseThread(_viewport.ToSurface(released)))
         {
             e.Handled = true;
             return;
@@ -339,6 +345,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         base.OnLostMouseCapture(e);
         ForgetFanPress();
+        _threadNote = null;
         _viewPressed = false;
         _lasso = null;
         if (_panButton is not null)
@@ -392,6 +399,11 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnKeyDown(e);
+        if (CommentKey(e))
+        {
+            return;
+        }
+
         var plus = e.Key is Key.OemPlus or Key.Add;
         var allowed = plus ? ModifierKeys.Shift : ModifierKeys.None;
         if (_model is not null && e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
@@ -563,9 +575,9 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         CloseHoverTip();
         Focus();
-        if (_blast != BlastPhase.None || _model?.Fan is not null)
+        if (_blast != BlastPhase.None || _model?.Fan is not null || _commentLayer?.IsMouseOver == true)
         {
-            // Over the selection view or a fanned pile, the graph under it takes no menu.
+            // Over the selection view, a fanned pile or a note, the graph under it takes no menu.
             e.Handled = true;
             return;
         }
@@ -763,10 +775,11 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="near">The lines near what is chosen.</param>
     /// <param name="taken">
     /// Where amounts already stand; an amount that would stand on one of them is left for hovering, so that amounts
-    /// never lie on top of each other (CLAUDE.md, <em>Grafen använder ytan</em>).
+    /// never lie on top of each other (CLAUDE.md, <em>Grafen använder ytan</em>); kept in a grid, so that each amount
+    /// is only compared with those near it.
     /// </param>
     private void DrawAmount(
-        DrawingContext dc, EdgeView edge, EdgeCurve curve, IReadOnlySet<string> near, List<Rect> taken)
+        DrawingContext dc, EdgeView edge, EdgeCurve curve, IReadOnlySet<string> near, RoomGrid taken)
     {
         var model = _model!;
         var hovered = model.HoveredEdge == edge.Key;
@@ -791,21 +804,20 @@ public sealed partial class GraphCanvas : FrameworkElement
         var ink = edge.Ink == GraphInk.Untraced
             ? GraphPalette.Find(this, "Brush.TextDim")
             : GraphPalette.Brush(this, edge.Ink);
-        var text = Text(edge.Label, 11, ink, FontWeights.Normal);
-        var glyph = edge.Glyph.Length > 0 ? Text(edge.Glyph, 11, ink, FontWeights.SemiBold) : null;
+        var text = CachedText(edge.Label, 11, ink, FontWeights.Normal);
+        var glyph = edge.Glyph.Length > 0 ? CachedText(edge.Glyph, 11, ink, FontWeights.SemiBold) : null;
         var glyphWidth = glyph is null ? 0 : glyph.Width + 3;
         var value = edge.Value is { } worth
-            ? Text(worth.Text, 9.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal)
+            ? CachedText(worth.Text, 9.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal)
             : null;
         var width = Math.Max(text.Width + glyphWidth, value?.Width ?? 0);
         var height = text.Height + (value?.Height ?? 0);
         var box = new Rect(middle.X - (width / 2) - 5, middle.Y - (text.Height / 2) - 1, width + 10, height + 2);
-        if (taken.Any(other => other.IntersectsWith(box)))
+        if (!taken.TryAdd(new GraphRect(box.X, box.Y, box.Width, box.Height)))
         {
             return;
         }
 
-        taken.Add(box);
         dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
         var left = middle.X - ((text.Width + glyphWidth) / 2);
         if (glyph is not null)

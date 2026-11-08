@@ -45,6 +45,9 @@ public enum GuideTopic
     /// <summary><em>Mixerns troliga utgångar</em>.</summary>
     MixerCandidates,
 
+    /// <summary><em>Mixer efter mixer och delarna</em>: a deposit paid out in parts, and mixer after mixer.</summary>
+    MixerChain,
+
     /// <summary><em>Kontomodellen</em>: how Ethereum keeps balances, and how they are traced.</summary>
     AccountModel,
 
@@ -90,6 +93,7 @@ public static class GuideTopics
         GuideTopic.Checks => "kontroller-och-forslag",
         GuideTopic.Areas => "omraden",
         GuideTopic.MixerCandidates => "mixerns-kandidater",
+        GuideTopic.MixerChain => "mixer-efter-mixer",
         GuideTopic.AccountModel => "kontomodellen",
         GuideTopic.Tokens => "erc-20",
         GuideTopic.CanBeFrozen => "kan-frysas",
@@ -115,6 +119,7 @@ public static class GuideTopics
         GuideTopic.Checks => "Kontroller och förslag",
         GuideTopic.Areas => "Områden i grafen",
         GuideTopic.MixerCandidates => "Mixerns troliga utgångar",
+        GuideTopic.MixerChain => "Mixer efter mixer och delarna",
         GuideTopic.AccountModel => "Kontomodellen",
         GuideTopic.Tokens => "ERC-20 och tokens",
         GuideTopic.CanBeFrozen => "Kan frysas",

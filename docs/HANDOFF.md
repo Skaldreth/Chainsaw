@@ -129,11 +129,17 @@ KL2b, EX1/EX2/EX2b ombyggda, Esc avbryter en lång läsning, Ctrl+W, Guidens ton
 valt, sonarn borttagen helt, en kvalitetsgenomgång av kvällens egna commits (`6f67d1b`) **KF2b** (sammanslagen
 `c352c7a`) och **NC2a** (sammanslagen `68bc89e`), båda byggda av agenter och inte sedda på Windows. Granskningarna av KF2b och NC2a är rättade (alla fynd).
 
-**Pågår 2026-11-08 (eftermiddag): sju agenter parallellt**, var och en i en worktree, huvudsessionen slår ihop:
-inspektören (IN2b, GR5, TK1a, AN1b), bildspråkets ruta GR7a, tidslinjen TL1a, kommentarsnoden KN1a (skriver i
-ärendet: oberoende granskning efteråt), Nytt ärende mot NC2a, små rättningar (BV1a, TO1a, instabila tester) och
-testärendets trånga layout (punkt 34). Skisserna och det gemensamma uppdraget ligger i `.claude/sketches/` (inte i
-git; hämtas om ur canvasen). Nästa omgång: soptunnan SO1a och resten av EX2.
+**Pågår 2026-11-08 (eftermiddag): agenter parallellt**, var och en i en worktree (`.claude/worktrees/`, grenar
+`worktree-agent-*`), huvudsessionen slår ihop med `git merge`, löser dokumentkonflikter genom att behålla båda sidor
+(`/tmp/claude-0/tools/keepboth.py`, finns inte efter omstart), bygger, kör `tests/Chainsaw.App.Tests` och pushar.
+- **Ihopslaget och pushat:** GR7a, Nytt ärende mot NC2a, testärendets layout (punkt 34), TL1a, inspektören
+  (IN2b, GR5, TK1a, AN1b), flera godkända kandidater i KF2b (`e40363f`).
+- **Kör fortfarande:** kommentarsnoden KN1a (skriver i ärendet: oberoende granskning efter sammanslagningen), små
+  rättningar (BV1a, TO1a, instabila tester), soptunnan SO1a (etapp, granskning efteråt), resten av EX2
+  (prestanda), mixerns analyser *Delarna tillsammans* och *Mixer efter mixer* (granskning efteråt).
+- **Frågor till användaren:** kandidaternas linjer ritas nu alltid (förut med områdena); SEK för det som ligger kvar
+  räknas till senaste kursen i ärendet, inte dagens.
+- Skisserna och det gemensamma uppdraget ligger i `.claude/sketches/` (inte i git; hämtas om ur canvasen).
 
 **Att göra, i ordning:**
 1. **Granska Nytt ärende själv mot skissen `NewCase2A`** och användarens synpunkter (inga linjer vid raderna,

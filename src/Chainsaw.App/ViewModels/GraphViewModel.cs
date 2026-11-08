@@ -114,6 +114,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// </param>
     /// <param name="suppliers">The suppliers of attribution (Chainabuse first); none where they are not wired.</param>
     /// <param name="switches">Which suppliers are on, from the page Källor; none where they are not wired.</param>
+    /// <param name="comments">The graph's comments (sketch KN1a); none where they are not wired.</param>
     /// <param name="trash">The graph's trash (sketch SO1a); none where it is not wired, and nothing can be thrown.</param>
     /// <param name="caseTrash">
     /// The cases thrown on the start page, shared with the window; a trash in memory when none is given.
@@ -129,6 +130,7 @@ public sealed partial class GraphViewModel : ObservableObject
         ICheckSource? checks = null,
         IAttributionProviders? suppliers = null,
         AttributionSwitches? switches = null,
+        IGraphComments? comments = null,
         ITrashSource? trash = null,
         CaseTrash? caseTrash = null)
     {
@@ -153,6 +155,8 @@ public sealed partial class GraphViewModel : ObservableObject
         Checks.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
         Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
         Checks.ToastWanted += (_, toast) => ToastWanted?.Invoke(this, toast);
+        Comments = new CommentsViewModel(session, comments ?? NoGraphComments.Instance);
+        WireComments();
         Forms = new InspectorFormsViewModel(session, editor, clock);
         Forms.Saved += (_, _) => _ = RefreshAsync();
         Forms.Failed += (_, text) => Tell(ToastKind.Error, text);
@@ -713,7 +717,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="retry">What <em>Försök igen</em> does when it fails.</param>
     /// <returns>A task that completes when the graph is shown after the expansion.</returns>
     private Task ExpandWithAsync(ICase openCase, IReadOnlyList<ExpansionRequest> requests, Action retry) =>
-        ExpandWithAsync(token => _source.ExpandAsync(openCase, requests, Method, token), retry);
+        ExpandWithAsync(token => _source.ExpandAsync(openCase, requests, Reading, token), retry);
 
     /// <summary>
     /// Expands the graph by a step off the UI thread, and says what came in; after it, a lingering toast says how many
@@ -791,7 +795,7 @@ public sealed partial class GraphViewModel : ObservableObject
 
         try
         {
-            var scene = await _source.LoadAsync(openCase, Method, _work.Token);
+            var scene = await _source.LoadAsync(openCase, Reading, _work.Token);
             await ReadTrashAsync(openCase, _work.Token);
             if (version == _version)
             {
@@ -993,13 +997,17 @@ public sealed partial class GraphViewModel : ObservableObject
         while (_viewChangedMeanwhile);
     }
 
-    /// <summary>Shows a new graph, keeping what is chosen when it is still there.</summary>
+    /// <summary>
+    /// Shows a new graph, keeping what is chosen when it is still there. The scene is shown as it was built; one that
+    /// draws the outputs that can never be spent otherwise than the user chose meanwhile is built again off the UI
+    /// thread and shown after (principle 6).
+    /// </summary>
     /// <param name="scene">The graph.</param>
     /// <param name="fit">Whether the view should fit it to the screen.</param>
     /// <param name="keepNotice">Whether the notice stays instead of the graph's problems.</param>
     private void Show(GraphScene scene, bool fit, bool keepNotice = false)
     {
-        Scene = scene.WithUnspendable(_showUnspendable).WithTrash(_trash);
+        Scene = scene.WithTrash(_trash);
         scene = Scene;
         EmptyText = scene.Snapshot.Graph.StartPoints.Count == 0 && scene.Nodes.Count == 0 ? NoStartPointsText : "";
         if (!keepNotice || Notice.Length == 0)
@@ -1026,6 +1034,8 @@ public sealed partial class GraphViewModel : ObservableObject
         {
             FitWanted?.Invoke(this, EventArgs.Empty);
         }
+
+        _ = FollowReadingAsync();
     }
 
     /// <summary>Shows no graph, with a text in its place.</summary>

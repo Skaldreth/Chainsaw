@@ -33,6 +33,7 @@ public static class TracingModule
         services.AddSingleton<ITracingService, TracingService>();
         services.AddSingleton<ICaseSchemaContributor, TrashSchema>();
         services.AddSingleton<IGraphTrash, GraphTrashService>();
+        services.AddSingleton<IGraphCommentService, GraphCommentService>();
         return services;
     }
 }

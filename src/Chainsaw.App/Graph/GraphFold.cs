@@ -70,7 +70,8 @@ public sealed record GraphFolding(
 /// </summary>
 /// <remarks>
 /// An actor that matters is never folded into a pile, whatever Tracing's rule says: one with a label (an exchange, a
-/// victim, a sanction) and one that traced money reaches, since the victims' money must always be seen.
+/// victim, a sanction), one that traced money reaches, since the victims' money must always be seen, and one that is
+/// watched or is a watch's counterparty, so that the eye, the watch line and its rings keep their node (sketch BV2a).
 /// </remarks>
 public static class GraphFold
 {
@@ -106,6 +107,10 @@ public static class GraphFold
     /// <param name="nodes">Every actor as the graph would draw it.</param>
     /// <param name="edges">Every line as the graph would draw it.</param>
     /// <param name="showUnspendable">Whether the outputs that can never be spent are shown.</param>
+    /// <param name="keptOut">
+    /// The addresses never folded into a pile, the watched and the watches' counterparties; none when
+    /// <see langword="null"/>.
+    /// </param>
     /// <param name="trash">
     /// What the trash hides (sketch SO1a): its actors, piles and clues are not drawn, a pile's cards in the trash leave
     /// the pile, and a line to anything in it becomes a stub; <see langword="null"/> hides nothing.
@@ -116,11 +121,13 @@ public static class GraphFold
         IReadOnlyList<NodeView> nodes,
         IReadOnlyList<EdgeView> edges,
         bool showUnspendable,
+        IReadOnlySet<ChainAddress>? keptOut = null,
         TrashFilter? trash = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(nodes);
         ArgumentNullException.ThrowIfNull(edges);
+        keptOut ??= GraphReading.NoAddresses;
         trash ??= TrashFilter.Empty;
         var thrown = nodes.Where(node => trash.Hides(node.Node)).Select(node => node.Key)
             .ToHashSet(StringComparer.Ordinal);
@@ -138,7 +145,8 @@ public static class GraphFold
             }
 
             var cards = pile.Members.Select(byKey.GetValueOrDefault).OfType<NodeView>()
-                .Where(card => !removed.Contains(card.Key) && !thrown.Contains(card.Key) && MayFold(card)).ToList();
+                .Where(card => !removed.Contains(card.Key) && !thrown.Contains(card.Key) && MayFold(card, keptOut))
+                .ToList();
             if (cards.Count == 0)
             {
                 continue;
@@ -260,12 +268,15 @@ public static class GraphFold
     }
 
     /// <summary>
-    /// Says whether an actor may be folded into its pile: not when it is labelled or traced money reaches it.
+    /// Says whether an actor may be folded into its pile: not when it is labelled, traced money reaches it, or one of
+    /// its addresses is watched or a watch's counterparty.
     /// </summary>
     /// <param name="card">The actor.</param>
+    /// <param name="keptOut">The addresses never folded into a pile.</param>
     /// <returns><see langword="true"/> when it may.</returns>
-    private static bool MayFold(NodeView card) =>
-        card.Labels.Count == 0 && card.TracedIn.Units.Sign == 0 && card.TracedIns.Count == 0;
+    private static bool MayFold(NodeView card, IReadOnlySet<ChainAddress> keptOut) =>
+        card.Labels.Count == 0 && card.TracedIn.Units.Sign == 0 && card.TracedIns.Count == 0
+        && !card.Node.Addresses.Any(keptOut.Contains);
 
     /// <summary>
     /// Draws every line between the nodes that are drawn: a line to a hidden output goes, a line inside a pile goes,
@@ -490,7 +501,7 @@ public static class GraphFold
     {
         var zero = AssetAmount.Zero(GraphScene.Shown);
         var model = new GraphEdge(
-            ClueEdgePrefix + clue.Key, clue.Anchor, clue.Key, GraphEdgeKind.Transfer, zero, [], null,
+            ClueEdgePrefix + clue.Key, clue.Anchor, clue.Key, GraphEdgeKind.HeldBack, zero, [], null,
             EdgeDirection.Unordered);
         return new EdgeView(model, zero, null, GraphInk.Untraced, EdgeDash.Uncertain, EdgeWidth.Untraced, "");
     }

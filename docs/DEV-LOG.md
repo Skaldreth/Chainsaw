@@ -2686,3 +2686,114 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   hel hög i startvyn kan inte dras till soptunnan, och testärendet (`/testdata`) har ingen slängning.
 - Tester: 19 i `Chainsaw.Modules.Tracing.Tests` (`TrashTests`, `TrashTreeTests`) och 35 i `Chainsaw.App.Tests`
   (`TrashTests.cs`, `StartTrashTests.cs`).
+
+## Delarna tillsammans och mixer efter mixer (2026-11-08)
+
+- **Två nya analyser, inte en utvidgad `mixer-outputs`:** `mixer-parts v1` (*Delarna tillsammans*, förslag) och
+  `mixer-chain v1` (*Mixer efter mixer*, kontroll). Skälet: `CheckCandidate` är en utgång, och en kombination av delar
+  passar modellen bäst som ett eget förslag där varje del är en kandidat (KF2b-panelen och besluten per kandidat
+  fungerar som de är). En egen analys har egen version och egna beslut, så `mixer-outputs v1` hittar exakt som förut
+  (dess tester är orörda) och ett beslut om en hel utgång blandas inte ihop med ett om en del. Insättningar och
+  utbetalningar läses på ett ställe (`MixerDeposits`), som de tre analyserna delar.
+- **Delarna:** två till fyra utbetalningar inom 7 dygn, var och en minst en tiondel av insättningen (så att ingen del
+  ensam kan vara en hel utgång; de ligger inte i båda förslagen), med summan inom insättningen minus 0–10 % avgift.
+  Poäng: avgiften 0,45, tiden (medel) 0,2, spridningen (andel delar i egna block) 0,15, adresstypen (medel) 0,2; lägst
+  0,5. Lika poäng avgörs av färre delar och sedan nycklarna. **Gränsen:** bara de 20 utbetalningarna närmast efter
+  insättningen prövas, vilket ger högst 6 175 kombinationer per insättning, och grenar som redan är för stora följs
+  inte. Bara den bästa kombinationen visas; `Why` säger hur många som passade.
+- **Mixer efter mixer:** `CheckInput` har fått `Approved` (godkända kandidater med mynt), som `CheckService` bygger ur
+  besluten i kraft. Kedjan följer godkänt före troligt, sedan poäng, och går genom hela utgångar och delar. En ny
+  insättning i en känd mixer får mixerns förslag av sig själv (testat). En CoinJoin (klustringens fynd, igenkänd eller
+  möjlig) avslutar kedjan. Högst 10 steg. Steget visar sin avgift: insättningen minus utgången, eller minus alla delar
+  för en del. Kontrollen förseglas på nytt när ett godkännande ändrar vilken väg den följer.
+- **Panelen:** nya brickor för båda; för delarna räknas *trolig avgift* mot alla delar som inte är avfärdade
+  (`SuggestionWords.CandidatesAreParts`). Guiden har ett nytt avsnitt, *Mixer efter mixer och delarna*.
+- **En granskare bör titta på:** att `Approved` byggs ur senaste beslutet per kandidat (`CheckService.ApprovedOf`) och
+  att en ändring där inte kan göra resultaten icke-deterministiska; vikterna och gränserna i `MixerPartsCheck` (risken
+  att en kombination passar av en slump i en stor graf); att `MixerOutputsCheck` efter omskrivningen till
+  `MixerDeposits` ger samma resultat (samma tester gröna); att kedjans text aldrig kallar ett steg ett faktum.
+- **Återstår:** se TODO (testärendet, andra bästa kombinationen, okända mixers mitt i en kedja, delar som går in i
+  nästa mixer tillsammans).
+
+## BV1a, TO1a och de instabila App-testerna (2026-11-08)
+
+- **BV1a punkt för punkt:** bakgrundens läge står i en rundad ram i vyns huvud, hel när bevakningen går och streckad
+  (gul när den väntar, grå när bakgrunden är av), eftersom streckat alltid betyder osäkert (`IsFrameDashed`). Varje rad
+  och högerpanelens huvud ritar den bevakade noden som grafen gör (sortens ikon, färg och form, `SortLook` genom
+  `GraphViewModel.LookIn`); finns noden inte i grafen ritas den som kluster eller okänd. Motparternas brickor har en
+  pil för riktningen, läget i panelen står i lägets färg, och *Öppna i grafen* leder bland knapparna längst ner.
+  Vyns röda felrad är borta: ett problem sägs en gång som en toast (TO1a).
+- **TO1a punkt för punkt:** strecket i nederkanten finns på alla toasts, krymper för lyckat och information och står
+  stilla för fel och varningar (`Toast.CountsDown`); ikonen 15 px på sin tonade skiva, texten överst bredvid ikonen,
+  krysset dämpat och toasterna 76 px upp som i skissen, så att hörnets *?* går att nå.
+- **De instabila testerna** hade tre orsaker, alla tester som läste tillstånd medan bakgrundsarbete fortfarande skrev:
+  - `CaseWorkflow.RunAlone` listade ärendena i bakgrunden utan att vänta (`_ = RefreshCasesAsync()`), och
+    ärendeväljaren och skalet listade en gång till. Med testernas UI-tråd som kör direkt fyllde två listningar
+    väljarens rader samtidigt. Nu väntar `RunAlone` in sin listning innan svaret kommer, och de dubbla listningarna
+    är borttagna.
+  - `SettingsTests.Dispose` tog bort inställningsmappen medan inställningarna skrevs i bakgrunden (*Directory not
+    empty*). `SettingsViewModel.Saving` ger skrivningen, och testerna väntar in den.
+  - `ShellViewModelTests` väntade på utgångens namn men läste raden under, som skrivs strax efter; testet väntar nu på
+    båda. Samma mönster i profilens tester (`WaitForTheProfile`).
+  `tests/Chainsaw.App.Tests` kördes 60 gånger, två processer i taget, utan fel.
+- Avsteg från skissen: huvudets räknare säger inte *sedan 09:10* (se TODO); storlekarna följer appens text, ett steg
+  större än skissens.
+
+## Kommentarsnoden (KN1a, 2026-11-08)
+
+- **Modulen (Tracing):** `IGraphCommentService` med `GraphComment`, `CommentRules` och schemasteg 5. Den förseglade
+  kedjan `tracing.comments` (`tracing_comments`) har en post per handling: *add* (text, tråd och första plats), *edit*
+  (ny text), *anchor* (ny eller ingen tråd) och *remove* (texten som togs bort står kvar), var och en med operatören
+  (`set_by`), journalrad (`tracing.comment-added`, `-edited`, `-anchored`, `-removed`) och tid i samma transaktion.
+  Inget skrivs över. Flyttad plats och storlek är vanlig data i `tracing_comment_places`, som grafens platser.
+  Samma text skriver inget; en tom text vägras (en tömd lapp tas bort i stället).
+- **Tråden** sparas under `address:` och en av nodens adresser för en adress eller ett kluster, annars nodens nyckel,
+  så att den hittar noden igen när klustret ändras (`CommentGeometry.AnchorOf` och `Resolve`).
+- **Markdown:** Gawks parser övertagen till `Chainsaw.SharedKernel/Text/Markdown.cs` med Gawks tester och ett nytt för
+  skissens lapp. Ritningen (`NoteMarkdownView`) är skriven för lappen efter Gawks `MarkdownView`; färgningen medan man
+  skriver (`NoteColorizer`) efter Gawks `MarkdownColorizer`, i **AvalonEdit** (nytt NuGet-paket, MIT, i
+  `THIRD_PARTY.md`). Bara `chainsaw:`-länkar följs (noden väljs och visas, inget slås upp); andra adresser ritas grå
+  och följs aldrig (princip 4).
+- **Grafen:** lapparna ligger i ett lager som `GraphCanvas` bär som barn, med vyns transform, så att de panoreras och
+  zoomas med grafen och höger-, mittknapp och hjul går vidare till duken. Trådarna ritas av duken under noderna.
+  N, dubbelklick på tom yta, ikonen *Kommentar* i nodens list och raden i högerklicket; Delete tar bort vald lapp, Esc
+  släpper den; pricken vid nodens ände dras till en annan nod eller till tom yta. Medan en lapp skrivs i tar grafen
+  inga tangenter.
+- **Egna val:** en ny lapp är ett utkast som inte finns i ärendet förrän den lämnas med text (ett tomt utkast
+  försvinner utan spår); en lapp som inte kunde sparas står kvar i skrivläge med sin text. N med vald nod knyter
+  lappen till noden, som ikonen gör. Lappens naturliga bredd är 280 (skissen 270–300), handtaget ger 200–620 × 110–420,
+  och höjden är en minsta höjd så att text aldrig döljs. `/testdata` har en lapp vid offret med länk till Nordbörsen.
+- **Avsteg från skissen:** radavståndet medan man skriver är AvalonEdits; den streckade tomma lappen har handtaget och
+  foten dolda; ledtexten *Dubbelklick på ytan · N* ovanför den tomma lappen är inte med (kortkommandot står i
+  verktygstipset).
+- **Tester:** `CommentTests` i Tracing (försegling med vem och när, historik, ändring, tråd, borttagning, plats som
+  vanlig data, UPDATE och DELETE vägras, `/verify`), `MarkdownTests` i SharedKernel, `CommentTests` och
+  `CommentGeometryTests` i App (utkast, lämna, misslyckad sparning, flytt och storlek, tråd, länk, nodens ikon och
+  meny) och ett test av testärendets lapp. Facit i Tracings `GoldenTests` har fått schema 5 och den nya kedjan.
+- **Återstår:** se TODO, *Kommentarsnoden (KN1a)*.
+
+## Högen, ledtråden och valvyn: det som återstod (2026-11-08)
+
+- **Scenen byggs i bakgrunden:** `GraphReading` (metoden, *Visa dem* och adresserna som hålls utanför högarna) går in
+  i `IGraphSource.LoadAsync`, `ExpandAsync` och `TakeHeldBackAsync`, så att källan bygger scenen som den visas, en
+  gång och utanför UI-tråden. *Visa dem*, *Dölj dem* och en ändrad bevakning bygger om scenen ur det den redan har
+  (`GraphScene.DrawnAs`) med `Task.Run`; `Show` bygger aldrig om på UI-tråden. `TracingMethodKind` blir en
+  `GraphReading` av sig själv, så att anrop med bara metoden står kvar.
+- **Ritningen:** `DrawCache` (utan WPF, testad) håller pennor och mätta texter per det de görs av, med ett tak där den
+  börjar om; `GraphCanvas.Cache.cs` använder den för högens kort, högen, pillen, valvyns prickar, sonar, hörnmärken,
+  guider och mittkortet, och för beloppen på linjerna. Texterna mäts om när skärmens skala ändras. `AmountLayout`
+  hade redan ett rutnät för platserna; det är utbrutet till `RoomGrid` och används också av `DrawAmount`, där
+  krocktestet var O(k²).
+- **Bevakat viks aldrig in:** `GraphWatches.KeptOutOfPiles` ger bevakade adresser, motparter i filtren och motparter
+  som en träff för en gällande bevakning nådde; `GraphFold` lägger aldrig en sådan aktör i en hög. Tracing vet inget
+  om det: aktören står kvar som medlem i högen i modellen och ritas bara för sig, och går tillbaka i högen när
+  bevakningen tas bort.
+- **Ledtrådens linje** har en egen sort, `GraphEdgeKind.HeldBack`, och räknas därför aldrig som en överföring.
+- **Nycklarna:** formen på högens och ledtrådens nycklar är oförändrad (`pile:out:address:…`, `held-back:address:…`),
+  så inget sparat ändras. Nyckeln är den under vilken användaren senast flyttade högen eller pillen, ur vilken som
+  helst av ankarets adresser (`PileRules.StableKey`), och ankarets representant bara tills den flyttats. Platsen följer
+  därför med när klustret växer eller får en annan representant.
+- **Egna beslut:** en bevakad aktör hålls utanför högen också när bevakningen är pausad, så att ögat står kvar.
+- **Återstår:** markeringen för dolda OP_RETURN (kräver en skiss); den streckade guidens geometri i valvyn och
+  rombens geometri görs fortfarande per bildruta.
+- 17 nya tester (`DrawCacheTests`, `PileTests` i App och Tracing, `GraphSourceTests`).

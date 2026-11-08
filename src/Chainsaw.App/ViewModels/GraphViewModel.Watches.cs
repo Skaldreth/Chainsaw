@@ -28,6 +28,9 @@ public enum NodeMenuAction
     /// <summary>Kopiera adress (Ctrl+C).</summary>
     Copy,
 
+    /// <summary>Kommentar (N): a comment about the node, tied to it by a thread (sketch KN1a).</summary>
+    Comment,
+
     /// <summary>Lägg tillbaka i högen: an actor picked out of a pile goes back into it (sketch EX2b).</summary>
     ReturnToPile,
 
@@ -55,6 +58,11 @@ public sealed partial class GraphViewModel
 {
     /// <summary>The watches, or <see langword="null"/> when the graph is built without them.</summary>
     private WatchBoard? _watches;
+
+    /// <summary>
+    /// The addresses the piles never fold in (<see cref="GraphWatches.KeptOutOfPiles"/>), read into every scene.
+    /// </summary>
+    private IReadOnlySet<ChainAddress> _keptOutOfPiles = GraphReading.NoAddresses;
 
     /// <summary>Raised when the user wants a node's address copied (the view owns the clipboard).</summary>
     public event EventHandler<string>? CopyWanted;
@@ -105,6 +113,7 @@ public sealed partial class GraphViewModel
 
         Add(Forms.CanLabel, NodeMenuAction.Label, "Etikett", "L", "Icon.Tag");
         Add(CanWatch(node), NodeMenuAction.Watch, "Bevaka", "B", "Icon.Eye");
+        Add(true, NodeMenuAction.Comment, CommentToolText, CommentKey, "Icon.Note");
         Add(Forms.CanSplit, NodeMenuAction.Split, "Bryt upp", "U", "Icon.Split");
         Add(Forms.CanCrossChain, NodeMenuAction.CrossChain, "Annan kedja", "K", "Icon.Link");
         Add(CanAskSuppliers(node), NodeMenuAction.AskSuppliers, SuppliersToolText, "R", "Icon.Shield");
@@ -137,7 +146,11 @@ public sealed partial class GraphViewModel
         _watches = watches;
         WatchForm = form;
         History.Watches = watches;
-        watches.Changed += (_, _) => ShowWatches();
+        watches.Changed += (_, _) =>
+        {
+            ShowWatches();
+            KeepWatchedOutOfPiles();
+        };
         form.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(WatchFormViewModel.IsOpen))
@@ -147,6 +160,24 @@ public sealed partial class GraphViewModel
         };
         OnPropertyChanged(nameof(WatchForm));
         ShowWatches();
+        KeepWatchedOutOfPiles();
+    }
+
+    /// <summary>
+    /// Keeps the watched addresses and the watches' counterparties out of the piles (<see cref="GraphFold"/>), so that
+    /// the watch line and its rings never vanish into a pile; the graph is drawn again off the UI thread when the
+    /// addresses changed.
+    /// </summary>
+    private void KeepWatchedOutOfPiles()
+    {
+        var keptOut = _watches is { } board ? GraphWatches.KeptOutOfPiles(board.Snapshot) : GraphReading.NoAddresses;
+        if (keptOut.SetEquals(_keptOutOfPiles))
+        {
+            return;
+        }
+
+        _keptOutOfPiles = keptOut;
+        _ = FollowReadingAsync();
     }
 
     /// <summary>
@@ -169,6 +200,7 @@ public sealed partial class GraphViewModel
             new(NodeMenuAction.Split, "Bryt upp …", "U", "Icon.Split", Forms.CanSplit),
             new(NodeMenuAction.CrossChain, "Annan kedja …", "K", "Icon.Link", Forms.CanCrossChain),
             new(NodeMenuAction.Watch, "Bevaka …", "B", "Icon.Eye", CanWatch(node)),
+            new(NodeMenuAction.Comment, CommentToolText + " …", CommentKey, "Icon.Note", true),
             new(NodeMenuAction.Expand, "Expandera", "E", "Icon.Plus", CanExpand, HasGapBefore: true),
             new(NodeMenuAction.Copy, "Kopiera adress", "Ctrl+C", "Icon.Copy", hasAddress),
         ];
@@ -212,6 +244,9 @@ public sealed partial class GraphViewModel
                 break;
             case NodeMenuAction.AskSuppliers:
                 _ = AskSuppliersAsync();
+                break;
+            case NodeMenuAction.Comment:
+                BeginComment(default);
                 break;
             default:
                 CopyAddress();
@@ -315,8 +350,18 @@ public sealed partial class GraphViewModel
     /// <summary>Names an address by its node in the graph.</summary>
     /// <param name="address">The address.</param>
     /// <returns>The node's name, or <see langword="null"/> when it is not in the graph.</returns>
-    public string? NameIn(ChainAddress address) =>
-        Scene?.Nodes.FirstOrDefault(node => node.Node.Addresses.Contains(address))?.Name;
+    public string? NameIn(ChainAddress address) => NodeIn(address)?.Name;
+
+    /// <summary>Gives the look of an address's node in the graph: its sort's icon, colour and shape (sketch GR3c).</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The node's look, or <see langword="null"/> when it is not in the graph.</returns>
+    public SortLook? LookIn(ChainAddress address) => NodeIn(address)?.Look;
+
+    /// <summary>Finds the node in the graph that holds an address.</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The node, or <see langword="null"/> when it is not in the graph.</returns>
+    private NodeView? NodeIn(ChainAddress address) =>
+        Scene?.Nodes.FirstOrDefault(node => node.Node.Addresses.Contains(address));
 
     /// <summary>
     /// Says whether a node can be watched: an address or a cluster on Bitcoin or Ethereum, with a case.

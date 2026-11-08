@@ -22,7 +22,11 @@ public sealed record TestServices(
     IAttributionService Attribution,
     ILabelLibrary? Library,
     IMonitoringService Monitoring,
-    ICheckService Checks);
+    ICheckService Checks)
+{
+    /// <summary>Gets the graph's comments (sketch KN1a); none when they are not registered.</summary>
+    public IGraphCommentService? Comments { get; init; }
+}
 
 /// <summary>One build of the test case: the case, the story it is built from, and what did not go as planned.</summary>
 /// <param name="services">The modules.</param>
@@ -261,6 +265,27 @@ public sealed record OwnAreaStep(string Name, IReadOnlyList<TestAddress> Members
             .ToList();
         run.Services.Checks.AddArea(
             run.Case, new OwnAreaDraft(Name, AreaSort.Own, AreaTint.Blue, false, Note, members));
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Writes a comment on the graph about an actor, as the user does with N (sketch KN1a).</summary>
+/// <param name="About">The actor its thread goes to.</param>
+/// <param name="Text">Its Markdown.</param>
+/// <param name="Place">Where it stands on the free surface: above the graph, which is laid out downwards.</param>
+public sealed record CommentStep(TestAddress About, string Text, NodePosition Place) : ITestStep
+{
+    /// <inheritdoc/>
+    public Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.Services.Comments is not { } comments || About.Address is not { } address)
+        {
+            run.Note("Kommentaren kunde inte skrivas: kommentarerna finns inte.");
+            return Task.CompletedTask;
+        }
+
+        comments.AddComment(run.Case, new GraphCommentDraft(Text, GraphPile.MemberKey(address), Place));
         return Task.CompletedTask;
     }
 }

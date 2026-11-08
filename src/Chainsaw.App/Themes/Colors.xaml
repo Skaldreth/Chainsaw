@@ -89,6 +89,16 @@
     <SolidColorBrush x:Key="Brush.Area.Lila" Color="#C8A6E8" />
     <SolidColorBrush x:Key="Brush.Area.Green" Color="#8CC98F" />
     <SolidColorBrush x:Key="Brush.Area.Blue" Color="#8DBAFF" />
+    <!--
+      The comment (sketch KN1a): a sheet in a faint warm tone with a folded corner, so that it is never taken for an
+      actor; its Markdown marks dim while it is written, its thread a thin dotted line, a new one with a dashed edge.
+    -->
+    <SolidColorBrush x:Key="Brush.Note.Paper" Color="#37332F" />
+    <SolidColorBrush x:Key="Brush.Note.Edge" Color="#4A4540" />
+    <SolidColorBrush x:Key="Brush.Note.Mark" Color="#6A6560" />
+    <SolidColorBrush x:Key="Brush.Note.Thread" Color="#8A8178" />
+    <SolidColorBrush x:Key="Brush.Note.Code" Color="#2A2724" />
+    <SolidColorBrush x:Key="Brush.Note.Draft" Color="#5A544E" />
 
     <FontFamily x:Key="Font.Ui">Segoe UI Variable Text, Segoe UI</FontFamily>
     <!-- Mono only for hashes, txids and addresses in the inspector, and the terminal. -->

@@ -786,6 +786,18 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
 - Stäng och öppna ärendet: besluten står kvar; ett godkänt förslag kommer inte tillbaka i samma version.
 - Inspektören visar under *Här* vilka kontroller och förslag som gäller den valda aktören.
 
+**Delarna tillsammans och mixer efter mixer (2026-11-08)**
+- Ett ärende där mixern betalar ut en insättning i två till fyra delar (var och en minst en tiondel, tillsammans
+  insättningen minus några procent, inom en vecka): förslaget *Delarna tillsammans* med brickorna *Delarna
+  tillsammans*, *Tid*, *Spridda block*, *Adresstyp*, en kandidat per del (*Del 1 av 3 …* i *Varför?*) och *trolig
+  avgift* mot alla delar, med antalet delar. Avfärda en del: avgiften räknas om mot de andra.
+- En utgång ur mixern som skickas in i en mixer igen: kontrollen *Mixer efter mixer, N steg* under *Gjort av sig
+  självt*, rött mixerområde, och *Varför?* som räknar upp stegen med belopp, avgifter och om det är samma mixer igen
+  eller en annan. Den nya insättningen har ett eget förslag *Troliga utgångar ur mixern*.
+- Godkänn en annan kandidat i mixerns förslag som också går in i en mixer: kedjan följer den godkända och säger
+  *godkänd* i stället för *trolig*. `/verify` är hel efteråt.
+- *Varför?* på båda öppnar Guiden vid *Mixer efter mixer och delarna*.
+
 **Områdena (KF1b)**
 - Svaga ytor bakom aktörerna: rött för mixer och CoinJoin, sand för peel chain, grått för plånböcker, prickat för tid.
   Ett förslag som väntar har streckad kant. Ingen aktör har två fyllningar; ett inre område syns bara som kant.
@@ -955,8 +967,11 @@ start (en endpoint måste vara *i fas* för att bevakningen ska fråga).
 - [ ] Bevakning i ett ärende utan bevakningar: ett stort öga i en mjuk rund cirkel mitt på ytan med *Inga bevakningar än*, två dämpade rader under och knappen *Ny bevakning …*; ingen räknare, inget bakgrundsläge, ingen knapp uppe till höger och ingen högerpanel.
 - [ ] Klicka på *Ny bevakning …* i det tomma läget (eller tryck B): formuläret öppnas och det tomma läget försvinner medan det är öppet.
 - [ ] Bevakning utan öppet ärende: *Inget ärende öppet* med en förklarande rad och ingen knapp.
-- [ ] Med en bevakning: listan, räknaren, bakgrundens läge som prick och text utan ram och *Ny bevakning … B* syns i huvudet, och högerpanelen visar den valda.
-- [ ] Bakgrundens läge i huvudet: grön prick när den går, gul när den väntar på utgången, grå när den är av; hovra för förklaringen.
+- [ ] Med en bevakning: listan, räknaren, bakgrundens läge i en rundad ram och *Ny bevakning … B* syns i huvudet, och högerpanelen visar den valda.
+- [ ] Bakgrundens läge i huvudet (BV1a, omgjort 2026-11-08): en rundad ram med prick och text. Hel grå ram och grön prick när den går, streckad gul ram med gul text när den väntar på utgången, streckad grå ram med grå text när den är av; hovra för förklaringen.
+- [ ] Varje rad har nodens egen ikon och färg som i grafen (en börs blå och fyrkantig, en okänd adress rund med ett frågetecken, ett kluster fyrkantigt med plånboken); en bevakning på en adress som inte finns i grafen visas som okänd eller kluster. Motparternas brickor har en liten pil för riktningen (ut till en mottagare, in från en avsändare).
+- [ ] Högerpanelen: nodens ikon i en ram på 30 px bredvid namnet, läget i lägets färg (grönt, gult eller grått), och knapparna längst ner där *Öppna i grafen* är ljusare än de andra.
+- [ ] Ett fel när bevakningen skriver eller läses (till exempel ett låst ärende) kommer som en röd toast nere till höger, inte som en röd rad i vyn.
 - [ ] Ta bort den sista bevakningen: högerpanelen fälls bort och det tomma läget kommer tillbaka.
 
 ## Bevakningen, andra delen: när Chainsaw är stängt (etapp 27)
@@ -1015,6 +1030,12 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Sju toasts i rad: högst fem står, den äldsta tonar ut när en sjätte kommer.
 - [ ] Lås med Ctrl+L: inga toasts ligger kvar över låsskärmen.
 - [ ] Med animeringar avstängda i Windows dyker en toast upp utan glidning och försvinner utan att tona.
+- [ ] Efter skissen (TO1a, 2026-11-08): varje toast har ett färgat streck i nederkanten i sortens färg. För lyckat
+      och information krymper det med tiden (hovring stoppar det, och det fortsätter där det stod), för fel och
+      varningar står det stilla över hela bredden. Ikonen står på en rund tonad skiva i sortens färg, åtgärden
+      (*Försök igen*, *Visa dem*) är i accentfärgen, och krysset är dämpat men ljusnar vid hovring.
+- [ ] Toasterna står 76 px upp från nederkanten, så att bildspråkets *?* nere till höger i grafen går att klicka på
+      medan en toast visas.
 - [ ] Bildspråkets *?* nere till höger i grafen är tydligt, med ett skarpt frågetecken och en ring på 1,5 px.
 - [ ] Inspektörens vänsterkant har ett litet grepp mitt på; vilar pekaren där en stund tonar en mörkgrå linje in längs
       hela kanten.
@@ -1155,12 +1176,22 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Välj en utplockad nod i ett kluster: *Lägg tillbaka i högen* lägger tillbaka den, också om klustrets
       representant har bytts sedan den plockades ut.
 - [ ] Verifiera ärendet efteråt: verifieringen går igenom (historiken som lästes är förseglad som andra svar).
+- [ ] Bevaka en adress som ligger i en hög (eller välj den som motpart i en bevakning): den lämnar högen och står som
+      egen nod med ögat, vaktlinjen och, vid en träff, ringarna; högen säger en mottagare färre. Ta bort bevakningen:
+      adressen går tillbaka i högen.
+- [ ] Fäll ut en hög med 50 kort och öppna valvyn med hundratals prickar: utfällningen och prickarna rör sig mjukt,
+      också med många belopp på linjerna i grafen bakom.
+- [ ] Flytta en hög eller en pill i ett kluster och expandera så att klustret växer (en annan adress kan bli
+      representant): högen och pillen står kvar där de flyttades. Ett klick på pillens tunna linje öppnar valvyn som
+      ett klick på pillen.
 
 ## Utgångar utan mottagare döljs (OP_RETURN)
 - [ ] Expandera en adress som tillhör en pool (coinbase-tx med OP_RETURN på 0 BTC): noderna för OP_RETURN syns inte,
       och en toast säger till exempel *49 utgångar utan mottagare döljs.* med *Visa dem*. Toasten står kvar i 20 s
       (de vanliga 6 s).
 - [ ] *Visa dem* visar dem i grafen, och en ny toast erbjuder *Dölj dem*. Valet finns kvar när ärendet öppnas igen.
+- [ ] *Visa dem* och *Dölj dem* i ett stort ärende (tusentals noder): grafen hackar inte när de visas eller döljs, och
+      ett ärende som sparat *visas* öppnar direkt med dem utan att grafen ritas två gånger.
 - [ ] En OP_RETURN som bränner pengar (mer än 0 BTC) döljs aldrig.
 
 ## Grafen använder ytan
@@ -1371,3 +1402,32 @@ några steg).
   *Ångra*, och filen ligger kvar i `%LOCALAPPDATA%\Chainsaw\Ärenden`. Soptunnans vy listar det under *Ärenden från
   startsidan* med *Lägg tillbaka*. Starta om Chainsaw: det är fortfarande dolt.
 - Med animeringar avstängda i Windows står ringvågen stilla.
+
+## Kommentarsnoden (KN1a)
+- [ ] Välj en nod och tryck **N** (eller ikonen *Kommentar* i listen över noden, eller *Kommentar …* i högerklicket):
+      en lapp öppnas uppe till höger om noden med en tunn prickad tråd till den och en prick vid noden. Tomma lappen är
+      en streckad kontur med *Skriv … # **fet** - lista*, och markören står i den.
+- [ ] Dubbelklick på tom yta (eller N utan vald nod, vid pekaren) ger en lapp utan tråd där man klickade.
+- [ ] Skriv `## Rubrik`, `**fet**`, `*kursiv*`, `- punkt`, `` `kod` `` och `[tx](chainsaw:bitcoin/<adress>)`: tecknen
+      är dämpade medan man skriver, rubriken större och fet, fet och kursiv syns direkt, koden i mono på mörkare grund.
+      Lappen växer med texten. Foten säger *Markdown · Esc lämnar*.
+- [ ] Esc, Ctrl+Enter eller ett klick utanför lämnar lappen: den ritas utan tecken (rubrik, fet, kursiv, punkter med
+      •, kod och länken med prickad understrykning). En lapp som lämnas tom försvinner och inget sparas.
+- [ ] Journalen har *Kommentar skriven: Rubrik*; `/verify` är grön. Ändra texten och lämna: *Kommentaren ändrades*.
+      Samma text igen ger ingen ny rad. Töm en lapp och lämna den: *Kommentaren togs bort* (texten finns kvar i den
+      förseglade historiken).
+- [ ] Hovra en lapp eller välj den: ramen ljusnar när den är vald, foten säger vem och när (*Namn · 14:32 8 nov*) och
+      handtaget syns i nedre högra hörnet. Dra handtaget: lappen blir 200–620 bred och minst 110–420 hög; texten bryts
+      om och lappen blir aldrig lägre än texten. Dra lappen i ramen: den flyttas, och tråden följer.
+- [ ] Panorera med höger- eller mittknappen över en lapp och zooma med hjulet: lapparna följer grafen. Högerklick i
+      en lapp som skrivs i ger *Klipp ut, Kopiera, Klistra in, Markera allt*.
+- [ ] Dra pricken vid nodens ände av tråden till en annan nod: tråden knyts dit (*Kommentarens tråd knöts till en
+      annan nod* i journalen). Släpp den på tom yta: tråden tas bort.
+- [ ] Välj en lapp (klick, sedan Esc så att den inte skrivs i) och tryck **Delete**: lappen tas bort med en journalrad.
+- [ ] Klicka på länken `chainsaw:bitcoin/…` i en lapp: noden väljs och visas. En länk till något som inte finns i
+      grafen säger *Det länken pekar på finns inte i grafen än.* En vanlig webbadress ritas grå och följs aldrig.
+- [ ] Stäng och öppna ärendet: lapparna står kvar med text, plats, storlek och tråd. Ett kluster som byter
+      representant behåller tråden.
+- [ ] Medan en lapp skrivs i gör E, L, B, U, K, F, + och − ingenting i grafen; bokstäverna hamnar i lappen.
+- [ ] `/testdata`: en lapp *Uttag via Nordbörsen?* står ovanför grafen med tråd till offret och en länk till
+      Nordbörsens insättning.

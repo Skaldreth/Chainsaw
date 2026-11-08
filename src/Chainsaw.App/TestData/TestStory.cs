@@ -1,6 +1,7 @@
 #if DEBUG
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.App.TestData;
 
@@ -66,8 +67,23 @@ public static class TestStory
             new OwnAreaStep(
                 "Uttagsvägar", [actors.Exchange, actors.NoKycExchange],
                 "Påhittad egen yta: börserna där pengarna kan ha tagits ut."),
+            new CommentStep(actors.Victim, CommentText(actors), new NodePosition(16, -200)),
         ];
     }
+
+    /// <summary>
+    /// Gives the made-up comment (sketch KN1a): a heading, bold, italic, a list, code and a <c>chainsaw:</c> link to
+    /// the exchange's deposit, so that everything the note draws can be seen.
+    /// </summary>
+    /// <param name="actors">The actors.</param>
+    /// <returns>The Markdown.</returns>
+    private static string CommentText(TestActors actors) => string.Join(
+        '\n',
+        "## Uttag via Nordbörsen?",
+        "Påhittad kommentar ur /testdata: pengarna från **offret** ser ut att nå *Nordbörsen*.",
+        "- kontrollera insättningen",
+        "- skicka en `begäran` när uttaget är klart",
+        $"[Nordbörsens insättning](chainsaw:bitcoin/{actors.Exchange.Address?.Value})");
 
     /// <summary>
     /// Gives the labels: one of every sort in the graph's visual language, a darknet market that is also sanctioned

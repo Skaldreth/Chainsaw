@@ -96,6 +96,18 @@ public sealed class TestCaseTests : IDisposable
     }
 
     [Fact]
+    public async Task The_test_case_has_a_comment_tied_to_the_victim_with_a_link_to_the_exchange()
+    {
+        var build = await BuildAsync();
+        using var @case = _harness.Get<ICaseStore>().Open(build.CaseNumber);
+        var actors = _harness.Get<TestActors>();
+
+        var comment = Assert.Single(_harness.Get<IGraphCommentService>().GetComments(@case));
+        Assert.Equal(GraphPile.MemberKey(actors.Victim.Address!), comment.Anchor);
+        Assert.Contains("chainsaw:bitcoin/" + actors.Exchange.Address!.Value, comment.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Every_response_in_the_test_case_is_marked_as_made_up_and_nothing_went_out()
     {
         var build = await BuildAsync();

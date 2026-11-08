@@ -93,10 +93,26 @@ public sealed partial class GraphViewModel
         : string.Create(CultureInfo.InvariantCulture, $"{count} utgångar utan mottagare döljs.");
 
     /// <summary>
-    /// Shows or hides the outputs that can never be spent and carry nothing, and stores the choice with the view.
+    /// Gets how the graph is read now: by its method, with the outputs that can never be spent drawn or hidden and
+    /// the watched kept out of the piles, so that the source builds the scene the way it is shown, off the UI thread
+    /// (principle 6).
+    /// </summary>
+    private GraphReading Reading => new(Method, _showUnspendable) { KeptOutOfPiles = _keptOutOfPiles };
+
+    /// <summary>
+    /// Shows or hides the outputs that can never be spent and carry nothing, and stores the choice with the view; the
+    /// graph is built again off the UI thread (<see cref="ShowUnspendableAsync"/>).
     /// </summary>
     /// <param name="show">Whether they are drawn.</param>
-    public void ShowUnspendable(bool show)
+    public void ShowUnspendable(bool show) => _ = ShowUnspendableAsync(show);
+
+    /// <summary>
+    /// Shows or hides the outputs that can never be spent and carry nothing, stores the choice with the view, and
+    /// builds the graph again from what it already holds, off the UI thread (principle 6).
+    /// </summary>
+    /// <param name="show">Whether they are drawn.</param>
+    /// <returns>A task that completes when the graph is shown the new way, or another reading took its place.</returns>
+    public async Task ShowUnspendableAsync(bool show)
     {
         if (_showUnspendable == show)
         {
@@ -104,11 +120,6 @@ public sealed partial class GraphViewModel
         }
 
         _showUnspendable = show;
-        if (Scene is { } scene)
-        {
-            Show(scene, fit: false, keepNotice: true);
-        }
-
         SaveView();
         if (show)
         {
@@ -118,6 +129,30 @@ public sealed partial class GraphViewModel
             {
                 Lingers = true,
             });
+        }
+
+        await FollowReadingAsync();
+    }
+
+    /// <summary>
+    /// Builds the scene shown again from what it holds, off the UI thread, when it is not drawn the way the graph is
+    /// read now (the outputs that can never be spent, the addresses kept out of the piles), and shows it unless a
+    /// newer reading, or another choice, came meanwhile.
+    /// </summary>
+    /// <returns>A task that completes when the graph is drawn the chosen way, or nothing was needed.</returns>
+    private async Task FollowReadingAsync()
+    {
+        var reading = Reading;
+        if (Scene is not { } scene || scene.IsDrawnAs(reading))
+        {
+            return;
+        }
+
+        var version = _version;
+        var built = await Task.Run(() => scene.DrawnAs(reading));
+        if (version == _version && ReferenceEquals(Scene, scene) && built.IsDrawnAs(Reading))
+        {
+            Show(built, fit: false, keepNotice: true);
         }
     }
 
@@ -301,7 +336,7 @@ public sealed partial class GraphViewModel
         }
 
         await ExpandWithAsync(
-            token => _source.TakeHeldBackAsync(openCase, picks, Method, token),
+            token => _source.TakeHeldBackAsync(openCase, picks, Reading, token),
             () => _ = TakeHeldBackAsync(choices, txids));
     }
 
@@ -410,15 +445,8 @@ public sealed partial class GraphViewModel
     /// <param name="scene">The scene.</param>
     /// <param name="edgeKey">The line, or <see langword="null"/>.</param>
     /// <returns>The clue, or <see langword="null"/> when the line is not a clue's.</returns>
-    private static HeldBackClue? ClueOfLine(GraphScene scene, string? edgeKey)
-    {
-        if (edgeKey is null || !edgeKey.StartsWith(GraphFold.ClueEdgePrefix, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        return scene.Edge(edgeKey) is { } line ? scene.Clue(line.Edge.To) : null;
-    }
+    private static HeldBackClue? ClueOfLine(GraphScene scene, string? edgeKey) =>
+        scene.Edge(edgeKey) is { Edge.Kind: GraphEdgeKind.HeldBack } line ? scene.Clue(line.Edge.To) : null;
 
     /// <summary>
     /// Brings in the next part of what an expansion held back, for a clue without an address's history to choose

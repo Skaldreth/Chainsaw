@@ -53,9 +53,6 @@ public static class AmountLayout
     /// <summary>How many places along a line an amount is tried at: the middle and nine to each side, 0,14 to 0,86.</summary>
     private const int Tries = 19;
 
-    /// <summary>The side of a cell in the grid that finds what is near an amount, in the surface's units.</summary>
-    private const double Cell = 160;
-
     /// <summary>
     /// How far above or below its line an amount may stand when no place on the line is free: just clear of the line,
     /// so that it still reads as the line's.
@@ -150,58 +147,5 @@ public static class AmountLayout
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// The room taken on the surface, in a grid of cells, so that an amount is only compared with what is near it and
-    /// placing stays quick on a large graph while a node is dragged (principle 6).
-    /// </summary>
-    private sealed class RoomGrid
-    {
-        /// <summary>The rectangles in each cell they reach into.</summary>
-        private readonly Dictionary<(int Column, int Row), List<GraphRect>> _cells = [];
-
-        /// <summary>Takes a rectangle's room.</summary>
-        /// <param name="rect">The rectangle.</param>
-        public void Add(GraphRect rect)
-        {
-            foreach (var cell in CellsOf(rect))
-            {
-                if (!_cells.TryGetValue(cell, out var list))
-                {
-                    list = [];
-                    _cells[cell] = list;
-                }
-
-                list.Add(rect);
-            }
-        }
-
-        /// <summary>Says whether a rectangle overlaps or touches any room taken.</summary>
-        /// <param name="rect">The rectangle.</param>
-        /// <returns><see langword="true"/> when it does.</returns>
-        public bool Touches(GraphRect rect) =>
-            CellsOf(rect).Any(cell => _cells.TryGetValue(cell, out var list) && list.Any(rect.Intersects));
-
-        /// <summary>Gives the cells a rectangle reaches into.</summary>
-        /// <param name="rect">The rectangle.</param>
-        /// <returns>The cells.</returns>
-        private static IEnumerable<(int Column, int Row)> CellsOf(GraphRect rect)
-        {
-            var (left, right) = (Index(rect.X), Index(rect.Right));
-            var (top, bottom) = (Index(rect.Y), Index(rect.Bottom));
-            for (var column = left; column <= right; column++)
-            {
-                for (var row = top; row <= bottom; row++)
-                {
-                    yield return (column, row);
-                }
-            }
-        }
-
-        /// <summary>Gives the cell a coordinate falls in.</summary>
-        /// <param name="value">The coordinate.</param>
-        /// <returns>The cell's index.</returns>
-        private static int Index(double value) => (int)Math.Floor(value / Cell);
     }
 }

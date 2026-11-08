@@ -10,10 +10,11 @@
 
     <!--
       The toaster (sketch TO1a): at the lower right, over everything under the title bar, the newest at the bottom and the
-      older pushed up. Only the toasts take the pointer; the rest of the window is used as usual.
+      older pushed up. It stands 76 px up, as in the sketch, so that the corner's own buttons (the graph's visual
+      language behind ?) stay free. Only the toasts take the pointer; the rest of the window is used as usual.
     -->
     <ItemsControl x:Name="Stack" ItemsSource="{Binding Toasts}" Focusable="False" Width="380"
-                  HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,24">
+                  HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,76">
         <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
                 <StackPanel VerticalAlignment="Bottom" />
