@@ -12,8 +12,9 @@ namespace Chainsaw.Modules.Requests;
 public static class RequestsModule
 {
     /// <summary>
-    /// Adds the module's services to the container: <see cref="IRequestService"/> and the module's table in the case.
-    /// The container must also hold the clock and the operator's profile store.
+    /// Adds the module's services to the container: <see cref="IRequestService"/>, <see cref="IReportService"/>
+    /// and the module's tables in the case.
+    /// The container must also hold the clock, the operator's profile store and the case verifier.
     /// </summary>
     /// <param name="services">The container to add to.</param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
@@ -23,6 +24,7 @@ public static class RequestsModule
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton(_ => new ExchangeContacts());
         services.TryAddSingleton<IRequestService, RequestService>();
+        services.TryAddSingleton<IReportService, ReportService>();
         services.AddSingleton<ICaseSchemaContributor, RequestsSchema>();
         return services;
     }

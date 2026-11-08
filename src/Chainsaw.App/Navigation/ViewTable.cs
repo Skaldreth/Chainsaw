@@ -26,6 +26,7 @@ public static class ViewTable
         new(AppView.Requests, "Begäran", "Icon.Request", "Ctrl+5", RailGroup.Work, NeedsCase: true),
         new(AppView.Monitoring, "Bevakning", "Icon.Eye", "Ctrl+6", RailGroup.Work, NeedsCase: true),
         new(AppView.Labels, "Etiketter", "Icon.Tag", "Ctrl+7", RailGroup.Work, IsBuilt: false, NeedsCase: true),
+        new(AppView.Report, "Rapport", "Icon.Report", "Ctrl+8", RailGroup.Work, NeedsCase: true),
         new(AppView.Guide, "Guide", "Icon.Guide", "F1", RailGroup.Bottom),
         new(AppView.Settings, "Inställningar", "Icon.Settings", "Ctrl+,", RailGroup.Bottom),
     ];

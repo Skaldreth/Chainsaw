@@ -244,6 +244,8 @@
                         <views:RequestsView x:Name="RequestsPage"
                                             Visibility="{Binding DataContext.IsRequestsShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
 
+                        <views:ReportView x:Name="ReportPage" Visibility="{Binding DataContext.IsReportShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+
                         <!-- The Guide (F1, sketch GD1a in a simple form). -->
                         <views:GuideView x:Name="GuidePage"
                                          Visibility="{Binding DataContext.IsGuideShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />

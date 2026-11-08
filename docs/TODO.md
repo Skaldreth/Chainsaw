@@ -148,7 +148,6 @@ Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md
 - **Grafen** [direkt]: IN4a kortets baksida, TL2a tidslisten, GR9a bytt block och *Väntar på källan*.
 - **Etiketter ET1a** [etapp], med sanktionsträffarna samlade.
 - **Exponering EP1b** [etapp].
-- **Rapport RP1b** [etapp].
 - **Kurserna KU1a** [etapp]: kronorna via Riksbanken.
 - **Inställningarna** [direkt]: BV4a meddelandet mitt på skärmen, ST2a återställningsnyckeln, FS2a steget Utgång
   (Windows förvalt) och UT3b utgångarna med kontrollen.

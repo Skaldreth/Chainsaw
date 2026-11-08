@@ -39,6 +39,7 @@ internal sealed class Harness : IDisposable
         Store = _provider.GetRequiredService<ICaseStore>();
         Case = Store.Create(CaseNumber);
         Service = _provider.GetRequiredService<IRequestService>();
+        Reports = _provider.GetRequiredService<IReportService>();
         Exports = Path.Combine(_directory, "export");
         Directory.CreateDirectory(Exports);
     }
@@ -52,6 +53,8 @@ internal sealed class Harness : IDisposable
     public ICase Case { get; private set; }
 
     public IRequestService Service { get; }
+
+    public IReportService Reports { get; }
 
     /// <summary>The folder the tests export to.</summary>
     public string Exports { get; }

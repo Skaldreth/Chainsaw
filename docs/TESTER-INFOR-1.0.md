@@ -1674,3 +1674,22 @@ några steg).
   inte raden.
 - En Ethereum-adress med USDT eller USDC kvar: inspektörens snöflingeruta har *Begäran om frysning …*, som öppnar
   vyn med raden *Tether · …* (isblå fyrkant) och en begäran till utgivaren med det som ligger kvar.
+
+## Rapporten (RP1b)
+
+- Pillret har *Rapport* sist bland vyerna, med Ctrl+8, och bara med ett ärende öppet.
+- Utan markering: vyn säger att aktörerna markeras i grafen med Ctrl+klick eller en ruta, och *Till grafen* går dit.
+- Markera en startpunkt, ett kluster och en börs som spårade pengar når. Rapporten visar *Byggd ur markeringen* med en
+  liten bild där de markerade lyser och resten är svagt, brickorna för aktörerna i sortens form och färg, och *Delar*
+  med åtta strömbrytare (sju på från början, *Etiketter och källor* av).
+- Förhandsvisningen har spåret som tabell med tid lokal och UTC, belopp, hela txid, blockhöjd och blockhash, och
+  rubriken har brickan *Uttag funnet* i blått. Slutsatserna har *Varför:* under sig bakom en streckad linje.
+- Slå av *Blockhöjd och blockhash*: kolumnerna försvinner direkt. Växla till *Markdown*: filens text i mono, rubriker
+  i accent.
+- Ett offer med namn i en etikett: namnet står aldrig i rapporten, varken i spåret, slutsatserna eller etiketterna.
+- *Exportera .md …* (eller Ctrl+S): filen sparas, en toast säger att den exporterats och journalförts, och filen står
+  under förhandsvisningen med SHA-256 i verktygstipset. Exportera igen till samma namn: den nya filen får `(2)`.
+- Journalen har raden *Rapport exporterad som …* med SHA-256, och `/verify` är grön efteråt.
+- *Kontroll* i filen visar hashkedjans topphash vid journalraden före exporten.
+- *Ändra i grafen* och klicket på den lilla bilden går till grafen; ändra markeringen och gå tillbaka med Ctrl+8:
+  rapporten följer med.

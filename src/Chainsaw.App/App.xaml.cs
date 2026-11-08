@@ -197,6 +197,7 @@ public partial class App : Application
                 .AddSingleton<WatchFormViewModel>()
                 .AddSingleton<MonitoringViewModel>()
                 .AddSingleton<RequestsViewModel>()
+                .AddSingleton<ReportViewModel>()
                 .AddSingleton<IBackgroundProcess, WindowsBackgroundProcess>()
                 .AddSingleton<IAutostart, RunKeyAutostart>()
                 .AddSingleton(provider => new BackgroundParts(

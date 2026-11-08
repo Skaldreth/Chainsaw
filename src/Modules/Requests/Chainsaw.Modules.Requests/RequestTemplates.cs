@@ -201,7 +201,7 @@ internal static class RequestTemplates
     /// <param name="zone">The zone.</param>
     /// <param name="words">The language's words.</param>
     /// <returns>For example <c>2026-10-28 21:14:05 +01:00</c>.</returns>
-    private static string LocalTime(DateTimeOffset? time, TimeZoneInfo zone, RequestTexts words) =>
+    internal static string LocalTime(DateTimeOffset? time, TimeZoneInfo zone, RequestTexts words) =>
         time is { } at
             ? TimeZoneInfo.ConvertTime(at, zone).ToString(TimeFormat + " zzz", CultureInfo.InvariantCulture)
             : words.Unconfirmed;
@@ -210,7 +210,7 @@ internal static class RequestTemplates
     /// <param name="time">The time.</param>
     /// <param name="words">The language's words.</param>
     /// <returns>For example <c>2026-10-28 20:14:05</c>.</returns>
-    private static string UtcTime(DateTimeOffset? time, RequestTexts words) =>
+    internal static string UtcTime(DateTimeOffset? time, RequestTexts words) =>
         time is { } at ? at.UtcDateTime.ToString(TimeFormat, CultureInfo.InvariantCulture) : words.Unconfirmed;
 
     /// <summary>Names a token with its contract, so that the issuer knows which it is.</summary>
@@ -233,6 +233,17 @@ internal static class RequestTemplates
         var name = draft.Kind == RequestKind.Freeze && draft.Holding is { } holding
             ? $"{context.CaseNumber} {words.FreezeFileWord} {holding.Issuer} {day}"
             : $"{context.CaseNumber} {words.FileWord} {draft.Target.Name} {day}";
+        return SafeFileName(name);
+    }
+
+    /// <summary>
+    /// Makes a file's name of a text: without the characters Windows refuses, single spaces, and <c>.md</c> last.
+    /// </summary>
+    /// <param name="name">The name without its extension.</param>
+    /// <returns>The file's name.</returns>
+    internal static string SafeFileName(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
         var safe = new string([.. name.Select(c => char.IsControl(c) || Forbidden.Contains(c) ? ' ' : c)]);
         return string.Join(' ', safe.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Trim('.', ' ') + ".md";
     }

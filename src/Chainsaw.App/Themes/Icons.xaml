@@ -12,6 +12,12 @@
     <Geometry x:Key="Icon.Flow">M3 6c6 0 6 6 12 6h6 M3 18c6 0 6-6 12-6 M3 12h4</Geometry>
     <Geometry x:Key="Icon.Exposure">M12 3a9 9 0 1 0 9 9h-9z M15 3.5A9 9 0 0 1 20.5 9H15z</Geometry>
     <Geometry x:Key="Icon.Request">M6 3h9l4 4v14H6z M14 3v5h5 M9 13h7 M9 17h5</Geometry>
+    <!-- Rapport (sketch RP1b): a clipboard with a tick and a line, the last step of the case, Redovisa. -->
+    <Geometry x:Key="Icon.Report">M8.5 3.5h7v3h-7z M8.5 5H5.5v16h13V5h-3 M8.5 13l2.2 2.2 4.8-4.8 M8.5 18h7</Geometry>
+    <!-- The report's parts (sketch RP1b): the marking's corners, a hash and a coin. -->
+    <Geometry x:Key="Icon.Select">M4 4h4 M4 4v4 M20 4h-4 M20 4v4 M4 20h4 M4 20v-4 M20 20h-4 M20 20v-4 M9 12h6</Geometry>
+    <Geometry x:Key="Icon.Hash">M5 9h14 M5 15h14 M10 4L8 20 M16 4l-2 16</Geometry>
+    <Geometry x:Key="Icon.Coin">M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z</Geometry>
     <Geometry x:Key="Icon.Eye">M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</Geometry>
     <!-- Copy (Kopiera adress), the directions of a watch and the pick in the graph (sketch BV1a). -->
     <Geometry x:Key="Icon.Copy">M9 9h11v11H9z M5 15H4V4h11v1</Geometry>

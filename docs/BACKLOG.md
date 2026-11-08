@@ -563,6 +563,16 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   avbrytbar omgång per ändring om det märks.
 - **En fil som inte gick att skriva klart** tas bort (M5), men det finns inget test som framkallar ett skrivfel.
 
+## Rapport (RP1b)
+- **Godkända förslag i slutsatserna:** en godkänd trolig utgång ur en mixer (KF2b) kommer inte med som slutsats med
+  analysens namn och version; rapporten tar kluster, etiketter och spårningsmetoden.
+- **Tillbaka till rapporten från grafen:** skissen har en knapp *← Rapport Esc* i grafen när man kommit dit med
+  *Ändra i grafen*; nu tar Ctrl+8 tillbaka.
+- **Visa i mappen** i toasten efter exporten (skissen) finns inte; filen står under förhandsvisningen med sökväg och
+  SHA-256 i verktygstipset.
+- **Markeringen** är grafens val med Ctrl+klick eller en ruta, inte Shift-klick som skissen säger, eftersom Shift redan
+  används i högen.
+
 ## Undermenyer i pillret (etapp 11b)
 - **Nytt → Etikett** är tonad som inte byggd (en etikett sätts sedan etapp 16 i inspektören med L); ändra
   `SubmenuNeed` i `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när vyn Etiketter

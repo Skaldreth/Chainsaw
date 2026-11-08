@@ -3217,3 +3217,39 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - **M5:** `tokenlist` med status 2 ger ett ofullständigt saldo med en anteckning.
 - **M6:** tester för en skräptoken som heter USDT, wei över `long.MaxValue` och toppen följd av överföring med
   registret på både Bitcoin och Ethereum. M2 står i `docs/BACKLOG.md`.
+
+## Rapporten, RP1b (2026-11-08)
+
+- **I modulen Requests**, inte en egen modul: rapporten delar block, Markdown, `RequestFiles` (skriver aldrig över)
+  och sättet att försegla med Begäran. `IReportService` (Check, Compose, Export, ListExports) med `ReportDraft`
+  (spåren, slutsatserna, etiketterna, metoden, delarna) och `ReportTemplate`. Exporten journalförs som
+  `requests.report-exported` och förseglas i en egen kedja, `requests.reports` (schemats steg 2), med SHA-256,
+  transaktionerna och delarna.
+- **Blocken** fick tre nya sorter, `Item`, `Reason` (*Varför:* under slutsatsen, `  >` i filen) och `Hash`, och en
+  rubrik kan ha en bricka (`Tag`, `TagTone`) som `RequestPreview` ritar i färgen för var spåret slutar.
+- **Hashkedjans topphash** är journalens (`cases.journal`) senaste förseglade rad ur `ICaseVerifier`, eftersom varje
+  skrivning i ärendet går genom journalen. Exporten kontrollerar på nytt precis före skrivningen; förhandsvisningen
+  kontrolleras när ärendet öppnas, vyn visas och efter en export. En bruten kedja sägs ärligt i filen.
+- **Ur markeringen** (`ReportSelection`, utan WPF): aktörerna är grafens val (Ctrl+klick eller ruta). Ett spår går
+  längs spårade linjer mellan markerade aktörer, från närmaste start (startpunkt eller markerad aktör som inget spårat
+  når) till varje markerad aktör som pengarna inte lämnar för en annan markerad. En transaktionsnod passeras och är
+  varken steg eller hopp. Varje steg har de överföringar som bär spårade pengar (samma regel som Begäran,
+  `RequestExits.IsTraced`), annars alla linjens.
+- **Sekretess** (fynden från Begäran): ett namn kommer bara ur en tjänsts etikett av aktörens egen sort, aldrig ur
+  ett offers, en okänds eller en rapport till en underleverantör (Chainabuse kan namnge personer); annars förkortad
+  adress. Etiketternas skäl, anteckning och vem som satte dem följer aldrig med, bara källa, version och dag. Ärendets
+  titel kommer aldrig med, bara numret.
+- **Slutsatserna:** kluster (heuristik med version och tx ur `IClusteringService`, läst utanför UI-tråden), etiketter
+  (källorna) och spårningsmetoden. Spårat belopp och SEK sägs vara bedömningar; SEK bara när grafen har en kurs för
+  linjen, annars säger delen ärligt att ingen kurs finns.
+- **Vyn** (`ReportView`, `ReportViewModel`, `Controls/ReportMiniGraph`): material och dokument byggs i `Task.Run`,
+  och en äldre omgång visas aldrig över en nyare. Rå Markdown är virtualiserad.
+- **Avsteg från skissen:** markeringen är Ctrl+klick eller ruta (Shift används i högen); ingen *← Rapport*-knapp i
+  grafen och ingen *Visa i mappen* i toasten (`docs/BACKLOG.md`); tider ISO som i Begäran; de exporterade filerna står
+  med namn och SHA-256 i verktygstipset under förhandsvisningen.
+- **Inte med:** godkända förslag (troliga utgångar) som slutsatser. Testärendet behöver inget nytt: rapporten byggs ur
+  grafen.
+- Tester: 21 nya i `Chainsaw.Modules.Requests.Tests` (mall, delar, sekretess i Markdown, export utan överskrivning,
+  försegling, journal, topphash, återöppning) och 23 i `ReportTests` i App.Tests (spåren ur scenen, offrets och
+  rapportens namn, kluster, bilden, vymodellen, exporten, pillret).
+

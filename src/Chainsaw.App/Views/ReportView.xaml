@@ -1,0 +1,405 @@
+<UserControl x:Class="Chainsaw.App.Views.ReportView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:graph="clr-namespace:Chainsaw.App.Graph"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance Type=vm:ReportViewModel}"
+             mc:Ignorable="d" Focusable="True" FocusVisualStyle="{x:Null}">
+
+    <!--
+      The view Rapport (sketch RP1b): to the left the card Byggd ur markeringen (the small picture of what is marked in
+      the graph, Ändra i grafen and the actors as chips) and the parts as switches; to the right the switch between the
+      preview and the file's Markdown, the counts, Exportera .md … and the report itself, with the exported files under
+      it. Only wiring; what happens lives in ReportViewModel.
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- A card on the left (sketch RP1b): 14 px corners, the panel's ground and a thin edge. -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
+            <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
+        </Style>
+
+        <!-- A part's row: the whole row is the switch, with a soft ground on hover (sketch RP1b). -->
+        <Style x:Key="PartRow" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Height="44" Padding="10,0" CornerRadius="9" BorderThickness="1"
+                                BorderBrush="Transparent" Background="Transparent">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- One half of the switch Förhandsvisning · Markdown: lit when chosen. -->
+        <Style x:Key="Mode" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Height="26" Padding="11,0" CornerRadius="6" Background="Transparent">
+                            <TextBlock Text="{TemplateBinding Content}" VerticalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Tag" Value="On">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A quiet link: dimmed text with a small arrow, brighter on hover (Ändra i grafen). -->
+        <Style x:Key="QuietLink" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The small picture as a button: a click goes to the graph, where the marking is changed. -->
+        <Style x:Key="PictureButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Height="190" CornerRadius="10" BorderThickness="1" ClipToBounds="True"
+                                BorderBrush="{StaticResource Brush.Border}" Background="{StaticResource Brush.Background}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Nothing marked: said honestly with the view's icon and a way to the graph, never with made-up rows. -->
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80" MaxWidth="420"
+                    Visibility="{Binding HasActors, Converter={x:Static controls:InvertVisibility.Instance}}">
+            <controls:GridIcon Size="40" Foreground="{StaticResource Brush.TextFaint}" HorizontalAlignment="Center"
+                               Data="{StaticResource Icon.Report}" />
+            <TextBlock Text="{x:Static vm:ReportViewModel.EmptyText}" FontSize="13.5" Margin="0,14,0,14"
+                       TextWrapping="Wrap" TextAlignment="Center" LineHeight="21"
+                       Foreground="{StaticResource Brush.TextDim}" />
+            <Button Style="{StaticResource Button.Secondary}" HorizontalAlignment="Center" Padding="12,0" Height="30"
+                    Command="{Binding GoToGraphCommand}" ToolTip="Grafen · Ctrl+1">
+                <StackPanel Orientation="Horizontal">
+                    <controls:GridIcon Size="16" Margin="0,0,7,0" Data="{StaticResource Icon.Graph}"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    <TextBlock Text="Till grafen" FontSize="12.5" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <Grid Margin="84,16,20,16" Visibility="{Binding HasActors, Converter={StaticResource Visible}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="440" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ===== Left: what the report is built of, and its parts. ===== -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="14" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource Card}" Padding="16,14">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,10">
+                            <controls:GridIcon DockPanel.Dock="Left" Size="16" Margin="0,0,8,0"
+                                               Foreground="{StaticResource Brush.Accent}" Data="{StaticResource Icon.Select}" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource QuietLink}" VerticalAlignment="Center"
+                                    Command="{Binding GoToGraphCommand}"
+                                    ToolTip="Markera fler eller färre i grafen med Ctrl+klick eller en ruta; rapporten följer med · Ctrl+1">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Ändra i grafen" FontSize="12" VerticalAlignment="Center"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    <controls:GridIcon Size="12" Margin="6,0,0,0" Data="{StaticResource Icon.ChevronRight}"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="Byggd ur markeringen" FontSize="13.5" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" Foreground="{StaticResource Brush.Text}" />
+                        </DockPanel>
+
+                        <Button Style="{StaticResource PictureButton}" Command="{Binding GoToGraphCommand}"
+                                ToolTip="Markeringen i grafen. Klicka för att ändra den.">
+                            <controls:ReportMiniGraph Picture="{Binding Picture}" />
+                        </Button>
+
+                        <ItemsControl ItemsSource="{Binding Actors}" Focusable="False" Margin="0,10,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type graph:ReportActor}">
+                                    <Border Height="24" Padding="6,0,9,0" Margin="0,0,6,6" CornerRadius="6"
+                                            Background="{StaticResource Brush.SurfaceRaised}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- The sort's form and colour, as the graph draws it (sketch GR3a). -->
+                                            <Rectangle x:Name="Shape" Width="8" Height="8" RadiusX="2" RadiusY="2"
+                                                       StrokeThickness="1.5" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                       Stroke="{Binding Ink, Converter={x:Static controls:InkBrushConverter.Instance}}" />
+                                            <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource Brush.TextMuted}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsRound}" Value="True">
+                                            <Setter TargetName="Shape" Property="RadiusX" Value="4" />
+                                            <Setter TargetName="Shape" Property="RadiusY" Value="4" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsDashed}" Value="True">
+                                            <Setter TargetName="Shape" Property="StrokeDashArray" Value="1.5 1" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource Card}" Padding="8,10">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top" Height="28" Margin="10,0">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding OnCountText}" FontSize="11"
+                                       VerticalAlignment="Center" Foreground="{StaticResource Brush.TextFaint}" />
+                            <TextBlock Text="DELAR" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Brush.TextFaint}" />
+                        </DockPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                            <ItemsControl ItemsSource="{Binding Parts}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ReportPartRowViewModel}">
+                                        <Button Style="{StaticResource PartRow}" ToolTip="{Binding ToolTip}"
+                                                Command="{Binding DataContext.TogglePartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}">
+                                            <DockPanel>
+                                                <Border x:Name="Tile" DockPanel.Dock="Left" Width="28" Height="28"
+                                                        CornerRadius="8" Margin="0,0,12,0"
+                                                        Background="{StaticResource Brush.SurfaceRaised}">
+                                                    <controls:GridIcon x:Name="Glyph" Size="16" HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource Brush.TextFaint}"
+                                                                       Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                                                </Border>
+                                                <!-- The switch, drawn as the settings' (Toggle.Switch) but as part of the row. -->
+                                                <Border x:Name="Track" DockPanel.Dock="Right" Width="30" Height="18"
+                                                        CornerRadius="9" BorderThickness="1.5" VerticalAlignment="Center"
+                                                        BorderBrush="{StaticResource Brush.BorderHover}" Background="Transparent">
+                                                    <Ellipse x:Name="Knob" Width="11" Height="11" HorizontalAlignment="Left"
+                                                             Margin="2,0,0,0" Fill="{StaticResource Brush.TextDim}" />
+                                                </Border>
+                                                <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
+                                                    <TextBlock x:Name="PartName" Text="{Binding Name}" FontSize="13"
+                                                               Foreground="{StaticResource Brush.TextDim}" />
+                                                    <TextBlock Text="{Binding Sub}" FontSize="11.5" Margin="0,1,0,0"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{StaticResource Brush.TextFaint}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Button>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsOn}" Value="True">
+                                                <Setter TargetName="Tile" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                                                <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                                <Setter TargetName="PartName" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Brush.Accent}" />
+                                                <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                <Setter TargetName="Knob" Property="Margin" Value="14,0,0,0" />
+                                                <Setter TargetName="Knob" Property="Fill" Value="{StaticResource Brush.OnAccent}" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <!-- ===== Right: the switch, the counts, the export and the report. ===== -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="32" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0">
+                    <Border DockPanel.Dock="Left" Padding="2" CornerRadius="8" BorderThickness="1" VerticalAlignment="Center"
+                            BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Surface}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Förhandsvisning" Command="{Binding ShowPreviewCommand}" ToolTip="Så som filen ser ut">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Mode}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPreview}" Value="True">
+                                                <Setter Property="Tag" Value="On" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Content="Markdown" Command="{Binding ShowRawCommand}" ToolTip="Filens text">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Mode}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsRaw}" Value="True">
+                                                <Setter Property="Tag" Value="On" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="32" Padding="13,0"
+                            Command="{Binding ExportCommand}"
+                            ToolTip="Sparar en ny fil, journalför den med SHA-256 och skriver aldrig över · Ctrl+S">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="16" Margin="0,0,7,0" Foreground="{StaticResource Brush.OnAccent}"
+                                               Data="{StaticResource Icon.Download}" />
+                            <TextBlock Text="Exportera .md …" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Text="Ctrl+S" FontSize="10.5" Margin="7,0,0,0" Opacity="0.7" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <TextBlock Text="{Binding StatsText}" FontSize="12" Margin="10,0,10,0" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" Foreground="{StaticResource Brush.TextFaint}" />
+                </DockPanel>
+
+                <!-- The preview: the very blocks the file is written from. -->
+                <Border Grid.Row="2" Padding="34,26" CornerRadius="12" BorderThickness="1"
+                        BorderBrush="{StaticResource Brush.Border}" Background="{StaticResource Brush.Surface}"
+                        Visibility="{Binding IsPreview, Converter={StaticResource Visible}}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                        <controls:RequestPreview Document="{Binding Document}" />
+                    </ScrollViewer>
+                </Border>
+
+                <!-- The file's Markdown, coloured only to tell headings, tables and text apart; long, so virtualized. -->
+                <Border Grid.Row="2" Padding="26,22" CornerRadius="12" BorderThickness="1"
+                        BorderBrush="{StaticResource Brush.Border}" Background="{StaticResource Brush.Background}"
+                        Visibility="{Binding IsRaw, Converter={StaticResource Visible}}">
+                    <ItemsControl ItemsSource="{Binding RawLines}" Focusable="False"
+                                  VirtualizingPanel.IsVirtualizing="True" ScrollViewer.CanContentScroll="True">
+                        <ItemsControl.Template>
+                            <ControlTemplate TargetType="ItemsControl">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                              Focusable="False" CanContentScroll="True">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </ControlTemplate>
+                        </ItemsControl.Template>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:RawLine}">
+                                <TextBlock x:Name="Line" Text="{Binding Text}" MinHeight="17" Margin="0,0,0,3" FontSize="12"
+                                           FontFamily="{StaticResource Font.Mono}" Foreground="{StaticResource Brush.TextMuted}" />
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Kind}" Value="Heading">
+                                        <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Brush.AccentHover}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Kind}" Value="Faint">
+                                        <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Brush.TextFaint}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <DockPanel Grid.Row="3" Margin="0,10,0,0">
+                    <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding Exports}" Focusable="False"
+                                  Visibility="{Binding HasExports, Converter={StaticResource Visible}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ReportExportRow}">
+                                <StackPanel Orientation="Horizontal" Margin="12,0,0,0" Background="Transparent"
+                                            ToolTip="{Binding ToolTip}">
+                                    <controls:GridIcon Size="13" Margin="0,0,6,0" Foreground="{StaticResource Brush.Success}"
+                                                       Data="{StaticResource Icon.File}" />
+                                    <TextBlock Text="{Binding FileName}" FontSize="11.5" MaxWidth="240"
+                                               TextTrimming="CharacterEllipsis" Foreground="{StaticResource Brush.TextDim}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{x:Static vm:ReportViewModel.PrivacyText}" FontSize="11.5" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource Brush.TextFaint}" />
+                </DockPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>
