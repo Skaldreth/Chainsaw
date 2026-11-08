@@ -215,6 +215,8 @@
         <!-- The checks and suggestions (sketch KF2b) where the inspector stands; Ctrl+Z takes back the last decision. -->
         <KeyBinding Key="J" Modifiers="Control" Command="{Binding Checks.ToggleCommand}" />
         <KeyBinding Key="Z" Modifiers="Control" Command="{Binding Checks.UndoCommand}" />
+        <!-- Esc leaves a time chosen in the strip (sketch TL1a) also when the surface does not have the keyboard. -->
+        <KeyBinding Key="Escape" Command="{Binding Timeline.ToNowCommand}" />
     </UserControl.InputBindings>
 
     <!-- The page clips at its edges, so that the inspector's shadow never reaches up over the title bar. -->
@@ -509,7 +511,11 @@
             <!-- What was traced and how: top left, beside the pill's column. -->
             <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="84,14,0,0" MaxWidth="520"
                         IsHitTestVisible="False">
-                <TextBlock Text="{Binding TraceText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}" />
+                <TextBlock Text="{Binding TraceText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
+                           Visibility="{Binding Timeline.IsChosen, Converter={x:Static controls:InvertVisibility.Instance}}" />
+                <!-- At a time chosen in the strip (sketch TL1a), the head says so in place of the trace. -->
+                <TextBlock Text="{Binding Timeline.HeadText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
+                           Visibility="{Binding Timeline.IsChosen, Converter={StaticResource Visible}}" />
                 <!-- What the last step said goes to the toaster (sketch TO1a), not here. -->
             </StackPanel>
 
@@ -734,6 +740,29 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </Border>
+
+            <!--
+              The time line's strip along the bottom (sketch TL1a): one stroke per transaction, the days under it, and
+              Till nu (Esc) beside it while a time is chosen. The bands over the surface are drawn by the canvas. It is
+              shown only when the graph has a confirmed transaction, and not over the selection view.
+            -->
+            <Grid VerticalAlignment="Bottom" Height="150" Margin="104,0,60,14"
+                  Visibility="{Binding ShowsCorner, Converter={StaticResource Visible}}">
+                <Grid Visibility="{Binding Timeline.IsShown, Converter={StaticResource Visible}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <!-- Room for Till nu kept also while it is hidden, so that the strip never jumps. -->
+                        <ColumnDefinition Width="80" />
+                    </Grid.ColumnDefinitions>
+                    <controls:TimeStrip x:Name="TimeStrip" AutomationProperties.Name="Tidslinjen" />
+                    <Button Grid.Column="1" Style="{StaticResource Button.Bar}" Content="Till nu" Height="26" FontSize="12"
+                            Foreground="{StaticResource Brush.Text}" VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                            Margin="10,0,0,13"
+                            ToolTip="Grafen som den är nu · Esc" AutomationProperties.Name="Till nu"
+                            Command="{Binding Timeline.ToNowCommand}"
+                            Visibility="{Binding Timeline.IsChosen, Converter={StaticResource Visible}}" />
+                </Grid>
+            </Grid>
 
             <!--
               The visual language behind the ? (sketch GR7a), in the lower right corner (sketch SO1a), where

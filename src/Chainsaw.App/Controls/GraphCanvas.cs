@@ -204,6 +204,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawLanes(drawingContext, scene, visible);
         }
 
+        DrawTimeBands(drawingContext, visible);
         DrawAreas(drawingContext, visible);
         var (nearNodes, nearEdges) = _model.Near;
         var edges = GraphHitTest.VisibleEdges(scene, _model.Curves, visible).ToList();
@@ -216,7 +217,9 @@ public sealed partial class GraphCanvas : FrameworkElement
         var taken = new List<Rect>();
         foreach (var edge in AmountOrder(edges, nearEdges))
         {
+            drawingContext.PushOpacity(LaterAmountOpacity(edge.Key));
             DrawAmount(drawingContext, edge, _model.Curves[edge.Key], nearEdges, taken);
+            drawingContext.Pop();
         }
 
         _ringsOnScreen = false;
@@ -236,6 +239,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         drawingContext.Pop();
         DrawFan(drawingContext, visible);
         drawingContext.Pop();
+        DrawTimeNames(drawingContext);
         DrawHeldBack(drawingContext);
         KeepRings(_ringsOnScreen && _blast == BlastPhase.None);
     }
@@ -376,8 +380,8 @@ public sealed partial class GraphCanvas : FrameworkElement
     }
 
     /// <summary>
-    /// The graph's keys: Esc (closes an open form, then chooses nothing), E, F, + and −, and the inspector's forms L,
-    /// U and K (sketch IN1a).
+    /// The graph's keys: Esc (closes an open form, leaves a chosen time, then chooses nothing), E, F, + and −, and the
+    /// inspector's forms L, U and K (sketch IN1a).
     /// </summary>
     /// <param name="e">The key.</param>
     protected override void OnKeyDown(KeyEventArgs e)
@@ -429,6 +433,9 @@ public sealed partial class GraphCanvas : FrameworkElement
                 break;
             case Key.Escape when _model.History.IsOpen:
                 _model.History.Cancel();
+                break;
+            case Key.Escape when _model.Timeline.IsChosen:
+                _model.Timeline.ToNow();
                 break;
             case Key.Escape:
                 _model.Choose(null, null);
@@ -708,6 +715,11 @@ public sealed partial class GraphCanvas : FrameworkElement
             return FadedLineOpacity;
         }
 
+        if (_model.Timeline.IsLaterEdge(edge.Key))
+        {
+            return LaterLineOpacity;
+        }
+
         return edge.IsTraced || edge.Dash == EdgeDash.OtherChain ? 1 : UntracedLineOpacity;
     }
 
@@ -720,6 +732,11 @@ public sealed partial class GraphCanvas : FrameworkElement
         if (_model!.IsFocused && !near.Contains(node.Key))
         {
             return FadedNodeOpacity;
+        }
+
+        if (_model.Timeline.IsLaterNode(node.Key))
+        {
+            return LaterNodeOpacity;
         }
 
         return node.IsDim ? NotExpandedOpacity : 1;
@@ -900,7 +917,8 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="near">The nodes near what is chosen.</param>
     private void DrawFolded(DrawingContext dc, NodeView node, GraphPoint place, IReadOnlySet<string> near)
     {
-        dc.PushOpacity(_model!.IsFocused && !near.Contains(node.Key) ? FadedNodeOpacity : 1);
+        dc.PushOpacity(Math.Min(
+            _model!.IsFocused && !near.Contains(node.Key) ? FadedNodeOpacity : 1, LaterFoldedOpacity(node.Key)));
         if (node.Look.Sort == NodeSort.Pile)
         {
             DrawPile(dc, node, place, open: false);

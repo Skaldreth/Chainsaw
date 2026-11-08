@@ -69,6 +69,9 @@
     <SolidColorBrush x:Key="Brush.Mark.OnFreeze" Color="#0E2633" />
     <!-- The swap's pill on a line (sketch TK1a). -->
     <SolidColorBrush x:Key="Brush.Graph.SwapPill" Color="#2A2433" />
+    <!-- The time line (sketch TL1a): the dotted bands between the days, and the whole line at a chosen time. -->
+    <Color x:Key="Color.Graph.TimeBand">#575B5F</Color>
+    <Color x:Key="Color.Graph.TimeLine">#DCD7D0</Color>
     <!-- The start point's flag (sketch GR5, variant A): a light disc, the same form as the marks, in the other corner. -->
     <SolidColorBrush x:Key="Brush.Mark.Start" Color="#E6E6E6" />
     <!-- The watch's own quiet tint (sketch BV2a): not the accent, the exchanges' blue, red, yellow or purple. -->

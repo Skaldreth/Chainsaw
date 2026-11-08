@@ -1310,3 +1310,26 @@ platser och en vy).
       visar sortens områden, och bocken bort döljer dem igen. Valet står kvar när ett annat ärende öppnas.
 - [ ] Gå igenom förslagen (Ctrl+J): det visade förslagets område syns bakom dess aktörer, men inga andra.
 - [ ] Rita en egen yta (välj aktörer, Z): den syns direkt, och sorten den sparades som har fått bock i menyn.
+
+## Tidslinjen under grafen (TL1a)
+
+Förberedelse: ett ärende med en graf som har bekräftade tx över flera dygn (`/testdata` i Debug, eller expandera
+några steg).
+
+- Mellan dygnen står tunna prickade linjer över hela grafen, som tonar in upptill och ut nertill. Överst i varje band
+  står dagen (*3 mars*). Dra en aktör till ett annat dygns band på den fria ytan: linjen böjer sig runt den i stället
+  för att flytta den. I hoppkolumnerna står linjerna i stort sett raka.
+- Zooma ut i ett ärende med många dygn: dygnen slås ihop till band med flera dagar (*3 mars – 5 mars*) i stället för
+  en vägg av linjer. Ett dagnamn som inte får plats i sitt band visas inte.
+- Längst ner står en tunn list som tonar in och ut i ändarna, hel fram till den sista tx:en och prickad efter, med ett
+  streck per tx och dagarna under. Utan en enda bekräftad tx visas varken listen eller banden.
+- Hovra över ett streck: det blir ljust och högre, ett kort ovanför säger tiden och vad som flyttades
+  (*bc1q…x0wl → Börs A · 0,6 BTC*), och en svag prickad linje visar var tiden går genom grafen.
+- Klicka på ett streck (eller mellan två): en hel ljus linje står vid tiden med tiden i ett piller överst, och det som
+  kom senare (aktörer, linjer, belopp, dagnamn och streck) bleknar. Huvudet säger *Grafen vid 5 mars 12:00 · det som
+  kom senare är blekt*. I listen står en prick med en sonar som vidgas och tonar ut.
+- *Till nu* bredvid listen (bara när en tid är vald) och Esc går tillbaka till grafen som den är nu.
+- Stäng av animeringar i Windows (Hjälpmedel › Visuella effekter): sonaren står still som en svag ring.
+- Panorera och zooma en stor graf med en vald tid: inget hackar. Öppna urvalsvyn för det som hölls tillbaka: listen
+  döljs så länge den är öppen.
+
