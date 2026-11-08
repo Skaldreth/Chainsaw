@@ -7,16 +7,20 @@ Filen har tre delar:
 1. **Väntar på dig:** frågor som bara användaren kan avgöra. Till dess gäller det som står efter *Nu*.
 2. **Vägen till 1.0:** det som ska vara gjort för att Chainsaw ska vara färdigt, i den ordning det tas.
 3. **Före tjänstebruk:** sådant som inte är kod men måste vara klart innan Chainsaw används i tjänsten.
-4. **Efter 1.0 och kända svagheter:** nya förmågor och de mindre fynden från granskningarna, per område.
 
 Varje punkt i *Vägen till 1.0* är märkt med hur den byggs (CLAUDE.md, *Processen efter storleken*):
 - **[direkt]:** en rest eller rättelse inom en godkänd skiss, som byggs och granskas mot skissen av sessionen själv.
 - **[skiss]:** ritas först på canvasen, och byggs när användaren sagt ok.
 - **[etapp]:** skriver i ärendet eller rör principerna, och byggs med oberoende granskning.
+- **[pågår]:** byggs just nu av en agent (omgång 4, 2026-11-08).
 
 ## Väntar på dig
 
 Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
+
+**Från valen 2026-11-08:**
+- **Meddelandet mitt på skärmen** (BV4a) är av från början; i skissen var det på. *Nu:* av.
+- **Operatörens namn, titel och enhet** står i rapportens huvud (RP1b), som i Begäran. *Nu:* de står där.
 
 **Från bygget 2026-11-08**, så som det är byggt nu:
 1. **Kandidaternas linjer** i mixerns förslag ritas alltid. Förut ritades de bara när områdena var på. *Nu:* alltid.
@@ -72,81 +76,54 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
 
 ## Vägen till 1.0
 
-Ordningen: först provet på Windows, sedan resterna i det som redan är byggt, sedan det som är godkänt men inte byggt,
-och sist det som skissas. Inget nytt byggs förrän det som finns känns bra (användarens beslut 2026-11-07).
+Ordningen: först provet på Windows, sedan resterna i det som redan är byggt. Allt som valdes på sidan *Mot 1.0* är
+byggt; det som står här är rester. Inget nytt byggs förrän det som finns känns bra (användarens beslut 2026-11-07).
 
 ### 1. Provet på Windows
 
-Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTER-INFOR-1.0.md`, och det som inte
-fungerar rättas före allt annat nedan. Särskilt:
+Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTER-INFOR-1.0.md` (rensas och ordnas
+uppifrån och ner [pågår]), och det som inte fungerar rättas före allt annat nedan. Särskilt:
 - **Kraschen vid start** (`NewCasePanel`) är rättad men inte bekräftad.
 - **Expansionen gav *Inget nytt att hämta*** med mempool vald (rättat 2026-11-07, väntar på prov).
-- **Det som byggdes 2026-11-08** och inte är sett av användaren:
-  - KF2b, NC2a, KN1a, SO1a, GR7a, TL1a, inspektören och BV1a.
-  - Guiden, *Sortera grafen*, den mjuka zoomen, inspektörens glidning och rutmarkeringen.
-- **Inaktuella rader i TESTER-INFOR** [direkt]: läs igenom hela filen och stryk det som ersatts, till exempel
-  NC1a, IN1a, KF1a, UT1a, sonarn, statusraden och Terminal.
+- **Allt som byggdes 2026-11-08** är osett: KF2b, NC2a, KN1a, SO1a, GR7a, TL1a/TL2a, IN4a, GR9a, BG1b, ET1a, EP1b,
+  RP1b, KU1a, BV4a, ST2a, FS2a, UT3b, ÄR1b, KR1a, Spara ofta, plånböckerna och soptunnan för lappar och högar.
 
-### 2. Resterna i det som är byggt
+### 2. Rester som byggs nu [pågår]
 
 **Grafen**
-- **Breda noder i resten av grafen** [direkt]: noden växer med namnet (GR5), men *Sortera grafen* (`TidyLayout`)
-  räknar fortfarande med 132 px breda noder, och en ny kommentar vid en bred nod (`CommentGeometry.PlaceOfNew`)
-  placeras efter samma bredd.
+- **Breda noder:** *Sortera grafen* (`TidyLayout`) och en ny kommentar (`CommentGeometry.PlaceOfNew`) räknar med
+  132 px breda noder.
+- **Samlingsnoden i grafen** trycker inte ut ytan bakom som `FanOutLayer` gör i startvyn.
+- **Linjerna efter en tx som inte finns** streckas inte, med aktörerna efter.
+- **Bytt block på Ethereum:** bara Bitcoins svar jämförs (gäller det som hämtades medan blocket var grunt).
+- **Återanslutningen i utgångsrutan** (UT2b) visar *Offline* i stället för *Ansluter igen …*.
 
-**Soptunnan och startvyn (SO1a, GR8a)**
-- **Grafens samlingsnod trycks inte ut** [direkt]: stöten och centreringen är som startvyns, men ytan bakom trycks
-  inte ut lite som i `FanOutLayer` (grafen ritas i en `DrawingContext`, så det kräver en egen skalning av det dimmade).
+**Vyerna och inställningarna**
+- **Begäran:** börsens blå markering i grafen när en begäran är exporterad.
+- **Säga till när sparningen inte går:** en varning i toastern med *Försök igen* när Spara ofta misslyckats några
+  gånger i rad (en händelse på `ICase`).
+- **Godkänna en plånbok:** ett förslag som ändrats sedan det förseglades ska säga att kontrollerna behöver köras igen.
+- **Exponering (EP1b):** kronorna under beloppen, mixerns godkända utgångar som streckade förslag bortom mixern,
+  *Tillbaka · Esc* i grafen och *Exponering …* i nodens meny; vägen ska stanna på samma ställen som grafen.
+- **Inställningarna:** *Syns som* på utgångens tips i titelraden, och kontrollen av Windows som utgång.
+- **Sökningen (KR1a):** det slängda i soptunnan söks, med *Lägg tillbaka*.
+- **Det instabila testet** i App.Tests.
 
-**Grafen: kortet, markeringarna och listen (IN4a, GR9a, TL2a)**
-- **Bytt block på Ethereum** [direkt]: bara Bitcoins svar jämförs. Ethereums block är slutgiltiga efter 64 block, så
-  det gäller bara det som hämtats medan blocket var grunt.
-- **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*. Vilken tx
-  som spenderar samma pengar i stället står inte i svaren; det kräver uppslag på de spenderade utgångarna.
-- **Linjerna efter en tx som inte finns** [direkt]: märket blir rött och beloppet överstruket, men linjen och
-  aktörerna efter den streckas inte som i skissen, eftersom Tracing fortfarande läser det sparade svaret.
-- **Testärendet** [direkt]: `/testdata` har inget bytt block; den påhittade kedjan svarar alltid likadant.
+**Testärendet** (`/testdata`): det som byggts sedan det byggdes om, ett bytt block och påhittade kurser, så att det
+aldrig skickar riktiga uppslag (listan i `docs/BACKLOG.md`, *Testärendet*).
 
-**Inspektören, Nytt ärende och Guiden**
-- **Återanslutningen i utgångsrutan** [direkt]: titelraden säger *Ansluter igen …* med nästa försök, men utgångsrutan
-  (UT2b) visar bara *Offline* i rött medan tunneln ansluts igen.
+### 3. Kvar efter omgången
 
-**Testärendet** [direkt]: fyll på det med det som byggts sedan det byggdes om. Vad som saknas står i
-`docs/BACKLOG.md` under *Testärendet (/testdata)*.
-
-### 3. Godkänt men inte byggt
-
-1. **Begäran, resterna efter BG1b** [direkt]:
-   - **Markeringen i grafen:** skissen ger börsen en liten blå markering i hörnet när en begäran är exporterad. Den
-     är inte ritad, eftersom grafen byggdes om samtidigt; listan i vyn Begäran har den gröna markeringen.
-   - **Kontaktvägar:** katalogen är tom, eftersom ingen kontaktväg gick att kontrollera mot sin källa när modulen
-     byggdes (`ExchangeContacts.Catalogue`). Lägg in verifierade vägar med källa och datum.
-   - **Fler mallar** per börs, om kryptospåraren vill det.
-2. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
-   - Knappen R finns. En vanlig nyckel ger bara tio anrop i månaden, så uppslag på varje nod kräver partnernyckel.
-3. **Säga till när sparningen inte går** [direkt]: ärendet sparar sig självt efter skrivningar (Spara ofta, byggt
-   2026-11-08), och en sparning som misslyckas provas igen efter 1, 2, 4 och sedan högst 10 minuter utan att något sägs.
-   - Arbetskopian har allt och tas tillbaka efter en krasch, så inget går förlorat, men `.cut` är då inte färsk.
-   - Förslag: en varning i toastern (TO1a) när sparningen misslyckats några gånger i rad, och *Försök igen*. Kräver en
-     händelse på `ICase` som appen lyssnar på.
-4. **Godkänna en plånbok, resterna** [direkt]:
-   - Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås ihop igen; det gör bara *Historik*.
-     Behöver en liten skiss.
-   - Ett förslag som ändrats sedan det förseglades ger det allmänna felet; det borde säga att kontrollerna behöver
-     köras igen.
-
-### 4. Resterna efter valen 2026-11-08
-
-Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md under *Valt för 1.0*.
-- **Exponering, resterna efter EP1b** [direkt]: kronorna under beloppen (efter KU1a), mixerns godkända troliga
-  utgångar som streckade lila förslag bortom mixern, *Tillbaka · Esc* i grafen efter *Visa vägen i grafen*, och
-  *Exponering …* i nodens meny i grafen (`ExposureViewModel.Open` finns).
-- **Inställningarnas rester** [direkt] (efter BV4a, ST2a, FS2a och UT3b):
-  - Titelraden visar inte *Syns som* på utgångens tips (UT3b har det i skissen).
-  - Kontrollen av Windows som utgång (*datorns eget nät*) visas ingenstans, eftersom tabellen bara står under VPN.
-
-- **Sökningen, resterna efter KR1a** [direkt]: det slängda i soptunnan söks inte (raden kunde säga *I soptunnan* med
-  *Lägg tillbaka*), och en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret.
+- **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*; vilken
+  tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
+- **Ångra en godkänd plånbok** [skiss]: Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås
+  ihop igen; det gör bara *Historik*.
+- **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
+  [etapp].
+- **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa
+  och datum) och fler mallar per börs, om kryptospåraren vill det.
+- **Chainabuse automatiskt** [etapp], när en partnernyckel finns: en vanlig nyckel ger tio anrop i månaden, så nu
+  frågas den bara med R.
 
 ## Före tjänstebruk
 
