@@ -56,6 +56,12 @@ public sealed class CaseWorkflow
     /// </summary>
     private readonly ILabelLibrary? _library;
 
+    /// <summary>
+    /// Labels the start points the imported sanction list names when a case is created, as Nytt ärende showed them;
+    /// <see langword="null"/> where there is none.
+    /// </summary>
+    private readonly IAttributionService? _attribution;
+
     /// <summary>The taking in of the open case's labels under way, waited for before the case is closed.</summary>
     private Task _absorbing = Task.CompletedTask;
 
@@ -74,9 +80,18 @@ public sealed class CaseWorkflow
     /// <param name="vault">The vault.</param>
     /// <param name="session">The window's open case.</param>
     /// <param name="library">The label library, or <see langword="null"/> where there is none.</param>
+    /// <param name="attribution">
+    /// Labels the sanctioned start points of a new case, or <see langword="null"/> where there is none.
+    /// </param>
     public CaseWorkflow(
-        ICaseStore cases, ITracingService tracing, IVault vault, CaseSession session, ILabelLibrary? library = null)
+        ICaseStore cases,
+        ITracingService tracing,
+        IVault vault,
+        CaseSession session,
+        ILabelLibrary? library = null,
+        IAttributionService? attribution = null)
     {
+        _attribution = attribution;
         _cases = cases;
         _tracing = tracing;
         _vault = vault;
@@ -211,8 +226,13 @@ public sealed class CaseWorkflow
     /// <param name="sharingPassword">
     /// The sharing password, or <see langword="null"/> for none; the caller clears it when this returns.
     /// </param>
+    /// <param name="prefetch">
+    /// What Nytt ärende fetched for the start points before the case existed (sketch NC2a), sealed in the case right
+    /// after it is created; <see langword="null"/> for nothing.
+    /// </param>
     /// <returns>Whether the case was created and is open, and the answer.</returns>
-    public async Task<CaseCreation> CreateAsync(NewCaseRequest request, char[]? sharingPassword)
+    public async Task<CaseCreation> CreateAsync(
+        NewCaseRequest request, char[]? sharingPassword, IStartPointPrefetch? prefetch = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         var isCreated = false;
@@ -230,7 +250,7 @@ public sealed class CaseWorkflow
             (ICase Case, List<string> Missed) created;
             try
             {
-                created = await Task.Run(() => CreateWithDetails(request, sharingPassword));
+                created = await Task.Run(() => CreateWithDetails(request, sharingPassword, prefetch));
             }
             catch (CaseException exception)
             {
@@ -328,18 +348,27 @@ public sealed class CaseWorkflow
     /// </summary>
     /// <param name="request">The request.</param>
     /// <param name="sharingPassword">The sharing password, or <see langword="null"/>.</param>
+    /// <param name="prefetch">What was fetched before the case existed, or <see langword="null"/>.</param>
     /// <returns>The open case and, in Swedish, what could not be done.</returns>
-    private (ICase Case, List<string> Missed) CreateWithDetails(NewCaseRequest request, char[]? sharingPassword)
+    private (ICase Case, List<string> Missed) CreateWithDetails(
+        NewCaseRequest request, char[]? sharingPassword, IStartPointPrefetch? prefetch)
     {
         var created = _cases.Create(request.CaseNumber);
         var missed = new List<string>();
         Try(missed, "titeln sparades inte", () => created.SetTitle(request.Title));
+        if (prefetch is not null)
+        {
+            // First, so that what the panel showed is in the case before anything is built on it (principle 1).
+            Try(missed, "det som hämtades i förväg förseglades inte", () => prefetch.SealInto(created));
+        }
+
         foreach (var startPoint in request.StartPoints.Take(MaximumStartPoints))
         {
             var shown = CaseTexts.Shorten(startPoint.Value);
             Try(missed, $"startpunkten {shown} lades inte till", () => AddOrNote(created, startPoint));
         }
 
+        CheckSanctions(created, request.StartPoints, missed);
         if (sharingPassword is not null)
         {
             Try(missed, "ärendelösenordet sattes inte", () => created.SetSharingPassword(sharingPassword));
@@ -372,6 +401,22 @@ public sealed class CaseWorkflow
                 ["kind"] = startPoint.Kind.ToString(),
                 ["value"] = startPoint.Value,
             })));
+    }
+
+    /// <summary>
+    /// Labels the Bitcoin start points the imported sanction list names, with the list as the origin, so that the tag
+    /// Nytt ärende showed is in the case as a label (principle 2: an assessment from an open source).
+    /// </summary>
+    /// <param name="created">The new case.</param>
+    /// <param name="startPoints">The start points.</param>
+    /// <param name="missed">What could not be done.</param>
+    private void CheckSanctions(ICase created, IReadOnlyList<ChainStartPoint> startPoints, List<string> missed)
+    {
+        var addresses = startPoints.Select(each => each.Bitcoin?.Address).OfType<BitcoinAddress>().ToList();
+        if (_attribution is { } attribution && addresses.Count > 0)
+        {
+            Try(missed, "sanktionslistan kontrollerades inte", () => attribution.CheckSanctions(created, addresses));
+        }
     }
 
     /// <summary>Runs one step after the creation, and notes it when it fails.</summary>

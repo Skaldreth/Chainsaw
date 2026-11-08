@@ -398,23 +398,12 @@
         </Style.Triggers>
     </Style>
 
-    <!-- ===== Nytt ärende (sketch NC1a) and the first case of the setup ===== -->
-
-    <!-- The start points: several lines in the mono font, 74 px high as in the sketch, scrolling past that. -->
-    <Style x:Key="TextBox.Area" TargetType="TextBox" BasedOn="{StaticResource TextBox.Field}">
-        <Setter Property="Height" Value="74" />
-        <Setter Property="Padding" Value="10,6" />
-        <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
-        <Setter Property="FontSize" Value="13.5" />
-        <Setter Property="AcceptsReturn" Value="True" />
-        <Setter Property="TextWrapping" Value="NoWrap" />
-        <Setter Property="VerticalContentAlignment" Value="Top" />
-        <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
-    </Style>
+    <!-- ===== The first case of the setup (FS1a) ===== -->
 
     <!--
-      What Chains recognises in a start point (NC1a): the chain's tag in a small frame, the value shortened and what it
-      is. What is not built yet is toned; what is not recognised is in the error colour.
+      What Chains recognises in a start point: the chain's tag in a small frame, the value shortened and what it is.
+      What is not built yet is toned; what is not recognised is in the error colour. Nytt ärende has its own rows
+      (NC2a, Views/NewCasePanel.xaml).
     -->
     <DataTemplate x:Key="StartPointLine" DataType="{x:Type vm:StartPointLine}">
         <StackPanel x:Name="Line" Orientation="Horizontal" Margin="0,6,0,0">

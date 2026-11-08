@@ -35,7 +35,7 @@ internal sealed class WatcherLoop
     private readonly WatcherGate _gate;
 
     /// <summary>Makes the case in memory of a round.</summary>
-    private readonly Func<ScratchCase> _scratch;
+    private readonly Func<IMemoryCase> _scratch;
 
     /// <summary>What it knows per chain.</summary>
     private readonly Dictionary<Chain, ChainState> _chains = [];
@@ -69,7 +69,7 @@ internal sealed class WatcherLoop
     /// <param name="route">The way out.</param>
     /// <param name="gate">The gate.</param>
     /// <param name="scratch">Makes a case in memory.</param>
-    public WatcherLoop(WatcherParts parts, IExitRoute route, WatcherGate gate, Func<ScratchCase> scratch)
+    public WatcherLoop(WatcherParts parts, IExitRoute route, WatcherGate gate, Func<IMemoryCase> scratch)
     {
         ArgumentNullException.ThrowIfNull(parts);
         (_parts, _route, _gate, _scratch) = (parts, route, gate, scratch);
@@ -158,7 +158,7 @@ internal sealed class WatcherLoop
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>A task that completes when the chain is done.</returns>
     private async Task RunChainAsync(
-        ScratchCase scratch,
+        IMemoryCase scratch,
         Chain chain,
         IReadOnlyList<(Guid Case, BackgroundWatch Watch)> work,
         Round round,
@@ -219,7 +219,7 @@ internal sealed class WatcherLoop
     /// <param name="cancellationToken">Stops the check.</param>
     /// <returns><see langword="true"/> when an entry was queued.</returns>
     private async Task<bool> CheckAsync(
-        ScratchCase scratch,
+        IMemoryCase scratch,
         IWatchFeed feed,
         Guid caseId,
         BackgroundWatch watch,
@@ -305,7 +305,7 @@ internal sealed class WatcherLoop
     /// <param name="scratch">The case in memory.</param>
     /// <param name="sequences">Their numbers.</param>
     /// <returns>The responses.</returns>
-    private IReadOnlyList<SealedResponse> Responses(ScratchCase scratch, IReadOnlyList<long> sequences) =>
+    private IReadOnlyList<SealedResponse> Responses(IMemoryCase scratch, IReadOnlyList<long> sequences) =>
         sequences.Count == 0
             ? []
             : scratch.Read(reader => sequences.Distinct()

@@ -4,86 +4,20 @@ using Chainsaw.Modules.Monitoring.Contracts;
 
 namespace Chainsaw.Watcher.Tests;
 
-/// <summary>The round's case in memory: the chains' tables, sealing and nothing of a real case.</summary>
-public sealed class ScratchCaseTests : IDisposable
+/// <summary>The round's case in memory has the chains' real tables.</summary>
+public sealed class RoundCaseTests
 {
-    private static readonly SealedChain Raw = new("t.raw", "t_raw", ["kind", "body"]);
-
-    private readonly ScratchCase _case = new([new Tables()]);
-
-    public void Dispose() => _case.Dispose();
-
-    [Fact]
-    public void Records_are_sealed_in_order_and_told_from_a_mark()
-    {
-        _case.Write(transaction => transaction.AppendSealed(Raw.Name, ["a", new byte[] { 1 }]));
-        var mark = _case.Mark();
-
-        var second = _case.Write(transaction => transaction.AppendSealed(Raw.Name, ["b", new byte[] { 2 }]));
-
-        Assert.Equal(2, second.Sequence);
-        Assert.Equal([2L], _case.SealedSince(Raw.Name, mark));
-        Assert.Equal([1L, 2L], _case.SealedSince(Raw.Name, 0));
-        Assert.Empty(_case.SealedSince("other", 0));
-        Assert.Equal("b", _case.Read(reader =>
-        {
-            using var command = reader.CreateCommand("SELECT kind FROM t_raw WHERE sequence = 2");
-            return (string)command.ExecuteScalar()!;
-        }));
-    }
-
-    [Fact]
-    public void A_write_that_fails_seals_nothing()
-    {
-        var mark = _case.Mark();
-
-        Assert.Throws<InvalidOperationException>(() => _case.Write<int>(transaction =>
-        {
-            transaction.AppendSealed(Raw.Name, ["a", new byte[] { 1 }]);
-            throw new InvalidOperationException();
-        }));
-
-        Assert.Empty(_case.SealedSince(Raw.Name, mark));
-        Assert.Equal(1, _case.Write(transaction => transaction.AppendSealed(Raw.Name, ["c", null]).Sequence));
-    }
-
-    [Fact]
-    public void It_keeps_no_journal_and_refuses_an_unknown_chain_and_work_once_closed()
-    {
-        Assert.Throws<NotSupportedException>(() => _case.AppendJournal(new JournalDraft("x", "y")));
-        Assert.Throws<ArgumentException>(() => _case.Write(transaction => transaction.AppendSealed("nej", ["a"])));
-        Assert.Empty(_case.ReadJournal());
-
-        _case.Close();
-
-        Assert.True(_case.IsClosed);
-        Assert.Equal(CaseError.Closed,
-            Assert.Throws<CaseException>(() => _case.Read(_ => 0)).Error);
-    }
-
     [Fact]
     public void The_chains_tables_are_the_real_ones()
     {
         using var world = new World();
-        using var scratch = world.Background<Func<ScratchCase>>()();
+        using var scratch = world.Background<Func<IMemoryCase>>()();
 
         Assert.Equal(0, scratch.Read(reader =>
         {
             using var command = reader.CreateCommand("SELECT count(*) FROM chains_raw_responses");
             return (long)command.ExecuteScalar()!;
         }));
-    }
-
-    private sealed class Tables : ICaseSchemaContributor
-    {
-        public string Module => "t";
-
-        public IReadOnlyList<CaseSchemaStep> Steps { get; } =
-        [
-            new(1, "t", "CREATE TABLE t_raw (sequence INTEGER PRIMARY KEY, kind TEXT, body BLOB, hash BLOB NOT NULL);"),
-        ];
-
-        public IReadOnlyList<SealedChain> SealedChains { get; } = [Raw];
     }
 }
 

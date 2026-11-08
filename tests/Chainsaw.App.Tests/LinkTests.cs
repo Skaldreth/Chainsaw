@@ -81,7 +81,7 @@ public sealed class LinkTests
 
         Assert.False(rig.Links.HasWaiting);
         Assert.True(rig.NewCase.IsOpen);
-        Assert.Equal(Samples.Address, rig.NewCase.StartPointsText);
+        Assert.Equal(Samples.Address, rig.NewCase.Rows.Single().StartPoint.Value);
         Assert.Empty(rig.Cases.Created);
     }
 
@@ -142,8 +142,8 @@ public sealed class LinkTests
 
         rig.Links.Receive("chainsaw:tron/" + Samples.Txid);
 
-        Assert.Equal("tron:" + Samples.Txid, rig.NewCase.StartPointsText);
-        Assert.Equal("TRON", rig.NewCase.StartPoints.Single().ChainLabel);
+        Assert.Equal(Samples.Txid, rig.NewCase.Rows.Single().StartPoint.Value);
+        Assert.True(rig.NewCase.Rows.Single().IsTron);
         rig.NewCase.CaseNumber = "A1";
         await rig.NewCase.CreateAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
         Assert.Empty(rig.Tracing.Added);
@@ -172,7 +172,7 @@ public sealed class LinkTests
 
         rig.Links.Receive("chainsaw:bitcoin/" + Samples.Address);
 
-        Assert.Equal(Samples.Address, rig.NewCase.StartPointsText);
+        Assert.Equal(Samples.Address, rig.NewCase.Rows.Single().StartPoint.Value);
         Assert.Empty(rig.Shell.CommandText);
     }
 }

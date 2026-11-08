@@ -186,6 +186,7 @@ public sealed partial class ShellViewModel : ObservableObject
         OnCaseChanged();
         Show(ViewTable.Start);
         ShowExit();
+        NewCase.FollowExit(IsExitLive, _way.IsWindows, ExitText);
     }
 
     /// <summary>Gets Nytt ärende, the panel from the right.</summary>
@@ -800,6 +801,14 @@ public sealed partial class ShellViewModel : ObservableObject
             _ = NameExitAsync(id);
         }
     }
+
+    /// <summary>Tells Nytt ärende the way out whenever the title bar's changes (its tag <c>via …</c>).</summary>
+    /// <param name="value">The new text.</param>
+    partial void OnExitTextChanged(string value) => NewCase.FollowExit(IsExitLive, _way.IsWindows, value);
+
+    /// <summary>Tells Nytt ärende whether lookups can go, so that rows waiting for the exit are fetched.</summary>
+    /// <param name="value">Whether they can.</param>
+    partial void OnIsExitLiveChanged(bool value) => NewCase.FollowExit(value, _way.IsWindows, ExitText);
 
     /// <summary>
     /// Reads the connected exit's name from the vault off the UI thread, and shows it if the exit is still connected.

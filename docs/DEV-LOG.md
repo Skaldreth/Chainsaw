@@ -2440,3 +2440,48 @@ Rättat efter en oberoende granskning av `ListHeldBackAsync`/`TakeHeldBackAsync`
   migreringen 3→4 och ett klusters ledtråd med två adresser; i appen negativ etikett på vilken motpart som helst,
   flera adresser, obekräftad tx, tipsen och en avbruten läsning.
 - Återstår (TODO): om utplockning ska journalföras (fråga användaren) och att kunna avbryta en lång läsning.
+
+## Nytt ärende NC2a: startpunkterna som lista som hämtar i förväg (2026-11-08)
+
+- Panelen efter skissen NC2a: ärendenumret stort med bock och filnamnet (`<nummer>.cut`), titeln som en tyst rad,
+  startpunkterna som en rundad lista med en rad per startpunkt (kedjans märke, värdet förkortat i Cascadia Mono, sorten,
+  det som hämtats i förväg och blockhöjden till höger), raden *+ Lägg till adress eller tx* (Enter, en paus i
+  skrivandet eller Ctrl+V med flera rader), *via <utgång>* vid rubriken, delningen med reglaget till höger och foten
+  med Ctrl+Enter. Den stora textrutan för startpunkter är borta (`TextBox.Area`).
+- **Hur det förhandshämtade förseglas** (princip 1, 4 och 9): ärendet finns inte medan panelen är öppen, så
+  `StartPointPrefetch` hämtar genom kedjornas vanliga källor (`IBitcoinSource`, `IEthereumSource`, alltså bara genom
+  utgången och bara adressen eller tx:en) in i ett **ärende i minnet** (`IMemoryCase`). Källorna tar takt, svarar och
+  förseglar där precis som i ett riktigt ärende. När ärendet skapas förseglar `CaseWorkflow` först alla råsvar i
+  det nya ärendet genom `IResponseTransfer` (samma väg som bakgrundsbevakningens kö, SHA-256 kontrolleras) med en rad
+  i journalen (`app.prefetch-sealed`); sedan släpps ärendet i minnet. Avbryt, Esc och låsning släpper det utan att
+  något skrivits till disk. Allt som hämtades förseglas, också för en rad som tagits bort, eftersom det har hämtats.
+  Pågående hämtningar stoppas innan förseglingen, så att det som förseglas är exakt det som hämtats.
+- **Ärendet i minnet flyttades till Cases:** bakgrundsbevakningens `ScratchCase` blev `MemoryCase` bakom
+  `IMemoryCases` i Cases.Contracts (`Create(sealedChain)` ger tabellerna för de moduler som förseglar i kedjan), så att
+  appen och bevakningen delar en och samma (en regel en gång). `AddMemoryCases()` registrerar bara den, för
+  bevakningen. Testerna flyttade med till `Chainsaw.Modules.Cases.Tests`.
+- **Bara det källan gav:** en Bitcoin-adress visar saldot och antalet tx ur adressens sammanfattning och aktiviteten ur
+  den nyaste sidan tx (första datumet bara när sidan har alla bekräftade, annars *senast …*). En Ethereum-adress har
+  inget saldo i källan, så bara antal tx (med `+` när det finns äldre) och aktivitet. En tx visar beloppet, antal
+  in och ut eller överföringar och dagen. Höjden är kedjans höjd när det hämtades; hovring visar också den senaste
+  tx:ens block och dess hash (tip-uppslaget ger ingen hash, TODO 38).
+- **Sanktion:** brickan kommer ur den importerade listan på datorn (inget skickas), också offline. Så att den inte bara
+  syns i panelen kontrollerar `CaseWorkflow` nu de nya Bitcoin-startpunkterna mot listan (`CheckSanctions`), så att
+  adressen får etiketten Sanktionerad med listan som ursprung (princip 2).
+- **Utgången:** skalet säger till panelen när utgången byter läge (`FollowExit`); utan levande utgång skickas inget och
+  raderna säger *Väntar på utgången*, med en rad under listan en gång. När utgången kommer hämtas de väntande raderna.
+- **Takt:** två startpunkter hämtas åt gången (en inklistrad lista om 50 ska inte lägga 150 frågor på en gång);
+  endpointarna tar takten som förut. Skrivande startar ingen hämtning: ett värde blir en rad först efter 0,7 s paus,
+  och ett halvskrivet värde känns inte igen (fast form och kontrollsumma).
+- Egna val: ett ärendenummer som redan finns sägs direkt under fältet i stället för först vid *Skapa ärende*; text som
+  inte känns igen i en inklistring sägs i felraden i stället för att bli många röda rader; Enter på en rad som inte
+  känns igen gör en rad som säger det (som i skissen), och *Skapa ärende* säger vilken som ska tas bort.
+- Avsteg från skissen: värdenas något ljusare grå (`#C9CDCF`) finns inte i temat, så de ritas i textens färg med lägre
+  opacitet; TRON-brickan under listan har märket i stället för ett `T`; *Upprepa* har ingen platshållare; skimret är
+  tre streck som pulserar i stället för en glidande gradient.
+- Tester: `StartPointPrefetchTests` (fakta ur källan, bara senaste datumet, inget skickas offline men listan läses,
+  offline och okänd, TRON och okänt frågas aldrig, förseglingen med journal, Forget, panelen hämtar när utgången
+  kommer, skapande och avbryt), `NewCaseViewModelTests` (inklistring, Enter, paus, nummer och fil, offline-raden,
+  gränsen 50) och `MemoryCaseTests` i Cases.
+- Återstår (TODO 38): Ethereums saldo, kedjans hash vid höjden, det förhandshämtade som cache och sanktionslistans
+  Ethereum-adresser.

@@ -189,7 +189,7 @@ public sealed class CommandTests
         await rig.Commands.RunAsync(Samples.Txid);
 
         Assert.True(rig.NewCase.IsOpen);
-        Assert.Equal(Samples.Txid, rig.NewCase.StartPointsText);
+        Assert.Equal(Samples.Txid, rig.NewCase.Rows.Single().StartPoint.Value);
         Assert.Empty(rig.Tracing.Added);
     }
 

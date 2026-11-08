@@ -41,6 +41,21 @@ public static class CasesModule
             provider.GetServices<ICaseSchemaContributor>()));
         services.AddSingleton<ICaseStore>(provider => provider.GetRequiredService<CaseStore>());
         services.AddSingleton<ICaseVerifier, CaseVerifier>();
+        return services.AddMemoryCases();
+    }
+
+    /// <summary>
+    /// Adds only the cases in memory (<see cref="IMemoryCases"/>), for a process that never opens a real case, such
+    /// as the background watching. The modules' tables come from the registered <see cref="ICaseSchemaContributor"/>s.
+    /// </summary>
+    /// <param name="services">The container to add to.</param>
+    /// <returns>The same container, so that the registrations can be chained.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
+    public static IServiceCollection AddMemoryCases(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<IMemoryCases>(provider =>
+            new MemoryCases(provider.GetServices<ICaseSchemaContributor>()));
         return services;
     }
 }

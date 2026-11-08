@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Chainsaw.App.Controls;
@@ -10,10 +11,11 @@ using CommunityToolkit.Mvvm.Input;
 namespace Chainsaw.App.Views;
 
 /// <summary>
-/// Nytt ärende (sketch NC1a). The view only wires the fields and the keys; what happens lives in
+/// Nytt ärende (sketch NC2a). The view only wires the fields and the keys; what happens lives in
 /// <see cref="NewCaseViewModel"/>. The sharing password is taken from the password boxes as characters
 /// (<see cref="PasswordEntry"/>), never read as text, and the boxes are emptied whenever the panel closes or the
-/// switch is turned off, so that a password never waits in a hidden field.
+/// switch is turned off, so that a password never waits in a hidden field. Pasting goes to the view model, so that
+/// several lines become several start points.
 /// </summary>
 public partial class NewCasePanel : UserControl
 {
@@ -34,6 +36,8 @@ public partial class NewCasePanel : UserControl
         _repeat = new PasswordEntry(RepeatBox);
         InputBindings.Add(new KeyBinding(new RelayCommand(OnCreateKey), Key.Enter, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayCommand(Cancel), Key.Escape, ModifierKeys.None));
+        InputBindings.Add(new KeyBinding(new RelayCommand(PasteAnywhere), Key.V, ModifierKeys.Control));
+        DataObject.AddPastingHandler(AddBox, OnAddPasting);
     }
 
     /// <summary>Gives the panel its view model, and follows whether it is shown.</summary>
@@ -80,6 +84,64 @@ public partial class NewCasePanel : UserControl
     {
         SharingBox.Clear();
         RepeatBox.Clear();
+    }
+
+    /// <summary>
+    /// Sends what is pasted in the add row to the view model, which makes every address and tx in it a row, instead
+    /// of letting the field keep only its first line.
+    /// </summary>
+    /// <param name="sender">The add row's field.</param>
+    /// <param name="e">The paste.</param>
+    private void OnAddPasting(object sender, DataObjectPastingEventArgs e)
+    {
+        if (_panel is not null && e.DataObject.GetData(DataFormats.UnicodeText) is string text)
+        {
+            e.CancelCommand();
+            _panel.Paste(text);
+        }
+    }
+
+    /// <summary>
+    /// Pastes start points with Ctrl+V anywhere in the panel but a text field, which pastes into itself.
+    /// </summary>
+    private void PasteAnywhere()
+    {
+        if (_panel is null || Keyboard.FocusedElement is TextBoxBase or PasswordBox || !Clipboard.ContainsText())
+        {
+            return;
+        }
+
+        _panel.Paste(Clipboard.GetText());
+        AddBox.Focus();
+    }
+
+    /// <summary>Makes what is written in the add row a start point with Enter.</summary>
+    /// <param name="sender">The add row's field.</param>
+    /// <param name="e">The key.</param>
+    private void OnAddKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None && _panel is not null)
+        {
+            _panel.CommitAddText();
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Gives the add row's field the keyboard when the row is clicked.</summary>
+    /// <param name="sender">The add row.</param>
+    /// <param name="e">The click.</param>
+    private void OnAddRowClicked(object sender, MouseButtonEventArgs e) => AddBox.Focus();
+
+    /// <summary>Removes a start point (× on its row).</summary>
+    /// <param name="sender">The button, whose data is the row.</param>
+    /// <param name="e">The click.</param>
+    private void OnRemove(object sender, RoutedEventArgs e)
+    {
+        if (_panel is not null && sender is FrameworkElement { DataContext: StartPointRowViewModel row })
+        {
+            _panel.Remove(row);
+            AddBox.Focus();
+        }
     }
 
     /// <summary>Creates the case (Skapa ärende).</summary>

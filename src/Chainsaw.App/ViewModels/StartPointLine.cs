@@ -3,9 +3,9 @@ using Chainsaw.Modules.Chains.Contracts;
 namespace Chainsaw.App.ViewModels;
 
 /// <summary>
-/// A start point as shown under the field in Nytt ärende (sketch NC1a): the chain's tag, the value shortened, and
-/// what it is. What is not built yet is shown toned (<see cref="IsSupported"/> false), and what is not recognised is
-/// marked so that the case is not created with it.
+/// A start point as shown under the field of the first case in the setup (FS1a): the chain's tag, the value
+/// shortened, and what it is. What is not built yet is shown toned (<see cref="IsSupported"/> false), and what is
+/// not recognised is marked so that the case is not created with it.
 /// </summary>
 /// <param name="StartPoint">The recognised start point.</param>
 public sealed record StartPointLine(ChainStartPoint StartPoint)
