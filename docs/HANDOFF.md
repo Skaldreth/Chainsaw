@@ -124,26 +124,37 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 
 ## Nästa steg
 
-**Läget 2026-11-08 natt.** Polerlistan i `docs/TODO.md` (*Polering först*) gäller fortfarande; punkt 31–39 är nya.
-Klart och pushat i dag: startvyns högar (GR8a), Chainabuse som underleverantör (hämtningen, granskad), streck i
-pixlar, inspektören bara när något är valt, pulsen borta från Nytt ärende och startpunkten, Graf-ikonen borta utan
-ärende, foten utan *Utgång*.
+**Läget 2026-11-08 morgon.** Pushat i dag: Chainabuse som underleverantör (knappen R och skölden vid noden),
+KL2b, EX1/EX2/EX2b ombyggda, Esc avbryter en lång läsning, Ctrl+W, Guidens toning, inspektören bara när något är
+valt, sonarn borttagen helt, en kvalitetsgenomgång av kvällens egna commits (`6f67d1b`) och **KF2b** (sammanslagen
+`c352c7a`, byggd av en agent, inte sedd på Windows).
 
-**Agenter som arbetar** (i worktrees under `.claude/worktrees/`, committar men pushar inte; slå ihop med
-`git merge worktree-agent-<id>`, behåll båda sidor i dokumenten, bygg, kör berörda tester och pusha):
-- **Valvyn och högen byggs om efter EX2b** (`HeldBack2B.dc.html`): filterpanelen, ringen av prickar, Spiral/Tidsbåge,
-  Lasso, nederlisten, kortleken med dimning. Rättar också granskningens fel i EX1/EX2b.
-- **Granskning av alla byggda vyer mot skisserna**, rapport i scratchpadens `skissgranskning.md` (sessionens
-  scratchpad). Blir en ordnad lista att bygga om efter.
-- **Skisserna NC2a/NC2b (Nytt ärende med startpunkter som lista som förhandshämtar) och KF2a/KF2b (Kontroller och
-  förslag)** ritas i scratchpadens `canvas/project/`; de läggs ut på canvasen under Ärenden och Kontroller och
-  förslag, och byggs först när användaren valt.
+**Att göra, i ordning:**
+1. **Granskningen av KF2b.** En oberoende granskning av Checks-modulens skrivningar (beslutet *Ångrat*
+   (`CheckVerdict.Withdrawn`), avfärda hela förslaget, `IsSettled`, `DecisionFor`, köns tangenter) startades
+   2026-11-08. Kommer rapporten inte till den nya sessionen: kör om den mot `git show 7f3a77f`. Rätta Critical och
+   Important, lägg Minor i TODO, bygg, kör `tests/Chainsaw.App.Tests` och `tests/Chainsaw.Modules.Checks.Tests`, pusha.
+2. **NC2a (Nytt ärende med startpunkter som lista som förhandshämtar).** En agent bygger den i
+   `.claude/worktrees/agent-a36851ebd6c5773be` (gren `worktree-agent-a36851ebd6c5773be`, ännu ocommittat där).
+   När den är klar: `git merge worktree-agent-a36851ebd6c5773be`, behåll båda sidor i dokumenten, bygg, kör
+   berörda tester. **Förhandshämtningen skriver i ärendet** (princip 1 och 4): kör en oberoende granskning före
+   push, rätta det den hittar. Granska också mot skissen `NewCase2A` och användarens synpunkter (inga linjer vid
+   raderna, *betydligt mer professionellt*), eftersom agenten bara fick CLAUDE.md och uppdraget, inte samtalet.
+   Ta bort worktreen efter sammanslagningen. Är agenten borta utan att ha committat: titta på ändringarna i
+   worktreen och bygg färdigt därifrån.
+3. **Fråga användaren om KF2b:** ett godkänt förslag är avgjort helt (kön går vidare som i skissen), så en mixer som
+   betalar ut i flera delar kan bara ha en godkänd utgång i taget. Behålla, eller låta förslaget stå öppet efter ett
+   godkännande? Står i TODO under *Kontroller, förslag och områden* som fråga till kryptospåraren.
+4. **Granskningen av byggda vyer mot skisserna** (`docs/TODO.md` punkt 39): nästa att bygga om är inspektören
+   (IN2b, GR5, TK1a, AN1b), sedan grafen (TL1a, nodens bredd, tokenmärket, swap-pillret).
+5. **Godkänt och inte byggt:** GR7a, KN1a, SO1a (soptunnan, också i startvyn), resten av EX2, grafens offlinetext
+   för Windows utan nät, testärendet som är för trångt (punkt 34), Chainabuse automatiskt (efter knappen).
 
-**Väntar på användaren:** KL2a eller KL2b (sidan Källor); NC2 och KF2 när de är utlagda; när Chainabuse ska frågas
-(knapp eller automatiskt, nyckelns gräns är 10 anrop i månaden); Ctrl+W.
+**Väntar på användaren:** svaret i punkt 3; om ett anrop till Chainabuse får användas för att prova flera adresser
+kommaseparerat (TODO punkt 42).
 
-**Godkänt och inte byggt, i ordning:** GR7a, KN1a, SO1a (soptunnan, också i startvyn), resten av EX2 efter
-ombygget, grafens offlinetext för Windows utan nät, testärendet som är för trångt (punkt 34).
+**Agenter:** arbetar i worktrees under `.claude/worktrees/`, committar men pushar inte. Starta dem inifrån
+`/home/user/Chainsaw`, annars går det inte att skapa worktreen.
 
 **Canvasen:** läs in den levande `project/canvas.json` med Artifact `read` innan något läggs ut, och slå ihop.
 Artefakten är https://claude.ai/code/artifact/9dd2fd6d-b424-4bdb-aac7-38a36a2494d8 (samma som
