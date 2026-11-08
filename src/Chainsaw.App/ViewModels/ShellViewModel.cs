@@ -267,8 +267,8 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets the view shown.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentEntry), nameof(IsGraphShown), nameof(IsGuideShown),
-        nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsLabelsShown), nameof(IsPlaceholderShown))]
-        nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsExposureShown), nameof(IsPlaceholderShown))]
+        nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsLabelsShown), nameof(IsExposureShown),
+        nameof(IsPlaceholderShown))]
     public partial AppView Current { get; private set; }
 
     /// <summary>Gets whether the graph is shown (sketch GR4).</summary>
@@ -286,18 +286,16 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets whether the view Etiketter is shown (sketch ET1a).</summary>
     public bool IsLabelsShown => Current == AppView.Labels && Labels is not null;
 
-    /// <summary>Gets whether the shown view is not built yet, so that the page says so.</summary>
-    public bool IsPlaceholderShown =>
-        !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown && !IsLabelsShown;
-
     /// <summary>Gets the view Etiketter, or <see langword="null"/> when the shell is built without it.</summary>
     public LabelsViewModel? Labels { get; }
+
     /// <summary>Gets whether the view Exponering is shown (sketch EP1b).</summary>
     public bool IsExposureShown => Current == AppView.Exposure && Exposure is not null;
 
     /// <summary>Gets whether the shown view is not built yet, so that the page says so.</summary>
     public bool IsPlaceholderShown =>
-        !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown && !IsExposureShown;
+        !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown && !IsLabelsShown
+        && !IsExposureShown;
 
     /// <summary>Gets the view Exponering, or <see langword="null"/> when the shell is built without it.</summary>
     public ExposureViewModel? Exposure { get; }
