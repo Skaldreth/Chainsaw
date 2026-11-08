@@ -87,6 +87,12 @@ internal sealed class CommentNoteView : Grid
     /// <summary>Whether the press has moved far enough to be a drag.</summary>
     private bool _dragged;
 
+    /// <summary>The paper's shadow, made and frozen once and shared by every note.</summary>
+    private static readonly DropShadowEffect Shadow = Freezing.Frozen(new DropShadowEffect
+    {
+        BlurRadius = 26, ShadowDepth = 10, Direction = 270, Opacity = 0.4, Color = Colors.Black,
+    });
+
     /// <summary>Creates the view of a note.</summary>
     /// <param name="note">The note.</param>
     /// <param name="comments">The comments.</param>
@@ -106,10 +112,11 @@ internal sealed class CommentNoteView : Grid
             CornerRadius = Corners,
             Background = Brush("Brush.Note.Paper"),
             IsHitTestVisible = false,
-            Effect = new DropShadowEffect
-            {
-                BlurRadius = 26, ShadowDepth = 10, Direction = 270, Opacity = 0.4, Color = Colors.Black,
-            },
+            Effect = Shadow,
+
+            // The blurred shadow is drawn once into a bitmap and moved with the pan, instead of blurred again on every
+            // frame of a pan with many notes (BACKLOG, Kommentarsnoden).
+            CacheMode = new BitmapCache(),
         };
         _view = new NoteMarkdownView { LinkCommand = linkCommand };
         _hint = new TextBlock
