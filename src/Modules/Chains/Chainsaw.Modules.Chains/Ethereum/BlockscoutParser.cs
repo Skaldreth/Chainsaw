@@ -62,6 +62,15 @@ internal sealed record InternalCalls(IReadOnlyList<InternalCall> Calls, bool IsI
 /// </param>
 internal sealed record TokenInfo(Asset? Asset);
 
+/// <summary>An address's ether as the source gave it.</summary>
+/// <param name="Wei">The ether, in wei.</param>
+internal sealed record EtherBalance(BigInteger Wei);
+
+/// <summary>An address's ERC-20 tokens as the source listed them.</summary>
+/// <param name="Tokens">The tokens with a balance above zero, USDT and USDC first and then by symbol.</param>
+/// <param name="Skipped">How many entries are not counted: an NFT, or a token without decimals to count in.</param>
+internal sealed record TokenBalances(IReadOnlyList<AssetAmount> Tokens, int Skipped);
+
 /// <summary>
 /// Reads Blockscout's answers and checks that they add up: every value is a whole number that is not negative, every
 /// address and hash is well formed, the answer is about what was asked, and a page has only entries that touch its
@@ -91,10 +100,104 @@ internal static class BlockscoutParser
     /// <param name="height">The height asked for, or <see langword="null"/> when any will do (a probe).</param>
     /// <returns>The block's height, hash and time.</returns>
     /// <exception cref="FormatException">It is not that block.</exception>
-    public static EthereumBlockReference ParseBlock(byte[] body, long? height) => Read(body, root =>
+    public static EthereumBlockReference ParseBlock(byte[] body, long? height) =>
+        Read(body, root => BlockFrom(root, height));
+
+    /// <summary>
+    /// Reads the newest block the source has read from <c>v2/blocks?type=block</c>, a list of blocks newest first:
+    /// its height, hash and time from one entry, so that the height and the hash always belong together.
+    /// </summary>
+    /// <param name="body">The body.</param>
+    /// <returns>The newest block.</returns>
+    /// <exception cref="FormatException">The list has no block, or its first does not add up.</exception>
+    public static ChainTip ParseNewestBlock(byte[] body) => Read(body, root =>
     {
-        var hash = String(root, "hash");
-        var number = root.TryGetProperty("height", out var h) && h.TryGetInt64(out var n)
+        if (!root.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array
+            || items.GetArrayLength() == 0)
+        {
+            throw new FormatException("The list has no block.");
+        }
+
+        var block = BlockFrom(items[0], null);
+        return block.Height > 0
+            ? new ChainTip(block.Height, block.Hash!, block.Time)
+            : throw new FormatException("The newest block is not above zero.");
+    });
+
+    /// <summary>
+    /// Reads an address's ether from <c>module=account&amp;action=balance</c>: status 1 and the wei as decimal text.
+    /// </summary>
+    /// <param name="body">The body.</param>
+    /// <returns>The ether.</returns>
+    /// <exception cref="FormatException">The source did not answer with a whole number that is not negative.</exception>
+    public static EtherBalance ParseBalance(byte[] body) => Read(body, root =>
+    {
+        if (OptionalString(root, "status") == "1"
+            && BigInteger.TryParse(OptionalString(root, "result"), NumberStyles.None, CultureInfo.InvariantCulture,
+                out var wei))
+        {
+            return new EtherBalance(wei);
+        }
+
+        ThrowIfBusy(root);
+        throw new FormatException("The source did not answer: " + OptionalString(root, "message"));
+    });
+
+    /// <summary>
+    /// Reads an address's tokens from <c>module=account&amp;action=tokenlist</c>: only ERC-20 tokens with decimals
+    /// Chainsaw can count in and a balance above zero are given; NFTs and tokens without decimals are counted as
+    /// skipped. USDT and USDC are recognised by their contract, never by their symbol.
+    /// </summary>
+    /// <param name="body">The body.</param>
+    /// <returns>The tokens.</returns>
+    /// <exception cref="FormatException">An entry does not add up, or the source did not answer.</exception>
+    public static TokenBalances ParseTokenBalances(byte[] body) => Read(body, root =>
+    {
+        var (items, _) = List(root);
+        var tokens = new List<AssetAmount>();
+        var skipped = 0;
+        foreach (var item in items)
+        {
+            var asset = OptionalString(item, "type") == "ERC-20"
+                ? Token(Address(String(item, "contractAddress")), OptionalString(item, "symbol"),
+                    OptionalString(item, "decimals"))
+                : null;
+            if (asset is null)
+            {
+                skipped++;
+                continue;
+            }
+
+            var units = Whole(item, "balance");
+            if (!units.IsZero)
+            {
+                tokens.Add(new AssetAmount(asset, units));
+            }
+        }
+
+        if (tokens.DistinctBy(token => token.Asset).Count() != tokens.Count)
+        {
+            throw new FormatException("A token is listed twice.");
+        }
+
+        return new TokenBalances(
+            [
+                .. tokens.OrderBy(token => KnownTokens.IssuerOf(token.Asset) is null)
+                    .ThenBy(token => token.Asset.Symbol, StringComparer.Ordinal)
+                    .ThenBy(token => token.Asset.Contract, StringComparer.Ordinal),
+            ],
+            skipped);
+    });
+
+    /// <summary>Reads a block object as Blockscout's v2 API gives it: its height, hash and time.</summary>
+    /// <param name="block">The block.</param>
+    /// <param name="height">The height asked for, or <see langword="null"/> when any will do.</param>
+    /// <returns>The block.</returns>
+    /// <exception cref="FormatException">It is not that block, or does not add up.</exception>
+    private static EthereumBlockReference BlockFrom(JsonElement block, long? height)
+    {
+        var hash = String(block, "hash");
+        var number = block.TryGetProperty("height", out var h) && h.TryGetInt64(out var n)
             ? n
             : throw new FormatException("The block has no height.");
         if (!EthereumTxHash.IsHash(hash) || (height is { } asked && asked != number))
@@ -102,10 +205,10 @@ internal static class BlockscoutParser
             throw new FormatException("The block is not the one asked for.");
         }
 
-        var time = DateTimeOffset.Parse(String(root, "timestamp"), CultureInfo.InvariantCulture,
+        var time = DateTimeOffset.Parse(String(block, "timestamp"), CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
         return new EthereumBlockReference(number, hash.ToLowerInvariant(), time);
-    });
+    }
 
     /// <summary>Reads a transaction from <c>module=transaction&amp;action=gettxinfo</c>.</summary>
     /// <param name="body">The body.</param>
@@ -486,7 +589,8 @@ internal static class BlockscoutParser
 
     /// <summary>
     /// Throws when an Etherscan-style answer says that the source is asked too fast: status 0, and a message or a
-    /// result that says <em>rate limit</em> (for example <c>Max rate limit reached</c>).
+    /// result that says <em>rate limit</em> (for example <c>Max rate limit reached</c>) or <em>too many requests</em>
+    /// (Blockscout's open instance: <c>Too many requests. Increase limits now …</c>).
     /// </summary>
     /// <param name="root">The answer.</param>
     /// <exception cref="SourceBusyException">It says so.</exception>
@@ -496,7 +600,9 @@ internal static class BlockscoutParser
             + (root.TryGetProperty("result", out var result) && result.ValueKind == JsonValueKind.String
                 ? result.GetString()
                 : string.Empty);
-        if (OptionalString(root, "status") == "0" && said.Contains("rate limit", StringComparison.OrdinalIgnoreCase))
+        if (OptionalString(root, "status") == "0"
+            && (said.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
+                || said.Contains("too many requests", StringComparison.OrdinalIgnoreCase)))
         {
             throw new SourceBusyException();
         }

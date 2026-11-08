@@ -133,14 +133,6 @@ fungerar rättas före allt annat nedan. Särskilt:
   kan inte läggas tillbaka.
 
 **Inspektören, Nytt ärende och Guiden**
-- **Nytt ärende (NC2a)** [etapp]:
-  - **Ethereums saldo** saknas. Källan ger inget saldo för en adress, så `IEthereumSource` behöver ett uppslag av
-    saldot för ETH och tokens.
-  - **Kedjans hash vid höjden:** raden visar den senaste tx:ens block, inte hashen för höjden. Esplora har
-    `/blocks/tip/hash`, och Blockscout har motsvarande.
-  - **Det förhandshämtade som cache:** grafens första expansion hämtar adressen igen. Ett eget steg i Chains kunde
-    låta det som inte kan ha ändrats svara som cache.
-  - **Sanktionslistans Ethereum-adresser** kontrolleras inte, så brickan visas bara för Bitcoin.
 - **Kortets baksida i dagens kurs** [direkt]: efter fråga 2 ovan.
 - **Källors felrad till toastern** [direkt], som Bevakningens felrad redan är.
 - **Bevakningens huvud** [direkt]: skissen säger *2 nya träffar sedan 09:10*, men vyn säger bara antalet. När

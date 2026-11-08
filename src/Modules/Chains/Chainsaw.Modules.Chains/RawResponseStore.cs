@@ -209,6 +209,61 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             row.GetString(row.GetOrdinal("kind")), row.GetString(row.GetOrdinal("subject")), origin, body);
     }
 
+    /// <summary>
+    /// Reads what the indexes hold of one sealed response of this chain: the chain's height it shows and the
+    /// transactions in it.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="sequence">The response's number.</param>
+    /// <returns>The index entry, or <see langword="null"/> when the response is not in the indexes.</returns>
+    public ResponseIndex? IndexOf(ICaseReader reader, long sequence)
+    {
+        long? height;
+        using (var command = reader.CreateCommand(
+            "SELECT height FROM chains_lookup WHERE chain = $chain AND sequence = $sequence"))
+        {
+            Add(command, "$chain", ChainName);
+            Add(command, "$sequence", sequence);
+            using var row = command.ExecuteReader();
+            if (!row.Read())
+            {
+                return null;
+            }
+
+            height = row.IsDBNull(0) ? null : row.GetInt64(0);
+        }
+
+        var transactions = new List<(Txid Txid, long? Height)>();
+        using (var command = reader.CreateCommand(
+            """
+            SELECT txid, block_height FROM chains_bitcoin_seen WHERE chain = $chain AND sequence = $sequence
+            ORDER BY txid
+            """))
+        {
+            Add(command, "$chain", ChainName);
+            Add(command, "$sequence", sequence);
+            using var rows = command.ExecuteReader();
+            while (rows.Read())
+            {
+                transactions.Add((Txid.Parse(rows.GetString(0)), rows.IsDBNull(1) ? null : rows.GetInt64(1)));
+            }
+        }
+
+        return new ResponseIndex(transactions, height);
+    }
+
+    /// <summary>
+    /// Adds a response that was sealed by other means (sealed again from another case) to the indexes, so that the
+    /// lookups find it as they find one they fetched themselves.
+    /// </summary>
+    /// <param name="transaction">The case's write transaction, the one the response was sealed in.</param>
+    /// <param name="kind">What was asked.</param>
+    /// <param name="subject">What it was asked about.</param>
+    /// <param name="sequence">The response's number in this case.</param>
+    /// <param name="index">What it adds.</param>
+    public void Index(ICaseTransaction transaction, string kind, string subject, long sequence, ResponseIndex index) =>
+        AddToIndexes(transaction, kind, subject, sequence, index);
+
     /// <summary>Adds a sealed response to the indexes.</summary>
     /// <param name="transaction">The case's write transaction.</param>
     /// <param name="kind">What was asked.</param>

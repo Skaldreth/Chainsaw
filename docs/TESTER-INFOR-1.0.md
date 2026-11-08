@@ -298,8 +298,18 @@ Jämför med skisserna ID8c och FS1a på canvasen, gärna i 1440 × 900 och i et
 - Slå av reglaget, stäng panelen eller lås med Ctrl+L: lösenordsfälten är tomma när de visas igen.
 - Ärendelösenordet går inte att hitta i en minnesdump efter att ärendet skapats (som för huvudnyckeln).
 - Ett ärendenummer som finns ger *Det finns redan ett ärende med det numret.* och fälten står kvar.
-- NC2a: en tx-rad visar kedjans höjd vid blockikonen; tipset säger *Hämtat vid block N* och *I block M* med hashen.
-  Utan kedjans höjd syns ingen höjd alls (aldrig tx:ens block i dess ställe).
+- NC2a: en tx-rad visar kedjans höjd vid blockikonen; tipset säger *Hämtat vid block N* med **kedjans hash vid den
+  höjden** under, och *I block M* med tx:ens blockhash. Utan kedjans höjd syns ingen höjd alls (aldrig tx:ens block i
+  dess ställe). Jämför hashen med mempool.space eller Etherscan för samma höjd.
+- NC2a Ethereum: en Ethereum-adress visar saldot i ETH (avkortat till fyra decimaler med ≈ när det har fler), USDT och
+  USDC om adressen har några, antal tx och aktivitet. Andra tokens visas inte i raden. Med Blockscout som svarar *Too
+  many requests* ska raden vänta och försöka på nytt, inte säga att källan är trasig.
+- NC2a sanktion: med en importerad SDN-lista har en Ethereum-adress på listan (ETH, eller USDT/USDC på Ethereum)
+  brickan *Sanktionerad*; tipset säger *(listad som USDT)* för en token. Skapa ärendet: adressen får etiketten
+  Sanktionerad med listan som ursprung.
+- NC2a cache: skapa ett ärende med en Bitcoin-tx som startpunkt (djupt i kedjan) och expandera den i grafen direkt:
+  tx:en hämtas inte igen (bara dess bytes och vilka som spenderar den). Journalraden säger *… används som svar där de
+  inte kan ha ändrats*.
 - Klistra in löptext med en SHA-256 i (*Filen har SHA-256 … enligt anteckningen*): ingen rad läggs till och inget
   hämtas; felraden säger att raden inte hämtades. En lista med kommatecken (`adress, adress`) ger en rad var.
 - Skapa ärendet medan en rad hämtar: ärendet skapas först när hämtningen är klar, och journalen räknar alla råsvar.

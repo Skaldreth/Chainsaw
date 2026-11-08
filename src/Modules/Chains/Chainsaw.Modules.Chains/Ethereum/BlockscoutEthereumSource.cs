@@ -208,6 +208,92 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         return _lookups.LookupAsync(@case, TipQuery(), LookupMode.AsNeeded, cancellationToken);
     }
 
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var query = new LookupQuery<ChainTip>(
+            EthereumResponseKinds.TipBlock,
+            string.Empty,
+            BlockscoutApi.NewestBlockPath,
+            BlockscoutParser.ParseNewestBlock,
+            tip => new ResponseIndex([], tip.Height),
+            reader => SourceLookups.StoredAs(
+                _lookups.Store.Latest(reader, EthereumResponseKinds.TipBlock, string.Empty),
+                BlockscoutParser.ParseNewestBlock),
+            _ => null);
+        return _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<BitcoinLookup<EthereumBalance>> GetBalanceAsync(
+        ICase @case, EthereumAddress address, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(address);
+        var ether = await _lookups.LookupAsync(@case, BalanceQuery(address), LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        if (ether.Value is not { } wei)
+        {
+            return Without<EthereumBalance, EtherBalance>(ether);
+        }
+
+        var tokens = await _lookups.LookupAsync(
+            @case, TokenBalancesQuery(address), LookupMode.AsNeeded, cancellationToken).ConfigureAwait(false);
+        var origins = ether.Origins.Concat(tokens.Origins).DistinctBy(origin => origin.Sequence)
+            .OrderBy(origin => origin.Sequence).ToList();
+        var balance = new EthereumBalance(address, new AssetAmount(Asset.Ether, wei.Wei), tokens.Value?.Tokens ?? [])
+        {
+            Skipped = tokens.Value?.Skipped ?? 0,
+            IsComplete = tokens.Value is not null,
+        };
+        if (tokens.Value is null)
+        {
+            var note = $"Adressens tokens kunde inte läsas, så bara dess ether visas. {tokens.Problem}".TrimEnd();
+            return new BitcoinLookup<EthereumBalance>(ether.Status, balance, origins, ether.Problem)
+            {
+                Notes = [.. ether.Notes, .. tokens.Notes, note],
+            };
+        }
+
+        // Either answer taken from the case makes the whole balance one that may be outdated.
+        var outdated = ether.Status == LookupStatus.FromCaseMayBeOutdated
+            || tokens.Status == LookupStatus.FromCaseMayBeOutdated;
+        return new BitcoinLookup<EthereumBalance>(
+            outdated ? LookupStatus.FromCaseMayBeOutdated : ether.Status, balance, origins,
+            ether.Problem ?? tokens.Problem)
+        {
+            Notes = [.. ether.Notes, .. tokens.Notes],
+        };
+    }
+
+    /// <summary>The lookup of an address's ether, which always changes.</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The query.</returns>
+    private LookupQuery<EtherBalance> BalanceQuery(EthereumAddress address) => new(
+        EthereumResponseKinds.Balance,
+        address.Value,
+        "?module=account&action=balance&address=" + address.Value,
+        BlockscoutParser.ParseBalance,
+        _ => ResponseIndex.None,
+        reader => SourceLookups.StoredAs(
+            _lookups.Store.Latest(reader, EthereumResponseKinds.Balance, address.Value), BlockscoutParser.ParseBalance),
+        _ => null);
+
+    /// <summary>The lookup of an address's tokens, which always change.</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The query.</returns>
+    private LookupQuery<TokenBalances> TokenBalancesQuery(EthereumAddress address) => new(
+        EthereumResponseKinds.TokenBalances,
+        address.Value,
+        "?module=account&action=tokenlist&address=" + address.Value,
+        BlockscoutParser.ParseTokenBalances,
+        _ => ResponseIndex.None,
+        reader => SourceLookups.StoredAs(
+            _lookups.Store.Latest(reader, EthereumResponseKinds.TokenBalances, address.Value),
+            BlockscoutParser.ParseTokenBalances),
+        _ => null);
+
     /// <summary>Gives a token Chainsaw knows by its contract, without asking the source.</summary>
     /// <param name="contract">The contract.</param>
     /// <returns>USDT or USDC, or <see langword="null"/>.</returns>
@@ -451,4 +537,13 @@ internal static class EthereumResponseKinds
 
     /// <summary>The chain's height, <c>eth_block_number</c>.</summary>
     public const string TipHeight = "ethereum.tip-height";
+
+    /// <summary>The newest block the source has read, with its hash, <c>v2/blocks?type=block</c>.</summary>
+    public const string TipBlock = "ethereum.tip-block";
+
+    /// <summary>An address's ether, <c>balance</c>.</summary>
+    public const string Balance = "ethereum.balance";
+
+    /// <summary>An address's ERC-20 tokens, <c>tokenlist</c>.</summary>
+    public const string TokenBalances = "ethereum.token-balances";
 }

@@ -95,7 +95,9 @@ public interface IStartPointPrefetch
 
     /// <summary>
     /// Seals every raw response fetched since the last <see cref="Forget"/> in the new case, unchanged and checked
-    /// against its SHA-256, with one line in the journal; nothing when nothing was fetched. Called off the UI thread.
+    /// against its SHA-256, with one line in the journal; nothing when nothing was fetched. A response that answered a
+    /// lookup goes with its index, so that the graph's first expansion takes what cannot have changed (a transaction
+    /// deep in the chain, a block by its hash) from the case instead of fetching it again. Called off the UI thread.
     /// </summary>
     /// <param name="target">The new case.</param>
     /// <returns>How many responses were sealed.</returns>

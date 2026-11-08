@@ -56,9 +56,26 @@ public static class SealedResponses
 }
 
 /// <summary>
+/// What the chains' lookups found in a sealed response where it was first sealed: the chain's height it shows and the
+/// transactions in it with their blocks. It is read from the response by the source that sealed it and holds nothing
+/// the response does not; with it, a response sealed again in another case answers lookups there as it did where it was
+/// fetched (see <see cref="IResponseTransfer.Seal(ICaseTransaction, SealedResponse, SealedResponseIndex)"/>).
+/// </summary>
+/// <param name="Height">The chain's height the response shows, or <see langword="null"/>.</param>
+/// <param name="Transactions">The transactions in it, with their block's height when confirmed.</param>
+public sealed record SealedResponseIndex(long? Height, IReadOnlyList<SealedResponseTransaction> Transactions);
+
+/// <summary>A transaction a sealed response holds.</summary>
+/// <param name="Txid">The transaction's id as the chain writes it.</param>
+/// <param name="BlockHeight">Its block's height, or <see langword="null"/> while unconfirmed.</param>
+public sealed record SealedResponseTransaction(string Txid, long? BlockHeight);
+
+/// <summary>
 /// Moves sealed raw responses from one case to another: reads one with all its values, and seals it again unchanged in
-/// another case, after checking its SHA-256 (principle 1). A response sealed again this way is evidence of what was
-/// fetched; it is not used as a cached answer.
+/// another case, after checking its SHA-256 (principle 1). A response sealed again with <see cref="Seal(ICaseTransaction,
+/// SealedResponse)"/> is evidence of what was fetched and is not used as an answer (the background watching); one
+/// sealed again with its index answers the lookups as a cached answer would, so that what cannot have changed is not
+/// fetched again (Nytt ärende's lookups in advance).
 /// </summary>
 public interface IResponseTransfer
 {
@@ -79,4 +96,30 @@ public interface IResponseTransfer
     /// Its body does not match its SHA-256, or a value is missing or not one the case can hold.
     /// </exception>
     ResponseOrigin Seal(ICaseTransaction transaction, SealedResponse response);
+
+    /// <summary>
+    /// Reads what the lookups found in a sealed response, so that it can answer them in another case too.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="sequence">The response's number.</param>
+    /// <returns>
+    /// The index, or <see langword="null"/> when the response is not an answer the lookups use (an error status or a
+    /// body that did not add up, or one sealed again as evidence only).
+    /// </returns>
+    SealedResponseIndex? ReadIndex(ICaseReader reader, long sequence);
+
+    /// <summary>
+    /// Seals a response in a case, unchanged, as the next record of its raw responses, and lets the lookups use it as
+    /// an answer there: an answer that cannot have changed (a transaction deep in the chain, a block by its hash) is
+    /// then taken from the case without asking, and everything else is asked for again as usual.
+    /// </summary>
+    /// <param name="transaction">The case's write.</param>
+    /// <param name="response">The response.</param>
+    /// <param name="index">What the lookups found in it where it was first sealed (<see cref="ReadIndex"/>).</param>
+    /// <returns>Where it now lies in the case.</returns>
+    /// <exception cref="ArgumentException">
+    /// Its body does not match its SHA-256, a value is missing or not one the case can hold, or a transaction in the
+    /// index is not a transaction id.
+    /// </exception>
+    ResponseOrigin Seal(ICaseTransaction transaction, SealedResponse response, SealedResponseIndex index);
 }

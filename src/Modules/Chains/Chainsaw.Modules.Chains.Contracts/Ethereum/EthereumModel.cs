@@ -195,3 +195,27 @@ public sealed record EthereumAddressPage(
 /// <summary>The height of Ethereum's newest block.</summary>
 /// <param name="Height">The block's number.</param>
 public sealed record EthereumTip(long Height);
+
+/// <summary>
+/// What an Ethereum address held when it was fetched, as the source gave it: its ether from the chain's own ledger,
+/// and its ERC-20 tokens. A token's balance is its contract's claim about its own ledger, which for a contract
+/// Chainsaw does not know (<see cref="KnownTokens"/>) need not be honest, and anyone can send a token to any address
+/// (an airdrop of spam), so a token in the list says nothing about who owns the address.
+/// </summary>
+/// <param name="Address">The address.</param>
+/// <param name="Ether">The ether, in wei.</param>
+/// <param name="Tokens">
+/// The ERC-20 tokens with a balance above zero and decimals Chainsaw can count in, USDT and USDC first and then by
+/// symbol; empty when it holds none or they could not be read (see <see cref="IsComplete"/>).
+/// </param>
+public sealed record EthereumBalance(EthereumAddress Address, AssetAmount Ether, IReadOnlyList<AssetAmount> Tokens)
+{
+    /// <summary>
+    /// Gets how many of the tokens the source listed are not counted: an NFT (ERC-721, ERC-1155), or a token without
+    /// decimals Chainsaw can count in.
+    /// </summary>
+    public int Skipped { get; init; }
+
+    /// <summary>Gets whether the tokens could be read; when not, only the ether is given, and the notes say why.</summary>
+    public bool IsComplete { get; init; } = true;
+}

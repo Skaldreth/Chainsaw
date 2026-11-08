@@ -107,6 +107,21 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     public SanctionMatch? Find(BitcoinAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
+        return Match(list => list.Bitcoin.GetValueOrDefault(address));
+    }
+
+    /// <inheritdoc/>
+    public SanctionMatch? Find(EthereumAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return Match(list => list.Ethereum.GetValueOrDefault(address));
+    }
+
+    /// <summary>Finds hits on the current list, loading it again when another list has become the current one.</summary>
+    /// <param name="hits">Gives the loaded list's entries for the address, or <see langword="null"/>.</param>
+    /// <returns>The match, or <see langword="null"/> when no list is imported.</returns>
+    private SanctionMatch? Match(Func<LoadedList, IReadOnlyList<SanctionedAddress>?> hits)
+    {
         var current = Current;
         if (current is null)
         {
@@ -120,13 +135,13 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
                 _loaded = Load(current);
             }
 
-            return new SanctionMatch(current, _loaded.Bitcoin.GetValueOrDefault(address) ?? []);
+            return new SanctionMatch(current, hits(_loaded) ?? []);
         }
     }
 
     /// <summary>Reads a stored list again and checks it against its hash and date.</summary>
     /// <param name="info">The list.</param>
-    /// <returns>The list, with its Bitcoin addresses by address.</returns>
+    /// <returns>The list, with its Bitcoin and Ethereum addresses by address.</returns>
     /// <exception cref="SanctionListException"><see cref="SanctionListError.Tampered"/>.</exception>
     private LoadedList Load(SanctionListInfo info)
     {
@@ -151,15 +166,25 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
             throw new SanctionListException(SanctionListError.Tampered);
         }
 
-        var bitcoin = parsed.Addresses
-            .Select(address => (Key: OfacSdnParser.BitcoinKey(address), Address: address))
+        return new LoadedList(
+            info, ByKey(parsed, OfacSdnParser.BitcoinKey), ByKey(parsed, OfacSdnParser.EthereumKey));
+    }
+
+    /// <summary>Gathers a list's addresses by the key they are looked up by on one chain.</summary>
+    /// <typeparam name="TKey">The chain's address.</typeparam>
+    /// <param name="parsed">The list.</param>
+    /// <param name="key">Gives an entry's key on the chain, or <see langword="null"/> when it is not for it.</param>
+    /// <returns>The entries by address.</returns>
+    private static Dictionary<TKey, IReadOnlyList<SanctionedAddress>> ByKey<TKey>(
+        ParsedSanctionList parsed, Func<SanctionedAddress, TKey?> key)
+        where TKey : class =>
+        parsed.Addresses
+            .Select(address => (Key: key(address), Address: address))
             .Where(pair => pair.Key is not null)
             .GroupBy(pair => pair.Key!)
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyList<SanctionedAddress>)[.. group.Select(pair => pair.Address)]);
-        return new LoadedList(info, bitcoin);
-    }
 
     /// <summary>Reads a stored list's description.</summary>
     /// <param name="sha">The list's hash.</param>
@@ -245,8 +270,11 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     /// <summary>A list loaded for lookups.</summary>
     /// <param name="Info">The list.</param>
     /// <param name="Bitcoin">Its Bitcoin addresses, by address.</param>
+    /// <param name="Ethereum">Its Ethereum addresses (ether, USDT and USDC), by address.</param>
     private sealed record LoadedList(
-        SanctionListInfo Info, IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<SanctionedAddress>> Bitcoin);
+        SanctionListInfo Info,
+        IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<SanctionedAddress>> Bitcoin,
+        IReadOnlyDictionary<EthereumAddress, IReadOnlyList<SanctionedAddress>> Ethereum);
 
     /// <summary>A stored list's description.</summary>
     /// <param name="PublishDate">The date the list says it was published.</param>

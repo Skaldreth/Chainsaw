@@ -95,6 +95,18 @@ internal static class OfacSdnParser
             ? parsed
             : null;
 
+    /// <summary>
+    /// Gives the key an Ethereum address is looked up by on the list (lower case, as the chain compares it), or none
+    /// when the entry is not for Ethereum or its address is not valid there (a mixed-case address whose EIP-55
+    /// checksum does not match is another address).
+    /// </summary>
+    /// <param name="address">The address as the list writes it.</param>
+    /// <returns>The parsed address, or <see langword="null"/>.</returns>
+    public static EthereumAddress? EthereumKey(SanctionedAddress address) =>
+        SanctionCurrency.OnEthereum.Contains(address.Currency) && EthereumAddress.TryParse(address.Address, out var parsed)
+            ? parsed
+            : null;
+
     /// <summary>Reads the publish date.</summary>
     /// <param name="information">The <c>publshInformation</c> element (the list spells it so).</param>
     /// <returns>The date, or <see langword="null"/> when it is missing or not a date.</returns>
@@ -130,7 +142,7 @@ internal static class OfacSdnParser
             }
 
             var address = new SanctionedAddress(type[CurrencyPrefix.Length..].Trim(), number, uid, name, programs);
-            if (address.Currency == BitcoinCurrency && BitcoinKey(address) is null)
+            if (NeverMatches(address))
             {
                 skipped++;
                 continue;
@@ -141,6 +153,20 @@ internal static class OfacSdnParser
 
         return skipped;
     }
+
+    /// <summary>
+    /// Says whether an address of the list is not valid on the chain its code names, so that it can never match: a
+    /// Bitcoin or ether address that does not parse. A token's address that is not an Ethereum address may be one on
+    /// another chain (USDT on TRON), and is kept.
+    /// </summary>
+    /// <param name="address">The address as the list writes it.</param>
+    /// <returns><see langword="true"/> when it can never match.</returns>
+    private static bool NeverMatches(SanctionedAddress address) => address.Currency switch
+    {
+        BitcoinCurrency => BitcoinKey(address) is null,
+        SanctionCurrency.Ether => EthereumKey(address) is null,
+        _ => false,
+    };
 
     /// <summary>Gives a child element's trimmed text.</summary>
     /// <param name="parent">The parent.</param>

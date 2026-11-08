@@ -65,6 +65,34 @@ public interface IEthereumSource
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The height.</returns>
     Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the newest block the source has read, with its height, hash and time in one answer (always fetched anew),
+    /// so that the height a lookup was made at comes with the hash that names the chain. A source that cannot say
+    /// answers <see cref="LookupStatus.Failed"/> and sends nothing.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The newest block.</returns>
+    Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new BitcoinLookup<ChainTip>(
+            LookupStatus.Failed, null, [], "Källan kan inte säga kedjans hash. Inget skickades."));
+
+    /// <summary>
+    /// Gets what an address holds now: its ether, and the ERC-20 tokens the source says it holds, each with the
+    /// decimals the source gave. A balance always changes, so it is fetched anew (and sealed) every time; offline the
+    /// case answers and says when it was fetched. When the tokens cannot be read the ether is still given, the
+    /// balance says it is not complete, and the notes say why. A source that cannot say answers
+    /// <see cref="LookupStatus.Failed"/> and sends nothing.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The balance.</returns>
+    Task<BitcoinLookup<EthereumBalance>> GetBalanceAsync(
+        ICase @case, EthereumAddress address, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new BitcoinLookup<EthereumBalance>(
+            LookupStatus.Failed, null, [], "Källan kan inte säga adressens saldo. Inget skickades."));
 }
 
 /// <summary>The settings of the Ethereum source.</summary>
