@@ -18,8 +18,11 @@ public sealed class GraphEditorTests
     /// <summary>The clustering.</summary>
     private readonly TestClustering _clustering = new();
 
+    /// <summary>The checks, which take a wallet's approval back with its merge.</summary>
+    private readonly TestCheckService _checks = new();
+
     /// <summary>Gives the editor over the fakes.</summary>
-    private GraphEditor Editor => new(new TestTracing(), _attribution, _clustering, _library);
+    private GraphEditor Editor => new(new TestTracing(), _attribution, _clustering, _library, _checks);
 
     /// <summary>A label taken back is taken in by the library at once, so that its copies are withdrawn.</summary>
     [Fact]
@@ -90,4 +93,88 @@ public sealed class GraphEditorTests
 
         Assert.Equal([1L, 2L], data.Splits.Select(entry => entry.Split.Sequence));
     }
+
+    /// <summary>
+    /// The history reads the user's merges that hold one of the node's addresses, also those undone, each with the
+    /// other merges of the same approval (one journal entry), so that the approval is undone as one.
+    /// </summary>
+    [Fact]
+    public async Task TheHistoryReadsTheUsersMergesOfTheNodeWholeApprovals()
+    {
+        var at = DateTimeOffset.UnixEpoch;
+        var a = GraphSamples.Address(40);
+        var b = GraphSamples.Address(41);
+        var c = GraphSamples.Address(42);
+        var d = GraphSamples.Address(43);
+        Modules.Clustering.Contracts.MergeHistoryEntry Entry(
+            long sequence, BitcoinAddress first, BitcoinAddress other, long journal) =>
+            new(
+                new(sequence, [first, other], GraphSamples.Tx[0], Modules.Clustering.Contracts.UserMerges.Id,
+                    "Grund", null, null, journal, at),
+                null);
+        _clustering.MergeHistory.AddRange([Entry(1, a, b, 5), Entry(2, c, d, 5), Entry(3, c, d, 9)]);
+        var node = GraphSamples.Node("address:a", Modules.Tracing.Contracts.GraphNodeKind.Address, [a], hop: 1);
+
+        var data = await Editor.ReadHistoryAsync(_case, node, CancellationToken.None);
+
+        Assert.Equal([1L, 2L], data.Merges.Select(entry => entry.Merge.Sequence));
+    }
+
+    /// <summary>Undoing a merge goes through the checks, which take the approval back with it.</summary>
+    [Fact]
+    public async Task UndoingAMergeTakesTheApprovalBackThroughTheChecks()
+    {
+        var outcome = await Editor.UndoMergesAsync(_case, [3, 4], "Fel");
+
+        Assert.True(outcome.Done);
+        var (merges, reason) = Assert.Single(_checks.TakenBack);
+        Assert.Equal([3L, 4L], merges);
+        Assert.Equal("Fel", reason);
+
+        _checks.Answer = 0;
+        Assert.False((await Editor.UndoMergesAsync(_case, [3], null)).Done);
+    }
+}
+
+/// <summary>A Checks module that only answers what undoing merges takes back.</summary>
+internal sealed class TestCheckService : Modules.Checks.Contracts.ICheckService
+{
+    /// <summary>Gets the merges asked to be undone, with the reason.</summary>
+    public List<(long[] Merges, string? Reason)> TakenBack { get; } = [];
+
+    /// <summary>Gets or sets how many merges are said to be undone.</summary>
+    public int Answer { get; set; } = 1;
+
+    public IReadOnlyList<Modules.Clustering.Contracts.HeuristicId> Analyses => [];
+
+    public Modules.Checks.Contracts.CheckRun Run(
+        Modules.Cases.Contracts.ICase @case, Modules.Tracing.Contracts.TraceGraph graph) =>
+        throw new NotSupportedException();
+
+    public Modules.Checks.Contracts.CheckDecision Decide(
+        Modules.Cases.Contracts.ICase @case, Modules.Checks.Contracts.DecisionRequest request) =>
+        throw new NotSupportedException();
+
+    public IReadOnlyList<Modules.Checks.Contracts.CheckDecision> DecideAll(
+        Modules.Cases.Contracts.ICase @case, IReadOnlyList<Modules.Checks.Contracts.DecisionRequest> requests) =>
+        throw new NotSupportedException();
+
+    public int TakeBackMerges(
+        Modules.Cases.Contracts.ICase @case, IReadOnlyCollection<long> mergeSequences, string? reason)
+    {
+        TakenBack.Add(([.. mergeSequences], reason));
+        return Answer;
+    }
+
+    public IReadOnlyList<Modules.Checks.Contracts.OwnArea> GetAreas(Modules.Cases.Contracts.ICase @case) => [];
+
+    public Modules.Checks.Contracts.OwnArea AddArea(
+        Modules.Cases.Contracts.ICase @case, Modules.Checks.Contracts.OwnAreaDraft draft) =>
+        throw new NotSupportedException();
+
+    public Modules.Checks.Contracts.OwnArea? RenameArea(Modules.Cases.Contracts.ICase @case, string id, string name) =>
+        throw new NotSupportedException();
+
+    public bool RemoveArea(Modules.Cases.Contracts.ICase @case, string id, string? reason) =>
+        throw new NotSupportedException();
 }

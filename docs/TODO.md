@@ -95,9 +95,6 @@ fungerar rättas före allt annat nedan. Särskilt:
   placeras efter samma bredd.
 
 **Soptunnan och startvyn (SO1a, GR8a)**
-- **Det som ännu inte går att slänga** [etapp]:
-  - Kommentarsnoder och egna ytor. Delete tar i dag bort en lapp förseglat direkt, utan soptunna.
-  - En hel hög i startvyn, och ett ärende som ligger i en hög.
 - **Grafens samlingsnod trycks inte ut** [direkt]: stöten och centreringen är som startvyns, men ytan bakom trycks
   inte ut lite som i `FanOutLayer` (grafen ritas i en `DrawingContext`, så det kräver en egen skalning av det dimmade).
 
@@ -109,12 +106,6 @@ fungerar rättas före allt annat nedan. Särskilt:
 - **Linjerna efter en tx som inte finns** [direkt]: märket blir rött och beloppet överstruket, men linjen och
   aktörerna efter den streckas inte som i skissen, eftersom Tracing fortfarande läser det sparade svaret.
 - **Testärendet** [direkt]: `/testdata` har inget bytt block; den påhittade kedjan svarar alltid likadant.
-- **En endpoint ett block efter** kan svara att en tx är obekräftad fast den ligger i det nyaste blocket. Det visas
-  som *Tillbaka i mempool* tills nästa svar.
-
-**Kommentarsnoden (KN1a)**
-- **Historiken** [etapp]: lappens förseglade poster syns inte i inspektörens *Historik* (AN1b), och en borttagen lapp
-  kan inte läggas tillbaka.
 
 **Inspektören, Nytt ärende och Guiden**
 - **Källors felrad till toastern** [direkt], som Bevakningens felrad redan är.
@@ -149,8 +140,11 @@ fungerar rättas före allt annat nedan. Särskilt:
    - Arbetskopian har allt och tas tillbaka efter en krasch, så inget går förlorat, men `.cut` är då inte färsk.
    - Förslag: en varning i toastern (TO1a) när sparningen misslyckats några gånger i rad, och *Försök igen*. Kräver en
      händelse på `ICase` som appen lyssnar på.
-4. **Godkänna en plånbok** [etapp]: en sammanslagning gjord av användaren (`user v1`, förseglad med vem och varför),
-    så att plånböckernas förslag (`wallet-proposals v1`) kan godkännas.
+4. **Godkänna en plånbok, resterna** [direkt]:
+   - Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås ihop igen; det gör bara *Historik*.
+     Behöver en liten skiss.
+   - Ett förslag som ändrats sedan det förseglades ger det allmänna felet; det borde säga att kontrollerna behöver
+     köras igen.
 
 ### 4. Valt 2026-11-08 och ska byggas
 
@@ -162,7 +156,8 @@ Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md
 - **Inställningarna** [direkt]: BV4a meddelandet mitt på skärmen, ST2a återställningsnyckeln, FS2a steget Utgång
   (Windows förvalt) och UT3b utgångarna med kontrollen.
 - **Ärendet ÄR1b** [etapp]: kollegans fil, egenskaperna med kuverten och konflikten med arbetskopian.
-- **Sökningen KR1a** [direkt].
+- **Sökningen, resterna efter KR1a** [direkt]: det slängda i soptunnan söks inte (raden kunde säga *I soptunnan* med
+  *Lägg tillbaka*), och en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret.
 
 ## Före tjänstebruk
 

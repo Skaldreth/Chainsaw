@@ -132,7 +132,7 @@ public sealed partial class GraphCanvas
     /// <returns>The ends, or <see langword="null"/> when the note has no thread to a drawn node.</returns>
     private (GraphPoint AtNote, GraphPoint AtNode)? ThreadOf(CommentNote note)
     {
-        if (_commentLayer is null || note.AnchorNode is not { } node || _model is null
+        if (_commentLayer is null || note.IsInTrash || note.AnchorNode is not { } node || _model is null
             || !_model.Places.TryGetValue(node, out var place))
         {
             return null;
@@ -140,6 +140,15 @@ public sealed partial class GraphCanvas
 
         return CommentGeometry.Thread(_commentLayer.FrameOf(note), _model.FrameAt(node, place));
     }
+
+    /// <summary>Tells the page where a dragged note is, so that the bin grows as it comes near (sketch SO1a).</summary>
+    /// <param name="at">The pointer, in this control's coordinates.</param>
+    internal void NoteDraggedAt(Point at) => NodeDragged?.Invoke(this, at);
+
+    /// <summary>Ends a note's drag: on the bin it is thrown (sketch SO1a), elsewhere it stays where it was let go.</summary>
+    /// <param name="note">The note.</param>
+    /// <returns><see langword="true"/> when it was thrown, so that its place is not stored.</returns>
+    internal bool DropNoteOnBin(CommentNote note) => _model?.DropNoteOnBin(note) == true;
 
     /// <summary>Makes the thread's dotted pen, with the dots measured in pixels on the screen.</summary>
     /// <param name="brush">The thread's colour.</param>
@@ -182,7 +191,8 @@ public sealed partial class GraphCanvas
                 _model.BeginComment(PointerOnSurface());
                 break;
             case Key.Delete when comments.Selected is { IsEditing: false } chosen:
-                _ = comments.RemoveAsync(chosen);
+                // Thrown in the trash (sketch SO1a), from where it is put back; never removed.
+                _ = comments.ThrowAsync(chosen);
                 break;
             case Key.Escape when comments.Selected is not null && !_model.Checks.IsOpen:
                 comments.Select(null);

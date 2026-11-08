@@ -512,6 +512,35 @@ public sealed partial class GraphSceneTests
         Assert.Equal(GuideTopic.CommonInputOwnership, why[1].Topic);
     }
 
+    /// <summary>A cluster that a merge of the user's holds says so: the user's judgement, not a fact.</summary>
+    [Fact]
+    public void ClusterSaysWhenTheUsersJudgementHoldsIt()
+    {
+        var user = new ClusterEvidence(
+            1, UserMerges.Id, GraphSamples.Tx[2], [GraphSamples.K1, GraphSamples.K2], EvidenceStrength.Merge,
+            "Användaren godkände förslaget.", null, null, 1, DateTimeOffset.UnixEpoch);
+        var heuristic = user with { Heuristic = new HeuristicId(HeuristicNames.CommonInputOwnership, 1) };
+        Cluster Of(params ClusterEvidence[] links) => new(
+            GraphSamples.K1,
+            [new ClusterMember(GraphSamples.K1, null, null)],
+            [.. links.Select(evidence => new ClusterLink(evidence, LinkState.Merged))],
+            [],
+            [],
+            []);
+
+        Assert.EndsWith(
+            "enligt användarens bedömning samma ägare.",
+            GraphSource.Explain(Of(user))[0].Text,
+            StringComparison.Ordinal);
+        Assert.EndsWith(
+            "enligt heuristikerna och användarens bedömning samma ägare.",
+            GraphSource.Explain(Of(heuristic, user))[0].Text,
+            StringComparison.Ordinal);
+        Assert.Equal(3, GraphSource.Explain(Of(heuristic, user)).Count);
+        Assert.EndsWith(
+            "enligt heuristikerna samma ägare.", GraphSource.Explain(Of(heuristic))[0].Text, StringComparison.Ordinal);
+    }
+
     /// <summary>A whole expansion is expanded only when every lookup was, and not expanded only when none was.</summary>
     [Fact]
     public void ExpansionOutcomesCombine()

@@ -40,7 +40,7 @@ public sealed class StartPointInput
         if (!startPoint.IsRecognised)
         {
             return CommandReply.Failed(
-                "Sökning är inte byggd än. Skriv en adress eller en tx, eller /help för kommandona.");
+                "Inget i ärendet eller Guiden matchar. Skriv en adress eller en tx, eller /help för kommandona.");
         }
 
         if (!startPoint.IsSupported)

@@ -437,6 +437,24 @@ public sealed class GraphSource(
             : ExpansionOutcome.Partly;
     }
 
+    /// <summary>
+    /// Says who merged a cluster, as its explanation writes it: the heuristics, and the user's judgement when a merge
+    /// of the user's own (<c>user v1</c>) holds it together.
+    /// </summary>
+    /// <param name="cluster">The cluster.</param>
+    /// <returns>For example <c>heuristikerna och användarens bedömning</c>.</returns>
+    private static string WhoMerged(Cluster cluster)
+    {
+        var users = cluster.Links.Any(link => link.Evidence.Heuristic.Name == UserMerges.Name);
+        var heuristics = cluster.Links.Any(link => link.Evidence.Heuristic.Name != UserMerges.Name);
+        return (users, heuristics) switch
+        {
+            (true, true) => "heuristikerna och användarens bedömning",
+            (true, false) => "användarens bedömning",
+            _ => "heuristikerna",
+        };
+    }
+
     /// <summary>Explains a cluster: that it is a conclusion, and each link that merged it.</summary>
     /// <param name="cluster">The cluster.</param>
     /// <returns>The answers.</returns>
@@ -448,10 +466,10 @@ public sealed class GraphSource(
             new(
                 "Klustret är klustringens slutsats, inte ett faktum: "
                 + cluster.Members.Count.ToString(CultureInfo.InvariantCulture)
-                + " adresser i ärendet har enligt heuristikerna samma ägare.",
+                + " adresser i ärendet har enligt " + WhoMerged(cluster) + " samma ägare.",
                 null),
         };
-        var links = cluster.Links.DistinctBy(link => link.Evidence.Sequence).ToList();
+        var links = cluster.Links.DistinctBy(link => (link.Evidence.Heuristic.Name, link.Evidence.Sequence)).ToList();
         foreach (var link in links.Take(MostClusterLinks))
         {
             var evidence = link.Evidence;

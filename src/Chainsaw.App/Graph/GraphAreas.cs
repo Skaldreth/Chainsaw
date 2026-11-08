@@ -62,6 +62,18 @@ public static class GraphAreas
     /// <summary>The fewest actors a time area holds, so that it says more than one line does.</summary>
     public const int FewestInTime = 3;
 
+    /// <summary>The start of an own area's key, before its id.</summary>
+    public const string OwnKeyPrefix = "own:";
+
+    /// <summary>Gives an own area's key, which its chip and the trash share.</summary>
+    /// <param name="id">The area's id.</param>
+    /// <returns>For example <c>own:4a5e…</c>.</returns>
+    public static string OwnKey(string id)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        return OwnKeyPrefix + id;
+    }
+
     /// <summary>Gives a check's key, which the list and the areas share.</summary>
     /// <param name="check">The check.</param>
     /// <returns>For example <c>mixer-outputs v1/4a5e…:0</c>.</returns>
@@ -203,9 +215,17 @@ public static class GraphAreas
     /// <summary>Gives an own area, around the actors that hold its members now.</summary>
     /// <param name="scene">The graph.</param>
     /// <param name="area">The own area.</param>
-    /// <returns>The area, or <see langword="null"/> when none of its actors is in the graph.</returns>
+    /// <returns>
+    /// The area, or <see langword="null"/> when none of its actors is in the graph or it lies in the trash (sketch
+    /// SO1a), where it is only hidden.
+    /// </returns>
     private static AreaView? OfOwn(GraphScene scene, OwnArea area)
     {
+        if (scene.Trash.Hides(OwnKey(area.Id)))
+        {
+            return null;
+        }
+
         var addresses = new List<BitcoinAddress>();
         var txids = new List<Txid>();
         foreach (var member in area.Members)
@@ -226,7 +246,7 @@ public static class GraphAreas
         return nodes.Count == 0
             ? null
             : new AreaView(
-                "own:" + area.Id,
+                OwnKey(area.Id),
                 area.Sort,
                 new AreaLook(AreaLooks.AreaIcon, area.Tint),
                 nodes,

@@ -22,7 +22,8 @@ internal sealed class TestGraphComments : IGraphComments
 
     public List<(string Id, string? Anchor)> Anchored { get; } = [];
 
-    public List<string> Removed { get; } = [];
+    /// <summary>The sealed records each comment's history reads, by its id.</summary>
+    public Dictionary<string, List<GraphCommentRecord>> History { get; } = new(StringComparer.Ordinal);
 
     public List<(string Id, NodePosition Place, CommentSize? Size)> Placed { get; } = [];
 
@@ -90,11 +91,9 @@ internal sealed class TestGraphComments : IGraphComments
         return Task.FromResult(Change(id, comment => comment with { Anchor = anchor }));
     }
 
-    public Task<bool> RemoveAsync(ICase @case, string id)
-    {
-        Removed.Add(id);
-        return Task.FromResult(_comments.Remove(id));
-    }
+    public Task<IReadOnlyList<GraphCommentRecord>> HistoryAsync(
+        ICase @case, string id, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<GraphCommentRecord>>([.. History.GetValueOrDefault(id) ?? []]);
 
     public Task<bool> SavePlaceAsync(ICase @case, string id, NodePosition place, CommentSize? size)
     {
@@ -133,6 +132,8 @@ public sealed class CommentTests
 {
     private readonly TestGraphComments _comments = new();
 
+    private readonly TestTrashSource _trash = new();
+
     private readonly CaseSession _session = new();
 
     private readonly List<ToastRequest> _toasts = [];
@@ -143,7 +144,7 @@ public sealed class CommentTests
             new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), _session);
         var graph = new GraphViewModel(
             _session, workflow, new TestGraphSource(), TestWays.For(new TestExitConnection()), new InlineUi(),
-            new TestGraphEditor(), new TestClock(), comments: _comments);
+            new TestGraphEditor(), new TestClock(), comments: _comments, trash: _trash);
         graph.ToastWanted += (_, toast) => _toasts.Add(toast);
         _session.Open(new TestCase("2026-0042"));
         await graph.ReloadAsync(fit: false);
@@ -254,9 +255,9 @@ public sealed class CommentTests
     }
 
     [Fact]
-    public async Task An_emptied_note_is_removed_and_its_text_kept_in_the_case()
+    public async Task An_emptied_note_is_thrown_in_the_trash_with_what_it_said_and_hidden()
     {
-        var seeded = _comments.Seed("Bort");
+        var seeded = _comments.Seed("## Bort\nmed mer");
         var graph = await Graph();
         var note = Assert.Single(graph.Comments.Notes);
 
@@ -264,8 +265,14 @@ public sealed class CommentTests
         note.Writing = string.Empty;
         await graph.Comments.LeaveAsync(note);
 
-        Assert.Equal(seeded.Id, Assert.Single(_comments.Removed));
-        Assert.Empty(graph.Comments.Notes);
+        var member = Assert.Single(Assert.Single(_trash.Thrown));
+        Assert.Equal(TrashKeys.OfComment(seeded.Id), member.Key);
+        Assert.Equal("Bort", member.Name);
+        Assert.Equal(TrashKeys.CommentSort, member.Sort);
+        Assert.Empty(_comments.Edited);
+        Assert.True(note.IsInTrash);
+        Assert.Equal(seeded.Text, note.Writing);
+        Assert.Equal(seeded.Text, _comments.Stored.Single().Text);
     }
 
     [Fact]
@@ -339,17 +346,20 @@ public sealed class CommentTests
     }
 
     [Fact]
-    public async Task A_removed_note_leaves_the_surface_and_a_draft_is_only_dropped()
+    public async Task A_thrown_note_is_hidden_in_the_trash_and_a_draft_is_only_dropped()
     {
         var seeded = _comments.Seed("Bort");
         var graph = await Graph();
         var draft = graph.BeginLooseComment(default)!;
 
-        await graph.Comments.RemoveAsync(draft);
-        await graph.Comments.RemoveAsync(graph.Comments.Notes.Single());
+        await graph.Comments.ThrowAsync(draft);
+        var note = graph.Comments.Notes.Single();
+        await graph.Comments.ThrowAsync(note);
 
-        Assert.Equal([seeded.Id], _comments.Removed);
-        Assert.Empty(graph.Comments.Notes);
+        Assert.Equal(TrashKeys.OfComment(seeded.Id), Assert.Single(Assert.Single(_trash.Thrown)).Key);
+        Assert.Same(note, Assert.Single(graph.Comments.Notes));
+        Assert.True(note.IsInTrash);
+        Assert.Single(_comments.Stored);
     }
 
     [Fact]
@@ -420,6 +430,8 @@ public sealed class CommentWriteTests
 {
     private readonly TestGraphComments _comments = new();
 
+    private readonly TestTrashSource _trash = new();
+
     private readonly CaseSession _session = new();
 
     private readonly List<ToastRequest> _toasts = [];
@@ -430,7 +442,7 @@ public sealed class CommentWriteTests
             new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), _session);
         var graph = new GraphViewModel(
             _session, workflow, new TestGraphSource(), TestWays.For(new TestExitConnection()), new InlineUi(),
-            new TestGraphEditor(), new TestClock(), comments: _comments);
+            new TestGraphEditor(), new TestClock(), comments: _comments, trash: _trash);
         graph.ToastWanted += (_, toast) => _toasts.Add(toast);
         _session.Open(new TestCase("2026-0043"));
         await graph.ReloadAsync(fit: false);

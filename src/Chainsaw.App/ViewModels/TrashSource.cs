@@ -24,6 +24,13 @@ public interface ITrashSource
     /// <param name="key">The member, or <see langword="null"/> for the whole throw.</param>
     /// <returns>What was put back.</returns>
     Task<IReadOnlyList<TrashMember>> RestoreAsync(ICase @case, long throwSequence, string? key);
+
+    /// <summary>Reads every throw and putting back of one thing, for its history (sketch AN1b).</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="key">The thing's key in the trash.</param>
+    /// <param name="cancellationToken">Stops the work before it starts.</param>
+    /// <returns>The records, oldest first.</returns>
+    Task<IReadOnlyList<TrashRecord>> HistoryAsync(ICase @case, string key, CancellationToken cancellationToken);
 }
 
 /// <summary>The trash through the Tracing module, each call off the UI thread.</summary>
@@ -41,4 +48,9 @@ public sealed class TrashSource(IGraphTrash trash) : ITrashSource
     /// <inheritdoc/>
     public Task<IReadOnlyList<TrashMember>> RestoreAsync(ICase @case, long throwSequence, string? key) =>
         Task.Run(() => trash.Restore(@case, throwSequence, key));
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<TrashRecord>> HistoryAsync(
+        ICase @case, string key, CancellationToken cancellationToken) =>
+        Task.Run(() => trash.GetHistory(@case, key), cancellationToken);
 }

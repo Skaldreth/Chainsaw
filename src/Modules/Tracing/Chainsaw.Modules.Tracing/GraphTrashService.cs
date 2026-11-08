@@ -88,6 +88,49 @@ internal sealed class GraphTrashService : IGraphTrash
         });
     }
 
+    /// <inheritdoc/>
+    public IReadOnlyList<TrashRecord> GetHistory(ICase @case, string key)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentException.ThrowIfNullOrEmpty(key);
+        return @case.Read(reader => History(reader, key));
+    }
+
+    /// <summary>Reads the records that threw or put back one key, oldest first.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="key">The key.</param>
+    /// <returns>The records.</returns>
+    private static List<TrashRecord> History(ICaseReader reader, string key)
+    {
+        using var command = reader.CreateCommand(
+            "SELECT sequence, action, throw_sequence, members, operator, journal_sequence, recorded_utc "
+            + "FROM tracing_trash ORDER BY sequence");
+        using var rows = command.ExecuteReader();
+        var records = new List<TrashRecord>();
+        while (rows.Read())
+        {
+            var restore = rows.GetString(1) == RestoreAction;
+            var keys = restore
+                ? JsonSerializer.Deserialize<List<string>>(rows.GetString(3), Json) ?? []
+                : (JsonSerializer.Deserialize<List<StoredMember>>(rows.GetString(3), Json) ?? [])
+                    .Select(member => member.Key).ToList();
+            if (!keys.Contains(key, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            records.Add(new TrashRecord(
+                rows.GetInt64(0),
+                restore ? TrashAction.Restored : TrashAction.Thrown,
+                restore ? rows.GetInt64(2) : rows.GetInt64(0),
+                JsonSerializer.Deserialize<OperatorProfile>(rows.GetString(4))!,
+                DateTimeOffset.Parse(rows.GetString(6), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+                rows.GetInt64(5)));
+        }
+
+        return records;
+    }
+
     /// <summary>
     /// Checks that members make a throw's tree: at least one, the first a root, each key once, each parent earlier, and
     /// a name and a sort on each.

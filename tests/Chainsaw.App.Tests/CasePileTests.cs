@@ -280,7 +280,7 @@ public sealed class CasePileTests
 
         Assert.True(rig.Start.IsPileOpen);
         Assert.Equal(["2026-0124", "2026-0129", "2026-0131"], rig.Start.OpenCards.Select(card => card.CaseNumber));
-        Assert.Equal("2 valda · dra ut dem tillsammans", rig.Start.FanHint);
+        Assert.Equal("2 valda · dra ut dem tillsammans · Delete slänger", rig.Start.FanHint);
         Assert.Equal(["2026-0131", "2026-0129"], rig.Start.CardsToDrag("2026-0131"));
         Assert.Equal(["2026-0124"], rig.Start.CardsToDrag("2026-0124"));
     }

@@ -44,6 +44,7 @@
     <Compile Include="..\..\src\Chainsaw.App\Graph\*.cs" Link="Graph\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Exits\*.cs" Link="Exits\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Guide\*.cs" Link="Guide\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Search\*.cs" Link="Search\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Motion\*.cs" Link="Motion\%(Filename)%(Extension)" />
   </ItemGroup>
   <!-- The Guide's texts, built in as in the program, so that the tests read what the program shows. -->
