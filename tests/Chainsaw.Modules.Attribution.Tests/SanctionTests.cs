@@ -187,6 +187,19 @@ public sealed class SanctionTests : IDisposable
     }
 
     [Fact]
+    public void A_list_dated_after_today_is_refused_so_it_cannot_shadow_later_lists()
+    {
+        // The clock says 2026-11-07; a day's slack is allowed for time zones.
+        _harness.Sanctions.Import(new SdnFile("11/08/2026").Xbt("1", "A", Wpkh("slack").Value).Stream());
+
+        var exception = Assert.Throws<SanctionListException>(() =>
+            _harness.Sanctions.Import(new SdnFile("01/01/2099").Xbt("1", "A", Wpkh("future").Value).Stream()));
+
+        Assert.Equal(SanctionListError.FutureDate, exception.Error);
+        Assert.Equal(new DateOnly(2026, 11, 8), _harness.Sanctions.Current?.PublishDate);
+    }
+
+    [Fact]
     public void A_list_with_a_dtd_is_refused()
     {
         const string xml = """

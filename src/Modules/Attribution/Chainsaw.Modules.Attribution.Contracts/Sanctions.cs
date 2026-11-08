@@ -19,7 +19,9 @@ public interface ISanctionLists
     /// </summary>
     /// <param name="content">The file's content.</param>
     /// <returns>What the list holds.</returns>
-    /// <exception cref="SanctionListException">The file is not an SDN list Chainsaw can read.</exception>
+    /// <exception cref="SanctionListException">
+    /// The file is not an SDN list Chainsaw can read, or it says it was published after today.
+    /// </exception>
     SanctionListInfo Import(Stream content);
 
     /// <summary>Lists the imported lists, the newest publish date first.</summary>
@@ -123,6 +125,12 @@ public enum SanctionListError
 
     /// <summary>A stored list no longer has the hash it was imported with.</summary>
     Tampered,
+
+    /// <summary>
+    /// The list says it was published after today; as the newest list it would stand in for every list imported
+    /// later, so it is refused.
+    /// </summary>
+    FutureDate,
 }
 
 /// <summary>A sanction list could not be imported or read. The message never contains the list's content.</summary>
@@ -157,6 +165,7 @@ public sealed class SanctionListException : Exception
         SanctionListError.NoPublishDate => "The list does not state its publish date.",
         SanctionListError.TooLarge => "The file is too large to be a sanction list.",
         SanctionListError.Tampered => "A stored sanction list no longer has its hash.",
+        SanctionListError.FutureDate => "The list says it was published after today.",
         _ => "The sanction list could not be read.",
     };
 }

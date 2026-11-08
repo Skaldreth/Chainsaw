@@ -893,9 +893,11 @@ public sealed partial class ChecksViewModel : ObservableObject
             if (version == _version)
             {
                 // No operator profile, a closed case or a failure: the graph is shown all the same, honestly without
-                // checks (principle 9).
+                // checks (principle 9): the former run's are dropped, since they were made on another graph.
+                _checks = [];
                 StatusText = RunFailedText;
                 Problem = RunFailedText;
+                Rebuild();
             }
         }
     }

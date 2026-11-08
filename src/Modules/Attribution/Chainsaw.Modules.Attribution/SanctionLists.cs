@@ -49,6 +49,14 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
         ArgumentNullException.ThrowIfNull(content);
         var bytes = ReadAll(content);
         var parsed = OfacSdnParser.Parse(bytes);
+
+        // The newest list is the one used, so a date after today (a day's slack for time zones) would shadow
+        // every list imported later.
+        if (parsed.PublishDate > DateOnly.FromDateTime(clock.UtcNow.UtcDateTime).AddDays(1))
+        {
+            throw new SanctionListException(SanctionListError.FutureDate);
+        }
+
         var sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
         lock (_gate)
         {

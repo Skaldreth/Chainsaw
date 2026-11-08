@@ -215,6 +215,28 @@ public sealed class InspectorFormsTests
         LinkState.Merged);
 
     /// <summary>
+    /// The split form's list of a cluster's addresses is virtualized in a bounded box, so that an exchange's cluster
+    /// with thousands of addresses never builds a row for each (principle 6).
+    /// </summary>
+    [Fact]
+    public void MemberListIsVirtualized()
+    {
+        var path = Path.Combine(GraphSceneTests.Root(), "src", "Chainsaw.App", "Views", "InspectorFormsView.xaml");
+        var document = System.Xml.Linq.XDocument.Load(path);
+        System.Xml.Linq.XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var list = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "MemberList");
+
+        Assert.NotNull(list.Attribute("MaxHeight"));
+        Assert.Equal("True", (string?)list.Attribute("VirtualizingPanel.IsVirtualizing"));
+        Assert.Contains(list.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel");
+        Assert.Contains(
+            list.Descendants(),
+            element => element.Name.LocalName == "ScrollViewer"
+                && (string?)element.Attribute("CanContentScroll") == "True");
+    }
+
+    /// <summary>
     /// The three buttons follow the chosen node: a label on an actor, a split on a cluster, a link on coins.
     /// </summary>
     [Fact]

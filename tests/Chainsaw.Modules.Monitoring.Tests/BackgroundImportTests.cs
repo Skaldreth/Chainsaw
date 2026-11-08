@@ -249,6 +249,78 @@ public sealed class BackgroundImportTests : IDisposable
         Assert.True(File.Exists(path + ".broken"));
     }
 
+    [Theory]
+    [InlineData("null-tx")]
+    [InlineData("null-hash")]
+    [InlineData("negative")]
+    [InlineData("both")]
+    [InlineData("asset")]
+    [InlineData("status")]
+    public async Task A_hostile_entry_is_set_aside_and_the_others_come_in(string defect)
+    {
+        var watch = await StartedWatch();
+        var good = Hit(watch, 900_003);
+        var match = good.Matches[0];
+        var bad = (good with { Id = Guid.NewGuid(), Utc = Seen.AddMinutes(-5) }) switch
+        {
+            var entry when defect == "null-tx" => entry with { Matches = [match with { Transaction = null! }] },
+            var entry when defect == "null-hash" =>
+                entry with { Matches = [match with { Block = match.Block with { Hash = null! } }] },
+            var entry when defect == "negative" =>
+                entry with { Matches = [match with { Amount = AssetAmount.Of(new Satoshi(0)) - match.Amount }] },
+            var entry when defect == "both" => entry with { Matches = [match with { Direction = WatchDirection.Both }] },
+            var entry when defect == "asset" => entry with
+            {
+                Matches = [match with { Amount = new AssetAmount(Asset.Ether, match.Amount.Units) }],
+            },
+            var entry => entry with { Checked = good.Checked! with { Status = (WatchFeedStatus)9 } },
+        };
+        Queue.Add(good);
+        Queue.Add(bad);
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Equal(1, result.Entries);
+        Assert.Single(result.Hits);
+        Assert.Equal([BackgroundWatches.UnreadableText], result.Problems);
+        Assert.Empty(Queue.List(CaseId));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Theory]
+    [InlineData("Responses")]
+    [InlineData("Origins")]
+    public async Task An_entry_without_its_lists_cannot_be_read(string list)
+    {
+        var watch = await StartedWatch();
+        var json = System.Text.Json.Nodes.JsonNode.Parse(BackgroundCodec.Encode(Hit(watch, 900_003)))!;
+        json[list] = null;
+
+        Assert.Throws<InvalidDataException>(
+            () => BackgroundCodec.DecodeEntry(System.Text.Encoding.UTF8.GetBytes(json.ToJsonString())));
+    }
+
+    [Theory]
+    [InlineData(WatchDirection.In, "only")]
+    [InlineData(WatchDirection.Out, "other")]
+    public async Task A_match_the_watch_s_filter_could_not_give_is_set_aside(WatchDirection direction, string party)
+    {
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("w"), WatchDirection.Out, receivers: [Synthetic.Btc("only")]);
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_000);
+        watch = _harness.Service.GetWatches(_harness.Case).Single();
+        var entry = Hit(watch, 900_003);
+        Queue.Add(entry with
+        {
+            Matches = [entry.Matches[0] with { Direction = direction, Counterparties = [Synthetic.Btc(party)] }],
+        });
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Equal(0, result.Entries);
+        Assert.Empty(_harness.Service.GetHits(_harness.Case));
+        Assert.Equal([BackgroundWatches.UnreadableText], result.Problems);
+    }
+
     [Fact]
     public void Another_case_s_entries_stay_in_the_queue()
     {

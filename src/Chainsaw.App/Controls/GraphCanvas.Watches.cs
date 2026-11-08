@@ -299,6 +299,12 @@ public sealed partial class GraphCanvas
     /// <param name="e">The arguments.</param>
     private void OnRingFrame(object? sender, EventArgs e)
     {
+        // A minimised window stays visible to WPF; nothing is drawn for it, as for the lock screen's figure.
+        if (Window.GetWindow(this) is { WindowState: WindowState.Minimized })
+        {
+            return;
+        }
+
         _ringPhase = (DateTime.UtcNow - _ringStart).TotalMilliseconds / RingBeat.TotalMilliseconds % 1;
         InvalidateVisual();
     }

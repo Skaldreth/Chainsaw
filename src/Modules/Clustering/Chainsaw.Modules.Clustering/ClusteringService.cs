@@ -662,8 +662,9 @@ internal sealed class ClusteringService : IClusteringService
             .All(known.Contains);
 
     /// <summary>
-    /// Decides whether a new result is stored: when nothing is stored it must conclude something; when something is
-    /// stored it must differ.
+    /// Decides whether a new result is stored: when nothing is stored for its version it must conclude something, or
+    /// replace what an older version concluded (which would otherwise still count); when something is stored it must
+    /// differ.
     /// </summary>
     /// <param name="result">The new result.</param>
     /// <param name="fingerprint">Its fingerprint.</param>
@@ -672,9 +673,12 @@ internal sealed class ClusteringService : IClusteringService
     private static bool Replaces(
         WeighedResult result, string fingerprint, Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest)
     {
-        if (!latest.TryGetValue((result.Result.Txid, result.Result.Heuristic), out var stored))
+        var (txid, heuristic) = (result.Result.Txid, result.Result.Heuristic);
+        if (!latest.TryGetValue((txid, heuristic), out var stored))
         {
-            return result.Proposals.Count > 0 || result.Result.Findings.Count > 0;
+            return result.Proposals.Count > 0 || result.Result.Findings.Count > 0
+                || latest.Keys.Any(key => key.Txid == txid && key.Heuristic.Name == heuristic.Name
+                    && key.Heuristic.Version < heuristic.Version);
         }
 
         return stored.Fingerprint != fingerprint;
