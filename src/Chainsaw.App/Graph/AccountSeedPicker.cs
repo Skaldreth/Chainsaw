@@ -57,10 +57,10 @@ public static class AccountSeedPicker
     /// <param name="transfers">The graph's movements.</param>
     /// <param name="seed">The movement.</param>
     /// <returns>The earliest arrival at each account it reaches, in chain order.</returns>
-    private static Dictionary<EthereumAddress, (long, string, long, int)> Arrival(
+    private static Dictionary<EthereumAddress, (long, long, string, long, int)> Arrival(
         IReadOnlyList<EthereumTransfer> transfers, EthereumTransfer seed)
     {
-        var arrival = new Dictionary<EthereumAddress, (long, string, long, int)>
+        var arrival = new Dictionary<EthereumAddress, (long, long, string, long, int)>
         {
             [seed.To] = AccountGraph.ChainOrder(seed),
         };

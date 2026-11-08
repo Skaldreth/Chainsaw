@@ -132,6 +132,22 @@ public sealed class AreaTests
     }
 
     [Fact]
+    public void An_own_area_holds_ethereum_accounts_and_is_drawn_around_them()
+    {
+        var scene = EthSamples.Scene();
+        var keys = new[] { EthSamples.Key(EthSamples.S), EthSamples.Key(EthSamples.M) };
+
+        var members = GraphAreas.MembersOf(scene, keys);
+        var own = Own("Säljaren") with { Members = members };
+        var area = Assert.Single(GraphAreas.Build(scene, [], [own], TimeZoneInfo.Utc), a => a.IsOwn);
+
+        Assert.Equal(
+            [CheckRules.MemberOf(EthSamples.S.ToChainAddress()), CheckRules.MemberOf(EthSamples.M.ToChainAddress())],
+            members);
+        Assert.Equal(keys, area.Nodes);
+    }
+
+    [Fact]
     public void Areas_are_placed_around_their_actors_with_the_chip_at_the_top_right()
     {
         var area = Build(own: [Own("Säljaren", U)]).Single(a => a.IsOwn);

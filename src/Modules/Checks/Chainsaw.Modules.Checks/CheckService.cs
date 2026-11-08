@@ -795,7 +795,7 @@ internal sealed class CheckService : ICheckService
         foreach (var member in distinct)
         {
             var valid = member.StartsWith(CheckRules.AddressMember, StringComparison.Ordinal)
-                ? BitcoinAddress.TryParse(member[CheckRules.AddressMember.Length..], out _)
+                ? CheckRules.AddressOf(member) is not null
                 : member.StartsWith(CheckRules.TransactionMember, StringComparison.Ordinal)
                     && Txid.TryParse(member[CheckRules.TransactionMember.Length..], out _);
             if (!valid)

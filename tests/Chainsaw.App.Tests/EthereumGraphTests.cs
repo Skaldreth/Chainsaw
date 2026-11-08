@@ -310,6 +310,23 @@ public sealed class EthereumGraphTests
             valued.Facts, fact => fact.Name == "Belopp" && fact.Value.StartsWith("₮ ", StringComparison.Ordinal));
         Assert.Contains(valued.Why, line => line.Topic == GuideTopic.Prices && line.Text.Contains("10,5"));
         Assert.Contains(valued.Why, line => line.Text.Contains("räknat genom 1 tx", StringComparison.Ordinal));
+        Assert.DoesNotContain(swapLine.Why, line => line.Text.Contains(KnownContracts.Name, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_swap_through_a_known_exchange_names_it_and_its_source_in_why()
+    {
+        var router = KnownContracts.All.First(contract => contract.Category == KnownContractCategory.Dex);
+        var scene = EthSamples.Scene();
+        var line = scene.Edge(EthSamples.EdgeKey(EthSamples.S, EthSamples.P, "USDT"))!;
+        var named = line with { Swaps = [.. line.Swaps.Select(swap => swap with { Venue = router })] };
+
+        var why = InspectorContent.ForEdge(scene, named).Why;
+
+        var swapWhy = Assert.Single(why, each => each.Text.StartsWith("Swap", StringComparison.Ordinal));
+        Assert.Contains(router.Name, swapWhy.Text, StringComparison.Ordinal);
+        Assert.Contains(router.Source.AbsoluteUri, swapWhy.Text, StringComparison.Ordinal);
+        Assert.Contains(KnownContracts.Version, swapWhy.Text, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -988,6 +988,27 @@ Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *S
   välj TRON och klistra in en tx; en lila streckad linje går till den andra kedjans nod, och länken syns i Historik.
 - *Förslag · N* (Ctrl+J): statusraden säger att kontrollerna gäller UTXO och inte körs på Ethereum.
 
+## Ethereum klart, omgång 2 (kända kontrakt, plats i blocket, egna ytor, start-tx)
+
+Kräver en ansluten utgång och Ethereum i Källor, som ovan.
+
+- **Tornado Cash:** expandera en adress som har satt in i en Tornado Cash-pool (till exempel 1 ETH). Poolens nod blir
+  röd med mixerns ikon och etiketten *Tornado Cash 1 ETH*, och spåret tar slut där. *Varför?* på noden säger
+  *Chainsaws kända kontrakt v1 2026-11-08* och sidan adressen lästes från. Journalen har en rad *… adresser är kända
+  kontrakt*. Ta tillbaka etiketten i Historik och läs om grafen: den kommer inte tillbaka.
+- **Brygga:** en adress som skickat ether till Arbitrums *Delayed Inbox* eller OP Mainnets *L1 Standard Bridge*:
+  noden blir lila (*Swap eller brygga*) och spåret säger *Fortsätter på annan kedja*.
+- **Swap genom Uniswap:** en adress som bytt USDT mot ether genom Uniswaps router: *Varför?* på linjen med pillret
+  **₮ → Ξ** säger *genom Uniswap …* med kontraktets adress och källan. En swap genom en okänd pool nämner ingen DEX.
+  Routern själv får ingen etikett och ingen färg.
+- **Plats i blocket:** en adress som tog emot och betalade vidare i samma block: FIFO räknar det som kom in före det
+  som gick ut, i blockets ordning (inte efter tx:ens hash).
+- **Egen yta (Z) med Ethereum-aktörer:** välj två Ethereum-noder (och gärna en Bitcoin-nod), tryck Z och spara: ytan
+  ritas runt alla valda, också efter att ärendet öppnats igen.
+- **Start-tx som inte finns i ärendet:** lägg till en Ethereum- eller Bitcoin-tx som startpunkt med kommandoraden (eller
+  i Nytt ärende) med utgången ansluten: den hämtas av sig själv, och grafen ritas om med noden. Utan utgång står den
+  kvar som en rad i grafens problem; expandera den när utgången är ansluten.
+
 ## Den tomma grafen (GR6c)
 
 - **Första gången** (inga ärenden i mappen): mitt på grafen står *Nytt ärende · Ctrl+N* utan puls, under

@@ -629,7 +629,10 @@ internal static class BlockscoutParser
     private static EthereumAddress? OptionalReceiver(JsonElement item) =>
         OptionalAddress(item, "to") ?? OptionalAddress(item, "contractAddress");
 
-    /// <summary>Gives an entry's block, with its hash when the entry has it.</summary>
+    /// <summary>
+    /// Gives an entry's block, with its hash and the transaction's place in it (<c>transactionIndex</c>) when the
+    /// entry has them.
+    /// </summary>
     /// <param name="item">The entry.</param>
     /// <returns>The block, or <see langword="null"/> while unconfirmed.</returns>
     private static EthereumBlockReference? BlockOf(JsonElement item)
@@ -640,8 +643,15 @@ internal static class BlockscoutParser
         }
 
         var hash = OptionalString(item, "blockHash");
+        var index = long.TryParse(OptionalString(item, "transactionIndex"), NumberStyles.None,
+            CultureInfo.InvariantCulture, out var place)
+            ? place
+            : (long?)null;
         return new EthereumBlockReference(height, EthereumTxHash.IsHash(hash) ? hash!.ToLowerInvariant() : null,
-            Time(item));
+            Time(item))
+        {
+            TransactionIndex = index,
+        };
     }
 
     /// <summary>Gives an internal transaction's place in its trace, or its order on the page.</summary>

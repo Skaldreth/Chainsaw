@@ -112,6 +112,10 @@ aldrig skickar riktiga uppslag (listan i `docs/BACKLOG.md`, *Testärendet*).
   tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
 - **Ångra en godkänd plånbok** [skiss]: Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås
   ihop igen; det gör bara *Historik*.
+- **En DEX:s router i grafen** [skiss]: listan över kända kontrakt (omgång 2) har Uniswaps, 1inchs och 0x:s routrar,
+  men de får ingen etikett, eftersom ingen sort i bildspråket passar: *Swap eller brygga* avslutar spåret som
+  *Fortsätter på annan kedja*, och ett byte på samma kedja byter inte ägare. Namnet står i *Varför?* för swappen. En
+  egen sort, eller en markering i hörnet, skissas.
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
   [etapp].
 - **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa

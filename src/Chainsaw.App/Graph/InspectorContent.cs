@@ -613,12 +613,20 @@ public sealed record InspectorContent(
         {
             yield return new WhyLine(
                 $"Swap i tx {swap.Transaction}: adressen skickade {AmountText.WithUnit(swap.Sold)} och fick "
-                + $"{AmountText.WithUnit(swap.Bought)} tillbaka i samma tx. Pengarna bytte token men inte ägare, så "
-                + "det är inget slut på spåret. Att det var en swap är en läsning av rörelserna; spårningen följer "
-                + "inte bytet än, utan räknar varje tillgång för sig.",
+                + $"{AmountText.WithUnit(swap.Bought)} tillbaka i samma tx{VenueText(swap)}. Pengarna bytte token men "
+                + "inte ägare, så det är inget slut på spåret. Att det var en swap är en läsning av rörelserna; "
+                + "spårningen följer inte bytet än, utan räknar varje tillgång för sig.",
                 GuideTopic.Tokens);
         }
     }
+
+    /// <summary>Says which known exchange a swap went through, when Chainsaw knows the contract.</summary>
+    /// <param name="swap">The swap.</param>
+    /// <returns>For example <c>, genom Uniswap V2 Router02 (kontraktet 0x…, enligt …)</c>, or nothing.</returns>
+    private static string VenueText(TokenSwap swap) => swap.Venue is { } venue
+        ? $", genom {venue.Name} (kontraktet {venue.Address}, {venue.Provenance()} i {KnownContracts.Name} "
+            + $"{KnownContracts.Version})"
+        : string.Empty;
 
     /// <summary>
     /// Answers what a line was worth (sketch KU1a): the value with its steps, or why there is none; never a value

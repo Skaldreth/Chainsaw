@@ -128,6 +128,31 @@ public sealed class CaseWorkflowTests
     }
 
     [Fact]
+    public async Task A_start_point_that_is_a_transaction_the_case_lacks_is_fetched_and_one_it_holds_is_not()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Tracing.Graph = GraphSamples.Graph();
+        var workflow = new CaseWorkflow(rig.Cases, rig.Tracing, rig.Vault, rig.Session, null, new TestAttribution());
+        var refreshed = 0;
+        workflow.StartPointAdded += (_, _) => refreshed++;
+        var request = new NewCaseRequest(
+            "2026-0117",
+            string.Empty,
+            [
+                ChainStartPoint.Recognise(Samples.Address),
+                ChainStartPoint.Recognise(Samples.EthereumTx),
+                ChainStartPoint.Recognise(GraphSamples.Tx[0].Value),
+            ]);
+
+        var creation = await workflow.CreateAsync(request, sharingPassword: null);
+
+        Assert.True(creation.IsCreated);
+        var fetched = Assert.Single(rig.Tracing.Expanded);
+        Assert.Equal(EthereumTxHash.Parse(Samples.EthereumTx), fetched.EthereumTransaction);
+        Assert.Equal(1, refreshed);
+    }
+
+    [Fact]
     public async Task The_bitcoin_and_ethereum_start_points_are_checked_against_the_sanction_list()
     {
         var rig = new GateRig(VaultState.Unlocked);
