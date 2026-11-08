@@ -286,11 +286,6 @@ public sealed partial class HeldBackViewModel : ObservableObject
     /// <summary>Gets the traced arrival on the time slider, from 0 to 1, or −1 when there is none.</summary>
     public double ArrivalShare => Choices.Arrival is { } arrival ? SpanShare(arrival) : -1;
 
-    /// <summary>Gets the traced arrival's tip.</summary>
-    public string ArrivalTip => Choices.Traced is { } traced
-        ? "Den spårade ankomsten, " + HeldBackLayout.Btc(traced.Value / 1e8) + " BTC"
-        : string.Empty;
-
     /// <summary>Gets the line at the top: the address, how many were held back and how many are shown.</summary>
     [ObservableProperty]
     public partial string HeaderText { get; private set; } = string.Empty;

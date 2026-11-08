@@ -730,28 +730,16 @@ public sealed partial class GraphViewModel
         }
     }
 
-    /// <summary>Writes what a throw's toast says: <c>Slängde 5 aktörer</c>, and how many watches ended.</summary>
-    /// <param name="count">How many were thrown.</param>
-    /// <param name="ended">How many watches ended.</param>
-    /// <returns>The text.</returns>
-    public static string ThrownText(int count, int ended) => ThrownText(TrashViewModel.CountText(count), ended);
-
     /// <summary>
-    /// Writes what a throw's toast says, counting actors, comments and own areas apart: <c>Slängde 1 kommentar</c>.
+    /// Writes what a throw's toast says, counting actors, comments and own areas apart, and how many watches ended:
+    /// <c>Slängde 1 kommentar</c> or <c>Slängde 5 aktörer · bevakningen avslutad</c>.
     /// </summary>
     /// <param name="members">What was thrown.</param>
     /// <param name="ended">How many watches ended.</param>
     /// <returns>The text.</returns>
-    public static string ThrownText(IReadOnlyCollection<TrashMember> members, int ended) =>
-        ThrownText(TrashViewModel.CountText(members), ended);
-
-    /// <summary>Writes what a throw's toast says, after how many were thrown in words.</summary>
-    /// <param name="what">How many, in words.</param>
-    /// <param name="ended">How many watches ended.</param>
-    /// <returns>The text.</returns>
-    private static string ThrownText(string what, int ended)
+    public static string ThrownText(IReadOnlyCollection<TrashMember> members, int ended)
     {
-        var text = "Slängde " + what;
+        var text = "Slängde " + TrashViewModel.CountText(members);
         return ended switch
         {
             0 => text,

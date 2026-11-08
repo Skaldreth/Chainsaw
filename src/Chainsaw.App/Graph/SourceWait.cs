@@ -44,9 +44,6 @@ public sealed record SourceWait(Chain Chain, IReadOnlyList<SourceWaitRow> Rows, 
     /// <summary>Why an endpoint that failed is not asked.</summary>
     public const string SilentText = "svarar inte";
 
-    /// <summary>What a node waiting for its source says on hovering its hourglass.</summary>
-    public const string NodeTip = "Uppslaget väntar på källan";
-
     /// <summary>Gets the chain's mark in the ring, for example <c>₿</c>.</summary>
     public string Glyph => Chain switch
     {

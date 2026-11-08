@@ -462,11 +462,7 @@ public sealed partial class GraphViewModel : ObservableObject
             if (TrashWarning is { } warning && Scene is { } shown)
             {
                 // What would follow with a throw stands out while the rest is toned down (sketch SO1a).
-                var keys = warning.Keys;
-                return (keys, shown.Edges
-                    .Where(edge => keys.Contains(edge.Edge.From) && keys.Contains(edge.Edge.To))
-                    .Select(edge => edge.Key)
-                    .ToHashSet(StringComparer.Ordinal));
+                return Among(shown, warning.Keys);
             }
 
             if (PathFocus is { } path)
@@ -482,15 +478,23 @@ public sealed partial class GraphViewModel : ObservableObject
 
             if (Checks.Focus is { } focus && Scene is { } scene)
             {
-                return (focus, scene.Edges
-                    .Where(edge => focus.Contains(edge.Edge.From) && focus.Contains(edge.Edge.To))
-                    .Select(edge => edge.Key)
-                    .ToHashSet(StringComparer.Ordinal));
+                return Among(scene, focus);
             }
 
             return Scene?.Near(SelectedNode, SelectedEdge) ?? (new HashSet<string>(), new HashSet<string>());
         }
     }
+
+    /// <summary>Gives a set of nodes with the lines that run between two of them.</summary>
+    /// <param name="scene">The graph.</param>
+    /// <param name="nodes">The nodes.</param>
+    /// <returns>The nodes and the lines among them.</returns>
+    private static (IReadOnlySet<string> Nodes, IReadOnlySet<string> Edges) Among(
+        GraphScene scene, IReadOnlySet<string> nodes) =>
+        (nodes, scene.Edges
+            .Where(edge => nodes.Contains(edge.Edge.From) && nodes.Contains(edge.Edge.To))
+            .Select(edge => edge.Key)
+            .ToHashSet(StringComparer.Ordinal));
 
     /// <summary>Gets whether something is chosen, so that the rest is drawn faint.</summary>
     public bool IsFocused =>
