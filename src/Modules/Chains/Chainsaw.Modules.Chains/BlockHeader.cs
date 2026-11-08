@@ -14,13 +14,16 @@ namespace Chainsaw.Modules.Chains;
 /// <param name="MerkleRoot">The root of the block's transactions, as Bitcoin shows it.</param>
 /// <param name="Time">The time in the header.</param>
 /// <param name="Bits">The target, in the header's compact form.</param>
+/// <param name="Nonce">The nonce.</param>
 internal sealed record BlockHeader(
-    BlockHash Hash, int Version, BlockHash PreviousHash, string MerkleRoot, DateTimeOffset Time, uint Bits);
+    BlockHash Hash, int Version, BlockHash PreviousHash, string MerkleRoot, DateTimeOffset Time, uint Bits, uint Nonce);
 
 /// <summary>
 /// Reads a block header and checks the source's description of the block against it: the header's hash is the
-/// block's hash, it meets the target its own bits name (so it carries the work it claims), and the description's
-/// version, previous block, merkle root and time are the header's.
+/// block's hash, it meets the target its own bits name (so it carries the work it claims) and that target is within
+/// the network's limit (powLimit), and the description's version, previous block, merkle root, time, bits and nonce are
+/// the header's. Whether the bits are the network's exact difficulty at that height is not checked; that needs the
+/// headers before it.
 /// </summary>
 internal static class BlockHeaderReader
 {
@@ -30,14 +33,29 @@ internal static class BlockHeaderReader
     /// <summary>The largest exponent of a compact target that still fits 256 bits.</summary>
     private const int MaximumExponent = 32;
 
+    /// <summary>Mainnet's (and testnet's) easiest target, powLimit, in compact form.</summary>
+    internal const uint MainnetLimitBits = 0x1d00ffff;
+
+    /// <summary>
+    /// The easiest target of the test networks Chainsaw reads (signet's, which is easier than testnet's), in compact
+    /// form.
+    /// </summary>
+    internal const uint TestLimitBits = 0x1e0377ae;
+
     /// <summary>Reads a header given as hex text (as from <c>/block/:hash/header</c>).</summary>
     /// <param name="body">The response's bytes.</param>
     /// <param name="expected">The block asked for; the header must hash to it.</param>
+    /// <param name="network">
+    /// The network, whose easiest target the header's must not be easier than, or <see langword="null"/> to check only
+    /// the header's own target.
+    /// </param>
     /// <returns>The header.</returns>
     /// <exception cref="EsploraFormatException">
-    /// It is not an 80-byte header, it is another block, or it does not meet its own target.
+    /// It is not an 80-byte header, it is another block, it does not meet its own target, or its target is easier than
+    /// the network allows.
     /// </exception>
-    public static BlockHeader ParseHex(ReadOnlySpan<byte> body, BlockHash expected)
+    public static BlockHeader ParseHex(
+        ReadOnlySpan<byte> body, BlockHash expected, BitcoinNetwork? network = null)
     {
         var bytes = RawTransactionReader.HexBytes(body);
         if (bytes.Length != HeaderSize)
@@ -57,13 +75,19 @@ internal static class BlockHeaderReader
             throw new EsploraFormatException("The header does not meet the target its bits name.");
         }
 
+        if (network is { } limited && !WithinLimit(bits, limited))
+        {
+            throw new EsploraFormatException("The header's target is easier than the network allows.");
+        }
+
         return new BlockHeader(
             hash,
             BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0, 4)),
             BlockHash.Parse(Reversed(bytes.AsSpan(4, 32))),
             Reversed(bytes.AsSpan(36, 32)),
             DateTimeOffset.FromUnixTimeSeconds(BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(68, 4))),
-            bits);
+            bits,
+            BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(76, 4)));
     }
 
     /// <summary>
@@ -93,7 +117,30 @@ internal static class BlockHeaderReader
             return "merkle root";
         }
 
+        if (block.Bits is { } bits && bits != header.Bits)
+        {
+            return "bits";
+        }
+
+        if (block.Nonce is { } nonce && nonce != header.Nonce)
+        {
+            return "nonce";
+        }
+
         return block.Time == header.Time ? null : "time";
+    }
+
+    /// <summary>
+    /// Checks that a compact target is no easier than the network's limit (powLimit): a header that met an easier
+    /// target than the network ever allows carries less work than it claims (granskningen etapp 15, M2).
+    /// </summary>
+    /// <param name="bits">The compact target.</param>
+    /// <param name="network">The network.</param>
+    /// <returns><see langword="true"/> when it is within the limit.</returns>
+    public static bool WithinLimit(uint bits, BitcoinNetwork network)
+    {
+        var limit = network == BitcoinNetwork.Mainnet ? MainnetLimitBits : TestLimitBits;
+        return Target(bits) is { } target && target <= Target(limit);
     }
 
     /// <summary>
@@ -106,19 +153,33 @@ internal static class BlockHeaderReader
     public static bool MeetsTarget(BlockHash hash, uint bits)
     {
         ArgumentNullException.ThrowIfNull(hash);
-        var exponent = (int)(bits >> 24);
-        var mantissa = bits & 0x007F_FFFF;
-        // A negative target, a zero one, or one beyond 256 bits (Bitcoin Core's overflow rule) is never met.
-        if ((bits & 0x0080_0000) != 0 || mantissa == 0 || exponent > MaximumExponent)
+        if (Target(bits) is not { } target)
         {
             return false;
         }
 
-        var target = exponent <= 3
-            ? new BigInteger(mantissa >> (8 * (3 - exponent)))
-            : new BigInteger(mantissa) << (8 * (exponent - 3));
         var value = new BigInteger(Convert.FromHexString(hash.Value), isUnsigned: true, isBigEndian: true);
         return value <= target;
+    }
+
+    /// <summary>Expands a compact target to the number it names.</summary>
+    /// <param name="bits">The compact target.</param>
+    /// <returns>
+    /// The target, or <see langword="null"/> for a negative or zero one, or one beyond 256 bits (Bitcoin Core's
+    /// overflow rule), which can never be met.
+    /// </returns>
+    private static BigInteger? Target(uint bits)
+    {
+        var exponent = (int)(bits >> 24);
+        var mantissa = bits & 0x007F_FFFF;
+        if ((bits & 0x0080_0000) != 0 || mantissa == 0 || exponent > MaximumExponent)
+        {
+            return null;
+        }
+
+        return exponent <= 3
+            ? new BigInteger(mantissa >> (8 * (3 - exponent)))
+            : new BigInteger(mantissa) << (8 * (exponent - 3));
     }
 
     /// <summary>Writes 32 bytes reversed, as Bitcoin shows hashes.</summary>

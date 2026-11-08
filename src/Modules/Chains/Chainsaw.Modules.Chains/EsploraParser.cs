@@ -187,7 +187,28 @@ internal sealed class EsploraParser(BitcoinNetwork network)
             PositiveInt32(root, "tx_count"),
             Positive(root, "size"),
             Positive(root, "weight"),
-            Integer(root, "version"));
+            Integer(root, "version"))
+        {
+            Bits = OptionalUInt32(root, "bits"),
+            Nonce = OptionalUInt32(root, "nonce"),
+        };
+    }
+
+    /// <summary>Reads an optional whole number that fits 32 bits without sign, such as a block's bits or nonce.</summary>
+    /// <param name="parent">The object.</param>
+    /// <param name="name">The property.</param>
+    /// <returns>The number, or <see langword="null"/> when it is not there.</returns>
+    /// <exception cref="EsploraFormatException">It is there but is not such a number.</exception>
+    private static uint? OptionalUInt32(JsonElement parent, string name)
+    {
+        if (!parent.TryGetProperty(name, out var element) || element.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        return element.ValueKind == JsonValueKind.Number && element.TryGetUInt32(out var value)
+            ? value
+            : throw new EsploraFormatException($"The block's {name} is not a 32-bit number.");
     }
 
     /// <summary>Reads the chain's height, as from <c>/blocks/tip/height</c>, which is plain text.</summary>

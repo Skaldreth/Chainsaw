@@ -88,6 +88,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <inheritdoc/>
     public BitcoinNetwork Network => _options.Network;
 
+    /// <summary>Gets the network whose work limit a header must meet, or none when the check is turned off.</summary>
+    private BitcoinNetwork? WorkLimit => _options.CheckWorkLimit ? _options.Network : null;
+
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
         ICase @case, BitcoinAddress address, Txid? after = null, CancellationToken cancellationToken = default) =>
@@ -263,11 +266,27 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return lookup with { Origins = origins, Notes = [.. lookup.Notes, note.TrimEnd()] };
         }
 
-        return BlockHeaderReader.Compare(block, header.Value) is null
-            ? lookup with { Value = block with { HeaderVerified = true }, Origins = origins }
-            : new BitcoinLookup<BitcoinBlock>(LookupStatus.Failed, null, origins,
-                "Källans uppgifter om blocket stämmer inte med blockets eget huvud, som är sparat i ärendet; de "
-                + "används inte.");
+        if (BlockHeaderReader.Compare(block, header.Value) is null)
+        {
+            return lookup with { Value = block with { HeaderVerified = true }, Origins = origins };
+        }
+
+        if (lookup.Status == LookupStatus.FromCase)
+        {
+            // The description in the case contradicts the header, and neither ever changes: the description is
+            // fetched again rather than refused for good (granskningen etapp 15, M3), and checked once more.
+            var again = await _lookups.FetchAsync(@case, query, null, cancellationToken).ConfigureAwait(false);
+            origins = [.. origins.Concat(again.Origins).DistinctBy(origin => origin.Sequence)
+                .OrderBy(origin => origin.Sequence)];
+            if (again.Value is { } fresh && BlockHeaderReader.Compare(fresh, header.Value) is null)
+            {
+                return again with { Value = fresh with { HeaderVerified = true }, Origins = origins };
+            }
+        }
+
+        return new BitcoinLookup<BitcoinBlock>(LookupStatus.Failed, null, origins,
+            "Källans uppgifter om blocket stämmer inte med blockets eget huvud, som är sparat i ärendet; de "
+            + "används inte.");
     }
 
     /// <inheritdoc/>
@@ -464,10 +483,10 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         ResponseKinds.BlockHeader,
         hash.Value,
         $"block/{hash.Value}/header",
-        body => BlockHeaderReader.ParseHex(body, hash),
+        body => BlockHeaderReader.ParseHex(body, hash, WorkLimit),
         _ => ResponseIndex.None,
         reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.BlockHeader, hash.Value),
-            body => BlockHeaderReader.ParseHex(body, hash)),
+            body => BlockHeaderReader.ParseHex(body, hash, WorkLimit)),
         _ => null,
         NeverChanges: true);
 
