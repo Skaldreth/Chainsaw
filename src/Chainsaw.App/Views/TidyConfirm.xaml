@@ -1,0 +1,44 @@
+<UserControl x:Class="Chainsaw.App.Views.TidyConfirm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance Type=vm:GraphViewModel}"
+             mc:Ignorable="d">
+
+    <!--
+      The question at the icon before the graph is sorted (the user's wish 2026-11-08: so that a big piece of work is
+      never lost to a stray click): how many actors move, Avbryt · Esc and Sortera · Enter. The small box under the
+      graph's corner, as the form for an own area. Only wiring; GraphViewModel holds what happens.
+    -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding CancelTidyCommand}" />
+        <KeyBinding Key="Enter" Command="{Binding ConfirmTidyCommand}" />
+    </UserControl.InputBindings>
+
+    <Border Width="300" Padding="14,14,14,12" CornerRadius="12" BorderThickness="1"
+            BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Floating}">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="32" ShadowDepth="12" Direction="270" Opacity="0.45" Color="Black" />
+        </Border.Effect>
+        <StackPanel>
+            <DockPanel>
+                <controls:GridIcon Size="16" Data="{StaticResource Icon.Tidy}" Foreground="{StaticResource Brush.Text}"
+                                   Margin="0,0,8,0" VerticalAlignment="Center" />
+                <TextBlock Text="Sortera grafen" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+            <TextBlock Text="{Binding TidyConfirmText}" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}"
+                       TextWrapping="Wrap" LineHeight="18" Margin="0,10,0,0" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                <Button Style="{StaticResource Button.Secondary}" Height="30" Padding="12,0" FontSize="12.5"
+                        Margin="0,0,8,0" Content="Avbryt · Esc" Command="{Binding CancelTidyCommand}"
+                        ToolTip="Ingenting flyttas (Esc)" />
+                <Button x:Name="Confirm" Style="{StaticResource Button.Primary}" Height="30" Padding="14,0"
+                        FontSize="12.5" Content="Sortera · Enter" Command="{Binding ConfirmTidyCommand}"
+                        ToolTip="Sorterar grafen; Ångra i meddelandet efteråt lägger tillbaka allt (Enter)" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -1454,3 +1454,22 @@ några steg).
 - [ ] Medan en lapp skrivs i gör E, L, B, U, K, F, + och − ingenting i grafen; bokstäverna hamnar i lappen.
 - [ ] `/testdata`: en lapp *Uttag via Nordbörsen?* står ovanför grafen med tråd till offret och en länk till
       Nordbörsens insättning.
+
+## Sortera grafen (2026-11-08, efter användarens beskrivning)
+- [ ] På den fria ytan, i ett ärende med minst två aktörer, står en ikon i grafens hörn uppe till höger, efter
+      växeln Fri yta · Hoppkolumner (spridda prickar, en pil och prickarna på rad). Hovring: *Sortera grafen …*.
+      I hoppkolumnerna, utan ärende och med bara en aktör syns den inte.
+- [ ] Dra isär grafen så att den blir stökig och klicka på ikonen: en liten ruta under hörnet frågar *Sortera om
+      grafen? N aktörer flyttas från där du har lagt dem.* med *Avbryt · Esc* och *Sortera · Enter*. Inget har flyttats.
+- [ ] Esc eller *Avbryt*: rutan stängs och allt står kvar. Enter eller *Sortera*: aktörerna flyttas till sina nya
+      platser, grafen anpassas till skärmen och meddelandet *Grafen sorterad* med *Ångra* står en stund nere till höger.
+- [ ] Den sorterade grafen är luftig, inte kompakt: pengarna går från vänster till höger i hoppens ordning, varje hopp
+      i en kolumn, kolumnerna centrerade kring samma mittlinje, mottagare i höjd med sina avsändare så att linjerna
+      korsar varandra så lite som möjligt, och beloppen på linjerna får plats mellan noderna. Ett hopp med många
+      motparter sprids ut i flera kolumner bredvid varandra, aldrig en lång kolumn.
+- [ ] En hög och en ledtrådsnod hamnar vid sin aktör. En kommentar som är knuten till en aktör följer med och står kvar
+      lika långt från den; en lös kommentar står kvar där den var.
+- [ ] *Ångra* i meddelandet: varje aktör och kommentar står exakt där den stod före sorteringen. Ctrl+Z ångrar inte
+      sorteringen (den hör till soptunnan och förslagen).
+- [ ] Stäng och öppna ärendet: den sorterade (eller ångrade) grafen står kvar. En graf som redan är sorterad: ett klick
+      säger *Grafen är redan sorterad.* utan att fråga.

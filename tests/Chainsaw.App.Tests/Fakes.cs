@@ -484,6 +484,10 @@ internal sealed class TestTracing : ITracingService
     public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position) =>
         throw new NotSupportedException();
 
+    public void SavePositions(
+        ICase @case, GraphLayout layout, IReadOnlyDictionary<string, NodePosition> positions) =>
+        throw new NotSupportedException();
+
     public void PickFromPile(ICase @case, IReadOnlyCollection<string> nodeKeys) =>
         throw new NotSupportedException();
 

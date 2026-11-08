@@ -68,6 +68,45 @@ public sealed class StateTests : IDisposable
     }
 
     [Fact]
+    public async Task Many_places_are_stored_in_one_write_without_the_journal()
+    {
+        await _flows.ExpandInto(_harness);
+        var graph = await _harness.Load();
+        var collector = graph.NodeOf(Wpkh("collector"))!;
+        var scammers = graph.NodeOf(Wpkh("scammer-1"))!;
+        var journalLength = _harness.Case.ReadJournal().Count;
+
+        _harness.Service.SavePositions(_harness.Case, GraphLayout.Free, new Dictionary<string, NodePosition>
+        {
+            [collector.Key] = new(600, 36),
+            [scammers.Key] = new(16, 172),
+        });
+        graph = await _harness.Load();
+
+        Assert.Equal(new NodePosition(600, 36), graph.NodeOf(Wpkh("collector"))!.Positions[GraphLayout.Free]);
+        Assert.Equal(new NodePosition(16, 172), graph.NodeOf(Wpkh("scammer-1"))!.Positions[GraphLayout.Free]);
+        Assert.Equal(journalLength, _harness.Case.ReadJournal().Count);
+    }
+
+    [Fact]
+    public async Task A_place_that_is_not_finite_stores_none_of_the_others()
+    {
+        await _flows.ExpandInto(_harness);
+        var collector = (await _harness.Load()).NodeOf(Wpkh("collector"))!;
+
+        Assert.Throws<ArgumentException>(() => _harness.Service.SavePositions(
+            _harness.Case,
+            GraphLayout.Free,
+            new Dictionary<string, NodePosition>
+            {
+                [collector.Key] = new(600, 36),
+                ["address:x"] = new(double.PositiveInfinity, 0),
+            }));
+
+        Assert.Empty((await _harness.Load()).NodeOf(Wpkh("collector"))!.Positions);
+    }
+
+    [Fact]
     public void A_place_must_be_finite()
     {
         Assert.Throws<ArgumentException>(() => _harness.Service.SavePosition(

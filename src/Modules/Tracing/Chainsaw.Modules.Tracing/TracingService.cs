@@ -299,18 +299,43 @@ internal sealed class TracingService : ITracingService
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentException.ThrowIfNullOrEmpty(nodeKey);
-        if (!Enum.IsDefined(layout) || !double.IsFinite(position.X) || !double.IsFinite(position.Y))
+        SavePositions(@case, layout, new Dictionary<string, NodePosition>(StringComparer.Ordinal)
         {
-            throw new ArgumentException("A place is a known layout and finite coordinates.", nameof(position));
+            [nodeKey] = position,
+        });
+    }
+
+    /// <inheritdoc/>
+    public void SavePositions(ICase @case, GraphLayout layout, IReadOnlyDictionary<string, NodePosition> positions)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(positions);
+        if (!Enum.IsDefined(layout) || positions.Any(pair => pair.Key.Length == 0 || !IsFinite(pair.Value)))
+        {
+            throw new ArgumentException("A place is a node, a known layout and finite coordinates.", nameof(positions));
+        }
+
+        if (positions.Count == 0)
+        {
+            return;
         }
 
         var utc = _clock.UtcNow;
         @case.Write(transaction =>
         {
-            GraphStateStore.SavePosition(transaction, NodeKeys.Position(nodeKey), layout, position, utc);
+            foreach (var (nodeKey, position) in positions)
+            {
+                GraphStateStore.SavePosition(transaction, NodeKeys.Position(nodeKey), layout, position, utc);
+            }
+
             return true;
         });
     }
+
+    /// <summary>Reads whether a place has finite coordinates.</summary>
+    /// <param name="position">The place.</param>
+    /// <returns><see langword="true"/> when both are finite.</returns>
+    private static bool IsFinite(NodePosition position) => double.IsFinite(position.X) && double.IsFinite(position.Y);
 
     /// <inheritdoc/>
     public void PickFromPile(ICase @case, IReadOnlyCollection<string> nodeKeys)

@@ -126,6 +126,8 @@
     <!-- The graph's switch (sketch GR4): the free surface, and the hop columns. -->
     <Geometry x:Key="Icon.Layout.Free">M5 6h.01 M17 4h.01 M9 13h.01 M19 15h.01 M6 19h.01 M13 20h.01 M5 6l4 7 M9 13l10 2 M17 4l-8 9 M9 13l-3 6 M19 15l-6 5</Geometry>
     <Geometry x:Key="Icon.Layout.Hops">M4 4v16 M10 4v16 M16 4v16 M22 4v16</Geometry>
+    <!-- Sortera grafen: scattered actors, a chevron, and the same actors lined up in a column. -->
+    <Geometry x:Key="Icon.Tidy">M3 5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0 M6.5 12.5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0 M2 19a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0 M11.5 9l3 3-3 3 M18 5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0 M18 12a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0 M18 19a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0</Geometry>
 
     <!--
       Nytt ärende (sketch NC2a): no network (the waves struck through), a block (the cube by the height), people (a
