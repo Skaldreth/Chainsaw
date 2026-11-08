@@ -18,6 +18,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <summary>The services every case uses.</summary>
     private readonly CaseServices _services;
 
+    /// <summary>Gets the fewest iterations a sharing envelope may have to be used.</summary>
+    private int MinimumIterations => _services.Options.MinimumSharingIterations;
+
     /// <summary>Guards <see cref="_open"/>.</summary>
     private readonly Lock _openGate = new();
 
@@ -92,7 +95,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         var locks = LockCount();
         var paths = PathsFor(caseNumber);
         RequireUnlocked();
-        var profile = CurrentProfile();
+        var profile = _services.CurrentOperator();
         System.IO.Directory.CreateDirectory(Directory);
         var lockFile = AcquireLock(paths);
         byte[]? fileKey = null;
@@ -110,7 +113,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             createdHere = true;
             DeleteWorkingFiles(paths);
             fileKey = CaseCrypto.NewFileKey();
-            anchorKey = DeriveAnchorKey();
+            anchorKey = _services.DeriveVaultKey(AnchorStore.Purpose);
             var header = NewHeader(Guid.NewGuid(), fileKey);
             database = OpenDatabase(paths.WorkingCopy, fileKey, header.CaseId);
             SchemaMigrator.Run(database, _services.Catalog);
@@ -156,16 +159,10 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         RequireUnlocked();
         var lockFile = AcquireLock(paths);
         var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
-        var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
         try
         {
             var header = ReadHeader(paths);
-            Case.DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
-            if (!KeyEnvelopes.TryOpenOperator(header, wrappingKey, fileKey))
-            {
-                throw new CaseException(CaseError.NoAccess);
-            }
-
+            OpenWithVault(header, fileKey);
             return OpenLocked(paths, lockFile, header, fileKey, new Opening(OpeningKind.Vault, locks));
         }
         catch
@@ -173,10 +170,6 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             Clear(fileKey);
             lockFile.Dispose();
             throw;
-        }
-        finally
-        {
-            Clear(wrappingKey);
         }
     }
 
@@ -193,7 +186,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             var header = ReadHeader(paths);
-            if (!KeyEnvelopes.TryOpenPassword(header, password, fileKey))
+            if (!KeyEnvelopes.TryOpenPassword(header, password, fileKey, MinimumIterations))
             {
                 throw new CaseException(CaseError.NoAccess);
             }
@@ -236,7 +229,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         {
             // The password is tried where the file lies, so that a wrong one copies nothing.
             var sourceHeader = ReadHeader(source);
-            if (!KeyEnvelopes.TryOpenPassword(sourceHeader, password, fileKey))
+            if (!KeyEnvelopes.TryOpenPassword(sourceHeader, password, fileKey, MinimumIterations))
             {
                 throw new CaseException(CaseError.NoAccess);
             }
@@ -253,7 +246,8 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
             // The key is opened again from the copy, the file that is opened, and the copy must be the file read.
             var header = ReadHeader(target);
-            if (!SameHeader(header, sourceHeader) || !KeyEnvelopes.TryOpenPassword(header, password, fileKey))
+            if (!SameHeader(header, sourceHeader)
+                || !KeyEnvelopes.TryOpenPassword(header, password, fileKey, MinimumIterations))
             {
                 throw new CaseException(CaseError.Corrupt);
             }
@@ -286,10 +280,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         RequireExists(paths);
         RequireUnlocked();
         var header = ReadHeader(paths);
-        var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        var wrappingKey = _services.DeriveVaultKey(CaseCrypto.EnvelopePurpose);
         try
         {
-            Case.DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
             return EnvelopeDescriptions.Describe(header, wrappingKey, [], _services.Options);
         }
         finally
@@ -582,7 +575,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 ? RecoveredBase(paths, header, fileKey)
                 : CaseFiles.Extract(paths, header, fileKey);
 
-            anchorKey = DeriveAnchorKey();
+            anchorKey = _services.DeriveVaultKey(AnchorStore.Purpose);
             database = OpenWorkingCopy(paths, fileKey, header.CaseId, recovering);
             var (applied, info) = PrepareSchema(database, recovering);
             if (info.Id != header.CaseId)
@@ -724,7 +717,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         }
 
         var recoveryAdded = opened.UpdateRecoveryEnvelopes();
-        if (recovered || applied.Count > 0 || opening.Kind != OpeningKind.Vault || anchorsJournalled || recoveryAdded)
+        var weakRemoved = opened.RemoveWeakSharingEnvelope();
+        if (recovered || applied.Count > 0 || opening.Kind != OpeningKind.Vault || anchorsJournalled || recoveryAdded
+            || weakRemoved)
         {
             opened.SaveUnlocked();
         }
@@ -960,10 +955,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// </exception>
     private void OpenWithVault(CaseHeader header, byte[] fileKey)
     {
-        var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        var wrappingKey = _services.DeriveVaultKey(CaseCrypto.EnvelopePurpose);
         try
         {
-            Case.DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
             if (!KeyEnvelopes.TryOpenOperator(header, wrappingKey, fileKey))
             {
                 throw new CaseException(CaseError.NoAccess);
@@ -1035,23 +1029,6 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         File.Delete(paths.WorkingBase);
     }
 
-    /// <summary>Derives the key that authenticates this computer's anchors.</summary>
-    /// <returns>The key in a pinned buffer that the caller hands over or clears.</returns>
-    private byte[] DeriveAnchorKey()
-    {
-        var key = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
-        try
-        {
-            Case.DeriveVaultKey(_services.PurposeKeys, AnchorStore.Purpose, key);
-            return key;
-        }
-        catch
-        {
-            Clear(key);
-            throw;
-        }
-    }
-
     /// <summary>Gives the files for a case number in the folder.</summary>
     /// <param name="caseNumber">The case number.</param>
     /// <returns>The paths.</returns>
@@ -1079,23 +1056,6 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         if (_services.Vault.State != VaultState.Unlocked)
         {
             throw new CaseException(CaseError.VaultLocked);
-        }
-    }
-
-    /// <summary>Gets the operator profile that the journal needs.</summary>
-    /// <returns>The profile.</returns>
-    /// <exception cref="CaseException">
-    /// <see cref="CaseError.VaultLocked"/> or <see cref="CaseError.NoOperatorProfile"/>.
-    /// </exception>
-    private OperatorProfile CurrentProfile()
-    {
-        try
-        {
-            return _services.Profiles.Get() ?? throw new CaseException(CaseError.NoOperatorProfile);
-        }
-        catch (VaultException exception) when (exception.Error == VaultError.Locked)
-        {
-            throw new CaseException(CaseError.VaultLocked, exception);
         }
     }
 
@@ -1198,12 +1158,11 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <returns>The header.</returns>
     private CaseHeader NewHeader(Guid caseId, byte[] fileKey)
     {
-        var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        var wrappingKey = _services.DeriveVaultKey(CaseCrypto.EnvelopePurpose);
         try
         {
-            Case.DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
             List<JsonObject> envelopes =
-                [KeyEnvelopes.CreateOperator(caseId, fileKey, wrappingKey, CurrentProfile().Name)];
+                [KeyEnvelopes.CreateOperator(caseId, fileKey, wrappingKey, _services.CurrentOperator().Name)];
             if (_services.Options.RecoveryKey is { } recoveryKey)
             {
                 envelopes.Add(RecoveryEnvelopes.Create(caseId, fileKey, recoveryKey));
@@ -1286,15 +1245,12 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
     /// <summary>Remembers an open case.</summary>
     /// <param name="opened">The case.</param>
-    /// <returns>The same case.</returns>
-    private Case Track(Case opened)
+    private void Track(Case opened)
     {
         lock (_openGate)
         {
             _open.Add(opened);
         }
-
-        return opened;
     }
 
     /// <summary>Forgets a case that has closed.</summary>

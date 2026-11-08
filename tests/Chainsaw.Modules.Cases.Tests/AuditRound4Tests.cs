@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Chainsaw.Modules.Cases.Contracts;
 
 namespace Chainsaw.Modules.Cases.Tests;
@@ -45,5 +46,43 @@ public sealed class AuditRound4Tests : IDisposable
             2, "En utlösare", "CREATE TRIGGER mine AFTER INSERT ON test_notes BEGIN SELECT 1; END;");
 
         Assert.ThrowsAny<Exception>(() => _fixture.CreateStore(new TestSchema(step)).Create("A1").Dispose());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void A_response_sealed_with_a_hash_that_does_not_match_its_body_is_found_by_the_verification(bool matches)
+    {
+        using var opened = _fixture.CreateStore(new ResponseSchema()).Create("A1");
+        byte[] body = [1, 2, 3];
+        opened.Write(transaction =>
+            transaction.AppendSealed(
+                "test.responses", [matches ? SHA256.HashData(body) : SHA256.HashData([9]), body]));
+
+        var verification = new CaseVerifier(_fixture.Clock).Verify(opened);
+
+        Assert.Equal(matches, !verification.Problems.Contains(CaseProblem.BodyHashMismatch));
+        Assert.All(verification.Chains, chain => Assert.Null(chain.Break));
+    }
+
+    /// <summary>A module with a sealed table of raw responses, as Chains and Pricing have.</summary>
+    private sealed class ResponseSchema : ICaseSchemaContributor
+    {
+        /// <inheritdoc/>
+        public string Module => "test";
+
+        /// <inheritdoc/>
+        public IReadOnlyList<CaseSchemaStep> Steps { get; } =
+        [
+            new(1, "Svaren", """
+                CREATE TABLE test_responses (
+                    sequence INTEGER PRIMARY KEY, sha256 BLOB NOT NULL, body BLOB NOT NULL, hash BLOB NOT NULL
+                ) STRICT;
+                """),
+        ];
+
+        /// <inheritdoc/>
+        public IReadOnlyList<SealedChain> SealedChains { get; } =
+            [new("test.responses", "test_responses", ["sha256", "body"])];
     }
 }

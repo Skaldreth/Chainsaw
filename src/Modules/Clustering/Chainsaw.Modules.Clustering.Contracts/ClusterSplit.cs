@@ -21,15 +21,7 @@ public sealed record ClusterSplit(
     string Heuristic,
     string Reason,
     long JournalSequence,
-    DateTimeOffset RecordedUtc)
-{
-    /// <summary>Says whether the split is between two given addresses, in either order.</summary>
-    /// <param name="first">One address.</param>
-    /// <param name="second">The other address.</param>
-    /// <returns><see langword="true"/> when it is.</returns>
-    public bool Separates(BitcoinAddress first, BitcoinAddress second) =>
-        (First == first && Second == second) || (First == second && Second == first);
-}
+    DateTimeOffset RecordedUtc);
 
 /// <summary>What the user asks for when breaking a merge.</summary>
 /// <param name="First">One address.</param>

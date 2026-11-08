@@ -185,7 +185,8 @@ internal sealed class WatcherLoop
 
         state.NextHeight = now + HeightPoll;
         var mark = scratch.Mark();
-        var height = await HeightAsync(scratch, chain, cancellationToken).ConfigureAwait(false);
+        var height = await WatchSchedule.HeightAsync(_parts.Bitcoin, _parts.Ethereum, scratch, chain, cancellationToken)
+            .ConfigureAwait(false);
         state.HeightFailed = height is null;
         if (height is not { } tip)
         {
@@ -313,27 +314,6 @@ internal sealed class WatcherLoop
                 .Select(sequence => _parts.Transfer.Read(reader, sequence))
                 .OfType<SealedResponse>()
                 .ToList());
-
-    /// <summary>Asks a chain's height through its sources.</summary>
-    /// <param name="scratch">The case in memory.</param>
-    /// <param name="chain">The chain.</param>
-    /// <param name="cancellationToken">Stops the lookup.</param>
-    /// <returns>The height, or <see langword="null"/> when it could not be had.</returns>
-    private async Task<long?> HeightAsync(ICase scratch, Chain chain, CancellationToken cancellationToken)
-    {
-        switch (chain)
-        {
-            case Chain.Bitcoin:
-                var tip = await _parts.Bitcoin.GetTipHeightAsync(scratch, cancellationToken).ConfigureAwait(false);
-                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
-            case Chain.Ethereum:
-                var height = await _parts.Ethereum.GetTipHeightAsync(scratch, cancellationToken)
-                    .ConfigureAwait(false);
-                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
-            default:
-                return null;
-        }
-    }
 
     /// <summary>
     /// Tries the chain's endpoints when they have not been tried since the process started, or again after a while

@@ -145,9 +145,6 @@ internal sealed class ChainSources : IChainSources
     /// <summary>Gets each endpoint's pace and its requests to wait, shared by the lookups and the probes.</summary>
     public EndpointPacer Pacer { get; }
 
-    /// <summary>Gets the time now.</summary>
-    public DateTimeOffset Now => _clock.UtcNow;
-
     /// <inheritdoc/>
     public IReadOnlyList<SourceApiInfo> Apis(Chain chain) =>
         [.. _apis.Values.Where(api => api.Info.Chain == chain).Select(api => api.Info)];
@@ -598,23 +595,8 @@ internal sealed class ChainSources : IChainSources
             return NotSent(id, Pacer.WaitUntil(id) is { } until ? WaitText(until) : PacedText, at);
         }
 
-        ((long Value, TimeSpan Duration)? Answer, string? Problem) asked;
-        try
-        {
-            asked = await AskAsync(endpoint, heightRequest, api.ReadHeight, cancellationToken).ConfigureAwait(false);
-        }
-        catch (ExitException exception) when (IsTheWayOuts(exception))
-        {
-            // Nothing was sent, or what was sent was cut by the way out: the turn goes back.
-            if (turn is not null)
-            {
-                Pacer.Release(turn);
-            }
-
-            throw;
-        }
-
-        var (height, heightProblem) = asked;
+        var (height, heightProblem) = await AskAsync(endpoint, heightRequest, api.ReadHeight, turn, cancellationToken)
+            .ConfigureAwait(false);
         if (Pacer.WaitUntil(id) is { } busy && height is null)
         {
             return NotSent(id, WaitText(busy), at);
@@ -645,7 +627,7 @@ internal sealed class ChainSources : IChainSources
                 return NotSent(id, hashKeyProblem!, at);
             }
 
-            var (read, hashProblem) = await AskAsync(endpoint, hashRequest, api.ReadHash, cancellationToken)
+            var (read, hashProblem) = await AskAsync(endpoint, hashRequest, api.ReadHash, null, cancellationToken)
                 .ConfigureAwait(false);
             if (read is null)
             {
@@ -697,21 +679,7 @@ internal sealed class ChainSources : IChainSources
             return null;
         }
 
-        ((string Value, TimeSpan Duration)? Answer, string? Problem) asked;
-        try
-        {
-            asked = await AskAsync(endpoint, request, api.ReadHash, cancellationToken).ConfigureAwait(false);
-        }
-        catch (ExitException exception) when (IsTheWayOuts(exception))
-        {
-            if (turn is not null)
-            {
-                Pacer.Release(turn);
-            }
-
-            throw;
-        }
-
+        var asked = await AskAsync(endpoint, request, api.ReadHash, turn, cancellationToken).ConfigureAwait(false);
         if (asked.Answer is not { } first)
         {
             return null;
@@ -824,17 +792,20 @@ internal sealed class ChainSources : IChainSources
 
     /// <summary>
     /// Sends one request of a probe the endpoint's way (<see cref="SendAsync"/>) and reads its answer; a source that
-    /// asks Chainsaw to wait is noted (<see cref="EndpointPacer.AskedToWait"/>).
+    /// asks Chainsaw to wait is noted (<see cref="EndpointPacer.AskedToWait"/>). When the way out fails (nothing was
+    /// sent, or what was sent was cut), the turn goes back before the failure is thrown on.
     /// </summary>
     /// <typeparam name="T">What is read.</typeparam>
     /// <param name="endpoint">The endpoint.</param>
     /// <param name="request">The request.</param>
     /// <param name="read">Reads a successful body; throws <see cref="FormatException"/> when it cannot.</param>
+    /// <param name="turn">The turn the request uses, or <see langword="null"/> when it took none.</param>
     /// <param name="cancellationToken">Stops the request.</param>
     /// <returns>The answer and how long it took, or why there is none, in Swedish.</returns>
     /// <exception cref="ExitNotConnectedException">The exit does not allow lookups; nothing was sent.</exception>
     private async Task<((T Value, TimeSpan Duration)? Answer, string? Problem)> AskAsync<T>(
-        SourceEndpoint endpoint, ExitRequest request, ReadBody<T> read, CancellationToken cancellationToken)
+        SourceEndpoint endpoint, ExitRequest request, ReadBody<T> read, EndpointTurn? turn,
+        CancellationToken cancellationToken)
     {
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         limit.CancelAfter(ProbeTimeout);
@@ -845,6 +816,11 @@ internal sealed class ChainSources : IChainSources
         }
         catch (ExitException exception) when (IsTheWayOuts(exception))
         {
+            if (turn is not null)
+            {
+                Pacer.Release(turn);
+            }
+
             throw;
         }
         catch (ExitException exception)

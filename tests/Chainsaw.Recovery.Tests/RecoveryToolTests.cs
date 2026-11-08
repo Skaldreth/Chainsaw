@@ -33,6 +33,54 @@ public sealed class RecoveryToolTests(KeyPairFixture keys) : IClassFixture<KeyPa
     }
 
     [Fact]
+    public void A_key_file_that_asks_for_too_many_iterations_is_refused_before_anything_is_derived()
+    {
+        // A crafted file asking for int.MaxValue iterations would otherwise keep the tool busy for many minutes.
+        var writer = new System.Formats.Asn1.AsnWriter(System.Formats.Asn1.AsnEncodingRules.DER);
+        using (writer.PushSequence())
+        {
+            using (writer.PushSequence())
+            {
+                writer.WriteObjectIdentifier("1.2.840.113549.1.5.13");
+                using (writer.PushSequence())
+                {
+                    using (writer.PushSequence())
+                    {
+                        writer.WriteObjectIdentifier("1.2.840.113549.1.5.12");
+                        using (writer.PushSequence())
+                        {
+                            writer.WriteOctetString(new byte[16]);
+                            writer.WriteInteger(int.MaxValue);
+                        }
+                    }
+
+                    using (writer.PushSequence())
+                    {
+                        writer.WriteObjectIdentifier("2.16.840.1.101.3.4.1.42");
+                        writer.WriteOctetString(new byte[16]);
+                    }
+                }
+            }
+
+            writer.WriteOctetString(new byte[64]);
+        }
+
+        var path = Path.Combine(Path.GetTempPath(), "chainsaw-crafted-" + Guid.NewGuid().ToString("N") + ".pem");
+        File.WriteAllText(path, PemEncoding.WriteString("ENCRYPTED PRIVATE KEY", writer.Encode()));
+        try
+        {
+            var error = Assert.ThrowsAny<CryptographicException>(
+                () => KeyFiles.ReadPrivate(path, KeyPairFixture.Password));
+
+            Assert.Contains("iteration", error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void The_private_key_is_protected_with_pbkdf2_sha512_and_aes256()
     {
         var der = PemEncoding.Find(File.ReadAllText(keys.PrivatePath));

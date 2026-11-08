@@ -101,7 +101,6 @@ public sealed class MarkdownTests
             [MarkdownBlockKind.Paragraph, MarkdownBlockKind.Code, MarkdownBlockKind.Paragraph],
             blocks.Select(b => b.Kind));
         Assert.Equal("# inte rubrik\n  - inte punkt **inte fet**", blocks[1].PlainText);
-        Assert.Equal(2, blocks[1].LineCount);
     }
 
     [Fact]

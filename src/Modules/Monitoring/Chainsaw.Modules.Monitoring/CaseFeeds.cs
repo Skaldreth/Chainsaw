@@ -356,9 +356,16 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         var block = at is not null && hashes.TryGetValue(at.Height, out var blockHash)
             ? new WatchBlock(at.Height, blockHash, at.Time)
             : null;
-        var flows = transfers.Select(transfer => new WatchFlow(
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.From.Value), transfer.Amount)],
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.To.Value), transfer.Amount)]));
-        return new WatchTransaction(Chain.Ethereum, hash, block, [.. flows]);
+        return Of(hash, block, transfers);
     }
+
+    /// <summary>Gives an Ethereum transaction in the check's form: one flow per movement of value.</summary>
+    /// <param name="hash">The transaction's hash.</param>
+    /// <param name="block">Its block, or <see langword="null"/> when it is not in a known block.</param>
+    /// <param name="transfers">Its movements.</param>
+    /// <returns>The check's form.</returns>
+    public static WatchTransaction Of(string hash, WatchBlock? block, IEnumerable<EthereumTransfer> transfers) =>
+        new(Chain.Ethereum, hash, block, [.. transfers.Select(transfer => new WatchFlow(
+            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.From.Value), transfer.Amount)],
+            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.To.Value), transfer.Amount)]))]);
 }

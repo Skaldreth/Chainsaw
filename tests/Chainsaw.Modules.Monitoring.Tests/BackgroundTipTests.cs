@@ -98,6 +98,7 @@ public sealed class BackgroundTipTests : IDisposable
     {
         var watch = await StartedWatch();
         Genuine();
+        _harness.SeenByTheCase(900_004);
         Queue.Add(Entry(watch, "hit"));
         Background.Import(_harness.Case);
         _harness.Gate.State = gate;

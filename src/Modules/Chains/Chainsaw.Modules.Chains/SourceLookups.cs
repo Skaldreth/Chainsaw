@@ -523,7 +523,9 @@ internal sealed class SourceLookups
         Task.Run(
             () => @case.Read(reader =>
             {
-                var stored = query.FindStored(reader);
+                var stored = query.FindStored is { } find
+                    ? find(reader)
+                    : StoredAs(_store.Latest(reader, query.Kind, query.Subject), query.Parse);
                 var counts = stored is not null && !query.NeverChanges;
                 return (stored, counts ? _store.KnownHeight(reader, stored!.Value.Response.Origin.Sequence) : null);
             }),
@@ -583,6 +585,12 @@ internal sealed class SourceLookups
     /// <returns>The number of confirmations, at least 1.</returns>
     public static long Confirmations(long height, long? knownHeight) =>
         Math.Max(knownHeight ?? height, height) - height + 1;
+
+    /// <summary>Gives sealed responses once each, in the order they were sealed.</summary>
+    /// <param name="origins">The responses.</param>
+    /// <returns>The responses.</returns>
+    public static List<ResponseOrigin> Ordered(IEnumerable<ResponseOrigin> origins) =>
+        [.. origins.DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)];
 
     /// <summary>Writes a local time for the user.</summary>
     /// <param name="time">The time.</param>

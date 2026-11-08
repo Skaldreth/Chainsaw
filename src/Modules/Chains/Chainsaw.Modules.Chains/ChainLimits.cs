@@ -33,6 +33,15 @@ internal static class ChainLimits
     public static string? Genesis(string chainName) =>
         Known.TryGetValue(chainName, out var known) ? known.Genesis : null;
 
+    /// <summary>
+    /// Gives when a chain's first block was made and its fastest average time between blocks, from which
+    /// <see cref="HighestPlausible"/> counts; for a check of many heights in one query.
+    /// </summary>
+    /// <param name="chainName">The chain's name in the tables.</param>
+    /// <returns>The two, or <see langword="null"/> for a chain without a known bound.</returns>
+    public static (DateTimeOffset Made, TimeSpan Fastest)? Pace(string chainName) =>
+        Known.TryGetValue(chainName, out var known) ? (known.Made, known.Fastest) : null;
+
     /// <summary>Gives the highest a chain can have come by a time.</summary>
     /// <param name="chainName">The chain's name in the tables.</param>
     /// <param name="at">The time.</param>

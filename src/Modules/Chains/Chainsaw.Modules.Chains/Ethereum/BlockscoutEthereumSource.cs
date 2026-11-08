@@ -96,7 +96,6 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             path,
             Parse,
             page => Index(page.Transfers.Select(transfer => transfer.Block?.Height)),
-            reader => SourceLookups.StoredAs(_lookups.Store.Latest(reader, kind, subject), Parse),
             page => atOrBelow is null || page.IsIncomplete || page.IsCutShort || page.Unread > 0 ? null : atOrBelow);
         return _lookups.LookupAsync(@case, query, mode, cancellationToken);
     }
@@ -196,8 +195,6 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             BlockscoutApi.BlockPath(height),
             Parse,
             block => new ResponseIndex([], block.Height),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.Block, subject), Parse),
             block => block.Height);
         return _lookups.LookupAsync(@case, query, mode, cancellationToken);
     }
@@ -220,9 +217,6 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             BlockscoutApi.NewestBlockPath,
             BlockscoutParser.ParseNewestBlock,
             tip => new ResponseIndex([], tip.Height),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.TipBlock, string.Empty),
-                BlockscoutParser.ParseNewestBlock),
             _ => null);
         return _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
     }
@@ -242,8 +236,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
 
         var tokens = await _lookups.LookupAsync(
             @case, TokenBalancesQuery(address), LookupMode.AsNeeded, cancellationToken).ConfigureAwait(false);
-        var origins = ether.Origins.Concat(tokens.Origins).DistinctBy(origin => origin.Sequence)
-            .OrderBy(origin => origin.Sequence).ToList();
+        var origins = SourceLookups.Ordered(ether.Origins.Concat(tokens.Origins));
         var balance = new EthereumBalance(address, new AssetAmount(Asset.Ether, wei.Wei), tokens.Value?.Tokens ?? [])
         {
             Skipped = tokens.Value?.Skipped ?? 0,
@@ -378,8 +371,6 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         "?module=account&action=balance&address=" + address.Value,
         BlockscoutParser.ParseBalance,
         _ => ResponseIndex.None,
-        reader => SourceLookups.StoredAs(
-            _lookups.Store.Latest(reader, EthereumResponseKinds.Balance, address.Value), BlockscoutParser.ParseBalance),
         _ => null);
 
     /// <summary>The lookup of an address's tokens, which always change.</summary>
@@ -391,9 +382,6 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         "?module=account&action=tokenlist&address=" + address.Value,
         BlockscoutParser.ParseTokenBalances,
         _ => ResponseIndex.None,
-        reader => SourceLookups.StoredAs(
-            _lookups.Store.Latest(reader, EthereumResponseKinds.TokenBalances, address.Value),
-            BlockscoutParser.ParseTokenBalances),
         _ => null);
 
     /// <summary>Gives a token Chainsaw knows by its contract, without asking the source.</summary>
@@ -451,8 +439,6 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             "?module=transaction&action=gettxinfo&txhash=" + hash.Value,
             Parse,
             info => Index([info.Height]),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.Transaction, hash.Value), Parse),
             info => info.LogsCut ? null : info.Height);
     }
 
@@ -470,8 +456,6 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             "?module=account&action=txlistinternal&txhash=" + hash.Value,
             Parse,
             _ => Index([height]),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.TransactionInternal, hash.Value), Parse),
             calls => calls.IsIncomplete ? null : height);
     }
 
@@ -489,8 +473,6 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             "?module=token&action=getToken&contractaddress=" + contract.Value,
             Parse,
             _ => ResponseIndex.None,
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.Token, contract.Value), Parse),
             // Decimals never change once the source has them; an answer without them (the source may not have read
             // a new token yet) is asked again. Block 0 is always deep.
             info => info.Asset is null ? null : 0L);
@@ -504,8 +486,6 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         BlockscoutApi.HeightPath,
         BlockscoutParser.ParseHeight,
         tip => new ResponseIndex([], tip.Height),
-        reader => SourceLookups.StoredAs(
-            _lookups.Store.Latest(reader, EthereumResponseKinds.TipHeight, string.Empty), BlockscoutParser.ParseHeight),
         _ => null);
 
     /// <summary>
@@ -606,7 +586,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         /// <returns>The answer.</returns>
         public BitcoinLookup<EthereumTransaction> Result(EthereumTransaction transaction) =>
             new(_status, transaction with { IsComplete = _complete },
-                [.. _origins.DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)], _problem)
+                SourceLookups.Ordered(_origins), _problem)
             {
                 Notes = [.. _notes.Distinct()],
             };

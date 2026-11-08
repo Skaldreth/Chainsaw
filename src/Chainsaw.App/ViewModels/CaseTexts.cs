@@ -47,13 +47,7 @@ public static class CaseTexts
     /// <summary>Gives a chain's short label, as in the sketch's tag under the start points.</summary>
     /// <param name="chain">The chain, or <see langword="null"/> when unknown.</param>
     /// <returns>The label, for example <c>BTC</c>.</returns>
-    public static string ChainLabel(Chain? chain) => chain switch
-    {
-        Chain.Bitcoin => "BTC",
-        Chain.Ethereum => "ETH",
-        Chain.Tron => "TRON",
-        _ => "?",
-    };
+    public static string ChainLabel(Chain? chain) => chain is { } known ? Graph.GraphScene.ChainShortName(known) : "?";
 
     /// <summary>Gives a chain's name in Swedish text.</summary>
     /// <param name="chain">The chain.</param>

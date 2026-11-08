@@ -48,6 +48,7 @@ public sealed class BackgroundImportTests : IDisposable
     public async Task A_check_from_the_background_is_sealed_with_its_responses_and_its_hits_only_as_tips()
     {
         var watch = await StartedWatch();
+        _harness.SeenByTheCase(900_010);
         var entry = Hit(watch, 900_003);
         Queue.Add(entry);
 
@@ -57,8 +58,8 @@ public sealed class BackgroundImportTests : IDisposable
         var hit = Assert.Single(result.Tips);
         Responses.AssertSame(entry.Matches[0], hit.Match);
         var sealedResponses = ResponseSequences();
-        Assert.Equal(2, sealedResponses.Count);
-        Assert.Equal([sealedResponses[1]], hit.Origins);
+        Assert.Equal(3, sealedResponses.Count);
+        Assert.Equal([sealedResponses[2]], hit.Origins);
         Assert.Equal(hit.Sequence, Assert.Single(_harness.Service.GetTips(_harness.Case)).Sequence);
         Assert.Equal(WatchTipState.Pending, hit.State);
         Assert.Equal(entry.Id, hit.Entry);
@@ -73,7 +74,8 @@ public sealed class BackgroundImportTests : IDisposable
         Assert.True(_harness.Verify().IsIntact);
         var fetchedBy = _harness.Case.Read(reader =>
         {
-            using var command = reader.CreateCommand("SELECT fetched_by, exit_route FROM chains_raw_responses");
+            using var command = reader.CreateCommand(
+                "SELECT fetched_by, exit_route FROM chains_raw_responses ORDER BY sequence DESC");
             using var row = command.ExecuteReader();
             row.Read();
             return (row.GetString(0), row.GetString(1));
@@ -211,6 +213,7 @@ public sealed class BackgroundImportTests : IDisposable
     {
         // The start's entry was set aside, so the watch has no start when the background's check comes in.
         var watch = _harness.WatchBitcoin(Synthetic.Wpkh("w"));
+        _harness.SeenByTheCase(900_010);
         Queue.Add(Hit(watch, 900_003));
 
         var result = Background.Import(_harness.Case);
@@ -247,6 +250,33 @@ public sealed class BackgroundImportTests : IDisposable
         Background.Import(_harness.Case);
 
         Assert.Equal(900_020, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+    }
+
+    [Fact]
+    public async Task A_read_through_height_beyond_what_the_case_has_seen_counts_only_as_far_as_the_case_has_seen()
+    {
+        var watch = await StartedWatch();
+        _harness.SeenByTheCase(900_010);
+        var forged = Hit(watch, 900_003);
+        Queue.Add(forged with { Checked = forged.Checked! with { Height = 9_999_999, Tip = 9_999_999 } });
+
+        Background.Import(_harness.Case);
+
+        var checkedAt = _harness.Service.GetChecked(_harness.Case)[watch.Id];
+        Assert.Equal((900_010, 900_010), (checkedAt.Height, checkedAt.Tip));
+    }
+
+    [Fact]
+    public async Task A_read_through_height_is_not_taken_while_the_case_has_seen_no_block()
+    {
+        var watch = await StartedWatch();
+        var forged = Hit(watch, 900_003);
+        Queue.Add(forged with { Checked = forged.Checked! with { Height = 9_999_999, Tip = 9_999_999 } });
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Single(result.Tips);
+        Assert.Equal(900_000, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
     }
 
     [Fact]
@@ -350,7 +380,12 @@ public sealed class BackgroundImportTests : IDisposable
         Queue.Add(Hit(watch, 900_003));
         var held = new HeldQueue((WatchQueue)Queue, forged);
         var transfer = _harness.Get<Chains.Contracts.IResponseTransfer>();
-        var background = new BackgroundWatches(_harness.Get<MonitoringService>(), held, transfer, _harness.Clock);
+        var background = new BackgroundWatches(
+            _harness.Get<MonitoringService>(),
+            held,
+            transfer,
+            _harness.Get<Chains.Contracts.ICaseHeights>(),
+            _harness.Clock);
 
         var result = background.Import(_harness.Case);
 

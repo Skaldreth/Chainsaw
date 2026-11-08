@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -23,4 +25,46 @@ internal sealed record CaseServices(
     IVaultSecrets Secrets,
     IClock Clock,
     CasesOptions Options,
-    SchemaCatalog Catalog);
+    SchemaCatalog Catalog)
+{
+    /// <summary>Derives a key from the vault, giving a locked vault the case's own error.</summary>
+    /// <param name="purpose">The purpose, such as <see cref="CaseCrypto.EnvelopePurpose"/>.</param>
+    /// <returns>The key in a pinned buffer that the caller hands over or clears; cleared here on failure.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.VaultLocked"/>.</exception>
+    public byte[] DeriveVaultKey(string purpose)
+    {
+        var key = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
+        {
+            PurposeKeys.DeriveKey(purpose, key);
+            return key;
+        }
+        catch (Exception exception)
+        {
+            CryptographicOperations.ZeroMemory(key);
+            if (exception is VaultException { Error: VaultError.Locked })
+            {
+                throw new CaseException(CaseError.VaultLocked, exception);
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>Gets the operator from the vault for the journal.</summary>
+    /// <returns>The profile.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.VaultLocked"/> or <see cref="CaseError.NoOperatorProfile"/>.
+    /// </exception>
+    public OperatorProfile CurrentOperator()
+    {
+        try
+        {
+            return Profiles.Get() ?? throw new CaseException(CaseError.NoOperatorProfile);
+        }
+        catch (VaultException exception) when (exception.Error == VaultError.Locked)
+        {
+            throw new CaseException(CaseError.VaultLocked, exception);
+        }
+    }
+}

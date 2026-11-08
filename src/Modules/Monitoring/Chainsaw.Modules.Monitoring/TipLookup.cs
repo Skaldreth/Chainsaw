@@ -131,10 +131,7 @@ internal static class TipLookup
         }
 
         var block = value.Block is { Hash: { } blockHash } at ? new WatchBlock(at.Height, blockHash, at.Time) : null;
-        var flows = value.Transfers.Select(transfer => new WatchFlow(
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.From.Value), transfer.Amount)],
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.To.Value), transfer.Amount)]));
-        var transaction = new WatchTransaction(Chain.Ethereum, value.Hash.Value, block, [.. flows]);
+        var transaction = EthereumCaseFeed.Of(value.Hash.Value, block, value.Transfers);
         return (lookup.Status, transaction, Sequences(lookup.Origins), lookup.Problem, value.IsComplete);
     }
 

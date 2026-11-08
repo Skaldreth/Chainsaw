@@ -39,6 +39,9 @@ public static class VerificationText
             + "(case.anchors-replaced).",
         CaseProblem.TriggerAdded =>
             "Ärendet har en utlösare som Chainsaw inte lägger dit; den påverkar det som sparas härefter.",
+        CaseProblem.BodyHashMismatch =>
+            "Ett sparat svar har en kontrollsumma (SHA-256) som inte stämmer med svarets innehåll; "
+            + "svaret förseglades så och går inte att läsa.",
         _ => "Ärendet har ett fel som den här versionen inte kan beskriva.",
     };
 

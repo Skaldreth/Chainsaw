@@ -76,18 +76,12 @@ public sealed partial class EnvelopeCard : ObservableObject
     /// <summary>Gets what it means; a fingerprint for a recovery key.</summary>
     public string Text { get; }
 
-    /// <summary>Gets whether the text is a fingerprint, shown in the mono font.</summary>
-    public bool IsFingerprint => Kind == EnvelopeCardKind.Recovery;
-
     /// <summary>Gets whether the card is dashed: something that is not there.</summary>
     public bool IsDashed => Kind is EnvelopeCardKind.YoursMissing or EnvelopeCardKind.NoSharing
         or EnvelopeCardKind.NoRecovery;
 
     /// <summary>Gets whether the card carries the green <em>Du</em>.</summary>
     public bool IsYou => Kind == EnvelopeCardKind.Yours;
-
-    /// <summary>Gets whether the card carries the lock: the organisation's, which cannot be removed here.</summary>
-    public bool IsOrganisation => Kind == EnvelopeCardKind.Recovery;
 
     /// <summary>Gets whether <em>Byt …</em> and <em>Ta bort</em> are offered.</summary>
     public bool CanChange => Kind == EnvelopeCardKind.SharingPassword && !IsEditing;

@@ -22,9 +22,6 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
     /// <summary>How many times an export is made again when the case changed between the check and the seal.</summary>
     public const int MostAttempts = 3;
 
-    /// <summary>The file's encoding: UTF-8 without a byte order mark, which every program reads.</summary>
-    private static readonly UTF8Encoding FileEncoding = new(encoderShouldEmitUTF8Identifier: false);
-
     /// <inheritdoc/>
     public ReportLedger Check(ICase @case)
     {
@@ -97,9 +94,7 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
     {
         var checkedDraft = draft.Has(ReportPart.Ledger) ? draft with { Ledger = Check(@case) } : draft;
         var document = ReportTemplate.Compose(checkedDraft, Context(@case, draft.MadeUtc ?? clock.UtcNow));
-        var bytes = FileEncoding.GetBytes(document.Markdown);
-        var written = RequestFiles.WriteNew(path, bytes);
-        var sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        var (written, sha) = RequestFiles.WriteMarkdown(path, document.Markdown);
         try
         {
             return @case.Write(transaction => Seal(transaction, checkedDraft, written, sha, lastAttempt));
@@ -206,26 +201,11 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
             record.Sequence, fileName, path, sha, transactions, parts, journal.Utc, journal.Sequence);
     }
 
-    /// <summary>Gives who makes the report and when: the case's number, never its title.</summary>
+    /// <summary>Gives who makes the report and when.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="utc">When.</param>
     /// <returns>The context.</returns>
-    private RequestContext Context(ICase @case, DateTimeOffset utc) =>
-        new(@case.Info.CaseNumber, Operator(), utc);
-
-    /// <summary>Reads the operator's profile; none when the vault is locked or no profile is saved.</summary>
-    /// <returns>The profile, or <see langword="null"/>.</returns>
-    private OperatorProfile? Operator()
-    {
-        try
-        {
-            return profiles.Get();
-        }
-        catch (VaultException)
-        {
-            return null;
-        }
-    }
+    private RequestContext Context(ICase @case, DateTimeOffset utc) => RequestContext.For(@case, profiles, utc);
 }
 
 /// <summary>

@@ -225,7 +225,6 @@ public sealed class CaseEnvelopesTests
             ],
             properties.Cards.Select(card => card.Kind));
         var recovery = properties.Cards[3];
-        Assert.True(recovery.IsOrganisation);
         Assert.StartsWith("Fingeravtryck AAAA AAAA", recovery.Text, StringComparison.Ordinal);
         Assert.Contains("inbyggd", recovery.Subtitle, StringComparison.Ordinal);
         Assert.True(properties.Cards[2].CanCreate);

@@ -370,6 +370,31 @@ public static class WatchSchedule
         return newBlock && now - last.CheckedUtc >= pace.Interval() - Tolerance;
     }
 
+    /// <summary>Asks a chain's height through its source, as the open Chainsaw and the background both do.</summary>
+    /// <param name="bitcoin">Bitcoin's source.</param>
+    /// <param name="ethereum">Ethereum's source.</param>
+    /// <param name="case">The case the response is sealed in.</param>
+    /// <param name="chain">The chain.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The height, or <see langword="null"/> when it was not fetched or the chain cannot be watched.</returns>
+    public static async Task<long?> HeightAsync(
+        IBitcoinSource bitcoin, IEthereumSource ethereum, ICase @case, Chain chain, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(bitcoin);
+        ArgumentNullException.ThrowIfNull(ethereum);
+        switch (chain)
+        {
+            case Chain.Bitcoin:
+                var tip = await bitcoin.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
+                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
+            case Chain.Ethereum:
+                var height = await ethereum.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
+                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
+            default:
+                return null;
+        }
+    }
+
     /// <summary>Gives the block a check reads back to: the last read-through height less the look-back.</summary>
     /// <param name="start">The watch's start.</param>
     /// <param name="last">When it was last checked, or <see langword="null"/>.</param>

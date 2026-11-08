@@ -16,9 +16,11 @@ namespace Chainsaw.Modules.Monitoring;
 /// <param name="service">The watches, which say a cluster's addresses as each check does.</param>
 /// <param name="queue">The queue.</param>
 /// <param name="transfer">Seals the raw responses again in the case.</param>
+/// <param name="heights">How far the case's own lookups have seen each chain, which bounds the background.</param>
 /// <param name="clock">The clock.</param>
 internal sealed class BackgroundWatches(
-    MonitoringService service, IWatchQueue queue, IResponseTransfer transfer, IClock clock) : IBackgroundWatches
+    MonitoringService service, IWatchQueue queue, IResponseTransfer transfer, ICaseHeights heights, IClock clock)
+    : IBackgroundWatches
 {
     /// <summary>The journal line when entries were brought in.</summary>
     public const string ImportedText =
@@ -211,11 +213,21 @@ internal sealed class BackgroundWatches(
         var start = watch.StartHeight ?? Start(transaction, watch, entry.Start, null);
 
         // How far it read counts only when it read from the case's start or lower: a check from a later start never
-        // read the blocks between, and must not mark them as read.
+        // read the blocks between, and must not mark them as read. Like a hit, how far it read is only the
+        // background's word: it counts no further than the case's own lookups have seen the chain, so that a forged
+        // entry cannot make the open check skip blocks it never read. When the case has seen no block, it waits.
         var current = WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id);
-        if (entry.Start <= start && (current is null || checkedAt.CheckedUtc > current.CheckedUtc))
+        if (entry.Start <= start && (current is null || checkedAt.CheckedUtc > current.CheckedUtc)
+            && heights.Known(transaction, watch.Chain) is { } seen)
         {
-            WatchStore.WriteChecked(transaction, watch.Id, checkedAt);
+            var bounded = checkedAt with
+            {
+                Height = Math.Min(checkedAt.Height, seen), Tip = Math.Min(checkedAt.Tip, seen),
+            };
+            if (current is null || bounded.Height >= current.Height)
+            {
+                WatchStore.WriteChecked(transaction, watch.Id, bounded);
+            }
         }
 
         // A hit the case has, or a tip it already holds in any state, is never brought in again.

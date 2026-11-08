@@ -74,14 +74,6 @@ public readonly record struct AssetAmount : IComparable<AssetAmount>
         return new AssetAmount(asset, negative ? -units : units);
     }
 
-    /// <summary>Gives the amount as satoshi; only for bitcoin.</summary>
-    /// <returns>The amount in satoshi.</returns>
-    /// <exception cref="InvalidOperationException">The amount is not bitcoin.</exception>
-    /// <exception cref="OverflowException">The amount does not fit in 64 bits.</exception>
-    public Satoshi ToSatoshi() => Asset == SharedKernel.Asset.Bitcoin
-        ? new Satoshi((long)Units)
-        : throw new InvalidOperationException($"{Asset} is not counted in satoshi.");
-
     /// <summary>Writes the amount with all the asset's decimals and invariant digits, without the symbol.</summary>
     /// <returns>For example <c>0.51200000</c> for bitcoin or <c>1.000000000000000000</c> for ether.</returns>
     public string ToDecimalString()
