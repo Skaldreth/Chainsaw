@@ -56,5 +56,6 @@ Chainsaw har en egen lista över **kända kontrakt** på Ethereum, var och en me
 Etiketten är en bedömning med listan som källa, inte ett faktum, och kan tas tillbaka som andra etiketter. Listans
 namn och version står i etikettens ursprung, så att det går att se vilken lista den kom från.
 
-Att Chainsaw själv föreslår fortsättningen ur belopp och tid är **inte byggt än**. Att spåra vidare på TRON är inte
-heller byggt än.
+Att Chainsaw själv föreslår fortsättningen ur belopp och tid är **inte byggt än**. Vidare på Ethereum och TRON går det
+att spåra, när fortsättningen är knuten (se [TRON](tron.md)).
+

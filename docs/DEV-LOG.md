@@ -4145,3 +4145,51 @@ topp.
     syns bara som *Onödig input*. `payjoin v1` noterar utan veto, så ett ärende stänger av vetot genom att dra
     tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
     en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.
+
+## Omgång 8: TRON med USDT (backloggen, 2026-11-08)
+
+- **Byggt:** TRON i kontomodellen bredvid Ethereum. Källan är TronGrid (`TronGridApi`, `TronGridTronSource`):
+  `wallet/gettransactionbyid`, `wallet/gettransactioninfobyid` och `wallet/getblock` (som varje TRON-nod svarar på)
+  och TronGrids index `v1/accounts/:adress[/transactions[/trc20]]`. TRON är en egen kedja på sidan Källor med lägena
+  Snabbast, Prioriterad och Av, TronGrid som förval, nyckeln i huvudet `TRON-PRO-API-KEY`, en fråga i sekunden utan
+  nyckel (Chainsaws eget val) och `429`/`Retry-After` eller TronGrids *request rate exceeded* som väntan. Genesis-blockets
+  id i `ChainLimits`. Grafen, inspektören, startpunkterna (NC2a förhämtar TRX, USDT, antal tx och aktivitet), saldot på
+  kortets baksida, sanktionerna (OFAC:s `TRX`, och `USDT`/`USDC` med en `T…`-adress), kurserna (Bitstamps `trxeur` och
+  `usdteur`, samma marknad som USDT på Ethereum), bevakningen (också i bakgrunden), länkar till och från andra kedjor,
+  etiketter på TRON-konton och testärendet (swappen fortsätter på TRON).
+- **Egna beslut:**
+  - **Typerna:** kontomodellens adress och tx (`EthereumAddress`, `EthereumTxHash`) bär sin kedja i stället för att
+    TRON får egna typer, så att hela kontomodellen (läsaren, spårningen, `IAccountTracingMethod`, grafen, bevakningens
+    flöde) återanvänds utan kopior. TRON:s adress läses i Base58Check eller hex (`41…`, `0x41…`) och hålls i `T…`-form,
+    så att samma adress aldrig blir två; samma 20 byte på Ethereum och TRON är två adresser (`Chain` i likheten).
+    Typerna ligger i Chains.Contracts som Ethereums, inte i SharedKernel som uppdraget föreslog: Base58Check och
+    Keccak finns där, och kontraktet hör till sorten kedja. Namnbytet (`AccountAddress` …) står i BACKLOG.
+  - **Kontraktet:** `IAccountSource` är kontomodellens kontrakt; `IEthereumSource` och `ITronSource` ärver det och
+    namnger bara kedjan, så att containern ger rätt källa. `PageStartOf` säger i vilken enhet en sida börjar (block på
+    Ethereum, blocktid i millisekunder på TRON), så att läsarens golv vid en ny expansion stämmer.
+  - **Historiken efter tid:** TronGrid bläddrar med `max_timestamp` (inklusive), så en sida börjar *vid* en tid och
+    upprepar posterna där, som Ethereums sidor gör vid ett block. Den nyaste sidan hämtas alltid igen; en äldre räknas
+    som slutlig när källans egen klocka (`meta.at`) är tio minuter förbi sidans start (20 block tar en minut).
+  - **Tokenhistoriken** ger varken block eller loggindex, så varje tx:s info hämtas och förseglas, och överföringen tar
+    blocket och händelsens index därifrån. Samma överföring blir då identisk vare sig den kom ur historiken eller ur hela
+    tx:en (`TransferKey`). En post vars händelse inte finns i infon räknas inte och håller sidan öppen.
+  - **Slutgiltigt efter 20 block** (19 av 27 producenter, en minut). Ett blocks id börjar med höjden i 8 byte, och det
+    kontrolleras i varje svar.
+  - **Interna tx** listar TronGrid med tx:en i adressens historik, så historiken *Interna* är tom och frågar inget.
+    TRC-10 räknas inte och sägs. En tx som inte ligger i ett block flyttar inget än.
+  - **En hel tx** räknar bara tokens som Chainsaw känner (USDT), eftersom TRON:s API inte ger andra tokens decimaler
+    utan POST (`triggerconstantcontract`); de andra sägs saknas, och tx:en är ofullständig.
+  - **Bevakningen:** *vid varje nytt block* blir på TRON ungefär en gång i minuten, eftersom kedjans höjd läses en gång
+    i minuten (`WatchRunner.HeightPoll`); ingen egen takt per kedja behövdes. Flödets sidor slutar när sidans äldsta block
+    är under det kontrollen läser till (TRON:s sidor börjar vid en tid).
+  - **TRON:s källa är valfri i konstruktorerna** (`ITronSource? tron = null`) i Tracing, Monitoring och appen, så att
+    en värd utan TRON (testernas) fungerar som förut; `AddChainsModule` registrerar den alltid.
+- **Skriver i ärendet** (granskas oberoende): TRON:s råsvar förseglas som `tron-mainnet` med källan `trongrid` och
+  endpointen; grafens tillstånd lagrar TRON:s startpunkter och expansioner som `tron-address` och `tron-transaction`,
+  och en länk från en TRON-rörelse som `token:<tx>` utan `0x`; etiketter och sanktionsträffar på TRON-konton lagras
+  med adressen i `T…`-form (`LabelStore.Subject` läser den); bevakningar och träffar på TRON som Ethereums.
+- **Avsteg och kvar** (BACKLOG, *TRON efter omgång 8*; TODO avsnitt 3, punkt 8 [skiss]): svartlistan (*Fryst*), andra
+  TRC-20 i en hel tx och i saldot, ett uppslag per tx i tokenhistoriken, sidornas slutlighet efter källans klocka,
+  bevakningens bakåtblick i tid, TronScan och egen nod, typernas namn och kontrollerna på TRON. Chainabuse frågas inte
+  för TRON än. Formerna är provade mot TronGrids riktiga svar (bara formen; inga riktiga adresser eller svar ligger i
+  koden eller testerna, där allt är syntetiskt ur `tests/Chainsaw.Modules.Chains.Tests/Tron/generate.py`).

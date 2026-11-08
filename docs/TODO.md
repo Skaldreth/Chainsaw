@@ -134,7 +134,14 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      (äldre kopia, parallella ändringar på två datorer, ankare som rullats tillbaka).
 7. **Vyerna och appen:** fynden under Exponering, Begäran, Rapport, Undermenyerna, Låsskärmen, Historiken,
    Kommentarsnoden, Spårning, Testärendet och *Vyerna efter 1.0*; grafens prestanda vid tusentals noder.
-8. **TRON med USDT**, sedan **Litecoin**, **BSC**, **Solana** och den genomskinliga delen av **Zcash**.
+8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*); kvar **Litecoin**,
+   **BSC**, **Solana** och den genomskinliga delen av **Zcash**. TRON:s ytor som väntar:
+   - [skiss] **Fryst:** Tethers kontrakt på TRON har en svartlista (`isBlackListed`); en adress som står där kunde få
+     en markering *Fryst* bredvid snöflingan *Kan frysas*, med när den lästes och ur vilket svar. Hur den skiljer sig
+     från snöflingan (som bara säger att utgivaren *kan* frysa) och hur ofta den frågas skissas först.
+   - [skiss] **TRX:s avgift i inspektören:** TRON bränner TRX för energi och bandbredd (ofta noll med låst TRX);
+     inspektören visar avgiften som på Ethereum, men skillnaden mellan energi och bandbredd syns inte.
+
 9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
    (utan språkmodell, princip 5).
 

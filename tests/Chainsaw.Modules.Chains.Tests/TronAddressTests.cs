@@ -3,7 +3,9 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains.Tests;
 
-/// <summary>TRON's addresses and transaction ids: Base58Check and hex give one address, on TRON and never on Ethereum.</summary>
+/// <summary>
+/// TRON's addresses and transaction ids: Base58Check and hex give one address, on TRON and never on Ethereum.
+/// </summary>
 public sealed class TronAddressTests
 {
     /// <summary>A made-up address: the version byte 0x41 and 20 bytes of 0x11.</summary>

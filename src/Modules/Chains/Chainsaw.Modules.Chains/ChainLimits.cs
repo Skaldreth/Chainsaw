@@ -12,8 +12,8 @@ internal static class ChainLimits
     /// <summary>
     /// Each known chain by its name in the tables: its first block's hash as its sort of API writes it, when that
     /// block was made, and an average time between blocks far shorter than the chain has ever had (Bitcoin aims at ten
-    /// minutes, Ethereum has at most one block per twelve seconds since 2022, TRON one per three seconds since its main network
-    /// began in June 2018).
+    /// minutes, Ethereum has at most one block per twelve seconds since 2022, TRON one per three seconds since its main
+    /// network began in June 2018).
     /// </summary>
     private static readonly Dictionary<string, (string Genesis, DateTimeOffset Made, TimeSpan Fastest)> Known =
         new(StringComparer.Ordinal)

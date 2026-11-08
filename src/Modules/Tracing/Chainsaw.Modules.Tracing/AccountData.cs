@@ -5,8 +5,8 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
-/// The account chains' facts the graph is built from (Ethereum and TRON), read from the case: every movement and fee each once, the whole
-/// transactions, the accounts whose history was read, and the blocks' hashes.
+/// The account chains' facts the graph is built from (Ethereum and TRON), read from the case: every movement and fee
+/// each once, the whole transactions, the accounts whose history was read, and the blocks' hashes.
 /// </summary>
 /// <param name="Transfers">The movements, each once, in chain order (<see cref="AccountGraph.ChainOrder"/>).</param>
 /// <param name="Fees">The fees, one per transaction.</param>

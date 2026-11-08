@@ -64,7 +64,9 @@ internal sealed record TronTokenEntry(
 
 /// <summary>A page of an address's TRC-20 transfers from <c>v1/accounts/:address/transactions/trc20</c>.</summary>
 /// <param name="Entries">The transfers that touch the address and can be counted, newest first.</param>
-/// <param name="NextAtOrBelow">Where the next page starts (a block's time in milliseconds), or <see langword="null"/>.</param>
+/// <param name="NextAtOrBelow">
+/// Where the next page starts (a block's time in milliseconds), or <see langword="null"/>.
+/// </param>
 /// <param name="IsCutShort">Whether a full page lay in one block, so that the rest cannot be read by paging.</param>
 /// <param name="Skipped">How many entries are not counted (a transfer of zero, too many decimals).</param>
 /// <param name="Unread">How many entries came without decimals; they keep the page from being final.</param>

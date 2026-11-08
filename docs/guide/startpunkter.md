@@ -11,12 +11,13 @@ exempel offrets betalning). Chainsaw känner igen vad du har skrivit på formen,
   felskrivet tecken upptäcks nästan alltid. Se [Adresstyper](adresstyper.md).
 - **Bitcoin-tx:** 64 hexadecimala tecken (0–9, a–f), tx:ens id (txid).
 - **Ethereum:** `0x` och 40 hexadecimala tecken är en adress, `0x` och 64 en transaktion.
-- **TRON:** en adress börjar med `T` och är Base58Check, som Bitcoins äldre adresser, men med versionsbyten `0x41`.
-  En TRON-tx är 64 hexadecimala tecken, precis som en Bitcoin-tx. Därför går den inte att skilja från en Bitcoin-tx på
-  formen; den känns igen som TRON bara när kedjan står utskriven, som i länken `chainsaw:tron/<tx>`.
+- **TRON:** en adress börjar med `T` och är Base58Check, som Bitcoins äldre adresser, men med versionsbyten `0x41`;
+  samma adress i TRON:s hex (`41` och 40 tecken) tas också emot och skrivs om till `T…`. En TRON-tx är 64
+  hexadecimala tecken, precis som en Bitcoin-tx. Därför går den inte att skilja från en Bitcoin-tx på formen; den känns
+  igen som TRON bara när kedjan står utskriven, som i länken `chainsaw:tron/<tx>`.
 
-Bitcoin och Ethereum går att spåra. En startpunkt på TRON visas tonad med *inte byggt än*, och skrivs den i ett nytt
-ärende sparas den i journalen så att den inte tappas bort.
+Bitcoin, Ethereum och TRON går att spåra (se [TRON](tron.md)).
+
 
 En startpunkt läggs till i ärendet med en rad i journalen. Grafen börjar där, och det som går vidare därifrån hämtas
 först när startpunkten expanderas.

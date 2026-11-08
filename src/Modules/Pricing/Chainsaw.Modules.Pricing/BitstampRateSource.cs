@@ -9,8 +9,8 @@ namespace Chainsaw.Modules.Pricing;
 /// <summary>
 /// Bitstamp's public price history (<c>GET /api/v2/ohlc/{market}/</c>), open without an API key, with candles of a
 /// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, TRX, USDT and USDC (on Ethereum, and USDT
-/// on TRON) in dollars and euro. One request asks for one candle: <c>step</c> is the length in seconds, <c>limit=1</c> and <c>start</c>
-/// the candle's start as Unix time.
+/// on TRON) in dollars and euro. One request asks for one candle: <c>step</c> is the length in seconds,
+/// <c>limit=1</c> and <c>start</c> the candle's start as Unix time.
 /// </summary>
 /// <param name="baseUri">The API's base address, for example <c>https://www.bitstamp.net/api/v2/</c>.</param>
 internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
