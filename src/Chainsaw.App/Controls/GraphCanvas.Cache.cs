@@ -37,6 +37,9 @@ public sealed partial class GraphCanvas
     /// <summary>The brushes looked up so far, by resource key, frozen.</summary>
     private readonly Dictionary<string, Brush> _inks = new(StringComparer.Ordinal);
 
+    /// <summary>The brushes made fainter so far, by brush and opacity, frozen.</summary>
+    private readonly Dictionary<(Brush Brush, double Opacity), Brush> _fadedInks = [];
+
     /// <summary>The icons of the 24 grid looked up so far, by resource key, or <see langword="null"/> when missing.</summary>
     private readonly Dictionary<string, Geometry?> _glyphs = new(StringComparer.Ordinal);
 
@@ -80,6 +83,60 @@ public sealed partial class GraphCanvas
         }
 
         return brush;
+    }
+
+    /// <summary>
+    /// Gives a brush at an opacity, made once and frozen: for a single stroke or shape it draws the same pixels as the
+    /// brush under <see cref="DrawingContext.PushOpacity(double)"/>, without the layer that costs.
+    /// </summary>
+    /// <param name="brush">The brush.</param>
+    /// <param name="opacity">The opacity, from 0 to 1.</param>
+    /// <returns>The brush itself at 1, otherwise a frozen copy at the opacity.</returns>
+    private Brush InkAt(Brush brush, double opacity)
+    {
+        if (opacity >= 1)
+        {
+            return brush;
+        }
+
+        if (!_fadedInks.TryGetValue((brush, opacity), out var faded))
+        {
+            var copy = brush.Clone();
+            copy.Opacity = brush.Opacity * opacity;
+            copy.Freeze();
+            faded = copy;
+            _fadedInks[(brush, opacity)] = faded;
+        }
+
+        return faded;
+    }
+
+    /// <summary>
+    /// Pushes an opacity only when it makes something fainter: at 1 it would change nothing and still cost a layer.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="opacity">The opacity.</param>
+    /// <returns>Whether it was pushed, for <see cref="PopFade"/>.</returns>
+    private static bool PushFade(DrawingContext dc, double opacity)
+    {
+        if (opacity >= 1)
+        {
+            return false;
+        }
+
+        dc.PushOpacity(opacity);
+        return true;
+    }
+
+    /// <summary>Takes back an opacity pushed by <see cref="PushFade"/>.</summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="pushed">Whether it was pushed.</param>
+    private static void PopFade(DrawingContext dc, bool pushed)
+    {
+        if (pushed)
+        {
+            dc.Pop();
+        }
     }
 
     /// <summary>Gives an ink's brush (<see cref="GraphPalette.Brush"/>), looked up once and frozen.</summary>

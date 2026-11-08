@@ -16,8 +16,14 @@ public enum GraphChange
     /// <summary>What stands on the screen over the scene changed (the box, a mark's box): only that is drawn.</summary>
     Overlay = 2,
 
-    /// <summary>What the scene shows changed (a node chosen, hovered or moved, a new graph, a frame of a motion).</summary>
+    /// <summary>What the scene shows changed (a node chosen or hovered, a new graph, a frame of a motion).</summary>
     Scene = 4,
+
+    /// <summary>
+    /// Nodes are being dragged (<see cref="GraphMoved"/>): the dragged nodes, the lines and what stands over the nodes
+    /// are drawn again, while the nodes that stand still keep their drawing.
+    /// </summary>
+    Drag = 8,
 }
 
 /// <summary>

@@ -239,6 +239,12 @@ public sealed partial class GraphViewModel : ObservableObject
     public event EventHandler? Redraw;
 
     /// <summary>
+    /// Raised instead of <see cref="Redraw"/> while nodes are dragged, with the nodes that moved, so that the view
+    /// draws only them again over the nodes that stand still.
+    /// </summary>
+    public event EventHandler<GraphMoved>? Moved;
+
+    /// <summary>
     /// Raised when <em>Varför?</em>, the <em>?</em> or the method asks for the Guide (sketch GD1b); a request about
     /// what is chosen carries its <see cref="GuideRequest.Subject"/>.
     /// </summary>
@@ -789,7 +795,13 @@ public sealed partial class GraphViewModel : ObservableObject
             _moved[(nodeKey, Layout)] = at;
         }
 
-        Arrange();
+        var before = Places;
+        Lay();
+
+        // The dragged nodes count as moved even where they could not move (a column's edge), since they shrink
+        // toward the bin as the pointer nears it.
+        IEnumerable<string> dragged = _group is { } group ? group.Keys : [nodeKey];
+        Moved?.Invoke(this, GraphMoved.Between(before, Places).With(dragged));
     }
 
     /// <summary>
@@ -1200,6 +1212,16 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Works out every node's place and every line's curve in the layout shown, and draws again.</summary>
     private void Arrange()
     {
+        Lay();
+        Redraw?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Works out the nodes' places, the lines' curves and the amounts' places for the layout shown; a curve that did
+    /// not change stays the same instance, so that what the view made for it is used again.
+    /// </summary>
+    private void Lay()
+    {
         if (Scene is { } scene)
         {
             KeepFirstFreePlaces(scene);
@@ -1210,7 +1232,7 @@ public sealed partial class GraphViewModel : ObservableObject
             }
 
             Places = GraphPlacement.Place(scene.LayoutNodes, Layout, scene.Columns, moved);
-            Curves = GraphHitTest.Curves(scene, Places, IsHopColumns);
+            Curves = GraphMoved.KeepSameCurves(Curves, GraphHitTest.Curves(scene, Places, IsHopColumns));
             Amounts = AmountLayout.Place(scene, Places, Curves);
         }
         else
@@ -1219,8 +1241,6 @@ public sealed partial class GraphViewModel : ObservableObject
             Curves = new Dictionary<string, EdgeCurve>();
             Amounts = new Dictionary<string, AmountSpot>();
         }
-
-        Redraw?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

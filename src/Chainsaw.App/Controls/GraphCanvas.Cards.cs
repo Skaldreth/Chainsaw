@@ -498,12 +498,7 @@ public sealed partial class GraphCanvas
     /// screen, as the scene drawn last says.
     /// </summary>
     /// <param name="moving">Whether a card moves.</param>
-    private void KeepTurning(bool moving)
-    {
-        moving |= _waitBreathes;
-        _waitBreathes = false;
-        KeepMotion(GraphMotion.Cards, moving);
-    }
+    private void KeepTurning(bool moving) => KeepMotion(GraphMotion.Cards, moving);
 
     /// <summary>
     /// Takes a press for the cards: Alt + click on a node or a card turns it; a click on a turned card's turn back turns

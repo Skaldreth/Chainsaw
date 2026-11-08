@@ -3,20 +3,19 @@ namespace Chainsaw.App.Graph;
 /// <summary>
 /// Decides when the graph's surface must draw its scene again and when the drawing it made last can be moved instead
 /// (principle 6). The scene is drawn on the surface's own units, over the part on screen and a margin around it; a pan
-/// or a glide inside that margin only moves the drawing, and a zoom under way only scales it, so that WPF sends the
-/// render thread a new transform instead of every node, line and amount again. Everything else that changes what is
+/// or a glide inside that margin only moves the drawing, so that WPF sends the render thread a new transform instead of every node, line and amount again. Everything else that changes what is
 /// drawn (a node chosen, hovered or moved, a new graph, a frame of an animation) makes the drawing stale.
 /// </summary>
 /// <remarks>
-/// While a zoom is under way the drawing is scaled as it stands, so that the lines and the icons grow and shrink with
-/// it for a moment; it is drawn again at its own zoom when the zoom ends, which is also when the lines become exactly
-/// 1.5 px again. Without WPF, so that the rules are tested on their own.
+/// A zoom makes the drawing stale, since the icons' lines are kept 1.5 px on screen at every zoom: a scaled drawing
+/// would show them thicker or thinner, and nothing is shown worse than it is drawn. Without WPF, so that the rules are
+/// tested on their own.
 /// </remarks>
 public sealed class SceneWindow
 {
     /// <summary>
-    /// How much is drawn around the part on screen, as a share of its width and height on each side: room for a pan or
-    /// a zoom out of a step or two before the scene is drawn again, at about twice the area on screen.
+    /// How much is drawn around the part on screen, as a share of its width and height on each side: room for a pan
+    /// of a quarter of the screen before the scene is drawn again, at about twice the area on screen.
     /// </summary>
     public const double Margin = 0.25;
 
@@ -31,13 +30,12 @@ public sealed class SceneWindow
 
     /// <summary>
     /// Says whether the drawing made last still shows the surface as it should be now: nothing has made it stale, it
-    /// covers the part on screen, and it was made at this zoom or a zoom is under way.
+    /// covers the part on screen, and it was made at this zoom.
     /// </summary>
     /// <param name="visible">The part of the surface on screen now.</param>
     /// <param name="zoom">The zoom now.</param>
-    /// <param name="zooming">Whether a zoom is under way, when the drawing may be scaled as it stands.</param>
     /// <returns><see langword="true"/> when the drawing can be moved instead of made again.</returns>
-    public bool Covers(GraphRect visible, double zoom, bool zooming)
+    public bool Covers(GraphRect visible, double zoom)
     {
         if (_region is not { } region || visible.Width <= 0 || visible.Height <= 0)
         {
@@ -46,7 +44,7 @@ public sealed class SceneWindow
 
         // A tiny difference is a rounding of the same zoom, not a new one.
         var sameZoom = Math.Abs(zoom - _zoom) <= _zoom * 1e-9;
-        return (sameZoom || zooming) && Within(visible, region);
+        return sameZoom && Within(visible, region);
     }
 
     /// <summary>

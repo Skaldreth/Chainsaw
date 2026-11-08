@@ -111,6 +111,11 @@ public sealed partial class GraphCanvas
     /// <param name="change">What changed in the frame.</param>
     private void Apply(GraphChange change)
     {
+        if (change.HasFlag(GraphChange.Drag) && !change.HasFlag(GraphChange.Scene) && !DrawDrag())
+        {
+            change |= GraphChange.Scene;
+        }
+
         if (change.HasFlag(GraphChange.Scene))
         {
             _sceneWindow.Forget();

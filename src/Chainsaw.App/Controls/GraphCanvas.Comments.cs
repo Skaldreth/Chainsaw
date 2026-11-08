@@ -41,8 +41,7 @@ public sealed partial class GraphCanvas
     /// <inheritdoc/>
     protected override Visual GetVisualChild(int index) => index switch
     {
-        0 => _sceneVisual,
-        1 => _overlayVisual,
+        >= 0 and < SceneLayers => SceneLayerAt(index),
         SceneLayers when _commentLayer is not null => _commentLayer,
         _ => throw new ArgumentOutOfRangeException(nameof(index)),
     };

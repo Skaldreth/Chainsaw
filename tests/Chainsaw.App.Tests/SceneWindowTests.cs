@@ -4,7 +4,7 @@ namespace Chainsaw.App.Tests;
 
 /// <summary>
 /// When the graph's scene is drawn again and when its drawing is only moved (principle 6): a pan inside the margin
-/// and a zoom under way move it, everything else makes it again; without WPF.
+/// moves it, a zoom and everything else make it again; without WPF.
 /// </summary>
 public sealed class SceneWindowTests
 {
@@ -16,7 +16,7 @@ public sealed class SceneWindowTests
     {
         var window = new SceneWindow();
 
-        Assert.False(window.Covers(Screen, 1, zooming: false));
+        Assert.False(window.Covers(Screen, 1));
         Assert.Null(window.Region);
     }
 
@@ -37,28 +37,18 @@ public sealed class SceneWindowTests
         var window = new SceneWindow();
         window.Take(Screen, 1, SceneWindow.Margin);
 
-        Assert.True(window.Covers(Screen with { X = 240, Y = -150 }, 1, zooming: false));
-        Assert.False(window.Covers(Screen with { X = 260 }, 1, zooming: false));
+        Assert.True(window.Covers(Screen with { X = 240, Y = -150 }, 1));
+        Assert.False(window.Covers(Screen with { X = 260 }, 1));
     }
 
     [Fact]
-    public void A_new_zoom_draws_again_once_the_zoom_has_ended()
-    {
-        var window = new SceneWindow();
-        window.Take(Screen, 1, SceneWindow.Margin);
-        var zoomedIn = new GraphRect(100, 60, 800, 480);
-
-        Assert.True(window.Covers(zoomedIn, 1.25, zooming: true));
-        Assert.False(window.Covers(zoomedIn, 1.25, zooming: false));
-    }
-
-    [Fact]
-    public void A_zoom_out_past_the_margin_draws_again_even_while_it_is_under_way()
+    public void A_zoom_draws_again_so_that_lines_keep_their_width_on_screen()
     {
         var window = new SceneWindow();
         window.Take(Screen, 1, SceneWindow.Margin);
 
-        Assert.False(window.Covers(new GraphRect(-500, -300, 2000, 1200), 0.5, zooming: true));
+        Assert.False(window.Covers(new GraphRect(100, 60, 800, 480), 1.25));
+        Assert.True(window.Covers(Screen, 1 + 1e-12));
     }
 
     [Fact]
@@ -69,7 +59,7 @@ public sealed class SceneWindowTests
 
         window.Forget();
 
-        Assert.False(window.Covers(Screen, 1, zooming: false));
+        Assert.False(window.Covers(Screen, 1));
     }
 
     [Fact]
@@ -78,8 +68,8 @@ public sealed class SceneWindowTests
         var window = new SceneWindow();
 
         Assert.Equal(Screen, window.Take(Screen, 1, margin: 0));
-        Assert.True(window.Covers(Screen, 1, zooming: false));
-        Assert.False(window.Covers(Screen with { X = 1 }, 1, zooming: false));
+        Assert.True(window.Covers(Screen, 1));
+        Assert.False(window.Covers(Screen with { X = 1 }, 1));
     }
 
     [Fact]
@@ -88,6 +78,6 @@ public sealed class SceneWindowTests
         var window = new SceneWindow();
         window.Take(Screen, 1, SceneWindow.Margin);
 
-        Assert.False(window.Covers(new GraphRect(0, 0, 0, 0), 1, zooming: false));
+        Assert.False(window.Covers(new GraphRect(0, 0, 0, 0), 1));
     }
 }

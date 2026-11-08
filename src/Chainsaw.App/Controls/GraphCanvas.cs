@@ -133,6 +133,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         ArgumentNullException.ThrowIfNull(model);
         _model = model;
         model.Redraw += (_, _) => Redraw();
+        model.Moved += (_, moved) => Loosen(moved);
         model.PropertyChanged += OnModelChanged;
         AttachComments(model);
         AttachReach(model);
@@ -543,6 +544,12 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         // A pan is stored when the press ends, not on every move.
         _model.ViewportChanged(_viewport);
+        if (end == GestureEnd.DropNode)
+        {
+            // The dragged nodes go back among the others, in one drawing of the whole scene.
+            Redraw();
+        }
+
         if (end == GestureEnd.DropNode && node is not null && !_model.DropOnBin(node))
         {
             _ = _model.DropNodeAsync(node);
@@ -727,11 +734,11 @@ public sealed partial class GraphCanvas : FrameworkElement
         var isUncertain = isGone || trail.Lines.Contains(edge.Key);
         var ink = isGone ? Ink("Brush.TextDim") : InkOf(edge.Ink);
         var dash = LineDash(isUncertain ? EdgeDash.Uncertain : edge.Dash, edge.Width);
-        var pen = PenOf(ink, edge.Width, dash, PenLineCap.Round, PenLineCap.Round, PenLineJoin.Miter);
         var opacity = LineOpacity(edge, near) * (isUncertain ? GoneTrailLineOpacity : 1);
-        dc.PushOpacity(opacity);
+
+        // A line is one stroke, so its faintness is in its brush rather than a layer of its own: the same pixels.
+        var pen = PenOf(InkAt(ink, opacity), edge.Width, dash, PenLineCap.Round, PenLineCap.Round, PenLineJoin.Miter);
         dc.DrawGeometry(null, pen, CurveGeometry(curve));
-        dc.Pop();
     }
 
     /// <summary>Gives how faint a line is: faint away from what is chosen, a little faint without traced money.</summary>
@@ -905,7 +912,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         taken.Add(box);
         var pill = new Rect(box.X, box.Y, box.Width, box.Height);
-        dc.PushOpacity(LineOpacity(edge, near));
+        var faded = PushFade(dc, LineOpacity(edge, near));
         dc.DrawRoundedRectangle(
             Ink("Brush.Surface"),
             PenOf(Ink("Brush.BorderStrong"), 1),
@@ -924,7 +931,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             left += AmountLayout.SwapPairWidth + AmountLayout.SwapPadding;
         }
 
-        dc.Pop();
+        PopFade(dc, faded);
     }
 
     /// <summary>Draws a node: its frame, icon, name, count, marks and the other chain's name.</summary>
@@ -950,7 +957,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         var opacity = NodeOpacity(node, near);
         var frame = new Rect(place.X, place.Y, node.Width, GraphSizes.NodeHeight);
         var ink = InkOf(node.Look.Ink);
-        dc.PushOpacity(opacity);
+        var faded = PushFade(dc, opacity);
         if (node.Look.Sort == NodeSort.Cluster || node.Node.ClusterSize > 1)
         {
             var behind = frame;
@@ -994,7 +1001,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawChain(dc, chain, place, node.Width);
         }
 
-        dc.Pop();
+        PopFade(dc, faded);
     }
 
     /// <summary>Draws a pile as its deck or a clue as its pill (sketches EX1 and EX2b), faint like any node.</summary>
@@ -1010,7 +1017,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
-        dc.PushOpacity(Math.Min(
+        var faded = PushFade(dc, Math.Min(
             _model!.IsFocused && !near.Contains(node.Key) ? FadedNodeOpacity : 1, LaterFoldedOpacity(node.Key)));
         if (node.Look.Sort == NodeSort.Pile)
         {
@@ -1021,7 +1028,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawClue(dc, node, place);
         }
 
-        dc.Pop();
+        PopFade(dc, faded);
     }
 
     /// <summary>
@@ -1148,8 +1155,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var scale = size / GridIcon.GridSize;
 
-        // The width is rounded, so that a zoom under way makes a few pens and not one for every frame.
-        var pen = RoundPen(ink, Math.Round(GridIcon.StrokeFor(size * _viewport.Zoom), 2));
+        var pen = RoundPen(ink, GridIcon.StrokeFor(size * _viewport.Zoom));
         dc.PushTransform(Frozen(new MatrixTransform(scale, 0, 0, scale, corner.X, corner.Y)));
         dc.DrawGeometry(null, pen, glyph);
         dc.Pop();
