@@ -3414,3 +3414,18 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - Offrets etiketter och etiketter nära ett offer sprids fortfarande aldrig, och *Sprid inte* gäller som förut.
 - Guiden (*Etikettbiblioteket*) och `docs/BACKLOG.md` är rättade; testerna som sa att skäl, anteckning och nummer aldrig
   följer med är omskrivna till motsatsen.
+
+### Granskningen av inställningarna (BV4a, ST2a, FS2a, UT3b) rättad (2026-11-08)
+
+- **M1:** `IExitStore.DescribeAsync` och sparandet av en kontroll (`ExitCheck`) går under samma lås som
+  `RemoveAsync` (`ExitConnection.ChangeExitsAsync`), så att en borttagen utgång aldrig skrivs tillbaka.
+- **M2:** kontrollen vid anslutning hoppas över när valvet är låst.
+- **M3:** steget Utgång förväljer det val som inställningsfilen redan har (`AppSettingsStore.SavedRoute`), annars
+  Windows.
+- **M4:** `FirstRunViewModel.Later()` är borttagen; *Fortsätt* gör samma sak.
+- **M5:** kortet mitt på skärmen (`Chainsaw.exe --watch-alert`) kan startas av vilken process som helst hos
+  användaren, inte bara av bakgrundsprocessen. Det är godtaget: kortet säger bara att en bevakning har slagit till,
+  visar inget ur ärendet eller valvet och kan som mest störa användaren med ett meddelande.
+- **M6:** tester för kontrollen mot den riktiga `ExitHttp` utan ansluten utgång (inget skickas), för Windows vid
+  anslutning och för att förhandsvisningens kort stängs när allt stängs vid låsning.
+

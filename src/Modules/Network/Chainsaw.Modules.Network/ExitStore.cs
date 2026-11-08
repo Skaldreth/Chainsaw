@@ -43,14 +43,21 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
     }
 
     /// <inheritdoc />
-    public ExitInfo Describe(Guid id, string name, string place)
+    public Task<ExitInfo> DescribeAsync(Guid id, string name, string place)
     {
         RequireText(name, ExitRules.MaximumNameLength, allowEmpty: false, nameof(name));
         RequireText(place, ExitRules.MaximumPlaceLength, allowEmpty: true, nameof(place));
-        var found = records.Find(id) ?? throw new ArgumentException("No exit has the id.", nameof(id));
-        var exit = found.Exit with { Name = name.Trim(), Place = place.Trim() };
-        records.Save(id, new StoredExit(exit.Name, exit.Place, exit.Kind, found.Configuration));
-        return exit;
+
+        // In turn with a removal, which takes the exit away under the same lock: a removed exit is never written back.
+        return connection.ChangeExitsAsync(
+            leaveConnected: _ => true,
+            change: () =>
+            {
+                var found = records.Find(id) ?? throw new ArgumentException("No exit has the id.", nameof(id));
+                var exit = found.Exit with { Name = name.Trim(), Place = place.Trim() };
+                records.Save(id, new StoredExit(exit.Name, exit.Place, exit.Kind, found.Configuration));
+                return exit;
+            });
     }
 
     /// <inheritdoc />

@@ -11,7 +11,11 @@ namespace Chainsaw.Modules.Network;
 /// </summary>
 /// <param name="http">The way out chosen now.</param>
 /// <param name="records">The exits in the vault, where the answers are kept.</param>
-internal sealed class ExitCheck(IExitHttp http, ExitRecords records) : IExitCheck
+/// <param name="connection">
+/// The connection, whose lock an answer is kept under, in turn with a removal, so that a removed exit's answer is never
+/// written back.
+/// </param>
+internal sealed class ExitCheck(IExitHttp http, ExitRecords records, ExitConnection connection) : IExitCheck
 {
     /// <summary>The trace's line with the asker's address.</summary>
     private const string AddressKey = "ip";
@@ -37,7 +41,7 @@ internal sealed class ExitCheck(IExitHttp http, ExitRecords records) : IExitChec
             response.ExitId, response.Route, answer.Address, answer.Country, response.ReceivedAt);
         if (response.Route == ExitRoute.Vpn && response.ExitId != Guid.Empty)
         {
-            Keep(sighting);
+            await KeepAsync(sighting).ConfigureAwait(false);
         }
 
         return sighting;
@@ -79,16 +83,26 @@ internal sealed class ExitCheck(IExitHttp http, ExitRecords records) : IExitChec
         return (parsed.ToString(), isCountry ? country : string.Empty);
     }
 
-    /// <summary>Keeps the answer with its exit, while the exit is still in the vault.</summary>
+    /// <summary>
+    /// Keeps the answer with its exit, while the exit is still in the vault, under the same lock as a removal.
+    /// </summary>
     /// <param name="sighting">The answer.</param>
-    private void Keep(ExitSighting sighting)
+    /// <returns>A task that completes when the answer is kept, or left.</returns>
+    private async Task KeepAsync(ExitSighting sighting)
     {
         try
         {
-            if (records.Find(sighting.ExitId) is not null)
-            {
-                records.SaveSighting(sighting);
-            }
+            await connection.ChangeExitsAsync(
+                leaveConnected: _ => true,
+                change: () =>
+                {
+                    if (records.Find(sighting.ExitId) is not null)
+                    {
+                        records.SaveSighting(sighting);
+                    }
+
+                    return true;
+                }).ConfigureAwait(false);
         }
         catch (VaultException)
         {

@@ -49,6 +49,9 @@ public sealed partial class WpfAlertPreview(Action show) : IAlertPreview
         }
     }
 
+    /// <inheritdoc/>
+    public void CloseMessage() => _shown?.Close();
+
     /// <summary>Reads the sound from the program's resources.</summary>
     /// <returns>The WAV file's bytes, or none.</returns>
     private static byte[] Load()

@@ -489,7 +489,7 @@ public sealed class ExitPanelTests
 
         public Exception? DescribeFailure { get; set; }
 
-        public ExitInfo Describe(Guid id, string name, string place)
+        public Task<ExitInfo> DescribeAsync(Guid id, string name, string place)
         {
             if (DescribeFailure is not null)
             {
@@ -503,7 +503,7 @@ public sealed class ExitPanelTests
             }
 
             Known[index] = Known[index] with { Name = name, Place = place };
-            return Known[index];
+            return Task.FromResult(Known[index]);
         }
 
         public Task<bool> RemoveAsync(Guid id) => Task.FromResult(Known.RemoveAll(exit => exit.Id == id) > 0);
