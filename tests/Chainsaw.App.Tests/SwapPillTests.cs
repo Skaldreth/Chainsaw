@@ -274,6 +274,18 @@ public sealed class SwapPillTests
         Assert.True(row.CanUndo);
     }
 
+    [Fact]
+    public void A_token_known_only_by_its_symbol_is_marked_with_a_question_mark()
+    {
+        var fake = Asset.Token(Chain.Ethereum, "0x2222222222222222222222222222222222222222", "USDC", 6);
+
+        Assert.Equal("USDC?", SwapMarks.MarkOf(fake));
+        Assert.Equal("$", SwapMarks.MarkOf(Modules.Chains.Contracts.KnownTokens.EthereumUsdc));
+        Assert.Equal("WETH", SwapMarks.MarkOf(Modules.Chains.Contracts.KnownTokens.EthereumWeth));
+        var swap = Swap with { Sold = new AssetAmount(fake, 5) };
+        Assert.Equal("USDC? → Ξ", SwapMarks.Of(swap).Text);
+    }
+
     /// <summary>The graph over fakes, showing the swap scene.</summary>
     private sealed class Rig
     {

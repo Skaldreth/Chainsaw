@@ -3989,3 +3989,13 @@ Inga C; två I med samma rot i hur en swap känns igen, och fyra M.
 - **M-2:** exponeringens *Varför?* läst in säger andelen av det som kom ut.
 - **M-3:** `StopAtSwap` läser ärendets Ethereum-fakta (inte hela grafen) och kräver att just den tx:en är en swap för
   just det kontot.
+
+## Fjärde granskningen av SW1a rättad (2026-11-08)
+
+- **I, en egen pool med en påhittad token genom den riktiga routern:** det som kom tillbaka måste alltid ha ett känt
+  värde (ether, WETH, en token igenkänd på kontraktet); en känd DEX räcker aldrig, eftersom vem som helst kan öppna en
+  pool där. Granskarens prob är ett test (med symbolen FAKE och en falsk USDC).
+- **Sidofyndet:** en token som inte känns igen på kontraktet står med symbolen och ett frågetecken (`USDC?`) i pillret,
+  i inspektören och på linjen (`SwapMarks.MarkOf`, `SwapMarks.UnknownTokenMark`).
+- **M:** `StopAtSwap` frågar etiketterna som när grafen byggs (`GraphBuilder.SwapEndpoint`, en regel för båda), så att
+  en swap som en etikett vägrar inte heller kan väljas.

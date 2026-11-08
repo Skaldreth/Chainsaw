@@ -304,14 +304,27 @@ public sealed record SwapMarks(string Sold, string Bought)
     /// <summary>Gets the pill in words, for example <c>₮ → Ξ</c>.</summary>
     public string Text => $"{Sold} → {Bought}";
 
-    /// <summary>Gives an asset's mark, or its symbol when it has none.</summary>
+    /// <summary>
+    /// Gives an asset's mark, or its symbol when it has none; a token Chainsaw does not know by its contract gets a
+    /// question mark after the symbol, since anyone can call a token USDC (<see cref="UnknownTokenMark"/>).
+    /// </summary>
     /// <param name="asset">The asset.</param>
-    /// <returns>The mark.</returns>
+    /// <returns>The mark, for example <c>₮</c>, <c>WETH</c> or <c>USDC?</c>.</returns>
     public static string MarkOf(Asset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return TokenMarks.Glyph(asset) is { Length: > 0 } glyph ? glyph : asset.Symbol;
+        if (TokenMarks.Glyph(asset) is { Length: > 0 } glyph)
+        {
+            return glyph;
+        }
+
+        var known = asset.Kind != AssetKind.Token || asset == KnownTokens.EthereumWeth
+            || KnownTokens.IssuerOf(asset) is not null;
+        return known ? asset.Symbol : asset.Symbol + UnknownTokenMark;
     }
+
+    /// <summary>What follows the symbol of a token Chainsaw does not know by its contract.</summary>
+    public const string UnknownTokenMark = "?";
 }
 
 /// <summary>
@@ -629,8 +642,9 @@ public sealed record GraphScene(
         var label = AmountText.OnLine(edge.Amount, amount);
         if (edge.Amount.Asset != Asset.Bitcoin && TokenMarks.Glyph(edge.Amount.Asset).Length == 0)
         {
-            // A token without a mark is named by its symbol, so that a bare number never stands for an unknown asset.
-            label += " " + edge.Amount.Asset.Symbol;
+            // A token without a mark is named by its symbol (with a question mark when its contract is not known), so
+            // that a bare number never stands for an unknown asset.
+            label += " " + SwapMarks.MarkOf(edge.Amount.Asset);
         }
 
         return new EdgeView(edge, amount, traced, ink, dash, EdgeWidth.For(amount, largest), label);

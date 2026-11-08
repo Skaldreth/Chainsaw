@@ -185,9 +185,9 @@ internal sealed record AccountData(
     /// <list type="bullet">
     /// <item>the signer got exactly one asset back that it did not also send (what comes back in an asset it sent, a
     /// refund, is never a purchase);</item>
-    /// <item>what came back has a value Chainsaw knows (ether, WETH or a token it knows by its contract), or the trade
-    /// went through a known exchange, so that a worthless token sent back as dust never makes a payment a
-    /// swap;</item>
+    /// <item>what came back has a value Chainsaw knows (ether, WETH or a token it knows by its contract), always, also
+    /// through a known exchange's router, since anyone can open a pool there for a token of their own; a worthless
+    /// token, as dust or from one's own pool, never makes a payment a swap;</item>
     /// <item>it sent exactly one asset, and every movement of it went to the trade's side
     /// (<see cref="TradeSide"/>); one movement to anyone else, a third party or a fee collector, and it is no
     /// swap.</item>
@@ -210,7 +210,7 @@ internal sealed record AccountData(
 
         var boughtAsset = bought[0].Amount.Asset;
         var venue = VenueOf(transaction, account, moves);
-        if (venue is null && !HasKnownValue(boughtAsset))
+        if (!HasKnownValue(boughtAsset))
         {
             return null;
         }

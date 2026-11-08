@@ -245,8 +245,17 @@ internal sealed class GraphBuilder
     /// </summary>
     /// <param name="address">The address.</param>
     /// <returns>The label's end and source, for example <c>Börs, uttag funnet (etikett: …)</c>, or null.</returns>
-    private string? SwapEndpoint(EthereumAddress address) =>
-        _knowledge.AccountEnds(address.ToChainAddress())
+    private string? SwapEndpoint(EthereumAddress address) => SwapEndpoint(_knowledge.AccountEnds, address);
+
+    /// <summary>
+    /// Says why an Ethereum address is one the trail must reach by its label, from the ends the labels give; written
+    /// once, so that choosing for a swap and building the graph read swaps alike.
+    /// </summary>
+    /// <param name="ends">Gives why the trail ends at an account.</param>
+    /// <param name="address">The address.</param>
+    /// <returns>The label's end and source, or <see langword="null"/>.</returns>
+    public static string? SwapEndpoint(Func<ChainAddress, IReadOnlyList<TrailEndHint>> ends, EthereumAddress address) =>
+        ends(address.ToChainAddress())
             .Where(hint => hint.Reason is TrailEndReason.Exchange or TrailEndReason.Mixer or TrailEndReason.OtherChain)
             .Select(hint => $"{hint.Reason.Describe()} ({hint.Source})")
             .FirstOrDefault();

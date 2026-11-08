@@ -198,6 +198,26 @@ public sealed class SwapRecognitionTests : IDisposable
         Assert.Equal(Usdt(1000), Assert.Single(result.Ends, end => end.NodeKey == Key(graph, Merchant)).Amount.Amount);
     }
 
+    [Theory]
+    [InlineData("FAKE")]
+    [InlineData("USDC")]
+    public async Task An_own_pool_with_a_fake_token_through_the_official_router_is_no_swap(string symbol)
+    {
+        // Uniswap pairs are open to anyone: the scammer's own pair USDT/FAKE through Router02, later emptied by an
+        // accomplice. A known router is never enough; what came back must have a known value.
+        var fake = Asset.Token(SharedKernel.Chain.Ethereum, "0x2222222222222222222222222222222222222222", symbol, 6);
+        var graph = await Build(["o-swap"],
+            Tx("o-victim", 101, Victim, 0m, Token(Victim, Scammer, Usdt(1000))),
+            Tx("o-swap", 110, Scammer, 0m, Eth(Scammer, UniswapV2, 0m), Token(Scammer, BridgePool, Usdt(1000)),
+                Token(BridgePool, Scammer, new AssetAmount(fake, 5))),
+            Tx("o-out", 130, Scammer, 0m, Token(Scammer, Exchange, new AssetAmount(fake, 5))));
+
+        var result = await FromVictim(graph);
+
+        Assert.Empty(graph.Account.Swaps);
+        Assert.Equal(Usdt(1000), Assert.Single(result.Ends, end => end.NodeKey == Key(graph, BridgePool)).Amount.Amount);
+    }
+
     [Fact]
     public async Task A_label_set_later_refuses_the_swap_and_says_why()
     {

@@ -302,9 +302,17 @@ internal sealed class TracingService : ITracingService
         reason = OptionalReason(reason);
         // Only a swap the case's own Ethereum facts show, for that account in that transaction, is chosen for, so that
         // no choice is sealed about something the case does not hold. Only Ethereum's part is read, not the graph.
+        // The labels are asked as when the graph is built, so that a swap a label refuses is not chosen for either.
         var state = @case.Read(GraphStateStore.Read);
         var facts = _ethereum.ReadAsync(@case, state, CancellationToken.None).GetAwaiter().GetResult();
-        if (swap.Account.Chain != Chain.Ethereum || !facts.ReadSwaps().Swaps.Contains(swap))
+        var ends = AccountEnds(@case, new GraphData(
+            state, new Dictionary<Txid, GraphTransaction>(), new Dictionary<Txid, OutputSpendsAnswer>(), [])
+        {
+            Account = facts,
+        });
+        var swaps = facts.ReadSwaps(address => GraphBuilder.SwapEndpoint(
+            account => ends.GetValueOrDefault(account) ?? [], address)).Swaps;
+        if (swap.Account.Chain != Chain.Ethereum || !swaps.Contains(swap))
         {
             throw new ArgumentException("The swap is not in the case's graph.", nameof(swap));
         }

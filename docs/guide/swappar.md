@@ -64,9 +64,11 @@ missad bara låter spåret sluta ärligt vid poolen som *inte expanderad*. Chain
 
 - adressen fick tillbaka **en** tillgång som den inte också skickade (det som kommer tillbaka i samma tillgång, till
   exempel en återbetald avgift, är aldrig ett köp);
-- det som kom tillbaka har ett värde Chainsaw känner (ether, WETH eller en token som känns igen på sitt kontrakt), eller
-  bytet gick genom en känd DEX: några enheter av en påhittad token tillbaka i samma tx gör aldrig en betalning till en
-  swap, ett känt sätt att försöka förvirra;
+- det som kom tillbaka har ett värde Chainsaw känner (ether, WETH eller en token som känns igen på sitt kontrakt),
+  alltid, också genom en känd DEX: vem som helst kan öppna en pool där för en egen token. Några enheter av en påhittad
+  token tillbaka i samma tx, eller en egen pool med en påhittad token, gör aldrig en betalning till en swap. En token
+  som Chainsaw inte känner på kontraktet står med symbolen och ett frågetecken, till exempel *USDC?*, eftersom vem som
+  helst kan kalla sin token USDC;
 - adressen skickade **en** tillgång, och **allt** av den gick till bytets sida: kontraktet tx:en anropade, den som
   skickade tillbaka den köpta tillgången, en känd DEX, eller en adress som i samma tx syns skicka den köpta tillgången
   (eller WETH) vidare dit;
