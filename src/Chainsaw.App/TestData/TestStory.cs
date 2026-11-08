@@ -95,6 +95,9 @@ public static class TestStory
         new LabelStep(actors.Mixer, LabelKind.Mixer, "Blandaren"),
         new LabelStep(actors.Sanctioned, LabelKind.Sanctioned, "Sanktionerad aktör"),
         new LabelStep(actors.Swap, LabelKind.SwapBridge, "Bytaren"),
+
+        // A supplier's report of fraud (as from Chainabuse): a red mark beside the node's own sort.
+        new LabelStep(actors.Scammer, LabelKind.Reported, "Nätfiske"),
     ];
 
     /// <summary>
