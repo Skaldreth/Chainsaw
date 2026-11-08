@@ -95,8 +95,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     kolumner sida vid sida till ett ungefär kvadratiskt block, och belopp som skulle hamna på varandra visas på hovring.
 31. **Sonarn:** *SN1a vald 2026-11-08 och byggd* i `SonarRing` (ett mjukt sken som sväller ut ur noden och löses
     upp, en våg i taget med vila, över ett svagt sken som alltid ligger bakom), med skissens förval: 6 s, 30 px, 0,42
-    och 18 px oskärpa. Användaren: *effekten kommer bara vara där ute*; tolkat som att sonarn bara står i startvyn
-    (Nytt ärende och den tomma startpunkten), inte på grafens noder. Ska bekräftas.
+    och 18 px oskärpa. **Den långsamma pulsen finns bara i startvyn** (användarens beslut 2026-11-08), inte på
+    grafens noder; markeringarna i grafen (som EX2:s intressanta kort) får en egen form när de byggs.
 32. **Startvyns fot** (användarens beslut 2026-11-08): *Utgång: Windows* står redan i titelraden och visas inte i
     foten; foten säger bara *Offline* när inga uppslag kan göras. *Byggt.*
 33. **Graf-ikonen utan ärende** (användarens beslut 2026-11-08): man kan inte gå in i grafen utan ett öppet ärende,
