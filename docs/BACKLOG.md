@@ -557,6 +557,13 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   nästa tangent. Spara den som ett väntande förslag (i ledtråden) tills raden är tom.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
 
+## Exponering (EP1b)
+
+- Analysen körs på UI-tråden när grafen läses om; flytta den till en bakgrundsuppgift om stora grafer känns tröga
+  (princip 6).
+- *Fått från* kör metoden en gång per inbetalning hos varje aktör på vägen; en aktör med tusentals överföringar kan
+  behöva en metod som delar upp på källor i ett svep.
+
 ## Begäran (BG1b)
 - **`Compose` körs på UI-tråden** (granskningen, M8): den läser bara ärendets nummer och profilen i minnet och går
   snabbt, men ett mycket stort uttag med hundratals insättningar kan kännas. Flytta den till `Task.Run` med en

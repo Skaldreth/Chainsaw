@@ -28,7 +28,7 @@ public sealed class GuideLibrary
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan"]),
         ("Ethereum", ["kontomodellen", "erc-20", "interna-tx", "kan-frysas"]),
         ("Klustring", ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin", "bryta-upp-kluster"]),
-        ("Spårning", ["grafen", "sparningsmetoder", "sparet-tar-slut", "kurser"]),
+        ("Spårning", ["grafen", "sparningsmetoder", "sparet-tar-slut", "exponering", "kurser"]),
         ("Arbeta i grafen",
             ["inspektoren", "rora-sig-i-grafen", "tidslinjen", "det-som-holls-tillbaka", "historik", "annan-kedja",
                 "dolda-utgangar", "soptunnan", "kommentarer"]),

@@ -440,6 +440,11 @@ public sealed partial class GraphViewModel : ObservableObject
                     .ToHashSet(StringComparer.Ordinal));
             }
 
+            if (PathFocus is { } path)
+            {
+                return path;
+            }
+
             if (Checks.Focus is { } focus && Scene is { } scene)
             {
                 return (focus, scene.Edges
@@ -454,7 +459,8 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets whether something is chosen, so that the rest is drawn faint.</summary>
     public bool IsFocused =>
-        SelectedNode is not null || SelectedEdge is not null || Checks.Focus is not null || TrashWarning is not null;
+        SelectedNode is not null || SelectedEdge is not null || Checks.Focus is not null || TrashWarning is not null
+        || PathFocus is not null;
 
     /// <summary>Shows a layout; each keeps its own places (sketch GR4).</summary>
     /// <param name="layout">The layout.</param>
@@ -658,6 +664,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="edgeKey">The line, or <see langword="null"/>.</param>
     public void Choose(string? nodeKey, string? edgeKey)
     {
+        PathFocus = null;
         if (ChooseFolded(nodeKey, edgeKey))
         {
             nodeKey = null;

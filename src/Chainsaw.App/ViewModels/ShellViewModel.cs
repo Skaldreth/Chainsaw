@@ -110,6 +110,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// The case picker under the case in the title bar (sketch ÄV1a), or <see langword="null"/>.
     /// </param>
     /// <param name="requests">The view Begäran (sketch BG1b), or <see langword="null"/>.</param>
+    /// <param name="exposure">The view Exponering (sketch EP1b), or <see langword="null"/>.</param>
     public ShellViewModel(
         CaseSession session,
         CommandRegistry commands,
@@ -125,9 +126,11 @@ public sealed partial class ShellViewModel : ObservableObject
         WatchBoard? watches = null,
         Toaster? toaster = null,
         CasePickerViewModel? casePicker = null,
-        RequestsViewModel? requests = null)
+        RequestsViewModel? requests = null,
+        ExposureViewModel? exposure = null)
     {
         _toaster = toaster;
+        Exposure = exposure;
         Requests = requests;
         CasePicker = casePicker;
         Monitoring = monitoring;
@@ -246,7 +249,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets the view shown.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentEntry), nameof(IsGraphShown), nameof(IsGuideShown),
-        nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsPlaceholderShown))]
+        nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsExposureShown), nameof(IsPlaceholderShown))]
     public partial AppView Current { get; private set; }
 
     /// <summary>Gets whether the graph is shown (sketch GR4).</summary>
@@ -261,8 +264,15 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets whether the view Begäran is shown (sketch BG1b).</summary>
     public bool IsRequestsShown => Current == AppView.Requests && Requests is not null;
 
+    /// <summary>Gets whether the view Exponering is shown (sketch EP1b).</summary>
+    public bool IsExposureShown => Current == AppView.Exposure && Exposure is not null;
+
     /// <summary>Gets whether the shown view is not built yet, so that the page says so.</summary>
-    public bool IsPlaceholderShown => !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown;
+    public bool IsPlaceholderShown =>
+        !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown && !IsExposureShown;
+
+    /// <summary>Gets the view Exponering, or <see langword="null"/> when the shell is built without it.</summary>
+    public ExposureViewModel? Exposure { get; }
 
     /// <summary>Gets the view Begäran, or <see langword="null"/> when the shell is built without it.</summary>
     public RequestsViewModel? Requests { get; }

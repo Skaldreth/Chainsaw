@@ -3217,3 +3217,34 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - **M5:** `tokenlist` med status 2 ger ett ofullständigt saldo med en anteckning.
 - **M6:** tester för en skräptoken som heter USDT, wei över `long.MaxValue` och toppen följd av överföring med
   registret på både Bitcoin och Ethereum. M2 står i `docs/BACKLOG.md`.
+
+
+## Exponering, EP1b (2026-11-08)
+
+- **Analysen** `exposure v1` ligger i Tracing (`IExposureAnalysis`, `ExposureAnalysis`): varje aktör läses som en
+  plånbok med sina överföringar i en tillgång i tidsordning (inkommande före utgående i samma ögonblick), och
+  kontomodellens registrerade metod (FIFO eller haircut, grafens val) säger hur mycket som följer med varje överföring.
+  *Betalat till* bär klustrets utbetalningar framåt; *Fått från* kör metoden en gång per inbetalning hos aktören och
+  delar ut det som gick mot klustret i den proportionen. Pengarna stannar hos en tjänst (räknas), en aktör bortom
+  djupet eller som inte är en aktör (*Nådde ingen tjänst*), hos klustret (*Gick tillbaka*), och blir kvar hos en
+  aktör (ut) eller kom före grafens historik (in). Tjänsterna och resten summerar alltid till totalen (testat med
+  slumpade grafer). En tx-nod (CoinJoin) lägger inte till ett hopp. En aktör läses om högst åtta gånger när mer
+  pengar kommer till den senare (cirklar).
+- **Vad som är en tjänst** avgörs i appen (`ExposureMap`): varje aktör vars sort har en betydelse (offer, uttag,
+  spenderas, risk, annan kedja); gråa är okända. Det slängda är inte med i grafens scen och räknas därför inte som
+  tjänst.
+- **Vyn** (`ExposureView`, `ExposureViewModel`, `Controls/ExposureRings`, `Controls/SortMark`, layouten i
+  `Graph/ExposureLayout`) följer skissen: ringarna per hopp, utbetalt åt höger och inkommet åt vänster, tjänsterna
+  större ju större andel, aktörer på vägen som små punkter, linjer i accent med sista steget i tjänstens färg, djupet
+  1–3, metoden streckad i huvudet, andelarna per färg för båda hållen, tjänsterna och den valda vägen med tx,
+  underlaget som brickor, *Varför?* (Guidens panel, som nu också får stå öppen i Exponering) och *Visa vägen i
+  grafen* (G), som väljer tjänsten i grafen, tonar ner allt utom vägen och passar in den.
+- **Egna beslut:** tillgången väljs med en liten växel i huvudet bara när ämnet har fler än en (belopp i olika
+  tillgångar adderas aldrig). Listan av tjänster visar utbetalt, som skissen; inkommet väljs i ringarna. Ett nytt
+  avsnitt i Guiden, *Exponering*.
+- **Avsteg och det som återstår** (`docs/TODO.md`): kronorna under beloppen (väntar på KU1a), mixerns troliga utgångar
+  som streckade förslag, *Tillbaka · Esc* i grafen och *Exponering …* i nodens meny. Uträkningen körs på UI-tråden
+  när grafen läses om (`docs/BACKLOG.md`).
+- Tester: 21 i `Chainsaw.Modules.Tracing.Tests` (facit med syntetiska överföringar för FIFO och haircut, båda hållen,
+  djupet, kvar, tillbaka, före historiken, vägen, tx-nod, annan tillgång, summan) och 18 i App.Tests (kartan,
+  layouten, vymodellen, pillret och grafens väg).

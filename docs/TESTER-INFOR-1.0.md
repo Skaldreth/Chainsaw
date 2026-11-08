@@ -1674,3 +1674,19 @@ några steg).
   inte raden.
 - En Ethereum-adress med USDT eller USDC kvar: inspektörens snöflingeruta har *Begäran om frysning …*, som öppnar
   vyn med raden *Tether · …* (isblå fyrkant) och en begäran till utgivaren med det som ligger kvar.
+
+## Exponering (EP1b)
+
+- Öppna `/testdata`, gå till **Exponering** (Ctrl+4): pillrets ikon är inte nedtonad. Klustret står i mitten med tre
+  prickade ringar, utbetalt åt höger och inkommet åt vänster; tjänsterna har sortens form, färg och ikon, större ju
+  större andel, och aktörer utan etikett är små punkter med namnet ovanför.
+- Byt **Djup** 1, 2 och 3: ringarna tänds och släcks och andelarna ändras; med 1 syns bara det som gått direkt.
+- Klicka på ämnet uppe till vänster: menyn *I grafen* listar kluster och adresser; välj ett annat.
+- Till höger: *Betalat till* och *Fått från* med andelar per färg och *Okänt* med streckad prick; hovra *Okänt* och
+  läs skälen. Klicka en tjänst i listan eller i ringarna: vägen lyser, resten tonas ner, och nere visas vägen som
+  brickor, tx:erna och underlaget (metoden, `exposure v1`, klustringen, etiketten).
+- *Varför?* öppnar Guidens panel bredvid med förklaringen och avsnittet *Exponering*; vyn flyttar in sidopanelen.
+- *Visa vägen i grafen* (eller G): grafen visas med tjänsten vald, vägen tydlig och resten svag, och ett meddelande
+  säger vägen och beloppet. Ett klick i grafen tar bort markeringen.
+- Byt spårningsmetod i grafen (FIFO och haircut) och gå tillbaka: metoden i Exponeringens huvud följer med och
+  andelarna ändras.
