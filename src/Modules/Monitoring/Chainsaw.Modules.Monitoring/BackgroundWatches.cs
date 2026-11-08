@@ -209,8 +209,12 @@ internal sealed class BackgroundWatches(
 
         // A check whose start never came in (its entry was set aside) brings the start it counted from, so that its
         // hits are not lost. A check counted from another start than the case's (one the background set before a
-        // crash, say) still stands: only money above the case's own start is a hit.
-        var start = watch.StartHeight ?? Start(transaction, watch, entry.Start, null);
+        // crash, say) still stands: only money above the case's own start is a hit. When no start can be taken from
+        // the background (the case has seen no block), the open check sets the start and nothing more is taken.
+        if ((watch.StartHeight ?? Start(transaction, watch, entry.Start, null)) is not { } start)
+        {
+            return [];
+        }
 
         // How far it read counts only when it read from the case's start or lower: a check from a later start never
         // read the blocks between, and must not mark them as read. Like a hit, how far it read is only the
@@ -279,17 +283,30 @@ internal sealed class BackgroundWatches(
         WatchCodec.Encode(watch with { Pace = WatchPace.EveryBlock })
         == WatchCodec.Encode(checkedWith with { Pace = WatchPace.EveryBlock });
 
-    /// <summary>Seals the start the background set, for a watch that has none.</summary>
+    /// <summary>
+    /// Seals the start the background set, for a watch that has none. Like how far it read, the start is only the
+    /// background's word, and only money above the start is a hit: it counts no higher than the case's own lookups
+    /// have seen the chain, so that a forged entry cannot hide every hit behind a start far ahead, and no lower than
+    /// they had seen when the watch was made, since the open check starts no earlier than that either. When the case
+    /// has seen no block, no start is taken: the open check sets it.
+    /// </summary>
     /// <param name="transaction">The case's write.</param>
     /// <param name="watch">The watch.</param>
-    /// <param name="height">The start.</param>
+    /// <param name="background">The start the background set.</param>
     /// <param name="checkedUtc">
     /// When it was set, to note the watch as read to its start when nothing is noted yet; <see langword="null"/> when
     /// the check that brings it notes how far it read.
     /// </param>
-    /// <returns>The start.</returns>
-    private static long Start(ICaseTransaction transaction, Watch watch, long height, DateTimeOffset? checkedUtc)
+    /// <returns>The start sealed, or <see langword="null"/> when none was.</returns>
+    private long? Start(ICaseTransaction transaction, Watch watch, long background, DateTimeOffset? checkedUtc)
     {
+        if (heights.Known(transaction, watch.Chain) is not { } seen)
+        {
+            return null;
+        }
+
+        var made = heights.Known(transaction, watch.Chain, watch.CreatedUtc) ?? 0;
+        var height = Math.Max(Math.Min(background, seen), made);
         var journal = transaction.AppendJournal(new JournalDraft(
             MonitoringJournalKinds.Started,
             $"Bevakningen av {watch.Subject.Name} börjar efter block {WatchTexts.Number(height)} (i bakgrunden)",

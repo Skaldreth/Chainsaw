@@ -673,6 +673,32 @@ public sealed class SourceTests : IDisposable
     }
 
     [Fact]
+    public async Task The_known_height_reads_past_rows_that_do_not_count_and_takes_the_highest_that_does()
+    {
+        Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("800002"), 200);
+        await Source.GetTipHeightAsync(_harness.Case);
+        _harness.Case.Write(transaction =>
+        {
+            // The highest row has no sealed answer behind it; the next is in the sealed tip answer.
+            using var command = transaction.CreateCommand(
+                $"""
+                INSERT INTO chains_bitcoin_seen VALUES
+                    ('bitcoin-mainnet', '{new string('a', 64)}', 999, 900000, NULL),
+                    ('bitcoin-mainnet', '{new string('b', 64)}',
+                        (SELECT MAX(sequence) FROM chains_raw_responses), 800005, NULL),
+                    ('bitcoin-mainnet', '{new string('c', 64)}',
+                        (SELECT MAX(sequence) FROM chains_raw_responses), 700000, NULL)
+                """);
+            return command.ExecuteNonQuery();
+        });
+        var store = new RawResponseStore(TimeZoneInfo.Utc, "bitcoin-mainnet");
+
+        var known = _harness.Case.Read(reader => store.KnownHeight(reader));
+
+        Assert.Equal(800005, known);
+    }
+
+    [Fact]
     public async Task Spends_that_can_still_change_are_marked_on_the_transaction()
     {
         await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);

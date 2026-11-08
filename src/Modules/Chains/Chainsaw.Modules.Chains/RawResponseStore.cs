@@ -388,43 +388,77 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     /// The last response to count, so that the height the case knew when a response was sealed can be read; every
     /// response when <see langword="null"/>.
     /// </param>
+    /// <param name="receivedBy">
+    /// Only responses received at or before this time, so that the height the case knew at a time can be read; every
+    /// response when <see langword="null"/>.
+    /// </param>
     /// <returns>The height, or <see langword="null"/> when the case knows of no block.</returns>
-    public long? KnownHeight(ICaseReader reader, long? upTo = null) => Heights(reader, null, upTo);
+    public long? KnownHeight(ICaseReader reader, long? upTo = null, DateTimeOffset? receivedBy = null) =>
+        Heights(reader, null, upTo, receivedBy);
 
     /// <summary>
     /// Gives the highest block the indexes show. The indexes are not sealed, so a height only counts when its row
     /// points at a sealed successful answer of this chain (of the kind and subject the lookup row names), and never
     /// above the highest the chain can have come by when that answer was received (<see cref="ChainLimits"/>). A row
-    /// written by hand into the file can then move the height no further than the chain's plausible bound.
+    /// written by hand into the file can then move the height no further than the chain's plausible bound. The rows
+    /// are read highest first and the reading stops at the first row no higher than the height found, so that a case
+    /// with many answers is not read through on every lookup.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="endpointId">Only answers of this endpoint, or <see langword="null"/> for every answer.</param>
     /// <param name="upTo">The last answer to count, or <see langword="null"/> for every answer.</param>
+    /// <param name="receivedBy">
+    /// Only answers received at or before this time, or <see langword="null"/> for every answer.
+    /// </param>
     /// <returns>The height, or <see langword="null"/> when no counted answer shows one.</returns>
-    private long? Heights(ICaseReader reader, string? endpointId, long? upTo)
+    private long? Heights(ICaseReader reader, string? endpointId, long? upTo, DateTimeOffset? receivedBy = null)
     {
-        using var command = reader.CreateCommand(
-            $"""
-            SELECT MAX(CASE WHEN $fastest IS NULL THEN height
-                ELSE MIN(height, MAX(0, (unixepoch(received) - $made) / $fastest)) END) FROM (
-                SELECT l.height AS height, r.received_utc AS received FROM chains_lookup l
-                    JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = l.sequence AND r.chain = l.chain
-                        AND r.kind = l.kind AND r.subject = l.subject AND r.status_code BETWEEN 200 AND 299
-                    WHERE l.chain = $chain AND l.height IS NOT NULL
-                        AND ($endpoint IS NULL OR r.endpoint_id = $endpoint) AND ($upTo IS NULL OR l.sequence <= $upTo)
-                UNION ALL SELECT s.block_height, r.received_utc FROM chains_bitcoin_seen s
-                    JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = s.sequence AND r.chain = s.chain
-                        AND r.status_code BETWEEN 200 AND 299
-                    WHERE s.chain = $chain AND s.block_height IS NOT NULL
-                        AND ($endpoint IS NULL OR r.endpoint_id = $endpoint) AND ($upTo IS NULL OR s.sequence <= $upTo))
-            """);
+        const string Filter = """
+            AND r.status_code BETWEEN 200 AND 299
+            AND ($endpoint IS NULL OR r.endpoint_id = $endpoint) AND ($upTo IS NULL OR r.sequence <= $upTo)
+            AND ($by IS NULL OR unixepoch(r.received_utc) <= $by)
+            """;
         var pace = ChainLimits.Pace(ChainName);
-        Add(command, "$chain", ChainName);
-        Add(command, "$endpoint", endpointId);
-        Add(command, "$upTo", upTo);
-        Add(command, "$made", pace?.Made.ToUnixTimeSeconds());
-        Add(command, "$fastest", pace is { } known ? (long)known.Fastest.TotalSeconds : null);
-        return command.ExecuteScalar() as long?;
+        long? highest = null;
+        foreach (var query in (string[])[
+            $"""
+            SELECT l.height, unixepoch(r.received_utc) FROM chains_lookup l
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = l.sequence AND r.chain = l.chain
+                    AND r.kind = l.kind AND r.subject = l.subject {Filter}
+                WHERE l.chain = $chain AND l.height IS NOT NULL ORDER BY l.height DESC
+            """,
+            $"""
+            SELECT s.block_height, unixepoch(r.received_utc) FROM chains_bitcoin_seen s
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = s.sequence AND r.chain = s.chain {Filter}
+                WHERE s.chain = $chain AND s.block_height IS NOT NULL ORDER BY s.block_height DESC
+            """])
+        {
+            using var command = reader.CreateCommand(query);
+            Add(command, "$chain", ChainName);
+            Add(command, "$endpoint", endpointId);
+            Add(command, "$upTo", upTo);
+            Add(command, "$by", receivedBy?.ToUnixTimeSeconds());
+            using var rows = command.ExecuteReader();
+            while (rows.Read() && !(rows.GetInt64(0) <= highest))
+            {
+                var height = rows.GetInt64(0);
+                if (pace is { } known)
+                {
+                    if (rows.IsDBNull(1))
+                    {
+                        // A received time SQLite cannot read gives no bound to hold the height to: not counted.
+                        continue;
+                    }
+
+                    var most = (rows.GetInt64(1) - known.Made.ToUnixTimeSeconds()) / (long)known.Fastest.TotalSeconds;
+                    height = Math.Min(height, Math.Max(0, most));
+                }
+
+                highest = Math.Max(highest ?? height, height);
+            }
+        }
+
+        return highest;
     }
 
     /// <summary>

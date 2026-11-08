@@ -67,10 +67,10 @@ internal sealed class Harness : IDisposable
     /// Seals an answer of the case's own lookups that shows the Bitcoin chain at a height, as far as the background's
     /// read-through height may then count.
     /// </summary>
-    public void SeenByTheCase(long height) => Case.Write(transaction =>
+    public void SeenByTheCase(long height, DateTimeOffset? received = null) => Case.Write(transaction =>
         Get<IResponseTransfer>().Seal(
             transaction,
-            Responses.Make(1, height.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            Responses.Make(1, height.ToString(System.Globalization.CultureInfo.InvariantCulture), received),
             new SealedResponseIndex(height, [])));
 
     public FakeClock Clock { get; } = new();

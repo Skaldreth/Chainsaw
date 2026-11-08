@@ -9,7 +9,7 @@ namespace Chainsaw.Modules.Chains;
 internal sealed class CaseHeights(BitcoinSourceOptions bitcoin) : ICaseHeights
 {
     /// <inheritdoc/>
-    public long? Known(ICaseReader reader, Chain chain)
+    public long? Known(ICaseReader reader, Chain chain, DateTimeOffset? by = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         var name = chain switch
@@ -18,6 +18,6 @@ internal sealed class CaseHeights(BitcoinSourceOptions bitcoin) : ICaseHeights
             Chain.Ethereum => BlockscoutEthereumSource.ChainName,
             _ => null,
         };
-        return name is null ? null : new RawResponseStore(TimeZoneInfo.Utc, name).KnownHeight(reader);
+        return name is null ? null : new RawResponseStore(TimeZoneInfo.Utc, name).KnownHeight(reader, null, by);
     }
 }

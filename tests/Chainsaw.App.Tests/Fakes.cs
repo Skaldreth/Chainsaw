@@ -12,6 +12,71 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Tests;
 
+/// <summary>
+/// One thread that runs posted work in turn, as the WPF dispatcher does. A view model goes off the UI thread with
+/// <c>await Task.Run</c> and comes back to it; under xUnit's own context (several threads) the work coming back can run
+/// at the same time as the test and as other work, so that a test can see a view model half way through showing a
+/// scene. A test that waits for such work runs here instead.
+/// </summary>
+internal sealed class UiThread : SynchronizationContext
+{
+    /// <summary>The work posted, run in turn.</summary>
+    private readonly System.Threading.Channels.Channel<(SendOrPostCallback Work, object? State)> _queue =
+        System.Threading.Channels.Channel.CreateUnbounded<(SendOrPostCallback, object?)>(
+            new System.Threading.Channels.UnboundedChannelOptions { SingleReader = true });
+
+    /// <summary>Runs a test on its own UI thread, and the work it starts that comes back to that thread.</summary>
+    /// <param name="test">The test.</param>
+    /// <returns>A task that completes as the test does.</returns>
+    public static Task RunAsync(Func<Task> test)
+    {
+        var context = new UiThread();
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            SetSynchronizationContext(context);
+            context.Post(async _ =>
+            {
+                try
+                {
+                    await test();
+                    done.SetResult();
+                }
+                catch (Exception exception)
+                {
+                    done.SetException(exception);
+                }
+                finally
+                {
+                    // Work still coming back after the test is dropped, as a closed window's would be.
+                    context._queue.Writer.TryComplete();
+                }
+            }, null);
+            while (context._queue.Reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult())
+            {
+                while (context._queue.Reader.TryRead(out var item))
+                {
+                    item.Work(item.State);
+                }
+            }
+        })
+        {
+            IsBackground = true,
+        };
+        thread.Start();
+        return done.Task;
+    }
+
+    /// <inheritdoc/>
+    public override void Post(SendOrPostCallback d, object? state) => _queue.Writer.TryWrite((d, state));
+
+    /// <inheritdoc/>
+    public override void Send(SendOrPostCallback d, object? state) => throw new NotSupportedException();
+
+    /// <inheritdoc/>
+    public override SynchronizationContext CreateCopy() => this;
+}
+
 /// <summary>Runs posted work at once, as if the test were the UI thread.</summary>
 internal sealed class InlineUi : IUiThread
 {

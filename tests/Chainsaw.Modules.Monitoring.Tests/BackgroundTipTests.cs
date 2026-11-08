@@ -202,6 +202,20 @@ public sealed class BackgroundTipTests : IDisposable
         Assert.Empty(_harness.Bitcoin.TransactionsAsked);
     }
 
+    [Fact]
+    public async Task A_tip_of_a_watch_taken_back_is_closed_at_once_since_no_check_of_its_chain_may_come_again()
+    {
+        var watch = await StartedWatch();
+        Genuine();
+        Queue.Add(Entry(watch, "hit"));
+        Background.Import(_harness.Case);
+
+        _harness.Service.Remove(_harness.Case, watch.Id, null);
+
+        Assert.Equal(WatchTipState.Dropped, _harness.Service.GetTips(_harness.Case).Single().State);
+        Assert.Single(_harness.Journal(MonitoringJournalKinds.TipDropped));
+    }
+
     /// <summary>Puts the genuine transaction on the watched address's page: 25 000 sat out to the destination.</summary>
     private BitcoinTransaction Genuine()
     {

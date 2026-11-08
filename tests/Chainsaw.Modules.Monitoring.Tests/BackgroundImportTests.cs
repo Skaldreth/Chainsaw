@@ -195,6 +195,7 @@ public sealed class BackgroundImportTests : IDisposable
     public void A_start_the_background_set_is_sealed_when_the_watch_has_none()
     {
         var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        _harness.SeenByTheCase(900_010);
         Queue.Add(new QueuedCheck(
             Guid.NewGuid(), CaseId, watch.Id, QueuedKind.Started, watch.Filter, 900_010, 900_010, null, [], [],
             [Responses.Make(1, "900010")], Seen));
@@ -206,6 +207,51 @@ public sealed class BackgroundImportTests : IDisposable
         Assert.Contains("i bakgrunden", line.Summary, StringComparison.Ordinal);
         Assert.Equal(900_010, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
         Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public void A_start_beyond_what_the_case_has_seen_is_taken_only_as_far_as_the_case_has_seen()
+    {
+        // A forged start far ahead would hide every real hit, since only money above the start is one.
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        _harness.SeenByTheCase(900_010);
+        Queue.Add(Started(watch, 9_999_999));
+
+        Background.Import(_harness.Case);
+
+        Assert.Equal(900_010, Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Equal(900_010, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+    }
+
+    [Fact]
+    public void A_start_is_never_taken_lower_than_the_case_had_seen_when_the_watch_was_made()
+    {
+        // The case's own lookup came before the watch was made, so the chain was at least that high then.
+        _harness.Clock.UtcNow = Seen;
+        _harness.SeenByTheCase(900_010);
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        _harness.SeenByTheCase(900_050, Seen.AddHours(1));
+        Queue.Add(Started(watch, 0));
+
+        Background.Import(_harness.Case);
+
+        Assert.Equal(900_010, Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+    }
+
+    [Fact]
+    public void No_start_is_taken_from_the_background_while_the_case_has_seen_no_block()
+    {
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        Queue.Add(Started(watch, 9_999_999));
+        Queue.Add(Hit(watch, 900_003));
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Empty(result.Tips);
+        Assert.Equal(2, result.Entries);
+        Assert.Null(Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Empty(_harness.Journal(MonitoringJournalKinds.Started));
+        Assert.False(_harness.Service.GetChecked(_harness.Case).ContainsKey(watch.Id));
     }
 
     [Fact]
@@ -430,6 +476,9 @@ public sealed class BackgroundImportTests : IDisposable
         _harness.Clock.UtcNow = Seen.AddMinutes(-30);
         return _harness.Service.GetWatches(_harness.Case).Single(each => each.Id == watch.Id);
     }
+
+    private QueuedCheck Started(Watch watch, long start) => new(
+        Guid.NewGuid(), CaseId, watch.Id, QueuedKind.Started, watch.Filter, start, start, null, [], [], [], Seen);
 
     private QueuedCheck Hit(Watch watch, long height) => new(
         Guid.NewGuid(),

@@ -139,6 +139,7 @@ public sealed class WatcherLoopTests : IDisposable
         await Loop.RunOnceAsync();
 
         Assert.Equal(2, Queue.List(_world.Case.Info.Id).Count);
+        _world.SeenByTheCase(800_010);
         _world.App<IBackgroundWatches>().Import(_world.Case);
         var service = _world.App<IMonitoringService>();
         Assert.Equal(799_999, service.GetWatches(_world.Case).Single(each => each.Id == watch.Id).StartHeight);
