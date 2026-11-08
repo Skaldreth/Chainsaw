@@ -1129,6 +1129,7 @@ public sealed partial class GraphViewModel : ObservableObject
         }
 
         _ = FollowReadingAsync();
+        _ = FillRatesAsync();
     }
 
     /// <summary>Shows no graph, with a text in its place.</summary>

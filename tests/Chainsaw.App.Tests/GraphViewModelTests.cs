@@ -40,6 +40,18 @@ internal sealed class TestGraphSource : IGraphSource
 
     public IReadOnlyList<WhyLine> ClusterLines { get; set; } = [new("Länk", GuideTopic.CommonInputOwnership)];
 
+    /// <summary>What fetching the rates in the background gives, or <see langword="null"/> for the default.</summary>
+    public Func<GraphScene, GraphRates>? Fill { get; set; }
+
+    /// <summary>How many times the rates were fetched in the background.</summary>
+    public int Fills { get; private set; }
+
+    public Task<GraphRates> FillRatesAsync(ICase @case, GraphScene scene, CancellationToken cancellationToken)
+    {
+        Fills++;
+        return Task.FromResult(Fill?.Invoke(scene) ?? scene.Rates);
+    }
+
     public Task<GraphScene> LoadAsync(ICase @case, GraphReading reading, CancellationToken cancellationToken)
     {
         Loads.Add(reading.Method);

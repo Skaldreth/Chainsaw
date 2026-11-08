@@ -66,13 +66,14 @@ bredvid grafen, med stegen för varje överföring på linjen:
 kontrolleras: det är samma bytes som källan skickade.
 
 En linje vars kurs inte finns i ärendet visar **– kr** med en liten markering: ett överstruket nät när ingen utgång är
-ansluten, en klocka när kursen inte är hämtad än eller inte är satt än hos källan (en obekräftad tx har ingen blocktid
-än). Hovra över den för att se vilken kurs som saknas.
+ansluten, en klocka medan kursen hämtas eller när den inte är satt än hos källan (en obekräftad tx har ingen blocktid
+än, och ett block vars tid ligger före datorns klocka har ingen kurs än). Hovra över den för att se vilken kurs som saknas.
 
 ## Utan nät
 
 Kurserna ligger i ärendet. Är ingen utgång ansluten svarar ärendet, och saknas kursen där står det **– kr** och
-**Offline**; inget gissas. När grafen bara visas frågas inga källor; kurserna hämtas när grafen expanderas.
+**Offline**; inget gissas. Grafen visas alltid direkt med kurserna i ärendet, och de som saknas hämtas i bakgrunden
+genom utgången och fylls i när de kommer (under tiden står **– kr** med en klocka).
 Inställningarna (*Kurser*) säger hur många kurser ärendet har sparat.
 
 Uppslagen går, som allt annat, bara genom den valda utgången och innehåller bara marknaden och tiden, aldrig

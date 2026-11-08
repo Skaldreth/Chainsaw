@@ -106,6 +106,33 @@ public sealed class EuroTests : IDisposable
         Assert.Equal(2, summary.Total);
     }
 
+    [Fact]
+    public async Task A_saturday_takes_the_riksbank_s_friday_rate_for_the_euro()
+    {
+        // Saturday 2023-11-18 12:30 UTC: the Riksbank has no rate that day, so Friday's is used and the steps say so.
+        var saturday = new DateTimeOffset(2023, 11, 18, 12, 30, 0, TimeSpan.Zero);
+        var start = PriceResolution.Hour.PeriodStart(saturday).ToUnixTimeSeconds();
+        _harness.Http.AnswerText(
+            $"{Fixtures.Bitstamp}ohlc/btceur/?step=3600&limit=1&start={start}",
+            $$$"""
+            {"data": {"pair": "BTC/EUR", "ohlc": [{"timestamp": "{{{start}}}", "open": "34000", "high": "34000",
+            "low": "34000", "close": "34000", "volume": "1"}]}}
+            """);
+        _harness.Http.AnswerText(
+            $"{Fixtures.Riksbank}Observations/SEKEURPMI/2023-11-04/2023-12-19",
+            """
+            [{"date":"2023-11-16","value":11.5},{"date":"2023-11-17","value":11.52},
+            {"date":"2023-11-20","value":11.6}]
+            """);
+
+        var price = (await _harness.PriceAsync(saturday)).Value!;
+
+        Assert.Equal(new DateOnly(2023, 11, 17), price.FiatRate!.Date);
+        Assert.Equal(new DateOnly(2023, 11, 18), price.FiatRate.AskedDate);
+        Assert.Equal(11.52m, price.FiatRate.PerUnit);
+        Assert.Contains(price.Steps, step => step.Contains("2023-11-18 saknar kurs", StringComparison.Ordinal));
+    }
+
     /// <summary>Answers Bitstamp in euro and the Riksbank's EUR/SEK from the fixtures.</summary>
     private void AnswerEuro()
     {

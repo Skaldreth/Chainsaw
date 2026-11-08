@@ -13,6 +13,17 @@ public static class EdgeValues
     public const string UnconfirmedText =
         "En tx på linjen är obekräftad. Kursen gäller blockets tid, så den hämtas när tx:en har ett block.";
 
+    /// <summary>What a line waiting for a rate says: it is asked for through the exit.</summary>
+    private const string FetchingText = "hämtas genom utgången.";
+
+    /// <summary>What it says instead while no exit is connected.</summary>
+    private const string NotFetchedOfflineText = "är inte hämtad · Offline.";
+
+    /// <summary>What a line says when its block time is ahead of the clock, so that no rate is set for it.</summary>
+    public const string AheadText =
+        "ligger i framtiden enligt datorns klocka, så ingen kurs är satt för den än. Blockets tid sätts av den som "
+        + "bröt det och kan ligga upp till två timmar fel.";
+
     /// <summary>Sums the values of every transfer on a line, rounded to whole units, with their steps.</summary>
     /// <param name="parts">Every transfer on the line, valued, in time order; at least one.</param>
     /// <returns>The line's value.</returns>
@@ -47,8 +58,10 @@ public static class EdgeValues
     /// <param name="lookup">Pricing's answer, without a value.</param>
     /// <param name="at">The transfer's time.</param>
     /// <param name="currency">The currency's code.</param>
+    /// <param name="now">The time now, which tells a block time ahead of the clock from a missing source.</param>
     /// <returns>The gap, or <see langword="null"/>.</returns>
-    public static EdgeValueGap? GapOf(PriceLookup<Price> lookup, DateTimeOffset at, string currency)
+    public static EdgeValueGap? GapOf(
+        PriceLookup<Price> lookup, DateTimeOffset at, string currency, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(lookup);
         var when = at.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " UTC";
@@ -56,11 +69,38 @@ public static class EdgeValues
         return lookup.Status switch
         {
             PriceLookupStatus.Offline => new(currency, $"Kursen för {when} är inte hämtad · Offline.", true),
-            PriceLookupStatus.NotInCase => new(
-                currency, $"Kursen för {when} är inte hämtad än. Den hämtas när grafen expanderas.", false),
+            PriceLookupStatus.NotInCase => new(currency, $"Kursen för {when} {FetchingText}", false)
+            {
+                IsPending = true,
+            },
             PriceLookupStatus.NotAvailable => new(currency, $"Källan har ingen kurs för {when} än.{problem}", false),
             PriceLookupStatus.Failed => new(currency, $"Kursen för {when} kunde inte hämtas.{problem}", false),
+            PriceLookupStatus.Unsupported when at > now => new(currency, $"{when} {AheadText}", false),
             _ => null,
         };
     }
+
+    /// <summary>
+    /// Gives the gaps as they are while no exit is connected (principle 9): a rate that waits for the source is
+    /// missing offline, and is asked for when the exit is back; the other reasons stand.
+    /// </summary>
+    /// <param name="gaps">The gaps by line key.</param>
+    /// <returns>The gaps, with those that waited marked offline.</returns>
+    public static IReadOnlyDictionary<string, EdgeValueGap> Offline(IReadOnlyDictionary<string, EdgeValueGap> gaps)
+    {
+        ArgumentNullException.ThrowIfNull(gaps);
+        return gaps.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value is { IsPending: true, IsOffline: false } ? WaitingOffline(pair.Value) : pair.Value,
+            StringComparer.Ordinal);
+    }
+
+    /// <summary>Turns a gap that waited for the source into one that says offline.</summary>
+    /// <param name="gap">The gap.</param>
+    /// <returns>The gap offline.</returns>
+    private static EdgeValueGap WaitingOffline(EdgeValueGap gap) =>
+        new(gap.Currency, gap.Tip.Replace(FetchingText, NotFetchedOfflineText, StringComparison.Ordinal), true)
+        {
+            IsPending = true,
+        };
 }

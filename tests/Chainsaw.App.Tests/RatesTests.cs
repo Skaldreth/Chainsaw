@@ -1,6 +1,7 @@
 using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
 using Chainsaw.App.ViewModels;
+using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
@@ -60,19 +61,146 @@ public sealed class RatesTests
     public void The_gaps_say_why_and_an_asset_without_a_source_shows_nothing()
     {
         var at = new DateTimeOffset(2026, 11, 8, 9, 58, 0, TimeSpan.Zero);
+        var now = at.AddHours(1);
 
-        var notFetched = EdgeValues.GapOf(Lookup(PriceLookupStatus.NotInCase), at, "SEK")!;
-        var notSet = EdgeValues.GapOf(Lookup(PriceLookupStatus.NotAvailable, "Inte satt."), at, "SEK")!;
-        var failed = EdgeValues.GapOf(Lookup(PriceLookupStatus.Failed), at, "EUR")!;
+        var notFetched = EdgeValues.GapOf(Lookup(PriceLookupStatus.NotInCase), at, "SEK", now)!;
+        var notSet = EdgeValues.GapOf(Lookup(PriceLookupStatus.NotAvailable, "Inte satt."), at, "SEK", now)!;
+        var failed = EdgeValues.GapOf(Lookup(PriceLookupStatus.Failed), at, "EUR", now)!;
 
         Assert.False(notFetched.IsOffline);
+        Assert.True(notFetched.IsPending);
         Assert.Equal("Icon.Clock", notFetched.Icon);
-        Assert.Contains("hämtas när grafen expanderas", notFetched.Tip, StringComparison.Ordinal);
+        Assert.Contains("hämtas genom utgången", notFetched.Tip, StringComparison.Ordinal);
+        Assert.False(notSet.IsPending);
         Assert.EndsWith("Inte satt.", notSet.Tip, StringComparison.Ordinal);
         Assert.Equal("– EUR", failed.Text);
-        Assert.Null(EdgeValues.GapOf(Lookup(PriceLookupStatus.Unsupported), at, "SEK"));
+        Assert.Null(EdgeValues.GapOf(Lookup(PriceLookupStatus.Unsupported), at, "SEK", now));
         Assert.Equal(EdgeValues.UnconfirmedText, EdgeValues.Unconfirmed("SEK").Tip);
         Assert.Throws<ArgumentException>(() => EdgeValues.Sum([]));
+    }
+
+    [Fact]
+    public void A_block_time_ahead_of_the_clock_is_told_apart_from_an_asset_without_a_source()
+    {
+        var at = new DateTimeOffset(2026, 11, 8, 11, 0, 0, TimeSpan.Zero);
+
+        var ahead = EdgeValues.GapOf(Lookup(PriceLookupStatus.Unsupported), at, "SEK", at.AddMinutes(-30))!;
+
+        Assert.False(ahead.IsPending);
+        Assert.Equal("Icon.Clock", ahead.Icon);
+        Assert.EndsWith(EdgeValues.AheadText, ahead.Tip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Offline_a_waiting_rate_says_offline_and_waits_for_the_exit()
+    {
+        var at = new DateTimeOffset(2026, 11, 8, 9, 0, 0, TimeSpan.Zero);
+        var waiting = EdgeValues.GapOf(Lookup(PriceLookupStatus.NotInCase), at, "SEK", at.AddHours(2))!;
+        var failed = EdgeValues.GapOf(Lookup(PriceLookupStatus.Failed), at, "SEK", at.AddHours(2))!;
+
+        var offline = EdgeValues.Offline(new Dictionary<string, EdgeValueGap> { ["a"] = waiting, ["b"] = failed });
+
+        Assert.True(offline["a"].IsOffline);
+        Assert.True(offline["a"].IsPending);
+        Assert.Equal("Icon.Offline", offline["a"].Icon);
+        Assert.EndsWith("är inte hämtad · Offline.", offline["a"].Tip, StringComparison.Ordinal);
+        Assert.Same(failed, offline["b"]);
+    }
+
+    [Fact]
+    public async Task Showing_and_expanding_the_graph_never_wait_for_a_source()
+    {
+        var prices = new TestPrices { AtSourceOnly = true };
+        prices.Rates[Chain.Bitcoin.NativeAsset()] = 700_000m;
+        var source = Source(prices);
+
+        var scene = await source.LoadAsync(new TestCase("2026-0001"), TracingMethodKind.Fifo, CancellationToken.None);
+        var expansion = await source.ExpandAsync(
+            new TestCase("2026-0001"), [ExpansionRequest.ForAddress(GraphSamples.V)], TracingMethodKind.Fifo,
+            CancellationToken.None);
+
+        Assert.All(prices.Asked, asked => Assert.Equal(PriceLookupMode.CaseOnly, asked.Mode));
+        Assert.True(scene.Edge(GraphSamples.VK)!.ValueGap!.IsPending);
+        Assert.Equal(scene.PendingRates, expansion.Scene.PendingRates);
+        Assert.True(scene.PendingRates > 0);
+    }
+
+    [Fact]
+    public async Task Rates_in_the_case_never_count_against_the_lookups_of_one_fetch()
+    {
+        var prices = new TestPrices { AtSourceOnly = true };
+        prices.Rates[Chain.Bitcoin.NativeAsset()] = 700_000m;
+        var graph = ManyTimes(GraphSource.MostRateLookups + 10);
+        var times = graph.Edges.Select(edge => edge.Transfers[0].Time!.Value).ToList();
+        foreach (var time in times.Take(GraphSource.MostRateLookups + 5))
+        {
+            prices.InCase.Add(time);
+        }
+
+        var source = Source(prices, graph);
+        var scene = await source.LoadAsync(new TestCase("2026-0001"), TracingMethodKind.Fifo, CancellationToken.None);
+        Assert.Equal(5, scene.PendingRates);
+
+        var rates = await source.FillRatesAsync(new TestCase("2026-0001"), scene, CancellationToken.None);
+
+        Assert.Equal(0, rates.Pending);
+        Assert.Equal(graph.Edges.Count, rates.Values.Count);
+        Assert.Equal(5, prices.Asked.Count(asked => asked.Mode == PriceLookupMode.AsNeeded));
+    }
+
+    [Fact]
+    public async Task One_fetch_asks_the_source_for_at_most_the_limit_and_the_next_takes_the_rest()
+    {
+        var prices = new TestPrices { AtSourceOnly = true };
+        prices.Rates[Chain.Bitcoin.NativeAsset()] = 700_000m;
+        var graph = ManyTimes(GraphSource.MostRateLookups + 10);
+        var source = Source(prices, graph);
+        var scene = await source.LoadAsync(new TestCase("2026-0001"), TracingMethodKind.Fifo, CancellationToken.None);
+
+        var first = await source.FillRatesAsync(new TestCase("2026-0001"), scene, CancellationToken.None);
+        var second = await source.FillRatesAsync(
+            new TestCase("2026-0001"), scene.WithRates(first), CancellationToken.None);
+
+        Assert.Equal(10, first.Pending);
+        Assert.Equal(0, second.Pending);
+        Assert.Equal(
+            GraphSource.MostRateLookups + 10, prices.Asked.Count(asked => asked.Mode == PriceLookupMode.AsNeeded));
+    }
+
+    [Fact]
+    public async Task The_graph_shows_at_once_and_fills_in_the_rates_in_the_background()
+    {
+        var (graph, source, exit) = Rig();
+        var pending = PendingScene();
+        source.Scene = () => pending;
+        source.Fill = scene => scene.Rates with
+        {
+            Values = new Dictionary<string, EdgeValue> { [GraphSamples.VK] = EdgeValues.Sum([Part()]) },
+            Gaps = new Dictionary<string, EdgeValueGap>(),
+        };
+        exit.Set(new ExitStatus(ExitState.Connected, Guid.NewGuid(), null));
+
+        await graph.ReloadAsync(fit: false);
+        await graph.FillRatesAsync();
+
+        Assert.True(source.Fills > 0);
+        Assert.NotNull(graph.Scene!.Edge(GraphSamples.VK)!.Value);
+        Assert.Equal(0, graph.Scene.PendingRates);
+    }
+
+    [Fact]
+    public async Task Offline_the_graph_asks_nothing_and_says_offline_at_the_lines()
+    {
+        var (graph, source, _) = Rig();
+        source.Scene = PendingScene;
+
+        await graph.ReloadAsync(fit: false);
+
+        Assert.True(graph.IsOffline);
+        Assert.Equal(0, source.Fills);
+        var gap = graph.Scene!.Edge(GraphSamples.VK)!.ValueGap!;
+        Assert.True(gap.IsOffline);
+        Assert.Equal("Icon.Offline", gap.Icon);
     }
 
     [Fact]
@@ -194,13 +322,63 @@ public sealed class RatesTests
 
     /// <summary>Gives the graph's source over the made-up graph and its trace, with the rates given.</summary>
     /// <param name="prices">The rates.</param>
+    /// <param name="graph">Another graph, or <see langword="null"/> for the made-up one.</param>
     /// <returns>The source.</returns>
-    private static GraphSource Source(TestPrices prices) => new(
-        new TestTracing { Graph = GraphSamples.Graph(), Tracer = (_, _) => GraphSamples.Trace() },
+    private static GraphSource Source(TestPrices prices, TraceGraph? graph = null) => new(
+        new TestTracing { Graph = graph ?? GraphSamples.Graph(), Tracer = (_, _) => GraphSamples.Trace() },
         new TestAttribution(),
         new TestClustering(),
         null,
         prices);
+
+    /// <summary>
+    /// Gives the made-up graph with many lines from W to V, each one transfer in a block of its own hour, so that
+    /// there are more times to price than one fetch may ask for.
+    /// </summary>
+    /// <param name="count">How many lines.</param>
+    /// <returns>The graph.</returns>
+    private static TraceGraph ManyTimes(int count)
+    {
+        var graph = GraphSamples.Graph();
+        var edges = Enumerable.Range(0, count).Select(index =>
+        {
+            var block = GraphSamples.Block(200 + index);
+            var txid = GraphSamples.TxidOf(500 + index);
+            return new GraphEdge(
+                $"many-{index}", GraphSamples.WKey, GraphSamples.VKey, GraphEdgeKind.Transfer,
+                Satoshi.FromBitcoin(0.1m).ToAmount(),
+                [AssetTransfer.OfCoin(txid, new Outpoint(txid, 0), Satoshi.FromBitcoin(0.1m), block)],
+                block.Time,
+                EdgeDirection.Forward);
+        });
+        return graph with { Edges = [.. edges] };
+    }
+
+    /// <summary>Gives the made-up scene with the line V → K waiting for its rate.</summary>
+    /// <returns>The scene.</returns>
+    private static GraphScene PendingScene()
+    {
+        var at = GraphSamples.Block(101).Time;
+        var gap = EdgeValues.GapOf(Lookup(PriceLookupStatus.NotInCase), at, "SEK", at.AddHours(1))!;
+        var scene = GraphSamples.Scene();
+        var gaps = new Dictionary<string, EdgeValueGap> { [GraphSamples.VK] = gap };
+        return scene.WithRates(scene.Rates with { Gaps = gaps });
+    }
+
+    /// <summary>Gives the graph's view model over a test source, with its exit, and a case open.</summary>
+    /// <returns>The view model, the source and the exit.</returns>
+    private static (GraphViewModel Graph, TestGraphSource Source, TestExitConnection Exit) Rig()
+    {
+        var session = new CaseSession();
+        var workflow = new CaseWorkflow(
+            new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), session);
+        var source = new TestGraphSource();
+        var exit = new TestExitConnection();
+        var graph = new GraphViewModel(
+            session, workflow, source, TestWays.For(exit), new InlineUi(), new TestGraphEditor(), new TestClock());
+        session.Open(new TestCase("2026-0001"));
+        return (graph, source, exit);
+    }
 
     /// <summary>Gives an answer without a value.</summary>
     /// <param name="status">How it was answered.</param>

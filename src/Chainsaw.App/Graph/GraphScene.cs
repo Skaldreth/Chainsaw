@@ -89,11 +89,30 @@ public sealed record EdgeValuePart(AssetTransfer Transfer, Valuation Valuation);
 /// <param name="IsOffline">Whether it is missing because no exit is connected, so that the mark says offline.</param>
 public sealed record EdgeValueGap(string Currency, string Tip, bool IsOffline)
 {
+    /// <summary>
+    /// Gets whether the source can still be asked for the rate (the case only lacks it), so that the graph fetches it
+    /// in the background while the line shows the clock.
+    /// </summary>
+    public bool IsPending { get; init; }
+
     /// <summary>Gets what stands under the amount, for example <c>– kr</c>.</summary>
     public string Text => "–" + MoneyText.Unit(Currency);
 
     /// <summary>Gets the mark's icon: offline, or the clock for a rate that is not fetched or not set yet.</summary>
     public string Icon => IsOffline ? "Icon.Offline" : "Icon.Clock";
+}
+
+/// <summary>The lines' values after the rates were asked for again (sketch KU1a).</summary>
+/// <param name="Values">The values by line key.</param>
+/// <param name="Gaps">Why a line has no value, by line key.</param>
+/// <param name="Rates">The latest rate found per asset.</param>
+public sealed record GraphRates(
+    IReadOnlyDictionary<string, EdgeValue> Values,
+    IReadOnlyDictionary<string, EdgeValueGap> Gaps,
+    IReadOnlyDictionary<Asset, Price> Rates)
+{
+    /// <summary>Gets how many lines still wait for a rate the source can be asked for.</summary>
+    public int Pending => Gaps.Values.Count(gap => gap.IsPending);
 }
 
 /// <summary>How money in a currency is written in the graph.</summary>
@@ -332,6 +351,25 @@ public sealed record GraphScene(
 
     /// <summary>Gets how many drawn nodes the trash hides.</summary>
     public int Trashed { get; init; }
+
+    /// <summary>
+    /// Gives the scene again with its lines' values (sketch KU1a), keeping how it draws the outputs that can never be
+    /// spent and what the trash hides.
+    /// </summary>
+    /// <param name="rates">The values and why some lines have none.</param>
+    /// <returns>The scene.</returns>
+    public GraphScene WithRates(GraphRates rates)
+    {
+        ArgumentNullException.ThrowIfNull(rates);
+        var snapshot = Snapshot with { Values = rates.Values, ValueGaps = rates.Gaps, Rates = rates.Rates };
+        return Build(snapshot, ShowsUnspendable, Trash);
+    }
+
+    /// <summary>Gets how many lines wait for a rate the source can be asked for (sketch KU1a).</summary>
+    public int PendingRates => Snapshot.ValueGaps.Values.Count(gap => gap.IsPending);
+
+    /// <summary>Gives the lines' values as the scene has them, to be changed and shown again.</summary>
+    public GraphRates Rates => new(Snapshot.Values, Snapshot.ValueGaps, Snapshot.Rates);
 
     /// <summary>Gives the scene again with what the trash hides; itself when it is the same filter.</summary>
     /// <param name="trash">The filter.</param>

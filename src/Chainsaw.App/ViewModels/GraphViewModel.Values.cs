@@ -4,11 +4,104 @@ using Chainsaw.App.Guide;
 namespace Chainsaw.App.ViewModels;
 
 /// <summary>
-/// The lines' values (sketch KU1a): a click on a line's amount opens <em>Varför?</em> with the steps in the Guide's
-/// panel, and hovering a missing value says which rate is missing.
+/// The lines' values (sketch KU1a): the graph is shown at once with the case's rates, and the rates it lacks are
+/// fetched in the background and filled in as they come; a click on a line's amount opens <em>Varför?</em> with the
+/// steps in the Guide's panel, and hovering a missing value says which rate is missing.
 /// </summary>
 public sealed partial class GraphViewModel
 {
+    /// <summary>Where each amount was drawn last, on the surface, so that a click hits what is seen.</summary>
+    private readonly Dictionary<string, GraphRect> _drawnAmounts = new(StringComparer.Ordinal);
+
+    /// <summary>Counts the background fetches of rates, so that only the latest one shows its answer.</summary>
+    private int _rateFills;
+
+    /// <summary>Forgets where the amounts were drawn, as the canvas starts drawing them again.</summary>
+    public void BeginAmounts() => _drawnAmounts.Clear();
+
+    /// <summary>Remembers where a line's amount was drawn, on the surface.</summary>
+    /// <param name="edgeKey">The line.</param>
+    /// <param name="box">The dark box the amount and its value stand in.</param>
+    public void AmountDrawn(string edgeKey, GraphRect box) => _drawnAmounts[edgeKey] = box;
+
+    /// <summary>
+    /// Fetches the rates the scene's lines lack in the background, through the exit, a batch at a time
+    /// (<see cref="GraphSource.MostRateLookups"/>), and fills them in as they come, so that showing or expanding the
+    /// graph never waits for a source (principle 6). Offline, nothing is asked and the lines say so (principle 9).
+    /// </summary>
+    /// <returns>A task that completes when nothing more can be fetched now.</returns>
+    public async Task FillRatesAsync()
+    {
+        var fill = ++_rateFills;
+        if (_session.Current is not { } openCase || Scene is not { PendingRates: > 0 } scene)
+        {
+            return;
+        }
+
+        if (IsOffline)
+        {
+            if (scene.Snapshot.ValueGaps.Values.Any(gap => gap is { IsPending: true, IsOffline: false }))
+            {
+                ShowRates(scene.Rates with { Gaps = EdgeValues.Offline(scene.Snapshot.ValueGaps) });
+            }
+
+            return;
+        }
+
+        var version = _version;
+        var token = _work.Token;
+        var pending = scene.PendingRates;
+        while (pending > 0)
+        {
+            GraphRates rates;
+            try
+            {
+                rates = await _source.FillRatesAsync(openCase, Scene ?? scene, token);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // A failed or cancelled fetch leaves the lines as they are; the next reading asks again.
+                return;
+            }
+
+            if (fill != _rateFills || version != _version)
+            {
+                return;
+            }
+
+            ShowRates(rates);
+            if (rates.Pending >= pending)
+            {
+                // No progress (the source refused, or the exit went away): stop, and say it honestly per line.
+                return;
+            }
+
+            pending = rates.Pending;
+        }
+    }
+
+    /// <summary>
+    /// Follows the exit: offline the lines waiting for a rate say so at once (principle 9), and when the exit is back
+    /// they are fetched.
+    /// </summary>
+    /// <param name="value">Whether lookups cannot go now.</param>
+    partial void OnIsOfflineChanged(bool value) => _ = FillRatesAsync();
+
+    /// <summary>Shows the lines' values without reading the graph again, keeping what is chosen.</summary>
+    /// <param name="rates">The values.</param>
+    private void ShowRates(GraphRates rates)
+    {
+        if (Scene is not { } scene)
+        {
+            return;
+        }
+
+        Scene = scene.WithRates(rates);
+        Arrange();
+        Inspect();
+        Redraw?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>
     /// Gives what hovering a line's amount says when its value is missing (<c>– kr</c>): which rate and why, or
     /// <see langword="null"/> when the point is not on such an amount.
@@ -37,7 +130,10 @@ public sealed partial class GraphViewModel
         return true;
     }
 
-    /// <summary>Gives the line whose written amount covers a point, or <see langword="null"/>.</summary>
+    /// <summary>
+    /// Gives the line whose amount, as last drawn, covers a point, or <see langword="null"/>; an amount the gallring
+    /// hides was not drawn and is never hit.
+    /// </summary>
     /// <param name="point">The point on the surface.</param>
     /// <returns>The line.</returns>
     private EdgeView? AmountAt(GraphPoint point)
@@ -47,9 +143,9 @@ public sealed partial class GraphViewModel
             return null;
         }
 
-        foreach (var (key, spot) in Amounts)
+        foreach (var (key, box) in _drawnAmounts)
         {
-            if (spot.Box.Contains(point) && scene.Edge(key) is { HasValueLine: true } edge && IsWritten(edge))
+            if (box.Contains(point) && scene.Edge(key) is { HasValueLine: true } edge)
             {
                 return edge;
             }
@@ -57,14 +153,4 @@ public sealed partial class GraphViewModel
 
         return null;
     }
-
-    /// <summary>
-    /// Gets whether a line's amount is written on screen, as the canvas decides it: always while it is hovered,
-    /// otherwise by the gallring when nothing is chosen, or when the line itself is chosen.
-    /// </summary>
-    /// <param name="edge">The line.</param>
-    /// <returns><see langword="true"/> when the amount can be seen.</returns>
-    private bool IsWritten(EdgeView edge) =>
-        HoveredEdge == edge.Key || SelectedEdge == edge.Key
-        || (!IsFocused && Labels.Shows(edge.IsTraced, false, false, false));
 }

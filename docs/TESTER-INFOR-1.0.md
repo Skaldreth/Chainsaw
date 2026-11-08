@@ -150,6 +150,9 @@ ansluten utgång.
 - **Kurs saknas:** koppla ner utgången och öppna ett ärende vars linjer saknar kurs; under beloppet står **– kr** med
   ett överstruket nät, och hovring säger vilken kurs som saknas (*… är inte hämtad · Offline*). En obekräftad tx ger
   en klocka. Ett klick på **– kr** väljer bara linjen.
+- **I bakgrunden:** en expansion visas direkt, också när många kurser saknas; linjerna står med **– kr** och en klocka
+  och fylls i medan kurserna kommer (Riksbanken svarar högst var tolfte sekund). Anslut utgången igen efter offline:
+  de saknade kurserna hämtas utan att något annat görs. Ett ärende med fler än 30 tider får kurser för alla.
 - **Inställningar › Kurser:** Valuta (SEK, EUR, USD), Upplösning (Minut, Timme, Dygn), Källa för kryptokurser
   (Bitstamp), Källa för växelkursen (Riksbanken) och *Sparas i ärendet* med antalet kurser i det öppna ärendet (på
   hovring hur många svar från varje källa); utan ärende *Inget ärende öppet*.

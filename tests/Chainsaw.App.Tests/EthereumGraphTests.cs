@@ -142,13 +142,27 @@ internal sealed class TestPrices : IPriceService
     /// <summary>Gets or sets how a request without a rate is answered.</summary>
     public PriceLookupStatus Missing { get; set; } = PriceLookupStatus.NotInCase;
 
+    /// <summary>
+    /// Gets or sets whether the rates are only at the source: the case has a rate only for the times in
+    /// <see cref="InCase"/>, and asking the source puts it there.
+    /// </summary>
+    public bool AtSourceOnly { get; set; }
+
+    /// <summary>Gets the times the case has a rate for, when <see cref="AtSourceOnly"/>.</summary>
+    public HashSet<DateTimeOffset> InCase { get; } = [];
+
     public Task<PriceLookup<Price>> GetPriceAsync(
         ICase @case, PriceRequest request, PriceLookupMode mode = PriceLookupMode.AsNeeded,
         CancellationToken cancellationToken = default)
     {
         Asked.Add((request, mode));
         var asset = request.Asset ?? request.Chain.NativeAsset();
-        if (!Rates.TryGetValue(asset, out var rate))
+        if (AtSourceOnly && mode == PriceLookupMode.AsNeeded)
+        {
+            InCase.Add(request.At);
+        }
+
+        if (!Rates.TryGetValue(asset, out var rate) || (AtSourceOnly && !InCase.Contains(request.At)))
         {
             return Task.FromResult(new PriceLookup<Price>(Missing, null, [], null));
         }
@@ -400,7 +414,7 @@ public sealed class EthereumGraphTests
     }
 
     [Fact]
-    public async Task An_expansion_may_ask_for_rates_and_a_failed_account_trace_is_said()
+    public async Task An_expansion_reads_the_case_s_rates_only_and_a_failed_account_trace_is_said()
     {
         var tracing = new TestTracing
         {
@@ -414,7 +428,7 @@ public sealed class EthereumGraphTests
             new TestCase("2026-0001"), [ExpansionRequest.ForEthereumAddress(EthSamples.M)], TracingMethodKind.Fifo,
             CancellationToken.None);
 
-        Assert.Contains(prices.Asked, asked => asked.Mode == PriceLookupMode.AsNeeded);
+        Assert.All(prices.Asked, asked => Assert.Equal(PriceLookupMode.CaseOnly, asked.Mode));
         Assert.Equal(GraphSource.AccountTraceFailedText, expansion.Scene.Snapshot.TraceProblem);
         Assert.Null(expansion.Scene.Snapshot.AccountTrace);
     }

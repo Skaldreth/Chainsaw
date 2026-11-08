@@ -3350,8 +3350,18 @@ EUR/SEK, och båda svaren förseglas i ärendet var för sig.
   blockets tid.
 - Ett klick på **– kr** väljer bara linjen (det finns inga steg att visa).
 
-**Återstår (TODO):** kurserna hämtas bara när grafen expanderas (att visa grafen skickar aldrig något), så en linje som
-expanderades före KU1a står med **– kr** tills nästa expansion; ett sätt att hämta de saknade kurserna. Testärendet
-`/testdata` har inga påhittade kurser, så dess linjer visar **– kr** (eller hämtar riktiga kurser vid en expansion).
+**Granskningen** (oberoende, inga C):
+- **I1:** taket på 30 uppslag räknades också för kurser ur ärendet. *Nu:* ärendet frågas först, och bara ett svar
+  `NotInCase` räknas mot taket (`GraphSource.ValuesAsync`).
+- **I2:** `ComposeAsync` väntade på alla kursuppslag. *Nu:* grafen och expansionen visas direkt med ärendets kurser;
+  `IGraphSource.FillRatesAsync` hämtar de saknade (`EdgeValueGap.IsPending`) i bakgrunden, ett tak i taget, och
+  `GraphViewModel.FillRatesAsync` fyller i linjerna utan att läsa grafen igen, tills inget mer går framåt. Offline
+  frågas inget och linjerna säger *Offline* (M9); när utgången kommer tillbaka hämtas de.
+- **M:** *dagskurs* (M1), utan fasta gröna prickar (M2), *En kurs som är satt hämtas aldrig igen* (M3), summeringen
+  fångar allt utom avbrott och räknar om när ärendet byts (M4), en blocktid före datorns klocka skiljs från en
+  tillgång utan källa (M5), valutan läses en gång per körning (M6), träffytan är den ritade rutan (M7) och ett test
+  för euro på en lördag (M8).
 
-Tester: 6 nya i Pricing (`EuroTests`) och 10 i App (`RatesTests`).
+**Återstår:** testärendet `/testdata` har inga påhittade kurser, så dess linjer hämtar riktiga kurser genom utgången.
+
+Tester: 7 nya i Pricing (`EuroTests`) och 17 i App (`RatesTests`).

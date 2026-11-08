@@ -235,6 +235,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawSwap(drawingContext, edge, _model.Curves[edge.Key], nearEdges, taken);
         }
 
+        _model.BeginAmounts();
         foreach (var edge in AmountOrder(edges, nearEdges))
         {
             drawingContext.PushOpacity(LaterAmountOpacity(edge.Key));
@@ -860,11 +861,14 @@ public sealed partial class GraphCanvas : FrameworkElement
         var width = Math.Max(text.Width + glyphWidth, (value?.Width ?? 0) + markWidth);
         var height = text.Height + (value?.Height ?? 0);
         var box = new Rect(middle.X - (width / 2) - 5, middle.Y - (text.Height / 2) - 1, width + 10, height + 2);
-        if (!taken.TryAdd(new GraphRect(box.X, box.Y, box.Width, box.Height)))
+        var room = new GraphRect(box.X, box.Y, box.Width, box.Height);
+        if (!taken.TryAdd(room))
         {
             return;
         }
 
+        // A click on the amount opens Varför? for its value (sketch KU1a): the model hits the box as drawn.
+        model.AmountDrawn(edge.Key, room);
         dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
         var left = middle.X - ((text.Width + glyphWidth) / 2);
         if (glyphWidth > 0)

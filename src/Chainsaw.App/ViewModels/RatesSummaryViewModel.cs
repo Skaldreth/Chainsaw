@@ -1,5 +1,4 @@
 using System.Globalization;
-using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Pricing.Contracts;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -38,6 +37,7 @@ public sealed partial class RatesSummaryViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(prices);
         _session = session;
         _prices = prices;
+        session.Changed += (_, _) => _ = RefreshAsync();
     }
 
     /// <summary>Gets what the row says: for example <c>23 kurser</c>, or that no case is open.</summary>
@@ -48,7 +48,10 @@ public sealed partial class RatesSummaryViewModel : ObservableObject
     [ObservableProperty]
     public partial string? StoredTip { get; private set; }
 
-    /// <summary>Counts the rates in the open case again, off the UI thread.</summary>
+    /// <summary>
+    /// Counts the rates in the open case again, off the UI thread; also when another case is opened or the case is
+    /// closed.
+    /// </summary>
     /// <returns>A task that completes when the row says the count.</returns>
     public async Task RefreshAsync()
     {
@@ -66,9 +69,9 @@ public sealed partial class RatesSummaryViewModel : ObservableObject
             var summary = await Task.Run(() => _prices.Summarize(open)).ConfigureAwait(true);
             Show(refresh, Describe(summary), Tip(summary));
         }
-        catch (CaseException)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            // The case was closed or locked while counting: say so honestly rather than a number.
+            // The case was closed, locked or could not be read while counting: say so honestly rather than a number.
             Show(refresh, _session.Current is null ? NoCaseText : UnreadText, null);
         }
     }
