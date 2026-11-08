@@ -2979,3 +2979,64 @@ Gör om testärendet efter en ny version (berättelsen är version 2), eftersom 
   Låst: inget frågas.
 - **Sökningen och soptunnan:** släng en adress och sök på den med Ctrl+K: raden säger *I soptunnan* och *Öppna
   soptunnan*; Enter öppnar soptunnan.
+
+## Grafens rester mot 1.0 (breda noder, högen, bytt block och utgångsrutan, 2026-11-08)
+- [ ] Ge några aktörer långa namn (etikett *Misstänktes plånbok* och liknande) och välj *Sortera grafen*: kolumnen
+      med en bred nod flyttar nästa kolumn åt höger, så att beloppen fortfarande har luft mellan noderna och ingen nod
+      ligger över en annan.
+- [ ] Välj en bred nod och tryck N: den nya kommentaren står uppe till höger om nodens högra kant, inte över noden.
+- [ ] Klicka på en hög i grafen: ytan bakom trycks ut lite från högen (som i startvyn) medan ringarna går ut och
+      högen glider till mitten, och dras ihop igen när högen fälls ihop. Högen själv står still och skarp ovanpå.
+      Med animeringar avstängda är ytan utskjuten direkt.
+- [ ] En tx som källan inte längre känner (*Finns inte längre*, svårt att framkalla): linjen blir grå och streckad,
+      aktörerna som bara pengarna genom den når får streckad ram och tonas ner, och linjerna ut från dem streckas.
+      En aktör som också får pengar från en linje som står kvar ritas som vanligt.
+- [ ] En Ethereum-tx hämtad i ett grunt block (yngre än 64 block) som sedan omorganiserats: samma gula märke
+      *Bytte block* i beloppets hörn som på Bitcoin, också när den ligger kvar på samma höjd i ett annat block.
+      Ett ensamt *finns inte* från en endpoint som ligger efter ger inget märke.
+- [ ] Låt en VPN-tunnel falla (stäng av nätet en stund): utgångsrutan säger *Ansluter igen …* under mittringen och
+      *Nästa försök kl. 14:02:31* litet under, samma tid som titelradens tips; *Försöker nu* medan ett försök pågår.
+      Ringen och linjerna är fortfarande röda och streckade, eftersom inga uppslag går. Ansluten igen: utgångens namn.
+
+
+## Säkerhet, ärenden och utgångar (omgång 6, 2026-11-08)
+
+- [ ] Gamla ärenden (skrivna före 2026-11-08) öppnas inte: *Ärendet är skrivet av en äldre Chainsaw, före 1.0, och
+      kan inte öppnas.* Skapa nya med `/testdata`.
+- [ ] Ändra en byte någonstans i en stängd `.cut` (också i huvudet eller sist i filen) med en hex-editor: ärendet
+      öppnas inte (*skadad eller har ändrats utanför Chainsaw*), och ingen `.work` blir kvar bredvid.
+- [ ] Öppna och stäng ett ärende utan att göra något: `.cut`-filens *Ändrad* står kvar. Gör något och stäng: den ändras.
+- [ ] Skapa ett valv med en huvudnyckel med å, ä och ö, lås, och lås upp med samma nyckel inskriven på ett annat sätt
+      (till exempel med en annan tangentbordslayout eller *Teckenuppsättning*): det öppnas. Ett valv från före
+      2026-11-08 öppnas med samma nyckel som förut och fungerar sedan också med den andra skrivningen.
+- [ ] Ärendelösenord med å, ä och ö fungerar hos en kollega med en annan tangentbordslayout.
+- [ ] Kollegans kuvert i *Kuvert* (Ctrl+I) heter med kollegans namn när kollegan har lagt till sitt eget kuvert efter
+      2026-11-08. Ett okänt kuvert säger sin sort.
+- [ ] Efter en krasch där filen och arbetskopian gått isär säger grenbilden *Gick isär vid rad N*, med hashen när man
+      hovrar, och *+N rader* vid filen och arbetskopian.
+- [ ] Ta bort ankarfilen i `%LOCALAPPDATA%\Chainsaw\Ankare` (den senast ändrade) och öppna ärendet: journalen har en
+      rad *case.anchors-replaced* med *Missing*. Lägg tillbaka en äldre ankarfil tillsammans med en äldre `.cut`:
+      raden säger *RolledBack*.
+- [ ] Lås Chainsaw (Ctrl+L) medan ett ärende skapas eller ett kommando körs: efter upplåsningen står inget svar kvar
+      från före låsningen, och en Nytt ärende-panel som öppnats igen töms inte.
+- [ ] Stäng Chainsaw mitt i att ett ärende skapas: ärendet blir klart (högst 15 s) och sparas innan Chainsaw slutar.
+- [ ] Starta Chainsaw med en `chainsaw:`-länk och starta genast en gång till med en annan länk medan den första
+      fortfarande startar: den andra länken kommer fram när fönstret visas.
+- [ ] Skriv något i kommandoraden och öppna en `chainsaw:`-länk: länken läggs inte över texten, men kommer in när raden
+      töms.
+- [ ] Ctrl+U fäller ut och in utgångsrutan; utgångens verktygstips slutar med *· Ctrl+U*.
+- [ ] En WireGuard-fil med ett fel på en rad: raden i utgångsrutan säger *Filen godtas inte (rad N)*.
+- [ ] Med Windows som utgång och utan nät: felen säger *datorns nät*, aldrig *utgången*.
+- [ ] Med Windows och en proxy: en källa vars namn pekar på ett privat nät (till exempel en intern Esplora som inte är
+      märkt *Lokal*) vägras; en vanlig källa går genom proxyn som förut.
+- [ ] En källa som skickar en ofullständig certifikatkedja nås, om Windows redan har mellannivån i *Mellanliggande
+      certifikatutfärdare* (öppna sidan i Edge en gång först).
+- [ ] En VPN-utgång vars server bara svarar på IPv6 (namn med både A och AAAA i `Endpoint`) ansluter, inom 30 s.
+- [ ] Hjälpprogrammet: `chainsaw-tunnel.exe` är ombyggt; dess SHA-256 i `dist\chainsaw-tunnel.exe.sha256` stämmer med
+      filen, och anslutningen fungerar som förut.
+- [ ] `Chainsaw.Recovery check <ärende.cut> --key <privat.pem>` säger *Ja … och filen är hel* för ett ärende med kuvert
+      och *Nej* för ett utan; ändrar ingenting i filen.
+- [ ] `Chainsaw.Recovery revoke <publik.pem> --to src\Modules\Cases\Chainsaw.Modules.Cases\organization-recovery-key.pem`
+      lägger till raden `REVOKED …` en gång, och vägrar filens egen nyckel.
+- [ ] `Chainsaw.Recovery keygen <mapp>` på Windows: den privata nyckelns fil har bara ägaren i *Säkerhet* (inget arv
+      från mappen).

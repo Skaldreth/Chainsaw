@@ -318,6 +318,15 @@ func splitList(value string) []string {
 	return items
 }
 
+// uapiEndpoint gives the change that moves the peer to another address of its server, in the same form.
+func (cfg *config) uapiEndpoint(endpoint netip.AddrPort) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "public_key=%s\n", hex.EncodeToString(cfg.peer.publicKey[:]))
+	b.WriteString("update_only=true\n")
+	fmt.Fprintf(&b, "endpoint=%s\n", endpoint.String())
+	return b.String()
+}
+
 // uapi gives the configuration in the form wireguard-go's device takes (the cross-platform userspace API), with
 // the endpoint already resolved to an address.
 func (cfg *config) uapi(endpoint netip.AddrPort) string {

@@ -59,7 +59,11 @@ nyckelns **fingeravtryck** (SHA-256 av den publika nyckeln, sexton grupper om fy
 - Förvara den privata nyckeln och lösenordet **åtskilda**, till exempel nyckeln på två USB-minnen i olika kassaskåp
   och lösenordet i ett förseglat kuvert hos en annan person.
 - Byt och återkalla nyckeln om den kan ha röjts: skapa ett nytt par, bygg in den nya publika nyckeln och skriv en rad
-  `REVOKED <den gamla nyckelns fingeravtryck>` i `organization-recovery-key.pem` (fingeravtrycket med stora eller små
+  `REVOKED <den gamla nyckelns fingeravtryck>` i `organization-recovery-key.pem`, helst med verktyget, som skriver
+  raden ur den gamla publika nyckeln så att inget skrivs fel:
+  `dotnet run --project tools/Chainsaw.Recovery -- revoke E:\Chainsaw-nyckel\gammal.public.pem --to
+  src\Modules\Cases\Chainsaw.Modules.Cases\organization-recovery-key.pem` (utan `--to` skrivs raden bara ut). För hand
+  (fingeravtrycket med stora eller små
   bokstäver, med eller utan mellanslag). En rad som nämner ordet `REVOKED` får bara innehålla ordet och ett
   fingeravtryck (mellanslag, bindestreck, kolon, `*`, `•` och backticks går bra, men inte numrerade listor eller `#`),
   annars startar inte Chainsaw, så att en återkallelse aldrig tyst blir utan verkan. Skriv alltså inga kommentarer på
@@ -79,7 +83,16 @@ dotnet run --project tools/Chainsaw.Recovery -- check X:\Ärenden\A1.cut --publi
 ```
 
 Svaret är *Ja* (slutkod 0) eller *Nej* (slutkod 1) och en lista över de nycklar ärendet har kuvert för. Kontrollen
-läser bara filens huvud och kräver ingen nyckel.
+läser bara filens huvud och kräver ingen nyckel, så ett skadat kuvert med rätt fingeravtryck svarar också *Ja*. Den
+som har den privata nyckeln kan prova den på riktigt, utan att något i filen ändras:
+
+```
+dotnet run --project tools/Chainsaw.Recovery -- check X:\Ärenden\A1.cut --key E:\Chainsaw-nyckel\chainsaw-recovery.private.pem
+```
+
+Då öppnas kuvertet med nyckeln och sigillet över hela filen kontrolleras: *Ja … och filen är hel*, *Nej* när inget
+kuvert öppnas, och ett fel när filen är skadad. Chainsaw ser själv ett skadat kuvert för den inbyggda nyckeln (varje
+kuvert har en kontroll under ärendets filnyckel) och ersätter det när ärendet öppnas.
 
 ## Öppna ett ärende åt en operatör
 

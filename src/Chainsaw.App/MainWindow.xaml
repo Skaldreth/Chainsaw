@@ -172,7 +172,7 @@
                           otherwise. A click folds out the exits' panel under it.
                         -->
                         <Button x:Name="ExitChip" DockPanel.Dock="Right" Margin="0,0,14,0" VerticalAlignment="Center"
-                                Command="{Binding ExitPanel.ToggleCommand}" ToolTip="{Binding SourceText}"
+                                Command="{Binding ExitPanel.ToggleCommand}" ToolTip="{Binding ExitToolTip}"
                                 WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Utgångar">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource Button.Chip}">

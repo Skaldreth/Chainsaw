@@ -191,7 +191,9 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
 
     /// <summary>
     /// Stops the exit when the application ends. An attempt to connect is cancelled, and a tunnel that it starts
-    /// anyway is stopped as soon as it is handed over. The wait for the tunnel to stop is bounded.
+    /// anyway is stopped as soon as it is handed over. The operation in turn (an attempt, or a disconnect) is waited
+    /// for first, so that a tunnel it hands over or takes down is stopped and its stop registered before the stops are
+    /// gathered. The whole wait is bounded by <see cref="DisposeStopLimit"/>.
     /// </summary>
     public void Dispose()
     {
@@ -201,6 +203,31 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         }
 
         CancelAttempt();
+        var deadline = Environment.TickCount64 + (long)DisposeStopLimit.TotalMilliseconds;
+        var inTurn = _operation.Wait(DisposeStopLimit);
+        try
+        {
+            StopAll(deadline);
+        }
+        finally
+        {
+            if (inTurn)
+            {
+                // An attempt still waiting for its turn was cancelled above; it finds the connection disposed.
+                _operation.Release();
+            }
+        }
+
+        // The semaphore is not disposed: an operation in flight still releases it when it ends.
+    }
+
+    /// <summary>
+    /// Takes down the connected exit and waits, until the deadline, for every tunnel stop that has begun, also those
+    /// begun when a tunnel fell on its own, so that no helper is cut off when the application ends.
+    /// </summary>
+    /// <param name="deadline">The deadline, in <see cref="Environment.TickCount64"/> milliseconds.</param>
+    private void StopAll(long deadline)
+    {
         var active = TakeActive(ExitStatus.NotConnected);
         if (active is not null)
         {
@@ -222,10 +249,8 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
             stops = [.. _pendingStops];
         }
 
-        Task.WaitAll(stops, DisposeStopLimit);
+        Task.WaitAll(stops, TimeSpan.FromMilliseconds(Math.Max(0, deadline - Environment.TickCount64)));
         RaiseLatest();
-
-        // The semaphore is not disposed: an operation in flight still releases it when it ends.
     }
 
     /// <summary>Connects the selected exit; the caller holds the operation gate.</summary>
@@ -270,7 +295,7 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         }
         catch (ExitConnectException exception)
         {
-            SetStatus(new ExitStatus(ExitState.Failed, exitId, exception.Failure));
+            SetStatus(new ExitStatus(ExitState.Failed, exitId, exception.Failure) { RefusedLine = exception.Line });
             return null;
         }
 #pragma warning disable CA1031 // The connector is a plug-in; any failure of it is a failed connection.

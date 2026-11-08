@@ -233,7 +233,7 @@ public sealed class CaseStoreTests : IDisposable
         }
 
         var bytes = File.ReadAllBytes(_fixture.CaseFile("A1"));
-        bytes[9] = 2;
+        bytes[9] = 3;
         File.WriteAllBytes(_fixture.CaseFile("A1"), bytes);
 
         Assert.Equal(CaseError.UnsupportedVersion, Assert.Throws<CaseException>(() => store.Open("A1")).Error);
@@ -287,22 +287,9 @@ public sealed class CaseStoreTests : IDisposable
         }
 
         var path = _fixture.CaseFile("A1");
-        CaseHeader header;
-        byte[] database;
-        using (var stream = File.OpenRead(path))
-        {
-            header = CaseContainer.ReadHeader(stream);
-            using var rest = new MemoryStream();
-            stream.CopyTo(rest);
-            database = rest.ToArray();
-        }
-
         var future = new System.Text.Json.Nodes.JsonObject { ["kind"] = "recovery", ["data"] = "framtid" };
-        using (var output = File.Create(path))
-        {
-            CaseContainer.WriteHeader(output, header.WithEnvelopes([.. header.Envelopes, future]));
-            output.Write(database);
-        }
+        CaseFileSurgery.RewriteHeader(
+            _fixture, path, header => header.WithEnvelopes([.. header.Envelopes, future]));
 
         using (var opened = store.Open("A1"))
         {

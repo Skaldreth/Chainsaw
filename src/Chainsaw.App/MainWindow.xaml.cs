@@ -1004,11 +1004,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Follows the exits' panel (sketch UT1a): the keyboard goes into it when it folds out, and back to the exit in the
-    /// title bar when it folds in while the keyboard was in it.
+    /// Follows the exits' panel (sketch UT1a): Ctrl+U folds it out and in, the keyboard goes into it when it folds
+    /// out, and back to the exit in the title bar when it folds in while the keyboard was in it.
     /// </summary>
     private void WatchExitPanel()
     {
+        if (Shortcuts.TryParse(ViewTable.ExitsGesture) is { } gesture)
+        {
+            var toggle = new RoutedCommand();
+            CommandBindings.Add(new CommandBinding(
+                toggle, (_, _) => _shell.ExitPanel.Toggle(), (_, e) => e.CanExecute = _gate.IsShellVisible));
+            InputBindings.Add(new KeyBinding(toggle, gesture));
+        }
+
         _shell.ExitPanel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(ExitPanelViewModel.IsOpen))

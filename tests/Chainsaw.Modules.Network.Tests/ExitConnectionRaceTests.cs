@@ -63,7 +63,7 @@ public sealed class ExitConnectionRaceTests
     }
 
     [Fact]
-    public async Task A_tunnel_handed_over_after_dispose_is_stopped_at_once()
+    public async Task A_tunnel_handed_over_after_dispose_is_stopped_before_dispose_returns()
     {
         await _harness.SelectedExitAsync();
         var release = new TaskCompletionSource();
@@ -71,12 +71,17 @@ public sealed class ExitConnectionRaceTests
         var connection = new ExitConnection(_harness.Records, connector, _harness.Handlers);
 
         var connecting = connection.ConnectAsync();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            release.SetResult();
+        });
         connection.Dispose();
-        release.SetResult();
 
-        // The connector ignores its token and hands the tunnel over anyway; the publication refuses it.
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => connecting);
+        // The connector ignores its token and hands the tunnel over anyway; the publication refuses it, and the
+        // disposal waited for the attempt in turn, so the tunnel is already stopped.
         Assert.True(connector.Tunnel.Disposed);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => connecting);
         Assert.False(connection.TryLease(out _));
         Assert.Equal(ExitStatus.NotConnected, connection.Status);
     }

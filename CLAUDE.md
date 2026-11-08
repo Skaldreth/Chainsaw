@@ -250,7 +250,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   ett valfritt **delningskuvert** med ett ärendelösenord som kan lämnas till en kollega (användarens beslut
   2026-11-07), och ett kuvert för **organisationens återställningsnyckel** (se *Säkerhet*). Ärendena ligger i
   `%LOCALAPPDATA%\Chainsaw\Ärenden`, inte i Dokument, som ofta synkas till molnet (användarens beslut 2026-11-07). Medan ärendet är öppet arbetar SQLite i en krypterad arbetskopia
-  bredvid filen, som skrivs tillbaka vid sparning och tas tillbaka efter en krasch.
+  bredvid filen, som skrivs tillbaka vid sparning och tas tillbaka efter en krasch. Hela filen (huvudet med alla kuvert
+  och databasen) förseglas vid varje sparning med HMAC-SHA256 under en nyckel ur filnyckeln, och en fil vars sigill
+  inte håller öppnas inte (omgång 6, 2026-11-08).
 - **Appdata** i `%LOCALAPPDATA%\Chainsaw\`: valv, inställningar, delade listor (sanktionslistor, öppna etikettkällor) och
   etikettbiblioteket.
 - **Etiketter smittar** (användarens beslut 2026-11-07). En etikett hör hemma i ärendet där den sattes, men det finns också

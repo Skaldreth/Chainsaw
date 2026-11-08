@@ -29,6 +29,7 @@ public sealed class CasesModuleTests
             .AddSingleton<IVault>(fixture.Vault)
             .AddSingleton<IPurposeKeys>(fixture.PurposeKeys)
             .AddSingleton<IOperatorProfileStore>(fixture.Profiles)
+            .AddSingleton<IVaultSecrets>(fixture.Secrets)
             .AddSingleton<IClock>(fixture.Clock)
             .AddCasesModule(options => options.Directory = fixture.Directory);
         using var provider = services.BuildServiceProvider();

@@ -1,4 +1,6 @@
 using System.Formats.Asn1;
+using System.Globalization;
+using System.Numerics;
 using System.Security.Cryptography;
 
 namespace Chainsaw.Modules.Cases.Contracts;
@@ -37,6 +39,18 @@ public sealed class RecoveryPublicKey : IEquatable<RecoveryPublicKey>
     /// <summary>The prefix of an uncompressed point.</summary>
     private const byte UncompressedPrefix = 0x04;
 
+    /// <summary>The prime of P-384's field (FIPS 186-4, D.1.2.4).</summary>
+    private static readonly BigInteger P384Prime = BigInteger.Parse(
+        "0FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFF",
+        NumberStyles.HexNumber,
+        CultureInfo.InvariantCulture);
+
+    /// <summary>The coefficient <c>b</c> of P-384 (FIPS 186-4, D.1.2.4).</summary>
+    private static readonly BigInteger P384B = BigInteger.Parse(
+        "0B3312FA7E23EE7E4988E056BE3F82D19181D9C6EFE8141120314088F5013875AC656398D8A2ED19D2A85C8EDD3EC2AEF",
+        NumberStyles.HexNumber,
+        CultureInfo.InvariantCulture);
+
     /// <summary>The canonical DER encoding.</summary>
     private readonly byte[] _subjectPublicKeyInfo;
 
@@ -65,9 +79,14 @@ public sealed class RecoveryPublicKey : IEquatable<RecoveryPublicKey>
     public static RecoveryPublicKey FromSubjectPublicKeyInfo(ReadOnlySpan<byte> subjectPublicKeyInfo)
     {
         var point = ReadPoint(subjectPublicKeyInfo);
+        if (!IsOnCurve(point))
+        {
+            throw new CryptographicException("The point does not lie on P-384.");
+        }
+
         var canonical = WriteSubjectPublicKeyInfo(point);
 
-        // Importing checks that the point lies on the curve.
+        // Importing checks the point again, in the platform's own way (OpenSSL or CNG).
         using var key = ECDiffieHellman.Create();
         key.ImportSubjectPublicKeyInfo(canonical, out _);
         return new RecoveryPublicKey(canonical);
@@ -193,6 +212,38 @@ public sealed class RecoveryPublicKey : IEquatable<RecoveryPublicKey>
             throw new CryptographicException("The key is not a valid SubjectPublicKeyInfo.", exception);
         }
     }
+
+    /// <summary>
+    /// Checks, without relying on the platform, that an uncompressed point is a point of P-384 other than infinity:
+    /// both coordinates lie in the field and <c>y² = x³ − 3x + b (mod p)</c>. P-384 has cofactor 1, so every such point
+    /// is in the group of prime order, and no small-subgroup point can be given in its place.
+    /// </summary>
+    /// <param name="point">The uncompressed point, 0x04 and both coordinates.</param>
+    /// <returns><see langword="true"/> when the point lies on the curve.</returns>
+    private static bool IsOnCurve(byte[] point)
+    {
+        var x = Coordinate(point.AsSpan(1, CoordinateSize));
+        var y = Coordinate(point.AsSpan(1 + CoordinateSize, CoordinateSize));
+        if (x >= P384Prime || y >= P384Prime)
+        {
+            return false;
+        }
+
+        var left = BigInteger.ModPow(y, 2, P384Prime);
+        var right = (BigInteger.ModPow(x, 3, P384Prime) - (3 * x) + P384B) % P384Prime;
+        if (right.Sign < 0)
+        {
+            right += P384Prime;
+        }
+
+        return left == right;
+    }
+
+    /// <summary>Reads a big-endian coordinate as a non-negative integer.</summary>
+    /// <param name="bytes">The coordinate.</param>
+    /// <returns>The integer.</returns>
+    private static BigInteger Coordinate(ReadOnlySpan<byte> bytes) =>
+        new(bytes, isUnsigned: true, isBigEndian: true);
 
     /// <summary>Writes the canonical <c>SubjectPublicKeyInfo</c> of a P-384 point.</summary>
     /// <param name="point">The uncompressed point.</param>

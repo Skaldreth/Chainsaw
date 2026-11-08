@@ -38,7 +38,9 @@ public static class CaseTexts
         CaseError.WouldLoseAccess =>
             "Ditt valv har inget eget kuvert i ärendet, så lösenordet kan inte tas bort. Lägg till ditt kuvert först.",
         CaseError.Closed => "Ärendet är stängt.",
-        CaseError.TooManyEnvelopes => "Ärendefilen har redan så många kuvert som den får ha.",
+        CaseError.OutdatedFormat => "Ärendet är skrivet av en äldre Chainsaw, före 1.0, och kan inte öppnas.",
+        CaseError.TooManyEnvelopes => "Ärendet har redan så många kuvert som en fil får ha. Inget ändrades.",
+        CaseError.LockedWhileSaving => "Valvet låstes medan ärendet sparades. Det är sparat och stängt.",
         _ => "Det gick inte att göra det med ärendet.",
     };
 

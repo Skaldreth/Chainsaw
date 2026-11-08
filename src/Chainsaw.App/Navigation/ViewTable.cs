@@ -15,6 +15,9 @@ public static class ViewTable
     /// <summary>The shortcut that locks Chainsaw at once: the vault, the case and everything shown.</summary>
     public const string LockGesture = "Ctrl+L";
 
+    /// <summary>The shortcut that folds the exits' panel out of the title bar, and in again (U for utgång).</summary>
+    public const string ExitsGesture = "Ctrl+U";
+
     /// <summary>Gets every view in the order of the rail.</summary>
     public static IReadOnlyList<ViewEntry> All { get; } =
     [

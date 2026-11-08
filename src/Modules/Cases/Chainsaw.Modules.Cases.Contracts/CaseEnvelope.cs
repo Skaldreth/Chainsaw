@@ -7,8 +7,8 @@ public enum CaseEnvelopeKind
     Yours,
 
     /// <summary>
-    /// Another vault, for example a colleague's. An envelope for a vault carries no name, so that the file does not
-    /// show whose it is.
+    /// Another vault, for example a colleague's. Its name (<see cref="CaseEnvelope.Name"/>) is encrypted under the
+    /// file key, so that the file does not show whose it is to anyone who cannot open it.
     /// </summary>
     OtherVault,
 
@@ -48,4 +48,17 @@ public enum RecoveryEnvelopeKey
 /// For <see cref="CaseEnvelopeKind.Recovery"/>, which key it is; otherwise <see langword="null"/>.
 /// </param>
 public sealed record CaseEnvelope(
-    CaseEnvelopeKind Kind, string? Fingerprint = null, RecoveryEnvelopeKey? Recovery = null);
+    CaseEnvelopeKind Kind, string? Fingerprint = null, RecoveryEnvelopeKey? Recovery = null)
+{
+    /// <summary>
+    /// Gets, for a vault's envelope, the name of the operator it was made for, when the case is open and the envelope
+    /// has one; otherwise <see langword="null"/>. Envelopes made before names were added have none.
+    /// </summary>
+    public string? Name { get; init; }
+
+    /// <summary>
+    /// Gets, for <see cref="CaseEnvelopeKind.Unknown"/>, the kind the envelope says it is (text from the file,
+    /// shortened and without control characters), or <see langword="null"/>.
+    /// </summary>
+    public string? UnknownKind { get; init; }
+}

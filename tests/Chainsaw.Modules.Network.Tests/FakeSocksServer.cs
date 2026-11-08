@@ -67,6 +67,10 @@ internal sealed class FakeSocksServer : IAsyncDisposable
         using (client)
         {
             var stream = client.GetStream();
+
+            // The helper's proof first, as tools/Chainsaw.Tunnel/socks.go gives it.
+            var nonce = await ReadExactAsync(stream, SocksHandlerFactory.ProofNonceSize);
+            await stream.WriteAsync(SocksHandlerFactory.ProofFor(Credentials, nonce));
             var greeting = await ReadExactAsync(stream, 2);
             var methods = await ReadExactAsync(stream, greeting[1]);
             if (!methods.Contains((byte)2))

@@ -587,7 +587,7 @@ public sealed class RecoveryKeyTests : IDisposable
             .DeepClone();
     }
 
-    private static void ChangeRecoveryEnvelope(string path, Action<System.Text.Json.Nodes.JsonObject> change) =>
+    private void ChangeRecoveryEnvelope(string path, Action<System.Text.Json.Nodes.JsonObject> change) =>
         RewriteHeader(path, header => header.WithEnvelopes(header.Envelopes.Select(envelope =>
         {
             var copy = (System.Text.Json.Nodes.JsonObject)envelope.DeepClone();
@@ -599,20 +599,6 @@ public sealed class RecoveryKeyTests : IDisposable
             return copy;
         })));
 
-    private static void RewriteHeader(string path, Func<CaseHeader, CaseHeader> change)
-    {
-        CaseHeader header;
-        byte[] database;
-        using (var input = File.OpenRead(path))
-        {
-            header = CaseContainer.ReadHeader(input);
-            using var rest = new MemoryStream();
-            input.CopyTo(rest);
-            database = rest.ToArray();
-        }
-
-        using var output = File.Create(path);
-        CaseContainer.WriteHeader(output, change(header));
-        output.Write(database);
-    }
+    private void RewriteHeader(string path, Func<CaseHeader, CaseHeader> change) =>
+        CaseFileSurgery.RewriteHeader(_owner, path, change);
 }

@@ -17,4 +17,11 @@ public sealed record WorkingCopyConflict(
     string CaseNumber,
     DateTimeOffset CaseFileWrittenUtc,
     DateTimeOffset WorkingCopyWrittenUtc,
-    string SuggestedBranchNumber);
+    string SuggestedBranchNumber)
+{
+    /// <summary>
+    /// Gets where the two went apart, read from copies of both with this vault's key, or <see langword="null"/> when
+    /// the vault is locked, has no envelope in the file, or either could not be read.
+    /// </summary>
+    public CaseDivergence? Divergence { get; init; }
+}

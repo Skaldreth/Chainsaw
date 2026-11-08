@@ -28,10 +28,14 @@ skriver aldrig till stderr och loggar ingenting.
   en trasig nyckel. `PostUp` och de andra kommandona i wg-quick ignoreras och körs aldrig.
 
 Porten hålls exklusivt på Windows (`SO_EXCLUSIVEADDRUSE`), och Chainsaw frågar efter varje anslutning till den om
-programmet fortfarande lever, så ingen annan kan ha svarat.
+programmet fortfarande lever. Innan något av SOCKS5 sägs skickar Chainsaw 32 slumpade byte, och programmet svarar med
+HMAC-SHA256 under tunnelns lösenord över `chainsaw/tunnel/proof/v1\n` och de 32 byten (`prove` i `socks.go`). Först när
+beviset håller skickar Chainsaw användarnamn, lösenord och uppslag, så ett program som tagit porten efter att
+hjälpprogrammet slutat får aldrig veta något.
 
 Namn slås upp inne i tunneln med filens `DNS =`. Det enda namn som slås upp med datorns egen resolver är serverns eget
-namn i `Endpoint`, eftersom tunneln inte finns innan dess.
+namn i `Endpoint`, eftersom tunneln inte finns innan dess. Har namnet både IPv4 och IPv6 provas IPv4 först och sedan
+IPv6, med halva väntetiden för handskakningen var, så att en server som bara svarar på IPv6 också nås.
 
 ## Bygga
 

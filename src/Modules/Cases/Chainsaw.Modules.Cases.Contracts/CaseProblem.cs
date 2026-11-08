@@ -16,8 +16,8 @@ public enum CaseProblem
     CaseInfoChanged,
 
     /// <summary>
-    /// This computer's record of how far each chain had come (the anchors) cannot be read or has been changed, so a
-    /// rolled-back or shortened case could not be checked.
+    /// This computer's record of how far each chain had come (the anchors) cannot be read, has been changed or is
+    /// older than the last one this vault wrote, so a rolled-back or shortened case could not be checked.
     /// </summary>
     AnchorsUnreadable,
 

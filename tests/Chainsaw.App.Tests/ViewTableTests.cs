@@ -30,9 +30,21 @@ public sealed partial class ViewTableTests
     {
         var gestures = ViewTable.All.Select(e => e.Gesture)
             .Append(ViewTable.CommandGesture)
-            .Append(ViewTable.SearchGesture);
+            .Append(ViewTable.SearchGesture)
+            .Append(ViewTable.LockGesture)
+            .Append(ViewTable.ExitsGesture);
 
         Assert.Equal(gestures.Count(), gestures.Distinct().Count());
+    }
+
+    [Fact]
+    public void The_exits_panel_has_a_shortcut_that_its_tooltip_names()
+    {
+        var rig = new GateRig(Modules.Security.Contracts.VaultState.Unlocked);
+
+        Assert.Equal("Ctrl+U", ViewTable.ExitsGesture);
+        Assert.EndsWith("· Ctrl+U", rig.Shell.ExitToolTip, StringComparison.Ordinal);
+        Assert.StartsWith(rig.Shell.SourceText, rig.Shell.ExitToolTip, StringComparison.Ordinal);
     }
 
     [Fact]

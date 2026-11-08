@@ -104,17 +104,11 @@ public sealed class AuditRound2Tests : IDisposable
         Assert.Equal(CaseContainer.MaximumEnvelopes, again.DescribeEnvelopes().Count);
     }
 
-    /// <summary>Replaces the envelopes in a closed case file's header.</summary>
-    private static void RewriteEnvelopes(
-        string path, Func<IReadOnlyList<JsonObject>, IEnumerable<JsonObject>> change)
-    {
-        var bytes = File.ReadAllBytes(path);
-        using var input = new MemoryStream(bytes);
-        var header = CaseContainer.ReadHeader(input);
-        var rest = bytes.AsSpan((int)input.Position).ToArray();
-        using var output = new MemoryStream();
-        CaseContainer.WriteHeader(output, header.WithEnvelopes(change(header.Envelopes)));
-        output.Write(rest);
-        File.WriteAllBytes(path, output.ToArray());
-    }
+    /// <summary>
+    /// Replaces the envelopes in a closed case file's header, sealing the file again with the file key from this
+    /// vault, the way a later build or someone with the key could (a change without the key is refused by the seal).
+    /// </summary>
+    private void RewriteEnvelopes(string path, Func<IReadOnlyList<JsonObject>, IEnumerable<JsonObject>> change) =>
+        CaseFileSurgery.RewriteHeader(
+            _fixture, path, header => header.WithEnvelopes(change(header.Envelopes)));
 }

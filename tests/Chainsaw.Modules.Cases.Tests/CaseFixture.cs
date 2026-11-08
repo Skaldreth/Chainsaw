@@ -18,7 +18,10 @@ internal sealed class CaseFixture : IDisposable
         Directory = directory ?? Path.Combine(Path.GetTempPath(), "chainsaw-cases-" + Guid.NewGuid().ToString("N"));
         PurposeKeys = new FakePurposeKeys(Vault, vaultName);
         Profiles = new FakeProfiles(Vault);
+        Secrets = new FakeSecrets(Vault);
     }
+
+    public FakeSecrets Secrets { get; }
 
     public string Directory { get; }
 
@@ -57,7 +60,7 @@ internal sealed class CaseFixture : IDisposable
             RevokedRecoveryKeys = Revoked,
         };
         var store = new CaseStore(
-            Vault, PurposeKeys, Profiles, Clock, options, [new CasesSchema(), .. contributors]);
+            Vault, PurposeKeys, Profiles, Secrets, Clock, options, [new CasesSchema(), .. contributors]);
         _stores.Add(store);
         return store;
     }

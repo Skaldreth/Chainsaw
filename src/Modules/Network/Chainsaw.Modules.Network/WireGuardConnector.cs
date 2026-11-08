@@ -117,7 +117,10 @@ internal sealed class WireGuardConnector(ITunnelProcessStarter starter, NetworkO
         if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
         {
             var code = error.GetString() ?? string.Empty;
-            throw new ExitConnectException(FailureFor(code), DescribeFailure(code, root));
+            throw new ExitConnectException(FailureFor(code), DescribeFailure(code, root))
+            {
+                Line = RefusedLine(code, root),
+            };
         }
 
         if (root.TryGetProperty("port", out var port) && port.TryGetInt32(out var number)
@@ -158,6 +161,35 @@ internal sealed class WireGuardConnector(ITunnelProcessStarter starter, NetworkO
         }
 
         return message;
+    }
+
+    /// <summary>
+    /// Reads the line a refused configuration names: the helper's reason begins <c>line N:</c> when one line is wrong
+    /// (see <c>configError</c> in <c>tools/Chainsaw.Tunnel/config.go</c>).
+    /// </summary>
+    /// <param name="code">The helper's code.</param>
+    /// <param name="root">The helper's answer.</param>
+    /// <returns>The line, or <see langword="null"/> when none is named.</returns>
+    internal static int? RefusedLine(string code, JsonElement root)
+    {
+        const string Prefix = "line ";
+        if (code != "configuration" || !root.TryGetProperty("message", out var reason)
+            || reason.ValueKind != JsonValueKind.String || reason.GetString() is not { } text
+            || !text.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var end = text.IndexOf(':', StringComparison.Ordinal);
+        return end > Prefix.Length
+            && int.TryParse(
+                text.AsSpan(Prefix.Length, end - Prefix.Length),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var line)
+            && line > 0
+                ? line
+                : null;
     }
 
     /// <summary>Parses one of the helper's lines as a JSON object.</summary>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,6 +20,9 @@ public sealed partial class CaseBranchViewModel : ObservableObject
     /// <summary>What is said about the working copy's branch.</summary>
     public const string CopyHint =
         "Sparas som ett eget ärende med ditt kuvert. Journalen följer med fram till kraschen.";
+
+    /// <summary>What the fork says when it is not known where the journals went apart.</summary>
+    public const string ApartWords = "Gick isär";
 
     /// <summary>The cases, which carry out the choice.</summary>
     private readonly CaseWorkflow _workflow;
@@ -56,6 +60,28 @@ public sealed partial class CaseBranchViewModel : ObservableObject
     /// <summary>Gets when the working copy was last written.</summary>
     [ObservableProperty]
     public partial string CopyWhen { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Gets what the fork says: <c>Gick isär vid rad 41</c> when it is known where the journals went apart, otherwise
+    /// <c>Gick isär</c>.
+    /// </summary>
+    [ObservableProperty]
+    public partial string ApartText { get; private set; } = ApartWords;
+
+    /// <summary>
+    /// Gets the hash of the last journal entry the two share, shown on hovering the fork, or <see langword="null"/>
+    /// (no tooltip) when it is not known.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? ApartHash { get; private set; }
+
+    /// <summary>Gets how many journal entries the file has after the fork, for example <c>+3 rader · </c>.</summary>
+    [ObservableProperty]
+    public partial string FileGrowth { get; private set; } = string.Empty;
+
+    /// <summary>Gets how many journal entries the working copy has after the fork.</summary>
+    [ObservableProperty]
+    public partial string CopyGrowth { get; private set; } = string.Empty;
 
     /// <summary>Gets whether the working copy's branch is chosen; it is from the start, as in the sketch.</summary>
     [ObservableProperty]
@@ -101,12 +127,32 @@ public sealed partial class CaseBranchViewModel : ObservableObject
         CaseNumber = conflict.CaseNumber;
         FileWhen = EnvelopeWords.When(conflict.CaseFileWrittenUtc, now, _zone);
         CopyWhen = EnvelopeWords.When(conflict.WorkingCopyWrittenUtc, now, _zone);
+        ShowDivergence(conflict.Divergence);
         BranchNumber = conflict.SuggestedBranchNumber;
         ChoosesCopy = true;
         ErrorText = string.Empty;
         IsBusy = false;
         IsOpen = true;
     }
+
+    /// <summary>Shows where the journals went apart and how far each branch went on, when it is known.</summary>
+    /// <param name="divergence">The divergence, or <see langword="null"/>.</param>
+    private void ShowDivergence(CaseDivergence? divergence)
+    {
+        ApartText = divergence is { Sequence: > 0 } shared
+            ? string.Create(CultureInfo.InvariantCulture, $"{ApartWords} vid rad {shared.Sequence}")
+            : ApartWords;
+        ApartHash = divergence is { Hash.Length: > 0 } known ? known.Hash : null;
+        FileGrowth = divergence is null ? string.Empty : Growth(divergence.FileEntries);
+        CopyGrowth = divergence is null ? string.Empty : Growth(divergence.CopyEntries);
+    }
+
+    /// <summary>Says how many journal entries a branch has after the fork.</summary>
+    /// <param name="entries">The number.</param>
+    /// <returns>For example <c>+3 rader · </c>, to stand before the time.</returns>
+    internal static string Growth(int entries) => entries == 1
+        ? "+1 rad · "
+        : string.Create(CultureInfo.InvariantCulture, $"+{entries} rader · ");
 
     /// <summary>Chooses the file's branch.</summary>
     [RelayCommand]

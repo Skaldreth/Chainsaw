@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Chainsaw.SharedKernel.Text;
 
 namespace Chainsaw.Modules.Security;
 
@@ -45,14 +46,37 @@ internal static class VaultCrypto
     /// <returns>A 32-byte salt.</returns>
     public static byte[] NewSalt() => RandomNumberGenerator.GetBytes(SaltSize);
 
-    /// <summary>Derives the key that wraps the data key from the master key.</summary>
-    /// <param name="masterKey">The master key; it is encoded as UTF-8 inside the derivation and not kept.</param>
-    /// <param name="salt">The salt stored in the vault file.</param>
-    /// <param name="iterations">The iteration count stored in the vault file.</param>
+    /// <summary>
+    /// Derives the key that wraps the data key from the master key: in Unicode normalization form C when the
+    /// parameters say so, so that the same key typed with another input method opens the vault, and otherwise as
+    /// typed (a vault written before the normalization).
+    /// </summary>
+    /// <param name="masterKey">
+    /// The master key; it is normalized into a pinned buffer that is cleared, and encoded as UTF-8 inside the
+    /// derivation, and not kept.
+    /// </param>
+    /// <param name="kdf">The parameters stored in the vault file.</param>
+    /// <param name="normalize">Whether to normalize, which overrides the parameters for the fallback of an old file.</param>
     /// <param name="destination">Receives the 32-byte wrapping key; the caller clears it.</param>
     public static void DeriveWrappingKey(
-        ReadOnlySpan<char> masterKey, ReadOnlySpan<byte> salt, int iterations, Span<byte> destination) =>
-        Rfc2898DeriveBytes.Pbkdf2(masterKey, salt, destination, iterations, HashAlgorithmName.SHA512);
+        ReadOnlySpan<char> masterKey, KdfParameters kdf, bool normalize, Span<byte> destination)
+    {
+        if (!normalize)
+        {
+            Rfc2898DeriveBytes.Pbkdf2(masterKey, kdf.Salt, destination, kdf.Iterations, HashAlgorithmName.SHA512);
+            return;
+        }
+
+        var normalized = SecretText.Normalize(masterKey);
+        try
+        {
+            Rfc2898DeriveBytes.Pbkdf2(normalized, kdf.Salt, destination, kdf.Iterations, HashAlgorithmName.SHA512);
+        }
+        finally
+        {
+            SecretText.Clear(normalized);
+        }
+    }
 
     /// <summary>Derives the key that encrypts the vault content from the data key.</summary>
     /// <param name="dataKey">The data key.</param>
