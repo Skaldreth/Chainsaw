@@ -396,9 +396,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             RebindBranch(branch, (fileKey, header.CaseId), (newKey, newHeader.CaseId), branchNumber);
             WorkingCopyBranches.WriteCaseFile(branch, newHeader);
             WorkingCopyBranches.RemoveBranch(branch, caseFileToo: false);
-            var opened = OpenLocked(branch, branchLock, newHeader, newKey, new Opening(OpeningKind.Branch, locks));
+            var opening = new Opening(OpeningKind.Branch, locks) { Origin = origin };
+            var opened = OpenLocked(branch, branchLock, newHeader, newKey, opening);
             (branchLock, newKey) = (null, null);
-            RecordOrUndo(opened, BranchDraft(origin, opened), () => { });
             SetAsideAfterBranch(paths, caseNumber, opened);
             return opened;
         }
@@ -504,14 +504,8 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             // A recovered working copy must belong to the case file as it is now; if the file was replaced after the
-            // working copy was taken from it, neither is overwritten.
-            if (!recovering)
-            {
-                // A rollback journal without its working copy belongs to no database; SQLite must never roll it back
-                // into the copy made now.
-                File.Delete(paths.WorkingJournal);
-            }
-
+            // working copy was taken from it, neither is overwritten. A new one is extracted without a leftover
+            // rollback journal.
             var caseFileHash = recovering
                 ? CaseFiles.MatchingBase(paths) ?? throw new CaseException(CaseError.Conflict)
                 : CaseFiles.Extract(paths, header.CaseId);
@@ -617,6 +611,12 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         if (opening.Kind == OpeningKind.Password)
         {
             opened.AppendOwnJournal(PasswordDraft(opening.Import));
+        }
+
+        if (opening.Origin is { } origin)
+        {
+            // In the opening's own save, so that the new case is never on disk without the line that names it.
+            opened.AppendOwnJournal(BranchDraft(origin, opened));
         }
 
         if (opening.Kind == OpeningKind.Recovery)
@@ -1304,6 +1304,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     {
         /// <summary>Gets the file taken in from elsewhere, with the password, or <see langword="null"/>.</summary>
         public ImportedFile? Import { get; init; }
+
+        /// <summary>Gets the case a working copy came from, for a case of its own, or <see langword="null"/>.</summary>
+        public BranchOrigin? Origin { get; init; }
     }
 
     /// <summary>A colleague's file taken into the folder: its name and the SHA-256 of what was copied.</summary>

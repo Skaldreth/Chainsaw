@@ -141,13 +141,13 @@ internal static class RequestMarkdown
 
     /// <summary>
     /// Writes a cell: an address, a transaction or a hash as code, so that it is copied whole; anything else
-    /// escaped. A value that holds a backtick cannot be code and is escaped instead.
+    /// escaped. A value that holds a backtick, a bar or a line break cannot be code and is escaped instead.
     /// </summary>
     /// <param name="cell">The cell's value.</param>
     /// <param name="isMono">Whether it is an address, a transaction or a hash.</param>
     /// <returns>The written cell.</returns>
     private static string Cell(string cell, bool isMono) =>
-        isMono && !cell.Contains('`', StringComparison.Ordinal) && !cell.Contains('|', StringComparison.Ordinal)
+        isMono && !cell.Any(c => c is '`' or '|' || char.IsControl(c))
             ? "`" + cell + "`"
             : Escape(cell);
 }

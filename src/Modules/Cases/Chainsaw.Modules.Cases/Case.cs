@@ -294,12 +294,14 @@ internal sealed class Case : ICase
         lock (_gate)
         {
             using var operation = BeginOperation();
+            var others = WithoutSharingEnvelope().ToList();
+            RequireRoomFor(others);
             var envelope = KeyEnvelopes.CreatePassword(
                 Info.Id, _fileKey, password, _services.Options.SharingIterations);
             AppendOwnJournal(new JournalDraft(
                 CaseJournalKinds.SharingPasswordSet,
                 HasSharingPasswordUnlocked() ? "Delningslösenordet byttes" : "Ett delningslösenord lades till"));
-            _header = _header.WithEnvelopes(WithoutSharingEnvelope().Append(envelope));
+            _header = _header.WithEnvelopes(others.Append(envelope));
             SaveUnlocked();
         }
     }
@@ -338,6 +340,7 @@ internal sealed class Case : ICase
                 return;
             }
 
+            RequireRoomFor(_header.Envelopes);
             var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
             try
             {
@@ -684,6 +687,20 @@ internal sealed class Case : ICase
             })));
         _header = _header.WithEnvelopes(envelopes);
         return true;
+    }
+
+    /// <summary>
+    /// Refuses to add an envelope to a header that is full, before anything is journalled, since a header with one
+    /// more could not be written (and every later save, and the close, would fail).
+    /// </summary>
+    /// <param name="kept">The envelopes the header keeps beside the one to add.</param>
+    /// <exception cref="CaseException"><see cref="CaseError.TooManyEnvelopes"/>.</exception>
+    private static void RequireRoomFor(IReadOnlyCollection<System.Text.Json.Nodes.JsonObject> kept)
+    {
+        if (kept.Count >= CaseContainer.MaximumEnvelopes)
+        {
+            throw new CaseException(CaseError.TooManyEnvelopes);
+        }
     }
 
     /// <summary>The journal's line for a change of the recovery envelopes.</summary>

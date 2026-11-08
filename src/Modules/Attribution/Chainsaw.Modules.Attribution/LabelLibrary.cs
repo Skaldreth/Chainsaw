@@ -68,15 +68,12 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
     {
         ArgumentNullException.ThrowIfNull(@case);
         var inCase = @case.Read(LabelStore.Read);
-        var nearVictim = NearVictim(@case, inCase.Active);
-        var labels = inCase.Active
-            .Where(label => LabelRules.MaySpread(label) && !nearVictim(label.Subject))
-            .ToList();
+        var labels = inCase.Active.Where(LabelRules.MaySpread).ToList();
 
         // A label the user set here and then took back is withdrawn everywhere: the copies other cases got from the
         // library are taken back there too, and it is never given again. Only the user's own judgement (own or from
         // an open source, or a supplier's report) is withdrawn so; a copy, a sanction hit or an analysis's label
-        // taken back here only leaves the library from this case. A label near a victim only stays out (above).
+        // taken back here only leaves the library from this case. A label near a victim only stays out (below).
         var withdrawn = inCase.All
             .Where(label => label.Origin.Source is LabelSource.Own or LabelSource.OpenSource or LabelSource.Provider
                 && inCase.Retracted.Contains(label.Sequence))
@@ -92,6 +89,11 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         lock (_gate)
         {
             var document = Load();
+            var nearVictim = NearVictim(
+                @case,
+                inCase.Active,
+                labels.Select(label => label.Subject).Concat(document.Labels.Select(stored => stored.SubjectOf())));
+            labels.RemoveAll(label => nearVictim.Contains(label.Subject));
             document.Withdrawn.UnionWith(withdrawn);
             document.HeldBack.ExceptWith(released);
             document.HeldBack.UnionWith(heldBack);
@@ -101,7 +103,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
 
                 // Near a victim in this case, or held back where it was set: out of the library, without touching
                 // the copies other cases have.
-                if (IsKeptOut(document, stored.OriginId) || nearVictim(stored.SubjectOf()))
+                if (IsKeptOut(document, stored.OriginId) || nearVictim.Contains(stored.SubjectOf()))
                 {
                     stored.Cases.Clear();
                 }
@@ -262,43 +264,47 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         inCase.Active.Where(label => label.Origin.IsFromOtherCase && withdrawn.Contains(label.Origin.OriginId));
 
     /// <summary>
-    /// Gives a test for whether a label is near a victim in the case: on an address or a cluster that holds, or
-    /// shares a cluster with, an address labelled as a victim. Such a label never spreads, since it can tell who
-    /// was robbed (for example the victim's own exchange account).
+    /// Gives the subjects that are near a victim in the case: an address or a cluster that holds, or shares a cluster
+    /// with, an address labelled as a victim. A label on such a subject never spreads, since it can tell who was
+    /// robbed (for example the victim's own exchange account). The clusters are read at once, not one by one.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="active">The case's labels that are not taken back.</param>
-    /// <returns>The test, on what a label is on.</returns>
-    private Func<LabelSubject, bool> NearVictim(ICase @case, IReadOnlyList<LabelEntry> active)
+    /// <param name="subjects">The subjects to test.</param>
+    /// <returns>Those of the subjects that are near a victim.</returns>
+    private HashSet<LabelSubject> NearVictim(
+        ICase @case, IReadOnlyList<LabelEntry> active, IEnumerable<LabelSubject> subjects)
     {
-        var victims = active
-            .Where(label => label.Kind == LabelKind.Victim)
-            .SelectMany(label => Near(@case, label.Subject))
+        var victimSubjects = active.Where(label => label.Kind == LabelKind.Victim)
+            .Select(label => label.Subject)
+            .ToList();
+        if (victimSubjects.Count == 0)
+        {
+            return [];
+        }
+
+        var asked = subjects.ToHashSet();
+
+        // Only Bitcoin is clustered: a victim's address and a label on a cluster are read with their clusters.
+        var bitcoin = victimSubjects
+            .Concat(asked.Where(subject => subject.Kind == LabelSubjectKind.Cluster))
+            .Select(subject => subject.Address)
+            .OfType<BitcoinAddress>()
             .ToHashSet();
-        if (victims.Count == 0)
-        {
-            return _ => false;
-        }
+        var clusters = bitcoin.Count == 0
+            ? new Dictionary<BitcoinAddress, Cluster>()
+            : clustering.GetClusters(@case, bitcoin);
+        IEnumerable<ChainAddress> Near(LabelSubject subject) =>
+            subject.Address is { } address && clusters.TryGetValue(address, out var cluster)
+                ? cluster.Addresses.Select(member => member.ToChainAddress())
+                : [subject.Target];
 
-        return subject => victims.Contains(subject.Target)
-            || (subject.Kind == LabelSubjectKind.Cluster && Near(@case, subject).Any(victims.Contains));
-    }
-
-    /// <summary>
-    /// Gives the addresses that share an owner with a subject: a Bitcoin address's cluster, or an account on another
-    /// chain alone, since only Bitcoin is clustered.
-    /// </summary>
-    /// <param name="case">The open case.</param>
-    /// <param name="subject">What a label is on.</param>
-    /// <returns>The addresses, the subject's own among them.</returns>
-    private IEnumerable<ChainAddress> Near(ICase @case, LabelSubject subject)
-    {
-        if (subject.Address is not { } address)
-        {
-            return [subject.Target];
-        }
-
-        return clustering.GetCluster(@case, address).Addresses.Select(member => member.ToChainAddress());
+        var victims = victimSubjects.SelectMany(Near).ToHashSet();
+        return
+        [
+            .. asked.Where(subject => victims.Contains(subject.Target)
+                || (subject.Kind == LabelSubjectKind.Cluster && Near(subject).Any(victims.Contains))),
+        ];
     }
 
     /// <summary>

@@ -392,6 +392,36 @@ public sealed class ExportTests
     }
 
     [Fact]
+    public void An_export_row_another_program_wrote_says_the_case_is_damaged()
+    {
+        using var harness = new Harness();
+        const string Utc = "2026-11-07T13:20:00.0000000+00:00";
+        harness.Case.Write(transaction =>
+        {
+            // Sealed as a later version or a crafted file could hold them: the hash chain is sound.
+            transaction.AppendSealed(
+                RequestsSchema.ExportsChain,
+                ["Unknown", "Swedish", "k", "n", "a.md", "a.md", "00", "[]", 1L, Utc]);
+            return transaction.AppendSealed(
+                RequestsSchema.ReportsChain, ["r.md", "r.md", "00", "[]", "[\"Unknown\"]", 1L, Utc]);
+        });
+
+        var request = Assert.Throws<CaseException>(() => harness.Service.ListExports(harness.Case));
+        var report = Assert.Throws<CaseException>(() => harness.Reports.ListExports(harness.Case));
+
+        Assert.Equal(CaseError.Corrupt, request.Error);
+        Assert.Equal(CaseError.Corrupt, report.Error);
+    }
+
+    [Fact]
+    public void A_mono_cell_with_a_line_break_cannot_break_the_table()
+    {
+        var text = RequestMarkdown.Write([RequestBlock.Table(["Tx"], [["ab\n# c"]], 0)]);
+
+        Assert.Equal("| Tx |\n| --- |\n| ab \\# c |\n", text);
+    }
+
+    [Fact]
     public void A_failed_seal_removes_the_file_again()
     {
         using var harness = new Harness();

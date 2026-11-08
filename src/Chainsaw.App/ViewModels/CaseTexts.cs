@@ -38,6 +38,7 @@ public static class CaseTexts
         CaseError.WouldLoseAccess =>
             "Ditt valv har inget eget kuvert i ärendet, så lösenordet kan inte tas bort. Lägg till ditt kuvert först.",
         CaseError.Closed => "Ärendet är stängt.",
+        CaseError.TooManyEnvelopes => "Ärendefilen har redan så många kuvert som den får ha.",
         _ => "Det gick inte att göra det med ärendet.",
     };
 

@@ -45,6 +45,7 @@ public sealed class CaseException : Exception
             $"The sharing password must be at least {SharingPasswordRules.MinimumLength} characters long.",
         CaseError.WouldLoseAccess => "The change would leave no key envelope that this vault can open.",
         CaseError.Closed => "The case is closed.",
+        CaseError.TooManyEnvelopes => "The case file's header holds as many key envelopes as it may.",
         _ => "The case operation failed.",
     };
 }

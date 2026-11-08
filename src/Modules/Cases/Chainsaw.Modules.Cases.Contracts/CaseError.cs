@@ -47,4 +47,9 @@ public enum CaseError
 
     /// <summary>The case has been closed (also when the vault was locked).</summary>
     Closed,
+
+    /// <summary>
+    /// The file's header already holds as many key envelopes as a header may, so no envelope can be added.
+    /// </summary>
+    TooManyEnvelopes,
 }
