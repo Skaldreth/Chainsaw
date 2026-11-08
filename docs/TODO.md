@@ -428,6 +428,10 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
 Allt som används för att förvirra spårningen ska kännas igen och analyseras, med så mycket automatiska kontroller och
 förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Katalogen, med det som redan står ovan och under Spårning:
 - **Centrala mixers:** kända adresser och mönster per mixer, troliga utgångar ur belopp minus avgift och tid.
+- **Mixer efter mixer** (chaining, användarens fråga 2026-11-08): en godkänd utgång ur en mixer som går in i en mixer
+  till (eller samma mixer igen, eller en CoinJoin) är ett vanligt sätt att lägga lager på lager. Kontroll: en kandidat
+  vars pengar når en ny mixer markeras som *mixer efter mixer*, och mixerns förslag körs då på nytt från den
+  insättningen, så att kedjan kan följas steg för steg; beloppet och avgifterna summeras längs kedjan.
 - **CoinJoin** (Wasabi, Whirlpool och efterföljare, JoinMarket): finns som heuristik (etapp 6), fler mönster ovan.
   Förslag: utgångar ur CoinJoin som slås ihop igen efteråt (toxic change, ihopslagning av mixade mynt).
 - **Tornado Cash och andra zk-mixers:** under *Kedjor och data*.
@@ -458,10 +462,9 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   av användaren inte finns i Clustering (se *Godkänna ett förslag och ångra en uppbrytning* ovan).
 - **Lasso** för att välja aktörer till en egen yta (KF1b): bara Ctrl+klick är byggt.
 - **Formuläret för en egen yta** står under grafens hörn, inte vid de valda aktörerna som i skissen.
-- **Godkänna en kandidat avgör förslaget** (KF2b, eget val 2026-11-08): när en kandidat godkänns räknas förslaget som
-  avgjort och de andra kandidaterna står kvar utan beslut (inte avfärdade). En mixer som betalar ut i flera delar kan
-  därför bara få en godkänd kandidat i taget; *Ångra* i loggen öppnar förslaget igen. Fråga kryptospåraren om det
-  behövs flera godkända.
+- **Delarna tillsammans:** flera kandidater kan godkännas (byggt 2026-11-08), men analysen väger varje utgång mot
+  hela insättningen. En analys som prövar kombinationer (två eller flera utbetalningar som tillsammans blir beloppet
+  minus avgift, spridda över tid) och visar summan av de godkända mot insättningen behövs.
 - **Växeladressen i KF2b** (bandens bredd efter belopp, kolumnen *SEDD*) är inte byggd: det finns ingen analys som
   föreslår växeladresser som förslag (Clustering gör det själv). Bilden kan bara rita band efter poäng.
 - **Brickorna under förslaget** står i en tabell i appen per analys (`SuggestionWords`), utan siffror (skissens *48 h*

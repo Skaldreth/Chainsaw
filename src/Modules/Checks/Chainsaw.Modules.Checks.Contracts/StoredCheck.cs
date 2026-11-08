@@ -37,8 +37,10 @@ public sealed record StoredCheck(
             : null;
 
     /// <summary>
-    /// Gets whether the user has settled the suggestion (sketch KF2b): approved one of its candidates, dismissed it
-    /// as a whole, or decided every candidate; a suggestion without candidates is settled by a decision about it.
+    /// Gets whether the user has settled the suggestion (sketch KF2b): dismissed it as a whole, or decided every
+    /// candidate; a suggestion without candidates is settled by a decision about it. Approving one candidate does not
+    /// settle it (the user's decision 2026-11-08): a mixer pays out in several parts and over time, so several
+    /// candidates can be approved.
     /// Always <see langword="false"/> for a check, which waits for nothing.
     /// </summary>
     public bool IsSettled
@@ -51,7 +53,6 @@ public sealed record StoredCheck(
             }
 
             return DecisionFor(null) is not null
-                || Finding.Candidates.Any(c => DecisionFor(c.Key)?.Verdict == CheckVerdict.Approved)
                 || (Finding.Candidates.Count > 0 && Finding.Candidates.All(c => DecisionFor(c.Key) is not null));
         }
     }

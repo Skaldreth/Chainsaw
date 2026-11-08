@@ -757,6 +757,9 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
 - Godkänn, och tryck Enter igen direkt medan grafen expanderar: samma förslag avgörs aldrig två gånger.
 - Panelens *in*-belopp är insättningens utgång, och avgiften står som *trolig avgift*.
 - Avfärda (X) avfärdar hela förslaget: dess område och linjer försvinner ur grafen.
+- Flera godkända: godkänn kandidat 1; förslaget står kvar med kandidat 2 vald (*Godkänn 2*) och knappen heter
+  *Avfärda resten*. Godkänn 2 också, eller tryck X: de som väntar avfärdas och kön går vidare. Båda godkända har en
+  grön bock på sin streckade linje.
 - Senare (J) lägger förslaget sist i kön och visar nästa; inget skrivs i ärendet eller journalen. K och pilen åt vänster
   går tillbaka, pilen åt höger framåt.
 - *Gjort av sig självt · N* är en hopfälld rad ovanför beslutslisten; ett klick visar översikten.

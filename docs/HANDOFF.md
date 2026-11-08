@@ -139,15 +139,12 @@ git; hämtas om ur canvasen). Nästa omgång: soptunnan SO1a och resten av EX2.
 1. **Granska Nytt ärende själv mot skissen `NewCase2A`** och användarens synpunkter (inga linjer vid raderna,
    *betydligt mer professionellt*), eftersom agenten bara fick CLAUDE.md och uppdraget. Granskningens fynd är
    rättade 2026-11-08. Det som återstår står i TODO punkt 38.
-2. **Fråga användaren om KF2b:** ett godkänt förslag är avgjort helt (kön går vidare som i skissen), så en mixer som
-   betalar ut i flera delar kan bara ha en godkänd utgång i taget. Behålla, eller låta förslaget stå öppet efter ett
-   godkännande? Står i TODO under *Kontroller, förslag och områden* som fråga till kryptospåraren.
-3. **Granskningen av byggda vyer mot skisserna** (`docs/TODO.md` punkt 39): nästa att bygga om är inspektören
+2. **Granskningen av byggda vyer mot skisserna** (`docs/TODO.md` punkt 39): nästa att bygga om är inspektören
    (IN2b, GR5, TK1a, AN1b), sedan grafen (TL1a, nodens bredd, tokenmärket, swap-pillret).
-4. **Godkänt och inte byggt:** GR7a, KN1a, SO1a (soptunnan, också i startvyn), resten av EX2, grafens offlinetext
+3. **Godkänt och inte byggt:** GR7a, KN1a, SO1a (soptunnan, också i startvyn), resten av EX2, grafens offlinetext
    för Windows utan nät, testärendet som är för trångt (punkt 34), Chainabuse automatiskt (efter knappen).
 
-**Väntar på användaren:** svaret i punkt 2; om ett anrop till Chainabuse får användas för att prova flera adresser
+**Väntar på användaren:** om ett anrop till Chainabuse får användas för att prova flera adresser
 kommaseparerat (TODO punkt 42).
 
 **Agenter:** arbetar i worktrees under `.claude/worktrees/`, committar men pushar inte. Starta dem inifrån

@@ -226,7 +226,8 @@ internal sealed class CheckService : ICheckService
 
     /// <summary>
     /// Refuses a decision the suggestion's state does not allow: an approve or a dismiss on a settled suggestion or on
-    /// a candidate with a decision in force, and a take-back that does not name the decision in force.
+    /// a candidate with a decision in force, a dismissal of the whole once a candidate is approved, and a take-back
+    /// that does not name the decision in force.
     /// </summary>
     /// <param name="request">The decision.</param>
     /// <param name="stored">The suggestion with the decisions sealed so far.</param>
@@ -249,6 +250,14 @@ internal sealed class CheckService : ICheckService
         {
             throw new ArgumentException(
                 "The suggestion is settled already, or the candidate has a decision in force.", nameof(request));
+        }
+
+        if (request.CandidateKey is null
+            && stored.Finding.Candidates.Any(c => stored.DecisionFor(c.Key)?.Verdict == CheckVerdict.Approved))
+        {
+            // Dismissing the whole would contradict an approved candidate; the rest is dismissed one by one.
+            throw new ArgumentException(
+                "A suggestion with an approved candidate is not dismissed as a whole.", nameof(request));
         }
     }
 

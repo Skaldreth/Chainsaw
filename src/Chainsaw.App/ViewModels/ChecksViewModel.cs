@@ -576,14 +576,18 @@ public sealed partial class ChecksViewModel : ObservableObject
             return Task.CompletedTask;
         }
 
-        return IsReview && Selected?.ApproveRequest() is { } request ? DecideAsync(request) : Task.CompletedTask;
+        return IsReview && Selected?.ApproveRequest() is { } request ? DecideAsync([request]) : Task.CompletedTask;
     }
 
-    /// <summary>X: dismisses the shown suggestion as a whole.</summary>
+    /// <summary>
+    /// X: dismisses the shown suggestion as a whole, or the candidates that still wait once one is approved.
+    /// </summary>
     /// <returns>A task that completes when the decision is stored and the checks read again.</returns>
     [RelayCommand]
     public Task DismissAsync() =>
-        IsReview && Selected?.DismissRequest() is { } request ? DecideAsync(request) : Task.CompletedTask;
+        IsReview && Selected?.DismissRequests() is { Count: > 0 } requests
+            ? DecideAsync(requests)
+            : Task.CompletedTask;
 
     /// <summary>
     /// Ctrl+Z while the panel is open: takes back the last decision, sealed in the case. Closed, Ctrl+Z does nothing
@@ -912,12 +916,13 @@ public sealed partial class ChecksViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Seals an approve or a dismiss about the shown suggestion, reads the checks again, shows the next that waits
-    /// (or <em>Allt avgjort</em>) and says so in a toast with <em>Ångra</em>.
+    /// Seals an approve or a dismiss about the shown suggestion, reads the checks again, and says so in a toast with
+    /// <em>Ångra</em>. A suggestion that still waits after an approval stays shown with its next candidate chosen, since
+    /// a mixer pays out in several parts; otherwise the next that waits is shown (or <em>Allt avgjort</em>).
     /// </summary>
-    /// <param name="request">The decision.</param>
-    /// <returns>A task that completes when it is stored.</returns>
-    private async Task DecideAsync(DecisionRequest request)
+    /// <param name="requests">The decisions, sealed together.</param>
+    /// <returns>A task that completes when they are stored.</returns>
+    private async Task DecideAsync(IReadOnlyList<DecisionRequest> requests)
     {
         if (IsBusy || Selected is not { } row || _justDecided.Contains(row.Key)
             || _session.Current is not { } openCase)
@@ -925,15 +930,24 @@ public sealed partial class ChecksViewModel : ObservableObject
             return;
         }
 
-        var toast = ToastOf(row, request);
+        var toast = ToastOf(row, requests);
         var at = Math.Max(0, _round.IndexOf(row.Key));
-        if (await StoreAsync(openCase, [request], row.Key) is { } made)
+        var settles = WouldSettle(row, requests);
+        if (await StoreAsync(openCase, requests, settles ? row.Key : null) is { } made)
         {
             var decided = new MadeDecisions(openCase, made);
             _undo = decided;
             OnPropertyChanged(nameof(CanUndoLast));
             IsReasonOpen = false;
-            Advance(at);
+            if (!settles && ToDecide.FirstOrDefault(each => each.Key == row.Key) is { } again)
+            {
+                Choose(again);
+            }
+            else
+            {
+                Advance(at);
+            }
+
             ToastWanted?.Invoke(this, toast with { Action = () => _ = TakeBackAsync(decided) });
         }
     }
@@ -1069,15 +1083,28 @@ public sealed partial class ChecksViewModel : ObservableObject
         Choose(null);
     }
 
-    /// <summary>Gives the toast that says a decision was stored, without its action.</summary>
+    /// <summary>
+    /// Says whether decisions settle a suggestion: a dismissal of the whole or of the rest, or an approval of the last
+    /// candidate that waits; one approval among several leaves it waiting.
+    /// </summary>
     /// <param name="row">The suggestion.</param>
-    /// <param name="request">The decision.</param>
+    /// <param name="requests">The decisions.</param>
+    /// <returns><see langword="true"/> when nothing waits after them.</returns>
+    private static bool WouldSettle(CheckRowViewModel row, IReadOnlyList<DecisionRequest> requests) =>
+        requests.Any(request => request.CandidateKey is null)
+        || row.Candidates.Count(c => c.IsWaiting) <= requests.Count;
+
+    /// <summary>Gives the toast that says decisions were stored, without its action.</summary>
+    /// <param name="row">The suggestion.</param>
+    /// <param name="requests">The decisions.</param>
     /// <returns>The toast.</returns>
-    private static ToastRequest ToastOf(CheckRowViewModel row, DecisionRequest request)
+    private static ToastRequest ToastOf(CheckRowViewModel row, IReadOnlyList<DecisionRequest> requests)
     {
+        var request = requests[0];
         if (request.Verdict == CheckVerdict.Dismissed)
         {
-            return new ToastRequest(ToastKind.Success, "Förslaget avfärdat", row.Title, UndoText);
+            var title = request.CandidateKey is null ? "Förslaget avfärdat" : "Resten avfärdat";
+            return new ToastRequest(ToastKind.Success, title, row.Title, UndoText);
         }
 
         return row.ChosenCandidate is { } chosen

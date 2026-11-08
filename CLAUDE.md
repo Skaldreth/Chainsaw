@@ -414,7 +414,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   huvud (Ctrl+J) fäller ut en panel där inspektören står som visar **ett förslag i taget** (*1 av 3* med en förloppslist):
   en liten bild av hur pengarna flyter, underlaget som brickor, kandidaterna som en rangordnad tabell, *Varför?* och
   analysen med version, och en fast beslutslist längst ner (Avfärda X, Senare J, Godkänn Enter, frivilligt skäl).
-  *Gjort av sig självt* är en hopfälld rad. Ett godkänt förslag förblir streckat (princip 2). K och J stegar. Den valda raden tonar ned resten av grafen och visar sitt **område**
+  *Gjort av sig självt* är en hopfälld rad. Ett godkänt förslag förblir streckat (princip 2). **Flera kandidater kan
+  godkännas** (användarens beslut 2026-11-08): en mixer betalar ut i flera delar och över tid för att förvirra, så
+  förslaget står kvar efter ett godkännande med nästa kandidat vald, och X blir *Avfärda resten*. K och J stegar. Den valda raden tonar ned resten av grafen och visar sitt **område**
   svagt bakom aktörerna. Områdena från KF1b följer med (användarens önskemål 2026-11-07): ett allmänt verktyg för
   förvirring, plånböcker, tjänster, annan kedja och tid, valda i en meny i grafens huvud, högst en fyllning per aktör,
   streckad kant för förslag; användaren lägger till **egna ytor** (välj aktörer, Z), med hel kant och en person-markering,

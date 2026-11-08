@@ -80,8 +80,10 @@ public sealed class CheckServiceTests
         Assert.Contains(after.Finding.Candidates, c => c.Key == third.Key);
         Assert.Contains(third.Address, after.Finding.Addresses);
         Assert.Equal(CheckVerdict.Approved, after.DecisionFor(third.Key)!.Verdict);
-        Assert.True(after.IsSettled);
-        Assert.Equal(0, after.Waiting);
+
+        // A mixer pays out in several parts: new candidates wait beside the approved one.
+        Assert.False(after.IsSettled);
+        Assert.True(after.Waiting > 0);
     }
 
     [Fact]
@@ -111,7 +113,7 @@ public sealed class CheckServiceTests
         Assert.Equal("Samma belopp.", decision.Reason);
         Assert.Equal("Testa Testsson", decision.DecidedBy.Name);
         Assert.Equal(CheckVerdict.Approved, after.DecisionFor(best.Key)!.Verdict);
-        Assert.Equal(0, after.Waiting);
+        Assert.Equal(2, after.Waiting);
         Assert.Single(harness.Journal(CheckJournalKinds.Decided));
         Assert.True(harness.Verify().IsIntact);
     }
@@ -201,22 +203,32 @@ public sealed class CheckServiceTests
     }
 
     [Fact]
-    public void A_settled_suggestion_or_a_decided_candidate_is_not_decided_again()
+    public void Several_candidates_can_be_approved_but_a_decided_one_is_not_decided_again()
     {
         using var harness = new Harness();
         var check = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
         var first = check.Finding.Candidates[0].Key;
         var second = check.Finding.Candidates[1].Key;
+        var third = check.Finding.Candidates[2].Key;
         harness.Service.Decide(
             harness.Case, new DecisionRequest(check.Analysis, check.Finding.Key, first, CheckVerdict.Approved));
 
         Assert.Throws<ArgumentException>(() => harness.Service.Decide(harness.Case, new DecisionRequest(
             check.Analysis, check.Finding.Key, first, CheckVerdict.Dismissed)));
         Assert.Throws<ArgumentException>(() => harness.Service.Decide(harness.Case, new DecisionRequest(
-            check.Analysis, check.Finding.Key, second, CheckVerdict.Approved)));
+            check.Analysis, check.Finding.Key, null, CheckVerdict.Dismissed)));
+        harness.Service.Decide(
+            harness.Case, new DecisionRequest(check.Analysis, check.Finding.Key, second, CheckVerdict.Approved));
+        Assert.False(Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther)).IsSettled);
+
+        harness.Service.Decide(
+            harness.Case, new DecisionRequest(check.Analysis, check.Finding.Key, third, CheckVerdict.Dismissed));
+        var after = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
+
+        Assert.True(after.IsSettled);
         Assert.Throws<ArgumentException>(() => harness.Service.Decide(harness.Case, new DecisionRequest(
             check.Analysis, check.Finding.Key, null, CheckVerdict.Dismissed)));
-        Assert.Equal(1, harness.Count("checks_decisions"));
+        Assert.Equal(3, harness.Count("checks_decisions"));
     }
 
     [Fact]

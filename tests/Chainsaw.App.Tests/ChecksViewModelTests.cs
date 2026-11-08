@@ -109,15 +109,38 @@ public sealed class ChecksViewModelTests
         Assert.Equal(CheckVerdict.Approved, request.Verdict);
         Assert.Equal(Candidate(U, 1, 0.8).Key, request.CandidateKey);
         Assert.Equal("Samma belopp", request.Reason);
-        Assert.Equal("Förslag · 0", rig.Checks.ButtonText);
-        Assert.True(rig.Checks.IsSettled);
         Assert.False(rig.Checks.IsReasonOpen);
         Assert.Equal("Trolig utgång godkänd", toast!.Title);
         Assert.Equal(ChecksViewModel.UndoText, toast.ActionText);
-        Assert.Equal([true], rig.Checks.Ring);
-        Assert.Equal("1 godkänd · inget nytt sedan 13:02", rig.Checks.SettledText);
         var line = Assert.Single(rig.Checks.CandidateLines, l => l.IsApproved);
         Assert.Equal(UKey, line.To);
+
+        // A mixer pays out in several parts: the suggestion stays with the next candidate chosen.
+        Assert.Equal("Förslag · 1", rig.Checks.ButtonText);
+        Assert.False(rig.Checks.IsSettled);
+        Assert.Equal("Troliga utgångar ur mixern", rig.Checks.Selected!.Title);
+        Assert.Equal("Godkänn 2", rig.Checks.Selected.GoText);
+        Assert.Equal("Avfärda resten", rig.Checks.Selected.DismissText);
+    }
+
+    [Fact]
+    public async Task Several_candidates_are_approved_and_X_dismisses_only_the_rest()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.StartReview(null);
+        await rig.Checks.ApproveAsync();
+        ToastRequest? toast = null;
+        rig.Checks.ToastWanted += (_, request) => toast = request;
+
+        await rig.Checks.DismissAsync();
+
+        Assert.Equal(
+            [(Candidate(U, 1, 0.8).Key, CheckVerdict.Approved), (Candidate(E, 2, 0.5).Key, CheckVerdict.Dismissed)],
+            rig.Source.Decisions.Select(d => (d.CandidateKey, d.Verdict)));
+        Assert.True(rig.Checks.IsSettled);
+        Assert.Equal("Resten avfärdat", toast!.Title);
+        Assert.Equal([true], rig.Checks.Ring);
+        Assert.Equal("1 godkänd · inget nytt sedan 13:02", rig.Checks.SettledText);
     }
 
     [Fact]
@@ -230,7 +253,7 @@ public sealed class ChecksViewModelTests
         rig.Checks.StartReview(null);
         var decisionHeld = new TaskCompletionSource();
         rig.Source.HoldDecision = decisionHeld;
-        var deciding = rig.Checks.ApproveAsync();
+        var deciding = rig.Checks.DismissAsync();
 
         // The graph changes while the decision is stored: a run reads the case before the decision is sealed, and
         // the run after the decision is overtaken by a newer one that is still running.
@@ -245,7 +268,7 @@ public sealed class ChecksViewModelTests
         afterDecision.SetResult();
         await deciding;
 
-        await rig.Checks.ApproveAsync();
+        await rig.Checks.DismissAsync();
 
         Assert.Single(rig.Source.Decisions);
         newest.SetResult();
@@ -307,6 +330,7 @@ public sealed class ChecksViewModelTests
         Assert.Equal([SegmentState.Current, SegmentState.Left], rig.Checks.Segments.Select(s => s.State));
 
         await rig.Checks.ApproveAsync();
+        await rig.Checks.DismissAsync();
 
         Assert.Equal("Uppdelning i små belopp", rig.Checks.Selected!.Title);
         Assert.Equal("Godkänn", rig.Checks.Selected.GoText);

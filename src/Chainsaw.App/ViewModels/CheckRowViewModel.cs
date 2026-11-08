@@ -376,12 +376,39 @@ public sealed partial class CheckRowViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Gives the decision X makes: dismiss the suggestion as a whole; null when nothing is to decide.
+    /// Gives the decisions X makes: dismiss the suggestion as a whole, or, once a candidate is approved, every
+    /// candidate that still waits (<em>Avfärda resten</em>); empty when nothing is to decide.
     /// </summary>
-    /// <returns>The request, or <see langword="null"/>.</returns>
-    public DecisionRequest? DismissRequest() => CanDecide
-        ? new DecisionRequest(Check.Analysis, Check.Finding.Key, null, CheckVerdict.Dismissed, ReasonText())
-        : null;
+    /// <returns>The requests.</returns>
+    public IReadOnlyList<DecisionRequest> DismissRequests()
+    {
+        if (!CanDecide)
+        {
+            return [];
+        }
+
+        if (!HasApprovedCandidate)
+        {
+            return [new DecisionRequest(Check.Analysis, Check.Finding.Key, null, CheckVerdict.Dismissed, ReasonText())];
+        }
+
+        return
+        [
+            .. Candidates.Where(c => c.IsWaiting).Select(c => new DecisionRequest(
+                Check.Analysis, Check.Finding.Key, c.Candidate.Key, CheckVerdict.Dismissed, ReasonText())),
+        ];
+    }
+
+    /// <summary>Gets whether one of the candidates is approved, so that X dismisses only the rest.</summary>
+    public bool HasApprovedCandidate => Candidates.Any(c => c.IsApproved);
+
+    /// <summary>Gets what the dismiss button says: <c>Avfärda</c>, or <c>Avfärda resten</c> after an approval.</summary>
+    public string DismissText => HasApprovedCandidate ? "Avfärda resten" : "Avfärda";
+
+    /// <summary>Gets the dismiss button's tooltip.</summary>
+    public string DismissTip => HasApprovedCandidate
+        ? "Avfärda kandidaterna som inte är avgjorda · X"
+        : "Avfärda förslaget · X";
 
     /// <summary>
     /// Gives the decisions <em>Ångra</em> takes back in the log: every decision in force about it, so that it waits

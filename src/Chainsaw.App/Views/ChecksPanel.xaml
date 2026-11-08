@@ -320,9 +320,10 @@
                                 <ColumnDefinition Width="1.5*" />
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="0" Style="{StaticResource Panel.Ghost}" Height="40" Margin="0,0,4,0"
-                                    ToolTip="Avfärda förslaget · X" AutomationProperties.Name="Avfärda" Command="{Binding DismissCommand}">
+                                    ToolTip="{Binding Selected.DismissTip}" AutomationProperties.Name="Avfärda"
+                                    Command="{Binding DismissCommand}">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Avfärda" />
+                                    <TextBlock Text="{Binding Selected.DismissText}" />
                                     <TextBlock Text="X" Style="{StaticResource Panel.Key}" />
                                 </StackPanel>
                             </Button>
