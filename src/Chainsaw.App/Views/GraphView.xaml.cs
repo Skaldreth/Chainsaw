@@ -61,8 +61,17 @@ public partial class GraphView : UserControl
         Canvas.Drawn += (_, _) => PlaceOverNode();
     }
 
-    /// <summary>The inspector's width in sketch IN2b, in device-independent pixels.</summary>
-    private const double InspectorWidth = 340;
+    /// <summary>
+    /// The inspector's width when it first opens, in device-independent pixels: wider than sketch IN2b's 340 px
+    /// (the user's wish 2026-11-08), so that addresses and amounts fit without being cut.
+    /// </summary>
+    private const double InspectorWidth = 420;
+
+    /// <summary>How long the inspector takes to glide in from the right edge, or out again.</summary>
+    private const double InspectorGlideMilliseconds = 220;
+
+    /// <summary>Whether the inspector is shown or on its way in, so that a glide out can tell it was overtaken.</summary>
+    private bool _inspectorShown;
 
     /// <summary>The width of the checks' panel where the inspector stands (sketch KF2b).</summary>
     private const double ChecksPanelWidth = 400;
@@ -322,20 +331,104 @@ public partial class GraphView : UserControl
     private static double Within(double value, double lowest, double highest) =>
         Math.Max(lowest, Math.Min(value, highest));
 
-    /// <summary>Shows the inspector, or folds it away when there is nothing in it.</summary>
+    /// <summary>
+    /// Shows the inspector, gliding in from the right edge, or glides it out and folds it away when there is nothing in
+    /// it; with Windows' animations off it just appears and goes.
+    /// </summary>
     /// <param name="shown">Whether the inspector is shown.</param>
     private void ShowInspector(bool shown)
     {
-        InspectorColumn.MinWidth = shown ? NarrowestInspector : 0;
-        InspectorColumn.MaxWidth = shown ? Math.Max(NarrowestInspector, ActualWidth * WidestInspectorShare) : 0;
+        var wasShown = _inspectorShown;
+        _inspectorShown = shown;
+        if (shown)
+        {
+            OpenInspectorColumn();
+            if (!wasShown)
+            {
+                // From where a glide out was overtaken, or from beyond the right edge.
+                var from = Inspector.RenderTransform is TranslateTransform { X: > 0 } halfway
+                    ? halfway.X
+                    : InspectorColumn.Width.Value;
+                GlideInspector(from, to: 0, then: null);
+            }
+
+            return;
+        }
+
+        if (!wasShown)
+        {
+            FoldInspector();
+            return;
+        }
+
+        GlideInspector(from: 0, to: InspectorColumn.Width.Value, then: () =>
+        {
+            if (!_inspectorShown)
+            {
+                FoldInspector();
+            }
+        });
+    }
+
+    /// <summary>Gives the inspector its column at the width last dragged to, and shows it with its shadow and edge.</summary>
+    private void OpenInspectorColumn()
+    {
+        InspectorColumn.MinWidth = NarrowestInspector;
+        InspectorColumn.MaxWidth = Math.Max(NarrowestInspector, ActualWidth * WidestInspectorShare);
         // The checks' panel (sketch KF2b) is never narrower than its 400 px, whatever the inspector was dragged to.
         var checksOpen = DataContext is GraphViewModel { Checks.IsOpen: true };
         var width = checksOpen ? Math.Max(_inspectorWidth, ChecksPanelWidth) : _inspectorWidth;
-        InspectorColumn.Width = new GridLength(shown ? width : 0);
-        var visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        InspectorColumn.Width = new GridLength(width);
+        SetInspectorVisibility(Visibility.Visible);
+    }
+
+    /// <summary>Folds the inspector's column away and hides it with its shadow and edge.</summary>
+    private void FoldInspector()
+    {
+        InspectorColumn.MinWidth = 0;
+        InspectorColumn.MaxWidth = 0;
+        InspectorColumn.Width = new GridLength(0);
+        SetInspectorVisibility(Visibility.Collapsed);
+    }
+
+    /// <summary>Shows or hides the inspector, its shadow and the edge that drags its width, together.</summary>
+    /// <param name="visibility">The visibility.</param>
+    private void SetInspectorVisibility(Visibility visibility)
+    {
         Inspector.Visibility = visibility;
         InspectorShadow.Visibility = visibility;
         InspectorEdge.Visibility = visibility;
+    }
+
+    /// <summary>
+    /// Slides the inspector and its shadow sideways, easing out on the way in and in on the way out; without
+    /// animations it jumps to the end at once.
+    /// </summary>
+    /// <param name="from">The offset to the right it starts at.</param>
+    /// <param name="to">The offset it ends at; 0 is in place.</param>
+    /// <param name="then">What is done when it has ended, or <see langword="null"/>.</param>
+    private void GlideInspector(double from, double to, Action? then)
+    {
+        var slide = new TranslateTransform();
+        Inspector.RenderTransform = slide;
+        InspectorShadow.RenderTransform = slide;
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            slide.X = to;
+            then?.Invoke();
+            return;
+        }
+
+        var glide = new DoubleAnimation(from, to, new Duration(TimeSpan.FromMilliseconds(InspectorGlideMilliseconds)))
+        {
+            EasingFunction = new CubicEase { EasingMode = to == 0 ? EasingMode.EaseOut : EasingMode.EaseIn },
+        };
+        if (then is not null)
+        {
+            glide.Completed += (_, _) => then();
+        }
+
+        slide.BeginAnimation(TranslateTransform.XProperty, glide);
     }
 
     /// <summary>

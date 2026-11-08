@@ -223,7 +223,7 @@
     <Grid ClipToBounds="True">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition x:Name="InspectorColumn" Width="340" />
+            <ColumnDefinition x:Name="InspectorColumn" Width="0" />
         </Grid.ColumnDefinitions>
 
         <!-- ===== The surface ===== -->

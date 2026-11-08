@@ -1400,7 +1400,7 @@ några steg).
 
 ## Inspektören (IN2b, GR5, TK1a och AN1b, 2026-11-08)
 
-- [ ] Välj startpunkten utan namn: inspektören (340 px) har sortens ikon i en rund ram (38 px), adressen förkortad i
+- [ ] Välj startpunkten utan namn: inspektören (420 px från början) glider in från höger och har sortens ikon i en rund ram (38 px), adressen förkortad i
       grått som rubrik och *Okänd · Bitcoin · startpunkt* under. En nod med namn har namnet i krämvitt. Ett kluster
       säger *… · 6 adresser*. *Varför?* är en rund knapp (32 px) i hörnet, med hovring, och bredvid den ett × (*Stäng ·
       Esc*) som avmarkerar noden eller linjen och stänger inspektören, som Esc och ett klick på tom yta.
