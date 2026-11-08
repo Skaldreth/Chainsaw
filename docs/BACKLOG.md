@@ -458,6 +458,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   säger inte vilken modul som skrev den. Att binda transaktionen till sin modul ändrar varje moduls sätt att försegla
   (en token per modul i stället för kedjans namn); görs när ingen annan omgång arbetar i modulerna (granskningen
   etapp 3, omgång 5, M).
+- **Konflikten avgörs utan nyckel** (omgång 6, omgranskningen M): `FindConflict` och `OpenSettingAsideWorkingCopy`
+  avgör med `MatchingBase` (bara basens hash), så när någon skrivit en egen hash i basen efter att ha ändrat huvudet
+  får användaren *skadad* i stället för valet att lägga arbetskopian åt sidan. Låt dem kontrollera sigillet med
+  valvets nyckel (`SealedHash`) när valvet är upplåst.
 - **`CasesOptions` är publik i implementationsprojektet** (som `VaultOptions`), eftersom `AddCasesModule` tar den.
   Flytta båda till Contracts eller till ett eget alternativ-gränssnitt om regeln ska vara strikt.
 - **Stora ärenden:** att öppna kopierar hela databasen (ett ärende som bara lästs skrivs inte om, omgång 6). Mät när
