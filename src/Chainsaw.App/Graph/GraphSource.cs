@@ -49,6 +49,32 @@ public interface IGraphSource
     /// <returns>The answers to <em>Varför?</em>.</returns>
     Task<IReadOnlyList<WhyLine>> ExplainClusterAsync(ICase @case, GraphNode node, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Reads what an address's expansions held back (sketch EX1) with what the case knows about each counterparty
+    /// (its label, whether it is in the graph), for the selection view.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="clue">The clue, whose <see cref="HeldBackClue.Address"/> is set.</param>
+    /// <param name="scene">The graph as it is drawn.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The choices.</returns>
+    Task<HeldBackChoices> ListHeldBackAsync(
+        ICase @case, HeldBackClue clue, GraphScene scene, CancellationToken cancellationToken);
+
+    /// <summary>Brings chosen held-back transactions into the graph (sketch EX2) and reads it again.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address that was expanded.</param>
+    /// <param name="transactions">The chosen transactions.</param>
+    /// <param name="method">The tracing method.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>What came in.</returns>
+    Task<GraphExpansion> TakeHeldBackAsync(
+        ICase @case,
+        BitcoinAddress address,
+        IReadOnlyCollection<Txid> transactions,
+        TracingMethodKind method,
+        CancellationToken cancellationToken);
+
     /// <summary>Remembers where the user put a node in a layout.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="nodeKey">The node.</param>
@@ -215,6 +241,66 @@ public sealed class GraphSource(
 
         return Task.Run(() => Explain(clustering.GetCluster(@case, node.GraphAddresses[0])), cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public Task<HeldBackChoices> ListHeldBackAsync(
+        ICase @case, HeldBackClue clue, GraphScene scene, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(clue);
+        ArgumentNullException.ThrowIfNull(scene);
+        if (clue.Address is not { } address)
+        {
+            throw new ArgumentException("Only an address's clue has a history to read.", nameof(clue));
+        }
+
+        return Task.Run(
+            async () =>
+            {
+                var list = await tracing.ListHeldBackAsync(@case, address, cancellationToken).ConfigureAwait(false);
+                var counterparties = list.Transactions.Select(held => held.Counterparty)
+                    .OfType<BitcoinAddress>().Distinct().ToList();
+                return HeldBackChoices.Build(clue, list, LabelsOf(@case, counterparties), scene);
+            },
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<GraphExpansion> TakeHeldBackAsync(
+        ICase @case,
+        BitcoinAddress address,
+        IReadOnlyCollection<Txid> transactions,
+        TracingMethodKind method,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(address);
+        ArgumentNullException.ThrowIfNull(transactions);
+        return Task.Run(
+            async () =>
+            {
+                var result = await tracing.TakeHeldBackAsync(@case, address, transactions, cancellationToken)
+                    .ConfigureAwait(false);
+                var graph = await WithSharedLabelsAsync(@case, result.Graph, cancellationToken).ConfigureAwait(false);
+                var scene = await ComposeAsync(@case, graph, method, PriceLookupMode.AsNeeded, cancellationToken)
+                    .ConfigureAwait(false);
+                IReadOnlyList<string> problems = result.Problem is { } problem ? [problem] : [];
+                return new GraphExpansion(scene, result.Outcome, result.NewCount, problems);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the labels the case has for counterparties. A failure is not hidden: a mixer drawn as unknown would say
+    /// something the case does not, so the view does not open and says why.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The counterparties.</param>
+    /// <returns>The labels by address.</returns>
+    private IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Label>> LabelsOf(
+        ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) => addresses.Count == 0
+        ? new Dictionary<BitcoinAddress, IReadOnlyList<Label>>()
+        : attribution.GetLabels(@case, addresses);
 
     /// <inheritdoc/>
     public Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place)

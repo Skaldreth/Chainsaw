@@ -208,7 +208,7 @@ public static class VisualLanguage
         new(NodeSort.Coin, "Mynt", "Icon.Kind.Coin", GraphInk.Unknown, NodeShape.Round, false),
         new(NodeSort.OtherChainTransaction, "Annan kedja", "Icon.Kind.Swap", GraphInk.OtherChain, NodeShape.Square,
             true),
-        new(NodeSort.Pile, "Hög", "Icon.Layers", GraphInk.Unknown, NodeShape.Square, false),
+        new(NodeSort.Pile, "Hög", "Icon.Stack", GraphInk.Unknown, NodeShape.Square, false),
         new(NodeSort.HeldBack, "Hölls tillbaka", "Icon.Plus", GraphInk.Unknown, NodeShape.Round, true),
     ];
 

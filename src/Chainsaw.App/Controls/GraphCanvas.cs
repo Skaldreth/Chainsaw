@@ -114,6 +114,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         ArgumentNullException.ThrowIfNull(model);
         _model = model;
         model.Redraw += (_, _) => InvalidateVisual();
+        model.PropertyChanged += OnModelChanged;
         model.ShowNodesWanted += (_, nodes) => FitTo(nodes);
         model.FitWanted += (_, _) =>
         {
@@ -188,8 +189,16 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         var visible = _viewport.Visible(ActualWidth, ActualHeight);
+        if (GraphHidden)
+        {
+            DrawHeldBack(drawingContext);
+            KeepRings(false);
+            return;
+        }
+
         drawingContext.PushTransform(new MatrixTransform(
             _viewport.Zoom, 0, 0, _viewport.Zoom, _viewport.OffsetX, _viewport.OffsetY));
+        drawingContext.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
         if (_model.IsHopColumns)
         {
             DrawLanes(drawingContext, scene, visible);
@@ -212,16 +221,23 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         _ringsOnScreen = false;
         DrawWatchMarks(drawingContext, visible);
-        foreach (var node in GraphHitTest.VisibleNodes(scene, _model.Places, visible))
+        drawingContext.Pop();
+        var nodes = _blast == BlastPhase.None
+            ? GraphHitTest.VisibleNodes(scene, _model.Places, visible)
+            : scene.Nodes.Where(node => _model.Places.ContainsKey(node.Key));
+        foreach (var node in nodes)
         {
-            DrawNode(drawingContext, node, _model.Places[node.Key], nearNodes);
+            DrawFlying(drawingContext, node, _model.Places[node.Key], nearNodes);
         }
 
+        drawingContext.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
         DrawCandidates(drawingContext, visible);
         DrawAreaChips(drawingContext, visible);
+        drawingContext.Pop();
         DrawFan(drawingContext, visible);
         drawingContext.Pop();
-        KeepRings(_ringsOnScreen);
+        DrawHeldBack(drawingContext);
+        KeepRings(_ringsOnScreen && _blast == BlastPhase.None);
     }
 
     /// <summary>Presses on the surface: takes hold of a node, or of the surface to pan it.</summary>
@@ -236,7 +252,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         _model?.CloseMenu();
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
-        if (_model is not null && (PressFan(at, surface) || PressArea(surface)))
+        if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressArea(surface)))
         {
             e.Handled = true;
             return;
@@ -267,7 +283,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
-        if (MoveFan(at, surface))
+        if (MoveHeldBack(at) || MoveFan(at, surface))
         {
             return;
         }
@@ -296,7 +312,8 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseLeftButtonUp(e);
-        if (ReleaseFan(_viewport.ToSurface(ToGraph(e.GetPosition(this)))))
+        var released = ToGraph(e.GetPosition(this));
+        if (ReleaseHeldBack(released) || ReleaseFan(_viewport.ToSurface(released)))
         {
             e.Handled = true;
             return;
@@ -314,6 +331,8 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         base.OnLostMouseCapture(e);
         ForgetFanPress();
+        _viewPressed = false;
+        _lasso = null;
         if (_panButton is not null)
         {
             StopPan();
@@ -341,6 +360,12 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseWheel(e);
+        if (_blast != BlastPhase.None)
+        {
+            e.Handled = true;
+            return;
+        }
+
         StopGlide();
         var at = e.GetPosition(this);
         var factor = e.Delta > 0 ? Viewport.WheelStep : 1 / Viewport.WheelStep;
@@ -517,6 +542,13 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         CloseHoverTip();
         Focus();
+        if (_blast != BlastPhase.None || _model?.Fan is not null)
+        {
+            // Over the selection view or a fanned pile, the graph under it takes no menu.
+            e.Handled = true;
+            return;
+        }
+
         var at = e.GetPosition(this);
         MenuAt = at;
         _model?.OpenMenu(_model.HitTest(_viewport.ToSurface(ToGraph(at)), Tolerance).Node);
@@ -776,6 +808,12 @@ public sealed partial class GraphCanvas : FrameworkElement
     private void DrawNode(DrawingContext dc, NodeView node, GraphPoint place, IReadOnlySet<string> near)
     {
         var model = _model!;
+        if (node.Look.Sort is NodeSort.Pile or NodeSort.HeldBack)
+        {
+            DrawFolded(dc, node, place, near);
+            return;
+        }
+
         var chosen = model.SelectedNode == node.Key;
         var opacity = NodeOpacity(node, near);
         var frame = new Rect(place.X, place.Y, GraphSizes.NodeWidth, GraphSizes.NodeHeight);
@@ -821,6 +859,26 @@ public sealed partial class GraphCanvas : FrameworkElement
         if (node.ChainName is { } chain)
         {
             DrawChain(dc, chain, place);
+        }
+
+        dc.Pop();
+    }
+
+    /// <summary>Draws a pile as its deck or a clue as its pill (sketches EX1 and EX2b), faint like any node.</summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="node">The node.</param>
+    /// <param name="place">Its top-left corner.</param>
+    /// <param name="near">The nodes near what is chosen.</param>
+    private void DrawFolded(DrawingContext dc, NodeView node, GraphPoint place, IReadOnlySet<string> near)
+    {
+        dc.PushOpacity(_model!.IsFocused && !near.Contains(node.Key) ? FadedNodeOpacity : 1);
+        if (node.Look.Sort == NodeSort.Pile)
+        {
+            DrawPile(dc, node, place, open: false);
+        }
+        else
+        {
+            DrawClue(dc, node, place);
         }
 
         dc.Pop();

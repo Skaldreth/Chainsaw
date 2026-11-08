@@ -1,6 +1,7 @@
 using System.Globalization;
 using Chainsaw.App.Graph;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -8,8 +9,9 @@ namespace Chainsaw.App.ViewModels;
 
 /// <summary>
 /// The graph's piles and clues (sketches EX1, EX2 and EX2b) and the hidden outputs that can never be spent: a click on
-/// a pile fans its cards out over the dimmed graph, the chosen cards are picked out and kept in the case, a click on a
-/// clue brings in the next part, and a lingering toast offers to show the hidden outputs.
+/// a clue opens the selection view of what was held back, where the chosen are brought into the graph; a click on a
+/// pile fans its tiles out over the dimmed graph, where a tile dragged out becomes a node of its own; and a lingering
+/// toast offers to show the hidden outputs.
 /// </summary>
 public sealed partial class GraphViewModel
 {
@@ -24,6 +26,12 @@ public sealed partial class GraphViewModel
 
     /// <summary>What the graph says when a pick could not be stored.</summary>
     public const string PickFailedText = "Urvalet kunde inte sparas i ärendet.";
+
+    /// <summary>What the graph says when what was held back could not be read.</summary>
+    public const string HeldBackFailedText = "Det som hölls tillbaka kunde inte läsas.";
+
+    /// <summary>What the graph says when the address's history holds nothing more to choose.</summary>
+    public const string NothingHeldBackText = "Det finns inget mer att välja vid adressen.";
 
     /// <summary>
     /// How far apart the cards picked out together are put where they were dropped, one under the other.
@@ -42,6 +50,29 @@ public sealed partial class GraphViewModel
 
     /// <summary>Gets whether a pile is fanned out.</summary>
     public bool HasFan => Fan is not null;
+
+    /// <summary>
+    /// Gets the clue whose held-back transactions are being read, so that the graph is sent out in the circular blast
+    /// at once (sketch EX1) while they come; <see langword="null"/> otherwise.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? OpeningClue { get; private set; }
+
+    /// <summary>
+    /// Gets the selection view of what was held back (sketches EX1 and EX2), or <see langword="null"/>.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHeldBack), nameof(ShowsCorner))]
+    public partial HeldBackViewModel? HeldBack { get; private set; }
+
+    /// <summary>Gets whether the selection view is open.</summary>
+    public bool HasHeldBack => HeldBack is not null;
+
+    /// <summary>
+    /// Gets whether the graph's corner and its ? are shown: with a case, and not while the selection view stands in
+    /// the graph's place with its own tools (sketch EX2).
+    /// </summary>
+    public bool ShowsCorner => HasCase && HeldBack is null;
 
     /// <summary>Gets whether the outputs that can never be spent are drawn.</summary>
     public bool ShowsUnspendable => _showUnspendable;
@@ -84,10 +115,19 @@ public sealed partial class GraphViewModel
         }
     }
 
-    /// <summary>Fans a pile out over the dimmed graph (sketch EX2b), around the pile's node.</summary>
+    /// <summary>
+    /// Fans a pile out over the dimmed graph (sketch EX2b), around the pile's node; a click on the pile that is fanned
+    /// out folds it again.
+    /// </summary>
     /// <param name="pileKey">The pile's key.</param>
     public void OpenFan(string pileKey)
     {
+        if (Fan?.Pile.Key == pileKey)
+        {
+            CloseFan();
+            return;
+        }
+
         if (Scene?.Pile(pileKey) is not { } pile || !Places.TryGetValue(pileKey, out var place))
         {
             return;
@@ -103,9 +143,10 @@ public sealed partial class GraphViewModel
         Redraw?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Closes the fan; the cards lie in the pile again.</summary>
+    /// <summary>Folds the fan; the tiles lie in the pile again. The selection view closes too.</summary>
     public void CloseFan()
     {
+        CloseHeldBack();
         if (Fan is null)
         {
             return;
@@ -113,6 +154,101 @@ public sealed partial class GraphViewModel
 
         Fan = null;
         Redraw?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Opens the selection view of what an address's expansion held back (sketch EX1): the graph is sent out at once,
+    /// the history is read off the UI thread (every page sealed in the case), and the view opens with it. A clue that
+    /// has no address's history (a transaction's spenders, an Ethereum address) brings in the next part instead.
+    /// </summary>
+    /// <param name="clue">The clue.</param>
+    /// <returns>A task that completes when the view is open, or could not be.</returns>
+    public async Task OpenHeldBackAsync(HeldBackClue clue)
+    {
+        ArgumentNullException.ThrowIfNull(clue);
+        if (clue.Address is null)
+        {
+            await ExpandClueAsync(clue);
+            return;
+        }
+
+        if (IsExpanding || OpeningClue is not null || _session.Current is not { } openCase || Scene is not { } scene)
+        {
+            return;
+        }
+
+        CloseFan();
+        Choose(null, null);
+        var version = _version;
+        OpeningClue = clue.Key;
+        HeldBackChoices choices;
+        try
+        {
+            choices = await _source.ListHeldBackAsync(openCase, clue, scene, _work.Token);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            OpeningClue = null;
+            var detail = exception is OperationCanceledException ? string.Empty : exception.Message;
+            Tell(ToastKind.Error, HeldBackFailedText, detail, () => _ = OpenHeldBackAsync(clue));
+            return;
+        }
+
+        OpeningClue = null;
+        if (version != _version || _session.Current != openCase)
+        {
+            return;
+        }
+
+        if (choices.Choices.Count == 0)
+        {
+            Tell(ToastKind.Information, NothingHeldBackText, choices.Problem ?? string.Empty);
+            return;
+        }
+
+        if (choices.Problem is { } problem)
+        {
+            Tell(ToastKind.Warning, problem);
+        }
+
+        var view = new HeldBackViewModel(choices);
+        view.Changed += (_, _) => Redraw?.Invoke(this, EventArgs.Empty);
+        view.TakeWanted += (_, keys) => _ = TakeHeldBackAsync(choices.Clue, keys);
+        view.CloseWanted += (_, _) => CloseHeldBack();
+        HeldBack = view;
+    }
+
+    /// <summary>Closes the selection view; the graph comes back.</summary>
+    public void CloseHeldBack()
+    {
+        if (HeldBack is not null)
+        {
+            HeldBack = null;
+            Redraw?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Brings the chosen held-back transactions into the graph (<em>Plocka ut</em>): the view closes, the graph comes
+    /// back, and the new counterparties lie in the address's pile when they are many.
+    /// </summary>
+    /// <param name="clue">The clue the view was opened from.</param>
+    /// <param name="txids">The chosen transactions' ids.</param>
+    /// <returns>A task that completes when the graph is shown with them.</returns>
+    public async Task TakeHeldBackAsync(HeldBackClue clue, IReadOnlyList<string> txids)
+    {
+        ArgumentNullException.ThrowIfNull(clue);
+        ArgumentNullException.ThrowIfNull(txids);
+        CloseHeldBack();
+        if (IsExpanding || _session.Current is not { } openCase || clue.Address is not { } address || txids.Count == 0)
+        {
+            return;
+        }
+
+        IReadOnlyList<Txid> chosen = [.. txids.Select(Txid.Parse)];
+        await ExpandWithAsync(
+            token => _source.TakeHeldBackAsync(openCase, address, chosen, Method, token),
+            () => _ = TakeHeldBackAsync(clue, txids));
     }
 
     /// <summary>
@@ -159,7 +295,10 @@ public sealed partial class GraphViewModel
     public bool CanReturnToPile => SelectedNode is { } key
         && Scene?.Snapshot.Graph.Piles.Any(pile => pile.PickedOut.Contains(key)) == true;
 
-    /// <summary>Puts the chosen node back in its pile, and the case forgets that it was picked out.</summary>
+    /// <summary>
+    /// Puts the chosen node back in its pile, and the case forgets that it was picked out, under every address the
+    /// node has, so that a cluster whose representative changed since is put back too.
+    /// </summary>
     /// <returns>A task that completes when the graph is shown with it back in the pile.</returns>
     public async Task ReturnToPileAsync()
     {
@@ -168,9 +307,10 @@ public sealed partial class GraphViewModel
             return;
         }
 
+        var members = Scene?.Node(key)?.Node.GraphAddresses.Select(GraphPile.MemberKey) ?? [];
         try
         {
-            await _source.ReturnToPileAsync(openCase, [key]);
+            await _source.ReturnToPileAsync(openCase, [key, .. members]);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -183,8 +323,8 @@ public sealed partial class GraphViewModel
     }
 
     /// <summary>
-    /// Takes a click on a pile or a clue (or a clue's line): a pile fans out, a clue brings in the next part. Neither is
-    /// chosen, since neither is an actor to inspect.
+    /// Takes a click on a pile or a clue (or a clue's line): a pile fans out, a clue opens the selection view. Neither
+    /// is chosen, since neither is an actor to inspect.
     /// </summary>
     /// <param name="nodeKey">The node clicked, or <see langword="null"/>.</param>
     /// <param name="edgeKey">The line clicked, or <see langword="null"/>.</param>
@@ -208,7 +348,7 @@ public sealed partial class GraphViewModel
             return false;
         }
 
-        _ = ExpandClueAsync(clue);
+        _ = OpenHeldBackAsync(clue);
         return true;
     }
 
@@ -226,7 +366,10 @@ public sealed partial class GraphViewModel
         return scene.Edge(edgeKey) is { } line ? scene.Clue(line.Edge.To) : null;
     }
 
-    /// <summary>Brings in the next part of what an expansion held back (sketch EX1).</summary>
+    /// <summary>
+    /// Brings in the next part of what an expansion held back, for a clue without an address's history to choose
+    /// from (sketch EX1).
+    /// </summary>
     /// <param name="clue">The clue.</param>
     /// <returns>A task that completes when the graph is shown after it.</returns>
     public async Task ExpandClueAsync(HeldBackClue clue)
@@ -263,7 +406,8 @@ public sealed partial class GraphViewModel
     }
 
     /// <summary>
-    /// Follows a new graph with the fan: the same pile fanned out with what is left in it, or closed when it is gone.
+    /// Follows a new graph with the fan: the same pile fanned out with what is left in it and what was chosen still
+    /// chosen, or folded when it is gone.
     /// </summary>
     private void FollowFan()
     {
@@ -278,11 +422,12 @@ public sealed partial class GraphViewModel
             return;
         }
 
-        var mode = fan.Mode;
+        var chosen = fan.Selected.ToList();
+        Fan = null;
         OpenFan(fan.Pile.Key);
-        if (Fan is { } opened)
+        foreach (var key in chosen)
         {
-            opened.Mode = mode;
+            Fan?.Click(key, add: true);
         }
     }
 }

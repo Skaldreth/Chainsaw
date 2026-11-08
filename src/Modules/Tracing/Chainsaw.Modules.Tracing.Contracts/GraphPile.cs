@@ -38,6 +38,21 @@ public sealed record GraphPile(
     /// go into a pile. Eight still reads as a fan around the actor; a few dozen is the long column the rule is for.
     /// </summary>
     public const int MostLoose = 8;
+
+    /// <summary>
+    /// Gives the key an address is remembered by when it is picked out of a pile, so that an actor is put back under
+    /// every address it has, whichever represents its cluster now.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The address node's key, <c>address:</c> and the address.</returns>
+    public static string MemberKey(Chains.Contracts.BitcoinAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return AddressKeyPrefix + address.Value;
+    }
+
+    /// <summary>The prefix of a single address's node key.</summary>
+    public const string AddressKeyPrefix = "address:";
 }
 
 /// <summary>

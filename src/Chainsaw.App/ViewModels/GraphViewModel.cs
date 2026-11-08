@@ -196,6 +196,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// Gets whether a case is open. Without one there is nothing to inspect, so the inspector is not shown.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsCorner))]
     public partial bool HasCase { get; private set; }
 
     /// <summary>Gets what the page says in place of the graph; empty while a graph is shown.</summary>
@@ -652,7 +653,17 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="requests">The lookups.</param>
     /// <param name="retry">What <em>Försök igen</em> does when it fails.</param>
     /// <returns>A task that completes when the graph is shown after the expansion.</returns>
-    private async Task ExpandWithAsync(ICase openCase, IReadOnlyList<ExpansionRequest> requests, Action retry)
+    private Task ExpandWithAsync(ICase openCase, IReadOnlyList<ExpansionRequest> requests, Action retry) =>
+        ExpandWithAsync(token => _source.ExpandAsync(openCase, requests, Method, token), retry);
+
+    /// <summary>
+    /// Expands the graph by a step off the UI thread, and says what came in; after it, a lingering toast says how many
+    /// outputs that can never be spent are hidden, when the step brought new ones.
+    /// </summary>
+    /// <param name="work">The step, given the cancellation of the graph's work.</param>
+    /// <param name="retry">What <em>Försök igen</em> does when it fails.</param>
+    /// <returns>A task that completes when the graph is shown after the step.</returns>
+    private async Task ExpandWithAsync(Func<CancellationToken, Task<GraphExpansion>> work, Action retry)
     {
         var version = _version;
         var token = _work.Token;
@@ -660,7 +671,7 @@ public sealed partial class GraphViewModel : ObservableObject
         IsExpanding = true;
         try
         {
-            var result = await _source.ExpandAsync(openCase, requests, Method, token);
+            var result = await work(token);
             if (version == _version)
             {
                 // A reading that started before the expansion would bring back the graph without what it fetched.

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Chainsaw.App.ViewModels;
 
@@ -31,10 +32,14 @@ public partial class GraphView : UserControl
     /// <summary>The smallest the node's actions are drawn, as a share of their own size.</summary>
     private const double SmallestTools = 0.75;
 
-    /// <summary>The zoom under which the node's actions are hidden, since the nodes are then too small to act on.</summary>
+    /// <summary>
+    /// The zoom under which the node's actions are hidden, since the nodes are then too small to act on.
+    /// </summary>
     private const double ToolsHiddenBelow = 0.45;
 
-    /// <summary>How far above the node's middle the form's heading stands, so that the arrow meets the heading.</summary>
+    /// <summary>
+    /// How far above the node's middle the form's heading stands, so that the arrow meets the heading.
+    /// </summary>
     private const double FormLift = 26;
 
     /// <summary>Half the arrow's side, and the space it keeps from the form's corners.</summary>
@@ -212,7 +217,44 @@ public partial class GraphView : UserControl
     }
 
     /// <summary>
-    /// Lets a panel beside a node glide in from the node's side and fade in as it opens; with Windows' animations off it
+    /// Fades the selection view's chrome in as the dots settle (sketch EX2: from 40 % of their 760 ms), so that the
+    /// panel and the bars come with the view and not before it; at once without animations.
+    /// </summary>
+    /// <param name="sender">The chrome.</param>
+    /// <param name="e">Whether it was shown.</param>
+    private void OnHeldBackShown(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is not FrameworkElement chrome || e.NewValue is not true || !SystemParameters.ClientAreaAnimation)
+        {
+            return;
+        }
+
+        var fade = new DoubleAnimationUsingKeyFrames
+        {
+            FillBehavior = FillBehavior.Stop,
+        };
+        fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        fade.KeyFrames.Add(new LinearDoubleKeyFrame(
+            0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ChromeWaitMilliseconds))));
+        fade.KeyFrames.Add(new LinearDoubleKeyFrame(
+            1, KeyTime.FromTimeSpan(Graph.HeldBackMotion.OutTime + Graph.HeldBackMotion.ViewTime)));
+        chrome.BeginAnimation(OpacityProperty, fade);
+    }
+
+    /// <summary>
+    /// How long the selection view's chrome waits before it fades in: the blast and the dots' first part.
+    /// </summary>
+    private const double ChromeWaitMilliseconds = 1000;
+
+    /// <summary>Centres the selection view's time window where the time track was dragged to (sketch EX2).</summary>
+    /// <param name="sender">The track.</param>
+    /// <param name="share">Where along it, from 0 to 1.</param>
+    private void OnTimeWindowMoved(object? sender, double share) =>
+        (DataContext as GraphViewModel)?.HeldBack?.MoveWindowTo(share);
+
+    /// <summary>
+    /// Lets a panel beside a node glide in from the node's side and fade in as it opens; with Windows' animations off
+    /// it
     /// just appears.
     /// </summary>
     /// <param name="sender">The panel.</param>
@@ -275,7 +317,9 @@ public partial class GraphView : UserControl
         }
     }
 
-    /// <summary>Keeps the width the inspector was dragged to, so that it comes back when the inspector is shown.</summary>
+    /// <summary>
+    /// Keeps the width the inspector was dragged to, so that it comes back when the inspector is shown.
+    /// </summary>
     /// <param name="sender">The inspector's edge.</param>
     /// <param name="e">The drag.</param>
     private void OnInspectorResized(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)

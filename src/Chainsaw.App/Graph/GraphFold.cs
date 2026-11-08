@@ -18,6 +18,14 @@ public sealed record PileCard(NodeView Node, AssetAmount Amount, DateTimeOffset?
 {
     /// <summary>Gets the actor's key.</summary>
     public string Key => Node.Key;
+
+    /// <summary>Gets the transactions that moved money between it and the pile's actor, by id.</summary>
+    public IReadOnlySet<string> TransactionIds { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>Gets the card's second line (sketch EX2b): <c>0,038 BTC · 1 tx</c>.</summary>
+    public string Line => string.Create(
+        CultureInfo.InvariantCulture,
+        $"{HeldBackLayout.Btc((double)Amount.Units / Satoshi.PerBitcoin)} BTC · {TransactionIds.Count} tx");
 }
 
 /// <summary>
@@ -59,20 +67,29 @@ public sealed record GraphFolding(
 /// </remarks>
 public static class GraphFold
 {
-    /// <summary>How thick a pile's line is (sketch EX2b: a thick line with the sum).</summary>
+    /// <summary>How thick a pile's line is on another asset (sketch EX2b: a thick line with the sum).</summary>
     public const double PileLineWidth = 3.5;
+
+    /// <summary>The thinnest a pile's line of bitcoin is.</summary>
+    private const double PileLineThinnest = 1.5;
+
+    /// <summary>How much thicker a pile's line of bitcoin grows.</summary>
+    private const double PileLineGrowth = 2.5;
+
+    /// <summary>The satoshi at which a pile's line is at its thickest, 1,5 BTC.</summary>
+    private const double PileLineFullAt = 150_000_000;
+
+    /// <summary>A pile on the out side, after its count: <c>12 mottagare</c>.</summary>
+    public const string OutPileWord = "mottagare";
+
+    /// <summary>A pile on the in side, after its count: <c>12 avsändare</c>.</summary>
+    public const string InPileWord = "avsändare";
 
     /// <summary>The prefix of a summed line's key.</summary>
     public const string FoldedEdgePrefix = "fold|";
 
     /// <summary>The prefix of a clue's thin line's key.</summary>
     public const string ClueEdgePrefix = "clue|";
-
-    /// <summary>The name of a pile on the in side.</summary>
-    public const string InPileName = "Avsändare";
-
-    /// <summary>The name of a pile on the out side.</summary>
-    public const string OutPileName = "Mottagare";
 
     /// <summary>What a clue says under its count.</summary>
     public const string ClueSubject = "Hölls tillbaka";
@@ -254,11 +271,30 @@ public static class GraphFold
             first.Edge.Direction);
         var dash = group.Any(edge => edge.Dash == EdgeDash.Uncertain) ? EdgeDash.Uncertain : first.Dash;
         var ink = traced.Units.Sign > 0 ? GraphInk.Accent : first.Ink;
-        return new EdgeView(model, traced, null, ink, dash, PileLineWidth, AmountText.OnLine(amount, traced))
+        var count = transfers.Select(transfer => transfer.Transaction.Id).Distinct(StringComparer.Ordinal).Count();
+        var label = amount.Asset == GraphScene.Shown
+            ? string.Create(CultureInfo.InvariantCulture, $"{BtcText(amount)} BTC · {count} tx")
+            : AmountText.OnLine(amount, traced);
+        return new EdgeView(model, traced, null, ink, dash, PileWidth(amount), label)
         {
             Glyph = first.Glyph,
         };
     }
+
+    /// <summary>
+    /// Gives a pile's line's thickness (sketch EX2b): thick, and thicker the more it carries, up to 1,5 BTC.
+    /// </summary>
+    /// <param name="amount">What the line carries.</param>
+    /// <returns>The thickness.</returns>
+    public static double PileWidth(AssetAmount amount) => amount.Asset == GraphScene.Shown
+        ? PileLineThinnest + (PileLineGrowth * Math.Clamp((double)amount.Units / PileLineFullAt, 0, 1))
+        : PileLineWidth;
+
+    /// <summary>Writes a bitcoin amount as the piles do: <c>4,97</c>.</summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns>The number.</returns>
+    private static string BtcText(AssetAmount amount) =>
+        HeldBackLayout.Btc((double)amount.Units / Satoshi.PerBitcoin);
 
     /// <summary>Makes a card: the actor, and what moved straight between it and the pile's actor, and when.</summary>
     /// <param name="node">The actor.</param>
@@ -273,19 +309,35 @@ public static class GraphFold
             .ToList();
         var amount = between.Aggregate(AssetAmount.Zero(GraphScene.Shown), (sum, edge) => sum + edge.Edge.Amount);
         var time = between.Select(edge => edge.Edge.FirstTime).Min() ?? node.Node.FirstReceived;
-        return new PileCard(node, amount, time);
+        var transactions = between.SelectMany(edge => edge.Edge.Transfers)
+            .Select(transfer => transfer.Transaction.Id).ToHashSet(StringComparer.Ordinal);
+        return new PileCard(node, amount, time) { TransactionIds = transactions };
     }
 
-    /// <summary>Adds what moved between a pile and its actor, in the asset the graph shows.</summary>
+    /// <summary>
+    /// Adds what moved between a pile and its actor on the pile's own side, in the asset the graph shows: out of the
+    /// actor for a pile of payees, into it for a pile of payers, so that the sum never mixes the two directions.
+    /// </summary>
     /// <param name="lines">The lines drawn.</param>
     /// <param name="pile">The pile.</param>
     /// <returns>The sum.</returns>
-    private static AssetAmount SumBetween(IReadOnlyList<EdgeView> lines, GraphPile pile) => lines
-        .Where(edge => (edge.Edge.From == pile.Key && edge.Edge.To == pile.Anchor)
-            || (edge.Edge.From == pile.Anchor && edge.Edge.To == pile.Key))
-        .Select(edge => edge.Edge.Amount)
-        .Where(amount => amount.Asset == GraphScene.Shown)
-        .Aggregate(AssetAmount.Zero(GraphScene.Shown), (sum, amount) => sum + amount);
+    private static AssetAmount SumBetween(IReadOnlyList<EdgeView> lines, GraphPile pile)
+    {
+        var (from, to) = pile.Side == PileSide.Out ? (pile.Anchor, pile.Key) : (pile.Key, pile.Anchor);
+        return lines.Where(edge => edge.Edge.From == from && edge.Edge.To == to)
+            .Select(edge => edge.Edge.Amount)
+            .Where(amount => amount.Asset == GraphScene.Shown)
+            .Aggregate(AssetAmount.Zero(GraphScene.Shown), (sum, amount) => sum + amount);
+    }
+
+    /// <summary>Counts the transactions between a pile's cards and its actor.</summary>
+    /// <param name="cards">The cards.</param>
+    /// <returns>How many distinct transactions; a transaction shared by several cards counts once.</returns>
+    public static int TransactionsOf(IReadOnlyList<PileCard> cards)
+    {
+        ArgumentNullException.ThrowIfNull(cards);
+        return cards.SelectMany(card => card.TransactionIds).Distinct(StringComparer.Ordinal).Count();
+    }
 
     /// <summary>Makes a pile's node: square like a deck, named by its side, with the count and the sum.</summary>
     /// <param name="pile">The pile.</param>
@@ -296,11 +348,12 @@ public static class GraphFold
         var hop = anchor.Hop is { } at ? at + (pile.Pile.Side == PileSide.In ? -1 : 1) : (int?)null;
         var model = Synthetic(pile.Key, GraphNodeKind.Pile, pile.Cards.Count, hop, pile.Pile.Positions);
         var zero = AssetAmount.Zero(GraphScene.Shown);
+        var word = pile.Pile.Side == PileSide.In ? InPileWord : OutPileWord;
         return new NodeView(
             model,
             VisualLanguage.Of(NodeSort.Pile),
-            pile.Pile.Side == PileSide.In ? InPileName : OutPileName,
-            pile.Cards.Count.ToString(CultureInfo.InvariantCulture),
+            string.Create(CultureInfo.InvariantCulture, $"{pile.Cards.Count} {word}"),
+            string.Empty,
             [],
             false,
             null,
@@ -308,7 +361,8 @@ public static class GraphFold
             pile.Pile.Side == PileSide.In ? zero : pile.Sum,
             pile.Pile.Side == PileSide.In ? pile.Sum : zero,
             zero,
-            AmountText.WithUnit(pile.Sum),
+            string.Create(
+                CultureInfo.InvariantCulture, $"{BtcText(pile.Sum)} BTC · {TransactionsOf(pile.Cards)} tx"),
             true);
     }
 
@@ -322,7 +376,7 @@ public static class GraphFold
         var zero = AssetAmount.Zero(GraphScene.Shown);
         return new NodeView(
             model, VisualLanguage.Of(NodeSort.HeldBack), ClueName(clue), "", [], false, null, [], zero, zero, zero,
-            ClueSubject, true);
+            ClueLine(clue.Chosen, clue.Oldest), true);
     }
 
     /// <summary>Names a clue: <c>+1 709 tx</c>, or <c>+ fler tx</c> when the sources did not say how many.</summary>
@@ -334,6 +388,25 @@ public static class GraphFold
         return clue.Remaining is { } remaining
             ? "+" + remaining.ToString("#,##0", CultureInfo.GetCultureInfo("sv-SE")) + " tx"
             : "+ fler tx";
+    }
+
+    /// <summary>
+    /// Gives the line under a clue (sketch EX2b): how many were picked out and the oldest of them, or, before any,
+    /// that what was held back is older than what came in; empty when no time is known.
+    /// </summary>
+    /// <param name="chosen">How many were picked out.</param>
+    /// <param name="oldest">The date to say, from <see cref="HeldBackClue.Oldest"/>.</param>
+    /// <returns>For example <c>12 plockade · äldst 2025-08-04</c> or <c>äldre än 2026-03-02</c>.</returns>
+    public static string ClueLine(int chosen, DateTimeOffset? oldest)
+    {
+        var date = oldest?.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (chosen > 0)
+        {
+            var picked = string.Create(CultureInfo.InvariantCulture, $"{chosen} plockade");
+            return date is null ? picked : picked + " · äldst " + date;
+        }
+
+        return date is null ? ClueSubject : "äldre än " + date;
     }
 
     /// <summary>Makes the thin dashed line from an actor to its clue, which carries no amount.</summary>

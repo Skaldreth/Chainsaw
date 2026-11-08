@@ -94,36 +94,152 @@
             </Style.Triggers>
         </Style>
         <!--
-          The fan's amount sliders (sketch EX2): a thin track and a round thumb in the accent, nothing else, so that
-          the bar stays quiet.
+          A pick in the selection view (sketch EX2): a quiet chip, 28 px, lit with a lighter frame when on. It never takes
+          the keyboard, so that Esc, Enter and L go on working in the view.
         -->
-        <Style x:Key="Slider.Fan" TargetType="Slider">
-            <Setter Property="Width" Value="84" />
-            <Setter Property="Minimum" Value="0" />
-            <Setter Property="Maximum" Value="1" />
+        <Style x:Key="Toggle.Pick" TargetType="ToggleButton">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Focusable" Value="False" />
-            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Slider">
-                        <Grid Height="18" Background="Transparent">
-                            <Border Height="2" CornerRadius="1" VerticalAlignment="Center"
-                                    Background="{StaticResource Brush.BorderStrong}" />
-                            <Track x:Name="PART_Track">
-                                <Track.Thumb>
-                                    <Thumb Cursor="Hand">
-                                        <Thumb.Template>
-                                            <ControlTemplate TargetType="Thumb">
-                                                <Ellipse Width="12" Height="12" Fill="{StaticResource Brush.Accent}" />
-                                            </ControlTemplate>
-                                        </Thumb.Template>
-                                    </Thumb>
-                                </Track.Thumb>
-                            </Track>
-                        </Grid>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- A smaller pick in the filter panel (sketch EX2: the window's ±48 h, ±7 d, Allt and the groups): 24 px. -->
+        <Style x:Key="Toggle.Small" TargetType="ToggleButton" BasedOn="{StaticResource Toggle.Pick}">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+        </Style>
+
+        <!-- A third of the direction's segment (sketch EX2: In, Ut, Alla), framed by its row. -->
+        <Style x:Key="Toggle.Third" TargetType="ToggleButton" BasedOn="{StaticResource Toggle.Pick}">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A small switch in the filter panel (sketch EX2): 28 × 16, grey, the knob to the right when on. -->
+        <Style x:Key="Toggle.Mini" TargetType="ToggleButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <DockPanel Background="Transparent">
+                            <Border x:Name="Track" DockPanel.Dock="Left" Width="28" Height="16" CornerRadius="8"
+                                    Background="{StaticResource Brush.BorderStrong}" Margin="0,0,10,0">
+                                <Ellipse x:Name="Knob" Width="12" Height="12" Fill="{StaticResource Brush.Text}"
+                                         HorizontalAlignment="Left" Margin="2,0,0,0" />
+                            </Border>
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </DockPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Brush.TextDim}" />
+                                <Setter TargetName="Knob" Property="Margin" Value="14,0,0,0" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A word button in the selection view's bar (sketch EX2: Avbryt · Esc, Plocka ut · Enter). -->
+        <Style x:Key="Button.Bar" TargetType="Button">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Plocka ut: the accent with cream on it when something is chosen, quiet and unusable otherwise. -->
+        <Style x:Key="Button.Take" TargetType="Button" BasedOn="{StaticResource Button.Bar}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Background" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.OnAccent}" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource Brush.SurfaceSelected}" />
+                    <Setter Property="Foreground" Value="{StaticResource Brush.TextFaint}" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
 
@@ -142,6 +258,193 @@
         <!-- ===== The surface ===== -->
         <Grid Grid.Column="0">
             <controls:GraphCanvas x:Name="Canvas" AutomationProperties.Name="Grafen" />
+
+            <!--
+              The selection view's chrome (sketch EX2) over the canvas, which draws the dots: the line at the top, the
+              modes and the picks in the top right corner, the filter panel at the left beside the pill, and the bar at
+              the bottom with what is chosen, Avbryt · Esc and Plocka ut · Enter.
+            -->
+            <Grid x:Name="HeldBackChrome" DataContext="{Binding HeldBack}"
+                  Visibility="{Binding DataContext.HasHeldBack, ElementName=Canvas, Converter={StaticResource Visible}}"
+                  IsVisibleChanged="OnHeldBackShown">
+                <TextBlock Text="{Binding HeaderText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                           HorizontalAlignment="Left" VerticalAlignment="Top" Margin="372,18,0,0" IsHitTestVisible="False" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,16,0">
+                    <controls:PickButton Style="{StaticResource Toggle.Pick}" Content="Spiral" Margin="0,0,6,0"
+                                  ToolTip="Tx:erna på en spiral från adressen" IsChecked="{Binding IsSpiral, Mode=OneWay}"
+                                  Command="{Binding ShowSpiralCommand}" />
+                    <controls:PickButton Style="{StaticResource Toggle.Pick}" Content="Tidsbåge"
+                                  ToolTip="Vinkeln är tiden, avståndet beloppet" IsChecked="{Binding IsTimeArc, Mode=OneWay}"
+                                  Command="{Binding ShowTimeArcCommand}" />
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsSpiral, Converter={StaticResource Visible}}">
+                        <Rectangle Width="1" Height="18" Margin="9,0" Fill="{StaticResource Brush.BorderStrong}" />
+                        <controls:PickButton Style="{StaticResource Toggle.Pick}" Content="Tid" Margin="0,0,6,0" ToolTip="Nyast innerst"
+                                      IsChecked="{Binding IsByTime, Mode=OneWay}" Command="{Binding ByTimeCommand}" />
+                        <controls:PickButton Style="{StaticResource Toggle.Pick}" Content="Belopp" ToolTip="Störst innerst"
+                                      IsChecked="{Binding IsByAmount, Mode=OneWay}" Command="{Binding ByAmountCommand}" />
+                    </StackPanel>
+                    <Rectangle Width="1" Height="18" Margin="9,0" Fill="{StaticResource Brush.BorderStrong}" />
+                    <controls:PickButton Style="{StaticResource Toggle.Pick}" Content="Klick" Margin="0,0,6,0"
+                                  ToolTip="Klick väljer, Shift-klick väljer ett intervall"
+                                  IsChecked="{Binding IsClick, Mode=OneWay}" Command="{Binding UseClickCommand}" />
+                    <controls:PickButton Style="{StaticResource Toggle.Pick}" Content="Lasso · L" ToolTip="Dra en ring runt det du vill ha"
+                                  IsChecked="{Binding IsLasso, Mode=OneWay}" Command="{Binding UseLassoCommand}" />
+                    <Rectangle Width="1" Height="18" Margin="9,0" Fill="{StaticResource Brush.BorderStrong}" />
+                    <controls:PickButton Style="{StaticResource Toggle.Pick}" Content="Största 10" Margin="0,0,6,0"
+                                  ToolTip="De tio största som visas" Command="{Binding ChooseLargestCommand}" />
+                    <controls:PickButton Style="{StaticResource Toggle.Pick}" Margin="0,0,6,0" ToolTip="Alla som pulserar"
+                                  Command="{Binding ChoosePulsingCommand}"
+                                  Visibility="{Binding HasPulsing, Converter={StaticResource Visible}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.Error}" Margin="0,0,6,0" />
+                            <TextBlock Text="Välj pulserande" />
+                        </StackPanel>
+                    </controls:PickButton>
+                    <controls:PickButton Style="{StaticResource Toggle.Pick}" Content="Rensa"
+                                  Command="{Binding ClearChoiceCommand}"
+                                  Visibility="{Binding HasSelection, Converter={StaticResource Visible}}" />
+                </StackPanel>
+
+                <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="84,52,0,0" Width="268"
+                        Padding="16,14,16,16" CornerRadius="12" BorderThickness="1"
+                        BorderBrush="{StaticResource Brush.Border}" Background="{StaticResource Brush.Surface}">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="28" ShadowDepth="10" Direction="270" Opacity="0.4" Color="Black" />
+                    </Border.Effect>
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,14">
+                            <TextBlock Text="Filter" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Återställ" FontSize="11.5"
+                                    Foreground="{StaticResource Brush.TextDim}" Focusable="False" Command="{Binding ResetCommand}" />
+                            <TextBlock Text="{Binding FilterCountText}" FontSize="12" Foreground="{StaticResource Brush.TextMuted}"
+                                       Margin="8,0,0,0" VerticalAlignment="Bottom" />
+                        </DockPanel>
+
+                        <DockPanel Margin="0,0,0,7">
+                            <TextBlock Text="Belopp" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                            <TextBlock Text="{Binding AmountText}" FontSize="12" Foreground="{StaticResource Brush.Text}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <controls:HistogramTrack Kind="Range" Height="44" BarWidth="8" Margin="0,0,0,14"
+                                                 Bars="{Binding AmountBars}" Low="{Binding Low}" High="{Binding High}" />
+
+                        <TextBlock Text="Riktning" FontSize="12" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,7" />
+                        <Border BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}" CornerRadius="6"
+                                Margin="0,0,0,14" ClipToBounds="True">
+                            <UniformGrid Columns="3">
+                                <controls:PickButton Style="{StaticResource Toggle.Third}" Content="In"
+                                              IsChecked="{Binding IsIn, Mode=OneWay}" Command="{Binding ShowInCommand}" />
+                                <controls:PickButton Style="{StaticResource Toggle.Third}" Content="Ut"
+                                              IsChecked="{Binding IsOut, Mode=OneWay}" Command="{Binding ShowOutCommand}" />
+                                <controls:PickButton Style="{StaticResource Toggle.Third}" Content="Alla"
+                                              IsChecked="{Binding IsAll, Mode=OneWay}" Command="{Binding ShowAllCommand}" />
+                            </UniformGrid>
+                        </Border>
+
+                        <DockPanel Margin="0,0,0,7">
+                            <TextBlock Text="Tid" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                            <TextBlock Text="{Binding TimeText}" FontSize="12" Foreground="{StaticResource Brush.Text}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <controls:HistogramTrack x:Name="TimeTrack" Kind="Window" Height="36" BarWidth="5" Margin="0,0,0,7"
+                                                 Cursor="Hand" ToolTip="Dra fönstret längs tiden"
+                                                 Bars="{Binding TimeBars}" Low="{Binding WindowStart, Mode=OneWay}"
+                                                 High="{Binding WindowEnd, Mode=OneWay}" Marker="{Binding ArrivalShare}"
+                                                 WindowMoved="OnTimeWindowMoved" />
+                        <WrapPanel Margin="0,0,0,8">
+                            <controls:PickButton Style="{StaticResource Toggle.Small}" Content="±48 h"
+                                          IsChecked="{Binding IsTwoDays, Mode=OneWay}" Command="{Binding TwoDaysWindowCommand}" />
+                            <controls:PickButton Style="{StaticResource Toggle.Small}" Content="±7 d"
+                                          IsChecked="{Binding IsOneWeek, Mode=OneWay}" Command="{Binding OneWeekWindowCommand}" />
+                            <controls:PickButton Style="{StaticResource Toggle.Small}" Content="Allt"
+                                          IsChecked="{Binding IsWholeTime, Mode=OneWay}" Command="{Binding WholeTimeCommand}" />
+                        </WrapPanel>
+
+                        <TextBlock Text="Motpart" FontSize="12" Foreground="{StaticResource Brush.TextDim}" Margin="0,0,0,7" />
+                        <ItemsControl ItemsSource="{Binding Groups}" Focusable="False" Margin="0,0,0,8">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:GroupChip}">
+                                    <controls:PickButton Style="{StaticResource Toggle.Small}" IsChecked="{Binding IsOn, Mode=OneWay}"
+                                                  Command="{Binding ToggleCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="Dot" Width="7" Height="7" Margin="0,0,6,0"
+                                                     Fill="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
+                                            <TextBlock Text="{Binding Name}" />
+                                        </StackPanel>
+                                    </controls:PickButton>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsOn}" Value="False">
+                                            <Setter TargetName="Dot" Property="Opacity" Value="0.35" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ToggleButton Style="{StaticResource Toggle.Mini}" Content="Dölj damm"
+                                      ToolTip="Under 0,0001 BTC, ofta adressförgiftning" IsChecked="{Binding HideDust}" />
+                        <ToggleButton Style="{StaticResource Toggle.Mini}" Content="Bara de som inte finns i grafen"
+                                      ToolTip="Döljer motparter som redan är noder" IsChecked="{Binding OnlyNotInGraph}" />
+                        <ToggleButton Style="{StaticResource Toggle.Mini}" Content="Gruppera per motpart" Margin="0"
+                                      ToolTip="En prick per motpart, med antalet tx" IsChecked="{Binding GroupByCounterparty}" />
+
+                        <Border BorderThickness="0,1,0,0" BorderBrush="{StaticResource Brush.Border}" Margin="0,14,0,0"
+                                Padding="0,10,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Markeringar" FontSize="11.5" Foreground="{StaticResource Brush.TextFaint}"
+                                           Margin="0,0,0,6" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <Ellipse Width="10" Height="10" Stroke="{StaticResource Brush.Error}" StrokeThickness="1.5"
+                                             Margin="0,0,8,0" />
+                                    <TextBlock Text="Sonar: negativ etikett" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <Ellipse Width="10" Height="10" Stroke="{StaticResource Brush.Accent}" StrokeThickness="1.5"
+                                             Margin="0,0,8,0" />
+                                    <TextBlock Text="Sonar: nära det spårade beloppet" FontSize="11.5"
+                                               Foreground="{StaticResource Brush.TextDim}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <Ellipse Width="7" Height="7" Stroke="{StaticResource Brush.Text}" StrokeThickness="1.5"
+                                             Margin="1.5,0,9.5,0" />
+                                    <TextBlock Text="Finns redan i grafen" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Width="6" Height="6" Fill="{StaticResource Brush.TextMuted}" Margin="2,0,10,0">
+                                        <Rectangle.LayoutTransform>
+                                            <RotateTransform Angle="45" />
+                                        </Rectangle.LayoutTransform>
+                                    </Rectangle>
+                                    <TextBlock Text="Etikett från ett annat ärende" FontSize="11.5"
+                                               Foreground="{StaticResource Brush.TextDim}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Height="40"
+                        Padding="14,0,6,0" CornerRadius="12" BorderThickness="1"
+                        BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.SurfaceRaised}">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="28" ShadowDepth="10" Direction="270" Opacity="0.45" Color="Black" />
+                    </Border.Effect>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding CountText}" FontSize="13" Foreground="{StaticResource Brush.TextMuted}"
+                                   VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <Button Style="{StaticResource Button.Bar}" Content="Avbryt · Esc" Margin="0,0,10,0"
+                                Command="{Binding CancelCommand}" />
+                        <Button Style="{StaticResource Button.Take}" Content="{Binding TakeText}"
+                                IsEnabled="{Binding HasSelection}" Command="{Binding TakeCommand}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <!-- In place of the graph while it is read or could not be; never made-up data. -->
             <TextBlock Text="{Binding EmptyText}" FontSize="14" Foreground="{StaticResource Brush.TextDim}"
@@ -199,85 +502,6 @@
             </Grid>
 
             <!--
-              The fanned pile's bar (sketches EX1a, EX1b and EX2): the two modes, the amount between a lowest and a
-              highest, Dölj damm, the counter, Plocka ut (Enter) and close (Esc). The cards themselves are on the canvas.
-            -->
-            <Border x:Name="FanBar" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,64"
-                    CornerRadius="12" Padding="4" BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}"
-                    Background="{StaticResource Brush.SurfaceRaised}"
-                    Visibility="{Binding HasFan, Converter={StaticResource Visible}}">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.45" Color="Black" />
-                </Border.Effect>
-                <StackPanel Orientation="Horizontal" DataContext="{Binding Fan}">
-                    <Button ToolTip="Spiral, störst närmast" AutomationProperties.Name="Spiral"
-                            CommandParameter="{x:Static graph:PileFanMode.Spiral}" Command="{Binding ShowModeCommand}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource Button.NodeTool}">
-                                <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsSpiral}" Value="True">
-                                        <Setter Property="Tag" Value="On" />
-                                        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <controls:GridIcon Size="18" Data="{StaticResource Icon.Layers}"
-                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
-                    <Button ToolTip="Tidsbåge, tidigast överst" AutomationProperties.Name="Tidsbåge"
-                            CommandParameter="{x:Static graph:PileFanMode.TimeArc}" Command="{Binding ShowModeCommand}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource Button.NodeTool}">
-                                <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsTimeArc}" Value="True">
-                                        <Setter Property="Tag" Value="On" />
-                                        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <controls:GridIcon Size="18" Data="{StaticResource Icon.Clock}"
-                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
-                    <Rectangle Width="1.5" Height="20" Margin="5,0" Fill="{StaticResource Brush.BorderStrong}" />
-                    <Slider Style="{StaticResource Slider.Fan}" Value="{Binding LowestShare, Mode=TwoWay}"
-                            AutomationProperties.Name="Lägsta belopp" ToolTip="{Binding LowestText}" />
-                    <Slider Style="{StaticResource Slider.Fan}" Value="{Binding HighestShare, Mode=TwoWay}" Margin="6,0,0,0"
-                            AutomationProperties.Name="Högsta belopp" ToolTip="{Binding HighestText}" />
-                    <Button Width="NaN" Margin="6,0,1,0" ToolTip="Dölj belopp under 0,0001 BTC"
-                            AutomationProperties.Name="Dölj damm" Command="{Binding ToggleDustCommand}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource Button.NodeTool}">
-                                <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HideDust}" Value="True">
-                                        <Setter Property="Tag" Value="On" />
-                                        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <TextBlock Text="Damm" FontSize="12" Margin="9,0" />
-                    </Button>
-                    <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
-                               VerticalAlignment="Center" Margin="8,0" />
-                    <Button Style="{StaticResource Button.NodeTool}" Width="NaN" Tag="Main" ToolTip="Enter"
-                            AutomationProperties.Name="Plocka ut" Command="{Binding PickSelectedCommand}"
-                            IsEnabled="{Binding HasSelection}">
-                        <TextBlock Text="Plocka ut" FontSize="12" FontWeight="SemiBold" Margin="10,0" />
-                    </Button>
-                    <Button Style="{StaticResource Button.NodeTool}" ToolTip="Stäng  Esc" AutomationProperties.Name="Stäng"
-                            Command="{Binding CloseCommand}">
-                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Close}"
-                                           Foreground="{StaticResource Brush.TextDim}" />
-                    </Button>
-                </StackPanel>
-            </Border>
-
-            <!--
               The open form (Etikett L, Bryt upp U, Annan kedja K) in a panel beside the node (sketch IN1b), to its right,
               or its left when there is no room, with a small arrow pointing at it.
             -->
@@ -322,7 +546,7 @@
 
             <!-- The graph's corner: the switch, the method (always shown) and the amounts on the lines. -->
             <StackPanel x:Name="Corner" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
-                        Margin="0,12,16,0" Visibility="{Binding HasCase, Converter={StaticResource Visible}}">
+                        Margin="0,12,16,0" Visibility="{Binding ShowsCorner, Converter={StaticResource Visible}}">
                 <TextBlock Text="{Binding OfflineWord}" FontSize="13" Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center"
                            Margin="0,0,12,0" ToolTip="{Binding OfflineTip}"
                            Visibility="{Binding ShowsOffline, Converter={StaticResource Visible}}" />
@@ -538,7 +762,7 @@
               The visual language behind the ? (sketches GR3a and GR3c), in the lower right corner (sketch SO1a), where
               it never meets the pill at the left edge however low the window is. -->
             <Button Style="{StaticResource Button.Help}" HorizontalAlignment="Right"
-                    Visibility="{Binding HasCase, Converter={StaticResource Visible}}"
+                    Visibility="{Binding ShowsCorner, Converter={StaticResource Visible}}"
                     VerticalAlignment="Bottom" Margin="0,0,18,18" AutomationProperties.Name="Bildspråket"
                     ToolTip="Bildspråket. I grafen: Esc väljer inget, E expanderar, F passar in, + och − zoomar."
                     Command="{Binding ToggleLegendCommand}" />

@@ -53,13 +53,14 @@ public sealed class PileTests
         Assert.All(Enumerable.Range(0, 12), index => Assert.Null(scene.Node(Member(index))));
         var pile = scene.Node(PileKey)!;
         Assert.Equal(NodeSort.Pile, pile.Look.Sort);
-        Assert.Equal("12", pile.Count);
-        Assert.Equal(GraphFold.OutPileName, pile.Name);
+        Assert.Equal("12 mottagare", pile.Name);
+        Assert.Equal("0,120 BTC · 1 tx", pile.Subject);
         var line = Assert.Single(scene.Edges, edge => edge.Edge.To == PileKey);
         Assert.Equal(VKey, line.Edge.From);
         Assert.Equal(Btc(0.12m), line.Edge.Amount);
         Assert.Equal(12, line.Edge.Transfers.Count);
-        Assert.Equal(GraphFold.PileLineWidth, line.Width);
+        Assert.Equal("0,120 BTC · 1 tx", line.Label);
+        Assert.Equal(GraphFold.PileWidth(Btc(0.12m)), line.Width);
         Assert.Equal(12, scene.Pile(PileKey)!.Cards.Count);
         Assert.Equal(Btc(0.12m), scene.Pile(PileKey)!.Sum);
         Assert.Equal(17, scene.Snapshot.Graph.Nodes.Count);
@@ -175,17 +176,15 @@ public sealed class PileTests
         Assert.True(HopLayout.RowsFor(400) >= 20);
     }
 
-    [Theory]
-    [InlineData(PileFanMode.Spiral)]
-    [InlineData(PileFanMode.TimeArc)]
-    public void The_fan_lays_hundreds_of_cards_out_without_overlap_and_off_the_pile(PileFanMode mode)
+    [Fact]
+    public void The_ring_lays_hundreds_of_tiles_out_without_overlap_and_off_the_pile()
     {
         var cards = Scene(graph: Piled(300)).Pile(PileKey)!.Cards;
         var centre = new GraphPoint(500, 500);
 
-        var places = PileFanLayout.Place(cards, centre, mode, PileSide.Out);
+        var places = PileFanLayout.PlaceRing(cards, centre);
 
-        var frames = places.Values.Select(PileFanLayout.CardFrame).ToList();
+        var frames = places.Values.Select(PileFanLayout.TileFrame).ToList();
         var pile = GraphSizes.NodeFrame(new GraphPoint(
             centre.X - (GraphSizes.NodeWidth / 2), centre.Y - (GraphSizes.NodeHeight / 2)));
         Assert.Equal(300, frames.Count);
@@ -194,9 +193,20 @@ public sealed class PileTests
         {
             for (var second = first + 1; second < frames.Count; second++)
             {
-                Assert.False(Overlap(frames[first], frames[second]), $"{mode}: {first} and {second} overlap");
+                Assert.False(Overlap(frames[first], frames[second]), $"{first} and {second} overlap");
             }
         }
+    }
+
+    [Fact]
+    public void The_first_ring_holds_twelve_evenly_from_the_top()
+    {
+        var ring = PileFanLayout.Ring(12);
+
+        Assert.Equal(12, ring.Count);
+        Assert.All(ring, point => Assert.InRange(
+            Math.Pow(point.X / 360, 2) + Math.Pow(point.Y / 200, 2), 0.999, 1.001));
+        Assert.True(ring[0].Y < 0 && ring[0].X > 0);
     }
 
     /// <summary>Says whether two frames overlap by more than a touch.</summary>
@@ -205,19 +215,9 @@ public sealed class PileTests
         && first.Y < second.Bottom - 0.5 && second.Y < first.Bottom - 0.5;
 
     [Fact]
-    public void The_fan_hides_dust_counts_what_it_shows_and_chooses_with_shift()
+    public void A_tile_is_chosen_alone_or_with_shift_and_goes_with_the_others_chosen()
     {
-        var graph = Piled(4);
-        graph = graph with
-        {
-            Edges = [.. graph.Edges.Where(edge => edge.Key != "v-p0"), Edge("v-p0", VKey, Member(0), 1, 2, 0.00001m)],
-        };
-        var fan = new PileFanViewModel(Scene(graph: graph).Pile(PileKey)!, new GraphPoint(0, 0));
-
-        Assert.Equal("4 av 4", fan.CountText);
-        fan.HideDust = true;
-        Assert.Equal("3 av 4", fan.CountText);
-        Assert.DoesNotContain(fan.Shown, card => card.Key == Member(0));
+        var fan = new PileFanViewModel(Scene(graph: Piled(4)).Pile(PileKey)!, new GraphPoint(0, 0));
 
         fan.Click(Member(1), add: false);
         fan.Click(Member(2), add: true);
@@ -226,35 +226,15 @@ public sealed class PileTests
         Assert.Equal([Member(3)], fan.Taking(Member(3)));
         fan.Click(Member(3), add: false);
         Assert.Equal([Member(3)], fan.Selected);
+        fan.Click(Member(3), add: false);
+        Assert.Empty(fan.Selected);
 
+        fan.Click(Member(0), add: false);
         IReadOnlyList<string>? picked = null;
         fan.PickWanted += (_, keys) => picked = keys;
         fan.PickSelected();
-        Assert.Equal([Member(3)], picked);
-    }
-
-    [Fact]
-    public void The_fan_amount_sliders_narrow_the_cards()
-    {
-        var graph = Piled(3);
-        graph = graph with
-        {
-            Edges =
-            [
-                .. graph.Edges.Where(edge => !edge.Key.StartsWith("v-p", StringComparison.Ordinal)),
-                Edge("v-p0", VKey, Member(0), 1, 2, 0.001m),
-                Edge("v-p1", VKey, Member(1), 1, 3, 0.1m),
-                Edge("v-p2", VKey, Member(2), 1, 4, 10m),
-            ],
-        };
-        var fan = new PileFanViewModel(Scene(graph: graph).Pile(PileKey)!, new GraphPoint(0, 0));
-
-        fan.LowestShare = 0.4;
-        Assert.Equal([Member(2), Member(1)], fan.Shown.Select(card => card.Key));
-        fan.HighestShare = 0.6;
-        Assert.Equal([Member(1)], fan.Shown.Select(card => card.Key));
-        fan.ShowMode(PileFanMode.TimeArc);
-        Assert.True(fan.IsTimeArc);
+        Assert.Equal([Member(0)], picked);
+        Assert.Equal("0,010 BTC · 1 tx", fan.Shown[0].Line);
     }
 
     /// <summary>The graph's view model with a case open, and the toasts it says.</summary>
@@ -310,7 +290,18 @@ public sealed class PileTests
     }
 
     [Fact]
-    public void A_click_on_a_clue_brings_in_the_next_part()
+    public void A_second_click_on_a_fanned_pile_folds_it()
+    {
+        var rig = new Rig(Piled());
+        rig.Graph.Choose(PileKey, null);
+
+        rig.Graph.Choose(PileKey, null);
+
+        Assert.Null(rig.Graph.Fan);
+    }
+
+    [Fact]
+    public void A_click_on_a_clue_without_an_address_history_brings_in_the_next_part()
     {
         var rig = new Rig(Piled());
 
