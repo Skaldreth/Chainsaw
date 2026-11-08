@@ -340,6 +340,10 @@ public sealed class MonitoringServiceTests : IDisposable
         _harness.Bitcoin.Tip = null;
         Assert.Null(await _harness.Service.GetHeightAsync(_harness.Case, Chain.Bitcoin));
         Assert.Null(await _harness.Service.GetHeightAsync(_harness.Case, Chain.Tron));
+
+        // Only an endpoint in step gives the height a watch starts or counts from (etapp 26, M5).
+        Assert.All(_harness.Bitcoin.TipModes, mode => Assert.Equal(LookupMode.InStep, mode));
+        Assert.Equal(2, _harness.Bitcoin.TipModes.Count);
     }
 
     [Fact]

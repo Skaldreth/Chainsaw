@@ -272,9 +272,14 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default)
+        => GetTipHeightAsync(@case, LookupMode.AsNeeded, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        return _lookups.LookupAsync(@case, TipQuery(), LookupMode.AsNeeded, cancellationToken);
+        return _lookups.LookupAsync(@case, TipQuery(), mode, cancellationToken);
     }
 
     /// <inheritdoc/>

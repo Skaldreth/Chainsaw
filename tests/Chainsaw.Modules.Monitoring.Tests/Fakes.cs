@@ -113,6 +113,16 @@ internal sealed class FakeBitcoinSource : IBitcoinSource
         return Task.FromResult(new BitcoinLookup<BitcoinAddressPage>(LookupStatus.Fetched, page, [Origin(7)], null));
     }
 
+    public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
+    {
+        TipModes.Add(mode);
+        return GetTipHeightAsync(@case, cancellationToken);
+    }
+
+    /// <summary>The modes the height was asked in.</summary>
+    public List<LookupMode> TipModes { get; } = [];
+
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default)
     {
         TipAsked++;
@@ -203,6 +213,10 @@ internal sealed class FakeEthereumSource : IEthereumSource
     public Task<BitcoinLookup<EthereumTransaction>> GetTransactionAsync(
         ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
         CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        GetTipHeightAsync(@case, cancellationToken);
 
     public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
         ICase @case, CancellationToken cancellationToken = default) =>

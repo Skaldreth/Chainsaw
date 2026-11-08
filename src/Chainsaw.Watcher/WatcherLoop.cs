@@ -393,10 +393,11 @@ internal sealed class WatcherLoop
         switch (chain)
         {
             case Chain.Bitcoin:
-                var tip = await _parts.Bitcoin.GetTipHeightAsync(scratch, cancellationToken).ConfigureAwait(false);
+                var tip = await _parts.Bitcoin.GetTipHeightAsync(scratch, LookupMode.InStep, cancellationToken)
+                    .ConfigureAwait(false);
                 return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
             case Chain.Ethereum:
-                var height = await _parts.Ethereum.GetTipHeightAsync(scratch, cancellationToken)
+                var height = await _parts.Ethereum.GetTipHeightAsync(scratch, LookupMode.InStep, cancellationToken)
                     .ConfigureAwait(false);
                 return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
             default:

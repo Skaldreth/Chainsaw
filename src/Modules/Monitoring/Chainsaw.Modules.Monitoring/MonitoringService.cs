@@ -207,10 +207,13 @@ internal sealed class MonitoringService(
         switch (chain)
         {
             case Chain.Bitcoin:
-                var tip = await bitcoin.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
+                // Only an endpoint in step: a watch never starts or counts from a height one a block behind gave.
+                var tip = await bitcoin.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+                    .ConfigureAwait(false);
                 return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
             case Chain.Ethereum:
-                var height = await ethereum.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
+                var height = await ethereum.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+                    .ConfigureAwait(false);
                 return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
             default:
                 return null;

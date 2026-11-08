@@ -116,6 +116,18 @@ public static class TestDataBitcoin
             inner.GetTipHeightAsync(@case, cancellationToken);
 
         /// <inheritdoc/>
+        public async Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+            ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
+        {
+            if (mode == LookupMode.InStep)
+            {
+                await ProbeOnceAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return await inner.GetTipHeightAsync(@case, mode, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <inheritdoc/>
         public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default) =>
             inner.GetTipAsync(@case, cancellationToken);
 

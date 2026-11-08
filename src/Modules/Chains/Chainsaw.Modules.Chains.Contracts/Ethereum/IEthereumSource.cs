@@ -67,6 +67,22 @@ public interface IEthereumSource
     Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets the height of the newest block, asking only the endpoints the mode allows (the monitoring asks with
+    /// <see cref="LookupMode.InStep"/>). A source that has no such choice answers <see cref="LookupMode.AsNeeded"/> as
+    /// the overload without it does, and refuses the other modes rather than ignore them.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="mode">Which endpoints may answer.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The height.</returns>
+    /// <exception cref="NotSupportedException">The source cannot ask in the mode.</exception>
+    Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        mode == LookupMode.AsNeeded
+            ? GetTipHeightAsync(@case, cancellationToken)
+            : throw new NotSupportedException("The source cannot ask in that mode.");
+
+    /// <summary>
     /// Gets the newest block the source has read, with its height, hash and time in one answer (always fetched anew),
     /// so that the height a lookup was made at comes with the hash that names the chain. A source that cannot say
     /// answers <see cref="LookupStatus.Failed"/> and sends nothing.
