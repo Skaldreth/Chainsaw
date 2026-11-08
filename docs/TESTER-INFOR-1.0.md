@@ -3123,3 +3123,5 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
 - [ ] Vyn Bevakning: namnet på varje rad är ljust, inte svart.
 - [ ] *Förslag* i grafens huvud: siffran står mitt i den runda bubblan.
 - [ ] Inställningar › Källor: att klicka på ett läge lämnar ingen orange ram; Tab ger ramen.
+- [ ] Grafen: öppna rutan *Bytte block* med ett klick på märket. Ett klick i rutan låter den stå, ett klick någon
+      annanstans i grafen stänger den (och gör det klicket annars gör, till exempel väljer en nod).
