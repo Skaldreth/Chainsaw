@@ -84,8 +84,6 @@ fungerar rättas före allt annat nedan. Särskilt:
 - **Det som byggdes 2026-11-08** och inte är sett av användaren:
   - KF2b, NC2a, KN1a, SO1a, GR7a, TL1a, inspektören och BV1a.
   - Guiden, *Sortera grafen*, den mjuka zoomen, inspektörens glidning och rutmarkeringen.
-- **Inaktuella rader i TESTER-INFOR** [direkt]: läs igenom hela filen och stryk det som ersatts, till exempel
-  NC1a, IN1a, KF1a, UT1a, sonarn, statusraden och Terminal.
 
 ### 2. Resterna i det som är byggt
 
@@ -105,14 +103,10 @@ fungerar rättas före allt annat nedan. Särskilt:
   som spenderar samma pengar i stället står inte i svaren; det kräver uppslag på de spenderade utgångarna.
 - **Linjerna efter en tx som inte finns** [direkt]: märket blir rött och beloppet överstruket, men linjen och
   aktörerna efter den streckas inte som i skissen, eftersom Tracing fortfarande läser det sparade svaret.
-- **Testärendet** [direkt]: `/testdata` har inget bytt block; den påhittade kedjan svarar alltid likadant.
 
 **Inspektören, Nytt ärende och Guiden**
 - **Återanslutningen i utgångsrutan** [direkt]: titelraden säger *Ansluter igen …* med nästa försök, men utgångsrutan
   (UT2b) visar bara *Offline* i rött medan tunneln ansluts igen.
-
-**Testärendet** [direkt]: fyll på det med det som byggts sedan det byggdes om. Vad som saknas står i
-`docs/BACKLOG.md` under *Testärendet (/testdata)*.
 
 ### 3. Godkänt men inte byggt
 
