@@ -99,6 +99,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>A start point from a link that waits for the bar to be emptied, or <see langword="null"/>.</summary>
     private ChainStartPoint? _waitingLink;
 
+    /// <summary>The case already warned of an interrupted replacement of its file key, so that it is said once.</summary>
+    private Chainsaw.Modules.Cases.Contracts.ICase? _warnedOfReplacement;
+
     /// <summary>Creates the shell with every view of <see cref="ViewTable"/> and the start view shown.</summary>
     /// <param name="session">The open case, named in the title bar.</param>
     /// <param name="commands">The command bar's commands.</param>
@@ -355,7 +358,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets the short answer under the command bar's field, or an empty text when there is none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShownAbove), nameof(IsShowingError))]
+    [NotifyPropertyChangedFor(nameof(ShownAbove), nameof(IsShowingError), nameof(IsShowingWarning))]
     public partial string CommandAnswer { get; private set; } = string.Empty;
 
     /// <summary>Gets whether the answer is an error.</summary>
@@ -365,6 +368,14 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets whether an error is shown under the bar's field (in the error colour).</summary>
     public bool IsShowingError => IsAnswerError && CommandAnswer.Length > 0;
+
+    /// <summary>Gets whether the answer is a warning (in yellow).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsShowingWarning))]
+    public partial bool IsAnswerWarning { get; private set; }
+
+    /// <summary>Gets whether a warning is shown under the bar's field (in yellow).</summary>
+    public bool IsShowingWarning => IsAnswerWarning && CommandAnswer.Length > 0;
 
     /// <summary>Gets the hint for what is written, for example what Tab fills in; empty when there is none.</summary>
     [ObservableProperty]
@@ -744,6 +755,28 @@ public sealed partial class ShellViewModel : ObservableObject
         PutInBar(startPoint);
     }
 
+    /// <summary>What the toast says under a start point laid in a case from a link (sketch LN1a).</summary>
+    public const string LinkPlacedText = "Hämtas genom utgången. Journalen säger att adressen kom med en länk.";
+
+    /// <summary>
+    /// Offers the start point of a link that waited while Chainsaw was locked (sketch LN1a): the case picker folds out
+    /// by itself with the link at the top, for the user to lay it in a case or start a new one. With Nytt ärende shown,
+    /// or no picker, it goes as any link does.
+    /// </summary>
+    /// <param name="startPoint">The recognised start point.</param>
+    /// <param name="arrivedUtc">When the link came.</param>
+    public void OfferWaitingLink(ChainStartPoint startPoint, DateTimeOffset arrivedUtc)
+    {
+        ArgumentNullException.ThrowIfNull(startPoint);
+        if (CasePicker is null || NewCase.IsOpen || Settings.IsOpen)
+        {
+            Offer(startPoint);
+            return;
+        }
+
+        CasePicker.OpenForLink(startPoint, arrivedUtc);
+    }
+
     /// <summary>Gets whether a start point from a link waits for the bar to be empty.</summary>
     public bool HasWaitingLink => _waitingLink is not null;
 
@@ -800,6 +833,9 @@ public sealed partial class ShellViewModel : ObservableObject
     private void FollowCasePicker(CasePickerViewModel picker)
     {
         picker.NewCaseWanted += (_, _) => Show(AppView.New);
+        picker.NewCaseWithLinkWanted += (_, text) => NewCase.Show(text);
+        picker.LinkPlaced += (_, reply) => _toaster?.Show(
+            reply.IsError ? ToastKind.Error : ToastKind.Success, reply.Text, LinkPlacedText);
         picker.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(CasePickerViewModel.IsOpen) && picker.IsOpen)
@@ -894,7 +930,28 @@ public sealed partial class ShellViewModel : ObservableObject
             Show(ViewTable.Start);
         }
 
+        WarnOfInterruptedReplacement();
         OnPropertyChanged(nameof(CaseTitle));
+    }
+
+    /// <summary>What the toast says when an interrupted replacement of the file key was found (VT1a).</summary>
+    public const string ReplacementInterruptedText =
+        "Bytet av filnyckeln avbröts. Filen har kvar sina gamla kuvert, så bytet behöver göras om i fliken Kuvert.";
+
+    /// <summary>
+    /// Says once per opening, with a warning that stays, that a replacement of the file key was interrupted: access
+    /// that was to be taken back was not.
+    /// </summary>
+    private void WarnOfInterruptedReplacement()
+    {
+        if (_session.Current is not { FileKeyReplacementInterrupted: true } openCase
+            || ReferenceEquals(openCase, _warnedOfReplacement))
+        {
+            return;
+        }
+
+        _warnedOfReplacement = openCase;
+        _toaster?.Show(ToastKind.Warning, "Filnyckeln byttes inte", ReplacementInterruptedText);
     }
 
     /// <summary>
@@ -906,10 +963,24 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         CommandAnswer = reply.Text;
         IsAnswerError = reply.IsError;
+        IsAnswerWarning = reply.IsWarning;
         if (!IsCommandBarOpen && reply.Text.Length > 0)
         {
-            _toaster?.Show(reply.IsError ? ToastKind.Error : ToastKind.Information, reply.Text);
+            _toaster?.Show(ToastKindOf(reply), reply.Text);
         }
+    }
+
+    /// <summary>Gives the toast's kind for an answer: an error, a warning or information.</summary>
+    /// <param name="reply">The answer.</param>
+    /// <returns>The kind.</returns>
+    private static ToastKind ToastKindOf(CommandReply reply)
+    {
+        if (reply.IsError)
+        {
+            return ToastKind.Error;
+        }
+
+        return reply.IsWarning ? ToastKind.Warning : ToastKind.Information;
     }
 
     /// <summary>Shows the new case: the graph, where the work starts, and the answer from the creation.</summary>

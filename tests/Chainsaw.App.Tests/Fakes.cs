@@ -363,7 +363,8 @@ internal sealed class TestCase(string caseNumber) : ICase
         return null!;
     }
 
-    public IReadOnlyList<JournalEntry> ReadJournal(long fromSequence = 1, int maximumCount = int.MaxValue) => [];
+    public IReadOnlyList<JournalEntry> ReadJournal(long fromSequence = 1, int maximumCount = int.MaxValue) =>
+        [.. Entries.Where(entry => entry.Sequence >= fromSequence).Take(maximumCount)];
 
     public bool SetTitle(string title)
     {
@@ -386,6 +387,9 @@ internal sealed class TestCase(string caseNumber) : ICase
 
     /// <summary>Whether this vault has an envelope of its own; a created or opened case has.</summary>
     public bool HasOwnEnvelope { get; set; } = true;
+
+    /// <summary>Whether the opening found an interrupted replacement of the file key, as the test sets it.</summary>
+    public bool FileKeyReplacementInterrupted { get; set; }
 
     /// <summary>When set, <see cref="AddOperatorAccess"/> throws it.</summary>
     public Exception? AccessFailure { get; set; }
@@ -418,6 +422,37 @@ internal sealed class TestCase(string caseNumber) : ICase
         }
 
         return envelopes;
+    }
+
+    /// <summary>The master key the case's vault takes, as the real check against the vault would.</summary>
+    public const string MasterKey = "rätt huvudnyckel, lång nog";
+
+    /// <summary>The sealed lines the journal reads back, for those a test needs; others read none.</summary>
+    public List<JournalEntry> Entries { get; } = [];
+
+    /// <summary>
+    /// Replaces the file key as Cases does as far as the window sees it: the master key is checked, every envelope but
+    /// this vault's and the built-in recovery key's falls away, and the line is journalled.
+    /// </summary>
+    public FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword)
+    {
+        if (!masterKey.SequenceEqual(MasterKey))
+        {
+            throw new CaseException(CaseError.WrongMasterKey);
+        }
+
+        var dropped = DescribeEnvelopes().Where(envelope => !FileKeyReplacement.Keeps(envelope))
+            .Select(envelope => envelope.Name ?? envelope.Kind.ToString()).ToList();
+        OtherEnvelopes.RemoveAll(envelope => !FileKeyReplacement.Keeps(envelope));
+        SharingPassword = sharingPassword.IsEmpty ? null : sharingPassword.ToString();
+        var details = System.Text.Json.JsonSerializer.Serialize(
+            new FileKeyReplacementDetails(dropped, [], !sharingPassword.IsEmpty));
+        var entry = new JournalEntry(
+            Entries.Count + 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "UTC",
+            new("Testa Testsson", string.Empty, string.Empty), CaseJournalKinds.FileKeyReplaced, "Filnyckeln byttes",
+            details, string.Empty);
+        Entries.Add(entry);
+        return FileKeyReplacement.FromJournal(entry)!;
     }
 
     /// <summary>Gets or sets what <see cref="Save"/> throws, as when the case file cannot be written.</summary>
@@ -830,7 +865,7 @@ internal sealed class TestVerifier : ICaseVerifier
 /// <summary>Everything a window needs, wired as the program wires it, with test doubles for the modules.</summary>
 internal sealed class GateRig
 {
-    public GateRig(VaultState state)
+    public GateRig(VaultState state, bool withCasePicker = false)
     {
         Vault = new TestVault(state);
         AutoLock = new AutoLock(Clock, TimeSpan.FromMinutes(15));
@@ -852,15 +887,22 @@ internal sealed class GateRig
         Settings = new SettingsViewModel(
             new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build);
         Toaster = new Toaster(Ui);
+        CasePicker = withCasePicker
+            ? new CasePickerViewModel(Session, Workflow, Verifier, Ui, Clock, TimeZoneInfo.Utc)
+            : null;
         Shell = new ShellViewModel(
-            Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui, toaster: Toaster);
-        Links = new LinkInbox(Shell);
+            Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui, toaster: Toaster,
+            casePicker: CasePicker);
+        Links = new LinkInbox(Shell, Clock);
         LockScreen = new LockViewModel(Vault, Way, AutoLock, Build);
         FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow, Way, Settings, Exit);
         Gate = new GateViewModel(Vault, LockScreen, FirstRun, Shell, Session, AutoLock, Links, LockSignal, Ui);
     }
 
     public InlineUi Ui { get; } = new();
+
+    /// <summary>The case picker (sketch ÄV1a), when the rig was asked for one.</summary>
+    public CasePickerViewModel? CasePicker { get; }
 
     /// <summary>The toaster, which says an answer that comes while the command bar is hidden.</summary>
     public Toaster Toaster { get; }

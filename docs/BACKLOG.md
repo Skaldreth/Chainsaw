@@ -431,6 +431,11 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   och varje källa som läser en nyckel; görs när ingen annan omgång arbetar i Chains och Attribution.
 - **DPAPI för bevakningsprocessen** (CLAUDE.md, *Bevaka*): bevakningens adresser krypteras för Windows-användaren, utanför
   valvet. Byggs med bevakningen.
+- **Den gamla databasnyckeln i SQLite3 Multiple Ciphers minne** (granskningen av VT1a, M4): biblioteket kan ha kvar
+  kopior av en databasnyckel i anslutningens minne (chiffrets tillstånd) efter att anslutningen stängts, också efter
+  ett byte av filnyckeln. Chainsaw nollställer sina egna buffertar men når inte bibliotekets; ta reda på om
+  `sqlite3_close` nollställer chiffrets nyckelmaterial, och annars om en egen allokerare eller en process per ärende
+  behövs.
 
 ## Utgångar (Network)
 - **Certifikatkedjor som saknar en mellanliggande nivå** som datorn aldrig sett: de som Windows redan har erbjuds
@@ -481,6 +486,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Senast öppnade ärendet** föreslås som den `.cut` som sparades senast (filens tid), inte ur en egen lista, så att
   inget om ärenden sparas utanför ärendet. Ett ärende som sparats av en kopia eller synk hamnar då först.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
+- **Brickan *Etikett härifrån* i LN1a:** en streckad bricka vid det ärende i listan som etikettbiblioteket har en
+  etikett på länkens adress från. Kräver en fråga till biblioteket per adress och ärende; inte byggd 2026-11-08.
 
 ## Exponering (EP1b)
 

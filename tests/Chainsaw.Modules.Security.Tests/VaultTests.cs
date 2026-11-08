@@ -154,6 +154,22 @@ public sealed class VaultTests : IDisposable
     }
 
     [Fact]
+    public void VerifyMasterKey_accepts_the_right_key_and_refuses_a_wrong_or_a_locked_vault()
+    {
+        _fixture.Created();
+        var before = _fixture.FileBytes();
+
+        _fixture.Vault.VerifyMasterKey(VaultFixture.MasterKey);
+        VaultFixture.AssertFails(
+            VaultError.WrongMasterKey, () => _fixture.Vault.VerifyMasterKey(VaultFixture.OtherMasterKey));
+        Assert.Equal(VaultState.Unlocked, _fixture.Vault.State);
+        Assert.Equal(before, _fixture.FileBytes());
+
+        _fixture.Vault.Lock();
+        VaultFixture.AssertFails(VaultError.Locked, () => _fixture.Vault.VerifyMasterKey(VaultFixture.MasterKey));
+    }
+
+    [Fact]
     public void ChangeMasterKey_makes_the_old_key_stop_working_and_keeps_the_content()
     {
         _fixture.Created();

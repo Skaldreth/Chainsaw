@@ -13,6 +13,7 @@
     -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
+        <controls:InvertConverter x:Key="Not" />
 
         <!-- A dialog's frame: the floating surface with its border and shadow. -->
         <Style x:Key="Dialog.Frame" TargetType="Border">
@@ -160,15 +161,39 @@
                             <controls:GridIcon Size="16" Data="{StaticResource Icon.Lock}"
                                                Foreground="{StaticResource Brush.TextDim}" />
                         </Border>
+                        <!-- VT1a: what replacing the file key does to the envelope, while it is decided. -->
+                        <Border x:Name="FateBadge" DockPanel.Dock="Right" Height="22" Padding="8,0" CornerRadius="11"
+                                VerticalAlignment="Center" Margin="8,0,0,0" Visibility="Collapsed">
+                            <Grid>
+                                <Border x:Name="FateTint" CornerRadius="11" Margin="-8,0" Opacity="0.12"
+                                        Background="{StaticResource Brush.Success}" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <controls:GridIcon x:Name="FateIcon" Size="12" Data="{StaticResource Icon.Refresh}"
+                                                       Foreground="{StaticResource Brush.Success}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="FateText" Text="Lindas om" FontSize="11.5" Margin="5,0,0,0"
+                                               Foreground="{StaticResource Brush.Success}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                         <StackPanel Margin="12,0,8,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock x:Name="TitleText" Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding Subtitle}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                     </DockPanel>
 
-                    <!-- The actions, at the bottom of the card. -->
+                    <!-- The actions, at the bottom of the card; none while the file key's replacement is decided. -->
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.IsReplacingFileKey, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                 Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
                         <Button Style="{StaticResource Card.Button}" Content="Byt …"
                                 Visibility="{Binding CanChange, Converter={StaticResource Visible}}"
                                 Command="{Binding DataContext.EditPasswordCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -217,6 +242,25 @@
                 <DataTrigger Binding="{Binding IsDashed}" Value="True">
                     <Setter TargetName="Frame" Property="StrokeDashArray" Value="3 3" />
                     <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.BorderStrong}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsRewrapped}" Value="True">
+                    <Setter TargetName="FateBadge" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="FateBadge" Property="ToolTip" Value="Kuvertet lindas om med den nya filnyckeln" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding FallsAway}" Value="True">
+                    <Setter TargetName="FateBadge" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="FateBadge" Property="ToolTip" Value="Öppnar inte filen efter bytet" />
+                    <Setter TargetName="FateTint" Property="Background" Value="{StaticResource Brush.Pending}" />
+                    <Setter TargetName="FateIcon" Property="Data" Value="{StaticResource Icon.Cross}" />
+                    <Setter TargetName="FateIcon" Property="Foreground" Value="{StaticResource Brush.Pending}" />
+                    <Setter TargetName="FateText" Property="Text" Value="Faller bort" />
+                    <Setter TargetName="FateText" Property="Foreground" Value="{StaticResource Brush.Pending}" />
+                    <Setter TargetName="Frame" Property="StrokeDashArray" Value="3 3" />
+                    <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.BorderStrong}" />
+                    <Setter TargetName="TitleText" Property="TextDecorations" Value="Strikethrough" />
+                    <Setter TargetName="TitleText" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                    <Setter TargetName="IconFrame" Property="Opacity" Value="0.6" />
+                    <Setter TargetName="Text" Property="Opacity" Value="0.6" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsEditing}" Value="True">
                     <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Accent}" />
@@ -505,6 +549,97 @@
                                     </ItemsControl.ItemsPanel>
                                 </ItemsControl>
                             </ScrollViewer>
+
+                            <!-- VT1a: the latest replacement of the file key, dashed, with its journal line. -->
+                            <Grid Margin="0,0,14,12" Visibility="{Binding HasReplacement, Converter={StaticResource Visible}}">
+                                <Rectangle RadiusX="10" RadiusY="10" StrokeThickness="1.5" StrokeDashArray="3 3"
+                                           Stroke="{StaticResource Brush.BorderStrong}" />
+                                <DockPanel Margin="14,10">
+                                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Strike}" VerticalAlignment="Top"
+                                                       Margin="0,2,10,0" Foreground="{StaticResource Brush.TextDim}" />
+                                    <TextBlock Text="{Binding ReplacementText}" Style="{StaticResource Dialog.Hint}" />
+                                </DockPanel>
+                            </Grid>
+
+                            <!-- VT1a: Byt filnyckel …, under the cards, where who has access is already seen. -->
+                            <Button Style="{StaticResource Card.Button}" HorizontalAlignment="Left" Margin="0"
+                                    Command="{Binding BeginReplaceFileKeyCommand}"
+                                    Visibility="{Binding CanReplaceFileKey, Converter={StaticResource Visible}}"
+                                    ToolTip="Ny filnyckel: bara ditt valv och organisationen kan öppna filen efteråt. Journalförs.">
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Key}" VerticalAlignment="Center" />
+                                    <TextBlock Text="Byt filnyckel …" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- VT1a: the confirmation, folded out under the cards. -->
+                            <Border x:Name="RekeyForm" CornerRadius="12" BorderThickness="1.5" Padding="20,18" Margin="0,4,14,0"
+                                    BorderBrush="{StaticResource Brush.Accent}" Background="{StaticResource Brush.Background}"
+                                    Visibility="{Binding IsReplacingFileKey, Converter={StaticResource Visible}}"
+                                    AutomationProperties.Name="Byt filnyckel">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <controls:GridIcon Size="18" Data="{StaticResource Icon.Shield}"
+                                                           Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding ReplaceHeading}" FontSize="14.5" FontWeight="SemiBold"
+                                                   Margin="10,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <DockPanel Margin="28,8,0,0">
+                                        <controls:GridIcon Size="14" Data="{StaticResource Icon.Alert}" VerticalAlignment="Top"
+                                                           Margin="0,2,8,0" Foreground="{StaticResource Brush.Pending}" />
+                                        <TextBlock Text="{Binding CopiesText}" Style="{StaticResource Dialog.Hint}" />
+                                    </DockPanel>
+
+                                    <!-- The steps' honest word while it runs. -->
+                                    <StackPanel Margin="28,14,0,0" Visibility="{Binding IsBusy, Converter={StaticResource Visible}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Refresh}"
+                                                               Foreground="{StaticResource Brush.Text}" VerticalAlignment="Center" />
+                                            <TextBlock Text="Ny filnyckel, databasen krypteras om, kuverten lindas om och bytet journalförs …"
+                                                       FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource Dialog.Hint}" Margin="22,4,0,0"
+                                                   Text="Ärendet är låst för ändringar medan det pågår. Filen byts först när allt är klart, så ett avbrott lämnar den som den var." />
+                                    </StackPanel>
+
+                                    <StackPanel Margin="28,14,0,0" IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}">
+                                        <DockPanel>
+                                            <ToggleButton DockPanel.Dock="Right" Style="{StaticResource Toggle.Switch}"
+                                                          IsChecked="{Binding CreatesSharingPassword}"
+                                                          AutomationProperties.Name="Skapa ett nytt ärendelösenord efteråt" />
+                                            <TextBlock Text="Skapa ett nytt ärendelösenord efteråt" FontSize="13"
+                                                       VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <StackPanel Margin="0,8,0,0"
+                                                    Visibility="{Binding CreatesSharingPassword, Converter={StaticResource Visible}}">
+                                            <PasswordBox x:Name="RekeyPassword" Style="{StaticResource PasswordBox.Field}" Height="34"
+                                                         Tag="Nytt ärendelösenord" AutomationProperties.Name="Nytt ärendelösenord" />
+                                            <PasswordBox x:Name="RekeyRepeat" Style="{StaticResource PasswordBox.Field}" Height="34"
+                                                         Margin="0,8,0,0" Tag="Upprepa ärendelösenordet"
+                                                         AutomationProperties.Name="Upprepa ärendelösenordet" />
+                                        </StackPanel>
+                                        <DockPanel Margin="0,12,0,0">
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource Dialog.Primary}" Margin="8,0,0,0"
+                                                    Click="OnReplaceFileKey" ToolTip="Byt filnyckeln (Enter). Journalförs.">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="Byt filnyckel" />
+                                                    <TextBlock Text="Enter" Style="{StaticResource Dialog.Key}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource Dialog.Secondary}"
+                                                    Command="{Binding CancelReplaceFileKeyCommand}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="Avbryt" />
+                                                    <TextBlock Text="Esc" Style="{StaticResource Dialog.Key}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <PasswordBox x:Name="RekeyMasterKey" Style="{StaticResource PasswordBox.Field}" Height="34"
+                                                         Tag="Huvudnyckel" AutomationProperties.Name="Huvudnyckel"
+                                                         ToolTip="Huvudnyckeln krävs, eftersom bytet inte går att ångra." />
+                                        </DockPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
 
                         <!-- Information: the file and the case's id. -->

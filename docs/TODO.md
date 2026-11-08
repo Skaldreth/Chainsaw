@@ -144,18 +144,11 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
    *Attribution* och *Kurser*.
 6. **Säkerhet, ärenden och utgångar:** byggt 2026-11-08 (DEV-LOG, *Omgång 6*). Kvar, som behöver ritas först:
-   - [skiss] **Vem har tillgång / byt filnyckel:** en knapp i fliken *Kuvert* som byter filnyckeln (krypterar om
-     databasen och lindar om kuverten för valvet och organisationen; delningslösenordet och andra valv faller bort),
-     så att tillgång kan dras tillbaka, med en bekräftelse som visar vilka kuvert som försvinner.
    - [skiss] **En proxy som kräver inloggning:** en rad under Inställningar › Nätverk som låter Chainsaw skicka
      Windows-användarens uppgifter, bara till en proxy som är inställd för hand (aldrig en som hittats med WPAD).
    - [skiss] **En ansluten utgång i läget Windows:** strömknappen kvar på den anslutna raden i utgångsrutan medan
      listan i övrigt är tonad, så att den kan kopplas ner utan att välja VPN.
    - [skiss] **Den egna nodens certifikat:** fästa en lokal endpoints certifikat (pinning) på sidan Källor.
-   - [skiss] **Välja ett befintligt ärende för en länk** efter upplåsningen (*lägg i ärende …*), i stället för att en
-     länk alltid öppnar Nytt ärende.
-   - [skiss] **Ankarna och flera datorer:** hur `/verify` och journalen förklarar en rad *case.anchors-replaced*
-     (äldre kopia, parallella ändringar på två datorer, ankare som rullats tillbaka).
 7. **Vyerna och appen:** fynden under Exponering, Begäran, Rapport, Undermenyerna, Låsskärmen, Historiken,
    Kommentarsnoden, Spårning, Testärendet och *Vyerna efter 1.0*; grafens prestanda vid tusentals noder.
 8. **TRON med USDT**, sedan **Litecoin**, **BSC**, **Solana** och den genomskinliga delen av **Zcash**.

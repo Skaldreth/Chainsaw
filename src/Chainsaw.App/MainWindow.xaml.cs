@@ -1117,6 +1117,7 @@ public partial class MainWindow : Window
         }
 
         CasePickerView.Attach(picker);
+        picker.GuideWanted += (_, request) => _guidePanel.Ask(request);
         if (Shortcuts.TryParse(CasePickerGesture) is { } gesture)
         {
             var open = new RoutedCommand();

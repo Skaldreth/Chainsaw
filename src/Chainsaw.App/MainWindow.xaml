@@ -409,6 +409,9 @@
                                                         <DataTrigger Binding="{Binding IsShowingError}" Value="True">
                                                             <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsShowingWarning}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
