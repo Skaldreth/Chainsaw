@@ -3014,3 +3014,35 @@ vidare är färsk. Förut skrevs `.cut` bara vid sparning och stängning.
   upptaget ärende (läsning på en annan tråd och timern mitt i en skrivning), en misslyckad sparning, stängning,
   låsning av valvet, också mellan kontrollerna och sparningen, krasch före och efter en sparning av sig självt, och
   väntan som växer efter fel i rad.
+
+## Soptunnan och startvyns högar: det som återstod (SO1a, GR8a, 2026-11-08)
+
+- **Hög på hög:** en hög lyfts och dras som ett ärende (samma vridna bild, nu av högen). Släppt på en annan hög läggs
+  dess ärenden överst i den, under namnet på högen man släppte på, eller den dragnas när den saknade namn; släppt på
+  ett löst ärende tar högen in ärendet. Vad ett släpp betyder står i vymodellen (`CanDrop`, `DropOn`, `MergePiles`);
+  vyn frågar bara. En hög som dras får inte soptunnan att växa, eftersom en hel hög inte går att slänga än.
+- **Tab:** högarna på ringen tar tangentbordet som ärendena, med accentens ram; Enter och blanksteg fäller ut, F2
+  skriver namnet.
+- **Grafens ring på startsidan:** `FanOutLayer` lägger korten med `PileFanLayout.Ring` (EX2b) i stället för spiralen,
+  och korten är grafens brickor (156 × 40, dokumentet i en streckad fyrkant, numret och *ändrad …*). I ett litet
+  fönster dras ringen in (`FitRing`), högst till 70 %.
+- **Samma stöt och centrering i grafen:** tider, radier och ease ligger i `Graph/FanShock` (utan WPF, testad), som
+  både `FanOutLayer` och grafens yta använder. Grafen ritar de två ringarna från högen och glider ytan så att högen
+  står i mitten, och tillbaka när högen fälls ihop. **Avsteg:** inte genom `FanOutLayer`, eftersom grafens brickor
+  ritas i en `DrawingContext` med sitt eget drag och val; samma värden i stället för samma kontroll. Ytan bakom trycks
+  inte ut (står i TODO). Egna beslut: ytan går bara tillbaka om användaren inte panorerat eller zoomat under tiden, och
+  en panorering eller zoom stoppar glidningen där den är.
+- **Ett nytt ärende med ett slängt nummer:** soptunnan döljer ett ärende bara som filen var när det slängdes
+  (`CaseTrash.Hides`: skrivet senast då). En fil som skrivits efter slängningen tas ut ur soptunnan när mappen listas
+  (`ForgetRewritten`), så den står inte heller i soptunnans vy. Eget beslut: ett slängt ärende som öppnas och sparas
+  igen kommer också tillbaka, eftersom man arbetar med det.
+- **Noden krymper mot soptunnan** som i skissen: till 55 % vid soptunnan och 95 % (75 % när ett släpp slänger) i
+  opacitet, mot punkten man håller i, så att den stannar under pekaren. En dragen grupp krymper tillsammans
+  (`TrashBinViewModel.DraggedScale`, `DraggedOpacity`).
+- **Bevakningsträff in i soptunnan:** `GraphWatches` ger `WatchTrashHit` när en träffs motpart inte finns i grafen för
+  att den ligger i soptunnan (`TrashFilter.HidesAddress`). Den ritas vid porten som en kort hel linje i accenten med
+  beloppet (bara när träffen hade en motpart, som en vanlig träff), ringarna tills den är sedd och *i soptunnan* i
+  änden, och tar stumpens plats på den sidan.
+- **Test:** grafen med bara cykler och utan startpunkter (`TrashTreeTests`, två fall).
+- Tester: 2 i Tracing.Tests, 22 nya i App.Tests (`CasePileTests`, `StartTrashTests`, `TrashHitTests`,
+  `FanShockTests`).

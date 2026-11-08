@@ -31,6 +31,7 @@ Utan öppet ärende står *Nytt ärende* mitt på ytan, med de senaste ärendena
 
 - **Gör en hög** genom att dra ett ärende och släppa det på ett annat. Högen får ett namn direkt, i högen själv.
 - **Fler ärenden** släpps på en hög som finns.
+- **Två högar blir en** när den ena dras och släpps på den andra. Tab når högarna, Enter fäller ut och F2 byter namn.
 - **Ett klick på en hög** gör samma sak som samlingsnoden i grafen: ytan skickas ut i en stöt, högen hamnar i mitten och
   korten fälls ut runt den medan resten dimmas. Dra ut ett kort för att lägga det fritt på startsidan igen; Shift-klick
   väljer flera.

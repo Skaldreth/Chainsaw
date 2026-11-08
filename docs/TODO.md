@@ -125,16 +125,8 @@ fungerar rättas före allt annat nedan. Särskilt:
 - **Det som ännu inte går att slänga** [etapp]:
   - Kommentarsnoder och egna ytor. Delete tar i dag bort en lapp förseglat direkt, utan soptunna.
   - En hel hög i startvyn, och ett ärende som ligger i en hög.
-- **Startvyns högar** [direkt]:
-  - En hög går inte att dra på en annan hög.
-  - En hög tar inte fokus med Tab.
-  - Startvyn fäller ut korten i en spiral i stället för grafens ring.
-  - Grafens samlingsnod får inte samma stöt och centrering genom `FanOutLayer`.
-- **Ett nytt ärende med samma nummer som ett slängt** döljs [direkt].
-- **Noden krymper inte** när den närmar sig soptunnan, som i skissen [direkt].
-- **En bevakningsträff till något i soptunnan** [direkt] visas bara som *i soptunnan · bevakad* på stumpen. Den
-  borde visas som en linje med beloppet och ringarna.
-- **Test saknas** [direkt] för när inga startpunkter finns kvar och grafen bara är cykler, så att allt följer med.
+- **Grafens samlingsnod trycks inte ut** [direkt]: stöten och centreringen är som startvyns, men ytan bakom trycks
+  inte ut lite som i `FanOutLayer` (grafen ritas i en `DrawingContext`, så det kräver en egen skalning av det dimmade).
 
 **Kommentarsnoden (KN1a)**
 - **Historiken** [etapp]: lappens förseglade poster syns inte i inspektörens *Historik* (AN1b), och en borttagen lapp

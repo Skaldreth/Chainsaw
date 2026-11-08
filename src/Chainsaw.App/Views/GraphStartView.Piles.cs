@@ -30,8 +30,11 @@ public partial class GraphStartView
     /// <summary>The corner radius of a pile's frames, square as the graph's pile node.</summary>
     private const double PileRadius = 10;
 
-    /// <summary>The corner radius of a card in the fan, as the graph's cards.</summary>
-    private const double CardRadius = 7;
+    /// <summary>The corner radius of a card in the fan, as the graph's tiles.</summary>
+    private const double CardRadius = 9;
+
+    /// <summary>The frame round a card's icon, as on the graph's tiles.</summary>
+    private const double TileIconBox = 22;
 
     /// <summary>How far the cards dragged together lie below each other, as in the graph.</summary>
     private const double DraggedStep = 6;
@@ -52,10 +55,12 @@ public partial class GraphStartView
     private readonly Dictionary<string, Border> _cards = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>A press on a loose case on the ring, which becomes a lift once the pointer moves far enough.</summary>
-    private (FrameworkElement Node, string CaseNumber, Point At)? _ringPress;
+    private (FrameworkElement Node, IStartRingItem Item, Point At)? _ringPress;
 
-    /// <summary>The lifted case: its node, the picture that follows the pointer and where it was gripped.</summary>
-    private (FrameworkElement Node, FrameworkElement Ghost, string CaseNumber, Vector Grip)? _lift;
+    /// <summary>
+    /// The lifted case or pile: its node, the picture that follows the pointer, what it is and where it was gripped.
+    /// </summary>
+    private (FrameworkElement Node, FrameworkElement Ghost, IStartRingItem Item, Vector Grip)? _lift;
 
     /// <summary>The node under the lifted case that takes the drop, or <see langword="null"/>.</summary>
     private FrameworkElement? _dropTarget;
@@ -107,6 +112,7 @@ public partial class GraphStartView
                     _model?.OpenPileOf(pile.Id);
                 }
             };
+            node.KeyDown += (_, e) => OnPileNodeKey(node, pile, e);
             return node;
         }
 
@@ -115,6 +121,35 @@ public partial class GraphStartView
             Content = item, ContentTemplate = (DataTemplate)FindResource("RecentCase"), Tag = item,
             RenderTransformOrigin = new Point(0.5, 0.5),
         };
+    }
+
+    /// <summary>
+    /// The keys of a pile on the ring that has the keyboard (Tab reaches it like the cases): Enter or Space fans it
+    /// out, and F2 writes its name. Keys in its name's field are the field's.
+    /// </summary>
+    /// <param name="node">The pile's node.</param>
+    /// <param name="pile">The pile.</param>
+    /// <param name="e">The key.</param>
+    private void OnPileNodeKey(FrameworkElement node, CasePileItem pile, KeyEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, node) || pile.IsNaming || _model is not { } model)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Enter or Key.Space:
+                e.Handled = true;
+                model.OpenPileOf(pile.Id);
+                break;
+            case Key.F2:
+                e.Handled = true;
+                model.BeginNaming(pile.Id);
+                break;
+            default:
+                break;
+        }
     }
 
     /// <summary>Hides the fanned pile's own node on the ring, and puts the keyboard in a new pile's name.</summary>
@@ -147,7 +182,7 @@ public partial class GraphStartView
         {
             Width = PileSize.Width + deck, Height = PileSize.Height + deck, Tag = pile, Cursor = Cursors.Hand,
             Background = Brushes.Transparent, RenderTransformOrigin = new Point(0.5, 0.5),
-            ToolTip = inFan ? "Fäll ihop · Esc" : "Fäll ut högen",
+            ToolTip = inFan ? "Fäll ihop · Esc" : "Fäll ut högen · Enter · F2 byter namn",
         };
         AutomationProperties.SetName(node, pile.ShownName);
         for (var depth = DeckDepth; depth > 0; depth--)
@@ -162,11 +197,29 @@ public partial class GraphStartView
             Background = Brush("Brush.Surface"), HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top, Padding = new Thickness(10, 0, 12, 0),
         };
-        node.MouseEnter += (_, _) => front.BorderBrush = Brush("Brush.TextDim");
-        node.MouseLeave += (_, _) => front.BorderBrush = Brush("Brush.BorderHover");
+        // On the ring the pile takes the keyboard with Tab like the cases, and shows it with the accent's frame.
+        node.Focusable = !inFan;
+        node.FocusVisualStyle = null;
+        void ShowFrame() => front.BorderBrush = Brush(FrameOf(node));
+        node.MouseEnter += (_, _) => ShowFrame();
+        node.MouseLeave += (_, _) => ShowFrame();
+        node.IsKeyboardFocusedChanged += (_, _) => ShowFrame();
         front.Child = PileInside(pile, node, inFan);
         node.Children.Add(front);
         return node;
+    }
+
+    /// <summary>Gives the brush of a pile's front frame: the accent with the keyboard, lighter under the pointer.</summary>
+    /// <param name="node">The pile's node.</param>
+    /// <returns>The brush's key.</returns>
+    private static string FrameOf(UIElement node)
+    {
+        if (node.IsKeyboardFocused)
+        {
+            return "Brush.Accent";
+        }
+
+        return node.IsMouseOver ? "Brush.TextDim" : "Brush.BorderHover";
     }
 
     /// <summary>Makes a card behind a pile's front.</summary>
@@ -358,19 +411,23 @@ public partial class GraphStartView
         : LogicalTreeHelper.GetChildren(node).OfType<DependencyObject>().Select(NameField)
             .FirstOrDefault(found => found is not null);
 
-    // ----- Lifting a case on the ring -------------------------------------------------------------------------------
+    // ----- Lifting a case or a pile on the ring ---------------------------------------------------------------------
 
-    /// <summary>Notes a press on a loose case on the ring, which may become a lift.</summary>
+    /// <summary>
+    /// Notes a press on a loose case or a pile on the ring, which may become a lift; never on a pile whose name is
+    /// being written, where the press belongs to the field.
+    /// </summary>
     /// <param name="sender">The ring.</param>
     /// <param name="e">The press.</param>
     private void OnRingPressed(object sender, MouseButtonEventArgs e)
     {
-        _ringPress = RingNodeAt(e.OriginalSource as DependencyObject) is { Tag: RecentCaseItem item } node
-            ? (node, item.CaseNumber, e.GetPosition(this))
+        _ringPress = RingNodeAt(e.OriginalSource as DependencyObject) is { Tag: IStartRingItem item } node
+            && item is RecentCaseItem or CasePileItem { IsNaming: false }
+            ? (node, item, e.GetPosition(this))
             : null;
     }
 
-    /// <summary>Lifts a pressed case once the pointer has moved far enough, and moves a lifted one.</summary>
+    /// <summary>Lifts a pressed case or pile once the pointer has moved far enough, and moves a lifted one.</summary>
     /// <param name="sender">The view.</param>
     /// <param name="e">The move.</param>
     private void OnPointerMoved(object sender, MouseEventArgs e)
@@ -387,11 +444,14 @@ public partial class GraphStartView
 
         if (_ringPress is { } press && e.LeftButton == MouseButtonState.Pressed && Moved(press.At, at))
         {
-            BeginLift(press.Node, press.CaseNumber, at);
+            BeginLift(press.Node, press.Item, at);
         }
     }
 
-    /// <summary>Drops a lifted case: on a case it makes a pile, on a pile it goes in it, else nothing.</summary>
+    /// <summary>
+    /// Drops what is lifted: a case on the bin is thrown; otherwise on a case or a pile it does what the model says
+    /// (<see cref="GraphStartViewModel.DropOn"/>), and elsewhere nothing.
+    /// </summary>
     /// <param name="sender">The view.</param>
     /// <param name="e">The release.</param>
     private void OnPointerReleased(object sender, MouseButtonEventArgs e)
@@ -403,8 +463,8 @@ public partial class GraphStartView
         }
 
         e.Handled = true;
-        var target = _dropTarget?.Tag;
-        if (_model?.DropOnBin(lift.CaseNumber) == true)
+        var target = _dropTarget?.Tag as IStartRingItem;
+        if (lift.Item is RecentCaseItem lifted && _model?.DropOnBin(lifted.CaseNumber) == true)
         {
             // Thrown in the trash (sketch SO1a): nothing else takes the drop.
             EndLift();
@@ -412,41 +472,53 @@ public partial class GraphStartView
         }
 
         EndLift();
-        switch (target)
+        if (target is not null)
         {
-            case RecentCaseItem other:
-                _model?.Stack(lift.CaseNumber, other.CaseNumber);
-                break;
-            case CasePileItem pile:
-                _model?.AddToPile(lift.CaseNumber, pile.Id);
-                break;
+            _model?.DropOn(lift.Item, target);
         }
     }
 
-    /// <summary>Lifts a case: a turned picture of it follows the pointer, and its node goes faint.</summary>
-    /// <param name="node">The case's node on the ring.</param>
-    /// <param name="caseNumber">The case.</param>
+    /// <summary>
+    /// Lifts a case or a pile: a turned picture of it follows the pointer, and its node goes faint. Only a case makes the
+    /// bin grow; a whole pile cannot be thrown yet.
+    /// </summary>
+    /// <param name="node">Its node on the ring.</param>
+    /// <param name="item">The case or the pile.</param>
     /// <param name="at">The pointer.</param>
-    private void BeginLift(FrameworkElement node, string caseNumber, Point at)
+    private void BeginLift(FrameworkElement node, IStartRingItem item, Point at)
     {
         _ringPress = null;
         var corner = node.TranslatePoint(default, this);
-        var ghost = new ContentPresenter
-        {
-            Content = node.Tag, ContentTemplate = (DataTemplate)FindResource("RecentCase"), Opacity = 0.95,
-            RenderTransform = new RotateTransform(LiftAngle), RenderTransformOrigin = new Point(0.5, 0.5),
-            Effect = new DropShadowEffect { BlurRadius = 30, ShadowDepth = 12, Direction = 270, Opacity = 0.55 },
-        };
+        var ghost = Ghost(item);
         LiftLayer.Children.Add(ghost);
         Canvas.SetLeft(ghost, corner.X);
         Canvas.SetTop(ghost, corner.Y);
         node.Opacity = 0.3;
-        _lift = (node, ghost, caseNumber, at - corner);
+        _lift = (node, ghost, item, at - corner);
         CaptureMouse();
-        _model?.Lift(caseNumber);
+        if (item is RecentCaseItem lifted)
+        {
+            _model?.Lift(lifted.CaseNumber);
+        }
     }
 
-    /// <summary>Puts the lifted case down: the picture goes, its node comes back, and no target is marked.</summary>
+    /// <summary>Makes the turned picture of a lifted case or pile, with a deep shadow, as a card picked up.</summary>
+    /// <param name="item">The case or the pile.</param>
+    /// <returns>The picture.</returns>
+    private FrameworkElement Ghost(IStartRingItem item)
+    {
+        FrameworkElement ghost = item is CasePileItem pile
+            ? PileNode(pile, inFan: false)
+            : new ContentPresenter { Content = item, ContentTemplate = (DataTemplate)FindResource("RecentCase") };
+        ghost.Opacity = 0.95;
+        ghost.Focusable = false;
+        ghost.RenderTransform = new RotateTransform(LiftAngle);
+        ghost.RenderTransformOrigin = new Point(0.5, 0.5);
+        ghost.Effect = new DropShadowEffect { BlurRadius = 30, ShadowDepth = 12, Direction = 270, Opacity = 0.55 };
+        return ghost;
+    }
+
+    /// <summary>Puts what is lifted down: the picture goes, its node comes back, and no target is marked.</summary>
     private void EndLift()
     {
         if (_lift is not { } lift)
@@ -467,21 +539,15 @@ public partial class GraphStartView
         _model?.Bin.EndDrag();
     }
 
-    /// <summary>Puts a lifted case back where it was, when the pointer is lost or Esc is pressed.</summary>
+    /// <summary>Puts what is lifted back where it was, when the pointer is lost or Esc is pressed.</summary>
     private void CancelLift() => EndLift();
 
-    /// <summary>Marks the case or pile under the pointer when the lifted case can be dropped on it.</summary>
+    /// <summary>Marks the case or pile under the pointer when what is lifted can be dropped on it.</summary>
     /// <param name="at">The pointer, in the view.</param>
     private void ShowDropTarget(Point at)
     {
         var under = RingNodeAt(Ring.InputHitTest(TranslatePoint(at, Ring)) as DependencyObject);
-        var lifted = _lift!.Value.CaseNumber;
-        var takes = under?.Tag switch
-        {
-            RecentCaseItem other => _model?.CanStack(lifted, other.CaseNumber) == true,
-            CasePileItem pile => _model?.CanAddToPile(lifted, pile.Id) == true,
-            _ => false,
-        };
+        var takes = under?.Tag is IStartRingItem target && _model?.CanDrop(_lift!.Value.Item, target) == true;
         MarkDropTarget(takes ? under : null);
     }
 
@@ -609,29 +675,44 @@ public partial class GraphStartView
     }
 
     /// <summary>
-    /// Makes a card in the fan as the graph draws its cards: a small frame with the case number and when it was saved;
-    /// a chosen card has the accent's frame.
+    /// Makes a card in the fan as the graph draws its tiles (sketch EX2b): the case's document in its dashed square
+    /// frame, the case number and when it was saved; a chosen card has the accent's frame.
     /// </summary>
     /// <param name="card">The card.</param>
     /// <returns>The card's element.</returns>
     private Border Card(PileCardViewModel card)
     {
-        var words = new StackPanel { Margin = new Thickness(6, 1, 6, 0) };
+        var inside = new DockPanel { Margin = new Thickness(7, 0, 9, 0), VerticalAlignment = VerticalAlignment.Center };
+        var icon = new Grid { Width = TileIconBox, Height = TileIconBox, Margin = new Thickness(0, 0, 8, 0) };
+        icon.Children.Add(new System.Windows.Shapes.Rectangle
+        {
+            RadiusX = 6, RadiusY = 6, Stroke = Brush("Brush.TextMuted"), StrokeThickness = 1.5,
+            StrokeDashArray = [2, 2],
+        });
+        icon.Children.Add(new GridIcon
+        {
+            Size = 12, Data = (Geometry)FindResource("Icon.File"), Foreground = Brush("Brush.TextMuted"),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        });
+        DockPanel.SetDock(icon, Dock.Left);
+        inside.Children.Add(icon);
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         words.Children.Add(new TextBlock
         {
-            Text = card.CaseNumber, FontSize = 10.5, FontWeight = FontWeights.Medium, Foreground = Brush("Brush.Text"),
+            Text = card.CaseNumber, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Brush("Brush.Text"),
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
         words.Children.Add(new TextBlock
         {
-            Text = card.ChangedText, FontSize = 9.5, Foreground = Brush("Brush.TextDim"),
-            TextTrimming = TextTrimming.CharacterEllipsis,
+            Text = card.ChangedText, FontSize = 10.5, Foreground = Brush("Brush.TextDim"),
+            TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, -1, 0, 0),
         });
+        inside.Children.Add(words);
         var element = new Border
         {
-            Width = PileFanLayout.CardWidth, Height = PileFanLayout.CardHeight,
+            Width = PileFanLayout.TileWidth, Height = PileFanLayout.TileHeight,
             CornerRadius = new CornerRadius(CardRadius),
-            Child = words, Cursor = Cursors.Hand, Tag = card,
+            Child = inside, Cursor = Cursors.Hand, Tag = card,
             ToolTip = "Öppna ärendet · Shift-klick väljer · dra ut på ytan",
         };
         AutomationProperties.SetName(element, card.CaseNumber);

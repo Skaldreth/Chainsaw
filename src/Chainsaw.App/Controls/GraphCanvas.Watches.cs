@@ -107,6 +107,7 @@ public sealed partial class GraphCanvas
             }
         }
 
+        DrawTrashHits(dc, visible);
         foreach (var ray in overlay.Rays)
         {
             if (_model.Places.TryGetValue(ray.NodeKey, out var place)

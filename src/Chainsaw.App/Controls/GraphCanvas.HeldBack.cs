@@ -261,7 +261,11 @@ public sealed partial class GraphCanvas
     {
         if (_blast is not (BlastPhase.Out or BlastPhase.Back))
         {
-            DrawNode(dc, node, place, near);
+            if (!DrawNearBin(dc, node, place, near))
+            {
+                DrawNode(dc, node, place, near);
+            }
+
             return;
         }
 

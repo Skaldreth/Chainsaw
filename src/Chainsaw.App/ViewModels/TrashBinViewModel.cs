@@ -27,6 +27,15 @@ public sealed partial class TrashBinViewModel : ObservableObject
     /// <summary>How far outside the grown area a release still throws, so that the edge is forgiving.</summary>
     public const double HotSlack = 8;
 
+    /// <summary>How much smaller a dragged node is at the bin (sketch SO1a: to 55 %).</summary>
+    public const double ShrinkAtBin = 0.45;
+
+    /// <summary>How visible a dragged node is while it is dragged (sketch SO1a).</summary>
+    public const double DraggedOpacityAway = 0.95;
+
+    /// <summary>How visible a dragged node is when a release throws it (sketch SO1a).</summary>
+    public const double DraggedOpacityHot = 0.75;
+
     /// <summary>The icon's size at rest.</summary>
     private const double RestIcon = 20;
 
@@ -70,6 +79,15 @@ public sealed partial class TrashBinViewModel : ObservableObject
     /// <summary>Gets the icon's size now.</summary>
     public double IconSize => RestIcon + (IconGrowth * EaseOut(Nearness));
 
+    /// <summary>
+    /// Gets how large what is dragged is drawn, from 1 far from the bin down to 1 − <see cref="ShrinkAtBin"/> at it,
+    /// so that a node shrinks as it nears the bin (sketch SO1a).
+    /// </summary>
+    public double DraggedScale => IsDragging ? 1 - (ShrinkAtBin * Nearness) : 1;
+
+    /// <summary>Gets how visible what is dragged is drawn: a little faint, and fainter when a release throws it.</summary>
+    public double DraggedOpacity => DraggedOpacityOf(IsDragging, IsHot);
+
     /// <summary>Notes where the pointer is while something is dragged.</summary>
     /// <param name="distance">The pointer's distance from the bin's centre, in pixels.</param>
     public void DragAt(double distance)
@@ -94,6 +112,20 @@ public sealed partial class TrashBinViewModel : ObservableObject
     /// <param name="distance">The distance from the centre.</param>
     /// <returns>The nearness.</returns>
     public static double NearnessAt(double distance) => Math.Clamp(1 - ((distance - FullAt) / Reach), 0, 1);
+
+    /// <summary>Gives how visible what is dragged is.</summary>
+    /// <param name="dragging">Whether something is dragged.</param>
+    /// <param name="hot">Whether a release throws it.</param>
+    /// <returns>The opacity.</returns>
+    private static double DraggedOpacityOf(bool dragging, bool hot)
+    {
+        if (!dragging)
+        {
+            return 1;
+        }
+
+        return hot ? DraggedOpacityHot : DraggedOpacityAway;
+    }
 
     /// <summary>Eases a growth out, fast first and slow at the end.</summary>
     /// <param name="t">From 0 to 1.</param>
