@@ -29,8 +29,9 @@
     Chainsaw.App is a WPF program, which tests cannot load where there is no Windows desktop runtime, as in the cloud.
     The parts that use no WPF on purpose are compiled in here instead: the views' table in Navigation/, the view
     models in ViewModels/, the commands in Commands/, the links in Links/, the figure behind the lock screen in
-    Figure/, the settings in Settings/, the graph's layout, look and hit tests in Graph/, the check of a WireGuard file
-    and the exits' words in Exits/, and the Guide's texts, index and history in Guide/.
+    Figure/, the settings in Settings/, the graph's layout, look and hit tests in Graph/, the motions (glide and smooth
+    zoom) in Motion/, the check of a WireGuard file and the exits' words in Exits/, and the Guide's texts, index and
+    history in Guide/.
   -->
   <ItemGroup>
     <Compile Include="..\..\src\Chainsaw.App\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
@@ -42,6 +43,7 @@
     <Compile Include="..\..\src\Chainsaw.App\Graph\*.cs" Link="Graph\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Exits\*.cs" Link="Exits\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Guide\*.cs" Link="Guide\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Motion\*.cs" Link="Motion\%(Filename)%(Extension)" />
   </ItemGroup>
   <!-- The Guide's texts, built in as in the program, so that the tests read what the program shows. -->
   <ItemGroup>

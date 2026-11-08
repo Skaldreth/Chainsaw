@@ -147,6 +147,7 @@ public sealed partial class GraphCanvas
             ? _viewport.ToScreen(GraphSizes.NodeFrame(place).Centre)
             : ViewCentre;
         CloseHoverTip();
+        StopZoom();
         Begin(BlastPhase.Out);
     }
 

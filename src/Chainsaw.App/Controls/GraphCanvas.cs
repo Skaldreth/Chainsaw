@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
+using Chainsaw.App.Motion;
 using Chainsaw.App.ViewModels;
 
 namespace Chainsaw.App.Controls;
@@ -95,6 +96,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             if (!IsVisible)
             {
                 KeepRings(false);
+                StopZoom();
             }
             else
             {
@@ -128,6 +130,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <summary>Fits the whole graph to the screen, centred, never larger than its natural size.</summary>
     public void Fit()
     {
+        DropZoom();
         if (_model is not { Places.Count: > 0 } model)
         {
             _viewport = Viewport.Initial;
@@ -141,14 +144,9 @@ public sealed partial class GraphCanvas : FrameworkElement
         InvalidateVisual();
     }
 
-    /// <summary>Zooms around the middle of the screen.</summary>
+    /// <summary>Zooms around the middle of the screen, smoothly unless Windows has animations turned off.</summary>
     /// <param name="factor">How much; above 1 zooms in.</param>
-    public void ZoomBy(double factor)
-    {
-        _viewport = _viewport.ZoomAt(new GraphPoint(ActualWidth / 2, ActualHeight / 2), factor);
-        _model?.ViewportChanged(_viewport);
-        InvalidateVisual();
-    }
+    public void ZoomBy(double factor) => AimZoom(new GraphPoint(ActualWidth / 2, ActualHeight / 2), factor);
 
     /// <summary>
     /// Raised each time the surface is drawn, after a pan, a zoom, a drag or a new graph, so that what stands over a
@@ -257,6 +255,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseLeftButtonDown(e);
         StopGlide();
+        StopZoom();
         CloseHoverTip();
         Focus();
         _model?.CloseMenu();
@@ -369,25 +368,23 @@ public sealed partial class GraphCanvas : FrameworkElement
         CloseHoverTip();
     }
 
-    /// <summary>Zooms around the pointer.</summary>
+    /// <summary>
+    /// Zooms smoothly around the pointer: a notch by <see cref="Viewport.WheelStep"/>, a touchpad's smaller steps by a
+    /// share of it, and quick turns add up (<see cref="ZoomMotion"/>).
+    /// </summary>
     /// <param name="e">The wheel.</param>
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnMouseWheel(e);
+        e.Handled = true;
         if (_blast != BlastPhase.None)
         {
-            e.Handled = true;
             return;
         }
 
-        StopGlide();
         var at = e.GetPosition(this);
-        var factor = e.Delta > 0 ? Viewport.WheelStep : 1 / Viewport.WheelStep;
-        _viewport = _viewport.ZoomAt(new GraphPoint(at.X, at.Y), factor);
-        _model?.ViewportChanged(_viewport);
-        InvalidateVisual();
-        e.Handled = true;
+        AimZoom(new GraphPoint(at.X, at.Y), ZoomMotion.WheelFactor(e.Delta));
     }
 
     /// <summary>
@@ -672,6 +669,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             _fitPending = false;
             if (_model?.TakeStoredViewport() is { } stored)
             {
+                DropZoom();
                 _viewport = stored;
                 InvalidateVisual();
                 return;

@@ -269,6 +269,7 @@ public sealed partial class GraphCanvas
         }
 
         var bounds = frames.Skip(1).Aggregate(frames[0], (all, frame) => all.Union(frame));
+        DropZoom();
         _viewport = Viewport.Fit(bounds.Inflate(AreaGeometry.TimePadding), ActualWidth, ActualHeight);
         _model.ViewportChanged(_viewport);
         InvalidateVisual();

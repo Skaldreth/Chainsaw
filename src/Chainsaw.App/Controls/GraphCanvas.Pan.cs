@@ -94,6 +94,7 @@ public sealed partial class GraphCanvas
         }
 
         StopGlide();
+        StopZoom();
         CloseHoverTip();
         Focus();
         _panButton = button;

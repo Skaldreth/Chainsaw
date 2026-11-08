@@ -1120,6 +1120,18 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Med animeringar avstängda i Windows glider ytan inte efter släppet.
 - [ ] Grafens läge (var man panorerat) finns kvar när ärendet öppnas igen.
 
+## Mjuk zoom i grafen (2026-11-08, som i Gawk)
+- [ ] Ett hack på hjulet: grafen glider mjukt in eller ut på ungefär en kvarts sekund, och punkten under pekaren står helt still hela vägen.
+- [ ] Snurra snabbt flera hack: zoomen samlas till ett enda mjukt svep, utan hack eller ryck tillbaka. Byt riktning mitt i: den vänder mjukt.
+- [ ] Pekplattan (två fingrar upp och ner): zoomen följer fingrarna i små steg, lika mjukt, och blir inte ryckig.
+- [ ] Zooma ut och in till gränserna (20 % och 300 %): zoomen stannar mjukt vid gränsen och fortsätter inte; fler hack där gör ingenting.
+- [ ] + och − zoomar mjukt runt mitten av ytan på samma sätt. F passar in direkt och avbryter en zoom som pågår.
+- [ ] Släpp en panorering i farten och vrid hjulet medan ytan glider: glidningen stannar och zoomen tar över, utan att ytan hoppar.
+- [ ] Tryck med vänster-, höger- eller mittknappen mitt i en zoom: zoomen stannar där den är, utan hopp.
+- [ ] Ikonlisten och formulären vid den valda noden, kommentarslapparna och tidsbanden följer med i varje bildruta under zoomen.
+- [ ] Med animeringar avstängda i Windows: varje hack zoomar direkt ett steg, utan glidning.
+- [ ] Zooma och öppna ärendet igen: zoomnivån finns kvar (den sparas när zoomen landat, inte under den).
+
 ## Grafens ikon (IK1)
 - [ ] Grafens ikon i pillret är en förgrening: en rund aktör till vänster vars linje delar sig mot en rund aktör uppe till höger och en fyrkantig tjänst nere till höger, skarp i 20 px.
 

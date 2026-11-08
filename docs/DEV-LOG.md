@@ -2864,3 +2864,19 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   inte platsen eller storleken; en länk vars text namnger en annan adress visar vart den går (`NoteLinks.Misleads`),
   och länkar jämförs på kedja och exakt värde; Ctrl+V i en lapp tas inte av startpunktens fält; Esc stänger
   förslagspanelen före lappens val.
+
+## Mjuk zoom i grafen (2026-11-08)
+
+- Hjulet, pekplattan och + och − zoomar mjukt som i Gawk (`BuilderView`/`RelationsView`): zoomen glider mot ett mål
+  med en exponentiell glidning på zoomens logaritm (tidskonstant 0,07 s, samma som Gawk), så att in och ut känns lika.
+  Punkten under pekaren står still i varje bildruta, och snabba hack läggs till målet i stället för att hoppa.
+- Logiken ligger utan WPF i `Motion/ZoomMotion.cs` (testad i `ZoomMotionTests`, 11 tester), och duken driver den
+  med `FrameClock` i `Controls/GraphCanvas.Zoom.cs`. `Easing.Toward` och `Viewport.ZoomTo` tillagda; `Motion/` är nu
+  med i testprojektet.
+- Pekplattans små steg ger en andel av ett hack (`WheelStep` upphöjt till delta/120), inte ett helt hack som förut.
+- Egna beslut: en zoom stoppar glidningen efter en panorering, och ett tryck (vänster, höger, mitt) stoppar zoomen där
+  den är, som i Gawk. F, de egna ytornas inpassning och grafens sparade läge avbryter zoomen utan att spara mellanläget.
+  Läget sparas en gång när zoomen landat, inte per bildruta. Utan animeringar i Windows hoppar zoomen direkt.
+- Avsteg: inget gummiband vid zoomens gränser, eftersom Gawk inte har något där (bara vid kanterna när man rullar);
+  zoomen stannar mjukt vid 20 % och 300 %. Varje bildruta skapar en ny `Viewport` (en liten record), som panoreringen
+  redan gör; ritningen i övrigt använder `DrawCache` och ritar bara det som syns.

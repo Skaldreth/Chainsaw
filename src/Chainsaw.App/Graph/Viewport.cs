@@ -81,11 +81,20 @@ public sealed record Viewport(double OffsetX, double OffsetY, double Zoom)
     /// <param name="anchor">The point on screen that stays.</param>
     /// <param name="factor">How much to zoom; above 1 zooms in.</param>
     /// <returns>The zoomed viewport.</returns>
-    public Viewport ZoomAt(GraphPoint anchor, double factor)
+    public Viewport ZoomAt(GraphPoint anchor, double factor) => ZoomTo(anchor, Zoom * factor);
+
+    /// <summary>
+    /// Gives the viewport at a zoom around a point on screen, which stays where it is, as in each frame of a smooth
+    /// zoom.
+    /// </summary>
+    /// <param name="anchor">The point on screen that stays.</param>
+    /// <param name="zoom">The zoom, kept within <see cref="MinimumZoom"/> and <see cref="MaximumZoom"/>.</param>
+    /// <returns>The zoomed viewport.</returns>
+    public Viewport ZoomTo(GraphPoint anchor, double zoom)
     {
         var fixedPoint = ToSurface(anchor);
-        var zoom = Math.Clamp(Zoom * factor, MinimumZoom, MaximumZoom);
-        return new Viewport(anchor.X - (fixedPoint.X * zoom), anchor.Y - (fixedPoint.Y * zoom), zoom);
+        var kept = Math.Clamp(zoom, MinimumZoom, MaximumZoom);
+        return new Viewport(anchor.X - (fixedPoint.X * kept), anchor.Y - (fixedPoint.Y * kept), kept);
     }
 
     /// <summary>
