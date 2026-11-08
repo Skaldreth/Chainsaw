@@ -267,6 +267,33 @@ internal sealed class CommentNoteView : Grid
         }
     }
 
+    /// <summary>
+    /// Ends a press that lost the mouse to another window: a drag or a resize is stored as the note stands, and the
+    /// trash shrinks back, since a note is never thrown without the button being let go over it.
+    /// </summary>
+    /// <param name="e">The arguments.</param>
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        if (_pressedAt is null)
+        {
+            return;
+        }
+
+        var dragged = _dragged;
+        _pressedAt = null;
+        _dragged = false;
+        if (_surface is GraphCanvas canvas)
+        {
+            canvas.ForgetNoteDrag();
+        }
+
+        if (dragged)
+        {
+            _ = _comments.DropAsync(_note);
+        }
+    }
+
     /// <summary>Starts a press on the sheet or on the grip.</summary>
     /// <param name="e">The press.</param>
     /// <param name="sizing">Whether the grip was pressed.</param>

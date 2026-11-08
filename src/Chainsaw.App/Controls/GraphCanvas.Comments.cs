@@ -172,6 +172,9 @@ public sealed partial class GraphCanvas
     /// <returns><see langword="true"/> when it was thrown, so that its place is not stored.</returns>
     internal bool DropNoteOnBin(CommentNote note) => _model?.DropNoteOnBin(note) == true;
 
+    /// <summary>Lets the trash shrink back after a note's drag ended without a drop, as when the mouse was lost.</summary>
+    internal void ForgetNoteDrag() => _model?.Bin.EndDrag();
+
     /// <summary>Makes the thread's dotted pen, with the dots measured in pixels on the screen.</summary>
     /// <param name="brush">The thread's colour.</param>
     /// <returns>The pen.</returns>
