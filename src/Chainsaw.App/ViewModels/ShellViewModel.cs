@@ -392,6 +392,7 @@ public sealed partial class ShellViewModel : ObservableObject
         ExitPanel.Close();
         CasePicker?.Close();
         Settings.Close();
+        Settings.DismissPreview();
     }
 
     /// <summary>

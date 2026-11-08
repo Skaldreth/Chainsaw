@@ -82,6 +82,9 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// <summary>The clock, so that today's answer says <em>i dag</em>.</summary>
     private readonly IClock _clock;
 
+    /// <summary>The vault, so that nothing is asked on connecting while it is locked; none in some tests.</summary>
+    private readonly IVault? _vault;
+
     /// <summary>The exit that was connected last, so that a check on connecting runs once per connection.</summary>
     private Guid? _connected;
 
@@ -129,6 +132,9 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// The toaster, which says when an exit is seen in another country; none in some tests.
     /// </param>
     /// <param name="clock">The clock; the system's when <see langword="null"/>.</param>
+    /// <param name="vault">
+    /// The vault: an exit that connects while it is locked is not checked, since nothing is looked up then.
+    /// </param>
     public ExitPanelViewModel(
         IExitConnection connection,
         ExitWay way,
@@ -137,7 +143,8 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         IUiThread ui,
         IExitCheck? check = null,
         Toaster? toaster = null,
-        IClock? clock = null)
+        IClock? clock = null,
+        IVault? vault = null)
     {
         _connection = connection;
         _way = way;
@@ -147,6 +154,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         _check = check;
         _toaster = toaster;
         _clock = clock ?? new SystemClock();
+        _vault = vault;
         _status = connection.Status;
         connection.StatusChanged += (_, status) => ui.Post(() => Show(status));
         Show(_status);
@@ -543,7 +551,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         var shown = _shown;
         try
         {
-            var exit = await Task.Run(() => _exits.Describe(row.Id, name, place));
+            var exit = await Task.Run(() => _exits.DescribeAsync(row.Id, name, place));
             row.Describe(exit);
             ShowRoute();
         }
@@ -771,7 +779,7 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         var connected = status.State == ExitState.Connected ? status.ExitId : null;
         var isNew = connected is not null && connected != _connected;
         _connected = connected;
-        if (!isNew || !ChecksOnConnect || _check is null || _way.IsWindows)
+        if (!isNew || !ChecksOnConnect || _check is null || _way.IsWindows || IsLocked)
         {
             return;
         }
@@ -780,6 +788,9 @@ public sealed partial class ExitPanelViewModel : ObservableObject
             new ExitInfo(connected!.Value, ExitRowViewModel.ConnectedText, string.Empty, ExitKind.WireGuard));
         _ = CheckOnConnectAsync(row);
     }
+
+    /// <summary>Gets whether the vault is locked, when it is known; nothing is asked or kept then.</summary>
+    private bool IsLocked => _vault is not null && _vault.State != VaultState.Unlocked;
 
     /// <summary>Checks an exit that has just connected, reading its place first when it has no row.</summary>
     /// <param name="row">The exit's row, or a stand-in when the exits have not been read.</param>

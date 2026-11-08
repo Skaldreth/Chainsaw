@@ -171,7 +171,7 @@ public sealed class GateViewModelTests
         rig.FirstRun.Name = "Anna";
         await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
         await rig.FirstRun.NextAsync(new TestEntry("correct horse battery"), new TestEntry("correct horse battery"));
-        rig.FirstRun.Later();
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
         rig.FirstRun.CaseNumber = "5000-K9-26";
         rig.Cases.DuringCreate = () => rig.Vault.Lock();
 

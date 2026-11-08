@@ -67,6 +67,7 @@ public sealed partial class FirstRunViewModel : ObservableObject
         _way = way;
         _settings = settings;
         _connection = connection;
+        Route = settings?.SavedRoute ?? ExitRoute.Windows;
         if (way is not null)
         {
             way.Changed += (_, _) => ShowRoute();
@@ -153,8 +154,8 @@ public sealed partial class FirstRunViewModel : ObservableObject
     public bool HasExit => ExitName.Length > 0;
 
     /// <summary>
-    /// Gets the way out chosen on the step Utgång (sketch FS2a); Windows from the start (the user's decision
-    /// 2026-11-08), since the computer often has its own protection.
+    /// Gets the way out chosen on the step Utgång (sketch FS2a): the one the settings' file names, or else Windows (the
+    /// user's decision 2026-11-08), since the computer often has its own protection.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWindowsChosen), nameof(IsVpnChosen), nameof(NeedsExitFile))]
@@ -357,16 +358,6 @@ public sealed partial class FirstRunViewModel : ObservableObject
         finally
         {
             IsBusy = false;
-        }
-    }
-
-    /// <summary>Leaves the exit for later: Chainsaw works offline until an exit is added.</summary>
-    public void Later()
-    {
-        if (!IsBusy)
-        {
-            ErrorText = string.Empty;
-            Step = FirstRunStep.FirstCase;
         }
     }
 

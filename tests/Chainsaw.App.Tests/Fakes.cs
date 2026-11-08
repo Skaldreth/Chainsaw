@@ -248,9 +248,9 @@ internal sealed class TestExitStore : IExitStore
         return new ExitInfo(Guid.NewGuid(), name, place, kind);
     }
 
-    public ExitInfo Describe(Guid id, string name, string place) =>
+    public Task<ExitInfo> DescribeAsync(Guid id, string name, string place) =>
         Known.FirstOrDefault(exit => exit.Id == id) is { } exit
-            ? exit with { Name = name, Place = place }
+            ? Task.FromResult(exit with { Name = name, Place = place })
             : throw new ArgumentException("No exit has the id.", nameof(id));
 
     public Task<bool> RemoveAsync(Guid id) => Task.FromResult(false);

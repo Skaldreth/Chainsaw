@@ -144,6 +144,22 @@ public sealed class FirstRunViewModelTests
     }
 
     [Fact]
+    public void The_step_Utgang_starts_from_the_way_out_the_settings_file_names()
+    {
+        var rig = new GateRig(VaultState.NotCreated);
+        rig.SettingsStore.Save(new Settings.AppSettings { ExitRoute = Modules.Network.Contracts.ExitRoute.Vpn });
+        var settings = new SettingsViewModel(
+            new Settings.AppSettings(), rig.SettingsStore, rig.Way, rig.ExitPanel, rig.AutoLock, rig.Prices,
+            rig.Profiles, rig.Vault, rig.Cases, rig.Build);
+
+        var setup = new FirstRunViewModel(
+            rig.Vault, rig.Profiles, rig.Exits, rig.Workflow, rig.Way, settings, rig.Exit);
+
+        Assert.True(setup.IsVpnChosen);
+        Assert.True(new GateRig(VaultState.NotCreated).FirstRun.IsWindowsChosen);
+    }
+
+    [Fact]
     public async Task Windows_without_a_network_says_so_and_goes_on_offline()
     {
         var rig = await AtExit();
@@ -254,11 +270,11 @@ public sealed class FirstRunViewModelTests
     }
 
     [Fact]
-    public async Task Later_goes_to_the_first_case_without_an_exit()
+    public async Task Going_on_without_a_file_goes_to_the_first_case_without_an_exit()
     {
         var rig = await AtExit();
 
-        rig.FirstRun.Later();
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
 
         Assert.Equal(FirstRunStep.FirstCase, rig.FirstRun.Step);
         Assert.Empty(rig.Exits.Added);
@@ -425,7 +441,8 @@ public sealed class FirstRunViewModelTests
     private static async Task<GateRig> AtFirstCase()
     {
         var rig = await AtExit();
-        rig.FirstRun.Later();
+        await rig.FirstRun.NextAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
+        Assert.Equal(FirstRunStep.FirstCase, rig.FirstRun.Step);
         return rig;
     }
 }

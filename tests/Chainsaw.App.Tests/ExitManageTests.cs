@@ -278,17 +278,42 @@ public sealed class ExitManageTests
         Assert.Empty(rig.Toaster.Toasts);
     }
 
+    [Fact]
+    public async Task With_Windows_chosen_connecting_asks_nothing()
+    {
+        var rig = new Rig();
+        await rig.ShowAsync();
+        rig.Route.Choose(ExitRoute.Windows);
+
+        rig.Connection.Set(new ExitStatus(ExitState.Connected, Stockholm.Id, null));
+
+        Assert.Equal(0, rig.Check.Asked);
+        Assert.Equal(ExitCheckState.NotChecked, rig.Row(Stockholm).Check);
+    }
+
+    [Fact]
+    public async Task With_the_vault_locked_connecting_asks_nothing()
+    {
+        var rig = new Rig(VaultState.Locked);
+        await rig.ShowAsync();
+
+        rig.Connection.Set(new ExitStatus(ExitState.Connected, Stockholm.Id, null));
+
+        Assert.Equal(0, rig.Check.Asked);
+        Assert.Empty(rig.Toaster.Toasts);
+    }
+
     /// <summary>The panel on the settings' page with test doubles.</summary>
     private sealed class Rig
     {
-        public Rig()
+        public Rig(VaultState vault = VaultState.Unlocked)
         {
             Store.Known.AddRange([Stockholm, Zurich]);
             var ui = new InlineUi();
             Toaster = new Toaster(ui);
             Panel = new ExitPanelViewModel(
                 Connection, TestWays.For(Connection, Route), Store, new TestFilePicker(), ui, Check, Toaster,
-                new TestClock { UtcNow = Now });
+                new TestClock { UtcNow = Now }, new TestVault(vault));
         }
 
         public ManageStore Store { get; } = new();
@@ -322,7 +347,7 @@ public sealed class ExitManageTests
         public ExitInfo Add(string name, string place, ExitKind kind, string configuration) =>
             throw new NotSupportedException();
 
-        public ExitInfo Describe(Guid id, string name, string place)
+        public Task<ExitInfo> DescribeAsync(Guid id, string name, string place)
         {
             if (Failure is not null)
             {
@@ -332,7 +357,7 @@ public sealed class ExitManageTests
             Describes++;
             var index = Known.FindIndex(exit => exit.Id == id);
             Known[index] = Known[index] with { Name = name, Place = place };
-            return Known[index];
+            return Task.FromResult(Known[index]);
         }
 
         public Task<bool> RemoveAsync(Guid id) => Task.FromResult(Known.RemoveAll(exit => exit.Id == id) > 0);

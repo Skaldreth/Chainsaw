@@ -722,6 +722,52 @@ public sealed class SettingsTests : IDisposable
         Assert.False(Settings.Current.CheckExitOnConnect);
     }
 
+    [Fact]
+    public void The_preview_card_is_closed_when_everything_is_dismissed_as_at_a_lock()
+    {
+        var alerts = new TestAlerts();
+        var settings = new SettingsViewModel(
+            new AppSettings(), _rig.SettingsStore, _rig.Way, _rig.ExitPanel, _rig.AutoLock, _rig.Prices,
+            _rig.Profiles, _rig.Vault, _rig.Cases, _rig.Build, alerts: alerts);
+        var shell = new ShellViewModel(
+            _rig.Session, _rig.Commands, _rig.NewCase, _rig.Workflow, _rig.Way, _rig.Exits, _rig.Sanctions,
+            _rig.ExitPanel, settings, _rig.Ui, toaster: _rig.Toaster);
+        settings.TryScreenMessage();
+        var before = alerts.Closed;
+
+        shell.DismissAll();
+
+        Assert.True(alerts.Closed > before);
+    }
+
+    [Fact]
+    public void The_saved_way_out_is_read_only_when_the_file_names_one()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "chainsaw-route-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var store = new AppSettingsStore(folder);
+            Assert.Null(store.SavedRoute());
+
+            File.WriteAllText(store.FilePath, "{ \"AutoLockMinutes\": 5 }");
+            Assert.Null(store.SavedRoute());
+
+            File.WriteAllText(store.FilePath, "{ \"ExitRoute\": \"Teleport\" }");
+            Assert.Null(store.SavedRoute());
+
+            File.WriteAllText(store.FilePath, "not json");
+            Assert.Null(store.SavedRoute());
+
+            store.Save(new AppSettings { ExitRoute = Modules.Network.Contracts.ExitRoute.Vpn });
+            Assert.Equal(Modules.Network.Contracts.ExitRoute.Vpn, store.SavedRoute());
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
     /// <summary>Counts what the settings asked to be shown and played.</summary>
     private sealed class TestAlerts : IAlertPreview
     {
@@ -732,6 +778,10 @@ public sealed class SettingsTests : IDisposable
         public void ShowMessage() => Messages++;
 
         public void PlaySound() => Sounds++;
+
+        public int Closed { get; private set; }
+
+        public void CloseMessage() => Closed++;
     }
 
     [Fact]

@@ -23,7 +23,10 @@ public interface IExitStore
     /// <exception cref="ArgumentException">A value is not allowed.</exception>
     ExitInfo Add(string name, string place, ExitKind kind, string configuration);
 
-    /// <summary>Gives an exit a new name and place (sketch UT3b); its configuration and selection stay.</summary>
+    /// <summary>
+    /// Gives an exit a new name and place (sketch UT3b); its configuration and selection stay. It runs in turn with
+    /// <see cref="RemoveAsync"/>, so that an exit removed meanwhile is never written back.
+    /// </summary>
     /// <param name="id">The exit.</param>
     /// <param name="name">The name; not blank, at most <see cref="ExitRules.MaximumNameLength"/> characters.</param>
     /// <param name="place">
@@ -31,7 +34,7 @@ public interface IExitStore
     /// </param>
     /// <returns>The exit as it is now.</returns>
     /// <exception cref="ArgumentException">A value is not allowed, or no exit has the id.</exception>
-    ExitInfo Describe(Guid id, string name, string place);
+    Task<ExitInfo> DescribeAsync(Guid id, string name, string place);
 
     /// <summary>
     /// Removes an exit, its configuration and its latest check. When it is the selected exit, the selection is cleared and the exit is

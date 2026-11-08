@@ -164,6 +164,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new("Minut", PriceResolution.Minute), new("Timme", PriceResolution.Hour), new("Dag", PriceResolution.Day),
         ];
         About = about ?? new AboutViewModel(cases, build);
+        SavedRoute = store.SavedRoute();
         way.Changed += (_, _) => ShowWay();
         if (suppliers is not null)
         {
@@ -196,6 +197,12 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets <em>Om Chainsaw</em>: the version, the recovery key and the licences (sketch ST2a).</summary>
     public AboutViewModel About { get; }
+
+    /// <summary>
+    /// Gets the way out the settings' file named when Chainsaw started, or <see langword="null"/> when it named none,
+    /// so that the first-run setup starts from it rather than from Windows.
+    /// </summary>
+    public ExitRoute? SavedRoute { get; }
 
     /// <summary>Gets whether the message and the sound can be tried here (<em>Prova</em>, <em>Lyssna</em>).</summary>
     public bool CanPreviewAlerts => _alerts is not null;
@@ -498,6 +505,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary><em>Prova</em>: shows the message in the middle of the screen as a hit would.</summary>
     [RelayCommand]
     public void TryScreenMessage() => _alerts?.ShowMessage();
+
+    /// <summary>Closes the message shown by <em>Prova</em>, as when Chainsaw locks.</summary>
+    public void DismissPreview() => _alerts?.CloseMessage();
 
     /// <summary><em>Lyssna</em>: plays the coin swoosh.</summary>
     [RelayCommand]

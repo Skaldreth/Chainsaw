@@ -80,6 +80,39 @@ public sealed class AppSettingsStore(string directory)
         }
     }
 
+    /// <summary>
+    /// Reads the way out the file names, without the defaults: the first-run setup's step Utgång starts from it, and
+    /// from Windows only when the file names none (sketch FS2a).
+    /// </summary>
+    /// <returns>The way out saved, or <see langword="null"/> when the file is missing, unreadable or has none.</returns>
+    public Modules.Network.Contracts.ExitRoute? SavedRoute()
+    {
+        try
+        {
+            if (!File.Exists(FilePath))
+            {
+                return null;
+            }
+
+            using var document = JsonDocument.Parse(SettingsFile.ReadShared(FilePath));
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty(nameof(AppSettings.ExitRoute), out var route)
+                || route.ValueKind != JsonValueKind.String
+                || !Enum.TryParse<Modules.Network.Contracts.ExitRoute>(route.GetString(), out var saved)
+                || !Enum.IsDefined(saved))
+            {
+                return null;
+            }
+
+            return saved;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Reads the file strictly: whether it can be read and says VPN, with no fall back to the defaults.</summary>
     /// <returns><see langword="true"/> only when the file was read and says VPN.</returns>
     private bool SaysVpn()

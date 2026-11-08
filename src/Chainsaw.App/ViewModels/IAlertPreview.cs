@@ -12,4 +12,7 @@ public interface IAlertPreview
 
     /// <summary>Plays the coin swoosh.</summary>
     void PlaySound();
+
+    /// <summary>Closes the preview's message, as when Chainsaw locks, so that nothing stays over the lock.</summary>
+    void CloseMessage();
 }
