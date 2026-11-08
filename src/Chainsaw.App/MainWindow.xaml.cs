@@ -148,6 +148,15 @@ public partial class MainWindow : Window
         shell.Settings.SettingsChanged += (_, settings) => _ = background.ApplyAsync(settings);
         background.Start();
         gate.PropertyChanged += OnGateChanged;
+        GraphPage.InspectorReachChanged += (_, _) => ShowSheet();
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.IsGraphShown))
+            {
+                ShowSheet();
+            }
+        };
+        ShowSheet();
         ShowGate();
 
         BindViewKeys();
@@ -749,6 +758,31 @@ public partial class MainWindow : Window
         Gate.Visibility = _gate.IsGateVisible ? Visibility.Visible : Visibility.Collapsed;
         CommandManager.InvalidateRequerySuggested();
     }
+
+    /// <summary>
+    /// Lets the title bar stop where the graph's inspector starts (sketch IN5a): over an open inspector the window's top
+    /// is the inspector's darker panel with the window's buttons on it, and the title bar ends in a rounded corner with
+    /// its shadow over the panel, as the graph's sheet does below it. Without the inspector the title bar spans the
+    /// window under the buttons.
+    /// </summary>
+    private void ShowSheet()
+    {
+        var reach = _shell.IsGraphShown ? GraphPage.InspectorReach : 0;
+        var open = reach >= WindowButtonsWidth;
+        var corner = open ? new CornerRadius(0, GraphView.SheetCorner, 0, 0) : default;
+        var margin = open ? new Thickness(0, 0, reach, 0) : default;
+        TitleBar.Margin = margin;
+        TitleBar.CornerRadius = corner;
+        TitleShadow.Margin = margin;
+        TitleShadow.CornerRadius = corner;
+        TitleShadow.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        TitleUnderlay.Width = open ? reach + GraphView.SheetCorner : 0;
+        TitleUnderlay.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        TitleRow.Margin = new Thickness(0, 0, open ? 0 : WindowButtonsWidth, 0);
+    }
+
+    /// <summary>The window's three buttons' width, kept free at the title bar's right end when they lie on it.</summary>
+    private const double WindowButtonsWidth = 138;
 
     /// <summary>Finds the node Nytt ärende on the graph's start page, where the shell shows it.</summary>
     /// <returns>The node, or null when the start page or the node is not shown.</returns>

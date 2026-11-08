@@ -4052,3 +4052,24 @@ Byggt efter skisserna ID8f och LS1b (omgång 2) och användarens beslut samma da
 
 **Återstår:** att prova allt på Windows (`docs/TESTER-INFOR-1.0.md`). Risken och sanktionerad ligger nära varandra i
 ljushet; sanktionerad skiljs fortfarande av sin markering i hörnet.
+
+## Inspektören IN5a (2026-11-08)
+
+Byggt efter skissen IN5a (användarens val), med mer luft mot skuggan än skissen.
+
+- **Panelen under arbetet:** `Brush.Underlay` (`#1B1E21`) är inspektörens panel. I grafvyn ligger den först, och grafens
+  egen botten (`Sheet`) ligger över den med rundat nedre hörn och en skugga åt höger. `GraphView.InspectorReach` och
+  `InspectorReachChanged` säger fönstret hur bred panelen är, och `MainWindow.ShowSheet` låter titelraden sluta där:
+  den får rundat hörn och en egen skugga, och under den syns panelens ton (`TitleUnderlay`). Fönstrets knappar ligger
+  nu i ett eget lager i hörnet, på titelraden eller på panelen.
+- **Innehållet:** sorten som liten rubrik i accentfärgen och versaler (`InspectorContent.Kicker`), namnet i 22 px,
+  meningar om vad som hänt (`InspectorContent.NodeSummary`: in och ut i grafens tx, spårat in eller ingen spårning,
+  och startpunkten), *Varför?* och *Historik* / *Fakta* som rundade knappar (ersätter flikarna), en tunn linje och
+  sedan fakta, saldot, *Här* och adresserna. Vänsterkanten är 40 px, högerkanten 26 px.
+
+**Egna beslut:** meningarna finns bara för noder; en linje och en kommentar säger det med rubriken och fakta. Antalet tx
+i meningen är grafens (*i grafen*), inte adressens alla. Stängknappen står kvar sist på rubrikraden.
+
+**Återstår:** prova på Windows, särskilt titelradens hörn och skugga mot panelen, och att fönstret går att dra i panelens
+topp.
+

@@ -442,7 +442,12 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   liten flytande list med ikoner ovanför sig (Expandera i accent, Etikett, Bevaka, Bryt upp, Annan kedja, Kopiera),
   bara de som går att använda på noden, och under noden när det är trångt ovanför. Etikett (L), Bryt upp (U) och Annan
   kedja (K) fälls ut i en ruta bredvid noden med en liten pil mot den, inte i inspektören. **Inspektören är ren
-  läsning:** huvudet med *Varför?* som rund ikon, fakta, historik och adresserna med kopiera. **Skälet är frivilligt**
+  läsning:** huvudet med *Varför?* som rund ikon, fakta, historik och adresserna med kopiera.
+  **Inspektören är IN5a** (användarens beslut 2026-11-08): en mörkare panel (`Brush.Underlay`) som ligger *under*
+  arbetet i fönstrets hela höjd, med fönstrets knappar uppe på den; titelraden och grafen är ett lyft blad med rundat
+  hörn och skugga mot panelen. Innehållet står som skissernas spalt: sorten som en liten rubrik i accentfärgen och
+  versaler, namnet stort, vad som hänt i luftiga meningar, *Varför?* och *Historik* som en rad rundade knappar, och
+  under en tunn linje fakta och adresserna. Texten står 40 px in från bladets kant, fri från skuggan. **Skälet är frivilligt**
   i alla formulär (användarens beslut 2026-11-07). **Utgångarna är UT2b** (användarens beslut 2026-11-07, ersätter UT1a): utgången i titelraden fäller ut en
   ruta med vägen som en stor bild (Datorn, utgångens namn i en stor ring i lägets färg, Blockkedjor; linjen hel och grön
   när uppslag går, streckad och röd annars), med VPN utgångarna under med en rund knapp för att ansluta, och längst ner
@@ -633,7 +638,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog); NC2a, NC2b (startpunkterna som lista som förhandshämtar) | NC2a vald 2026-11-08 och byggd (ersätter NC1a) |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn); IN5a, IN5b (inspektören under grafen, i skissernas stil) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald; GR7a vald; GR8a vald, med grafens stöt och centrering; IN5a och IN5b väntar på användaren |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn); IN5a, IN5b (inspektören under grafen, i skissernas stil) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald; GR7a vald; GR8a vald, med grafens stöt och centrering; IN5a vald och byggd 2026-11-08 |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret); UT2a, UT2b (lättare att läsa) | UT2b vald (ersätter UT1a) |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald, ersatt av KL2b (vald 2026-11-08 utan linjerna vid raderna och byggd, med Chainabuse under *Etiketter*) |

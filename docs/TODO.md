@@ -104,11 +104,6 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
   och datum) och fler mallar per börs, om kryptospåraren vill det.
 - **Chainabuse automatiskt** [etapp], när en partnernyckel finns: en vanlig nyckel ger tio anrop i månaden, så nu
   frågas den bara med R.
-- **Inspektören i skissernas stil** [skiss] (användarens önskemål 2026-11-08): användaren gillar uppställningen i
-  skissernas förklarande spalt (som i ID8f): en liten rubrik i accentfärgen och versaler överst, en stor fet rubrik,
-  luftiga stycken i dämpad text och knapparna som en rad rundade knappar under, och panelen ska ligga *under* grafen
-  i full höjd. Skissat som IN5a (under allt, också titelraden) och IN5b (under grafen, titelraden över); väntar på
-  användarens val.
 
 ### 3. Backloggen (användarens beslut 2026-11-08: allt före 1.0)
 

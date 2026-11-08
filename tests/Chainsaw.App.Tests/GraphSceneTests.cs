@@ -417,6 +417,36 @@ public sealed partial class GraphSceneTests
         Assert.Equal([ExpansionRequest.ForAddress(GraphSamples.E)], content.Expansion);
     }
 
+    /// <summary>
+    /// The inspector says in sentences what has happened (sketch IN5a): what came in and went out, and what is traced,
+    /// and its small heading is the line under the name in capitals.
+    /// </summary>
+    [Fact]
+    public void InspectorTellsWhatHappenedInSentences()
+    {
+        var scene = GraphSamples.Scene(On(GraphSamples.EKey, ExchangeA));
+        var node = scene.Node(GraphSamples.EKey)!;
+        var content = InspectorContent.ForNode(scene, node);
+
+        Assert.Equal("BÖRS · BITCOIN", content.Kicker);
+        Assert.True(content.HasSummary);
+        Assert.StartsWith(
+            $"Har tagit emot {AmountText.WithUnit(node.In)} och skickat {AmountText.WithUnit(node.Out)}",
+            content.Summary[0],
+            StringComparison.Ordinal);
+        Assert.Equal("Spårat in: 0,5000 BTC.", content.Summary[^1]);
+    }
+
+    /// <summary>The start point's sentences say that no trace goes through it yet and that it is the start.</summary>
+    [Fact]
+    public void InspectorSaysTheStartIsTheStart()
+    {
+        var scene = GraphSamples.Scene(graph: GraphSamples.Graph(NodeExpansion.NotExpanded));
+        var start = InspectorContent.ForNode(scene, scene.Node(GraphSamples.VKey)!);
+
+        Assert.EndsWith("Den är ärendets startpunkt.", start.Summary[^1], StringComparison.Ordinal);
+    }
+
     /// <summary>The start says why it is the start, and a node not expanded says so.</summary>
     [Fact]
     public void InspectorExplainsTheStartAndWhatIsNotExpanded()

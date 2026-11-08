@@ -3058,3 +3058,20 @@ Gör om testärendet efter en ny version (berättelsen är version 2), eftersom 
   Sanktionerad är ett renare rött med sin markering. Kontrollera att risken går att skilja från accenten (offrens
   pengar) i grafen, på ljusheten.
 - Aktörer med negativ etikett i det som hölls tillbaka och i högen har riskfärgen, inte felfärgen.
+
+## Inspektören IN5a (2026-11-08)
+
+Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
+
+- Välj en nod: inspektören glider in från höger som en mörkare panel i fönstrets hela höjd. Titelraden och grafen
+  slutar i ett rundat hörn mot panelen och kastar en mjuk skugga över den; fönstrets knappar (minimera, maximera, stäng)
+  sitter uppe på panelen och fungerar. Fönstret går att dra både i titelraden och i panelens topp.
+- Ingen text i panelen ligger i skuggan: allt står minst 40 px in från bladets kant.
+- Överst sorten i små versaler i accentfärgen (till exempel *OKÄND · BITCOIN · STARTPUNKT*), sedan namnet stort, och en
+  eller två meningar: *Har tagit emot … och skickat … i N transaktioner i grafen.* och *Ingen spårning går genom den
+  än.* eller *Spårat in: …*, för startpunkten också *Den är ärendets startpunkt.*
+- *Varför?* öppnar Guidens panel; *Historik* visar historiken och byts mot *Fakta*, som går tillbaka.
+- Under en tunn linje: fakta i två kolumner, saldot per token (Ethereum), *Här* och adresserna med kopiera.
+- Dra panelens kant: titelradens hörn följer med. Stäng med × eller Esc: panelen glider ut, titelraden och grafen fyller
+  bredden och fönstrets knappar står på titelraden igen. Byt till en annan vy: titelraden går över hela bredden.
+

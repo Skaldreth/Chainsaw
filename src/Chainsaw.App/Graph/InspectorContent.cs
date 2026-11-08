@@ -142,6 +142,18 @@ public sealed record InspectorContent(
     /// </summary>
     public bool IsComment { get; init; }
 
+    /// <summary>
+    /// Gets what has happened, in a sentence or two (sketch IN5a): what came in and went out, and what is traced. Empty
+    /// for a line or a comment, whose heading and facts say it.
+    /// </summary>
+    public IReadOnlyList<string> Summary { get; init; } = [];
+
+    /// <summary>Gets whether there are sentences to show under the name.</summary>
+    public bool HasSummary => Summary.Count > 0;
+
+    /// <summary>Gets the small heading above the name (sketch IN5a): the line under the name, in capitals.</summary>
+    public string Kicker => Subtitle.ToUpper(Swedish);
+
     /// <summary>Gets whether the heading shows <em>Varför?</em>.</summary>
     public bool HasWhy => !IsComment;
 
@@ -165,9 +177,9 @@ public sealed record InspectorContent(
         var lines = scene.Edges.Where(edge => edge.Edge.From == node.Key || edge.Edge.To == node.Key)
             .SelectMany(edge => edge.Edge.Transfers)
             .ToList();
-        if (lines.Count > 0)
+        var transactions = lines.Select(transfer => transfer.Transaction).Distinct().Count();
+        if (transactions > 0)
         {
-            var transactions = lines.Select(transfer => transfer.Transaction).Distinct().Count();
             facts.Add(new InspectorFact("Tx", Count(transactions)));
         }
 
@@ -207,10 +219,38 @@ public sealed record InspectorContent(
             IsStartPoint = model.IsStartPoint,
             Balances = node.Balances,
             Subtitle = NodeSubtitle(node),
+            Summary = NodeSummary(scene, node, transactions),
             IsNamed = node.IsNamed,
             IsDashed = node.Look.IsDashed,
             MoreIds = more,
         };
+    }
+
+    /// <summary>
+    /// Writes what has happened at a node in a sentence or two (sketch IN5a), from the facts: on Bitcoin what came in and
+    /// went out in the graph's transactions, then whether a trace goes through it and whether it is the start point.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="node">The node.</param>
+    /// <param name="transactions">How many of the graph's transactions touch it.</param>
+    /// <returns>The sentences.</returns>
+    public static IReadOnlyList<string> NodeSummary(GraphScene scene, NodeView node, int transactions)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(node);
+        var sentences = new List<string>();
+        if (node.Node.Chain == Chain.Bitcoin)
+        {
+            var moved = $"Har tagit emot {AmountText.WithUnit(node.In)} och skickat {AmountText.WithUnit(node.Out)}";
+            sentences.Add(transactions > 0 ? $"{moved} i {Count(transactions)} transaktioner i grafen." : moved + ".");
+        }
+
+        var traced = node.Node.Chain == Chain.Bitcoin
+            ? Traced(scene, node.TracedIn)
+            : TracedPerAsset(scene, node.TracedIns);
+        var trace = traced == NoTraceText ? "Ingen spårning går genom den än." : $"Spårat in: {traced}.";
+        sentences.Add(node.Node.IsStartPoint ? trace + " Den är ärendets startpunkt." : trace);
+        return sentences;
     }
 
     /// <summary>
