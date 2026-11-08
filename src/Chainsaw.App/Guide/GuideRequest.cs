@@ -37,12 +37,16 @@ public sealed record GuideRequest(GuideTopic Topic, string? Heading, GuideContex
     /// </summary>
     public bool IsChoice { get; init; }
 
-    /// <summary>The order in which a <em>Varför?</em> picks the section to open: the most telling first.</summary>
+    /// <summary>
+    /// The order in which a <em>Varför?</em> picks the section to open: the most telling first. A section not listed
+    /// comes after every listed one (<see cref="Rank"/>), never before an end of the trail.
+    /// </summary>
     private static readonly GuideTopic[] Preference =
     [
-        GuideTopic.TrailEnds, GuideTopic.MixerCandidates, GuideTopic.MixerChain, GuideTopic.CoinJoin, GuideTopic.CommonInputOwnership,
-        GuideTopic.ChangeAddress, GuideTopic.PeelChain, GuideTopic.StartPoints, GuideTopic.Labels, GuideTopic.Methods,
-        GuideTopic.Utxo, GuideTopic.Checks, GuideTopic.Areas, GuideTopic.Graph,
+        GuideTopic.TrailEnds, GuideTopic.MixerCandidates, GuideTopic.MixerChain, GuideTopic.CoinJoin,
+        GuideTopic.CommonInputOwnership, GuideTopic.ChangeAddress, GuideTopic.PeelChain, GuideTopic.StartPoints,
+        GuideTopic.Labels, GuideTopic.CanBeFrozen, GuideTopic.Methods, GuideTopic.Prices, GuideTopic.Utxo,
+        GuideTopic.AccountModel, GuideTopic.Tokens, GuideTopic.Checks, GuideTopic.Areas, GuideTopic.Graph,
     ];
 
     /// <summary>
@@ -63,7 +67,7 @@ public sealed record GuideRequest(GuideTopic Topic, string? Heading, GuideContex
         var context = new GuideContext("Varför? · " + title, answers);
         var best = answers
             .Where(line => line.Topic is not null)
-            .OrderBy(line => Array.IndexOf(Preference, line.Topic!.Value))
+            .OrderBy(line => Rank(line.Topic!.Value))
             .FirstOrDefault();
         if (best?.Topic is not { } topic)
         {
@@ -72,6 +76,12 @@ public sealed record GuideRequest(GuideTopic Topic, string? Heading, GuideContex
 
         return new GuideRequest(topic, best.Heading, context, subject);
     }
+
+    /// <summary>Gives a section's place in <see cref="Preference"/>; one not listed comes last.</summary>
+    /// <param name="topic">The section.</param>
+    /// <returns>The place.</returns>
+    private static int Rank(GuideTopic topic) =>
+        Array.IndexOf(Preference, topic) is var index and >= 0 ? index : Preference.Length;
 
     /// <summary>Gives the request for the method in the graph's corner: the method's heading and its version.</summary>
     /// <param name="method">The method the graph traces with.</param>

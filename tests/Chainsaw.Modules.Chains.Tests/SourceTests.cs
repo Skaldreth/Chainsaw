@@ -417,6 +417,26 @@ public sealed class SourceTests : IDisposable
     }
 
     [Fact]
+    public async Task Output_spends_that_are_not_one_per_output_are_sealed_but_not_used()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        // Two spends for a transaction with three outputs: deep enough to look settled, but not this transaction's.
+        var settled = JsonSerializer.Deserialize<JsonElement[]>(Fixtures.Bytes("outspends-settled.json"))!;
+        Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}/outspends"),
+            JsonSerializer.SerializeToUtf8Bytes(settled[..2]), 200);
+
+        var spends = await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);
+        var sent = Http.Sent.Count;
+        var again = await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Failed, spends.Status);
+        Assert.Null(spends.Value);
+        Assert.Single(spends.Origins);
+        Assert.Null(again.Value);
+        Assert.True(Http.Sent.Count > sent); // asked again, never taken from the case
+    }
+
+    [Fact]
     public async Task Open_output_spends_are_fetched_again_and_settled_ones_are_not()
     {
         await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);

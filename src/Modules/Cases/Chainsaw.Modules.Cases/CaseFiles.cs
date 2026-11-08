@@ -61,6 +61,10 @@ internal static class CaseFiles
         // The base is written before the working copy gets its name, so that a working copy always has its base.
         var caseFileHash = hash.GetHashAndReset();
         WriteBase(paths, [caseFileHash]);
+
+        // A rollback journal left without its working copy (one removed by hand after a conflict) would be taken
+        // for a hot journal of the new copy, and SQLite would write another session's pages into it.
+        File.Delete(paths.WorkingJournal);
         File.Move(paths.WorkingCopyTemporary, paths.WorkingCopy);
         return caseFileHash;
     }

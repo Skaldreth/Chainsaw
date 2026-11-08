@@ -61,9 +61,6 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     public IReadOnlyList<string> RevokedRecoveryKeys =>
         [.. _services.Options.RevokedRecoveryKeys.Order(StringComparer.Ordinal)];
 
-    /// <summary>Gets the schema catalog, for the verifier.</summary>
-    internal SchemaCatalog Catalog => _services.Catalog;
-
     /// <inheritdoc />
     public IReadOnlyList<CaseFileInfo> List()
     {

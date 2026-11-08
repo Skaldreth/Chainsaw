@@ -33,6 +33,13 @@ internal static class Program
             return 0;
         }
 
+        if (args.Contains(TestArgument, StringComparer.Ordinal))
+        {
+            // Without the guard: the test works while the background runs, and never keeps it from starting.
+            TestAlert();
+            return 0;
+        }
+
         using var guard = InstanceGuard.TryTake();
         if (guard is null)
         {
@@ -42,12 +49,6 @@ internal static class Program
 
         using var process = Process.GetCurrentProcess();
         process.PriorityClass = ProcessPriorityClass.BelowNormal;
-        if (args.Contains(TestArgument, StringComparer.Ordinal))
-        {
-            TestAlert();
-            return 0;
-        }
-
         using var stop = new CancellationTokenSource();
         guard.OnStop(stop.Cancel);
         while (!stop.IsCancellationRequested)

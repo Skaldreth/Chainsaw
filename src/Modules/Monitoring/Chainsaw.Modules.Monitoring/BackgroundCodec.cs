@@ -113,7 +113,7 @@ internal static class BackgroundCodec
                 new AssetAmount(asset, BigInteger.Parse(match.Units, CultureInfo.InvariantCulture)),
                 [.. match.Counterparties.Select(value => new ChainAddress(filter.Chain, value))]);
         });
-        return new QueuedCheck(
+        return Valid(new QueuedCheck(
             text.Id,
             text.CaseId,
             text.WatchId,
@@ -128,8 +128,52 @@ internal static class BackgroundCodec
             WatchCodec.Time(text.Utc))
         {
             HasNewHits = text.HasNewHits,
-        };
+        });
     });
+
+    /// <summary>
+    /// Refuses an entry that does not hold together, since the queue's file is never trusted: every value the case
+    /// seals is there, every enum is a known one, and every match is one the entry's filter could give (money in or
+    /// out as the filter watches, of its asset and chain, above its minimum, with only its chosen counterparties).
+    /// </summary>
+    /// <param name="entry">The entry as read.</param>
+    /// <returns>The same entry.</returns>
+    /// <exception cref="InvalidDataException">It does not hold together.</exception>
+    private static QueuedCheck Valid(QueuedCheck entry)
+    {
+        var filter = entry.Filter.Checked();
+        var holds = !string.IsNullOrWhiteSpace(entry.WatchId)
+            && entry.WatchId.Length <= WatchRules.MaximumTextLength
+            && Enum.IsDefined(entry.Kind)
+            && entry.Start >= 0 && entry.Height >= 0
+            && entry.Origins is not null
+            && entry.Responses is not null && entry.Responses.All(response => response is not null)
+            && (entry.Checked is not { } read
+                || (Enum.IsDefined(read.Status) && read.Height >= 0 && read.Tip >= read.Height))
+            && (entry.Kind == QueuedKind.Checked || entry.Matches.Count == 0)
+            && entry.Matches.All(match => Fits(filter, match));
+        return holds ? entry : throw Broken();
+    }
+
+    /// <summary>Says whether a match is one a filter could give.</summary>
+    /// <param name="filter">The filter.</param>
+    /// <param name="match">The match.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool Fits(WatchFilter filter, WatchMatch match)
+    {
+        var amount = match.Amount;
+        var chosen = match.Direction == WatchDirection.Out ? filter.Receivers : filter.Senders;
+        return !string.IsNullOrWhiteSpace(match.Transaction)
+            && !string.IsNullOrWhiteSpace(match.Block.Hash)
+            && match.Block.Height >= 0
+            && (match.Direction == WatchDirection.Out ? filter.WatchesOut
+                : match.Direction == WatchDirection.In && filter.WatchesIn)
+            && amount.Asset.Chain == filter.Chain
+            && (filter.Asset is not { } asset || asset == amount.Asset)
+            && amount.Units.Sign > 0
+            && (filter.Minimum is not { } minimum || minimum.Asset != amount.Asset || amount >= minimum)
+            && (chosen.Count == 0 || match.Counterparties.All(chosen.Contains));
+    }
 
     /// <summary>Writes the background's progress.</summary>
     /// <param name="progress">Per watch.</param>

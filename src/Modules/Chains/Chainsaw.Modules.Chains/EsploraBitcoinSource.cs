@@ -208,14 +208,23 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         var transaction = await Task.Run(
             () => @case.Read(reader => StoredTransaction(reader, txid)?.Value), cancellationToken)
             .ConfigureAwait(false);
+
+        // One entry per output: a list of another length is not this transaction's, and is never taken as settled.
+        IReadOnlyList<BitcoinOutputSpend> Parse(byte[] body)
+        {
+            var spends = EsploraParser.ParseOutputSpends(body);
+            return transaction is null || spends.Count == transaction.Outputs.Count
+                ? spends
+                : throw new EsploraFormatException("The spends are not one per output of the transaction.");
+        }
+
         var query = new LookupQuery<IReadOnlyList<BitcoinOutputSpend>>(
             ResponseKinds.OutputSpends,
             txid.Value,
             $"tx/{txid.Value}/outspends",
-            body => EsploraParser.ParseOutputSpends(body),
+            Parse,
             _ => ResponseIndex.None,
-            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.OutputSpends, txid.Value),
-                body => EsploraParser.ParseOutputSpends(body)),
+            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.OutputSpends, txid.Value), Parse),
             spends => SettledAt(spends, transaction));
         return await _lookups.LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
     }

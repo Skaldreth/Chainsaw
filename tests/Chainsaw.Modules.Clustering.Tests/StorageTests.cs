@@ -126,6 +126,20 @@ public sealed class StorageTests : IDisposable
         }));
     }
 
+    [Fact]
+    public void A_newer_version_that_concludes_nothing_takes_back_an_older_versions_merge()
+    {
+        _harness.Analyse(Patterns.Consolidation());
+        Assert.Equal(6, _harness.ClusterOf(Wpkh("cons-1")).Members.Count);
+
+        var upgraded = new ClusteringService([new SilentCommonInputV2()]);
+        var run = upgraded.Analyse(_harness.Case, [Patterns.Consolidation()]);
+
+        Assert.Equal(1, run.NewResults);
+        Assert.Single(_harness.ClusterOf(Wpkh("cons-1")).Members);
+        Assert.Null(upgraded.Analyse(_harness.Case, [Patterns.Consolidation()]).Journal);
+    }
+
     [Theory]
     [InlineData("UPDATE clustering_evidence SET reason = 'ändrad'")]
     [InlineData("DELETE FROM clustering_evidence")]

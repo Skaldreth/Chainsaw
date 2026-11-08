@@ -81,6 +81,20 @@ internal sealed class SilentCoinJoinV2 : IUtxoHeuristic
                 Chainsaw.SharedKernel.Satoshi.Zero, 2, transaction.Inputs.Count)]);
 }
 
+/// <summary>
+/// A second version of common-input-ownership that concludes nothing, as a stricter version would on a transaction
+/// version 1 merged, to show that its empty result takes version 1's merge back.
+/// </summary>
+internal sealed class SilentCommonInputV2 : IUtxoHeuristic
+{
+    public HeuristicId Id { get; } = new(HeuristicNames.CommonInputOwnership, 2);
+
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
+
+    public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
+        HeuristicResult.Nothing(Id, transaction.Txid);
+}
+
 /// <summary>An analysis that gives a proposal it must not: one address only.</summary>
 internal sealed class MalformedHeuristic : IUtxoHeuristic
 {

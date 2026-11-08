@@ -212,7 +212,22 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <ItemsControl x:Name="MemberList" ItemsSource="{Binding Members}" Focusable="False">
+                    <!-- Virtualized in a box of its own, so that an exchange's cluster with thousands of addresses
+                         costs only the rows on screen (principle 6). -->
+                    <ItemsControl x:Name="MemberList" ItemsSource="{Binding Members}" Focusable="False" MaxHeight="280"
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel">
+                        <ItemsControl.Template>
+                            <ControlTemplate TargetType="ItemsControl">
+                                <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" Focusable="False">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </ControlTemplate>
+                        </ItemsControl.Template>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel VirtualizationMode="Recycling" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:MemberChoice}">
                                 <Button Style="{StaticResource Button.Bare}" ToolTip="{Binding ToolTip}"

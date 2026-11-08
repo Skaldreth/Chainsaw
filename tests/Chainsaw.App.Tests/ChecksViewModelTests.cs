@@ -711,6 +711,21 @@ public sealed class ChecksViewModelTests
     }
 
     [Fact]
+    public async Task A_failed_run_after_a_good_one_drops_the_former_checks()
+    {
+        var rig = await new Rig().Follow();
+        Assert.NotEmpty(rig.Checks.ToDecide);
+        rig.Source.RunFailure = new InvalidOperationException("Ingen profil.");
+
+        await rig.Follow();
+
+        Assert.Equal(ChecksViewModel.RunFailedText, rig.Checks.StatusText);
+        Assert.Empty(rig.Checks.ToDecide);
+        Assert.Empty(rig.Checks.Done);
+        Assert.DoesNotContain(rig.Checks.AllAreas, area => area.Sort == AreaSort.Wallet);
+    }
+
+    [Fact]
     public async Task The_inspector_lists_what_concerns_the_chosen_actor()
     {
         var rig = await new Rig().Follow();

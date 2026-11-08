@@ -292,6 +292,30 @@ public sealed class GuideTests
         Assert.Equal((GuideTopic.TrailEnds, "Riktiga slut"), (ended.Topic, ended.Heading));
     }
 
+    /// <summary>
+    /// An answer about the account model or a token never wins over an end of the trail: an exchange on Ethereum that
+    /// traced money reached opens the ends' section, not the account model's.
+    /// </summary>
+    [Fact]
+    public void WhyOnEthereumPrefersTheEnd()
+    {
+        WhyLine[] lines =
+        [
+            new("Etikett", GuideTopic.Labels),
+            new("Kan frysas", GuideTopic.CanBeFrozen),
+            new("Börs", GuideTopic.TrailEnds, "Riktiga slut"),
+            new("Spårat hit", GuideTopic.AccountModel),
+            new("Token", GuideTopic.Tokens),
+        ];
+
+        var request = GuideRequest.ForWhy("k", "0x8f3a…e5d9", lines, TracingMethodKind.Fifo);
+
+        Assert.Equal((GuideTopic.TrailEnds, "Riktiga slut"), (request.Topic, request.Heading));
+        var unlisted = GuideRequest.ForWhy(
+            "k", "x", [new("Kurs", GuideTopic.Prices), new("Etikett", GuideTopic.Labels)], TracingMethodKind.Fifo);
+        Assert.Equal(GuideTopic.Labels, unlisted.Topic);
+    }
+
     /// <summary>Without any answer that links to the Guide, the graph's section opens at the inspector.</summary>
     [Fact]
     public void WhyWithoutTopicsOpensTheInspector()

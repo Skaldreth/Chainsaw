@@ -320,6 +320,51 @@ public sealed class CaseStoreTests : IDisposable
         Assert.Equal(new byte[8192], File.ReadAllBytes(workingCopy));
     }
 
+    [Fact]
+    public void A_rollback_journal_left_without_its_working_copy_is_not_played_into_a_new_one()
+    {
+        var store = _fixture.CreateStore(new TestSchema());
+        using (var created = store.Create("A1"))
+        {
+            AddNotes(created, 200);
+        }
+
+        // A rollback journal of the file as it is now, as a session that crashed mid-write leaves it.
+        var stale = Array.Empty<byte>();
+        CaseFileSurgery.Change(_fixture, "A1", connection =>
+        {
+            CaseFileSurgery.Execute(connection, "PRAGMA cache_size = 1");
+            using var transaction = connection.BeginTransaction();
+            using var delete = connection.CreateCommand();
+            delete.Transaction = transaction;
+            delete.CommandText = "DELETE FROM test_notes";
+            delete.ExecuteNonQuery();
+            stale = File.ReadAllBytes(_fixture.CaseFile("A1") + ".surgery-journal");
+        });
+        using (var later = store.Open("A1"))
+        {
+            AddNotes(later, 200);
+        }
+
+        File.WriteAllBytes(_fixture.CaseFile("A1") + ".work-journal", stale);
+
+        Assert.NotEmpty(stale);
+        Assert.True(OpensIntact(store));
+    }
+
+    private static void AddNotes(ICase opened, int count) =>
+        opened.Write(transaction =>
+        {
+            for (var index = 0; index < count; index++)
+            {
+                using var insert = transaction.CreateCommand("INSERT INTO test_notes (note) VALUES ($note)");
+                insert.Parameters.Add(new Microsoft.Data.Sqlite.SqliteParameter("$note", new string('x', 500)));
+                insert.ExecuteNonQuery();
+            }
+
+            return transaction.AppendJournal(new JournalDraft("test.note", $"{count} anteckningar"));
+        });
+
     private bool OpensIntact(CaseStore store)
     {
         try

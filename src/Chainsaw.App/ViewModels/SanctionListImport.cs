@@ -89,6 +89,7 @@ public sealed class SanctionListImport
             "Listan säger inte när den publicerades, så dess ursprung går inte att ange.",
         SanctionListError.TooLarge => "Filen är för stor för att vara en sanktionslista.",
         SanctionListError.Tampered => "En sparad sanktionslista har inte längre sin hash.",
+        SanctionListError.FutureDate => "Listan säger att den publicerades efter i dag, så den importerades inte.",
         _ => "Sanktionslistan gick inte att läsa.",
     };
 
