@@ -132,7 +132,6 @@ public partial class GraphStartView : UserControl
         FootLine.Foreground = text;
         SendLine.Foreground = text;
         var ring = model.IsOnline ? Brush("Brush.Accent") : Brush("Brush.BorderHover");
-        StartSonar.Stroke = ring;
         StartFrame.Stroke = ring;
         FootLine.ToolTip = model.IsOnline
             ? "Alla uppslag går genom den här utgången"

@@ -189,15 +189,13 @@
                            TextAlignment="Center" TextWrapping="Wrap"
                            Text="Där spåret börjar: en adress eller en tx. Den kan lika gärna vara den misstänktes som offrets." />
 
-                <!-- The empty start point: a dashed node with the flag, the field and Enter, with sonar around it. -->
+                <!-- The empty start point: a dashed node with the flag, the field and Enter. -->
                 <Grid Margin="0,40,0,0" HorizontalAlignment="Center">
-                    <controls:SonarRing x:Name="StartSonar" CornerRadius="12" Stroke="{StaticResource Brush.Accent}" />
                     <Grid Width="460" Height="72">
                         <Rectangle x:Name="StartFrame" RadiusX="12" RadiusY="12" Fill="{StaticResource Brush.Surface}"
                                    Stroke="{StaticResource Brush.Accent}" StrokeThickness="1.5" StrokeDashArray="3 3" />
                         <DockPanel Margin="12,0,14,0" VerticalAlignment="Center">
                             <Grid DockPanel.Dock="Left" Width="30" Height="30" Margin="0,0,12,0">
-                                <Ellipse Stroke="{StaticResource Brush.Accent}" StrokeThickness="1.5" StrokeDashArray="2 2" />
                                 <controls:GridIcon Size="16" Data="{StaticResource Icon.Flag}"
                                                    Foreground="{StaticResource Brush.Accent}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />

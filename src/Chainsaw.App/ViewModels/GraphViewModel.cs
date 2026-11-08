@@ -196,6 +196,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// Gets whether a case is open. Without one there is nothing to inspect, so the inspector is not shown.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInspectorShown))]
     public partial bool HasCase { get; private set; }
 
     /// <summary>Gets what the page says in place of the graph; empty while a graph is shown.</summary>
@@ -272,11 +273,20 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets the chosen node's key, or <see langword="null"/>.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInspectorShown))]
     public partial string? SelectedNode { get; private set; }
 
     /// <summary>Gets the chosen line's key, or <see langword="null"/>.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInspectorShown))]
     public partial string? SelectedEdge { get; private set; }
+
+    /// <summary>
+    /// Gets whether the inspector's column is shown: only when there is something in it, a chosen actor or line, or
+    /// the checks and suggestions that open where it stands (sketch KF1a). An empty panel is removed (principle 7,
+    /// the user's decision 2026-11-08).
+    /// </summary>
+    public bool IsInspectorShown => HasCase && (SelectedNode is not null || SelectedEdge is not null || Checks.IsOpen);
 
     /// <summary>Gets the line under the pointer, whose amount is always written, or <see langword="null"/>.</summary>
     public string? HoveredEdge { get; private set; }

@@ -1126,3 +1126,12 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] En hög som töms försvinner.
 - [ ] Starta om Chainsaw: högarna står kvar med namn (`%LOCALAPPDATA%\Chainsaw\piles.json`). Ta bort en ärendefil
       ur mappen: den försvinner ur sin hög när Chainsaw listar ärendena igen.
+
+## Polering 2026-11-08
+
+- Öppna ett ärende utan att välja något i grafen: inspektören till höger syns inte. Välj en aktör eller linje: den fälls
+  fram. Ctrl+J (Förslag) fäller också fram den. Esc eller klick på tom yta fäller bort den igen.
+- Tom startpunkt: ingen puls runt rutan och ingen prickad ring kring flaggan. *Nytt ärende* i startvyn har ingen puls.
+- Utan ärende: Graf-ikonen syns inte i pillret, och ingen dubbel skiljelinje. Startvyns fot säger inte *Utgång: …*,
+  bara *Offline* när inga uppslag går.
+- Osäkra (streckade) linjer: korta, fina streck oavsett hur tjock linjen är, inte grova korvar.

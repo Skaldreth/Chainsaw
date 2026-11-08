@@ -120,12 +120,19 @@ public partial class GraphView : UserControl
         };
         model.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(GraphViewModel.HasCase))
+            if (e.PropertyName == nameof(GraphViewModel.IsInspectorShown))
             {
-                ShowInspector(model.HasCase);
+                ShowInspector(model.IsInspectorShown);
             }
         };
-        ShowInspector(model.HasCase);
+        model.Checks.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ChecksViewModel.IsOpen))
+            {
+                ShowInspector(model.IsInspectorShown);
+            }
+        };
+        ShowInspector(model.IsInspectorShown);
         PreviewKeyDown += (_, e) => e.Handled = e.Handled || PasteStartPoint(e, model.Start);
         model.CopyWanted += (_, text) => CopyText(text);
         model.Forms.PropertyChanged += (_, e) =>
@@ -248,7 +255,7 @@ public partial class GraphView : UserControl
     private static double Within(double value, double lowest, double highest) =>
         Math.Max(lowest, Math.Min(value, highest));
 
-    /// <summary>Shows the inspector, or folds it away when no case is open and there is nothing to inspect.</summary>
+    /// <summary>Shows the inspector, or folds it away when there is nothing in it.</summary>
     /// <param name="shown">Whether the inspector is shown.</param>
     private void ShowInspector(bool shown)
     {
