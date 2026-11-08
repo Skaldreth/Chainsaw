@@ -709,6 +709,7 @@ public partial class MainWindow : Window
         GraphPage.MakeRoom(covered);
         TimelinePage.MakeRoom(covered);
         FlowPage.MakeRoom(covered);
+        ExposurePage.MakeRoom(covered);
         CommandPanel.Margin = new Thickness(CommandBarGutter, 0, covered + CommandBarGutter, 0);
     }
 

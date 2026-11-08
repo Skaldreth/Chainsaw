@@ -20,6 +20,9 @@ namespace Chainsaw.App.Graph;
 internal sealed class ReportTrails(
     GraphScene scene, IReadOnlyList<NodeView> actors, Func<Asset, DateTimeOffset, Price?> rateAt)
 {
+    /// <summary>How many decimals a traced share is worked out to: more than any amount shown needs.</summary>
+    private const int ShareDecimals = 18;
+
     /// <summary>The marked actors by key.</summary>
     private readonly Dictionary<string, NodeView> _marked =
         actors.ToDictionary(node => node.Key, StringComparer.Ordinal);
@@ -323,14 +326,31 @@ internal sealed class ReportTrails(
                 priced.Add((transfer, price));
             }
 
-            // Only once every transfer has a rate: a token no source prices may count more units than a decimal holds.
-            var share = Math.Min(1m, (decimal)edge.Traced.Units / (decimal)sent);
+            var share = Share(edge.Traced.Units, sent);
             total += priced.Sum(pair => pair.Price.ValueOf(pair.Transfer.Amount).Value * share);
         }
 
         return currency is null
             ? null
             : new EdgeValue(Math.Round(total, 0, MidpointRounding.AwayFromZero), currency, []).Text;
+    }
+
+    /// <summary>
+    /// Gives how much of what was sent is traced, at most all of it, without turning the units into a decimal: a token
+    /// may count more units than a decimal holds (BACKLOG, <em>Rapporten</em>).
+    /// </summary>
+    /// <param name="traced">The units traced.</param>
+    /// <param name="sent">The units sent, more than zero.</param>
+    /// <returns>The share, from 0 to 1, to eighteen decimals.</returns>
+    internal static decimal Share(BigInteger traced, BigInteger sent)
+    {
+        if (traced >= sent)
+        {
+            return 1m;
+        }
+
+        var scale = BigInteger.Pow(10, ShareDecimals);
+        return (decimal)(BigInteger.Max(traced, BigInteger.Zero) * scale / sent) / (decimal)scale;
     }
 
     /// <summary>Names a marked actor for the report.</summary>

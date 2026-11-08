@@ -281,6 +281,18 @@ public sealed class PileTests
     }
 
     [Fact]
+    public void Show_in_graph_finds_a_card_in_a_pile_and_fans_the_pile_out()
+    {
+        var rig = new Rig(Piled());
+
+        Assert.True(rig.Graph.ShowNode(Member(1)));
+        Assert.Equal(PileKey, rig.Graph.Fan!.Pile.Key);
+        Assert.True(rig.Graph.ShowNode(Member(1)));
+        Assert.NotNull(rig.Graph.Fan);
+        Assert.False(rig.Graph.ShowNode("address:none"));
+    }
+
+    [Fact]
     public void Esc_closes_the_fan()
     {
         var rig = new Rig(Piled());

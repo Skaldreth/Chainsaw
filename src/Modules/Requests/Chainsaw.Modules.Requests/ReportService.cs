@@ -95,7 +95,9 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
     /// <returns>The export, or <see langword="null"/> when it is to be made again.</returns>
     private ReportExport? TryExport(ICase @case, ReportDraft draft, string path, bool lastAttempt)
     {
-        var checkedDraft = draft.Has(ReportPart.Ledger) ? draft with { Ledger = Check(@case) } : draft;
+        // With the part switched off the report says nothing of the hash chains, so an old check the draft may carry
+        // neither reaches the file nor makes the export try again (BACKLOG, Rapporten).
+        var checkedDraft = draft with { Ledger = draft.Has(ReportPart.Ledger) ? Check(@case) : null };
         var document = ReportTemplate.Compose(checkedDraft, Context(@case, draft.MadeUtc ?? clock.UtcNow));
         var bytes = FileEncoding.GetBytes(document.Markdown);
         var written = RequestFiles.WriteNew(path, bytes);

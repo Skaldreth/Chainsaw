@@ -219,6 +219,16 @@ public sealed class ReportSelectionTests
     }
 
     [Fact]
+    public void A_traced_share_of_more_units_than_a_decimal_holds_is_still_worked_out()
+    {
+        var sent = System.Numerics.BigInteger.Pow(10, 40);
+
+        Assert.Equal(0.5m, ReportTrails.Share(sent / 2, sent));
+        Assert.Equal(1m, ReportTrails.Share(sent * 2, sent));
+        Assert.Equal(0m, ReportTrails.Share(System.Numerics.BigInteger.Zero, sent));
+    }
+
+    [Fact]
     public void A_victims_name_never_reaches_the_report()
     {
         var material = ReportSelection.Build(LabelledScene(), [VKey, KKey, EKey], NoClusters);
