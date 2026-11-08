@@ -62,6 +62,9 @@ public enum GuideTopic
 
     /// <summary><em>Så spårar man i Chainsaw</em>: a case's course, from the empty graph (sketch GR6c).</summary>
     HowToTrace,
+
+    /// <summary><em>Exponering</em>: which services a cluster paid to or got from (sketch EP1b).</summary>
+    Exposure,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -99,6 +102,7 @@ public static class GuideTopics
         GuideTopic.CanBeFrozen => "kan-frysas",
         GuideTopic.Prices => "kurser",
         GuideTopic.HowToTrace => "sa-sparar-man",
+        GuideTopic.Exposure => "exponering",
         _ => "utxo-modellen",
     };
 
@@ -125,6 +129,7 @@ public static class GuideTopics
         GuideTopic.CanBeFrozen => "Kan frysas",
         GuideTopic.Prices => "Kurser och omräkning",
         GuideTopic.HowToTrace => "Så spårar man i Chainsaw",
+        GuideTopic.Exposure => "Exponering",
         _ => "UTXO-modellen",
     };
 

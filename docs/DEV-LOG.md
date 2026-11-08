@@ -3485,3 +3485,52 @@ EUR/SEK, och båda svaren förseglas i ärendet var för sig.
 **Återstår:** testärendet `/testdata` har inga påhittade kurser, så dess linjer hämtar riktiga kurser genom utgången.
 
 Tester: 9 nya i Pricing (`EuroTests`) och 20 i App (`RatesTests`).
+
+## Exponering, EP1b (2026-11-08)
+
+- **Analysen** `exposure v1` ligger i Tracing (`IExposureAnalysis`, `ExposureAnalysis`): varje aktör läses som en
+  plånbok med sina överföringar i en tillgång i tidsordning (inkommande före utgående i samma ögonblick), och
+  kontomodellens registrerade metod (FIFO eller haircut, grafens val) säger hur mycket som följer med varje överföring.
+  *Betalat till* bär klustrets utbetalningar framåt; *Fått från* kör metoden en gång per inbetalning hos aktören och
+  delar ut det som gick mot klustret i den proportionen. Pengarna stannar hos en tjänst (räknas), en aktör bortom
+  djupet eller som inte är en aktör (*Nådde ingen tjänst*), hos klustret (*Gick tillbaka*), och blir kvar hos en
+  aktör (ut) eller kom före grafens historik (in). Tjänsterna och resten summerar alltid till totalen (testat med
+  slumpade grafer). En tx-nod (CoinJoin) lägger inte till ett hopp. En aktör läses om högst åtta gånger när mer
+  pengar kommer till den senare (cirklar).
+- **Vad som är en tjänst** avgörs i appen (`ExposureMap`): varje aktör vars sort har en betydelse (offer, uttag,
+  spenderas, risk, annan kedja); gråa är okända. Det slängda är inte med i grafens scen och räknas därför inte som
+  tjänst.
+- **Vyn** (`ExposureView`, `ExposureViewModel`, `Controls/ExposureRings`, `Controls/SortMark`, layouten i
+  `Graph/ExposureLayout`) följer skissen: ringarna per hopp, utbetalt åt höger och inkommet åt vänster, tjänsterna
+  större ju större andel, aktörer på vägen som små punkter, linjer i accent med sista steget i tjänstens färg, djupet
+  1–3, metoden streckad i huvudet, andelarna per färg för båda hållen, tjänsterna och den valda vägen med tx,
+  underlaget som brickor, *Varför?* (Guidens panel, som nu också får stå öppen i Exponering) och *Visa vägen i
+  grafen* (G), som väljer tjänsten i grafen, tonar ner allt utom vägen och passar in den.
+- **Egna beslut:** tillgången väljs med en liten växel i huvudet bara när ämnet har fler än en (belopp i olika
+  tillgångar adderas aldrig). Listan av tjänster visar utbetalt, som skissen; inkommet väljs i ringarna. Ett nytt
+  avsnitt i Guiden, *Exponering*.
+- **Avsteg och det som återstår** (`docs/TODO.md`): kronorna under beloppen (väntar på KU1a), mixerns troliga utgångar
+  som streckade förslag, *Tillbaka · Esc* i grafen och *Exponering …* i nodens meny. Uträkningen körs på UI-tråden
+  när grafen läses om (`docs/BACKLOG.md`).
+- Tester: 21 i `Chainsaw.Modules.Tracing.Tests` (facit med syntetiska överföringar för FIFO och haircut, båda hållen,
+  djupet, kvar, tillbaka, före historiken, vägen, tx-nod, annan tillgång, summan) och 18 i App.Tests (kartan,
+  layouten, vymodellen, pillret och grafens väg).
+
+### Granskningen av EP1b rättad (2026-11-08)
+
+- **I1:** på Bitcoin följs pengarna nu mynt för mynt (`UtxoExposureRun`) med den UTXO-metod som är registrerad för
+  kedjan, med `UtxoGraph.Spends` och metoden per tx; aktörerna är summor av sina mynt. Metoden väljs efter sitt
+  `Scope` (`TracingMethods.For`). Kontokedjorna läses som förut plånbok för plånbok (`AccountExposureRun`); det
+  gemensamma (hopp, vägar, resultat) ligger i `ExposureTally`. En CoinJoin-nod som är en tjänst stoppar pengarna där.
+- **I2:** nytt skäl `NotExpanded` (*Aktören är inte expanderad*) för en aktör som inte är expanderad eller har
+  tillbakahållna tx; `Remains` bara för helt lästa.
+- **I3:** vyn räknar bara när den visas (`IsShown`); en ny scen när den är dold markerar den inaktuell. Analysen körs
+  i `Task.Run` med avbrott, den senaste vinner, och tillgångarna indexeras per nod i ett svep. Ett fel i analysen
+  sägs ärligt i vyn.
+- **I4:** tjänsterna tas ur `Snapshot.Graph` och etiketterna (`ExposureMap.Looks`, med `GraphScene.SortOf`), också för
+  det som ligger i soptunnan.
+- **M1–M3, M5, M6, M8:** det som fortfarande är på väg efter åtta omläsningar är ett eget skäl (*StillMoving*), utan
+  justering i efterhand; tjänsterna och resten måste bli totalen exakt, annars kastas resultatet; avgifterna är ett eget
+  skäl och en tx-nods bok ordnas efter index; en tjänsts tx är bara de som pengarna dit gick genom; *klustret* eller
+  *adressen* efter ämnet; Guiden har ett avsnitt om rundturer. Facit för cykel, omläsning och `MaxRuns`.
+- M4 och M7 står i `docs/BACKLOG.md`. Kronorna under beloppen väntar på KU1a, som inte finns på huvudgrenen än.

@@ -143,6 +143,11 @@ fungerar rättas före allt annat nedan. Särskilt:
 Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md under *Valt för 1.0*.
 - **Grafen** [direkt]: IN4a kortets baksida, TL2a tidslisten, GR9a bytt block och *Väntar på källan*.
 - **Exponering EP1b** [etapp].
+
+- **Etiketter ET1a** [etapp], med sanktionsträffarna samlade.
+- **Exponering, resterna efter EP1b** [direkt]: kronorna under beloppen (efter KU1a), mixerns godkända troliga
+  utgångar som streckade lila förslag bortom mixern, *Tillbaka · Esc* i grafen efter *Visa vägen i grafen*, och
+  *Exponering …* i nodens meny i grafen (`ExposureViewModel.Open` finns).
 - **Rapport RP1b** [etapp].
 - **Kurserna KU1a** [etapp]: kronorna via Riksbanken.
 - **Inställningarnas rester** [direkt] (efter BV4a, ST2a, FS2a och UT3b):

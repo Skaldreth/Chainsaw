@@ -133,6 +133,7 @@ public partial class MainWindow : Window
         WireWatches(shell, graph, monitoring);
         WireRequests(shell, graph);
         WireLabels(shell, graph);
+        WireExposure(shell, graph);
         WireEmptyGraph(shell, graph.Start);
         watchRunner.Start();
         shell.Settings.SettingsChanged += (_, settings) => _ = background.ApplyAsync(settings);
@@ -241,6 +242,52 @@ public partial class MainWindow : Window
             }
         };
     }
+
+    /// <summary>
+    /// Wires the view Exponering (sketch EP1b): it follows the graph shown, <em>Visa vägen i grafen</em> shows the graph
+    /// with the way lit, <em>Varför?</em> opens the Guide's panel beside it, and the page takes the keyboard when it is
+    /// shown, so that G reaches it.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    private void WireExposure(ShellViewModel shell, GraphViewModel graph)
+    {
+        if (shell.Exposure is not { } exposure)
+        {
+            return;
+        }
+
+        ExposurePage.Attach(exposure);
+        exposure.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                exposure.Update(graph.Scene);
+            }
+        };
+        exposure.PathWanted += (_, path) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.ShowPath(path);
+        };
+        exposure.GuideWanted += (_, request) => _guidePanel.Ask(request);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ShellViewModel.IsExposureShown))
+            {
+                return;
+            }
+
+            // The analysis runs only while the view is shown (principle 6).
+            exposure.IsShown = shell.IsExposureShown;
+            if (shell.IsExposureShown)
+            {
+                Dispatcher.BeginInvoke(() => ExposurePage.Focus(), DispatcherPriority.Input);
+            }
+        };
+    }
+
 
     /// <summary>
     /// Wires the view Etiketter (sketch ET1a): its list follows the graph shown, <em>Visa i grafen</em> shows the graph

@@ -240,6 +240,10 @@
                         <views:MonitoringView x:Name="MonitoringPage"
                                               Visibility="{Binding DataContext.IsMonitoringShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
 
+                        <!-- Exponering (sketch EP1b). -->
+                        <views:ExposureView x:Name="ExposurePage"
+                                            Visibility="{Binding DataContext.IsExposureShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+
                         <!-- Begäran (sketch BG1b). -->
                         <views:RequestsView x:Name="RequestsPage"
                                             Visibility="{Binding DataContext.IsRequestsShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />

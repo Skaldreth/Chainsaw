@@ -445,6 +445,11 @@ public sealed partial class GraphViewModel : ObservableObject
                     .ToHashSet(StringComparer.Ordinal));
             }
 
+            if (PathFocus is { } path)
+            {
+                return path;
+            }
+
             if (FoundNode is { } found && Scene is { } searched)
             {
                 // The search's row stands out while the rest is toned down (sketch KR1a).
@@ -466,7 +471,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Gets whether something is chosen, so that the rest is drawn faint.</summary>
     public bool IsFocused =>
         SelectedNode is not null || SelectedEdge is not null || Checks.Focus is not null || TrashWarning is not null
-        || FoundNode is not null;
+        || FoundNode is not null || PathFocus is not null;
 
     /// <summary>Shows a layout; each keeps its own places (sketch GR4).</summary>
     /// <param name="layout">The layout.</param>
@@ -675,6 +680,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="edgeKey">The line, or <see langword="null"/>.</param>
     public void Choose(string? nodeKey, string? edgeKey)
     {
+        PathFocus = null;
         if (ChooseFolded(nodeKey, edgeKey))
         {
             nodeKey = null;

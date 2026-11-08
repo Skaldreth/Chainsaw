@@ -22,7 +22,7 @@ public static class ViewTable
         new(AppView.Graph, "Graf", "Icon.Graph", "Ctrl+1", RailGroup.Work, IconNeedsCase: true),
         new(AppView.Timeline, "Tidslinje", "Icon.Timeline", "Ctrl+2", RailGroup.Work, IsBuilt: false, NeedsCase: true),
         new(AppView.Flow, "Flöde", "Icon.Flow", "Ctrl+3", RailGroup.Work, IsBuilt: false, NeedsCase: true),
-        new(AppView.Exposure, "Exponering", "Icon.Exposure", "Ctrl+4", RailGroup.Work, IsBuilt: false, NeedsCase: true),
+        new(AppView.Exposure, "Exponering", "Icon.Exposure", "Ctrl+4", RailGroup.Work, NeedsCase: true),
         new(AppView.Requests, "Begäran", "Icon.Request", "Ctrl+5", RailGroup.Work, NeedsCase: true),
         new(AppView.Monitoring, "Bevakning", "Icon.Eye", "Ctrl+6", RailGroup.Work, NeedsCase: true),
         new(AppView.Labels, "Etiketter", "Icon.Tag", "Ctrl+7", RailGroup.Work, NeedsCase: true),
