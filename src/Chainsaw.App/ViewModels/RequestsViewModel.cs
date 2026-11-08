@@ -377,7 +377,7 @@ public sealed partial class RequestsViewModel : ObservableObject
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or ArgumentException or CaseException)
         {
-            _toaster?.Show(ToastKind.Error, ExportFailedTitle, exception.Message);
+            _toaster?.Show(ToastKind.Error, ExportFailedTitle, ReportViewModel.ExportFailure(exception));
         }
         finally
         {

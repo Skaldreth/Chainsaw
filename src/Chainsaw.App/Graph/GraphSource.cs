@@ -532,12 +532,16 @@ public sealed class GraphSource(
                 null));
         }
 
-        if (cluster.Splits.Count > 0)
+        // One breaking out stores a split per address that left, so the breakings out are counted, not the splits.
+        var breakings = cluster.Splits.Select(split => split.JournalSequence).Distinct().Count();
+        if (breakings > 0)
         {
             why.Add(new WhyLine(
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"Användaren har brutit upp {cluster.Splits.Count} sammanslagningar som rör klustret."),
+                breakings == 1
+                    ? "Användaren har gjort en uppbrytning som rör klustret."
+                    : string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"Användaren har gjort {breakings} uppbrytningar som rör klustret."),
                 null));
         }
 

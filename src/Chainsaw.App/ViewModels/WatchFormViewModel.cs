@@ -145,7 +145,8 @@ public sealed partial class WatchFormViewModel : ObservableObject
 
     /// <summary>Gets or sets the typed address of a new watch.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ChainName), nameof(IsEthereum), nameof(IsBitcoin), nameof(MinimumHint))]
+    [NotifyPropertyChangedFor(nameof(Chain), nameof(ChainName), nameof(IsEthereum), nameof(IsBitcoin))]
+    [NotifyPropertyChangedFor(nameof(ShowsAssets), nameof(CanHaveMinimum), nameof(MinimumHint), nameof(Sentence))]
     public partial string AddressText { get; set; } = string.Empty;
 
     /// <summary>Gets the watched direction.</summary>

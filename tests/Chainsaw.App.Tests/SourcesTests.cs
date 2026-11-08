@@ -213,6 +213,21 @@ public sealed class SourcesTests
     }
 
     [Fact]
+    public async Task Prova_that_throws_says_so_without_the_raw_message_and_can_be_tried_again()
+    {
+        var page = Create();
+        page.ToggleAdd();
+        page.NewAddress = "https://esplora.lan/api";
+        _sources.TryFailure = new ArgumentException(@"C:\hemlig\sökväg");
+
+        await page.TryAsync();
+
+        Assert.False(page.IsTrying);
+        Assert.False(page.TryAnswered);
+        Assert.Equal(SourcesViewModel.ProbeFailedText, page.TryText);
+    }
+
+    [Fact]
     public void Nothing_is_tried_at_the_start_until_the_vault_is_unlocked_and_the_exit_allows_lookups()
     {
         Create();
@@ -436,6 +451,8 @@ public sealed class SourcesTests
 
         public ProbeRun Run { get; set; } = ProbeRun.Probed;
 
+        public Exception? TryFailure { get; set; }
+
         public int Rounds { get; private set; }
 
         public Exception? SaveFailure { get; set; }
@@ -510,7 +527,7 @@ public sealed class SourcesTests
             CancellationToken cancellationToken = default)
         {
             TriedLocal.Add(local);
-            return Task.FromResult(TryAnswer!);
+            return TryFailure is null ? Task.FromResult(TryAnswer!) : Task.FromException<EndpointProbe>(TryFailure);
         }
 
         private Task Change(Action change)

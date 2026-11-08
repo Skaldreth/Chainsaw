@@ -860,12 +860,12 @@ public sealed partial class GraphViewModel : ObservableObject
         {
             if (version == _version)
             {
-                // Say why, so that the user can tell a source that refused from a fault (a cancelled one says nothing).
+                // The case's reason is said in Swedish; a raw message is never shown, since it may name a path.
                 Notice = string.Empty;
                 Tell(
                     ToastKind.Error,
                     ExpandFailedText,
-                    exception is OperationCanceledException ? string.Empty : exception.Message,
+                    exception is CaseException failure ? CaseTexts.For(failure.Error) : string.Empty,
                     retry);
             }
         }

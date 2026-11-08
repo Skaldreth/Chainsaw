@@ -603,6 +603,7 @@ public sealed class ReportViewModelTests
 
         var toast = Assert.Single(_toaster.Toasts);
         Assert.Equal(ReportViewModel.ExportFailedTitle, toast.Title);
+        Assert.Equal("Filen gick inte att skriva.", toast.Text);
         Assert.False(model.IsExporting);
     }
 

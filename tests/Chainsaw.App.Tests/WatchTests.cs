@@ -135,6 +135,22 @@ public sealed class WatchFormTests
     }
 
     [Fact]
+    public void A_typed_Ethereum_address_shows_the_assets_to_choose_from()
+    {
+        var form = Form(out _);
+        form.OpenNew();
+        var changed = new List<string?>();
+        form.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        form.AddressText = "0x" + new string('a', 40);
+
+        Assert.True(form.ShowsAssets);
+        Assert.Contains(nameof(WatchFormViewModel.ShowsAssets), changed);
+        Assert.Contains(nameof(WatchFormViewModel.CanHaveMinimum), changed);
+        Assert.Contains(nameof(WatchFormViewModel.Chain), changed);
+    }
+
+    [Fact]
     public async Task A_typed_address_that_is_none_is_refused_and_nothing_is_saved()
     {
         var form = Form(out _);

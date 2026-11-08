@@ -603,6 +603,27 @@ public sealed class GraphViewModelTests
         Assert.Contains(GraphViewModel.NothingReportedText, toast.Title, StringComparison.Ordinal);
     }
 
+    /// <summary>A lookup that fails is said without the fault's raw message, which may name a path or a host.</summary>
+    [Fact]
+    public async Task AFailedSupplierLookupIsSaidWithoutItsRawMessage()
+    {
+        var rig = new Rig();
+        rig.Exit.Set(new ExitStatus(ExitState.Connected, Guid.NewGuid(), null));
+        var toasts = new List<ToastRequest>();
+        rig.Graph.ToastWanted += (_, request) => toasts.Add(request);
+        rig.Switches.Set("chainabuse", on: true);
+        rig.Suppliers.Failure = new IOException(@"C:\Users\utredare\hemligt\fil.db");
+        rig.Graph.Choose(GraphSamples.UKey, null);
+
+        rig.Graph.AskSuppliers();
+        await rig.Suppliers.Asked;
+
+        var toast = Assert.Single(toasts);
+        Assert.Equal(GraphViewModel.SuppliersFailedText, toast.Title);
+        Assert.Empty(toast.Text);
+        Assert.DoesNotContain("utredare", rig.Graph.Notice, StringComparison.Ordinal);
+    }
+
     /// <summary>The chosen node's actions over it (sketch IN2b) are only those that apply, Expandera first.</summary>
     [Fact]
     public void TheNodesActionsAreOnlyThoseThatApply()
@@ -638,7 +659,7 @@ public sealed class GraphViewModelTests
         Assert.Equal("2 nya tx i grafen.", toast.Title);
     }
 
-    /// <summary>A failed expansion is an error with its fault's message and <em>Försök igen</em>.</summary>
+    /// <summary>A failed expansion is an error with <em>Försök igen</em>, never with the fault's raw message.</summary>
     [Fact]
     public async Task AFailedExpansionIsAnErrorThatCanBeTriedAgain()
     {
@@ -653,7 +674,7 @@ public sealed class GraphViewModelTests
         var toast = Assert.Single(toasts);
         Assert.Equal(ToastKind.Error, toast.Kind);
         Assert.Equal(GraphViewModel.ExpandFailedText, toast.Title);
-        Assert.Equal("Källan svarade fel.", toast.Text);
+        Assert.Empty(toast.Text);
         Assert.Equal(GraphViewModel.RetryText, toast.ActionText);
         rig.Source.ExpandFailure = null;
         toast.Action!();
@@ -925,6 +946,9 @@ internal sealed class TestSuppliers : IAttributionProviders
 
     public Task Asked => _asked.Task;
 
+    /// <summary>Gets or sets what the lookup fails with, or <see langword="null"/> to answer.</summary>
+    public Exception? Failure { get; set; }
+
     public IReadOnlyList<AttributionProviderInfo> Providers { get; } =
         [new("chainabuse", "Chainabuse", "Chainabuse", [Chain.Bitcoin, Chain.Ethereum])];
 
@@ -934,6 +958,11 @@ internal sealed class TestSuppliers : IAttributionProviders
     {
         Calls.Add((address, enabled));
         _asked.TrySetResult();
+        if (Failure is { } failure)
+        {
+            return Task.FromException<IReadOnlyList<ProviderLookup>>(failure);
+        }
+
         IReadOnlyList<ProviderLookup> answers =
             [new("chainabuse", ProviderLookupStatus.Answered, [], 0, 1, null)];
         return Task.FromResult(answers);

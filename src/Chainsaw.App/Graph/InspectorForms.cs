@@ -312,15 +312,15 @@ public static class InspectorForms
 
     /// <summary>
     /// Gives the splits that break the picked addresses out of their cluster: for every link that merged a picked
-    /// address with one that stays, a split between the two that names the link's heuristic. Clustering then refuses
-    /// every such link, and the links among the picked addresses and among those that stay are not touched: picked
-    /// addresses linked to each other leave together, and those joined only through an address that stays leave
-    /// each on its own.
+    /// address with one that stays, a split between each picked address in it and one that stays, naming the link's
+    /// heuristic. Clustering then refuses every such link, and the links among the picked addresses and among those
+    /// that stay are not touched: picked addresses linked to each other leave together, and those joined only through
+    /// an address that stays leave each on its own.
     /// </summary>
     /// <param name="cluster">The cluster, from Clustering.</param>
     /// <param name="picked">The addresses to break out; at least one, not all.</param>
     /// <param name="reason">The user's reason.</param>
-    /// <returns>The splits, one per link that crosses; empty when nothing crosses.</returns>
+    /// <returns>The splits, one per picked address in a link that crosses; empty when nothing crosses.</returns>
     public static IReadOnlyList<SplitRequest> BreakOut(
         Cluster cluster, IReadOnlyCollection<BitcoinAddress> picked, string reason)
     {
@@ -333,13 +333,16 @@ public static class InspectorForms
             .Where(link => link.State == LinkState.Merged)
             .DistinctBy(link => (link.Evidence.Heuristic.Name, link.Evidence.Sequence)))
         {
+            // Every picked address in the link gets its own split, so that each one's history shows the breaking
+            // out and a later link from it to an address that stays is refused too.
             var addresses = link.Evidence.Addresses;
-            var goes = addresses.FirstOrDefault(leaving.Contains);
-            var stays = addresses.FirstOrDefault(address => !leaving.Contains(address));
-            if (goes is not null && stays is not null)
+            if (addresses.FirstOrDefault(address => !leaving.Contains(address)) is not { } stays)
             {
-                requests.Add(new SplitRequest(goes, stays, link.Evidence.Heuristic.Name, reason.Trim()));
+                continue;
             }
+
+            requests.AddRange(addresses.Where(leaving.Contains).Select(goes =>
+                new SplitRequest(goes, stays, link.Evidence.Heuristic.Name, reason.Trim())));
         }
 
         return [.. requests.DistinctBy(request => (request.First, request.Second, request.Heuristic))];

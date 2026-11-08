@@ -471,6 +471,17 @@ public sealed class InspectorFormsTests
         Assert.Empty(rig.Editor.Splits);
     }
 
+    /// <summary>A failure is said in fixed Swedish words, never with a raw message that may name a path.</summary>
+    [Fact]
+    public void AFailureNeverShowsTheRawMessage()
+    {
+        const string Raw = @"C:\Ärenden\hemligt.case";
+
+        Assert.DoesNotContain(Raw, InspectorFormsViewModel.Failure(new IOException(Raw)), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            Raw, InspectorFormsViewModel.Failure(new ArgumentException(Raw)), StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// The cluster is read again before the splits, so a link that came after the rows were read is split too; and
     /// an address that another link still holds is said, never hidden.
@@ -580,6 +591,29 @@ public sealed class InspectorFormsTests
             [new SplitRequest(c, a, HeuristicNames.CommonInputOwnership, "Skäl")],
             splits);
         Assert.Empty(InspectorForms.BreakOut(cluster, [], "Skäl"));
+    }
+
+    /// <summary>
+    /// Two picked addresses that share one link with an address that stays each get a split, so that the history
+    /// counts both and a later link from the second to the cluster is refused as well.
+    /// </summary>
+    [Fact]
+    public void BreakOutSplitsEveryPickedAddressInALink()
+    {
+        var a = GraphSamples.Address(20);
+        var b = GraphSamples.Address(21);
+        var c = GraphSamples.Address(22);
+        var cio = Merged(1, HeuristicNames.CommonInputOwnership, a, b, c);
+        var cluster = new Cluster(a, [], [cio], [], [], []);
+
+        var splits = InspectorForms.BreakOut(cluster, [a, b], "Skäl");
+
+        Assert.Equal(
+            [
+                new SplitRequest(a, c, HeuristicNames.CommonInputOwnership, "Skäl"),
+                new SplitRequest(b, c, HeuristicNames.CommonInputOwnership, "Skäl"),
+            ],
+            splits);
     }
 
     /// <summary>

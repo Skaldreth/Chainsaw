@@ -178,6 +178,18 @@ public sealed class CaseEnvelopesTests
     }
 
     [Fact]
+    public async Task A_chosen_file_that_is_gone_is_said_without_its_path()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "chainsaw-gone-" + Guid.NewGuid().ToString("N"), "B8.cut");
+        var dialogs = Dialogs(new TestCasePicker(file));
+
+        var problem = await dialogs.PickAndOpenFileAsync();
+
+        Assert.Equal(CaseWorkflow.UnreadableFileText, problem);
+        Assert.False(dialogs.IsAnyOpen);
+    }
+
+    [Fact]
     public async Task Cancelling_the_file_dialog_does_nothing()
     {
         var dialogs = Dialogs(new TestCasePicker(null));

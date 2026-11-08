@@ -111,6 +111,12 @@ public static class WatchWords
         "Källan kunde inte frågas vid senaste kontrollen; inget nytt är känt. " +
         "Bevakningen försöker igen vid nästa kontroll.";
 
+    /// <summary>A row's state when its active watch's last lookup was asked and failed.</summary>
+    public const string FailedRowText = "Senaste uppslaget misslyckades";
+
+    /// <summary>A row's state when its active watch's last check could not ask the source at all.</summary>
+    public const string NotAskedRowText = "Kunde inte fråga källan";
+
     /// <summary>The head while Chainsaw is locked (never shown, since the window is then hidden).</summary>
     public const string LockedText = "Låst · inga uppslag görs";
 

@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -499,7 +500,12 @@ public sealed record GraphScene(
             })
             .Select(edge => edge.Swaps.Count == 0 ? edge : edge with { Swap = SwapText(edge.Swaps) })
             .ToList();
-        var nodes = graph.Nodes.Select(node => BuildNode(node, snapshot, edges)).ToList();
+        // The lines are found by their ends once, so that building every node stays linear in a large graph.
+        var into = edges.ToLookup(edge => edge.Edge.To, StringComparer.Ordinal);
+        var outOf = edges.ToLookup(edge => edge.Edge.From, StringComparer.Ordinal);
+        var fees = graph.Account.Fees.ToLookup(fee => fee.Payer.ToChainAddress());
+        var nodes = graph.Nodes.Select(node => BuildNode(node, snapshot, into[node.Key], outOf[node.Key], fees))
+            .ToList();
         trash ??= TrashFilter.Empty;
         var folding = GraphFold.Apply(graph, nodes, edges, showUnspendable, snapshot.KeptOutOfPiles, trash);
         var widths = folding.Nodes.ToDictionary(node => node.Key, node => node.Width, StringComparer.Ordinal);
@@ -645,21 +651,30 @@ public sealed record GraphScene(
     /// <summary>Builds how an actor is drawn.</summary>
     /// <param name="node">The actor.</param>
     /// <param name="snapshot">The snapshot, for its labels.</param>
-    /// <param name="edges">The lines, for what came in and went out.</param>
+    /// <param name="into">The lines that end at the actor.</param>
+    /// <param name="outOf">The lines that start at the actor.</param>
+    /// <param name="fees">The fees the graph knows, by the account that paid them.</param>
     /// <returns>The actor's view.</returns>
-    private static NodeView BuildNode(GraphNode node, GraphSnapshot snapshot, IReadOnlyList<EdgeView> edges)
+    private static NodeView BuildNode(
+        GraphNode node,
+        GraphSnapshot snapshot,
+        IEnumerable<EdgeView> into,
+        IEnumerable<EdgeView> outOf,
+        ILookup<ChainAddress, EthereumFee> fees)
     {
         var labels = snapshot.Labels.GetValueOrDefault(node.Key) ?? [];
-        var incoming = edges.Where(edge => edge.Edge.To == node.Key && edge.Edge.Kind == GraphEdgeKind.Transfer);
-        var outgoing = edges.Where(edge => edge.Edge.From == node.Key && edge.Edge.Kind == GraphEdgeKind.Transfer);
-        var tracedIn = Sum(edges.Where(edge => edge.Edge.To == node.Key).Select(edge => edge.Traced));
+        var incoming = into.Where(edge => edge.Edge.Kind == GraphEdgeKind.Transfer).ToList();
+        var outgoing = outOf.Where(edge => edge.Edge.Kind == GraphEdgeKind.Transfer).ToList();
+        var tracedIn = Sum(into.Select(edge => edge.Traced));
         var tracedIns = node.Chain == Chain.Bitcoin
             ? []
-            : edges.Where(edge => edge.Edge.To == node.Key && edge.IsTraced)
+            : into.Where(edge => edge.IsTraced)
                 .GroupBy(edge => edge.Traced.Asset)
                 .Select(group => group.Skip(1).Aggregate(group.First().Traced, (sum, edge) => sum + edge.Traced))
                 .ToList();
-        var balances = node.Chain == Chain.Bitcoin ? [] : Balances(node, snapshot, edges);
+        var balances = node.Chain == Chain.Bitcoin
+            ? []
+            : Balances(node, snapshot, incoming, outgoing, [.. node.Addresses.Distinct().SelectMany(a => fees[a])]);
         var sort = SortOf(node, labels);
         var primary = labels.FirstOrDefault(label => VisualLanguage.SortOf(label.Kind) == sort);
         var badges = new List<NodeBadge>();
@@ -723,14 +738,19 @@ public sealed record GraphScene(
     /// </summary>
     /// <param name="node">The account's node.</param>
     /// <param name="snapshot">The graph and the case's latest rate per asset, which values what is left.</param>
-    /// <param name="edges">The lines.</param>
+    /// <param name="incoming">The transfer lines into the account.</param>
+    /// <param name="outgoing">The transfer lines out of the account.</param>
+    /// <param name="fees">The fees the account paid.</param>
     /// <returns>The rows, the chain's own coin first, then by symbol.</returns>
     private static List<TokenBalanceRow> Balances(
-        GraphNode node, GraphSnapshot snapshot, IReadOnlyList<EdgeView> edges)
+        GraphNode node,
+        GraphSnapshot snapshot,
+        IReadOnlyList<EdgeView> incoming,
+        IReadOnlyList<EdgeView> outgoing,
+        IReadOnlyList<EthereumFee> fees)
     {
         var graph = snapshot.Graph;
-        var lines = edges.Where(edge => edge.Edge.Kind == GraphEdgeKind.Transfer).ToList();
-        var assets = lines.Where(edge => edge.Edge.From == node.Key || edge.Edge.To == node.Key)
+        var assets = incoming.Concat(outgoing)
             .Select(edge => edge.Edge.Amount.Asset).Distinct()
             .OrderBy(asset => asset.Kind == AssetKind.Native ? 0 : 1)
             .ThenBy(asset => asset.Symbol, StringComparer.Ordinal)
@@ -740,21 +760,19 @@ public sealed record GraphScene(
         var rows = new List<TokenBalanceRow>();
         foreach (var asset in assets)
         {
-            var incoming = Total(asset, lines.Where(edge => edge.Edge.To == node.Key));
-            var outgoing = Total(asset, lines.Where(edge => edge.Edge.From == node.Key));
+            var came = Total(asset, incoming);
+            var went = Total(asset, outgoing);
             if (asset.Kind == AssetKind.Native)
             {
-                outgoing = graph.Account.Fees.Where(fee => node.Addresses.Contains(fee.Payer.ToChainAddress()))
-                    .Aggregate(outgoing, (sum, fee) => sum + fee.Amount);
+                went = fees.Aggregate(went, (sum, fee) => sum + fee.Amount);
             }
 
-            var row = TokenMarks.Balance(incoming, outgoing, snapshot.Rates.GetValueOrDefault(asset));
+            var row = TokenMarks.Balance(came, went, snapshot.Rates.GetValueOrDefault(asset));
             rows.Add(read ? row : Unread(row, unknown));
         }
 
         if (!rows.Any(row => row.Name == Asset.Ether.Symbol) && node.Chain == Chain.Ethereum)
         {
-            var fees = graph.Account.Fees.Where(fee => node.Addresses.Contains(fee.Payer.ToChainAddress())).ToList();
             if (fees.Count > 0)
             {
                 var paid = fees.Aggregate(AssetAmount.Zero(Asset.Ether), (sum, fee) => sum + fee.Amount);

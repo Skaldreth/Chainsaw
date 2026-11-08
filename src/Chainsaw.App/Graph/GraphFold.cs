@@ -169,11 +169,12 @@ public static class GraphFold
         }
 
         var (lines, stubs) = Stub(Reroute(edges, drawnAs, removed), thrown);
+        var byEnds = edges.ToLookup(edge => (edge.Edge.From, edge.Edge.To));
         var pileViews = piles.ToDictionary(
             pair => pair.Pile.Key,
             pair => new PileView(
                 pair.Pile,
-                [.. pair.Cards.Select(card => CardOf(card, pair.Pile.Anchor, edges))],
+                [.. pair.Cards.Select(card => CardOf(card, pair.Pile.Anchor, byEnds))],
                 SumBetween(lines, pair.Pile)),
             StringComparer.Ordinal);
         var drawn = nodes.Where(node => !drawnAs.ContainsKey(node.Key) && !removed.Contains(node.Key)
@@ -384,12 +385,11 @@ public static class GraphFold
     /// <summary>Makes a card: the actor, and what moved straight between it and the pile's actor, and when.</summary>
     /// <param name="node">The actor.</param>
     /// <param name="anchor">The pile's actor.</param>
-    /// <param name="edges">Every line.</param>
+    /// <param name="byEnds">Every line, by its two ends, so that a pile of many cards is not quadratic.</param>
     /// <returns>The card.</returns>
-    private static PileCard CardOf(NodeView node, string anchor, IReadOnlyList<EdgeView> edges)
+    private static PileCard CardOf(NodeView node, string anchor, ILookup<(string From, string To), EdgeView> byEnds)
     {
-        var between = edges.Where(edge => (edge.Edge.From == node.Key && edge.Edge.To == anchor)
-                || (edge.Edge.From == anchor && edge.Edge.To == node.Key))
+        var between = byEnds[(node.Key, anchor)].Concat(byEnds[(anchor, node.Key)])
             .Where(edge => edge.Edge.Amount.Asset == GraphScene.Shown)
             .ToList();
         var amount = between.Aggregate(AssetAmount.Zero(GraphScene.Shown), (sum, edge) => sum + edge.Edge.Amount);

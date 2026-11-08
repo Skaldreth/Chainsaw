@@ -324,7 +324,8 @@ public sealed class RequestsViewModelTests
 
         await model.ExportAsync();
 
-        Assert.Contains(_toaster.Toasts, toast => toast.Title == RequestsViewModel.ExportFailedTitle);
+        Assert.Contains(_toaster.Toasts, toast => toast.Title == RequestsViewModel.ExportFailedTitle
+            && toast.Text == "Filen gick inte att skriva.");
         Assert.False(model.IsExporting);
     }
 

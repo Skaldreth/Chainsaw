@@ -615,6 +615,39 @@ public sealed partial class GraphSceneTests
         return directory?.FullName ?? throw new InvalidOperationException("The repository's root was not found.");
     }
 
+    /// <summary>
+    /// A large graph is built in time linear in its lines: each node finds its own lines by key instead of looking
+    /// through all of them, so that a scene of many thousand actors does not freeze the view.
+    /// </summary>
+    [Fact]
+    public void LargeGraphBuildsInLinearTime()
+    {
+        const int count = 20_000;
+        var nodes = Enumerable.Range(0, count)
+            .Select(i => GraphSamples.Node($"n{i}", GraphNodeKind.Address, [GraphSamples.Address(1000 + i)], null))
+            .ToList();
+        var edges = Enumerable.Range(0, count - 1)
+            .Select(i => GraphSamples.Edge($"e{i}", $"n{i}", $"n{i + 1}", i % 4, i, 0.01m))
+            .ToList();
+        var graph = new TraceGraph(
+            [], nodes, edges,
+            new UtxoGraph(
+                new Dictionary<Txid, GraphTransaction>(), new Dictionary<Outpoint, CoinSpend>(),
+                new Dictionary<Txid, IReadOnlyList<TrailEndHint>>()),
+            [], [], []);
+        var snapshot = new GraphSnapshot(
+            graph, new Dictionary<string, IReadOnlyList<Label>>(), TracingMethodKind.Fifo, [], null, null);
+        GraphScene.Build(snapshot);
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var scene = GraphScene.Build(snapshot);
+        watch.Stop();
+
+        Assert.Equal(count, scene.Nodes.Count);
+        Assert.Equal(GraphSamples.Btc(0.01m), scene.Node("n1")!.In);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(3), watch.Elapsed.ToString());
+    }
+
     /// <summary>A resource key in a XAML file.</summary>
     /// <returns>The pattern.</returns>
     [GeneratedRegex("x:Key=\"([^\"]+)\"")]

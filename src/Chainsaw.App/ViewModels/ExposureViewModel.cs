@@ -117,6 +117,9 @@ public sealed partial class ExposureViewModel : ObservableObject
         "Inget att visa än. Exponeringen räknas för ett kluster eller en adress i grafen som har betalat eller fått "
         + "pengar. Expandera grafen först.";
 
+    /// <summary>What the view says when the analysis could not be run for the graph.</summary>
+    public const string FailedText = "Exponeringen kunde inte räknas för den här grafen.";
+
     /// <summary>The analysis.</summary>
     private readonly IExposureAnalysis _analysis;
 
@@ -473,9 +476,13 @@ public sealed partial class ExposureViewModel : ObservableObject
         {
             // Another reading was asked for; it shows its own.
         }
-        catch (InvalidOperationException error)
+        catch (InvalidOperationException)
         {
-            _ui.Post(() => Apply(null, null, "Exponeringen kunde inte räknas: " + error.Message));
+            // The analysis' own message is in English and is never shown; a reading asked for since shows its own.
+            if (!cancellation.IsCancellationRequested)
+            {
+                _ui.Post(() => Apply(null, null, FailedText));
+            }
         }
     }
 

@@ -281,7 +281,8 @@ public sealed partial class GraphViewModel
                 return;
             }
 
-            Tell(ToastKind.Error, HeldBackFailedText, exception.Message, () => _ = OpenHeldBackAsync(clue));
+            // A raw message is never shown, since it may name a path.
+            Tell(ToastKind.Error, HeldBackFailedText, string.Empty, () => _ = OpenHeldBackAsync(clue));
             return;
         }
 

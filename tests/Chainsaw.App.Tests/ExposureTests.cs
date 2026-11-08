@@ -350,6 +350,7 @@ public sealed class ExposureTests
         await model.Computed;
 
         Assert.True(model.HasProblem);
+        Assert.Equal(ExposureViewModel.FailedText, model.Problem);
         Assert.False(model.Picture.HasSubject);
     }
 

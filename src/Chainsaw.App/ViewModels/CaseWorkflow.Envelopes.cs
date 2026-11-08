@@ -26,6 +26,9 @@ public sealed partial class CaseWorkflow
     /// <summary>What is said when a chosen file is not a case file.</summary>
     public const string NotCaseFileText = "Filen är inte ett ärende (.cut).";
 
+    /// <summary>What is said when a chosen file cannot be read.</summary>
+    public const string UnreadableFileText = "Filen gick inte att läsa.";
+
     /// <summary>What is said when the case password does not open the file.</summary>
     public const string WrongPasswordText = "Lösenordet stämmer inte. Inget har ändrats i filen.";
 
@@ -67,7 +70,17 @@ public sealed partial class CaseWorkflow
             return await OpenAsync(number);
         }
 
-        var size = await Task.Run(() => new FileInfo(full).Length);
+        long size;
+        try
+        {
+            size = await Task.Run(() => new FileInfo(full).Length);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Gone or out of reach since it was chosen; the raw message names the path and is never shown.
+            return CommandReply.Failed(UnreadableFileText);
+        }
+
         PasswordWanted?.Invoke(this, new CaseFileOffer(full, number, size, InFolder: false));
         return CommandReply.Done(string.Empty);
     }
