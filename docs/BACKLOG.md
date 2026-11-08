@@ -690,3 +690,5 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   Anteckning borde varna för att skriva offrets namn där; `HeldBack` gäller bara på den egna datorn (en kollegas
   bibliotek kan sprida en kopia tills ursprungsärendet öppnats där); *Visa i grafen* på en sanktionsträff i en hög
   hittar inte högen (`GraphViewModel.ShowNode`); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
+- **Ett instabilt test i App.Tests** (2026-11-08): efter ihopslagningen av Exponering föll ett test en gång av fyra
+  körningar utan att namnet syntes i den korta utskriften. Kör sviten några gånger med `--logger "console;verbosity=detailed"` och rätta det.
