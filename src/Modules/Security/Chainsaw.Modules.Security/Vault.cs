@@ -166,6 +166,29 @@ internal sealed class Vault : IVault, IDisposable
         }
     }
 
+    /// <inheritdoc />
+    public void VerifyMasterKey(ReadOnlySpan<char> masterKey)
+    {
+        lock (_operationGate)
+        {
+            if (State != VaultState.Unlocked)
+            {
+                throw new VaultException(VaultError.Locked);
+            }
+
+            var document = TryReadFile() ?? throw new VaultException(VaultError.NotCreated);
+            var dataKey = UnwrapDataKey(masterKey, document);
+            try
+            {
+                RequireSameKeyAsUnlocked(dataKey);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(dataKey);
+            }
+        }
+    }
+
     /// <summary>
     /// Locks the vault when the application shuts down, without raising <see cref="StateChanged"/>: the handlers may
     /// already be gone, and a failing handler must not stop the container from disposing the rest.

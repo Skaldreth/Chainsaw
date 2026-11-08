@@ -16,7 +16,7 @@ namespace Chainsaw.Modules.Cases;
 /// operations the guard refuses everything. The file key is kept while the case is open only to wrap new envelopes,
 /// and the anchor key to write the anchors when saving after the vault has been locked; both are cleared on close.
 /// </remarks>
-internal sealed class Case : ICase
+internal sealed partial class Case : ICase
 {
     /// <summary>The size of the buffer when the working copy is copied into the case file.</summary>
     private const int CopyBufferSize = 81920;

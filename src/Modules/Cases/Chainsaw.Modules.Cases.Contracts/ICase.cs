@@ -134,6 +134,28 @@ public interface ICase : IDisposable
     /// </exception>
     IReadOnlyList<CaseEnvelope> DescribeEnvelopes();
 
+    /// <summary>
+    /// Replaces the case's file key (sketch VT1a), so that access can be taken back: a new random file key, the
+    /// database encrypted anew under it, the envelopes for this vault and the organisation's recovery key wrapped
+    /// anew, and every other envelope dropped (see <see cref="FileKeyReplacement.Keeps"/>); the seal over the file
+    /// follows the new key. It is journalled and sealed in the same file. The case file is replaced in one move, so a
+    /// crash leaves either the old file or the new one whole. Copies of the file handed out before are not affected:
+    /// they still open with the envelopes they hold.
+    /// </summary>
+    /// <param name="masterKey">The master key, asked for again since the step cannot be undone.</param>
+    /// <param name="sharingPassword">
+    /// A new case password to give the file in the same step, at least <see cref="SharingPasswordRules.MinimumLength"/>
+    /// characters, or empty for none.
+    /// </param>
+    /// <returns>The replacement, as the journal tells it.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.WrongMasterKey"/>, <see cref="CaseError.PasswordTooShort"/>,
+    /// <see cref="CaseError.WouldLoseAccess"/> when this vault has no envelope of its own,
+    /// <see cref="CaseError.VaultLocked"/>, <see cref="CaseError.NoOperatorProfile"/>, <see cref="CaseError.Conflict"/>
+    /// when the case file was changed outside Chainsaw, or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword);
+
     /// <summary>Writes the working copy back into the case file, atomically.</summary>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.Closed"/>, or <see cref="CaseError.LockedWhileSaving"/> when the vault was locked while the

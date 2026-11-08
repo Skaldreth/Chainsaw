@@ -25,6 +25,32 @@ internal sealed record CasePaths(string CaseFile)
     /// </summary>
     public string WorkingBase => WorkingCopy + ".base";
 
+    /// <summary>
+    /// Gets the copy of the database that is encrypted under a new file key while the key is replaced; it becomes the
+    /// working copy once the new case file is in place, and is removed if anything stops the replacement first.
+    /// </summary>
+    public string RekeyCopy => WorkingCopy + ".rekey";
+
+    /// <summary>Gets the rollback journal SQLite may leave beside <see cref="RekeyCopy"/>.</summary>
+    public string RekeyJournal => RekeyCopy + "-journal";
+
+    /// <summary>
+    /// Gets where the working copy under the old file key waits while the new case file is moved into place, so that
+    /// a move that fails can go back to it; it is the same as the old case file and is removed afterwards.
+    /// </summary>
+    public string RekeyBackup => WorkingCopy + ".old-key";
+
+    /// <summary>
+    /// Removes what an interrupted replacement of the file key may have left: none of it is ever the only copy of
+    /// anything, since the case file, old or new, is whole.
+    /// </summary>
+    public void DeleteRekeyLeftovers()
+    {
+        File.Delete(RekeyCopy);
+        File.Delete(RekeyJournal);
+        File.Delete(RekeyBackup);
+    }
+
     /// <summary>Gets the lock file that is held open while the case is open, so that it is only opened once.</summary>
     public string LockFile => CaseFile + ".lock";
 

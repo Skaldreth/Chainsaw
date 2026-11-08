@@ -568,6 +568,8 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         byte[] fileKey,
         Opening opening)
     {
+        // An interrupted replacement of the file key leaves only copies; the case file, old or new, is whole.
+        paths.DeleteRekeyLeftovers();
         var recovering = File.Exists(paths.WorkingCopy);
         CaseDatabase? database = null;
         byte[]? anchorKey = null;

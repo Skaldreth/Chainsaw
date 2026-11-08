@@ -61,4 +61,11 @@ public static class CaseJournalKinds
     /// envelopes that could not follow.
     /// </summary>
     public const string BranchSaved = "case.branch-saved";
+
+    /// <summary>
+    /// The case's file key was replaced (sketch VT1a): the database was encrypted anew, the envelopes for this vault
+    /// and the organisation's recovery key were wrapped anew, and every other envelope fell away. The details say
+    /// which (see <see cref="FileKeyReplacement"/>). Copies of the file handed out before still open with the old ones.
+    /// </summary>
+    public const string FileKeyReplaced = "case.file-key-replaced";
 }
