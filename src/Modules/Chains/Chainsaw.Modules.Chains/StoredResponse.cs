@@ -44,4 +44,7 @@ internal static class ResponseKinds
 
     /// <summary>The chain's height, <c>/blocks/tip/height</c>.</summary>
     public const string TipHeight = "bitcoin.tip-height";
+
+    /// <summary>The newest block's hash, <c>/blocks/tip/hash</c>.</summary>
+    public const string TipHash = "bitcoin.tip-hash";
 }

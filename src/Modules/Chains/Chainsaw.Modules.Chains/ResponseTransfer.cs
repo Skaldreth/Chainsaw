@@ -10,8 +10,8 @@ namespace Chainsaw.Modules.Chains;
 
 /// <summary>
 /// Reads sealed raw responses with all their values and seals them again in another case (see
-/// <see cref="IResponseTransfer"/>). Nothing is added to the lookup indexes: a response brought in is evidence, and the
-/// lookups keep asking the source as before.
+/// <see cref="IResponseTransfer"/>). A response brought in without its index is evidence, and the lookups keep asking
+/// the source as before; one brought in with the index it had where it was fetched answers the lookups as it did there.
 /// </summary>
 internal sealed class ResponseTransfer : IResponseTransfer
 {
@@ -84,6 +84,61 @@ internal sealed class ResponseTransfer : IResponseTransfer
             EndpointId = response.EndpointId,
             Endpoint = response.EndpointName,
         };
+    }
+
+    /// <inheritdoc/>
+    public SealedResponseIndex? ReadIndex(ICaseReader reader, long sequence)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        if (ChainOf(reader, sequence) is not { } chain)
+        {
+            return null;
+        }
+
+        var index = new RawResponseStore(TimeZoneInfo.Utc, chain).IndexOf(reader, sequence);
+        return index is null
+            ? null
+            : new SealedResponseIndex(
+                index.TipHeight,
+                [.. index.Transactions.Select(each => new SealedResponseTransaction(each.Txid.Value, each.Height))]);
+    }
+
+    /// <inheritdoc/>
+    public ResponseOrigin Seal(ICaseTransaction transaction, SealedResponse response, SealedResponseIndex index)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        var transactions = new List<(Txid Txid, long? Height)>();
+        foreach (var each in index.Transactions)
+        {
+            if (!Txid.TryParse(each.Txid, out var txid))
+            {
+                throw new ArgumentException("A transaction in the index is not a transaction id.", nameof(index));
+            }
+
+            transactions.Add((txid, each.BlockHeight));
+        }
+
+        var origin = Seal(transaction, response);
+        // The index holds nothing the response does not, and the lookups only take a response through it when the
+        // response itself is of the chain, kind and subject asked for; so the response, not the index, names them.
+        new RawResponseStore(TimeZoneInfo.Utc, response.Chain).Index(
+            transaction, response.Kind, response.Subject, origin.Sequence, new ResponseIndex(transactions, index.Height));
+        return origin;
+    }
+
+    /// <summary>Reads the chain a sealed response is of.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="sequence">The response's number.</param>
+    /// <returns>The chain's name in the record, or <see langword="null"/> when there is no such response.</returns>
+    private static string? ChainOf(ICaseReader reader, long sequence)
+    {
+        using var command = reader.CreateCommand(
+            $"SELECT chain FROM {ChainsSchema.RawResponsesTable} WHERE sequence = $sequence");
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "$sequence";
+        parameter.Value = sequence;
+        command.Parameters.Add(parameter);
+        return command.ExecuteScalar() as string;
     }
 
     /// <summary>Checks a response before it is sealed again and reads the values its origin needs.</summary>

@@ -20,6 +20,7 @@ public sealed class StartPointPrefetchTests
     private readonly MemoryCases _memory = new();
     private readonly FakeTransfer _transfer = new();
     private readonly FakeBitcoin _bitcoin = new();
+    private readonly FakeEthereum _ethereum = new();
     private readonly FakeSanctions _sanctions = new();
 
     [Fact]
@@ -33,9 +34,115 @@ public sealed class StartPointPrefetchTests
         Assert.Equal(["0,0412", "2", "mars 2024 → 29 okt 2025"], preview.Facts.Select(fact => fact.Value));
         Assert.Equal([" BTC", " tx", string.Empty], preview.Facts.Select(fact => fact.Unit));
         Assert.Equal(921_344, preview.Height);
-        Assert.Contains("Hämtat vid block 921\u00A0344", preview.HeightTip, StringComparison.Ordinal);
-        Assert.Contains(FakeBitcoin.Hash.Value, preview.HeightTip, StringComparison.Ordinal);
+        Assert.Equal(
+            [
+                "Hämtat vid block 921\u00A0344", FakeBitcoin.TipHash.Value,
+                "Senaste tx i block 921\u00A0300", FakeBitcoin.Hash.Value,
+            ],
+            preview.HeightTip.Split(Environment.NewLine));
         Assert.False(preview.IsSanctioned);
+    }
+
+    [Fact]
+    public async Task The_chains_newest_block_is_asked_for_before_anything_else()
+    {
+        var prefetch = Prefetch();
+
+        await prefetch.PreviewAsync(StartPointText.Parse(Samples.Address), mayFetch: true);
+        await prefetch.PreviewAsync(StartPointText.Parse(Samples.Txid), mayFetch: true);
+        await prefetch.PreviewAsync(StartPointText.Parse(Samples.Ethereum), mayFetch: true);
+        await prefetch.PreviewAsync(StartPointText.Parse(Samples.EthereumTx), mayFetch: true);
+
+        // What is fetched after the newest block is known to be at least that deep in the new case.
+        Assert.Equal(["tip", "summary", "page", "tip", "tx"], _bitcoin.Calls);
+        Assert.Equal(["tip", "history", "balance", "tip", "tx"], _ethereum.Calls);
+    }
+
+    [Fact]
+    public async Task An_ethereum_address_shows_its_ether_its_stablecoins_count_activity_and_the_chains_hash()
+    {
+        var prefetch = Prefetch();
+
+        var preview = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Ethereum), mayFetch: true);
+
+        Assert.Equal(PreviewState.Fetched, preview.State);
+        Assert.Equal(
+            ["1,2040", "12\u00A0500,0000", "2", "mars 2024 → 29 okt 2025"], preview.Facts.Select(fact => fact.Value));
+        Assert.Equal([" ETH", " USDT", " tx", string.Empty], preview.Facts.Select(fact => fact.Unit));
+        Assert.Equal(23_118_406, preview.Height);
+        Assert.Equal(
+            [
+                "Hämtat vid block 23\u00A0118\u00A0406", FakeEthereum.TipHash,
+                "Senaste tx i block 23\u00A0000\u00A0000", FakeEthereum.BlockHash,
+            ],
+            preview.HeightTip.Split(Environment.NewLine));
+    }
+
+    [Fact]
+    public async Task Without_a_balance_from_the_source_none_is_shown()
+    {
+        _ethereum.BalanceFails = true;
+        var prefetch = Prefetch();
+
+        var preview = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Ethereum), mayFetch: true);
+
+        Assert.Equal(PreviewState.Fetched, preview.State);
+        Assert.Equal([" tx", string.Empty], preview.Facts.Select(fact => fact.Unit));
+    }
+
+    [Fact]
+    public async Task An_ethereum_transaction_shows_its_block_apart_from_the_chains()
+    {
+        var prefetch = Prefetch();
+
+        var preview = await prefetch.PreviewAsync(StartPointText.Parse(Samples.EthereumTx), mayFetch: true);
+
+        Assert.Equal(PreviewState.Fetched, preview.State);
+        Assert.Equal(23_118_406, preview.Height);
+        Assert.Contains("I block 23\u00A0000\u00A0000", preview.HeightTip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_sanction_list_is_read_for_an_ethereum_address_and_names_a_token_it_is_listed_under()
+    {
+        _sanctions.Named = true;
+        _sanctions.EthereumCurrency = "USDT";
+        var prefetch = Prefetch();
+
+        var preview = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Ethereum), mayFetch: false);
+
+        Assert.Equal(PreviewState.WaitingForExit, preview.State);
+        Assert.True(preview.IsSanctioned);
+        Assert.Contains("Blandaren (listad som USDT)", preview.SanctionTip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task An_ethereum_address_named_under_another_chain_is_not_sanctioned_here()
+    {
+        _sanctions.Named = true;
+        _sanctions.EthereumCurrency = "BSC";
+        var prefetch = Prefetch();
+
+        var preview = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Ethereum), mayFetch: false);
+
+        Assert.False(preview.IsSanctioned);
+    }
+
+    [Theory]
+    [InlineData("1204000000000000000", 18, "1,2040")]
+    [InlineData("1204012345678901234", 18, "≈ 1,2040")]
+    [InlineData("31", 18, "< 0,0001")]
+    [InlineData("0", 18, "0,0000")]
+    [InlineData("12345678901200000000000000", 18, "12\u00A0345\u00A0678,9012")]
+    [InlineData("12500000000", 6, "12\u00A0500,0000")]
+    public void A_holding_is_cut_to_four_decimals_only_when_it_has_more_than_eight(
+        string units, int decimals, string expected)
+    {
+        var asset = Asset.Token(Chain.Ethereum, Samples.Ethereum, "TOK", decimals);
+
+        var text = StartPointPrefetch.Holding(new AssetAmount(asset, System.Numerics.BigInteger.Parse(units)));
+
+        Assert.Equal(expected, text);
     }
 
     [Fact]
@@ -60,9 +167,11 @@ public sealed class StartPointPrefetchTests
         var address = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Address), mayFetch: true);
         var transaction = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Txid), mayFetch: true);
 
+        Assert.Equal(PreviewState.Fetched, address.State);
         Assert.Null(address.Height);
         Assert.Null(transaction.Height);
         Assert.DoesNotContain("Hämtat vid", address.HeightTip, StringComparison.Ordinal);
+        Assert.DoesNotContain(FakeBitcoin.TipHash.Value, address.HeightTip, StringComparison.Ordinal);
         Assert.Contains("Senaste tx i block 921\u00A0300", address.HeightTip, StringComparison.Ordinal);
     }
 
@@ -162,6 +271,24 @@ public sealed class StartPointPrefetchTests
     }
 
     [Fact]
+    public async Task What_answered_a_lookup_is_sealed_with_its_index_so_that_it_can_answer_again()
+    {
+        var prefetch = Prefetch();
+        await prefetch.PreviewAsync(StartPointText.Parse(Samples.Address), mayFetch: true);
+        _transfer.Answers = [1, 3];
+        var target = new MemoryCase();
+
+        var sealedCount = prefetch.SealInto(target);
+
+        Assert.Equal(3, sealedCount);
+        Assert.Equal([1L, 3L], _transfer.SealedWithIndex.Select(sealedResponse => sealedResponse.Response.Sequence));
+        Assert.All(_transfer.SealedWithIndex, each => Assert.Equal(each.Response.Sequence, each.Index.Height));
+        var journal = Assert.Single(target.Journal);
+        Assert.Contains("2 av dem används som svar", journal.Summary, StringComparison.Ordinal);
+        Assert.Contains("\"answers\":2", journal.Details, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Forget_drops_the_case_in_memory_and_nothing_is_sealed_after()
     {
         var prefetch = Prefetch();
@@ -234,7 +361,7 @@ public sealed class StartPointPrefetchTests
     }
 
     private StartPointPrefetch Prefetch() =>
-        new(_memory, _transfer, _bitcoin, new FakeEthereum(), _sanctions, new FixedClock());
+        new(_memory, _transfer, _bitcoin, _ethereum, _sanctions, new FixedClock());
 
     private static async Task WaitUntil(Func<bool> condition)
     {
@@ -325,9 +452,23 @@ public sealed class StartPointPrefetchTests
     {
         public List<SealedResponse> Sealed { get; } = [];
 
+        public List<(SealedResponse Response, SealedResponseIndex Index)> SealedWithIndex { get; } = [];
+
         public ICaseTransaction? SealedIn { get; private set; }
 
         public long? Broken { get; set; }
+
+        /// <summary>The responses that answered a lookup, whose index says their own number as the height.</summary>
+        public HashSet<long> Answers { get; set; } = [];
+
+        public SealedResponseIndex? ReadIndex(ICaseReader reader, long sequence) =>
+            Answers.Contains(sequence) ? new SealedResponseIndex(sequence, []) : null;
+
+        public ResponseOrigin Seal(ICaseTransaction transaction, SealedResponse response, SealedResponseIndex index)
+        {
+            SealedWithIndex.Add((response, index));
+            return Seal(transaction, response);
+        }
 
         public SealedResponse? Read(ICaseReader reader, long sequence) => sequence == Broken
             ? throw new CaseException(CaseError.Corrupt)
@@ -351,6 +492,8 @@ public sealed class StartPointPrefetchTests
 
         public bool Named { get; set; }
 
+        public string EthereumCurrency { get; set; } = SanctionCurrency.Ether;
+
         public SanctionListInfo? Current => Info;
 
         public SanctionListInfo Import(Stream content) => throw new NotSupportedException();
@@ -361,12 +504,19 @@ public sealed class StartPointPrefetchTests
 
         public SanctionMatch? Find(BitcoinAddress address) => Locked ? throw new IOException("låst") : new(
             Info, Named ? [new SanctionedAddress(SanctionCurrency.Bitcoin, address.Value, "1", "Blandaren", [])] : []);
+
+        public SanctionMatch? Find(EthereumAddress address) => Locked ? throw new IOException("låst") : new(
+            Info, Named ? [new SanctionedAddress(EthereumCurrency, address.Checksummed, "1", "Blandaren", [])] : []);
     }
 
     /// <summary>A Bitcoin source that answers from made-up values and seals one response per lookup.</summary>
     private sealed class FakeBitcoin : IBitcoinSource
     {
         public static readonly BlockHash Hash = BlockHash.Parse(new string('0', 60) + "3f1a");
+
+        public static readonly BlockHash TipHash = BlockHash.Parse(new string('0', 60) + "9c2e");
+
+        public List<string> Calls { get; } = [];
 
         public LookupStatus Status { get; set; } = LookupStatus.Fetched;
 
@@ -379,30 +529,43 @@ public sealed class StartPointPrefetchTests
         public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
             ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default)
         {
+            Calls.Add("summary");
             var stats = new BitcoinAddressStats(ConfirmedCount, 2, new Satoshi(5_000_000), 1, new Satoshi(880_000));
             var none = new BitcoinAddressStats(0, 0, Satoshi.Zero, 0, Satoshi.Zero);
             return Answer(@case, new BitcoinAddressSummary(address, stats, none));
         }
 
         public Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
-            ICase @case, BitcoinAddress address, Txid? after = null, CancellationToken cancellationToken = default) =>
-            Answer(@case, new BitcoinAddressPage(address, null,
+            ICase @case, BitcoinAddress address, Txid? after = null, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("page");
+            return Answer(@case, new BitcoinAddressPage(address, null,
             [
                 Transaction('1', 921_300, new DateTimeOffset(2025, 10, 29, 12, 0, 0, TimeSpan.Zero)),
                 Transaction('2', 830_000, new DateTimeOffset(2024, 3, 11, 12, 0, 0, TimeSpan.Zero)),
             ], null));
+        }
 
         public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
-            ICase @case, CancellationToken cancellationToken = default) => TipFails
-            ? Task.FromResult(new BitcoinLookup<BitcoinTip>(LookupStatus.Failed, null, [], "nej"))
-            : Answer(@case, new BitcoinTip(921_344));
+            ICase @case, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("tip");
+            return TipFails
+                ? Task.FromResult(new BitcoinLookup<ChainTip>(LookupStatus.Failed, null, [], "nej"))
+                : Answer(@case, new ChainTip(921_344, TipHash.Value, DateTimeOffset.UnixEpoch));
+        }
 
         public bool TipFails { get; set; }
 
         public Task<BitcoinLookup<BitcoinTransaction>> GetTransactionAsync(
             ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded,
-            CancellationToken cancellationToken = default) =>
-            Answer(@case, Transaction('3', 830_000, new DateTimeOffset(2024, 3, 11, 12, 0, 0, TimeSpan.Zero)));
+            CancellationToken cancellationToken = default)
+        {
+            Calls.Add("tx");
+            return Answer(@case, Transaction('3', 830_000, new DateTimeOffset(2024, 3, 11, 12, 0, 0, TimeSpan.Zero)));
+        }
 
         public Task<BitcoinLookup<BitcoinTransaction>> VerifyTransactionAsync(
             ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
@@ -434,16 +597,48 @@ public sealed class StartPointPrefetchTests
         }
     }
 
+    /// <summary>An Ethereum source that answers from made-up values and seals one response per lookup.</summary>
     private sealed class FakeEthereum : IEthereumSource
     {
+        public static readonly string TipHash = "0x" + new string('0', 60) + "c27e";
+
+        public static readonly string BlockHash = "0x" + new string('0', 60) + "5b0d";
+
+        private static readonly EthereumAddress Other = EthereumAddress.Parse("0x" + new string('2', 40));
+
+        public List<string> Calls { get; } = [];
+
+        public bool BalanceFails { get; set; }
+
         public Task<BitcoinLookup<EthereumAddressPage>> GetAddressHistoryAsync(
             ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow = null,
-            LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("history");
+            var newest = new EthereumBlockReference(
+                23_000_000, BlockHash, new DateTimeOffset(2025, 10, 29, 12, 0, 0, TimeSpan.Zero));
+            var oldest = new EthereumBlockReference(
+                19_000_000, null, new DateTimeOffset(2024, 3, 11, 12, 0, 0, TimeSpan.Zero));
+            EthereumTransfer[] transfers =
+            [
+                Transfer('1', address, newest),
+                Transfer('2', address, oldest),
+            ];
+            return Answer(@case, new EthereumAddressPage(
+                address, history, atOrBelow, transfers, [], null, IsCutShort: false, IsIncomplete: false));
+        }
 
         public Task<BitcoinLookup<EthereumTransaction>> GetTransactionAsync(
             ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            CancellationToken cancellationToken = default)
+        {
+            Calls.Add("tx");
+            var block = new EthereumBlockReference(23_000_000, BlockHash, DateTimeOffset.UnixEpoch);
+            var ether = new AssetAmount(Asset.Ether, 1_000_000_000_000_000_000);
+            return Answer(@case, new EthereumTransaction(
+                hash, block, Other, Other, ether, new AssetAmount(Asset.Ether, 21_000), EthereumOutcome.Succeeded,
+                [new EthereumTransfer(hash, EthereumTransferKind.Native, Other, Other, ether, 0, block)]));
+        }
 
         public Task<BitcoinLookup<EthereumBlockReference>> GetBlockAsync(
             ICase @case, long height, LookupMode mode = LookupMode.AsNeeded,
@@ -451,5 +646,41 @@ public sealed class StartPointPrefetchTests
 
         public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
             ICase @case, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("tip");
+            return Answer(@case, new ChainTip(23_118_406, TipHash, DateTimeOffset.UnixEpoch));
+        }
+
+        public Task<BitcoinLookup<EthereumBalance>> GetBalanceAsync(
+            ICase @case, EthereumAddress address, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("balance");
+            if (BalanceFails)
+            {
+                return Task.FromResult(new BitcoinLookup<EthereumBalance>(LookupStatus.Failed, null, [], "nej"));
+            }
+
+            var spam = Asset.Token(Chain.Ethereum, "0x" + new string('9', 40), "GRATIS", 18);
+            return Answer(@case, new EthereumBalance(
+                address,
+                new AssetAmount(Asset.Ether, 1_204_000_000_000_000_000),
+                [
+                    new AssetAmount(KnownTokens.EthereumUsdt, 12_500_000_000),
+                    new AssetAmount(spam, 1_000_000_000_000_000_000),
+                ]));
+        }
+
+        private static EthereumTransfer Transfer(char digit, EthereumAddress address, EthereumBlockReference block) =>
+            new(EthereumTxHash.Parse("0x" + new string(digit, 64)), EthereumTransferKind.Native, Other, address,
+                new AssetAmount(Asset.Ether, 1), 0, block);
+
+        private static Task<BitcoinLookup<T>> Answer<T>(ICase @case, T value)
+            where T : class
+        {
+            ((MemoryCase)@case).Seal();
+            return Task.FromResult(new BitcoinLookup<T>(LookupStatus.Fetched, value, [], null));
+        }
     }
 }

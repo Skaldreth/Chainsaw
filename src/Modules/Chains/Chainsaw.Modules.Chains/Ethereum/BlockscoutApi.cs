@@ -38,6 +38,9 @@ internal sealed class BlockscoutApi : ISourceApi
     /// <summary>The path of the chain's height.</summary>
     public static string HeightPath => "?module=block&action=eth_block_number";
 
+    /// <summary>The path of the newest blocks the source has read, newest first, each with its height and hash.</summary>
+    public static string NewestBlockPath => "v2/blocks?type=block";
+
     /// <inheritdoc/>
     public ExitRequest HeightRequest(Uri address) => Request(address, HeightPath);
 

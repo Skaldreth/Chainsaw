@@ -733,4 +733,6 @@ internal sealed class TestSanctionLists : ISanctionLists
     public IReadOnlyList<SanctionListInfo> List() => Current is { } list ? [list] : [];
 
     public SanctionMatch? Find(BitcoinAddress address) => throw new NotSupportedException();
+
+    public SanctionMatch? Find(EthereumAddress address) => throw new NotSupportedException();
 }

@@ -2948,3 +2948,42 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   som rullat in under kantrullningen; kostnaden är densamma som `VisibleNodes`, som också går igenom alla.
 - Tester: `BoxSelectionTests` (13) i App.Tests. Tracing är orört.
 - Återstår: Shift+klick på en nod väljer inget intervall (det finns ingen ordning att välja intervall i).
+
+## Nytt ärende NC2a: Ethereums saldo, kedjans hash, cachen och sanktionslistans Ethereum (2026-11-08)
+
+- **Kedjans hash vid höjden:** `IBitcoinSource.GetTipAsync` och `IEthereumSource.GetTipAsync` ger `ChainTip` (höjd,
+  hash, tid). Bitcoin frågar `/blocks/tip/hash` (alltid på nytt) och läser höjd och tid ur blocket självt
+  (`GetBlockAsync`, kontrollerat mot huvudet; blocket ändras aldrig, så det hämtas en gång per nytt toppblock).
+  Ethereum frågar Blockscouts `v2/blocks?type=block` och tar höjd, hash och tid ur samma post, så att höjden och hashen
+  alltid hör ihop. Raden visar kedjans höjd som förut; tipset har kedjans hash under *Hämtat vid block N* och tx:ens
+  egen hash under *I block M*.
+- **Egna val:** Ethereums topp är Blockscouts indexerade topp (kan ligga ett block efter `eth_block_number`), eftersom
+  noden kan ha ett block som indexet inte hunnit läsa och ett uppslag av hashen då skulle misslyckas. Bitcoins block
+  läggs nu i registret med sin höjd (som Ethereums block redan gjorde): ett block på höjd N säger att kedjan nått N.
+  De nya metoderna har standardimplementationer i kontrakten (svarar *Misslyckad*, skickar inget), så att andra
+  modulers testfejk inte behövde ändras.
+- **Ethereums saldo:** `IEthereumSource.GetBalanceAsync` ger `EthereumBalance` ur `balance` (wei) och `tokenlist`
+  (ERC-20 med decimaler och saldo över noll; NFT och token utan decimaler räknas som överhoppade, USDT och USDC känns
+  igen på kontraktet och står först). Båda svaren förseglas; ett saldo hämtas alltid på nytt och kommer ur ärendet
+  offline. Går tokens inte att läsa ges ether ändå, med `IsComplete = false` och en anteckning. Raden i Nytt ärende
+  visar ETH (fyra decimaler, `≈` när fler skars bort, `< 0,0001` för damm) och USDT/USDC; andra tokens visas inte,
+  eftersom vem som helst kan skicka en token till en adress (princip 7).
+- **Blockscouts takt:** den öppna instansen svarar `Too many requests …` med status 0, vilket tidigare räknades som
+  ett fel. Nu väntar Chainsaw på det som på `Max rate limit reached`.
+- **Det förhandshämtade som cache:** `IResponseTransfer.ReadIndex` och `Seal(…, SealedResponseIndex)` för med
+  registret (höjden och tx:erna i svaret) när ett råsvar förseglas igen. `StartPointPrefetch.SealInto` gör det för
+  varje svar som besvarade ett uppslag i minnet; bakgrundsbevakningen för fortfarande in sina svar som bara bevis.
+  Registret är det källan själv räknade fram ur svaret i samma process, och uppslagen hittar ett svar bara när svaret
+  självt har rätt kedja, sort och ämne. Toppen hämtas nu **först** för varje startpunkt, så att en tx som hämtas efter
+  den vet sitt djup: en tx djupt i kedjan tas sedan ur ärendet vid grafens första expansion. Det som kan ha ändrats
+  (adressens första sida, saldot, vem som spenderar) hämtas som förut.
+- **Sanktionslistans Ethereum-adresser:** `ISanctionLists.Find(EthereumAddress)` och
+  `IAttributionService.CheckSanctions(ICase, IReadOnlyCollection<EthereumAddress>)`. Koderna ETH, USDT och USDC
+  (`SanctionCurrency.OnEthereum`) räknas; BSC, ARB och ETC är andra kedjor och räknas inte. En ETH-adress med fel
+  EIP-55-kontrollsumma räknas som överhoppad; en USDT-adress som inte är en Ethereum-adress (TRON) hoppas bara över.
+  `CaseWorkflow` märker nu också Ethereum-startpunkter. Tipset säger *(listad som USDT)* för en token.
+- Tester: `TipAndCacheTests` (11) och `EthereumBalanceTests` (16) i Chains, `EthereumSanctionTests` (4) i
+  Attribution, nya fall i `StartPointPrefetchTests` (ordningen, Ethereum-raden, saldo som saknas, sanktion, `Holding`,
+  förseglingen med register) och `CaseWorkflowTests`.
+- Återstår: Ethereums saldo visas bara i Nytt ärende, inte på kortets baksida eller i inspektören.
+
