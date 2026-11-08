@@ -308,9 +308,52 @@ internal sealed class TestCase(string caseNumber) : ICase
 
     public void SetSharingPassword(ReadOnlySpan<char> password) => SharingPassword = password.ToString();
 
-    public void RemoveSharingPassword() => throw new NotSupportedException();
+    /// <summary>Removes the sharing password, refused as Cases refuses it without an envelope for this vault.</summary>
+    public void RemoveSharingPassword()
+    {
+        if (!HasOwnEnvelope)
+        {
+            throw new CaseException(CaseError.WouldLoseAccess);
+        }
 
-    public void AddOperatorAccess() => throw new NotSupportedException();
+        SharingPassword = null;
+    }
+
+    /// <summary>Whether this vault has an envelope of its own; a created or opened case has.</summary>
+    public bool HasOwnEnvelope { get; set; } = true;
+
+    /// <summary>When set, <see cref="AddOperatorAccess"/> throws it.</summary>
+    public Exception? AccessFailure { get; set; }
+
+    public void AddOperatorAccess()
+    {
+        if (AccessFailure is not null)
+        {
+            throw AccessFailure;
+        }
+
+        HasOwnEnvelope = true;
+    }
+
+    /// <summary>The envelopes of other keys than this vault's and the sharing password, for the tab Kuvert.</summary>
+    public List<CaseEnvelope> OtherEnvelopes { get; } = [];
+
+    public IReadOnlyList<CaseEnvelope> DescribeEnvelopes()
+    {
+        List<CaseEnvelope> envelopes = [];
+        if (HasOwnEnvelope)
+        {
+            envelopes.Add(new CaseEnvelope(CaseEnvelopeKind.Yours));
+        }
+
+        envelopes.AddRange(OtherEnvelopes);
+        if (SharingPassword is not null)
+        {
+            envelopes.Add(new CaseEnvelope(CaseEnvelopeKind.SharingPassword));
+        }
+
+        return envelopes;
+    }
 
     public void Save()
     {
@@ -385,12 +428,78 @@ internal sealed class TestCaseStore : ICaseStore
             throw new CaseException(CaseError.NotFound);
         }
 
+        if (OpenError is { } error)
+        {
+            throw new CaseException(error);
+        }
+
         var opened = new TestCase(caseNumber);
         Cases.Add(opened);
         return opened;
     }
 
     public ICase OpenWithPassword(string path, ReadOnlySpan<char> password) => throw new NotSupportedException();
+
+    /// <summary>The case password <see cref="ImportWithPassword"/> takes.</summary>
+    public const string CasePassword = "ett riktigt långt lösenord";
+
+    /// <summary>When set, <see cref="Open"/> throws this error for every case.</summary>
+    public CaseError? OpenError { get; set; }
+
+    /// <summary>The files taken in with their case password, and the password as it arrived.</summary>
+    public List<(string Path, string Password)> Imported { get; } = [];
+
+    /// <summary>When set, a case taken in with its password fails to take an envelope with this.</summary>
+    public Exception? ImportAccessFailure { get; set; }
+
+    /// <summary>The envelopes <see cref="DescribeEnvelopes(string)"/> gives for every file.</summary>
+    public List<CaseEnvelope> FileEnvelopes { get; } = [];
+
+    /// <summary>The conflict <see cref="FindConflict"/> gives, or none.</summary>
+    public WorkingCopyConflict? Conflict { get; set; }
+
+    /// <summary>The choices of branch made, with the new number or <see langword="null"/> for the file.</summary>
+    public List<(string CaseNumber, string? Branch)> Branches { get; } = [];
+
+    public ICase ImportWithPassword(string path, ReadOnlySpan<char> password)
+    {
+        Imported.Add((path, password.ToString()));
+        if (!password.SequenceEqual(CasePassword))
+        {
+            throw new CaseException(CaseError.NoAccess);
+        }
+
+        var opened = new TestCase(System.IO.Path.GetFileNameWithoutExtension(path))
+        {
+            HasOwnEnvelope = false,
+            AccessFailure = ImportAccessFailure,
+        };
+        Cases.Add(opened);
+        return opened;
+    }
+
+    public IReadOnlyList<CaseEnvelope> DescribeEnvelopes(string path) => FileEnvelopes;
+
+    public WorkingCopyConflict? FindConflict(string caseNumber) => Conflict;
+
+    public ICase OpenSettingAsideWorkingCopy(string caseNumber) => Branch(caseNumber, null, caseNumber);
+
+    public ICase SaveWorkingCopyAsCase(string caseNumber, string branchNumber) =>
+        Branch(caseNumber, branchNumber, branchNumber);
+
+    /// <summary>Records a choice of branch and opens the case it leads to.</summary>
+    private TestCase Branch(string caseNumber, string? branch, string opens)
+    {
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
+
+        Branches.Add((caseNumber, branch));
+        var opened = new TestCase(opens);
+        Cases.Add(opened);
+        return opened;
+    }
 
     public ICase OpenWithRecoveryKey(
         string path, System.Security.Cryptography.ECDiffieHellman privateKey, string administrator) =>

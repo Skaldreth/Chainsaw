@@ -157,6 +157,85 @@ internal sealed class CaseDatabase : IDisposable
         _connection.Dispose();
     }
 
+    /// <summary>
+    /// Makes a working copy a case of its own (sketch ÄR1b): gives the case information a new id and case number, in
+    /// one transaction, and encrypts every page anew under a new database key. It runs on a connection of its own
+    /// without the guard, before the working copy is opened as a case, since the guard rightly refuses both; nothing
+    /// else runs on that connection. A rollback journal next to the file is rolled back first, as at any opening.
+    /// </summary>
+    /// <param name="path">The working copy, a copy that only this method uses.</param>
+    /// <param name="databaseKey">The database key it is encrypted with now.</param>
+    /// <param name="newDatabaseKey">The database key it is encrypted with afterwards.</param>
+    /// <param name="caseId">The new case id.</param>
+    /// <param name="caseNumber">The new case number.</param>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Conflict"/> when the file does not open with the key or cannot be changed.
+    /// </exception>
+    public static void Rebind(
+        string path,
+        ReadOnlySpan<byte> databaseKey,
+        ReadOnlySpan<byte> newDatabaseKey,
+        Guid caseId,
+        string caseNumber)
+    {
+        var builder = new SqliteConnectionStringBuilder
+        {
+            DataSource = path,
+            Mode = SqliteOpenMode.ReadWrite,
+            Pooling = false,
+        };
+        using var connection = new SqliteConnection(builder.ToString());
+        try
+        {
+            connection.Open();
+            Execute(connection, $"PRAGMA cipher = '{Cipher}';");
+            ApplyKey(connection, databaseKey);
+            Execute(connection, "SELECT count(*) FROM sqlite_schema;");
+            Execute(connection, ConnectionPragmas);
+            using (var transaction = connection.BeginTransaction())
+            {
+                Execute(connection, $"DROP TRIGGER {CasesSchema.CaseInfoNoUpdate};", transaction);
+                using (var update = new SqliteCommand(
+                    "UPDATE case_info SET case_id = $id, case_number = $number WHERE id = 1", connection, transaction))
+                {
+                    update.Parameters.AddWithValue("$id", caseId.ToString("D"));
+                    update.Parameters.AddWithValue("$number", caseNumber);
+                    if (update.ExecuteNonQuery() != 1)
+                    {
+                        throw new CaseException(CaseError.Conflict);
+                    }
+                }
+
+                Execute(connection, CasesSchema.CaseInfoNoUpdateTrigger, transaction);
+                transaction.Commit();
+            }
+
+            Rekey(connection, newDatabaseKey);
+        }
+        catch (SqliteException exception)
+        {
+            throw new CaseException(CaseError.Conflict, exception);
+        }
+    }
+
+    /// <summary>Encrypts every page anew under a new key, as a raw key literal from a cleared buffer.</summary>
+    /// <param name="connection">The keyed connection.</param>
+    /// <param name="databaseKey">The new 32-byte database key.</param>
+    /// <exception cref="SqliteException">SQLite refused the key.</exception>
+    private static void Rekey(SqliteConnection connection, ReadOnlySpan<byte> databaseKey)
+    {
+        var literal = CaseCrypto.ToRawKeyLiteral(databaseKey);
+        try
+        {
+            var result = raw.sqlite3_rekey(connection.Handle, literal);
+            SqliteException.ThrowExceptionForRC(result, connection.Handle);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(literal);
+        }
+    }
+
     /// <summary>Gives the key to SQLite3 Multiple Ciphers as a raw key literal from a pinned, cleared buffer.</summary>
     /// <param name="connection">The connection, before anything has been read.</param>
     /// <param name="databaseKey">The 32-byte database key.</param>
@@ -178,9 +257,10 @@ internal sealed class CaseDatabase : IDisposable
     /// <summary>Runs SQL on a connection before the guard is installed.</summary>
     /// <param name="connection">The connection.</param>
     /// <param name="sql">The SQL.</param>
-    private static void Execute(SqliteConnection connection, string sql)
+    /// <param name="transaction">The transaction it runs in, or <see langword="null"/>.</param>
+    private static void Execute(SqliteConnection connection, string sql, SqliteTransaction? transaction = null)
     {
-        using var command = new SqliteCommand(sql, connection);
+        using var command = new SqliteCommand(sql, connection, transaction);
         using var reader = command.ExecuteReader();
         do
         {

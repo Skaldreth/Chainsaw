@@ -128,7 +128,67 @@ internal static class CaseChecks
         }
 
         var first = JournalRecords.Read(database, transaction, 1, 1).FirstOrDefault();
-        return first is { Sequence: 1, Kind: CaseJournalKinds.Created } && CreatedFor(first.Details, info, createdUtc);
+        if (first is not { Sequence: 1, Kind: CaseJournalKinds.Created }
+            || CreatedIdentity(first.Details, createdUtc) is not { } identity)
+        {
+            return false;
+        }
+
+        // A working copy saved as a case of its own got a new id and number with a sealed line that names the case
+        // it came from; the identity follows those lines in order (sketch ÄR1b).
+        foreach (var details in BranchDetailsOf(database, transaction))
+        {
+            if (BranchedIdentity(details, identity) is { } branched)
+            {
+                identity = branched;
+            }
+        }
+
+        return identity.Id == info.Id.ToString("D") && identity.Number == info.CaseNumber;
+    }
+
+    /// <summary>Reads the details of every line that says a working copy became a case of its own, in order.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns>The details.</returns>
+    private static List<string> BranchDetailsOf(CaseDatabase database, SqliteTransaction transaction)
+    {
+        using var command = database.Command(
+            "SELECT details FROM journal WHERE kind = $kind ORDER BY sequence", transaction);
+        command.Parameters.AddWithValue("$kind", CaseJournalKinds.BranchSaved);
+        using var reader = command.ExecuteReader();
+        var details = new List<string>();
+        while (reader.Read())
+        {
+            details.Add(reader.IsDBNull(0) ? string.Empty : reader.GetString(0));
+        }
+
+        return details;
+    }
+
+    /// <summary>
+    /// Gives the identity a branch line moves the case to, when the line comes from the identity the case has so far.
+    /// </summary>
+    /// <param name="details">The line's details.</param>
+    /// <param name="identity">The identity so far.</param>
+    /// <returns>The new identity, or <see langword="null"/> when the line does not follow from it.</returns>
+    private static (string Id, string Number)? BranchedIdentity(string details, (string Id, string Number) identity)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(details);
+            var root = document.RootElement;
+            return root.TryGetProperty(BranchDetails.FromCaseId, out var from) && from.GetString() == identity.Id
+                && root.TryGetProperty(BranchDetails.CaseId, out var id) && id.GetString() is { } newId
+                && root.TryGetProperty(BranchDetails.CaseNumber, out var number)
+                && number.GetString() is { } newNumber
+                    ? (newId, newNumber)
+                    : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Checks whether the journal records that the anchors were ever replaced.</summary>
@@ -166,25 +226,29 @@ internal static class CaseChecks
         return found == triggers.Count;
     }
 
-    /// <summary>Checks that the details of the first journal entry name this case.</summary>
+    /// <summary>
+    /// Reads the id and number the first journal entry created the case with, when its creation time is the one in
+    /// the case information.
+    /// </summary>
     /// <param name="details">The details.</param>
-    /// <param name="info">The case information.</param>
     /// <param name="createdUtc">The creation time as written in the case information.</param>
-    /// <returns><see langword="true"/> when the id, number and creation time match.</returns>
-    private static bool CreatedFor(string? details, CaseInfo info, string createdUtc)
+    /// <returns>The id and number, or <see langword="null"/> when they cannot be read or the time differs.</returns>
+    private static (string Id, string Number)? CreatedIdentity(string? details, string createdUtc)
     {
         try
         {
             using var document = JsonDocument.Parse(details ?? string.Empty);
             var root = document.RootElement;
-            return root.TryGetProperty(CreatedDetails.CaseId, out var id) && id.GetString() == info.Id.ToString("D")
+            return root.TryGetProperty(CreatedDetails.CaseId, out var id) && id.GetString() is { } caseId
                 && root.TryGetProperty(CreatedDetails.CaseNumber, out var number)
-                && number.GetString() == info.CaseNumber
-                && root.TryGetProperty(CreatedDetails.CreatedUtc, out var created) && created.GetString() == createdUtc;
+                && number.GetString() is { } caseNumber
+                && root.TryGetProperty(CreatedDetails.CreatedUtc, out var created) && created.GetString() == createdUtc
+                    ? (caseId, caseNumber)
+                    : null;
         }
         catch (JsonException)
         {
-            return false;
+            return null;
         }
     }
 }

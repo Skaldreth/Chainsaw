@@ -357,6 +357,25 @@ internal sealed class Case : ICase
     }
 
     /// <inheritdoc />
+    public IReadOnlyList<CaseEnvelope> DescribeEnvelopes()
+    {
+        lock (_gate)
+        {
+            using var operation = BeginOperation();
+            var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+            try
+            {
+                DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
+                return EnvelopeDescriptions.Describe(_header, wrappingKey, _fileKey, _services.Options);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(wrappingKey);
+            }
+        }
+    }
+
+    /// <inheritdoc />
     public void Save()
     {
         lock (_gate)
@@ -565,6 +584,21 @@ internal sealed class Case : ICase
         using var select = database.Command(
             $"SELECT title FROM {CasesSchema.Title.Table} ORDER BY sequence DESC LIMIT 1");
         return select.ExecuteScalar() as string ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Records something the Cases module did in a case that is open and known to the store, and saves; it takes the
+    /// gate like any other operation, since the case may be saving itself.
+    /// </summary>
+    /// <param name="draft">What happened.</param>
+    internal void JournalAndSave(JournalDraft draft)
+    {
+        lock (_gate)
+        {
+            using var operation = BeginOperation();
+            AppendOwnJournal(draft);
+            SaveUnlocked();
+        }
     }
 
     /// <summary>Records something the Cases module did, in a transaction of its own.</summary>

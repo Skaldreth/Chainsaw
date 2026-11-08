@@ -92,6 +92,7 @@ public partial class MainWindow : Window
     /// </param>
     /// <param name="toaster">The toaster (sketch TO1a), which every part can say something through.</param>
     /// <param name="report">The view Rapport (sketch RP1b).</param>
+    /// <param name="caseDialogs">The case's envelopes (sketch ÄR1b).</param>
     public MainWindow(
         ShellViewModel shell,
         GateViewModel gate,
@@ -102,7 +103,8 @@ public partial class MainWindow : Window
         WatchRunner watchRunner,
         BackgroundLink background,
         Toaster toaster,
-        ReportViewModel report)
+        ReportViewModel report,
+        CaseDialogsViewModel caseDialogs)
     {
         InitializeComponent();
         _shell = shell;
@@ -116,6 +118,7 @@ public partial class MainWindow : Window
         ExitPanelView.Attach(shell.ExitPanel);
         WatchCasePicker();
         SettingsDialog.Attach(shell.Settings);
+        WireCaseDialogs(caseDialogs, toaster);
         GraphPage.Attach(graph);
         Toasts.Attach(toaster);
         CrashGuard.Toaster = toaster;

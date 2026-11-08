@@ -24,6 +24,18 @@ internal sealed class CasesSchema : ICaseSchemaContributor
     /// </summary>
     public static readonly SealedChain Title = new("cases.title", "case_title", ["utc", "title"]);
 
+    /// <summary>The name of the trigger that keeps the case information from being changed.</summary>
+    public const string CaseInfoNoUpdate = "seal_case_info_no_update";
+
+    /// <summary>
+    /// The trigger that keeps the case information from being changed; dropped and made again only when a working
+    /// copy becomes a case of its own (<see cref="CaseDatabase.Rebind"/>).
+    /// </summary>
+    public const string CaseInfoNoUpdateTrigger = """
+        CREATE TRIGGER seal_case_info_no_update BEFORE UPDATE ON case_info
+            BEGIN SELECT RAISE(ABORT, 'the case information cannot be changed'); END;
+        """;
+
     /// <summary>The first version of the tables.</summary>
     private const string Version1 = """
         CREATE TABLE case_info (

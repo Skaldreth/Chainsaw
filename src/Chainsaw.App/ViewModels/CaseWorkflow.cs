@@ -24,7 +24,7 @@ public sealed record CaseCreation(bool IsCreated, CommandReply Reply, bool Exist
 /// first, the slow work runs off the UI thread, and a case that was opened while Chainsaw locked is closed again
 /// rather than shown. Every answer is a short Swedish text; nothing here throws for what the user did.
 /// </summary>
-public sealed class CaseWorkflow
+public sealed partial class CaseWorkflow
 {
     /// <summary>The most start points a new case is created with at once (principle 7).</summary>
     public const int MaximumStartPoints = 50;
@@ -142,7 +142,7 @@ public sealed class CaseWorkflow
     /// <remarks>Reads the list made by <see cref="RefreshCasesAsync"/>, never the folder.</remarks>
     public IReadOnlyList<string> SuggestCaseNumbers(string prefix)
     {
-        var open = _session.Current?.Info.CaseNumber;
+        var open = _session.Current is { } current ? CaseSession.NumberOf(current) : null;
         return _files
             .Where(file => file.CaseNumber.StartsWith(prefix.Trim(), StringComparison.OrdinalIgnoreCase))
             .Where(file => !string.Equals(file.CaseNumber, open, StringComparison.OrdinalIgnoreCase))
@@ -164,7 +164,7 @@ public sealed class CaseWorkflow
         }
 
         if (_session.Current is { } current
-            && string.Equals(current.Info.CaseNumber, number, StringComparison.OrdinalIgnoreCase))
+            && string.Equals(CaseSession.NumberOf(current), number, StringComparison.OrdinalIgnoreCase))
         {
             return CommandReply.Done($"Ärendet {CaseSession.NameOf(current)} är redan öppet.");
         }
@@ -185,17 +185,12 @@ public sealed class CaseWorkflow
             }
             catch (CaseException exception)
             {
+                // A file without this vault's envelope, or a working copy in conflict, asks the user (sketch ÄR1b).
+                await OfferWayInAsync(number, exception.Error);
                 return CommandReply.Failed(closed.Prefix + CaseTexts.For(exception.Error));
             }
 
-            if (!Keep(opened))
-            {
-                return CommandReply.Failed(LockedMeanwhileText);
-            }
-
-            _session.Open(opened);
-            _absorbing = AbsorbAsync(opened);
-            return CommandReply.Done($"{closed.Prefix}Ärendet {CaseSession.NameOf(opened)} är öppet.");
+            return Show(opened, closed.Prefix);
         });
     }
 
@@ -240,7 +235,7 @@ public sealed class CaseWorkflow
         var reply = await RunAlone(async () =>
         {
             // Checked before the open case is closed: a number that exists (also the open case's) is refused at once.
-            if (_session.Current is { } current && SameNumber(current.Info.CaseNumber, request.CaseNumber)
+            if (_session.Current is { } current && SameNumber(CaseSession.NumberOf(current), request.CaseNumber)
                 || (await ListAsync() ?? []).Any(file => SameNumber(file.CaseNumber, request.CaseNumber)))
             {
                 return CommandReply.Failed(CaseTexts.For(CaseError.AlreadyExists));

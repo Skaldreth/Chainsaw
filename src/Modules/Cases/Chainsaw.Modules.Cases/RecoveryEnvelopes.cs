@@ -157,16 +157,28 @@ internal static class RecoveryEnvelopes
     {
         foreach (var envelope in KeyEnvelopes.OfKind(header, Kind))
         {
-            if (envelope[AlgorithmField] is JsonValue algorithm
-                && algorithm.TryGetValue<string>(out var name) && name == Algorithm
-                && envelope[FingerprintField] is JsonValue value
-                && value.TryGetValue<string>(out var fingerprint)
-                && fingerprint.Length == FingerprintLength && fingerprint.All(char.IsAsciiHexDigitLower))
+            if (FingerprintOf(envelope) is { } fingerprint)
             {
                 yield return (envelope, fingerprint);
             }
         }
     }
+
+    /// <summary>
+    /// Gives the fingerprint of a recovery envelope of this construction, or <see langword="null"/> for another kind,
+    /// another construction or a malformed fingerprint.
+    /// </summary>
+    /// <param name="envelope">The envelope.</param>
+    /// <returns>The fingerprint, or <see langword="null"/>.</returns>
+    public static string? FingerprintOf(JsonObject envelope) =>
+        KeyEnvelopes.IsKind(envelope, Kind)
+        && envelope[AlgorithmField] is JsonValue algorithm
+        && algorithm.TryGetValue<string>(out var name) && name == Algorithm
+        && envelope[FingerprintField] is JsonValue value
+        && value.TryGetValue<string>(out var fingerprint)
+        && fingerprint.Length == FingerprintLength && fingerprint.All(char.IsAsciiHexDigitLower)
+            ? fingerprint
+            : null;
 
     /// <summary>Opens one envelope.</summary>
     /// <param name="caseId">The case id.</param>

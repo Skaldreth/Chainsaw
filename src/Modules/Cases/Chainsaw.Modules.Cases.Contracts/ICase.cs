@@ -121,6 +121,17 @@ public interface ICase : IDisposable
     /// </exception>
     void AddOperatorAccess();
 
+    /// <summary>
+    /// Describes the envelopes in the file's header (sketch ÄR1b, the tab <em>Kuvert</em>), in file order: which one
+    /// is this vault's, which are other vaults', the sharing envelope, the recovery keys' and those of unknown kinds.
+    /// Nothing is changed. An envelope is this vault's only when it opens to this case's file key.
+    /// </summary>
+    /// <returns>The envelopes.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.VaultLocked"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    IReadOnlyList<CaseEnvelope> DescribeEnvelopes();
+
     /// <summary>Writes the working copy back into the case file, atomically.</summary>
     /// <exception cref="CaseException"><see cref="CaseError.Closed"/>.</exception>
     void Save();

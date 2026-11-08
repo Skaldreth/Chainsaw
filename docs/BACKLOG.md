@@ -508,6 +508,12 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   bara för ägaren; med omdirigerad indata läses lösenordet som en `string` som inte kan nollställas; punkten på kurvan
   kontrolleras av plattformen (OpenSSL, CNG), inte av en egen kontroll (granskningen etapp 9, M).
 
+- **Var grenarna gick isär (ÄR1b):** skissen visar journalens rad och hash där filen och arbetskopian gick isär och hur
+  många rader som tillkommit på varje gren. Att räkna ut det kräver att båda öppnas; i dag visas bara när var och en
+  skrevs senast.
+- **Namn på kuverten (ÄR1b):** skissen visar kollegans namn på hennes kuvert. Kuverten bär medvetet inget namn, så
+  kortet heter *Ett annat valv*; ett namn ur journalen (*operator-access-added*) kan inte knytas säkert till ett kuvert.
+- **Okänt kuvert:** ett kuvert av en okänd sort visas som *Okänt kuvert* utan detaljer.
 - **Ankra hashkedjan utanför ärendet:** verifieringen ger varje kedjas sista hash. Den bör stå i rapporter och underlag
   (och kanske i en egen logg utanför ärendet), så att den som har filnyckeln inte kan skriva om hela kedjan oupptäckt.
 - **Stora ärenden:** att öppna och spara kopierar hela databasen. Mät när ärendena blir stora (hundratals MB) och
@@ -705,3 +711,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Grafens kort och markeringar, efter omgranskningen 2026-11-08:** en grund tx hämtas inte om när den endpoint
   som är i fas väntar eller fallerar, och *i fas* bygger bara på provet vid start; schemasteg 1 ändrades på plats
   (`block_hash`, `chains_not_found`), så äldre testärenden ska slängas.
+- **Rapporten, efter omgranskningen 2026-11-08:** med delen Kontroll avslagen bär utkastet en gammal kontroll, så
+  exporten provar om i onödan (sätt `Ledger = null`); provet mellan kontroll och försegling ser bara journalen; ett
+  slut som nås genom en CoinJoin utan markerad avsändare blir *Börs A → Börs A*; `(decimal)` i `ReportTrails` kan
+  kasta för mycket stora tokenbelopp.
+- **Ärendets kuvert, efter omgranskningen 2026-11-08:** kraschar Chainsaw mellan att grenen öppnats och att
+  grenraden skrivits blir `/verify` röd för grenen (skriv raden under ett tillfälligt namn först); en ovanlig dubbel
+  felväg i `OpenSettingAsideWorkingCopy` kan lämna arbetskopian i *Återställda* utan journalrad.

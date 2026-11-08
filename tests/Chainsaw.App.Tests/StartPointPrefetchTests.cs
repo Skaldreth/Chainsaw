@@ -434,6 +434,8 @@ public sealed class StartPointPrefetchTests
 
         public void AddOperatorAccess() => throw new NotSupportedException();
 
+        public IReadOnlyList<CaseEnvelope> DescribeEnvelopes() => [];
+
         public void Save()
         {
         }

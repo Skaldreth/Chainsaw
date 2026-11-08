@@ -42,7 +42,20 @@ public sealed class CaseSession
     /// <param name="openCase">The case.</param>
     /// <returns>Its number, and its title when it has one.</returns>
     public static string NameOf(ICase openCase) =>
-        openCase.Title.Length == 0 ? openCase.Info.CaseNumber : $"{openCase.Info.CaseNumber} · {openCase.Title}";
+        openCase.Title.Length == 0 ? NumberOf(openCase) : $"{NumberOf(openCase)} · {openCase.Title}";
+
+    /// <summary>
+    /// Gives a case's number as its file is named. It is the number the case was created with, except for a working
+    /// copy saved as a case of its own after a crash (sketch ÄR1b), which keeps the case inside and gets a file name
+    /// of its own, for example <c>2026-0117-B</c>.
+    /// </summary>
+    /// <param name="openCase">The case.</param>
+    /// <returns>The number.</returns>
+    public static string NumberOf(ICase openCase)
+    {
+        var fileNumber = Path.GetFileNameWithoutExtension(openCase.Path);
+        return CaseNumberRules.IsValid(fileNumber) ? fileNumber : openCase.Info.CaseNumber;
+    }
 
     /// <summary>
     /// Makes a case the open one. A case open before is forgotten quietly; <see cref="CaseWorkflow"/> closes it

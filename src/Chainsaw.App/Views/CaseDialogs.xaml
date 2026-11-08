@@ -1,0 +1,727 @@
+<UserControl x:Class="Chainsaw.App.Views.CaseDialogs"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:cases="clr-namespace:Chainsaw.Modules.Cases.Contracts;assembly=Chainsaw.Modules.Cases.Contracts"
+             Focusable="False" KeyboardNavigation.TabNavigation="Cycle" PreviewKeyDown="OnKey">
+    <!--
+      The case's dialogs of sketch ÄR1b, each over a darkened background under the title bar: the colleague's file opened
+      with its case password, the case's properties with the tab Kuvert, and the choice of branch after a crash. Every
+      envelope is drawn as a small card with a flap; dashed means that it is not there (yet).
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- An envelope's flap: a V across the top of its card. -->
+        <Geometry x:Key="Envelope.Flap">M0 0 L50 22 L100 0</Geometry>
+
+        <!-- A dialog's frame: the floating surface with its border and shadow. -->
+        <Style x:Key="Dialog.Frame" TargetType="Border">
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Background" Value="{StaticResource Brush.Floating}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="40" ShadowDepth="16" Direction="270" Opacity="0.5" Color="Black" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A small grey text under a heading. -->
+        <Style x:Key="Dialog.Hint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="LineHeight" Value="19" />
+        </Style>
+
+        <!-- The key a button answers to, small and dim after its text. -->
+        <Style x:Key="Dialog.Key" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="Opacity" Value="0.75" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- A dialog's quiet button, 34 px. -->
+        <Style x:Key="Dialog.Secondary" TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+        </Style>
+
+        <!-- A dialog's main button, 34 px, in the accent. -->
+        <Style x:Key="Dialog.Primary" TargetType="Button" BasedOn="{StaticResource Button.Primary}">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="FontSize" Value="13.5" />
+        </Style>
+
+        <!-- A card's small button: Byt …, Ta bort, Skapa lösenord …, 30 px. -->
+        <Style x:Key="Card.Button" TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+        </Style>
+
+        <!-- A tab of the properties: the chosen one underlined in the accent. -->
+        <Style x:Key="Properties.Tab" TargetType="Button" BasedOn="{StaticResource Button.Tab}">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Margin" Value="0,0,22,0" />
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+
+        <!-- ===== A small envelope card in the dialog for a colleague's file ===== -->
+        <DataTemplate x:Key="EnvelopeChipTemplate" DataType="{x:Type vm:EnvelopeChip}">
+            <Grid Width="112" Height="92" Margin="6,0" ToolTip="{Binding Tip}" Background="Transparent">
+                <Rectangle x:Name="Wash" RadiusX="10" RadiusY="10" Fill="Transparent" />
+                <Rectangle x:Name="Frame" RadiusX="10" RadiusY="10" StrokeThickness="1.5"
+                           Stroke="{StaticResource Brush.BorderStrong}" />
+                <Path x:Name="Flap" Data="{StaticResource Envelope.Flap}" Stretch="Fill" Height="20" Margin="10,1,10,0"
+                      VerticalAlignment="Top" StrokeThickness="1.5" Stroke="{StaticResource Brush.BorderStrong}"
+                      StrokeLineJoin="Round" />
+                <StackPanel VerticalAlignment="Center" Margin="0,14,0,0">
+                    <controls:GridIcon x:Name="Icon" Size="18" HorizontalAlignment="Center"
+                                       Data="{StaticResource Icon.Envelope}" Foreground="{StaticResource Brush.TextDim}" />
+                    <TextBlock x:Name="Label" Text="{Binding Label}" FontSize="12" Margin="4,8,4,0"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{StaticResource Brush.TextDim}" />
+                </StackPanel>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static cases:CaseEnvelopeKind.Yours}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Kind.Person}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static cases:CaseEnvelopeKind.OtherVault}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Kind.Person}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static cases:CaseEnvelopeKind.SharingPassword}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Key}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static cases:CaseEnvelopeKind.Recovery}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Org}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static cases:CaseEnvelopeKind.Unknown}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Question}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsLit}" Value="True">
+                    <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Flap" Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Wash" Property="Fill" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Wash" Property="Opacity" Value="0.08" />
+                    <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsPending}" Value="True">
+                    <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Frame" Property="StrokeDashArray" Value="3 3" />
+                    <Setter TargetName="Flap" Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Flap" Property="StrokeDashArray" Value="3 3" />
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Plus}" />
+                    <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsAdded}" Value="True">
+                    <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="Flap" Property="Stroke" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="Wash" Property="Fill" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="Wash" Property="Opacity" Value="0.08" />
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Check}" />
+                    <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ===== A card in the tab Kuvert ===== -->
+        <DataTemplate x:Key="EnvelopeCardTemplate" DataType="{x:Type vm:EnvelopeCard}">
+            <Grid MinHeight="172" Margin="0,0,14,14">
+                <Rectangle x:Name="Frame" RadiusX="12" RadiusY="12" StrokeThickness="1.5"
+                           Fill="{StaticResource Brush.Background}" Stroke="{StaticResource Brush.Border}" />
+                <Path x:Name="Flap" Data="{StaticResource Envelope.Flap}" Stretch="Fill" Height="16" Margin="18,1,18,0"
+                      VerticalAlignment="Top" StrokeThickness="1.5" Stroke="{StaticResource Brush.Border}"
+                      StrokeLineJoin="Round" />
+                <DockPanel Margin="18,28,18,16">
+                    <DockPanel DockPanel.Dock="Top">
+                        <Border x:Name="IconFrame" Width="36" Height="36" CornerRadius="18" BorderThickness="1.5"
+                                BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Surface}">
+                            <controls:GridIcon x:Name="Icon" Size="18" Data="{StaticResource Icon.Kind.Person}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Brush.TextMuted}" />
+                        </Border>
+                        <Border x:Name="YouPill" DockPanel.Dock="Right" Height="22" Padding="9,0" CornerRadius="11"
+                                VerticalAlignment="Center" Visibility="Collapsed">
+                            <Grid>
+                                <Border CornerRadius="11" Background="{StaticResource Brush.Success}" Opacity="0.12" />
+                                <TextBlock Text="Du" FontSize="11.5" Foreground="{StaticResource Brush.Success}"
+                                           VerticalAlignment="Center" Margin="9,0" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="OrgLock" DockPanel.Dock="Right" Background="Transparent" Visibility="Collapsed"
+                                VerticalAlignment="Center"
+                                ToolTip="Läggs till av sig självt i varje ärende och kan inte tas bort här.">
+                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Lock}"
+                                               Foreground="{StaticResource Brush.TextDim}" />
+                        </Border>
+                        <StackPanel Margin="12,0,8,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Subtitle}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- The actions, at the bottom of the card. -->
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Style="{StaticResource Card.Button}" Content="Byt …"
+                                Visibility="{Binding CanChange, Converter={StaticResource Visible}}"
+                                Command="{Binding DataContext.EditPasswordCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" ToolTip="Ge filen ett nytt ärendelösenord" />
+                        <Button Style="{StaticResource Card.Button}" Content="Ta bort" BorderBrush="Transparent"
+                                Foreground="{StaticResource Brush.TextMuted}"
+                                Visibility="{Binding CanChange, Converter={StaticResource Visible}}"
+                                Command="{Binding DataContext.RemovePasswordCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                ToolTip="Ta bort delningskuvertet; kuverten med egen nyckel ligger kvar" />
+                        <Button Style="{StaticResource Card.Button}" Content="Skapa lösenord …"
+                                Visibility="{Binding CanCreate, Converter={StaticResource Visible}}"
+                                Command="{Binding DataContext.EditPasswordCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+                        <Button Style="{StaticResource Card.Button}" Content="Lägg till mitt kuvert"
+                                Visibility="{Binding CanAddOwn, Converter={StaticResource Visible}}"
+                                Command="{Binding DataContext.AddOwnEnvelopeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                ToolTip="Sedan öppnas filen med din huvudnyckel. Journalförs." />
+                    </StackPanel>
+
+                    <Grid Margin="0,12,0,0">
+                        <TextBlock x:Name="Text" Text="{Binding Text}" Style="{StaticResource Dialog.Hint}"
+                                   Visibility="{Binding ShowsText, Converter={StaticResource Visible}}" />
+
+                        <!-- The case password written in the card: two fields, Avbryt and Byt (Enter). -->
+                        <StackPanel x:Name="PasswordForm" Visibility="{Binding IsEditing, Converter={StaticResource Visible}}">
+                            <PasswordBox x:Name="NewPassword" Style="{StaticResource PasswordBox.Field}" Height="34"
+                                         AutomationProperties.Name="Nytt ärendelösenord" Loaded="OnPasswordFormLoaded" />
+                            <PasswordBox x:Name="RepeatPassword" Style="{StaticResource PasswordBox.Field}" Height="34"
+                                         Margin="0,8,0,0" AutomationProperties.Name="Upprepa ärendelösenordet" />
+                            <DockPanel Margin="0,8,0,0">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Card.Button}" Margin="0"
+                                        Background="{StaticResource Brush.Accent}" BorderBrush="{StaticResource Brush.Accent}"
+                                        Foreground="{StaticResource Brush.OnAccent}" FontWeight="SemiBold"
+                                        Content="Spara" Click="OnSetPassword" ToolTip="Spara lösenordet (Enter)" />
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Card.Button}" Content="Avbryt"
+                                        Command="{Binding DataContext.CancelPasswordCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                <TextBlock Text="Kuverten med egen nyckel påverkas inte." FontSize="11.5"
+                                           Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center"
+                                           TextWrapping="Wrap" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Grid>
+                </DockPanel>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsDashed}" Value="True">
+                    <Setter TargetName="Frame" Property="StrokeDashArray" Value="3 3" />
+                    <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.BorderStrong}" />
+                    <Setter TargetName="Flap" Property="StrokeDashArray" Value="3 3" />
+                    <Setter TargetName="Flap" Property="Stroke" Value="{StaticResource Brush.BorderStrong}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                    <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Frame" Property="StrokeDashArray" Value="{x:Null}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsYou}" Value="True">
+                    <Setter TargetName="YouPill" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="IconFrame" Property="BorderBrush" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:EnvelopeCardKind.YoursMissing}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Plus}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:EnvelopeCardKind.SharingPassword}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Key}" />
+                    <Setter TargetName="IconFrame" Property="CornerRadius" Value="10" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:EnvelopeCardKind.NoSharing}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Key}" />
+                    <Setter TargetName="IconFrame" Property="CornerRadius" Value="10" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:EnvelopeCardKind.Recovery}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Org}" />
+                    <Setter TargetName="IconFrame" Property="CornerRadius" Value="10" />
+                    <Setter TargetName="OrgLock" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Text" Property="FontFamily" Value="{StaticResource Font.Mono}" />
+                    <Setter TargetName="Text" Property="FontSize" Value="12" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:EnvelopeCardKind.NoRecovery}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Org}" />
+                    <Setter TargetName="IconFrame" Property="CornerRadius" Value="10" />
+                    <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource Brush.Pending}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:EnvelopeCardKind.Unknown}">
+                    <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Question}" />
+                    <Setter TargetName="IconFrame" Property="CornerRadius" Value="10" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- ===================== A colleague's file, opened with the case password ===================== -->
+        <Grid x:Name="PasswordLayer" DataContext="{Binding Password}"
+              Visibility="{Binding IsOpen, Converter={StaticResource Visible}, FallbackValue=Collapsed}">
+            <Rectangle Fill="Black" Opacity="0.55" MouseLeftButtonDown="OnDimClicked" />
+            <Border Style="{StaticResource Dialog.Frame}" Width="560" Margin="0,80,0,0" Padding="28,26,28,22"
+                    AutomationProperties.Name="Öppna med ärendelösenordet">
+                <StackPanel>
+                    <DockPanel>
+                        <controls:GridIcon Size="22" Data="{StaticResource Icon.Envelope}"
+                                           Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
+                        <StackPanel Margin="12,0,0,0">
+                            <TextBlock Text="{Binding CaseNumber}" FontSize="17" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding FileText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <ItemsControl ItemsSource="{Binding Envelopes}" ItemTemplate="{StaticResource EnvelopeChipTemplate}"
+                                  Focusable="False" HorizontalAlignment="Center" Margin="0,18,0,0"
+                                  AutomationProperties.Name="Kuverten i filen">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+
+                    <!-- Asking: the password, the envelope for this vault, Avbryt and Öppna. -->
+                    <StackPanel Visibility="{Binding IsAsking, Converter={StaticResource Visible}}" Margin="0,18,0,0">
+                        <TextBlock Text="Ärendelösenordet du har fått" FontSize="12.5"
+                                   Foreground="{StaticResource Brush.TextMuted}" />
+                        <Grid Margin="0,8,0,0">
+                            <PasswordBox x:Name="CasePasswordBox" Style="{StaticResource PasswordBox.Field}" Height="42"
+                                         Padding="36,0,10,0" FontSize="16" Background="{StaticResource Brush.Background}"
+                                         AutomationProperties.Name="Ärendelösenord" />
+                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Key}" Margin="12,0,0,0"
+                                               HorizontalAlignment="Left" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Brush.TextDim}" IsHitTestVisible="False" />
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                    Visibility="{Binding IsWrong, Converter={StaticResource Visible}}">
+                            <controls:GridIcon Size="13" Data="{StaticResource Icon.Alert}"
+                                               Foreground="{StaticResource Brush.Error}" VerticalAlignment="Center" />
+                            <TextBlock Text="{x:Static vm:CaseWorkflow.WrongPasswordText}" FontSize="12.5"
+                                       Foreground="{StaticResource Brush.Error}" Margin="6,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="12.5"
+                                   Margin="0,8,0,0" />
+
+                        <Button Margin="0,16,0,0" Command="{Binding ToggleAddCommand}" Cursor="Hand"
+                                FocusVisualStyle="{x:Null}" AutomationProperties.Name="Lägg till ett kuvert för mig">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Row" Background="{StaticResource Brush.Surface}" CornerRadius="10"
+                                            Padding="14,12" BorderThickness="1" BorderBrush="Transparent">
+                                        <DockPanel>
+                                            <Border x:Name="Box" Width="18" Height="18" CornerRadius="5" BorderThickness="1.5"
+                                                    BorderBrush="{StaticResource Brush.TextDim}" VerticalAlignment="Center">
+                                                <controls:GridIcon x:Name="Tick" Size="12" Data="{StaticResource Icon.Check}"
+                                                                   Foreground="{StaticResource Brush.OnAccent}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Visibility="Collapsed" />
+                                            </Border>
+                                            <StackPanel Margin="12,0,0,0">
+                                                <TextBlock Text="Lägg till ett kuvert för mig" FontSize="13.5"
+                                                           Foreground="{StaticResource Brush.Text}" />
+                                                <TextBlock Text="Sedan öppnas filen med din huvudnyckel, också om lösenordet byts. Journalförs."
+                                                           FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding AddOwnEnvelope}" Value="True">
+                                            <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.Accent}" />
+                                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                            <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                                        </Trigger>
+                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                            <Setter TargetName="Row" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                            <Button Style="{StaticResource Dialog.Secondary}" Command="{Binding CloseCommand}"
+                                    ToolTip="Avbryt (Esc)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Avbryt" />
+                                    <TextBlock Text="Esc" Style="{StaticResource Dialog.Key}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource Dialog.Primary}" Margin="8,0,0,0" Click="OnOpenWithPassword"
+                                    IsEnabled="{Binding IsIdle}"
+                                    ToolTip="Öppna ärendet (Enter)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Öppna" />
+                                    <TextBlock Text="Enter" Style="{StaticResource Dialog.Key}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Done: the envelope is there, and Till grafen. -->
+                    <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Visible}}" Margin="0,18,0,0">
+                        <TextBlock Text="{Binding DoneMessage}" FontSize="13.5" Foreground="{StaticResource Brush.TextMuted}"
+                                   TextAlignment="Center" TextWrapping="Wrap" LineHeight="20" />
+                        <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="12.5"
+                                   TextAlignment="Center" Margin="0,6,0,0" />
+                        <Button x:Name="ToGraph" Style="{StaticResource Dialog.Primary}" HorizontalAlignment="Center"
+                                Margin="0,16,0,0" Command="{Binding CloseCommand}" ToolTip="Till grafen (Enter)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Till grafen" />
+                                <TextBlock Text="Enter" Style="{StaticResource Dialog.Key}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===================== The case's properties, with the tab Kuvert ===================== -->
+        <Grid x:Name="PropertiesLayer" DataContext="{Binding Properties}"
+              Visibility="{Binding IsOpen, Converter={StaticResource Visible}, FallbackValue=Collapsed}">
+            <Rectangle Fill="Black" Opacity="0.55" MouseLeftButtonDown="OnDimClicked" />
+            <Border Style="{StaticResource Dialog.Frame}" Width="940" Margin="24,56,24,24"
+                    Background="{StaticResource Brush.Surface}" AutomationProperties.Name="Ärendets egenskaper">
+                <DockPanel>
+                    <!-- The number (which cannot change), the title and ×. -->
+                    <DockPanel DockPanel.Dock="Top" Margin="32,24,20,0">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Width="32" Height="32"
+                                VerticalAlignment="Top" Command="{Binding CloseCommand}" ToolTip="Stäng (Esc)"
+                                AutomationProperties.Name="Stäng">
+                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Close}" />
+                        </Button>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding CaseNumber}" FontSize="24" FontWeight="SemiBold" />
+                                <Border Background="Transparent" Margin="12,4,0,0" VerticalAlignment="Center"
+                                        ToolTip="Ärendenumret kan inte ändras">
+                                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Lock}"
+                                                       Foreground="{StaticResource Brush.TextDim}" />
+                                </Border>
+                            </StackPanel>
+                            <TextBox x:Name="TitleBox" Width="520" HorizontalAlignment="Left" Height="34" Margin="0,6,0,0"
+                                     Text="{Binding TitleText, UpdateSourceTrigger=PropertyChanged}" FontSize="15"
+                                     Foreground="{StaticResource Brush.Text}" CaretBrush="{StaticResource Brush.Accent}"
+                                     Background="Transparent" BorderThickness="0,0,0,1.5" VerticalContentAlignment="Center"
+                                     BorderBrush="{StaticResource Brush.BorderStrong}" LostKeyboardFocus="OnTitleLeft"
+                                     ToolTip="Titeln sparas när fältet lämnas (Enter). Journalförs."
+                                     AutomationProperties.Name="Titel" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- The tabs. -->
+                    <Border DockPanel.Dock="Top" BorderThickness="0,0,0,1" BorderBrush="{StaticResource Brush.Border}"
+                            Padding="32,18,32,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Egenskaper" Command="{Binding ShowTabCommand}"
+                                    CommandParameter="{x:Static vm:CasePropertiesTab.Properties}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Properties.Tab}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPropertiesTab}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Content="Kuvert" Command="{Binding ShowTabCommand}"
+                                    CommandParameter="{x:Static vm:CasePropertiesTab.Envelopes}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Properties.Tab}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEnvelopesTab}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Content="Information" Command="{Binding ShowTabCommand}"
+                                    CommandParameter="{x:Static vm:CasePropertiesTab.Information}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Properties.Tab}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsInformationTab}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- What went wrong, and that every change is journalled. -->
+                    <StackPanel DockPanel.Dock="Bottom" Margin="32,0,32,22">
+                        <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="12.5"
+                                   Margin="0,0,0,8" />
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="13" Data="{StaticResource Icon.Info}"
+                                               Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                            <TextBlock Text="{x:Static vm:EnvelopeWords.JournalNote}" FontSize="12" Margin="6,0,0,0"
+                                       Foreground="{StaticResource Brush.TextDim}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Grid Margin="32,22,32,16">
+                        <!-- Egenskaper. -->
+                        <StackPanel Visibility="{Binding IsPropertiesTab, Converter={StaticResource Visible}}">
+                            <DockPanel Margin="0,0,0,12">
+                                <TextBlock Text="Ärendenummer" Width="160" FontSize="13.5" Foreground="{StaticResource Brush.TextMuted}" />
+                                <TextBlock Text="{Binding CaseNumber}" FontSize="13.5" />
+                            </DockPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <TextBlock Text="Skapat" Width="160" FontSize="13.5" Foreground="{StaticResource Brush.TextMuted}" />
+                                <TextBlock Text="{Binding CreatedText}" FontSize="13.5" />
+                            </DockPanel>
+                            <TextBlock Text="Titeln skrivs överst och sparas när fältet lämnas. Tidigare titlar ligger kvar i ärendet."
+                                       Style="{StaticResource Dialog.Hint}" />
+                        </StackPanel>
+
+                        <!-- Kuvert: every envelope as a card, two to a row. -->
+                        <StackPanel Visibility="{Binding IsEnvelopesTab, Converter={StaticResource Visible}}">
+                            <TextBlock Text="{x:Static vm:EnvelopeWords.EnvelopesLead}" FontSize="13"
+                                       Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,0,16" />
+                            <ScrollViewer MaxHeight="440" VerticalScrollBarVisibility="Auto" Margin="0,0,-14,0">
+                                <ItemsControl ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource EnvelopeCardTemplate}"
+                                              Focusable="False" AutomationProperties.Name="Kuverten">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+
+                        <!-- Information: the file and the case's id. -->
+                        <StackPanel Visibility="{Binding IsInformationTab, Converter={StaticResource Visible}}">
+                            <DockPanel Margin="0,0,0,12">
+                                <TextBlock Text="Fil" Width="160" FontSize="13.5" Foreground="{StaticResource Brush.TextMuted}" />
+                                <TextBlock Text="{Binding PathText}" FontSize="13.5" TextWrapping="Wrap" />
+                            </DockPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <TextBlock Text="Ärendets id" Width="160" FontSize="13.5" Foreground="{StaticResource Brush.TextMuted}" />
+                                <TextBlock Text="{Binding CaseIdText}" FontSize="13" FontFamily="{StaticResource Font.Mono}" />
+                            </DockPanel>
+                            <TextBlock Text="Filen är krypterad med ärendets egen filnyckel. Filnyckeln finns bara i kuverten, aldrig okrypterad i filen."
+                                       Style="{StaticResource Dialog.Hint}" />
+                        </StackPanel>
+                    </Grid>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===================== After a crash: the file or the working copy ===================== -->
+        <Grid x:Name="BranchLayer" DataContext="{Binding Branch}"
+              Visibility="{Binding IsOpen, Converter={StaticResource Visible}, FallbackValue=Collapsed}">
+            <Rectangle Fill="Black" Opacity="0.55" MouseLeftButtonDown="OnDimClicked" />
+            <Border Style="{StaticResource Dialog.Frame}" Width="980" Margin="24,70,24,24" Padding="32,28,32,24"
+                    AutomationProperties.Name="Välj gren">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <controls:GridIcon Size="20" Data="{StaticResource Icon.Branch}"
+                                           Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Heading}" FontSize="18" FontWeight="SemiBold" Margin="12,0,0,0" />
+                    </StackPanel>
+                    <TextBlock Text="Chainsaw stängdes med ärendet öppet, och filen har sparats sedan dess. Välj vilken gren som fortsätter här."
+                               Style="{StaticResource Dialog.Hint}" FontSize="13" Margin="32,6,0,0" />
+
+                    <DockPanel Margin="0,20,0,0">
+                        <!-- The case as two branches: the chosen one in the accent, the other dashed. -->
+                        <Canvas Width="540" Height="300" DockPanel.Dock="Left" IsHitTestVisible="False">
+                            <Path Data="M20 150 H300" Stroke="{StaticResource Brush.TextMuted}" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Path Data="M300 150 C370 150 370 60 440 60 H530" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                <Path.Style>
+                                    <Style TargetType="Path">
+                                        <Setter Property="Stroke" Value="{StaticResource Brush.TextDim}" />
+                                        <Setter Property="StrokeThickness" Value="2" />
+                                        <Setter Property="StrokeDashArray" Value="1 3" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ChoosesFile}" Value="True">
+                                                <Setter Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                                                <Setter Property="StrokeThickness" Value="3" />
+                                                <Setter Property="StrokeDashArray" Value="{x:Null}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Path.Style>
+                            </Path>
+                            <Path Data="M300 150 C370 150 370 240 440 240 H530" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                <Path.Style>
+                                    <Style TargetType="Path">
+                                        <Setter Property="Stroke" Value="{StaticResource Brush.TextDim}" />
+                                        <Setter Property="StrokeThickness" Value="2" />
+                                        <Setter Property="StrokeDashArray" Value="1 3" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ChoosesCopy}" Value="True">
+                                                <Setter Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                                                <Setter Property="StrokeThickness" Value="3" />
+                                                <Setter Property="StrokeDashArray" Value="{x:Null}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Path.Style>
+                            </Path>
+                            <Ellipse Canvas.Left="15" Canvas.Top="145" Width="10" Height="10" Fill="{StaticResource Brush.TextMuted}" />
+                            <Ellipse Canvas.Left="293" Canvas.Top="143" Width="14" Height="14" Fill="{StaticResource Brush.Floating}"
+                                     Stroke="{StaticResource Brush.Text}" StrokeThickness="2" />
+                            <TextBlock Canvas.Left="20" Canvas.Top="164" Text="Ärendet" FontSize="12"
+                                       Foreground="{StaticResource Brush.TextDim}" />
+                            <TextBlock Canvas.Left="250" Canvas.Top="164" Width="100" TextAlignment="Center"
+                                       Text="Gick isär" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                            <TextBlock Canvas.Left="400" Canvas.Top="32" FontSize="12" Foreground="{StaticResource Brush.TextDim}">
+                                <Run Text="Filen · " /><Run Text="{Binding FileWhen, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Canvas.Left="400" Canvas.Top="252" FontSize="12" Foreground="{StaticResource Brush.TextDim}">
+                                <Run Text="Arbetskopian · " /><Run Text="{Binding CopyWhen, Mode=OneWay}" />
+                            </TextBlock>
+                        </Canvas>
+
+                        <!-- The two branches as cards to choose between. -->
+                        <Grid Margin="16,0,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Button x:Name="FileBranch" Grid.Row="0" Command="{Binding PickFileCommand}" Cursor="Hand"
+                                    FocusVisualStyle="{x:Null}" AutomationProperties.Name="Filen">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Grid>
+                                            <Border x:Name="Wash" CornerRadius="12" Background="{StaticResource Brush.Surface}" />
+                                            <Border x:Name="Card" CornerRadius="12" BorderThickness="1.5" Padding="16,14"
+                                                    BorderBrush="{StaticResource Brush.BorderStrong}">
+                                                <StackPanel>
+                                                    <DockPanel>
+                                                        <controls:GridIcon x:Name="Icon" Size="16" Data="{StaticResource Icon.File}"
+                                                                           Foreground="{StaticResource Brush.TextMuted}" />
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding FileWhen}" FontSize="12"
+                                                                   Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="Filen" FontSize="14" FontWeight="SemiBold" Margin="10,0,0,0"
+                                                                   Foreground="{StaticResource Brush.Text}" />
+                                                    </DockPanel>
+                                                    <TextBlock Text="{x:Static vm:CaseBranchViewModel.FileHint}"
+                                                               Style="{StaticResource Dialog.Hint}" Margin="0,6,0,0" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding ChoosesFile}" Value="True">
+                                                <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                                            </DataTrigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Wash" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                                            </Trigger>
+                                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                                <Setter TargetName="Wash" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+
+                            <Border Grid.Row="2" x:Name="CopyBranch" CornerRadius="12" BorderThickness="1.5" Padding="16,14"
+                                    Background="{StaticResource Brush.Surface}" Cursor="Hand"
+                                    MouseLeftButtonDown="OnCopyBranchClicked">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ChoosesCopy}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                            </DataTrigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <DockPanel>
+                                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Clock}">
+                                            <controls:GridIcon.Style>
+                                                <Style TargetType="controls:GridIcon">
+                                                    <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ChoosesCopy}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </controls:GridIcon.Style>
+                                        </controls:GridIcon>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CopyWhen}" FontSize="12"
+                                                   Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                                        <TextBlock Text="Arbetskopian" FontSize="14" FontWeight="SemiBold" Margin="10,0,0,0" />
+                                    </DockPanel>
+                                    <TextBlock Text="{x:Static vm:CaseBranchViewModel.CopyHint}"
+                                               Style="{StaticResource Dialog.Hint}" Margin="0,6,0,0" />
+                                    <Grid Margin="0,10,0,0" Visibility="{Binding ChoosesCopy, Converter={StaticResource Visible}}">
+                                        <TextBox x:Name="BranchNumberBox" Style="{StaticResource TextBox.Field}" Height="32"
+                                                 Background="{StaticResource Brush.Background}" Padding="10,0,44,0"
+                                                 Text="{Binding BranchNumber, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Det nya ärendets nummer" />
+                                        <TextBlock Text=".cut" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0"
+                                                   IsHitTestVisible="False" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </DockPanel>
+
+                    <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="12.5" Margin="0,14,0,0" />
+                    <DockPanel Margin="0,18,0,0">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Dialog.Primary}" Margin="8,0,0,0"
+                                Command="{Binding GoCommand}" IsEnabled="{Binding CanGo}" ToolTip="Fortsätt med den valda grenen (Enter)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding GoText}" />
+                                <TextBlock Text="Enter" Style="{StaticResource Dialog.Key}" />
+                            </StackPanel>
+                        </Button>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Dialog.Secondary}" Command="{Binding CloseCommand}"
+                                ToolTip="Avbryt (Esc)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Avbryt" />
+                                <TextBlock Text="Esc" Style="{StaticResource Dialog.Key}" />
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Text="Den andra grenen tas inte bort. Valet står i journalen." FontSize="12"
+                                   Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

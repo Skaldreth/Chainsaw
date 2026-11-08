@@ -35,6 +35,8 @@ public static class CaseTexts
         CaseError.NoOperatorProfile => "Operatörsprofilen saknas, så journalen kan inte säga vem som gjorde det.",
         CaseError.PasswordTooShort =>
             $"Ärendelösenordet ska ha minst {SharingPasswordRules.MinimumLength} tecken.",
+        CaseError.WouldLoseAccess =>
+            "Ditt valv har inget eget kuvert i ärendet, så lösenordet kan inte tas bort. Lägg till ditt kuvert först.",
         CaseError.Closed => "Ärendet är stängt.",
         _ => "Det gick inte att göra det med ärendet.",
     };

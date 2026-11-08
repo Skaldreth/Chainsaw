@@ -48,4 +48,17 @@ public static class CaseJournalKinds
     /// <c>cases.title</c>.
     /// </summary>
     public const string TitleSet = "case.title-set";
+
+    /// <summary>
+    /// The case was opened after a working copy that did not belong to the file had been moved to the folder
+    /// <c>Återställda</c>, where it is kept; the details give the folder and the working copy's SHA-256.
+    /// </summary>
+    public const string WorkingCopySetAside = "case.working-copy-set-aside";
+
+    /// <summary>
+    /// The case was made from a working copy that did not belong to its file, as a case of its own with a new id and
+    /// case number; the details give the case it went apart from (number and id), the new id and number, and the
+    /// envelopes that could not follow.
+    /// </summary>
+    public const string BranchSaved = "case.branch-saved";
 }
