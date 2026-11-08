@@ -2538,3 +2538,24 @@ och *+ Skäl, frivilligt*) och *Allt avgjort* med ringen, sammanfattningen och l
   andra; ett IO-fel från sanktionslistan gör raden misslyckad; varje rads `CancellationTokenSource` tas bort när
   hämtningen är över.
 
+## Tidslinjen under grafen (TL1a, 2026-11-08)
+
+Byggd efter skissen `TimelineA` utan ny etapp, eftersom den bara ändrar vad som syns: inget skrivs i ärendet.
+Geometrin står utan WPF i `Graph/TimeAxis.cs`, `Graph/TimeBands.cs`, `Graph/TimeStripLayout.cs` och
+`Graph/GraphTimeline.cs`; vymodellen är `GraphTimelineViewModel` (`GraphViewModel.Timeline`), banden ritas i
+`GraphCanvas.Timeline.cs` och listen är kontrollen `TimeStrip`.
+
+- **Egna beslut:** en aktörs tid är när pengarna först kom dit i grafen (`FirstReceived`), annars dess första
+  utgående tx (en startpunkt som bara skickar). Aktörer och linjer utan bekräftad tx räknas som *nu* och bleknar vid en
+  vald tid. Dygnen räknas i Windows tidszon (sommartid ger ett kort dygn). Linjens naturliga plats är den plats från
+  vänster till höger som lämnar färst aktörer på fel sida, så att en utdragen aktör inte flyttar linjen utan passeras
+  runt; samma regel gäller båda lägena, och i hoppkolumnerna blir linjerna därför i stort sett raka. Linjerna räknas
+  om bara när platserna ändras och ritas bara där de syns (princip 6). Listen slutar en bit efter den sista tx:en
+  (minst 12 h), eftersom ärendet inte vet senaste blockets tid. Ett klick nära ett streck väljer tx:ens tid, annars
+  tiden under pekaren.
+- **Avsteg från skissen:** *Till nu* visas bara när en tid är vald (princip 7: en knapp som inte går att använda
+  visas inte). Statusradens *Tid:* finns inte, eftersom Chainsaw saknar statusrad. Listen står närmare nederkanten än
+  i skissen, eftersom kommandoraden är dold. Kortet har en ritad skugga.
+- **Återstår:** band i timmar när man zoomar in (skissens anteckning: timmar, dygn eller veckor; nu dygn och grupper
+  av dygn), och listens slut vid senaste blocket.
+

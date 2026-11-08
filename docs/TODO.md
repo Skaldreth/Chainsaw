@@ -112,7 +112,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     2. **Inspektören** (IN2b, GR5, TK1a, AN1b): raden *Okänd · Bitcoin · startpunkt* under namnet; adressen i sin
        mörka ruta med kopiera; saldo per token med SEK och utgivare, *Begäran om frysning …*; i Historik runda
        markörer och *Ta tillbaka*/*Ångra* som piller under raden.
-    3. **Grafen** (GR4, GR5, TK1a): tidslinjen under grafen (TL1a) saknas; noden växer inte med namn och lång adress;
+    3. **Grafen** (GR4, GR5, TK1a): noden växer inte med namn och lång adress;
        tokenmärket som liten rund bricka; swappen som piller på linjen; rubrikerna för kedjornas delar av ytan.
     4. **Bildspråkets ruta GR7a** (godkänd, inte byggd).
     5. **Guiden** (GD1b): skissens små diagram inne i avsnitten saknas.
@@ -155,7 +155,7 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
    finns); Bevaka och Kopiera saknas i inspektören; passa in (F) och zoom bara i verktygstips; dubbelklick på en nod
    expanderar inte; inget högerklick eller inklistring på tom yta.
 6. **Tomma lägen:** Bevakning utan ärende ger ingen väg vidare; inget ärende föreslås efter upplåsning.
-7. Därefter det godkända: EX1/EX2b, SO1a med Delete, TL1a, BG1b.
+7. Därefter det godkända: EX1/EX2b, SO1a med Delete, BG1b.
 
 - **Soptunnan (SO1a)**, se CLAUDE.md *Soptunnan*, med Delete på valda noder: byggs som en etapp, eftersom den skriver i
   ärendet. Bevakningar på det som slängs (och längre ner i grenen) avslutas efter en fråga, se CLAUDE.md.
@@ -179,7 +179,8 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
   mot sina bytes och om den bytt block (omorganisation). EX1a och EX1b valda som två lägen, med EX2:s filter
   och samlingsnoden EX2b (CLAUDE.md). Kvar att lösa: tidslisten blir för smal för ±48 h och behöver zoomas runt
   fönstret.
-- **Tidslinjen under grafen är TL1a** (CLAUDE.md): byggs efter bevakningen.
+- **Tidslinjen under grafen, det som återstår** (TL1a byggd 2026-11-08): band i timmar när man zoomar in (nu dygn och
+  grupper av dygn), och listens prickade slut vid senaste blocket, som ärendet inte vet i dag.
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.
 - **Guidens figurer** (GD1b och GD1a): skisserna har små figurer i avsnitten (UTXO, common-input-ownership, växeln,
