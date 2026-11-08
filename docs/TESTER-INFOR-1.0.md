@@ -1141,7 +1141,7 @@ ligger bredvid `Chainsaw.exe`.
 ## Statusraden och kommandoraden som Spotlight (polering 2026-11-07)
 - [ ] Statusraden längst ner är borta; utgången står bara i titelraden, och hovring på den säger vart uppslagen går.
 - [ ] När en källa ber Chainsaw vänta syns en liten gul prick till vänster om utgången i titelraden, med texten på hovring; den försvinner när väntan är över.
-- [ ] Kommandoraden syns inte förrän Ctrl+K eller Ctrl+F; då kommer den som Spotlight i övre delen, 640 px bred, med förstoringsglas och större text, över en mjuk mörkning, och tonar in med en liten rörelse (direkt med animeringar avstängda).
+- [ ] Kommandoraden syns inte förrän Ctrl+K eller Ctrl+F; då kommer den som Spotlight nära överkanten, 640 px bred, med förstoringsglas och större text, utan mörkning (KR1a), och tonar in med en liten rörelse (direkt med animeringar avstängda).
 - [ ] Esc, ett klick utanför (också i titelraden) och ett kommando som lyckas döljer raden; tangentbordet går tillbaka dit det var.
 - [ ] Ett kommando som misslyckas låter raden stå kvar med felet i rött under fältet.
 - [ ] *Alla ärenden …* i den tomma grafen öppnar raden med "/open " och markören sist, och Tab fyller i ärendenumret.
@@ -1724,3 +1724,18 @@ några steg).
   inte raden.
 - En Ethereum-adress med USDT eller USDC kvar: inspektörens snöflingeruta har *Begäran om frysning …*, som öppnar
   vyn med raden *Tether · …* (isblå fyrkant) och en begäran till utgivaren med det som ligger kvar.
+
+## Sökningen i kommandoraden (KR1a)
+- [ ] Ctrl+K eller Ctrl+F och *kra* (med en etikett Kraken i ärendet): *Bästa träff* överst, stor, med rutan i nodens form och färg, *Etikett* litet bredvid och en rad om var den står och källorna; under den grupperna Etiketter, Adresser, Tx, Kluster och Guide i den ordningen, det skrivna i fetstil.
+- [ ] Den valda raden visas direkt i grafen: grafen glider så att noden hamnar under rutan, med en ring i accent och en ring som pulserar utåt, och resten tonas ner. Med animeringar avstängda hoppar grafen och ringen står still.
+- [ ] Pil upp och ner byter rad, och grafen följer med; *Visa i grafen* med Enter-tecknet står bara vid den valda raden.
+- [ ] Enter (eller ett andra klick på den valda raden) stänger rutan och lämnar noden vald i grafen; Esc stänger utan att välja något, och ringen försvinner.
+- [ ] *bc1q*: gruppen Adresser visar fyra och *4 av N · Tab visar alla*; Tab fäller ut gruppen (högst 100), och Tab igen går till nästa grupp.
+- [ ] En tx som är hämtad men inte står på någon linje säger *Hämtad, inte i grafen* och *Inte i grafen* i stället för att flytta grafen.
+- [ ] *utxo* (eller */guide utxo*): Guidens panel fälls ut från höger vid avsnittet, raden säger *Öppna i Guiden* och foten *Enter öppnar Guiden*; byter man till en rad i ärendet fälls panelen in igen. Enter lämnar panelen öppen.
+- [ ] *utxo* säger *Inget i ärendet heter utxo. Guiden svarar på begrepp.*
+- [ ] En adress som inte finns i ärendet: brickan *₿ Bitcoin* i fältet och raden *Lägg till som startpunkt* med *Inget hämtas förrän du expanderar den, och då bara adressen, genom <utgången>*; offline säger den när det kan hämtas. Enter eller ett klick lägger till startpunkten.
+- [ ] Utan öppet ärende söks bara Guiden, och raden säger det.
+- [ ] Ett stort ärende (tusentals adresser): raden hänger aldrig medan man skriver.
+- [ ] */help* listar */guide*, och */gu* med Tab fyller i kommandot.
+

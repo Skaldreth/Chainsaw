@@ -3315,3 +3315,29 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - Tester: `GraphThrowMoreTests`, `CommentInspectorTests` och `StartPileTrashTests` (33) i App.Tests, två nya i
   Tracing.Tests (`TrashTests`), och de befintliga kommentarstesterna följer slängningen.
 - **Återstår:** testärendet saknar en slängd lapp och yta (`docs/BACKLOG.md`, *Testärendet*).
+
+
+## Sökningen i kommandoraden, KR1a (2026-11-08)
+
+- **Byggt:** `Search/` i appen: `SearchIndex` byggs en gång per graf utanför UI-tråden ur grafens etiketter
+  (en post per namn), adresser, tx (på linjerna och de hämtade utan linje) och kluster (som också hittas på sina
+  adresser), och Guidens avsnitt (titel, id och rubriker). En sökning är en genomgång av indexet utan att röra
+  ärendet; en nyare sökning avbryter den gamla. Rangordningen: hel träff, början, ordets början, inuti (bara från
+  tre tecken), sedan sorten (etikett, kluster, adress, tx, Guide) och om noden finns i grafen.
+- `CommandSearchViewModel` håller listan, valet, Tab och det okända värdet; `GraphViewModel.ShowFound` och
+  `GraphCanvas.Search` glider och ritar ringen. `/guide <begrepp>` är ett kommando (`GuideCommand`) och samtidigt
+  ett läge i sökningen. `GuidePanelViewModel.OpenSection` öppnar panelen vid ett avsnitt.
+- **Egna beslut:** mörkningen bakom kommandoraden är borttagen och raden står nära överkanten, som i skissen, så att
+  grafen syns under; noden landar på 78 % av höjden. Zoomen behålls, utom när den är för liten för att läsa noden.
+  En nod i en hög visas vid högen. En rad som inte finns i grafen gör ingenting med grafen, och Enter stänger bara.
+  En Guide-rad öppnar panelen när den väljs och fäller in den igen om man väljer något annat, men bara om sökningen
+  öppnade den. Tab fäller ut högst 100 rader, så att listan förblir lätt. Etikettens rad säger *N adresser* eller
+  *N kluster* efter etikettens ämnen; ett annat ärendes nummer finns inte i ursprunget, så källan heter *ett annat
+  ärende*.
+- **Avsteg:** skissens rad *Kraken · etikett från 2026-0098* kan inte skriva ärendenumret (se ovan). Det slängda i
+  soptunnan söks inte. Raden för en okänd adress säger ärligt att inget hämtas förrän noden expanderas, eftersom
+  Enter bara lägger till startpunkten.
+- Tester: 26 i `CommandSearchTests` (träffkvalitet och klippning, rangordning och grupper, adress, kluster, tx i och
+  utanför grafen, Guiden och `/guide`, korta ord, avbrott, 200 000 poster, vymodellens val, pilar, Tab, okänd och
+  känd adress, utan ärende, ny graf, klick, Enter i skalet).
+
