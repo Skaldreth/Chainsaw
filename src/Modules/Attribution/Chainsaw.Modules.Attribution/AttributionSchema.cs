@@ -39,6 +39,18 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
         "received_local", "time_zone", "exit_id", "route", "fetched_by", "sha256", "body",
     ];
 
+    /// <summary>The sealed chain of the cases copies came from.</summary>
+    public const string LabelCasesChain = "attribution.label_cases";
+
+    /// <summary>The table of the cases copies came from.</summary>
+    public const string LabelCasesTable = "attribution_label_cases";
+
+    /// <summary>The sealed columns of where a copy came from, in order.</summary>
+    public static readonly IReadOnlyList<string> LabelCaseColumns =
+    [
+        "label_sequence", "case_number", "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The first version of the table.</summary>
     private const string Version1 = """
         CREATE TABLE attribution_labels (
@@ -88,6 +100,21 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The third version: the case each copy from the library was set in (CLAUDE.md, <em>Allt följer med</em>), in a
+    /// chain of its own so that the labels sealed before keep their hashes.
+    /// </summary>
+    private const string Version3 = """
+        CREATE TABLE attribution_label_cases (
+            sequence INTEGER PRIMARY KEY,
+            label_sequence INTEGER NOT NULL,
+            case_number TEXT NOT NULL,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -96,6 +123,7 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
         [
             new(1, "Etiketter med ursprung och tillbakatagningar", Version1),
             new(2, "Underleverantörernas svar", Version2),
+            new(3, "Ärendet varje kopia från biblioteket sattes i", Version3),
         ];
 
     /// <inheritdoc/>
@@ -103,5 +131,6 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
     [
         new(LabelsChain, LabelsTable, LabelColumns),
         new(ResponsesChain, ResponsesTable, ResponseColumns),
+        new(LabelCasesChain, LabelCasesTable, LabelCaseColumns),
     ];
 }

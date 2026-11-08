@@ -1766,3 +1766,33 @@ några steg).
 - **Kontrollera vid anslutning:** på från början. Anslut en utgång vars land är satt till något annat än där den
   faktiskt går ut: toastern varnar en gång. Slå av: ingen fråga när den ansluts.
 
+## Etiketter (ET1a, 2026-11-08)
+- [ ] Öppna testärendet (`/testdata`) och vyn Etiketter i pillret (Ctrl+7): ikonen är inte längre nedtonad. Till
+      vänster står KÄLLOR (Sanktionslistor, Egna, Chainabuse, Beteende, Andra ärenden) med antal, och under dem
+      BIBLIOTEKET med Hela biblioteket, Kom in, Gick ut och Sprids inte.
+- [ ] En sanktionsträff på en nod i grafen står överst under SANKTIONSTRÄFFAR I GRAFEN i rött, med listans namn och
+      datum till höger; övriga etiketter under ETIKETTER I ÄRENDET.
+- [ ] Varje rad: sorten som en liten nod (rund eller fyrkantig, streckad för förslag), etiketten med nodens namn
+      bredvid, adressen i Cascadia Mono, prickar för oberoende ursprung (gröna vid fler än ett), källans ikon (röd ram
+      för sanktionslistan, streckad för beteende), märket *från ett annat ärende* och *Sprid inte*. Hovra en rad: ikonen
+      *Visa i grafen* syns längst till höger.
+- [ ] Klicka på en källa: dess etiketter försvinner och källan tonas ner; klicka igen så kommer de tillbaka.
+- [ ] Skriv en del av en adress eller ett namn i filterfältet: listan krymper. Pilarna upp och ner flyttar valet.
+- [ ] Den valda etiketten till höger: sorten stor, namnet, adressen med Kopiera, brickorna (källan, *Bedömning*
+      streckad eller *Står på listan*), nodens rad i grafen och ursprungen med vem, när (lokal tid och UTC), ärende och
+      varför. *Varför?* syns för beteende och Chainabuse och öppnar Guiden om etiketter, med väg tillbaka.
+- [ ] *Visa i grafen* (knappen eller G) går till grafen med noden vald och i bild.
+- [ ] *Sprid inte* på en egen etikett: strömbrytaren slås om, en toast säger att den stannar i ärendet, och raden får
+      märket. Journalen har en rad *Etiketten sprids inte*. På en etikett på ett offer står brytaren på och går inte
+      att ändra.
+- [ ] *Ta tillbaka …*: ett fält för skälet fälls ut (Enter tar tillbaka, Esc avbryter). Raden blir överstruken och
+      hamnar sist, och rutan till höger säger vem som tog tillbaka den, när och varför. Grafen läses om.
+- [ ] Växeln *Biblioteket*: alla etiketter i biblioteket med ärendenumren som brickor; inga åtgärder vid foten. Med
+      låst valv eller trasigt bibliotek står *Biblioteket kan inte läsas just nu* och antalen är streck.
+- [ ] Släng en sanktionerad aktör i soptunnan, eller låt den hamna i en hög: den står ändå under SANKTIONSTRÄFFAR I
+      GRAFEN, med en liten soptunna eller hög på raden.
+- [ ] En etikett på samma aktör som ett offer: brytaren *Sprid inte* står på och går inte att ändra, och under den står
+      *Nära ett offer i grafen: når aldrig biblioteket.*
+- [ ] Skriv snabbt i filterfältet i ett stort ärende: listan hänger med utan att hacka.
+- [ ] Nytt → Etikett (E) med en nod vald i grafen: grafen visas och etikettformuläret öppnas vid noden. Utan vald nod
+      säger grafen *Välj noden i grafen som etiketten gäller, och tryck L.*

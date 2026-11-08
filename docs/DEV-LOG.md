@@ -3363,3 +3363,54 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
   fel land säger toastern.
 - **Kvar:** se *Inställningarnas rester* i `docs/TODO.md`.
 
+## Etiketter, ET1a (2026-11-08)
+
+- **Byggt:** vyn Etiketter i pillret (Ctrl+7, inte längre nedtonad): källorna som filter med antal och en rad om vad
+  källan är nu, bibliotekets antal (Hela biblioteket, Kom in, Gick ut, Sprids inte), växeln Ärendet/Biblioteket,
+  filterfältet, en virtualiserad lista med sanktionsträffarna i grafen överst i rött, och den valda etiketten med
+  ursprungen, *Visa i grafen* (G), *Sprid inte*, *Ta tillbaka …* med frivilligt skäl och *Varför?* (Guiden om
+  etiketter). *Nytt → Etikett* (E) visar grafen och öppnar etikettformuläret på den valda noden.
+- **Modulen:** `IAttributionService.SetDoNotSpread` förseglar en egen post (`spread`) med journalrad
+  (`attribution.label-spread-changed`); den senaste posten gäller och etikettens egen post rörs aldrig.
+  `GetHistory(ICase)` läser alla etiketter med tillbakatagandet. `IGraphEditor.SetDoNotSpreadAsync` låter biblioteket
+  följa direkt, som `RetractLabelAsync` (gemensam `FollowLibrary`).
+- **Egna beslut:** samma etikett (subjekt, sort, namn) från flera ursprung är en rad, som i grafen; en rad listas
+  under källan för det första ursprunget som inte är en kopia. Ett filter döljer raden när dess källa är av, och en
+  rad med en kopia från ett annat ärende också när *Andra ärenden* är av (som skissen). *Sprid inte* och *Ta tillbaka*
+  gäller alla radens etiketter som användaren får ändra. *Gick ut* räknas som bibliotekets etiketter med ärendets
+  nummer. Tider skrivs `yyyy-MM-dd HH:mm (HH:mm UTC)` som i Begäran.
+- **Avsteg från skissen:** *Ångra* i toasten efter *Ta tillbaka* är inte byggt (se `docs/BACKLOG.md`).
+- Tester: 6 i `Chainsaw.Modules.Attribution.Tests` (`SpreadTests`), 16 i `LabelsTests`, en i `GraphEditorTests` och
+  en för *Nytt → Etikett* i `SubmenuTests`.
+- **Granskningen (två I, tio M), rättad:**
+  - **I1:** biblioteket minns ursprung som hålls tillbaka med *Sprid inte* (`HeldBack`, bredvid `Withdrawn`). När
+    ärendet där etiketten sattes absorberas läggs ursprunget dit och posten tas bort; `ShareInto` och `Absorb` hoppar
+    över det, också när det kommer genom en kopia i ett annat ärende. Kopior som redan finns rörs inte. Ursprunget
+    släpps när etiketten får spridas igen. Testat med tre ärenden.
+  - **I2:** raderna byggs utanför UI-tråden när läsningen eller grafen ändras; filterfältet, källorna och växeln
+    filtrerar bara de färdiga raderna. Grafens aktörer slås upp i en `Dictionary` per scen (en `ConditionalWeakTable`).
+  - **M1:** en etikett på samma aktör eller adress som ett offer säger *Nära ett offer i grafen: når aldrig
+    biblioteket*, och brytaren går inte att ändra. **M2:** grafen och vyn läses om också när en försegling
+    misslyckas. **M3:** toasten säger att kopian från det andra ärendet står kvar. **M4:** en regel för *Sprids inte*
+    i märket, brickan och brytaren. **M5:** en sanktionsträff på en aktör i en hög eller i soptunnan står också överst,
+    med en liten markering (högen eller soptunnan); *Visa i grafen* väljer högen. **M8:** tester för Ethereum och för
+    att kopior, sanktionsträffar, analyser och Chainabuse inte kan märkas. **M9:** piltangenterna rullar valet in i
+    bild. **M10:** ett fel när ärendet läses sägs i listan i stället för en tom vy.
+  - **M6, eget beslut:** en sanktionsträff som kommit som kopia från ett annat ärende står under *Andra ärenden*, inte
+    överst. Överst står bara träffar som ärendets egen kontroll mot listan gjort på grafens adresser; körs kontrollen
+    här får adressen sin egen träff.
+  - **M7:** posten `spread` läses inte av en äldre version av Chainsaw, som då visar etiketten som den sattes. Före 1.0
+    får schemat ändras fritt, så ingen migrering görs.
+
+## Allt följer med (2026-11-08, CLAUDE.md *Etiketter smittar*)
+
+- **Byggt:** en etikett som biblioteket ger ett annat ärende bär nu med sig skälet, anteckningen, hela
+  operatörsprofilen och numret på ärendet där den sattes (`LabelOrigin.CaseNumber`). Biblioteket minns det ärendet
+  (`OriginCase`) också när etiketten kom in genom en kollegas kopia, och journalraden för etiketterna nämner numret.
+- **Lagringen:** numret förseglas i en egen kedja, `attribution.label_cases` (schemasteg 3), med kopians sekvens, så att
+  etiketter som redan är förseglade behåller sina hashar. En kopia som kom in före detta saknar nummer och visar *Från
+  ett annat ärende*.
+- Vyn Etiketter skriver *Från ärende 2026-0098 · ett annat ärende*; *Varför?* skriver *Från ärende …*.
+- Offrets etiketter och etiketter nära ett offer sprids fortfarande aldrig, och *Sprid inte* gäller som förut.
+- Guiden (*Etikettbiblioteket*) och `docs/BACKLOG.md` är rättade; testerna som sa att skäl, anteckning och nummer aldrig
+  följer med är omskrivna till motsatsen.

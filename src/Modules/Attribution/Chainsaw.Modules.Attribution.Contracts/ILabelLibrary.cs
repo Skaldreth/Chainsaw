@@ -11,10 +11,11 @@ namespace Chainsaw.Modules.Attribution.Contracts;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Secrecy: the library keeps the case number, the reason and the note, since it is the operator's own, but none of
-/// them goes on into another case. There a label states only who set it, when, what it says and its original source,
-/// marked <em>från ett annat ärende</em>. A label marked <see cref="LabelEntry.DoNotSpread"/>, a label on a victim,
-/// and every label on an address or cluster near a victim's address, never enters the library.
+/// Everything follows (the user's decision 2026-11-07, <em>Allt följer med</em>): the case number, the reason, the
+/// note and the whole operator profile (name, title and unit) go with a label into other cases, marked
+/// <em>från ett annat ärende</em>, where it is a judgement, never a fact. The other cases that hold it stay in the
+/// library. A label marked <see cref="LabelEntry.DoNotSpread"/>, a label on a victim, and every label on an address or
+/// cluster near a victim's address, never enters the library.
 /// </para>
 /// <para>The methods are synchronous and thread-safe; call them off the UI thread.</para>
 /// </remarks>
@@ -35,7 +36,8 @@ public interface ILabelLibrary
 
     /// <summary>
     /// Gives the case the library's labels for the addresses, sealed in the case as
-    /// <see cref="LabelSource.OtherCase"/> with one line in the journal. A label the case already has, or has taken
+    /// <see cref="LabelSource.OtherCase"/> with one line in the journal, with who set it, when, why, the note and the
+    /// case it was set in (<see cref="LabelOrigin.CaseNumber"/>). A label the case already has, or has taken
     /// back, is not given again. Copies of labels that were withdrawn where they were set are taken back, with a
     /// line in the journal that says nothing about the other case.
     /// </summary>

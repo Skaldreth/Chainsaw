@@ -75,31 +75,39 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
 
         // A label the user set here and then took back is withdrawn everywhere: the copies other cases got from the
         // library are taken back there too, and it is never given again. Only the user's own judgement (own or from
-        // an open source, or a supplier's report) is withdrawn so; a copy, a sanction hit or an analysis's label taken back here only leaves
-        // the library from this case. A label near a victim only stays out (above).
+        // an open source, or a supplier's report) is withdrawn so; a copy, a sanction hit or an analysis's label
+        // taken back here only leaves the library from this case. A label near a victim only stays out (above).
         var withdrawn = inCase.All
             .Where(label => label.Origin.Source is LabelSource.Own or LabelSource.OpenSource or LabelSource.Provider
                 && inCase.Retracted.Contains(label.Sequence))
             .Select(label => label.Origin.OriginId)
             .ToHashSet(StringComparer.Ordinal);
         labels.RemoveAll(label => withdrawn.Contains(label.Origin.OriginId));
+
+        // Sprid inte where the label was set holds its origin back everywhere: a copy another case got before keeps
+        // it, but the library no longer gives it on, whichever case it is absorbed from. Letting it spread again
+        // where it was set releases it.
+        var (heldBack, released) = SpreadMarks(inCase.Active);
         var caseId = CaseKey(@case);
         lock (_gate)
         {
             var document = Load();
             document.Withdrawn.UnionWith(withdrawn);
+            document.HeldBack.ExceptWith(released);
+            document.HeldBack.UnionWith(heldBack);
             foreach (var stored in document.Labels)
             {
                 stored.Cases.Remove(caseId);
 
-                // Near a victim in this case: out of the library, without touching the copies other cases have.
-                if (document.Withdrawn.Contains(stored.OriginId) || nearVictim(stored.SubjectOf()))
+                // Near a victim in this case, or held back where it was set: out of the library, without touching
+                // the copies other cases have.
+                if (IsKeptOut(document, stored.OriginId) || nearVictim(stored.SubjectOf()))
                 {
                     stored.Cases.Clear();
                 }
             }
 
-            labels.RemoveAll(label => document.Withdrawn.Contains(label.Origin.OriginId));
+            labels.RemoveAll(label => IsKeptOut(document, label.Origin.OriginId));
 
             var byKey = document.Labels.ToDictionary(Key);
             foreach (var label in labels)
@@ -107,14 +115,15 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
                 var key = LabelStore.Key(label.Origin.OriginId, label.Subject, label.Kind, label.Name);
                 if (!byKey.TryGetValue(key, out var stored))
                 {
-                    stored = LibraryRecord.From(label);
+                    stored = LibraryRecord.From(label, @case.Info.CaseNumber);
                     byKey.Add(key, stored);
                     document.Labels.Add(stored);
                 }
-                else if (stored.Reason is null && !label.Origin.IsFromOtherCase)
+                else if (!label.Origin.IsFromOtherCase)
                 {
-                    // The case the label was set in knows why; a copy that came from another case does not.
+                    // The case the label was set in has the last word on why, the note and its number.
                     (stored.Reason, stored.Note) = (label.Origin.Reason, label.Origin.Note);
+                    stored.OriginCase = @case.Info.CaseNumber;
                 }
 
                 stored.Cases[caseId] = @case.Info.CaseNumber;
@@ -151,7 +160,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
             [
                 .. document.Labels.Where(stored => texts.Contains(stored.Subject)
                     && !stored.Cases.ContainsKey(caseId) && stored.Kind != LabelKind.Victim
-                    && !withdrawn.Contains(stored.OriginId)
+                    && !IsKeptOut(document, stored.OriginId)
                     && wanted.Contains(stored.SubjectOf().Target)),
             ];
         }
@@ -172,7 +181,8 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
                 return (IReadOnlyList<LabelEntry>)[];
             }
 
-            // Only who, when and the label are written: the other case's number, note and reason stay behind.
+            // Everything follows (CLAUDE.md, Allt följer med): who with title and unit, when, why, the note and the
+            // case it was set in. The journal names the labels and the cases they came from.
             var journal = transaction.AppendJournal(new JournalDraft(
                 AttributionJournalKinds.LabelsFromLibrary,
                 string.Format(CultureInfo.InvariantCulture, "{0} etiketter från andra ärenden", incoming.Count),
@@ -185,9 +195,9 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
                     source = label.Origin.OriginalSource.ToString(),
                     setBy = label.Origin.SetBy.Name,
                     setUtc = LabelStore.Text(label.Origin.SetUtc),
+                    caseNumber = label.Origin.CaseNumber,
                 }))));
-            return (IReadOnlyList<LabelEntry>)
-                [.. incoming.Select(label => LabelStore.Seal(transaction, label, journal))];
+            return (IReadOnlyList<LabelEntry>)[.. incoming.Select(label => SealCopy(transaction, label, journal))];
         });
     }
 
@@ -289,6 +299,49 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         }
 
         return clustering.GetCluster(@case, address).Addresses.Select(member => member.ToChainAddress());
+    }
+
+    /// <summary>
+    /// Gives the origins the case holds back with <em>Sprid inte</em>, and those it lets spread: only labels the user
+    /// set in this case (own or from an open source), since a copy, a list's hit or an analysis's label cannot be
+    /// marked. A label on a victim never spreads anyway and is left to the victim rule.
+    /// </summary>
+    /// <param name="active">The case's labels that are not taken back.</param>
+    /// <returns>The origins held back, and the origins let spread.</returns>
+    private static (HashSet<string> HeldBack, HashSet<string> Released) SpreadMarks(IReadOnlyList<LabelEntry> active)
+    {
+        var own = active
+            .Where(label => label.Origin.Source is LabelSource.Own or LabelSource.OpenSource
+                && label.Kind != LabelKind.Victim)
+            .ToList();
+        return (
+            own.Where(label => label.DoNotSpread).Select(label => label.Origin.OriginId)
+                .ToHashSet(StringComparer.Ordinal),
+            own.Where(label => !label.DoNotSpread).Select(label => label.Origin.OriginId)
+                .ToHashSet(StringComparer.Ordinal));
+    }
+
+    /// <summary>Says whether an origin is kept out of the library: withdrawn, or held back with Sprid inte.</summary>
+    /// <param name="document">The library.</param>
+    /// <param name="originId">The origin.</param>
+    /// <returns><see langword="true"/> when it is never given.</returns>
+    private static bool IsKeptOut(LibraryDocument document, string originId) =>
+        document.Withdrawn.Contains(originId) || document.HeldBack.Contains(originId);
+
+    /// <summary>Seals a copy from the library, with the case it was set in when that is known.</summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="label">The copy.</param>
+    /// <param name="journal">The journal entry that records it.</param>
+    /// <returns>The sealed copy.</returns>
+    private static LabelEntry SealCopy(ICaseTransaction transaction, LabelEntry label, JournalEntry journal)
+    {
+        var sealedCopy = LabelStore.Seal(transaction, label, journal);
+        if (label.Origin.CaseNumber is { } number)
+        {
+            LabelStore.SealCaseNumber(transaction, sealedCopy, number, journal);
+        }
+
+        return sealedCopy;
     }
 
     /// <summary>Gives the key a case is known by in the library.</summary>
@@ -400,6 +453,12 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         /// copies are taken back in the cases that have them.
         /// </summary>
         public HashSet<string> Withdrawn { get; set; } = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Gets or sets the origins marked <em>Sprid inte</em> where they were set; they are not given while they are
+        /// marked, but copies other cases already have stay there.
+        /// </summary>
+        public HashSet<string> HeldBack { get; set; } = new(StringComparer.Ordinal);
     }
 
     /// <summary>One label in the library, with what stays in the library.</summary>
@@ -444,13 +503,17 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         /// <summary>Gets or sets the note; stays in the library.</summary>
         public string? Note { get; set; }
 
+        /// <summary>Gets or sets the number of the case it was set in; <see langword="null"/> when not known.</summary>
+        public string? OriginCase { get; set; }
+
         /// <summary>Gets or sets the cases that hold it: case id to case number; stays in the library.</summary>
         public Dictionary<string, string> Cases { get; set; } = new(StringComparer.Ordinal);
 
         /// <summary>Makes a library label from a label in a case.</summary>
         /// <param name="label">The label.</param>
+        /// <param name="caseNumber">The number of the case it is absorbed from.</param>
         /// <returns>The library label, without cases.</returns>
-        public static LibraryRecord From(LabelEntry label) => new()
+        public static LibraryRecord From(LabelEntry label, string caseNumber) => new()
         {
             OriginId = label.Origin.OriginId,
             SubjectKind = label.Subject.Kind,
@@ -462,8 +525,9 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
             SourceVersion = label.Origin.SourceVersion,
             SetBy = label.Origin.SetBy,
             SetUtc = label.Origin.SetUtc,
-            Reason = label.Origin.IsFromOtherCase ? null : label.Origin.Reason,
-            Note = label.Origin.IsFromOtherCase ? null : label.Origin.Note,
+            Reason = label.Origin.Reason,
+            Note = label.Origin.Note,
+            OriginCase = label.Origin.IsFromOtherCase ? label.Origin.CaseNumber : caseNumber,
         };
 
         /// <summary>Gives what the label is on.</summary>
@@ -476,14 +540,18 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         /// <param name="note">The note it carries there.</param>
         /// <returns>The origin.</returns>
         public LabelOrigin OriginOf(LabelSource source, string? reason, string? note) =>
-            new(OriginId, source, Source, SourceName, SourceVersion, SetBy, SetUtc, reason, note);
+            new(OriginId, source, Source, SourceName, SourceVersion, SetBy, SetUtc, reason, note)
+            {
+                CaseNumber = OriginCase,
+            };
 
         /// <summary>
-        /// Gives the label as it enters another case: who, when and the label, never the reason, the note or the
-        /// case numbers.
+        /// Gives the label as it enters another case: everything follows (CLAUDE.md, <em>Allt följer med</em>): who
+        /// with title and unit, when, why, the note and the case it was set in. The other cases that hold it stay in
+        /// the library.
         /// </summary>
         /// <returns>The label, not sealed yet.</returns>
         public LabelEntry ToCase() =>
-            new(0, SubjectOf(), Kind, Name, OriginOf(LabelSource.OtherCase, null, null), false, 0);
+            new(0, SubjectOf(), Kind, Name, OriginOf(LabelSource.OtherCase, Reason, Note), false, 0);
     }
 }

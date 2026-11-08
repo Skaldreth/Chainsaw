@@ -33,6 +33,10 @@
     <Geometry x:Key="Icon.ShieldCheck">M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4</Geometry>
     <Geometry x:Key="Icon.Lock">M6 11h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z M8 11V7a4 4 0 0 1 8 0v4</Geometry>
     <Geometry x:Key="Icon.Download">M12 3v12 M7 10l5 5 5-5 M4 20h16</Geometry>
+    <!-- Up to the library: what went out from the case (sketch ET1a, Gick ut). -->
+    <Geometry x:Key="Icon.Upload">M12 16V4 M7.5 8.5L12 4l4.5 4.5 M5 20h14</Geometry>
+    <!-- Visa i grafen (sketch ET1a): a target, the node lit where it stands. -->
+    <Geometry x:Key="Icon.Target">M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M12 12h.01</Geometry>
 
     <!-- The exits' panel (sketch UT1a): the route from the computer through the exit to the sources, and its buttons. -->
     <Geometry x:Key="Icon.Globe">M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3.5 9h17 M3.5 15h17 M12 3c-2.4 2.6-3.6 5.6-3.6 9s1.2 6.4 3.6 9 M12 3c2.4 2.6 3.6 5.6 3.6 9s-1.2 6.4-3.6 9</Geometry>

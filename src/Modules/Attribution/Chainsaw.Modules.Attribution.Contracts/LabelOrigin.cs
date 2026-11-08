@@ -22,11 +22,8 @@ namespace Chainsaw.Modules.Attribution.Contracts;
 /// </param>
 /// <param name="SetBy">Who set the label, or who ran the check that found it.</param>
 /// <param name="SetUtc">When, in UTC.</param>
-/// <param name="Reason">
-/// Why, in plain language; <see langword="null"/> for a label from another case, whose reason stays there.
-/// </param>
-/// <param name="Note">
-/// The investigator's own note; <see langword="null"/> when there is none or the label came from another case.
+/// <param name="Reason">Why, in plain language; it follows a label into other cases.</param>
+/// <param name="Note">The investigator's own note, or <see langword="null"/>; it follows a label into other cases.
 /// </param>
 public sealed record LabelOrigin(
     string OriginId,
@@ -48,6 +45,13 @@ public sealed record LabelOrigin(
         ? $"{LabelSource.Own}/{SetBy.Name}/{SetBy.Title}/{SetBy.Organization}"
         : $"{OriginalSource}/{SourceName}";
 
+    /// <summary>
+    /// Gets the number of the case the label was set in, for a label that came from another case;
+    /// <see langword="null"/> for a label set in this case, and for a copy whose case is not known (the user's
+    /// decision 2026-11-07, <em>Allt följer med</em>).
+    /// </summary>
+    public string? CaseNumber { get; init; }
+
     /// <summary>Gets whether the label came from another case through the library.</summary>
     public bool IsFromOtherCase => Source == LabelSource.OtherCase;
 
@@ -65,7 +69,12 @@ public sealed record LabelOrigin(
             LabelSource.Provider => $"underleverantören {SourceName} ({SourceVersion}), hämtad av {who}",
             _ => $"{SourceName} ({SourceVersion}), av {who}",
         };
-        var line = IsFromOtherCase ? $"Från ett annat ärende: {what}" : char.ToUpperInvariant(what[0]) + what[1..];
+        var line = (IsFromOtherCase, CaseNumber) switch
+        {
+            (true, { } number) => $"Från ärende {number}: {what}",
+            (true, null) => $"Från ett annat ärende: {what}",
+            _ => char.ToUpperInvariant(what[0]) + what[1..],
+        };
         return Reason is null ? line + "." : $"{line}: {Reason}";
     }
 }

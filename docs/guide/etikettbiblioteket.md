@@ -20,7 +20,8 @@ valvet.
    bibliotek när filen öppnas där.
 
 En etikett från ett annat ärende är en **bedömning** i det nya ärendet, aldrig ett faktum (princip 2). Den behåller sitt
-ursprung: vem som satte den, när och vilken sorts källa den kom från.
+ursprung: vem som satte den (namn, titel och enhet), när, varför, anteckningen, vilken sorts källa den kom från och
+**vilket ärende** den sattes i. Allt följer med.
 
 ## Flera ursprung är en bekräftelse
 
@@ -35,13 +36,12 @@ nästa gång de öppnas.
 
 ## Det som stannar
 
-- **Sprid inte:** en etikett som är märkt så lämnar aldrig sitt ärende.
+- **Sprid inte:** en etikett som är märkt så lämnar aldrig sitt ärende. Märks den i efterhand lämnar den biblioteket och
+  ges inte vidare, men kopior som redan gått till andra ärenden ligger kvar där.
 - **Offer:** en etikett på ett offer sprids aldrig, och inte heller andra etiketter på offrets adresser, eftersom de kan
   avslöja vem som har drabbats.
-- **Namnet följer med.** Skriv därför aldrig ett ärendenummer eller en misstänkts namn i etikettens namn; det hör hemma i
-  anteckningen.
+- **Allt annat följer med**, också skälet och anteckningen. Skriv därför det som inte ska lämna ärendet i ärendet, inte
+  i etiketten, eller märk etiketten *Sprid inte*.
 
-Som det är byggt nu följer bara vem, när, vad etiketten säger och källans sort med in i ett annat ärende. Att också
-ärendenumret, anteckningen, skälet och hela operatörsprofilen ska följa med är beslutat men **inte byggt än**.
-
-Vyn *Etiketter* i pillret, där biblioteket går att bläddra i, är inte heller byggd än.
+Vyn *Etiketter* i pillret (Ctrl+7) visar varje etikett med sina ursprung, och växlar till hela biblioteket med
+ärendenumren.

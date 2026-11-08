@@ -113,6 +113,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="search">
     /// The search in the command bar (sketch KR1a), or <see langword="null"/> for one over nothing but itself.
     /// </param>
+    /// <param name="labels">The view Etiketter (sketch ET1a), or <see langword="null"/>.</param>
     public ShellViewModel(
         CaseSession session,
         CommandRegistry commands,
@@ -129,9 +130,11 @@ public sealed partial class ShellViewModel : ObservableObject
         Toaster? toaster = null,
         CasePickerViewModel? casePicker = null,
         RequestsViewModel? requests = null,
-        CommandSearchViewModel? search = null)
+        CommandSearchViewModel? search = null,
+        LabelsViewModel? labels = null)
     {
         Search = search ?? new CommandSearchViewModel(new Guide.GuideLibrary(new Dictionary<string, string>()));
+        Labels = labels;
         _toaster = toaster;
         Requests = requests;
         CasePicker = casePicker;
@@ -239,6 +242,12 @@ public sealed partial class ShellViewModel : ObservableObject
     public event EventHandler? CommandBarWanted;
 
     /// <summary>
+    /// Raised when <em>Nytt → Etikett</em> asks for the label form on the graph's chosen node; the graph is shown
+    /// first.
+    /// </summary>
+    public event EventHandler? LabelWanted;
+
+    /// <summary>
     /// Gets whether any of the work views' icons stands in the rail; without a case none does, and the rail drops the
     /// group's line so that two lines never stand on top of each other.
     /// </summary>
@@ -255,7 +264,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets the view shown.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentEntry), nameof(IsGraphShown), nameof(IsGuideShown),
-        nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsPlaceholderShown))]
+        nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsLabelsShown), nameof(IsPlaceholderShown))]
     public partial AppView Current { get; private set; }
 
     /// <summary>Gets whether the graph is shown (sketch GR4).</summary>
@@ -270,8 +279,15 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets whether the view Begäran is shown (sketch BG1b).</summary>
     public bool IsRequestsShown => Current == AppView.Requests && Requests is not null;
 
+    /// <summary>Gets whether the view Etiketter is shown (sketch ET1a).</summary>
+    public bool IsLabelsShown => Current == AppView.Labels && Labels is not null;
+
     /// <summary>Gets whether the shown view is not built yet, so that the page says so.</summary>
-    public bool IsPlaceholderShown => !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown;
+    public bool IsPlaceholderShown =>
+        !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown && !IsLabelsShown;
+
+    /// <summary>Gets the view Etiketter, or <see langword="null"/> when the shell is built without it.</summary>
+    public LabelsViewModel? Labels { get; }
 
     /// <summary>Gets the view Begäran, or <see langword="null"/> when the shell is built without it.</summary>
     public RequestsViewModel? Requests { get; }
@@ -690,6 +706,10 @@ public sealed partial class ShellViewModel : ObservableObject
                 break;
             case SubmenuAction.Request:
                 Show(AppView.Requests);
+                break;
+            case SubmenuAction.Label:
+                Show(AppView.Graph);
+                LabelWanted?.Invoke(this, EventArgs.Empty);
                 break;
             default:
                 break;

@@ -142,7 +142,6 @@ fungerar rättas före allt annat nedan. Särskilt:
 
 Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md under *Valt för 1.0*.
 - **Grafen** [direkt]: IN4a kortets baksida, TL2a tidslisten, GR9a bytt block och *Väntar på källan*.
-- **Etiketter ET1a** [etapp], med sanktionsträffarna samlade.
 - **Exponering EP1b** [etapp].
 - **Rapport RP1b** [etapp].
 - **Kurserna KU1a** [etapp]: kronorna via Riksbanken.

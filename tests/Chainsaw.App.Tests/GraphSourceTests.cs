@@ -58,6 +58,24 @@ internal sealed class TestAttribution : IAttributionService
     public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
         [];
 
+    /// <summary>Gets or sets every label in the case, as the view Etiketter reads them.</summary>
+    public List<LabelHistoryEntry> History { get; set; } = [];
+
+    /// <summary>Gets or sets a failure reading the whole history throws.</summary>
+    public Exception? HistoryFailure { get; set; }
+
+    public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case) =>
+        HistoryFailure is null ? [.. History] : throw HistoryFailure;
+
+    /// <summary>Gets what was marked <em>Sprid inte</em> or let spread: the sequence and the marking.</summary>
+    public List<(long Sequence, bool DoNotSpread)> SpreadChanges { get; } = [];
+
+    public bool SetDoNotSpread(ICase @case, long sequence, bool doNotSpread)
+    {
+        SpreadChanges.Add((sequence, doNotSpread));
+        return true;
+    }
+
     public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
         [];
 

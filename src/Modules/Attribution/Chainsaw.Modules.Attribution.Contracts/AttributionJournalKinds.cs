@@ -9,6 +9,9 @@ public static class AttributionJournalKinds
     /// <summary>A label was taken back.</summary>
     public const string LabelRetracted = "attribution.label-retracted";
 
+    /// <summary>A label was marked <em>Sprid inte</em>, or allowed to spread again.</summary>
+    public const string LabelSpreadChanged = "attribution.label-spread-changed";
+
     /// <summary>Addresses were checked against a sanction list and hits were labelled.</summary>
     public const string SanctionsMatched = "attribution.sanctions-matched";
 

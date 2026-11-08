@@ -65,6 +65,16 @@ public sealed class SanctionTests : IDisposable
     }
 
     [Fact]
+    public void A_hit_cannot_be_marked_Sprid_inte()
+    {
+        var address = Wpkh("sanctioned");
+        _harness.Sanctions.Import(new SdnFile().Xbt("9001", "SYNTETISK BÖRS", address.Value).Stream());
+        var hit = Assert.Single(_harness.Labels.CheckSanctions(_harness.Case, [address]).Added);
+
+        Assert.False(_harness.Labels.SetDoNotSpread(_harness.Case, hit.Sequence, doNotSpread: true));
+    }
+
+    [Fact]
     public void A_hit_is_labelled_sanctioned_with_the_list_as_its_origin()
     {
         var address = Wpkh("sanctioned");

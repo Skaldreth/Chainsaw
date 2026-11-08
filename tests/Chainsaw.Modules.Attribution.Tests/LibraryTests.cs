@@ -37,13 +37,13 @@ public sealed class LibraryTests : IDisposable
         Assert.Equal(original.Origin.SetUtc, shared.Origin.SetUtc);
         var label = Assert.Single(_harness.Labels.GetLabels(other, address));
         Assert.True(label.IsOnlyFromOtherCases);
-        Assert.Contains("Från ett annat ärende", label.Explain(), StringComparison.Ordinal);
+        Assert.Contains($"Från ärende {Harness.CaseNumber}", label.Explain(), StringComparison.Ordinal);
         Assert.Equal(AttributionJournalKinds.LabelsFromLibrary, other.ReadJournal().Last().Kind);
         Assert.True(_harness.Verify(other).IsIntact);
     }
 
     [Fact]
-    public void The_case_number_the_note_and_the_reason_never_reach_another_case()
+    public void Everything_follows_a_label_into_another_case()
     {
         var address = Wpkh("secret");
         _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB", SecretReason, SecretNote);
@@ -53,25 +53,28 @@ public sealed class LibraryTests : IDisposable
 
         var shared = Assert.Single(_harness.Library.ShareInto(other, [address]));
 
-        Assert.Null(shared.Origin.Reason);
-        Assert.Null(shared.Origin.Note);
-        var everything = new StringBuilder();
-        foreach (var entry in other.ReadJournal())
-        {
-            everything.Append(entry.Summary).Append(entry.Details).Append('\n');
-        }
-
-        foreach (var label in _harness.Labels.GetLabels(other))
-        {
-            everything.Append(label.Explain()).Append(label.Entries[0].Origin).Append('\n');
-        }
-
-        var text = everything.ToString();
-        Assert.DoesNotContain(Harness.CaseNumber, text, StringComparison.Ordinal);
-        Assert.DoesNotContain(SecretNote, text, StringComparison.Ordinal);
-        Assert.DoesNotContain(SecretReason, text, StringComparison.Ordinal);
-        Assert.DoesNotContain(_harness.Case.Info.Id.ToString(), text, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(SecretReason, shared.Origin.Reason);
+        Assert.Equal(SecretNote, shared.Origin.Note);
+        Assert.Equal(Harness.CaseNumber, shared.Origin.CaseNumber);
+        Assert.Equal(new OperatorProfile("Testa Testsson", "Utredare", "Enheten"), shared.Origin.SetBy);
+        var read = Assert.Single(_harness.Labels.GetEntries(other));
+        Assert.Equal(Harness.CaseNumber, read.Origin.CaseNumber);
+        Assert.Contains($"Från ärende {Harness.CaseNumber}", _harness.Labels.GetLabels(other)[0].Explain(),
+            StringComparison.Ordinal);
+        Assert.Contains(Harness.CaseNumber, other.ReadJournal().Last().Details, StringComparison.Ordinal);
         Assert.Equal("Kollega Kollegasson", other.ReadJournal().Last().Operator.Name);
+        Assert.True(_harness.Verify(other).IsIntact);
+    }
+
+    [Fact]
+    public void A_victim_s_label_still_never_follows()
+    {
+        var address = Wpkh("victim");
+        _harness.Own(LabelSubject.ForAddress(address), LabelKind.Victim, "Offret", SecretReason, SecretNote);
+        _harness.Library.Absorb(_harness.Case);
+        using var other = _harness.Create(OtherCaseNumber);
+
+        Assert.Empty(_harness.Library.ShareInto(other, [address]));
     }
 
     [Fact]
@@ -234,7 +237,7 @@ public sealed class LibraryTests : IDisposable
     }
 
     [Fact]
-    public void A_colleague_label_spreads_on_without_its_reason()
+    public void A_colleague_label_spreads_on_with_its_reason_and_case()
     {
         var address = Wpkh("colleague");
         _harness.Own(LabelSubject.ForAddress(address), LabelKind.Mixer, "Blandaren", SecretReason, SecretNote);
@@ -242,13 +245,14 @@ public sealed class LibraryTests : IDisposable
         using var colleagueFile = _harness.Create(OtherCaseNumber);
         _harness.Library.ShareInto(colleagueFile, [address]);
 
-        // On a new computer the library is empty; the colleague's file brings the label along.
+        // On a new computer the library is empty; the colleague's file brings the label along, with everything.
         Directory.Delete(Path.Combine(_harness.Directory, "Etiketter"), recursive: true);
         _harness.Library.Absorb(colleagueFile);
 
         var stored = Assert.Single(_harness.Library.List());
-        Assert.Null(stored.Origin.Reason);
-        Assert.Null(stored.Origin.Note);
+        Assert.Equal(SecretReason, stored.Origin.Reason);
+        Assert.Equal(SecretNote, stored.Origin.Note);
+        Assert.Equal(Harness.CaseNumber, stored.Origin.CaseNumber);
         Assert.Equal(LabelSource.Own, stored.Origin.Source);
         Assert.Equal([OtherCaseNumber], stored.CaseNumbers);
     }

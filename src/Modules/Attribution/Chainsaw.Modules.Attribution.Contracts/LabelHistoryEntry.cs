@@ -36,4 +36,10 @@ public sealed record LabelHistoryEntry(LabelEntry Label, LabelRetraction? Retrac
     /// believe, and not taken back already (a label taken back is set anew instead).
     /// </summary>
     public bool CanRetract => (IsUsersOwn || Label.Origin.Source == LabelSource.Provider) && !IsRetracted;
+
+    /// <summary>
+    /// Gets whether the user can mark the label <em>Sprid inte</em> or let it spread again: the user's own, still
+    /// counting, and not on a victim, whose label never spreads whatever it is marked.
+    /// </summary>
+    public bool CanChangeSpread => IsUsersOwn && !IsRetracted && Label.Kind != LabelKind.Victim;
 }

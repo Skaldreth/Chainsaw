@@ -49,8 +49,10 @@ public sealed class SubmenuTableTests
     {
         var notBuilt = SubmenuTable.New.Where(r => r.Need == SubmenuNeed.NotBuilt).ToList();
 
-        Assert.Equal([SubmenuAction.Label], notBuilt.Select(r => r.Action));
-        Assert.All(notBuilt, r => Assert.StartsWith("Inte byggt än", r.NotBuiltText, StringComparison.Ordinal));
+        // Etikett was the last row not built; it opens the label form on the graph's chosen node (sketch ET1a).
+        Assert.Empty(notBuilt);
+        Assert.Equal(
+            SubmenuNeed.OpenCase, SubmenuTable.New.Single(r => r.Action == SubmenuAction.Label).Need);
     }
 }
 
@@ -161,6 +163,8 @@ public sealed class SubmenuViewModelTests
         menu.Open();
 
         menu.MoveNext();
+        Assert.Equal("Etikett", menu.Marked?.Row.Name);
+        menu.MoveNext();
         Assert.Equal("Bevakning", menu.Marked?.Row.Name);
         menu.MoveNext();
         Assert.Equal("Begäran", menu.Marked?.Row.Name);
@@ -211,11 +215,11 @@ public sealed class SubmenuViewModelTests
     [Fact]
     public void The_letter_of_a_toned_row_is_swallowed_and_the_menu_stays_open()
     {
-        var menu = Menu(hasCase: true);
+        var menu = Menu(hasCase: false);
         var (chosen, _) = Listen(menu);
         menu.Open();
 
-        Assert.True(menu.ChooseLetter('E'));
+        Assert.True(menu.ChooseLetter('B'));
 
         Assert.Empty(chosen);
         Assert.True(menu.IsOpen);
@@ -234,10 +238,10 @@ public sealed class SubmenuViewModelTests
     [Fact]
     public void A_toned_row_cannot_be_clicked_or_pointed_at()
     {
-        var menu = Menu(hasCase: true);
+        var menu = Menu(hasCase: false);
         var (chosen, _) = Listen(menu);
         menu.Open();
-        var watch = menu.Rows.Single(r => r.Row.Action == SubmenuAction.Label);
+        var watch = menu.Rows.Single(r => r.Row.Action == SubmenuAction.Watch);
 
         menu.Point(watch);
         menu.Choose(watch);
@@ -399,7 +403,22 @@ public sealed class ShellSubmenuTests
         rig.Session.Open(new TestCase("2026-0117"));
 
         Assert.True(startPoint.IsEnabled);
-        Assert.False(menu.Rows.Single(r => r.Row.Action == SubmenuAction.Label).IsEnabled);
+        Assert.True(menu.Rows.Single(r => r.Row.Action == SubmenuAction.Label).IsEnabled);
+    }
+
+    [Fact]
+    public void Etikett_shows_the_graph_and_asks_for_the_label_form()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Session.Open(new TestCase("2026-0117"));
+        rig.Shell.ShowCommand.Execute(AppView.Monitoring);
+        var wanted = 0;
+        rig.Shell.LabelWanted += (_, _) => wanted++;
+
+        Choose(rig, 'E');
+
+        Assert.Equal(AppView.Graph, rig.Shell.Current);
+        Assert.Equal(1, wanted);
     }
 
     [Fact]
