@@ -42,6 +42,13 @@ internal sealed class MemoryCase : IMemoryCase
         ArgumentNullException.ThrowIfNull(contributors);
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
+        using (var memoryOnly = _connection.CreateCommand())
+        {
+            // Sorts and temporary tables stay in memory too, never in a plain file in the temp folder.
+            memoryOnly.CommandText = "PRAGMA temp_store = MEMORY;";
+            memoryOnly.ExecuteNonQuery();
+        }
+
         foreach (var contributor in contributors)
         {
             foreach (var step in contributor.Steps.OrderBy(step => step.Version))

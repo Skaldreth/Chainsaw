@@ -55,6 +55,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
         CrashGuard.Guard(this);
+        CaseClipboard.Guard();
         if (AlertCard.FromArguments(e.Args, SingleInstance.IsRunning(), DateTimeOffset.Now) is { } card)
         {
             // Started by the background process as only the message in the middle of the screen (sketch BV4a): no
