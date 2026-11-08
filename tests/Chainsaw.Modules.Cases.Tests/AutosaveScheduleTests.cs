@@ -132,6 +132,43 @@ public sealed class AutosaveScheduleTests : IDisposable
     }
 
     [Fact]
+    public void Failures_in_a_row_wait_twice_as_long_each_time_up_to_ten_minutes()
+    {
+        _schedule.Start();
+        _schedule.Written();
+        TimeSpan[] waits =
+        [
+            TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(4), TimeSpan.FromMinutes(8),
+            TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10),
+        ];
+
+        foreach (var wait in waits)
+        {
+            _schedule.Failed();
+            _time.Advance(wait - Tick);
+            Assert.False(_schedule.IsDue());
+            _time.Advance(Tick);
+            Assert.True(_schedule.IsDue());
+        }
+    }
+
+    [Fact]
+    public void A_successful_save_ends_the_run_of_failures()
+    {
+        _schedule.Start();
+        _schedule.Written();
+        _schedule.Failed();
+        _schedule.Failed();
+        _schedule.Saved();
+        _schedule.Written();
+        _schedule.Failed();
+
+        _time.Advance(Maximum);
+
+        Assert.True(_schedule.IsDue());
+    }
+
+    [Fact]
     public void A_successful_save_after_a_failure_lets_the_next_write_be_saved_after_the_quiet_period()
     {
         _schedule.Start();

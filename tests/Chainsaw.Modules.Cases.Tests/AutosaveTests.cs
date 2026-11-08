@@ -32,7 +32,7 @@ public sealed class AutosaveTests : IDisposable
         _fixture.Time.Advance(Tick);
         Assert.NotEqual(before, CaseFileBytes());
         Assert.False(opened.HasUnsavedWrites);
-        Assert.False(File.Exists(_fixture.CaseFile("A1") + ".tmp"));
+        Assert.False(File.Exists(CasePaths.For(_fixture.Directory, "A1").SaveFile));
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public sealed class AutosaveTests : IDisposable
         opened.AppendJournal(new JournalDraft("test.note", "Sparas när det går"));
 
         // A folder where the new file is to be written makes the save fail before the file is replaced.
-        var saveFile = _fixture.CaseFile("A1") + ".tmp";
+        var saveFile = CasePaths.For(_fixture.Directory, "A1").SaveFile;
         System.IO.Directory.CreateDirectory(saveFile);
         _fixture.Time.Advance(Quiet);
         Assert.Equal(before, CaseFileBytes());
@@ -222,6 +222,26 @@ public sealed class AutosaveTests : IDisposable
         _fixture.Time.Advance(Tick);
         Assert.NotEqual(before, CaseFileBytes());
         Assert.False(opened.HasUnsavedWrites);
+    }
+
+    [Fact]
+    public void A_lock_of_the_vault_between_the_checks_and_the_save_ends_the_save_quietly()
+    {
+        var store = _fixture.CreateStore();
+        var opened = (Case)store.Create("A1");
+        var before = CaseFileBytes();
+        opened.AppendJournal(new JournalDraft("test.note", "Låses mitt i"));
+        opened.AutosaveChecked = () => _fixture.Vault.Lock();
+
+        // Without the fix the refusal of the closing case would leave the timer's callback and end the process.
+        _fixture.Time.Advance(Quiet);
+        Assert.Equal(before, CaseFileBytes());
+
+        store.WaitForClosing();
+        Assert.True(opened.IsClosed);
+        _fixture.Vault.Unlock(default);
+        using var reopened = store.Open("A1");
+        Assert.Contains(reopened.ReadJournal(), entry => entry.Kind == "test.note");
     }
 
     [Fact]

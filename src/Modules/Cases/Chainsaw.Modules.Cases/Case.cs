@@ -430,6 +430,12 @@ internal sealed class Case : ICase
     internal bool HasUnsavedWrites => _autosave.IsDirty;
 
     /// <summary>
+    /// Gets or sets what runs when a save by itself has passed its checks and is about to begin; only the tests set
+    /// it, to lock the vault in between.
+    /// </summary>
+    internal Action? AutosaveChecked { get; set; }
+
+    /// <summary>
     /// Drops the case without saving, as if the process had died: the working copy stays for recovery. Only tests
     /// use it, to check the recovery.
     /// </summary>
@@ -936,25 +942,33 @@ internal sealed class Case : ICase
     /// </summary>
     private void OnAutosaveDue()
     {
-        // A closing saves by itself; a lock of the vault must find nothing left to wait for.
-        if (_closing)
-        {
-            return;
-        }
-
-        if (!_gate.TryEnter())
-        {
-            _autosave.Busy();
-            return;
-        }
-
         try
         {
-            AutosaveUnlocked();
+            // A closing saves by itself; a lock of the vault must find nothing left to wait for.
+            if (_closing)
+            {
+                return;
+            }
+
+            if (!_gate.TryEnter())
+            {
+                _autosave.Busy();
+                return;
+            }
+
+            try
+            {
+                AutosaveUnlocked();
+            }
+            finally
+            {
+                _gate.Exit();
+            }
         }
-        finally
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            _gate.Exit();
+            // Nothing may leave the timer's thread, which would end the process; the working copy keeps the writes,
+            // and a closing (or the next write) saves them.
         }
     }
 
@@ -981,10 +995,16 @@ internal sealed class Case : ICase
             return;
         }
 
-        using var operation = BeginOperation();
+        AutosaveChecked?.Invoke();
         try
         {
+            // Inside the try: a lock of the vault may set the closing flag from another thread at any moment.
+            using var operation = BeginOperation();
             SaveUnlocked();
+        }
+        catch (CaseException exception) when (exception.Error == CaseError.Closed)
+        {
+            // The case began closing after the checks above; the closing saves it.
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

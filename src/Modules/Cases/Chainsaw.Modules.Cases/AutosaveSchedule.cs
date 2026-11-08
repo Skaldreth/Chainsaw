@@ -24,6 +24,9 @@ internal sealed class AutosaveSchedule : IDisposable
     /// </summary>
     internal static readonly TimeSpan MinimumWait = TimeSpan.FromMilliseconds(1);
 
+    /// <summary>The longest wait before a save is tried again after saves that failed one after another.</summary>
+    internal static readonly TimeSpan MaximumFailureWait = TimeSpan.FromMinutes(10);
+
     /// <summary>How long to wait before trying again when the case was busy with something else.</summary>
     internal static readonly TimeSpan BusyWait = TimeSpan.FromSeconds(1);
 
@@ -59,6 +62,9 @@ internal sealed class AutosaveSchedule : IDisposable
 
     /// <summary>When the case is saved at the latest, counted from the first write that has not been saved.</summary>
     private DateTimeOffset _deadline;
+
+    /// <summary>How many saves have failed one after another since the last that succeeded.</summary>
+    private int _failures;
 
     /// <summary>Before this time no save is tried, after one that failed.</summary>
     private DateTimeOffset _notBefore = DateTimeOffset.MinValue;
@@ -134,6 +140,7 @@ internal sealed class AutosaveSchedule : IDisposable
         {
             _dirty = false;
             _notBefore = DateTimeOffset.MinValue;
+            _failures = 0;
             Arm(Timeout.InfiniteTimeSpan);
         }
     }
@@ -174,12 +181,16 @@ internal sealed class AutosaveSchedule : IDisposable
         }
     }
 
-    /// <summary>The save failed; the writes stay unsaved and the next attempt waits the maximum delay.</summary>
+    /// <summary>
+    /// The save failed; the writes stay unsaved and the next attempt waits the maximum delay, doubled for each
+    /// failure in a row up to <see cref="MaximumFailureWait"/>.
+    /// </summary>
     public void Failed()
     {
         lock (_sync)
         {
-            _notBefore = _time.GetUtcNow() + _maximumDelay;
+            _failures++;
+            _notBefore = _time.GetUtcNow() + FailureWait(_failures);
             ArmForNextSave();
         }
     }
@@ -197,6 +208,23 @@ internal sealed class AutosaveSchedule : IDisposable
             _disposed = true;
             _timer.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Gives the wait after a run of failed saves: the maximum delay, doubled for each failure after the first, but
+    /// never more than <see cref="MaximumFailureWait"/>, so that a file that stays locked is not tried every minute.
+    /// </summary>
+    /// <param name="failures">The failures in a row, at least one.</param>
+    /// <returns>The wait.</returns>
+    private TimeSpan FailureWait(int failures)
+    {
+        var wait = _maximumDelay;
+        for (var failure = 1; failure < failures && wait < MaximumFailureWait; failure++)
+        {
+            wait *= 2;
+        }
+
+        return wait < MaximumFailureWait ? wait : MaximumFailureWait;
     }
 
     /// <summary>Gives the larger of two spans.</summary>

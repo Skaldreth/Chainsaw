@@ -2969,13 +2969,16 @@ vidare är färsk. Förut skrevs `.cut` bara vid sparning och stängning.
   och återtagningen efter en krasch sköter sin egen sparning, och ett ärende som inte gick att öppna sparas aldrig av en
   timer. Timern tas bort när ärendet stängs eller överges.
 - **En sparning som misslyckas** (till exempel en fil som ett antivirus håller) lämnar `.cut` orörd och det osparade
-  kvar, och provas igen efter en minut. Den syns inte i gränssnittet än (TODO *Säga till när sparningen inte går*).
+  kvar, och provas igen efter en minut; misslyckas den igen fördubblas väntan, högst tio minuter (1, 2, 4, 8, 10).
+  Inget undantag lämnar timerns tråd: en låsning som hinner emellan kontrollerna och sparningen avslutar den tyst, och
+  allt annat fångas ytterst. Den syns inte i gränssnittet än (TODO *Säga till när sparningen inte går*).
 - **Eget beslut:** sparningen journalförs inte, som en sparning för hand inte gör det; den lägger inget till i ärendet,
   den skriver bara det som redan förseglats till filen.
 - **Avsteg:** inget gränssnitt. Medan en sparning pågår väntar en annan operation på ärendet på grinden, som vid en
   sparning för hand; `ICase` ska anropas utanför UI-tråden, så gränssnittet låses inte.
-- Tester: `AutosaveTests` (16) och `AutosaveScheduleTests` (11) i Cases.Tests, med `FakeTimeProvider` och utan riktiga
+- Tester: `AutosaveTests` (17) och `AutosaveScheduleTests` (13) i Cases.Tests, med `FakeTimeProvider` och utan riktiga
   väntetider: sparning efter tystnaden och inte före, en kopia av filen medan ärendet är öppet har det nya, ny skrivning
   flyttar sparningen, senast efter en minut, inget utan skrivningar, alla sorters skrivningar, sparning för hand, ett
   upptaget ärende (läsning på en annan tråd och timern mitt i en skrivning), en misslyckad sparning, stängning,
-  låsning av valvet, krasch före och efter en sparning av sig självt.
+  låsning av valvet, också mellan kontrollerna och sparningen, krasch före och efter en sparning av sig självt, och
+  väntan som växer efter fel i rad.
