@@ -58,6 +58,9 @@ public partial class MainWindow : Window
     /// <summary>The Guide's panel beside the work (sketch GD1b).</summary>
     private readonly GuidePanelViewModel _guidePanel;
 
+    /// <summary>The view Guide, for Esc's way back.</summary>
+    private readonly GuideViewModel _guide;
+
     /// <summary>The shortcut that folds out the case picker (sketch ÄV1a).</summary>
     private const string CasePickerGesture = "Ctrl+O";
 
@@ -97,6 +100,7 @@ public partial class MainWindow : Window
         _shell = shell;
         _gate = gate;
         _guidePanel = guidePanel;
+        _guide = guide;
         _graph = graph;
         DataContext = shell;
         Gate.Attach(gate);
@@ -221,12 +225,20 @@ public partial class MainWindow : Window
             _shell.Show(AppView.Guide);
         };
         guide.ReturnWanted += (_, view) => _shell.Show(view);
+        var shown = _shell.Current;
         _shell.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(ShellViewModel.Current))
             {
                 return;
             }
+
+            if (_shell.IsGuideShown)
+            {
+                guide.CameFrom(shown);
+            }
+
+            shown = _shell.Current;
 
             if (!_shell.IsGraphShown)
             {
@@ -250,6 +262,12 @@ public partial class MainWindow : Window
     /// <param name="e">The key.</param>
     private void OnGuideEscape(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && ReturnsFromGuide())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (!_guidePanel.IsOpen || !_gate.IsShellVisible || _shell.NewCase.IsOpen || _shell.Settings.IsOpen)
         {
             return;
@@ -272,6 +290,24 @@ public partial class MainWindow : Window
 
         _guidePanel.Close();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Esc in the view Guide goes back to the view it was reached from, unless something on top of it (the command
+    /// bar, a dialog, a submenu, the exits' panel) has the key.
+    /// </summary>
+    /// <returns>Whether the Guide went back.</returns>
+    private bool ReturnsFromGuide()
+    {
+        if (!_shell.IsGuideShown || !_gate.IsShellVisible || !_guide.HasReturn || _shell.NewCase.IsOpen
+            || _shell.Settings.IsOpen || _shell.OpenSubmenu is not null || _shell.ExitPanel.IsOpen
+            || _shell.CasePicker is { IsOpen: true } || _shell.IsCommandBarOpen)
+        {
+            return false;
+        }
+
+        _guide.Return();
+        return true;
     }
 
     /// <summary>

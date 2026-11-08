@@ -61,7 +61,7 @@
         <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Focusable="False">
             <StackPanel Margin="48,34,48,110" MaxWidth="620">
                 <Button Style="{StaticResource Button.Link}" Margin="0,0,0,14" Foreground="{StaticResource Brush.TextMuted}"
-                        Content="{Binding ReturnText}" Command="{Binding ReturnCommand}"
+                        Content="{Binding ReturnText}" Command="{Binding ReturnCommand}" ToolTip="Tillbaka · Esc"
                         Visibility="{Binding HasReturn, Converter={StaticResource VisibleWhen}}" />
                 <TextBlock Text="{Binding Section.Group}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
                            Margin="0,0,0,2" />

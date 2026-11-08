@@ -94,6 +94,19 @@ public sealed partial class GuideViewModel : ObservableObject
         ShowSection(place.Section, place.Anchor);
     }
 
+    /// <summary>
+    /// Remembers the view the Guide was reached from (the pill, F1 or a link), unless a way back is already set, so
+    /// that the Guide always has a way back; the Guide itself is never a way back.
+    /// </summary>
+    /// <param name="view">The view shown before the Guide.</param>
+    public void CameFrom(AppView view)
+    {
+        if (ReturnTo is null && view != AppView.Guide)
+        {
+            ReturnTo = view;
+        }
+    }
+
     /// <summary>Forgets the way back when the view is left, so that it never points to an old place.</summary>
     public void Leave() => ReturnTo = null;
 

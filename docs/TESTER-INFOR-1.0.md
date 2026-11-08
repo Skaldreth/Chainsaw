@@ -532,6 +532,8 @@ Rutan under utgången provas under *Utgångsrutan (UT2b)*.
 **Fler avsnitt med bilder (2026-11-08)**
 - [ ] F1: indexet har grupperna *Kom igång*, *Ärendet*, *Säkerhet och utgångar*, *Arbeta i grafen*, *Uttag och begäran*,
       *Förvirring* och *Ordlista*, och inget står under *Övrigt*.
+- [ ] Öppna Guiden från pillret eller med F1 i vilken vy som helst: överst står *Tillbaka till <vyn>*, och Esc eller
+      länken går tillbaka dit. Från panelen bredvid grafen går den tillbaka till grafen.
 - [ ] Varje nytt avsnitt börjar med en ruta *Som i vardagen:* och har en eller två bilder (till exempel pärmen med
       stämplar i *Journalen, hashkedjan och /verify*). Bilderna är skarpa, i temats färger, lika breda och utan text i
       själva bilden; bildtexten står under. Ingen bild saknas eller visas som en tom ruta.

@@ -427,6 +427,31 @@ public sealed class GuideTests
         Assert.False(guide.HasReturn);
     }
 
+    /// <summary>
+    /// The Guide reached from the pill or F1 remembers the view before it as the way back, never itself, and a way
+    /// back already set by the panel wins.
+    /// </summary>
+    [Fact]
+    public void GuideAlwaysHasAWayBack()
+    {
+        var guide = new GuideViewModel(Small());
+        AppView? returned = null;
+        guide.ReturnWanted += (_, view) => returned = view;
+
+        guide.CameFrom(AppView.Guide);
+        Assert.False(guide.HasReturn);
+
+        guide.CameFrom(AppView.Monitoring);
+        Assert.Equal("Tillbaka till Bevakning", guide.ReturnText);
+
+        guide.Return();
+        Assert.Equal(AppView.Monitoring, returned);
+
+        guide.Open(new GuidePlace("etiketter", null, null, null), AppView.Graph);
+        guide.CameFrom(AppView.Monitoring);
+        Assert.Equal(AppView.Graph, guide.ReturnTo);
+    }
+
     /// <summary>Without texts the view shows no section and the panel does not open.</summary>
     [Fact]
     public void EmptyLibraryShowsNothing()
