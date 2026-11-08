@@ -71,6 +71,8 @@ public sealed class GuideHistory
     /// <summary>
     /// Puts a fuller answer in the stead of the latest answer about the same thing, wherever it lies in the way back,
     /// so that an answer that comes later (a cluster's links) never pulls the reader away from what they followed.
+    /// The place keeps its section and heading: only the answer above them changes, so that the text being read
+    /// never turns into another section.
     /// </summary>
     /// <param name="place">The fuller answer; its <see cref="GuidePlace.Subject"/> says what it is about.</param>
     /// <returns>
@@ -86,7 +88,7 @@ public sealed class GuideHistory
             return false;
         }
 
-        _places[latest] = place;
+        _places[latest] = _places[latest] with { Context = place.Context };
         return true;
     }
 

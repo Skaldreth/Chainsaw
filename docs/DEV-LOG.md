@@ -2948,3 +2948,35 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   som rullat in under kantrullningen; kostnaden är densamma som `VisibleNodes`, som också går igenom alla.
 - Tester: `BoxSelectionTests` (13) i App.Tests. Tracing är orört.
 - Återstår: Shift+klick på en nod väljer inget intervall (det finns ingen ordning att välja intervall i).
+
+## Kommentarsnodens skrivande och tråd, Guidens panel (2026-11-08)
+
+- **Skrivandet:** Gawks `MarkdownEdits` övertagen till `Chainsaw.SharedKernel/Text/MarkdownEdits.cs` med bara det
+  lappen behöver: Enter i en lista eller ett citat fortsätter (nästa nummer; en tom punkt avslutar listan eller går ut
+  en nivå), Tab och Shift+Tab drar in och ut (två mellanslag). Till skillnad från Gawk tål reglerna `\r\n`, eftersom
+  AvalonEdit skriver Windows radbrytningar; den nya raden får dokumentets egen radbrytning. Varje ändring är ett steg
+  för Ctrl+Z. Shift+Tab hanteras alltid, så att tangentbordet aldrig lämnar lappen.
+- **Radavståndet** medan man skriver är 1,55 som i den ritade lappen: redigeraren får ett sammansatt typsnitt
+  (`FontFamily` med `LineSpacing` 1,55 och baslinjen skalad i samma proportion som en `TextBlock` med `LineHeight`),
+  över temats `Font.Ui` och `Font.Mono`. AvalonEdit har inget eget radavstånd. Ska provas på Windows.
+- **Hjulet:** redigerarens egen rullning tar varje hjulsnurr; lappen rullar aldrig, så redigeraren släpper snurret
+  vidare (`handledEventsToo`) och grafen zoomar.
+- **Tråden:** `CommentGeometry.Resolve` läser adressen i nyckeln på alla kedjor (`address:` för Bitcoin, `account:`
+  med kedjan för kontokedjorna, `AddressOf`) och letar upp aktören med `TraceGraph.NodeOf(ChainAddress)`. Ligger
+  aktören i en ritad hög går tråden till högen. `IsThrown` använder samma uppslag.
+- **Guidens panel, länkar:** `GuideRequest.IsChoice` skiljer ett val från ett fylligare svar. Grafen säger själv till
+  vid varje val, också när svaren är desamma, så att samma nod vald igen efter en följd länk visar svaret som ett nytt
+  steg. Ett svar som kommer senare (klustrets länkar, grafen läst om) uppdaterar bara svaret där det ligger i vägen
+  tillbaka, och avsnittet och rubriken står kvar (`GuideHistory.UpdateLatest`), så att det man läser aldrig byts.
+  Ett sådant svar om något annat än det som ligger i vägen tillbaka ändrar ingenting (förut blev det ett steg).
+- **Tangentbordet:** Shift+F1 i grafen öppnar metodens avsnitt, som högerklick på metoden (Windows tangent för hjälp
+  om det som står framför). Metodens knapp tar inte fokus, så tangenten sitter på grafen; verktygstipset och
+  *Kortkommandon* säger det.
+- **Tolkaren:** en avslutande `*` eller `**` letas efter förbi kod, som texten läses (`Closes`).
+- **Smalt fönster:** kommandoraden är högst 640 px och smalnar av med 24 px luft mot fönstrets kant och mot panelen,
+  i stället för att ha fast bredd och kapas.
+- **Egna beslut:** Shift+F1 som tangent (skissen har ingen); luften kring kommandoraden 24 px.
+- Tester: `MarkdownEditsTests` i SharedKernel (7), i App `CommentGeometryTests` (hög, Ethereum, nyckelns adress),
+  `GuideTests` (länk och nytt val, fylligare svar behåller avsnittet, stjärna i kod, historiken) och
+  `GraphViewModelTests` (valet igen, Shift+F1 i tipset).
+- **Återstår:** inget av punkterna; *Historiken* för lappen är kvar i TODO.

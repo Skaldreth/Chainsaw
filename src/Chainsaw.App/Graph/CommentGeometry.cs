@@ -1,4 +1,6 @@
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
 
@@ -35,7 +37,10 @@ public static class CommentGeometry
             : node.Key;
     }
 
-    /// <summary>Finds the node a stored thread goes to in the graph shown.</summary>
+    /// <summary>
+    /// Finds the node a stored thread goes to in the graph shown: the node by its key, the actor that holds its address
+    /// on any chain, or the pile (sketch EX2b) that actor lies in, so that a comment on a member keeps its thread.
+    /// </summary>
     /// <param name="scene">The graph.</param>
     /// <param name="anchor">The stored key, or <see langword="null"/>.</param>
     /// <returns>The node's key, or <see langword="null"/> when there is no thread or its node is not drawn.</returns>
@@ -46,21 +51,22 @@ public static class CommentGeometry
             return null;
         }
 
-        if (scene.Node(anchor) is { } node)
+        if (scene.Node(anchor) is { } drawn)
         {
-            return node.Key;
+            return drawn.Key;
         }
 
-        if (!anchor.StartsWith(GraphPile.AddressKeyPrefix, StringComparison.Ordinal)
-            || !Chainsaw.Modules.Chains.Contracts.BitcoinAddress.TryParse(
-                anchor[GraphPile.AddressKeyPrefix.Length..], out var address))
+        if (ModelNodeOf(scene, anchor) is not { } holder)
         {
             return null;
         }
 
-        return scene.Snapshot.Graph.NodeOf(address) is { } holder && scene.Node(holder.Key) is not null
-            ? holder.Key
-            : null;
+        if (scene.Node(holder.Key) is not null)
+        {
+            return holder.Key;
+        }
+
+        return PileHolding(scene, holder.Key);
     }
 
     /// <summary>
@@ -82,17 +88,66 @@ public static class CommentGeometry
             return true;
         }
 
-        var graph = scene.Snapshot.Graph;
-        var node = graph.Node(anchor);
-        if (node is null && anchor.StartsWith(GraphPile.AddressKeyPrefix, StringComparison.Ordinal)
-            && Chainsaw.Modules.Chains.Contracts.BitcoinAddress.TryParse(
-                anchor[GraphPile.AddressKeyPrefix.Length..], out var address))
+        return ModelNodeOf(scene, anchor) is { } node && scene.Trash.Hides(node);
+    }
+
+    /// <summary>
+    /// Reads the address a stored key names, on any chain: <c>address:</c> and a Bitcoin address, or <c>account:</c>,
+    /// the chain and an address on an account chain.
+    /// </summary>
+    /// <param name="anchor">The stored key.</param>
+    /// <returns>The address, or <see langword="null"/> when the key names none.</returns>
+    public static ChainAddress? AddressOf(string anchor)
+    {
+        ArgumentNullException.ThrowIfNull(anchor);
+        if (anchor.StartsWith(GraphPile.AddressKeyPrefix, StringComparison.Ordinal))
         {
-            node = graph.NodeOf(address);
+            return BitcoinAddress.TryParse(anchor[GraphPile.AddressKeyPrefix.Length..], out var bitcoin)
+                ? bitcoin.ToChainAddress()
+                : null;
         }
 
-        return node is not null && scene.Trash.Hides(node);
+        if (!anchor.StartsWith(GraphPile.AccountKeyPrefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var rest = anchor[GraphPile.AccountKeyPrefix.Length..];
+        var colon = rest.IndexOf(':', StringComparison.Ordinal);
+        if (colon <= 0 || colon == rest.Length - 1
+            || !Enum.TryParse<Chain>(rest[..colon], ignoreCase: false, out var chain) || !Enum.IsDefined(chain))
+        {
+            return null;
+        }
+
+        var value = rest[(colon + 1)..];
+        return value.Any(char.IsWhiteSpace) ? null : new ChainAddress(chain, value);
     }
+
+    /// <summary>Finds the model's node a stored key names: by its key, or the actor that holds its address.</summary>
+    /// <param name="scene">The graph.</param>
+    /// <param name="anchor">The stored key.</param>
+    /// <returns>The node, or <see langword="null"/> when the graph has none.</returns>
+    private static GraphNode? ModelNodeOf(GraphScene scene, string anchor)
+    {
+        var graph = scene.Snapshot.Graph;
+        if (graph.Node(anchor) is { } node)
+        {
+            return node;
+        }
+
+        return AddressOf(anchor) is { } address ? graph.NodeOf(address) : null;
+    }
+
+    /// <summary>Finds the drawn pile an actor lies in as one of its cards.</summary>
+    /// <param name="scene">The graph.</param>
+    /// <param name="key">The actor's key.</param>
+    /// <returns>The pile's key, or <see langword="null"/> when no drawn pile holds it.</returns>
+    private static string? PileHolding(GraphScene scene, string key) =>
+        scene.Piles.Values
+            .Where(pile => scene.Node(pile.Key) is not null)
+            .FirstOrDefault(pile => pile.Cards.Any(card => string.Equals(card.Key, key, StringComparison.Ordinal)))
+            ?.Key;
 
     /// <summary>Gives where a new comment stands: up and to the right of its node, or where it was asked for.</summary>
     /// <param name="nodePlace">The node's place, when the comment is about a node.</param>

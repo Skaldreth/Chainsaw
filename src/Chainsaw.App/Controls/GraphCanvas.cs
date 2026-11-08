@@ -434,6 +434,14 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
+        // The method's section without a right click (sketch GD1b): Windows' key for help about what is in front.
+        if (_model is not null && e.Key == Key.F1 && Keyboard.Modifiers == ModifierKeys.Shift)
+        {
+            _model.OpenMethodGuide();
+            e.Handled = true;
+            return;
+        }
+
         if (_model is null || (Keyboard.Modifiers & ~allowed) != ModifierKeys.None)
         {
             return;

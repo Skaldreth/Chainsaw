@@ -34,6 +34,9 @@ public partial class MainWindow : Window
     /// <summary>How small the command bar starts as it comes up, against its full size.</summary>
     private const double CommandBarStartScale = 0.97;
 
+    /// <summary>The least space between the command bar and the window's edge or the Guide's panel.</summary>
+    private const double CommandBarGutter = 24;
+
     /// <summary>How often the window asks whether the automatic lock is due.</summary>
     private static readonly TimeSpan IdleCheck = TimeSpan.FromSeconds(5);
 
@@ -312,13 +315,13 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Keeps what the Guide's panel would cover in view while it is open: the graph's corner moves left of it, and
-    /// the command bar comes up centred in the space beside it.
+    /// the command bar comes up centred in the space beside it, narrower when that space is (a window of 960 px).
     /// </summary>
     private void MakeRoomForGuide()
     {
         var covered = _guidePanel.IsOpen ? GuidePanel.Width : 0;
         GraphPage.MakeRoom(covered);
-        CommandPanel.Margin = new Thickness(0, 0, covered, 0);
+        CommandPanel.Margin = new Thickness(CommandBarGutter, 0, covered + CommandBarGutter, 0);
     }
 
     /// <summary>Stops listening to Windows when the window closes; the static events would otherwise keep it.</summary>

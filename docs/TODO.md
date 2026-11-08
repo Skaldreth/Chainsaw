@@ -137,13 +137,6 @@ fungerar rättas före allt annat nedan. Särskilt:
 - **Test saknas** [direkt] för när inga startpunkter finns kvar och grafen bara är cykler, så att allt följer med.
 
 **Kommentarsnoden (KN1a)**
-- **Skrivandet** [direkt]:
-  - Enter i en lista fortsätter inte listan, och Tab drar inte in. Gawks `MarkdownEdits` kan tas över.
-  - Radavståndet medan man skriver är tätare än de 1,55 som ritas.
-  - Hjulet över en lapp som man skriver i zoomar inte grafen.
-- **Tråden** [direkt]:
-  - En lapp vars adress ligger i en hög får ingen tråd. Den borde gå till högen.
-  - `CommentGeometry.Resolve` tolkar bara Bitcoin.
 - **Historiken** [etapp]: lappens förseglade poster syns inte i inspektörens *Historik* (AN1b), och en borttagen lapp
   kan inte läggas tillbaka.
 
@@ -157,12 +150,6 @@ fungerar rättas före allt annat nedan. Särskilt:
     låta det som inte kan ha ändrats svara som cache.
   - **Sanktionslistans Ethereum-adresser** kontrolleras inte, så brickan visas bara för Bitcoin.
 - **Kortets baksida i dagens kurs** [direkt]: efter fråga 2 ovan.
-- **Guidens panel** [direkt]:
-  - **Länkar:** välj samma nod igen efter att ha följt en länk, så stannar panelen på länken. Klustrets svar, som
-    kommer efter en stund, kan byta avsnitt medan man läser.
-  - **Tangentbordet:** metodens avsnitt nås bara med högerklick.
-  - **Tolkaren:** en avslutande `*` letas efter utan att kod hoppas över.
-  - **Smalt fönster:** vid 960 px kapas kommandoraden bredvid den öppna panelen.
 - **Källors felrad till toastern** [direkt], som Bevakningens felrad redan är.
 - **Bevakningens huvud** [direkt]: skissen säger *2 nya träffar sedan 09:10*, men vyn säger bara antalet. När
   användaren senast tittade behöver sparas som en tid med *sedd*.

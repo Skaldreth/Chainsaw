@@ -181,20 +181,37 @@ public static partial class GuideMarkdown
             return false;
         }
 
-        if (marker.Length == 1)
+        // The closing marker is looked for as Scan reads the text: a marker in a code span is code, not a marker.
+        for (var i = after; i < text.Length; i++)
         {
-            for (var i = after; i < text.Length; i++)
+            if (text[i] == '`' && text.IndexOf('`', i + 1) is var end and > 0)
             {
-                if (text[i] == '*' && (i + 1 >= text.Length || text[i + 1] != '*') && text[i - 1] != '*')
-                {
-                    return true;
-                }
+                i = end;
             }
-
-            return false;
+            else if (i > after && Closes(text, i, marker))
+            {
+                return true;
+            }
         }
 
-        return text.IndexOf(marker, after, StringComparison.Ordinal) > after;
+        return false;
+    }
+
+    /// <summary>
+    /// Says whether a marker stands at a place: <c>**</c>, or a single <c>*</c> that is not half of a <c>**</c>.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="at">The place; never the text's first character.</param>
+    /// <param name="marker">The marker.</param>
+    /// <returns><see langword="true"/> when the marker stands there.</returns>
+    private static bool Closes(string text, int at, string marker)
+    {
+        if (marker.Length > 1)
+        {
+            return string.CompareOrdinal(text, at, marker, 0, marker.Length) == 0;
+        }
+
+        return text[at] == '*' && (at + 1 >= text.Length || text[at + 1] != '*') && text[at - 1] != '*';
     }
 
     /// <summary>Reads a link that starts at a <c>[</c>: <c>[text](target)</c>.</summary>

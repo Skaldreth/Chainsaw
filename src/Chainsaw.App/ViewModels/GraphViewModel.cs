@@ -101,6 +101,12 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Whether the open case's stored view has been read and shown, so that changes may be stored.</summary>
     private bool _viewLoaded;
 
+    /// <summary>
+    /// Whether something is being chosen, while the inspector is filled: the choice tells the Guide's panel itself, as
+    /// a choice, rather than as changed answers.
+    /// </summary>
+    private bool _choosing;
+
     /// <summary>Creates the graph for the window's open case.</summary>
     /// <param name="session">The open case.</param>
     /// <param name="workflow">The cases, which say when a start point is added.</param>
@@ -269,6 +275,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Gets the method as the button always shows it, for example <c>FIFO</c>.</summary>
     public string MethodText => GraphScene.MethodName(Method);
 
+    /// <summary>The key that opens the Guide at the method, besides a right click on it (Windows' Shift+F1).</summary>
+    public const string MethodGuideGesture = "Shift+F1";
+
     /// <summary>Gets the method button's tooltip: the version, and what a click does.</summary>
     public string MethodToolTip
     {
@@ -276,8 +285,8 @@ public sealed partial class GraphViewModel : ObservableObject
         {
             var other = GraphScene.MethodName(Other(Method));
             var used = Scene?.Snapshot.Trace?.Method.ToString() ?? MethodText;
-            return $"Spårningsmetod: {used}. Klicka för {other}, högerklicka för Guiden. Ett spårat belopp är en "
-                + "bedömning enligt metoden.";
+            return $"Spårningsmetod: {used}. Klicka för {other}, högerklicka eller {MethodGuideGesture} för "
+                + "Guiden. Ett spårat belopp är en bedömning enligt metoden.";
         }
     }
 
@@ -613,9 +622,17 @@ public sealed partial class GraphViewModel : ObservableObject
         ? GuideRequest.ForWhy(key, shown.Title, Why, Method)
         : null;
 
-    /// <summary>Tells the Guide's panel that the answers changed, so that it can follow.</summary>
+    /// <summary>
+    /// Tells the Guide's panel that the answers changed, so that it can follow; a choice tells it itself, once.
+    /// </summary>
     /// <param name="value">The new answers.</param>
-    partial void OnWhyChanged(IReadOnlyList<WhyLine> value) => WhyChanged?.Invoke(this, WhyRequest());
+    partial void OnWhyChanged(IReadOnlyList<WhyLine> value)
+    {
+        if (!_choosing)
+        {
+            WhyChanged?.Invoke(this, WhyRequest());
+        }
+    }
 
     /// <summary>Chooses what is under a point on the surface, or nothing over empty surface (a click).</summary>
     /// <param name="point">The point on the surface.</param>
@@ -642,7 +659,19 @@ public sealed partial class GraphViewModel : ObservableObject
         SelectedNode = node?.Key;
         SelectedEdge = edge?.Key;
         IsLegendOpen = false;
-        Inspect();
+        _choosing = true;
+        try
+        {
+            Inspect();
+        }
+        finally
+        {
+            _choosing = false;
+        }
+
+        // Told as a choice also when the answers are the same, so that choosing a node again after following a link
+        // in the Guide's panel shows its answer there (sketch GD1b).
+        WhyChanged?.Invoke(this, WhyRequest() is { } request ? request with { IsChoice = true } : null);
         SeeWatches(SelectedNode);
         Redraw?.Invoke(this, EventArgs.Empty);
     }

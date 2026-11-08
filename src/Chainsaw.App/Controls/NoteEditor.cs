@@ -2,7 +2,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Chainsaw.SharedKernel.Text;
 using ICSharpCode.AvalonEdit;
+using ICSharpCode.AvalonEdit.Document;
 
 namespace Chainsaw.App.Controls;
 
@@ -10,7 +12,9 @@ namespace Chainsaw.App.Controls;
 /// Where a comment is written, directly in its note (sketch KN1a): AvalonEdit with the note's face, wrapping and no
 /// scroll bars, so that the note grows with its text, and the Markdown coloured as it is typed
 /// (<see cref="NoteColorizer"/>).
-/// Esc and Ctrl+Enter ask to leave the note. Links are never followed from here.
+/// Esc and Ctrl+Enter ask to leave the note; Enter in a list goes on with the list, and Tab and Shift+Tab move lines a
+/// level in or out (<see cref="MarkdownEdits"/>). The lines stand as far apart as when the note is drawn, and the wheel
+/// goes on to the graph, which zooms, since the note never scrolls. Links are never followed from here.
 /// </summary>
 internal sealed class NoteEditor : TextEditor
 {
@@ -32,9 +36,9 @@ internal sealed class NoteEditor : TextEditor
             (Brush)FindResource("Brush.Note.Mark"),
             text,
             (Brush)FindResource("Brush.Note.Code"),
-            (FontFamily)FindResource("Font.Mono")));
+            Spaced((FontFamily)FindResource("Font.Mono"))));
 
-        FontFamily = (FontFamily)FindResource("Font.Ui");
+        FontFamily = Spaced((FontFamily)FindResource("Font.Ui"));
         FontSize = TextSize;
         Foreground = text;
         Background = Brushes.Transparent;
@@ -50,6 +54,7 @@ internal sealed class NoteEditor : TextEditor
         Options.HighlightCurrentLine = false;
         Options.EnableRectangularSelection = false;
         Options.ConvertTabsToSpaces = true;
+        Options.IndentationSize = MarkdownEdits.IndentUnit.Length;
 
         TextArea.TextView.LineTransformers.Add(_colorizer);
         TextArea.Caret.CaretBrush = text;
@@ -61,6 +66,10 @@ internal sealed class NoteEditor : TextEditor
         TextArea.SelectionCornerRadius = 2;
         TextArea.FocusVisualStyle = null;
         TextArea.PreviewKeyDown += OnPreviewKey;
+
+        // The editor's own scroller takes every turn of the wheel, also with nothing to scroll; the note grows with its
+        // text instead, so the turn goes on to the graph, which zooms as it does over a drawn note.
+        AddHandler(MouseWheelEvent, new MouseWheelEventHandler((_, e) => e.Handled = false), handledEventsToo: true);
         Document.TextChanged += (_, _) =>
         {
             // A fence changes every line below it, which AvalonEdit would not draw again by itself.
@@ -100,19 +109,70 @@ internal sealed class NoteEditor : TextEditor
         CaretOffset = Document.TextLength;
     }
 
-    /// <summary>Esc and Ctrl+Enter leave the note; the rest is the editor's.</summary>
+    /// <summary>
+    /// Gives a face whose lines stand as far apart as the drawn note's (sketch KN1a: 1.55), with the extra space shared
+    /// above and below the text as a drawn line shares it, so that the text does not move when the note is left.
+    /// </summary>
+    /// <param name="face">The theme's face, which may name fallbacks.</param>
+    /// <returns>A composite face over it; the face itself when its spacing cannot be read.</returns>
+    private static FontFamily Spaced(FontFamily face)
+    {
+        if (face.LineSpacing <= 0)
+        {
+            return face;
+        }
+
+        var share = NoteMarkdownView.LineShare;
+        var spaced = new FontFamily
+        {
+            LineSpacing = share,
+            Baseline = face.Baseline * share / face.LineSpacing,
+        };
+        spaced.FamilyMaps.Add(new FontFamilyMap { Target = face.Source });
+        return spaced;
+    }
+
+    /// <summary>
+    /// Esc and Ctrl+Enter leave the note; Enter in a list, Tab and Shift+Tab are Markdown's; the rest is the editor's.
+    /// </summary>
     /// <param name="sender">The text area.</param>
     /// <param name="e">The key.</param>
     private void OnPreviewKey(object sender, KeyEventArgs e)
     {
-        var leaves = (e.Key, Keyboard.Modifiers) is (Key.Escape, ModifierKeys.None)
-            or (Key.Enter, ModifierKeys.Control);
-        if (!leaves)
+        switch (e.Key, Keyboard.Modifiers)
         {
-            return;
+            case (Key.Escape, ModifierKeys.None) or (Key.Enter, ModifierKeys.Control):
+                e.Handled = true;
+                LeaveWanted?.Invoke(this, EventArgs.Empty);
+                break;
+            case (Key.Enter, ModifierKeys.None) when SelectionLength == 0:
+                var newLine = TextUtilities.GetNewLineFromDocument(Document, TextArea.Caret.Line);
+                e.Handled = Apply(MarkdownEdits.ContinueList(Document.Text, CaretOffset, newLine));
+                break;
+            case (Key.Tab, ModifierKeys.None):
+                e.Handled = Apply(MarkdownEdits.Indent(Document.Text, SelectionStart, SelectionLength, outdent: false));
+                break;
+            case (Key.Tab, ModifierKeys.Shift):
+                // Shift+Tab never takes the keyboard out of the note, also when there is nothing to move.
+                Apply(MarkdownEdits.Indent(Document.Text, SelectionStart, SelectionLength, outdent: true));
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>Applies an edit as one step, so that Ctrl+Z undoes it at once, and selects what it says.</summary>
+    /// <param name="edit">The edit, or <see langword="null"/> when the key does what it always does.</param>
+    /// <returns><see langword="true"/> when the edit was applied.</returns>
+    private bool Apply(TextEdit? edit)
+    {
+        if (edit is not { } change || IsReadOnly)
+        {
+            return false;
         }
 
-        e.Handled = true;
-        LeaveWanted?.Invoke(this, EventArgs.Empty);
+        Document.Replace(change.Offset, change.Length, change.Text);
+        Select(change.SelectionStart, change.SelectionLength);
+        TextArea.Caret.BringCaretToView();
+        return true;
     }
 }

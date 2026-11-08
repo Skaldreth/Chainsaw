@@ -566,6 +566,17 @@ Rutan under utgången provas under *Utgångsrutan (UT2b)*.
 - F1 med panelen öppen: som *Öppna i Guide*. Esc med utgångarnas ruta öppen stänger den rutan, inte Guiden.
 - En länk i texten får en fokusmarkering med Tab.
 
+**Panelen: länkar, tangentbordet och smalt fönster (2026-11-08)**
+- [ ] Välj en nod, öppna *Varför?* och följ en länk i texten. Klicka på samma nod igen: panelen visar nodens svar igen,
+      och pilen går tillbaka till länken.
+- [ ] Välj ett kluster med panelen öppen och följ en länk innan klustrets länkar kommit: panelen står kvar på länken.
+      Gå tillbaka med pilen: svaret har klustrets länkar. Läs i klustrets avsnitt när länkarna kommer: avsnittet byts
+      inte, bara svaret överst.
+- [ ] Klicka i grafen så att den har tangentbordet och tryck Shift+F1: panelen öppnas vid metodens rubrik, som
+      högerklick på *FIFO*. Metodens verktygstips säger *högerklicka eller Shift+F1 för Guiden*.
+- [ ] Gör fönstret så smalt det går (960 px), öppna panelen och Ctrl+K: kommandoraden står hel i ytan bredvid
+      panelen, med luft på båda sidor, och inget av den är kapat. I ett brett fönster är den 640 px som förut.
+
 **Texten**
 - Fetstil i ljus text, kursiv, kod (adresser, `coinjoin v1`) i Cascadia Mono på en upphöjd yta, punktlistor med en
   liten prick, numrerade listor (*Kurser*), inskjutna listor (*CoinJoin*: Whirlpool, Wasabi, JoinMarket), citat med en
@@ -1472,6 +1483,19 @@ några steg).
 - [ ] Medan en lapp skrivs i gör E, L, B, U, K, F, + och − ingenting i grafen; bokstäverna hamnar i lappen.
 - [ ] `/testdata`: en lapp *Uttag via Nordbörsen?* står ovanför grafen med tråd till offret och en länk till
       Nordbörsens insättning.
+
+**Skrivandet och tråden (2026-11-08)**
+- [ ] Skriv `- ett` och Enter: nästa rad börjar med `- `. Enter på en tom punkt avslutar listan; på en tom inskjuten
+      punkt flyttas den ut en nivå. `1. ett` och Enter ger `2. `, `> citat` och Enter ger `> `. I ett kodblock (efter
+      ```` ``` ````) är Enter en vanlig ny rad. Ctrl+Z ångrar fortsättningen i ett steg.
+- [ ] Tab på en punkt drar in den två steg; Shift+Tab drar ut den. Markera flera rader och tryck Tab: alla dras in.
+      Tab på en vanlig rad skriver mellanslag, och Shift+Tab lämnar aldrig lappen.
+- [ ] Radavståndet medan man skriver är detsamma som när lappen är ritad: lämna lappen och öppna den igen, så står
+      raderna på samma höjd och texten hoppar inte. Kod och rubriker följer med.
+- [ ] Rulla hjulet över en lapp som man skriver i: grafen zoomar som över en ritad lapp, och lappen rullar inte.
+- [ ] Skriv en lapp på en adress som sedan hamnar i en hög (EX2b): tråden går till högen. Plocka ut adressen ur högen:
+      tråden går till noden igen.
+- [ ] En lapp på en adress på Ethereum behåller sin tråd när ärendet stängs och öppnas igen.
 
 ## Sortera grafen (2026-11-08, efter användarens beskrivning)
 - [ ] På den fria ytan, i ett ärende med minst två aktörer, står en ikon i grafens hörn uppe till höger, efter
