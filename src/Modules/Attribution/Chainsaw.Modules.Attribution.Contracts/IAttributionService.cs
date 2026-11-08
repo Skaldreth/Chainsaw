@@ -38,6 +38,30 @@ public interface IAttributionService
     bool Retract(ICase @case, long sequence, string? reason);
 
     /// <summary>
+    /// Marks a label <em>Sprid inte</em>, or lets it spread again, with a line in the journal: a new sealed record
+    /// with who and when, so that the label's own record is never touched (principle 1). Only the user's own labels
+    /// (<see cref="LabelHistoryEntry.CanChangeSpread"/>) can be marked, and only while they count. The label library
+    /// follows the next time the case is absorbed (<see cref="ILabelLibrary.Absorb"/>): a label marked
+    /// <em>Sprid inte</em> then leaves it, but copies already given to other cases stay there.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="sequence">The label's <see cref="LabelEntry.Sequence"/>.</param>
+    /// <param name="doNotSpread">Whether the label stays in this case.</param>
+    /// <returns>
+    /// <see langword="false"/> when there is no such label, it is taken back, it is not the user's own, or it is
+    /// already marked so.
+    /// </returns>
+    bool SetDoNotSpread(ICase @case, long sequence, bool doNotSpread);
+
+    /// <summary>
+    /// Reads the history of every label in the case, also those taken back, each with its taking back, oldest first:
+    /// what the view Etiketter lists (sketch ET1a).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The labels and their taking back.</returns>
+    IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case);
+
+    /// <summary>
     /// Reads the history of the labels on some addresses: every label whose subject is one of them, also those taken
     /// back, each with its taking back, oldest first (sketch AN1b, <em>Historik</em>).
     /// </summary>

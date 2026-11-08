@@ -577,7 +577,13 @@ internal sealed class TestLibrary : ILabelLibrary
     public IReadOnlyList<LabelEntry> ShareInto(ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
         throw new NotSupportedException();
 
-    public IReadOnlyList<LibraryLabel> List() => throw new NotSupportedException();
+    /// <summary>Gets or sets what the library lists.</summary>
+    public IReadOnlyList<LibraryLabel> Listed { get; set; } = [];
+
+    /// <summary>Gets or sets a failure listing throws, as a locked vault does.</summary>
+    public Exception? ListFailure { get; set; }
+
+    public IReadOnlyList<LibraryLabel> List() => ListFailure is null ? Listed : throw ListFailure;
 }
 
 /// <summary>A verifier that gives what the test set.</summary>

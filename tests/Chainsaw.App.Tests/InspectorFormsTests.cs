@@ -127,6 +127,12 @@ internal sealed class TestGraphEditor : IGraphEditor
     public Task<UndoOutcome> RetractLabelAsync(ICase @case, long sequence, string? reason) =>
         Undo("label", sequence.ToString(System.Globalization.CultureInfo.InvariantCulture), reason);
 
+    public Task<UndoOutcome> SetDoNotSpreadAsync(ICase @case, long sequence, bool doNotSpread) =>
+        Undo(
+            "spread",
+            sequence.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            doNotSpread ? "on" : "off");
+
     public Task<UndoSplitPreview?> PreviewUndoSplitsAsync(
         ICase @case, IReadOnlyList<long> splits, BitcoinAddress? from, CancellationToken cancellationToken) =>
         Task.FromResult(Preview);

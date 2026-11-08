@@ -72,6 +72,16 @@ public interface IGraphEditor
     /// <returns>Whether it was taken back, and what kept the library from following, if anything.</returns>
     Task<UndoOutcome> RetractLabelAsync(ICase @case, long sequence, string? reason);
 
+    /// <summary>
+    /// Marks a label <em>Sprid inte</em>, or lets it spread again, sealed with a line in the journal, and then lets
+    /// the label library follow at once (sketch ET1a).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="sequence">The label's sequence.</param>
+    /// <param name="doNotSpread">Whether the label stays in the case.</param>
+    /// <returns>Whether it was marked, and what kept the library from following, if anything.</returns>
+    Task<UndoOutcome> SetDoNotSpreadAsync(ICase @case, long sequence, bool doNotSpread);
+
     /// <summary>Says what undoing a breaking out would merge again, without storing anything.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="splits">The breaking out's splits.</param>
@@ -227,24 +237,37 @@ public sealed class GraphEditor(
     public Task<UndoOutcome> RetractLabelAsync(ICase @case, long sequence, string? reason)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        return Task.Run(() =>
-        {
-            if (!attribution.Retract(@case, sequence, reason))
-            {
-                return new UndoOutcome(false);
-            }
+        return Task.Run(() => attribution.Retract(@case, sequence, reason)
+            ? FollowLibrary(@case)
+            : new UndoOutcome(false));
+    }
 
-            try
-            {
-                library.Absorb(@case);
-                return new UndoOutcome(true);
-            }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
-            {
-                // The retraction is sealed; the library learns it the next time the case is absorbed.
-                return new UndoOutcome(true, LibraryLaterText);
-            }
-        });
+    /// <inheritdoc/>
+    public Task<UndoOutcome> SetDoNotSpreadAsync(ICase @case, long sequence, bool doNotSpread)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => attribution.SetDoNotSpread(@case, sequence, doNotSpread)
+            ? FollowLibrary(@case)
+            : new UndoOutcome(false));
+    }
+
+    /// <summary>
+    /// Lets the label library follow a change to a label that is already sealed: the case is absorbed again.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>Done, with what kept the library from following, if anything.</returns>
+    private UndoOutcome FollowLibrary(ICase @case)
+    {
+        try
+        {
+            library.Absorb(@case);
+            return new UndoOutcome(true);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // The change is sealed; the library learns it the next time the case is absorbed.
+            return new UndoOutcome(true, LibraryLaterText);
+        }
     }
 
     /// <inheritdoc/>

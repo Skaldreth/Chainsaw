@@ -128,6 +128,7 @@ public partial class MainWindow : Window
         WireGuide(graph, guide);
         WireWatches(shell, graph, monitoring);
         WireRequests(shell, graph);
+        WireLabels(shell, graph);
         WireEmptyGraph(shell, graph.Start);
         watchRunner.Start();
         shell.Settings.SettingsChanged += (_, settings) => _ = background.ApplyAsync(settings);
@@ -233,6 +234,50 @@ public partial class MainWindow : Window
             if (e.PropertyName == nameof(ShellViewModel.IsRequestsShown) && shell.IsRequestsShown)
             {
                 Dispatcher.BeginInvoke(() => RequestsPage.Focus(), DispatcherPriority.Input);
+            }
+        };
+    }
+
+    /// <summary>
+    /// Wires the view Etiketter (sketch ET1a): its list follows the graph shown, <em>Visa i grafen</em> shows the graph
+    /// with the node chosen, a label changed there reads the graph again, <em>Varför?</em> opens the Guide's section on
+    /// labels with a way back, and <em>Nytt → Etikett</em> opens the label form on the graph's chosen node.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    private void WireLabels(ShellViewModel shell, GraphViewModel graph)
+    {
+        shell.LabelWanted += (_, _) => graph.NewLabel();
+        if (shell.Labels is not { } labels)
+        {
+            return;
+        }
+
+        LabelsPage.Attach(labels);
+        labels.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                labels.Update(graph.Scene);
+            }
+        };
+        labels.ShowInGraphWanted += (_, nodeKey) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.ShowNode(nodeKey);
+        };
+        labels.Changed += (_, _) => _ = graph.RefreshAsync();
+        labels.WhyWanted += (_, _) =>
+        {
+            _guidePanel.Ask(new Guide.GuideRequest(Graph.GuideTopic.Labels, null, null, null));
+            _guidePanel.OpenInGuide();
+        };
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.IsLabelsShown) && shell.IsLabelsShown)
+            {
+                Dispatcher.BeginInvoke(() => LabelsPage.Focus(), DispatcherPriority.Input);
             }
         };
     }

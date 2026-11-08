@@ -3217,3 +3217,24 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - **M5:** `tokenlist` med status 2 ger ett ofullständigt saldo med en anteckning.
 - **M6:** tester för en skräptoken som heter USDT, wei över `long.MaxValue` och toppen följd av överföring med
   registret på både Bitcoin och Ethereum. M2 står i `docs/BACKLOG.md`.
+
+## Etiketter, ET1a (2026-11-08)
+
+- **Byggt:** vyn Etiketter i pillret (Ctrl+7, inte längre nedtonad): källorna som filter med antal och en rad om vad
+  källan är nu, bibliotekets antal (Hela biblioteket, Kom in, Gick ut, Sprids inte), växeln Ärendet/Biblioteket,
+  filterfältet, en virtualiserad lista med sanktionsträffarna i grafen överst i rött, och den valda etiketten med
+  ursprungen, *Visa i grafen* (G), *Sprid inte*, *Ta tillbaka …* med frivilligt skäl och *Varför?* (Guiden om
+  etiketter). *Nytt → Etikett* (E) visar grafen och öppnar etikettformuläret på den valda noden.
+- **Modulen:** `IAttributionService.SetDoNotSpread` förseglar en egen post (`spread`) med journalrad
+  (`attribution.label-spread-changed`); den senaste posten gäller och etikettens egen post rörs aldrig.
+  `GetHistory(ICase)` läser alla etiketter med tillbakatagandet. `IGraphEditor.SetDoNotSpreadAsync` låter biblioteket
+  följa direkt, som `RetractLabelAsync` (gemensam `FollowLibrary`).
+- **Egna beslut:** samma etikett (subjekt, sort, namn) från flera ursprung är en rad, som i grafen; en rad listas
+  under källan för det första ursprunget som inte är en kopia. Ett filter döljer raden när dess källa är av, och en
+  rad med en kopia från ett annat ärende också när *Andra ärenden* är av (som skissen). *Sprid inte* och *Ta tillbaka*
+  gäller alla radens etiketter som användaren får ändra. *Gick ut* räknas som bibliotekets etiketter med ärendets
+  nummer. Tider skrivs `yyyy-MM-dd HH:mm (HH:mm UTC)` som i Begäran.
+- **Avsteg från skissen:** *Ångra* i toasten efter *Ta tillbaka* är inte byggt (se `docs/BACKLOG.md`); en kopia från
+  ett annat ärende visar inte det ärendets nummer, eftersom modulen inte för det vidare.
+- Tester: 6 i `Chainsaw.Modules.Attribution.Tests` (`SpreadTests`), 16 i `LabelsTests`, en i `GraphEditorTests` och
+  en för *Nytt → Etikett* i `SubmenuTests`.

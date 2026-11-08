@@ -56,6 +56,17 @@ public sealed class GraphEditorTests
         Assert.Empty(_library.Absorbed);
     }
 
+    /// <summary>Sprid inte on a label already sealed lets the library follow at once (sketch ET1a).</summary>
+    [Fact]
+    public async Task TheLibraryFollowsALabelMarkedDoNotSpread()
+    {
+        var outcome = await Editor.SetDoNotSpreadAsync(_case, 7, doNotSpread: true);
+
+        Assert.Equal(new UndoOutcome(true), outcome);
+        Assert.Equal((7L, true), Assert.Single(_attribution.SpreadChanges));
+        Assert.Same(_case, Assert.Single(_library.Absorbed));
+    }
+
     /// <summary>A breaking out is stored as one; when the case refuses it, nothing is stored.</summary>
     [Fact]
     public async Task ABreakingOutIsStoredAsOne()

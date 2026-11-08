@@ -14,8 +14,7 @@ public static class SubmenuTable
     public static IReadOnlyList<SubmenuRow> New { get; } =
     [
         new(SubmenuAction.StartPoint, "Startpunkt", "S", SubmenuNeed.Nothing),
-        new(SubmenuAction.Label, "Etikett", "E", SubmenuNeed.NotBuilt,
-            "Inte byggt än: en etikett sätts på en nod i grafen (L)"),
+        new(SubmenuAction.Label, "Etikett", "E", SubmenuNeed.OpenCase),
         new(SubmenuAction.Watch, "Bevakning", "B", SubmenuNeed.OpenCase),
         new(SubmenuAction.Request, "Begäran", "R", SubmenuNeed.OpenCase),
         SubmenuRow.Line,

@@ -331,6 +331,16 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
 ## Attribution
+- **Vyn Etiketter (ET1a), det som återstår:**
+  - *Sprid inte* som slås på i efterhand tar etiketten ur biblioteket, men kopior som redan gått till andra ärenden
+    ligger kvar där (toasten säger det). Att också ta tillbaka kopiorna kräver att biblioteket minns markeringen som
+    ett tillbakatagande.
+  - *Ångra* i toasten efter *Ta tillbaka* (skissens Ctrl+Z) är inte byggt: en tillbakatagen etikett sätts på nytt, och
+    då med den som ångrar som ursprung, inte den ursprungliga. Behöver ett eget förseglat *återinsatt*.
+  - Ett ursprung från ett annat ärende visar *Från ett annat ärende* utan nummer, eftersom biblioteket bara ger
+    kopian vem, när och etiketten. CLAUDE.md (*Allt följer med*) säger att numret, skälet och anteckningen ska följa
+    med; modulen gör inte det än. Biblioteksvyn visar numren.
+  - Raderna *Kom in*, *Gick ut* och *Sprids inte* under BIBLIOTEKET är bara antal; de kunde filtrera listan.
 - **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.
 - **Kan frysas** (CLAUDE.md, *Sorterna*): markeringen för adresser med USDT eller USDC hör till Ethereum och TRON. SDN
   har redan adresser för `USDT`, `ETH` och `TRX`, som etapp 8 läser in och räknar men ännu inte slår upp.

@@ -123,6 +123,45 @@ internal sealed class AttributionService(
     }
 
     /// <inheritdoc/>
+    public bool SetDoNotSpread(ICase @case, long sequence, bool doNotSpread)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Write(transaction =>
+        {
+            var stored = LabelStore.Read(transaction);
+            var label = stored.Active.FirstOrDefault(each => each.Sequence == sequence);
+            if (label is null || label.DoNotSpread == doNotSpread
+                || !new LabelHistoryEntry(label, null).CanChangeSpread)
+            {
+                return false;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                AttributionJournalKinds.LabelSpreadChanged,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    doNotSpread ? "Etiketten sprids inte: {0} är {1}" : "Etiketten får spridas: {0} är {1}",
+                    label.Subject,
+                    label.Kind.Describe().ToLowerInvariant()),
+                JsonSerializer.Serialize(new { label = label.Sequence, doNotSpread })));
+            LabelStore.SealSpread(transaction, label, doNotSpread, journal);
+            return true;
+        });
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var stored = @case.Read(LabelStore.Read);
+        return
+        [
+            .. stored.All.Select(label => new LabelHistoryEntry(
+                label, stored.Retractions.TryGetValue(label.Sequence, out var retraction) ? retraction : null)),
+        ];
+    }
+
+    /// <inheritdoc/>
     public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
     {
         ArgumentNullException.ThrowIfNull(addresses);
