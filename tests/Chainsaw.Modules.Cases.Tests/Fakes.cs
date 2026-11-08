@@ -59,3 +59,41 @@ internal sealed class FakeClock : IClock
 {
     public DateTimeOffset UtcNow { get; set; } = new(2026, 11, 7, 1, 2, 3, TimeSpan.Zero);
 }
+
+/// <summary>A vault's named secrets in memory, like the real ones in the vault file.</summary>
+internal sealed class FakeSecrets(FakeVault vault) : IVaultSecrets
+{
+    public Dictionary<string, string> Values { get; } = new(StringComparer.Ordinal);
+
+    public IReadOnlyList<string> List(string prefix)
+    {
+        RequireUnlocked();
+        return [.. Values.Keys.Where(name => name.StartsWith(prefix, StringComparison.Ordinal)).Order()];
+    }
+
+    public string? Find(string name)
+    {
+        RequireUnlocked();
+        return Values.GetValueOrDefault(name);
+    }
+
+    public void Save(string name, string value)
+    {
+        RequireUnlocked();
+        Values[name] = value;
+    }
+
+    public bool Remove(string name)
+    {
+        RequireUnlocked();
+        return Values.Remove(name);
+    }
+
+    private void RequireUnlocked()
+    {
+        if (vault.State != VaultState.Unlocked)
+        {
+            throw new VaultException(VaultError.Locked);
+        }
+    }
+}

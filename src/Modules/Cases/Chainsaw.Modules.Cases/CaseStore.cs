@@ -36,6 +36,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="vault">The vault.</param>
     /// <param name="purposeKeys">The vault's keys per purpose.</param>
     /// <param name="profiles">The operator profile.</param>
+    /// <param name="secrets">The vault's named secrets, for the generation of the anchors.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="options">The options.</param>
     /// <param name="contributors">Every module's schema, the Cases module's own included.</param>
@@ -43,11 +44,13 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         IVault vault,
         IPurposeKeys purposeKeys,
         IOperatorProfileStore profiles,
+        IVaultSecrets? secrets,
         IClock clock,
         CasesOptions options,
         IEnumerable<ICaseSchemaContributor> contributors)
     {
-        _services = new CaseServices(vault, purposeKeys, profiles, clock, options, new SchemaCatalog(contributors));
+        _services = new CaseServices(
+            vault, purposeKeys, profiles, secrets, clock, options, new SchemaCatalog(contributors));
         vault.StateChanged += OnVaultStateChanged;
     }
 
@@ -394,7 +397,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             var newHeader = NewHeader(Guid.NewGuid(), newKey);
             WorkingCopyBranches.CopyToBranch(paths, branch);
             RebindBranch(branch, (fileKey, header.CaseId), (newKey, newHeader.CaseId), branchNumber);
-            WorkingCopyBranches.WriteCaseFile(branch, newHeader);
+            WorkingCopyBranches.WriteCaseFile(branch, newHeader, newKey);
             WorkingCopyBranches.RemoveBranch(branch, caseFileToo: false);
             var opened = OpenLocked(branch, branchLock, newHeader, newKey, new Opening(OpeningKind.Branch, locks));
             (branchLock, newKey) = (null, null);
@@ -514,7 +517,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
             var caseFileHash = recovering
                 ? CaseFiles.MatchingBase(paths) ?? throw new CaseException(CaseError.Conflict)
-                : CaseFiles.Extract(paths, header.CaseId);
+                : CaseFiles.Extract(paths, header.CaseId, fileKey);
 
             anchorKey = DeriveAnchorKey();
             database = OpenWorkingCopy(paths, fileKey, header.CaseId, recovering);

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Chainsaw.SharedKernel.Text;
 
 namespace Chainsaw.Modules.Cases;
 
@@ -41,14 +42,30 @@ internal static class CaseCrypto
         return key;
     }
 
-    /// <summary>Derives the key that wraps an envelope from a sharing password.</summary>
-    /// <param name="password">The password; it is encoded as UTF-8 inside the derivation and not kept.</param>
+    /// <summary>
+    /// Derives the key that wraps an envelope from a sharing password, in Unicode normalization form C, so that the
+    /// colleague who types it with another keyboard or input method gets the same key.
+    /// </summary>
+    /// <param name="password">
+    /// The password as typed; it is normalized into a pinned buffer that is cleared, and encoded as UTF-8 inside the
+    /// derivation, and not kept.
+    /// </param>
     /// <param name="salt">The envelope's salt.</param>
     /// <param name="iterations">The envelope's iteration count.</param>
     /// <param name="destination">Receives the 32-byte key; the caller clears it.</param>
     public static void DerivePasswordKey(
-        ReadOnlySpan<char> password, ReadOnlySpan<byte> salt, int iterations, Span<byte> destination) =>
-        Rfc2898DeriveBytes.Pbkdf2(password, salt, destination, iterations, HashAlgorithmName.SHA512);
+        ReadOnlySpan<char> password, ReadOnlySpan<byte> salt, int iterations, Span<byte> destination)
+    {
+        var normalized = SecretText.Normalize(password);
+        try
+        {
+            Rfc2898DeriveBytes.Pbkdf2(normalized, salt, destination, iterations, HashAlgorithmName.SHA512);
+        }
+        finally
+        {
+            SecretText.Clear(normalized);
+        }
+    }
 
     /// <summary>
     /// Derives the database key from the file key and the case id, so that the file key itself is only used for

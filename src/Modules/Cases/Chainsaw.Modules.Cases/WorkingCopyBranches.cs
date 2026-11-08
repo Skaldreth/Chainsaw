@@ -99,16 +99,16 @@ internal static class WorkingCopyBranches
     /// </summary>
     /// <param name="branch">The new case number's files.</param>
     /// <param name="header">The new case's header.</param>
-    public static void WriteCaseFile(CasePaths branch, CaseHeader header)
+    /// <param name="fileKey">The new case's file key, which the seal over the file is derived from.</param>
+    public static void WriteCaseFile(CasePaths branch, CaseHeader header, ReadOnlySpan<byte> fileKey)
     {
         try
         {
             using (var output = new FileStream(branch.SaveFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
-                CaseContainer.WriteHeader(output, header);
                 using (var input = new FileStream(branch.WorkingCopy, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
-                    input.CopyTo(output);
+                    CaseFiles.Write(output, header, input, fileKey, hash: null);
                 }
 
                 output.Flush(flushToDisk: true);

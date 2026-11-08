@@ -25,6 +25,12 @@ namespace Chainsaw.Modules.Cases;
 /// application can see when the built-in key has been replaced), the ephemeral public key, the nonce, the encrypted
 /// file key and the tag. The ephemeral private key and the shared secret are cleared as soon as the AES key exists.
 /// </para>
+/// <para>
+/// Last, the envelope holds a check: HMAC-SHA256 over its fields under a key derived from the file key. Only the
+/// holder of the private key can open the envelope, but anyone who has opened the case can tell from the check that
+/// the envelope is the one Chainsaw wrote, so that a damaged envelope is seen and replaced when the case is opened
+/// instead of when the administrator needs it.
+/// </para>
 /// </remarks>
 internal static class RecoveryEnvelopes
 {
@@ -52,11 +58,20 @@ internal static class RecoveryEnvelopes
     /// <summary>The field with the tag.</summary>
     private const string TagField = "tag";
 
+    /// <summary>The field with the check over the envelope, under a key derived from the file key.</summary>
+    private const string CheckField = "check";
+
+    /// <summary>The HKDF info for the key of the check.</summary>
+    private const string CheckKeyInfo = "chainsaw/case/recovery-check/v1";
+
     /// <summary>The length of a fingerprint in hexadecimal digits.</summary>
     private const int FingerprintLength = 64;
 
     /// <summary>The largest ephemeral key that is read; a P-384 SubjectPublicKeyInfo is 120 bytes.</summary>
     private const int MaximumEphemeralSize = 256;
+
+    /// <summary>The size of the check.</summary>
+    private const int CheckSize = 32;
 
     /// <summary>Encrypts the file key to the recovery key.</summary>
     /// <param name="caseId">The case id.</param>
@@ -84,6 +99,8 @@ internal static class RecoveryEnvelopes
                 [NonceField] = Convert.ToBase64String(nonce),
                 [KeyField] = Convert.ToBase64String(ciphertext),
                 [TagField] = Convert.ToBase64String(tag),
+                [CheckField] = Convert.ToBase64String(
+                    Check(caseId, fileKey, context, nonce, ciphertext, tag)),
             };
         }
         finally
@@ -134,6 +151,49 @@ internal static class RecoveryEnvelopes
     /// <returns>The fingerprints, in file order, without repeats.</returns>
     public static IReadOnlyList<string> Fingerprints(CaseHeader header) =>
         [.. Readable(header).Select(item => item.Fingerprint).Distinct(StringComparer.Ordinal)];
+
+    /// <summary>
+    /// Tells whether the header has an envelope of this construction for a key whose check holds under the file key,
+    /// that is, one that Chainsaw wrote and that has not been damaged since.
+    /// </summary>
+    /// <param name="header">The header.</param>
+    /// <param name="fileKey">The case's file key.</param>
+    /// <param name="fingerprint">The recovery key's fingerprint.</param>
+    /// <returns><see langword="true"/> when the key is covered by a sound envelope.</returns>
+    public static bool Covers(CaseHeader header, ReadOnlySpan<byte> fileKey, string fingerprint)
+    {
+        foreach (var (envelope, _) in Readable(header).Where(item => item.Fingerprint == fingerprint))
+        {
+            if (CheckHolds(header.CaseId, fileKey, envelope, fingerprint))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Gives the envelopes of this construction for a key whose check does not hold: damaged, or changed by someone
+    /// without the file key. They are replaced when a sound envelope for the same key is added.
+    /// </summary>
+    /// <param name="header">The header.</param>
+    /// <param name="fileKey">The case's file key.</param>
+    /// <param name="fingerprint">The recovery key's fingerprint.</param>
+    /// <returns>The damaged envelopes, as the header holds them.</returns>
+    public static IReadOnlyList<JsonObject> Damaged(CaseHeader header, ReadOnlySpan<byte> fileKey, string fingerprint)
+    {
+        List<JsonObject> damaged = [];
+        foreach (var (envelope, _) in Readable(header).Where(item => item.Fingerprint == fingerprint))
+        {
+            if (!CheckHolds(header.CaseId, fileKey, envelope, fingerprint))
+            {
+                damaged.Add(envelope);
+            }
+        }
+
+        return damaged;
+    }
 
     /// <summary>
     /// Gives the header's envelopes without those of this construction for revoked keys, so that a compromised key
@@ -217,6 +277,72 @@ internal static class RecoveryEnvelopes
         finally
         {
             CryptographicOperations.ZeroMemory(wrappingKey);
+        }
+    }
+
+    /// <summary>Checks an envelope's check against its fields; a missing or malformed field fails it.</summary>
+    /// <param name="caseId">The case id.</param>
+    /// <param name="fileKey">The file key.</param>
+    /// <param name="envelope">The envelope.</param>
+    /// <param name="fingerprint">The envelope's fingerprint.</param>
+    /// <returns><see langword="true"/> when the check holds.</returns>
+    private static bool CheckHolds(Guid caseId, ReadOnlySpan<byte> fileKey, JsonObject envelope, string fingerprint)
+    {
+        try
+        {
+            var ephemeral = ReadBytes(envelope, EphemeralField);
+            var nonce = ReadBytes(envelope, NonceField, CaseCrypto.NonceSize);
+            var ciphertext = ReadBytes(envelope, KeyField, CaseCrypto.KeySize);
+            var tag = ReadBytes(envelope, TagField, CaseCrypto.TagSize);
+            var check = ReadBytes(envelope, CheckField, CheckSize);
+            var context = Context(caseId, fingerprint, ephemeral);
+            return CryptographicOperations.FixedTimeEquals(
+                check, Check(caseId, fileKey, context, nonce, ciphertext, tag));
+        }
+        catch (CaseException exception) when (exception.Error == CaseError.Corrupt)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Computes an envelope's check: HMAC-SHA256 under a key derived from the file key and the case id, over the
+    /// envelope's context and its nonce, wrapped key and tag, each with its length.
+    /// </summary>
+    /// <param name="caseId">The case id.</param>
+    /// <param name="fileKey">The file key.</param>
+    /// <param name="context">The envelope's context (which holds the fingerprint and the ephemeral key).</param>
+    /// <param name="nonce">The nonce.</param>
+    /// <param name="ciphertext">The wrapped file key.</param>
+    /// <param name="tag">The tag.</param>
+    /// <returns>The 32-byte check.</returns>
+    private static byte[] Check(
+        Guid caseId,
+        ReadOnlySpan<byte> fileKey,
+        byte[] context,
+        byte[] nonce,
+        byte[] ciphertext,
+        byte[] tag)
+    {
+        var key = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
+        {
+            HKDF.DeriveKey(
+                HashAlgorithmName.SHA256, fileKey, key, caseId.ToByteArray(), Encoding.ASCII.GetBytes(CheckKeyInfo));
+            using var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, key);
+            Span<byte> length = stackalloc byte[sizeof(int)];
+            foreach (var part in new[] { context, nonce, ciphertext, tag })
+            {
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(length, part.Length);
+                hmac.AppendData(length);
+                hmac.AppendData(part);
+            }
+
+            return hmac.GetHashAndReset();
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(key);
         }
     }
 

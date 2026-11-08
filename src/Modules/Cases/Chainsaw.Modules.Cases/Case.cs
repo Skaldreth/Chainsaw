@@ -294,12 +294,14 @@ internal sealed class Case : ICase
         lock (_gate)
         {
             using var operation = BeginOperation();
+            var kept = WithoutSharingEnvelope().ToList();
+            RequireRoomForOneMore(kept);
             var envelope = KeyEnvelopes.CreatePassword(
                 Info.Id, _fileKey, password, _services.Options.SharingIterations);
             AppendOwnJournal(new JournalDraft(
                 CaseJournalKinds.SharingPasswordSet,
                 HasSharingPasswordUnlocked() ? "Delningslösenordet byttes" : "Ett delningslösenord lades till"));
-            _header = _header.WithEnvelopes(WithoutSharingEnvelope().Append(envelope));
+            _header = _header.WithEnvelopes(kept.Append(envelope));
             SaveUnlocked();
         }
     }
@@ -338,6 +340,7 @@ internal sealed class Case : ICase
                 return;
             }
 
+            RequireRoomForOneMore(_header.Envelopes);
             var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
             try
             {
@@ -382,6 +385,13 @@ internal sealed class Case : ICase
         {
             using var operation = BeginOperation();
             SaveUnlocked();
+
+            // A lock of the vault that came while the file was written leaves the save done, but the case is closing;
+            // the caller is told, so that it does not go on as if the case were still open.
+            if (_closing)
+            {
+                throw new CaseException(CaseError.LockedWhileSaving);
+            }
         }
     }
 
@@ -455,6 +465,12 @@ internal sealed class Case : ICase
     internal Action? AutosaveChecked { get; set; }
 
     /// <summary>
+    /// Gets or sets what runs when a save begins to write the file; only the tests set it, to lock the vault while a
+    /// save is under way.
+    /// </summary>
+    internal Action? SaveStarting { get; set; }
+
+    /// <summary>
     /// Drops the case without saving, as if the process had died: the working copy stays for recovery. Only tests
     /// use it, to check the recovery.
     /// </summary>
@@ -515,7 +531,9 @@ internal sealed class Case : ICase
                     return ([CaseProblem.DatabaseUnsound], []);
                 }
 
-                TryReadAnchors(out var anchors);
+                // Anchors older than the last ones this vault wrote cannot be relied on, like unreadable ones.
+                TryReadAnchors(out var file);
+                var anchors = file is not null && file.Generation >= ReadAnchorCounter() ? file.Anchors : null;
                 return CaseChecks.Run(
                     database, transaction, Info, _chains, _registered, _invalidRegistrations, anchors);
             }
@@ -615,27 +633,21 @@ internal sealed class Case : ICase
     }
 
     /// <summary>
-    /// Writes the case file (the header and then the working copy) to a new file that replaces the old, records the
+    /// Writes the case file (the header, the working copy and the seal over both) to a new file that replaces the old, records the
     /// new file's hash for recovery and moves this computer's anchors forward.
     /// </summary>
     internal void SaveUnlocked()
     {
         _ = Database;
+        SaveStarting?.Invoke();
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using (var output = new FileStream(
             _paths.SaveFile, FileMode.Create, FileAccess.Write, FileShare.None, CopyBufferSize))
         {
-            using (var header = new MemoryStream())
-            {
-                CaseContainer.WriteHeader(header, _header);
-                hash.AppendData(header.GetBuffer(), 0, (int)header.Length);
-                header.WriteTo(output);
-            }
-
             using (var input = new FileStream(
                 _paths.WorkingCopy, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, CopyBufferSize))
             {
-                CaseFiles.CopyHashing(input, output, hash);
+                CaseFiles.Write(output, _header, input, _fileKey, hash);
             }
 
             output.Flush(flushToDisk: true);
@@ -664,23 +676,31 @@ internal sealed class Case : ICase
     {
         var recoveryKey = _services.Options.RecoveryKey;
         var (kept, removed) = RecoveryEnvelopes.Without(_header, _services.Options.RevokedRecoveryKeys);
-        var add = recoveryKey is not null
-            && !RecoveryEnvelopes.Fingerprints(_header).Contains(recoveryKey.Fingerprint, StringComparer.Ordinal)
-            && kept.Count < CaseContainer.MaximumEnvelopes;
+        var missing = recoveryKey is not null && !RecoveryEnvelopes.Covers(_header, _fileKey, recoveryKey.Fingerprint);
+
+        // A damaged envelope for the configured key goes when a sound one takes its place, so that the header does not
+        // fill up with envelopes that never open.
+        var damaged = missing ? RecoveryEnvelopes.Damaged(_header, _fileKey, recoveryKey!.Fingerprint) : [];
+        var remaining = kept.Where(envelope => !damaged.Any(item => ReferenceEquals(item, envelope))).ToList();
+        var add = missing && remaining.Count < CaseContainer.MaximumEnvelopes;
         if (!add && removed.Count == 0)
         {
             // At the limit a header with one more envelope would not be read again; the file keeps its ways in.
             return false;
         }
 
-        var envelopes = add ? kept.Append(RecoveryEnvelopes.Create(Info.Id, _fileKey, recoveryKey!)) : kept;
+        var envelopes = add
+            ? remaining.Append(RecoveryEnvelopes.Create(Info.Id, _fileKey, recoveryKey!))
+            : kept;
+        var replaced = add && damaged.Count > 0;
         AppendOwnJournal(new JournalDraft(
             CaseJournalKinds.RecoveryAccessChanged,
-            RecoverySummary(add, removed.Count > 0),
+            RecoverySummary(add, removed.Count > 0, replaced),
             JsonSerializer.Serialize(new Dictionary<string, object?>
             {
                 [RecoveryDetails.Fingerprint] = add ? recoveryKey!.Fingerprint : null,
                 [RecoveryDetails.Removed] = removed,
+                [RecoveryDetails.Replaced] = replaced ? damaged.Count : 0,
             })));
         _header = _header.WithEnvelopes(envelopes);
         return true;
@@ -689,11 +709,14 @@ internal sealed class Case : ICase
     /// <summary>The journal's line for a change of the recovery envelopes.</summary>
     /// <param name="added">Whether an envelope for the configured key was added.</param>
     /// <param name="removed">Whether envelopes for revoked keys were removed.</param>
+    /// <param name="replaced">Whether the added envelope replaced damaged ones for the same key.</param>
     /// <returns>The line.</returns>
-    private static string RecoverySummary(bool added, bool removed) => (added, removed) switch
+    private static string RecoverySummary(bool added, bool removed, bool replaced) => (added, removed, replaced) switch
     {
-        (true, false) => "Ärendet fick ett kuvert för organisationens återställningsnyckel",
-        (true, true) => "Ärendet fick ett kuvert för organisationens nya återställningsnyckel; återkallade togs bort",
+        (true, _, true) => "Ett skadat kuvert för organisationens återställningsnyckel ersattes med ett nytt",
+        (true, false, false) => "Ärendet fick ett kuvert för organisationens återställningsnyckel",
+        (true, true, false) =>
+            "Ärendet fick ett kuvert för organisationens nya återställningsnyckel; återkallade togs bort",
         _ => "Kuverten för återkallade återställningsnycklar togs bort ur ärendet",
     };
 
@@ -717,34 +740,45 @@ internal sealed class Case : ICase
     /// <summary>
     /// Compares the case with this computer's anchors when it is opened, and seals what does not match in the
     /// journal: chains that no longer reach their anchors (the case was rolled back, rewritten, or replaced by a copy
-    /// that went another way), anchors that cannot be read, and anchors that are missing although this vault has
-    /// saved the case before. The anchors are then replaced at the next save, since the journal now holds the
-    /// evidence; without the entry the anchors would stay behind for ever and hide a later rollback.
+    /// that went another way), anchors that cannot be read, anchors that are missing although this vault has saved
+    /// the case before, and anchors that are older than the last ones this vault wrote. The anchors are then replaced
+    /// at the next save, since the journal now holds the evidence; without the entry the anchors would stay behind for
+    /// ever and hide a later rollback.
     /// </summary>
     /// <returns><see langword="true"/> when something was journalled.</returns>
     internal bool ReconcileAnchors()
     {
-        if (!TryReadAnchors(out var anchors))
+        if (!TryReadAnchors(out var file))
         {
             // The file is held by another program just now: nothing is concluded, and the anchors are left alone.
             _anchorsUnavailable = true;
             return false;
         }
 
-        if (anchors is null)
+        if (file is null)
         {
             JournalAnchors("Ankarna på den här datorn gick inte att läsa och ersätts", AnchorProblem.Unreadable, []);
             return true;
         }
 
-        if (anchors.Count == 0)
+        var written = ReadAnchorCounter();
+        if (file.Generation == 0)
         {
-            if (!VaultHasEnvelope())
+            if (written == 0 && !VaultHasEnvelope())
             {
                 return false;
             }
 
             JournalAnchors("Ankarna på den här datorn saknas och ersätts", AnchorProblem.Missing, []);
+            return true;
+        }
+
+        if (file.Generation < written)
+        {
+            JournalAnchors(
+                "Ankarna på den här datorn är äldre än de valvet skrev senast (ersatta med en äldre kopia)",
+                AnchorProblem.RolledBack,
+                file.Anchors);
             return true;
         }
 
@@ -755,7 +789,7 @@ internal sealed class Case : ICase
         {
             missed =
             [
-                .. anchors.Where(anchor =>
+                .. file.Anchors.Where(anchor =>
                     _chains.FirstOrDefault(chain => chain.Name == anchor.Chain) is not { } chain
                     || !CaseChecks.Reaches(database, transaction, chain, anchor)),
             ];
@@ -773,35 +807,73 @@ internal sealed class Case : ICase
         return true;
     }
 
-    /// <summary>Seals an anchor problem in the journal and lets the next save replace the anchors.</summary>
+    /// <summary>
+    /// Seals an anchor problem in the journal, with each chain's head as the case has it now, and lets the next save
+    /// replace the anchors.
+    /// </summary>
     /// <param name="summary">The summary.</param>
     /// <param name="problem">What was wrong.</param>
-    /// <param name="missed">The anchors that the case no longer reaches.</param>
+    /// <param name="missed">The anchors that the case no longer reaches, or that were rolled back.</param>
     private void JournalAnchors(string summary, AnchorProblem problem, IReadOnlyList<ChainAnchor> missed)
     {
         var details = JsonSerializer.Serialize(new AnchorDetails(
             problem.ToString(),
-            [.. missed.Select(anchor => new AnchorDetail(
-                anchor.Chain, anchor.Sequence, Convert.ToHexStringLower(anchor.Hash)))]));
+            [.. missed.Select(ToDetail)],
+            [.. ReadHeads().Select(ToDetail)]));
         AppendOwnJournal(new JournalDraft(CaseJournalKinds.AnchorsReplaced, summary, details));
         _replaceAnchors = true;
+    }
+
+    /// <summary>Gives an anchor as it is written in the journal.</summary>
+    /// <param name="anchor">The anchor.</param>
+    /// <returns>The detail.</returns>
+    private static AnchorDetail ToDetail(ChainAnchor anchor) =>
+        new(anchor.Chain, anchor.Sequence, Convert.ToHexStringLower(anchor.Hash));
+
+    /// <summary>Reads the head of every known chain that has a record; none when the database cannot be read.</summary>
+    /// <returns>The heads, ordered by chain.</returns>
+    private List<ChainAnchor> ReadHeads()
+    {
+        var database = Database;
+        List<ChainAnchor> heads = [];
+        try
+        {
+            using var scope = database.As(GuardMode.Internal);
+            using var transaction = database.Begin(deferred: true);
+            foreach (var chain in _chains.Where(chain => _shapes.ContainsKey(chain.Name)))
+            {
+                var (sequence, hash) = HashChain.ReadHead(database, transaction, chain.Name);
+                if (hash is not null)
+                {
+                    heads.Add(new ChainAnchor(chain.Name, sequence, hash));
+                }
+            }
+        }
+        catch (SqliteException)
+        {
+            // The entry is still written; the verification says what is wrong with the database.
+        }
+
+        return [.. heads.OrderBy(head => head.Chain, StringComparer.Ordinal)];
     }
 
     /// <summary>
     /// Moves each chain's anchor to its head, but only where the chain still reaches its old anchor, unless the
     /// journal has just recorded why the anchors are replaced. A case that was changed while it was open elsewhere in
-    /// this process keeps its old anchors, so that the verification goes on showing it.
+    /// this process keeps its old anchors, so that the verification goes on showing it. The file gets the next
+    /// generation, and the vault is told it afterwards, so that a crash in between leaves the file ahead of the vault
+    /// (which is accepted) and never behind it.
     /// </summary>
     private void WriteAnchors()
     {
-        IReadOnlyList<ChainAnchor>? anchors = [];
-        if (_anchorsUnavailable || (!_replaceAnchors && !TryReadAnchors(out anchors)) || anchors is null)
+        AnchorFile? file = AnchorFile.None;
+        if (_anchorsUnavailable || (!_replaceAnchors && !TryReadAnchors(out file)) || file is null)
         {
             return;
         }
 
         var database = Database;
-        var updated = anchors.ToDictionary(anchor => anchor.Chain, StringComparer.Ordinal);
+        var updated = file.Anchors.ToDictionary(anchor => anchor.Chain, StringComparer.Ordinal);
         try
         {
             using var scope = database.As(GuardMode.Internal);
@@ -822,24 +894,65 @@ internal sealed class Case : ICase
             return;
         }
 
-        AnchorStore.Write(_services.Options.AnchorDirectory, Info.Id, _anchorKey, [.. updated.Values]);
+        var generation = Math.Max(file.Generation, ReadAnchorCounter()) + 1;
+        AnchorStore.Write(
+            _services.Options.AnchorDirectory, Info.Id, _anchorKey, new AnchorFile([.. updated.Values], generation));
         _replaceAnchors = false;
+        WriteAnchorCounter(generation);
     }
 
     /// <summary>Reads this computer's anchors of the case.</summary>
-    /// <param name="anchors">The anchors, or <see langword="null"/> when they are malformed or changed.</param>
+    /// <param name="file">The anchors, or <see langword="null"/> when they are malformed or changed.</param>
     /// <returns><see langword="false"/> when the file could not be read just now.</returns>
-    private bool TryReadAnchors(out IReadOnlyList<ChainAnchor>? anchors)
+    private bool TryReadAnchors(out AnchorFile? file)
     {
         try
         {
-            anchors = AnchorStore.Read(_services.Options.AnchorDirectory, Info.Id, _anchorKey);
+            file = AnchorStore.Read(_services.Options.AnchorDirectory, Info.Id, _anchorKey);
             return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            anchors = null;
+            file = null;
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Reads the last anchor generation this vault wrote for the case; 0 when it has written none, or when the vault
+    /// cannot say just now (locked, or a value that is not a number), so that nothing is concluded from it.
+    /// </summary>
+    /// <returns>The generation.</returns>
+    private long ReadAnchorCounter()
+    {
+        try
+        {
+            var value = _services.Secrets?.Find(AnchorStore.CounterName(Info.Id, _anchorKey));
+            return long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var generation)
+                ? generation
+                : 0;
+        }
+        catch (VaultException)
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Tells the vault the anchor generation just written. A vault that is locked meanwhile (a case is saved once more
+    /// when it closes) or that cannot be written keeps the old number, which leaves the file ahead: accepted.
+    /// </summary>
+    /// <param name="generation">The generation.</param>
+    private void WriteAnchorCounter(long generation)
+    {
+        try
+        {
+            _services.Secrets?.Save(
+                AnchorStore.CounterName(Info.Id, _anchorKey), generation.ToString(CultureInfo.InvariantCulture));
+        }
+        catch (Exception exception) when (exception is VaultException or IOException or UnauthorizedAccessException)
+        {
+            // The anchors are written; only the check against an older file waits for the next save.
         }
     }
 
@@ -893,6 +1006,20 @@ internal sealed class Case : ICase
         {
             CryptographicOperations.ZeroMemory(wrappingKey);
             CryptographicOperations.ZeroMemory(opened);
+        }
+    }
+
+    /// <summary>
+    /// Refuses to add an envelope when the header already holds the most a file may: <c>WriteHeader</c> would refuse
+    /// the header, or a reader would refuse the file. Checked before anything is journalled.
+    /// </summary>
+    /// <param name="envelopes">The envelopes the new one would be added to.</param>
+    /// <exception cref="CaseException"><see cref="CaseError.TooManyEnvelopes"/>.</exception>
+    private static void RequireRoomForOneMore(IReadOnlyCollection<System.Text.Json.Nodes.JsonObject> envelopes)
+    {
+        if (envelopes.Count >= CaseContainer.MaximumEnvelopes)
+        {
+            throw new CaseException(CaseError.TooManyEnvelopes);
         }
     }
 

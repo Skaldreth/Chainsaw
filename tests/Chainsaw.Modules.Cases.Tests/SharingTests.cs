@@ -145,17 +145,11 @@ public sealed class SharingTests : IDisposable
         {
         }
 
-        var first = File.ReadAllBytes(_owner.CaseFile("A1"));
         var second = File.ReadAllBytes(_owner.CaseFile("B2"));
-        using var firstStream = new MemoryStream(first);
         using var secondStream = new MemoryStream(second);
-        var firstHeader = CaseContainer.ReadHeader(firstStream);
         var secondHeader = CaseContainer.ReadHeader(secondStream);
-        using (var output = File.Create(_owner.CaseFile("A1")))
-        {
-            CaseContainer.WriteHeader(output, firstHeader.WithEnvelopes(secondHeader.Envelopes));
-            output.Write(first.AsSpan((int)firstStream.Position));
-        }
+        CaseFileSurgery.RewriteHeader(
+            _owner, _owner.CaseFile("A1"), header => header.WithEnvelopes(secondHeader.Envelopes));
 
         Assert.Equal(CaseError.NoAccess, Assert.Throws<CaseException>(() => store.Open("A1")).Error);
     }

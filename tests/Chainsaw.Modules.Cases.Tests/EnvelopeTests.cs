@@ -298,16 +298,8 @@ public sealed class EnvelopeTests : IDisposable
         return _owner.CaseFile("A1");
     }
 
-    /// <summary>Adds envelopes to a closed case file's header, as a later or another program could.</summary>
-    private static void AddEnvelopes(string path, params JsonObject[] envelopes)
-    {
-        var bytes = File.ReadAllBytes(path);
-        using var input = new MemoryStream(bytes);
-        var header = CaseContainer.ReadHeader(input);
-        var rest = bytes.AsSpan((int)input.Position).ToArray();
-        using var output = new MemoryStream();
-        CaseContainer.WriteHeader(output, header.WithEnvelopes(header.Envelopes.Concat(envelopes)));
-        output.Write(rest);
-        File.WriteAllBytes(path, output.ToArray());
-    }
+    /// <summary>Adds envelopes to a closed case file's header, as a later or another program with the key could.</summary>
+    private void AddEnvelopes(string path, params JsonObject[] envelopes) =>
+        CaseFileSurgery.RewriteHeader(
+            _owner, path, header => header.WithEnvelopes(header.Envelopes.Concat(envelopes)));
 }

@@ -47,4 +47,22 @@ public enum CaseError
 
     /// <summary>The case has been closed (also when the vault was locked).</summary>
     Closed,
+
+    /// <summary>
+    /// The file was written by an older build in a format this build no longer reads (before 1.0, old cases need not
+    /// open).
+    /// </summary>
+    OutdatedFormat,
+
+    /// <summary>
+    /// The vault was locked while the case was being saved: the file was written and is complete, but the case is
+    /// closed now and the caller must not take the operation for one that went on.
+    /// </summary>
+    LockedWhileSaving,
+
+    /// <summary>
+    /// The file already holds as many key envelopes as a file may, so another would make it unreadable; nothing was
+    /// changed.
+    /// </summary>
+    TooManyEnvelopes,
 }
