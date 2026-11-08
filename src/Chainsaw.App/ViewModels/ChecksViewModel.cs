@@ -261,6 +261,12 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// </summary>
     public event EventHandler? ClustersChanged;
 
+    /// <summary>
+    /// Gets the checks sealed in the case with their decisions, as the last run read them; the view Tidslinje shows
+    /// the decisions on the case's own lane.
+    /// </summary>
+    public IReadOnlyList<StoredCheck> Stored => _checks;
+
     /// <summary>Gets or sets the time zone the time areas are written in; the computer's by default.</summary>
     public TimeZoneInfo TimeZone { get; set; } = TimeZoneInfo.Local;
 

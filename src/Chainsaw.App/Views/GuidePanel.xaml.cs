@@ -23,17 +23,7 @@ public partial class GuidePanel : UserControl
 
     /// <summary>Puts an id on the clipboard; a clipboard held by another program is left alone.</summary>
     /// <param name="text">The id.</param>
-    private static void CopyText(string text)
-    {
-        try
-        {
-            System.Windows.Clipboard.SetText(text);
-        }
-        catch (System.Runtime.InteropServices.ExternalException)
-        {
-            // Another program holds the clipboard; nothing is lost but the copy.
-        }
-    }
+    private static void CopyText(string text) => Interop.CaseClipboard.TrySetText(text);
 
     /// <summary>
     /// Shows the fade at the bottom while there is more text below, and lets it go at the end, so that the reader sees

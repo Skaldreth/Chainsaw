@@ -201,6 +201,30 @@ public sealed class CaseStoreTests : IDisposable
     }
 
     [Fact]
+    public void The_rollback_journal_of_the_working_copy_holds_no_plaintext()
+    {
+        const string Marker = "HEMLIG-MARKÖR-4712";
+        var store = _fixture.CreateStore(new TestSchema());
+        using var opened = store.Create("K-1235");
+        opened.Write(transaction =>
+        {
+            using var command = transaction.CreateCommand($"INSERT INTO test_notes (note) VALUES ('{Marker}')");
+            return command.ExecuteNonQuery();
+        });
+
+        // The page with the marker goes into the journal as it was before the change, while the change is open.
+        var journal = opened.Write(transaction =>
+        {
+            using var command = transaction.CreateCommand("UPDATE test_notes SET note = 'ändrad'");
+            command.ExecuteNonQuery();
+            return ReadShared(_fixture.CaseFile("K-1235") + ".work-journal");
+        });
+
+        Assert.NotEmpty(journal);
+        AssertHasNoPlaintext(journal, Marker);
+    }
+
+    [Fact]
     public void A_case_file_of_a_higher_format_version_is_refused()
     {
         var store = _fixture.CreateStore();

@@ -677,7 +677,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         Cursor = hit.Node is not null || hit.Edge is not null || guideTip is not null ? Cursors.Hand : null;
         var chainTip = BlockMarkTipAt(surface) ?? CardTipAt(surface);
         Cursor = chainTip is not null ? Cursors.Hand : Cursor;
-        var text = guideTip ?? chainTip ?? model.AmountTipAt(surface) ?? model.Scene?.Node(hit.Node)?.ToolTip;
+        var text = guideTip ?? chainTip ?? PendingTipAt(surface) ?? model.AmountTipAt(surface)
+            ?? model.Scene?.Node(hit.Node)?.ToolTip;
         if (text == _hoverTip.Content as string)
         {
             return;

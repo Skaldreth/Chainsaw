@@ -20,11 +20,11 @@ public sealed class ExitReconnectorTests : IDisposable
 
     private readonly ScriptedConnection _connection = new();
 
-    private readonly TestPresence _presence = new();
+    private readonly FakeSignals _signals = new() { HasNetwork = false };
 
     private readonly ExitReconnector _reconnector;
 
-    public ExitReconnectorTests() => _reconnector = new ExitReconnector(_connection, _presence, _time);
+    public ExitReconnectorTests() => _reconnector = new ExitReconnector(_connection, _signals, _time);
 
     public void Dispose() => _reconnector.Dispose();
 
@@ -107,9 +107,23 @@ public sealed class ExitReconnectorTests : IDisposable
         _time.Advance(TimeSpan.FromSeconds(2));
         await Until(() => _connection.Attempts == 1 && _reconnector.NextAttempt is not null);
 
-        _presence.Tell(true);
+        _signals.Set(true);
 
         await Until(() => _connection.Attempts == 2);
+        Assert.Equal(ExitState.Connected, _connection.Status.State);
+    }
+
+    [Fact]
+    public async Task A_new_address_while_the_network_stays_tries_at_once_without_any_probe()
+    {
+        _signals.HasNetwork = true;
+        _connection.Results.Enqueue(Connected);
+        _connection.Tell(Lost);
+        await Until(() => _reconnector.NextAttempt is not null);
+
+        _signals.Set(true);
+
+        await Until(() => _connection.Attempts == 1);
         Assert.Equal(ExitState.Connected, _connection.Status.State);
     }
 
@@ -119,7 +133,7 @@ public sealed class ExitReconnectorTests : IDisposable
         _connection.Tell(Lost);
         await Until(() => _reconnector.NextAttempt is not null);
 
-        _presence.Tell(false);
+        _signals.Set(false);
         await Task.Delay(50);
 
         Assert.Equal(0, _connection.Attempts);
@@ -317,20 +331,6 @@ public sealed class ExitReconnectorTests : IDisposable
         {
             Tell(ExitStatus.NotConnected);
             return Task.CompletedTask;
-        }
-    }
-
-    /// <summary>A network presence the test tells.</summary>
-    private sealed class TestPresence : INetworkPresence
-    {
-        public event EventHandler<bool>? Changed;
-
-        public bool IsAvailable { get; private set; } = true;
-
-        public void Tell(bool available)
-        {
-            IsAvailable = available;
-            Changed?.Invoke(this, available);
         }
     }
 }

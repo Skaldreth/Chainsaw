@@ -13,6 +13,14 @@ internal static class CaseFiles
     /// <summary>The size of the copy buffer.</summary>
     private const int BufferSize = 81920;
 
+    /// <summary>
+    /// The size and last write time of a case file as this session last read or wrote it, so that a save can tell
+    /// cheaply that the file has not been replaced since; only a stamp that differs costs a hash of the file.
+    /// </summary>
+    /// <param name="Length">The size in bytes.</param>
+    /// <param name="LastWriteUtc">The last write time in UTC.</param>
+    public readonly record struct Stamp(long Length, DateTime LastWriteUtc);
+
     /// <summary>Copies a stream to its end and adds every byte copied to a hash.</summary>
     /// <param name="input">The stream to copy from.</param>
     /// <param name="output">The stream to copy to.</param>
@@ -38,12 +46,15 @@ internal static class CaseFiles
     /// that the case never uses a header that was not checked.
     /// </param>
     /// <param name="fileKey">The file key, which the seal is derived from.</param>
-    /// <returns>The SHA-256 of the case file the working copy was taken from.</returns>
+    /// <returns>
+    /// The SHA-256 of the case file the working copy was taken from, and the stamp of the bytes read.
+    /// </returns>
     /// <exception cref="Contracts.CaseException">
     /// <see cref="Contracts.CaseError.Corrupt"/> when the file changed in between, is cut short or its seal does not
     /// hold.
     /// </exception>
-    public static byte[] Extract(CasePaths paths, CaseHeader expected, ReadOnlySpan<byte> fileKey)
+    public static (byte[] Hash, Stamp Stamp) Extract(
+        CasePaths paths, CaseHeader expected, ReadOnlySpan<byte> fileKey)
     {
         var caseId = expected.CaseId;
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -88,13 +99,14 @@ internal static class CaseFiles
 
         // The base is written before the working copy gets its name, so that a working copy always has its base.
         var caseFileHash = hash.GetHashAndReset();
+        var stamp = StampOf(input);
         WriteBase(paths, [caseFileHash]);
 
         // A rollback journal left without its working copy (one removed by hand after a conflict) would be taken
         // for a hot journal of the new copy, and SQLite would write another session's pages into it.
         File.Delete(paths.WorkingJournal);
         File.Move(paths.WorkingCopyTemporary, paths.WorkingCopy);
-        return caseFileHash;
+        return (caseFileHash, stamp);
     }
 
     /// <summary>
@@ -148,11 +160,15 @@ internal static class CaseFiles
     /// <param name="paths">The case's files.</param>
     /// <param name="expected">The header the file key was opened from.</param>
     /// <param name="fileKey">The file key.</param>
-    /// <returns>The file's SHA-256 when the seal holds over that header; otherwise <see langword="null"/>.</returns>
+    /// <returns>
+    /// The file's SHA-256 and the stamp of the bytes read when the seal holds over that header; otherwise
+    /// <see langword="null"/>.
+    /// </returns>
     /// <exception cref="Contracts.CaseException">
     /// <see cref="Contracts.CaseError.Corrupt"/> when the header cannot be read.
     /// </exception>
-    public static byte[]? SealedHash(CasePaths paths, CaseHeader expected, ReadOnlySpan<byte> fileKey)
+    public static (byte[] Hash, Stamp Stamp)? SealedHash(
+        CasePaths paths, CaseHeader expected, ReadOnlySpan<byte> fileKey)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using var seal = CaseFileSeal.Begin(fileKey, expected.CaseId);
@@ -173,7 +189,7 @@ internal static class CaseFiles
         var trailer = new byte[CaseFileSeal.TrailerLength];
         input.ReadExactly(trailer);
         hash.AppendData(trailer);
-        return CaseFileSeal.Holds(trailer, seal) ? hash.GetHashAndReset() : null;
+        return CaseFileSeal.Holds(trailer, seal) ? (hash.GetHashAndReset(), StampOf(input)) : null;
     }
 
     /// <summary>Tells whether a case file's hash is one the working copy is recorded to belong to.</summary>
@@ -283,8 +299,10 @@ internal static class CaseFiles
     /// is the one the working copy was taken from or last saved to, or the one a save was writing when it stopped.
     /// </summary>
     /// <param name="paths">The case's files.</param>
-    /// <returns>The case file's SHA-256 when it is recorded; otherwise <see langword="null"/>.</returns>
-    public static byte[]? MatchingBase(CasePaths paths)
+    /// <returns>
+    /// The case file's SHA-256 and stamp when the hash is recorded; otherwise <see langword="null"/>.
+    /// </returns>
+    public static (byte[] Hash, Stamp Stamp)? MatchingBase(CasePaths paths)
     {
         var recorded = ReadBase(paths);
         if (recorded.Count == 0)
@@ -294,6 +312,60 @@ internal static class CaseFiles
 
         using var input = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
         var actual = SHA256.HashData(input);
-        return recorded.Any(hash => CryptographicOperations.FixedTimeEquals(hash, actual)) ? actual : null;
+        return recorded.Any(hash => CryptographicOperations.FixedTimeEquals(hash, actual))
+            ? (actual, StampOf(input))
+            : null;
+    }
+
+    /// <summary>
+    /// Tells whether the case file on disk is still the one this session last read or wrote, so that a save never
+    /// replaces a file that was changed or replaced outside Chainsaw (Explorer, a sync tool, a colleague). The same
+    /// size and last write time are taken as the same file, so that a save does not read the whole file again
+    /// (principle 6); another stamp costs one hash of the file, and a file that is only touched, with the same
+    /// content, is the same and gets the new stamp. A file that is gone is nothing to keep.
+    /// </summary>
+    /// <param name="paths">The case's files.</param>
+    /// <param name="hash">The SHA-256 of the file as this session last read or wrote it.</param>
+    /// <param name="stamp">
+    /// Its stamp, or <see langword="null"/> when not known; replaced after a hash that matches.
+    /// </param>
+    /// <returns><see langword="true"/> when the file is the same or gone.</returns>
+    public static bool IsUnchanged(CasePaths paths, byte[] hash, ref Stamp? stamp)
+    {
+        var file = new FileInfo(paths.CaseFile);
+        if (!file.Exists)
+        {
+            return true;
+        }
+
+        if (stamp == new Stamp(file.Length, file.LastWriteTimeUtc))
+        {
+            return true;
+        }
+
+        using var input = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
+        var actual = SHA256.HashData(input);
+        if (!CryptographicOperations.FixedTimeEquals(hash, actual))
+        {
+            return false;
+        }
+
+        stamp = StampOf(input);
+        return true;
+    }
+
+    /// <summary>Gives the stamp of a case file that is open, so that it is the stamp of the bytes read.</summary>
+    /// <param name="input">The open file.</param>
+    /// <returns>The stamp.</returns>
+    public static Stamp StampOf(FileStream input) =>
+        new(input.Length, File.GetLastWriteTimeUtc(input.SafeFileHandle));
+
+    /// <summary>Gives the stamp of a case file by its path, or <see langword="null"/> when it is gone.</summary>
+    /// <param name="path">The file.</param>
+    /// <returns>The stamp.</returns>
+    public static Stamp? StampOf(string path)
+    {
+        var file = new FileInfo(path);
+        return file.Exists ? new Stamp(file.Length, file.LastWriteTimeUtc) : null;
     }
 }

@@ -240,6 +240,14 @@
                         <views:MonitoringView x:Name="MonitoringPage"
                                               Visibility="{Binding DataContext.IsMonitoringShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
 
+                        <!-- Tidslinje (sketch TL3a). -->
+                        <views:TimelineView x:Name="TimelinePage"
+                                            Visibility="{Binding DataContext.IsTimelineShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+
+                        <!-- Flöde (sketch FL1a). -->
+                        <views:FlowView x:Name="FlowPage"
+                                        Visibility="{Binding DataContext.IsFlowShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+
                         <!-- Exponering (sketch EP1b). -->
                         <views:ExposureView x:Name="ExposurePage"
                                             Visibility="{Binding DataContext.IsExposureShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />

@@ -70,6 +70,12 @@ public enum GuideTopic
     /// that left its block (sketch GR9a).
     /// </summary>
     ChainCheck,
+
+    /// <summary><em>Vyn Tidslinje</em>: a lane per actor and the transfers in time (sketch TL3a).</summary>
+    TimelineView,
+
+    /// <summary><em>Flödet</em>: the money as bands from the victims, hop by hop (sketch FL1a).</summary>
+    Flow,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -109,6 +115,8 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "sa-sparar-man",
         GuideTopic.Exposure => "exponering",
         GuideTopic.ChainCheck => "kontroll-mot-kedjan",
+        GuideTopic.TimelineView => "vyn-tidslinje",
+        GuideTopic.Flow => "flodet",
         _ => "utxo-modellen",
     };
 
@@ -137,6 +145,8 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "Så spårar man i Chainsaw",
         GuideTopic.Exposure => "Exponering",
         GuideTopic.ChainCheck => "Hur Chainsaw kontrollerar svaren mot kedjan",
+        GuideTopic.TimelineView => "Vyn Tidslinje",
+        GuideTopic.Flow => "Flödet",
         _ => "UTXO-modellen",
     };
 

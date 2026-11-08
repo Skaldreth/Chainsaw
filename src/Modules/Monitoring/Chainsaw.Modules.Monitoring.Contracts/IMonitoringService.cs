@@ -60,6 +60,58 @@ public sealed record WatchHit(
     long JournalSequence,
     DateTimeOffset RecordedUtc);
 
+/// <summary>Where a hit the background process saw stands, until Chainsaw has checked it against the chain.</summary>
+public enum WatchTipState
+{
+    /// <summary>It waits for Chainsaw's own lookup of its transaction; it is no fact (principle 2).</summary>
+    Pending,
+
+    /// <summary>Chainsaw's own lookup gave the hit, which is sealed from that lookup.</summary>
+    Confirmed,
+
+    /// <summary>
+    /// Chainsaw's own lookup did not give it: the transaction is not on the chain, or does not move that money.
+    /// </summary>
+    Rejected,
+
+    /// <summary>The watch was taken back or changed before it could be checked; it is not checked.</summary>
+    Dropped,
+}
+
+/// <summary>
+/// A hit the background process says it saw (decided 2026-11-08): a tip, not a fact, since whoever can write the queue
+/// can also write the raw responses an entry carries. It is sealed in the case as where a hit may come from, with the
+/// background's responses as its origins, and becomes a hit only when Chainsaw's own lookup of the transaction gives
+/// it.
+/// </summary>
+/// <param name="Sequence">The tip's record in the sealed chain <c>monitoring.tips</c>.</param>
+/// <param name="WatchId">The watch.</param>
+/// <param name="Chain">The chain.</param>
+/// <param name="Match">What the background says moved.</param>
+/// <param name="Entry">The queue entry it came in.</param>
+/// <param name="Origins">The background's raw responses, sealed in the case, that it says the tip rests on.</param>
+/// <param name="JournalSequence">The journal entry that brought it in.</param>
+/// <param name="RecordedUtc">When it was sealed.</param>
+public sealed record WatchTip(
+    long Sequence,
+    string WatchId,
+    Chain Chain,
+    WatchMatch Match,
+    Guid Entry,
+    IReadOnlyList<long> Origins,
+    long JournalSequence,
+    DateTimeOffset RecordedUtc)
+{
+    /// <summary>Gets where it stands.</summary>
+    public WatchTipState State { get; init; } = WatchTipState.Pending;
+
+    /// <summary>Gets the hit it became (its sequence in <c>monitoring.hits</c>), when confirmed.</summary>
+    public long? Hit { get; init; }
+
+    /// <summary>Gets when it was closed, or <see langword="null"/> while it waits.</summary>
+    public DateTimeOffset? ClosedUtc { get; init; }
+}
+
 /// <summary>What a sealed record of a watch did.</summary>
 public enum WatchAction
 {
@@ -178,6 +230,13 @@ public interface IMonitoringService
     /// <returns>The hits of every watch, also of one taken back.</returns>
     IReadOnlyList<WatchHit> GetHits(ICase @case);
 
+    /// <summary>
+    /// Reads the hits the background process said it saw (<see cref="WatchTip"/>), oldest first, each as it stands now.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The tips of every watch.</returns>
+    IReadOnlyList<WatchTip> GetTips(ICase @case);
+
     /// <summary>Reads when each watch was last checked.</summary>
     /// <param name="case">The open case.</param>
     /// <returns>Per watch id; a watch never checked is missing.</returns>
@@ -256,7 +315,10 @@ public interface IMonitoringService
     /// Checks every active watch on a chain that is due: a watch without a start gets the height as its start; the
     /// others are due when a new block has come since they were read through and their pace (<see cref="WatchPace"/>)
     /// allows, and then read their addresses through the source with <c>LookupMode.InStep</c>; each new hit is sealed,
-    /// with one line in the journal for the check. Nothing is asked when the gate is closed.
+    /// with one line in the journal for the check. First, each tip the background left (<see cref="WatchTip"/>) of an
+    /// active watch on the chain is checked by looking its transaction up in the same way: sealed as a hit from that
+    /// lookup when the watch's check gives it, closed when the transaction is not on the chain or does not give it, and
+    /// left waiting when it cannot be looked up now. Nothing is asked when the gate is closed.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="chain">The chain.</param>
@@ -292,4 +354,13 @@ public static class MonitoringJournalKinds
 
     /// <summary>What the background process saw was brought into the case.</summary>
     public const string Imported = "monitoring.imported";
+
+    /// <summary>A hit the background process said it saw came in as a tip, to be checked against the chain.</summary>
+    public const string Tip = "monitoring.tip";
+
+    /// <summary>A tip from the background did not match the chain when Chainsaw looked it up; no hit sealed.</summary>
+    public const string TipRejected = "monitoring.tip.rejected";
+
+    /// <summary>A tip from the background was not checked, since its watch was taken back or changed first.</summary>
+    public const string TipDropped = "monitoring.tip.dropped";
 }

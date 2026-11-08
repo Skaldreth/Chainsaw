@@ -29,7 +29,9 @@ public enum CaseError
 
     /// <summary>
     /// A working copy from an interrupted session belongs to another file and was left untouched for a person to
-    /// look at.
+    /// look at; or, when saving, the case file was changed or replaced outside Chainsaw while the case was open, so it
+    /// was not replaced, and the working copy keeps the session's work beside it (see
+    /// <see cref="CaseSaveState.FileReplaced"/>).
     /// </summary>
     Conflict,
 

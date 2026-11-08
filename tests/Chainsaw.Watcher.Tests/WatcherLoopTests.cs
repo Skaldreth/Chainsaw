@@ -60,15 +60,17 @@ public sealed class WatcherLoopTests : IDisposable
         Assert.Equal(string.Empty, string.Join(";", import.Problems));
         Assert.Equal(1, import.Entries);
 
-        Assert.Equal(2, import.Hits.Count);
+        // The background's hits come in as tips, never as hits, until Chainsaw's own lookup has checked them.
+        Assert.Equal(2, import.Tips.Count);
         var service = _world.App<IMonitoringService>();
-        Assert.Equal(2, service.GetHits(_world.Case).Count);
+        Assert.Empty(service.GetHits(_world.Case));
+        Assert.Equal(2, service.GetTips(_world.Case).Count(tip => tip.State == WatchTipState.Pending));
         var sealedResponses = _world.Case.Read(reader =>
         {
             using var command = reader.CreateCommand("SELECT count(*) FROM chains_raw_responses");
             return (long)command.ExecuteScalar()!;
         });
-        Assert.All(import.Hits, hit => Assert.All(hit.Origins, origin => Assert.InRange(origin, 1, sealedResponses)));
+        Assert.All(import.Tips, tip => Assert.All(tip.Origins, origin => Assert.InRange(origin, 1, sealedResponses)));
         Assert.True(_world.App<ICaseVerifier>().Verify(_world.Case).IsIntact);
         Assert.False(Queue.HasHits());
     }
@@ -140,7 +142,7 @@ public sealed class WatcherLoopTests : IDisposable
         _world.App<IBackgroundWatches>().Import(_world.Case);
         var service = _world.App<IMonitoringService>();
         Assert.Equal(799_999, service.GetWatches(_world.Case).Single(each => each.Id == watch.Id).StartHeight);
-        Assert.Equal(2, service.GetHits(_world.Case).Count);
+        Assert.Equal(2, service.GetTips(_world.Case).Count);
     }
 
     [Fact]
@@ -229,8 +231,8 @@ public sealed class WatcherLoopTests : IDisposable
         }
 
         var import = _world.App<IBackgroundWatches>().Import(_world.Case);
-        Assert.Equal(4, import.Hits.Count);
-        Assert.All(import.Hits, hit => Assert.NotEmpty(hit.Origins));
+        Assert.Equal(4, import.Tips.Count);
+        Assert.All(import.Tips, tip => Assert.NotEmpty(tip.Origins));
     }
 
     [Fact]

@@ -613,8 +613,11 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Vyerna efter 1.0
 
-- **Tidslinje** och **Flöde (Sankey)** är bekräftade vyer men kommer efter 1.0 (användarens val 2026-11-08). Tidslinjen
-  under grafen (TL1a, TL2a) och linjernas tjocklek visar mycket av det tills dess. De skissas först.
+- **Tidslinje och Flöde, efter bygget 2026-11-08:** flödet läser aktörerna som plånböcker; på Bitcoin kan det följa
+  mynten som spåret i grafen gör, så att siffrorna aldrig skiljer sig. LIFO och poison läggs i metodens val när
+  Tracing har dem (fråga 1 till kryptospåraren). Avgifterna kan bli en egen grå tråd *Avgift* som i skissen. Tidslinjen
+  kan gruppera banorna när grafen har hundratals aktörer, och ett klick på en bana kan välja aktören. Exponeringens
+  `MakeRoom` anropas inte när Guidens panel öppnas (Tidslinje och Flöde gör det).
 - **Plånböcker, efter granskningen 2026-11-08:** en avfärdad plånbok dras inte av som en godkänd, så en ny adress i
   samma grupp föreslås aldrig (`WalletCheck.KeyOf`); ett godkänt fynd utan tx i grafen har tomt underlag (prova på
   Windows); `PreviewUndoMerges` visar inte heuristiklänkar som slutar slå ihop efter en senare uppbrytning.

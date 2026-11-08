@@ -22,6 +22,9 @@ internal sealed class TestWatchSource : IWatchSource
 
     public List<WatchHit> Hits { get; } = [];
 
+    /// <summary>The background's tips, as the module would give them.</summary>
+    public List<WatchTip> Tips { get; } = [];
+
     public Dictionary<string, WatchChecked> Checked { get; } = [];
 
     public Dictionary<string, long> Seen { get; } = [];
@@ -73,6 +76,7 @@ internal sealed class TestWatchSource : IWatchSource
             new Dictionary<string, WatchChecked>(Checked), new Dictionary<string, long>(Seen))
         {
             LastSeen = LastSeen,
+            Tips = [.. Tips],
         });
 
     public Task<Watch> AddAsync(ICase @case, WatchSubject subject, WatchFilter filter)

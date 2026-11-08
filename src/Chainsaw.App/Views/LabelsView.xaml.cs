@@ -123,13 +123,6 @@ public partial class LabelsView : UserControl
             return;
         }
 
-        try
-        {
-            Clipboard.SetText(row.FullAddress);
-        }
-        catch (System.Runtime.InteropServices.ExternalException)
-        {
-            // Another program holds the clipboard; nothing is lost but the copy.
-        }
+        Interop.CaseClipboard.TrySetText(row.FullAddress);
     }
 }

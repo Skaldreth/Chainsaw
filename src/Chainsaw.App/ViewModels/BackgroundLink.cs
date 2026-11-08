@@ -146,7 +146,7 @@ public sealed class BackgroundLink : IDisposable
     public Task WriteCaseAsync() => _board.Case is { } openCase ? WriteAsync(openCase) : WriteAsync(null);
 
     /// <summary>
-    /// Brings what the background saw into the open case, off the UI thread; the window is told of the hits. Called by
+    /// Brings what the background saw into the open case, off the UI thread; the window reads the case again. Called by
     /// the runner before its checks, so that the two never write the case's watches at once.
     /// </summary>
     /// <param name="case">The open case.</param>
@@ -171,9 +171,11 @@ public sealed class BackgroundLink : IDisposable
             return;
         }
 
-        if (result.Entries > 0 || result.Hits.Count > 0)
+        // The background's hits come in as tips, never told as hits: one becomes a hit, and is told, only when the
+        // runner's own lookup gives it.
+        if (result.Entries > 0)
         {
-            _board.Checked(@case, result.Hits);
+            _board.Checked(@case, []);
         }
 
         if (result.Problems.Count > 0)

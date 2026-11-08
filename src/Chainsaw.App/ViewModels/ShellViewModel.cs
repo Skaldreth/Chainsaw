@@ -126,6 +126,8 @@ public sealed partial class ShellViewModel : ObservableObject
     /// </param>
     /// <param name="labels">The view Etiketter (sketch ET1a), or <see langword="null"/>.</param>
     /// <param name="exposure">The view Exponering (sketch EP1b), or <see langword="null"/>.</param>
+    /// <param name="timeline">The view Tidslinje (sketch TL3a), or <see langword="null"/>.</param>
+    /// <param name="flow">The view Flöde (sketch FL1a), or <see langword="null"/>.</param>
     public ShellViewModel(
         CaseSession session,
         CommandRegistry commands,
@@ -144,8 +146,12 @@ public sealed partial class ShellViewModel : ObservableObject
         RequestsViewModel? requests = null,
         CommandSearchViewModel? search = null,
         LabelsViewModel? labels = null,
-        ExposureViewModel? exposure = null)
+        ExposureViewModel? exposure = null,
+        TimelineViewModel? timeline = null,
+        FlowViewModel? flow = null)
     {
+        Timeline = timeline;
+        Flow = flow;
         Search = search ?? new CommandSearchViewModel(new Guide.GuideLibrary(new Dictionary<string, string>()));
         Labels = labels;
         _toaster = toaster;
@@ -287,7 +293,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentEntry), nameof(IsGraphShown), nameof(IsGuideShown),
         nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsLabelsShown), nameof(IsExposureShown),
-        nameof(IsReportShown), nameof(IsPlaceholderShown))]
+        nameof(IsReportShown), nameof(IsTimelineShown), nameof(IsFlowShown), nameof(IsPlaceholderShown))]
     public partial AppView Current { get; private set; }
 
     /// <summary>Gets whether the graph is shown (sketch GR4).</summary>
@@ -314,7 +320,19 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets whether the shown view is not built yet, so that the page says so.</summary>
     public bool IsPlaceholderShown =>
         !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown && !IsLabelsShown
-        && !IsExposureShown && !IsReportShown;
+        && !IsExposureShown && !IsReportShown && !IsTimelineShown && !IsFlowShown;
+
+    /// <summary>Gets whether the view Tidslinje is shown (sketch TL3a).</summary>
+    public bool IsTimelineShown => Current == AppView.Timeline && Timeline is not null;
+
+    /// <summary>Gets the view Tidslinje, or <see langword="null"/> when the shell is built without it.</summary>
+    public TimelineViewModel? Timeline { get; }
+
+    /// <summary>Gets whether the view Flöde is shown (sketch FL1a).</summary>
+    public bool IsFlowShown => Current == AppView.Flow && Flow is not null;
+
+    /// <summary>Gets the view Flöde, or <see langword="null"/> when the shell is built without it.</summary>
+    public FlowViewModel? Flow { get; }
 
     /// <summary>Gets the view Exponering, or <see langword="null"/> when the shell is built without it.</summary>
     public ExposureViewModel? Exposure { get; }

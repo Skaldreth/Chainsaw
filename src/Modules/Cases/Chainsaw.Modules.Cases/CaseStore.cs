@@ -575,10 +575,10 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         {
             // A recovered working copy must belong to the case file as it is now; if the file was replaced after the
             // working copy was taken from it, neither is overwritten. A new one is extracted without a leftover
-            // rollback journal. Either way the file is checked against its seal, in the same read as its hash, and its header must be the
-            // one the key was opened from; a recorded base is only a hash, which anyone who can write in the folder
-            // can write.
-            var caseFileHash = recovering
+            // rollback journal. Either way the file is checked against its seal, in the same read as its hash, and its
+            // header must be the one the key was opened from; a recorded base is only a hash, which anyone who can
+            // write in the folder can write.
+            var (caseFileHash, caseFileStamp) = recovering
                 ? RecoveredBase(paths, header, fileKey)
                 : CaseFiles.Extract(paths, header, fileKey);
 
@@ -595,6 +595,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                     _services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget)
                 {
                     CaseFileHash = caseFileHash,
+                    CaseFileStamp = caseFileStamp,
                     LocksAtOpening = opening.Locks,
                 },
                 recovering);
@@ -623,15 +624,16 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="paths">The case's files.</param>
     /// <param name="header">The header the file key was opened from.</param>
     /// <param name="fileKey">The file key.</param>
-    /// <returns>The case file's SHA-256.</returns>
+    /// <returns>The case file's SHA-256 and the stamp of the bytes read.</returns>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.Corrupt"/> when the seal or the header does not hold, <see cref="CaseError.Conflict"/>
     /// when the working copy belongs to another file.
     /// </exception>
-    private static byte[] RecoveredBase(CasePaths paths, CaseHeader header, byte[] fileKey)
+    private static (byte[] Hash, CaseFiles.Stamp Stamp) RecoveredBase(
+        CasePaths paths, CaseHeader header, byte[] fileKey)
     {
-        var sealedHash = CaseFiles.SealedHash(paths, header, fileKey) ?? throw new CaseException(CaseError.Corrupt);
-        return CaseFiles.IsRecordedBase(paths, sealedHash) ? sealedHash : throw new CaseException(CaseError.Conflict);
+        var read = CaseFiles.SealedHash(paths, header, fileKey) ?? throw new CaseException(CaseError.Corrupt);
+        return CaseFiles.IsRecordedBase(paths, read.Hash) ? read : throw new CaseException(CaseError.Conflict);
     }
 
     /// <summary>

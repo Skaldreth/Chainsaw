@@ -126,6 +126,30 @@ public static class WatchWords
     /// <summary>The text of a watch never checked.</summary>
     public const string NeverCheckedText = "Inte kontrollerad än";
 
+    /// <summary>What a tip from the background says while it waits for Chainsaw's own lookup (on hovering).</summary>
+    public const string TipPendingText =
+        "Bakgrunden såg en träff · väntar på kontroll mot kedjan, och är ingen träff förrän Chainsaw själv sett den";
+
+    /// <summary>What a tip from the background says when Chainsaw's own lookup did not give it.</summary>
+    public const string TipRejectedText = "Bakgrundens träff stämde inte med kedjan · ingen träff förseglades";
+
+    /// <summary>What a tip from the background says when its watch changed before it could be checked.</summary>
+    public const string TipDroppedText = "Bakgrundens träff kontrollerades inte · bevakningen ändrades";
+
+    /// <summary>Says how a tip from the background stands, for its row's tooltip.</summary>
+    /// <param name="tip">The tip.</param>
+    /// <returns>The words.</returns>
+    public static string Tip(WatchTip tip)
+    {
+        ArgumentNullException.ThrowIfNull(tip);
+        return tip.State switch
+        {
+            WatchTipState.Rejected => TipRejectedText,
+            WatchTipState.Dropped => TipDroppedText,
+            _ => TipPendingText,
+        };
+    }
+
     /// <summary>Gives a direction as the list and the form write it.</summary>
     /// <param name="direction">The direction.</param>
     /// <returns><c>Inkommande</c>, <c>Utgående</c> or <c>In och ut</c>.</returns>
@@ -288,8 +312,17 @@ public static class WatchWords
     public static string Hit(WatchHit hit, Func<ChainAddress, string> name)
     {
         ArgumentNullException.ThrowIfNull(hit);
+        return Hit(hit.Match, name);
+    }
+
+    /// <summary>Writes what moved in one line, for a hit or a tip from the background.</summary>
+    /// <param name="match">What moved.</param>
+    /// <param name="name">Names an address.</param>
+    /// <returns>For example <c>Utgående 0,42 BTC till Börs A</c>.</returns>
+    public static string Hit(WatchMatch match, Func<ChainAddress, string> name)
+    {
+        ArgumentNullException.ThrowIfNull(match);
         ArgumentNullException.ThrowIfNull(name);
-        var match = hit.Match;
         var preposition = match.Direction == WatchDirection.Out ? "till" : "från";
         var parties = match.Counterparties.Count switch
         {

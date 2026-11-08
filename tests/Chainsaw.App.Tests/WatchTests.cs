@@ -225,6 +225,35 @@ public sealed class MonitoringViewModelTests
     }
 
     [Fact]
+    public async Task The_background_s_tips_are_shown_as_unchecked_never_as_hits_and_a_rejected_one_stays_faint()
+    {
+        var watch = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(WatchDirection.Out, [WatchSamples.On(E)]));
+        var match = WatchSamples.Out(WatchSamples.On(E), 0.42m);
+        _source.Tips.Add(new WatchTip(1, watch.Id, Chain.Bitcoin, match, Guid.NewGuid(), [], 1, TestWatchSource.At));
+        _source.Tips.Add(new WatchTip(2, watch.Id, Chain.Bitcoin, match, Guid.NewGuid(), [], 2, TestWatchSource.At)
+        {
+            State = WatchTipState.Rejected,
+        });
+        _source.Tips.Add(new WatchTip(3, watch.Id, Chain.Bitcoin, match, Guid.NewGuid(), [], 3, TestWatchSource.At)
+        {
+            State = WatchTipState.Confirmed,
+            Hit = 7,
+        });
+        var view = View(out var board);
+        await board.ReloadAsync();
+
+        view.Choose(view.Rows[0]);
+
+        Assert.Empty(view.Hits);
+        Assert.False(view.Rows[0].HasNew);
+        Assert.Equal([2L, 1L], view.Tips.Select(tip => tip.Tip.Sequence));
+        Assert.Equal([false, true], view.Tips.Select(tip => tip.IsPending));
+        Assert.Equal(WatchWords.TipPendingText, view.Tips[1].State);
+        Assert.Equal(WatchWords.TipRejectedText, view.Tips[0].State);
+        Assert.Contains("väntar på kontroll", view.Tips[1].State, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Without_an_exit_the_head_says_so_and_the_rows_wait()
     {
         _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
@@ -455,6 +484,31 @@ public sealed class GraphWatchesTests
         Assert.True(line.IsNew);
         Assert.True(unseen.Moves);
         Assert.False(seen.Moves);
+    }
+
+    [Fact]
+    public void A_tip_from_the_background_is_a_grey_dashed_line_that_waits_and_never_a_hit()
+    {
+        var watch = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(WatchDirection.Out, [WatchSamples.On(E)]));
+        var tip = new WatchTip(
+            1, watch.Id, Chain.Bitcoin, WatchSamples.Out(WatchSamples.On(E), 0.3m), Guid.NewGuid(), [], 1,
+            TestWatchSource.At);
+        var snapshot = new WatchSnapshot(_source.Watches, _source.Records, [], _source.Checked, _source.Seen)
+        {
+            Tips = [tip],
+        };
+
+        var overlay = GraphWatches.Build(Scene(), snapshot, _ => WatchGate.Open);
+        var closed = GraphWatches.Build(
+            Scene(), snapshot with { Tips = [tip with { State = WatchTipState.Rejected }] }, _ => WatchGate.Open);
+
+        var line = Assert.Single(overlay.Lines);
+        Assert.Equal((WatchLineKind.Pending, VKey, EKey), (line.Kind, line.From, line.To));
+        Assert.True(line.Idle);
+        Assert.Null(line.Label);
+        Assert.False(overlay.Moves);
+        Assert.Contains("väntar på kontroll", line.Tip, StringComparison.Ordinal);
+        Assert.Equal(WatchLineKind.Guard, Assert.Single(closed.Lines).Kind);
     }
 
     [Fact]

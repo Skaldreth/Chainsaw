@@ -151,14 +151,15 @@ public sealed class BackgroundLinkTests
     }
 
     [Fact]
-    public async Task What_the_background_saw_is_brought_into_the_open_case_and_its_hits_told()
+    public async Task What_the_background_saw_is_brought_into_the_open_case_and_its_hits_never_told_as_hits()
     {
         var (session, link) = Link(Windows);
         var board = link.Board;
         var watch = _source.Add(WatchSamples.Subject(GraphSamples.Address(1)), WatchSamples.Filter());
-        var hit = new WatchHit(9, watch.Id, Chain.Bitcoin,
-            WatchSamples.Out(WatchSamples.On(GraphSamples.Address(2)), 0.1m), [1], 2, TestWatchSource.At);
-        _fakes.Watches.Result = new BackgroundImport(1, 2, [hit], []);
+        var tip = new WatchTip(9, watch.Id, Chain.Bitcoin,
+            WatchSamples.Out(WatchSamples.On(GraphSamples.Address(2)), 0.1m), Guid.NewGuid(), [1], 2,
+            TestWatchSource.At);
+        _fakes.Watches.Result = new BackgroundImport(1, 2, [tip], []);
         IReadOnlyList<WatchHit>? told = null;
         board.HitsFound += (_, hits) => told = hits;
 
@@ -168,8 +169,9 @@ public sealed class BackgroundLinkTests
         _fakes.Queue.Entries[session.Current!.Info.Id] = [Guid.NewGuid()];
         await link.ImportAsync(session.Current!);
 
+        // A tip is no hit until the runner's own lookup gives it; only then is it told.
         Assert.Equal(1, _fakes.Watches.Imports);
-        Assert.Equal([hit], told);
+        Assert.Null(told);
     }
 
     [Fact]

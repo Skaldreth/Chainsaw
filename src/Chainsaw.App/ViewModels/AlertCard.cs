@@ -61,7 +61,11 @@ public sealed record AlertCard(AlertCardSource Source, DateTimeOffset At)
     /// <summary>Gets when, as the card shows it: <c>14:32</c>.</summary>
     public string TimeText => At.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>Gives the card for the arguments Chainsaw was started with, or none.</summary>
+    /// <summary>
+    /// Gives the card for the arguments Chainsaw was started with, or none. Only the argument alone counts, as the
+    /// background process gives it: a <c>chainsaw:</c> link with a quotation mark in it can split into more arguments
+    /// (<c>"%1"</c>), and a link must never show the card.
+    /// </summary>
     /// <param name="arguments">The arguments.</param>
     /// <param name="isRunning">Whether a Chainsaw already runs for the user, open or locked.</param>
     /// <param name="now">Now, in local time.</param>
@@ -69,7 +73,7 @@ public sealed record AlertCard(AlertCardSource Source, DateTimeOffset At)
     public static AlertCard? FromArguments(IReadOnlyList<string> arguments, bool isRunning, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        if (!arguments.Contains(Argument, StringComparer.Ordinal))
+        if (arguments.Count != 1 || !string.Equals(arguments[0], Argument, StringComparison.Ordinal))
         {
             return null;
         }

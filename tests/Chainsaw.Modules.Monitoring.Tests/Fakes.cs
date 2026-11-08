@@ -121,9 +121,28 @@ internal sealed class FakeBitcoinSource : IBitcoinSource
             : new BitcoinLookup<BitcoinTip>(LookupStatus.Offline, null, [], "Offline."));
     }
 
+    /// <summary>How a lookup of one transaction is answered; it is found on the addresses' pages.</summary>
+    public LookupStatus TransactionStatus { get; set; } = LookupStatus.Fetched;
+
+    /// <summary>The transactions asked for, with how.</summary>
+    public List<(string Txid, LookupMode Mode)> TransactionsAsked { get; } = [];
+
     public Task<BitcoinLookup<BitcoinTransaction>> GetTransactionAsync(
-        ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException();
+        ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
+    {
+        TransactionsAsked.Add((txid.Value, mode));
+        var found = Pages.Values.SelectMany(pages => pages).SelectMany(page => page.Transactions)
+            .FirstOrDefault(transaction => transaction.Txid == txid);
+        if (TransactionStatus != LookupStatus.Fetched)
+        {
+            return Task.FromResult(
+                new BitcoinLookup<BitcoinTransaction>(TransactionStatus, null, [], "Inget svar."));
+        }
+
+        return Task.FromResult(found is null
+            ? new BitcoinLookup<BitcoinTransaction>(LookupStatus.NotFound, null, [Origin(21)], "Finns inte.")
+            : new BitcoinLookup<BitcoinTransaction>(LookupStatus.Fetched, found, [Origin(22)], null));
+    }
 
     public Task<BitcoinLookup<BitcoinTransaction>> VerifyTransactionAsync(
         ICase @case, Txid txid, CancellationToken cancellationToken = default) => throw new NotSupportedException();
