@@ -166,34 +166,6 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
 - **Bevakningens aviseringar** (etapp 27, CLAUDE.md *Bevaka*): sätten i inställningarna (avisering i Windows, ljud,
   meddelande mitt på skärmen överst) och hur ofta per bevakning. Ljudet behöver en fri licens eller göras själv.
 
-### Granskningen av NC2a (2026-11-08): rättas först
-
-Oberoende granskning av `9302657`. Inget kritiskt: allt förseglas genom `IResponseTransfer` i en transaktion med
-journalraden, SHA-256 kontrolleras vid läsning och försegling, inget skickas utan levande utgång, och låsning släpper
-ärendet i minnet. Bakgrundsbevakningen beter sig som förut.
-
-**Viktigt:**
-1. **En tx-rad säger *Hämtat vid block N* med tx:ens eget block** (`StartPointPrefetch.cs` ~282 och ~351 skickar
-   tx:ens höjd som `tip`). En tx i block 830 000 som hämtas i dag visar 830 000 som höjden när den hämtades, vilket
-   källan aldrig sa. För adresser faller märket tillbaka på den senaste tx:ens block när höjduppslaget misslyckas
-   (~392) utan att säga det. Rättning: hämta kedjans höjd också för tx (eller skriv *I block N*), låt aldrig märket
-   byta sorts tal i tysthet, och lägg till ett tx-test på `HeightTip`.
-
-**Mindre:**
-2. *Skapa ärende* stoppar hämtningarna men väntar inte på dem (`NewCaseViewModel.cs` ~503), så ett svar som kommer
-   i sista stund kan skrivas i minnet efter att `SealInto` läst och släppas utan spår. Vänta in de pågående
-   hämtningarna innan ärendet skapas.
-3. En låsning medan ärendet skapas (`Dismiss` → `Reset` → `Forget` samtidigt som `SealInto`) kan ge en ärendefil utan
-   de förhandshämtade svaren och utan rad i journalen. Låt skapandet själv släppa ärendet i minnet medan `IsBusy`.
-4. Ett trasigt svar kastar alla (`StartPointPrefetch.cs` ~148, allt i en `Write`). Försegla ett i taget eller hoppa
-   över och journalför det som inte gick.
-5. Inklistrad löptext slås upp ord för ord (`NewCaseViewModel.Paste` ~204): en SHA-256 för en fil i en anteckning ser
-   ut som en Bitcoin-txid och skickas direkt (princip 4). Dela bara på radbrytningar, eller låt rader ur en inklistring
-   med okända delar vänta på ett Enter innan de hämtas.
-6. Ett IO-fel från sanktionslistan (filen låst av virusskydd) lämnar raden på *Hämtar* (`SanctionTip` utanför try,
-   ~93; `FetchAsync` ~406 fångar bara avbrott). Fånga det och visa raden som misslyckad.
-7. De länkade `CancellationTokenSource` per rad tas aldrig bort (`NewCaseViewModel.Fetch` ~385): dispose den gamla.
-
 ## Väntar på skiss
 
 

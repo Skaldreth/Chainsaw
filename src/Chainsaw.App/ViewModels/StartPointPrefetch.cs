@@ -24,6 +24,9 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// <summary>What a row says when the source does not know the value.</summary>
     private const string NotFoundText = "Källan känner inte till den";
 
+    /// <summary>What a row says when the imported sanction list could not be read.</summary>
+    private const string SanctionUnreadText = "Sanktionslistan kunde inte läsas just nu";
+
     /// <summary>What a row says when the lookup failed without a reason.</summary>
     private const string FailedText = "Hämtningen misslyckades";
 
@@ -90,7 +93,17 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return StartPointPreview.Only(PreviewState.NotRecognised);
         }
 
-        var sanction = await Task.Run(() => SanctionTip(startPoint), cancellationToken).ConfigureAwait(false);
+        string sanction;
+        try
+        {
+            sanction = await Task.Run(() => SanctionTip(startPoint), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The list's file is held by something else (an antivirus scan): the row says so instead of fetching on,
+            // so that a sanction is never left out in silence.
+            return StartPointPreview.Failure(SanctionUnreadText);
+        }
         if (!startPoint.IsSupported)
         {
             return StartPointPreview.Only(PreviewState.NotBuilt, sanction);
@@ -136,11 +149,8 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         }
 
         var sequences = memory.SealedSince(SealedResponses.Chain, 0);
-        var responses = memory.Read(reader => sequences
-            .Select(sequence => _transfer.Read(reader, sequence))
-            .OfType<SealedResponse>()
-            .ToList());
-        if (responses.Count == 0)
+        var (responses, unread) = memory.Read(reader => ReadEach(reader, sequences));
+        if (responses.Count == 0 && unread == 0)
         {
             return 0;
         }
@@ -152,12 +162,55 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
                 _transfer.Seal(transaction, response);
             }
 
+            var text = $"{responses.Count} råsvar som hämtades i Nytt ärende innan ärendet fanns förseglades i ärendet.";
+            if (unread > 0)
+            {
+                text += $" {unread} kunde inte läsas och förseglades inte.";
+            }
+
             transaction.AppendJournal(new JournalDraft(
                 AppJournalKinds.PrefetchSealed,
-                $"{responses.Count} råsvar som hämtades i Nytt ärende innan ärendet fanns förseglades i ärendet.",
-                JsonSerializer.Serialize(new Dictionary<string, int> { ["responses"] = responses.Count })));
+                text,
+                JsonSerializer.Serialize(new Dictionary<string, int>
+                {
+                    ["responses"] = responses.Count,
+                    ["unread"] = unread,
+                })));
             return responses.Count;
         });
+    }
+
+    /// <summary>
+    /// Reads every response sealed in the case in memory, one at a time, so that one that cannot be read (its hash no
+    /// longer matches) never keeps the others out of the new case.
+    /// </summary>
+    /// <param name="reader">The case in memory's reader.</param>
+    /// <param name="sequences">The sealed responses' numbers.</param>
+    /// <returns>The responses read, and how many could not be.</returns>
+    private (List<SealedResponse> Responses, int Unread) ReadEach(ICaseReader reader, IReadOnlyList<long> sequences)
+    {
+        var responses = new List<SealedResponse>();
+        var unread = 0;
+        foreach (var sequence in sequences)
+        {
+            try
+            {
+                if (_transfer.Read(reader, sequence) is { } response)
+                {
+                    responses.Add(response);
+                }
+                else
+                {
+                    unread++;
+                }
+            }
+            catch (Exception exception) when (exception is InvalidDataException or CaseException)
+            {
+                unread++;
+            }
+        }
+
+        return (responses, unread);
     }
 
     /// <inheritdoc/>
@@ -249,12 +302,16 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         }
 
         var newest = blocks.MaxBy(block => block.Height);
-        return Fetched(facts, tip.Value?.Height, newest is null ? null : (newest.Height, newest.Hash.Value));
+        return Fetched(
+            facts,
+            tip.Value?.Height,
+            newest is null ? null : (newest.Height, newest.Hash.Value),
+            BlockOf.NewestTransaction);
     }
 
     /// <summary>
-    /// A Bitcoin transaction: what its outputs pay, how many inputs and outputs it has and its block's date, height
-    /// and hash.
+    /// A Bitcoin transaction: what its outputs pay, how many inputs and outputs it has, its block's date, height and
+    /// hash, and the chain's height when it was fetched.
     /// </summary>
     /// <param name="memory">The case in memory.</param>
     /// <param name="txid">The transaction.</param>
@@ -270,6 +327,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return failed;
         }
 
+        var tip = await _bitcoin.GetTipHeightAsync(memory, cancellationToken).ConfigureAwait(false);
         var tx = lookup.Value!;
         var paid = tx.Outputs.Aggregate(Satoshi.Zero, (sum, output) => sum + output.Amount);
         var facts = new List<PreviewFact>
@@ -280,7 +338,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             tx.Block is { } block ? new(Day(block.Time), string.Empty) : new("Obekräftad", string.Empty),
         };
         var at = tx.Block is { } confirmed ? (confirmed.Height, confirmed.Hash.Value) : default((long, string)?);
-        return Fetched(facts, at?.Item1, at);
+        return Fetched(facts, tip.Value?.Height, at, BlockOf.Transaction);
     }
 
     /// <summary>
@@ -318,10 +376,14 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         }
 
         var newest = blocks.MaxBy(block => block.Height);
-        return Fetched(facts, tip.Value?.Height, newest is null ? null : (newest.Height, newest.Hash));
+        return Fetched(
+            facts, tip.Value?.Height, newest is null ? null : (newest.Height, newest.Hash), BlockOf.NewestTransaction);
     }
 
-    /// <summary>An Ethereum transaction: the ether it sent, how many movements of value it holds and its block.</summary>
+    /// <summary>
+    /// An Ethereum transaction: the ether it sent, how many movements of value it holds, its block and the chain's
+    /// height.
+    /// </summary>
     /// <param name="memory">The case in memory.</param>
     /// <param name="value">The transaction's hash as written.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
@@ -341,6 +403,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return failed;
         }
 
+        var tip = await _ethereum.GetTipHeightAsync(memory, cancellationToken).ConfigureAwait(false);
         var tx = lookup.Value!;
         var facts = new List<PreviewFact>
         {
@@ -349,7 +412,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             tx.Block is { } block ? new(Day(block.Time), string.Empty) : new("Obekräftad", string.Empty),
         };
         var at = tx.Block is { } confirmed ? (confirmed.Height, confirmed.Hash) : default((long, string?)?);
-        return Fetched(facts, at?.Item1, at);
+        return Fetched(facts, tip.Value?.Height, at, BlockOf.Transaction);
     }
 
     /// <summary>Says why a lookup has no value, or nothing when it has one.</summary>
@@ -365,13 +428,19 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         _ => StartPointPreview.Failure(lookup.Problem ?? FailedText),
     };
 
-    /// <summary>Gives a fetched preview with the height and the block it rests on.</summary>
+    /// <summary>
+    /// Gives a fetched preview with the chain's height and the block the facts rest on. The chip shows only the
+    /// chain's height; a transaction's block is never shown as it, so the number never changes meaning in silence.
+    /// </summary>
     /// <param name="facts">The facts.</param>
-    /// <param name="tip">The chain's height when it was fetched, or <see langword="null"/>.</param>
-    /// <param name="block">The newest block the facts rest on, with its hash, or <see langword="null"/>.</param>
+    /// <param name="tip">
+    /// The chain's height when it was fetched, or <see langword="null"/> when the source did not say.
+    /// </param>
+    /// <param name="block">The block the facts rest on, with its hash, or <see langword="null"/>.</param>
+    /// <param name="blockOf">Which block that is, for the tooltip's words.</param>
     /// <returns>The preview.</returns>
     private static StartPointPreview Fetched(
-        IReadOnlyList<PreviewFact> facts, long? tip, (long Height, string? Hash)? block)
+        IReadOnlyList<PreviewFact> facts, long? tip, (long Height, string? Hash)? block, BlockOf blockOf)
     {
         var lines = new List<string>();
         if (tip is { } height)
@@ -381,7 +450,8 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
 
         if (block is { } newest)
         {
-            lines.Add($"Senaste tx i block {Count(newest.Height)}");
+            var words = blockOf == BlockOf.Transaction ? "I block" : "Senaste tx i block";
+            lines.Add($"{words} {Count(newest.Height)}");
             if (newest.Hash is { Length: > 0 } hash)
             {
                 lines.Add(hash);
@@ -389,7 +459,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         }
 
         return new StartPointPreview(
-            PreviewState.Fetched, facts, tip ?? block?.Height, string.Join(Environment.NewLine, lines), string.Empty,
+            PreviewState.Fetched, facts, tip, string.Join(Environment.NewLine, lines), string.Empty,
             string.Empty);
     }
 
@@ -483,4 +553,14 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         return $"Sanktionerad enligt {match.List.Name} {match.List.PublishDate:yyyy-MM-dd} · {hit.EntryName}"
             + " · en uppgift ur en öppen källa";
     }
+}
+
+/// <summary>Which block a preview's tooltip names besides the chain's height.</summary>
+internal enum BlockOf
+{
+    /// <summary>The block the transaction itself is in.</summary>
+    Transaction,
+
+    /// <summary>The block of the address's newest transaction fetched.</summary>
+    NewestTransaction,
 }

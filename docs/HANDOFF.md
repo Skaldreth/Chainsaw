@@ -127,15 +127,12 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 **Läget 2026-11-08 morgon.** Pushat i dag: Chainabuse som underleverantör (knappen R och skölden vid noden),
 KL2b, EX1/EX2/EX2b ombyggda, Esc avbryter en lång läsning, Ctrl+W, Guidens toning, inspektören bara när något är
 valt, sonarn borttagen helt, en kvalitetsgenomgång av kvällens egna commits (`6f67d1b`) **KF2b** (sammanslagen
-`c352c7a`) och **NC2a** (sammanslagen `68bc89e`), båda byggda av agenter och inte sedda på Windows. Granskningen av KF2b är rättad (alla nio fynd).
+`c352c7a`) och **NC2a** (sammanslagen `68bc89e`), båda byggda av agenter och inte sedda på Windows. Granskningarna av KF2b och NC2a är rättade (alla fynd).
 
 **Att göra, i ordning:**
-1. **Rätta granskningen av NC2a** (sammanslagen `68bc89e`, commit `9302657`, inte sedd på Windows). Rapporten står i
-   `docs/TODO.md` under *Granskningen av NC2a*: ett viktigt (en tx-rad visar tx:ens block som höjden när den
-   hämtades) och sex mindre, bland dem att inklistrad löptext slås upp ord för ord (princip 4). Rätta, bygg, kör
-   `tests/Chainsaw.App.Tests`, `Chainsaw.Modules.Cases.Tests` och `Chainsaw.Watcher.Tests`, pusha och ta bort blocket.
-   Granska också själv mot skissen `NewCase2A` och användarens synpunkter (inga linjer vid raderna, *betydligt mer
-   professionellt*), eftersom agenten bara fick CLAUDE.md och uppdraget. Det som återstår står i TODO punkt 38.
+1. **Granska Nytt ärende själv mot skissen `NewCase2A`** och användarens synpunkter (inga linjer vid raderna,
+   *betydligt mer professionellt*), eftersom agenten bara fick CLAUDE.md och uppdraget. Granskningens fynd är
+   rättade 2026-11-08. Det som återstår står i TODO punkt 38.
 2. **Fråga användaren om KF2b:** ett godkänt förslag är avgjort helt (kön går vidare som i skissen), så en mixer som
    betalar ut i flera delar kan bara ha en godkänd utgång i taget. Behålla, eller låta förslaget stå öppet efter ett
    godkännande? Står i TODO under *Kontroller, förslag och områden* som fråga till kryptospåraren.

@@ -2525,3 +2525,16 @@ och *+ Skäl, frivilligt*) och *Allt avgjort* med ringen, sammanfattningen och l
   fyndets nyckel och avgiften står som *trolig avgift*; ett förslag avfärdat som helhet behåller sina aktörer i loggen
   och under *Här*; långa rader brutna. `StoredCheck.Waiting` behölls, eftersom modulens tester läser den.
 
+## Granskningen av NC2a rättad (2026-11-08)
+
+- **Höjden byter aldrig sorts tal:** blockikonen i en rad visar bara kedjans höjd när det hämtades; en tx hämtar nu
+  också kedjans höjd, och tipset skiljer *Hämtat vid block N* från *I block M* (tx:ens eget) och *Senaste tx i block
+  M* (adressens). Utan kedjans höjd visas ingen höjd (`ShowsHeight`).
+- **Inklistring per rad:** en rad slås upp bara när alla dess delar är adresser eller tx (princip 4); löptext med en
+  hash i hämtas aldrig, och felraden säger det.
+- **Skapandet väntar in hämtningarna** innan `SealInto` läser, och en låsning under skapandet släpper inte ärendet i
+  minnet förrän skapandet är klart.
+- Mindre: råsvaren läses ett i taget, och ett som inte går att läsa räknas i journalraden i stället för att stoppa de
+  andra; ett IO-fel från sanktionslistan gör raden misslyckad; varje rads `CancellationTokenSource` tas bort när
+  hämtningen är över.
+

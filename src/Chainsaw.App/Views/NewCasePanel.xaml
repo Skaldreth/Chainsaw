@@ -282,7 +282,7 @@
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Background="Transparent" ToolTip="{Binding Preview.HeightTip}"
-                                    Visibility="{Binding IsFetched, Converter={StaticResource Visible}}">
+                                    Visibility="{Binding ShowsHeight, Converter={StaticResource Visible}}">
                             <controls:GridIcon Size="12" Data="{StaticResource Icon.Block}"
                                                Foreground="{StaticResource Brush.TextDim}" />
                             <TextBlock Text="{Binding HeightText}" FontSize="11" Margin="5,0,0,0"

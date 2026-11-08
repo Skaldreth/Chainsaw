@@ -288,6 +288,12 @@ Jämför med skisserna ID8c och FS1a på canvasen, gärna i 1440 × 900 och i et
 - Slå av reglaget, stäng panelen eller lås med Ctrl+L: lösenordsfälten är tomma när de visas igen.
 - Ärendelösenordet går inte att hitta i en minnesdump efter att ärendet skapats (som för huvudnyckeln).
 - Ett ärendenummer som finns ger *Det finns redan ett ärende med det numret.* och fälten står kvar.
+- NC2a: en tx-rad visar kedjans höjd vid blockikonen; tipset säger *Hämtat vid block N* och *I block M* med hashen.
+  Utan kedjans höjd syns ingen höjd alls (aldrig tx:ens block i dess ställe).
+- Klistra in löptext med en SHA-256 i (*Filen har SHA-256 … enligt anteckningen*): ingen rad läggs till och inget
+  hämtas; felraden säger att raden inte hämtades. En lista med kommatecken (`adress, adress`) ger en rad var.
+- Skapa ärendet medan en rad hämtar: ärendet skapas först när hämtningen är klar, och journalen räknar alla råsvar.
+- Lås med Ctrl+L medan ärendet skapas: ärendet får ändå de förhandshämtade råsvaren och raden i journalen.
 
 **Kommandoraden**
 - `/help` listar kommandona. `/hjälp` ger *Okänt kommando*. Fel står i rött ovanför raden; ett lyckat kommando tömmer

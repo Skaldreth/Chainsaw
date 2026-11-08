@@ -28,9 +28,11 @@ public sealed partial class NewCaseViewModel : ObservableObject
     /// <summary>What the exit's tag says while no exit is live.</summary>
     public const string OfflineText = "Offline";
 
-    /// <summary>The characters that part start points pasted together: lines, tabs, spaces, commas and semicolons.
-    /// </summary>
-    private static readonly char[] Separators = ['\r', '\n', '\t', ' ', ',', ';'];
+    /// <summary>The characters that part the lines of what is pasted.</summary>
+    private static readonly char[] LineBreaks = ['\r', '\n'];
+
+    /// <summary>The characters that part start points on one pasted line: tabs, spaces, commas and semicolons.</summary>
+    private static readonly char[] Separators = ['\t', ' ', ',', ';'];
 
     /// <summary>Creates and opens the case.</summary>
     private readonly CaseWorkflow _workflow;
@@ -43,6 +45,9 @@ public sealed partial class NewCaseViewModel : ObservableObject
 
     /// <summary>Stops the wait after typing.</summary>
     private CancellationTokenSource? _typing;
+
+    /// <summary>The lookups under way, which the creation waits for once they are stopped.</summary>
+    private readonly HashSet<Task> _inFlight = [];
 
     /// <summary>Creates the panel, closed.</summary>
     /// <param name="workflow">Creates and opens the case.</param>
@@ -197,32 +202,37 @@ public sealed partial class NewCaseViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Adds what was pasted (Ctrl+V): every address or tx in it becomes a row, so that several lines add several. When
-    /// nothing in it is recognised it goes into the add row as text, to be corrected.
+    /// Adds what was pasted (Ctrl+V): a line whose every part is an address or a tx gives a row per part, so that
+    /// several lines, or a list with commas, add several. A line with anything else in it, such as running text with
+    /// a file's SHA-256 that looks like a txid, is not looked up (principle 4): it is said, and can be written in the
+    /// add row with Enter. When nothing is recognised the text goes into the add row, to be corrected.
     /// </summary>
     /// <param name="text">The text pasted.</param>
     public void Paste(string text)
     {
-        var parts = (text ?? string.Empty).Split(Separators, StringSplitOptions.RemoveEmptyEntries);
-        var recognised = parts.Where(part => StartPointText.Parse(part).IsRecognised).ToList();
-        if (recognised.Count == 0)
+        var lines = (text ?? string.Empty).Split(LineBreaks, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split(Separators, StringSplitOptions.RemoveEmptyEntries))
+            .Where(parts => parts.Length > 0)
+            .ToList();
+        var clean = lines.Where(parts => parts.All(part => StartPointText.Parse(part).IsRecognised)).ToList();
+        if (clean.Count == 0)
         {
-            AddText = string.Join(' ', parts);
+            AddText = string.Join(' ', lines.SelectMany(parts => parts));
             return;
         }
 
         ErrorText = string.Empty;
-        foreach (var part in recognised)
+        foreach (var part in clean.SelectMany(parts => parts))
         {
             Add(part);
         }
 
-        var skipped = parts.Length - recognised.Count;
+        var skipped = lines.Count - clean.Count;
         if (skipped > 0 && ErrorText.Length == 0)
         {
             ErrorText = skipped == 1
-                ? "En del av det som klistrades in kändes inte igen och lades inte till."
-                : $"{skipped} delar av det som klistrades in kändes inte igen och lades inte till.";
+                ? "En rad med annan text än adresser och tx hämtades inte. Skriv in värdet och tryck Enter."
+                : $"{skipped} rader med annan text än adresser och tx hämtades inte. Skriv in värdena och tryck Enter.";
         }
     }
 
@@ -390,18 +400,20 @@ public sealed partial class NewCaseViewModel : ObservableObject
             row.Show(StartPointPreview.Only(PreviewState.Fetching, row.Preview.SanctionTip));
         }
 
-        _ = FetchAsync(_prefetch, row, IsExitLive, lookup.Token);
+        _inFlight.RemoveWhere(task => task.IsCompleted);
+        _inFlight.Add(FetchAsync(_prefetch, row, IsExitLive, lookup));
     }
 
     /// <summary>Asks the prefetch and shows the answer, unless the row was removed or the lookup stopped.</summary>
     /// <param name="prefetch">The prefetch.</param>
     /// <param name="row">The row.</param>
     /// <param name="mayFetch">Whether lookups may go out.</param>
-    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <param name="lookup">Stops the lookup; disposed here when the lookup is over.</param>
     /// <returns>A task that completes when the answer is shown or dropped.</returns>
     private async Task FetchAsync(
-        IStartPointPrefetch prefetch, StartPointRowViewModel row, bool mayFetch, CancellationToken cancellationToken)
+        IStartPointPrefetch prefetch, StartPointRowViewModel row, bool mayFetch, CancellationTokenSource lookup)
     {
+        var cancellationToken = lookup.Token;
         StartPointPreview preview;
         try
         {
@@ -410,6 +422,15 @@ public sealed partial class NewCaseViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             return;
+        }
+        finally
+        {
+            if (row.Lookup == lookup)
+            {
+                row.Lookup = null;
+            }
+
+            lookup.Dispose();
         }
 
         if (!cancellationToken.IsCancellationRequested && Rows.Contains(row))
@@ -494,8 +515,8 @@ public sealed partial class NewCaseViewModel : ObservableObject
 
     /// <summary>
     /// Creates the case through the workflow and closes the panel when it exists. The lookups under way are stopped
-    /// first, so that what is sealed in the case is exactly what was fetched; if the case is not created they start
-    /// again.
+    /// and waited for first, so that what is sealed in the case is exactly what was fetched and nothing comes in
+    /// after; if the case is not created they start again.
     /// </summary>
     /// <param name="request">The checked request.</param>
     /// <param name="sharing">The sharing password, or <see langword="null"/>; cleared here.</param>
@@ -507,6 +528,8 @@ public sealed partial class NewCaseViewModel : ObservableObject
         CaseCreation creation;
         try
         {
+            await Task.WhenAll([.. _inFlight]);
+            _inFlight.Clear();
             creation = await _workflow.CreateAsync(request, sharing, _prefetch);
         }
         finally
@@ -519,9 +542,10 @@ public sealed partial class NewCaseViewModel : ObservableObject
             IsBusy = false;
         }
 
-        if (creation.Exists || creation.IsCreated)
+        if (creation.Exists || creation.IsCreated || !IsOpen)
         {
-            // What was fetched is in the case now, or the case could not take it and said so; either way it is done.
+            // What was fetched is in the case now, or the case could not take it and said so, or the panel was
+            // dismissed meanwhile (Chainsaw locked); either way it is done.
             _prefetch?.Forget();
         }
 
@@ -549,12 +573,20 @@ public sealed partial class NewCaseViewModel : ObservableObject
         _lookups = new CancellationTokenSource();
     }
 
-    /// <summary>Empties every field, stops the lookups and drops what was fetched.</summary>
+    /// <summary>
+    /// Empties every field, stops the lookups and drops what was fetched, unless a creation reads it now; the creation
+    /// drops it then.
+    /// </summary>
     private void Reset()
     {
         _typing?.Cancel();
         StopLookups();
-        _prefetch?.Forget();
+        if (!IsBusy)
+        {
+            // While the case is created it reads what was fetched; the creation drops it when it is done.
+            _prefetch?.Forget();
+        }
+
         CaseNumber = string.Empty;
         CaseTitle = string.Empty;
         AddText = string.Empty;

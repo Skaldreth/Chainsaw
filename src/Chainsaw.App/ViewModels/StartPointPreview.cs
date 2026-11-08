@@ -37,8 +37,13 @@ public sealed record PreviewFact(string Value, string Unit);
 /// </summary>
 /// <param name="State">Where the row stands.</param>
 /// <param name="Facts">The facts, in the order shown; empty unless fetched.</param>
-/// <param name="Height">The block height the facts rest on, or <see langword="null"/>.</param>
-/// <param name="HeightTip">What the height means and the block's hash, for the tooltip; empty without a height.</param>
+/// <param name="Height">
+/// The chain's height when the facts were fetched, as the source said it, or <see langword="null"/> when the source
+/// did not say; never a transaction's own block.
+/// </param>
+/// <param name="HeightTip">
+/// What the height means and the block the facts rest on with its hash, for the tooltip; empty when neither is known.
+/// </param>
 /// <param name="Problem">Why it failed, in Swedish; empty otherwise.</param>
 /// <param name="SanctionTip">
 /// The imported sanction list's entry when the list names the address, for the tooltip; empty when it does not.

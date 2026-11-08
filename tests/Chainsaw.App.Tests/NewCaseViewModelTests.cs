@@ -23,8 +23,20 @@ public sealed class NewCaseViewModelTests
         Assert.Equal("TRON hämtas inte, inte byggt än", panel.Rows[2].LineText);
         Assert.Equal("4f2a4f2a…f2a4f2a", panel.Rows[1].Short);
         Assert.Equal("3", panel.RowCountText);
-        Assert.Contains("kändes inte igen", panel.ErrorText, StringComparison.Ordinal);
+        Assert.Contains("hämtades inte", panel.ErrorText, StringComparison.Ordinal);
         Assert.Empty(panel.AddText);
+    }
+
+    [Fact]
+    public void Running_text_with_a_hash_in_it_is_never_looked_up_but_a_list_with_commas_is()
+    {
+        var panel = Open();
+
+        panel.Paste($"Filen har SHA-256 {Samples.Txid} enligt anteckningen\n{Samples.Address}, {Samples.Tron}");
+
+        Assert.Equal(["Adress", "Adress"], panel.Rows.Select(row => row.KindText));
+        Assert.DoesNotContain(panel.Rows, row => row.StartPoint.Value == Samples.Txid);
+        Assert.StartsWith("En rad", panel.ErrorText, StringComparison.Ordinal);
     }
 
     [Fact]

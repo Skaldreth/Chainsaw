@@ -59,6 +59,7 @@ public sealed partial class StartPointRowViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFetching), nameof(IsFetched), nameof(IsNotRecognised), nameof(HasLine))]
     [NotifyPropertyChangedFor(nameof(LineText), nameof(IsWaiting), nameof(IsSanctioned), nameof(HeightText))]
+    [NotifyPropertyChangedFor(nameof(ShowsHeight))]
     public partial StartPointPreview Preview { get; private set; }
 
     /// <summary>Gets whether it is being fetched (the shimmer and the spinner).</summary>
@@ -66,6 +67,9 @@ public sealed partial class StartPointRowViewModel : ObservableObject
 
     /// <summary>Gets whether the facts are shown.</summary>
     public bool IsFetched => Preview.State == PreviewState.Fetched;
+
+    /// <summary>Gets whether the chain's height when it was fetched is known, so that the block's chip shows.</summary>
+    public bool ShowsHeight => IsFetched && Preview.Height is not null;
 
     /// <summary>Gets whether it waits for the exit.</summary>
     public bool IsWaiting => Preview.State == PreviewState.WaitingForExit;

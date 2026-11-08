@@ -39,6 +39,60 @@ public sealed class StartPointPrefetchTests
     }
 
     [Fact]
+    public async Task A_transaction_shows_the_chains_height_and_names_its_own_block_apart()
+    {
+        var prefetch = Prefetch();
+
+        var preview = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Txid), mayFetch: true);
+
+        Assert.Equal(PreviewState.Fetched, preview.State);
+        Assert.Equal(921_344, preview.Height);
+        Assert.Contains("Hämtat vid block 921\u00A0344", preview.HeightTip, StringComparison.Ordinal);
+        Assert.Contains("I block 830\u00A0000", preview.HeightTip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Without_the_chains_height_no_other_block_is_shown_as_it()
+    {
+        _bitcoin.TipFails = true;
+        var prefetch = Prefetch();
+
+        var address = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Address), mayFetch: true);
+        var transaction = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Txid), mayFetch: true);
+
+        Assert.Null(address.Height);
+        Assert.Null(transaction.Height);
+        Assert.DoesNotContain("Hämtat vid", address.HeightTip, StringComparison.Ordinal);
+        Assert.Contains("Senaste tx i block 921\u00A0300", address.HeightTip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_sanction_list_that_cannot_be_read_fails_the_row_instead_of_hanging()
+    {
+        _sanctions.Locked = true;
+        var prefetch = Prefetch();
+
+        var preview = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Address), mayFetch: true);
+
+        Assert.Equal(PreviewState.Failed, preview.State);
+        Assert.Contains("Sanktionslistan", preview.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task One_response_that_cannot_be_read_keeps_none_of_the_others_out()
+    {
+        var prefetch = Prefetch();
+        await prefetch.PreviewAsync(StartPointText.Parse(Samples.Address), mayFetch: true);
+        _transfer.Broken = 2;
+        var target = new MemoryCase();
+
+        var count = prefetch.SealInto(target);
+
+        Assert.Equal(2, count);
+        Assert.Contains("1 kunde inte läsas", Assert.Single(target.Journal).Summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Only_the_last_activity_is_shown_when_older_transactions_were_not_fetched()
     {
         _bitcoin.ConfirmedCount = 40;
@@ -273,7 +327,11 @@ public sealed class StartPointPrefetchTests
 
         public ICaseTransaction? SealedIn { get; private set; }
 
-        public SealedResponse? Read(ICaseReader reader, long sequence) => new(
+        public long? Broken { get; set; }
+
+        public SealedResponse? Read(ICaseReader reader, long sequence) => sequence == Broken
+            ? throw new CaseException(CaseError.Corrupt)
+            : new(
             sequence, "bitcoin-mainnet", "esplora", Guid.Empty, "test", "https://example.invalid", "kind", "subject",
             200, null, "t", "t", "t", "UTC", null, "windows", "{}", new string('0', 64), []);
 
@@ -299,7 +357,9 @@ public sealed class StartPointPrefetchTests
 
         public IReadOnlyList<SanctionListInfo> List() => [Info];
 
-        public SanctionMatch? Find(BitcoinAddress address) => new(
+        public bool Locked { get; set; }
+
+        public SanctionMatch? Find(BitcoinAddress address) => Locked ? throw new IOException("låst") : new(
             Info, Named ? [new SanctionedAddress(SanctionCurrency.Bitcoin, address.Value, "1", "Blandaren", [])] : []);
     }
 
@@ -333,11 +393,16 @@ public sealed class StartPointPrefetchTests
             ], null));
 
         public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
-            ICase @case, CancellationToken cancellationToken = default) => Answer(@case, new BitcoinTip(921_344));
+            ICase @case, CancellationToken cancellationToken = default) => TipFails
+            ? Task.FromResult(new BitcoinLookup<BitcoinTip>(LookupStatus.Failed, null, [], "nej"))
+            : Answer(@case, new BitcoinTip(921_344));
+
+        public bool TipFails { get; set; }
 
         public Task<BitcoinLookup<BitcoinTransaction>> GetTransactionAsync(
             ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            CancellationToken cancellationToken = default) =>
+            Answer(@case, Transaction('3', 830_000, new DateTimeOffset(2024, 3, 11, 12, 0, 0, TimeSpan.Zero)));
 
         public Task<BitcoinLookup<BitcoinTransaction>> VerifyTransactionAsync(
             ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
