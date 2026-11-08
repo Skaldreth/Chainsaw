@@ -48,4 +48,10 @@ public enum CheckVerdict
 
     /// <summary>The user dismissed the suggestion; it does not come back in the same version of the analysis.</summary>
     Dismissed,
+
+    /// <summary>
+    /// The user took back (<em>Ångra</em>) the decision in force about the same candidate or suggestion; it waits
+    /// again. The earlier decision stays sealed (principle 1).
+    /// </summary>
+    Withdrawn,
 }

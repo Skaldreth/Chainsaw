@@ -26,25 +26,51 @@ public sealed record StoredCheck(
 {
     /// <summary>Gives the decision in force about the finding as a whole, or about one of its candidates.</summary>
     /// <param name="candidateKey">The candidate's key, or <see langword="null"/> for the finding as a whole.</param>
-    /// <returns>The latest decision, or <see langword="null"/> when none is made.</returns>
+    /// <returns>
+    /// The latest decision, or <see langword="null"/> when none is made or the latest was taken back
+    /// (<see cref="CheckVerdict.Withdrawn"/>).
+    /// </returns>
     public CheckDecision? DecisionFor(string? candidateKey) =>
-        Decisions.LastOrDefault(decision => decision.CandidateKey == candidateKey);
+        Decisions.LastOrDefault(decision => decision.CandidateKey == candidateKey) is { } latest
+        && latest.Verdict != CheckVerdict.Withdrawn
+            ? latest
+            : null;
 
     /// <summary>
-    /// Gets how many decisions the suggestion still waits for: one per candidate that has none, or one for a
-    /// suggestion without candidates; 0 for a check.
+    /// Gets whether the user has settled the suggestion (sketch KF2b): approved one of its candidates, dismissed it
+    /// as a whole, or decided every candidate; a suggestion without candidates is settled by a decision about it.
+    /// Always <see langword="false"/> for a check, which waits for nothing.
     /// </summary>
-    public int Waiting
+    public bool IsSettled
     {
         get
         {
             if (Finding.Kind != CheckKind.Suggestion)
             {
+                return false;
+            }
+
+            return DecisionFor(null) is not null
+                || Finding.Candidates.Any(c => DecisionFor(c.Key)?.Verdict == CheckVerdict.Approved)
+                || (Finding.Candidates.Count > 0 && Finding.Candidates.All(c => DecisionFor(c.Key) is not null));
+        }
+    }
+
+    /// <summary>
+    /// Gets how many candidates the suggestion still waits for while it is not settled (one for a suggestion without
+    /// candidates); 0 for a check or a settled suggestion.
+    /// </summary>
+    public int Waiting
+    {
+        get
+        {
+            if (Finding.Kind != CheckKind.Suggestion || IsSettled)
+            {
                 return 0;
             }
 
             return Finding.Candidates.Count == 0
-                ? (DecisionFor(null) is null ? 1 : 0)
+                ? 1
                 : Finding.Candidates.Count(candidate => DecisionFor(candidate.Key) is null);
         }
     }
@@ -57,7 +83,7 @@ public sealed record StoredCheck(
 /// <param name="Analysis">The analysis and version the decision holds for.</param>
 /// <param name="FindingKey">The finding's key.</param>
 /// <param name="CandidateKey">The candidate's key, or <see langword="null"/> for the suggestion as a whole.</param>
-/// <param name="Verdict">Approved or dismissed.</param>
+/// <param name="Verdict">Approved, dismissed or taken back.</param>
 /// <param name="Reason">Why, or <see langword="null"/>; the reason is optional.</param>
 /// <param name="DecidedBy">Who decided.</param>
 /// <param name="DecidedUtc">When.</param>
@@ -90,7 +116,7 @@ public sealed record CheckRun(
 /// <param name="Analysis">The analysis and version of the suggestion.</param>
 /// <param name="FindingKey">The finding's key.</param>
 /// <param name="CandidateKey">The candidate's key, or <see langword="null"/> for the suggestion as a whole.</param>
-/// <param name="Verdict">Approved or dismissed.</param>
+/// <param name="Verdict">Approved, dismissed or taken back.</param>
 /// <param name="Reason">Why, or <see langword="null"/>.</param>
 public sealed record DecisionRequest(
     HeuristicId Analysis, string FindingKey, string? CandidateKey, CheckVerdict Verdict, string? Reason = null);

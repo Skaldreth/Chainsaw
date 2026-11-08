@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -97,17 +98,61 @@ public sealed partial class GraphCanvas
 
             geometry.Freeze();
             var pen = new Pen(accent, 1 + (2 * line.Score)) { DashStyle = CandidateDash, DashCap = PenLineCap.Round };
-            dc.PushOpacity(line.IsApproved ? 1 : 0.35 + (0.65 * line.Score));
+            dc.PushOpacity(line.IsApproved || line.IsChosen ? 1 : 0.35 + (0.65 * line.Score));
             dc.DrawGeometry(null, pen, geometry);
-            var text = Text(line.ScoreText, 10.5, accent, FontWeights.SemiBold);
-            var middle = curve.Middle;
-            var box = new Rect(
-                middle.X - (text.Width / 2) - 5, middle.Y - (text.Height / 2) - 1, text.Width + 10, text.Height + 2);
-            dc.DrawRoundedRectangle(
-                GraphPalette.Find(this, "Brush.Background"), new Pen(accent, 1) { DashStyle = CandidateDash }, box, 4, 4);
-            dc.DrawText(text, new Point(box.X + 5, box.Y + 1));
+            if (line.Rank > 0)
+            {
+                DrawCandidateMark(dc, line, ToPoint(curve.Middle), accent);
+            }
+            else
+            {
+                DrawScore(dc, line, ToPoint(curve.Middle), accent);
+            }
+
             dc.Pop();
         }
+    }
+
+    /// <summary>
+    /// Draws a candidate's mark in the middle of its line (sketch KF2b): the rank in a ring as the panel's table
+    /// numbers it, filled in accent for the chosen one, or a green check once the user has approved it. The line
+    /// stays dashed all the same: an approved candidate is the user's judgement, never a fact (principle 2).
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="line">The candidate's line.</param>
+    /// <param name="middle">The line's middle.</param>
+    /// <param name="accent">The accent.</param>
+    private void DrawCandidateMark(DrawingContext dc, CandidateLine line, Point middle, Brush accent)
+    {
+        const double Radius = 8;
+        var ground = GraphPalette.Find(this, "Brush.Background");
+        if (line.IsApproved)
+        {
+            var green = GraphPalette.Find(this, "Brush.Success");
+            dc.DrawEllipse(green, new Pen(ground, 1.5), middle, Radius, Radius);
+            DrawGlyph(dc, "Icon.Check", ground, new Point(middle.X - 6, middle.Y - 6), 12);
+            return;
+        }
+
+        dc.DrawEllipse(line.IsChosen ? accent : ground, new Pen(accent, 1.4), middle, Radius, Radius);
+        var ink = line.IsChosen ? GraphPalette.Find(this, "Brush.OnAccent") : accent;
+        var text = Text(line.Rank.ToString(CultureInfo.InvariantCulture), 10, ink, FontWeights.SemiBold);
+        dc.DrawText(text, new Point(middle.X - (text.Width / 2), middle.Y - (text.Height / 2)));
+    }
+
+    /// <summary>Writes a candidate's score in a small dashed box in the middle of its line.</summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="line">The candidate's line.</param>
+    /// <param name="middle">The line's middle.</param>
+    /// <param name="accent">The accent.</param>
+    private void DrawScore(DrawingContext dc, CandidateLine line, Point middle, Brush accent)
+    {
+        var text = Text(line.ScoreText, 10.5, accent, FontWeights.SemiBold);
+        var box = new Rect(
+            middle.X - (text.Width / 2) - 5, middle.Y - (text.Height / 2) - 1, text.Width + 10, text.Height + 2);
+        dc.DrawRoundedRectangle(
+            GraphPalette.Find(this, "Brush.Background"), new Pen(accent, 1) { DashStyle = CandidateDash }, box, 4, 4);
+        dc.DrawText(text, new Point(box.X + 5, box.Y + 1));
     }
 
     /// <summary>
@@ -230,9 +275,10 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
-    /// The keys of the checks and areas, before the graph's own: Esc closes the area form, the menu and the list in
-    /// that order; with the list open J and K step, Enter approves and X dismisses (sketch KF1a); Z draws an own area
-    /// around the chosen actors (sketch KF1b). The question mark comes as text (<see cref="OnTextInput"/>).
+    /// The keys of the checks and areas, before the graph's own: Esc closes the area form, the menu and the panel in
+    /// that order; with a suggestion shown J puts it later in the queue, K steps back, Enter approves and X dismisses,
+    /// and in the overview Enter starts going through the queue (sketch KF2b); Z draws an own area around the chosen
+    /// actors (sketch KF1b). The question mark comes as text (<see cref="OnTextInput"/>); Ctrl+Z is the page's.
     /// </summary>
     /// <param name="key">The key.</param>
     /// <returns><see langword="true"/> when it was the checks' key.</returns>
@@ -255,16 +301,16 @@ public sealed partial class GraphCanvas
                 checks.ClearPicked();
                 checks.ChooseArea(null);
                 return true;
-            case Key.J when checks.IsOpen:
-                checks.Next();
+            case Key.J when checks.IsOpen && checks.IsReview:
+                checks.Later();
                 return true;
-            case Key.K when checks.IsOpen:
+            case Key.K when checks.IsOpen && checks.IsReview:
                 checks.Previous();
                 return true;
-            case Key.Enter when checks.IsOpen:
+            case Key.Enter when checks.IsOpen && !checks.IsSettled:
                 _ = checks.ApproveAsync();
                 return true;
-            case Key.X when checks.IsOpen:
+            case Key.X when checks.IsOpen && checks.IsReview:
                 _ = checks.DismissAsync();
                 return true;
             case Key.Z:
@@ -285,7 +331,7 @@ public sealed partial class GraphCanvas
         key is Key.OemPlus && _model?.Checks.IsOpen == true && (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
 
     /// <summary>
-    /// The question mark asks <em>Varför?</em> about the chosen row while the list is open (sketch KF1a).
+    /// The question mark asks <em>Varför?</em> about the suggestion shown while the panel is open (sketch KF2b).
     /// </summary>
     /// <param name="e">The text.</param>
     protected override void OnTextInput(TextCompositionEventArgs e)

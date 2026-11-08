@@ -9,209 +9,539 @@
              mc:Ignorable="d">
 
     <!--
-      The checks and suggestions (sketch KF1a), folded out where the inspector stands: Att avgöra first, Gjort av sig
-      självt under, then Avgjort. The chosen row folds out its candidates and buttons. J and K step, Enter approves,
-      X dismisses and ? asks why; the keys work in the graph. Only wiring; what happens lives in ChecksViewModel.
+      Kontroller och förslag (sketch KF2b), folded out where the inspector stands: the overview with "Gå igenom N att
+      avgöra", one suggestion at a time with the decision bar at the bottom, or "Allt avgjort" with the ring and the log.
+      K and the arrows step, J is Senare, Enter approves, X dismisses, ? asks why and Ctrl+Z takes back; the keys work in
+      the graph. Only wiring; what happens lives in ChecksViewModel.
     -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
 
-        <!-- A candidate: its score as a bar and a number, its address, and the decision. -->
-        <DataTemplate x:Key="Candidate" DataType="{x:Type vm:CandidateRowViewModel}">
-            <Button Style="{StaticResource Button.MenuItem}" Height="26" Padding="6,0" Focusable="False"
+        <!-- A row in the overview and the log: no frame, a soft surface on hover. -->
+        <Style x:Key="Panel.Row" TargetType="Button">
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="9"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.Floating}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A candidate in the ranked table: a click chooses it; the chosen one stands on the raised surface. -->
+        <Style x:Key="Panel.Candidate" TargetType="Button" BasedOn="{StaticResource Panel.Row}">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="7"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A quiet button with a thin frame: Avfärda and the header's arrows. -->
+        <Style x:Key="Panel.Ghost" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" BorderThickness="1"
+                                BorderBrush="{TemplateBinding BorderBrush}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A group's heading: small capitals with the count. -->
+        <Style x:Key="Panel.GroupName" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- A key hint after a button's text. -->
+        <Style x:Key="Panel.Key" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+            <Setter Property="Margin" Value="7,1,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- A rounded square with the analysis's icon: dashed while it is a suggestion, whole for a check. -->
+        <DataTemplate x:Key="Badge" DataType="{x:Type vm:CheckRowViewModel}">
+            <Grid Width="26" Height="26">
+                <Rectangle x:Name="Frame" RadiusX="7" RadiusY="7" StrokeThickness="1.5"
+                           Stroke="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                <controls:GridIcon Size="13" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
+                                   Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Group}" Value="{x:Static vm:CheckRowGroup.ToDecide}">
+                    <Setter TargetName="Frame" Property="StrokeDashArray" Value="2 1.6" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- A row in the overview: the badge, the title with its short muted word, and the count. -->
+        <DataTemplate x:Key="OverviewRow" DataType="{x:Type vm:CheckRowViewModel}">
+            <Button Style="{StaticResource Panel.Row}"
+                    Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding}" ToolTip="{Binding Summary}">
+                <DockPanel>
+                    <ContentControl DockPanel.Dock="Left" Content="{Binding}" ContentTemplate="{StaticResource Badge}"
+                                    Focusable="False" Margin="0,0,11,0" />
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{StaticResource Brush.TextMuted}" />
+                    <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="13">
+                        <Run Text="{Binding Title, Mode=OneWay}" />
+                        <Run Text="{Binding Short, Mode=OneWay}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                    </TextBlock>
+                </DockPanel>
+            </Button>
+        </DataTemplate>
+
+        <!-- A row in the log of Allt avgjort: the badge, the title, the state with its dot and Ångra on hover. -->
+        <DataTemplate x:Key="LogRow" DataType="{x:Type vm:CheckRowViewModel}">
+            <Border x:Name="Box" Height="40" Padding="8,0" CornerRadius="8" Background="Transparent">
+                <DockPanel>
+                    <ContentControl DockPanel.Dock="Left" Content="{Binding}" ContentTemplate="{StaticResource Badge}"
+                                    Focusable="False" Margin="0,0,11,0" Opacity="0.8" />
+                    <Button x:Name="Undo" DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Ångra"
+                            FontSize="12" Foreground="{StaticResource Brush.TextMuted}" Width="38" Opacity="0"
+                            VerticalAlignment="Center" Margin="8,0,0,0" ToolTip="Ta tillbaka beslutet; det förseglas"
+                            Visibility="{Binding CanUndo, Converter={StaticResource Visible}}"
+                            Command="{Binding DataContext.UndoRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse x:Name="Dot" Width="6" Height="6" Fill="{StaticResource Brush.TextDim}" Margin="0,1,5,0" />
+                        <TextBlock x:Name="State" Text="{Binding StateText}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Title}" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Group}" Value="{x:Static vm:CheckRowGroup.Decided}">
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.TextMuted}" />
+                    <Setter TargetName="State" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsApproved}" Value="True">
+                    <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="State" Property="Foreground" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+                <Trigger SourceName="Box" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.Floating}" />
+                    <Setter TargetName="Undo" Property="Opacity" Value="1" />
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- A chip under the suggestion: what it rests on, the longer text on hover. -->
+        <DataTemplate x:Key="Chip" DataType="{x:Type vm:BasisChip}">
+            <Border Height="22" Padding="6,0,8,0" Margin="0,0,6,6" CornerRadius="6" Background="{StaticResource Brush.SurfaceRaised}"
+                    ToolTip="{Binding Tip}">
+                <StackPanel Orientation="Horizontal">
+                    <controls:GridIcon Size="12" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center"
+                                       Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                    <TextBlock Text="{Binding Label}" FontSize="11.5" Foreground="{StaticResource Brush.TextMuted}"
+                               Margin="5,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- A candidate in the ranked table: rank in a ring, address, amount, time, score as a bar and a number. -->
+        <DataTemplate x:Key="CandidateRow" DataType="{x:Type vm:CandidateRowViewModel}">
+            <Button x:Name="Row" Style="{StaticResource Panel.Candidate}"
                     Command="{Binding DataContext.ChooseCandidateCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}" ToolTip="{Binding Candidate.Reason}">
                 <DockPanel>
-                    <Border x:Name="Bar" DockPanel.Dock="Left" Width="{Binding BarWidth}" Height="4" CornerRadius="2"
-                            Background="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
-                    <TextBlock DockPanel.Dock="Left" Text="{Binding ScoreText}" FontSize="12.5" Margin="6,0,8,0"
-                               Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
-                    <TextBlock x:Name="State" DockPanel.Dock="Right" FontSize="12" VerticalAlignment="Center"
-                               Foreground="{StaticResource Brush.TextDim}" />
-                    <TextBlock x:Name="Address" Text="{Binding ShortAddress}" FontFamily="{StaticResource Font.Mono}"
-                               FontSize="12" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                    <Grid DockPanel.Dock="Left" Width="18" Height="18" Margin="0,0,10,0">
+                        <Ellipse x:Name="Ring" StrokeThickness="1.5" Stroke="{StaticResource Brush.TextFaint}" />
+                        <TextBlock x:Name="Rank" Text="{Binding RankText}" FontSize="10.5" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush.TextMuted}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Width="64" HorizontalAlignment="Right">
+                        <Border Width="28" Height="4" CornerRadius="2" Background="{StaticResource Brush.SurfaceSelected}"
+                                VerticalAlignment="Center" Margin="0,0,6,0">
+                            <Border x:Name="Bar" Width="{Binding BarWidth}" HorizontalAlignment="Left" CornerRadius="2"
+                                    Background="{StaticResource Brush.TextDim}" />
+                        </Border>
+                        <TextBlock x:Name="Score" Text="{Binding ScoreText}" Width="30" TextAlignment="Right" FontSize="12"
+                                   Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding TimeText}" Width="34" TextAlignment="Right" FontSize="12"
+                               Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <TextBlock x:Name="Amount" DockPanel.Dock="Right" Text="{Binding AmountText}" Width="56" TextAlignment="Right"
+                               FontSize="12" Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <TextBlock x:Name="Address" Text="{Binding ShortAddress}" FontFamily="{StaticResource Font.Mono}" FontSize="12"
+                               Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
             </Button>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding IsChosen}" Value="True">
+                    <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+                    <Setter TargetName="Ring" Property="Fill" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Rank" Property="Foreground" Value="{StaticResource Brush.OnAccent}" />
+                    <Setter TargetName="Bar" Property="Background" Value="{StaticResource Brush.Accent}" />
+                    <Setter TargetName="Score" Property="Foreground" Value="{StaticResource Brush.Text}" />
+                    <Setter TargetName="Amount" Property="Foreground" Value="{StaticResource Brush.Text}" />
                     <Setter TargetName="Address" Property="Foreground" Value="{StaticResource Brush.Text}" />
-                    <Setter TargetName="State" Property="Text" Value="vald" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsApproved}" Value="True">
-                    <Setter TargetName="State" Property="Text" Value="godkänd" />
-                    <Setter TargetName="State" Property="Foreground" Value="{StaticResource Brush.Success}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsDismissed}" Value="True">
-                    <Setter TargetName="State" Property="Text" Value="avfärdad" />
                     <Setter TargetName="Address" Property="TextDecorations" Value="Strikethrough" />
-                    <Setter TargetName="Bar" Property="Opacity" Value="0.3" />
+                    <Setter TargetName="Row" Property="Opacity" Value="0.5" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
-        <!-- A row: the icon in a dashed (waits) or whole (done) ring, the title, the line under and the count. -->
-        <DataTemplate x:Key="Row" DataType="{x:Type vm:CheckRowViewModel}">
-            <Border x:Name="Box" CornerRadius="8" Padding="8,7" Margin="0,0,0,3" BorderThickness="1"
-                    BorderBrush="Transparent" Background="Transparent">
-                <StackPanel>
-                    <Button Style="{StaticResource Button.MenuItem}" Height="Auto" Padding="0" Focusable="False"
-                            Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                            CommandParameter="{Binding}">
-                        <DockPanel>
-                            <Grid DockPanel.Dock="Left" Width="24" Height="24" VerticalAlignment="Top" Margin="0,1,9,0">
-                                <Ellipse x:Name="Ring" StrokeThickness="1.2"
-                                         Stroke="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
-                                <controls:GridIcon Size="12" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                   Foreground="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
-                                                   Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
-                            </Grid>
-                            <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="13" VerticalAlignment="Top"
-                                       Foreground="{StaticResource Brush.Accent}" Margin="6,2,0,0" />
-                            <StackPanel>
-                                <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding Summary}" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}"
-                                           TextWrapping="Wrap" Margin="0,2,0,0" />
-                            </StackPanel>
-                        </DockPanel>
-                    </Button>
-                    <StackPanel x:Name="Open" Visibility="Collapsed" Margin="33,8,0,0">
-                        <ItemsControl ItemsSource="{Binding Candidates}" ItemTemplate="{StaticResource Candidate}" Focusable="False" />
-                        <TextBox x:Name="Reason" Style="{StaticResource TextBox.Field}" Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}"
-                                 Margin="0,6,0,0" Height="28" FontSize="13" ToolTip="Skäl, valfritt"
-                                 Visibility="{Binding CanDecide, Converter={StaticResource Visible}}"
-                                 AutomationProperties.Name="Skäl, valfritt">
-                            <TextBox.InputBindings>
-                                <KeyBinding Key="Enter" Command="{Binding DataContext.ApproveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                            </TextBox.InputBindings>
-                        </TextBox>
-                        <DockPanel Margin="0,8,0,0">
-                            <TextBlock DockPanel.Dock="Left" Text="{Binding AnalysisText}" FontSize="12" VerticalAlignment="Center"
-                                       Foreground="{StaticResource Brush.TextDim}" />
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Style="{StaticResource Button.Graph}" Height="26" Padding="9,0" Margin="0,0,6,0"
-                                        Focusable="False" ToolTip="Enter"
-                                        Command="{Binding DataContext.ApproveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding GoText}" FontSize="13" />
-                                        <TextBlock Text="Enter" FontSize="11.5" Margin="6,1,0,0" Foreground="{StaticResource Brush.TextDim}" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource Button.Graph}" Height="26" Padding="9,0" Margin="0,0,6,0"
-                                        Focusable="False" ToolTip="Avfärda · X" AutomationProperties.Name="Avfärda"
-                                        Visibility="{Binding CanDecide, Converter={StaticResource Visible}}"
-                                        Command="{Binding DataContext.DismissCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Avfärda" FontSize="13" />
-                                        <TextBlock Text="X" FontSize="11.5" Margin="6,1,0,0" Foreground="{StaticResource Brush.TextDim}" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource Button.Icon}" Width="26" Height="26" Focusable="False"
-                                        ToolTip="Varför? · ?" AutomationProperties.Name="Varför?"
-                                        Command="{Binding DataContext.AskWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                                    <controls:GridIcon Size="14" Foreground="{StaticResource Brush.Accent}" Data="{StaticResource Icon.Why}" />
-                                </Button>
-                            </StackPanel>
-                        </DockPanel>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+        <!-- A segment of the progress bar: green when decided, accent now, faint left. -->
+        <DataTemplate x:Key="Segment" DataType="{x:Type vm:ProgressSegment}">
+            <Border x:Name="Bar" Height="3" CornerRadius="2" Margin="2,0" ToolTip="{Binding Tip}"
+                    Background="{StaticResource Brush.SurfaceSelected}" />
             <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding IsSuggestion}" Value="True">
-                    <Setter TargetName="Ring" Property="StrokeDashArray" Value="2.5 2" />
+                <DataTrigger Binding="{Binding State}" Value="{x:Static vm:SegmentState.Decided}">
+                    <Setter TargetName="Bar" Property="Background" Value="{StaticResource Brush.Success}" />
                 </DataTrigger>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
-                    <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
-                    <Setter TargetName="Open" Property="Visibility" Value="Visible" />
+                <DataTrigger Binding="{Binding State}" Value="{x:Static vm:SegmentState.Current}">
+                    <Setter TargetName="Bar" Property="Background" Value="{StaticResource Brush.Accent}" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
-
-        <!-- A group's heading: a dashed or whole dot, the name and the count. -->
-        <Style x:Key="GroupName" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12.5" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
-            <Setter Property="Margin" Value="8,0,0,6" />
-        </Style>
     </UserControl.Resources>
 
     <DockPanel Background="{StaticResource Brush.Surface}">
-        <!-- The keys, at the bottom. -->
-        <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0" Padding="16,9">
-            <StackPanel>
-                <TextBlock FontSize="12" Foreground="{StaticResource Brush.TextDim}"
-                           Text="J K stega · Enter godkänn · X avfärda · ? varför" />
-                <TextBlock FontSize="12" Foreground="{StaticResource Brush.TextDim}" Margin="0,4,0,0"
-                           Text="{Binding StatusText}" TextWrapping="Wrap" />
+        <!-- The header: Förslag, and in a suggestion where it is in the round with the arrows; then close. -->
+        <DockPanel DockPanel.Dock="Top" Height="56" Margin="22,0,12,0">
+            <Button DockPanel.Dock="Right" Style="{StaticResource Panel.Ghost}" Width="30" Height="30"
+                    BorderBrush="Transparent" ToolTip="Stäng · Esc" AutomationProperties.Name="Stäng"
+                    Command="{Binding ToggleCommand}">
+                <controls:GridIcon Size="15" Data="{StaticResource Icon.Close}"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+            </Button>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                        Visibility="{Binding IsReview, Converter={StaticResource Visible}}">
+                <TextBlock Text="{Binding PositionText}" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}"
+                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                <Button Style="{StaticResource Panel.Ghost}" Width="28" Height="28" ToolTip="Föregående · K"
+                        AutomationProperties.Name="Föregående" Command="{Binding PreviousCommand}">
+                    <controls:GridIcon Size="13" Data="{StaticResource Icon.ChevronRight}" RenderTransformOrigin="0.5,0.5"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}">
+                        <controls:GridIcon.RenderTransform>
+                            <ScaleTransform ScaleX="-1" />
+                        </controls:GridIcon.RenderTransform>
+                    </controls:GridIcon>
+                </Button>
+                <Button Style="{StaticResource Panel.Ghost}" Width="28" Height="28" Margin="8,0,0,0" ToolTip="Nästa"
+                        AutomationProperties.Name="Nästa" Command="{Binding NextCommand}">
+                    <controls:GridIcon Size="13" Data="{StaticResource Icon.ChevronRight}"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                </Button>
+                <Border Width="1" Height="18" Background="{StaticResource Brush.BorderStrong}" Margin="8,0,2,0" />
             </StackPanel>
-        </Border>
+            <TextBlock Text="Förslag" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
+                       ToolTip="{Binding StatusText}" />
+        </DockPanel>
 
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
-            <StackPanel Margin="10,16,10,12">
-                <DockPanel Margin="8,0,0,12">
-                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Width="26" Height="26"
-                            ToolTip="Stäng · Ctrl+J" AutomationProperties.Name="Stäng" Command="{Binding ToggleCommand}">
-                        <controls:GridIcon Size="14" Data="{StaticResource Icon.Close}"
-                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </Button>
-                    <TextBlock Text="Kontroller och förslag" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
-                </DockPanel>
-                <TextBlock Text="{Binding Problem}" FontSize="12.5" Foreground="{StaticResource Brush.Error}" TextWrapping="Wrap"
-                           Margin="8,0,0,10">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Style.Triggers>
-                                <Trigger Property="Text" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-
-                <StackPanel Orientation="Horizontal">
-                    <Ellipse Width="8" Height="8" Stroke="{StaticResource Brush.Accent}" StrokeDashArray="2 1.5" Margin="8,0,0,6" />
-                    <TextBlock Style="{StaticResource GroupName}" Text="Att avgöra" />
-                    <TextBlock Style="{StaticResource GroupName}" Text="{Binding ToDecide.Count}" Foreground="{StaticResource Brush.TextDim}" />
-                </StackPanel>
-                <ItemsControl ItemsSource="{Binding ToDecide}" ItemTemplate="{StaticResource Row}" Focusable="False" />
-                <TextBlock Text="Inget väntar på beslut." FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" Margin="8,0,0,8">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
+        <!-- What went wrong, honestly, only when something did. -->
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Problem}" FontSize="12.5" Foreground="{StaticResource Brush.Error}"
+                   TextWrapping="Wrap" Margin="22,0,22,10">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Style.Triggers>
+                        <Trigger Property="Text" Value="">
                             <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ToDecide.Count}" Value="0">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
 
-                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                    <Ellipse Width="8" Height="8" Stroke="{StaticResource Brush.TextDim}" Margin="8,0,0,6" />
-                    <TextBlock Style="{StaticResource GroupName}" Text="Gjort av sig självt" />
-                    <TextBlock Style="{StaticResource GroupName}" Text="{Binding Done.Count}" Foreground="{StaticResource Brush.TextDim}" />
-                </StackPanel>
-                <ItemsControl ItemsSource="{Binding Done}" ItemTemplate="{StaticResource Row}" Focusable="False" />
+        <Grid>
+            <!-- ===== One suggestion at a time ===== -->
+            <DockPanel Visibility="{Binding IsReview, Converter={StaticResource Visible}}">
+                <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Segments}" ItemTemplate="{StaticResource Segment}"
+                              Focusable="False" Margin="20,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="1" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
 
-                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Decided.Count}" Value="0">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
-                    <Ellipse Width="8" Height="8" Fill="{StaticResource Brush.TextDim}" Margin="8,0,0,6" />
-                    <TextBlock Style="{StaticResource GroupName}" Text="Avgjort" />
-                    <TextBlock Style="{StaticResource GroupName}" Text="{Binding Decided.Count}" Foreground="{StaticResource Brush.TextDim}" />
+                <!-- The decision bar, fixed at the bottom in the order Avfärda, Senare, Godkänn. -->
+                <Border DockPanel.Dock="Bottom" Background="{StaticResource Brush.Floating}" BorderBrush="{StaticResource Brush.Border}"
+                        BorderThickness="0,1,0,0" Padding="22,14,22,18">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="1.5*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Style="{StaticResource Panel.Ghost}" Height="40" Margin="0,0,4,0"
+                                    ToolTip="Avfärda förslaget · X" AutomationProperties.Name="Avfärda" Command="{Binding DismissCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Avfärda" />
+                                    <TextBlock Text="X" Style="{StaticResource Panel.Key}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="1" Style="{StaticResource Panel.Ghost}" Height="40" Margin="4,0"
+                                    BorderBrush="Transparent" ToolTip="Vänta med beslutet; förslaget läggs sist i kön · J"
+                                    AutomationProperties.Name="Senare" Command="{Binding LaterCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Senare" />
+                                    <TextBlock Text="J" Style="{StaticResource Panel.Key}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="2" Style="{StaticResource Button.Primary}" Height="40" Padding="0" Margin="4,0,0,0"
+                                    Focusable="False" ToolTip="Godkänn den valda · Enter" AutomationProperties.Name="Godkänn"
+                                    Command="{Binding ApproveCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Check}" Foreground="{StaticResource Brush.OnAccent}"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="{Binding Selected.GoText}" FontSize="13.5" VerticalAlignment="Center" />
+                                    <TextBlock Text="Enter" Style="{StaticResource Panel.Key}" FontWeight="Normal"
+                                               Foreground="{StaticResource Brush.OnAccent}" Opacity="0.7" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <Button Style="{StaticResource Button.Link}" Content="+ Skäl, frivilligt" FontSize="12" Margin="0,10,0,0"
+                                Foreground="{StaticResource Brush.TextDim}" Focusable="False"
+                                ToolTip="Skälet är frivilligt och sparas med beslutet" Command="{Binding ToggleReasonCommand}" />
+                        <TextBox Style="{StaticResource TextBox.Field}" Text="{Binding Selected.Reason, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,8,0,0" Height="30" FontSize="13" Tag="Skäl, frivilligt" AutomationProperties.Name="Skäl, frivilligt"
+                                 Visibility="{Binding IsReasonOpen, Converter={StaticResource Visible}}">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter" Command="{Binding ApproveCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                    </StackPanel>
+                </Border>
+
+                <!-- Gjort av sig självt, folded into one line; a click shows the overview. -->
+                <Button DockPanel.Dock="Bottom" Style="{StaticResource Panel.Row}" Height="38" Padding="22,0"
+                        Visibility="{Binding HasDone, Converter={StaticResource Visible}}"
+                        ToolTip="Kontroller som gjorde sitt av sig själva" Command="{Binding ShowOverviewCommand}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Box" Background="Transparent" BorderBrush="{StaticResource Brush.Border}"
+                                    BorderThickness="0,1,0,0" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.Floating}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <DockPanel>
+                        <controls:GridIcon DockPanel.Dock="Left" Size="13" Data="{StaticResource Icon.Check}"
+                                           Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <controls:GridIcon DockPanel.Dock="Right" Size="13" Data="{StaticResource Icon.ChevronRight}"
+                                           Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding DoneCountText}" FontSize="12"
+                                   Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        <TextBlock Text="Gjort av sig självt" FontSize="12" Foreground="{StaticResource Brush.TextMuted}"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                </Button>
+
+                <!-- The suggestion, large. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <StackPanel DataContext="{Binding Selected}" Margin="22,22,22,16">
+                        <DockPanel>
+                            <Grid DockPanel.Dock="Left" Width="42" Height="42" Margin="0,0,14,0">
+                                <Rectangle RadiusX="11" RadiusY="11" StrokeThickness="1.5" StrokeDashArray="2.5 2"
+                                           Stroke="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                                <controls:GridIcon Size="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
+                                                   Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                            </Grid>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Meta}" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}"
+                                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0" ToolTip="{Binding Summary}" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <controls:SuggestionFlowPicture Flow="{Binding Flow}" Margin="0,16,0,0"
+                                                        Visibility="{Binding HasCandidates, Converter={StaticResource Visible}}" />
+
+                        <ItemsControl ItemsSource="{Binding Basis}" ItemTemplate="{StaticResource Chip}" Focusable="False"
+                                      Margin="0,16,0,-6" Visibility="{Binding HasBasis, Converter={StaticResource Visible}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+
+                        <Border CornerRadius="10" BorderThickness="1" BorderBrush="{StaticResource Brush.Border}" Padding="4"
+                                Margin="0,16,0,0" Visibility="{Binding HasCandidates, Converter={StaticResource Visible}}">
+                            <StackPanel>
+                                <DockPanel Height="24" Margin="10,0">
+                                    <TextBlock DockPanel.Dock="Right" Text="POÄNG" Width="64" TextAlignment="Right" FontSize="10.5"
+                                               Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Words.TimeColumn}" Width="34" TextAlignment="Right"
+                                               FontSize="10.5" Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center"
+                                               Margin="10,0,0,0" />
+                                    <TextBlock DockPanel.Dock="Right" Text="BELOPP" Width="56" TextAlignment="Right" FontSize="10.5"
+                                               Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                    <TextBlock Text="{Binding Words.FirstColumn}" FontSize="10.5" Foreground="{StaticResource Brush.TextDim}"
+                                               VerticalAlignment="Center" Margin="28,0,0,0" />
+                                </DockPanel>
+                                <ItemsControl ItemsSource="{Binding Candidates}" ItemTemplate="{StaticResource CandidateRow}"
+                                              Focusable="False" />
+                            </StackPanel>
+                        </Border>
+
+                        <DockPanel Margin="0,16,0,0">
+                            <Button DockPanel.Dock="Left" Style="{StaticResource Panel.Row}" Height="24" Padding="0,0,6,0"
+                                    Background="Transparent" ToolTip="Öppnar Guiden bredvid · ?" AutomationProperties.Name="Varför?"
+                                    Command="{Binding DataContext.AskWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Grid Width="18" Height="18" Margin="0,0,6,0">
+                                        <Ellipse Stroke="{StaticResource Brush.BorderHover}" StrokeThickness="1" />
+                                        <controls:GridIcon Size="12" Data="{StaticResource Icon.Question}"
+                                                           Foreground="{StaticResource Brush.TextMuted}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <TextBlock Text="Varför?" FontSize="12" Foreground="{StaticResource Brush.TextMuted}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="{Binding AnalysisText}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       ToolTip="Analysen och dess version; förslaget är en bedömning, aldrig ett faktum" />
+                        </DockPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+
+            <!-- ===== The overview ===== -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False"
+                          Visibility="{Binding IsOverview, Converter={StaticResource Visible}}">
+                <StackPanel Margin="12,4,12,12">
+                    <Button Style="{StaticResource Button.Primary}" Height="44" Padding="14,0" Margin="10,4,10,14"
+                            HorizontalContentAlignment="Stretch" Focusable="False" ToolTip="Ett förslag i taget · Enter"
+                            Command="{Binding StartReviewCommand}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="11"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.AccentHover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <DockPanel>
+                            <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.ChevronRight}"
+                                               Foreground="{StaticResource Brush.OnAccent}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock DockPanel.Dock="Right" Text="Enter" FontSize="11" FontWeight="Normal" Opacity="0.7"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding StartText}" FontSize="13.5" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </Button>
+
+                    <StackPanel Orientation="Horizontal" Height="30" Margin="10,0">
+                        <Ellipse Width="7" Height="7" Stroke="{StaticResource Brush.Accent}" StrokeThickness="1.5" StrokeDashArray="1.5 1.2"
+                                 VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Style="{StaticResource Panel.GroupName}" Text="ATT AVGÖRA" />
+                        <TextBlock Style="{StaticResource Panel.GroupName}" Text="{Binding ToDecide.Count}" FontWeight="Normal"
+                                   Margin="6,0,0,0" />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding ToDecide}" ItemTemplate="{StaticResource OverviewRow}" Focusable="False" />
+
+                    <StackPanel Orientation="Horizontal" Height="30" Margin="10,4,10,0"
+                                Visibility="{Binding HasDone, Converter={StaticResource Visible}}">
+                        <Ellipse Width="7" Height="7" Stroke="{StaticResource Brush.TextDim}" StrokeThickness="1.5"
+                                 VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Style="{StaticResource Panel.GroupName}" Text="GJORT AV SIG SJÄLVT" />
+                        <TextBlock Style="{StaticResource Panel.GroupName}" Text="{Binding DoneCountText}" FontWeight="Normal"
+                                   Margin="6,0,0,0" />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding Done}" ItemTemplate="{StaticResource OverviewRow}" Focusable="False" />
                 </StackPanel>
-                <ItemsControl ItemsSource="{Binding Decided}" ItemTemplate="{StaticResource Row}" Focusable="False" Opacity="0.75" />
-            </StackPanel>
-        </ScrollViewer>
+            </ScrollViewer>
+
+            <!-- ===== Allt avgjort ===== -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False"
+                          Visibility="{Binding IsSettled, Converter={StaticResource Visible}}">
+                <StackPanel Margin="22,40,22,12">
+                    <Grid Width="76" Height="76" HorizontalAlignment="Center">
+                        <controls:SegmentRing Segments="{Binding Ring}" />
+                        <controls:GridIcon Size="28" Data="{StaticResource Icon.Check}" Foreground="{StaticResource Brush.Text}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock Text="Allt avgjort" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                    <TextBlock Text="{Binding SettledText}" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,10,0,0" />
+
+                    <StackPanel Margin="0,26,0,0" Visibility="{Binding HasDecided, Converter={StaticResource Visible}}">
+                        <StackPanel Orientation="Horizontal" Height="30">
+                            <TextBlock Style="{StaticResource Panel.GroupName}" Text="AVGJORT" />
+                            <TextBlock Style="{StaticResource Panel.GroupName}" Text="{Binding Decided.Count}" FontWeight="Normal"
+                                       Margin="6,0,0,0" />
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding Decided}" ItemTemplate="{StaticResource LogRow}" Focusable="False" />
+                    </StackPanel>
+
+                    <StackPanel Margin="0,4,0,0" Visibility="{Binding HasDone, Converter={StaticResource Visible}}">
+                        <StackPanel Orientation="Horizontal" Height="30">
+                            <TextBlock Style="{StaticResource Panel.GroupName}" Text="GJORT AV SIG SJÄLVT" />
+                            <TextBlock Style="{StaticResource Panel.GroupName}" Text="{Binding DoneCountText}" FontWeight="Normal"
+                                       Margin="6,0,0,0" />
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding Done}" ItemTemplate="{StaticResource LogRow}" Focusable="False" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
     </DockPanel>
 </UserControl>

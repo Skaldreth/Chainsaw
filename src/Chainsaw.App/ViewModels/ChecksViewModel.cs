@@ -37,7 +37,41 @@ public sealed record HereLine(string Title, string State, AreaLook Look, bool Is
 /// <param name="Score">The score, from 0 to 1.</param>
 /// <param name="ScoreText">The score as written on the line, for example <c>0,82</c>.</param>
 /// <param name="IsApproved">Whether the user approved it; it stays dashed, as the user's judgement.</param>
-public sealed record CandidateLine(string From, string To, double Score, string ScoreText, bool IsApproved);
+/// <param name="Rank">The candidate's rank in its suggestion, from 1, as the panel's table numbers it.</param>
+/// <param name="IsChosen">Whether it is the candidate the panel's Enter approves now.</param>
+public sealed record CandidateLine(
+    string From, string To, double Score, string ScoreText, bool IsApproved, int Rank = 0, bool IsChosen = false);
+
+/// <summary>What the panel shows (sketch KF2b).</summary>
+public enum ChecksMode
+{
+    /// <summary><em>Översikt</em>: a short list with <em>Gå igenom N att avgöra</em>.</summary>
+    Overview,
+
+    /// <summary>One suggestion at a time, with the decision bar at the bottom.</summary>
+    Review,
+
+    /// <summary><em>Allt avgjort</em>: the ring, a summary line and the log of the decisions.</summary>
+    Settled,
+}
+
+/// <summary>Where a suggestion in the round stands, as a segment of the progress bar.</summary>
+public enum SegmentState
+{
+    /// <summary>Decided (green).</summary>
+    Decided,
+
+    /// <summary>The one shown now (accent).</summary>
+    Current,
+
+    /// <summary>Left to decide (faint).</summary>
+    Left,
+}
+
+/// <summary>A segment of the progress bar at the top of the panel.</summary>
+/// <param name="State">Decided, shown now or left.</param>
+/// <param name="Tip">What it is, on hover.</param>
+public sealed record ProgressSegment(SegmentState State, string Tip);
 
 /// <summary>A sort the form for an own area offers.</summary>
 /// <param name="Sort">The sort.</param>
@@ -71,9 +105,10 @@ public enum AreaFormMode
 }
 
 /// <summary>
-/// The checks and suggestions (sketch KF1a) and the areas behind the actors (sketch KF1b) for the graph shown: runs
-/// the analyses in the background when the graph is read, lists them in <em>Att avgöra</em>, <em>Gjort av sig
-/// självt</em> and <em>Avgjort</em>, seals the user's decisions, and draws, names and removes the user's own areas.
+/// The checks and suggestions (sketch KF2b) and the areas behind the actors (sketch KF1b) for the graph shown: runs
+/// the analyses in the background when the graph is read, shows the suggestions one at a time as a queue, seals the
+/// user's decisions (approve, dismiss and take back) through the Checks module, keeps <em>Senare</em> in memory only,
+/// and draws, names and removes the user's own areas.
 /// It knows nothing of WPF, so that it is tested in Chainsaw.App.Tests.
 /// </summary>
 /// <remarks>
@@ -93,6 +128,9 @@ public sealed partial class ChecksViewModel : ObservableObject
 
     /// <summary>What the form says when the own area it renames or removes is gone already.</summary>
     public const string GoneText = "Ytan finns inte längre i ärendet.";
+
+    /// <summary>The toast's action that takes a decision back.</summary>
+    public const string UndoText = "Ångra · Ctrl+Z";
 
     /// <summary>What the form says when no actor is chosen.</summary>
     public const string PickFirstText = "Välj aktörer först: Ctrl+klick, sedan Z.";
@@ -138,6 +176,18 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>The actor the inspector shows, whose <em>Här</em> follows the checks.</summary>
     private string? _inspected;
 
+    /// <summary>The queue's order of the suggestions that wait; <em>Senare</em> moves one to the back.</summary>
+    private readonly List<string> _order = [];
+
+    /// <summary>The suggestions of this round through the queue, by key, for the progress bar.</summary>
+    private readonly List<string> _round = [];
+
+    /// <summary>The decisions the last approve or dismiss made, which Ctrl+Z takes back; null when none.</summary>
+    private IReadOnlyList<DecisionRequest>? _undo;
+
+    /// <summary>When the checks last ran, or <see langword="null"/>.</summary>
+    private DateTimeOffset? _ranUtc;
+
     /// <summary>The areas drawn now, worked out when something changes rather than on every drawing.</summary>
     private IReadOnlyList<AreaView> _areas = [];
 
@@ -165,12 +215,64 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>Raised when a row asks the graph to show its actors (a check's <em>Visa i grafen</em>).</summary>
     public event EventHandler<IReadOnlyList<string>>? ShowWanted;
 
+    /// <summary>Raised when a decision is stored, for a toast with <em>Ångra</em> (sketch TO1a).</summary>
+    public event EventHandler<ToastRequest>? ToastWanted;
+
     /// <summary>Gets or sets the time zone the time areas are written in; the computer's by default.</summary>
     public TimeZoneInfo TimeZone { get; set; } = TimeZoneInfo.Local;
 
-    /// <summary>Gets whether the list is folded out where the inspector stands (Ctrl+J).</summary>
+    /// <summary>Gets whether the panel is folded out where the inspector stands (Ctrl+J).</summary>
     [ObservableProperty]
     public partial bool IsOpen { get; private set; }
+
+    /// <summary>Gets what the panel shows.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOverview), nameof(IsReview), nameof(IsSettled))]
+    public partial ChecksMode Mode { get; private set; }
+
+    /// <summary>Gets whether the panel shows the overview.</summary>
+    public bool IsOverview => Mode == ChecksMode.Overview;
+
+    /// <summary>Gets whether the panel shows one suggestion at a time.</summary>
+    public bool IsReview => Mode == ChecksMode.Review;
+
+    /// <summary>Gets whether the panel says that all is decided.</summary>
+    public bool IsSettled => Mode == ChecksMode.Settled;
+
+    /// <summary>Gets the progress bar's segments: one per suggestion in this round.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<ProgressSegment> Segments { get; private set; } = [];
+
+    /// <summary>Gets where in the round the shown suggestion is, for example <c>1 av 3</c>.</summary>
+    [ObservableProperty]
+    public partial string PositionText { get; private set; } = string.Empty;
+
+    /// <summary>Gets the ring's segments when all is decided: approved (green) or dismissed (faint).</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<bool> Ring { get; private set; } = [];
+
+    /// <summary>Gets the line under <em>Allt avgjort</em>, for example <c>2 godkända · 1 avfärdad · …</c>.</summary>
+    [ObservableProperty]
+    public partial string SettledText { get; private set; } = string.Empty;
+
+    /// <summary>Gets whether the optional reason's field is folded out (<em>+ Skäl, frivilligt</em>).</summary>
+    [ObservableProperty]
+    public partial bool IsReasonOpen { get; private set; }
+
+    /// <summary>Gets the overview's button, for example <c>Gå igenom 3 att avgöra</c>.</summary>
+    public string StartText => $"Gå igenom {WaitingCount.ToString(CultureInfo.InvariantCulture)} att avgöra";
+
+    /// <summary>Gets how many checks did their work by themselves, for the folded line.</summary>
+    public string DoneCountText => Done.Count.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Gets whether anything did its work by itself, so that the folded line shows.</summary>
+    public bool HasDone => Done.Count > 0;
+
+    /// <summary>Gets whether the user has decided anything, so that the log's group shows.</summary>
+    public bool HasDecided => Decided.Count > 0;
+
+    /// <summary>Gets whether Ctrl+Z takes back a decision now.</summary>
+    public bool CanUndoLast => _undo is not null;
 
     /// <summary>Gets the rows that wait for a decision (<em>Att avgöra</em>).</summary>
     public ObservableCollection<CheckRowViewModel> ToDecide { get; } = [];
@@ -185,10 +287,14 @@ public sealed partial class ChecksViewModel : ObservableObject
     [ObservableProperty]
     public partial CheckRowViewModel? Selected { get; private set; }
 
-    /// <summary>Gets how many decisions wait, for the button <em>Förslag · N</em>.</summary>
+    /// <summary>Gets how many suggestions wait for a decision, for the button <em>Förslag · N</em>.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ButtonText), nameof(HasWaiting), nameof(ToolTipText))]
+    [NotifyPropertyChangedFor(
+        nameof(ButtonText), nameof(HasWaiting), nameof(ToolTipText), nameof(WaitingText), nameof(StartText))]
     public partial int WaitingCount { get; private set; }
+
+    /// <summary>Gets the count on the button's badge.</summary>
+    public string WaitingText => WaitingCount.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>Gets whether something waits for the user, so that the corner's icon carries a dot.</summary>
     public bool HasWaiting => WaitingCount > 0;
@@ -225,7 +331,7 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// when the list is closed or no row is chosen.
     /// </summary>
     public IReadOnlySet<string>? Focus =>
-        IsOpen && Selected is { } row ? row.Nodes.ToHashSet(StringComparer.Ordinal) : null;
+        IsOpen && IsReview && Selected is { } row ? row.Nodes.ToHashSet(StringComparer.Ordinal) : null;
 
     /// <summary>Gets the actors chosen with Ctrl+click, for an own area.</summary>
     public IReadOnlyList<string> Picked => _picked;
@@ -325,20 +431,22 @@ public sealed partial class ChecksViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsBusy { get; private set; }
 
-    /// <summary>Folds the list out or in (Ctrl+J).</summary>
+    /// <summary>
+    /// Folds the panel out or in (Ctrl+J): out at the overview while something waits, else at <em>Allt avgjort</em>.
+    /// </summary>
     [RelayCommand]
     public void Toggle()
     {
         IsOpen = !IsOpen;
-        if (IsOpen && Selected is null)
+        if (IsOpen)
         {
-            Select(ToDecide.FirstOrDefault() ?? Done.FirstOrDefault());
+            ShowOverview();
         }
 
         RaiseChanged();
     }
 
-    /// <summary>Folds the list in.</summary>
+    /// <summary>Folds the panel in.</summary>
     public void Close()
     {
         if (IsOpen)
@@ -348,53 +456,130 @@ public sealed partial class ChecksViewModel : ObservableObject
         }
     }
 
-    /// <summary>Chooses a row; the graph tones down the rest and shows its area.</summary>
-    /// <param name="row">The row, or <see langword="null"/>.</param>
+    /// <summary>Shows the overview, or <em>Allt avgjort</em> when nothing waits (the folded line's click).</summary>
+    [RelayCommand]
+    public void ShowOverview()
+    {
+        Mode = ToDecide.Count > 0 ? ChecksMode.Overview : ChecksMode.Settled;
+        Choose(null);
+    }
+
+    /// <summary>
+    /// Starts going through the queue (<em>Gå igenom N att avgöra</em>, Enter in the overview), at a row or at the
+    /// first that waits.
+    /// </summary>
+    /// <param name="row">The row to start at, or <see langword="null"/> for the first.</param>
+    [RelayCommand]
+    public void StartReview(CheckRowViewModel? row)
+    {
+        if (ToDecide.Count == 0)
+        {
+            return;
+        }
+
+        _round.Clear();
+        _round.AddRange(ToDecide.Select(each => each.Key));
+        IsOpen = true;
+        Mode = ChecksMode.Review;
+        Choose(row is { CanDecide: true } ? row : ToDecide[0]);
+    }
+
+    /// <summary>
+    /// A row in the overview or the log was clicked: a suggestion that waits is gone through from there; a check
+    /// shows its actors in the graph.
+    /// </summary>
+    /// <param name="row">The row.</param>
     [RelayCommand]
     public void Select(CheckRowViewModel? row)
     {
-        foreach (var each in Rows())
+        if (row is { CanDecide: true })
         {
-            each.IsSelected = each == row;
+            StartReview(row);
         }
-
-        Selected = row;
-        RaiseChanged();
+        else if (row is not null)
+        {
+            ShowWanted?.Invoke(this, row.Nodes);
+        }
     }
 
-    /// <summary>Steps to the next row (J), from the top of <em>Att avgöra</em> down.</summary>
+    /// <summary>Steps to the next suggestion that waits, in the round's order (the header's arrow).</summary>
     [RelayCommand]
     public void Next() => Step(1);
 
-    /// <summary>Steps to the row before (K).</summary>
+    /// <summary>Steps to the suggestion before (K).</summary>
     [RelayCommand]
     public void Previous() => Step(-1);
 
-    /// <summary>Chooses the candidate Enter and X decide in the chosen row.</summary>
+    /// <summary>
+    /// <em>Senare</em> (J): moves the shown suggestion to the back of the queue without deciding anything, and shows
+    /// the next. Nothing is written in the case.
+    /// </summary>
+    [RelayCommand]
+    public void Later()
+    {
+        if (!IsReview || Selected is not { } row)
+        {
+            return;
+        }
+
+        var at = _round.IndexOf(row.Key);
+        _round.Remove(row.Key);
+        _round.Add(row.Key);
+        _order.Remove(row.Key);
+        _order.Add(row.Key);
+        Reorder();
+        Choose(NextWaiting(Math.Max(0, at)) ?? row);
+    }
+
+    /// <summary>Chooses the candidate Enter approves in the shown suggestion (a click in the table).</summary>
     /// <param name="candidate">The candidate.</param>
     [RelayCommand]
-    public void ChooseCandidate(CandidateRowViewModel candidate) => Selected?.Choose(candidate);
+    public void ChooseCandidate(CandidateRowViewModel candidate)
+    {
+        Selected?.Choose(candidate);
+        RaiseChanged();
+    }
+
+    /// <summary>Folds the optional reason's field out or in (<em>+ Skäl, frivilligt</em>).</summary>
+    [RelayCommand]
+    public void ToggleReason() => IsReasonOpen = !IsReasonOpen;
 
     /// <summary>
-    /// Enter: approves the chosen row's chosen candidate, or the suggestion; for a check, shows its actors.
+    /// Enter: in the overview starts going through the queue; in a suggestion approves its chosen candidate, or the
+    /// whole when it has none.
     /// </summary>
     /// <returns>A task that completes when the decision is stored and the checks read again.</returns>
     [RelayCommand]
     public Task ApproveAsync()
     {
-        if (Selected is { CanDecide: false } check)
+        if (IsOpen && IsOverview)
         {
-            ShowWanted?.Invoke(this, check.Nodes);
+            StartReview(null);
             return Task.CompletedTask;
         }
 
-        return DecideAsync(CheckVerdict.Approved);
+        return IsReview && Selected?.ApproveRequest() is { } request ? DecideAsync([request]) : Task.CompletedTask;
     }
 
-    /// <summary>X: dismisses the chosen row's chosen candidate, or the suggestion.</summary>
+    /// <summary>X: dismisses the shown suggestion as a whole.</summary>
     /// <returns>A task that completes when the decision is stored and the checks read again.</returns>
     [RelayCommand]
-    public Task DismissAsync() => DecideAsync(CheckVerdict.Dismissed);
+    public Task DismissAsync() =>
+        IsReview && Selected?.DismissRequest() is { } request ? DecideAsync([request]) : Task.CompletedTask;
+
+    /// <summary>Ctrl+Z, or the toast's <em>Ångra</em>: takes back the last decision, sealed in the case.</summary>
+    /// <returns>A task that completes when it is stored and the checks read again.</returns>
+    [RelayCommand]
+    public Task UndoAsync() => _undo is { } last ? TakeBackAsync(last) : Task.CompletedTask;
+
+    /// <summary><em>Ångra</em> on a row in the log: takes back every decision in force about it.</summary>
+    /// <param name="row">The row.</param>
+    /// <returns>A task that completes when it is stored and the checks read again.</returns>
+    [RelayCommand]
+    public Task UndoRowAsync(CheckRowViewModel? row) =>
+        row is { CanUndo: true } && row.UndoRequests() is { Count: > 0 } requests
+            ? TakeBackAsync(requests)
+            : Task.CompletedTask;
 
     /// <summary>?: asks the Guide why, with the row's answer and its candidates on top.</summary>
     [RelayCommand]
@@ -486,10 +671,10 @@ public sealed partial class ChecksViewModel : ObservableObject
     {
         ChosenArea = area;
         if (AllAreas.FirstOrDefault(a => a.Key == area) is { CheckKey: { } check }
-            && Rows().FirstOrDefault(row => row.Key == check) is { } row)
+            && ToDecide.FirstOrDefault(row => row.Key == check) is { } row)
         {
-            IsOpen = true;
-            Select(row);
+            StartReview(row);
+            RaiseChanged();
             return;
         }
 
@@ -619,6 +804,7 @@ public sealed partial class ChecksViewModel : ObservableObject
 
             _own = own;
             _checks = run.Checks;
+            _ranUtc = run.RanUtc;
             StatusText = string.Create(
                 CultureInfo.InvariantCulture,
                 $"Kördes {Stamp(run.RanUtc)} på {run.Transactions} tx") + AccountNote(scene);
@@ -697,42 +883,136 @@ public sealed partial class ChecksViewModel : ObservableObject
         return local.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Seals a decision about the chosen row and reads the checks again.</summary>
-    /// <param name="verdict">Approve or dismiss.</param>
-    /// <returns>A task that completes when it is stored.</returns>
-    private async Task DecideAsync(CheckVerdict verdict)
+    /// <summary>
+    /// Seals an approve or a dismiss about the shown suggestion, reads the checks again, shows the next that waits
+    /// (or <em>Allt avgjort</em>) and says so in a toast with <em>Ångra</em>.
+    /// </summary>
+    /// <param name="requests">The decisions.</param>
+    /// <returns>A task that completes when they are stored.</returns>
+    private async Task DecideAsync(IReadOnlyList<DecisionRequest> requests)
     {
-        if (IsBusy || Selected?.Request(verdict) is not { } request || _session.Current is not { } openCase)
+        if (IsBusy || Selected is not { } row)
         {
             return;
         }
 
-        var key = Selected.Key;
+        var toast = ToastOf(row, requests[0]);
+        var at = Math.Max(0, _round.IndexOf(row.Key));
+        if (await StoreAsync(requests))
+        {
+            _undo = requests;
+            OnPropertyChanged(nameof(CanUndoLast));
+            IsReasonOpen = false;
+            Advance(at);
+            ToastWanted?.Invoke(this, toast with { Action = () => _ = TakeBackAsync(requests) });
+        }
+    }
 
-        // Busy until the checks are read again, so that a second Enter or X never decides the same candidate twice
-        // or overturns the decision just made.
+    /// <summary>Takes decisions back, sealed in the case, and shows the suggestion again where it waits.</summary>
+    /// <param name="decided">The decisions to take back.</param>
+    /// <returns>A task that completes when it is stored and the checks read again.</returns>
+    private async Task TakeBackAsync(IReadOnlyList<DecisionRequest> decided)
+    {
+        var requests = decided
+            .Select(request => request with { Verdict = CheckVerdict.Withdrawn, Reason = null })
+            .ToList();
+        if (!await StoreAsync(requests))
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_undo, decided))
+        {
+            _undo = null;
+            OnPropertyChanged(nameof(CanUndoLast));
+        }
+
+        var key = GraphAreas.KeyOf(requests[0].Analysis, requests[0].FindingKey);
+        if (ToDecide.FirstOrDefault(row => row.Key == key) is { } again && IsOpen)
+        {
+            if (!IsReview)
+            {
+                _round.Clear();
+                _round.AddRange(ToDecide.Select(each => each.Key));
+                Mode = ChecksMode.Review;
+            }
+
+            Choose(again);
+        }
+    }
+
+    /// <summary>
+    /// Stores decisions one after the other and reads the checks again; busy until then, so that a second Enter or X
+    /// never decides the same suggestion twice.
+    /// </summary>
+    /// <param name="requests">The decisions.</param>
+    /// <returns><see langword="true"/> when all were stored.</returns>
+    private async Task<bool> StoreAsync(IReadOnlyList<DecisionRequest> requests)
+    {
+        if (IsBusy || requests.Count == 0 || _session.Current is not { } openCase)
+        {
+            return false;
+        }
+
         IsBusy = true;
         try
         {
             try
             {
-                await _source.DecideAsync(openCase, request);
+                foreach (var request in requests)
+                {
+                    await _source.DecideAsync(openCase, request);
+                }
+
                 Problem = string.Empty;
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
                 Problem = SaveFailedText;
-                return;
+                return false;
             }
 
             await FollowAsync(_scene);
-            var again = Rows().FirstOrDefault(row => row.Key == key);
-            Select(again is { CanDecide: true } ? again : ToDecide.FirstOrDefault() ?? again);
+            return _session.Current == openCase;
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>Shows the next suggestion that waits after a decision, or <em>Allt avgjort</em> when none does.</summary>
+    /// <param name="at">Where in the round the decided suggestion stood.</param>
+    private void Advance(int at)
+    {
+        if (NextWaiting(at) is { } next)
+        {
+            Choose(next);
+            return;
+        }
+
+        Mode = ChecksMode.Settled;
+        Choose(null);
+    }
+
+    /// <summary>Gives the toast that says a decision was stored, without its action.</summary>
+    /// <param name="row">The suggestion.</param>
+    /// <param name="request">The decision.</param>
+    /// <returns>The toast.</returns>
+    private static ToastRequest ToastOf(CheckRowViewModel row, DecisionRequest request)
+    {
+        if (request.Verdict == CheckVerdict.Dismissed)
+        {
+            return new ToastRequest(ToastKind.Success, "Förslaget avfärdat", row.Title, UndoText);
+        }
+
+        return row.ChosenCandidate is { } chosen
+            ? new ToastRequest(
+                ToastKind.Success,
+                row.Words.CandidateNoun + " godkänd",
+                $"{chosen.ShortAddress} · {chosen.AmountText} BTC",
+                UndoText)
+            : new ToastRequest(ToastKind.Success, "Förslaget godkänt", row.Title, UndoText);
     }
 
     /// <summary>Stores what the form says through the module.</summary>
@@ -777,26 +1057,106 @@ public sealed partial class ChecksViewModel : ObservableObject
         RaiseChanged();
     }
 
-    /// <summary>Steps among the rows in the list's order.</summary>
+    /// <summary>Steps among the suggestions that wait, in the round's order; stops at the ends.</summary>
     /// <param name="step">One forward or back.</param>
     private void Step(int step)
     {
-        var rows = Rows().ToList();
-        if (rows.Count == 0)
+        var waiting = _round.Where(key => ToDecide.Any(row => row.Key == key)).ToList();
+        if (!IsReview || waiting.Count == 0)
         {
             return;
         }
 
-        var at = Selected is null ? -1 : rows.IndexOf(Selected);
-        var next = at < 0 ? 0 : Math.Clamp(at + step, 0, rows.Count - 1);
-        Select(rows[next]);
+        var at = Selected is null ? -1 : waiting.IndexOf(Selected.Key);
+        var next = at < 0 ? 0 : Math.Clamp(at + step, 0, waiting.Count - 1);
+        Choose(ToDecide.First(row => row.Key == waiting[next]));
+    }
+
+    /// <summary>Gives the first suggestion that waits from a place in the round on, going round to the start.</summary>
+    /// <param name="from">The place in the round.</param>
+    /// <returns>The suggestion, or <see langword="null"/> when none waits.</returns>
+    private CheckRowViewModel? NextWaiting(int from)
+    {
+        var keys = _round.Skip(from).Concat(_round.Take(from));
+        return keys.Select(key => ToDecide.FirstOrDefault(row => row.Key == key)).FirstOrDefault(row => row is not null)
+            ?? ToDecide.FirstOrDefault();
+    }
+
+    /// <summary>Shows a suggestion in the panel, or none, and follows it with the progress and the graph.</summary>
+    /// <param name="row">The suggestion, or <see langword="null"/>.</param>
+    private void Choose(CheckRowViewModel? row)
+    {
+        foreach (var each in Rows())
+        {
+            each.IsSelected = each == row;
+        }
+
+        if (row != Selected)
+        {
+            IsReasonOpen = false;
+        }
+
+        Selected = row;
+        UpdateProgress();
+        RaiseChanged();
+    }
+
+    /// <summary>Works out the progress bar and where in the round the shown suggestion is.</summary>
+    private void UpdateProgress()
+    {
+        Segments = [.. _round.Select(SegmentOf)];
+        var at = Selected is null ? -1 : _round.IndexOf(Selected.Key);
+        PositionText = at < 0
+            ? string.Empty
+            : string.Create(CultureInfo.InvariantCulture, $"{at + 1} av {_round.Count}");
+    }
+
+    /// <summary>Gives a suggestion's segment in the progress bar.</summary>
+    /// <param name="key">The suggestion's key.</param>
+    /// <returns>Shown now, left or decided.</returns>
+    private ProgressSegment SegmentOf(string key)
+    {
+        if (key == Selected?.Key)
+        {
+            return new ProgressSegment(SegmentState.Current, "Nu");
+        }
+
+        return ToDecide.Any(row => row.Key == key)
+            ? new ProgressSegment(SegmentState.Left, "Kvar")
+            : new ProgressSegment(SegmentState.Decided, "Avgjort");
+    }
+
+    /// <summary>Gives a suggestion's place in the queue; one the queue has not seen yet goes last.</summary>
+    /// <param name="key">The suggestion's key.</param>
+    /// <returns>The place.</returns>
+    private int PlaceOf(string key)
+    {
+        var at = _order.IndexOf(key);
+        return at < 0 ? int.MaxValue : at;
+    }
+
+    /// <summary>Puts the rows that wait in the queue's order, new ones last in the order the run gave them.</summary>
+    private void Reorder()
+    {
+        var ordered = ToDecide.OrderBy(row => PlaceOf(row.Key)).ToList();
+        ToDecide.Clear();
+        foreach (var row in ordered)
+        {
+            ToDecide.Add(row);
+        }
+
+        _order.Clear();
+        _order.AddRange(ordered.Select(row => row.Key));
     }
 
     /// <summary>Gives every row in the list's order.</summary>
     /// <returns>The rows.</returns>
     private IEnumerable<CheckRowViewModel> Rows() => ToDecide.Concat(Done).Concat(Decided);
 
-    /// <summary>Builds the rows, the areas and the menu again from the last run, keeping the chosen row.</summary>
+    /// <summary>
+    /// Builds the rows, the areas and the menu again from the last run, keeping the queue's order, the round and the
+    /// shown suggestion.
+    /// </summary>
     private void Rebuild()
     {
         var selected = Selected?.Key;
@@ -810,21 +1170,37 @@ public sealed partial class ChecksViewModel : ObservableObject
         foreach (var check in _checks)
         {
             var area = AllAreas.FirstOrDefault(a => a.CheckKey == GraphAreas.KeyOf(check));
-            var row = new CheckRowViewModel(check, AnchorName(check), area?.Nodes ?? []);
+            var row = new CheckRowViewModel(check, AnchorName(check), area?.Nodes ?? [], Incoming(check), TimeZone);
             if (row.Group == CheckRowGroup.Done && check.Finding.Area != AreaSort.Obfuscation)
             {
-                // Wallets are areas only (sketch KF1b); the list holds what obfuscates and what waits.
+                // Wallets are areas only (sketch KF1b); the panel holds what obfuscates and what waits.
                 continue;
             }
 
             Target(row.Group).Add(row);
         }
 
-        WaitingCount = _checks.Sum(check => check.Waiting);
+        Reorder();
+        if (IsReview)
+        {
+            _round.AddRange(ToDecide.Select(row => row.Key).Where(key => !_round.Contains(key)));
+        }
+
+        WaitingCount = ToDecide.Count;
         Selected = Rows().FirstOrDefault(row => row.Key == selected);
         if (Selected is { } again)
         {
             again.IsSelected = true;
+        }
+
+        if (IsOpen && IsReview && Selected is not { CanDecide: true })
+        {
+            Advance(0);
+        }
+
+        if (IsOpen && IsOverview && ToDecide.Count == 0)
+        {
+            Mode = ChecksMode.Settled;
         }
 
         if (ChosenArea is { } chosen && AllAreas.All(area => area.Key != chosen))
@@ -833,6 +1209,8 @@ public sealed partial class ChecksViewModel : ObservableObject
         }
 
         Inspect(_inspected);
+        UpdateProgress();
+        UpdateSettled();
         Sorts =
         [
             .. AreaLooks.Sorts.Select(entry =>
@@ -846,7 +1224,83 @@ public sealed partial class ChecksViewModel : ObservableObject
                     _shown.Contains(entry.Sort));
             }),
         ];
+        OnPropertyChanged(nameof(DoneCountText));
+        OnPropertyChanged(nameof(HasDone));
+        OnPropertyChanged(nameof(HasDecided));
         RaiseChanged();
+    }
+
+    /// <summary>
+    /// Works out the ring and the line under <em>Allt avgjort</em>: how many the user approved and dismissed, and
+    /// since when nothing new has come.
+    /// </summary>
+    private void UpdateSettled()
+    {
+        Ring = [.. Decided.Select(row => row.IsApproved)];
+        var approved = Decided.Count(row => row.IsApproved);
+        var dismissed = Decided.Count - approved;
+        var parts = new List<string>();
+        if (approved > 0)
+        {
+            parts.Add(Counted(approved, "godkänd", "godkända"));
+        }
+
+        if (dismissed > 0)
+        {
+            parts.Add(Counted(dismissed, "avfärdad", "avfärdade"));
+        }
+
+        if (parts.Count == 0)
+        {
+            parts.Add("Inget att avgöra");
+        }
+
+        if (_checks.Count > 0)
+        {
+            var newest = _checks.Max(check => check.RecordedUtc);
+            parts.Add("inget nytt sedan " + Clock(newest));
+        }
+
+        SettledText = string.Join(" · ", parts);
+    }
+
+    /// <summary>Writes a count with its word in the singular or the plural.</summary>
+    /// <param name="count">The count.</param>
+    /// <param name="one">The word for one.</param>
+    /// <param name="many">The word for more than one.</param>
+    /// <returns>For example <c>2 godkända</c>.</returns>
+    private static string Counted(int count, string one, string many) =>
+        count.ToString(CultureInfo.InvariantCulture) + " " + (count == 1 ? one : many);
+
+    /// <summary>Writes a time as the summary says it: the clock when it is the run's day, else with the date.</summary>
+    /// <param name="utc">The time.</param>
+    /// <returns>For example <c>14:40</c>.</returns>
+    private string Clock(DateTimeOffset utc)
+    {
+        var local = TimeZoneInfo.ConvertTime(utc, TimeZone);
+        var day = _ranUtc is { } ran ? TimeZoneInfo.ConvertTime(ran, TimeZone).Date : local.Date;
+        var format = local.Date == day ? "HH:mm" : "yyyy-MM-dd HH:mm";
+        return local.ToString(format, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Gives what came in to a suggestion, as the graph knows it: what the first transaction it rests on paid to its
+    /// first address (the mixer's deposit).
+    /// </summary>
+    /// <param name="check">The suggestion.</param>
+    /// <returns>The amount, or <see langword="null"/> when it is not a suggestion with candidates or not known.</returns>
+    private Satoshi? Incoming(StoredCheck check)
+    {
+        var finding = check.Finding;
+        if (_scene is not { } scene || finding.Candidates.Count == 0 || finding.Addresses.Count == 0
+            || finding.Basis.Count == 0
+            || !scene.Snapshot.Graph.Transactions.TryGetValue(finding.Basis[0].Txid, out var known))
+        {
+            return null;
+        }
+
+        var paid = known.Transaction.Outputs.Where(output => output.Address == finding.Addresses[0]).ToList();
+        return paid.Count == 0 ? null : new Satoshi(paid.Sum(output => output.Amount.Value));
     }
 
     /// <summary>Gives the collection a group's rows stand in.</summary>
@@ -882,8 +1336,14 @@ public sealed partial class ChecksViewModel : ObservableObject
         _own = [];
         _picked.Clear();
         _formArea = null;
+        _order.Clear();
+        _round.Clear();
+        _undo = null;
+        _ranUtc = null;
         Form = AreaFormMode.None;
         IsOpen = false;
+        Mode = ChecksMode.Overview;
+        IsReasonOpen = false;
         IsMenuOpen = false;
         ChosenArea = null;
         StatusText = NotRunText;
@@ -896,7 +1356,7 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <returns>The areas.</returns>
     private IReadOnlyList<AreaView> ShownAreas()
     {
-        if (IsOpen && Selected is { } row)
+        if (IsOpen && IsReview && Selected is { } row)
         {
             return
             [
@@ -927,12 +1387,16 @@ public sealed partial class ChecksViewModel : ObservableObject
                 continue;
             }
 
-            foreach (var row in new CheckRowViewModel(check, null, []).Candidates.Where(c => !c.IsDismissed))
+            // The suggestion shown in the panel gives its own rows, so that the chosen candidate's line stands out.
+            var shown = Selected is { } chosen && chosen.Key == area.CheckKey
+                ? chosen
+                : new CheckRowViewModel(check, null, []);
+            foreach (var row in shown.Candidates.Where(c => !c.IsDismissed))
             {
                 if (graph.NodeOf(row.Candidate.Address) is { } to && to.Key != from.Key)
                 {
                     lines.Add(new CandidateLine(
-                        from.Key, to.Key, row.Candidate.Score, row.ScoreText, row.IsApproved));
+                        from.Key, to.Key, row.Candidate.Score, row.ScoreText, row.IsApproved, row.Rank, row.IsChosen));
                 }
             }
         }

@@ -36,11 +36,25 @@ internal static class CheckSamples
             "Mixerutgångar v1 letar … aldrig ett faktum.",
             [V, U, E],
             [],
-            [new CheckBasis(Tx[1], Block(101))],
+            [new CheckBasis(Tx[0], Block(100)), new CheckBasis(Tx[1], Block(101)), new CheckBasis(Tx[2], Block(102))],
             [Candidate(U, 1, 0.8), Candidate(E, 2, 0.5)]),
         5,
         new DateTimeOffset(2026, 11, 7, 13, 2, 0, TimeSpan.Zero),
         decisions);
+
+    public static readonly HeuristicId SplitId = new("split-amounts", 1);
+
+    /// <summary>A second suggestion, without candidates: E split its money into many small amounts.</summary>
+    public static StoredCheck Split() => new(
+        6,
+        SplitId,
+        "Uppdelning",
+        new CheckFinding(
+            "split:0", CheckKind.Suggestion, AreaSort.Obfuscation, "Uppdelning i små belopp", "14 ×",
+            "Uppdelning v1 … aldrig ett faktum.", [E], [], [new CheckBasis(Tx[3], Block(103))], []),
+        5,
+        new DateTimeOffset(2026, 11, 7, 14, 40, 0, TimeSpan.Zero),
+        []);
 
     public static StoredCheck CoinJoin() => new(
         2,

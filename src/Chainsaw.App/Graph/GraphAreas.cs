@@ -2,6 +2,7 @@ using System.Globalization;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.App.Graph;
@@ -67,7 +68,17 @@ public static class GraphAreas
     public static string KeyOf(StoredCheck check)
     {
         ArgumentNullException.ThrowIfNull(check);
-        return $"{check.Analysis}/{check.Finding.Key}";
+        return KeyOf(check.Analysis, check.Finding.Key);
+    }
+
+    /// <summary>Gives the key of a finding's area, from the analysis and the finding's own key.</summary>
+    /// <param name="analysis">The analysis and its version.</param>
+    /// <param name="findingKey">The finding's key.</param>
+    /// <returns>The key, for example <c>mixer-outputs v1/deposit:0</c>.</returns>
+    public static string KeyOf(HeuristicId analysis, string findingKey)
+    {
+        ArgumentNullException.ThrowIfNull(analysis);
+        return $"{analysis}/{findingKey}";
     }
 
     /// <summary>Builds every area, in the order they are drawn, with the fill rule applied.</summary>
@@ -161,9 +172,8 @@ public static class GraphAreas
         var kept = finding.Candidates.Where(c => !Dismissed(c)).Select(c => c.Address).ToHashSet();
         var dismissed = finding.Candidates.Where(Dismissed).Select(c => c.Address).Where(a => !kept.Contains(a))
             .ToHashSet();
-        var allDismissed = finding.Candidates.Count > 0
-            ? finding.Candidates.All(Dismissed)
-            : check.DecisionFor(null)?.Verdict == CheckVerdict.Dismissed;
+        var allDismissed = check.DecisionFor(null)?.Verdict == CheckVerdict.Dismissed
+            || (finding.Candidates.Count > 0 && finding.Candidates.All(Dismissed));
         if (finding.Kind == CheckKind.Suggestion && allDismissed)
         {
             return null;

@@ -103,14 +103,13 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 36. **Streckade linjer på Windows:** strecken mättes i linjens tjocklek, så tjocka osäkra linjer fick grova korvar.
     Nu i pixlar som i GR3a (2 5 och 7 5). Bevakningens öga i nodens hörn har inga ringar längre (BV2a har dem bara
     på träffens linje). *Rättat 2026-11-08.*
-37. **Kontroller och förslag är KF2b** (användarens beslut 2026-11-08). Byggs.
+37. **Kontroller och förslag är KF2b** (användarens beslut 2026-11-08). *Byggt 2026-11-08.*
 38. **Nytt ärende är NC2a** (användarens beslut 2026-11-08). Byggs.
 39. **Granskning av alla byggda vyer mot skisserna** (användarens synpunkt 2026-11-08: många delar är kraftigt
     förenklade). Gjord 2026-11-08. Skalet och dialogerna följer skisserna nära; förenklingarna sitter i grafens
     arbetsytor. Att bygga om, i ordning:
-    1. **Kontroller och förslag** (KF1a/KF1b): ny skiss KF2 ritas. Kandidaterna saknar egna ✓ och ✕; skälfält,
-       gruppen *Avgjort* och en statusrad som skissen inte har; analysen som bricka med version; *Nästa förslag · N*
-       nere till höger; områdets kort med Enter, X och ?; egen yta vid de valda aktörerna (`2 valda · Ny yta … Z`).
+    1. **Kontroller och förslag**: *Löst 2026-11-08* genom KF2b (ett förslag i taget). Kvar: formuläret för en egen
+       yta står fortfarande under grafens hörn (se *Kontroller, förslag och områden*).
     2. **Inspektören** (IN2b, GR5, TK1a, AN1b): raden *Okänd · Bitcoin · startpunkt* under namnet; adressen i sin
        mörka ruta med kopiera; saldo per token med SEK och utgivare, *Begäran om frysning …*; i Historik runda
        markörer och *Ta tillbaka*/*Ångra* som piller under raden.
@@ -456,6 +455,16 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   av användaren inte finns i Clustering (se *Godkänna ett förslag och ångra en uppbrytning* ovan).
 - **Lasso** för att välja aktörer till en egen yta (KF1b): bara Ctrl+klick är byggt.
 - **Formuläret för en egen yta** står under grafens hörn, inte vid de valda aktörerna som i skissen.
+- **Godkänna en kandidat avgör förslaget** (KF2b, eget val 2026-11-08): när en kandidat godkänns räknas förslaget som
+  avgjort och de andra kandidaterna står kvar utan beslut (inte avfärdade). En mixer som betalar ut i flera delar kan
+  därför bara få en godkänd kandidat i taget; *Ångra* i loggen öppnar förslaget igen. Fråga kryptospåraren om det
+  behövs flera godkända.
+- **Växeladressen i KF2b** (bandens bredd efter belopp, kolumnen *SEDD*) är inte byggd: det finns ingen analys som
+  föreslår växeladresser som förslag (Clustering gör det själv). Bilden kan bara rita band efter poäng.
+- **Brickorna under förslaget** står i en tabell i appen per analys (`SuggestionWords`), utan siffror (skissens *48 h*
+  är analysens tidsfönster, som bor i modulen). En analys bör själv kunna ge sina brickor.
+- **Numren på kandidaterna i grafen** står mitt på linjen, inte vid kandidatens nod som i skissen.
+- **En kandidats tid** räknas ur blocken förslaget bygger på; en kandidat vars tx inte finns bland dem får ingen tid.
 - **Menyns val sparas inte** i ärendet; alla sorter visas när ärendet öppnas.
 - **Kontrollerna körs vid varje läsning av grafen**, och varje körning frågar Clustering om varje tx
   (`GetConclusions`). Det räcker för hundratals tx; för stora ärenden behövs en fråga för alla tx på en gång och att

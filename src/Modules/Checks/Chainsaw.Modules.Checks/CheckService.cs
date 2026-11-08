@@ -127,17 +127,26 @@ internal sealed class CheckService : ICheckService
             var candidate = finding.Candidates.FirstOrDefault(c => c.Key == request.CandidateKey);
             if (finding.Kind != CheckKind.Suggestion
                 || (request.CandidateKey is not null && candidate is null)
-                || (request.CandidateKey is null && finding.Candidates.Count > 0))
+                || (request.CandidateKey is null && finding.Candidates.Count > 0
+                    && request.Verdict == CheckVerdict.Approved))
             {
                 throw new ArgumentException(
-                    "Only a suggestion is decided: a candidate of it, or the whole when it has none.", nameof(request));
+                    "Only a suggestion is decided: a candidate of it, or the whole when it has none; a suggestion "
+                    + "with candidates is dismissed as a whole but approved through one of them.",
+                    nameof(request));
             }
 
-            var verb = request.Verdict == CheckVerdict.Approved ? "godkänt" : "avfärdat";
+            if (request.Verdict == CheckVerdict.Withdrawn
+                && !InForce(CheckStore.ReadDecisions(transaction).GetValueOrDefault(key) ?? [], request.CandidateKey))
+            {
+                throw new ArgumentException("There is no decision in force to take back.", nameof(request));
+            }
+
+            var verb = VerbOf(request.Verdict);
             var what = candidate is null ? finding.Title : $"{finding.Title}, kandidat {candidate.Address}";
             var journal = transaction.AppendJournal(new JournalDraft(
                 CheckJournalKinds.Decided,
-                $"Förslag {verb}: {what} ({request.Analysis})",
+                $"{verb}: {what} ({request.Analysis})",
                 JsonSerializer.Serialize(new
                 {
                     analysis = request.Analysis.ToString(),
@@ -149,6 +158,24 @@ internal sealed class CheckService : ICheckService
             return CheckStore.SealDecision(transaction, request, reason, result, journal);
         });
     }
+
+    /// <summary>Gives the journal's words for a verdict.</summary>
+    /// <param name="verdict">The verdict.</param>
+    /// <returns>For example <c>Förslag godkänt</c>.</returns>
+    private static string VerbOf(CheckVerdict verdict) => verdict switch
+    {
+        CheckVerdict.Approved => "Förslag godkänt",
+        CheckVerdict.Dismissed => "Förslag avfärdat",
+        _ => "Beslut om förslag ångrat",
+    };
+
+    /// <summary>Says whether a decision is in force about a candidate or the whole: made and not taken back.</summary>
+    /// <param name="decisions">The decisions about the finding, oldest first.</param>
+    /// <param name="candidateKey">The candidate's key, or <see langword="null"/> for the whole.</param>
+    /// <returns><see langword="true"/> when the latest is an approval or a dismissal.</returns>
+    private static bool InForce(IReadOnlyList<CheckDecision> decisions, string? candidateKey) =>
+        decisions.LastOrDefault(decision => decision.CandidateKey == candidateKey) is { } latest
+        && latest.Verdict != CheckVerdict.Withdrawn;
 
     /// <inheritdoc/>
     public IReadOnlyList<OwnArea> GetAreas(ICase @case)
@@ -327,6 +354,7 @@ internal sealed class CheckService : ICheckService
         var decided = decisions
             .Select(decision => decision.CandidateKey)
             .OfType<string>()
+            .Where(key => InForce(decisions, key))
             .ToHashSet(StringComparer.Ordinal);
         var waiting = finding.Candidates.Where(c => !decided.Contains(c.Key)).Take(CheckRules.MostWaitingCandidates);
         var kept = finding.Candidates

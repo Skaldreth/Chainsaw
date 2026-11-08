@@ -64,6 +64,9 @@ public partial class GraphView : UserControl
     /// <summary>The inspector's width in sketch GR4, in device-independent pixels.</summary>
     private const double InspectorWidth = 280;
 
+    /// <summary>The width of the checks' panel where the inspector stands (sketch KF2b).</summary>
+    private const double ChecksPanelWidth = 400;
+
     /// <summary>The narrowest the inspector can be dragged to.</summary>
     private const double NarrowestInspector = 240;
 
@@ -303,7 +306,10 @@ public partial class GraphView : UserControl
     {
         InspectorColumn.MinWidth = shown ? NarrowestInspector : 0;
         InspectorColumn.MaxWidth = shown ? Math.Max(NarrowestInspector, ActualWidth * WidestInspectorShare) : 0;
-        InspectorColumn.Width = new GridLength(shown ? _inspectorWidth : 0);
+        // The checks' panel (sketch KF2b) is never narrower than its 400 px, whatever the inspector was dragged to.
+        var checksOpen = DataContext is GraphViewModel { Checks.IsOpen: true };
+        var width = checksOpen ? Math.Max(_inspectorWidth, ChecksPanelWidth) : _inspectorWidth;
+        InspectorColumn.Width = new GridLength(shown ? width : 0);
         var visibility = shown ? Visibility.Visible : Visibility.Collapsed;
         Inspector.Visibility = visibility;
         InspectorShadow.Visibility = visibility;

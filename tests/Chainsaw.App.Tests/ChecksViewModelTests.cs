@@ -7,7 +7,7 @@ using static Chainsaw.App.Tests.GraphSamples;
 
 namespace Chainsaw.App.Tests;
 
-/// <summary>The list of checks and suggestions (sketch KF1a) and the own areas (sketch KF1b) without WPF.</summary>
+/// <summary>The checks and suggestions one at a time (sketch KF2b) and the own areas (sketch KF1b) without WPF.</summary>
 public sealed class ChecksViewModelTests
 {
     /// <summary>A case open, the checks and the graph.</summary>
@@ -42,81 +42,177 @@ public sealed class ChecksViewModelTests
         Assert.Equal(["Troliga utgångar ur mixern"], rig.Checks.ToDecide.Select(row => row.Title));
         Assert.Equal(["CoinJoin, Wasabi"], rig.Checks.Done.Select(row => row.Title));
         Assert.Empty(rig.Checks.Decided);
-        Assert.Equal("Förslag · 2", rig.Checks.ButtonText);
+        Assert.Equal("Förslag · 1", rig.Checks.ButtonText);
+        Assert.Equal("1", rig.Checks.WaitingText);
         Assert.Equal("Kördes 2026-11-07 13:02 på 4 tx", rig.Checks.StatusText);
         Assert.Contains(rig.Checks.AllAreas, area => area.Sort == AreaSort.Wallet);
     }
 
     [Fact]
-    public async Task Opening_the_list_chooses_the_first_row_and_tones_down_all_but_its_actors()
+    public async Task Ctrl_J_opens_the_overview_and_Enter_goes_through_the_queue_one_at_a_time()
     {
         var rig = await new Rig().Follow();
 
         rig.Checks.Toggle();
+        Assert.True(rig.Checks.IsOverview);
+        Assert.Null(rig.Checks.Focus);
+        Assert.Equal("Gå igenom 1 att avgöra", rig.Checks.StartText);
+        await rig.Checks.ApproveAsync();
 
-        Assert.True(rig.Checks.IsOpen);
+        Assert.True(rig.Checks.IsReview);
+        Assert.Empty(rig.Source.Decisions);
         Assert.Same(rig.Checks.ToDecide[0], rig.Checks.Selected);
+        Assert.Equal("1 av 1", rig.Checks.PositionText);
         Assert.Equal(new HashSet<string> { VKey, UKey, EKey }, rig.Checks.Focus);
         Assert.Equal("mixer-outputs v1/deposit:0", Assert.Single(rig.Checks.Areas).CheckKey);
     }
 
     [Fact]
-    public async Task J_and_K_step_through_the_rows_and_stop_at_the_ends()
+    public async Task The_suggestion_shows_its_flow_its_chips_and_its_ranked_candidates()
     {
         var rig = await new Rig().Follow();
-        rig.Checks.Toggle();
+        rig.Checks.StartReview(null);
+        var row = rig.Checks.Selected!;
 
-        rig.Checks.Next();
-        Assert.Equal("CoinJoin, Wasabi", rig.Checks.Selected!.Title);
-        rig.Checks.Next();
-        Assert.Equal("CoinJoin, Wasabi", rig.Checks.Selected!.Title);
-        rig.Checks.Previous();
-        Assert.Equal("Troliga utgångar ur mixern", rig.Checks.Selected!.Title);
+        Assert.Equal("1,0000 BTC in · 1 nov 12:00", row.Meta);
+        Assert.Equal(["Belopp − avgift", "Tid", "Adresstyp"], row.Basis.Select(chip => chip.Label));
+        Assert.Equal("Mixerutgångar · v1", row.AnalysisText);
+        Assert.Equal(["1", "2"], row.Candidates.Select(c => c.RankText));
+        Assert.Equal(["1 h", "2 h"], row.Candidates.Select(c => c.TimeText));
+        Assert.Equal("Godkänn 1", row.GoText);
+        Assert.Equal("1,0000 in", row.Flow.InText);
+        Assert.Equal([true, false], row.Flow.Bands.Select(band => band.IsChosen));
+        Assert.True(row.Flow.Bands[0].Width > row.Flow.Bands[1].Width);
+
+        rig.Checks.ChooseCandidate(row.Candidates[1]);
+
+        Assert.Equal("Godkänn 2", row.GoText);
+        Assert.Equal([false, true], row.Flow.Bands.Select(band => band.IsChosen));
+        Assert.Contains(rig.Checks.CandidateLines, line => line is { Rank: 2, IsChosen: true });
     }
 
     [Fact]
-    public async Task Enter_approves_the_best_candidate_with_the_reason_and_the_next_waits()
+    public async Task Enter_approves_the_chosen_candidate_with_the_reason_and_says_so_with_undo()
     {
         var rig = await new Rig().Follow();
-        rig.Checks.Toggle();
+        rig.Checks.StartReview(null);
+        rig.Checks.ToggleReason();
         rig.Checks.Selected!.Reason = "  Samma belopp ";
+        ToastRequest? toast = null;
+        rig.Checks.ToastWanted += (_, request) => toast = request;
 
-        Assert.Equal("Godkänn bästa", rig.Checks.Selected.GoText);
         await rig.Checks.ApproveAsync();
 
         var request = Assert.Single(rig.Source.Decisions);
         Assert.Equal(CheckVerdict.Approved, request.Verdict);
         Assert.Equal(Candidate(U, 1, 0.8).Key, request.CandidateKey);
         Assert.Equal("Samma belopp", request.Reason);
-        Assert.Equal("Förslag · 1", rig.Checks.ButtonText);
-        Assert.True(rig.Checks.Selected!.ChosenCandidate!.Candidate.Address == E);
+        Assert.Equal("Förslag · 0", rig.Checks.ButtonText);
+        Assert.True(rig.Checks.IsSettled);
+        Assert.False(rig.Checks.IsReasonOpen);
+        Assert.Equal("Trolig utgång godkänd", toast!.Title);
+        Assert.Equal(ChecksViewModel.UndoText, toast.ActionText);
+        Assert.Equal([true], rig.Checks.Ring);
+        Assert.Equal("1 godkänd · inget nytt sedan 13:02", rig.Checks.SettledText);
+        var line = Assert.Single(rig.Checks.CandidateLines, l => l.IsApproved);
+        Assert.Equal(UKey, line.To);
     }
 
     [Fact]
-    public async Task X_dismisses_the_chosen_candidate_and_a_suggestion_all_decided_moves_to_Avgjort()
+    public async Task Ctrl_Z_takes_the_decision_back_sealed_and_the_suggestion_waits_again()
     {
         var rig = await new Rig().Follow();
-        rig.Checks.Toggle();
-        rig.Checks.ChooseCandidate(rig.Checks.Selected!.Candidates[1]);
+        rig.Checks.StartReview(null);
+        await rig.Checks.ApproveAsync();
+        Assert.True(rig.Checks.CanUndoLast);
 
-        await rig.Checks.DismissAsync();
-        await rig.Checks.DismissAsync();
+        await rig.Checks.UndoAsync();
 
         Assert.Equal(
-            [Candidate(E, 2, 0.5).Key, Candidate(U, 1, 0.8).Key],
-            rig.Source.Decisions.Select(decision => decision.CandidateKey));
-        Assert.All(rig.Source.Decisions, decision => Assert.Equal(CheckVerdict.Dismissed, decision.Verdict));
-        Assert.Empty(rig.Checks.ToDecide);
-        Assert.Single(rig.Checks.Decided);
-        Assert.Equal("Förslag · 0", rig.Checks.ButtonText);
+            [CheckVerdict.Approved, CheckVerdict.Withdrawn], rig.Source.Decisions.Select(decision => decision.Verdict));
+        Assert.Equal(rig.Source.Decisions[0].CandidateKey, rig.Source.Decisions[1].CandidateKey);
+        Assert.False(rig.Checks.CanUndoLast);
+        Assert.True(rig.Checks.IsReview);
+        Assert.Equal("Troliga utgångar ur mixern", rig.Checks.Selected!.Title);
+        Assert.Equal("Förslag · 1", rig.Checks.ButtonText);
+    }
+
+    [Fact]
+    public async Task X_dismisses_the_suggestion_as_a_whole_and_the_log_takes_it_back()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.StartReview(null);
+
+        await rig.Checks.DismissAsync();
+
+        var request = Assert.Single(rig.Source.Decisions);
+        Assert.Null(request.CandidateKey);
+        Assert.Equal(CheckVerdict.Dismissed, request.Verdict);
+        Assert.True(rig.Checks.IsSettled);
+        var row = Assert.Single(rig.Checks.Decided);
+        Assert.Equal(CheckRowViewModel.DismissedText, row.StateText);
         Assert.DoesNotContain(rig.Checks.AllAreas, area => area.CheckKey == "mixer-outputs v1/deposit:0");
+        Assert.Equal("1 avfärdad · inget nytt sedan 13:02", rig.Checks.SettledText);
+
+        await rig.Checks.UndoRowAsync(row);
+
+        Assert.Equal(CheckVerdict.Withdrawn, rig.Source.Decisions[^1].Verdict);
+        Assert.Null(rig.Source.Decisions[^1].CandidateKey);
+        Assert.Single(rig.Checks.ToDecide);
+    }
+
+    [Fact]
+    public async Task Senare_moves_the_suggestion_to_the_back_without_writing_anything()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Add(Split());
+        await rig.Follow();
+        rig.Checks.StartReview(null);
+        Assert.Equal("Troliga utgångar ur mixern", rig.Checks.Selected!.Title);
+
+        rig.Checks.Later();
+
+        Assert.Equal("Uppdelning i små belopp", rig.Checks.Selected!.Title);
+        Assert.Equal("1 av 2", rig.Checks.PositionText);
+        Assert.Equal(
+            ["Uppdelning i små belopp", "Troliga utgångar ur mixern"], rig.Checks.ToDecide.Select(r => r.Title));
+        Assert.Empty(rig.Source.Decisions);
+        Assert.Equal(1, rig.Source.Runs);
+    }
+
+    [Fact]
+    public async Task After_a_decision_the_next_waits_and_the_progress_bar_shows_it()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Add(Split());
+        await rig.Follow();
+        rig.Checks.StartReview(null);
+        Assert.Equal([SegmentState.Current, SegmentState.Left], rig.Checks.Segments.Select(s => s.State));
+
+        await rig.Checks.ApproveAsync();
+
+        Assert.Equal("Uppdelning i små belopp", rig.Checks.Selected!.Title);
+        Assert.Equal("Godkänn", rig.Checks.Selected.GoText);
+        Assert.Equal("2 av 2", rig.Checks.PositionText);
+        Assert.Equal([SegmentState.Decided, SegmentState.Current], rig.Checks.Segments.Select(s => s.State));
+
+        rig.Checks.Previous();
+        Assert.Equal("Uppdelning i små belopp", rig.Checks.Selected!.Title);
+
+        await rig.Checks.DismissAsync();
+
+        Assert.True(rig.Checks.IsSettled);
+        Assert.Equal([true, false], rig.Checks.Ring);
+        Assert.Equal("1 godkänd · 1 avfärdad · inget nytt sedan 14:40", rig.Checks.SettledText);
     }
 
     [Fact]
     public async Task Enter_and_X_are_ignored_until_the_decision_is_stored_and_read_again()
     {
-        var rig = await new Rig().Follow();
-        rig.Checks.Toggle();
+        var rig = new Rig();
+        rig.Source.Checks.Add(Split());
+        await rig.Follow();
+        rig.Checks.StartReview(null);
         var hold = new TaskCompletionSource();
         rig.Source.HoldDecision = hold;
 
@@ -128,6 +224,22 @@ public sealed class ChecksViewModelTests
 
         Assert.Single(rig.Source.Decisions);
         Assert.False(rig.Checks.IsBusy);
+    }
+
+    [Fact]
+    public async Task With_nothing_to_decide_the_panel_says_all_is_decided()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.RemoveAt(0);
+        await rig.Follow();
+
+        rig.Checks.Toggle();
+
+        Assert.True(rig.Checks.IsSettled);
+        Assert.Empty(rig.Checks.Ring);
+        Assert.Equal("Inget att avgöra · inget nytt sedan 13:02", rig.Checks.SettledText);
+        Assert.Equal(CheckRowViewModel.MarkedText, rig.Checks.Done[0].StateText);
+        Assert.False(rig.Checks.Done[0].CanUndo);
     }
 
     [Fact]
@@ -176,40 +288,10 @@ public sealed class ChecksViewModelTests
     }
 
     [Fact]
-    public async Task A_decided_candidate_cannot_be_chosen_again()
-    {
-        var rig = await new Rig().Follow();
-        rig.Checks.Toggle();
-        await rig.Checks.ApproveAsync();
-        var row = rig.Checks.Selected!;
-
-        rig.Checks.ChooseCandidate(row.Candidates[0]);
-
-        Assert.Same(row.Candidates[1], row.ChosenCandidate);
-    }
-
-    [Fact]
-    public async Task Enter_on_a_check_shows_its_actors_and_decides_nothing()
-    {
-        var rig = await new Rig().Follow();
-        rig.Checks.Toggle();
-        rig.Checks.Next();
-        IReadOnlyList<string>? shown = null;
-        rig.Checks.ShowWanted += (_, nodes) => shown = nodes;
-
-        await rig.Checks.ApproveAsync();
-        await rig.Checks.DismissAsync();
-
-        Assert.Equal([KKey, EKey], shown);
-        Assert.Empty(rig.Source.Decisions);
-        Assert.Equal("Visa i grafen", rig.Checks.Selected!.GoText);
-    }
-
-    [Fact]
     public async Task The_question_mark_asks_the_Guide_why_with_the_candidates_and_the_seal()
     {
         var rig = await new Rig().Follow();
-        rig.Checks.Toggle();
+        rig.Checks.StartReview(null);
         GuideRequest? asked = null;
         rig.Checks.GuideWanted += (_, request) => asked = request;
 
@@ -220,7 +302,7 @@ public sealed class ChecksViewModelTests
         Assert.Equal(4, lines.Count);
         Assert.Contains("aldrig ett faktum", lines[0].Text, StringComparison.Ordinal);
         Assert.StartsWith("0,80 · ", lines[1].Text, StringComparison.Ordinal);
-        Assert.Contains("Mixerutgångar v1 förseglade det 2026-11-07 13:02", lines[3].Text, StringComparison.Ordinal);
+        Assert.Contains("Mixerutgångar · v1 förseglade det 2026-11-07 13:02", lines[3].Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -314,14 +396,33 @@ public sealed class ChecksViewModelTests
     }
 
     [Fact]
-    public async Task A_check_areas_chip_opens_the_list_at_its_row()
+    public async Task A_suggestions_areas_chip_opens_the_panel_at_it_and_a_checks_only_names_it()
     {
         var rig = await new Rig().Follow();
 
         rig.Checks.ChooseArea($"coinjoin-area v1/{Tx[2].Value}");
+        Assert.False(rig.Checks.IsOpen);
+        Assert.Equal($"coinjoin-area v1/{Tx[2].Value}", rig.Checks.ChosenArea);
+        rig.Checks.ChooseArea("mixer-outputs v1/deposit:0");
 
         Assert.True(rig.Checks.IsOpen);
-        Assert.Equal("CoinJoin, Wasabi", rig.Checks.Selected!.Title);
+        Assert.True(rig.Checks.IsReview);
+        Assert.Equal("Troliga utgångar ur mixern", rig.Checks.Selected!.Title);
+    }
+
+    [Fact]
+    public async Task A_check_in_the_overview_shows_its_actors_and_decides_nothing()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.Toggle();
+        IReadOnlyList<string>? shown = null;
+        rig.Checks.ShowWanted += (_, nodes) => shown = nodes;
+
+        rig.Checks.Select(rig.Checks.Done[0]);
+
+        Assert.Equal([KKey, EKey], shown);
+        Assert.Empty(rig.Source.Decisions);
+        Assert.True(rig.Checks.IsOverview);
     }
 
     [Fact]
@@ -367,10 +468,9 @@ public sealed class ChecksViewModelTests
     [Fact]
     public async Task The_candidates_lines_go_from_the_mixer_and_leave_out_the_dismissed()
     {
-        var rig = await new Rig().Follow();
-        rig.Checks.Toggle();
-        rig.Checks.ChooseCandidate(rig.Checks.Selected!.Candidates[1]);
-        await rig.Checks.DismissAsync();
+        var rig = new Rig();
+        rig.Source.Checks[0] = Mixer(Decision(Candidate(E, 2, 0.5).Key, CheckVerdict.Dismissed));
+        await rig.Follow();
 
         var line = Assert.Single(rig.Checks.CandidateLines);
 
