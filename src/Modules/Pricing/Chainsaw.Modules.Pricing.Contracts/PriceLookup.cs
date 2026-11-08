@@ -22,4 +22,10 @@ public sealed record PriceLookup<T>(
 {
     /// <summary>Gets whether there is a value.</summary>
     public bool HasValue => Value is not null;
+
+    /// <summary>
+    /// Gets whether a source asked Chainsaw to wait (it answered that it takes no more requests now), so that a
+    /// caller stops asking for more rates now instead of asking for each one in turn.
+    /// </summary>
+    public bool IsThrottled { get; init; }
 }

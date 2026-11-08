@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
@@ -206,10 +207,11 @@ public sealed class GraphSource(
             async () =>
             {
                 var latest = new Dictionary<Asset, Price>();
+                var throttled = new StrongBox<bool>();
                 var (values, gaps) = await ValuesAsync(
-                    @case, scene.Snapshot.Graph, PriceLookupMode.AsNeeded, latest, cancellationToken)
+                    @case, scene.Snapshot.Graph, PriceLookupMode.AsNeeded, latest, cancellationToken, throttled)
                     .ConfigureAwait(false);
-                return new GraphRates(values, gaps, latest);
+                return new GraphRates(values, gaps, latest) { IsThrottled = throttled.Value };
             },
             cancellationToken);
     }
@@ -671,6 +673,10 @@ public sealed class GraphSource(
     /// Filled with the latest rate found per asset, which values what is left at an address (sketch TK1a).
     /// </param>
     /// <param name="cancellationToken">Stops the work.</param>
+    /// <param name="throttled">
+    /// Set when a source asked Chainsaw to wait (429): from then on no rate is asked of the source in this run, so that
+    /// a refusing source is asked once and not once per line; <see langword="null"/> when it does not matter.
+    /// </param>
     /// <returns>The values and the reasons a line has none, by line key.</returns>
     private async Task<(IReadOnlyDictionary<string, EdgeValue> Values, IReadOnlyDictionary<string, EdgeValueGap> Gaps)>
         ValuesAsync(
@@ -678,7 +684,8 @@ public sealed class GraphSource(
             TraceGraph graph,
             PriceLookupMode mode,
             Dictionary<Asset, Price> latest,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            StrongBox<bool>? throttled = null)
     {
         var values = new Dictionary<string, EdgeValue>(StringComparer.Ordinal);
         var gaps = new Dictionary<string, EdgeValueGap>(StringComparer.Ordinal);
@@ -714,6 +721,12 @@ public sealed class GraphSource(
                         asked++;
                         lookup = await LookUp(@case, asset, time, PriceLookupMode.AsNeeded, cancellationToken)
                             .ConfigureAwait(false);
+                        if (lookup.IsThrottled)
+                        {
+                            // The source asked to wait: ask it for nothing more now.
+                            asked = MostRateLookups;
+                            throttled?.Value = true;
+                        }
                     }
 
                     known[key] = lookup;

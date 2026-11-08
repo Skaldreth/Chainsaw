@@ -352,11 +352,15 @@ public sealed class ServiceTests : IDisposable
 
         var failed = await _harness.PriceAsync(Fixtures.At);
         _harness.AnswerAll();
+        var soon = await _harness.PriceAsync(Fixtures.At);
+        _harness.Clock.UtcNow += new PricingOptions().FailureCooldown;
         var later = await _harness.PriceAsync(Fixtures.At);
 
         Assert.Equal(PriceLookupStatus.Failed, failed.Status);
         Assert.Contains("500", failed.Problem, StringComparison.Ordinal);
         Assert.Equal(500, failed.Origins.Single().StatusCode);
+        Assert.Equal(PriceLookupStatus.Failed, soon.Status);
+        Assert.Empty(soon.Origins);
         Assert.Equal(PriceLookupStatus.Fetched, later.Status);
         Assert.Equal(3, _harness.RawRows().Count);
     }
@@ -764,6 +768,7 @@ public sealed class ReviewRegressionTests : IDisposable
         _harness.AnswerAll();
         await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
         _harness.Http.Failure = null;
+        _harness.Clock.UtcNow += new PricingOptions().FailureCooldown;
         await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
         _harness.Http.Failure = Chainsaw.Modules.Network.Contracts.ExitError.Timeout;
         for (var request = 0; request < 1_000; request++)

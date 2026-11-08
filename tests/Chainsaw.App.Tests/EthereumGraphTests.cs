@@ -148,6 +148,9 @@ internal sealed class TestPrices : IPriceService
     /// </summary>
     public bool AtSourceOnly { get; set; }
 
+    /// <summary>Gets or sets whether the source answers every request with 429: it takes no more requests now.</summary>
+    public bool Throttles { get; set; }
+
     /// <summary>Gets the times the case has a rate for, when <see cref="AtSourceOnly"/>.</summary>
     public HashSet<DateTimeOffset> InCase { get; } = [];
 
@@ -157,6 +160,12 @@ internal sealed class TestPrices : IPriceService
     {
         Asked.Add((request, mode));
         var asset = request.Asset ?? request.Chain.NativeAsset();
+        if (Throttles && mode == PriceLookupMode.AsNeeded)
+        {
+            return Task.FromResult(
+                new PriceLookup<Price>(PriceLookupStatus.Failed, null, [], "429") { IsThrottled = true });
+        }
+
         if (AtSourceOnly && mode == PriceLookupMode.AsNeeded)
         {
             InCase.Add(request.At);

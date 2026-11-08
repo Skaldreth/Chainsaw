@@ -133,6 +133,39 @@ public sealed class EuroTests : IDisposable
         Assert.Contains(price.Steps, step => step.Contains("2023-11-18 saknar kurs", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task A_source_that_asks_to_wait_is_not_asked_again_until_the_cooldown_has_passed()
+    {
+        _harness.Http.AnswerText(Fixtures.BitstampEurHour, "Too many requests", 429);
+
+        var refused = await _harness.PriceAsync(Fixtures.At);
+        var again = await _harness.PriceAsync(Fixtures.At);
+        AnswerEuro();
+        _harness.Clock.UtcNow += new PricingOptions().FailureCooldown;
+        var later = await _harness.PriceAsync(Fixtures.At);
+
+        Assert.Equal(PriceLookupStatus.Failed, refused.Status);
+        Assert.True(refused.IsThrottled);
+        Assert.Equal(PriceLookupStatus.Failed, again.Status);
+        Assert.True(again.IsThrottled);
+        Assert.Empty(again.Origins);
+        Assert.Equal(PriceLookupStatus.Fetched, later.Status);
+        Assert.Equal(3, _harness.Http.Sent.Count);
+    }
+
+    [Fact]
+    public async Task A_server_error_is_not_a_request_to_wait_but_is_not_asked_again_at_once()
+    {
+        _harness.Http.AnswerText(Fixtures.BitstampEurHour, "oops", 503);
+
+        var failed = await _harness.PriceAsync(Fixtures.At);
+        var again = await _harness.PriceAsync(Fixtures.At);
+
+        Assert.False(failed.IsThrottled);
+        Assert.Equal(PriceLookupStatus.Failed, again.Status);
+        Assert.Single(_harness.Http.Sent);
+    }
+
     /// <summary>Answers Bitstamp in euro and the Riksbank's EUR/SEK from the fixtures.</summary>
     private void AnswerEuro()
     {

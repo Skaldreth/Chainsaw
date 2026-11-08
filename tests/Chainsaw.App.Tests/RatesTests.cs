@@ -168,6 +168,55 @@ public sealed class RatesTests
     }
 
     [Fact]
+    public async Task A_source_that_answers_429_is_asked_once_in_a_fetch()
+    {
+        var prices = new TestPrices { AtSourceOnly = true, Throttles = true };
+        prices.Rates[Chain.Bitcoin.NativeAsset()] = 700_000m;
+        var source = Source(prices, ManyTimes(GraphSource.MostRateLookups + 10));
+        var scene = await source.LoadAsync(new TestCase("2026-0001"), TracingMethodKind.Fifo, CancellationToken.None);
+
+        var rates = await source.FillRatesAsync(new TestCase("2026-0001"), scene, CancellationToken.None);
+
+        Assert.True(rates.IsThrottled);
+        Assert.Equal(1, prices.Asked.Count(asked => asked.Mode == PriceLookupMode.AsNeeded));
+        Assert.Empty(rates.Values);
+    }
+
+    [Fact]
+    public async Task The_graph_sends_one_batch_when_the_source_asks_to_wait()
+    {
+        var (graph, source, exit) = Rig();
+        source.Scene = PendingScene;
+        source.Fill = scene => scene.Rates with
+        {
+            Values = new Dictionary<string, EdgeValue> { [GraphSamples.VK] = EdgeValues.Sum([Part()]) },
+            IsThrottled = true,
+        };
+        exit.Set(new ExitStatus(ExitState.Connected, Guid.NewGuid(), null));
+
+        await graph.ReloadAsync(fit: false);
+        await graph.FillRatesAsync();
+
+        Assert.Equal(2, source.Fills);
+        Assert.NotNull(graph.Scene!.Edge(GraphSamples.VK)!.Value);
+    }
+
+    [Fact]
+    public async Task The_graph_stops_when_a_batch_brings_no_new_rate()
+    {
+        var (graph, source, exit) = Rig();
+        source.Scene = PendingScene;
+        exit.Set(new ExitStatus(ExitState.Connected, Guid.NewGuid(), null));
+        await graph.ReloadAsync(fit: false);
+        var fills = source.Fills;
+
+        await graph.FillRatesAsync();
+
+        Assert.Equal(fills + 1, source.Fills);
+        Assert.Equal(1, graph.Scene!.PendingRates);
+    }
+
+    [Fact]
     public async Task The_graph_shows_at_once_and_fills_in_the_rates_in_the_background()
     {
         var (graph, source, exit) = Rig();
@@ -195,6 +244,7 @@ public sealed class RatesTests
         source.Scene = PendingScene;
 
         await graph.ReloadAsync(fit: false);
+        await graph.FillRatesAsync();
 
         Assert.True(graph.IsOffline);
         Assert.Equal(0, source.Fills);

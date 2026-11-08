@@ -113,6 +113,11 @@ public sealed record GraphRates(
 {
     /// <summary>Gets how many lines still wait for a rate the source can be asked for.</summary>
     public int Pending => Gaps.Values.Count(gap => gap.IsPending);
+
+    /// <summary>
+    /// Gets whether a source asked Chainsaw to wait while these were fetched (429), so that no more is asked now.
+    /// </summary>
+    public bool IsThrottled { get; init; }
 }
 
 /// <summary>How money in a currency is written in the graph.</summary>

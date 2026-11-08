@@ -27,7 +27,8 @@ public sealed partial class GraphViewModel
     /// <summary>
     /// Fetches the rates the scene's lines lack in the background, through the exit, a batch at a time
     /// (<see cref="GraphSource.MostRateLookups"/>), and fills them in as they come, so that showing or expanding the
-    /// graph never waits for a source (principle 6). Offline, nothing is asked and the lines say so (principle 9).
+    /// graph never waits for a source (principle 6). It goes on only while a batch brings at least one new rate, and
+    /// stops at once when a source asks to wait. Offline, nothing is asked and the lines say so (principle 9).
     /// </summary>
     /// <returns>A task that completes when nothing more can be fetched now.</returns>
     public async Task FillRatesAsync()
@@ -42,7 +43,7 @@ public sealed partial class GraphViewModel
         {
             if (scene.Snapshot.ValueGaps.Values.Any(gap => gap is { IsPending: true, IsOffline: false }))
             {
-                ShowRates(scene.Rates with { Gaps = EdgeValues.Offline(scene.Snapshot.ValueGaps) });
+                await ShowRatesAsync(scene.Rates with { Gaps = EdgeValues.Offline(scene.Snapshot.ValueGaps) }, fill);
             }
 
             return;
@@ -50,8 +51,8 @@ public sealed partial class GraphViewModel
 
         var version = _version;
         var token = _work.Token;
-        var pending = scene.PendingRates;
-        while (pending > 0)
+        var valued = scene.Snapshot.Values.Count;
+        while (true)
         {
             GraphRates rates;
             try
@@ -64,19 +65,19 @@ public sealed partial class GraphViewModel
                 return;
             }
 
-            if (fill != _rateFills || version != _version)
+            if (fill != _rateFills || version != _version || !await ShowRatesAsync(rates, fill))
             {
                 return;
             }
 
-            ShowRates(rates);
-            if (rates.Pending >= pending)
+            if (rates.IsThrottled || rates.Pending == 0 || rates.Values.Count <= valued)
             {
-                // No progress (the source refused, or the exit went away): stop, and say it honestly per line.
+                // The source asked to wait, everything is in, or the batch brought no new rate: stop, and let each
+                // line say why; Pricing waits a while before it asks again for a rate that just failed.
                 return;
             }
 
-            pending = rates.Pending;
+            valued = rates.Values.Count;
         }
     }
 
@@ -87,19 +88,34 @@ public sealed partial class GraphViewModel
     /// <param name="value">Whether lookups cannot go now.</param>
     partial void OnIsOfflineChanged(bool value) => _ = FillRatesAsync();
 
-    /// <summary>Shows the lines' values without reading the graph again, keeping what is chosen.</summary>
+    /// <summary>
+    /// Shows the lines' values without reading the graph again, keeping what is chosen: the scene is built off the UI
+    /// thread (principle 6), and shown only when no newer fetch or reading came meanwhile; then it is drawn the way
+    /// the graph is read now.
+    /// </summary>
     /// <param name="rates">The values.</param>
-    private void ShowRates(GraphRates rates)
+    /// <param name="fill">The fetch they come from.</param>
+    /// <returns>Whether they were shown.</returns>
+    private async Task<bool> ShowRatesAsync(GraphRates rates, int fill)
     {
         if (Scene is not { } scene)
         {
-            return;
+            return false;
         }
 
-        Scene = scene.WithRates(rates);
+        var version = _version;
+        var built = await Task.Run(() => scene.WithRates(rates));
+        if (fill != _rateFills || version != _version || !ReferenceEquals(Scene, scene))
+        {
+            return false;
+        }
+
+        Scene = built;
         Arrange();
         Inspect();
         Redraw?.Invoke(this, EventArgs.Empty);
+        _ = FollowReadingAsync();
+        return true;
     }
 
     /// <summary>

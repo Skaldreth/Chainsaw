@@ -73,7 +73,8 @@ ansluten, en klocka medan kursen hämtas eller när den inte är satt än hos k�
 
 Kurserna ligger i ärendet. Är ingen utgång ansluten svarar ärendet, och saknas kursen där står det **– kr** och
 **Offline**; inget gissas. Grafen visas alltid direkt med kurserna i ärendet, och de som saknas hämtas i bakgrunden
-genom utgången och fylls i när de kommer (under tiden står **– kr** med en klocka).
+genom utgången och fylls i när de kommer (under tiden står **– kr** med en klocka). Svarar källan med ett fel, eller ber
+den Chainsaw vänta, slutar hämtningen, och samma kurs frågas inte igen förrän efter fem minuter.
 Inställningarna (*Kurser*) säger hur många kurser ärendet har sparat.
 
 Uppslagen går, som allt annat, bara genom den valda utgången och innehåller bara marknaden och tiden, aldrig

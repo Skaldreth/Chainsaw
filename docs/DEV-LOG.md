@@ -3357,6 +3357,13 @@ EUR/SEK, och båda svaren förseglas i ärendet var för sig.
   `IGraphSource.FillRatesAsync` hämtar de saknade (`EdgeValueGap.IsPending`) i bakgrunden, ett tak i taget, och
   `GraphViewModel.FillRatesAsync` fyller i linjerna utan att läsa grafen igen, tills inget mer går framåt. Offline
   frågas inget och linjerna säger *Offline* (M9); när utgången kommer tillbaka hämtas de.
+- **Omgranskningen, I3:** hämtningen fortsatte så länge färre linjer väntade, också när varje kurs misslyckades, och
+  ett misslyckat svar frågades om vid varje läsning. *Nu:* grafen fortsätter bara när en omgång gav minst en ny kurs
+  och slutar direkt när källan svarar 429 (`PriceLookup.IsThrottled`, `GraphRates.IsThrottled`; källan frågas då inte
+  mer i omgången). Pricing minns en period vars uppslag misslyckats och frågar inte om den förrän
+  `PricingOptions.FailureCooldown` (fem minuter) har gått; under tiden svarar den *Failed* utan att något skickas.
+  Den nya scenen byggs utanför UI-tråden och visas bara om ingen nyare hämtning eller läsning kommit (M1), och
+  `FollowReadingAsync` körs efteråt så att läsningens val står kvar (M2).
 - **M:** *dagskurs* (M1), utan fasta gröna prickar (M2), *En kurs som är satt hämtas aldrig igen* (M3), summeringen
   fångar allt utom avbrott och räknar om när ärendet byts (M4), en blocktid före datorns klocka skiljs från en
   tillgång utan källa (M5), valutan läses en gång per körning (M6), träffytan är den ritade rutan (M7) och ett test
@@ -3364,4 +3371,4 @@ EUR/SEK, och båda svaren förseglas i ärendet var för sig.
 
 **Återstår:** testärendet `/testdata` har inga påhittade kurser, så dess linjer hämtar riktiga kurser genom utgången.
 
-Tester: 7 nya i Pricing (`EuroTests`) och 17 i App (`RatesTests`).
+Tester: 9 nya i Pricing (`EuroTests`) och 20 i App (`RatesTests`).
