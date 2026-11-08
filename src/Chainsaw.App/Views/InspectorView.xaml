@@ -257,7 +257,7 @@
                             Visibility="{Binding History.IsShown, Converter={StaticResource Visible}}"
                             Command="{Binding History.ShowFactsCommand}">
                         <StackPanel Orientation="Horizontal">
-                            <controls:GridIcon Size="14" Data="{StaticResource Icon.List}" Margin="0,0,7,0"
+                            <controls:GridIcon Size="14" Data="{StaticResource Icon.ListOrdered}" Margin="0,0,7,0"
                                                Foreground="{StaticResource Brush.TextMuted}" />
                             <TextBlock Text="Fakta" />
                         </StackPanel>
