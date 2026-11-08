@@ -87,7 +87,11 @@ internal sealed class World : IDisposable
         services.AddSingleton<IExitHttp>(Http);
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IAlerts>(Alerts);
+        Configure?.Invoke(services);
     });
+
+    /// <summary>Gets or sets what a test puts in place in the background process, before it is first made.</summary>
+    public Action<IServiceCollection>? Configure { get; set; }
 
     /// <summary>Bitcoin's endpoints in Chainsaw's settings: only the synthetic Esplora.</summary>
     public async Task UseTestEndpointAsync()

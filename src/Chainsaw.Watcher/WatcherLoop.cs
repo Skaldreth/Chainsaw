@@ -11,8 +11,9 @@ namespace Chainsaw.Watcher;
 /// case open in Chainsaw to it, and for each chain asks the height at most once a minute through the way out; the
 /// watches that are due (<see cref="WatchSchedule.IsDue"/>) are checked with the same check and feeds as in the open
 /// Chainsaw (<see cref="LookupMode.InStep"/>, the endpoints' pace and fallback), against a case in memory whose raw
-/// responses go, with the matches, into the protected queue. With VPN as the way out nothing is looked up: the exits
-/// are in the vault, which the background never opens.
+/// responses go, with the matches, into the protected queue. With VPN as the way out it connects the program's
+/// selected exit when the user allowed it in the background (decided 2026-11-08), through the same helper, checked by
+/// its SHA-256; without that exit connected nothing is looked up (principle 4), and the vault is never opened.
 /// </summary>
 internal sealed class WatcherLoop
 {
@@ -21,6 +22,9 @@ internal sealed class WatcherLoop
 
     /// <summary>How long before the endpoints are tried again when none is in step.</summary>
     public static readonly TimeSpan ProbeAgain = TimeSpan.FromMinutes(10);
+
+    /// <summary>How long before a failed connection of the exit is tried again.</summary>
+    public static readonly TimeSpan ConnectAgain = TimeSpan.FromMinutes(1);
 
     /// <summary>How many hits per watch it remembers having told of.</summary>
     public const int AlertedKept = 500;
@@ -64,6 +68,9 @@ internal sealed class WatcherLoop
     /// <summary>The status said last.</summary>
     private (BackgroundState, string?)? _said;
 
+    /// <summary>When the exit may be connected next, after a failed attempt.</summary>
+    private DateTimeOffset _nextConnect = DateTimeOffset.MinValue;
+
     /// <summary>Creates the loop.</summary>
     /// <param name="parts">The services.</param>
     /// <param name="route">The way out.</param>
@@ -102,9 +109,9 @@ internal sealed class WatcherLoop
 
         _gate.Route = _plan.Route;
         _route.Choose(_plan.Route);
-        if (_plan.Route != ExitRoute.Windows)
+        if (!await ExitReadyAsync(cancellationToken).ConfigureAwait(false))
         {
-            // VPN needs the exit's WireGuard file, which is in the vault: nothing is looked up, and that is said.
+            // VPN without the allowed exit connected: nothing is looked up, and that is said.
             Say(BackgroundState.WaitingForExit, null);
             return true;
         }
@@ -134,6 +141,68 @@ internal sealed class WatcherLoop
         KeepProgress();
         Say(StateOf(round, work.Count), round.InStepWith);
         return true;
+    }
+
+    /// <summary>
+    /// Makes the way out ready: through Windows any exit is let go; through VPN the exit allowed in the background is
+    /// connected (at most once a minute after a failure), and an exit no longer allowed or selected is let go at once.
+    /// </summary>
+    /// <param name="cancellationToken">Stops the attempt.</param>
+    /// <returns><see langword="true"/> when lookups may go out.</returns>
+    private async Task<bool> ExitReadyAsync(CancellationToken cancellationToken)
+    {
+        if (_parts.Exit is not { } exit || _parts.Exits is not { } exits)
+        {
+            return _plan.Route == ExitRoute.Windows;
+        }
+
+        var status = exit.Status;
+        var wanted = _plan.Route == ExitRoute.Vpn ? exits.Usable() : null;
+        if (status.State != ExitState.NotConnected && (wanted is null || status.ExitId != wanted))
+        {
+            // Windows chosen, the permission taken back or another exit selected: the tunnel goes now.
+            await exit.DisconnectAsync().ConfigureAwait(false);
+            status = exit.Status;
+        }
+
+        if (_plan.Route == ExitRoute.Windows)
+        {
+            return true;
+        }
+
+        if (wanted is null)
+        {
+            return false;
+        }
+
+        if (status.State == ExitState.Connected)
+        {
+            return true;
+        }
+
+        var now = _parts.Clock.UtcNow;
+        if (now < _nextConnect)
+        {
+            return false;
+        }
+
+        _nextConnect = now + ConnectAgain;
+        try
+        {
+            status = await exit.ConnectAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            // The permission was taken back between the look and the attempt.
+            return false;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Cancelled by a change of the exits meanwhile: tried again at the next round.
+            return false;
+        }
+
+        return status.State == ExitState.Connected && status.ExitId == wanted;
     }
 
     /// <summary>Gives what to say after a round.</summary>
@@ -510,6 +579,10 @@ internal sealed class WatcherLoop
 /// <param name="Transfer">Reads the responses out of the case in memory.</param>
 /// <param name="Alerts">Says that a watch has hit.</param>
 /// <param name="Clock">The clock.</param>
+/// <remarks>
+/// <see cref="Exit"/> and <see cref="Exits"/> are the exit allowed in the background; without them only Windows is a way
+/// out.
+/// </remarks>
 internal sealed record WatcherParts(
     IBackgroundPlan Plan,
     IBackgroundProgressFile Progress,
@@ -523,4 +596,11 @@ internal sealed record WatcherParts(
     IEthereumSource Ethereum,
     IResponseTransfer Transfer,
     IAlerts Alerts,
-    IClock Clock);
+    IClock Clock)
+{
+    /// <summary>Gets the connection to the exit allowed in the background, or <see langword="null"/>.</summary>
+    public IExitConnection? Exit { get; init; }
+
+    /// <summary>Gets the exits the user allowed in the background, or <see langword="null"/>.</summary>
+    public IBackgroundExits? Exits { get; init; }
+}

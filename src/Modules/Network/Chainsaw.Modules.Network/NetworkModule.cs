@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Network.Contracts;
+using Chainsaw.Modules.Security.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -10,7 +11,9 @@ namespace Chainsaw.Modules.Network;
 /// reaches the internet for the way through Windows (probed only while Windows is chosen), <see cref="IExitReconnect"/>, which connects a fallen tunnel again, and
 /// <see cref="IExitHttp"/>, the only way out for
 /// the other modules; and <see cref="ILocalHttp"/>, which reaches only the user's own node on the computer or a private
-/// network. Needs the Security module (the exits are kept in the vault) and an <c>IClock</c>.
+/// network; and <see cref="IBackgroundExits"/>, the exits the user lets the background watching use. Needs the
+/// Security module (the exits are kept in the vault, a background copy under its <c>IUserDataProtector</c>) and an
+/// <c>IClock</c>.
 /// </summary>
 public static class NetworkModule
 {
@@ -31,11 +34,23 @@ public static class NetworkModule
         options.Validate();
 
         services.AddSingleton(options);
-        services.AddSingleton<ExitRecords>();
+        services.AddSingleton(provider => new BackgroundExitFile(
+            options.BackgroundExitsFile,
+            provider.GetService<IUserDataProtector>(),
+            options.ExitsFromBackground ? null : provider.GetRequiredService<ExitRecords>));
+        services.AddSingleton<IBackgroundExits>(provider => provider.GetRequiredService<BackgroundExitFile>());
+
+        // The background process never opens the vault: its exits are the ones the user allowed, read from the file.
+        services.AddSingleton(provider => new ExitRecords(options.ExitsFromBackground
+            ? new BackgroundExitSecrets(provider.GetRequiredService<BackgroundExitFile>())
+            : provider.GetRequiredService<IVaultSecrets>()));
         services.AddSingleton<IExitHandlerFactory, SocksHandlerFactory>();
         services.AddSingleton<ExitConnection>();
         services.AddSingleton<IExitConnection>(provider => provider.GetRequiredService<ExitConnection>());
-        services.AddSingleton<IExitStore, ExitStore>();
+        services.AddSingleton<IExitStore>(provider => new ExitStore(
+            provider.GetRequiredService<ExitRecords>(),
+            provider.GetRequiredService<ExitConnection>(),
+            provider.GetRequiredService<BackgroundExitFile>()));
         services.AddSingleton<IWindowsHandlerFactory, WindowsHandlerFactory>();
         services.AddSingleton<ExitRouteChoice>();
         services.AddSingleton<IExitRoute>(provider => provider.GetRequiredService<ExitRouteChoice>());

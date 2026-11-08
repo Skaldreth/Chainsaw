@@ -1320,6 +1320,21 @@
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
+                                    <!-- VPN in the background (decided 2026-11-08): a plain switch for the selected exit. -->
+                                    <Border Style="{StaticResource Settings.Row}"
+                                            Visibility="{Binding ShowsExitInBackground, Converter={StaticResource Visible}}">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource Settings.TagSwitch}"
+                                                    Command="{Binding ToggleExitInBackgroundCommand}" Tag="{Binding ExitInBackground}"
+                                                    AutomationProperties.Name="Bevaka genom utgången när Chainsaw är stängt"
+                                                    IsEnabled="{Binding CanExitInBackground}" />
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Bevaka genom utgången när Chainsaw är stängt" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Den valda utgångens WireGuard-fil sparas skyddad för din Windows-användare, utanför valvet. Tas bort när du slår av den här eller bakgrunden."
+                                                           Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
                                     <Border Style="{StaticResource Settings.Row}">
                                         <DockPanel>
                                             <TextBlock DockPanel.Dock="Right" Text="Alltid" Style="{StaticResource Settings.Value}" />

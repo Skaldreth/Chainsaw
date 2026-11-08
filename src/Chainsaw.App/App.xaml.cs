@@ -2,6 +2,7 @@ using System.Windows;
 using Chainsaw.Modules.Cases;
 using Chainsaw.Modules.Security;
 using Chainsaw.Modules.Network;
+using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Chains;
 using Chainsaw.Modules.Clustering;
 using Chainsaw.Modules.Attribution;
@@ -191,7 +192,13 @@ public partial class App : Application
                 .AddSingleton(provider => StartAutoLock(provider.GetRequiredService<IClock>(), settings))
                 .AddCasesModule()
                 .AddSecurityModule()
-                .AddNetworkModule(options => options.Route = settings.ExitRoute)
+                .AddNetworkModule(options =>
+                {
+                    options.Route = settings.ExitRoute;
+                    options.BackgroundExitsFile = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Chainsaw",
+                        BackgroundNames.Folder, NetworkOptions.BackgroundExitsFileName);
+                })
                 .AddChainsModule(sources: options => options.Directory = Path.GetDirectoryName(store.FilePath))
                 .AddClusteringModule()
                 .AddAttributionModule()
@@ -270,7 +277,10 @@ public partial class App : Application
                     provider.GetRequiredService<IBackgroundStatusFile>(),
                     provider.GetRequiredService<IBackgroundProcess>(),
                     provider.GetRequiredService<IAutostart>(),
-                    provider.GetRequiredService<IClock>()))
+                    provider.GetRequiredService<IClock>())
+                {
+                    Exits = provider.GetRequiredService<IBackgroundExits>(),
+                })
                 .AddSingleton(provider => new BackgroundLink(
                     provider.GetRequiredService<BackgroundParts>(),
                     provider.GetRequiredService<CaseSession>(),

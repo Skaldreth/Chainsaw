@@ -2,10 +2,15 @@ using Chainsaw.Modules.Network.Contracts;
 
 namespace Chainsaw.Modules.Network;
 
-/// <summary>The exits in the vault and the program's selected exit.</summary>
+/// <summary>
+/// The exits in the vault and the program's selected exit. The copies kept for the background follow: a removed exit's
+/// copy goes, a renamed one is copied again, and the background follows the selection.
+/// </summary>
 /// <param name="records">The exits as secrets in the vault.</param>
 /// <param name="connection">The connection, which is disconnected before its exit is deselected or removed.</param>
-internal sealed class ExitStore(ExitRecords records, ExitConnection connection) : IExitStore
+/// <param name="background">The copies kept for the background, or <see langword="null"/> where none are.</param>
+internal sealed class ExitStore(ExitRecords records, ExitConnection connection, BackgroundExitFile? background = null)
+    : IExitStore
 {
     /// <inheritdoc />
     public IReadOnlyList<ExitInfo> List() => records.List();
@@ -55,6 +60,7 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
                 var found = records.Find(id) ?? throw new ArgumentException("No exit has the id.", nameof(id));
                 var exit = found.Exit with { Name = name.Trim(), Place = place.Trim() };
                 records.Save(id, new StoredExit(exit.Name, exit.Place, exit.Kind, found.Configuration));
+                background?.Refresh(id);
                 return exit;
             });
     }
@@ -71,6 +77,9 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
                 }
 
                 records.RemoveSighting(id);
+
+                // The copy for the background goes first: a WireGuard file must never outlive its exit.
+                background?.Forbid(id);
                 return records.Remove(id);
             });
 
@@ -88,6 +97,7 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
             {
                 RequireKnown(id);
                 records.SetSelected(id);
+                background?.Follow(id);
                 return true;
             });
     }

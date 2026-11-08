@@ -54,6 +54,50 @@ public sealed class BackgroundLinkTests
     }
 
     [Fact]
+    public async Task With_VPN_and_the_selected_exit_allowed_the_background_is_started_and_set()
+    {
+        var exit = Guid.NewGuid();
+        _fakes.Exits.Selected = exit;
+        _fakes.Exits.Allowed.Add(exit);
+        var (_, link) = Link(new AppSettings());
+
+        await link.WriteCaseAsync();
+
+        Assert.Equal(ExitRoute.Vpn, _fakes.Plan.Plan.Route);
+        Assert.Equal(BackgroundFakes.Command, _fakes.Autostart.Command);
+        Assert.Equal(1, _fakes.Process.Starts);
+        Assert.Equal(BackgroundMode.Running, link.Mode);
+    }
+
+    [Fact]
+    public async Task With_VPN_and_only_another_exit_allowed_it_still_waits_for_the_exit()
+    {
+        _fakes.Exits.Selected = Guid.NewGuid();
+        _fakes.Exits.Allowed.Add(Guid.NewGuid());
+        var (_, link) = Link(new AppSettings());
+
+        await link.WriteCaseAsync();
+
+        Assert.Equal(0, _fakes.Process.Starts);
+        Assert.Equal(BackgroundMode.NeedsWindows, link.Mode);
+    }
+
+    [Fact]
+    public async Task Turning_the_background_off_removes_the_exits_kept_for_it()
+    {
+        var exit = Guid.NewGuid();
+        _fakes.Exits.Selected = exit;
+        _fakes.Exits.Allowed.Add(exit);
+        var (_, link) = Link(new AppSettings());
+        await link.WriteCaseAsync();
+
+        await link.ApplyAsync(new AppSettings { WatchInBackground = false });
+
+        Assert.Empty(_fakes.Exits.Allowed);
+        Assert.Equal(1, _fakes.Exits.Clears);
+    }
+
+    [Fact]
     public async Task Turned_off_it_is_stopped_and_taken_away_from_the_start_with_Windows()
     {
         var (_, link) = Link(Windows);
@@ -372,7 +416,38 @@ internal sealed class BackgroundFakes
 
     public FakeAutostart Autostart { get; } = new();
 
-    public BackgroundParts Parts => new(Watches, Plan, Holds, Queue, Status, Process, Autostart, Clock);
+    public MemoryExits Exits { get; } = new();
+
+    public BackgroundParts Parts => new(Watches, Plan, Holds, Queue, Status, Process, Autostart, Clock)
+    {
+        Exits = Exits,
+    };
+
+    /// <summary>The exits allowed in the background, in memory.</summary>
+    internal sealed class MemoryExits : IBackgroundExits
+    {
+        public Guid? Selected { get; set; }
+
+        public HashSet<Guid> Allowed { get; } = [];
+
+        public int Clears { get; private set; }
+
+        public bool IsAvailable => true;
+
+        public bool IsAllowed(Guid exitId) => Allowed.Contains(exitId);
+
+        public Guid? Usable() => Selected is { } selected && Allowed.Contains(selected) ? selected : null;
+
+        public void Allow(Guid exitId) => Allowed.Add(exitId);
+
+        public void Forbid(Guid exitId) => Allowed.Remove(exitId);
+
+        public void Clear()
+        {
+            Clears++;
+            Allowed.Clear();
+        }
+    }
 
     internal sealed class FakeWatches : IBackgroundWatches
     {
