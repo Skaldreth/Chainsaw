@@ -2807,3 +2807,18 @@ Byggd som en etapp, eftersom den skriver i ärendet.
 - **Återstår:** markeringen för dolda OP_RETURN (kräver en skiss); den streckade guidens geometri i valvyn och
   rombens geometri görs fortfarande per bildruta.
 - 17 nya tester (`DrawCacheTests`, `PileTests` i App och Tracing, `GraphSourceTests`).
+
+## Granskningen av KN1a rättad (2026-11-08)
+
+- **C1:** Markdown-läsaren har inte längre obegränsad rekursion: länkar nästlas högst 32 nivåer (djupare är text),
+  `Flatten` går med egen stack, och en länks text och adress söks högst 2 000 tecken bort, så att en rad med många
+  hakparenteser läses i linjär tid. Test på en tråd med 1 MB stack.
+- **I1:** `CaseSession.Closing` (före Close, Forget och Open) förseglar lappen som skrivs i medan ärendet ännu är öppet;
+  `Clear` nollställer skrivläget.
+- **I2–I5:** skrivningarna köas per lapp (`Pending`, `IsStoring`); en misslyckad ändring ger tillbaka texten; ett
+  utkast som sparas släpps aldrig av N; en lapp som öppnas medan den sparas visar det senast skrivna; ett utkast blir den
+  sparade lappen direkt efter `AddAsync` (samma objekt), och ett fel med storleken säger bara att platsen inte sparades.
+- Mindre: längden kontrolleras före skrivningen; färgningens mönster har en tidsgräns på 50 ms; en sparad ändring rör
+  inte platsen eller storleken; en länk vars text namnger en annan adress visar vart den går (`NoteLinks.Misleads`),
+  och länkar jämförs på kedja och exakt värde; Ctrl+V i en lapp tas inte av startpunktens fält; Esc stänger
+  förslagspanelen före lappens val.

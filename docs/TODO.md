@@ -540,6 +540,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   skrivs i zoomar inte grafen.
 - **Länkar:** `chainsaw:` till något som inte finns i grafen säger det bara; kanske ska det kunna bli en startpunkt.
 - **N med vald nod** knyter lappen till noden (skissen säger det bara om ikonen i nodens list). Fråga användaren.
+- **Granskningens M5–M7** (oberoende granskning av KN1a 2026-11-08): lades hit av huvudsessionen; innehållet står i
+  granskningsrapporten.
+- **En skrivning i kö när ärendet stängs:** lappen som skrivs i förseglas innan ärendet släpps, men en skrivning som
+  redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
 ### Attribution
 - **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.

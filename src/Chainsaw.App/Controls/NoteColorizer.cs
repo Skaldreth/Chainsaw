@@ -31,6 +31,12 @@ internal sealed partial class NoteColorizer(NoteInks inks) : DocumentColorizingT
     /// <summary>The code's size (sketch KN1a: 12 px).</summary>
     private const double CodeSize = 12;
 
+    /// <summary>
+    /// The longest a pattern may look at a line, in milliseconds; a line that takes longer is left uncoloured, so that
+    /// a long note never holds up the UI thread (principle 6).
+    /// </summary>
+    private const int MatchTimeout = 50;
+
     /// <summary>The text's version the code blocks were last found in.</summary>
     private ITextSourceVersion? _fencesVersion;
 
@@ -58,7 +64,7 @@ internal sealed partial class NoteColorizer(NoteInks inks) : DocumentColorizingT
         var inside = false;
         foreach (var line in document.Lines)
         {
-            if (FencePattern().IsMatch(document.GetText(line)))
+            if (IsFence(document.GetText(line)))
             {
                 fences.Add(line.LineNumber);
                 inside = !inside;
@@ -102,7 +108,29 @@ internal sealed partial class NoteColorizer(NoteInks inks) : DocumentColorizingT
         }
 
         var text = document.GetText(line);
-        ColorizeInline(text, start, ColorizeLineMark(text, start, end));
+        try
+        {
+            ColorizeInline(text, start, ColorizeLineMark(text, start, end));
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // The line is drawn with what was coloured before the time ran out; the text itself is untouched.
+        }
+    }
+
+    /// <summary>Reads whether a line opens or closes a code block; a line too long to read in time is not.</summary>
+    /// <param name="text">The line.</param>
+    /// <returns><see langword="true"/> when it is a fence.</returns>
+    private static bool IsFence(string text)
+    {
+        try
+        {
+            return FencePattern().IsMatch(text);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Colours what a line starts with: a heading's hashes, a list's mark or a quote's.</summary>
@@ -267,47 +295,49 @@ internal sealed partial class NoteColorizer(NoteInks inks) : DocumentColorizingT
 
     /// <summary>A line that opens or closes a code block.</summary>
     /// <returns>The pattern.</returns>
-    [GeneratedRegex(@"^\s*(```|~~~)")]
+    [GeneratedRegex(@"^\s*(```|~~~)", RegexOptions.None, MatchTimeout)]
     private static partial Regex FencePattern();
 
     /// <summary>A heading's hashes and the space after them.</summary>
     /// <returns>The pattern.</returns>
-    [GeneratedRegex(@"^(#{1,6})[ \t]+")]
+    [GeneratedRegex(@"^(#{1,6})[ \t]+", RegexOptions.None, MatchTimeout)]
     private static partial Regex HeadingPattern();
 
     /// <summary>A bullet's or a numbered item's mark and the space after it.</summary>
     /// <returns>The pattern.</returns>
-    [GeneratedRegex(@"^( *)([-*+]|\d{1,9}[.)])( +)")]
+    [GeneratedRegex(@"^( *)([-*+]|\d{1,9}[.)])( +)", RegexOptions.None, MatchTimeout)]
     private static partial Regex ListPattern();
 
     /// <summary>A quote's mark.</summary>
     /// <returns>The pattern.</returns>
-    [GeneratedRegex(@"^>[ ]?")]
+    [GeneratedRegex(@"^>[ ]?", RegexOptions.None, MatchTimeout)]
     private static partial Regex QuotePattern();
 
     /// <summary>Code in a line: a run of backticks, the code, and the same run again.</summary>
     /// <returns>The pattern.</returns>
-    [GeneratedRegex(@"(`+)(?!`)(.+?)(?<!`)\1(?!`)")]
+    [GeneratedRegex(@"(`+)(?!`)(.+?)(?<!`)\1(?!`)", RegexOptions.None, MatchTimeout)]
     private static partial Regex CodePattern();
 
     /// <summary>A backslash that keeps a mark as text.</summary>
     /// <returns>The pattern.</returns>
-    [GeneratedRegex(@"\\[\\`*_{}\[\]()#+\-.!>|~]")]
+    [GeneratedRegex(@"\\[\\`*_{}\[\]()#+\-.!>|~]", RegexOptions.None, MatchTimeout)]
     private static partial Regex EscapePattern();
 
     /// <summary>A link: its text in brackets and its address in parentheses.</summary>
     /// <returns>The pattern.</returns>
-    [GeneratedRegex(@"\[([^\]\n]+)\]\(([^)\s]+(?:\([^)\s]*\)[^)\s]*)*)\)")]
+    [GeneratedRegex(@"\[([^\]\n]+)\]\(([^)\s]+(?:\([^)\s]*\)[^)\s]*)*)\)", RegexOptions.None, MatchTimeout)]
     private static partial Regex LinkPattern();
 
     /// <summary>Bold text between two stars or two underscores.</summary>
     /// <returns>The pattern.</returns>
-    [GeneratedRegex(@"(?<![*\\])(\*\*|__)(?=\S)(.+?)(?<=\S)\1(?!\*)")]
+    [GeneratedRegex(@"(?<![*\\])(\*\*|__)(?=\S)(.+?)(?<=\S)\1(?!\*)", RegexOptions.None, MatchTimeout)]
     private static partial Regex BoldPattern();
 
     /// <summary>One star, or an underscore at a word's edge so that <c>snake_case</c> is left alone.</summary>
     /// <returns>The pattern.</returns>
     [GeneratedRegex(
-        @"(?<![*\\])(\*)(?=[^\s*])(.+?)(?<=[^\s*])\*(?!\*)|(?<![\w\\])(_)(?=[^\s_])(.+?)(?<=[^\s_])_(?!\w)")]
+        @"(?<![*\\])(\*)(?=[^\s*])(.+?)(?<=[^\s*])\*(?!\*)|(?<![\w\\])(_)(?=[^\s_])(.+?)(?<=[^\s_])_(?!\w)",
+        RegexOptions.None,
+        MatchTimeout)]
     private static partial Regex ItalicPattern();
 }

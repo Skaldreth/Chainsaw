@@ -108,6 +108,18 @@ public static class Markdown
     /// <summary>The deepest indentation of a bullet or numbered item.</summary>
     public const int MaxLevel = 3;
 
+    /// <summary>
+    /// The deepest links are nested in each other; a bracket deeper than this is text. A sealed comment is read every
+    /// time its case opens, so a line of nested brackets must never be read by unbounded recursion.
+    /// </summary>
+    public const int MaxNesting = 32;
+
+    /// <summary>
+    /// How far after a bracket its link's text and address are looked for, so that a long line of brackets is read in
+    /// linear time.
+    /// </summary>
+    public const int MaxLinkReach = 2_000;
+
     /// <summary>Splits a note into its lines and their pieces.</summary>
     /// <param name="text">The note.</param>
     /// <returns>The non-empty lines and code blocks, in order.</returns>
@@ -348,8 +360,9 @@ public static class Markdown
 
     /// <summary>Reads a line's pieces: text, code, links and runs of marks, then pairs the marks.</summary>
     /// <param name="text">The line.</param>
+    /// <param name="depth">How many links the line lies in; at <see cref="MaxNesting"/> a bracket is text.</param>
     /// <returns>The pieces.</returns>
-    private static List<Node> ParseNodes(string text)
+    private static List<Node> ParseNodes(string text, int depth = 0)
     {
         var nodes = new LinkedList<Node>();
         var plain = new StringBuilder();
@@ -388,7 +401,7 @@ public static class Markdown
                 nodes.AddLast(new CodeNode(TrimCode(text[(i + run)..close])));
                 i = close + run;
             }
-            else if (c == '[' && TryReadLink(text, i, out var link, out var length))
+            else if (c == '[' && depth < MaxNesting && TryReadLink(text, i, depth, out var link, out var length))
             {
                 FlushPlain();
                 nodes.AddLast(link);
@@ -500,10 +513,11 @@ public static class Markdown
     /// <summary>Reads a link, <c>[text](adress)</c>, where a bracket opens.</summary>
     /// <param name="text">The line.</param>
     /// <param name="start">Where the bracket is.</param>
+    /// <param name="nesting">How many links the bracket lies in already.</param>
     /// <param name="link">The link.</param>
     /// <param name="length">How many characters it takes.</param>
     /// <returns><see langword="true"/> when a link stands there.</returns>
-    private static bool TryReadLink(string text, int start, out LinkNode link, out int length)
+    private static bool TryReadLink(string text, int start, int nesting, out LinkNode link, out int length)
     {
         link = null!;
         length = 0;
@@ -511,7 +525,8 @@ public static class Markdown
         // The text ends at the matching bracket; escaped brackets and brackets in code do not count.
         var depth = 0;
         var close = -1;
-        for (var i = start; i < text.Length && close < 0; i++)
+        var reach = Math.Min(text.Length, start + MaxLinkReach);
+        for (var i = start; i < reach && close < 0; i++)
         {
             switch (text[i])
             {
@@ -540,7 +555,7 @@ public static class Markdown
         // The address may hold balanced parentheses, e.g. https://sv.wikipedia.org/wiki/A_(B), but no spaces.
         var parens = 0;
         var targetEnd = -1;
-        for (var i = close + 2; i < text.Length && targetEnd < 0; i++)
+        for (var i = close + 2; i < Math.Min(text.Length, close + MaxLinkReach) && targetEnd < 0; i++)
         {
             switch (text[i])
             {
@@ -566,12 +581,15 @@ public static class Markdown
             return false;
         }
 
-        link = new LinkNode(ParseNodes(text[(start + 1)..close]), text[(close + 2)..targetEnd]);
+        link = new LinkNode(ParseNodes(text[(start + 1)..close], nesting + 1), text[(close + 2)..targetEnd]);
         length = targetEnd - start + 1;
         return true;
     }
 
-    /// <summary>Writes the pieces as spans, each with the styles and link around it.</summary>
+    /// <summary>
+    /// Writes the pieces as spans, each with the styles and link around it. It walks the pieces with a stack of its
+    /// own, since emphasis may nest as deep as the line is long.
+    /// </summary>
     /// <param name="nodes">The pieces.</param>
     /// <param name="style">The styles around them.</param>
     /// <param name="target">The link around them, or <see langword="null"/>.</param>
@@ -579,27 +597,46 @@ public static class Markdown
     private static void Flatten(
         IEnumerable<Node> nodes, MarkdownStyle style, string? target, List<MarkdownSpan> spans)
     {
-        foreach (var node in nodes)
+        var pending = new Stack<(Node Node, MarkdownStyle Style, string? Target)>();
+        Push(pending, nodes, style, target);
+        while (pending.TryPop(out var item))
         {
-            switch (node)
+            switch (item.Node)
             {
                 case TextNode text:
-                    Add(spans, text.Text, style, target);
+                    Add(spans, text.Text, item.Style, item.Target);
                     break;
                 case DelimiterNode delimiter when delimiter.Count > 0:
-                    Add(spans, new string(delimiter.Mark, delimiter.Count), style, target);
+                    Add(spans, new string(delimiter.Mark, delimiter.Count), item.Style, item.Target);
                     break;
                 case CodeNode code:
-                    Add(spans, code.Text, style | MarkdownStyle.Code, target);
+                    Add(spans, code.Text, item.Style | MarkdownStyle.Code, item.Target);
                     break;
                 case LinkNode link:
-                    Flatten(link.Children, style, link.Target, spans);
+                    Push(pending, link.Children, item.Style, link.Target);
                     break;
                 case EmphasisNode emphasis:
                     var emphasised = emphasis.Strong ? MarkdownStyle.Bold : MarkdownStyle.Italic;
-                    Flatten(emphasis.Children, style | emphasised, target, spans);
+                    Push(pending, emphasis.Children, item.Style | emphasised, item.Target);
                     break;
             }
+        }
+    }
+
+    /// <summary>Puts pieces on the stack so that the first is taken first.</summary>
+    /// <param name="pending">The stack.</param>
+    /// <param name="nodes">The pieces.</param>
+    /// <param name="style">The styles around them.</param>
+    /// <param name="target">The link around them, or <see langword="null"/>.</param>
+    private static void Push(
+        Stack<(Node Node, MarkdownStyle Style, string? Target)> pending,
+        IEnumerable<Node> nodes,
+        MarkdownStyle style,
+        string? target)
+    {
+        foreach (var node in nodes.Reverse())
+        {
+            pending.Push((node, style, target));
         }
     }
 

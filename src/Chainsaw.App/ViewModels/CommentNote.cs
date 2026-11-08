@@ -104,15 +104,34 @@ public sealed partial class CommentNote : ObservableObject
     /// </summary>
     public string Foot => IsEditing ? WritingFoot : Written;
 
-    /// <summary>Takes in what the case says about the comment now.</summary>
+    /// <summary>Gets whether a write of the note is queued or running, so that it is not dropped meanwhile.</summary>
+    public bool IsStoring => Storing > 0;
+
+    /// <summary>Gets or sets how many writes of the note are queued or running.</summary>
+    internal int Storing { get; set; }
+
+    /// <summary>Gets or sets the last write queued for the note; the next waits for it, so writes never race.</summary>
+    internal Task Pending { get; set; } = Task.CompletedTask;
+
+    /// <summary>Takes in what the case says about the comment, also where it stands, when the case is read.</summary>
     /// <param name="comment">The comment.</param>
     internal void Show(GraphComment comment)
+    {
+        ShowText(comment);
+        Place = new GraphPoint(comment.Place.X, comment.Place.Y);
+        Size = comment.Size;
+    }
+
+    /// <summary>
+    /// Takes in what a sealed write says about the comment: its text, thread and who wrote it. Its place and size are
+    /// kept, since they may be moving while the write ran.
+    /// </summary>
+    /// <param name="comment">The comment.</param>
+    internal void ShowText(GraphComment comment)
     {
         Comment = comment;
         Text = comment.Text;
         Anchor = comment.Anchor;
-        Place = new GraphPoint(comment.Place.X, comment.Place.Y);
-        Size = comment.Size;
         Written = WrittenBy(comment.ChangedBy.Name, comment.ChangedUtc);
         OnPropertyChanged(nameof(IsDraft));
         OnPropertyChanged(nameof(Id));

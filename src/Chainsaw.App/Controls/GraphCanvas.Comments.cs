@@ -184,7 +184,7 @@ public sealed partial class GraphCanvas
             case Key.Delete when comments.Selected is { IsEditing: false } chosen:
                 _ = comments.RemoveAsync(chosen);
                 break;
-            case Key.Escape when comments.Selected is not null:
+            case Key.Escape when comments.Selected is not null && !_model.Checks.IsOpen:
                 comments.Select(null);
                 break;
             default:

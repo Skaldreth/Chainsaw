@@ -59,7 +59,7 @@ public sealed partial class GraphViewModel
             return;
         }
 
-        if (Scene.Nodes.FirstOrDefault(node => Names(node, startPoint.Value)) is not { } found)
+        if (Scene.Nodes.FirstOrDefault(node => Names(node, startPoint)) is not { } found)
         {
             Tell(ToastKind.Information, LinkNotInGraphText);
             return;
@@ -69,13 +69,19 @@ public sealed partial class GraphViewModel
         ShowNodesWanted?.Invoke(this, [found.Key]);
     }
 
-    /// <summary>Reads whether a node is the address or transaction a link names.</summary>
+    /// <summary>
+    /// Reads whether a node is the address or transaction a link names, on the same chain and with exactly the same
+    /// value as the link reads it.
+    /// </summary>
     /// <param name="node">The node.</param>
-    /// <param name="value">The address or the transaction's id.</param>
+    /// <param name="named">What the link names.</param>
     /// <returns><see langword="true"/> when it is.</returns>
-    private static bool Names(NodeView node, string value) =>
-        node.Node.Addresses.Any(address => string.Equals(address.Value, value, StringComparison.OrdinalIgnoreCase))
-        || node.Key.EndsWith(":" + value, StringComparison.OrdinalIgnoreCase);
+    private static bool Names(NodeView node, Chainsaw.Modules.Chains.Contracts.ChainStartPoint named) =>
+        named.Kind == Chainsaw.Modules.Chains.Contracts.StartPointKind.Address
+            ? node.Node.Addresses.Any(address => address.Chain == named.Chain
+                && string.Equals(address.Value, named.Value, StringComparison.Ordinal))
+            : named.Chain == Chainsaw.SharedKernel.Chain.Bitcoin
+                && string.Equals(node.Node.Transaction?.Value, named.Value, StringComparison.Ordinal);
 
     /// <summary>Connects the comments to the graph: drawing, toasts, the case and the threads' nodes.</summary>
     private void WireComments()

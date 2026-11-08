@@ -31,6 +31,12 @@ public sealed class CaseSession
     public event EventHandler? Changed;
 
     /// <summary>
+    /// Raised on the UI thread just before the open case is let go (closed, forgotten at a lock, or replaced), while it
+    /// is still open, so that what is being written in it (a comment) can be sealed first.
+    /// </summary>
+    public event EventHandler<ICase>? Closing;
+
+    /// <summary>
     /// Gives a case's name as the title bar shows it: <c>2026-0117 · Investeringsbedrägeri via chatt</c>.
     /// </summary>
     /// <param name="openCase">The case.</param>
@@ -67,6 +73,7 @@ public sealed class CaseSession
             return true;
         }
 
+        Closing?.Invoke(this, openCase);
         Current = null;
         Changed?.Invoke(this, EventArgs.Empty);
         return await Task.Run(() => TryClose(openCase));
@@ -84,6 +91,7 @@ public sealed class CaseSession
             return true;
         }
 
+        Closing?.Invoke(this, openCase);
         Current = null;
         return TryClose(openCase);
     }
@@ -99,6 +107,7 @@ public sealed class CaseSession
             return;
         }
 
+        Closing?.Invoke(this, openCase);
         Current = null;
         Release(openCase);
         Changed?.Invoke(this, EventArgs.Empty);
