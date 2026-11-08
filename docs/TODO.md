@@ -108,17 +108,6 @@ fungerar rättas före allt annat nedan. Särskilt:
 - **Testärendet** [direkt]: `/testdata` har inget bytt block; den påhittade kedjan svarar alltid likadant.
 
 **Inspektören, Nytt ärende och Guiden**
-- **Källors felrad till toastern** [direkt], som Bevakningens felrad redan är.
-- **Bevakningens huvud** [direkt]: skissen säger *2 nya träffar sedan 09:10*, men vyn säger bara antalet. När
-  användaren senast tittade behöver sparas som en tid med *sedd*.
-
-- **Guidens panel** [direkt]:
-  - **Länkar:** välj samma nod igen efter att ha följt en länk, så stannar panelen på länken. Klustrets svar, som
-    kommer efter en stund, kan byta avsnitt medan man läser.
-  - **Tangentbordet:** metodens avsnitt nås bara med högerklick.
-  - **Tolkaren:** en avslutande `*` letas efter utan att kod hoppas över.
-  - **Smalt fönster:** vid 960 px kapas kommandoraden bredvid den öppna panelen.
-
 - **Återanslutningen i utgångsrutan** [direkt]: titelraden säger *Ansluter igen …* med nästa försök, men utgångsrutan
   (UT2b) visar bara *Offline* i rött medan tunneln ansluts igen.
 
@@ -146,28 +135,15 @@ fungerar rättas före allt annat nedan. Särskilt:
    - Ett förslag som ändrats sedan det förseglades ger det allmänna felet; det borde säga att kontrollerna behöver
      köras igen.
 
-### 4. Valt 2026-11-08 och ska byggas
+### 4. Resterna efter valen 2026-11-08
 
 Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md under *Valt för 1.0*.
-- **Grafen** [direkt]: IN4a kortets baksida, TL2a tidslisten, GR9a bytt block och *Väntar på källan*.
-
-- **Etiketter ET1a** [etapp], med sanktionsträffarna samlade.
-- **Exponering EP1b** [etapp].
-
-- **Etiketter ET1a** [etapp], med sanktionsträffarna samlade.
 - **Exponering, resterna efter EP1b** [direkt]: kronorna under beloppen (efter KU1a), mixerns godkända troliga
   utgångar som streckade lila förslag bortom mixern, *Tillbaka · Esc* i grafen efter *Visa vägen i grafen*, och
   *Exponering …* i nodens meny i grafen (`ExposureViewModel.Open` finns).
-- **Rapport RP1b** [etapp].
-
-- **Kurserna KU1a** [etapp]: kronorna via Riksbanken.
 - **Inställningarnas rester** [direkt] (efter BV4a, ST2a, FS2a och UT3b):
   - Titelraden visar inte *Syns som* på utgångens tips (UT3b har det i skissen).
   - Kontrollen av Windows som utgång (*datorns eget nät*) visas ingenstans, eftersom tabellen bara står under VPN.
-
-- **Inställningarna** [direkt]: BV4a meddelandet mitt på skärmen, ST2a återställningsnyckeln, FS2a steget Utgång
-  (Windows förvalt) och UT3b utgångarna med kontrollen.
-- **Ärendet ÄR1b** [etapp]: kollegans fil, egenskaperna med kuverten och konflikten med arbetskopian.
 
 - **Sökningen, resterna efter KR1a** [direkt]: det slängda i soptunnan söks inte (raden kunde säga *I soptunnan* med
   *Lägg tillbaka*), och en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret.

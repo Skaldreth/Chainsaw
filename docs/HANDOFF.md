@@ -8,17 +8,16 @@ och vad varje etapp byggde i `docs/DEV-LOG.md`.
 
 ## Läget
 
-- **Etapperna 1–27 är byggda**:
-  - Alla moduler, skalet SH1b och grafen med inspektören, kontrollerna och förslagen (KF2b) och bevakningen, också
-    i bakgrunden.
-  - Ethereum med ERC-20, källornas endpoints, Chainabuse som underleverantör och Guiden.
-- **Byggt 2026-11-08 och ihopslaget** på grenen `claude/busy-cray-wj01k4`:
-  - **Agenternas delar:** NC2a, GR7a, TL1a, KN1a, SO1a, BV1a, TO1a och mixeranalyserna (*Delarna tillsammans*,
-    *Mixer efter mixer*).
-  - **Grafen:** *Sortera grafen*, mjuk zoom, inspektörens glidning och ×, och rutmarkering med grupper som dras.
-  - **Guiden:** centrerad, med 33 nya avsnitt och Esc tillbaka.
-- **Senaste körningen:** bygget har 0 varningar, och testerna är gröna (App 1 025, Tracing 205, Checks 91,
-  SharedKernel 65, TestData 19).
+- **Etapperna 1–27 är byggda**, och sedan 2026-11-08 också allt som valdes på canvasens sida *Mot 1.0*:
+  - Begäran (BG1b), Spara ofta, Ethereum i Nytt ärende, Godkänna en plånbok, soptunnan för lappar, ytor och högar.
+  - Grafen: IN4a kortets baksida, TL2a tidslisten, GR9a bytt block och *Väntar på källan*.
+  - Vyerna Etiketter (ET1a, med *Allt följer med*), Exponering (EP1b) och Rapport (RP1b).
+  - Kurserna via Riksbanken (KU1a), inställningarna (BV4a, ST2a, FS2a, UT3b), ärendets kuvert (ÄR1b) och sökningen
+    i kommandoraden (KR1a).
+  - Varje etapp som skriver i ärendet är granskad oberoende tills inga C eller I återstod; de mindre fynden står i
+    `docs/BACKLOG.md`.
+- **Senaste körningen:** bygget har 0 varningar, och alla 16 testprojekt är gröna. Ett test i App.Tests är instabilt
+  (BACKLOG).
 - **Inget är provat på Windows.**
 
 ## Nästa steg
