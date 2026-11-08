@@ -2538,3 +2538,24 @@ och *+ Skäl, frivilligt*) och *Allt avgjort* med ringen, sammanfattningen och l
   andra; ett IO-fel från sanktionslistan gör raden misslyckad; varje rads `CancellationTokenSource` tas bort när
   hämtningen är över.
 
+
+## Bildspråkets ruta (GR7a, 2026-11-08)
+
+- **En egen vy:** `Views/GraphLegendView` ersätter den gamla legenden i `GraphView` (mindre att slå ihop med de
+  andra som arbetar i grafens fil). Vymodellen `LegendViewModel` (under `GraphViewModel.Legend`) håller det som hovras
+  och raden längst ner; den glömmer det när rutan stängs.
+- **En regel en gång:** orden står i `Graph/Legend.cs`, men form, färg, ikon och streckad ram kommer ur
+  `VisualLanguage`, markeringarnas skivor ur `GraphPalette.MarkKeys` (som grafen nu också läser), linjernas bredder ur
+  `EdgeWidth` och strecken ur den nya `Graph/GraphDashes` (som `GraphCanvas` nu läser i stället för egna konstanter).
+  Raderna byggs ur färgen: sanktion hamnar under *Risk, slut* och kluster under *Okänt* för att deras färg hör dit.
+- **Avsteg från skissen:**
+  - *Rapporterad* (Chainabuse) finns med bland markeringarna, eftersom grafen ritar den; markeringarna står i grafens
+    ordning (Bevakad sist), och deras ikon är 12 px (minsta storlek) i stället för skissens 10.
+  - *Etikett från ett annat ärende* heter som i grafen, inte *Från annat ärende*; därför är mittkolumnen bredare
+    (1,45 mot 1) i stället för tre lika breda kolumner.
+  - *Annan kedja* (tx:en) har grafens ikon (swap), inte skissens tx-ikon, och skivornas färg är grafens (ögat mörkt
+    på accenten).
+  - Sorterna är 67 px breda i stället för 70, så att Uttags sex sorter ryms i rutans 600 px (skissen krymper dem med
+    flex på samma sätt). Spårad linje är den tjockaste grafen ritar (5,2 px), inte 4.
+  - Högen och ledtrådsnoden (*+N tx*) står inte med: de är grafens egen struktur, inte sorter av aktörer.
+  - Avståndet mellan bokstäverna i rubrikerna (skissens `letter-spacing`) finns inte i WPF.

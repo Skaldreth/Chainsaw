@@ -14,38 +14,6 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
 
-        <!-- A sort in the legend: its icon in its frame, and its name. -->
-        <DataTemplate x:Key="LegendSort" DataType="{x:Type graph:SortLook}">
-            <StackPanel Margin="0,0,0,10" Width="72">
-                <Border x:Name="Frame" Width="26" Height="26" CornerRadius="7" BorderThickness="1.5" HorizontalAlignment="Center"
-                        BorderBrush="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}">
-                    <controls:GridIcon Size="14" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
-                                       Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
-                </Border>
-                <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{StaticResource Brush.TextMuted}"
-                           HorizontalAlignment="Center" Margin="0,5,0,0" />
-            </StackPanel>
-            <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding Shape}" Value="{x:Static graph:NodeShape.Round}">
-                    <Setter TargetName="Frame" Property="CornerRadius" Value="13" />
-                </DataTrigger>
-            </DataTemplate.Triggers>
-        </DataTemplate>
-
-        <!-- A mark in the legend: its disc and what it means. -->
-        <DataTemplate x:Key="LegendBadge" DataType="{x:Type graph:BadgeLook}">
-            <StackPanel Orientation="Horizontal" Margin="0,0,14,6">
-                <Border Width="18" Height="18" CornerRadius="9"
-                        Background="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}">
-                    <controls:GridIcon Size="12" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{StaticResource Brush.Background}"
-                                       Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
-                </Border>
-                <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{StaticResource Brush.TextMuted}"
-                           VerticalAlignment="Center" Margin="6,0,0,0" />
-            </StackPanel>
-        </DataTemplate>
         <!--
           An action over the chosen node (sketch IN2b): a 34 px square with the icon at 18 px; Expandera, the main one, in
           the accent. Never holds the keyboard, so that E, L, B, U and K go on working in the graph.
@@ -768,79 +736,15 @@
             </Border>
 
             <!--
-              The visual language behind the ? (sketches GR3a and GR3c), in the lower right corner (sketch SO1a), where
+              The visual language behind the ? (sketch GR7a), in the lower right corner (sketch SO1a), where
               it never meets the pill at the left edge however low the window is. -->
             <Button Style="{StaticResource Button.Help}" HorizontalAlignment="Right"
                     Visibility="{Binding ShowsCorner, Converter={StaticResource Visible}}"
                     VerticalAlignment="Bottom" Margin="0,0,18,18" AutomationProperties.Name="Bildspråket"
                     ToolTip="Bildspråket. I grafen: Esc väljer inget, E expanderar, F passar in, + och − zoomar."
                     Command="{Binding ToggleLegendCommand}" />
-            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,18,56" Width="420" Padding="14"
-                    CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"
-                    Background="{StaticResource Brush.Floating}"
-                    Visibility="{Binding IsLegendOpen, Converter={StaticResource Visible}}">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="32" ShadowDepth="12" Direction="270" Opacity="0.45" Color="Black" />
-                </Border.Effect>
-                <StackPanel>
-                    <ItemsControl ItemsSource="{Binding LegendSorts}" ItemTemplate="{StaticResource LegendSort}" Focusable="False">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                    <ItemsControl ItemsSource="{Binding LegendBadges}" ItemTemplate="{StaticResource LegendBadge}" Focusable="False"
-                                  Margin="0,4,0,0">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                    <!-- The lines: thickness is the amount, style is certainty. -->
-                    <WrapPanel Margin="0,6,0,0">
-                        <WrapPanel.Resources>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="FontSize" Value="12" />
-                                <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
-                                <Setter Property="Margin" Value="6,0,0,0" />
-                            </Style>
-                            <Style TargetType="StackPanel">
-                                <Setter Property="Orientation" Value="Horizontal" />
-                                <Setter Property="Margin" Value="0,0,14,6" />
-                            </Style>
-                        </WrapPanel.Resources>
-                        <StackPanel>
-                            <Line X1="0" X2="34" Y1="8" Y2="8" StrokeThickness="4" Stroke="{StaticResource Brush.Accent}"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                            <TextBlock Text="Spårat, tjock = stort" />
-                        </StackPanel>
-                        <StackPanel>
-                            <Line X1="0" X2="34" Y1="8" Y2="8" StrokeThickness="1.1"
-                                  Stroke="{StaticResource Brush.Graph.Untraced}" />
-                            <TextBlock Text="Inte spårat" />
-                        </StackPanel>
-                        <StackPanel>
-                            <Line X1="0" X2="34" Y1="8" Y2="8" StrokeThickness="1.6" Stroke="{StaticResource Brush.Accent}"
-                                  StrokeDashArray="1.2 3" StrokeDashCap="Round" />
-                            <TextBlock Text="Streckat = osäkert" />
-                        </StackPanel>
-                        <StackPanel>
-                            <Line X1="0" X2="34" Y1="8" Y2="8" StrokeThickness="1.6" StrokeDashArray="4 3"
-                                  Stroke="{StaticResource Brush.Kind.OtherChain}" />
-                            <TextBlock Text="Annan kedja" />
-                        </StackPanel>
-                        <StackPanel>
-                            <Path Data="M0 14 C6 -2 28 -2 34 14" StrokeThickness="1.1"
-                                  Stroke="{StaticResource Brush.Graph.Untraced}" />
-                            <TextBlock Text="Pengar som vänder" />
-                        </StackPanel>
-                    </WrapPanel>
-                    <Button Style="{StaticResource Button.Link}" Content="Guiden: Grafen och bildspråket" Margin="0,4,0,0"
-                            CommandParameter="{x:Static graph:GuideTopic.Graph}" Command="{Binding OpenGuideTopicCommand}" />
-                </StackPanel>
-            </Border>
+            <views:GraphLegendView HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,18,64"
+                                   Visibility="{Binding IsLegendOpen, Converter={StaticResource Visible}}" />
         </Grid>
 
         <!--

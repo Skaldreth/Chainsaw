@@ -1,0 +1,248 @@
+<UserControl x:Class="Chainsaw.App.Views.GraphLegendView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:graph="clr-namespace:Chainsaw.App.Graph"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance Type=vm:GraphViewModel}"
+             mc:Ignorable="d">
+
+    <!--
+      The legend behind the graph's ? (sketch GR7a): a row per colour, after what it means, with its sorts as small nodes
+      in their shape and colour; under a thin line the forms, the marks and the lines as three airy columns; and at the
+      bottom a row with the rule, which turns into the explanation of what is hovered, and Guiden F1. Everything is
+      drawn from the graph's own tables (Graph/Legend.cs); only wiring here.
+    -->
+    <UserControl.Resources>
+        <!-- Something that explains itself in the bottom row when hovered: a soft surface under the pointer. -->
+        <Style x:Key="Legend.Item" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="8" />
+            <EventSetter Event="MouseEnter" Handler="OnItemEnter" />
+            <EventSetter Event="MouseLeave" Handler="OnItemLeave" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- A row in the three columns: pulled out by its padding, so that the text lines up with the heading. -->
+        <Style x:Key="Legend.ColumnItem" TargetType="Border" BasedOn="{StaticResource Legend.Item}">
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="Margin" Value="-6,0,-6,0" />
+            <Setter Property="Height" Value="24" />
+        </Style>
+
+        <!-- The small headings: FÄRG, FORM, MARKERING and LINJE. -->
+        <Style x:Key="Legend.Heading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+        </Style>
+
+        <Style x:Key="Legend.Text" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!-- Guiden F1: quiet until hovered, then in the text's colour. -->
+        <Style x:Key="Legend.Guide" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent" Padding="4,2">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- A sort as a small node: its icon in its round or square frame, dashed when the graph dashes it. -->
+        <DataTemplate x:Key="Legend.Sort" DataType="{x:Type graph:LegendSort}">
+            <Border Style="{StaticResource Legend.Item}" Width="67" Margin="0,0,2,0" Padding="0,7,0,6">
+                <StackPanel>
+                    <Grid Width="30" Height="30" HorizontalAlignment="Center">
+                        <Rectangle x:Name="Frame" RadiusX="7" RadiusY="7" StrokeThickness="1.5"
+                                   Stroke="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
+                                   StrokeDashArray="{Binding FrameDashes, Converter={x:Static controls:DashArrayConverter.Instance}}" />
+                        <controls:GridIcon Size="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
+                                           Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                    </Grid>
+                    <TextBlock Text="{Binding Name}" FontSize="11" Foreground="{StaticResource Brush.TextMuted}"
+                               HorizontalAlignment="Center" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsRound}" Value="True">
+                    <Setter TargetName="Frame" Property="RadiusX" Value="15" />
+                    <Setter TargetName="Frame" Property="RadiusY" Value="15" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- A colour's row: its dot and what it means, then its sorts. -->
+        <DataTemplate x:Key="Legend.Group" DataType="{x:Type graph:LegendGroup}">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                <Border Style="{StaticResource Legend.Item}" Width="134" Margin="0,0,10,0" Padding="8,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                 Fill="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
+                        <TextBlock Text="{Binding Name}" FontSize="13" Foreground="{StaticResource Brush.Text}"
+                                   VerticalAlignment="Center" Margin="9,0,0,0" />
+                    </StackPanel>
+                </Border>
+                <ItemsControl ItemsSource="{Binding Sorts}" ItemTemplate="{StaticResource Legend.Sort}" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- A form: an empty frame in the muted grey, round, square or dashed. -->
+        <DataTemplate x:Key="Legend.Form" DataType="{x:Type graph:LegendForm}">
+            <Border Style="{StaticResource Legend.ColumnItem}" Height="28">
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle x:Name="Frame" Width="20" Height="20" RadiusX="6" RadiusY="6" StrokeThickness="1.5"
+                               VerticalAlignment="Center" Stroke="{StaticResource Brush.TextMuted}"
+                               StrokeDashArray="{Binding FrameDashes, Converter={x:Static controls:DashArrayConverter.Instance}}" />
+                    <TextBlock Text="{Binding Name}" Style="{StaticResource Legend.Text}" Margin="10,0,0,0" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsRound}" Value="True">
+                    <Setter TargetName="Frame" Property="RadiusX" Value="10" />
+                    <Setter TargetName="Frame" Property="RadiusY" Value="10" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- A mark: its disc and icon as the graph draws them in a node's corner. -->
+        <DataTemplate x:Key="Legend.Badge" DataType="{x:Type graph:LegendBadge}">
+            <Border Style="{StaticResource Legend.ColumnItem}">
+                <StackPanel Orientation="Horizontal">
+                    <Grid Width="18" Height="18" VerticalAlignment="Center">
+                        <Ellipse Fill="{Binding Look.Badge, Converter={x:Static controls:MarkBrushConverter.Instance}}" />
+                        <controls:GridIcon Size="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{Binding Look.Badge, Converter={x:Static controls:MarkBrushConverter.Instance},
+                                                        ConverterParameter={x:Static controls:MarkBrushConverter.IconPart}}"
+                                           Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                    </Grid>
+                    <TextBlock Text="{Binding Name}" Style="{StaticResource Legend.Text}" Margin="10,0,0,0" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- A line: its colour, thickness and dashes as on the surface, or the arc of money that turns back. -->
+        <DataTemplate x:Key="Legend.Line" DataType="{x:Type graph:LegendLine}">
+            <Border Style="{StaticResource Legend.ColumnItem}">
+                <StackPanel Orientation="Horizontal">
+                    <Path x:Name="Stroke" Width="48" Height="16" VerticalAlignment="Center" Data="M3 8 L45 8"
+                          StrokeThickness="{Binding Width}" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          StrokeDashCap="Round"
+                          Stroke="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
+                          StrokeDashArray="{Binding Dashes, Converter={x:Static controls:DashArrayConverter.Instance}}" />
+                    <TextBlock Text="{Binding Name}" Style="{StaticResource Legend.Text}" Margin="10,0,0,0" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsArc}" Value="True">
+                    <Setter TargetName="Stroke" Property="Data" Value="M3 14 C10 0 38 0 45 14" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <ItemsPanelTemplate x:Key="Legend.Column">
+            <StackPanel />
+        </ItemsPanelTemplate>
+    </UserControl.Resources>
+
+    <Border Width="600" Padding="20,20,20,16" CornerRadius="14" BorderThickness="1.5"
+            BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Floating}">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="40" ShadowDepth="16" Direction="270" Opacity="0.5" Color="Black" />
+        </Border.Effect>
+        <StackPanel DataContext="{Binding Legend}">
+            <TextBlock Text="FÄRG · VAD SOM HÄNDER MED PENGARNA" Style="{StaticResource Legend.Heading}" Margin="0,0,0,14" />
+            <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource Legend.Group}" Focusable="False" />
+
+            <Border Height="1" Background="{StaticResource Brush.BorderStrong}" Margin="0,14,0,16" />
+
+            <!-- Form, Markering and Linje: the marks' names are the longest, so their column is the widest. -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="1.45*" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="FORM" Style="{StaticResource Legend.Heading}" Margin="0,0,0,6" />
+                    <ItemsControl ItemsSource="{Binding Forms}" ItemTemplate="{StaticResource Legend.Form}"
+                                  ItemsPanel="{StaticResource Legend.Column}" Focusable="False" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="MARKERING" Style="{StaticResource Legend.Heading}" Margin="0,0,0,6" />
+                    <ItemsControl ItemsSource="{Binding Badges}" ItemTemplate="{StaticResource Legend.Badge}"
+                                  ItemsPanel="{StaticResource Legend.Column}" Focusable="False" />
+                </StackPanel>
+                <StackPanel Grid.Column="4">
+                    <TextBlock Text="LINJE · TJOCK ÄR MYCKET" Style="{StaticResource Legend.Heading}" Margin="0,0,0,6" />
+                    <ItemsControl ItemsSource="{Binding Lines}" ItemTemplate="{StaticResource Legend.Line}"
+                                  ItemsPanel="{StaticResource Legend.Column}" Focusable="False" />
+                </StackPanel>
+            </Grid>
+
+            <!-- The bottom row: the rule, or what is hovered; and the Guide's section on the graph. -->
+            <Border BorderThickness="0,1,0,0" BorderBrush="{StaticResource Brush.BorderStrong}" Margin="0,16,0,0"
+                    Padding="0,12,0,0" MinHeight="36">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Legend.Guide}" Margin="12,0,-4,0"
+                            VerticalAlignment="Center" AutomationProperties.Name="Guiden"
+                            ToolTip="Grafen och bildspråket i Guiden (F1)"
+                            CommandParameter="{x:Static graph:GuideTopic.Graph}"
+                            Command="{Binding DataContext.OpenGuideTopicCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Guide}" VerticalAlignment="Center"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                            <TextBlock Text="Guiden" FontSize="12.5" Margin="7,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock Text="F1" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" Margin="7,0,0,0"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="{Binding Hint}" FontSize="12.5" LineHeight="18" TextWrapping="Wrap"
+                               VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsHinting}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </DockPanel>
+            </Border>
+        </StackPanel>
+    </Border>
+</UserControl>

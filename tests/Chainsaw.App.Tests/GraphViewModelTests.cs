@@ -635,17 +635,28 @@ public sealed class GraphViewModelTests
                 new GraphExpansion(scene, ExpansionOutcome.Partly, 3, ["Gränsen nåddes."]), offline: false));
     }
 
-    /// <summary>The legend shows every sort and mark of the visual language.</summary>
+    /// <summary>
+    /// The legend (sketch GR7a) opens with the rule, explains what is hovered, and opens again with the rule after it
+    /// was closed; choosing something in the graph closes it.
+    /// </summary>
     [Fact]
-    public void LegendShowsTheVisualLanguage()
+    public void LegendExplainsWhatIsHoveredAndForgetsItWhenClosed()
     {
         var rig = new Rig();
         rig.Graph.ToggleLegend();
 
         Assert.True(rig.Graph.IsLegendOpen);
-        Assert.Equal(VisualLanguage.Sorts.Count, rig.Graph.LegendSorts.Count);
+        Assert.Equal(Legend.Rule, rig.Graph.Legend.Hint);
+        var mixer = rig.Graph.Legend.Groups.SelectMany(group => group.Sorts).Single(s => s.Look.Sort == NodeSort.Mixer);
+        rig.Graph.Legend.Hover(mixer);
+        Assert.True(rig.Graph.Legend.IsHinting);
+        Assert.StartsWith("Mixer: Spåret tar slut.", rig.Graph.Legend.Hint, StringComparison.Ordinal);
+
         rig.Graph.Choose(GraphSamples.VKey, null);
         Assert.False(rig.Graph.IsLegendOpen);
+        rig.Graph.ToggleLegend();
+        Assert.False(rig.Graph.Legend.IsHinting);
+        Assert.Equal(Legend.Rule, rig.Graph.Legend.Hint);
     }
 
     /// <summary>

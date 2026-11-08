@@ -23,8 +23,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
   kommer dit.
 
 - **Guiden från spårningsmetoden och *?*** (etapp 18, valt av sessionen): ett klick på metoden byter metod som förut,
-  och ett **högerklick** öppnar Guiden vid metoden (verktygstipset säger det). *?* visar bildspråket som förut, och
-  dess länk *Guiden: Grafen och bildspråket* öppnar panelen. I GD1b öppnade ett klick på metoden och på *?* Guiden
+  och ett **högerklick** öppnar Guiden vid metoden (verktygstipset säger det). *?* visar bildspråket (GR7a), och
+  dess *Guiden F1* öppnar panelen. I GD1b öppnade ett klick på metoden och på *?* Guiden
   direkt; då behövs en annan väg att byta metod och se bildspråket. Bekräfta eller välj.
 
 
@@ -60,7 +60,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 14. **Bevakningens högra panel:** *klart 2026-11-07*, syns bara när en bevakning är vald.
 15. **Statusraden längst ner:** *borttagen 2026-11-07*; väntan är en gul prick vid utgången.
 16. **Pillret efter läget:** *klart 2026-11-07*, och bildspråkets *?* syns bara med ett ärende.
-17. **Bildspråkets ruta:** *GR7a vald 2026-11-07*, byggs efter samlingsnoden (samma fil, GraphView).
+17. **Bildspråkets ruta:** *GR7a byggd 2026-11-08* (`Views/GraphLegendView`).
 18. **Kommandoraden:** *dold 2026-11-07*, fälls fram med Ctrl+K som Spotlight; svar när den är dold blir en toast.
 19. **Sonarpulsen runt *Nytt ärende*:** *omgjord 2026-11-07*, tre tunna ringar ur nodens egen kant.
 20. **Soptunnan (SO1a)** byggs, och finns redan i startvyn: där kan man slänga ärenden.
@@ -114,7 +114,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
        markörer och *Ta tillbaka*/*Ångra* som piller under raden.
     3. **Grafen** (GR4, GR5, TK1a): tidslinjen under grafen (TL1a) saknas; noden växer inte med namn och lång adress;
        tokenmärket som liten rund bricka; swappen som piller på linjen; rubrikerna för kedjornas delar av ytan.
-    4. **Bildspråkets ruta GR7a** (godkänd, inte byggd).
+    4. **Bildspråkets ruta GR7a**: *byggd 2026-11-08*.
     5. **Guiden** (GD1b): skissens små diagram inne i avsnitten saknas.
     6. Små: BV1a (kedjan som bricka, bakgrundens läge i ram, knapparna längst ner), TO1a (färgat streck i nederkanten
        för fel och varningar).
