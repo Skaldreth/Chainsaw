@@ -68,7 +68,7 @@ internal static class PileRules
             .Where(pair => pair.Value.Count > GraphPile.MostLoose)
             .OrderBy(pair => anchors.IndexOf(pair.Key.Anchor))
             .ThenBy(pair => pair.Key.Side)
-            .Select(pair => Pile(pair.Key.Anchor, pair.Key.Side, pair.Value, state))
+            .Select(pair => Pile(graph, pair.Key.Anchor, pair.Key.Side, pair.Value, state))
             .ToList();
         return (piles, Clues(graph, state, facts));
     }
@@ -77,8 +77,48 @@ internal static class PileRules
     /// <param name="anchor">The expanded actor's node key.</param>
     /// <param name="side">The side.</param>
     /// <returns>For example <c>pile:out:address:bc1q…</c>.</returns>
-    public static string PileKey(string anchor, PileSide side) =>
-        GraphPile.KeyPrefix + side.ToString().ToLowerInvariant() + ":" + NodeKeys.Position(anchor);
+    public static string PileKey(string anchor, PileSide side) => PilePrefix(side) + NodeKeys.Position(anchor);
+
+    /// <summary>Gives the start of a pile's key on a side: <c>pile:out:</c>.</summary>
+    /// <param name="side">The side.</param>
+    /// <returns>The prefix, before the actor's position key.</returns>
+    internal static string PilePrefix(PileSide side) =>
+        GraphPile.KeyPrefix + side.ToString().ToLowerInvariant() + ":";
+
+    /// <summary>
+    /// Gives a pile's or a clue's key so that it does not follow the actor's representative: the key the user last
+    /// placed it under, made from any of the actor's addresses, so that its place (stored under that key, as before)
+    /// is kept when its cluster grows or another address represents it; the key from the representative until it has
+    /// been placed. Nothing stored changes form.
+    /// </summary>
+    /// <param name="fresh">The key from the actor's representative.</param>
+    /// <param name="prefix">The start of the key, before the actor's position key.</param>
+    /// <param name="anchor">The actor, or <see langword="null"/> when it is not in the graph.</param>
+    /// <param name="state">The graph's state, with the places.</param>
+    /// <returns>The key.</returns>
+    internal static string StableKey(string fresh, string prefix, GraphNode? anchor, GraphState state)
+    {
+        if (anchor is null)
+        {
+            return fresh;
+        }
+
+        var placed = NodeKeys.Members(anchor)
+            .Select(member => prefix + member)
+            .Where(state.Positions.ContainsKey)
+            .OrderByDescending(key => LastPlaced(key, state))
+            .FirstOrDefault();
+        return placed ?? fresh;
+    }
+
+    /// <summary>Gives when the user last placed what a key stands for, in any layout.</summary>
+    /// <param name="key">The key the places are stored under.</param>
+    /// <param name="state">The graph's state, with the places.</param>
+    /// <returns>The newest time, or the earliest time when nothing is stored.</returns>
+    private static DateTimeOffset LastPlaced(string key, GraphState state) =>
+        state.Positions.TryGetValue(key, out var stored)
+            ? stored.Values.Select(place => place.UpdatedUtc).DefaultIfEmpty(DateTimeOffset.MinValue).Max()
+            : DateTimeOffset.MinValue;
 
     /// <summary>Gives a clue's key: the actor's position key.</summary>
     /// <param name="anchor">The actor's node key.</param>
@@ -158,15 +198,17 @@ internal static class PileRules
     }
 
     /// <summary>Makes a pile of the actors on one side of an expanded actor, apart from those picked out.</summary>
+    /// <param name="graph">The graph, which gives the expanded actor's addresses for the pile's key.</param>
     /// <param name="anchor">The expanded actor's node key.</param>
     /// <param name="side">The side.</param>
     /// <param name="members">The actors.</param>
     /// <param name="state">The graph's state.</param>
     /// <returns>The pile.</returns>
-    private static GraphPile Pile(string anchor, PileSide side, List<GraphNode> members, GraphState state)
+    private static GraphPile Pile(
+        TraceGraph graph, string anchor, PileSide side, List<GraphNode> members, GraphState state)
     {
         var picked = members.Where(node => NodeKeys.Members(node).Any(state.Picked.Contains)).ToList();
-        var key = PileKey(anchor, side);
+        var key = StableKey(PileKey(anchor, side), PilePrefix(side), graph.Node(anchor), state);
         return new GraphPile(
             key,
             anchor,
@@ -221,9 +263,10 @@ internal static class PileRules
         [
             .. parts.GroupBy(part => (part.Anchor, part.IsHistory)).Select(group =>
             {
-                var key = !group.Key.IsHistory && withHistory.Contains(group.Key.Anchor)
-                    ? SpendsClueKey(group.Key.Anchor)
-                    : ClueKey(group.Key.Anchor);
+                var spends = !group.Key.IsHistory && withHistory.Contains(group.Key.Anchor);
+                var fresh = spends ? SpendsClueKey(group.Key.Anchor) : ClueKey(group.Key.Anchor);
+                var prefix = spends ? HeldBackClue.SpendsKeyPrefix : HeldBackClue.KeyPrefix;
+                var key = StableKey(fresh, prefix, graph.Node(group.Key.Anchor), state);
                 return Clue(key, group.Key.Anchor, [.. group], state, facts);
             }),
         ];

@@ -174,6 +174,53 @@ public sealed class PileTests : IDisposable
         Assert.False(GraphViewState.Default.ShowUnspendable);
     }
 
+    /// <summary>A cluster of two addresses represented by <c>a</c> now, once placed by the user under <c>b</c>.</summary>
+    private static GraphNode TwoAddressCluster(BitcoinAddress a, BitcoinAddress b) => new(
+        NodeKeys.ClusterPrefix + a.Value, GraphNodeKind.Cluster, [a, b], 2, null, null, null, false, 1, null,
+        NodeExpansion.Expanded, [], new Dictionary<GraphLayout, NodePosition>());
+
+    /// <summary>The graph's state with places stored under keys, each at a time.</summary>
+    private static GraphState Placed(params (string Key, DateTimeOffset At)[] places) => new(
+        [], [], [],
+        places.ToDictionary(
+            place => place.Key,
+            place => (IReadOnlyDictionary<GraphLayout, StoredPosition>)new Dictionary<GraphLayout, StoredPosition>
+            {
+                [GraphLayout.Free] = new(new NodePosition(10, 20), place.At),
+            },
+            StringComparer.Ordinal));
+
+    [Fact]
+    public void A_piles_key_follows_where_the_user_placed_it_not_the_clusters_representative()
+    {
+        var (a, b) = (Wpkh("rep-now"), Wpkh("rep-before"));
+        var cluster = TwoAddressCluster(a, b);
+        var prefix = PileRules.PilePrefix(PileSide.Out);
+        var fresh = PileRules.PileKey(cluster.Key, PileSide.Out);
+        var at = new DateTimeOffset(2026, 11, 8, 9, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal(prefix + "address:" + a.Value, fresh);
+        Assert.Equal(fresh, PileRules.StableKey(fresh, prefix, cluster, Placed()));
+        var before = prefix + NodeKeys.Address(b);
+        Assert.Equal(before, PileRules.StableKey(fresh, prefix, cluster, Placed((before, at))));
+        var both = Placed((before, at), (fresh, at.AddMinutes(1)));
+        Assert.Equal(fresh, PileRules.StableKey(fresh, prefix, cluster, both));
+        Assert.Equal(fresh, PileRules.StableKey(fresh, prefix, null, Placed((before, at))));
+    }
+
+    [Fact]
+    public void A_clues_key_follows_where_the_user_placed_it_too()
+    {
+        var (a, b) = (Wpkh("clue-now"), Wpkh("clue-before"));
+        var cluster = TwoAddressCluster(a, b);
+        var before = HeldBackClue.KeyPrefix + NodeKeys.Address(b);
+
+        var placed = Placed((before, DateTimeOffset.UnixEpoch));
+        var key = PileRules.StableKey(PileRules.ClueKey(cluster.Key), HeldBackClue.KeyPrefix, cluster, placed);
+
+        Assert.Equal(before, key);
+    }
+
     [Fact]
     public async Task One_picked_out_and_placed_can_still_be_put_back()
     {

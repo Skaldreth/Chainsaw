@@ -1155,12 +1155,22 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Välj en utplockad nod i ett kluster: *Lägg tillbaka i högen* lägger tillbaka den, också om klustrets
       representant har bytts sedan den plockades ut.
 - [ ] Verifiera ärendet efteråt: verifieringen går igenom (historiken som lästes är förseglad som andra svar).
+- [ ] Bevaka en adress som ligger i en hög (eller välj den som motpart i en bevakning): den lämnar högen och står som
+      egen nod med ögat, vaktlinjen och, vid en träff, ringarna; högen säger en mottagare färre. Ta bort bevakningen:
+      adressen går tillbaka i högen.
+- [ ] Fäll ut en hög med 50 kort och öppna valvyn med hundratals prickar: utfällningen och prickarna rör sig mjukt,
+      också med många belopp på linjerna i grafen bakom.
+- [ ] Flytta en hög eller en pill i ett kluster och expandera så att klustret växer (en annan adress kan bli
+      representant): högen och pillen står kvar där de flyttades. Ett klick på pillens tunna linje öppnar valvyn som
+      ett klick på pillen.
 
 ## Utgångar utan mottagare döljs (OP_RETURN)
 - [ ] Expandera en adress som tillhör en pool (coinbase-tx med OP_RETURN på 0 BTC): noderna för OP_RETURN syns inte,
       och en toast säger till exempel *49 utgångar utan mottagare döljs.* med *Visa dem*. Toasten står kvar i 20 s
       (de vanliga 6 s).
 - [ ] *Visa dem* visar dem i grafen, och en ny toast erbjuder *Dölj dem*. Valet finns kvar när ärendet öppnas igen.
+- [ ] *Visa dem* och *Dölj dem* i ett stort ärende (tusentals noder): grafen hackar inte när de visas eller döljs, och
+      ett ärende som sparat *visas* öppnar direkt med dem utan att grafen ritas två gånger.
 - [ ] En OP_RETURN som bränner pengar (mer än 0 BTC) döljs aldrig.
 
 ## Grafen använder ytan

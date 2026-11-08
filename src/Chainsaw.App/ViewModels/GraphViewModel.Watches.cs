@@ -56,6 +56,11 @@ public sealed partial class GraphViewModel
     /// <summary>The watches, or <see langword="null"/> when the graph is built without them.</summary>
     private WatchBoard? _watches;
 
+    /// <summary>
+    /// The addresses the piles never fold in (<see cref="GraphWatches.KeptOutOfPiles"/>), read into every scene.
+    /// </summary>
+    private IReadOnlySet<ChainAddress> _keptOutOfPiles = GraphReading.NoAddresses;
+
     /// <summary>Raised when the user wants a node's address copied (the view owns the clipboard).</summary>
     public event EventHandler<string>? CopyWanted;
 
@@ -137,7 +142,11 @@ public sealed partial class GraphViewModel
         _watches = watches;
         WatchForm = form;
         History.Watches = watches;
-        watches.Changed += (_, _) => ShowWatches();
+        watches.Changed += (_, _) =>
+        {
+            ShowWatches();
+            KeepWatchedOutOfPiles();
+        };
         form.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(WatchFormViewModel.IsOpen))
@@ -147,6 +156,24 @@ public sealed partial class GraphViewModel
         };
         OnPropertyChanged(nameof(WatchForm));
         ShowWatches();
+        KeepWatchedOutOfPiles();
+    }
+
+    /// <summary>
+    /// Keeps the watched addresses and the watches' counterparties out of the piles (<see cref="GraphFold"/>), so that
+    /// the watch line and its rings never vanish into a pile; the graph is drawn again off the UI thread when the
+    /// addresses changed.
+    /// </summary>
+    private void KeepWatchedOutOfPiles()
+    {
+        var keptOut = _watches is { } board ? GraphWatches.KeptOutOfPiles(board.Snapshot) : GraphReading.NoAddresses;
+        if (keptOut.SetEquals(_keptOutOfPiles))
+        {
+            return;
+        }
+
+        _keptOutOfPiles = keptOut;
+        _ = FollowReadingAsync();
     }
 
     /// <summary>

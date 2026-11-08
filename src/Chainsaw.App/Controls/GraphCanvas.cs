@@ -214,7 +214,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawEdge(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
         }
 
-        var taken = new List<Rect>();
+        var taken = new RoomGrid();
         foreach (var edge in AmountOrder(edges, nearEdges))
         {
             drawingContext.PushOpacity(LaterAmountOpacity(edge.Key));
@@ -752,10 +752,11 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="near">The lines near what is chosen.</param>
     /// <param name="taken">
     /// Where amounts already stand; an amount that would stand on one of them is left for hovering, so that amounts
-    /// never lie on top of each other (CLAUDE.md, <em>Grafen använder ytan</em>).
+    /// never lie on top of each other (CLAUDE.md, <em>Grafen använder ytan</em>); kept in a grid, so that each amount
+    /// is only compared with those near it.
     /// </param>
     private void DrawAmount(
-        DrawingContext dc, EdgeView edge, EdgeCurve curve, IReadOnlySet<string> near, List<Rect> taken)
+        DrawingContext dc, EdgeView edge, EdgeCurve curve, IReadOnlySet<string> near, RoomGrid taken)
     {
         var model = _model!;
         var hovered = model.HoveredEdge == edge.Key;
@@ -780,21 +781,20 @@ public sealed partial class GraphCanvas : FrameworkElement
         var ink = edge.Ink == GraphInk.Untraced
             ? GraphPalette.Find(this, "Brush.TextDim")
             : GraphPalette.Brush(this, edge.Ink);
-        var text = Text(edge.Label, 11, ink, FontWeights.Normal);
-        var glyph = edge.Glyph.Length > 0 ? Text(edge.Glyph, 11, ink, FontWeights.SemiBold) : null;
+        var text = CachedText(edge.Label, 11, ink, FontWeights.Normal);
+        var glyph = edge.Glyph.Length > 0 ? CachedText(edge.Glyph, 11, ink, FontWeights.SemiBold) : null;
         var glyphWidth = glyph is null ? 0 : glyph.Width + 3;
         var value = edge.Value is { } worth
-            ? Text(worth.Text, 9.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal)
+            ? CachedText(worth.Text, 9.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal)
             : null;
         var width = Math.Max(text.Width + glyphWidth, value?.Width ?? 0);
         var height = text.Height + (value?.Height ?? 0);
         var box = new Rect(middle.X - (width / 2) - 5, middle.Y - (text.Height / 2) - 1, width + 10, height + 2);
-        if (taken.Any(other => other.IntersectsWith(box)))
+        if (!taken.TryAdd(new GraphRect(box.X, box.Y, box.Width, box.Height)))
         {
             return;
         }
 
-        taken.Add(box);
         dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
         var left = middle.X - ((text.Width + glyphWidth) / 2);
         if (glyph is not null)
