@@ -298,7 +298,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         StopZoom();
         CloseHoverTip();
         Focus();
-        _model?.CloseMenu();
+        _model?.CloseSmallPanels();
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
         _model?.Comments.Select(null);

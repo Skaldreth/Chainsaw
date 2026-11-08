@@ -3125,3 +3125,8 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
 - [ ] Inställningar › Källor: att klicka på ett läge lämnar ingen orange ram; Tab ger ramen.
 - [ ] Grafen: öppna rutan *Bytte block* med ett klick på märket. Ett klick i rutan låter den stå, ett klick någon
       annanstans i grafen stänger den (och gör det klicket annars gör, till exempel väljer en nod).
+- [ ] Ett klick i grafen bredvid en öppen liten panel stänger den utan att något sparas, och klicket gör sitt (väljer
+      en nod, eller inget): formulären Etikett, Bryt upp och Annan kedja, Bevaka, den egna ytans formulär, frågan
+      före sortering, soptunnans varning och bildspråkets ruta.
+- [ ] Toasten: listen längs nederkanten ligger inne i de rundade hörnen, texten står mitt för ikonen, och toasten står
+      24 px från fönstrets nederkant.

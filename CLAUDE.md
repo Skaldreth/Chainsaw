@@ -394,6 +394,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Panorering** (användarens beslut 2026-11-07): höger- och mittknappen panorerar grafen, också över en nod, och
   ytan glider vidare och saktar in när man släpper i farten, som i Gawk. Ett högerklick utan rörelse öppnar nodens meny.
   Vänsterknappen drar noder och väljer. **Grafen använder ytan**: många motparter sprids ut, aldrig i en lång kolumn.
+  **Ett klick bredvid stänger de små panelerna** (användarens beslut 2026-11-08): menyn, formulären vid noden,
+  Bevaka, den egna ytans formulär, frågan före sortering, soptunnans varning, bildspråkets ruta och rutan *Bytte block*
+  stängs utan att något sparas när man klickar någon annanstans i grafen, och klicket gör samtidigt det det annars gör.
 - **Delete slänger** den valda noden, eller de valda, i soptunnan, var som helst i grafen och också i högen
   (användarens beslut 2026-11-07), med samma varning som när man drar dit något som har kopplingar vidare.
 - **Den tomma grafen guidar, GR6c** (användarens beslut 2026-11-07): utan ärende står

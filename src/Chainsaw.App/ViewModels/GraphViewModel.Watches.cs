@@ -234,6 +234,44 @@ public sealed partial class GraphViewModel
         SurfaceMenuAt = null;
     }
 
+    /// <summary>
+    /// Closes every small panel over the graph without storing anything, as a press elsewhere on the graph does (the
+    /// user's rule 2026-11-08): the node's menu, the form beside a node (Etikett, Bryt upp, Annan kedja), the watch
+    /// form, the own area's form, the question before sorting, the trash's warning and the visual language's box. The
+    /// press then goes on and does what it otherwise does. A block mark's box is closed by the canvas itself, which
+    /// knows where the box stands, so that a press in it leaves it open.
+    /// </summary>
+    public void CloseSmallPanels()
+    {
+        CloseMenu();
+        if (Forms.IsOpen)
+        {
+            Forms.Cancel();
+        }
+
+        if (IsWatchFormOpen)
+        {
+            WatchForm!.Cancel();
+        }
+
+        if (Checks.IsFormOpen)
+        {
+            Checks.CancelForm();
+        }
+
+        if (IsTidyConfirmOpen)
+        {
+            CancelTidy();
+        }
+
+        if (HasTrashWarning)
+        {
+            CancelThrow();
+        }
+
+        IsLegendOpen = false;
+    }
+
     /// <summary>Does what a row of the menu says, for the chosen node, and closes the menu.</summary>
     /// <param name="row">The row.</param>
     [RelayCommand]
