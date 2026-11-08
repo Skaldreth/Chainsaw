@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using static Chainsaw.Modules.Attribution.Tests.Synthetic;
 
 namespace Chainsaw.Modules.Attribution.Tests;
@@ -94,5 +95,66 @@ public sealed class SpreadTests : IDisposable
         Assert.True(history[0].CanChangeSpread);
         Assert.Equal("Fel kluster", history[1].Retraction?.Reason);
         Assert.False(history[1].CanChangeSpread);
+    }
+
+    [Fact]
+    public void Sprid_inte_stops_the_library_giving_a_label_on_through_a_copy_until_it_may_spread_again()
+    {
+        var address = Wpkh("exchange");
+        var label = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB");
+        _harness.Library.Absorb(_harness.Case);
+        using var second = _harness.Create("2026-0202");
+        Assert.Single(_harness.Library.ShareInto(second, [address]));
+        _harness.Library.Absorb(second);
+
+        _harness.Labels.SetDoNotSpread(_harness.Case, label.Sequence, doNotSpread: true);
+        _harness.Library.Absorb(_harness.Case);
+        _harness.Library.Absorb(second);
+        using var third = _harness.Create("2026-0303");
+
+        Assert.Empty(_harness.Library.ShareInto(third, [address]));
+        Assert.Empty(_harness.Library.List());
+        Assert.Single(_harness.Labels.GetEntries(second));
+
+        _harness.Labels.SetDoNotSpread(_harness.Case, label.Sequence, doNotSpread: false);
+        _harness.Library.Absorb(_harness.Case);
+
+        var given = Assert.Single(_harness.Library.ShareInto(third, [address]));
+        Assert.Equal(label.Origin.OriginId, given.Origin.OriginId);
+    }
+
+    [Fact]
+    public void Only_the_user_s_own_labels_can_be_marked()
+    {
+        var address = Wpkh("copied");
+        var own = _harness.Own(LabelSubject.ForAddress(address), LabelKind.Exchange, "Börsen AB");
+        _harness.Library.Absorb(_harness.Case);
+        using var other = _harness.Create("2026-0202");
+        var copy = Assert.Single(_harness.Library.ShareInto(other, [address]));
+        var behaviour = _harness.Labels.Add(_harness.Case, new LabelDraft(
+            LabelSubject.ForAddress(Wpkh("sweep")), LabelKind.Exchange, null, "Töms till samma adress")
+        {
+            Source = LabelSource.Behaviour,
+            SourceName = "sweep-pattern",
+            SourceVersion = "1.1",
+        });
+
+        Assert.False(_harness.Labels.SetDoNotSpread(other, copy.Sequence, doNotSpread: true));
+        Assert.False(_harness.Labels.SetDoNotSpread(_harness.Case, behaviour.Sequence, doNotSpread: true));
+        Assert.True(_harness.Labels.SetDoNotSpread(_harness.Case, own.Sequence, doNotSpread: true));
+    }
+
+    [Fact]
+    public void An_ethereum_account_s_label_is_marked_too()
+    {
+        var account = EthereumAddress.Parse("0x" + new string('a', 40)).ToChainAddress();
+        var label = _harness.Labels.Add(
+            _harness.Case, new LabelDraft(LabelSubject.ForAccount(account), LabelKind.Exchange, "Börsen AB", "Sett"));
+
+        Assert.True(_harness.Labels.SetDoNotSpread(_harness.Case, label.Sequence, doNotSpread: true));
+
+        var entry = Assert.Single(_harness.Labels.GetHistory(_harness.Case));
+        Assert.True(entry.Label.DoNotSpread);
+        Assert.Equal(account, entry.Label.Subject.Target);
     }
 }

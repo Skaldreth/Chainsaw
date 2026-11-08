@@ -83,23 +83,31 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
             .Select(label => label.Origin.OriginId)
             .ToHashSet(StringComparer.Ordinal);
         labels.RemoveAll(label => withdrawn.Contains(label.Origin.OriginId));
+
+        // Sprid inte where the label was set holds its origin back everywhere: a copy another case got before keeps
+        // it, but the library no longer gives it on, whichever case it is absorbed from. Letting it spread again
+        // where it was set releases it.
+        var (heldBack, released) = SpreadMarks(inCase.Active);
         var caseId = CaseKey(@case);
         lock (_gate)
         {
             var document = Load();
             document.Withdrawn.UnionWith(withdrawn);
+            document.HeldBack.ExceptWith(released);
+            document.HeldBack.UnionWith(heldBack);
             foreach (var stored in document.Labels)
             {
                 stored.Cases.Remove(caseId);
 
-                // Near a victim in this case: out of the library, without touching the copies other cases have.
-                if (document.Withdrawn.Contains(stored.OriginId) || nearVictim(stored.SubjectOf()))
+                // Near a victim in this case, or held back where it was set: out of the library, without touching
+                // the copies other cases have.
+                if (IsKeptOut(document, stored.OriginId) || nearVictim(stored.SubjectOf()))
                 {
                     stored.Cases.Clear();
                 }
             }
 
-            labels.RemoveAll(label => document.Withdrawn.Contains(label.Origin.OriginId));
+            labels.RemoveAll(label => IsKeptOut(document, label.Origin.OriginId));
 
             var byKey = document.Labels.ToDictionary(Key);
             foreach (var label in labels)
@@ -151,7 +159,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
             [
                 .. document.Labels.Where(stored => texts.Contains(stored.Subject)
                     && !stored.Cases.ContainsKey(caseId) && stored.Kind != LabelKind.Victim
-                    && !withdrawn.Contains(stored.OriginId)
+                    && !IsKeptOut(document, stored.OriginId)
                     && wanted.Contains(stored.SubjectOf().Target)),
             ];
         }
@@ -291,6 +299,33 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         return clustering.GetCluster(@case, address).Addresses.Select(member => member.ToChainAddress());
     }
 
+    /// <summary>
+    /// Gives the origins the case holds back with <em>Sprid inte</em>, and those it lets spread: only labels the user
+    /// set in this case (own or from an open source), since a copy, a list's hit or an analysis's label cannot be
+    /// marked. A label on a victim never spreads anyway and is left to the victim rule.
+    /// </summary>
+    /// <param name="active">The case's labels that are not taken back.</param>
+    /// <returns>The origins held back, and the origins let spread.</returns>
+    private static (HashSet<string> HeldBack, HashSet<string> Released) SpreadMarks(IReadOnlyList<LabelEntry> active)
+    {
+        var own = active
+            .Where(label => label.Origin.Source is LabelSource.Own or LabelSource.OpenSource
+                && label.Kind != LabelKind.Victim)
+            .ToList();
+        return (
+            own.Where(label => label.DoNotSpread).Select(label => label.Origin.OriginId)
+                .ToHashSet(StringComparer.Ordinal),
+            own.Where(label => !label.DoNotSpread).Select(label => label.Origin.OriginId)
+                .ToHashSet(StringComparer.Ordinal));
+    }
+
+    /// <summary>Says whether an origin is kept out of the library: withdrawn, or held back with Sprid inte.</summary>
+    /// <param name="document">The library.</param>
+    /// <param name="originId">The origin.</param>
+    /// <returns><see langword="true"/> when it is never given.</returns>
+    private static bool IsKeptOut(LibraryDocument document, string originId) =>
+        document.Withdrawn.Contains(originId) || document.HeldBack.Contains(originId);
+
     /// <summary>Gives the key a case is known by in the library.</summary>
     /// <param name="case">The case.</param>
     /// <returns>The case's id.</returns>
@@ -400,6 +435,12 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         /// copies are taken back in the cases that have them.
         /// </summary>
         public HashSet<string> Withdrawn { get; set; } = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Gets or sets the origins marked <em>Sprid inte</em> where they were set; they are not given while they are
+        /// marked, but copies other cases already have stay there.
+        /// </summary>
+        public HashSet<string> HeldBack { get; set; } = new(StringComparer.Ordinal);
     }
 
     /// <summary>One label in the library, with what stays in the library.</summary>

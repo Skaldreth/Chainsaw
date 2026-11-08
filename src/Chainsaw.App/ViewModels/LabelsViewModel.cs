@@ -38,6 +38,14 @@ public sealed partial class LabelsViewModel : ObservableObject
     /// <summary>The toast's text after a label was taken back.</summary>
     public const string RetractedDetail = "Också i biblioteket, med en ny förseglad post.";
 
+    /// <summary>
+    /// What the toast adds when the row also has a copy from another case: the copy is that case's own and stays.
+    /// </summary>
+    public const string CopyStaysText = "Kopian från det andra ärendet står kvar.";
+
+    /// <summary>What the list says when the case's labels could not be read.</summary>
+    public const string ReadFailedText = "Etiketterna kunde inte läsas: {0}";
+
     /// <summary>The toast's title after a label was marked <em>Sprid inte</em>.</summary>
     public const string NoSpreadTitle = "Etiketten sprids inte";
 
@@ -92,6 +100,9 @@ public sealed partial class LabelsViewModel : ObservableObject
 
     /// <summary>The rows of the library, as last built.</summary>
     private IReadOnlyList<LabelRowViewModel> _libraryRows = [];
+
+    /// <summary>Why the case's labels could not be read, or <see langword="null"/>.</summary>
+    private string? _problem;
 
     /// <summary>Counts the readings, so that only the latest one is shown.</summary>
     private int _readings;
@@ -246,7 +257,7 @@ public sealed partial class LabelsViewModel : ObservableObject
         }
 
         Scope = scope;
-        Rebuild();
+        Refilter();
     }
 
     /// <summary>Switches a source off or on; the list shows the case again, as the filters are the case's.</summary>
@@ -261,7 +272,7 @@ public sealed partial class LabelsViewModel : ObservableObject
 
         source.IsOn = !source.IsOn;
         Scope = LabelScope.Case;
-        Rebuild();
+        Refilter();
     }
 
     /// <summary>Chooses a row.</summary>
@@ -363,7 +374,8 @@ public sealed partial class LabelsViewModel : ObservableObject
         if (outcomes is not null)
         {
             CancelRetract();
-            Tell(outcomes, RetractedTitle, RetractedDetail);
+            var detail = row.IsFromOtherCase ? RetractedDetail + " " + CopyStaysText : RetractedDetail;
+            Tell(outcomes, RetractedTitle, detail);
         }
     }
 
@@ -400,8 +412,6 @@ public sealed partial class LabelsViewModel : ObservableObject
                 outcomes.Add(await seal(sequence));
             }
 
-            Changed?.Invoke(this, EventArgs.Empty);
-            Reading = ReadAsync();
             return outcomes;
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -411,7 +421,10 @@ public sealed partial class LabelsViewModel : ObservableObject
         }
         finally
         {
+            // Read again also after a failure: some of the row's labels may be sealed before it.
             IsSaving = false;
+            Changed?.Invoke(this, EventArgs.Empty);
+            Reading = ReadAsync();
         }
     }
 
@@ -436,9 +449,8 @@ public sealed partial class LabelsViewModel : ObservableObject
     /// <summary>Forgets the old case and reads the new one.</summary>
     private void OnCaseChanged()
     {
-        _reading = LabelReading.Empty;
+        Show(LabelBuild.Empty);
         CancelRetract();
-        Rebuild();
         Reading = ReadAsync();
     }
 
@@ -452,23 +464,25 @@ public sealed partial class LabelsViewModel : ObservableObject
             return;
         }
 
-        LabelReading reading;
+        var scene = _scene;
+        LabelBuild built;
         try
         {
-            reading = await Task.Run(() => Read(open));
+            // The rows are built off the UI thread too; the filters only filter them (principle 6).
+            built = await Task.Run(() => Build(Read(open), scene));
         }
-        catch (CaseException)
+        catch (Exception exception) when (exception is not (OperationCanceledException or OutOfMemoryException))
         {
-            // The case closed meanwhile; the next case reads its own.
-            return;
+            // Said honestly, never shown as an empty case; a case that closed meanwhile shows nothing anyway.
+            built = LabelBuild.Failed(string.Format(
+                CultureInfo.InvariantCulture, ReadFailedText, InspectorFormsViewModel.Failure(exception)));
         }
 
         _ui.Post(() =>
         {
             if (number == _readings && ReferenceEquals(_session.Current, open))
             {
-                _reading = reading;
-                Rebuild();
+                Show(built);
             }
         });
     }
@@ -503,13 +517,35 @@ public sealed partial class LabelsViewModel : ObservableObject
         return new LabelReading(open.Info.CaseNumber, history, library, list);
     }
 
-    /// <summary>Builds the rows, the counts and the sources anew from what was read, keeping the chosen row.</summary>
-    private void Rebuild()
+    /// <summary>Builds the rows from what was read and the graph it is shown against; off the UI thread.</summary>
+    /// <param name="reading">What was read.</param>
+    /// <param name="scene">The graph, or <see langword="null"/>.</param>
+    /// <returns>The rows of the case and of the library.</returns>
+    private LabelBuild Build(LabelReading reading, GraphScene? scene)
     {
-        var words = new LabelWords(_reading.CaseNumber, _providers, _zone);
-        _caseRows = LabelRows.ForCase(_reading.History, _scene, words);
-        _libraryRows = _reading.Library is { } library ? LabelRows.ForLibrary(library, _scene, words) : [];
+        var words = new LabelWords(reading.CaseNumber, _providers, _zone);
+        return new LabelBuild(
+            reading,
+            LabelRows.ForCase(reading.History, scene, words),
+            reading.Library is { } library ? LabelRows.ForLibrary(library, scene, words) : [],
+            null);
+    }
+
+    /// <summary>Shows rows that were built: the counts, the sources and the list.</summary>
+    /// <param name="built">The rows.</param>
+    private void Show(LabelBuild built)
+    {
+        _reading = built.Reading;
+        _caseRows = built.CaseRows;
+        _libraryRows = built.LibraryRows;
+        _problem = built.Problem;
         Count();
+        Refilter();
+    }
+
+    /// <summary>Lists the rows already built by the switch, the filters and the field, keeping the choice.</summary>
+    private void Refilter()
+    {
         var key = Selected?.Key;
         Items = IsLibrary ? LibraryItems() : CaseItems();
         EmptyMessage = EmptyMessageFor();
@@ -599,6 +635,7 @@ public sealed partial class LabelsViewModel : ObservableObject
     /// <returns>The text.</returns>
     private string EmptyMessageFor() => (IsLibrary, _reading.Library) switch
     {
+        (false, _) when _problem is not null => _problem,
         (true, null) => LibraryClosedText,
         (true, { Count: 0 }) => LibraryEmptyText,
         (true, _) => FilteredText,
@@ -611,7 +648,8 @@ public sealed partial class LabelsViewModel : ObservableObject
     /// </summary>
     /// <param name="row">The row.</param>
     /// <returns><see langword="true"/> for a hit that counts, on a node in the graph.</returns>
-    private static bool IsHitInGraph(LabelRowViewModel row) => row.IsSanction && row.IsInGraph && !row.IsRetracted;
+    private static bool IsHitInGraph(LabelRowViewModel row) =>
+        row.IsSanction && row.Place != LabelPlace.None && !row.IsRetracted;
 
     /// <summary>
     /// Says whether a row is shown: its source is on (and, when it came from another case, that source too), and it
@@ -664,7 +702,7 @@ public sealed partial class LabelsViewModel : ObservableObject
 
     /// <summary>Lists anew when the filter field changes.</summary>
     /// <param name="value">The new text.</param>
-    partial void OnQueryChanged(string value) => Rebuild();
+    partial void OnQueryChanged(string value) => Refilter();
 
     /// <summary>What was read from the case and the library.</summary>
     /// <param name="CaseNumber">The case's number.</param>
@@ -679,5 +717,25 @@ public sealed partial class LabelsViewModel : ObservableObject
     {
         /// <summary>Gets the reading of no case.</summary>
         public static LabelReading Empty { get; } = new(string.Empty, [], null, null);
+    }
+
+    /// <summary>The rows built from a reading, or why there are none.</summary>
+    /// <param name="Reading">What was read.</param>
+    /// <param name="CaseRows">The case's rows.</param>
+    /// <param name="LibraryRows">The library's rows.</param>
+    /// <param name="Problem">Why the case could not be read, or <see langword="null"/>.</param>
+    private sealed record LabelBuild(
+        LabelReading Reading,
+        IReadOnlyList<LabelRowViewModel> CaseRows,
+        IReadOnlyList<LabelRowViewModel> LibraryRows,
+        string? Problem)
+    {
+        /// <summary>Gets the rows of no case.</summary>
+        public static LabelBuild Empty { get; } = new(LabelReading.Empty, [], [], null);
+
+        /// <summary>Gives no rows, with why.</summary>
+        /// <param name="problem">Why the case could not be read.</param>
+        /// <returns>The build.</returns>
+        public static LabelBuild Failed(string problem) => new(LabelReading.Empty, [], [], problem);
     }
 }

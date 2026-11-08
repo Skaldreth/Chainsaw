@@ -191,6 +191,12 @@
                         <controls:GridIcon Size="12" Foreground="{StaticResource Brush.Text}" Data="{StaticResource Icon.Tag}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
+                    <!-- In a pile or in the trash: a small mark, since the hit is not drawn on its own. -->
+                    <Grid DockPanel.Dock="Right" Margin="6,0,0,0" Background="Transparent" ToolTip="{Binding PlaceText}"
+                          Visibility="{Binding HasPlaceMark, Converter={StaticResource Visible}}">
+                        <controls:GridIcon Size="14" Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center"
+                                           Data="{Binding PlaceIcon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                    </Grid>
                     <Grid DockPanel.Dock="Right" Margin="6,0,0,0" Background="Transparent" ToolTip="Sprid inte: stannar i ärendet"
                           Visibility="{Binding IsNoSpread, Converter={StaticResource Visible}}">
                         <controls:GridIcon Size="14" Foreground="{StaticResource Brush.TextDim}" Data="{StaticResource Icon.NoSpread}"
@@ -462,22 +468,25 @@
             <Border CornerRadius="12" BorderThickness="1" Padding="6" BorderBrush="{StaticResource Brush.Border}"
                     Background="{StaticResource Brush.Graph.Lane}">
                 <Grid>
-                    <ItemsControl ItemsSource="{Binding Items}" Focusable="False"
-                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel"
-                                  Visibility="{Binding HasItems, Converter={StaticResource Visible}}">
-                        <ItemsControl.Template>
-                            <ControlTemplate TargetType="ItemsControl">
-                                <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" Focusable="False">
-                                    <ItemsPresenter />
-                                </ScrollViewer>
-                            </ControlTemplate>
-                        </ItemsControl.Template>
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <VirtualizingStackPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
+                    <!-- A ListBox only for its virtualizing and ScrollIntoView: the rows choose, not the ListBox. -->
+                    <ListBox x:Name="List" ItemsSource="{Binding Items}" Focusable="False" Background="Transparent"
+                             BorderThickness="0" Padding="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel"
+                             Visibility="{Binding HasItems, Converter={StaticResource Visible}}">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Focusable" Value="False" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <ContentPresenter />
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Margin="20"
                                 Visibility="{Binding HasItems, Converter={x:Static controls:InvertVisibility.Instance}}">
                         <controls:GridIcon Size="40" HorizontalAlignment="Center" Foreground="{StaticResource Brush.TextFaint}"
@@ -606,6 +615,9 @@
                             <TextBlock Text="Sprid inte" FontSize="13" VerticalAlignment="Center"
                                        Foreground="{StaticResource Brush.TextMuted}" />
                         </DockPanel>
+                        <TextBlock Text="{Binding SpreadNote}" FontSize="11.5" Margin="25,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{StaticResource Brush.TextDim}"
+                                   Visibility="{Binding HasSpreadNote, Converter={StaticResource Visible}}" />
 
                         <Button Style="{StaticResource Button.Secondary}" Height="34" Margin="0,10,0,0"
                                 Command="{Binding DataContext.BeginRetractCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"

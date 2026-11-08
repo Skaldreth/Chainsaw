@@ -42,7 +42,8 @@ public interface IAttributionService
     /// with who and when, so that the label's own record is never touched (principle 1). Only the user's own labels
     /// (<see cref="LabelHistoryEntry.CanChangeSpread"/>) can be marked, and only while they count. The label library
     /// follows the next time the case is absorbed (<see cref="ILabelLibrary.Absorb"/>): a label marked
-    /// <em>Sprid inte</em> then leaves it, but copies already given to other cases stay there.
+    /// <em>Sprid inte</em> then leaves it and is not given on from any case while it is marked, but copies already
+    /// given to other cases stay there.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="sequence">The label's <see cref="LabelEntry.Sequence"/>.</param>

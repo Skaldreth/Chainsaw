@@ -19,7 +19,10 @@ public partial class LabelsView : UserControl
     /// <summary>Gets the view model.</summary>
     private LabelsViewModel? Model => DataContext as LabelsViewModel;
 
-    /// <summary>Attaches the view model, and puts the keyboard in the field for the reason when it folds out.</summary>
+    /// <summary>
+    /// Attaches the view model: the keyboard goes to the field for the reason when it folds out, and the chosen row is
+    /// scrolled into view.
+    /// </summary>
     /// <param name="model">The view model.</param>
     public void Attach(LabelsViewModel model)
     {
@@ -30,6 +33,11 @@ public partial class LabelsView : UserControl
             if (e.PropertyName == nameof(LabelsViewModel.IsRetracting) && model.IsRetracting)
             {
                 Dispatcher.BeginInvoke(() => Reason.Focus(), DispatcherPriority.Input);
+            }
+            else if (e.PropertyName == nameof(LabelsViewModel.Selected) && model.Selected is { } row)
+            {
+                // The arrows move the choice past the edge of the list: it scrolls along.
+                List.ScrollIntoView(row);
             }
         };
     }

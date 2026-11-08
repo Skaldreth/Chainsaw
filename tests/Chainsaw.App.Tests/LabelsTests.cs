@@ -3,6 +3,7 @@ using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
 using static Chainsaw.App.Tests.GraphSamples;
 
 namespace Chainsaw.App.Tests;
@@ -314,6 +315,102 @@ public sealed class LabelsTests
 
         Assert.Empty(model.Items);
         Assert.Null(model.Selected);
+    }
+
+    [Fact]
+    public async Task The_filter_field_filters_the_rows_already_built()
+    {
+        _attribution.History =
+        [
+            Entry(1, E, LabelKind.Exchange, "Börs A", LabelSource.Own, Me),
+            Entry(2, U, LabelKind.Mixer, null, LabelSource.Own, Me),
+        ];
+        var model = await ModelAsync(Scene());
+        var mixer = model.Items.OfType<LabelRowViewModel>().Single(row => row.Title == "Mixer");
+
+        model.Query = "mixer";
+        model.Query = string.Empty;
+
+        Assert.Same(mixer, model.Items.OfType<LabelRowViewModel>().Single(row => row.Title == "Mixer"));
+    }
+
+    [Fact]
+    public async Task A_sanction_hit_in_the_trash_still_stands_first_with_its_mark()
+    {
+        _sanctions.Imported.Add([1]);
+        _attribution.History =
+            [Entry(1, U, LabelKind.Sanctioned, "Växlare Z", LabelSource.SanctionList, Me, sourceName: "OFAC SDN")];
+        var thrown = new TrashThrow(
+            1, [new TrashMember(UKey, null, "U", "Unknown")], Me, DateTimeOffset.UnixEpoch, 1);
+
+        var model = await ModelAsync(Scene().WithTrash(new TrashFilter([thrown])));
+
+        Assert.Equal("SANKTIONSTRÄFFAR I GRAFEN", Assert.IsType<LabelGroupHeader>(model.Items[0]).Title);
+        var hit = Assert.IsType<LabelRowViewModel>(model.Items[1]);
+        Assert.Equal(LabelPlace.Trash, hit.Place);
+        Assert.True(hit.HasPlaceMark);
+        Assert.False(hit.IsInGraph);
+    }
+
+    [Fact]
+    public async Task A_label_near_a_victim_says_it_never_reaches_the_library_and_cannot_be_turned()
+    {
+        _attribution.History =
+        [
+            Entry(1, W, LabelKind.Victim, "Offret", LabelSource.Own, Me),
+            Entry(2, W, LabelKind.Exchange, "Börs A", LabelSource.Own, Me),
+        ];
+
+        var model = await ModelAsync(Scene());
+
+        var near = model.Items.OfType<LabelRowViewModel>().Single(row => row.Title == "Börs · Börs A");
+        Assert.True(near.IsNearVictim);
+        Assert.True(near.IsNoSpread);
+        Assert.True(near.ShowsSpread);
+        Assert.False(near.CanChangeSpread);
+        Assert.Contains(near.Chips, chip => chip.Text == "Sprids inte");
+        Assert.Equal("Nära ett offer i grafen: når aldrig biblioteket.", near.SpreadNote);
+    }
+
+    [Fact]
+    public async Task Taking_back_a_row_with_a_copy_says_the_copy_stays()
+    {
+        _attribution.History =
+        [
+            Entry(1, E, LabelKind.Exchange, "Börs A", LabelSource.Own, Me),
+            Entry(2, E, LabelKind.Exchange, "Börs A", LabelSource.OtherCase, Colleague),
+        ];
+        var model = await ModelAsync(Scene());
+
+        model.BeginRetractCommand.Execute(null);
+        await model.ConfirmRetractCommand.ExecuteAsync(null);
+
+        Assert.EndsWith(LabelsViewModel.CopyStaysText, Assert.Single(_toaster.Toasts).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_failed_change_still_reads_the_case_again()
+    {
+        _attribution.History = [Entry(1, E, LabelKind.Exchange, null, LabelSource.Own, Me)];
+        _editor.Failure = new InvalidOperationException("Ärendet är stängt.");
+        var model = await ModelAsync(Scene());
+        var changed = 0;
+        model.Changed += (_, _) => changed++;
+
+        await model.ToggleSpreadCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, changed);
+    }
+
+    [Fact]
+    public async Task A_case_that_cannot_be_read_is_said_honestly()
+    {
+        _attribution.HistoryFailure = new InvalidDataException("trasig");
+
+        var model = await ModelAsync(Scene());
+
+        Assert.False(model.HasItems);
+        Assert.StartsWith("Etiketterna kunde inte läsas", model.EmptyMessage, StringComparison.Ordinal);
     }
 
     [Fact]

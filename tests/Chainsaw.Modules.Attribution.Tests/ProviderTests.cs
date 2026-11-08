@@ -71,6 +71,16 @@ public sealed class ProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task A_supplier_s_report_cannot_be_marked_Sprid_inte()
+    {
+        _harness.Http.Answer(Url(_address, "BTC"), Reports(
+            Report("r1", "PHISHING", "2026-01-02T10:00:00Z", _address.Value, trusted: true)));
+        var report = Assert.Single(Assert.Single(await Lookup()).Added);
+
+        Assert.False(_harness.Labels.SetDoNotSpread(_harness.Case, report.Sequence, doNotSpread: true));
+    }
+
+    [Fact]
     public async Task Reports_become_one_label_per_category_with_the_supplier_as_origin()
     {
         _harness.Http.Answer(Url(_address, "BTC"), Reports(

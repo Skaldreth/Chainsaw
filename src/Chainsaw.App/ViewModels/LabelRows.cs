@@ -1,7 +1,9 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Chainsaw.App.Graph;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Chainsaw.App.ViewModels;
@@ -33,6 +35,22 @@ public enum LabelScope
 
     /// <summary>The label library: the labels from every case opened on this computer.</summary>
     Library,
+}
+
+/// <summary>Where a label's actor is in the graph shown (sketch ET1a).</summary>
+public enum LabelPlace
+{
+    /// <summary>Not in the graph.</summary>
+    None,
+
+    /// <summary>Drawn on the surface.</summary>
+    Graph,
+
+    /// <summary>A card in a pile (sketch EX2b): drawn as the pile.</summary>
+    Pile,
+
+    /// <summary>In the trash (sketch SO1a): hidden, but still in the case.</summary>
+    Trash,
 }
 
 /// <summary>What the view Etiketter writes and draws for each source, stated once.</summary>
@@ -269,6 +287,26 @@ public sealed partial class LabelRowViewModel : ObservableObject
     /// <summary>Gets whether its node is in the graph, so that <em>Visa i grafen</em> is offered.</summary>
     public bool IsInGraph => NodeKey is not null;
 
+    /// <summary>Gets where its actor is in the graph shown.</summary>
+    public LabelPlace Place { get; init; }
+
+    /// <summary>Gets whether a small mark says the actor lies in a pile or in the trash.</summary>
+    public bool HasPlaceMark => Place is LabelPlace.Pile or LabelPlace.Trash;
+
+    /// <summary>Gets the mark's icon: a stack for a pile, the trash for the trash.</summary>
+    public string PlaceIcon => Place == LabelPlace.Trash ? "Icon.Trash" : "Icon.Stack";
+
+    /// <summary>Gets what the mark says on hover.</summary>
+    public string PlaceText => Place switch
+    {
+        LabelPlace.Pile => "I en hög i grafen",
+        LabelPlace.Trash => "I soptunnan: dold i grafen men kvar i ärendet",
+        _ => string.Empty,
+    };
+
+    /// <summary>Gets whether it is near a victim in the graph, so that it never reaches the library.</summary>
+    public bool IsNearVictim { get; init; }
+
     /// <summary>Gets the case numbers that hold it, in the library; empty in the case.</summary>
     public IReadOnlyList<string> Cases { get; init; } = [];
 
@@ -300,7 +338,19 @@ public sealed partial class LabelRowViewModel : ObservableObject
     public bool CanRetract => Retractable.Count > 0;
 
     /// <summary>Gets whether the switch <em>Sprid inte</em> is shown: an own label, or a victim's (on).</summary>
-    public bool ShowsSpread => Spreadable.Count > 0 || (IsVictim && !IsRetracted && Source == LabelFilter.Own);
+    public bool ShowsSpread =>
+        Spreadable.Count > 0 || ((IsVictim || IsNearVictim) && !IsRetracted && Source == LabelFilter.Own);
+
+    /// <summary>Gets why the switch cannot be turned, said under it; empty when it can.</summary>
+    public string SpreadNote => (IsVictim, IsNearVictim) switch
+    {
+        (true, _) => "En etikett på ett offer sprids aldrig.",
+        (_, true) => "Nära ett offer i grafen: når aldrig biblioteket.",
+        _ => string.Empty,
+    };
+
+    /// <summary>Gets whether a note is said under the switch.</summary>
+    public bool HasSpreadNote => SpreadNote.Length > 0;
 
     /// <summary>Gets whether the switch can be turned.</summary>
     public bool CanChangeSpread => Spreadable.Count > 0;
@@ -354,11 +404,12 @@ public static class LabelRows
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(words);
         var nodes = NodeFinder.For(scene);
+        var victims = Victims(history, nodes);
         return
         [
             .. history
                 .GroupBy(entry => (entry.Label.Subject, entry.Label.Kind, Name: NameKey(entry.Label.Name)))
-                .Select(group => CaseRow([.. group], nodes, words))
+                .Select(group => CaseRow([.. group], nodes, victims, words))
                 .OrderBy(row => row.IsRetracted)
                 .ThenByDescending(row => row.Independent)
                 .ThenBy(row => row.IsFromOtherCase && row.Sources.Count == 1),
@@ -391,23 +442,47 @@ public static class LabelRows
     public static string Title(LabelKind kind, string? name) =>
         string.IsNullOrWhiteSpace(name) ? kind.Describe() : $"{kind.Describe()} · {name.Trim()}";
 
+    /// <summary>
+    /// Gives where the victims are: the addresses of the labels on a victim that count, and the graph's actors they
+    /// are on, so that a label near a victim is said never to reach the library.
+    /// </summary>
+    /// <param name="history">Every label in the case.</param>
+    /// <param name="nodes">Where the graph's nodes are found.</param>
+    /// <returns>The victims' addresses and actors.</returns>
+    private static VictimPlaces Victims(IReadOnlyList<LabelHistoryEntry> history, NodeFinder nodes)
+    {
+        var victims = history.Where(entry => !entry.IsRetracted && entry.Label.Kind == LabelKind.Victim).ToList();
+        return new(
+            victims.Select(entry => entry.Label.Subject.Target).ToHashSet(),
+            victims.Select(entry => nodes.Find([entry.Label.Sequence], entry.Label.Subject).Key)
+                .OfType<string>()
+                .ToHashSet(StringComparer.Ordinal));
+    }
+
     /// <summary>Builds one row of the case from the labels that say the same about the same subject.</summary>
     /// <param name="entries">The labels, oldest first; never empty.</param>
     /// <param name="nodes">Where the graph's nodes are found.</param>
+    /// <param name="victims">Where the victims are.</param>
     /// <param name="words">How sources, cases and times are written.</param>
     /// <returns>The row.</returns>
     private static LabelRowViewModel CaseRow(
-        IReadOnlyList<LabelHistoryEntry> entries, NodeFinder nodes, LabelWords words)
+        IReadOnlyList<LabelHistoryEntry> entries, NodeFinder nodes, VictimPlaces victims, LabelWords words)
     {
         var first = entries[0].Label;
         var active = entries.Where(entry => !entry.IsRetracted).ToList();
         var counting = active.Count > 0 ? active : entries;
         var merged = new Label(first.Subject, first.Kind, first.Name, [.. counting.Select(entry => entry.Label)]);
         var source = MainSource(counting);
-        var node = nodes.Find(counting.Select(entry => entry.Label.Sequence), first.Subject);
-        var spreadable = active.Where(entry => entry.CanChangeSpread).ToList();
+        var hit = nodes.Find(counting.Select(entry => entry.Label.Sequence), first.Subject);
+        var node = hit.View;
+        var isVictim = first.Kind == LabelKind.Victim;
+        var isNearVictim = !isVictim && victims.Holds(first.Subject.Target, hit.Key);
         var ownActive = active.Where(entry => entry.IsUsersOwn).ToList();
-        var isNoSpread = ownActive.Count > 0 && ownActive.All(entry => entry.Label.DoNotSpread);
+
+        // One rule for the mark, the chip and the switch: a victim's label, and one near a victim, never spread.
+        var isNoSpread = ownActive.Count > 0
+            && (isVictim || isNearVictim || ownActive.All(entry => entry.Label.DoNotSpread));
+        var spreadable = isNearVictim ? [] : active.Where(entry => entry.CanChangeSpread).ToList();
         var title = Title(first.Kind, first.Name);
         return new LabelRowViewModel
         {
@@ -421,16 +496,18 @@ public static class LabelRows
             Sources = entries.Select(entry => LabelFilters.Of(entry.Label.Origin.Source)).ToHashSet(),
             SourceToolTip = words.SourceToolTip(source),
             IsRetracted = active.Count == 0,
-            IsNoSpread = isNoSpread || (first.Kind == LabelKind.Victim && ownActive.Count > 0),
+            IsNoSpread = isNoSpread,
             Independent = merged.IndependentOrigins,
-            NodeKey = node?.Key,
+            NodeKey = hit.Key,
+            Place = hit.Place,
+            IsNearVictim = isNearVictim,
             Origins = Origins(entries, words),
             Chips = Chips(source, isNoSpread, words),
             NodeInfo = node is null ? string.Empty : NodeInfo(node),
             RetractedText = active.Count == 0 ? words.Retracted(entries[^1].Retraction!) : string.Empty,
             Retractable = [.. active.Where(entry => entry.CanRetract).Select(entry => entry.Label.Sequence)],
             Spreadable = [.. spreadable.Select(entry => entry.Label.Sequence)],
-            IsVictim = first.Kind == LabelKind.Victim,
+            IsVictim = isVictim,
             SearchText = string.Join(' ', title, node?.Name, first.Subject.Target.Value, words.CaseNumber),
         };
     }
@@ -443,7 +520,8 @@ public static class LabelRows
     private static LabelRowViewModel LibraryRow(LibraryLabel label, NodeFinder nodes, LabelWords words)
     {
         var source = LabelFilters.Of(label.Origin.OriginalSource);
-        var node = nodes.Find([], label.Subject);
+        var hit = nodes.Find([], label.Subject);
+        var node = hit.View;
         var title = Title(label.Kind, label.Name);
         var cases = words.LibraryCases(label.CaseNumbers);
         var origin = words.Origin(label.Origin, cases, isRetracted: false, hasLine: false);
@@ -459,7 +537,8 @@ public static class LabelRows
             Sources = new HashSet<LabelFilter> { source },
             SourceToolTip = words.SourceName(source),
             Independent = 1,
-            NodeKey = node?.Key,
+            NodeKey = hit.Key,
+            Place = hit.Place,
             Cases = label.CaseNumbers,
             Origins = [origin],
             Chips = Chips(source, isNoSpread: false, words),
@@ -561,49 +640,116 @@ public static class LabelRows
         TimeZoneInfo.ConvertTime(utc, zone).ToString(TimeFormat, CultureInfo.InvariantCulture)
         + " (" + utc.UtcDateTime.ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC)";
 
-    /// <summary>Finds a label's node in the graph: by the labels the graph read, or by its address.</summary>
+    /// <summary>Where the victims are in the case and in the graph.</summary>
+    /// <param name="Addresses">The addresses of the labels on a victim that count.</param>
+    /// <param name="Actors">The keys of the graph's actors those labels are on.</param>
+    private sealed record VictimPlaces(IReadOnlySet<ChainAddress> Addresses, IReadOnlySet<string> Actors)
+    {
+        /// <summary>Says whether an address, or the actor it is on, is a victim's.</summary>
+        /// <param name="address">The address.</param>
+        /// <param name="actor">The key of its actor in the graph, or <see langword="null"/>.</param>
+        /// <returns><see langword="true"/> when it is near a victim.</returns>
+        public bool Holds(ChainAddress address, string? actor) =>
+            Addresses.Contains(address) || (actor is not null && Actors.Contains(actor));
+    }
+
+    /// <summary>Where a label's actor was found in the graph.</summary>
+    /// <param name="View">The actor as drawn (a pile's card for a pile), or <see langword="null"/>.</param>
+    /// <param name="Key">The key <em>Visa i grafen</em> chooses, or <see langword="null"/> when it cannot.</param>
+    /// <param name="Place">Where it is.</param>
+    private readonly record struct NodeHit(NodeView? View, string? Key, LabelPlace Place)
+    {
+        /// <summary>Gets the hit of a label that is not in the graph.</summary>
+        public static NodeHit None => new(null, null, LabelPlace.None);
+    }
+
+    /// <summary>
+    /// Finds a label's actor in the graph by the labels the graph read or by its address: drawn, a card in a pile,
+    /// or in the trash. Built once per graph and looked up by address, so that a large graph is never searched row by
+    /// row.
+    /// </summary>
     private sealed class NodeFinder
     {
-        /// <summary>The node each label the graph read is on, by the label's sequence.</summary>
-        private readonly Dictionary<long, NodeView> _bySequence = [];
+        /// <summary>The finders already built, one per graph, kept only as long as the graph.</summary>
+        private static readonly ConditionalWeakTable<GraphScene, NodeFinder> Built = [];
 
-        /// <summary>The graph's nodes, in its order.</summary>
-        private readonly IReadOnlyList<NodeView> _nodes;
+        /// <summary>The finder of no graph.</summary>
+        private static readonly NodeFinder Nothing = new(null);
+
+        /// <summary>The actor each label the graph read is on, by the label's sequence.</summary>
+        private readonly Dictionary<long, NodeHit> _bySequence = [];
+
+        /// <summary>The actor each address is on.</summary>
+        private readonly Dictionary<ChainAddress, NodeHit> _byAddress = [];
 
         /// <summary>Creates the finder.</summary>
-        /// <param name="nodes">The graph's nodes.</param>
-        private NodeFinder(IReadOnlyList<NodeView> nodes)
+        /// <param name="scene">The graph, or <see langword="null"/>.</param>
+        private NodeFinder(GraphScene? scene)
         {
-            _nodes = nodes;
-            foreach (var node in nodes)
+            if (scene is null)
             {
-                foreach (var entry in node.Labels.SelectMany(label => label.Entries))
+                return;
+            }
+
+            foreach (var node in scene.Nodes)
+            {
+                Add(node, new NodeHit(node, node.Key, LabelPlace.Graph));
+            }
+
+            foreach (var pile in scene.Piles.Values)
+            {
+                foreach (var card in pile.Cards)
                 {
-                    _bySequence.TryAdd(entry.Sequence, node);
+                    Add(card.Node, new NodeHit(card.Node, pile.Key, LabelPlace.Pile));
+                }
+            }
+
+            foreach (var node in scene.Snapshot.Graph.Nodes.Where(scene.Trash.Hides))
+            {
+                foreach (var address in node.Addresses)
+                {
+                    _byAddress.TryAdd(address, new NodeHit(null, null, LabelPlace.Trash));
                 }
             }
         }
 
-        /// <summary>Creates the finder for a graph.</summary>
+        /// <summary>Gives the finder of a graph, built once.</summary>
         /// <param name="scene">The graph, or <see langword="null"/> for none.</param>
         /// <returns>The finder.</returns>
-        public static NodeFinder For(GraphScene? scene) => new(scene?.Nodes ?? []);
+        public static NodeFinder For(GraphScene? scene) =>
+            scene is null ? Nothing : Built.GetValue(scene, each => new NodeFinder(each));
 
-        /// <summary>Finds the node a label is on.</summary>
+        /// <summary>Finds the actor a label is on.</summary>
         /// <param name="sequences">The label's sealed records.</param>
         /// <param name="subject">What it is on.</param>
-        /// <returns>The node, or <see langword="null"/> when it is not in the graph.</returns>
-        public NodeView? Find(IEnumerable<long> sequences, LabelSubject subject)
+        /// <returns>Where it is; <see cref="NodeHit.None"/> when it is not in the graph.</returns>
+        public NodeHit Find(IEnumerable<long> sequences, LabelSubject subject)
         {
             foreach (var sequence in sequences)
             {
-                if (_bySequence.TryGetValue(sequence, out var node))
+                if (_bySequence.TryGetValue(sequence, out var found))
                 {
-                    return node;
+                    return found;
                 }
             }
 
-            return _nodes.FirstOrDefault(node => node.Node.Addresses.Contains(subject.Target));
+            return _byAddress.GetValueOrDefault(subject.Target, NodeHit.None);
+        }
+
+        /// <summary>Takes in an actor: its labels and its addresses, the first one found kept.</summary>
+        /// <param name="node">The actor.</param>
+        /// <param name="hit">Where it is.</param>
+        private void Add(NodeView node, NodeHit hit)
+        {
+            foreach (var entry in node.Labels.SelectMany(label => label.Entries))
+            {
+                _bySequence.TryAdd(entry.Sequence, hit);
+            }
+
+            foreach (var address in node.Node.Addresses)
+            {
+                _byAddress.TryAdd(address, hit);
+            }
         }
     }
 }

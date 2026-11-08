@@ -1748,5 +1748,10 @@ några steg).
       hamnar sist, och rutan till höger säger vem som tog tillbaka den, när och varför. Grafen läses om.
 - [ ] Växeln *Biblioteket*: alla etiketter i biblioteket med ärendenumren som brickor; inga åtgärder vid foten. Med
       låst valv eller trasigt bibliotek står *Biblioteket kan inte läsas just nu* och antalen är streck.
+- [ ] Släng en sanktionerad aktör i soptunnan, eller låt den hamna i en hög: den står ändå under SANKTIONSTRÄFFAR I
+      GRAFEN, med en liten soptunna eller hög på raden.
+- [ ] En etikett på samma aktör som ett offer: brytaren *Sprid inte* står på och går inte att ändra, och under den står
+      *Nära ett offer i grafen: når aldrig biblioteket.*
+- [ ] Skriv snabbt i filterfältet i ett stort ärende: listan hänger med utan att hacka.
 - [ ] Nytt → Etikett (E) med en nod vald i grafen: grafen visas och etikettformuläret öppnas vid noden. Utan vald nod
       säger grafen *Välj noden i grafen som etiketten gäller, och tryck L.*

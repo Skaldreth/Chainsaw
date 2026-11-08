@@ -3336,3 +3336,22 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
   ett annat ärende visar inte det ärendets nummer, eftersom modulen inte för det vidare.
 - Tester: 6 i `Chainsaw.Modules.Attribution.Tests` (`SpreadTests`), 16 i `LabelsTests`, en i `GraphEditorTests` och
   en för *Nytt → Etikett* i `SubmenuTests`.
+- **Granskningen (två I, tio M), rättad:**
+  - **I1:** biblioteket minns ursprung som hålls tillbaka med *Sprid inte* (`HeldBack`, bredvid `Withdrawn`). När
+    ärendet där etiketten sattes absorberas läggs ursprunget dit och posten tas bort; `ShareInto` och `Absorb` hoppar
+    över det, också när det kommer genom en kopia i ett annat ärende. Kopior som redan finns rörs inte. Ursprunget
+    släpps när etiketten får spridas igen. Testat med tre ärenden.
+  - **I2:** raderna byggs utanför UI-tråden när läsningen eller grafen ändras; filterfältet, källorna och växeln
+    filtrerar bara de färdiga raderna. Grafens aktörer slås upp i en `Dictionary` per scen (en `ConditionalWeakTable`).
+  - **M1:** en etikett på samma aktör eller adress som ett offer säger *Nära ett offer i grafen: når aldrig
+    biblioteket*, och brytaren går inte att ändra. **M2:** grafen och vyn läses om också när en försegling
+    misslyckas. **M3:** toasten säger att kopian från det andra ärendet står kvar. **M4:** en regel för *Sprids inte*
+    i märket, brickan och brytaren. **M5:** en sanktionsträff på en aktör i en hög eller i soptunnan står också överst,
+    med en liten markering (högen eller soptunnan); *Visa i grafen* väljer högen. **M8:** tester för Ethereum och för
+    att kopior, sanktionsträffar, analyser och Chainabuse inte kan märkas. **M9:** piltangenterna rullar valet in i
+    bild. **M10:** ett fel när ärendet läses sägs i listan i stället för en tom vy.
+  - **M6, eget beslut:** en sanktionsträff som kommit som kopia från ett annat ärende står under *Andra ärenden*, inte
+    överst. Överst står bara träffar som ärendets egen kontroll mot listan gjort på grafens adresser; körs kontrollen
+    här får adressen sin egen träff.
+  - **M7:** posten `spread` läses inte av en äldre version av Chainsaw, som då visar etiketten som den sattes. Före 1.0
+    får schemat ändras fritt, så ingen migrering görs.
