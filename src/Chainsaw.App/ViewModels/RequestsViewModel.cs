@@ -368,7 +368,8 @@ public sealed partial class RequestsViewModel : ObservableObject
         IsExporting = true;
         try
         {
-            var export = await Task.Run(() => _requests.Export(open, draft, path));
+            var made = draft with { MadeUtc = document.MadeUtc };
+            var export = await Task.Run(() => _requests.Export(open, made, path));
             var told = $"{export.FileName} · SHA-256 {ExportRow.Shorten(export.Sha256)}";
             _toaster?.Show(ToastKind.Success, ExportedTitle, told);
             await LoadExportsAsync(open);
@@ -447,10 +448,27 @@ public sealed partial class RequestsViewModel : ObservableObject
         }
 
         var deposits = Chips.Where(chip => chip.IsOn).Select(chip => chip.Deposit).ToList();
-        return new RequestDraft(exit.Kind, Language, exit.Target, deposits, IsTrailOn ? exit.Trail : null, _zone)
+        return new RequestDraft(
+            exit.Kind, Language, TargetOf(exit, deposits), deposits, IsTrailOn ? exit.Trail : null, _zone)
         {
             Holding = exit.Holding,
         };
+    }
+
+    /// <summary>
+    /// Gives who the request concerns: for a request for information only the addresses the chosen deposits went to,
+    /// so that it never asks about customers who are not in the case (CLAUDE.md, BG1b); for a freeze the address
+    /// that holds the token.
+    /// </summary>
+    /// <param name="exit">The place.</param>
+    /// <param name="deposits">The deposits taken along.</param>
+    /// <returns>The recipient.</returns>
+    private static RequestTarget TargetOf(RequestExit exit, IReadOnlyList<RequestDeposit> deposits)
+    {
+        var addresses = deposits.Select(deposit => deposit.To).Distinct().ToList();
+        return exit.Kind == RequestKind.Freeze || addresses.Count == 0
+            ? exit.Target
+            : new RequestTarget(exit.Target.Name, exit.Target.Kind, exit.Target.Chain, addresses);
     }
 
     /// <summary>Says how the recipient is reached: the verified ways with source and date, or honestly none.</summary>
@@ -524,8 +542,7 @@ public sealed partial class RequestsViewModel : ObservableObject
     {
         foreach (var row in Exits)
         {
-            var last = _exports.LastOrDefault(export =>
-                export.TargetKey == row.Exit.Target.Key && export.Kind == row.Exit.Kind);
+            var last = _exports.LastOrDefault(row.Exit.IsExportedBy);
             row.ExportedText = last is null ? string.Empty : "Exporterad " + LocalTime(last.Utc);
         }
     }

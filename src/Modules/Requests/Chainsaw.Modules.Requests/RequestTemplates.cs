@@ -49,7 +49,10 @@ internal static class RequestTemplates
             ? Freeze(draft, context, words)
             : Information(draft, context, words);
         var title = blocks[0].Text;
-        return new RequestDocument(title, blocks, RequestMarkdown.Write(blocks), FileName(draft, context, words));
+        return new RequestDocument(title, blocks, RequestMarkdown.Write(blocks), FileName(draft, context, words))
+        {
+            MadeUtc = context.Utc,
+        };
     }
 
     /// <summary>Writes an amount exactly, in the language's decimal separator, for example <c>0,215 BTC</c>.</summary>
@@ -85,6 +88,7 @@ internal static class RequestTemplates
             [.. draft.Target.Addresses.Select(address => (IReadOnlyList<string>)
                 [address.Value, address.Chain.ToString(), words.KindName(draft.Target.Kind)])],
             0));
+        blocks.Add(new RequestBlock(RequestBlockKind.Note, words.AssessmentNote));
         AddDeposits(blocks, draft, words);
         AddTrail(blocks, draft, words);
         blocks.Add(new RequestBlock(RequestBlockKind.Note, words.Closing));

@@ -553,6 +553,12 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   nästa tangent. Spara den som ett väntande förslag (i ledtråden) tills raden är tom.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
 
+## Begäran (BG1b)
+- **`Compose` körs på UI-tråden** (granskningen, M8): den läser bara ärendets nummer och profilen i minnet och går
+  snabbt, men ett mycket stort uttag med hundratals insättningar kan kännas. Flytta den till `Task.Run` med en
+  avbrytbar omgång per ändring om det märks.
+- **En fil som inte gick att skriva klart** tas bort (M5), men det finns inget test som framkallar ett skrivfel.
+
 ## Undermenyer i pillret (etapp 11b)
 - **Nytt → Etikett** är tonad som inte byggd (en etikett sätts sedan etapp 16 i inspektören med L); ändra
   `SubmenuNeed` i `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när vyn Etiketter

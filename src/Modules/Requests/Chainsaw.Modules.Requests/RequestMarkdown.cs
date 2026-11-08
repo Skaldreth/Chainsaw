@@ -10,7 +10,7 @@ namespace Chainsaw.Modules.Requests;
 internal static class RequestMarkdown
 {
     /// <summary>The characters Markdown reads as markup in running text.</summary>
-    private const string Markup = "\\`*_[]#<>|";
+    private const string Markup = "\\`*_[]#<>|~&";
 
     /// <summary>Writes the blocks.</summary>
     /// <param name="blocks">The blocks, the title first.</param>
@@ -58,6 +58,26 @@ internal static class RequestMarkdown
         return escaped.ToString();
     }
 
+    /// <summary>
+    /// Escapes what Markdown reads as a list at the start of a line: <c>-</c>, <c>+</c> and a number with a point,
+    /// such as <c>1.</c>, so that a paragraph is never read as a list.
+    /// </summary>
+    /// <param name="text">The escaped text.</param>
+    /// <returns>The text, its start escaped where needed.</returns>
+    public static string EscapeLineStart(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (text.StartsWith('-') || text.StartsWith('+'))
+        {
+            return "\\" + text;
+        }
+
+        var digits = text.TakeWhile(char.IsAsciiDigit).Count();
+        return digits > 0 && digits < text.Length && text[digits] is '.' or ')'
+            ? text[..digits] + "\\" + text[digits..]
+            : text;
+    }
+
     /// <summary>Writes one block and the line end after it.</summary>
     /// <param name="text">The file's text, added to.</param>
     /// <param name="block">The block.</param>
@@ -72,13 +92,14 @@ internal static class RequestMarkdown
                 text.Append("## ").Append(Escape(block.Text)).Append('\n');
                 break;
             case RequestBlockKind.Note:
-                text.Append('*').Append(Escape(block.Text)).Append("*\n");
+                // Emphasis needs the text to touch its stars, so the ends are trimmed.
+                text.Append('*').Append(Escape(block.Text.Trim())).Append("*\n");
                 break;
             case RequestBlockKind.Table:
                 WriteTable(text, block);
                 break;
             default:
-                text.Append(Escape(block.Text)).Append('\n');
+                text.Append(EscapeLineStart(Escape(block.Text))).Append('\n');
                 break;
         }
     }

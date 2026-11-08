@@ -27,7 +27,7 @@ internal sealed class RequestService(IClock clock, IOperatorProfileStore profile
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(draft);
-        return RequestTemplates.Compose(draft, Context(@case, clock.UtcNow));
+        return RequestTemplates.Compose(draft, Context(@case, draft.MadeUtc ?? clock.UtcNow));
     }
 
     /// <inheritdoc/>
@@ -36,7 +36,7 @@ internal sealed class RequestService(IClock clock, IOperatorProfileStore profile
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(draft);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var document = RequestTemplates.Compose(draft, Context(@case, clock.UtcNow));
+        var document = RequestTemplates.Compose(draft, Context(@case, draft.MadeUtc ?? clock.UtcNow));
         var bytes = FileEncoding.GetBytes(document.Markdown);
         var written = RequestFiles.WriteNew(path, bytes);
         var sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
@@ -47,7 +47,7 @@ internal sealed class RequestService(IClock clock, IOperatorProfileStore profile
         catch
         {
             // The case does not know of the file, so it must not stay (principle 1).
-            TryDelete(written);
+            RequestFiles.TryDelete(written);
             throw;
         }
     }
@@ -107,7 +107,7 @@ internal sealed class RequestService(IClock clock, IOperatorProfileStore profile
         {
             kind = draft.Kind.ToString(),
             language = draft.Language.ToString(),
-            target = draft.Target.Key,
+            target = draft.ExportKey,
             file = fileName,
             path,
             sha256 = sha,
@@ -124,7 +124,7 @@ internal sealed class RequestService(IClock clock, IOperatorProfileStore profile
             [
                 draft.Kind.ToString(),
                 draft.Language.ToString(),
-                draft.Target.Key,
+                draft.ExportKey,
                 draft.Target.Name,
                 fileName,
                 path,
@@ -134,22 +134,8 @@ internal sealed class RequestService(IClock clock, IOperatorProfileStore profile
                 utc,
             ]);
         return new RequestExport(
-            record.Sequence, draft.Kind, draft.Language, draft.Target.Key, draft.Target.Name, fileName, path, sha,
+            record.Sequence, draft.Kind, draft.Language, draft.ExportKey, draft.Target.Name, fileName, path, sha,
             transactions, journal.Utc, journal.Sequence);
-    }
-
-    /// <summary>Removes a file that was written but could not be recorded; a failure leaves it.</summary>
-    /// <param name="path">The file.</param>
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // Nothing more can be done; the export's own failure is what the user is told.
-        }
     }
 
     /// <summary>Gives who makes the request and when: the case's number, never its title.</summary>

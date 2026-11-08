@@ -319,6 +319,7 @@
                                             Margin="0,8,0,0" HorizontalAlignment="Left"
                                             Command="{Binding DataContext.AskFreezeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             Content="Begäran om frysning …"
+                                            Visibility="{Binding DataContext.CanAskFreeze, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Visible}}"
                                             ToolTip="Öppnar Begäran med en begäran om frysning till utgivaren" />
                                 </StackPanel>
                             </DockPanel>

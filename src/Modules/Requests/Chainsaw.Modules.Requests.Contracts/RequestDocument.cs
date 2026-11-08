@@ -71,7 +71,14 @@ public sealed record RequestBlock(RequestBlockKind Kind, string Text)
 /// <param name="Markdown">The file's text, written from <see cref="Blocks"/>.</param>
 /// <param name="FileName">The name the file is offered under, ending in <c>.md</c>, safe on Windows.</param>
 public sealed record RequestDocument(
-    string Title, IReadOnlyList<RequestBlock> Blocks, string Markdown, string FileName);
+    string Title, IReadOnlyList<RequestBlock> Blocks, string Markdown, string FileName)
+{
+    /// <summary>
+    /// Gets when the request says it was made; an export passes it back (<see cref="RequestDraft.MadeUtc"/>), so that
+    /// the file says what the preview showed.
+    /// </summary>
+    public DateTimeOffset MadeUtc { get; init; }
+}
 
 /// <summary>
 /// A request that was exported: sealed in the case with a line in the journal, so that the file can always be checked
@@ -80,7 +87,7 @@ public sealed record RequestDocument(
 /// <param name="Sequence">The record's place in the case's sealed chain of exports.</param>
 /// <param name="Kind">What it asked for.</param>
 /// <param name="Language">The language it was written in.</param>
-/// <param name="TargetKey">The recipient's key (<see cref="RequestTarget.Key"/>).</param>
+/// <param name="TargetKey">The key it was sealed under (<see cref="RequestDraft.ExportKey"/>).</param>
 /// <param name="TargetName">The recipient's name.</param>
 /// <param name="FileName">The file's name as written, with its number when another file had the name.</param>
 /// <param name="Path">Where the file was written.</param>

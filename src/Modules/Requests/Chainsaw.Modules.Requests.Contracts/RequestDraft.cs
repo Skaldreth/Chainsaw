@@ -193,4 +193,27 @@ public sealed record RequestDraft(
     /// a freeze.
     /// </summary>
     public RequestHolding? Holding { get; init; }
+
+    /// <summary>
+    /// Gets when the request is made, the time its preview showed, so that the file says what the user saw; when
+    /// <see langword="null"/>, it is made now.
+    /// </summary>
+    public DateTimeOffset? MadeUtc { get; init; }
+
+    /// <summary>
+    /// Gets the key an export is sealed under: the recipient's, and for a freeze also the token, since one address can
+    /// hold two tokens that are frozen apart.
+    /// </summary>
+    public string ExportKey => Holding is { } holding ? ExportKeyOf(Target, holding) : Target.Key;
+
+    /// <summary>Gives the key a freeze of a token at a recipient's address is sealed under.</summary>
+    /// <param name="target">The recipient.</param>
+    /// <param name="holding">The token and what is left.</param>
+    /// <returns>For example <c>Ethereum:0x…|USDT (0xdac1…)</c>.</returns>
+    public static string ExportKeyOf(RequestTarget target, RequestHolding holding)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(holding);
+        return $"{target.Key}|{holding.Left.Asset}";
+    }
 }

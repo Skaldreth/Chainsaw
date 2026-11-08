@@ -19,6 +19,12 @@ public sealed partial class GraphViewModel
     /// <summary>Raised when the user wants the view Begäran with a node's request chosen.</summary>
     public event EventHandler<RequestWanted>? RequestWanted;
 
+    /// <summary>
+    /// Gets whether the chosen node has a freeze to ask its token's issuer for, so that the inspector's
+    /// <em>Begäran om frysning …</em> shows only then (principle 7).
+    /// </summary>
+    public bool CanAskFreeze => HasRequest(SelectedNode, RequestKind.Freeze);
+
     /// <summary>Says whether a node has a request of a kind in the graph shown.</summary>
     /// <param name="nodeKey">The node.</param>
     /// <param name="kind">The kind.</param>
@@ -41,6 +47,10 @@ public sealed partial class GraphViewModel
     /// <summary><em>Begäran om frysning …</em> in the inspector: the view Begäran with the node's freeze.</summary>
     [RelayCommand]
     public void AskFreeze() => WantRequest(SelectedNode, RequestKind.Freeze);
+
+    /// <summary>Says again whether the freeze can be asked for, since the inspector follows the node and the graph.</summary>
+    /// <param name="value">The inspector's content.</param>
+    partial void OnInspectionChanged(InspectorContent? value) => OnPropertyChanged(nameof(CanAskFreeze));
 
     /// <summary>Asks for the view Begäran with a node's request, when it has one.</summary>
     /// <param name="nodeKey">The node.</param>

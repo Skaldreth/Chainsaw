@@ -2983,3 +2983,16 @@ Byggd som en etapp, eftersom den skriver i ärendet.
 - Tester: 35 i `Chainsaw.Modules.Requests.Tests` (mallar, Markdown, export utan överskrivning, försegling, journal,
   verifiering, kontaktvägar) och `RequestsTests` i App.Tests (uttagen ur scenen, spåret utan namn, vymodellen,
   exporten, pillret).
+- **Efter granskningen (två I, åtta M):**
+  - **I1:** en begäran gäller bara de adresser spårade pengar nått i uttaget (`RequestExits.Reached`), och de
+    insättningar som gick dit, också ospårade till samma adress. Klustrets andra adresser och andra kunders
+    insättningar kommer aldrig med; `Draft()` bygger mottagarens adresser av de valda insättningarna.
+  - **I2:** ett namn i en begäran kommer bara ur den etikett som gjorde aktören till ett uttag (`SafeName`), annars
+    den förkortade adressen. Detsamma gäller spårets slut i en frysning, så ett offers namn kan inte nå utgivaren.
+  - **M1–M9:** en transaktionsnod (CoinJoin) är varken steg eller hopp; radens nyckel är kind och adress, och
+    *Exporterad* matchar alla aktörens adresser; en frysning per token, och exporten förseglas under adress och token
+    (`RequestDraft.ExportKey`); `~`, `&` och radinledande `-`, `+` och `1.` escapas och noter trimmas; en fil som
+    inte kunde skrivas klart tas bort; exporten skriver *upprättad* med förhandsvisningens tid (`MadeUtc`); knappen
+    *Begäran om frysning …* syns bara när det finns en frysning; begäran säger att mottagarens sort och spåret är
+    bedömningar. `RequestExits.Find` cachas per scen (M8); `Compose` körs fortfarande på UI-tråden
+    (`docs/BACKLOG.md`).

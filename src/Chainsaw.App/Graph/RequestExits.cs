@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Requests.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
@@ -14,7 +15,10 @@ namespace Chainsaw.App.Graph;
 /// <param name="Look">Its sort and how that is drawn, so that the list draws it as the graph does.</param>
 /// <param name="Kind">What a request to it asks for.</param>
 /// <param name="Target">Who the request is addressed to and the addresses it concerns.</param>
-/// <param name="Deposits">The deposits to it in the graph, in time order; traced ones are taken along at first.</param>
+/// <param name="Deposits">
+/// The deposits to the addresses traced money reached, in time order: the traced ones, and the others to the same
+/// addresses, which go to the same customer; never deposits to the actor's other addresses (CLAUDE.md, BG1b).
+/// </param>
 /// <param name="Trail">The trail there along traced money, or <see langword="null"/> when none reaches it.</param>
 /// <param name="Holding">For a freeze, the token and what is left; otherwise <see langword="null"/>.</param>
 public sealed record RequestExit(
@@ -26,11 +30,19 @@ public sealed record RequestExit(
     RequestTrail? Trail,
     RequestHolding? Holding)
 {
-    /// <summary>Gets the row's key: the node and the kind, since an address can be a cash-out and frozen.</summary>
-    public string Key => $"{Kind}:{NodeKey}";
+    /// <summary>
+    /// Gets the row's key: the kind, the first address the request concerns and, for a freeze, the token. It does not
+    /// change when the graph is expanded, as a cluster's node key may.
+    /// </summary>
+    public string Key => Holding is { } holding
+        ? $"{Kind}:{Target.Key}|{holding.Left.Asset}"
+        : $"{Kind}:{Target.Key}";
 
-    /// <summary>Gets the name the row shows: the recipient, or for a freeze the address's actor.</summary>
+    /// <summary>Gets the name the row shows: the recipient, or for a freeze the issuer and the address.</summary>
     public string Name { get; init; } = Target.Name;
+
+    /// <summary>Gets all the actor's addresses, which an earlier export to the actor may name.</summary>
+    public IReadOnlyList<ChainAddress> NodeAddresses { get; init; } = Target.Addresses;
 
     /// <summary>
     /// Gets the row's second line (sketch BG1b): the chain, how many deposits and their sum, for example
@@ -56,13 +68,32 @@ public sealed record RequestExit(
             return string.Join(" · ", parts);
         }
     }
+
+    /// <summary>
+    /// Says whether an export was a request to this place: a freeze by its address and token, a request for
+    /// information by any of the actor's addresses, so that the mark stays when the graph is expanded.
+    /// </summary>
+    /// <param name="export">The export.</param>
+    /// <returns><see langword="true"/> when it was.</returns>
+    public bool IsExportedBy(RequestExport export)
+    {
+        ArgumentNullException.ThrowIfNull(export);
+        if (export.Kind != Kind)
+        {
+            return false;
+        }
+
+        return Holding is { } holding
+            ? export.TargetKey == RequestDraft.ExportKeyOf(Target, holding)
+            : NodeAddresses.Any(address => RequestTarget.KeyOf(address) == export.TargetKey);
+    }
 }
 
 /// <summary>
 /// Finds the requests that can be made in the graph shown (sketch BG1b), without WPF: every cash-out (the blue sorts)
-/// that traced money reached, and every address where a token is left that its issuer can freeze (sketch TK1a). What
-/// a request may hold is decided here: the trail's steps are shortened addresses, never a name, so a victim's name
-/// can never reach a request (CLAUDE.md, BG1b).
+/// that traced money reached, and every token left at an address that its issuer can freeze (sketch TK1a). What a
+/// request may hold is decided here: a name comes only from the label that made the actor a cash-out, and every other
+/// step is a shortened address, so a victim's name can never reach a request (CLAUDE.md, BG1b).
 /// </summary>
 public static class RequestExits
 {
@@ -77,6 +108,12 @@ public static class RequestExits
         [NodeSort.Card] = RequestTargetKind.Card,
     };
 
+    /// <summary>
+    /// What has been found per scene, so that the menu, the inspector and the view ask once per graph drawn; a scene is
+    /// never changed, and the entry goes with it.
+    /// </summary>
+    private static readonly ConditionalWeakTable<GraphScene, IReadOnlyList<RequestExit>> Found = [];
+
     /// <summary>Finds the requests that can be made: the cash-outs first, then the freezes, in the graph's order.
     /// </summary>
     /// <param name="scene">The graph shown.</param>
@@ -84,6 +121,27 @@ public static class RequestExits
     public static IReadOnlyList<RequestExit> Find(GraphScene scene)
     {
         ArgumentNullException.ThrowIfNull(scene);
+        return Found.GetValue(scene, Search);
+    }
+
+    /// <summary>Writes when a deposit came, for the chips in the view: the local day and time.</summary>
+    /// <param name="deposit">The deposit.</param>
+    /// <param name="zone">The local zone.</param>
+    /// <returns>For example <c>2026-10-28 21:14</c>, or <c>obekräftad</c>.</returns>
+    public static string When(RequestDeposit deposit, TimeZoneInfo zone)
+    {
+        ArgumentNullException.ThrowIfNull(deposit);
+        ArgumentNullException.ThrowIfNull(zone);
+        return deposit.Time is { } time
+            ? TimeZoneInfo.ConvertTime(time, zone).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+            : "obekräftad";
+    }
+
+    /// <summary>Searches a scene for the requests that can be made.</summary>
+    /// <param name="scene">The graph shown.</param>
+    /// <returns>The places.</returns>
+    private static IReadOnlyList<RequestExit> Search(GraphScene scene)
+    {
         var nodes = Actors(scene);
         var traced = TracedEdges(scene.Snapshot);
         var exits = new List<RequestExit>();
@@ -95,10 +153,7 @@ public static class RequestExits
                 exits.Add(exit);
             }
 
-            if (Freeze(scene, node, nodes, traced) is { } freeze)
-            {
-                freezes.Add(freeze);
-            }
+            freezes.AddRange(Freezes(scene, node, nodes, traced));
         }
 
         return [.. exits, .. freezes];
@@ -138,7 +193,10 @@ public static class RequestExits
         return keys;
     }
 
-    /// <summary>Makes the request for a cash-out that traced money reached; none for any other actor.</summary>
+    /// <summary>
+    /// Makes the request for a cash-out that traced money reached; none for any other actor. It concerns only the
+    /// addresses traced money reached, and the deposits to them.
+    /// </summary>
     /// <param name="scene">The graph.</param>
     /// <param name="node">The actor.</param>
     /// <param name="nodes">Every actor, by key.</param>
@@ -158,29 +216,61 @@ public static class RequestExits
             return null;
         }
 
-        var deposits = Deposits(scene.Snapshot, node, incoming, traced, asset: null);
-        var addresses = deposits.Select(deposit => deposit.To).Distinct().ToList();
-        var target = new RequestTarget(
-            node.Name, kind, node.Node.Chain, addresses.Count > 0 ? addresses : [node.Node.Addresses[0]]);
+        var all = Deposits(scene.Snapshot, node, incoming, traced, asset: null);
+        var reached = Reached(all, incoming, traced);
+        if (reached.Count == 0)
+        {
+            return null;
+        }
+
+        var deposits = all.Where(deposit => reached.Contains(deposit.To)).ToList();
+        var target = new RequestTarget(SafeName(node), kind, node.Node.Chain, [.. reached]);
         return new RequestExit(
-            node.Key, node.Look, RequestKind.Information, target, deposits, Trail(scene, node, nodes, traced), null);
+            node.Key, node.Look, RequestKind.Information, target, deposits, Trail(scene, node, nodes, traced), null)
+        {
+            NodeAddresses = node.Node.Addresses,
+        };
     }
 
     /// <summary>
-    /// Makes the freeze for an address where a token is left that its issuer can freeze, as the inspector's snowflake
-    /// says (sketch TK1a); none for any other actor.
+    /// Gives the addresses traced money reached, in the order they first did: those of the traced deposits, or when no
+    /// single deposit can be told traced, those the traced lines paid.
+    /// </summary>
+    /// <param name="deposits">Every deposit to the actor.</param>
+    /// <param name="incoming">The lines into it.</param>
+    /// <param name="traced">The lines that carry traced money.</param>
+    /// <returns>The addresses.</returns>
+    private static List<ChainAddress> Reached(
+        IReadOnlyList<RequestDeposit> deposits, IReadOnlyList<GraphEdge> incoming, HashSet<string> traced)
+    {
+        var reached = deposits.Where(deposit => deposit.IsTraced).Select(deposit => deposit.To).Distinct().ToList();
+        if (reached.Count > 0)
+        {
+            return reached;
+        }
+
+        var tracedTransactions = incoming.Where(edge => traced.Contains(edge.Key))
+            .SelectMany(edge => edge.Transfers.Select(transfer => transfer.Transaction.Id))
+            .ToHashSet(StringComparer.Ordinal);
+        return [.. deposits.Where(deposit => tracedTransactions.Contains(deposit.Transaction))
+            .Select(deposit => deposit.To).Distinct()];
+    }
+
+    /// <summary>
+    /// Makes a freeze for every token left at an address that its issuer can freeze, as the inspector's snowflake says
+    /// (sketch TK1a); none for any other actor.
     /// </summary>
     /// <param name="scene">The graph.</param>
     /// <param name="node">The actor.</param>
     /// <param name="nodes">Every actor, by key.</param>
     /// <param name="traced">The lines that carry traced money.</param>
-    /// <returns>The place, or <see langword="null"/>.</returns>
-    private static RequestExit? Freeze(
+    /// <returns>The places, one per token.</returns>
+    private static IEnumerable<RequestExit> Freezes(
         GraphScene scene, NodeView node, Dictionary<string, NodeView> nodes, HashSet<string> traced)
     {
         if (!node.Balances.Any(row => row.CanBeFrozen) || node.Node.Accounts.Count == 0)
         {
-            return null;
+            yield break;
         }
 
         var graph = scene.Snapshot.Graph;
@@ -202,15 +292,28 @@ public static class RequestExits
             var target = new RequestTarget(
                 issuer.Name, RequestTargetKind.TokenIssuer, node.Node.Chain, [node.Node.Accounts[0]]);
             var deposits = Deposits(scene.Snapshot, node, Incoming(graph, node.Key), traced, asset);
-            return new RequestExit(
+            yield return new RequestExit(
                 node.Key, node.Look, RequestKind.Freeze, target, deposits,
                 Trail(scene, node, nodes, traced), new RequestHolding(issuer.Name, left))
             {
-                Name = $"{issuer.Name} · {node.Name}",
+                Name = $"{issuer.Name} · {SafeName(node)} · {asset.Symbol}",
+                NodeAddresses = node.Node.Addresses,
             };
         }
+    }
 
-        return null;
+    /// <summary>
+    /// Names an actor for a request: the name of the label that made it a cash-out, and otherwise its address
+    /// shortened. Any other label (a victim, the user's own) is never written, since it may name a person.
+    /// </summary>
+    /// <param name="node">The actor.</param>
+    /// <returns>The name.</returns>
+    private static string SafeName(NodeView node)
+    {
+        var label = node.Labels.FirstOrDefault(label => CashOuts.ContainsKey(VisualLanguage.SortOf(label.Kind))
+            && VisualLanguage.SortOf(label.Kind) == node.Look.Sort
+            && !string.IsNullOrWhiteSpace(label.Name));
+        return label?.Name ?? Short(node.Node.Addresses, node.Key);
     }
 
     /// <summary>Gives the transfer lines into an actor.</summary>
@@ -254,7 +357,6 @@ public static class RequestExits
         {
             foreach (var transfer in edge.Transfers.Where(t => asset is null || t.Amount.Asset == asset))
             {
-                var isTraced = IsTraced(transfer, edge, tracedCoins, traced);
                 deposits.Add(new RequestDeposit(
                     transfer.Transaction.Id,
                     ReceiverOf(snapshot.Graph, node, transfer),
@@ -262,7 +364,7 @@ public static class RequestExits
                     transfer.Time,
                     transfer.Height,
                     transfer.Block?.Hash.Value ?? transfer.AccountBlock?.Hash,
-                    isTraced));
+                    IsTraced(transfer, edge, tracedCoins, traced)));
             }
         }
 
@@ -307,7 +409,8 @@ public static class RequestExits
 
     /// <summary>
     /// Finds the trail to an actor along traced money: the fewest hops back to a start point. The steps are written
-    /// as shortened addresses and only the end by its name, so no name of a person is ever in it.
+    /// as shortened addresses and only the end by its cash-out name, so no name of a person is ever in it. A
+    /// transaction drawn as a node of its own (a CoinJoin) is not an actor and is neither a step nor a hop.
     /// </summary>
     /// <param name="scene">The graph.</param>
     /// <param name="end">The actor.</param>
@@ -317,16 +420,29 @@ public static class RequestExits
     private static RequestTrail? Trail(
         GraphScene scene, NodeView end, Dictionary<string, NodeView> nodes, HashSet<string> traced)
     {
-        var path = PathFromStart(scene.Snapshot.Graph, end.Key, traced);
-        if (path is null || path.Count < 2)
+        var graph = scene.Snapshot.Graph;
+        var path = PathFromStart(graph, end.Key, traced);
+        if (path is null)
         {
             return null;
         }
 
-        var steps = path.Take(path.Count - 1).Select(key => Step(scene.Snapshot.Graph, nodes, key)).ToList();
-        steps.Add(end.Name);
-        return new RequestTrail(steps, scene.MethodText);
+        var steps = path.Take(path.Count - 1)
+            .Select(key => (Key: key, Node: ModelNode(graph, nodes, key)))
+            .Where(step => step.Node is not { Kind: GraphNodeKind.Transaction })
+            .Select(step => Short(step.Node?.Addresses ?? [], step.Key))
+            .ToList();
+        steps.Add(SafeName(end));
+        return steps.Count < 2 ? null : new RequestTrail(steps, scene.MethodText);
     }
+
+    /// <summary>Gives a step's node in Tracing's model.</summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="nodes">Every actor drawn, by key.</param>
+    /// <param name="key">The step's key.</param>
+    /// <returns>The node, or <see langword="null"/> when the graph does not have it.</returns>
+    private static GraphNode? ModelNode(TraceGraph graph, Dictionary<string, NodeView> nodes, string key) =>
+        nodes.TryGetValue(key, out var node) ? node.Node : graph.Nodes.FirstOrDefault(other => other.Key == key);
 
     /// <summary>Walks back from an actor along traced lines to the nearest start point.</summary>
     /// <param name="graph">The graph.</param>
@@ -379,31 +495,12 @@ public static class RequestExits
         return path;
     }
 
-    /// <summary>Writes one step of the trail as its address shortened, never a name.</summary>
-    /// <param name="graph">The graph.</param>
-    /// <param name="nodes">Every actor, by key.</param>
-    /// <param name="key">The step's key.</param>
+    /// <summary>Writes an actor as its first address shortened, never a name; or its key's subject without one.</summary>
+    /// <param name="addresses">The actor's addresses.</param>
+    /// <param name="key">Its key, for an actor without an address.</param>
     /// <returns>For example <c>bc1q…x0wl</c>.</returns>
-    private static string Step(TraceGraph graph, Dictionary<string, NodeView> nodes, string key)
-    {
-        var addresses = nodes.TryGetValue(key, out var node)
-            ? node.Node.Addresses
-            : graph.Nodes.FirstOrDefault(other => other.Key == key)?.Addresses ?? [];
-        return addresses.Count > 0
+    private static string Short(IReadOnlyList<ChainAddress> addresses, string key) =>
+        addresses.Count > 0
             ? GraphScene.Shorten(addresses[0].Value)
             : GraphScene.Shorten(key[(key.IndexOf(':', StringComparison.Ordinal) + 1)..]);
-    }
-
-    /// <summary>Writes when a deposit came, for the chips in the view: the local day and time.</summary>
-    /// <param name="deposit">The deposit.</param>
-    /// <param name="zone">The local zone.</param>
-    /// <returns>For example <c>28 okt 21:14</c>, or <c>obekräftad</c>.</returns>
-    public static string When(RequestDeposit deposit, TimeZoneInfo zone)
-    {
-        ArgumentNullException.ThrowIfNull(deposit);
-        ArgumentNullException.ThrowIfNull(zone);
-        return deposit.Time is { } time
-            ? TimeZoneInfo.ConvertTime(time, zone).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
-            : "obekräftad";
-    }
 }

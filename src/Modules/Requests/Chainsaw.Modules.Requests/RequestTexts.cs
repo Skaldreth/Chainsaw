@@ -39,6 +39,7 @@ namespace Chainsaw.Modules.Requests;
 /// <param name="Unconfirmed">What stands for the time and height of an unconfirmed deposit.</param>
 /// <param name="Unknown">What stands for a hash the case does not have.</param>
 /// <param name="LeftNote">What the holding's amount rests on.</param>
+/// <param name="AssessmentNote">That the recipient's kind and the trail are assessments, not facts.</param>
 /// <param name="DecimalSeparator">The decimal separator of amounts.</param>
 internal sealed record RequestTexts(
     string InformationTitle,
@@ -72,6 +73,7 @@ internal sealed record RequestTexts(
     string Unconfirmed,
     string Unknown,
     string LeftNote,
+    string AssessmentNote,
     string DecimalSeparator)
 {
     /// <summary>The Swedish words.</summary>
@@ -112,6 +114,8 @@ internal sealed record RequestTexts(
         Unknown: "saknas i ärendet",
         LeftNote: "Det som ligger kvar är räknat ur adressens historik så som den hämtats i ärendet, inte ett saldo "
             + "från utgivaren.",
+        AssessmentNote: "Att adressen hör till mottagaren är en bedömning ur etiketter, och spåret dit är en bedömning "
+            + "enligt spårningsmetoden; insättningarna i tabellen är fakta på kedjan.",
         DecimalSeparator: ",")
     {
         Kinds = new Dictionary<RequestTargetKind, string>
@@ -165,6 +169,8 @@ internal sealed record RequestTexts(
         Unknown: "not in the case",
         LeftNote: "What is left is counted from the address's history as fetched in the case, not a balance from "
             + "the issuer.",
+        AssessmentNote: "That the address belongs to the recipient is an assessment from labels, and the trail is an "
+            + "assessment by the tracing method; the deposits in the table are facts on the chain.",
         DecimalSeparator: ".")
     {
         Kinds = new Dictionary<RequestTargetKind, string>

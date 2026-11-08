@@ -3,7 +3,10 @@ using Chainsaw.App.Navigation;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Requests.Contracts;
+using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 using static Chainsaw.App.Tests.GraphSamples;
 
@@ -12,6 +15,9 @@ namespace Chainsaw.App.Tests;
 /// <summary>The requests as the Requests module would answer, in memory; records what is exported.</summary>
 internal sealed class TestRequests : IRequestService
 {
+    /// <summary>The time every composed request says it was made.</summary>
+    public static readonly DateTimeOffset Made = new(2026, 11, 7, 12, 0, 0, TimeSpan.Zero);
+
     public List<RequestDraft> Composed { get; } = [];
 
     public List<(RequestDraft Draft, string Path)> Exported { get; } = [];
@@ -27,7 +33,10 @@ internal sealed class TestRequests : IRequestService
         Composed.Add(draft);
         return new RequestDocument(
             draft.Target.Name, [new RequestBlock(RequestBlockKind.Title, draft.Target.Name)], "# " + draft.Target.Name,
-            $"{@case.Info.CaseNumber} Begäran {draft.Target.Name}.md");
+            $"{@case.Info.CaseNumber} Begäran {draft.Target.Name}.md")
+        {
+            MadeUtc = Made,
+        };
     }
 
     public RequestExport Export(ICase @case, RequestDraft draft, string path)
@@ -425,5 +434,253 @@ public sealed class RequestFreezeTests
     {
         Assert.DoesNotContain(
             RequestExits.Find(EthSamples.Scene(read: false)), exit => exit.Kind == RequestKind.Freeze);
+    }
+}
+
+/// <summary>The fixes after the review of BG1b: what a request may hold, and that its marks stay.</summary>
+public sealed class RequestReviewTests
+{
+    private const string XKey = "address:x";
+
+    private static readonly BitcoinAddress E2 = Address(8);
+
+    private static readonly BitcoinAddress X = Address(7);
+
+    [Fact]
+    public void A_request_concerns_only_the_addresses_traced_money_reached()
+    {
+        var exit = Assert.Single(RequestExits.Find(ClusterScene()));
+
+        Assert.Equal([E.ToChainAddress()], exit.Target.Addresses);
+        Assert.DoesNotContain(exit.Deposits, deposit => deposit.To == E2.ToChainAddress());
+        Assert.Equal([E.ToChainAddress(), E2.ToChainAddress()], exit.NodeAddresses);
+    }
+
+    [Fact]
+    public void An_untraced_deposit_to_the_same_address_can_be_taken_along()
+    {
+        var exit = Assert.Single(RequestExits.Find(ClusterScene()));
+
+        var other = Assert.Single(exit.Deposits, deposit => deposit.Transaction == TxidOf(5).Value);
+        Assert.False(other.IsTraced);
+        Assert.Equal(E.ToChainAddress(), other.To);
+        Assert.Equal(2, exit.Deposits.Count);
+    }
+
+    [Fact]
+    public void The_request_names_only_the_addresses_of_the_chosen_deposits()
+    {
+        var requests = new TestRequests();
+        var model = Model(requests);
+
+        Assert.Equal([E.ToChainAddress()], requests.Composed[^1].Target.Addresses);
+        Assert.Single(requests.Composed[^1].Deposits);
+
+        model.ToggleDeposit(model.Chips.Single(chip => !chip.IsOn));
+
+        Assert.Equal([E.ToChainAddress()], requests.Composed[^1].Target.Addresses);
+        Assert.Equal(2, requests.Composed[^1].Deposits.Count);
+    }
+
+    [Fact]
+    public void A_cash_out_is_named_only_by_its_cash_out_label()
+    {
+        var labels = new Dictionary<string, IReadOnlyList<Label>>
+        {
+            [EKey] = [Label(E, LabelKind.Exchange, "Börs A"), Label(E, LabelKind.Victim, "Anna Andersson")],
+        };
+
+        var exit = Assert.Single(RequestExits.Find(Scene(labels)));
+
+        Assert.Equal("Börs A", exit.Target.Name);
+        Assert.All(exit.Trail!.Steps, step => Assert.DoesNotContain("Andersson", step, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_cash_out_label_without_a_name_is_written_as_the_address()
+    {
+        var labels = new Dictionary<string, IReadOnlyList<Label>> { [EKey] = [Label(E, LabelKind.Exchange)] };
+
+        var exit = Assert.Single(RequestExits.Find(Scene(labels)));
+
+        Assert.Equal(GraphScene.Shorten(E.Value), exit.Target.Name);
+        Assert.Equal(GraphScene.Shorten(E.Value), exit.Trail!.Steps[^1]);
+    }
+
+    [Fact]
+    public void A_freeze_never_carries_a_victim_s_name()
+    {
+        var scene = FreezeScene(victim: true);
+
+        var freeze = Assert.Single(RequestExits.Find(scene), exit => exit.Kind == RequestKind.Freeze);
+
+        Assert.Equal("Tether", freeze.Target.Name);
+        Assert.NotNull(freeze.Trail);
+        Assert.Equal(GraphScene.Shorten(EthSamples.S.Value), freeze.Trail.Steps[^1]);
+        Assert.DoesNotContain("Andersson", freeze.Name, StringComparison.Ordinal);
+        Assert.All(freeze.Trail.Steps, step => Assert.DoesNotContain("Andersson", step, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Every_token_left_gets_a_freeze_of_its_own()
+    {
+        var scene = FreezeScene(victim: false, usdc: 50m);
+
+        var freezes = RequestExits.Find(scene).Where(exit => exit.Kind == RequestKind.Freeze).ToList();
+
+        Assert.Equal(["Circle", "Tether"], freezes.Select(freeze => freeze.Target.Name).Order());
+        Assert.Equal(2, freezes.Select(freeze => freeze.Key).Distinct().Count());
+    }
+
+    [Fact]
+    public void A_transaction_node_is_neither_a_step_nor_a_hop()
+    {
+        var graph = GraphSamples.Graph();
+        var nodes = graph.Nodes
+            .Select(node => node.Key == KKey ? node with { Kind = GraphNodeKind.Transaction } : node)
+            .ToList();
+        var labels = new Dictionary<string, IReadOnlyList<Label>> { [EKey] = [Label(E, LabelKind.Exchange, "Börs A")] };
+
+        var trail = Assert.Single(RequestExits.Find(Scene(labels, graph with { Nodes = nodes }))).Trail;
+
+        Assert.NotNull(trail);
+        Assert.Equal([GraphScene.Shorten(V.Value), "Börs A"], trail.Steps);
+        Assert.Equal(1, trail.Hops);
+    }
+
+    [Fact]
+    public void The_exported_mark_stays_when_the_export_named_another_of_the_actor_s_addresses()
+    {
+        var exit = Assert.Single(RequestExits.Find(ClusterScene()));
+        var export = new RequestExport(
+            1, RequestKind.Information, RequestLanguage.Swedish, RequestTarget.KeyOf(E2.ToChainAddress()), "Börs A",
+            "a.md", "/a.md", new string('a', 64), [], DateTimeOffset.UnixEpoch, 1);
+
+        Assert.True(exit.IsExportedBy(export));
+        Assert.False(exit.IsExportedBy(export with { Kind = RequestKind.Freeze }));
+        Assert.Equal("Information:" + RequestTarget.KeyOf(E.ToChainAddress()), exit.Key);
+    }
+
+    [Fact]
+    public void The_same_scene_is_searched_once()
+    {
+        var scene = ClusterScene();
+
+        Assert.Same(RequestExits.Find(scene), RequestExits.Find(scene));
+    }
+
+    [Fact]
+    public async Task The_export_says_the_time_the_preview_showed()
+    {
+        var requests = new TestRequests();
+        var model = Model(requests);
+
+        await model.ExportAsync();
+
+        Assert.Equal(TestRequests.Made, Assert.Single(requests.Exported).Draft.MadeUtc);
+    }
+
+    /// <summary>The view over the cluster scene, with a case open.</summary>
+    private static RequestsViewModel Model(TestRequests requests)
+    {
+        var session = new CaseSession();
+        session.Open(new TestCase("2026-0117"));
+        var model = new RequestsViewModel(requests, session, new TestSavePicker(), new InlineUi());
+        model.Update(ClusterScene());
+        return model;
+    }
+
+    /// <summary>
+    /// The exchange E as a cluster of E and E2: traced money reaches E (tx 2), another actor X pays E2 (tx 4) and E
+    /// itself (tx 5); neither of X's deposits is traced.
+    /// </summary>
+    private static GraphScene ClusterScene()
+    {
+        var graph = GraphSamples.Graph();
+        var tx4 = Transaction(4, [(X, 0.31m)], [(E2, 0.3m)]);
+        var tx5 = Transaction(5, [(X, 0.21m)], [(E, 0.2m)]);
+        var transactions = new Dictionary<Txid, GraphTransaction>(graph.Utxo.Transactions)
+        {
+            [tx4.Txid] = new GraphTransaction(tx4, LookupStatus.FromCase, null),
+            [tx5.Txid] = new GraphTransaction(tx5, LookupStatus.FromCase, null),
+        };
+        GraphNode[] nodes =
+        [
+            .. graph.Nodes.Where(node => node.Key != EKey),
+            Node(EKey, GraphNodeKind.Cluster, [E, E2], hop: 2, size: 2),
+            Node(XKey, GraphNodeKind.Address, [X], hop: 1),
+        ];
+        GraphEdge[] edges = [.. graph.Edges, Line("x-e2", 4, 0.3m), Line("x-e", 5, 0.2m)];
+        var changed = graph with
+        {
+            Nodes = nodes, Edges = edges, Utxo = graph.Utxo with { Transactions = transactions },
+        };
+        return Scene(
+            new Dictionary<string, IReadOnlyList<Label>> { [EKey] = [Label(E, LabelKind.Exchange, "Börs A")] },
+            changed);
+    }
+
+    /// <summary>A line from X into E with one coin of a transaction numbered beyond the samples' four.</summary>
+    private static GraphEdge Line(string key, int tx, decimal amount)
+    {
+        var txid = TxidOf(tx);
+        var block = Block(100 + tx);
+        return new GraphEdge(
+            key, XKey, EKey, GraphEdgeKind.Transfer, Btc(amount),
+            [AssetTransfer.OfCoin(txid, new Outpoint(txid, 0), Satoshi.FromBitcoin(amount), block)],
+            block.Time, EdgeDirection.Forward);
+    }
+
+    /// <summary>
+    /// The Ethereum samples with V as the start, so that a trail reaches S, optionally a victim's label on S and USDC
+    /// sent to S as well.
+    /// </summary>
+    private static GraphScene FreezeScene(bool victim, decimal? usdc = null)
+    {
+        var graph = EthSamples.Graph();
+        var start = EthSamples.Key(EthSamples.V);
+        var nodes = graph.Nodes.Select(node => node with { IsStartPoint = node.Key == start }).ToList();
+        var edges = graph.Edges.ToList();
+        if (usdc is { } amount)
+        {
+            var coin = new AssetAmount(KnownTokens.EthereumUsdc, new System.Numerics.BigInteger(amount * 1_000_000m));
+            var move = EthSamples.Move(6, EthereumTransferKind.Token, EthSamples.V, EthSamples.S, coin, 9);
+            edges.Add(new GraphEdge(
+                "v-s-usdc", start, EthSamples.Key(EthSamples.S), GraphEdgeKind.Transfer, coin,
+                [AssetTransfer.OfEthereum(move, EthSamples.BlockOf(move.Block!))], move.Block!.Time,
+                EdgeDirection.Forward));
+        }
+
+        var labels = new Dictionary<string, IReadOnlyList<Label>>();
+        if (victim)
+        {
+            labels[EthSamples.Key(EthSamples.S)] = [Victim(EthSamples.S.ToChainAddress(), "Anna Andersson")];
+        }
+
+        var usdt = EthSamples.Usdt(1_000);
+        var trace = new AccountTraceResult(
+            new TracingMethodId(TracingMethodKind.Fifo, 1),
+            [AccountSeed.Of(EthSamples.Transfers[0])],
+            [new AssetTrace(usdt, [EthSamples.Traced(EthSamples.EdgeKey(EthSamples.V, EthSamples.S, "USDT"), usdt)], [])]);
+        var changed = graph with
+        {
+            Nodes = nodes, Edges = edges, StartPoints = [TraceStartPoint.ForEthereumAddress(EthSamples.V)],
+        };
+        return GraphScene.Build(new GraphSnapshot(changed, labels, TracingMethodKind.Fifo, [], null, null)
+        {
+            AccountSeeds = [AccountSeed.Of(EthSamples.Transfers[0])],
+            AccountTrace = trace,
+        });
+    }
+
+    /// <summary>A victim's label on an account, from one origin.</summary>
+    private static Label Victim(ChainAddress address, string name)
+    {
+        var origin = new LabelOrigin(
+            Guid.NewGuid().ToString("N"), LabelSource.Own, LabelSource.Own, "egen", "1",
+            new OperatorProfile("Utredare", "Analytiker", "Enheten"), DateTimeOffset.UnixEpoch, null, null);
+        var subject = LabelSubject.ForAccount(address);
+        return new Label(
+            subject, LabelKind.Victim, name, [new LabelEntry(1, subject, LabelKind.Victim, name, origin, false, 1)]);
     }
 }

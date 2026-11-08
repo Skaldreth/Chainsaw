@@ -64,12 +64,35 @@ internal static class RequestFiles
             return false;
         }
 
-        using (stream)
+        try
         {
-            stream.Write(content);
-            stream.Flush(flushToDisk: true);
+            using (stream)
+            {
+                stream.Write(content);
+                stream.Flush(flushToDisk: true);
+            }
+        }
+        catch
+        {
+            // A half-written file is no request and must not be left (principle 1); the failure is the answer.
+            TryDelete(path);
+            throw;
         }
 
         return true;
+    }
+
+    /// <summary>Removes a file this export created; a failure leaves it, since nothing more can be done.</summary>
+    /// <param name="path">The file.</param>
+    public static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The export's own failure is what the user is told.
+        }
     }
 }

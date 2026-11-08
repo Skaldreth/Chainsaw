@@ -222,6 +222,79 @@ public sealed class TemplateTests
     }
 }
 
+public sealed class ReviewFixTests
+{
+    private static readonly RequestContext Context =
+        new(Harness.CaseNumber, null, new(2026, 11, 7, 13, 20, 0, TimeSpan.Zero));
+
+    [Fact]
+    public void A_request_says_that_the_recipient_and_the_trail_are_assessments()
+    {
+        var document = RequestTemplates.Compose(Samples.Information(), Context);
+
+        Assert.Contains(document.Blocks, block => block.Kind == RequestBlockKind.Note
+            && block.Text.Contains("bedömning ur etiketter", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("a ~ b & c", "a \\~ b \\& c\n")]
+    [InlineData("- inte en lista", "\\- inte en lista\n")]
+    [InlineData("+ inte heller", "\\+ inte heller\n")]
+    [InlineData("12. inte numrerad", "12\\. inte numrerad\n")]
+    [InlineData("12 hopp. Det är text", "12 hopp. Det är text\n")]
+    public void A_paragraph_is_never_read_as_markup_or_a_list(string text, string expected)
+    {
+        Assert.Equal(expected, RequestMarkdown.Write([new RequestBlock(RequestBlockKind.Paragraph, text)]));
+    }
+
+    [Fact]
+    public void A_note_is_trimmed_so_that_its_emphasis_holds()
+    {
+        Assert.Equal("*en not*\n", RequestMarkdown.Write([new RequestBlock(RequestBlockKind.Note, "  en not ")]));
+    }
+
+    [Fact]
+    public void A_freeze_of_each_token_has_its_own_export_key()
+    {
+        var target = new RequestTarget("Tether", RequestTargetKind.TokenIssuer, Chain.Ethereum, [Samples.Holder]);
+        var usdt = new RequestHolding("Tether", AssetAmount.Parse(Samples.Usdt, "1"));
+        var other = Asset.Token(Chain.Ethereum, "0x3333333333333333333333333333333333333333", "USDC", 6);
+        var usdc = new RequestHolding("Circle", AssetAmount.Parse(other, "1"));
+
+        Assert.NotEqual(RequestDraft.ExportKeyOf(target, usdt), RequestDraft.ExportKeyOf(target, usdc));
+        Assert.StartsWith(target.Key, RequestDraft.ExportKeyOf(target, usdt), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_export_says_the_time_the_preview_showed()
+    {
+        using var harness = new Harness();
+        var shown = harness.Service.Compose(harness.Case, Samples.Information());
+        harness.Clock.UtcNow = shown.MadeUtc.AddMinutes(37);
+        var path = Path.Combine(harness.Exports, "a.md");
+
+        harness.Service.Export(harness.Case, Samples.Information() with { MadeUtc = shown.MadeUtc }, path);
+
+        Assert.Equal(shown.Markdown, File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void A_freeze_export_is_sealed_under_its_token()
+    {
+        using var harness = new Harness();
+        var holding = new RequestHolding("Tether", AssetAmount.Parse(Samples.Usdt, "5"));
+        var draft = new RequestDraft(
+            RequestKind.Freeze, RequestLanguage.Swedish,
+            new RequestTarget("Tether", RequestTargetKind.TokenIssuer, Chain.Ethereum, [Samples.Holder]),
+            [], null, Samples.Zone) { Holding = holding };
+
+        var export = harness.Service.Export(harness.Case, draft, Path.Combine(harness.Exports, "f.md"));
+
+        Assert.Equal(draft.ExportKey, export.TargetKey);
+        Assert.Equal(draft.ExportKey, Assert.Single(harness.Service.ListExports(harness.Case)).TargetKey);
+    }
+}
+
 public sealed class DraftTests
 {
     [Fact]
