@@ -1,6 +1,8 @@
 namespace Chainsaw.App.Guide;
 
-/// <summary>A block of a Guide section: a heading, a paragraph, a list, a quote, code or a table.</summary>
+/// <summary>
+/// A block of a Guide section: a heading, a paragraph, a list, a quote, an analogy, a figure, code or a table.
+/// </summary>
 public abstract record GuideBlock;
 
 /// <summary>A heading inside a section (<c>##</c> or <c>###</c>); the section's own title is not a block.</summary>
@@ -20,6 +22,39 @@ public sealed record GuideParagraph(IReadOnlyList<GuideRun> Runs) : GuideBlock;
 /// <summary>A quote (<c>&gt; text</c>), used in the Guide for a rule or a formula that stands out.</summary>
 /// <param name="Runs">The text.</param>
 public sealed record GuideQuote(IReadOnlyList<GuideRun> Runs) : GuideBlock;
+
+/// <summary>
+/// An everyday analogy (<c>&gt; **Som i vardagen:** text</c>) that opens a section for a reader who is not technical,
+/// drawn as a callout of its own. The label is not part of the text; the callout shows it.
+/// </summary>
+/// <param name="Runs">The text after the label.</param>
+public sealed record GuideAnalogy(IReadOnlyList<GuideRun> Runs) : GuideBlock
+{
+    /// <summary>The label a quote starts with, in bold, to be an analogy.</summary>
+    public const string Label = "Som i vardagen:";
+
+    /// <summary>Gets the label as the callout shows it, without the colon.</summary>
+    public static string Heading => Label.TrimEnd(':');
+}
+
+/// <summary>
+/// A figure (<c>![Bildtext](figur:id)</c> on a line of its own): a vector drawing in the theme with the key
+/// <see cref="ResourceKey"/>, and its caption under it. A figure whose drawing is missing shows its caption and says
+/// so; it never fails.
+/// </summary>
+/// <param name="Id">The drawing's id, or an empty string when the target is not a <c>figur:</c> id.</param>
+/// <param name="Caption">The caption.</param>
+public sealed record GuideFigure(string Id, IReadOnlyList<GuideRun> Caption) : GuideBlock
+{
+    /// <summary>The scheme a figure's target starts with.</summary>
+    public const string Scheme = "figur:";
+
+    /// <summary>The start of a drawing's resource key in <c>Themes/GuideFigures*.xaml</c>; the id follows.</summary>
+    public const string KeyPrefix = "Figure.";
+
+    /// <summary>Gets the drawing's resource key, or <see langword="null"/> when the figure has no id.</summary>
+    public string? ResourceKey => Id.Length > 0 ? KeyPrefix + Id : null;
+}
 
 /// <summary>A block of code or a drawing in characters, written as it stands in Cascadia Mono.</summary>
 /// <param name="Text">The lines, with their line breaks.</param>
@@ -49,6 +84,9 @@ public sealed record GuideDocument(string Title, IReadOnlyList<GuideBlock> Block
     /// <summary>Gets the section's headings, in order.</summary>
     public IEnumerable<GuideHeading> Headings => Blocks.OfType<GuideHeading>();
 
+    /// <summary>Gets the section's figures, in order.</summary>
+    public IEnumerable<GuideFigure> Figures => Blocks.OfType<GuideFigure>();
+
     /// <summary>Gets every link in the text, in order.</summary>
     public IEnumerable<GuideLink> Links => Blocks.SelectMany(RunsOf).Select(run => run.Link).OfType<GuideLink>();
 
@@ -60,6 +98,8 @@ public sealed record GuideDocument(string Title, IReadOnlyList<GuideBlock> Block
         GuideHeading heading => heading.Runs,
         GuideParagraph paragraph => paragraph.Runs,
         GuideQuote quote => quote.Runs,
+        GuideAnalogy analogy => analogy.Runs,
+        GuideFigure figure => figure.Caption,
         GuideList list => list.Items.SelectMany(item => item.Runs),
         GuideTable table => table.Header.Concat(table.Rows.SelectMany(row => row)).SelectMany(cell => cell),
         _ => [],

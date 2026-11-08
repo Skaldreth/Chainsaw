@@ -1,5 +1,9 @@
 # Hur Chainsaw kontrollerar svaren mot kedjan
 
+> **Som i vardagen:** En tx:s id är som ett fingeravtryck av tx:en själv. Den som får ett dokument och ett
+> fingeravtryck kan själv ta avtrycket igen och se om de är lika; ändras ett enda tecken i dokumentet blir avtrycket ett
+> helt annat. Därför behöver Chainsaw inte lita på källan för det som går att kontrollera så.
+
 Chainsaw hämtar kedjans uppgifter från en källa (först ett Esplora-API som mempool.space). Källan är en mellanhand,
 men mycket av det den svarar går att kontrollera med kedjans egen kryptografi, utan att lita på den. Det gör att ett
 steg i spåret vilar på kedjan och inte bara på källan.
@@ -14,6 +18,8 @@ När Chainsaw expanderar en tx hämtar den också tx:ens bytes (`/tx/:txid/hex`)
 källans beskrivning: version, varje inputs spenderade output och sekvens, varje outputs belopp och skript och
 locktime. Stämmer allt är tx:en **kontrollerad mot sina bytes**, och det gäller sedan varje gång den läses ur ärendet.
 Stämmer något inte används inte källans beskrivning alls; båda svaren ligger kvar i ärendet.
+
+![Tx:ens bytes (överst) körs genom SHA-256 två gånger, och ut kommer txid. Chainsaw räknar fram det själv och jämför med källans (till höger). Stämmer de har källan inte ändrat något.](figur:kontroll-txid)
 
 Det som bytesen inte innehåller, beloppen och adresserna på de outputs som spenderas och vilket block tx:en ligger i,
 vilar fortfarande på källan (beloppen kontrolleras när den föregående tx:en hämtas).
@@ -30,6 +36,8 @@ jämförs källans beskrivning av blocket med huvudet. Om målet är nätets rä
 Ibland hittar två gruvarbetare ett block samtidigt, och kedjan grenar sig en kort stund. Den gren som växer snabbast
 vinner, och blocken på den andra **faller bort** (en omorganisation). En tx i ett bortfallet block hamnar oftast i
 ett senare block, men kan också bli obekräftad igen.
+
+![Kedjan grenar sig när två block hittas samtidigt. Den övre grenen växer och vinner, och blocket på den nedre faller bort (streckat). Tx:en i det (accent) hamnar i ett senare block på den vinnande grenen.](figur:kontroll-omorg)
 
 Därför räknar Chainsaw djupet från **när svaret hämtades**: en tx som låg i ett grunt block när den hämtades hämtas om
 när blocket har blivit djupt (sex bekräftelser), och först då litar Chainsaw på svaret för gott. Ligger tx:en då i ett

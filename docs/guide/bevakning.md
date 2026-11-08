@@ -1,5 +1,9 @@
 # Bevakning
 
+> **Som i vardagen:** En bevakning är som ett larm med rörelsevakt på en dörr. Du behöver inte sitta och titta: larmet
+> säger till när något rör sig, och du kan välja att det bara ska larma när någon går ut, när någon kommer in, eller
+> bara när det är vissa personer.
+
 En **bevakning** säger till när pengarna rör sig från eller till en adress eller ett kluster. Det är viktigt inför ett
 beslag: ser du att pengarna går till en börs vet du var en begäran om uppgifter ska gå, och när.
 
@@ -46,6 +50,8 @@ En träff är ett faktum från kedjan som bevakningen plockat ut. Vad den betyde
   bevakas också (högst 50 adresser per kontroll).
 
 ## I grafen
+
+![Den bevakade noden har ett öga i hörnet. En prickad vaktlinje med ett litet öga går till motparten bevakningen gäller (överst). Vid en träff blir vaktlinjen en riktig linje med beloppet och ringar (nederst), tills du har sett den.](figur:bevakning-vaktlinje)
 
 - En bevakad nod har ett **öga i hörnet**.
 - En bevakning med motparter ritar en tunn **prickad vaktlinje** i bevakningens egen dova ton till varje vald motpart i

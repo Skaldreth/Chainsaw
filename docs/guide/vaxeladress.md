@@ -1,5 +1,9 @@
 # Växeladress
 
+> **Som i vardagen:** Du ser ett kvitto där någon lämnat en femhundralapp och två belopp gått ut: 300 kronor jämnt och
+> 187,50. Kvittot säger inte vilket som var växeln, men du gissar ändå: den jämna summan låter som ett pris, den udda som
+> det som blev över. Chainsaw gissar på samma sätt, efter flera sådana tecken, och säger alltid hur många som stämde.
+
 En output spenderas alltid helt (se [UTXO-modellen](utxo-modellen.md)). Den som betalar 0,3 BTC från en output på 1 BTC får därför
 tillbaka resten som **växel**, oftast till en ny adress i samma plånbok. Att hitta växeln är att hitta var avsändarens
 pengar fortsätter.
@@ -15,6 +19,8 @@ Kedjan säger aldrig vilken output som är växeln. Chainsaw **väger tecken** (
 | Tillbaka till en inputs adress | Plånboken skickar växeln till samma adress som betalade. |
 
 Ett tecken räknas bara när det **skiljer** outputarna åt: är båda beloppen udda säger det inget.
+
+![Inputen har en adresstyp (romben). Den ena outputen har en annan typ (pricken) och går till någon som använts förut, den andra har samma typ som inputen och är en ny adress (streckad). Tecknen pekar på den nedre som växel, och den streckade bågen tillbaka är slutsatsen att den hör till avsändaren.](figur:vaxel-tecken)
 
 ## När slås växeln ihop?
 

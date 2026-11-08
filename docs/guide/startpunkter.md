@@ -1,5 +1,9 @@
 # Startpunkter: hur Chainsaw känner igen en adress eller en tx
 
+> **Som i vardagen:** Ett telefonnummer, ett postnummer och ett personnummer går att skilja åt bara på hur de ser ut:
+> antalet siffror, var strecket står, vad de börjar med. Chainsaw känner igen en adress eller en tx på samma sätt, på
+> formen, innan den frågar någon.
+
 En utredning börjar i en **startpunkt**: en adress (till exempel den offret betalade till) eller en transaktion (till
 exempel offrets betalning). Chainsaw känner igen vad du har skrivit på formen, utan att fråga någon källa:
 

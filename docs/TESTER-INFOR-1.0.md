@@ -562,11 +562,22 @@ Rutan under utgången provas under *Utgångsrutan (UT2b)*.
   liten prick, numrerade listor (*Kurser*), inskjutna listor (*CoinJoin*: Whirlpool, Wasabi, JoinMarket), citat med en
   linje till vänster (*UTXO-modellen*: summan av inputs …), kodblock (*Peel chain*, *Kurser*) som krymper i stället för
   att brytas om panelen är smal, och tabeller (*Adresstyper*, *Växeladress*) med kolumner som delar bredden.
-- Inga tecken som `**`, `` ` `` eller `](` syns någonstans.
+- Inga tecken som `**`, `` ` ``, `](` eller `![` syns någonstans.
+- **Som i vardagen** (2026-11-08): varje avsnitt börjar med en ruta på upphöjd yta med en glödlampa och *Som i
+  vardagen* i sandfärg, och analogin under i vanlig text. Inget i accentfärgen.
+- **Figurerna** (2026-11-08): skarpa vektorbilder på en yta med tunn kant (25 stycken, till exempel tre i
+  *UTXO-modellen* och tre i *Spårningsmetoder*), med bildtexten liten, nedtonad och vänsterställd under. Färgerna
+  följer bildspråket: accent för offrets pengar, blått för börs, rött för mixer och CoinJoin, lila för annan kedja,
+  streckat för det osäkra. Inga ikoner i figurerna är suddiga eller tjockare än i grafen.
+- I den smala panelen krymper figurerna till panelens bredd i stället för att klippas eller rulla i sidled; i vyn är
+  de högst 560 px och centrerade i textspalten.
+- En figur som saknas (prova att skriva `![Prov](figur:finns-inte)` i en text i ett Debug-bygge) visar en tom
+  streckad ram och bildtexten följd av *Bilden saknas*, och Chainsaw kraschar inte.
 
 **Vyn Guide (F1)**
-- F1 eller Guide i pillret: avsnitten i fyra grupper (Bitcoin, Klustring, Spårning, Etiketter) till vänster, det valda
-  i markerad yta, och texten i läsbredd (högst 620 px) till höger. Kommandoraden täcker inte textens slut.
+- F1 eller Guide i pillret: avsnitten i grupper till vänster, det valda i markerad yta, och textspalten (högst
+  620 px) **centrerad** i ytan till höger om förteckningen, också i ett brett fönster; texten i spalten är
+  vänsterställd. Spalten har samma bredd i ett kort avsnitt som i ett långt. Kommandoraden täcker inte textens slut.
 - *Öppna i Guide* i panelen: vyn Guide visas vid samma avsnitt och rubrik, med *Tillbaka till grafen* överst, som går
   tillbaka till grafen. Panelen är stängd.
 

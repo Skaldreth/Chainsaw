@@ -1,5 +1,11 @@
 # Kontomodellen
 
+> **Som i vardagen:** Bitcoin är sedlar i en plånbok; Ethereum är ett bankkonto. På kontot finns bara ett saldo, och
+> allt som sätts in blandas med det som redan finns, som vatten som hälls i en tank. När något tas ut går det inte att
+> säga vilka av de insatta kronorna det var, bara hur mycket.
+
+![Till vänster Bitcoin: mynten ligger var för sig och spenderas ett och ett, så det går att peka ut offrets mynt (accent). Till höger ett konto: det som kommer in hälls i samma saldo och blandas, och det som går ut kan inte knytas till en viss insättning.](figur:konto-mot-utxo)
+
 Ethereum (och TRON) har inga outputs som spenderas, som Bitcoin i [UTXO-modellen](utxo-modellen.md). En adress har ett
 **konto** med ett **saldo** per tillgång: ett i kedjans eget mynt (ether, ETH) och ett i varje token den har tagit
 emot. En tx flyttar belopp från ett saldo till ett annat.

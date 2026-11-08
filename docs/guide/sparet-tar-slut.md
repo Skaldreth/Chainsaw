@@ -1,7 +1,13 @@
 # Varför ett spår tar slut
 
+> **Som i vardagen:** Tänk på paketspårning. Ett paket kan vara *levererat*, *på väg*, *skickat utomlands med en annan
+> fraktfirma* eller *lämnat på en terminal där alla paket sorteras om*. Spårningen säger alltid var paketet är och
+> varför spåret slutar där. Chainsaw gör likadant med pengarna: varje del slutar någonstans, med en orsak.
+
 Ett spår tar aldrig slut tyst. Varje spårad satoshi hamnar i **exakt ett slut**, och slutet har alltid en orsak. Lägg
 ihop alla slut, så får du det du började spåra.
+
+![Offrets pengar från startpunkten (flaggan) delar sig och slutar på olika sätt: i en börs med uttag funnet (blå med bock), i en mixer (röd), på en annan kedja (lila, streckat), hos en aktör som inte är expanderad än (blek) och som avgift till minerare (den tunnaste).](figur:slut-orsaker)
 
 ## Inte slut än
 

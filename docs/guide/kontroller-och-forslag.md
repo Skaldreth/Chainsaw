@@ -1,5 +1,9 @@
 # Kontroller och förslag
 
+> **Som i vardagen:** Som stavningskontrollen i ett ordbehandlingsprogram. Den letar själv efter fel medan du skriver
+> och stryker under det den hittar, men det är du som bestämmer om ordet ska ändras. Chainsaw letar på samma sätt efter
+> knep för att dölja pengar, och lägger fram det som förslag som du godkänner eller avfärdar.
+
 Den som vill gömma var pengarna tar vägen använder **förvirring**: mixers, CoinJoin, peel chains, många små belopp,
 byte av kedja och många hopp. Chainsaw letar efter det av sig självt, med **analyser** som körs i bakgrunden på det som
 finns i ärendet varje gång grafen läses.

@@ -7,7 +7,8 @@ namespace Chainsaw.App.Guide;
 /// <summary>
 /// Reads the Guide's texts in <c>docs/guide</c>: a small Markdown reader for what the texts use, and nothing more.
 /// Headings (<c>#</c>, <c>##</c>, <c>###</c>), paragraphs, lists (<c>-</c> and <c>1.</c>, nested by indentation),
-/// quotes (<c>&gt;</c>), code between <c>```</c>, tables, and inside the text <c>**bold**</c>, <c>*italic*</c>,
+/// quotes (<c>&gt;</c>, and <c>&gt; **Som i vardagen:**</c> as an analogy), figures (<c>![Bildtext](figur:id)</c> on
+/// a line of their own), code between <c>```</c>, tables, and inside the text <c>**bold**</c>, <c>*italic*</c>,
 /// <c>`code`</c> and links to other sections (<c>[text](vaxeladress.md#anchor)</c> or <c>[text](#anchor)</c>).
 /// Anything else is read as plain text, so a text never fails to show.
 /// </summary>
@@ -257,6 +258,15 @@ public static partial class GuideMarkdown
     [GeneratedRegex(@"^(?<level>#{1,3}) (?<text>.+)$", RegexOptions.CultureInvariant)]
     private static partial Regex Heading();
 
+    /// <summary>
+    /// A figure on a line of its own: <c>![caption](target)</c>, where the caption may hold links of its own.
+    /// </summary>
+    /// <returns>The pattern.</returns>
+    [GeneratedRegex(
+        @"^!\[(?<caption>(?:[^\[\]]|\[[^\[\]]*\]\([^)]*\))*)\]\((?<target>[^)]*)\)\s*$",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex Figure();
+
     /// <summary>The line under a table's headers: dashes and colons between pipes.</summary>
     /// <returns>The pattern.</returns>
     [GeneratedRegex(@"^\|?(\s*:?-+:?\s*\|)+\s*:?-*:?\s*$", RegexOptions.CultureInvariant)]
@@ -300,7 +310,12 @@ public static partial class GuideMarkdown
                 }
                 else if (line.StartsWith('>'))
                 {
-                    _blocks.Add(new GuideQuote(Inline(section, Gather(next => next.StartsWith('>'), Unquote))));
+                    _blocks.Add(Quote(Gather(next => next.StartsWith('>'), Unquote)));
+                }
+                else if (Figure().Match(line) is { Success: true } figure)
+                {
+                    _at++;
+                    _blocks.Add(ReadFigure(figure));
                 }
                 else if (ListItem().IsMatch(line))
                 {
@@ -329,7 +344,38 @@ public static partial class GuideMarkdown
         /// <returns><see langword="true"/> when it does.</returns>
         private static bool IsParagraphLine(string line) =>
             line.Trim().Length > 0 && !line.StartsWith(Fence, StringComparison.Ordinal) && !line.StartsWith('>')
-            && !line.StartsWith('|') && !Heading().IsMatch(line) && !ListItem().IsMatch(line);
+            && !line.StartsWith('|') && !Heading().IsMatch(line) && !ListItem().IsMatch(line)
+            && !Figure().IsMatch(line);
+
+        /// <summary>
+        /// Reads a quote's text: an analogy when it starts with the bold label <see cref="GuideAnalogy.Label"/>, a
+        /// quote otherwise.
+        /// </summary>
+        /// <param name="text">The quote's text, its lines joined.</param>
+        /// <returns>The block.</returns>
+        private GuideBlock Quote(string text)
+        {
+            var label = "**" + GuideAnalogy.Label + "**";
+            return text.StartsWith(label, StringComparison.Ordinal)
+                ? new GuideAnalogy(Inline(section, text[label.Length..].Trim()))
+                : new GuideQuote(Inline(section, text));
+        }
+
+        /// <summary>
+        /// Reads a figure: its caption, and its id when the target is <c>figur:</c> and an id; any other target gives
+        /// a figure without an id, which shows its caption and says that the picture is missing.
+        /// </summary>
+        /// <param name="match">The figure's match.</param>
+        /// <returns>The figure.</returns>
+        private GuideFigure ReadFigure(Match match)
+        {
+            var target = match.Groups["target"].Value;
+            var id = target.StartsWith(GuideFigure.Scheme, StringComparison.Ordinal)
+                ? target[GuideFigure.Scheme.Length..]
+                : string.Empty;
+            var caption = Inline(section, match.Groups["caption"].Value.Trim());
+            return new GuideFigure(SectionId().IsMatch(id) ? id : string.Empty, caption);
+        }
 
         /// <summary>Joins the lines from here on that belong together, with a space between them.</summary>
         /// <param name="belongs">Whether a following line belongs (the first always does).</param>

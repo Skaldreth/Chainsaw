@@ -1,5 +1,9 @@
 # Kurser och omräkning
 
+> **Som i vardagen:** Kedjan är som ett kvitto i en främmande valuta utan växelkurs. Hur mycket det var värt i kronor
+> får man slå upp i efterhand, för rätt dag och timme, och på en resa växlar man ofta i två steg: först till dollar,
+> sedan till kronor. Chainsaw gör samma sak och visar varje steg, så att vem som helst kan räkna om det.
+
 Kedjan säger hur många bitcoin som flyttades och när blocket bröts, men inget om vad de var värda. Värdet i kronor
 kommer från **mellanhänder**, och därför är det två sorters uppgifter i Chainsaw:
 
@@ -24,6 +28,8 @@ Räknar man i dollar eller euro behövs bara det första steget.
 En börs prishistorik är uppdelad i **perioder** (ljus): för varje minut, timme eller dag finns första, högsta, lägsta och
 sista priset och hur mycket som handlades. Chainsaw tar **sista priset i den period där tidpunkten ligger**, och visar
 alltid perioden, så att avståndet till tidpunkten syns.
+
+![En prishistorik i perioder (ljus): gröna där priset steg, röda där det föll. Tidpunkten (den prickade linjen) ligger i en period (den streckade ramen), och Chainsaw tar det sista priset i den perioden (pricken).](figur:kurser-ljus)
 
 - **Timme är förvalet.** En blocktid är bara ungefär rätt (den sätts av den som bryter blocket och kan avvika
   ett par timmar från den verkliga tiden), så en minutkurs ger en precision som inte finns.

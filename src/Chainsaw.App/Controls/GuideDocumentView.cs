@@ -67,6 +67,15 @@ public sealed class GuideDocumentView : StackPanel
     /// <summary>The theme's raised surface, under code in the text.</summary>
     private const string RaisedBrush = "Brush.SurfaceRaised";
 
+    /// <summary>The warm tone of an analogy's bulb and label.</summary>
+    private const string AnalogyBrush = "Brush.Area.Sand";
+
+    /// <summary>The icon of an analogy: a bulb.</summary>
+    private const string AnalogyIcon = "Icon.Suggest";
+
+    /// <summary>What a figure says when its drawing is missing.</summary>
+    private const string MissingText = "Bilden saknas";
+
     /// <summary>The theme's font for code, addresses and txids.</summary>
     private const string MonoFont = "Font.Mono";
 
@@ -167,6 +176,8 @@ public sealed class GuideDocumentView : StackPanel
         GuideHeading heading => Heading(heading),
         GuideParagraph paragraph => Text(paragraph.Runs, new Thickness(0, 10, 0, 0)),
         GuideQuote quote => Quote(quote),
+        GuideAnalogy analogy => Analogy(analogy),
+        GuideFigure figure => Figure(figure),
         GuideCode code => Code(code),
         GuideList list => List(list),
         GuideTable table => Table(table),
@@ -209,6 +220,114 @@ public sealed class GuideDocumentView : StackPanel
         Padding = new Thickness(12, 2, 0, 2),
         BorderThickness = new Thickness(2, 0, 0, 0),
         BorderBrush = Brush(StrongLineBrush),
+    };
+
+    /// <summary>
+    /// Draws an everyday analogy as a callout: a raised surface with a bulb in the warm sand tone and the label above
+    /// the text, so that it reads as a way in rather than as part of the rules. Sand, not the accent, which means the
+    /// victims' money.
+    /// </summary>
+    /// <param name="analogy">The analogy.</param>
+    /// <returns>Its element.</returns>
+    private Border Analogy(GuideAnalogy analogy)
+    {
+        var label = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        label.Children.Add(new GridIcon
+        {
+            Data = (Geometry)FindResource(AnalogyIcon),
+            Size = 14,
+            Foreground = Brush(AnalogyBrush),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        label.Children.Add(new TextBlock
+        {
+            Text = GuideAnalogy.Heading,
+            FontSize = BodySize - 1.5,
+            Foreground = Brush(AnalogyBrush),
+            Margin = new Thickness(6, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        var body = new StackPanel();
+        body.Children.Add(label);
+        body.Children.Add(Text(analogy.Runs, default));
+        return new Border
+        {
+            Child = body,
+            Margin = new Thickness(0, 14, 0, 4),
+            Padding = new Thickness(16, 12, 16, 14),
+            CornerRadius = new CornerRadius(8),
+            Background = Brush(RaisedBrush),
+        };
+    }
+
+    /// <summary>
+    /// Draws a figure: its vector drawing on the surface, centred and never wider than the drawing itself (made smaller
+    /// in the narrow panel), and the caption small and dim under it. A drawing that is missing from the theme gives a
+    /// dashed frame and the caption with <em>Bilden saknas</em>, never an error.
+    /// </summary>
+    /// <param name="figure">The figure.</param>
+    /// <returns>Its element.</returns>
+    private StackPanel Figure(GuideFigure figure)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 16, 0, 2) };
+        var drawing = DrawingOf(figure);
+        panel.Children.Add(drawing is null ? MissingFigure() : FigureFrame(drawing));
+        var caption = Text(figure.Caption, new Thickness(2, 8, 2, 0));
+        caption.FontSize = BodySize - 1.5;
+        caption.LineHeight = Math.Round((BodySize - 1.5) * 1.55);
+        caption.Foreground = Brush(DimBrush);
+        if (drawing is null)
+        {
+            var separator = caption.Inlines.Count > 0 ? " · " : string.Empty;
+            caption.Inlines.Add(new Run(separator + MissingText) { FontStyle = FontStyles.Italic });
+        }
+
+        panel.Children.Add(caption);
+        return panel;
+    }
+
+    /// <summary>Finds a figure's drawing in the theme: a drawing image, or a drawing made into one.</summary>
+    /// <param name="figure">The figure.</param>
+    /// <returns>The image, or <see langword="null"/> when the theme has no drawing for it.</returns>
+    private ImageSource? DrawingOf(GuideFigure figure) => figure.ResourceKey is { } key
+        ? TryFindResource(key) switch
+        {
+            ImageSource image => image,
+            Drawing drawing => new DrawingImage(drawing),
+            _ => null,
+        }
+        : null;
+
+    /// <summary>Puts a drawing on the surface, as large as it is drawn and smaller where the column is narrower.</summary>
+    /// <param name="drawing">The drawing.</param>
+    /// <returns>Its frame.</returns>
+    private Border FigureFrame(ImageSource drawing) => new()
+    {
+        Padding = new Thickness(16, 14, 16, 14),
+        CornerRadius = new CornerRadius(8),
+        Background = Brush(SurfaceBrush),
+        BorderBrush = Brush(LineBrush),
+        BorderThickness = new Thickness(1),
+        Child = new Image
+        {
+            Source = drawing,
+            Stretch = Stretch.Uniform,
+            StretchDirection = StretchDirection.DownOnly,
+            MaxWidth = drawing.Width,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        },
+    };
+
+    /// <summary>Draws the place of a missing drawing: an empty dashed frame, the caption under it says why.</summary>
+    /// <returns>The frame.</returns>
+    private Rectangle MissingFigure() => new()
+    {
+        Height = 72,
+        RadiusX = 8,
+        RadiusY = 8,
+        Stroke = Brush(StrongLineBrush),
+        StrokeThickness = 1,
+        StrokeDashArray = [4, 4],
     };
 
     /// <summary>

@@ -53,9 +53,13 @@
             </ScrollViewer>
         </Border>
 
-        <!-- The section in reading width; room at the bottom for the command bar. -->
+        <!--
+          The section in reading width, centred in the space right of the index: a column that is stretched but held at
+          its MaxWidth is centred by the layout, so a short section keeps the same column as a long one. Room at the
+          bottom for the command bar.
+        -->
         <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Focusable="False">
-            <StackPanel Margin="64,34,40,110" MaxWidth="620" HorizontalAlignment="Left">
+            <StackPanel Margin="48,34,48,110" MaxWidth="620">
                 <Button Style="{StaticResource Button.Link}" Margin="0,0,0,14" Foreground="{StaticResource Brush.TextMuted}"
                         Content="{Binding ReturnText}" Command="{Binding ReturnCommand}"
                         Visibility="{Binding HasReturn, Converter={StaticResource VisibleWhen}}" />
