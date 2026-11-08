@@ -262,7 +262,8 @@ public partial class MainWindow : Window
 
         if (e.Key != Key.Escape || _shell.OpenSubmenu is not null || _shell.ExitPanel.IsOpen
             || _shell.CasePicker is { IsOpen: true }
-            || _shell.IsCommandBarOpen || _graph.Forms.IsOpen || _graph.History.IsOpen)
+            || _shell.IsCommandBarOpen || _graph.Forms.IsOpen || _graph.History.IsOpen
+            || _graph.Comments.IsEditing)
         {
             return;
         }

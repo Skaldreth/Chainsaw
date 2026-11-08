@@ -1372,3 +1372,32 @@ några steg).
 - [ ] *Historik*: runda markörer (18 px) på en tunn linje, tiden till höger i svag text, och *Ta tillbaka* eller
       *Ångra* som ett litet piller under raden. Ett klick fäller ut skälet under; pillret får accentens ram så länge.
       Det tillbakatagna står kvar överstruket och nedtonat.
+
+## Kommentarsnoden (KN1a)
+- [ ] Välj en nod och tryck **N** (eller ikonen *Kommentar* i listen över noden, eller *Kommentar …* i högerklicket):
+      en lapp öppnas uppe till höger om noden med en tunn prickad tråd till den och en prick vid noden. Tomma lappen är
+      en streckad kontur med *Skriv … # **fet** - lista*, och markören står i den.
+- [ ] Dubbelklick på tom yta (eller N utan vald nod, vid pekaren) ger en lapp utan tråd där man klickade.
+- [ ] Skriv `## Rubrik`, `**fet**`, `*kursiv*`, `- punkt`, `` `kod` `` och `[tx](chainsaw:bitcoin/<adress>)`: tecknen
+      är dämpade medan man skriver, rubriken större och fet, fet och kursiv syns direkt, koden i mono på mörkare grund.
+      Lappen växer med texten. Foten säger *Markdown · Esc lämnar*.
+- [ ] Esc, Ctrl+Enter eller ett klick utanför lämnar lappen: den ritas utan tecken (rubrik, fet, kursiv, punkter med
+      •, kod och länken med prickad understrykning). En lapp som lämnas tom försvinner och inget sparas.
+- [ ] Journalen har *Kommentar skriven: Rubrik*; `/verify` är grön. Ändra texten och lämna: *Kommentaren ändrades*.
+      Samma text igen ger ingen ny rad. Töm en lapp och lämna den: *Kommentaren togs bort* (texten finns kvar i den
+      förseglade historiken).
+- [ ] Hovra en lapp eller välj den: ramen ljusnar när den är vald, foten säger vem och när (*Namn · 14:32 8 nov*) och
+      handtaget syns i nedre högra hörnet. Dra handtaget: lappen blir 200–620 bred och minst 110–420 hög; texten bryts
+      om och lappen blir aldrig lägre än texten. Dra lappen i ramen: den flyttas, och tråden följer.
+- [ ] Panorera med höger- eller mittknappen över en lapp och zooma med hjulet: lapparna följer grafen. Högerklick i
+      en lapp som skrivs i ger *Klipp ut, Kopiera, Klistra in, Markera allt*.
+- [ ] Dra pricken vid nodens ände av tråden till en annan nod: tråden knyts dit (*Kommentarens tråd knöts till en
+      annan nod* i journalen). Släpp den på tom yta: tråden tas bort.
+- [ ] Välj en lapp (klick, sedan Esc så att den inte skrivs i) och tryck **Delete**: lappen tas bort med en journalrad.
+- [ ] Klicka på länken `chainsaw:bitcoin/…` i en lapp: noden väljs och visas. En länk till något som inte finns i
+      grafen säger *Det länken pekar på finns inte i grafen än.* En vanlig webbadress ritas grå och följs aldrig.
+- [ ] Stäng och öppna ärendet: lapparna står kvar med text, plats, storlek och tråd. Ett kluster som byter
+      representant behåller tråden.
+- [ ] Medan en lapp skrivs i gör E, L, B, U, K, F, + och − ingenting i grafen; bokstäverna hamnar i lappen.
+- [ ] `/testdata`: en lapp *Uttag via Nordbörsen?* står ovanför grafen med tråd till offret och en länk till
+      Nordbörsens insättning.

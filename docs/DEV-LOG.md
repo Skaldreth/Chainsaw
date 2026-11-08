@@ -2704,3 +2704,36 @@ Geometrin står utan WPF i `Graph/TimeAxis.cs`, `Graph/TimeBands.cs`, `Graph/Tim
   `tests/Chainsaw.App.Tests` kördes 60 gånger, två processer i taget, utan fel.
 - Avsteg från skissen: huvudets räknare säger inte *sedan 09:10* (se TODO); storlekarna följer appens text, ett steg
   större än skissens.
+
+## Kommentarsnoden (KN1a, 2026-11-08)
+
+- **Modulen (Tracing):** `IGraphCommentService` med `GraphComment`, `CommentRules` och schemasteg 5. Den förseglade
+  kedjan `tracing.comments` (`tracing_comments`) har en post per handling: *add* (text, tråd och första plats), *edit*
+  (ny text), *anchor* (ny eller ingen tråd) och *remove* (texten som togs bort står kvar), var och en med operatören
+  (`set_by`), journalrad (`tracing.comment-added`, `-edited`, `-anchored`, `-removed`) och tid i samma transaktion.
+  Inget skrivs över. Flyttad plats och storlek är vanlig data i `tracing_comment_places`, som grafens platser.
+  Samma text skriver inget; en tom text vägras (en tömd lapp tas bort i stället).
+- **Tråden** sparas under `address:` och en av nodens adresser för en adress eller ett kluster, annars nodens nyckel,
+  så att den hittar noden igen när klustret ändras (`CommentGeometry.AnchorOf` och `Resolve`).
+- **Markdown:** Gawks parser övertagen till `Chainsaw.SharedKernel/Text/Markdown.cs` med Gawks tester och ett nytt för
+  skissens lapp. Ritningen (`NoteMarkdownView`) är skriven för lappen efter Gawks `MarkdownView`; färgningen medan man
+  skriver (`NoteColorizer`) efter Gawks `MarkdownColorizer`, i **AvalonEdit** (nytt NuGet-paket, MIT, i
+  `THIRD_PARTY.md`). Bara `chainsaw:`-länkar följs (noden väljs och visas, inget slås upp); andra adresser ritas grå
+  och följs aldrig (princip 4).
+- **Grafen:** lapparna ligger i ett lager som `GraphCanvas` bär som barn, med vyns transform, så att de panoreras och
+  zoomas med grafen och höger-, mittknapp och hjul går vidare till duken. Trådarna ritas av duken under noderna.
+  N, dubbelklick på tom yta, ikonen *Kommentar* i nodens list och raden i högerklicket; Delete tar bort vald lapp, Esc
+  släpper den; pricken vid nodens ände dras till en annan nod eller till tom yta. Medan en lapp skrivs i tar grafen
+  inga tangenter.
+- **Egna val:** en ny lapp är ett utkast som inte finns i ärendet förrän den lämnas med text (ett tomt utkast
+  försvinner utan spår); en lapp som inte kunde sparas står kvar i skrivläge med sin text. N med vald nod knyter
+  lappen till noden, som ikonen gör. Lappens naturliga bredd är 280 (skissen 270–300), handtaget ger 200–620 × 110–420,
+  och höjden är en minsta höjd så att text aldrig döljs. `/testdata` har en lapp vid offret med länk till Nordbörsen.
+- **Avsteg från skissen:** radavståndet medan man skriver är AvalonEdits; den streckade tomma lappen har handtaget och
+  foten dolda; ledtexten *Dubbelklick på ytan · N* ovanför den tomma lappen är inte med (kortkommandot står i
+  verktygstipset).
+- **Tester:** `CommentTests` i Tracing (försegling med vem och när, historik, ändring, tråd, borttagning, plats som
+  vanlig data, UPDATE och DELETE vägras, `/verify`), `MarkdownTests` i SharedKernel, `CommentTests` och
+  `CommentGeometryTests` i App (utkast, lämna, misslyckad sparning, flytt och storlek, tråd, länk, nodens ikon och
+  meny) och ett test av testärendets lapp. Facit i Tracings `GoldenTests` har fått schema 5 och den nya kedjan.
+- **Återstår:** se TODO, *Kommentarsnoden (KN1a)*.
