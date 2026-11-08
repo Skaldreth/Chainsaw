@@ -230,7 +230,9 @@ public sealed partial class NewCaseViewModel : ObservableObject
         var clean = lines.Where(parts => parts.All(part => StartPointText.Parse(part).IsRecognised)).ToList();
         if (clean.Count == 0)
         {
-            AddText = string.Join(' ', lines.SelectMany(parts => parts));
+            // The add row holds no more than its field lets the user write, whatever the clipboard held.
+            var written = string.Join(' ', lines.SelectMany(parts => parts));
+            AddText = written.Length > MaximumAddLength ? written[..MaximumAddLength] : written;
             return;
         }
 

@@ -203,6 +203,22 @@ public sealed class BackgroundImportTests : IDisposable
     }
 
     [Fact]
+    public void A_check_whose_start_never_came_in_brings_its_start_and_its_hits()
+    {
+        // The start's entry was set aside, so the watch has no start when the background's check comes in.
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("w"));
+        Queue.Add(Hit(watch, 900_003));
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Single(result.Hits);
+        Assert.Equal(900_000, Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Equal(900_004, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+        Assert.Single(_harness.Journal(MonitoringJournalKinds.Started));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
     public async Task A_start_the_case_already_has_is_kept()
     {
         var watch = await StartedWatch();

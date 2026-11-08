@@ -205,6 +205,19 @@ public sealed class SourceTests : IDisposable
     }
 
     [Fact]
+    public async Task Through_Windows_without_a_network_the_lookup_says_offline_and_not_that_no_exit_is_connected()
+    {
+        (Http.Connected, Http.Route) = (false, ExitRoute.Windows);
+
+        var lookup = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Offline, lookup.Status);
+        Assert.Contains("Datorn når inte internet", lookup.Problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("utgång", lookup.Problem, StringComparison.Ordinal);
+        Assert.Empty(Http.Sent);
+    }
+
+    [Fact]
     public async Task Without_an_exit_and_without_an_answer_in_the_case_nothing_is_made_up()
     {
         Http.Connected = false;

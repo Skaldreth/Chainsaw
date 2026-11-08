@@ -998,6 +998,7 @@ public sealed partial class GraphViewModel : ObservableObject
         _viewport = null;
         StoredViewport = null;
         _viewLoaded = false;
+        _viewChangedMeanwhile = false;
         Method = TracingMethodKind.Fifo;
         Layout = GraphLayout.Free;
         Labels = AmountLabelMode.All;
@@ -1075,10 +1076,10 @@ public sealed partial class GraphViewModel : ObservableObject
         var openCase = _session.Current;
         do
         {
-            _viewChangedMeanwhile = false;
             if (openCase is null || _session.Current != openCase || !_viewLoaded)
             {
-                // A change made in the case opened meanwhile is stored on its own, not lost.
+                // A change made in the case opened meanwhile is stored on its own, not lost; the flag is read before
+                // it is reset, and was reset when that case was opened, so it is only that case's change.
                 if (_viewChangedMeanwhile && _viewLoaded && _session.Current is not null)
                 {
                     _savingView = SaveViewAsync();
@@ -1087,6 +1088,7 @@ public sealed partial class GraphViewModel : ObservableObject
                 return;
             }
 
+            _viewChangedMeanwhile = false;
             var view = new GraphViewState(Method, Layout, Labels.ToStored(), _viewport?.ToStored())
             {
                 ShowUnspendable = _showUnspendable,

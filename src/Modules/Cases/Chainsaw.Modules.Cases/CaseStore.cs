@@ -219,6 +219,12 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
         var locks = LockCount();
         RequireUnlocked();
+        if (!WorkingCopyBranches.IsFree(target))
+        {
+            // Before the lock: a case with the number that is open here holds it, and is no other Chainsaw.
+            throw new CaseException(CaseError.AlreadyExists);
+        }
+
         System.IO.Directory.CreateDirectory(Directory);
         var lockFile = AcquireLock(target);
         var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);

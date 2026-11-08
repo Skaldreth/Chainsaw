@@ -150,7 +150,7 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
         if (!Connected)
         {
             Refused++;
-            throw new ExitNotConnectedException();
+            throw Route == ExitRoute.Windows ? ExitNotConnectedException.Offline() : new ExitNotConnectedException();
         }
 
         Sent.Add(request);

@@ -417,7 +417,7 @@ internal sealed class ChainSources : IChainSources
             probes = await Task.WhenAll(endpoints.Select(planned => ProbeOneAsync(
                 planned.Endpoint, planned.Api, withHash: false, cancellationToken))).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             // The exit did not allow lookups (or stopped allowing them): nothing more is sent, and the round says
             // nothing about the endpoints, so the earlier results stand.
@@ -456,7 +456,7 @@ internal sealed class ChainSources : IChainSources
             };
             return await ProbeOneAsync(candidate, sort, withHash: true, cancellationToken).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException exception)
+        catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             return NotSent(Guid.Empty, exception.Message);
         }
@@ -603,9 +603,9 @@ internal sealed class ChainSources : IChainSources
         {
             asked = await AskAsync(endpoint, heightRequest, api.ReadHeight, cancellationToken).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitException exception) when (IsTheWayOuts(exception))
         {
-            // Nothing was sent: the turn goes back.
+            // Nothing was sent, or what was sent was cut by the way out: the turn goes back.
             if (turn is not null)
             {
                 Pacer.Release(turn);
@@ -702,7 +702,7 @@ internal sealed class ChainSources : IChainSources
         {
             asked = await AskAsync(endpoint, request, api.ReadHash, cancellationToken).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             if (turn is not null)
             {
@@ -803,6 +803,16 @@ internal sealed class ChainSources : IChainSources
             : AskedText + ".";
 
     /// <summary>
+    /// Tells whether a failure is the way out's, not the endpoint's: nothing was sent (no exit connected, or Windows
+    /// without a network), or the exit was disconnected or the way out changed while the request was in flight. Such a
+    /// failure says nothing about the endpoint, so it never marks it as failing.
+    /// </summary>
+    /// <param name="exception">The failure.</param>
+    /// <returns><see langword="true"/> when it is the way out's.</returns>
+    internal static bool IsTheWayOuts(ExitException exception) =>
+        exception is ExitNotConnectedException || exception.Error == ExitError.ConnectionLost;
+
+    /// <summary>
     /// Tells whether a probe sent nothing only because of a wait (the endpoint's or Chainsaw's own pace): it says
     /// nothing about the endpoint, so its earlier probe is kept.
     /// </summary>
@@ -833,7 +843,7 @@ internal sealed class ChainSources : IChainSources
         {
             response = await SendAsync(endpoint, request, limit.Token).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             throw;
         }

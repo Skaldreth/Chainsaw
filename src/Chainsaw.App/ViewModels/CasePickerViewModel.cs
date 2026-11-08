@@ -112,6 +112,7 @@ public sealed partial class CasePickerViewModel : ObservableObject
         _clock = clock;
         _zone = zone ?? TimeZoneInfo.Local;
         session.Changed += (_, _) => OnCaseChanged();
+        session.Renamed += (_, _) => OnCaseChanged();
         workflow.CasesListed += (_, _) => ui.Post(ShowRows);
         _openCase = session.Current;
         OnCaseChanged();

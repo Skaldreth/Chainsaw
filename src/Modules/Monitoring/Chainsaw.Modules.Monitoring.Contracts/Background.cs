@@ -114,6 +114,7 @@ public interface IBackgroundPlan
     /// </summary>
     /// <param name="change">Makes the new plan from the one written.</param>
     /// <returns>The plan written.</returns>
+    /// <exception cref="IOException">The plan cannot be read or written just now; nothing was changed.</exception>
     BackgroundPlan Update(Func<BackgroundPlan, BackgroundPlan> change);
 }
 
@@ -397,14 +398,22 @@ public static class WatchSchedule
         return new WatchChecked(started, kept, result.Status, problem) { Tip = Math.Max(height, kept) };
     }
 
-    /// <summary>Gives the key that says two hits are the same: the watch, transaction, direction and asset.</summary>
+    /// <summary>
+    /// Gives the key that says two hits are the same: the watch, transaction, direction and asset. The asset is named
+    /// as <see cref="Asset"/>'s equality knows it (a token by its chain and contract), never by the symbol a source
+    /// gave, which can change between two reads of the same transaction.
+    /// </summary>
     /// <param name="watchId">The watch.</param>
     /// <param name="match">The match.</param>
     /// <returns>The key.</returns>
     public static string Key(string watchId, WatchMatch match)
     {
         ArgumentNullException.ThrowIfNull(match);
-        return string.Join('|', watchId, match.Transaction, match.Direction, match.Amount.Asset.ToString());
+        var asset = match.Amount.Asset;
+        var named = asset.Kind == AssetKind.Native
+            ? asset.Symbol
+            : string.Concat(asset.Chain.ToString(), ":", asset.Contract);
+        return string.Join('|', watchId, match.Transaction, match.Direction, named);
     }
 }
 

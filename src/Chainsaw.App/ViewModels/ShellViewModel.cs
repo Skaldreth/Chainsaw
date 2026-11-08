@@ -171,6 +171,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         workflow.CasesListed += (_, _) => ui.Post(() => CommandHint = _commands.Hint(CommandText));
         session.Changed += (_, _) => OnCaseChanged();
+        session.Renamed += (_, _) => OnPropertyChanged(nameof(CaseTitle));
         newCase.Created += (_, reply) => OnCreated(reply);
         newCase.PropertyChanged += (_, e) =>
         {

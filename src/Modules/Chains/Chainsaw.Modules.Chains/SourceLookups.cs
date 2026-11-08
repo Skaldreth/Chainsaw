@@ -195,7 +195,7 @@ internal sealed class SourceLookups
         long? notFoundSequence = null;
         var trustedNotFound = false;
         var onlyNotFound = true;
-        var exitClosed = false;
+        string? exitClosed = null;
         var remaining = plan.Endpoints.ToList();
         while (remaining.Count > 0)
         {
@@ -225,20 +225,24 @@ internal sealed class SourceLookups
             {
                 response = await _sources.SendAsync(endpoint, request, cancellationToken).ConfigureAwait(false);
             }
-            catch (ExitNotConnectedException)
+            catch (ExitNotConnectedException exception)
             {
                 // Nothing was sent, and nothing more goes through the exit; the user's own node is still asked, since
                 // it is reached in the user's own network. The endpoints passed over were not asked, so a not found
                 // from another can no longer count as everyone's.
                 _sources.Pacer.Release(turn);
-                exitClosed = true;
+                exitClosed = exception.Message + " Inget skickades.";
                 onlyNotFound = false;
                 remaining.RemoveAll(other => !other.Endpoint.Local);
                 continue;
             }
             catch (ExitException exception)
             {
-                _sources.Failed(_chain, endpoint.Id);
+                if (!ChainSources.IsTheWayOuts(exception))
+                {
+                    _sources.Failed(_chain, endpoint.Id);
+                }
+
                 problem = exception.Message;
                 onlyNotFound = false;
                 continue;
@@ -321,9 +325,10 @@ internal sealed class SourceLookups
             return new BitcoinLookup<T>(LookupStatus.NotFound, null, failures, notFound);
         }
 
-        if (exitClosed && !isNotFound)
+        if (exitClosed is not null && !isNotFound)
         {
-            return Fallback(stored, LookupStatus.Offline, "Ingen utgång är ansluten, och inget skickades.", failures);
+            // Said as the way out says it: no exit connected with VPN, or no network with Windows (principle 9).
+            return Fallback(stored, LookupStatus.Offline, exitClosed, failures);
         }
 
         return Fallback(stored, LookupStatus.Failed, isNotFound ? notFound! : problem, failures);

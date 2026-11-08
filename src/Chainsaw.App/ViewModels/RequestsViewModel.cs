@@ -166,6 +166,9 @@ public sealed partial class RequestsViewModel : ObservableObject
     /// <summary>The exports of the open case, oldest first.</summary>
     private IReadOnlyList<RequestExport> _exports = [];
 
+    /// <summary>Counts the readings of the exports, so that one overtaken by a newer is never shown.</summary>
+    private int _exportReads;
+
     /// <summary>
     /// Gets the reading of the open case's exports, which runs off the UI thread when a case is opened; complete when
     /// none is running.
@@ -518,6 +521,7 @@ public sealed partial class RequestsViewModel : ObservableObject
     /// <returns>A task that completes when they are read.</returns>
     private async Task LoadExportsAsync(ICase open)
     {
+        var read = ++_exportReads;
         IReadOnlyList<RequestExport> exports;
         try
         {
@@ -531,7 +535,9 @@ public sealed partial class RequestsViewModel : ObservableObject
 
         _ui.Post(() =>
         {
-            if (ReferenceEquals(_session.Current, open))
+            // A reading begun earlier (when the case was opened) may end after one begun after an export; it is
+            // older, and would hide the export.
+            if (read == _exportReads && ReferenceEquals(_session.Current, open))
             {
                 ShowExports(exports);
             }

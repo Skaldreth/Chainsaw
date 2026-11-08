@@ -334,12 +334,19 @@ public sealed class CaseEnvelopesTests
         var opened = await OpenCaseAsync();
         var dialogs = Dialogs();
         await dialogs.ShowPropertiesAsync();
+        var changes = 0;
+        _rig.Session.Changed += (_, _) => changes++;
 
         dialogs.Properties.TitleText = "Investeringsbedrägeri via chatt";
         await dialogs.Properties.SaveTitleAsync();
 
         Assert.Equal("Investeringsbedrägeri via chatt", opened.Title);
         Assert.Equal("A1 · Investeringsbedrägeri via chatt", _rig.Session.DisplayName);
+        Assert.Equal("A1 · Investeringsbedrägeri via chatt", _rig.Shell.CaseTitle);
+
+        // The same case: the graph, the checks and the requests must not start over for a new title.
+        Assert.Equal(0, changes);
+        Assert.True(dialogs.Properties.IsOpen);
     }
 
     [Fact]

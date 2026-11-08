@@ -137,6 +137,20 @@ public sealed class CasePickerTests
     }
 
     [Fact]
+    public async Task A_new_title_is_shown_as_open_now()
+    {
+        var rig = new Rig();
+        var opened = new TestCase("2026-0098");
+        rig.Session.Open(opened);
+        await rig.OpenAsync();
+
+        opened.SetTitle("Investeringsbedrägeri via chatt");
+        rig.Session.Refresh();
+
+        Assert.Equal("2026-0098 · Investeringsbedrägeri via chatt", rig.Picker.OpenName);
+    }
+
+    [Fact]
     public async Task Stang_closes_the_case_and_the_picker_stays_out()
     {
         var rig = new Rig();

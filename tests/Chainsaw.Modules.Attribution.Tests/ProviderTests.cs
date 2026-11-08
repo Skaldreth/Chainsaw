@@ -170,6 +170,16 @@ public sealed class ProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task A_switch_named_in_another_case_is_the_same_supplier_as_the_settings_page_says()
+    {
+        _harness.Http.Answer(Url(_address, "BTC"), Reports());
+
+        var result = Assert.Single(await _harness.Providers.LookupAsync(_harness.Case, _address, ["Chainabuse"]));
+
+        Assert.Equal(ProviderLookupStatus.Answered, result.Status);
+    }
+
+    [Fact]
     public async Task Nothing_is_sent_for_a_chain_it_is_not_asked_about()
     {
         var tron = new ChainAddress(Chain.Tron, "T" + new string('1', 33));

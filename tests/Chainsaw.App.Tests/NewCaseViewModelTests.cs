@@ -51,6 +51,17 @@ public sealed class NewCaseViewModelTests
     }
 
     [Fact]
+    public void Pasting_a_long_text_with_nothing_recognised_fills_the_add_row_only_as_far_as_its_field_goes()
+    {
+        var panel = Open();
+
+        panel.Paste(string.Join('\n', Enumerable.Repeat("hej då", 100_000)));
+
+        Assert.Empty(panel.Rows);
+        Assert.Equal(NewCaseViewModel.MaximumAddLength, panel.AddText.Length);
+    }
+
+    [Fact]
     public void Enter_adds_what_is_written_also_when_it_is_not_recognised_and_the_same_value_once()
     {
         var panel = Open();

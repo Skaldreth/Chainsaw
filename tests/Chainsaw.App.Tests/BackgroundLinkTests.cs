@@ -69,6 +69,25 @@ public sealed class BackgroundLinkTests
     }
 
     [Fact]
+    public async Task A_plan_that_cannot_be_written_still_stops_the_background_when_VPN_is_chosen()
+    {
+        var (_, link) = Link(Windows);
+        await link.WriteCaseAsync();
+        _fakes.Plan.Fails = true;
+
+        await link.ApplyAsync(new AppSettings());
+        await link.RefreshAsync();
+
+        // The file still says Windows, but nothing more is looked up through it, and it is not started again.
+        Assert.Equal(ExitRoute.Windows, _fakes.Plan.Plan.Route);
+        Assert.False(_fakes.Process.Running);
+        Assert.Equal(1, _fakes.Process.Stops);
+        Assert.Equal(1, _fakes.Process.Starts);
+        Assert.Null(_fakes.Autostart.Command);
+        Assert.Equal(BackgroundMode.NeedsWindows, link.Mode);
+    }
+
+    [Fact]
     public async Task Without_an_active_watch_it_rests()
     {
         _fakes.Watches.Active = false;
@@ -112,6 +131,22 @@ public sealed class BackgroundLinkTests
 
         await session.CloseAsync();
         Assert.Empty(_fakes.Holds.Held);
+        link.Dispose();
+    }
+
+    [Fact]
+    public async Task A_case_let_go_is_written_into_the_plan_first_so_the_background_never_watches_what_was_taken_back()
+    {
+        var (session, link) = Link(Windows);
+        link.Start();
+        await link.WriteCaseAsync();
+        Assert.Single(_fakes.Plan.Plan.Cases);
+
+        // The last watch is taken back, and the case closed before the board's change reached the plan.
+        _fakes.Watches.Active = false;
+        await session.CloseAsync();
+
+        Assert.Empty(_fakes.Plan.Plan.Cases);
         link.Dispose();
     }
 
@@ -374,7 +409,10 @@ internal sealed class BackgroundFakes
 
         public DateTimeOffset? WrittenAt() => null;
 
-        public BackgroundPlan Update(Func<BackgroundPlan, BackgroundPlan> change) => Plan = change(Plan);
+        public bool Fails { get; set; }
+
+        public BackgroundPlan Update(Func<BackgroundPlan, BackgroundPlan> change) =>
+            Fails ? throw new IOException("Held by a scanner.") : Plan = change(Plan);
     }
 
     internal sealed class FakeHolds : ICaseHolds

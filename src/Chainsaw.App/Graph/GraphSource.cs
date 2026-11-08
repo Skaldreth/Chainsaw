@@ -427,14 +427,15 @@ public sealed class GraphSource(
 
     /// <summary>
     /// Gives the graph's addresses the label library's labels from other cases, sealed in this case with a line in
-    /// the journal, and reads the graph again when any came in, so that its ends of the trail include them. Without a
-    /// library, with a locked vault, without an operator profile or with a library that cannot be read, the graph
-    /// stays as it is: the labels come the next time it is read.
+    /// the journal, and reads the graph again when any came in or the library took back copies whose label was
+    /// withdrawn where it was set, so that its ends of the trail follow them. Without a library, with a locked vault,
+    /// without an operator profile or with a library that cannot be read, the graph stays as it is: the labels come
+    /// the next time it is read.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="graph">The graph.</param>
     /// <param name="cancellationToken">Stops the work.</param>
-    /// <returns>The graph, read again when labels came in.</returns>
+    /// <returns>The graph, read again when the case's labels changed.</returns>
     private async Task<TraceGraph> WithSharedLabelsAsync(
         ICase @case, TraceGraph graph, CancellationToken cancellationToken)
     {
@@ -447,9 +448,12 @@ public sealed class GraphSource(
 
         try
         {
+            // ShareInto counts only the labels that came in; a copy it took back (its label was withdrawn where it
+            // was set) shows as one label fewer in force, and the graph read before still ends the trail on it.
+            var before = attribution.GetEntries(@case).Count;
             var shared = addresses.Count == 0 ? 0 : library.ShareInto(@case, addresses).Count;
             shared += accounts.Count == 0 ? 0 : library.ShareInto(@case, accounts).Count;
-            if (shared == 0)
+            if (shared == 0 && attribution.GetEntries(@case).Count == before)
             {
                 return graph;
             }

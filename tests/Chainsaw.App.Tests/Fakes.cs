@@ -687,6 +687,9 @@ internal sealed class TestLibrary : ILabelLibrary
 
     public IReadOnlyList<LabelEntry> ToShare { get; set; } = [];
 
+    /// <summary>Gets or sets what giving labels also does in the case, as taking back withdrawn copies does.</summary>
+    public Action? Sharing { get; set; }
+
     public Exception? Failure { get; set; }
 
     public LibraryAbsorption Absorb(ICase @case)
@@ -703,6 +706,8 @@ internal sealed class TestLibrary : ILabelLibrary
             throw Failure;
         }
 
+        Sharing?.Invoke();
+        Sharing = null;
         var given = ToShare;
         ToShare = [];
         return given;

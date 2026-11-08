@@ -215,6 +215,9 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <summary>Counts the rebuilds, so that one overtaken by a newer is never shown.</summary>
     private int _version;
 
+    /// <summary>Counts the readings of the exports, so that one overtaken by a newer is never shown.</summary>
+    private int _exportReads;
+
     /// <summary>Creates the view.</summary>
     /// <param name="reports">The reports.</param>
     /// <param name="session">The open case.</param>
@@ -651,6 +654,7 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <returns>A task that completes when they are read.</returns>
     private async Task LoadExportsAsync(ICase open)
     {
+        var read = ++_exportReads;
         IReadOnlyList<ReportExport> exports;
         try
         {
@@ -663,7 +667,8 @@ public sealed partial class ReportViewModel : ObservableObject
 
         _ui.Post(() =>
         {
-            if (ReferenceEquals(_session.Current, open))
+            // A reading begun earlier (when the case was opened) may end after one begun after an export.
+            if (read == _exportReads && ReferenceEquals(_session.Current, open))
             {
                 Exports = [.. exports.Reverse().Select(export => new ReportExportRow(export, LocalTime(export.Utc)))];
             }

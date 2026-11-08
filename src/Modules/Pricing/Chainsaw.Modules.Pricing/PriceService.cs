@@ -861,10 +861,11 @@ internal sealed class PriceService : IPriceService
             sent?.Invoke();
             return new Sent(response, fetchedBy, PriceLookupStatus.Fetched, null);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitNotConnectedException exception)
         {
+            // Said as the way out says it: no exit connected with VPN, or no network with Windows.
             return new Sent(null, null, PriceLookupStatus.Offline,
-                "Offline: ingen utgång är ansluten, och ärendet har inte kursen. Inget skickades.");
+                $"Offline: {exception.Message} Ärendet har inte kursen. Inget skickades.");
         }
         catch (ExitException exception)
         {

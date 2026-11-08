@@ -315,8 +315,23 @@ internal sealed class CheckService : ICheckService
         return
         [
             .. proposals.Select(evidence => new MergeRequest(
-                [.. evidence.Addresses.Distinct()], evidence.Txid, evidence.Heuristic, evidence.Reason)),
+                [.. evidence.Addresses.Distinct()], evidence.Txid, evidence.Heuristic, GroundsOf(evidence))),
         ];
+    }
+
+    /// <summary>
+    /// Gives what an approved proposal said, with what lowered it to a suggestion (for example a possible CoinJoin),
+    /// so that the merge's <em>Varför?</em> says what spoke against it, as the wallet did when it was approved
+    /// (principle 3); only the proposal's reason when both would not fit in a merge's grounds.
+    /// </summary>
+    /// <param name="evidence">The proposal.</param>
+    /// <returns>The grounds.</returns>
+    private static string GroundsOf(ClusterEvidence evidence)
+    {
+        var grounds = evidence.Adjustment is { } against
+            ? $"{evidence.Reason} Det som talade emot: {against}"
+            : evidence.Reason;
+        return grounds.Length <= UserMerges.MaximumTextLength ? grounds : evidence.Reason;
     }
 
     /// <summary>

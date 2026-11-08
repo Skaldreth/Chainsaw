@@ -55,6 +55,7 @@ public sealed class WalletApprovalTests : IDisposable
         var merge = Assert.Single(Merges()).Merge;
         Assert.Equal(new MergeOrigin("checks.decisions", decision.Sequence), merge.Origin);
         Assert.Equal("Samma inloggning.", merge.Reason);
+        Assert.Contains("Det som talade emot: Tx:en kan vara en CoinJoin", merge.Grounds, StringComparison.Ordinal);
         Assert.Equal(Possible[0].Txid, merge.Txid);
         Assert.Equal(new HeuristicId("common-input-ownership", 1), merge.Proposal);
         Assert.Single(_harness.Journal(CheckJournalKinds.Decided));

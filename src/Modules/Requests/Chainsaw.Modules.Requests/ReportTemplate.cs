@@ -242,7 +242,7 @@ internal static class ReportTemplate
             $"{step.From} → {step.To}{(step.IsTraced ? string.Empty : ReportTexts.UntracedStep)}",
             RequestTemplates.LocalTime(step.Time, zone, Words),
             RequestTemplates.UtcTime(step.Time, Words),
-            Amount(step.Amount),
+            StepAmount(step.Amount),
             step.Transaction,
         };
         if (chain)
@@ -376,6 +376,16 @@ internal static class ReportTemplate
     /// <param name="amount">The amount.</param>
     /// <returns>For example <c>0,25 BTC</c>.</returns>
     private static string Amount(AssetAmount amount) => RequestTemplates.Amount(amount, Words);
+
+    /// <summary>
+    /// Writes a step's amount, and for a token the chain and contract it is known by, since anyone can issue a token
+    /// with the same symbol: <c>500,00 USDT (Ethereum 0xdac1…)</c>, written whole so that it can be checked.
+    /// </summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns>The text.</returns>
+    private static string StepAmount(AssetAmount amount) => amount.Asset.Contract is { } contract
+        ? $"{Amount(amount)} ({amount.Asset.Chain} {contract})"
+        : Amount(amount);
 
     /// <summary>Writes amounts of several assets, one after the other.</summary>
     /// <param name="amounts">The amounts, one per asset.</param>

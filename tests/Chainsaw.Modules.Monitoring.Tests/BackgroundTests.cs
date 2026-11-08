@@ -289,4 +289,20 @@ public sealed class WatchScheduleTests
         Assert.Equal(104, WatchSchedule.DownTo(100, read with { Height = 110 }));
         Assert.Equal(100, WatchSchedule.DownTo(100, read with { Height = 103 }));
     }
+
+    [Fact]
+    public void A_token_hit_is_the_same_hit_whatever_symbol_the_source_gave_it()
+    {
+        static WatchMatch Match(string symbol, int decimals) => new(
+            "0x" + new string('a', 64), new WatchBlock(100, "0xab", Now), WatchDirection.In,
+            new AssetAmount(Asset.Token(Chain.Ethereum, Synthetic.Eth("t").Value, symbol, decimals), 5), []);
+
+        // A source that had not read the token's name yet calls it "token"; the next read names it.
+        Assert.Equal(WatchSchedule.Key("w", Match("token", 6)), WatchSchedule.Key("w", Match("PEPE", 6)));
+        Assert.Equal(WatchSchedule.Key("w", Match("PEPE", 6)), WatchSchedule.Key("w", Match("PEPE", 18)));
+        Assert.Equal(
+            "w|tx|Out|BTC",
+            WatchSchedule.Key("w", new WatchMatch(
+                "tx", new WatchBlock(100, "ab", Now), WatchDirection.Out, new AssetAmount(Asset.Bitcoin, 5), [])));
+    }
 }
