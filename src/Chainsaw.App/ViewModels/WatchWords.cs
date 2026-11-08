@@ -82,11 +82,11 @@ public static class WatchWords
     public const string BackgroundStoppedTip =
         "Bakgrundsprocessen kunde inte startas. Chainsaw försöker igen en gång i minuten.";
 
-    /// <summary>The head when no exit is connected.</summary>
-    public const string NoExitText = "Väntar på utgången · inga uppslag görs";
+    /// <summary>What follows the wait in the head while nothing can leave.</summary>
+    public const string NoLookupsText = " · inga uppslag görs";
 
-    /// <summary>The head's tooltip when no exit is connected.</summary>
-    public const string NoExitTip = "Utgången är inte ansluten. Bevakningen frågar inget förrän den är det.";
+    /// <summary>The head when no exit is connected.</summary>
+    public const string NoExitText = OfflineWords.NoExitWaiting + NoLookupsText;
 
     /// <summary>The head when a chain's sources are off.</summary>
     public const string ChainOffText = "Källorna är av för {0} · inga uppslag görs";
@@ -133,8 +133,12 @@ public static class WatchWords
     /// <summary>Gives a state as the list writes it.</summary>
     /// <param name="watch">The watch.</param>
     /// <param name="gate">Whether lookups may go for its chain.</param>
+    /// <param name="waiting">
+    /// What it waits for while nothing can leave (<see cref="OfflineWords.Waiting"/>); an exit when
+    /// <see langword="null"/>.
+    /// </param>
     /// <returns>For example <c>Aktiv</c> or <c>Väntar på utgången</c>.</returns>
-    public static string State(Watch watch, WatchGate gate)
+    public static string State(Watch watch, WatchGate gate, string? waiting = null)
     {
         ArgumentNullException.ThrowIfNull(watch);
         if (watch.State == WatchState.Paused)
@@ -144,7 +148,7 @@ public static class WatchWords
 
         return gate switch
         {
-            WatchGate.NoExit => "Väntar på utgången",
+            WatchGate.NoExit => waiting ?? OfflineWords.NoExitWaiting,
             WatchGate.ChainOff => "Källorna är av",
             WatchGate.Locked => "Låst",
             _ => watch.StartHeight is null ? "Startar vid nästa kontroll" : "Aktiv",

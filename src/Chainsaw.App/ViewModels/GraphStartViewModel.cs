@@ -59,11 +59,13 @@ public sealed partial class GraphStartViewModel : ObservableObject
     public const string NotRecognisedText = "Det känns inte igen som en adress eller en tx.";
 
     /// <summary>What the foot says while no exit is connected.</summary>
-    public const string OfflineFootText = "Offline: ingen utgång ansluten";
+    public const string OfflineFootText = "Offline: " + OfflineWords.NoExitReason;
 
     /// <summary>What the start point says while no exit is connected: it can be added, but nothing fetched.</summary>
-    public const string OfflineSendText =
-        "Offline: startpunkten kan läggas till, men inget hämtas förrän en utgång är ansluten i titelraden.";
+    public const string OfflineSendText = OfflineSendStart + OfflineWords.NoExitUntil + ".";
+
+    /// <summary>The start of what the start point says while offline; what nothing is fetched until follows.</summary>
+    private const string OfflineSendStart = "Offline: startpunkten kan läggas till, men inget hämtas förrän ";
 
     /// <summary>The steps of a case, shown as dots the first time (sketch GR6c).</summary>
     public static readonly IReadOnlyList<string> Course = ["Ärende", "Startpunkt", "Expandera", "Uttaget", "Bevaka"];
@@ -102,6 +104,9 @@ public sealed partial class GraphStartViewModel : ObservableObject
 
     /// <summary>The exit's name while it is connected, for example <c>Stockholm</c> or <c>Windows</c>.</summary>
     private string? _exitName;
+
+    /// <summary>What nothing is fetched until while offline (<see cref="OfflineWords.Until"/>).</summary>
+    private string _offlineUntil = OfflineWords.NoExitUntil;
 
     /// <summary>Creates the empty graph.</summary>
     /// <param name="session">The window's open case.</param>
@@ -201,6 +206,17 @@ public sealed partial class GraphStartViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsFootOffline { get; private set; } = true;
 
+    /// <summary>
+    /// Gets what the foot says while offline: why, as the way out says it (no exit, no network through Windows, or
+    /// the exit being connected again).
+    /// </summary>
+    [ObservableProperty]
+    public partial string FootText { get; private set; } = OfflineFootText;
+
+    /// <summary>Gets what the user can do about being offline, on hovering the foot.</summary>
+    [ObservableProperty]
+    public partial string FootTip { get; private set; } = OfflineWords.NoExitHint;
+
     /// <summary>Shows what the graph has: no case, a case without a start point, or a graph.</summary>
     /// <param name="mode">What to guide to.</param>
     public void Show(GraphStartMode mode)
@@ -228,6 +244,20 @@ public sealed partial class GraphStartViewModel : ObservableObject
     {
         IsOnline = isOnline;
         _exitName = isOnline ? name : null;
+        ShowSend();
+    }
+
+    /// <summary>
+    /// Says why Chainsaw is offline, in the foot and on the start point, as the way out says it, so that Windows
+    /// without a network is never told as an exit that is not connected.
+    /// </summary>
+    /// <param name="words">How the way out says it (<see cref="ExitWay.Offline"/>).</param>
+    public void ShowOffline(OfflineWords words)
+    {
+        ArgumentNullException.ThrowIfNull(words);
+        FootText = "Offline: " + words.Reason;
+        FootTip = words.Hint;
+        _offlineUntil = words.Until;
         ShowSend();
     }
 
@@ -371,7 +401,7 @@ public sealed partial class GraphStartViewModel : ObservableObject
     {
         if (!IsOnline)
         {
-            SendText = OfflineSendText;
+            SendText = OfflineSendStart + _offlineUntil + ".";
             IsFootOffline = true;
             return;
         }

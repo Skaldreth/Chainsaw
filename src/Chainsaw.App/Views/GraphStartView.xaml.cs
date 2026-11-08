@@ -133,9 +133,7 @@ public partial class GraphStartView : UserControl
         SendLine.Foreground = text;
         var ring = model.IsOnline ? Brush("Brush.Accent") : Brush("Brush.BorderHover");
         StartFrame.Stroke = ring;
-        FootLine.ToolTip = model.IsOnline
-            ? "Alla uppslag går genom den här utgången"
-            : "Anslut en utgång i titelraden, eller välj Windows i inställningarna";
+        FootLine.ToolTip = model.IsOnline ? "Alla uppslag går genom den här utgången" : model.FootTip;
     }
 
     /// <summary>Makes the node Nytt ärende, the step the user stands at.</summary>

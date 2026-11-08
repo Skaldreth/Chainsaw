@@ -273,6 +273,6 @@ public sealed class Stage15Tests
     {
         var result = new GraphExpansion(GraphSamples.Scene(), ExpansionOutcome.Expanded, 2, ["Tx:en låg tidigare …"]);
 
-        Assert.Equal("2 nya tx i grafen. Tx:en låg tidigare …", GraphViewModel.ExpansionNotice(result, false));
+        Assert.Equal("2 nya tx i grafen. Tx:en låg tidigare …", GraphViewModel.ExpansionNotice(result, null));
     }
 }

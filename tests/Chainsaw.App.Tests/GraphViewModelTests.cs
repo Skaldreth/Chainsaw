@@ -664,11 +664,12 @@ public sealed class GraphViewModelTests
 
         Assert.Equal(
             "Inget nytt att hämta.",
-            GraphViewModel.ExpansionNotice(new GraphExpansion(scene, ExpansionOutcome.Expanded, 0, []), offline: true));
+            GraphViewModel.ExpansionNotice(
+                new GraphExpansion(scene, ExpansionOutcome.Expanded, 0, []), GraphViewModel.OfflineText));
         Assert.Equal(
             "Delvis expanderad: 3 nya tx. Gränsen nåddes.",
             GraphViewModel.ExpansionNotice(
-                new GraphExpansion(scene, ExpansionOutcome.Partly, 3, ["Gränsen nåddes."]), offline: false));
+                new GraphExpansion(scene, ExpansionOutcome.Partly, 3, ["Gränsen nåddes."]), offline: null));
     }
 
     /// <summary>

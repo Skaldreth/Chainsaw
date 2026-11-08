@@ -11,8 +11,8 @@ namespace Chainsaw.App.ViewModels;
 /// </summary>
 public sealed partial class StartPointRowViewModel : ObservableObject
 {
-    /// <summary>What a row says while no exit is live.</summary>
-    public const string WaitingText = "Väntar på utgången";
+    /// <summary>What a row says while no exit is connected.</summary>
+    public const string WaitingText = OfflineWords.NoExitWaiting;
 
     /// <summary>What a row says when its text is not recognised.</summary>
     public const string NotRecognisedText = "Känns inte igen som adress eller tx";
@@ -25,6 +25,9 @@ public sealed partial class StartPointRowViewModel : ObservableObject
         StartPoint = startPoint;
         Preview = StartPointPreview.Only(InitialState(startPoint));
     }
+
+    /// <summary>What the row says while it waits (<see cref="OfflineWords.Waiting"/>).</summary>
+    private string _waiting = WaitingText;
 
     /// <summary>Gets the start point.</summary>
     public ChainStartPoint StartPoint { get; }
@@ -86,7 +89,7 @@ public sealed partial class StartPointRowViewModel : ObservableObject
     /// <summary>Gets the quiet line under the value, when there are no facts to show.</summary>
     public string LineText => Preview.State switch
     {
-        PreviewState.WaitingForExit => WaitingText,
+        PreviewState.WaitingForExit => _waiting,
         PreviewState.NotBuilt => CaseTexts.ChainName(StartPoint.Chain!.Value) + " hämtas inte, inte byggt än",
         PreviewState.Failed => Preview.Problem,
         PreviewState.NotRecognised => NotRecognisedText,
@@ -103,6 +106,21 @@ public sealed partial class StartPointRowViewModel : ObservableObject
 
     /// <summary>Gets whether the row still wants a lookup: it waits for the exit or was stopped while fetching.</summary>
     public bool WantsFetch => CanFetch && Preview.State is PreviewState.WaitingForExit or PreviewState.Fetching;
+
+    /// <summary>
+    /// Says what the row waits for while lookups cannot go: an exit, the network through Windows, or the exit being
+    /// connected again.
+    /// </summary>
+    /// <param name="waiting">The words (<see cref="OfflineWords.Waiting"/>).</param>
+    public void FollowOffline(string waiting)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(waiting);
+        if (_waiting != waiting)
+        {
+            _waiting = waiting;
+            OnPropertyChanged(nameof(LineText));
+        }
+    }
 
     /// <summary>Stops the lookup under way, if any.</summary>
     internal CancellationTokenSource? Lookup { get; set; }

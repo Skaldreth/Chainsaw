@@ -73,13 +73,20 @@ internal sealed class MonitoringService(
     }
 
     /// <inheritdoc/>
+    public DateTimeOffset? GetLastSeen(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(WatchStore.ReadLastSeen);
+    }
+
+    /// <inheritdoc/>
     public void MarkSeen(ICase @case, string watchId, long through)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentException.ThrowIfNullOrWhiteSpace(watchId);
         @case.Write(transaction =>
         {
-            WatchStore.WriteSeen(transaction, watchId, through);
+            WatchStore.WriteSeen(transaction, watchId, through, clock.UtcNow);
             return true;
         });
     }

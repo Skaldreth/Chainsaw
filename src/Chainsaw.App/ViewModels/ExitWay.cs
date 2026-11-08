@@ -7,7 +7,10 @@ namespace Chainsaw.App.ViewModels;
 /// <summary>
 /// The way lookups leave the computer as the shell shows it: the way chosen in the settings (VPN or Windows), the
 /// exit's status and whether the computer has a network, which together say whether anything can be looked up now
-/// (principle 9), and the chains whose sources are off in the settings (sketch KL1a). Changes are told on the UI thread. It knows nothing of WPF.
+/// (principle 9), whether a fallen tunnel is being connected again, and the chains whose sources are off in the
+/// settings (sketch KL1a). It also holds the one rule for how Chainsaw says that it is offline
+/// (<see cref="Offline"/>), so that the title bar, the graph, Nytt ärende and Bevakning say the same thing. Changes are
+/// told on the UI thread. It knows nothing of WPF.
 /// </summary>
 public sealed class ExitWay
 {
@@ -23,6 +26,9 @@ public sealed class ExitWay
     /// <summary>The chains whose lookups wait for a source now.</summary>
     private readonly HashSet<Chain> _waiting = [];
 
+    /// <summary>How many attempts have been made to connect a fallen tunnel again, as last told.</summary>
+    private int _retries;
+
     /// <summary>Creates the way and follows the choice and the exit.</summary>
     /// <param name="route">The way chosen in the settings.</param>
     /// <param name="connection">The connection to the exit (VPN).</param>
@@ -35,12 +41,16 @@ public sealed class ExitWay
     /// Whether the computer has a network, which Windows as the way out needs; always online when
     /// <see langword="null"/>.
     /// </param>
+    /// <param name="reconnect">
+    /// Connects a fallen tunnel again, whose next attempt is shown; none when <see langword="null"/>.
+    /// </param>
     public ExitWay(
         IExitRoute route,
         IExitConnection connection,
         IUiThread ui,
         IChainSources? sources = null,
-        INetworkPresence? network = null)
+        INetworkPresence? network = null,
+        IExitReconnect? reconnect = null)
     {
         ArgumentNullException.ThrowIfNull(route);
         ArgumentNullException.ThrowIfNull(connection);
@@ -70,6 +80,15 @@ public sealed class ExitWay
             });
         }
 
+        if (reconnect is not null)
+        {
+            reconnect.Changed += (_, _) => ui.Post(() =>
+            {
+                (RetryAt, _retries) = (reconnect.NextAttempt, reconnect.Attempts);
+                Changed?.Invoke(this, EventArgs.Empty);
+            });
+        }
+
         if (sources is not null)
         {
             sources.Changed += (_, chain) => ui.Post(() =>
@@ -88,6 +107,7 @@ public sealed class ExitWay
         Status = connection.Status;
         Route = route.Current;
         IsOnline = network?.IsAvailable ?? true;
+        (RetryAt, _retries) = (reconnect?.NextAttempt, reconnect?.Attempts ?? 0);
     }
 
     /// <summary>Raised on the UI thread after the way or the exit's status has changed.</summary>
@@ -109,6 +129,36 @@ public sealed class ExitWay
     /// Gets whether Windows is the way out and the computer has no network, so that it is shown as <em>Offline</em>.
     /// </summary>
     public bool IsWindowsOffline => IsWindows && !IsOnline;
+
+    /// <summary>
+    /// Gets when a fallen tunnel is next tried again, as last told, or <see langword="null"/> while no attempt waits.
+    /// </summary>
+    public DateTimeOffset? RetryAt { get; private set; }
+
+    /// <summary>
+    /// Gets whether VPN is the way out and a tunnel that fell is being connected again by itself: an attempt waits or
+    /// runs now.
+    /// </summary>
+    public bool IsReconnecting =>
+        !IsWindows && Status.State != ExitState.Connected && (RetryAt is not null || _retries > 0);
+
+    /// <summary>
+    /// Gets how Chainsaw says that nothing new can be fetched, chosen by the one rule: without a network when Windows
+    /// is the way out, while a fallen tunnel is connected again (with the next attempt's time), or without an exit.
+    /// It is what holds when <see cref="IsLive"/> is false; views read it only then.
+    /// </summary>
+    public OfflineWords Offline
+    {
+        get
+        {
+            if (IsWindows)
+            {
+                return OfflineWords.NoNetwork;
+            }
+
+            return IsReconnecting ? OfflineWords.Reconnecting(RetryAt) : OfflineWords.NoExit;
+        }
+    }
 
     /// <summary>Gets the chains whose sources are off (<see cref="SourceMode.Off"/>), as last told.</summary>
     public IReadOnlySet<Chain> ChainsOff => _off;

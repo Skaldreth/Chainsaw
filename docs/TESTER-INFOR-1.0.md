@@ -651,7 +651,7 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
 - Esc, × och ett klick på det mörka stänger den. Esc stänger först steget *Lägg till WireGuard-fil* eller formuläret
   för huvudnyckeln om något av dem är ute. Ctrl+K, Ctrl+1 … och Ctrl+L stänger den också (Ctrl+L låser).
 - Med Nytt ärende öppet öppnas inte dialogen. Tab stannar inne i dialogen.
-- Utseende och Länkar är tonade med *Inte byggt än* och går inte att ändra.
+- Utseende är tonat med *Inte byggt än* och går inte att ändra; Länkar har strömbrytaren för `chainsaw:`.
 
 **Nätverk: Windows eller VPN**
 - Två kort, *Windows* och *VPN*; det valda har magentafärgad ram. VPN är förvalt första gången.
@@ -1510,3 +1510,43 @@ några steg).
 - [ ] Dra rutan mot grafens kant: ytan rullar och rutan växer vidare utanför det som syntes.
 - [ ] Inget av detta händer i valvyn eller i en utfälld hög; där fungerar ringen och korten som förut. Att dra en
       kommentar, dess tråd, en hög eller en nod fungerar som förut.
+
+## Små rättelser mot 1.0 (2026-11-08)
+
+**Källor**
+- [ ] Gör en ändring under Inställningar › Källor som inte går att spara (till exempel med filen skrivskyddad): felet
+      kommer som en röd toast nere till höger, en gång, och står inte längre som en röd rad på sidan.
+
+**Bevakningens huvud (BV1a)**
+- [ ] Välj en bevakning med nya träffar, vänta tills en ny träff kommer och titta på vyns huvud: det står till exempel
+      *2 nya träffar sedan 09:10*, där tiden är när du senast tittade på träffarna. Ett ärende där inget har setts säger
+      bara antalet.
+- [ ] Stäng och öppna ärendet: tiden står kvar (den sparas i ärendet).
+
+**Offline när Windows saknar nät**
+- [ ] Välj *Windows* och dra ur nätet. Tomma grafens fot säger *Offline: datorn når inte internet*, startpunkten säger
+      att inget hämtas förrän datorn når internet igen, och verktygstipset nämner ingen utgång.
+- [ ] Grafens hörn *Offline* och en expansion som inte gick säger *datorn når inte internet*, inte *ingen utgång*.
+- [ ] Nytt ärende: taggen *Offline* har samma verktygstips, och en startpunkt som väntar säger *Väntar på nätet*.
+- [ ] Bevakning: huvudet säger *Väntar på nätet · inga uppslag görs* och raderna *Väntar på nätet*; bevakningen frågar
+      inget förrän nätet är tillbaka.
+- [ ] Med *VPN* utan ansluten utgång står det som förut: *ingen utgång ansluten* och *Väntar på utgången*.
+
+**Länken `chainsaw:` (Inställningar › Länkar)**
+- [ ] Slå på *Öppna chainsaw:-länkar*. I `regedit` finns `HKEY_CURRENT_USER\Software\Classes\chainsaw` med
+      `URL Protocol` och `shell\open\command` = `"…\Chainsaw.exe" "%1"`. Inget skrivs under `HKEY_LOCAL_MACHINE`.
+- [ ] Skriv `chainsaw:bitcoin/<en adress>` i Kör (Win+R) eller i webbläsarens adressfält: Chainsaw öppnas (eller tar
+      emot länken om det redan är igång) och ber om ärende.
+- [ ] Slå av: nyckeln är borta, och länken öppnar inget.
+- [ ] Peka länken på en annan kopia av Chainsaw (kör den andra och slå på där): raden säger att länken öppnar en annan
+      Chainsaw, och strömbrytaren är av tills du slår på den igen.
+
+**Återanslutning av tunneln**
+- [ ] Anslut en VPN-utgång, och låt datorn sova en stund. När den vaknar säger titelraden *Ansluter igen …*, och
+      verktygstipset säger att tunneln föll och när nästa försök görs. Inom några sekunder efter att nätet är tillbaka
+      är utgången ansluten igen utan att du gör något.
+- [ ] Döda processen `chainsaw-tunnel.exe` i Aktivitetshanteraren: utgången ansluts igen efter ett par sekunder.
+- [ ] Utan nät väntar Chainsaw allt längre mellan försöken (2 s, 5 s, 15 s, 30 s och sedan en gång i minuten), och
+      försöker direkt när nätet kommer tillbaka.
+- [ ] Koppla från utgången för hand medan Chainsaw väntar på nästa försök: inget nytt försök görs.
+- [ ] En bevakning som väntade på utgången går igen av sig själv när tunneln är tillbaka.

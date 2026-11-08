@@ -1091,25 +1091,17 @@
                                     </Border>
                                 </StackPanel>
 
-                                <!-- ===== Länkar: not built yet ===== -->
+                                <!-- ===== Länkar: the link chainsaw: registered for the user ===== -->
                                 <StackPanel Visibility="{Binding IsLinksPage, Converter={StaticResource Visible}}">
-                                    <Border Style="{StaticResource Settings.RowNotBuilt}">
+                                    <Border Style="{StaticResource Settings.Row}" IsEnabled="{Binding CanRegisterLinks}">
                                         <DockPanel>
-                                            <Border DockPanel.Dock="Right" Width="36" Height="20" CornerRadius="10" VerticalAlignment="Center"
-                                                    Background="{StaticResource Brush.BorderStrong}">
-                                                <Ellipse Width="14" Height="14" Fill="{StaticResource Brush.Text}" HorizontalAlignment="Left"
-                                                         Margin="3,0" />
-                                            </Border>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource Settings.TagSwitch}"
+                                                    Command="{Binding ToggleLinksCommand}" Tag="{Binding IsLinkRegistered}"
+                                                    AutomationProperties.Name="Öppna chainsaw:-länkar"
+                                                    ToolTip="Registrera eller ta bort länken chainsaw: för dig i Windows" />
                                             <StackPanel Margin="0,0,16,0">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="Öppna chainsaw:-länkar" Style="{StaticResource Settings.RowTitle}" />
-                                                    <Border Style="{StaticResource Settings.Tag}">
-                                                        <TextBlock Text="{x:Static vm:SettingsViewModel.NotBuiltText}" FontSize="12"
-                                                                   Foreground="{StaticResource Brush.TextDim}" />
-                                                    </Border>
-                                                </StackPanel>
-                                                <TextBlock Text="Registreras för dig i Windows, inte för datorn."
-                                                           Style="{StaticResource Settings.RowHint}" />
+                                                <TextBlock Text="Öppna chainsaw:-länkar" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="{Binding LinkHint}" Style="{StaticResource Settings.RowHint}" />
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
@@ -1505,10 +1497,6 @@
                                                               Margin="0,6,0,0" Focusable="False" AutomationProperties.Name="Avstängda"
                                                               Visibility="{Binding IsDisabledOpen, Converter={StaticResource Visible}}" />
                                             </StackPanel>
-
-                                            <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="13"
-                                                       Margin="0,10,0,0" TextWrapping="Wrap"
-                                                       Visibility="{Binding HasError, Converter={StaticResource Visible}}" />
                                         </StackPanel>
                                     </ScrollViewer>
                                 </DockPanel>

@@ -26,6 +26,12 @@ internal sealed class TestWatchSource : IWatchSource
 
     public Dictionary<string, long> Seen { get; } = [];
 
+    /// <summary>When the user last looked, as the module would say; set by <see cref="MarkSeenAsync"/>.</summary>
+    public DateTimeOffset? LastSeen { get; set; }
+
+    /// <summary>The time a look is noted at.</summary>
+    public DateTimeOffset SeenAt { get; set; } = At;
+
     public WatchGate GateState { get; set; } = WatchGate.Open;
 
     public long? Height { get; set; } = 900_000;
@@ -64,7 +70,10 @@ internal sealed class TestWatchSource : IWatchSource
     public Task<WatchSnapshot> ReadAsync(ICase @case, CancellationToken cancellationToken) =>
         Task.FromResult(new WatchSnapshot(
             [.. Watches.Where(watch => watch.State != WatchState.Removed)], [.. Records], [.. Hits],
-            new Dictionary<string, WatchChecked>(Checked), new Dictionary<string, long>(Seen)));
+            new Dictionary<string, WatchChecked>(Checked), new Dictionary<string, long>(Seen))
+        {
+            LastSeen = LastSeen,
+        });
 
     public Task<Watch> AddAsync(ICase @case, WatchSubject subject, WatchFilter filter)
     {
@@ -96,6 +105,11 @@ internal sealed class TestWatchSource : IWatchSource
 
     public Task MarkSeenAsync(ICase @case, string id, long through)
     {
+        if (through > Seen.GetValueOrDefault(id))
+        {
+            LastSeen = SeenAt;
+        }
+
         Seen[id] = Math.Max(Seen.GetValueOrDefault(id), through);
         return Task.CompletedTask;
     }

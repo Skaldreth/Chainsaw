@@ -2948,3 +2948,32 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   som rullat in under kantrullningen; kostnaden är densamma som `VisibleNodes`, som också går igenom alla.
 - Tester: `BoxSelectionTests` (13) i App.Tests. Tracing är orört.
 - Återstår: Shift+klick på en nod väljer inget intervall (det finns ingen ordning att välja intervall i).
+
+## Små rättelser mot 1.0: Källor, Bevakningens huvud, offline, `chainsaw:` och tunneln (2026-11-08)
+
+- **Källors felrad till toastern:** `SourcesViewModel.ErrorText` sägs i toastern när den kommer, som Bevakningens
+  `Problem`, och raden på sidan Källor är borttagen. Samma fel två gånger i rad sägs en gång.
+- **Bevakningens huvud (BV1a):** `monitoring_seen` fick kolumnen `seen_utc` (migrering 3, `ALTER TABLE`, så att äldre
+  ärenden öppnas). `MarkSeen` skriver tiden när en nyare träff ses, och `IMonitoringService.GetLastSeen` ger den
+  senaste. Huvudet säger *2 nya träffar sedan 09:10* med `WatchWords.When` (klockslag i dag, annars datum). Tiden är
+  användarens arbete i ärendet, inte en fakta- eller bedömningsrad, och förseglas inte, som `monitoring_seen` förut.
+- **En regel för offline:** `OfflineWords` (text, orsak, *förrän …*, tips och väntetext) och `ExitWay.Offline`, som
+  väljer mellan ingen utgång, Windows utan nät och tunneln som ansluts igen. Titelraden, grafens hörn och notiser,
+  tomma grafens fot och startpunkt, Nytt ärendes tagg och rader, och Bevakningens huvud och rader läser den. Grindens
+  `MonitoringGate` säger nu `NoExit` också när Windows är utgången och datorn inte når internet, så att bevakningen
+  inte frågar förgäves.
+- **Länken `chainsaw:`:** `Links/LinkRegistration` (utan Windows) med `ILinkRegistry`, och `Interop/
+  CurrentUserLinkRegistry` som skriver `HKCU\Software\Classes\chainsaw` (`URL Protocol`, `DefaultIcon`,
+  `shell\open\command` = `"Chainsaw.exe" "%1"`). Raden under Länkar är en strömbrytare. Eget beslut: en länk som pekar
+  på en annan kopia av Chainsaw visas som av med en rad som säger det, och strömbrytaren tar över den.
+- **Återanslutning av tunneln:** `ExitReconnector` i Network (`IExitReconnect` i Contracts). Den börjar bara när en
+  ansluten tunnel faller (`ConnectionLost`), väntar 2, 5, 15 och 30 s och sedan en minut åt gången, försöker direkt
+  när nätet kommer tillbaka (`INetworkPresence`), och slutar när utgången är ansluten, när felet inte går över med
+  tiden (konfigurationen vägrad, tunneln saknas), när användaren ansluter eller kopplar från, eller när ett försök
+  avbryts. Före varje försök läses utgångens läge, så att ett sent event aldrig gör ett försök som ingen vill ha. Ett
+  låst valv väntas ut. Titelraden säger *Ansluter igen …* och verktygstipset nästa försöks klockslag.
+- Tester: `ExitReconnectorTests` (15, utan nät, med `FakeTimeProvider` och den riktiga `ExitConnection`),
+  `MonitoringGateTests` (+1), `MonitoringServiceTests` (+1), `OfflineWordsTests` (9), `WatchHeadTests` (2),
+  `LinkRegistrationTests` (6) och `SourcesTests` (+1).
+- Återstår: utgångsrutan (UT2b) visar bara *Offline* medan tunneln ansluts igen (TODO). Väntetiderna går inte att
+  ställa.

@@ -163,9 +163,9 @@ fungerar rättas före allt annat nedan. Särskilt:
   - **Tangentbordet:** metodens avsnitt nås bara med högerklick.
   - **Tolkaren:** en avslutande `*` letas efter utan att kod hoppas över.
   - **Smalt fönster:** vid 960 px kapas kommandoraden bredvid den öppna panelen.
-- **Källors felrad till toastern** [direkt], som Bevakningens felrad redan är.
-- **Bevakningens huvud** [direkt]: skissen säger *2 nya träffar sedan 09:10*, men vyn säger bara antalet. När
-  användaren senast tittade behöver sparas som en tid med *sedd*.
+
+- **Återanslutningen i utgångsrutan** [direkt]: titelraden säger *Ansluter igen …* med nästa försök, men utgångsrutan
+  (UT2b) visar bara *Offline* i rött medan tunneln ansluts igen.
 
 **Testärendet** [direkt]: fyll på det med det som byggts sedan det byggdes om. Vad som saknas står i
 `docs/BACKLOG.md` under *Testärendet (/testdata)*.
@@ -186,20 +186,12 @@ fungerar rättas före allt annat nedan. Särskilt:
 2. **Innehav per adress** [skiss]: Alt + klick vänder noden som ett kort (IN4 skissas först).
    - **Baksidan** visar det som ligger kvar, i rätt tecken (₿, Ξ, ₮) och i inställd valuta till dagens kurs.
    - **Inspektören** visar redan allt som passerat, det som ligger kvar och det som gått ut, vid en blockhöjd.
-3. **Grafens text när Windows är utan nät** [direkt]: godkänd 2026-11-08.
 4. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
    - Knappen R finns. En vanlig nyckel ger bara tio anrop i månaden, så uppslag på varje nod kräver partnernyckel.
-5. **Länken `chainsaw:` registreras** [direkt] för användaren, och tas bort under Länkar i inställningarna (i dag
-   tonat *Inte byggt än*).
-   - Registreringen: `HKCU\Software\Classes\chainsaw` med `URL Protocol` och `shell\open\command` till
-     `Chainsaw.exe "%1"`.
-   - Mottagandet är byggt sedan etapp 11.
 6. **Spara ofta** [etapp]:
    - **Varför:** `.cut` skrivs bara vid sparning och stängning, och ett ärende som lämnas vidare ska vara färskt.
    - **Hur:** spara efter skrivningar när det är lugnt, till exempel efter några sekunder utan nya.
    - Arbetskopian tas redan tillbaka efter en krasch, så inget går förlorat i dag.
-7. **Återanslutning av tunneln** [direkt]: när tunneln faller, till exempel efter att datorn sovit, ansluter Chainsaw
-   inte igen av sig själv. Viktigt för bevakningen.
 8. **Meddelandet mitt på skärmen** [skiss]: bevakningens tredje sätt att säga till.
    - Det är byggt bakom samma gränssnitt som de andra sätten (`ScreenMessage`), men syns inte i inställningarna.
    - Skissa raden i ST1a och själva meddelandet, och lägg raden under Låsning.

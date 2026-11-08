@@ -7,7 +7,8 @@ namespace Chainsaw.Modules.Network;
 /// <summary>
 /// Registers the module Network: the exits (VPN) and the way out chosen (<see cref="IExitRoute"/>, VPN or Windows)
 /// through which every request Chainsaw makes leaves the computer, <see cref="INetworkPresence"/>, whether the computer
-/// has a network for the way through Windows, and <see cref="IExitHttp"/>, the only way out for
+/// has a network for the way through Windows, <see cref="IExitReconnect"/>, which connects a fallen tunnel again, and
+/// <see cref="IExitHttp"/>, the only way out for
 /// the other modules; and <see cref="ILocalHttp"/>, which reaches only the user's own node on the computer or a private
 /// network. Needs the Security module (the exits are kept in the vault) and an <c>IClock</c>.
 /// </summary>
@@ -46,6 +47,13 @@ public static class NetworkModule
             provider.GetRequiredService<IInternetProbe>(),
             TimeProvider.System));
         services.AddSingleton<IExitHttp, ExitHttp>();
+
+        // A tunnel that falls, for example after the computer has slept, is connected again by itself.
+        services.AddSingleton(provider => new ExitReconnector(
+            provider.GetRequiredService<IExitConnection>(),
+            provider.GetRequiredService<INetworkPresence>(),
+            TimeProvider.System));
+        services.AddSingleton<IExitReconnect>(provider => provider.GetRequiredService<ExitReconnector>());
 
         // The user's own node on the computer or a private network: straight there, never through the way out.
         services.TryAddSingleton<ILocalHandlerFactory, LocalHandlerFactory>();

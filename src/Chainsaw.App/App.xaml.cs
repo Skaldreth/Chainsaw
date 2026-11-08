@@ -17,6 +17,7 @@ using Chainsaw.App.Controls;
 using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
 using Chainsaw.App.Interop;
+using Chainsaw.App.Links;
 using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
 using Chainsaw.SharedKernel;
@@ -176,6 +177,10 @@ public partial class App : Application
                 .AddSingleton<ExitPanelViewModel>()
                 .AddSingleton<CasePickerViewModel>()
                 .AddSingleton<SourcesViewModel>()
+                .AddSingleton<ILinkRegistry, CurrentUserLinkRegistry>()
+                .AddSingleton(provider => new LinkRegistration(
+                    provider.GetRequiredService<ILinkRegistry>(),
+                    Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Chainsaw.exe")))
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphEditor, GraphEditor>()

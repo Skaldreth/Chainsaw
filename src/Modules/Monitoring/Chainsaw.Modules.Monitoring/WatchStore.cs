@@ -222,19 +222,35 @@ internal static class WatchStore
         return all;
     }
 
-    /// <summary>Notes the last hit seen of a watch; an older one never moves it back.</summary>
+    /// <summary>
+    /// Notes the last hit seen of a watch and when the user looked; an older hit never moves it back, and the time is
+    /// moved only by a newer hit.
+    /// </summary>
     /// <param name="transaction">The case's transaction.</param>
     /// <param name="watchId">The watch.</param>
     /// <param name="through">The hit.</param>
-    public static void WriteSeen(ICaseTransaction transaction, string watchId, long through)
+    /// <param name="seenUtc">When the user looked.</param>
+    public static void WriteSeen(ICaseTransaction transaction, string watchId, long through, DateTimeOffset seenUtc)
     {
         using var command = transaction.CreateCommand("""
-            INSERT INTO monitoring_seen (watch_id, through_sequence) VALUES ($id, $through)
-            ON CONFLICT (watch_id) DO UPDATE SET through_sequence = MAX(through_sequence, $through)
+            INSERT INTO monitoring_seen (watch_id, through_sequence, seen_utc) VALUES ($id, $through, $utc)
+            ON CONFLICT (watch_id) DO UPDATE SET
+                seen_utc = CASE WHEN $through > through_sequence THEN $utc ELSE seen_utc END,
+                through_sequence = MAX(through_sequence, $through)
             """);
         Add(command, "$id", watchId);
         Add(command, "$through", through);
+        Add(command, "$utc", WatchCodec.Text(seenUtc));
         command.ExecuteNonQuery();
+    }
+
+    /// <summary>Reads when the user last looked at any watch's hits.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The time, or <see langword="null"/> when never.</returns>
+    public static DateTimeOffset? ReadLastSeen(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand("SELECT MAX(seen_utc) FROM monitoring_seen");
+        return command.ExecuteScalar() is string text ? WatchCodec.Time(text) : null;
     }
 
     /// <summary>Gives the watch as a record other than the first leaves it.</summary>

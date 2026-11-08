@@ -88,6 +88,14 @@ internal sealed class MonitoringSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The third version: when the user last looked at a watch's hits, so that the view's head can say <em>sedan
+    /// 09:10</em> (sketch BV1a). Empty for a watch looked at before the column came.
+    /// </summary>
+    private const string Version3 = """
+        ALTER TABLE monitoring_seen ADD COLUMN seen_utc TEXT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -96,6 +104,7 @@ internal sealed class MonitoringSchema : ICaseSchemaContributor
     [
         new(1, "Bevakningar och träffar", Version1),
         new(2, "Bakgrundens kontroller som förts in", Version2),
+        new(3, "När träffarna senast sågs", Version3),
     ];
 
     /// <inheritdoc/>

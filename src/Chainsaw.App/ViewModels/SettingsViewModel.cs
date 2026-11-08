@@ -1,4 +1,5 @@
 using Chainsaw.App.Guide;
+using Chainsaw.App.Links;
 using Chainsaw.App.Settings;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Network.Contracts;
@@ -12,13 +13,24 @@ namespace Chainsaw.App.ViewModels;
 /// <summary>
 /// The settings (sketch ST1a): a dialog in the middle of the window over the darkened work, opened with Ctrl+, or the
 /// pill's cog and closed with Esc, × or a lock. The menu's pages are Nätverk (Windows or VPN, and under VPN the exits
-/// through the same view model as the exits' panel), Låsning, Kurser, Profil and Om Chainsaw; Utseende and Länkar say
-/// that they are not built yet. Changes apply and are saved at once. It knows nothing of WPF.
+/// through the same view model as the exits' panel), Låsning, Länkar (the link <c>chainsaw:</c> registered for the
+/// user), Kurser, Profil and Om Chainsaw; Utseende says that it is not built yet. Changes apply and are saved at once.
+/// It knows nothing of WPF.
 /// </summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
     /// <summary>What a row that is not built says (CLAUDE.md: never show what does not exist).</summary>
     public const string NotBuiltText = "Inte byggt än";
+
+    /// <summary>What the row Länkar says under its title while the link opens this Chainsaw or nothing.</summary>
+    public const string LinkHintText = "Registreras för dig i Windows, inte för datorn.";
+
+    /// <summary>What the row Länkar says while the link opens another copy of Chainsaw.</summary>
+    public const string LinkElsewhereText =
+        "Öppnar en annan Chainsaw på datorn. Slå på för att länken ska öppna den här.";
+
+    /// <summary>What the dialog says when the link could not be changed in Windows.</summary>
+    public const string LinkFailedText = "Länken gick inte att ändra i Windows.";
 
     /// <summary>What the dialog says when the settings' file could not be written.</summary>
     public const string SaveFailedText = "Inställningarna gick inte att spara. De gäller tills Chainsaw stängs.";
@@ -65,6 +77,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The vault, whose master key can be changed.</summary>
     private readonly IVault _vault;
 
+    /// <summary>The link <c>chainsaw:</c> in Windows, or <see langword="null"/> where it cannot be.</summary>
+    private readonly LinkRegistration? _links;
+
     /// <summary>The settings as they are now.</summary>
     private AppSettings _settings;
 
@@ -96,6 +111,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// The switches of the suppliers of attribution, whose names are written to the file when they change, or
     /// <see langword="null"/> where there are none.
     /// </param>
+    /// <param name="links">
+    /// The link <c>chainsaw:</c> in Windows, or <see langword="null"/> where it cannot be registered (the row is then
+    /// greyed).
+    /// </param>
     public SettingsViewModel(
         AppSettings settings,
         AppSettingsStore store,
@@ -108,7 +127,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         ICaseStore cases,
         BuildInfo build,
         SourcesViewModel? sources = null,
-        AttributionSwitches? suppliers = null)
+        AttributionSwitches? suppliers = null,
+        LinkRegistration? links = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(cases);
@@ -120,6 +140,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _prices = prices;
         _profiles = profiles;
         _vault = vault;
+        _links = links;
         Exits = exits;
         Sources = sources;
         Menu = SettingsMenu.Groups
@@ -144,6 +165,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ShowPage(SettingsMenu.Start);
         ShowChoices();
         ShowWay();
+        ShowLink();
     }
 
     /// <summary>Gets the menu's groups and pages.</summary>
@@ -249,6 +271,17 @@ public sealed partial class SettingsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasError))]
     public partial string ErrorText { get; private set; } = string.Empty;
 
+    /// <summary>Gets whether the link <c>chainsaw:</c> can be registered here (the row is live).</summary>
+    public bool CanRegisterLinks => _links is not null;
+
+    /// <summary>Gets whether the link <c>chainsaw:</c> opens this Chainsaw (the switch).</summary>
+    [ObservableProperty]
+    public partial bool IsLinkRegistered { get; private set; }
+
+    /// <summary>Gets what the row Länkar says under its title.</summary>
+    [ObservableProperty]
+    public partial string LinkHint { get; private set; } = LinkHintText;
+
     /// <summary>Gets whether something went wrong with the settings' file.</summary>
     public bool HasError => ErrorText.Length > 0;
 
@@ -309,6 +342,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _shown++;
         ShowPage(page ?? Page);
         ErrorText = string.Empty;
+        ShowLink();
         IsOpen = true;
         _ = ReadProfileAsync();
         if (IsVpn)
@@ -403,6 +437,40 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Turns the notification in Windows on or off (the switch).</summary>
     [RelayCommand]
     public void ToggleAlertInWindows() => Save(_settings with { AlertInWindows = !_settings.AlertInWindows });
+
+    /// <summary>
+    /// Registers the link <c>chainsaw:</c> for the user so that it opens this Chainsaw, or takes it away (the switch).
+    /// A link that opens another copy is taken over, not taken away.
+    /// </summary>
+    [RelayCommand]
+    public void ToggleLinks()
+    {
+        if (_links is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (IsLinkRegistered)
+            {
+                _links.Unregister();
+            }
+            else
+            {
+                _links.Register();
+            }
+
+            ErrorText = string.Empty;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or System.Security.SecurityException)
+        {
+            ErrorText = LinkFailedText;
+        }
+
+        ShowLink();
+    }
 
     /// <summary>Turns the coin swoosh on or off (the switch).</summary>
     [RelayCommand]
@@ -619,6 +687,29 @@ public sealed partial class SettingsViewModel : ObservableObject
         foreach (var item in Menu.SelectMany(group => group.Items))
         {
             item.IsSelected = item.Entry.Page == page;
+        }
+    }
+
+    /// <summary>Reads where the link <c>chainsaw:</c> points, for the switch and the row's line.</summary>
+    private void ShowLink()
+    {
+        var state = ReadLink();
+        IsLinkRegistered = state == LinkState.ThisProgram;
+        LinkHint = state == LinkState.OtherProgram ? LinkElsewhereText : LinkHintText;
+    }
+
+    /// <summary>Reads where the link points; a registry that cannot be read counts as not registered.</summary>
+    /// <returns>Where it points.</returns>
+    private LinkState ReadLink()
+    {
+        try
+        {
+            return _links?.Read() ?? LinkState.None;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or System.Security.SecurityException)
+        {
+            return LinkState.None;
         }
     }
 
