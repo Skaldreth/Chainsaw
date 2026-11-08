@@ -293,16 +293,19 @@
           (GraphStartViewModel.IsLifting) and takes it out of the start page. Not built yet; see docs/TODO.md.
         -->
 
-        <!-- ===== The foot: the Guide and the exit, said honestly ===== -->
+        <!-- ===== The foot: the Guide, and offline said honestly (a connected exit stands in the title bar) ===== -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="70,0,0,78"
                     Visibility="{Binding IsShown, Converter={StaticResource Visible}}">
             <Button Style="{StaticResource Button.Link}" Command="{Binding GuideCommand}" VerticalAlignment="Center"
                     Foreground="{StaticResource Brush.TextMuted}" ToolTip="Öppnar Guiden bredvid ytan"
                     Content="Så spårar man i Chainsaw" />
-            <Rectangle Width="1" Height="12" Margin="18,0" Fill="{StaticResource Brush.BorderStrong}"
-                       VerticalAlignment="Center" />
-            <Ellipse x:Name="FootDot" Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" />
-            <TextBlock x:Name="FootLine" Text="{Binding FootText}" FontSize="13" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Visibility="{Binding IsFootOffline, Converter={StaticResource Visible}}">
+                <Rectangle Width="1" Height="12" Margin="18,0" Fill="{StaticResource Brush.BorderStrong}"
+                           VerticalAlignment="Center" />
+                <Ellipse x:Name="FootDot" Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" />
+                <TextBlock x:Name="FootLine" Text="{x:Static vm:GraphStartViewModel.OfflineFootText}" FontSize="13"
+                           VerticalAlignment="Center" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>

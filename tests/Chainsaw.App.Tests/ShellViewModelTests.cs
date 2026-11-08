@@ -41,7 +41,7 @@ public sealed class ShellViewModelTests
         var rig = new GateRig(VaultState.Unlocked);
         var shell = rig.Shell;
 
-        Assert.Equal(["Graf"], shell.Work.Where(i => i.IsShown).Select(i => i.Entry.Name));
+        Assert.DoesNotContain(shell.Work, i => i.IsShown);
         shell.ShowCommand.Execute(AppView.Monitoring);
         Assert.Equal(AppView.Graph, shell.Current);
 

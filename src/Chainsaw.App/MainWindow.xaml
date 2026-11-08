@@ -278,7 +278,8 @@
                                 <ItemsControl ItemsSource="{Binding Top}" ItemTemplate="{StaticResource RailItem}" Focusable="False" />
                                 <Border Style="{StaticResource Line.Pill}" />
                                 <ItemsControl ItemsSource="{Binding Work}" ItemTemplate="{StaticResource RailItem}" Focusable="False" />
-                                <Border Style="{StaticResource Line.Pill}" />
+                                <Border Style="{StaticResource Line.Pill}"
+                                        Visibility="{Binding IsWorkShown, Converter={StaticResource VisibleWhen}}" />
                                 <ItemsControl ItemsSource="{Binding Bottom}" ItemTemplate="{StaticResource RailItem}" Focusable="False" />
                             </StackPanel>
                         </Border>

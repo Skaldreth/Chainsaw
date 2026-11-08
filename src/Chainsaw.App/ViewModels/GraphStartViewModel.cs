@@ -194,9 +194,12 @@ public sealed partial class GraphStartViewModel : ObservableObject
     [ObservableProperty]
     public partial string SendText { get; private set; } = OfflineSendText;
 
-    /// <summary>Gets what the foot says about the exit.</summary>
+    /// <summary>
+    /// Gets whether the foot says that Chainsaw is offline. A connected exit is not repeated there, since the title bar
+    /// already shows it (the user's decision 2026-11-07).
+    /// </summary>
     [ObservableProperty]
-    public partial string FootText { get; private set; } = OfflineFootText;
+    public partial bool IsFootOffline { get; private set; } = true;
 
     /// <summary>Shows what the graph has: no case, a case without a start point, or a graph.</summary>
     /// <param name="mode">What to guide to.</param>
@@ -369,12 +372,12 @@ public sealed partial class GraphStartViewModel : ObservableObject
         if (!IsOnline)
         {
             SendText = OfflineSendText;
-            FootText = OfflineFootText;
+            IsFootOffline = true;
             return;
         }
 
         var through = _exitName is { } name ? name : "utgången";
         SendText = $"Enter lägger till startpunkten. Inget hämtas förrän du expanderar den, och då genom {through}.";
-        FootText = _exitName is { } shown ? $"Utgång: {shown}" : "Utgång ansluten";
+        IsFootOffline = false;
     }
 }

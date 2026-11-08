@@ -142,6 +142,9 @@ fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händ
 - **Mellanhänder bara när de ger något kedjan inte har:** kurser och attribution. Kurser hämtas från en källa som anger
   kursen vid en tidpunkt, och kursen sparas i ärendet med källa. Valutan att räkna i ställs in (SEK som förval).
   Källan är **Bitstamp** (användarens beslut 2026-11-07).
+- **Attributionskällor** (användarens beslut 2026-11-08): Chainsaw hämtar etiketter från **flera källor samtidigt**,
+  var och en med en **strömbrytare** i inställningarna. **Chainabuse** (TRM Labs) är den första underleverantören,
+  eftersom den samarbetar med brottsbekämpande myndigheter; dess rapporter är bedömningar med källa (princip 2).
 - **Uppslag kräver inget godkännande** (användarens beslut 2026-11-06), men går alltid genom vald utgång (princip 4).
 - Källornas API-nycklar ligger i valvet, aldrig i ärendet.
 - **Källornas adresser hanteras per kedja** (användarens beslut 2026-11-07): användaren lägger till, prioriterar och tar

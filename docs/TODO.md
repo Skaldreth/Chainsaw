@@ -93,8 +93,17 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     som i Gawk; ett högerklick utan rörelse öppnar nodens meny. Vänsterknappen drar bara noder.
 30. **Använd ytan:** *byggt 2026-11-07, väntar på prov på Windows:* ett hopp med fler än åtta aktörer sprids över
     kolumner sida vid sida till ett ungefär kvadratiskt block, och belopp som skulle hamna på varandra visas på hovring.
-31. **Sonarn är fel** (användarens synpunkt 2026-11-07): för snabb och för mycket linjer; den ska vara mjuk, behaglig och
-    lugn. Skissas i SN1a och SN1b med reglage för fart och styrka, sedan byggs den valda i `SonarRing`.
+31. **Sonarn:** *SN1a vald 2026-11-08 och byggd* i `SonarRing` (ett mjukt sken som sväller ut ur noden och löses
+    upp, en våg i taget med vila, över ett svagt sken som alltid ligger bakom), med skissens förval: 6 s, 30 px, 0,42
+    och 18 px oskärpa. Användaren: *effekten kommer bara vara där ute*; tolkat som att sonarn bara står i startvyn
+    (Nytt ärende och den tomma startpunkten), inte på grafens noder. Ska bekräftas.
+32. **Startvyns fot** (användarens beslut 2026-11-08): *Utgång: Windows* står redan i titelraden och visas inte i
+    foten; foten säger bara *Offline* när inga uppslag kan göras. *Byggt.*
+33. **Graf-ikonen utan ärende** (användarens beslut 2026-11-08): man kan inte gå in i grafen utan ett öppet ärende,
+    så ikonen fälls bort ur pillret (startvyn visas ändå). *Byggt.*
+34. **Testärendet är för trångt** (användarens skärmdump 2026-11-08): grafen i `TEST-0001` är ihoptryckt, små noder
+    som ligger på varandra, belopp som krockar och alla områden ritade samtidigt över varandra. Strider mot princip 7.
+    Utreds: layouten (*Använd ytan*, punkt 30) och att områdena bara visas när de väljs i menyn.
 
 Klart ur listan 2026-11-07: testärendet `/testdata` (punkt 27, se *Testärendet* nedan);
 *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
@@ -493,8 +502,14 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.
 - **Kan frysas** (CLAUDE.md, *Sorterna*): markeringen för adresser med USDT eller USDC hör till Ethereum och TRON. SDN
   har redan adresser för `USDT`, `ETH` och `TRX`, som etapp 8 läser in och räknar men ännu inte slår upp.
-- **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster),
-  Chainabuse (kräver nyckel). Varje källa granskas för licens och kvalitet innan den byggs in. `LabelSource.OpenSource`
+- **Chainabuse som underleverantör** (användarens beslut 2026-11-08): Chainabuse (TRM Labs,
+  https://docs.trmlabs.com/guides/chainabuse/welcome-to-chainabuse-api) samarbetar med brottsbekämpande myndigheter.
+  Chainsaw hämtar rapporterna för en adress ur deras API, genom utgången och med nyckeln i valvet; bara adressen
+  skickas (princip 4), svaret förseglas i ärendet (princip 1) och rapporterna blir etiketter som är bedömningar med
+  källa, aldrig fakta (princip 2), eftersom de skrivs in av allmänheten. Sidan i inställningarna skissas först.
+- **Flera attributionskällor samtidigt, var och en med en strömbrytare** (användarens beslut 2026-11-08): Chainsaw
+  hämtar från alla källor som är på, inte bara en, och varje källa kan stängas av.
+- **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster). Varje källa granskas för licens och kvalitet innan den byggs in. `LabelSource.OpenSource`
   finns i kontraktet.
 - **Sanktionslistan mot grafens adresser** (`CheckSanctions`) och vyn Etiketter (skissas först). Biblioteket är
   kopplat sedan etapp 15: `Absorb` när ett ärende öppnas och innan det stängs, `ShareInto` när grafen läses.

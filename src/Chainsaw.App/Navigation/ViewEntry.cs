@@ -10,8 +10,13 @@ namespace Chainsaw.App.Navigation;
 /// <param name="NeedsCase">
 /// Whether the view needs an open case; without one its icon folds away, since it could not be used (principle 7).
 /// </param>
+/// <param name="IconNeedsCase">
+/// Whether the view's icon folds away without an open case even though the view itself can be shown: the graph is the
+/// start page without a case, but there is no graph to go into until a case is open (the user's decision 2026-11-07).
+/// </param>
 public sealed record ViewEntry(
-    AppView View, string Name, string Icon, string Gesture, RailGroup Group, bool IsBuilt = true, bool NeedsCase = false)
+    AppView View, string Name, string Icon, string Gesture, RailGroup Group, bool IsBuilt = true, bool NeedsCase = false,
+    bool IconNeedsCase = false)
 {
     /// <summary>What the tooltip of a view that is not built adds.</summary>
     public const string NotBuiltText = "Inte byggt än";
@@ -21,4 +26,7 @@ public sealed record ViewEntry(
     /// built when it is not.
     /// </summary>
     public string ToolTip => IsBuilt ? Name + " · " + Gesture : Name + " · " + NotBuiltText;
+
+    /// <summary>Gets whether the view's icon stands in the rail when no case is open.</summary>
+    public bool IsShownWithoutCase => !NeedsCase && !IconNeedsCase;
 }

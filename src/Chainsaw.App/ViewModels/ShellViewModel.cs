@@ -228,6 +228,13 @@ public sealed partial class ShellViewModel : ObservableObject
     /// Gets whether the command bar is up. It is hidden by default and comes up like Spotlight (Ctrl+K or Ctrl+F);
     /// Esc, a click outside or a command that did what it was asked hides it again.
     /// </summary>
+    /// <summary>
+    /// Gets whether any of the work views' icons stands in the rail; without a case none does, and the rail drops the
+    /// group's line so that two lines never stand on top of each other.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsWorkShown { get; private set; }
+
     [ObservableProperty]
     public partial bool IsCommandBarOpen { get; private set; }
 
@@ -701,8 +708,10 @@ public sealed partial class ShellViewModel : ObservableObject
 
         foreach (var item in Top.Concat(Work).Concat(Bottom))
         {
-            item.IsShown = hasCase || !item.Entry.NeedsCase;
+            item.IsShown = hasCase || item.Entry.IsShownWithoutCase;
         }
+
+        IsWorkShown = Work.Any(item => item.IsShown);
 
         if (!hasCase && CurrentEntry.NeedsCase)
         {

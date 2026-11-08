@@ -202,12 +202,12 @@ public sealed class GraphStartTests
         rig.Start.ShowExit(isOnline: false, name: null);
 
         Assert.Equal(GraphStartViewModel.OfflineSendText, rig.Start.SendText);
-        Assert.Equal(GraphStartViewModel.OfflineFootText, rig.Start.FootText);
+        Assert.True(rig.Start.IsFootOffline);
 
         rig.Start.ShowExit(isOnline: true, name: "Stockholm");
 
         Assert.Contains("genom Stockholm", rig.Start.SendText, StringComparison.Ordinal);
-        Assert.Equal("Utgång: Stockholm", rig.Start.FootText);
+        Assert.False(rig.Start.IsFootOffline);
     }
 
     [Fact]
