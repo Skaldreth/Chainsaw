@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains.Tests;
 
@@ -134,6 +135,151 @@ public sealed class BlockChangeTests : IDisposable
         Assert.Equal(LookupStatus.FromCaseMayBeOutdated, stored.Status);
         Assert.Equal(fetched.Value, stored.Value);
         Assert.Equal(sent, Http.Sent.Count);
+    }
+
+    [Fact]
+    public async Task An_address_page_with_the_transaction_in_another_block_at_the_same_height_is_moved()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var page = JsonNode.Parse("[" + Fixtures.Text("tx-confirmed.json") + "]")!;
+        page[0]!["status"] = new JsonObject
+        {
+            ["confirmed"] = true, ["block_height"] = 800_000, ["block_hash"] = OtherHash, ["block_time"] = 1_700_000_000,
+        };
+        var address = Fixtures.AddressText("wpkh");
+        Http.AnswerBytes(Fixtures.Url($"address/{address}/txs"), Encoding.UTF8.GetBytes(page.ToJsonString()), 200);
+        await Source.GetAddressTransactionsAsync(_harness.Case, Fixtures.WitnessKeyHash);
+
+        var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
+
+        Assert.Equal(BlockChangeKind.Moved, change.Kind);
+        Assert.Equal(OtherHash, change.Now.Hash);
+        Assert.Equal("esplora.test", change.Now.Endpoint);
+    }
+
+    [Fact]
+    public async Task An_endpoint_that_lags_behind_and_says_mempool_is_passed_over()
+    {
+        var second = await OnlySecondAsync();
+        AnswerSecond(new JsonObject { ["confirmed"] = false }, 200);
+
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+
+        // Once the same endpoint has shown the block's height, its answer counts.
+        Http.AnswerBytes(Second + "blocks/tip/height", Encoding.ASCII.GetBytes("800003"), 200);
+        await Source.GetTipHeightAsync(_harness.Case);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
+        Assert.Equal(BlockChangeKind.Unconfirmed, change.Kind);
+        Assert.Equal(second, change.Now.Endpoint);
+    }
+
+    [Fact]
+    public async Task An_endpoint_that_lags_behind_and_does_not_know_the_transaction_is_passed_over()
+    {
+        await OnlySecondAsync();
+        Http.AnswerBytes(Second + $"tx/{Fixtures.Confirmed}", Encoding.UTF8.GetBytes("Transaction not found"), 404);
+
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+
+        Http.AnswerBytes(Second + "blocks/tip/height", Encoding.ASCII.GetBytes("800003"), 200);
+        await Source.GetTipHeightAsync(_harness.Case);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        Assert.Equal(BlockChangeKind.Gone, Assert.Single(await Source.GetBlockChangesAsync(_harness.Case)).Kind);
+    }
+
+    [Fact]
+    public async Task A_not_found_the_lookup_did_not_believe_is_never_a_transaction_gone()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var first = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint;
+        var (second, saved) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        await saved;
+
+        // The first endpoint fails once, so that its next 404 is not believed; the second then fails as well.
+        Http.FailingHosts.Add("esplora.test");
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, second.Id, false);
+        await Source.GetTipHeightAsync(_harness.Case);
+        Http.FailingHosts.Clear();
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, second.Id, true);
+        Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("800001"), 200);
+        Http.AnswerBytes(
+            Fixtures.Url($"tx/{Fixtures.Confirmed}"), Encoding.UTF8.GetBytes("Transaction not found"), 404);
+        Http.AnswerBytes(Second + $"tx/{Fixtures.Confirmed}", "busy"u8.ToArray(), 503);
+        Http.AnswerBytes(Second + "blocks/tip/height", Encoding.ASCII.GetBytes("800001"), 200);
+
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.True(_harness.Sources.Get(Chain.Bitcoin).Endpoints.Single(e => e.Endpoint.Id == first.Id).FailedSince);
+        Assert.Contains(_harness.RawRows(), row => row.Status == 404);
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+    }
+
+    [Fact]
+    public async Task A_shallow_answer_is_asked_again_of_an_endpoint_in_step_with_the_chain()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var (second, saved) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        await saved;
+        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+        await _harness.Sources.MoveAsync(Chain.Bitcoin, second.Id, -1);
+        Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("800001"), 200);
+        Http.AnswerBytes(Second + "blocks/tip/height", Encoding.ASCII.GetBytes("799999"), 200);
+        AnswerSecond(new JsonObject { ["confirmed"] = false }, 200);
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        Http.Sent.Clear();
+
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.DoesNotContain(Http.Sent, request => request.Uri.AbsolutePath.Contains("/tx/", StringComparison.Ordinal)
+            && request.Uri.Host == "second.example");
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+    }
+
+    [Fact]
+    public async Task Reading_the_changes_and_the_newest_block_sends_nothing()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        AnswerStatus(new JsonObject { ["confirmed"] = false });
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        Http.Sent.Clear();
+
+        await Source.GetBlockChangesAsync(_harness.Case);
+        await Source.GetTipAsync(_harness.Case, LookupMode.CaseOnly);
+
+        Assert.Empty(Http.Sent);
+    }
+
+    /// <summary>The second endpoint's address.</summary>
+    private const string Second = "https://second.example/api/";
+
+    /// <summary>
+    /// Seals the confirmed transaction from the first endpoint, then leaves only a second endpoint switched on, which
+    /// has shown no height yet.
+    /// </summary>
+    /// <returns>The second endpoint's name.</returns>
+    private async Task<string> OnlySecondAsync()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var first = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint;
+        var (second, saved) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        await saved;
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, first.Id, false);
+        return second.Name;
+    }
+
+    /// <summary>Answers the confirmed fixture from the second endpoint with another status.</summary>
+    /// <param name="status">The new status.</param>
+    /// <param name="code">The HTTP status.</param>
+    private void AnswerSecond(JsonObject status, int code)
+    {
+        var moved = JsonNode.Parse(Fixtures.Text("tx-confirmed.json"))!;
+        moved["status"] = status;
+        Http.AnswerBytes(Second + $"tx/{Fixtures.Confirmed}", Encoding.UTF8.GetBytes(moved.ToJsonString()), code);
     }
 
     /// <summary>Answers the confirmed fixture again with another status.</summary>

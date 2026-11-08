@@ -130,13 +130,16 @@ internal sealed class SourceLookups
 
         // An answer in a block that was not yet deep when it was fetched is fetched again, so that a block that has
         // fallen out of the chain since is noticed (a reorganisation). The height is refreshed first, so that the new
-        // answer can count as settled once its block is deep enough.
-        if (stored is { } shallow && query.SettledAt(shallow.Value) is not null)
+        // answer can count as settled once its block is deep enough; and it is asked of an endpoint in step with the
+        // chain when one is known, since one a block behind could answer that the transaction is not in a block yet.
+        var shallowAgain = stored is { } shallow && query.SettledAt(shallow.Value) is not null;
+        if (shallowAgain)
         {
             await _refreshHeight(this, @case, cancellationToken).ConfigureAwait(false);
         }
 
-        return await FetchAsync(@case, query, stored, cancellationToken, mode == LookupMode.InStep)
+        return await FetchAsync(
+                @case, query, stored, cancellationToken, mode == LookupMode.InStep, preferInStep: shallowAgain)
             .ConfigureAwait(false);
     }
 
@@ -155,10 +158,13 @@ internal sealed class SourceLookups
     /// <param name="inStep">
     /// Whether only an endpoint in step with the chain may be asked (<see cref="LookupMode.InStep"/>).
     /// </param>
+    /// <param name="preferInStep">
+    /// Whether endpoints in step with the chain are asked when some are known to be, and the others only when none is.
+    /// </param>
     /// <returns>The answer.</returns>
     public async Task<BitcoinLookup<T>> FetchAsync<T>(
         ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
-        CancellationToken cancellationToken, bool inStep = false)
+        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false)
         where T : class
     {
         var fetchedBy = CurrentOperator(out var noOperator);
@@ -167,7 +173,12 @@ internal sealed class SourceLookups
             return Fallback(stored, LookupStatus.Failed, noOperator!);
         }
 
-        var plan = _sources.Plan(_chain, inStep);
+        var plan = _sources.Plan(_chain, inStep || preferInStep);
+        if (preferInStep && !inStep && plan is { Off: false, Endpoints.Count: 0 })
+        {
+            plan = _sources.Plan(_chain);
+        }
+
         if (plan.Off)
         {
             return Fallback(stored, LookupStatus.Offline, _sourcesOffText);
@@ -181,6 +192,7 @@ internal sealed class SourceLookups
         var failures = new List<ResponseOrigin>();
         var problem = _noneOnText;
         string? notFound = null;
+        long? notFoundSequence = null;
         var trustedNotFound = false;
         var onlyNotFound = true;
         var exitClosed = false;
@@ -255,6 +267,7 @@ internal sealed class SourceLookups
                 // and no other endpoint is asked; from one that failed its probe or lags behind (a wrong path, a node
                 // still syncing), the next is asked, so that one broken endpoint never says that a tx does not exist.
                 notFound = interpretProblem;
+                notFoundSequence = sealedResponse.Origin.Sequence;
                 if (_sources.TrustsNotFound(_chain, endpoint.Id))
                 {
                     trustedNotFound = true;
@@ -281,6 +294,19 @@ internal sealed class SourceLookups
 
         // Not found is said only when an endpoint that can be believed said it, or every endpoint asked said it.
         var isNotFound = notFound is not null && (trustedNotFound || onlyNotFound);
+        if (isNotFound && notFoundSequence is { } taken)
+        {
+            // Only an answer the lookup believed is noted, so that a lagging endpoint's 404 never reads as a
+            // transaction gone from the chain.
+            await Task.Run(
+                () => @case.Write(transaction =>
+                {
+                    _store.MarkNotFound(transaction, query.Kind, query.Subject, taken);
+                    return taken;
+                }),
+                CancellationToken.None).ConfigureAwait(false);
+        }
+
         if (isNotFound && stored is null)
         {
             return new BitcoinLookup<T>(LookupStatus.NotFound, null, failures, notFound);

@@ -361,15 +361,47 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     }
 
     /// <summary>
-    /// Compares the first sealed answer that had a transaction in a block with the newest: another block, no block or
-    /// a later answer that the source does not know it means that the chain was reorganised (principle 1: both stay).
+    /// Compares the first sealed answer that had a transaction in a block with the newest that can be believed: another
+    /// block, no block or an answer the lookup took as the source not knowing it means that the chain was most likely
+    /// reorganised (principle 1: both stay). An answer without a block counts only from an endpoint that had come at
+    /// least as far as that block; one that lags behind is passed over.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txid">The transaction.</param>
     /// <returns>The change, or <see langword="null"/> when its block is the same.</returns>
     private BlockChange? BlockChangeOf(ICaseReader reader, Txid txid)
     {
-        var sightings = new List<BlockSighting>();
+        var sightings = Sightings(reader, txid);
+        if (sightings.FirstOrDefault(each => each.Sighting.Hash is not null).Sighting is not { } before)
+        {
+            return null;
+        }
+
+        var now = sightings.LastOrDefault(each => each.Sighting.Sequence > before.Sequence
+            && (each.Sighting.Hash is not null || Reached(reader, each.EndpointId, each.Sighting.Sequence, before)))
+            .Sighting;
+        if (_store.NewestNotFound(reader, txid) is { } gone && gone.Sequence > (now?.Sequence ?? before.Sequence)
+            && Reached(reader, gone.EndpointId, gone.Sequence, before))
+        {
+            var unknown = new BlockSighting(null, null, gone.ReceivedLocal, gone.Sequence) { Endpoint = gone.Endpoint };
+            return new BlockChange(txid, BlockChangeKind.Gone, before, unknown);
+        }
+
+        if (now is null || now.Hash == before.Hash)
+        {
+            return null;
+        }
+
+        return new BlockChange(txid, now.Hash is null ? BlockChangeKind.Unconfirmed : BlockChangeKind.Moved, before, now);
+    }
+
+    /// <summary>Reads every sealed answer that has a transaction, oldest first, with where it put it.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The sightings, each with its endpoint's id as sealed.</returns>
+    private List<(BlockSighting Sighting, string EndpointId)> Sightings(ICaseReader reader, Txid txid)
+    {
+        var sightings = new List<(BlockSighting, string)>();
         foreach (var response in _store.AllWithTransaction(reader, txid))
         {
             var found = SourceLookups.StoredAs(response, body => response.Kind == ResponseKinds.Transaction
@@ -378,32 +410,28 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             if (found is { } transaction)
             {
                 var block = transaction.Value.Block;
-                sightings.Add(new BlockSighting(
-                    block?.Height, block?.Hash.Value, response.Origin.ReceivedLocal, response.Origin.Sequence));
+                var origin = response.Origin;
+                var sighting = new BlockSighting(block?.Height, block?.Hash.Value, origin.ReceivedLocal, origin.Sequence)
+                {
+                    Endpoint = origin.Endpoint.Length > 0 ? origin.Endpoint : origin.Source,
+                };
+                sightings.Add((sighting, origin.EndpointId.ToString("D")));
             }
         }
 
-        // The answers come newest first; the first in a block is the one the case first saw it confirmed in.
+        // The answers come newest first.
         sightings.Reverse();
-        if (sightings.FirstOrDefault(sighting => sighting.Hash is not null) is not { } before)
-        {
-            return null;
-        }
-
-        if (_store.NewestNotFound(reader, txid) is { } gone && gone.Sequence > sightings[^1].Sequence)
-        {
-            return new BlockChange(
-                txid, BlockChangeKind.Gone, before, new BlockSighting(null, null, gone.ReceivedLocal, gone.Sequence));
-        }
-
-        var now = sightings[^1];
-        if (now.Sequence <= before.Sequence || now.Hash == before.Hash)
-        {
-            return null;
-        }
-
-        return new BlockChange(txid, now.Hash is null ? BlockChangeKind.Unconfirmed : BlockChangeKind.Moved, before, now);
+        return sightings;
     }
+
+    /// <summary>Says whether an endpoint had come as far as a block when it answered.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="endpointId">The endpoint's id as sealed.</param>
+    /// <param name="sequence">The answer.</param>
+    /// <param name="block">Where the case first saw the transaction.</param>
+    /// <returns><see langword="true"/> when its sealed answers up to then show at least the block's height.</returns>
+    private bool Reached(ICaseReader reader, string endpointId, long sequence, BlockSighting block) =>
+        block.Height is { } height && _store.EndpointHeight(reader, endpointId, sequence) >= height;
 
     /// <summary>Gives sealed responses once each, in the order they were sealed.</summary>
     /// <param name="origins">The responses.</param>
@@ -700,5 +728,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <param name="transactions">The transactions.</param>
     /// <returns>The index entry.</returns>
     private static ResponseIndex IndexOf(IEnumerable<BitcoinTransaction> transactions) =>
-        new([.. transactions.Select(transaction => (transaction.Txid, transaction.Block?.Height))], null);
+        new([.. transactions.Select(transaction => (transaction.Txid, transaction.Block?.Height,
+            transaction.Block?.Hash.Value))], null);
 }

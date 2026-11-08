@@ -279,6 +279,15 @@ public sealed partial class GraphCanvas
         dc.DrawText(head, new Point(left, amountTop));
         dc.DrawText(tail, new Point(left + head.Width, amountTop));
         DrawRowValue(dc, card, row, new Point(left, middle + 2));
+        if (row.Pending is not null)
+        {
+            // What waits in the mempool (finding M2): a small amber clock before the snowflake's place.
+            var clock = new Point(frame.Right - CardPadding - (row.CanBeFrozen ? 34 : 10), middle);
+            dc.DrawEllipse(GraphPalette.Find(this, "Brush.SurfaceSelected"), null, clock, 10, 10);
+            DrawGlyph(dc, "Icon.Clock", GraphPalette.Find(this, "Brush.Pending"),
+                new Point(clock.X - 6, clock.Y - 6), 12);
+        }
+
         if (row.CanBeFrozen)
         {
             var (disc, icon) = (GraphPalette.Find(this, "Brush.Mark.Freeze"), GraphPalette.Find(this, "Brush.Mark.OnFreeze"));
@@ -572,9 +581,16 @@ public sealed partial class GraphCanvas
         }
 
         var index = (int)((point.Y - frame.Y - HoldingsCard.HeadHeight) / HoldingsCard.RowHeight);
-        return index >= 0 && index < card.Rows.Count
-            ? card.Rows[index].ValueTip ?? card.Rows[index].Full
-            : card.Problem ?? card.RateTip;
+        return index >= 0 && index < card.Rows.Count ? RowTip(card.Rows[index]) : card.Problem ?? card.RateTip;
+    }
+
+    /// <summary>Gives what a row says on hovering: how its value was counted, and what waits in the mempool.</summary>
+    /// <param name="row">The row.</param>
+    /// <returns>The text.</returns>
+    private static string RowTip(HoldingsRow row)
+    {
+        var tip = row.ValueTip ?? row.Full;
+        return row.Pending is { } pending ? $"{tip}\n{pending}" : tip;
     }
 
     /// <summary>Gives the turned card under a point, the one drawn last first.</summary>

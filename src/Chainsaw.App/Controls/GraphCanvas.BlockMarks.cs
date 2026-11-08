@@ -12,7 +12,7 @@ namespace Chainsaw.App.Controls;
 public sealed partial class GraphCanvas
 {
     /// <summary>The box's width on screen.</summary>
-    private const double MarkBoxWidth = 286;
+    private const double MarkBoxWidth = 340;
 
     /// <summary>A row's height in the box.</summary>
     private const double MarkRowHeight = 34;
@@ -161,11 +161,13 @@ public sealed partial class GraphCanvas
         DrawScreenGlyph(dc, "Icon.Block", ink, new Point(left, middle - 6.5), 13);
         var height = Struck(Text(row.Height, 12.5, ink, FontWeights.Normal), row.IsBefore);
         dc.DrawText(height, new Point(left + 23, middle - (height.Height / 2)));
-        var when = CachedText(row.When, 11.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
-        dc.DrawText(when, new Point(frame.Right - MarkBoxPadding - when.Width, middle - (when.Height / 2)));
         var hashInk = GraphPalette.Find(this, row.IsBefore ? "Brush.TextDim" : "Brush.TextMuted");
         var hash = Struck(MonoText(row.Hash, 11.5, hashInk), row.IsBefore);
-        dc.DrawText(hash, new Point(left + 95, middle - (hash.Height / 2)));
+        dc.DrawText(hash, new Point(left + 85, middle - (hash.Height / 2)));
+        var whenLeft = left + 85 + hash.Width + 10;
+        var room = Math.Max(1, frame.Right - MarkBoxPadding - whenLeft);
+        var when = CachedFitted(row.WhenAndWhere, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal, room);
+        dc.DrawText(when, new Point(frame.Right - MarkBoxPadding - when.Width, middle - (when.Height / 2)));
     }
 
     /// <summary>Takes a press on a block mark (opens or closes its box) or on the open box's <em>?</em>.</summary>

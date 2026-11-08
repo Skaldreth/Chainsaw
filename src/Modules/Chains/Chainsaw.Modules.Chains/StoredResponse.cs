@@ -10,9 +10,12 @@ namespace Chainsaw.Modules.Chains;
 internal sealed record StoredResponse(string Kind, string Subject, ResponseOrigin Origin, byte[] Body);
 
 /// <summary>What a response adds to the indexes over the sealed responses, read from the response itself.</summary>
-/// <param name="Transactions">The transactions in the response with their block height, if confirmed.</param>
+/// <param name="Transactions">
+/// The transactions in the response with their block's height and hash, if confirmed; the hash shows a move to another
+/// block at the same height (sketch GR9a).
+/// </param>
 /// <param name="TipHeight">The chain's height, for a response that gives it.</param>
-internal sealed record ResponseIndex(IReadOnlyList<(Txid Txid, long? Height)> Transactions, long? TipHeight)
+internal sealed record ResponseIndex(IReadOnlyList<(Txid Txid, long? Height, string? Hash)> Transactions, long? TipHeight)
 {
     /// <summary>Gets an index entry that adds nothing.</summary>
     public static ResponseIndex None { get; } = new([], null);

@@ -9,8 +9,14 @@ namespace Chainsaw.App.Graph;
 /// <param name="Hash">The block's hash shortened, or what stands in its place.</param>
 /// <param name="FullHash">The hash in full, for hovering, or <see langword="null"/>.</param>
 /// <param name="When">When the answer came, for example <c>sett 13:51</c>.</param>
+/// <param name="Endpoint">The endpoint the answer came from, or an empty text.</param>
 /// <param name="IsBefore">Whether it is the earlier answer, written struck through.</param>
-public sealed record BlockMarkRow(string Height, string Hash, string? FullHash, string When, bool IsBefore);
+public sealed record BlockMarkRow(
+    string Height, string Hash, string? FullHash, string When, string Endpoint, bool IsBefore)
+{
+    /// <summary>Gets when and from where, as the row writes it, for example <c>sett 13:51 · mempool.space</c>.</summary>
+    public string WhenAndWhere => Endpoint.Length > 0 ? $"{When} · {Endpoint}" : When;
+}
 
 /// <summary>
 /// The round mark in the corner of a line's amount when a transaction on it has left the block the case saw it in
@@ -45,22 +51,27 @@ public static class BlockMarks
     /// <summary>What a mark's tooltip adds to its title.</summary>
     public const string TipTail = " · klicka för förut och nu";
 
-    /// <summary>What a moved transaction's box says.</summary>
+    /// <summary>What a moved transaction's box says: an assessment of what the source answered (principle 2).</summary>
     public const string MovedFoot =
-        "Kedjan organiserades om. Tx:en är densamma och bekräftad igen; båda svaren står kvar i ärendet.";
+        "Källan svarar nu att tx:en ligger i ett annat block än det ärendet först såg den i. Troligen organiserades "
+        + "kedjan om; tx:en är densamma och bekräftad igen. Båda svaren står kvar i ärendet.";
 
-    /// <summary>What a box says when the transaction is unconfirmed again.</summary>
+    /// <summary>What a box says when the transaction is unconfirmed again: an assessment (principle 2).</summary>
     public const string UnconfirmedFoot =
-        "Blocket den låg i finns inte längre i kedjan. Tx:en väntar på ett nytt block, och linjen är streckad tills "
-        + "dess. Båda svaren står kvar i ärendet.";
+        "Källan svarar nu att tx:en är obekräftad, och den hade då kommit minst lika långt som blocket. Troligen föll "
+        + "blocket bort ur kedjan, och tx:en väntar på ett nytt. Båda svaren står kvar i ärendet.";
 
-    /// <summary>What a box says when the source no longer knows the transaction.</summary>
+    /// <summary>What a box says when the source no longer knows the transaction: an assessment (principle 2).</summary>
     public const string GoneFoot =
-        "Källan känner inte längre till tx:en: troligen spenderar en annan tx samma pengar i den nya kedjan. Spåret "
-        + "efter den är osäkert. Båda svaren står kvar i ärendet.";
+        "Källan svarar nu att den inte känner till tx:en, och den hade då kommit minst lika långt som blocket. "
+        + "Troligen spenderar en annan tx samma pengar i den nya kedjan, och spåret efter den är osäkert. Båda svaren "
+        + "står kvar i ärendet.";
 
-    /// <summary>How many characters of a hash are kept at each end.</summary>
-    private const int HashEnd = 4;
+    /// <summary>How many characters of a hash are kept at its start, where a block's hash has its zeros.</summary>
+    private const int HashHead = 6;
+
+    /// <summary>How many characters of a hash are kept at its end, where it differs.</summary>
+    private const int HashTail = 8;
 
     /// <summary>The Swedish culture the times are written in.</summary>
     private static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
@@ -152,19 +163,22 @@ public static class BlockMarks
         var when = "sett " + ShortTime(sighting.Seen, now, zone);
         if (sighting is { Height: { } height, Hash: { } hash })
         {
-            return new BlockMarkRow(Height(height), ShortHash(hash), hash, when, isBefore);
+            return new BlockMarkRow(Height(height), ShortHash(hash), hash, when, sighting.Endpoint, isBefore);
         }
 
         return kind == BlockChangeKind.Gone
-            ? new BlockMarkRow("–", "okänd för källan", null, when, isBefore)
-            : new BlockMarkRow("mempool", "obekräftad", null, when, isBefore);
+            ? new BlockMarkRow("–", "okänd för källan", null, when, sighting.Endpoint, isBefore)
+            : new BlockMarkRow("mempool", "obekräftad", null, when, sighting.Endpoint, isBefore);
     }
 
     /// <summary>Shortens a hash in the middle.</summary>
     /// <param name="hash">The hash.</param>
-    /// <returns>For example <c>0000…3fa1</c>.</returns>
-    private static string ShortHash(string hash) =>
-        hash.Length <= (2 * HashEnd) + 1 ? hash : $"{hash[..HashEnd]}…{hash[^HashEnd..]}";
+    /// <returns>For example <c>000000…9e0f3fa1</c>.</returns>
+    public static string ShortHash(string hash)
+    {
+        ArgumentNullException.ThrowIfNull(hash);
+        return hash.Length <= HashHead + HashTail + 1 ? hash : $"{hash[..HashHead]}…{hash[^HashTail..]}";
+    }
 
     /// <summary>Orders the kinds of change by how grave they are for the trail.</summary>
     /// <param name="kind">The kind.</param>

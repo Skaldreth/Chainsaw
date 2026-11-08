@@ -14,8 +14,14 @@ public enum CardRateKind
     /// <summary>Today's rate, fetched through the exit: a green dot and the time.</summary>
     Today,
 
-    /// <summary>The case's newest rate, because no new one could be fetched: a clock and the date.</summary>
+    /// <summary>The case's newest rate, because Chainsaw is offline: a clock and the date.</summary>
     FromCase,
+
+    /// <summary>
+    /// The case's newest rate, because no new one could be had although the exit lets lookups go: a clock, the date and
+    /// <em>Ingen ny kurs</em> rather than <em>Offline</em>.
+    /// </summary>
+    NoNewRate,
 
     /// <summary>No rate at all: offline, and the case has none.</summary>
     None,
@@ -46,7 +52,13 @@ public enum CardState
 /// <param name="CanBeFrozen">Whether its issuer can freeze it (the snowflake).</param>
 public sealed record HoldingsRow(
     string Glyph, string Name, string Ink, string Head, string Tail, string Full, string? Value, string? ValueTip,
-    bool CanBeFrozen);
+    bool CanBeFrozen)
+{
+    /// <summary>
+    /// Gets what waits in the mempool for the asset, as its small clock says on hovering, or <see langword="null"/>.
+    /// </summary>
+    public string? Pending { get; init; }
+}
 
 /// <summary>
 /// The back of a node's card (sketch IN4a): a row per asset that is left, with its value at today's rate or the
@@ -112,6 +124,12 @@ public static class HoldingsCards
     /// <summary>What the foot says offline when the case has no rate.</summary>
     public const string NoRateText = "Offline · ingen kurs i ärendet";
 
+    /// <summary>What the foot says online when no rate could be had and the case has none.</summary>
+    public const string NoRateOnlineText = "Ingen kurs att hämta";
+
+    /// <summary>What a row's clock says before what waits in the mempool.</summary>
+    public const string PendingPrefix = "Väntar i mempool: ";
+
     /// <summary>What an empty address says.</summary>
     public const string EmptyText = "Tom";
 
@@ -171,6 +189,11 @@ public static class HoldingsCards
         }
 
         var rows = holdings.Held.Select(amount => Row(amount, Usable(rates, amount.Asset, rate))).ToList();
+        if (holdings.Pending is { } pending)
+        {
+            rows = WithPending(rows, pending, Usable(rates, pending.Asset, rate));
+        }
+
         var shown = holdings.Held.Select(amount => Usable(rates, amount.Asset, rate)).OfType<Price>().FirstOrDefault();
         var (rateText, rateTip) = RateLine(rate, shown, now, zone);
         var (height, heightTip) = HeightLine(holdings, now, zone);
@@ -180,20 +203,53 @@ public static class HoldingsCards
             holdings.Problem);
     }
 
+    /// <summary>
+    /// Puts what waits in the mempool on its asset's row, as a small clock (finding M2); when nothing of the asset is
+    /// confirmed yet, the row stands with a zero amount, so that the clock has a place.
+    /// </summary>
+    /// <param name="rows">The rows.</param>
+    /// <param name="pending">What waits, in and out together.</param>
+    /// <param name="price">The asset's rate, or <see langword="null"/>.</param>
+    /// <returns>The rows.</returns>
+    private static List<HoldingsRow> WithPending(List<HoldingsRow> rows, AssetAmount pending, Price? price)
+    {
+        var sign = pending.Units.Sign > 0 ? "+" : "−";
+        var magnitude = new AssetAmount(pending.Asset, System.Numerics.BigInteger.Abs(pending.Units));
+        var text = $"{PendingPrefix}{sign}{AmountText.WithUnit(magnitude)}. Räknas in när den är bekräftad.";
+        var index = rows.FindIndex(row => row.Name == NameOf(pending.Asset));
+        if (index < 0)
+        {
+            rows.Add(Row(AssetAmount.Zero(pending.Asset), price) with { Pending = text });
+            return rows;
+        }
+
+        rows[index] = rows[index] with { Pending = text };
+        return rows;
+    }
+
+    /// <summary>Gives the name a row has for an asset.</summary>
+    /// <param name="asset">The asset.</param>
+    /// <returns>The chain's coin's name, or the token's symbol.</returns>
+    private static string NameOf(Asset asset) => asset.Kind == AssetKind.Native ? NativeName(asset) : asset.Symbol;
+
     /// <summary>Gives the rate of an asset that the card may use, or none.</summary>
     /// <param name="rates">The rates.</param>
     /// <param name="asset">The asset.</param>
     /// <param name="rate">Where they come from; none while fetching or when there are none.</param>
     /// <returns>The price, or <see langword="null"/>.</returns>
     private static Price? Usable(IReadOnlyDictionary<Asset, Price> rates, Asset asset, CardRateKind rate) =>
-        rate is CardRateKind.Today or CardRateKind.FromCase ? rates.GetValueOrDefault(asset) : null;
+        rate is CardRateKind.Today or CardRateKind.FromCase or CardRateKind.NoNewRate
+            ? rates.GetValueOrDefault(asset)
+            : null;
 
     /// <summary>Gives where the rate comes from: none when no row could be valued.</summary>
     /// <param name="rate">Where the rates come from.</param>
     /// <param name="shown">The rate the foot names.</param>
     /// <returns>The kind.</returns>
     private static CardRateKind RateOf(CardRateKind rate, Price? shown) =>
-        rate is CardRateKind.Today or CardRateKind.FromCase && shown is null ? CardRateKind.None : rate;
+        rate is CardRateKind.Today or CardRateKind.FromCase or CardRateKind.NoNewRate && shown is null
+            ? CardRateKind.None
+            : rate;
 
     /// <summary>Makes one asset's row.</summary>
     /// <param name="amount">What is left.</param>
@@ -215,7 +271,7 @@ public static class HoldingsCards
         }
 
         return new HoldingsRow(
-            glyph, asset.Kind == AssetKind.Native ? NativeName(asset) : asset.Symbol, Ink(asset),
+            glyph, NameOf(asset), Ink(asset),
             number[..^cut], number[^cut..], AmountText.Number(amount) + " " + glyph, value, valueTip,
             KnownTokens.IssuerOf(asset) is not null && !amount.IsZero);
     }
@@ -261,7 +317,9 @@ public static class HoldingsCards
 
         if (shown is null)
         {
-            return (NoRateText, "Ingen ny kurs kan hämtas, och ärendet har ingen kurs sparad.");
+            return rate == CardRateKind.FromCase
+                ? (NoRateText, "Offline: ingen ny kurs kan hämtas, och ärendet har ingen kurs sparad.")
+                : (NoRateOnlineText, "Ingen kurs kunde hämtas genom utgången, och ärendet har ingen kurs sparad.");
         }
 
         var source = shown.CryptoRate.SourceName ?? shown.CryptoRate.Origin.Source;
@@ -269,12 +327,15 @@ public static class HoldingsCards
         var full = Full(period, zone);
         if (rate == CardRateKind.Today)
         {
-            var when = Today(period, now, zone);
-            return ($"{source} · {when}", $"Dagens kurs, hämtad genom utgången: {source}, perioden slutar {full}.");
+            var today = Today(period, now, zone);
+            return ($"{source} · {today}", $"Dagens kurs, hämtad genom utgången: {source}, perioden slutar {full}.");
         }
 
-        return ($"Offline · kurs {BlockMarks.ShortTime(period, now, zone)}",
-            $"Ingen ny kurs kan hämtas. Den senaste kursen i ärendet: {source}, perioden slutar {full}.");
+        var when = BlockMarks.ShortTime(period, now, zone);
+        var latest = $"Den senaste kursen i ärendet: {source}, perioden slutar {full}.";
+        return rate == CardRateKind.NoNewRate
+            ? ($"Ingen ny kurs · kurs {when}", "Ingen ny kurs kunde hämtas genom utgången. " + latest)
+            : ($"Offline · kurs {when}", "Offline: ingen ny kurs kan hämtas. " + latest);
     }
 
     /// <summary>Writes the block the balance was read at, and how old it is.</summary>
@@ -292,7 +353,10 @@ public static class HoldingsCards
         }
 
         var height = BlockMarks.Height(tip.Height);
-        return (height, $"Saldot vid höjd {height}, det senaste hämtade blocket (hämtat {fetched}).{outdated}");
+        var status = holdings.MayBeOutdated ? "läst ur ärendet" : "hämtat nu";
+        return (height,
+            $"Saldot vid höjd {height}, block {BlockMarks.ShortHash(tip.Hash)}, det senaste kända blocket ({status}, "
+            + $"saldot hämtat {fetched}).{outdated}");
     }
 
     /// <summary>Writes an amount of money as the card does, for example <c>5 922 540 kr</c>.</summary>

@@ -21,6 +21,12 @@ public sealed record NodeHoldings(
 {
     /// <summary>Gets whether the balance could be had at all.</summary>
     public bool HasBalance => FetchedAt is not null;
+
+    /// <summary>
+    /// Gets what waits in the mempool, in and out together (negative when more goes out), or <see langword="null"/>
+    /// when nothing does or the source cannot say; it is not in <see cref="Held"/> until it is confirmed.
+    /// </summary>
+    public AssetAmount? Pending { get; init; }
 }
 
 /// <summary>What the graph reads of the chains themselves from the case, without asking (sketches GR9a and TL2a).</summary>
@@ -174,6 +180,7 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
         }
 
         var left = Satoshi.Zero;
+        var pending = AssetAmount.Zero(Asset.Bitcoin);
         DateTimeOffset? fetched = null;
         var outdated = false;
         string? problem = addresses.Count > MostAddresses
@@ -188,6 +195,7 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
             }
 
             left += summary.Confirmed.Funded - summary.Confirmed.Spent;
+            pending += summary.Mempool.Funded.ToAmount() - summary.Mempool.Spent.ToAmount();
             outdated |= lookup.Status == LookupStatus.FromCaseMayBeOutdated;
             var at = lookup.Origins.Count > 0 ? lookup.Origins[^1].ReceivedLocal : (DateTimeOffset?)null;
             fetched = Older(fetched, at);
@@ -195,7 +203,10 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
 
         var tip = await bitcoin.GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
         AssetAmount[] held = left.Value > 0 ? [AssetAmount.Of(left)] : [];
-        return new NodeHoldings(held, tip.Value, fetched, outdated, problem);
+        return new NodeHoldings(held, tip.Value, fetched, outdated, problem)
+        {
+            Pending = pending.IsZero ? null : pending,
+        };
     }
 
     /// <summary>

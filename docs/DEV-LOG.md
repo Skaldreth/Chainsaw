@@ -3369,3 +3369,26 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
   linjerna och aktörerna efter sig. Valvyns fönster har inte ±6 h, så det finns bara i listens steg. Rutan över
   *Väntar på källan* är verktygstipset, inte en egen panel.
 - **Återstår:** se `docs/TODO.md` under *Grafen: kortet, markeringarna och listen*.
+
+## Granskningen av IN4a, GR9a och TL2a rättad (2026-11-08)
+
+- **C1, en endpoint som ligger efter:** ett grunt svar hämtas om hos en endpoint i fas med kedjan när någon är känd
+  (`SourceLookups.FetchAsync(…, preferInStep)`), annars som förut. Ett nyare svar utan block, eller ett *finns inte*,
+  räknas bara när dess endpoint enligt sina egna förseglade svar (kedjans höjd och tx:ernas block) hade kommit minst
+  till blocket ärendet först såg tx:en i (`RawResponseStore.EndpointHeight`); annars hoppas svaret över.
+  Märkets texter är bedömningar: *Källan svarar nu …, troligen …* (princip 2).
+- **I1:** bara en `404` som uppslaget godtog (en betrodd endpoint, eller alla tillfrågade) noteras, i ett nytt register
+  `chains_not_found` bredvid de förseglade svaren. En `404` från en endpoint som inte trodds, följd av ett fel, blir
+  aldrig *Finns inte längre*.
+- **I2:** `chains_bitcoin_seen` har `block_hash`, och kandidaterna jämförs på hash, så att ett byte till ett annat
+  block på samma höjd syns också i en adresslista. `SealedResponseTransaction.BlockHash` följer med när ett svar
+  förseglas om i ett annat ärende. Schemat ändrades i version 1 (före 1.0).
+- **I3:** `GraphChainStateTests` provar den riktiga `GraphChainState` med fakes: klustrets summa och taket på tio
+  adresser, en adress som fallerar, den äldsta tiden, reserven från timme till dygn, Ethereums kända tokens och att
+  markeringarna läses bara ur ärendet. `BlockChangeTests` visar att läsningen inte skickar något, och `ChainStateTests`
+  att timglaset står under en expansion.
+- **M1–M7:** höjdens verktygstips säger blockets hash och om saldot hämtades nu eller lästes ur ärendet; det som väntar i
+  mempool står som en liten klocka på tillgångens rad; foten säger *Ingen ny kurs* när utgången är ansluten men ingen
+  kurs kom; läsningen av markeringarna har ett löpnummer, och ett äldre svar släpps; varje vändning har ett id, så att
+  ett svar till en tidigare vändning släpps; en paus som slutar senare än den förra börjar ringen om; rutan visar
+  endpointen och hashen med sex tecken först och åtta sist, och är 340 px bred.

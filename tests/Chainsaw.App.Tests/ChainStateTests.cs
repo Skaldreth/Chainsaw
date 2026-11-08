@@ -33,6 +33,8 @@ public sealed class ChainStateTests
 
     private readonly TestExitConnection _exit = new();
 
+    private readonly TestGraphSource _source = new();
+
     // ===== The card's back (IN4a) =====
 
     [Fact]
@@ -169,7 +171,7 @@ public sealed class ChainStateTests
         Assert.Equal("Icon.BlockMoved", mark.Icon);
         Assert.False(mark.IsGone);
         Assert.Equal("921 340", mark.Rows[0].Height);
-        Assert.Equal("0000…3fa1", mark.Rows[0].Hash);
+        Assert.Equal("000011…11113fa1", mark.Rows[0].Hash);
         Assert.True(mark.Rows[0].IsBefore);
         Assert.Equal("921 341", mark.Rows[1].Height);
         Assert.Equal("sett 13:51", mark.Rows[0].When);
@@ -246,7 +248,101 @@ public sealed class ChainStateTests
         Assert.False(graph.HasWait);
     }
 
-    // ===== The strip's lens (TL2a) =====
+    [Fact]
+    public async Task The_node_under_expansion_gets_the_hourglass_while_its_sources_wait()
+    {
+        var graph = await Open();
+        _source.ExpandGate = new TaskCompletionSource();
+        _sources.View = View((Now.AddSeconds(30), false));
+        _sources.Raise();
+        graph.Choose(UKey, null);
+
+        var expansion = graph.ExpandAsync();
+
+        Assert.True(graph.IsExpanding);
+        Assert.True(graph.IsWaitingNode(UKey));
+        Assert.False(graph.IsWaitingNode(VKey));
+        _source.ExpandGate.SetResult();
+        await expansion;
+        Assert.False(graph.IsWaitingNode(UKey));
+    }
+
+    [Fact]
+    public async Task A_new_pause_that_ends_later_starts_the_ring_full_again()
+    {
+        var graph = await Open();
+        _sources.View = View((Now.AddSeconds(30), false));
+        _sources.Raise();
+        _clock.UtcNow = Now.AddSeconds(20);
+        _sources.View = View((Now.AddSeconds(60), false));
+        _sources.Raise();
+
+        Assert.Equal(1, graph.WaitLeftShare, 3);
+    }
+
+    [Fact]
+    public async Task Online_without_a_new_rate_the_card_says_so_and_not_offline()
+    {
+        var graph = await Open(live: true);
+        _state.Holdings = new NodeHoldings([Btc(1m)], null, Now, false, null);
+
+        graph.ToggleTurn(VKey);
+
+        var card = graph.Cards[VKey];
+        Assert.Equal(CardRateKind.None, card.Rate);
+        Assert.Equal(HoldingsCards.NoRateOnlineText, card.RateText);
+    }
+
+    [Fact]
+    public async Task An_answer_for_an_earlier_turn_of_the_same_card_is_dropped()
+    {
+        var graph = await Open();
+        var first = new TaskCompletionSource<NodeHoldings>();
+        _state.Pending = first;
+        graph.ToggleTurn(VKey);
+        graph.ToggleTurn(VKey);
+        _state.Pending = null;
+        _state.Holdings = new NodeHoldings([Btc(2m)], null, Now, true, null);
+        graph.ToggleTurn(VKey);
+
+        first.SetResult(new NodeHoldings([Btc(9m)], null, Now, true, null));
+        await Task.Yield();
+
+        Assert.Equal("2,0000", graph.Cards[VKey].Rows[0].Head);
+    }
+
+    [Fact]
+    public async Task An_older_reading_of_the_marks_is_dropped()
+    {
+        var gate = new TaskCompletionSource<ChainMarksReading>();
+        _state.MarksGate = gate;
+        var graph = await Open();
+        _state.MarksGate = null;
+        _state.Marks = new ChainMarksReading([], new ChainTip(5, "00", Now));
+        await graph.ReloadAsync(fit: false);
+
+        gate.SetResult(new ChainMarksReading([Moved(Tx[2])], new ChainTip(1, "00", Now)));
+        await Task.Yield();
+
+        Assert.Equal(5, graph.Timeline.NewestBlock!.Height);
+        Assert.Empty(graph.BlockMarksByLine);
+    }
+
+    [Fact]
+    public void Pending_money_stands_as_a_clock_on_its_row()
+    {
+        var holdings = new NodeHoldings([], null, Now, false, null)
+        {
+            Pending = Btc(0.01m),
+        };
+
+        var card = HoldingsCards.Build("n", holdings, new Dictionary<Asset, Price>(), CardRateKind.FromCase, null, Now, Utc);
+
+        var row = Assert.Single(card.Rows);
+        Assert.StartsWith(HoldingsCards.PendingPrefix + "+0,0100 BTC", row.Pending, StringComparison.Ordinal);
+    }
+
+    // ===== The strip's lens (TL2a) =====    // ===== The strip's lens (TL2a) =====
 
     [Fact]
     public void The_lens_gives_its_window_more_than_half_the_strip_and_squeezes_the_rest()
@@ -312,7 +408,7 @@ public sealed class ChainStateTests
             route.Choose(ExitRoute.Windows);
         }
 
-        var source = new TestGraphSource();
+        var source = _source;
         var workflow = new CaseWorkflow(
             new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), _session);
         var graph = new GraphViewModel(
@@ -384,8 +480,12 @@ public sealed class ChainStateTests
 
         public int RateCalls { get; private set; }
 
+        public TaskCompletionSource<NodeHoldings>? Pending { get; set; }
+
+        public TaskCompletionSource<ChainMarksReading>? MarksGate { get; set; }
+
         public Task<NodeHoldings> HoldingsAsync(ICase @case, GraphNode node, CancellationToken cancellationToken) =>
-            Task.FromResult(Holdings);
+            Pending?.Task ?? Task.FromResult(Holdings);
 
         public Task<IReadOnlyDictionary<Asset, Price>> TodayRatesAsync(
             ICase @case, IReadOnlyCollection<Asset> assets, DateTimeOffset now, CancellationToken cancellationToken)
@@ -395,7 +495,7 @@ public sealed class ChainStateTests
         }
 
         public Task<ChainMarksReading> ReadMarksAsync(ICase @case, CancellationToken cancellationToken) =>
-            Task.FromResult(Marks);
+            MarksGate?.Task ?? Task.FromResult(Marks);
     }
 
     /// <summary>Bitcoin's sources as the test sets them.</summary>

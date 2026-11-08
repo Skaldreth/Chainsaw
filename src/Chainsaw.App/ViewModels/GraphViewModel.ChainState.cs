@@ -26,8 +26,20 @@ public sealed partial class GraphViewModel
     /// <summary>The turned cards, by node, in the order they were turned.</summary>
     private readonly Dictionary<string, HoldingsCard> _cards = new(StringComparer.Ordinal);
 
-    /// <summary>When each chain's wait was first seen, for the ring that drains.</summary>
-    private readonly Dictionary<Chain, DateTimeOffset> _waitSince = [];
+    /// <summary>
+    /// When each chain's wait was first seen and until when it was then, for the ring that drains; a pause that ends
+    /// later than the one seen is a new wait, and its ring starts full again.
+    /// </summary>
+    private readonly Dictionary<Chain, (DateTimeOffset Since, DateTimeOffset Until)> _waitSince = [];
+
+    /// <summary>Each turned card's turn, so that an answer to an earlier turn of the same node is dropped.</summary>
+    private readonly Dictionary<string, int> _turnIds = new(StringComparer.Ordinal);
+
+    /// <summary>The turns made so far, which number them.</summary>
+    private int _turns;
+
+    /// <summary>Counts the readings of the marks, so that an answer to an older one is dropped.</summary>
+    private int _marksVersion;
 
     /// <summary>The block changes the case has, as last read.</summary>
     private IReadOnlyList<BlockChange> _changes = [];
@@ -102,8 +114,9 @@ public sealed partial class GraphViewModel
         }
 
         _cards[nodeKey] = HoldingsCards.Fetching(nodeKey);
+        _turnIds[nodeKey] = ++_turns;
         Redraw?.Invoke(this, EventArgs.Empty);
-        _ = FillCardAsync(node);
+        _ = FillCardAsync(node, _turns);
     }
 
     /// <summary>Opens or closes a block mark's box (a click on the mark).</summary>
@@ -185,6 +198,8 @@ public sealed partial class GraphViewModel
     private void ForgetChainState()
     {
         _cards.Clear();
+        _turnIds.Clear();
+        _marksVersion++;
         _changes = [];
         BlockMarksByLine = new Dictionary<string, BlockMark>();
         OpenBlockMark = null;
@@ -216,6 +231,7 @@ public sealed partial class GraphViewModel
             return;
         }
 
+        var version = ++_marksVersion;
         ChainMarksReading reading;
         try
         {
@@ -227,7 +243,8 @@ public sealed partial class GraphViewModel
             return;
         }
 
-        if (_session.Current != openCase)
+        // A newer reading, or another case, came meanwhile: this answer is dropped.
+        if (version != _marksVersion || _session.Current != openCase)
         {
             return;
         }
@@ -243,13 +260,14 @@ public sealed partial class GraphViewModel
     /// or offline the case's newest rate with its date.
     /// </summary>
     /// <param name="node">The node.</param>
+    /// <param name="turn">The turn it is filled for.</param>
     /// <returns>A task that completes when the card is filled.</returns>
-    private async Task FillCardAsync(NodeView node)
+    private async Task FillCardAsync(NodeView node, int turn)
     {
         var key = node.Key;
         if (_chainState is not { } state || _session.Current is not { } openCase)
         {
-            Fill(key, HoldingsCards.Build(key, Unwired, Rates(), CardRateKind.None, null, _clock.UtcNow, Zone));
+            Fill(key, turn, HoldingsCards.Build(key, Unwired, Rates(), CardRateKind.None, null, _clock.UtcNow, Zone));
             return;
         }
 
@@ -258,7 +276,7 @@ public sealed partial class GraphViewModel
             var holdings = await state.HoldingsAsync(openCase, node.Node, _work.Token);
             var since = EmptySince(key);
             var fromCase = IsOffline ? CardRateKind.FromCase : CardRateKind.Fetching;
-            if (!Fill(key, HoldingsCards.Build(key, holdings, Rates(), fromCase, since, _clock.UtcNow, Zone))
+            if (!Fill(key, turn, HoldingsCards.Build(key, holdings, Rates(), fromCase, since, _clock.UtcNow, Zone))
                 || IsOffline || holdings.Held.Count == 0)
             {
                 return;
@@ -266,13 +284,13 @@ public sealed partial class GraphViewModel
 
             var assets = holdings.Held.Select(amount => amount.Asset).ToList();
             var today = await state.TodayRatesAsync(openCase, assets, _clock.UtcNow, _work.Token);
-            var (rates, kind) = today.Count > 0 ? (today, CardRateKind.Today) : (Rates(), CardRateKind.FromCase);
-            Fill(key, HoldingsCards.Build(key, holdings, rates, kind, since, _clock.UtcNow, Zone));
+            var (rates, kind) = today.Count > 0 ? (today, CardRateKind.Today) : (Rates(), CardRateKind.NoNewRate);
+            Fill(key, turn, HoldingsCards.Build(key, holdings, rates, kind, since, _clock.UtcNow, Zone));
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             var failed = new NodeHoldings([], null, null, false, CardFailedText);
-            Fill(key, HoldingsCards.Build(key, failed, Rates(), CardRateKind.None, null, _clock.UtcNow, Zone));
+            Fill(key, turn, HoldingsCards.Build(key, failed, Rates(), CardRateKind.None, null, _clock.UtcNow, Zone));
         }
     }
 
@@ -282,13 +300,14 @@ public sealed partial class GraphViewModel
     /// <summary>What a card says when the graph has no way to the chains.</summary>
     private static readonly NodeHoldings Unwired = new([], null, null, false, CardFailedText);
 
-    /// <summary>Puts a card's new back in place, when the card still stands turned.</summary>
+    /// <summary>Puts a card's new back in place, when the card still stands turned in the same turn.</summary>
     /// <param name="key">The node.</param>
+    /// <param name="turn">The turn the back is for.</param>
     /// <param name="card">The back.</param>
-    /// <returns><see langword="true"/> when it still stood turned.</returns>
-    private bool Fill(string key, HoldingsCard card)
+    /// <returns><see langword="true"/> when it still stood turned in that turn.</returns>
+    private bool Fill(string key, int turn, HoldingsCard card)
     {
-        if (!_cards.ContainsKey(key))
+        if (!_cards.ContainsKey(key) || _turnIds.GetValueOrDefault(key) != turn)
         {
             return false;
         }
@@ -326,19 +345,38 @@ public sealed partial class GraphViewModel
         SourceWait? shown = null;
         foreach (var chain in sources.Chains)
         {
-            var wait = SourceWait.Read(sources.Get(chain), now, _waitSince.TryGetValue(chain, out var since) ? since : null);
+            var wait = SourceWait.Read(sources.Get(chain), now, SinceOf(chain, sources.Get(chain), now));
             if (wait is null)
             {
                 _waitSince.Remove(chain);
                 continue;
             }
 
-            _waitSince.TryAdd(chain, wait.Since);
+            _waitSince[chain] = (wait.Since, wait.Until);
             shown ??= wait;
         }
 
         Wait = shown;
         Redraw?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Gives when a chain's wait began: when it was first seen, unless the pause now ends later than the one seen then,
+    /// which is a new wait whose ring starts full (finding M6).
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="view">Its sources now.</param>
+    /// <param name="now">The time now.</param>
+    /// <returns>The start, or <see langword="null"/> for now.</returns>
+    private DateTimeOffset? SinceOf(Chain chain, ChainSourcesView view, DateTimeOffset now)
+    {
+        if (!_waitSince.TryGetValue(chain, out var seen))
+        {
+            return null;
+        }
+
+        var ends = view.Endpoints.Select(endpoint => endpoint.WaitUntil).Where(until => until > now).Min();
+        return ends is { } until && until > seen.Until ? null : seen.Since;
     }
 
     /// <summary>

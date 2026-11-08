@@ -1241,6 +1241,8 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Öppna det som hölls tillbaka (+N tx), välj ±48 h och stäng: tidslisten blir en lins där fönstret tar drygt
       halva listen med dygn och timmar, de utelämnade tx:erna som korta grå streck och ankomsten som en streckad
       accentlinje. Brickan *Valvyn · ±48 h* över linsen byter till ±7 d, ±6 h och sedan hela ärendet.
+- [ ] En adress med en obekräftad tx: tillgångens rad har en liten gul klocka; hovra raden för det som väntar i mempool.
+- [ ] Med utgången ansluten men kurskällan nere: foten säger *Ingen ny kurs · kurs …*, inte *Offline*.
 - [ ] Listen slutar prickad vid senaste blocket, en kub med höjden under; hovra kuben för höjden och tiden.
 - [ ] Zooma in i grafen tills ett dygn är brett: prickade timlinjer vid 06, 12 och 18 med timmen överst.
 

@@ -100,14 +100,17 @@ internal sealed class ResponseTransfer : IResponseTransfer
             ? null
             : new SealedResponseIndex(
                 index.TipHeight,
-                [.. index.Transactions.Select(each => new SealedResponseTransaction(each.Txid.Value, each.Height))]);
+                [.. index.Transactions.Select(each => new SealedResponseTransaction(each.Txid.Value, each.Height)
+                {
+                    BlockHash = each.Hash,
+                })]);
     }
 
     /// <inheritdoc/>
     public ResponseOrigin Seal(ICaseTransaction transaction, SealedResponse response, SealedResponseIndex index)
     {
         ArgumentNullException.ThrowIfNull(index);
-        var transactions = new List<(Txid Txid, long? Height)>();
+        var transactions = new List<(Txid Txid, long? Height, string? Hash)>();
         foreach (var each in index.Transactions)
         {
             if (!Txid.TryParse(each.Txid, out var txid))
@@ -115,7 +118,7 @@ internal sealed class ResponseTransfer : IResponseTransfer
                 throw new ArgumentException("A transaction in the index is not a transaction id.", nameof(index));
             }
 
-            transactions.Add((txid, each.BlockHeight));
+            transactions.Add((txid, each.BlockHeight, each.BlockHash));
         }
 
         var origin = Seal(transaction, response);
