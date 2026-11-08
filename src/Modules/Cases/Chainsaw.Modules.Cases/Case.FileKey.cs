@@ -167,10 +167,9 @@ internal sealed partial class Case
     /// <returns>The envelopes, in file order.</returns>
     private IReadOnlyList<CaseEnvelope> DescribeUnlocked()
     {
-        var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        var wrappingKey = _services.DeriveVaultKey(CaseCrypto.EnvelopePurpose);
         try
         {
-            DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
             return EnvelopeDescriptions.Describe(_header, wrappingKey, _fileKey, _services.Options);
         }
         finally
@@ -190,11 +189,10 @@ internal sealed partial class Case
     private CaseHeader NewHeader(byte[] newKey, ReadOnlySpan<char> sharingPassword)
     {
         var envelopes = new List<JsonObject>();
-        var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        var wrappingKey = _services.DeriveVaultKey(CaseCrypto.EnvelopePurpose);
         try
         {
-            DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
-            envelopes.Add(KeyEnvelopes.CreateOperator(Info.Id, newKey, wrappingKey, CurrentOperator().Name));
+            envelopes.Add(KeyEnvelopes.CreateOperator(Info.Id, newKey, wrappingKey, _services.CurrentOperator().Name));
         }
         finally
         {
