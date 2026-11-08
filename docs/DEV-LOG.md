@@ -2924,3 +2924,27 @@ Byggd som en etapp, eftersom den skriver i ärendet.
 - Tester: `TidyLayoutTests` (7) och `GraphTidyTests` (10) i App.Tests, två i Tracing.Tests (`StateTests`).
 - Återstår: korsningar minimeras bara med barycentermetoden; linjer mellan kolumner som inte är grannar kan fortfarande
   korsa. Ingen animering mellan platserna.
+
+## Välja flera med en ruta (2026-11-08)
+
+- **Byggt efter användarens beskrivning av ett standardmönster, utan skiss** (*finns dra för att markera flera? som
+  på skrivbordet på windows*). Formen följer Windows: en tunn ram på 1 px och en svag fyllning, här i accenten
+  (`Brush.Accent`, ram 80 %, fyllning 10 %), eftersom accenten är det valda. Rött används inte.
+- `Graph/BoxSelection` (utan WPF): rutan mellan två hörn åt vilket håll som helst, regeln *rör ramen* (kanten räknas),
+  lägena Ersätt (ingen tangent), Lägg till (Shift) och Vänd (Ctrl, går före Shift), och farten vid kanten. En rörelse
+  som rör samma aktörer som den förra ändrar inget och allokerar inget.
+- Valet är **samma** som Ctrl+klick (`ChecksViewModel.Picked`), så Delete och Z fungerar direkt. Det bärs nu av
+  `Graph/GraphSelection`, en ordnad mängd, så att ytan frågar `IsPicked` utan kostnad för varje nod den ritar (förut
+  `List.Contains` per nod och bild). Namnet `Picked` står kvar för att hålla ändringen liten.
+- **Eget beslut:** ett vanligt klick (utan Ctrl) släpper valet, också på en nod, som i Utforskaren. Förut låg
+  Ctrl+klickens val kvar tills Esc.
+- **Flytta flera:** en vald aktör som dras tar med de andra valda (`GraphViewModel.Selection.cs`), och platserna sparas
+  i **en** skrivning (`SavePositionsAsync`). Knutna kommentarer följer med på den fria ytan, som vid sorteringen (en
+  ensam nod som dras tar inte med sin kommentar; bara tråden följer, som förut). Släpps gruppen på soptunnan läggs
+  den tillbaka och hela valet slängs.
+- Rutan rullar ytan vid kanten (28 px, upp till 900 px/s), också när animeringar är avstängda, eftersom det är en
+  funktion och inte en effekt.
+- Träffprovet går mot alla placerade noder med en ren rektangeltest, inte bara de synliga, så att rutan också når det
+  som rullat in under kantrullningen; kostnaden är densamma som `VisibleNodes`, som också går igenom alla.
+- Tester: `BoxSelectionTests` (13) i App.Tests. Tracing är orört.
+- Återstår: Shift+klick på en nod väljer inget intervall (det finns ingen ordning att välja intervall i).

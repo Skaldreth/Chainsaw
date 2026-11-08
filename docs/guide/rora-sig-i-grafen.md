@@ -9,6 +9,9 @@
   saktar in, som när man skjuter ett papper över ett bord.
 - **Ett högerklick utan rörelse** öppnar nodens meny.
 - **Vänsterknappen** väljer och drar noder. Ctrl+klick väljer flera.
+- **Dra en ruta** med vänsterknappen från tom yta för att välja flera, som på skrivbordet i Windows: allt som rutan
+  rör blir valt medan du drar. Shift lägger till, Ctrl vänder (valda blir ovalda), och Esc avbryter. Drar du en av de
+  valda följer alla med, och Delete slänger dem. Ett klick på tom yta släpper valet.
 - **Mushjulet**, **+** och **−** zoomar.
 - **F** passar in hela grafen i fönstret.
 - **Esc** stänger det som är öppet, i ordning: ett formulär, en vald tid på tidslinjen, och till sist valet.

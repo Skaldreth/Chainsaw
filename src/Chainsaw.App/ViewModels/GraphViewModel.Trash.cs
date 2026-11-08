@@ -285,7 +285,7 @@ public sealed partial class GraphViewModel
         }
     }
 
-    /// <summary>Ends a drag at the bin: a release on it asks to throw the node.</summary>
+    /// <summary>Ends a drag at the bin: a release on it asks to throw the node, or the whole picked group dragged.</summary>
     /// <param name="nodeKey">The dragged node.</param>
     /// <returns><see langword="true"/> when the release was on the bin, so that the node is not moved.</returns>
     public bool DropOnBin(string nodeKey)
@@ -293,6 +293,12 @@ public sealed partial class GraphViewModel
         if (!Bin.EndDrag())
         {
             return false;
+        }
+
+        if (TakeGroup() is { } group)
+        {
+            ThrowGroup(group.Actors, group.Notes);
+            return true;
         }
 
         _moved.Remove((nodeKey, Layout));

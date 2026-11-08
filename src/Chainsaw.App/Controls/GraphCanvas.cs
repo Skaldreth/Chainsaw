@@ -16,8 +16,9 @@ namespace Chainsaw.App.Controls;
 /// viewport; what is chosen, moved and shown is the view model's.
 /// </summary>
 /// <remarks>
-/// The pointer: a click chooses a node or a line (or nothing), a node is dragged to move it, the empty surface is
-/// dragged to pan, and the wheel zooms around the pointer. The keys: Esc chooses nothing, E expands, F fits the graph
+/// The pointer: a click chooses a node or a line (or nothing), a node is dragged to move it (with the other picked
+/// nodes when it is picked), the empty surface is dragged to draw a box that picks several, the right and the middle
+/// button pan, and the wheel zooms around the pointer. The keys: Esc chooses nothing, E expands, F fits the graph
 /// to the screen, + and − zoom.
 /// </remarks>
 public sealed partial class GraphCanvas : FrameworkElement
@@ -244,6 +245,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawFan(drawingContext, visible);
         drawingContext.Pop();
         DrawTimeNames(drawingContext);
+        DrawBox(drawingContext);
         DrawHeldBack(drawingContext);
         KeepRings(_ringsOnScreen && _blast == BlastPhase.None);
     }
@@ -271,6 +273,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var node = _model?.HitTest(surface, Tolerance).Node;
         var place = node is not null && _model!.Places.TryGetValue(node, out var found) ? found : default;
+        PrepareBox(at, node);
         _gesture.Press(at, node, place, new GraphPoint(surface.X - place.X, surface.Y - place.Y));
         CaptureMouse();
         e.Handled = true;
@@ -305,8 +308,14 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
-        // The left button only drags nodes; the right and the middle button pan (GraphCanvas.Pan.cs).
+        // The left button drags nodes or draws a box on the empty surface (GraphCanvas.Box.cs); the right and the
+        // middle button pan (GraphCanvas.Pan.cs).
         _gesture.Move(at);
+        if (MoveBox(at))
+        {
+            return;
+        }
+
         if (_gesture.IsDragging && _gesture.Node is { } node)
         {
             var wanted = new GraphPoint(surface.X - _gesture.Grip.X, surface.Y - _gesture.Grip.Y);
@@ -333,6 +342,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         var (end, node) = _gesture.End();
+        EndBox();
         ReleaseMouseCapture();
         Finish(end, node, ToGraph(e.GetPosition(this)));
         e.Handled = true;
@@ -347,6 +357,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         _threadNote = null;
         _viewPressed = false;
         _lasso = null;
+        EndBox();
         if (_panButton is not null)
         {
             StopPan();
@@ -396,6 +407,12 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnKeyDown(e);
+        if (e.Key == Key.Escape && CancelBox())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (CommentKey(e))
         {
             return;
@@ -551,6 +568,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
         else if (end == GestureEnd.Click)
         {
+            // A click without a key forgets the pick, as on the Windows desktop; the box and Ctrl+click make it.
+            _model.Checks.ClearPicked();
             _model.Checks.ChooseArea(null);
             _model.ChooseAt(_viewport.ToSurface(at), Tolerance);
         }
@@ -900,7 +919,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         dc.DrawRoundedRectangle(
             GraphPalette.Find(this, chosen ? "Brush.SurfaceRaised" : "Brush.Surface"),
-            FramePen(node, chosen || model.Checks.Picked.Contains(node.Key)),
+            FramePen(node, chosen || model.Checks.IsPicked(node.Key)),
             frame,
             NodeRadius,
             NodeRadius);

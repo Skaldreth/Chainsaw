@@ -454,7 +454,6 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   startpunkt eller en kant i spåret. Ska en godkänd kandidat kunna bli en ny startpunkt (med beloppet), och hur visas det?
 - **Godkänna en plånbok:** plånböckernas områden (`wallet-proposals v1`) är bara kontroller, eftersom en sammanslagning
   av användaren inte finns i Clustering (se *Godkänna ett förslag och ångra en uppbrytning* ovan).
-- **Lasso** för att välja aktörer till en egen yta (KF1b): bara Ctrl+klick är byggt.
 - **Formuläret för en egen yta** står under grafens hörn, inte vid de valda aktörerna som i skissen.
 - **Delarna tillsammans** (byggt 2026-11-08 som `mixer-parts v1`). Återstår: fler än fyra delar och fler än de 20
   första utbetalningarna prövas inte; samma utbetalning kan stå både som hel utgång i `mixer-outputs` och, för en

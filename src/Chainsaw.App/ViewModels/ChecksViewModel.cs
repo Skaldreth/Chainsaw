@@ -164,8 +164,8 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// </summary>
     private readonly HashSet<AreaSort> _shown = [];
 
-    /// <summary>The actors chosen with Ctrl+click, for an own area.</summary>
-    private readonly List<string> _picked = [];
+    /// <summary>The actors picked with Ctrl+click or a box, for an own area and for Delete.</summary>
+    private readonly GraphSelection _picked = new();
 
     /// <summary>The graph the checks were run on, or <see langword="null"/>.</summary>
     private GraphScene? _scene;
@@ -355,7 +355,10 @@ public sealed partial class ChecksViewModel : ObservableObject
     public IReadOnlySet<string>? Focus =>
         IsOpen && IsReview && Selected is { } row ? row.Nodes.ToHashSet(StringComparer.Ordinal) : null;
 
-    /// <summary>Gets the actors chosen with Ctrl+click, for an own area.</summary>
+    /// <summary>
+    /// Gets the actors picked with Ctrl+click or with a box on the empty surface: an own area is drawn around them (Z)
+    /// and Delete throws them.
+    /// </summary>
     public IReadOnlyList<string> Picked => _picked;
 
     /// <summary>Gets the area whose chip was clicked, whose name and tools are shown; null when none.</summary>
@@ -654,12 +657,23 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <param name="node">The actor's key.</param>
     public void TogglePick(string node)
     {
-        if (!_picked.Remove(node))
-        {
-            _picked.Add(node);
-        }
-
+        _picked.Toggle(node);
         RaiseChanged();
+    }
+
+    /// <summary>Says whether an actor is picked, at no cost, for the surface that asks for every node.</summary>
+    /// <param name="node">The actor's key.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public bool IsPicked(string node) => _picked.Contains(node);
+
+    /// <summary>Makes the pick exactly the given actors, as a box drawn on the surface picks them.</summary>
+    /// <param name="nodes">The actors, in their order.</param>
+    public void SetPicked(IReadOnlyList<string> nodes)
+    {
+        if (_picked.SetTo(nodes))
+        {
+            RaiseChanged();
+        }
     }
 
     /// <summary>Forgets the actors chosen for an own area.</summary>
@@ -1276,9 +1290,15 @@ public sealed partial class ChecksViewModel : ObservableObject
     private void Rebuild()
     {
         var selected = Selected?.Key;
-        var picked = _scene is { } scene ? _picked.Where(key => scene.Node(key) is not null).ToList() : [];
-        _picked.Clear();
-        _picked.AddRange(picked);
+        if (_scene is { } scene)
+        {
+            _picked.KeepWhere(key => scene.Node(key) is not null);
+        }
+        else
+        {
+            _picked.Clear();
+        }
+
         ToDecide.Clear();
         Done.Clear();
         Decided.Clear();

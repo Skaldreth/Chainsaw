@@ -40,6 +40,7 @@ Varje knapp i Chainsaw har sitt kortkommando i tipset när du håller pekaren ö
 | F | Passa in hela grafen |
 | + och − | Zooma; mushjulet gör samma sak |
 | Ctrl+klick | Välj flera |
+| Dra en ruta på tom yta | Välj allt rutan rör; med Shift läggs det till, med Ctrl vänds det, Esc avbryter |
 | Höger- eller mittknappen | Panorera |
 | Ctrl+V | Klistra in en startpunkt på den tomma grafen |
 | Esc | Stäng formuläret, lämna en vald tid, stäng inspektören |

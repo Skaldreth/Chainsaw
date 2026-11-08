@@ -1491,3 +1491,22 @@ några steg).
       sorteringen (den hör till soptunnan och förslagen).
 - [ ] Stäng och öppna ärendet: den sorterade (eller ångrade) grafen står kvar. En graf som redan är sorterad: ett klick
       säger *Grafen är redan sorterad.* utan att fråga.
+
+## Välja flera med en ruta (2026-11-08, efter användarens beskrivning)
+- [ ] Tryck vänsterknappen på tom yta i grafen och dra: en tunn ruta i accentfärgen (terrakotta) med svag fyllning
+      följer pekaren, åt vilket håll man än drar. Aktörer som rutan rör får accentramen direkt medan man drar, och
+      släpper ramen när rutan dras tillbaka.
+- [ ] Utan tangent ersätter rutan det som var valt. Med Shift läggs det till. Med Ctrl vänds det: valda blir ovalda,
+      ovalda blir valda, som i Utforskaren.
+- [ ] Esc medan rutan dras: rutan försvinner och valet blir som före rutan; att släppa knappen efteråt gör inget.
+- [ ] Ett klick på tom yta (utan att dra) släpper valet, också det som gjorts med Ctrl+klick. Ett vanligt klick på en
+      nod väljer bara den.
+- [ ] Dra en av de valda aktörerna: alla valda följer med, och kommentarer som är knutna till dem följer med på den
+      fria ytan. I hoppkolumnerna går de bara upp och ner i sina kolumner. Stäng och öppna ärendet: alla står kvar.
+- [ ] Dra en aktör som inte är vald: bara den flyttas.
+- [ ] Delete med flera valda: alla åker i soptunnan (varningen vid soptunnan visar dem om något hänger under). Dra de
+      valda till soptunnan: samma sak, och de står kvar där de var om man avbryter.
+- [ ] Z med flera valda: formuläret för en egen yta räknar dem.
+- [ ] Dra rutan mot grafens kant: ytan rullar och rutan växer vidare utanför det som syntes.
+- [ ] Inget av detta händer i valvyn eller i en utfälld hög; där fungerar ringen och korten som förut. Att dra en
+      kommentar, dess tråd, en hög eller en nod fungerar som förut.

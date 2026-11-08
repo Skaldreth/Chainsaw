@@ -669,7 +669,10 @@ public sealed partial class GraphViewModel : ObservableObject
     public (string? Node, string? Edge) HitTest(GraphPoint point, double tolerance) =>
         Scene is { } scene ? GraphHitTest.At(scene, Places, Curves, point, tolerance) : (null, null);
 
-    /// <summary>Moves a node while it is dragged: anywhere on the free surface, up and down in its column.</summary>
+    /// <summary>
+    /// Moves a node while it is dragged: anywhere on the free surface, up and down in its column. A picked node takes
+    /// the other picked nodes with it (<see cref="MoveGroup"/>).
+    /// </summary>
     /// <param name="nodeKey">The node.</param>
     /// <param name="start">Where it stood when the drag began.</param>
     /// <param name="wanted">Where the pointer wants it.</param>
@@ -680,15 +683,32 @@ public sealed partial class GraphViewModel : ObservableObject
             return;
         }
 
-        _moved[(nodeKey, Layout)] = GraphPlacement.Drag(Layout, start, wanted);
+        var at = GraphPlacement.Drag(Layout, start, wanted);
+        if (_group is not null || MovesGroup(nodeKey))
+        {
+            MoveGroup(nodeKey, start, at);
+        }
+        else
+        {
+            _moved[(nodeKey, Layout)] = at;
+        }
+
         Arrange();
     }
 
-    /// <summary>Stores where a dragged node was left, in the case, off the UI thread.</summary>
+    /// <summary>
+    /// Stores where a dragged node was left, in the case, off the UI thread; a dragged group is stored in one write.
+    /// </summary>
     /// <param name="nodeKey">The node.</param>
     /// <returns>A task that completes when it is stored or could not be.</returns>
     public async Task DropNodeAsync(string nodeKey)
     {
+        if (TakeGroup() is { } group)
+        {
+            await DropGroupAsync(group.Actors.Keys, group.Notes.Keys);
+            return;
+        }
+
         if (_session.Current is not { } openCase || !_moved.TryGetValue((nodeKey, Layout), out var place))
         {
             return;
