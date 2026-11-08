@@ -216,4 +216,40 @@ public interface IClusteringService
     /// <param name="reader">The case's reader or write transaction.</param>
     /// <returns>The merges and their undoing.</returns>
     IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICaseReader reader);
+
+    /// <summary>
+    /// Gives everything the analyses concluded about many transactions at once, reading the case once, so that the
+    /// checks over a large graph do not ask transaction by transaction.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txids">The transactions.</param>
+    /// <returns>The conclusions of each transaction asked for; empty lists when one has not been analysed.</returns>
+    IReadOnlyDictionary<Txid, TransactionConclusions> GetConclusions(
+        ICase @case, IReadOnlyCollection<Txid> txids)
+    {
+        ArgumentNullException.ThrowIfNull(txids);
+        return txids.Distinct().ToDictionary(txid => txid, txid => GetConclusions(@case, txid));
+    }
+
+    /// <summary>
+    /// Draws a version of an analysis back (<see cref="VersionWithdrawal"/>): its conclusions stop counting, without
+    /// being removed, and the highest version of the same analysis that is not drawn back counts instead. Sealed with
+    /// a line in the journal; drawing back a version already drawn back gives the earlier record.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="heuristic">The analysis and version.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>The withdrawal.</returns>
+    /// <exception cref="ArgumentException">
+    /// It names the user's own merges, which are undone one by one instead, or the reason is too long.
+    /// </exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    VersionWithdrawal Withdraw(ICase @case, HeuristicId heuristic, string? reason);
+
+    /// <summary>Reads the versions drawn back, oldest first.</summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The withdrawals.</returns>
+    IReadOnlyList<VersionWithdrawal> GetWithdrawals(ICase @case);
 }

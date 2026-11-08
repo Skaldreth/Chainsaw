@@ -149,7 +149,8 @@ public sealed class FacitTests : IDisposable
 
         var conclusions = _harness.Service.GetConclusions(_harness.Case, Txid(label));
 
-        Assert.Equal(CoinJoinPattern.Wasabi, Assert.IsType<CoinJoinFinding>(conclusions.TrailEnd).Pattern);
+        var expected = label == "wasabi1" ? CoinJoinPattern.Wasabi : CoinJoinPattern.Wasabi2;
+        Assert.Equal(expected, Assert.IsType<CoinJoinFinding>(conclusions.TrailEnd).Pattern);
         Assert.All(conclusions.Evidence, evidence => Assert.Equal(EvidenceStrength.Stopped, evidence.Strength));
         foreach (var input in transaction.Inputs)
         {
@@ -297,7 +298,7 @@ public sealed class FacitTests : IDisposable
             var link = Assert.IsType<ClusterLink>(member.JoinedBy);
             Assert.Equal(LinkState.Merged, link.State);
             Assert.Equal(Txid("payment"), link.Evidence.Txid);
-            Assert.Equal(1, link.Evidence.Heuristic.Version);
+            Assert.Contains(link.Evidence.Heuristic, _harness.Service.Heuristics);
             Assert.False(string.IsNullOrWhiteSpace(link.Evidence.Reason));
             Assert.Contains(member.Address, link.Evidence.Addresses);
             Assert.Contains(member.Via!, link.Evidence.Addresses);
@@ -315,7 +316,7 @@ public sealed class FacitTests : IDisposable
         Assert.Equal(
             [HeuristicNames.CommonInputOwnership, HeuristicNames.ChangeAddress],
             path.Select(link => link.Evidence.Heuristic.Name));
-        Assert.Contains("3 av 5 tecken", path[1].Evidence.Reason, StringComparison.Ordinal);
+        Assert.Contains("3 av 6 tecken", path[1].Evidence.Reason, StringComparison.Ordinal);
         Assert.Empty(_harness.Service.ExplainConnection(_harness.Case, Wpkh("payer-2"), Wpkh("payer-2"))!);
         Assert.Null(_harness.Service.ExplainConnection(_harness.Case, Wpkh("payer-2"), Pkh("shop")));
     }

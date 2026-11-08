@@ -42,6 +42,18 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
     /// <summary>The table of the user's undoing of merges.</summary>
     public const string MergeUndosTable = "clustering_merge_undos";
 
+    /// <summary>The sealed chain of the versions drawn back.</summary>
+    public const string WithdrawalsChain = "clustering.withdrawals";
+
+    /// <summary>The table of the versions drawn back.</summary>
+    public const string WithdrawalsTable = "clustering_withdrawals";
+
+    /// <summary>The sealed columns of a version drawn back, in order.</summary>
+    public static readonly IReadOnlyList<string> WithdrawalColumns =
+    [
+        "heuristic", "heuristic_version", "reason", "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The sealed columns of a user's merge, in order.</summary>
     public static readonly IReadOnlyList<string> MergeColumns =
     [
@@ -150,6 +162,22 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The fourth version: a version of an analysis drawn back, so that its conclusions stop counting without being
+    /// removed. The reason is optional.
+    /// </summary>
+    private const string Version4 = """
+        CREATE TABLE clustering_withdrawals (
+            sequence INTEGER PRIMARY KEY,
+            heuristic TEXT NOT NULL,
+            heuristic_version INTEGER NOT NULL,
+            reason TEXT,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -159,6 +187,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         new(1, "Klustringens slutsatser och uppbrytningar (förseglade)", Version1),
         new(2, "Ångrade uppbrytningar (förseglade)", Version2),
         new(3, "Användarens sammanslagningar och deras ångrande (förseglade)", Version3),
+        new(4, "Versioner av analyser som dragits tillbaka (förseglade)", Version4),
     ];
 
     /// <inheritdoc/>
@@ -169,5 +198,6 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         new(SplitUndosChain, SplitUndosTable, SplitUndoColumns),
         new(MergesChain, MergesTable, MergeColumns),
         new(MergeUndosChain, MergeUndosTable, MergeUndoColumns),
+        new(WithdrawalsChain, WithdrawalsTable, WithdrawalColumns),
     ];
 }

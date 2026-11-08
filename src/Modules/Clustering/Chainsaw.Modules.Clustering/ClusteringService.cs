@@ -88,7 +88,10 @@ internal sealed class ClusteringService : IClusteringService
                 .SelectMany(entry => entry.Results)
                 .Where(entry => Replaces(entry.Result, entry.Fingerprint, latest))
                 .ToList();
-            if (changed.Count == 0 && failed.Count == 0 && heldBack.Count == 0)
+            // A run that only holds something back stores nothing, so it writes nothing in the journal either; an app
+            // that analyses often with few transactions would otherwise fill the journal with such lines. What it held
+            // back is still in the run's result.
+            if (changed.Count == 0 && failed.Count == 0)
             {
                 return new ClusteringRun(null, known.Count, 0, 0, 0, 0, [], failed, heldBack);
             }
@@ -353,6 +356,54 @@ internal sealed class ClusteringService : IClusteringService
         ArgumentNullException.ThrowIfNull(txid);
         var (evidence, findings) = @case.Read(reader => EvidenceStore.ReadLatest(reader, txid));
         return new TransactionConclusions(txid, evidence, findings);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyDictionary<Txid, TransactionConclusions> GetConclusions(
+        ICase @case, IReadOnlyCollection<Txid> txids)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txids);
+        var wanted = txids.ToHashSet();
+        return @case.Read(reader => EvidenceStore.ReadLatest(reader, wanted));
+    }
+
+    /// <inheritdoc/>
+    public VersionWithdrawal Withdraw(ICase @case, HeuristicId heuristic, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(heuristic);
+        if (heuristic.Name == UserMerges.Name)
+        {
+            throw new ArgumentException(
+                "The user's own merges are undone one by one, not drawn back.", nameof(heuristic));
+        }
+
+        var checkedReason = OptionalReason(reason);
+        return @case.Write(transaction =>
+        {
+            if (EvidenceStore.ReadWithdrawals(transaction).FirstOrDefault(known => known.Heuristic == heuristic)
+                is { } earlier)
+            {
+                return earlier;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                ClusteringJournalKinds.VersionWithdrawn,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0} dragen tillbaka: dess slutsatser räknas inte längre, men står kvar förseglade.",
+                    heuristic),
+                JsonSerializer.Serialize(new { heuristic = heuristic.ToString(), reason = checkedReason })));
+            return EvidenceStore.AppendWithdrawal(transaction, heuristic, checkedReason, journal);
+        });
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<VersionWithdrawal> GetWithdrawals(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(EvidenceStore.ReadWithdrawals);
     }
 
     /// <inheritdoc/>

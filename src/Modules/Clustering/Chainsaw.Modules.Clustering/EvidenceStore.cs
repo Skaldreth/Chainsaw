@@ -152,8 +152,8 @@ internal static class EvidenceStore
 
     /// <summary>
     /// Reads the records that count now: for every transaction and analysis name, the newest result of the highest
-    /// version stored. Each record keeps the order of its result's first appearance, so that analysing again never
-    /// changes which of two proposals came first.
+    /// version stored that is not drawn back (<see cref="ReadWithdrawals"/>). Each record keeps the order of its
+    /// result's first appearance, so that analysing again never changes which of two proposals came first.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txid">The transaction, or <see langword="null"/> for all.</param>
@@ -175,6 +175,9 @@ internal static class EvidenceStore
             }
         }
 
+        var withdrawn = ReadWithdrawals(reader).Select(withdrawal => withdrawal.Heuristic).ToHashSet();
+        rows.RemoveAll(row => withdrawn.Contains(row.Heuristic));
+
         var byName = rows.GroupBy(row => (row.Txid, row.Heuristic.Name)).ToDictionary(
             group => group.Key,
             group =>
@@ -194,6 +197,48 @@ internal static class EvidenceStore
             ? current.Where(row => row.Kind == FindingKind).Select(ToFinding).ToList()
             : [];
         return (evidence, findings);
+    }
+
+    /// <summary>
+    /// Reads the records that count now (<see cref="ReadLatest(ICaseReader, Txid?, bool)"/>) for many transactions at once, read once.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txids">The transactions.</param>
+    /// <returns>The conclusions of each transaction asked for; empty lists when one has none.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static Dictionary<Txid, TransactionConclusions> ReadLatest(ICaseReader reader, IReadOnlySet<Txid> txids)
+    {
+        var (evidence, findings) = ReadLatest(reader);
+        var evidenceOf = evidence.Where(entry => txids.Contains(entry.Txid)).ToLookup(entry => entry.Txid);
+        var findingSequences = findings.Select(found => found.Sequence).ToHashSet();
+        var txidOfFinding = FindingTxids(reader, findingSequences);
+        var findingsOf = findings.Where(found => txids.Contains(txidOfFinding[found.Sequence]))
+            .ToLookup(found => txidOfFinding[found.Sequence]);
+        return txids.ToDictionary(
+            txid => txid,
+            txid => new TransactionConclusions(txid, [.. evidenceOf[txid]], [.. findingsOf[txid]]));
+    }
+
+    /// <summary>Reads which transaction each finding's record is about.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="sequences">The findings' records.</param>
+    /// <returns>The transaction of each record.</returns>
+    private static Dictionary<long, Txid> FindingTxids(ICaseReader reader, IReadOnlySet<long> sequences)
+    {
+        using var command = reader.CreateCommand(
+            "SELECT sequence, txid FROM clustering_evidence WHERE record_kind = $kind ORDER BY sequence");
+        command.AddParameter("$kind", FindingKind);
+        using var row = command.ExecuteReader();
+        var txids = new Dictionary<long, Txid>();
+        while (row.Read())
+        {
+            if (sequences.Contains(row.GetInt64(0)))
+            {
+                txids[row.GetInt64(0)] = ParseTxid(row.GetString(1));
+            }
+        }
+
+        return txids;
     }
 
     /// <summary>Seals a split under its journal entry.</summary>
@@ -375,6 +420,48 @@ internal static class EvidenceStore
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is not one.</exception>
     internal static BitcoinAddress ParseAddress(string text) =>
         BitcoinAddress.TryParse(text, out var address) ? address : throw new CaseException(CaseError.Corrupt);
+
+    /// <summary>Seals that a version of an analysis is drawn back, under its journal entry.</summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="heuristic">The analysis and version.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <param name="journal">The journal entry.</param>
+    /// <returns>The stored withdrawal.</returns>
+    public static VersionWithdrawal AppendWithdrawal(
+        ICaseTransaction transaction, HeuristicId heuristic, string? reason, JournalEntry journal)
+    {
+        object?[] values =
+        [
+            heuristic.Name, (long)heuristic.Version, reason, journal.Sequence,
+            journal.Utc.ToString("O", CultureInfo.InvariantCulture),
+        ];
+        var record = transaction.AppendSealed(ClusteringSchema.WithdrawalsChain, values);
+        return new VersionWithdrawal(record.Sequence, heuristic, reason, journal.Sequence, journal.Utc);
+    }
+
+    /// <summary>Reads the versions drawn back, oldest first; the first record for a version counts.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The withdrawals.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static List<VersionWithdrawal> ReadWithdrawals(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            "SELECT sequence, heuristic, heuristic_version, reason, journal_sequence, recorded_utc "
+                + "FROM clustering_withdrawals ORDER BY sequence");
+        using var row = command.ExecuteReader();
+        var withdrawals = new List<VersionWithdrawal>();
+        while (row.Read())
+        {
+            withdrawals.Add(new VersionWithdrawal(
+                row.GetInt64(0),
+                Heuristic(row.GetString(1), row.GetInt64(2)),
+                row.IsDBNull(3) ? null : row.GetString(3),
+                row.GetInt64(4),
+                ParseTime(row.GetString(5))));
+        }
+
+        return [.. withdrawals.DistinctBy(withdrawal => withdrawal.Heuristic)];
+    }
 
     /// <summary>Reads a time written with the round-trip format back.</summary>
     /// <param name="text">The text.</param>

@@ -27,14 +27,14 @@ public sealed class ClusteringModuleTests
 
         var service = provider.GetRequiredService<IClusteringService>();
         Assert.Equal(
-            ["coinjoin v1", "common-input-ownership v1", "change-address v1", "peel-chain v1"],
+            ["coinjoin v2", "common-input-ownership v1", "change-address v2", "peel-chain v2"],
             service.Heuristics.Select(heuristic => heuristic.ToString()));
         var schema = Assert.Single(provider.GetServices<ICaseSchemaContributor>());
         Assert.Equal("clustering", schema.Module);
         Assert.Equal(
             [
                 "clustering.evidence", "clustering.splits", "clustering.split_undos", "clustering.merges",
-                "clustering.merge_undos",
+                "clustering.merge_undos", "clustering.withdrawals",
             ],
             schema.SealedChains.Select(chain => chain.Name));
     }

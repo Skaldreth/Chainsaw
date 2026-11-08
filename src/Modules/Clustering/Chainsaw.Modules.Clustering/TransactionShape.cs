@@ -54,4 +54,67 @@ internal static class TransactionShape
     /// <returns>How many different earlier transactions fund it.</returns>
     public static int FundingTransactions(this BitcoinTransaction transaction) =>
         transaction.Inputs.Select(input => input.PreviousTxid).OfType<Txid>().Distinct().Count();
+
+    /// <summary>
+    /// Reads the wallet's fingerprint in a transaction: the version, the kind of locktime and whether any input
+    /// signals that the transaction may be replaced (RBF). Wallets differ in these, so two transactions with
+    /// different fingerprints were probably made by different wallets; the same fingerprint says much less.
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns>The fingerprint.</returns>
+    public static WalletFingerprint Fingerprint(this BitcoinTransaction transaction) => new(
+        transaction.Version,
+        LockTimeKindOf(transaction.LockTime),
+        transaction.Inputs.Any(input => input.Sequence < WalletFingerprint.FinalMinusOne));
+
+    /// <summary>Tells what kind of locktime a transaction has.</summary>
+    /// <param name="lockTime">The locktime.</param>
+    /// <returns>None, a block height or a time.</returns>
+    private static LockTimeKind LockTimeKindOf(uint lockTime) => lockTime switch
+    {
+        0 => LockTimeKind.None,
+        < WalletFingerprint.LockTimeThreshold => LockTimeKind.Height,
+        _ => LockTimeKind.Time,
+    };
+}
+
+/// <summary>A wallet's fingerprint in a transaction (<see cref="TransactionShape.Fingerprint"/>).</summary>
+/// <param name="Version">The transaction's version.</param>
+/// <param name="LockTime">The kind of locktime.</param>
+/// <param name="SignalsReplace">Whether an input signals that the transaction may be replaced (RBF, BIP 125).</param>
+internal readonly record struct WalletFingerprint(long Version, LockTimeKind LockTime, bool SignalsReplace)
+{
+    /// <summary>
+    /// The highest sequence that signals RBF is one below this (<c>0xFFFFFFFE</c>, BIP 125); a lower one signals it.
+    /// </summary>
+    public const uint FinalMinusOne = 0xFFFFFFFE;
+
+    /// <summary>Below this a locktime is a block height, from it a Unix time (the consensus rule).</summary>
+    public const uint LockTimeThreshold = 500_000_000;
+
+    /// <summary>Describes the fingerprint in plain Swedish.</summary>
+    /// <returns>For example <c>version 2, låst till en blockhöjd, med RBF</c>.</returns>
+    public string Describe()
+    {
+        var lockTime = LockTime switch
+        {
+            LockTimeKind.None => "utan låsning",
+            LockTimeKind.Height => "låst till en blockhöjd",
+            _ => "låst till en tid",
+        };
+        return $"version {Version}, {lockTime}, {(SignalsReplace ? "med RBF" : "utan RBF")}";
+    }
+}
+
+/// <summary>The kinds of locktime a wallet uses.</summary>
+internal enum LockTimeKind
+{
+    /// <summary>No locktime (0).</summary>
+    None,
+
+    /// <summary>A block height, often the current one (anti fee sniping).</summary>
+    Height,
+
+    /// <summary>A Unix time.</summary>
+    Time,
 }

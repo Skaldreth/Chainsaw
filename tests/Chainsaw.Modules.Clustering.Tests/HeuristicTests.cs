@@ -46,7 +46,7 @@ public sealed class HeuristicTests
         Assert.Equal(1, finding.OutputIndex);
         Assert.Equal(
             [ChangeSign.SameScriptTypeAsInputs, ChangeSign.OthersRound, ChangeSign.OptimalChange], finding.Signs);
-        Assert.Equal((3, 0, 5), (finding.Score, finding.SignsAgainst, finding.SignsChecked));
+        Assert.Equal((3, 0, 6), (finding.Score, finding.SignsAgainst, finding.SignsChecked));
         var proposal = Assert.Single(result.Proposals);
         Assert.Equal([Wpkh("payer-1"), Wpkh("payer-change")], proposal.Addresses);
         Assert.Equal(1, proposal.ChangeOutput);
