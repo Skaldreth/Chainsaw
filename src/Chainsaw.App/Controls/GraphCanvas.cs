@@ -69,6 +69,9 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <summary>The lines' dashes made so far, by pattern and width, so that each is made and frozen once.</summary>
     private static readonly Dictionary<(EdgeDash Dash, double Width), DashStyle> LineDashes = [];
 
+    /// <summary>The step a line's width is rounded to before its dashes are made, in pixels.</summary>
+    private const double DashWidthStep = 0.25;
+
     /// <summary>The dashes of a frame that is uncertain or ends the trail.</summary>
     private static readonly DashStyle FrameDash = Frozen(new DashStyle([3, 2], 0));
 
@@ -617,10 +620,12 @@ public sealed partial class GraphCanvas : FrameworkElement
             return DashStyles.Solid;
         }
 
-        if (!LineDashes.TryGetValue((dash, width), out var style))
+        // Widths are rounded to a quarter pixel, so that the cache holds a few styles and not one per amount.
+        var rounded = Math.Max(DashWidthStep, Math.Round(width / DashWidthStep) * DashWidthStep);
+        if (!LineDashes.TryGetValue((dash, rounded), out var style))
         {
-            style = Frozen(new DashStyle(pixels.Select(length => length / width), 0));
-            LineDashes[(dash, width)] = style;
+            style = Frozen(new DashStyle(pixels.Select(length => length / rounded), 0));
+            LineDashes[(dash, rounded)] = style;
         }
 
         return style;

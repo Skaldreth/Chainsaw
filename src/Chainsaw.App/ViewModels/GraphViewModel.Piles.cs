@@ -172,6 +172,13 @@ public sealed partial class GraphViewModel
     public async Task OpenHeldBackAsync(HeldBackClue clue)
     {
         ArgumentNullException.ThrowIfNull(clue);
+
+        // A second click while a read is under way must not take Esc's hold on the first read.
+        if (_reading is not null)
+        {
+            return;
+        }
+
         using var reading = CancellationTokenSource.CreateLinkedTokenSource(_work.Token);
         _reading = reading;
         try

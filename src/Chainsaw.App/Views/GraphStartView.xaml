@@ -153,10 +153,7 @@
             <!-- The first time: Nytt ärende, what a case is, and the course. -->
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
                         Visibility="{Binding IsFirstTime, Converter={StaticResource Visible}}">
-                <Grid HorizontalAlignment="Center">
-                    <controls:SonarRing CornerRadius="10" Stroke="{StaticResource Brush.Accent}" />
-                    <ContentControl x:Name="FirstNewCase" Focusable="False" />
-                </Grid>
+                <ContentControl x:Name="FirstNewCase" HorizontalAlignment="Center" Focusable="False" />
                 <TextBlock Margin="0,40,0,0" Width="520" TextWrapping="Wrap" TextAlignment="Center" FontSize="13.5"
                            LineHeight="19" Foreground="{StaticResource Brush.TextMuted}"
                            Text="Ett ärende är en krypterad fil på den här datorn, en per utredning. Allt du hämtar sparas i den, med källa, tid och hash, så att det går att kontrollera i efterhand." />

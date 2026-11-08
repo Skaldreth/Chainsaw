@@ -90,19 +90,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     som i Gawk; ett högerklick utan rörelse öppnar nodens meny. Vänsterknappen drar bara noder.
 30. **Använd ytan:** *byggt 2026-11-07, väntar på prov på Windows:* ett hopp med fler än åtta aktörer sprids över
     kolumner sida vid sida till ett ungefär kvadratiskt block, och belopp som skulle hamna på varandra visas på hovring.
-31. **Sonarn:** *SN1a vald 2026-11-08 och byggd* i `SonarRing` (ett mjukt sken som sväller ut ur noden och löses
-    upp, en våg i taget med vila, över ett svagt sken som alltid ligger bakom), med skissens förval: 6 s, 30 px, 0,42
-    och 18 px oskärpa. **Den långsamma pulsen finns bara i startvyn** (användarens beslut 2026-11-08), inte på
-    grafens noder; markeringarna i grafen (som EX2:s intressanta kort) får en egen form när de byggs.
-32. **Startvyns fot** (användarens beslut 2026-11-08): *Utgång: Windows* står redan i titelraden och visas inte i
-    foten; foten säger bara *Offline* när inga uppslag kan göras. *Byggt.*
-33. **Graf-ikonen utan ärende** (användarens beslut 2026-11-08): man kan inte gå in i grafen utan ett öppet ärende,
-    så ikonen fälls bort ur pillret (startvyn visas ändå). *Byggt.*
-35. **Pulsen runt *Nytt ärende* borttagen** (användarens beslut 2026-11-08: *det blev inte bra alls*). `SonarRing`
-    finns kvar runt den tomma startpunkten.
-36. **Streckade linjer på Windows:** strecken mättes i linjens tjocklek, så tjocka osäkra linjer fick grova korvar.
-    Nu i pixlar som i GR3a (2 5 och 7 5). Bevakningens öga i nodens hörn har inga ringar längre (BV2a har dem bara
-    på träffens linje). *Rättat 2026-11-08.*
+31. **Sonarn är borttagen** (användarens beslut 2026-11-08: *det blev inte bra alls*): ingen puls runt *Nytt ärende*,
+    i första gången-läget eller runt den tomma startpunkten, och `SonarRing` är borttagen. Markeringarna i grafen som
+    CLAUDE.md kallar sonar (EX2:s intressanta kort) får en egen, lugn form när de byggs, efter en skiss.
 37. **Kontroller och förslag är KF2b** (användarens beslut 2026-11-08). Byggs.
 38. **Nytt ärende är NC2a** (användarens beslut 2026-11-08). Byggs.
 39. **Granskning av alla byggda vyer mot skisserna** (användarens synpunkt 2026-11-08: många delar är kraftigt

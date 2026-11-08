@@ -196,7 +196,7 @@ public sealed partial class GraphStartViewModel : ObservableObject
 
     /// <summary>
     /// Gets whether the foot says that Chainsaw is offline. A connected exit is not repeated there, since the title bar
-    /// already shows it (the user's decision 2026-11-07).
+    /// already shows it (the user's decision 2026-11-08).
     /// </summary>
     [ObservableProperty]
     public partial bool IsFootOffline { get; private set; } = true;

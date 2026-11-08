@@ -842,29 +842,22 @@ Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *S
 
 ## Den tomma grafen (GR6c)
 
-- **Första gången** (inga ärenden i mappen): mitt på grafen står *Nytt ärende · Ctrl+N* med en pulserande ring, under
+- **Första gången** (inga ärenden i mappen): mitt på grafen står *Nytt ärende · Ctrl+N* utan puls, under
   den två rader om vad ett ärende är, och ärendets gång som fem prickar (Ärende först, i accent). Ett klick öppnar
   panelen Nytt ärende.
 - **Med ärenden:** *Nytt ärende* i mitten, de fyra senast sparade ärendena runt om (nummer och *ändrad i dag 14:02*,
   *ändrad i går …* eller datum) och *Alla ärenden … · /open* sist, med prickade linjer från mitten. Ett klick öppnar
   ärendet; *Alla ärenden …* skriver `/open ` i kommandoraden med markören sist, så att Tab fyller i. Ringen krymper
   i ett litet fönster (960 × 600) men alla noder syns och krockar inte med pillret.
-- **Ett ärende utan startpunkt:** *Första startpunkten* med en streckad nod (flaggan, ett fält och *Enter*), sonar
-  runt den, brickorna Bitcoin-adress, Ethereum-adress, Bitcoin-tx och Ethereum-tx, och under dem tre svaga steg
+- **Ett ärende utan startpunkt:** *Första startpunkten* med en streckad nod (flaggan, ett fält och *Enter*),
+  brickorna Bitcoin-adress, Ethereum-adress, Bitcoin-tx och Ethereum-tx, och under dem tre svaga steg
   (Expandera, Hitta uttaget, Bevaka) som förklarar sig på hovring.
 - Skriv eller klistra in en adress: brickan för sorten lyser grönt. **Ctrl+V var som helst på grafen** lägger texten
   i fältet. Enter lägger till startpunkten och grafen visas; text som inte känns igen ger en röd rad.
 - Raden under brickorna säger att inget hämtas förrän du expanderar, och genom vilken utgång. Utan utgång: grå prick,
-  *Offline …*, och ringen och ramen blir grå; startpunkten går ändå att lägga till.
-- Längst ner: *Så spårar man i Chainsaw* öppnar Guiden bredvid ytan (avsnittet med de fem stegen), och utgången står
-  med sin prick.
-- Med animeringar avstängda i Windows står ringarna stilla, svaga.
-- [ ] Utan ärende växer tre tunna ringar i accentfärgen ut runt *Nytt ärende* från nodens rundade kant, med samma hörn, och tonar bort lugnt efter ungefär 2 cm. Ingen fast ram står kvar runt noden.
-- [ ] Ringarna står mitt på noden, både i navet med de senaste ärendena och första gången utan ärenden, och skär inte in i raden under noden.
-- [ ] *Nytt ärende* har ett svagt sken i accentfärgen; hovring och klick fungerar som förut, och ringarna tar aldrig musen.
-- [ ] Ett ärende utan startpunkt: samma ringar växer ut från den streckade startpunktsnoden, och offline blir de grå.
-- [ ] Med animeringar avstängda i Windows står en enda svag, stilla ring runt noden; slås de på igen startar pulsen utan omstart.
-- [ ] Pulsen rör sig mjukt utan att hacka och stannar när man byter vy eller öppnar ett ärende.
+  *Offline …*, och ramen blir grå; startpunkten går ändå att lägga till.
+- Längst ner: *Så spårar man i Chainsaw* öppnar Guiden bredvid ytan (avsnittet med de fem stegen), och bara offline
+  står *Offline* med sin prick bredvid.
 
 ## Bevakningen, första delen (etapp 26, BV1a och BV2a)
 
@@ -999,7 +992,7 @@ ligger bredvid `Chainsaw.exe`.
       det som väljs. Ctrl+klick på noder i grafen lägger till motparter. Tillgången syns bara på Ethereum.
 - [ ] Ändra en bevakning med motparter eller ett minsta belopp: de fälten är redan utfällda.
 - [ ] Tomma textfält visar en svag platshållartext där en sådan finns.
-- [ ] Utan öppet ärende har pillret bara Nytt, Graf, Guide och Inställningar; öppna ett ärende och de andra vyerna
+- [ ] Utan öppet ärende har pillret bara Nytt, Guide och Inställningar; öppna ett ärende och de andra vyerna
       fälls in animerat, stäng det och de fälls bort (en vy som kräver ett ärende byter då till grafen).
 - [ ] Tidslinje, Flöde, Exponering, Begäran och Etiketter är nedtonade, och tipset säger *Inte byggt än*. Terminal
       finns inte längre.
@@ -1168,7 +1161,8 @@ ligger bredvid `Chainsaw.exe`.
 
 - Öppna ett ärende utan att välja något i grafen: inspektören till höger syns inte. Välj en aktör eller linje: den fälls
   fram. Ctrl+J (Förslag) fäller också fram den. Esc eller klick på tom yta fäller bort den igen.
-- Tom startpunkt: ingen puls runt rutan och ingen prickad ring kring flaggan. *Nytt ärende* i startvyn har ingen puls.
+- Tom startpunkt: ingen puls runt rutan och ingen prickad ring kring flaggan. *Nytt ärende* i startvyn har ingen puls, inte heller
+  första gången.
 - Utan ärende: Graf-ikonen syns inte i pillret, och ingen dubbel skiljelinje. Startvyns fot säger inte *Utgång: …*,
   bara *Offline* när inga uppslag går.
 - Osäkra (streckade) linjer: korta, fina streck oavsett hur tjock linjen är, inte grova korvar.

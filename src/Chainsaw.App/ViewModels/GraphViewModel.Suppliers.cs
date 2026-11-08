@@ -18,6 +18,9 @@ public sealed partial class GraphViewModel
     /// <summary>What the toast says when a supplier found nothing about the address.</summary>
     public const string NothingReportedText = "Inga rapporter om adressen.";
 
+    /// <summary>What the toast says when the lookup failed before any supplier answered.</summary>
+    public const string SuppliersFailedText = "Det gick inte att fråga om rapporter.";
+
     /// <summary>The suppliers, or <see langword="null"/> where none are wired (tests).</summary>
     private readonly IAttributionProviders? _suppliers;
 
@@ -75,6 +78,14 @@ public sealed partial class GraphViewModel
             {
                 var (kind, text) = Said(answer);
                 Tell(kind, text);
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // The case may have closed meanwhile; the call is fire and forget, so the fault is said here or never.
+            if (_session.Current == open)
+            {
+                Tell(ToastKind.Error, SuppliersFailedText, exception.Message);
             }
         }
         finally

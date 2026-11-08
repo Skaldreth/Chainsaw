@@ -12,7 +12,7 @@ namespace Chainsaw.App.Navigation;
 /// </param>
 /// <param name="IconNeedsCase">
 /// Whether the view's icon folds away without an open case even though the view itself can be shown: the graph is the
-/// start page without a case, but there is no graph to go into until a case is open (the user's decision 2026-11-07).
+/// start page without a case, but there is no graph to go into until a case is open (the user's decision 2026-11-08).
 /// </param>
 public sealed record ViewEntry(
     AppView View, string Name, string Icon, string Gesture, RailGroup Group, bool IsBuilt = true, bool NeedsCase = false,
