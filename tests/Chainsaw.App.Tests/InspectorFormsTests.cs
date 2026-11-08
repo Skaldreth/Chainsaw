@@ -137,6 +137,21 @@ internal sealed class TestGraphEditor : IGraphEditor
     public Task<UndoOutcome> UnlinkAsync(ICase @case, CrossChainLink link, string? reason) =>
         Undo("link", link.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture), reason);
 
+    public Task<UndoOutcome> UndoMergesAsync(ICase @case, IReadOnlyList<long> merges, string? reason) =>
+        Undo("merge", string.Join(",", merges), reason);
+
+    /// <summary>Gets or sets what undoing merges would merge again; by default nothing, while they hold.</summary>
+    public UndoMergePreview? MergePreview { get; set; } = new([MergeSample], [], []);
+
+    public Task<UndoMergePreview?> PreviewUndoMergesAsync(
+        ICase @case, IReadOnlyList<long> merges, CancellationToken cancellationToken) =>
+        Task.FromResult(MergePreview);
+
+    /// <summary>A merge of the user's that holds, for a preview.</summary>
+    private static ClusterMerge MergeSample => new(
+        3, [GraphSamples.U, GraphSamples.E], GraphSamples.Tx[0], UserMerges.Id, "Grund", null, null, 5,
+        DateTimeOffset.UnixEpoch);
+
     /// <summary>Records a taking back, or throws the set failure.</summary>
     /// <param name="kind">What sort.</param>
     /// <param name="what">Which.</param>
@@ -537,6 +552,26 @@ public sealed class InspectorFormsTests
             [new SplitRequest(c, a, HeuristicNames.CommonInputOwnership, "Skäl")],
             splits);
         Assert.Empty(InspectorForms.BreakOut(cluster, [], "Skäl"));
+    }
+
+    /// <summary>
+    /// A merge of the user's own breaks out like a heuristic's: its split names the user's merges, and a user's link
+    /// with the same sequence as a heuristic's (they are numbered in different chains) is not taken for it.
+    /// </summary>
+    [Fact]
+    public void BreakOutSplitsAUsersMergeByItsOwnName()
+    {
+        var a = GraphSamples.Address(20);
+        var b = GraphSamples.Address(21);
+        var c = GraphSamples.Address(22);
+        var cio = Merged(1, HeuristicNames.CommonInputOwnership, a, b);
+        var user = Merged(1, UserMerges.Name, b, c);
+        var cluster = new Cluster(a, [], [cio, user], [], [], []);
+
+        var splits = InspectorForms.BreakOut(cluster, [c], string.Empty);
+
+        Assert.Equal([new SplitRequest(c, b, UserMerges.Name, string.Empty)], splits);
+        Assert.Equal("Egen v1", InspectorForms.ShortName(UserMerges.Id));
     }
 
     /// <summary>

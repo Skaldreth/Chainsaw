@@ -139,8 +139,11 @@ fungerar rättas före allt annat nedan. Särskilt:
    - Arbetskopian har allt och tas tillbaka efter en krasch, så inget går förlorat, men `.cut` är då inte färsk.
    - Förslag: en varning i toastern (TO1a) när sparningen misslyckats några gånger i rad, och *Försök igen*. Kräver en
      händelse på `ICase` som appen lyssnar på.
-4. **Godkänna en plånbok** [etapp]: en sammanslagning gjord av användaren (`user v1`, förseglad med vem och varför),
-    så att plånböckernas förslag (`wallet-proposals v1`) kan godkännas.
+4. **Godkänna en plånbok, resterna** [direkt]:
+   - Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås ihop igen; det gör bara *Historik*.
+     Behöver en liten skiss.
+   - Ett förslag som ändrats sedan det förseglades ger det allmänna felet; det borde säga att kontrollerna behöver
+     köras igen.
 
 ### 4. Valt 2026-11-08 och ska byggas
 

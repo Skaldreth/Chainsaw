@@ -2949,6 +2949,73 @@ Byggd som en etapp, eftersom den skriver i ärendet.
 - Tester: `BoxSelectionTests` (13) i App.Tests. Tracing är orört.
 - Återstår: Shift+klick på en nod väljer inget intervall (det finns ingen ordning att välja intervall i).
 
+## Godkänna en plånbok (2026-11-08, etapp, KF2b)
+
+**Byggt:**
+- **Clustering:** användarens egna sammanslagningar, `user v1` (`UserMerges`, `ClusterMerge`, `MergeRequest`,
+  `MergeOrigin`). Schema 3 har två nya förseglade kedjor: `clustering.merges` (adresserna, tx:en den vilar på,
+  förslagets analys och version, vad förslaget sa, valfritt skäl, ursprunget, journalrad och tid) och
+  `clustering.merge_undos`. Journalkoderna `clustering.merged` och `clustering.merge-undone`.
+  - `Merge`, `UndoMerges`, `GetMergeHistory` och `GetConclusions` finns i en form som tar en `ICaseTransaction` eller
+    `ICaseReader`, så att Checks kan försegla beslutet och sammanslagningen **i samma transaktion** (som
+    `SealedResponse.Seal`).
+  - `ClusterGraph` lägger användarens sammanslagningar **först**, före heuristikerna, så att en heuristik aldrig går
+    före användarens beslut. En sammanslagning av användaren bryts av **varje** uppbrytning den skulle korsa
+    (*Bryt upp* skriver uppbrytningar med namnet `user`, som nu godtas av `Split`).
+  - En sammanslagning som en gällande uppbrytning skulle stoppa vägras när den görs, i stället för att sparas utan
+    verkan; hela transaktionen rullas tillbaka.
+- **Checks:** `wallet-proposals v1` är ett **förslag** (var en kontroll) utan kandidater. `Decide`/`DecideAll` följer
+  ett beslut om en plånbok i Clustering i samma transaktion: godkänt slår ihop förslagets tx:er (en sammanslagning per
+  förslag, med sin tx), och ett tillbakatagande ångrar de sammanslagningar beslutet gjorde (`MergeOrigin` pekar på
+  `checks.decisions`). `TakeBackMerges` ångrar från historiken genom att ta tillbaka godkännandet, så att panelen och
+  klustren alltid säger samma sak.
+- **Appen:** inget nytt utseende. Plånboken står i KF2b:s kö med brickorna *Samma ägare troligt* och *Din bedömning*;
+  Enter, X, Ctrl+Z och *Ångra* som för andra förslag. `ChecksViewModel.ClustersChanged` läser om grafen efter ett
+  godkännande eller tillbakatagande. Historiken (AN1b) har raden *Sammanslagen av användaren* med *Ångra*
+  (`HistoryUndo.UndoMerge`, genom `GraphEditor.UndoMergesAsync` → `ICheckService.TakeBackMerges`), och *Klustrad*
+  räknar inte användarens länkar två gånger. Kortnamnet är *Egen*.
+- Guiden: *En plånbok att godkänna* i *Kontroller och förslag*.
+
+**Egna beslut:**
+- Sammanslagningen vilar på förslagets tx (CLAUDE.md: varje sammanslagning sparar heuristik, version och tx), därför
+  en sammanslagning per förslag och inte en för hela plånboken.
+- Användarens sammanslagning går före heuristikerna: har användaren brutit ut växeln från A och sedan godkänt att
+  växeln hör till B, visas heuristikens länk A–B som förslag (*SuggestedAfterSplit*) i stället för att stoppa
+  användarens beslut.
+- Ett godkännande av adresser som användaren har brutit isär vägras (*ångra uppbrytningen först*). Panelen säger då
+  bara det allmänna *kunde inte sparas*.
+- Bryts sammanslagningen upp (U) står godkännandet kvar i panelen; uppbrytningen är användarens senare beslut och
+  syns i historiken.
+- Versionen är kvar på `wallet-proposals v1` (före 1.0 får det ändras fritt); resultat som förseglats som kontroll
+  förseglas om som förslag vid nästa körning.
+
+**Tester:** `MergeTests` (15) i Clustering.Tests, `WalletApprovalTests` (14) i Checks.Tests, och i App.Tests sex i
+`ChecksViewModelTests`, tre i `InspectorHistoryTests`, två i `GraphEditorTests`, en i `InspectorFormsTests` och en i
+`GraphSceneTests`. Facit i `Tracing.Tests/Golden` har schemat 3.
+
+**Efter granskningen (två I och sex M rättade):**
+- **I1:** en sammanslagning av användaren vägras (`MergeRefusedException`) både när den korsar en uppbrytning och
+  när den, med klustren som de står, skulle få en länk som slår ihop nu att sluta göra det; annars kunde ett
+  godkännande i tysthet bryta upp ett kluster som användaren aldrig brutit upp. Att ångra en sammanslagning i
+  *Historik* visar först vad en heuristik slår ihop igen (`PreviewUndoMerges`, samma bekräftelse som för en
+  uppbrytning), eftersom en tx som analyseras efter godkännandet kan ha hållits tillbaka av det.
+- **I2:** ett godkännande slår bara ihop förslag vars adresser alla finns i plånboken som den förseglades och visades,
+  och vägras om de inte tillsammans håller ihop hela den. `WalletCheck` visar en godkänd plånbok som *Godkänd plånbok*
+  under nyckeln den godkändes med (`CheckInput.ApprovedWallets`), drar av de förslag dess sammanslagningar täcker och
+  föreslår det nya runt den som ett eget förslag, med nyckeln efter den minsta adressen som ingen godkänd plånbok har.
+- **M1:** panelen säger varför ett godkännande vägrades. **M2:** *Varför?* på ett kluster säger *användarens
+  bedömning* när en länk är användarens. **M3:** en godkänd plånbok vars sammanslagning brutits upp heter *Godkänd
+  plånbok, uppbruten* och säger det i *Varför?*. **M4:** texten om förslaget står inte kvar efter godkännandet, och
+  ytan ritas inte när adresserna står i ett kluster. **M5:** *Ångra* i historiken läser om grafen och KF2b-panelen
+  (testat). **M6:** `TakeBackMerges` med en del av ett godkännande tar tillbaka hela och säger hur många som ångrades.
+
+**Återstår:**
+- Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås ihop igen; det gör bara *Historik*. Det
+  behöver en skiss (en bekräftelse i panelen eller i toasten).
+- Att slå ihop för hand utan förslag (välja aktörer och *Slå ihop*) är inte skissat; `Merge` tar redan emot det.
+- `/testdata` har ingen godkänd plånbok än.
+
+
 ## Kommentarsnodens skrivande och tråd, Guidens panel (2026-11-08)
 
 - **Skrivandet:** Gawks `MarkdownEdits` övertagen till `Chainsaw.SharedKernel/Text/MarkdownEdits.cs` med bara det

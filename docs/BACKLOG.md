@@ -186,9 +186,6 @@ klart till 1.0 står i `docs/TODO.md`. En punkt här flyttas dit om den visar si
 ## Klustring och heuristiker
 - **Tjänster ur beteende:** en börs insättningsadresser (många insättningar som sveps till samma hot wallet),
   utbetalningar i batch, konsolidering. Etapp 6 slår ihop insättningsadresserna i en sweep men säger inte *börs*.
-- **Godkänna ett förslag** (etapp 6): förslag syns men kan inte göras till en sammanslagning. Det behöver en egen
-  förseglad post med vem och varför (en manuell sammanslagning som en egen *analys*, `user v1`), och kommer med
-  kontrollerna och förslagen (KF1a, etapp 22). Att ångra en uppbrytning byggdes i etapp 21.
 - **Fler tecken för växeln:** jämna belopp i SEK eller USD vid tx:ens tid (kräver kurser), plånbokens fingeravtryck
   (tx-version, locktime, RBF, ordningen på outputs), och adressens hela historik från källan i stället för bara det
   ärendet känner till (*ny adress* är nu *inte sedd i ärendet*).
@@ -666,3 +663,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 - **Tidslinje** och **Flöde (Sankey)** är bekräftade vyer men kommer efter 1.0 (användarens val 2026-11-08). Tidslinjen
   under grafen (TL1a, TL2a) och linjernas tjocklek visar mycket av det tills dess. De skissas först.
+- **Plånböcker, efter granskningen 2026-11-08:** en avfärdad plånbok dras inte av som en godkänd, så en ny adress i
+  samma grupp föreslås aldrig (`WalletCheck.KeyOf`); ett godkänt fynd utan tx i grafen har tomt underlag (prova på
+  Windows); `PreviewUndoMerges` visar inte heuristiklänkar som slutar slå ihop efter en senare uppbrytning.

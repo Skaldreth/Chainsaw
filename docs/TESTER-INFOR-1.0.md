@@ -867,6 +867,28 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
   Journalen har en rad för varje.
 - Esc stänger formuläret, sedan menyn, sedan panelen, sedan valet av aktörer.
 
+## Godkänna en plånbok (2026-11-08, KF2b)
+
+- Öppna ett ärende med en tx som kan vara en CoinJoin (två inputs, två lika stora utgångar). *Förslag · N* har ett
+  förslag *Samma plånbok troligt* utan kandidater, med brickorna *Samma ägare troligt* och *Din bedömning*.
+- Tryck Enter (*Godkänn*), gärna med ett skäl: toasten säger *Förslaget godkänt*, grafen läses om och adresserna står
+  som ett kluster. Inspektörens *Varför?* på klustret säger `user v1` och *Användaren godkände förslaget från …*, och
+  *Historik* har raden *Sammanslagen av användaren* (streckad) med vem och antal adresser. Journalen har två rader:
+  beslutet och sammanslagningen.
+- Ctrl+Z (eller *Ångra* i loggen): klustret delas igen, förslaget väntar igen, och historiken har *Ångrad:
+  sammanslagningen*.
+- Godkänn igen och ångra i stället från *Historik* (*Ångra* på raden, valfritt skäl): samma resultat, och förslaget
+  väntar igen i listan.
+- *Bryt upp* (U) klustret: adressen går ut, uppbrytningen står i historiken som *Uppbruten · 1 ut* (med *Egen*), och den
+  kan ångras så att klustret är helt igen.
+- Avfärda ett plånboksförslag (X): inget slås ihop och området försvinner.
+- Efter godkännandet heter raden *Godkänd plånbok* under *Avgjort*, och *Varför?* säger *Du godkände …*. Bryt upp
+  klustret: raden heter *Godkänd plånbok, uppbruten*.
+- Bryt ut en adress ur plånboken (U) och försök sedan godkänna ett förslag som för ihop dem igen: panelen säger att
+  uppbrytningen måste ångras först, och inget sparas.
+- Hämta en tx som för en ny adress till en godkänd plånbok: ett nytt förslag med bara den nya biten väntar.
+- *Ångra* på *Sammanslagen av användaren* i *Historik* visar *Slås ihop igen* innan något sparas.
+
 ## Ethereum, första delen (etapp 23)
 
 Grafen för Ethereum är inte byggd än; det som går att prova är källan, startpunkterna, Källor och Guiden.

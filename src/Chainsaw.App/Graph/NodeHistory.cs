@@ -28,6 +28,9 @@ public enum HistoryKind
     /// <summary>A label or a link was taken back, or a split undone: a sealed record of its own.</summary>
     Withdrawal,
 
+    /// <summary>The user merged addresses with the node's, for example by approving a wallet (user v1).</summary>
+    Merge,
+
     /// <summary>The user made, changed, paused or resumed a watch on the node (sketch BV1a).</summary>
     Watch,
 
@@ -52,6 +55,11 @@ public enum HistoryUndo
 
     /// <summary>Takes a watch back (<em>Ta tillbaka</em>): it stops, and stays in the case struck through.</summary>
     RemoveWatch,
+
+    /// <summary>
+    /// Undoes a merge of the user's own (<em>Ångra</em>); when an approved wallet made it, the approval is taken back.
+    /// </summary>
+    UndoMerge,
 }
 
 /// <summary>One row in the node's history (sketch AN1b).</summary>
@@ -96,11 +104,18 @@ public sealed record HistoryEvent(
     /// <summary>Gets the watch, for <see cref="HistoryUndo.RemoveWatch"/>.</summary>
     public string? WatchId { get; init; }
 
+    /// <summary>Gets the merges stored together, for <see cref="HistoryUndo.UndoMerge"/>.</summary>
+    public IReadOnlyList<long> MergeSequences { get; init; } = [];
+
     /// <summary>Gets whether the row has a button: it is the user's own and still counts.</summary>
     public bool CanUndo => Undo != HistoryUndo.None && !IsWithdrawn;
 
-    /// <summary>Gets the button's words: <em>Ångra</em> for a breaking out, <em>Ta tillbaka</em> otherwise.</summary>
-    public string UndoText => Undo == HistoryUndo.UndoSplit ? NodeHistory.UndoText : NodeHistory.RetractText;
+    /// <summary>
+    /// Gets the button's words: <em>Ångra</em> for a breaking out or a merge, <em>Ta tillbaka</em> otherwise.
+    /// </summary>
+    public string UndoText => Undo is HistoryUndo.UndoSplit or HistoryUndo.UndoMerge
+        ? NodeHistory.UndoText
+        : NodeHistory.RetractText;
 
     /// <summary>Gets the time as the row writes it: the day, the month and the time, in local time.</summary>
     public string TimeText => NodeHistory.Short(Utc);
@@ -127,6 +142,28 @@ public sealed record NodeHistoryData(
 
     /// <summary>Gets every hit of the case's watches.</summary>
     public IReadOnlyList<WatchHit> WatchHits { get; init; } = [];
+
+    /// <summary>Gets the user's merges that hold one of the node's addresses, also those undone (Clustering).</summary>
+    public IReadOnlyList<MergeHistoryEntry> Merges { get; init; } = [];
+
+    /// <summary>Gets the journal entries whose writer the history names for the user's merges.</summary>
+    /// <param name="merges">The merges.</param>
+    /// <returns>The journal sequences of each merge and its undoing.</returns>
+    public static IReadOnlySet<long> JournalNeeds(IEnumerable<MergeHistoryEntry> merges)
+    {
+        ArgumentNullException.ThrowIfNull(merges);
+        var needs = new HashSet<long>();
+        foreach (var entry in merges)
+        {
+            needs.Add(entry.Merge.JournalSequence);
+            if (entry.Undo is { } undo)
+            {
+                needs.Add(undo.JournalSequence);
+            }
+        }
+
+        return needs;
+    }
 
     /// <summary>Gets the journal entries whose writer the history names.</summary>
     /// <param name="labels">The labels.</param>
@@ -185,6 +222,9 @@ public static class NodeHistory
     /// <summary>The button of a breaking out.</summary>
     public const string UndoText = "Ångra";
 
+    /// <summary>The row of a merge of the user's own, for example an approved wallet.</summary>
+    public const string MergeText = "Sammanslagen av användaren";
+
     /// <summary>Who wrote a journal entry the case could not name.</summary>
     public const string UnknownOperator = "Okänd";
 
@@ -227,6 +267,7 @@ public static class NodeHistory
         AddClustered(data, rows);
         AddLabels(data, rows);
         AddSplits(data, rows);
+        AddMerges(data, rows);
         AddLinks(scene, node, data, rows);
         AddWatches(node, data, rows);
 
@@ -272,7 +313,11 @@ public static class NodeHistory
         }
 
         var members = cluster.Addresses.ToHashSet();
-        foreach (var group in cluster.Links.GroupBy(link => link.Evidence.Heuristic))
+
+        // The user's own merges have rows of their own (AddMerges), with who and Ångra.
+        foreach (var group in cluster.Links
+            .Where(link => link.Evidence.Heuristic.Name != UserMerges.Name)
+            .GroupBy(link => link.Evidence.Heuristic))
         {
             var addresses = group.SelectMany(link => link.Evidence.Addresses)
                 .Where(members.Contains)
@@ -442,6 +487,39 @@ public static class NodeHistory
             {
                 rows.Add(Withdrawal(
                     key, undo.RecordedUtc, "Ångrad: uppbrytningen", Who(data, undo.JournalSequence), undo.Reason));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds every merge of the user's own, the merges stored together in one row, and every undoing of one: the
+    /// user's judgement, dashed, with <em>Ångra</em> while it holds.
+    /// </summary>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddMerges(NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        foreach (var group in data.Merges.OrderBy(entry => entry.Merge.Sequence)
+            .GroupBy(entry => entry.Merge.JournalSequence)
+            .Select(group => group.ToList()))
+        {
+            var first = group[0].Merge;
+            var key = "merge/" + first.Sequence.ToString(CultureInfo.InvariantCulture);
+            var count = group.SelectMany(entry => entry.Merge.Addresses).Distinct().Count();
+            var sub = string.Create(
+                CultureInfo.InvariantCulture,
+                $"{Who(data, first.JournalSequence)} · {count} adresser · {first.Proposal}");
+            rows.Add(new HistoryEvent(
+                key, HistoryKind.Merge, first.RecordedUtc, MergeText, sub, "Icon.Kind.Wallet", GraphInk.Cluster,
+                IsDashed: true, IsFact: false, group.All(entry => entry.IsUndone), HistoryUndo.UndoMerge)
+            {
+                MergeSequences = [.. group.Where(entry => !entry.IsUndone).Select(entry => entry.Merge.Sequence)],
+            });
+            foreach (var undo in group.Select(entry => entry.Undo).OfType<ClusterMergeUndo>()
+                .DistinctBy(undo => undo.JournalSequence))
+            {
+                rows.Add(Withdrawal(
+                    key, undo.RecordedUtc, "Ångrad: sammanslagningen", Who(data, undo.JournalSequence), undo.Reason));
             }
         }
     }
