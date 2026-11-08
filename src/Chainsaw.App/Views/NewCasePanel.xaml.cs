@@ -79,6 +79,18 @@ public partial class NewCasePanel : UserControl
         }
     }
 
+    /// <summary>
+    /// Shows <em>Samma igen</em> in the repeat field while it is empty. Only the length is asked for, through a copy
+    /// that is disposed at once, so the password is never read as text.
+    /// </summary>
+    /// <param name="sender">The repeat field.</param>
+    /// <param name="e">The change.</param>
+    private void OnRepeatChanged(object sender, RoutedEventArgs e)
+    {
+        using var secure = RepeatBox.SecurePassword;
+        RepeatHint.Visibility = secure.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     /// <summary>Empties both password boxes.</summary>
     private void ClearPasswords()
     {
@@ -141,6 +153,18 @@ public partial class NewCasePanel : UserControl
         {
             _panel.Remove(row);
             AddBox.Focus();
+        }
+    }
+
+    /// <summary>Removes a start point with Del while its × has the keyboard, as the tooltip says.</summary>
+    /// <param name="sender">The button, whose data is the row.</param>
+    /// <param name="e">The key.</param>
+    private void OnRemoveKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            OnRemove(sender, e);
+            e.Handled = true;
         }
     }
 
