@@ -49,7 +49,8 @@ public sealed class WatchRunner : IDisposable
     /// </param>
     /// <param name="import">
     /// Brings what the background process saw into the open case (<see cref="BackgroundLink.ImportAsync"/>), first in
-    /// each round, so that it and the checks never write the case's watches at once; none when not given.
+    /// each round, so that it and the checks never write the case's watches at once, and again once a chain's height is
+    /// known when a watch on it has no start; none when not given.
     /// </param>
     public WatchRunner(
         WatchBoard board,
@@ -145,6 +146,13 @@ public sealed class WatchRunner : IDisposable
         if (height is null)
         {
             return;
+        }
+
+        if (unstarted && _import is not null)
+        {
+            // A start the background set waits in its queue until the case has seen the chain that far: now it has,
+            // so it comes in before the check would start the watch at this height and lose the background's hits.
+            await _import(openCase).ConfigureAwait(false);
         }
 
         var run = await source.CheckAsync(openCase, chain, height.Value, cancellationToken).ConfigureAwait(false);

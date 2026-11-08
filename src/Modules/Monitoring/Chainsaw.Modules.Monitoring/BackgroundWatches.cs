@@ -99,7 +99,7 @@ internal sealed class BackgroundWatches(
                 continue;
             }
 
-            if (entry is null)
+            if (entry is null || @case.Read(reader => Waits(reader, entry)))
             {
                 continue;
             }
@@ -209,8 +209,8 @@ internal sealed class BackgroundWatches(
 
         // A check whose start never came in (its entry was set aside) brings the start it counted from, so that its
         // hits are not lost. A check counted from another start than the case's (one the background set before a
-        // crash, say) still stands: only money above the case's own start is a hit. When no start can be taken from
-        // the background (the case has seen no block), the open check sets the start and nothing more is taken.
+        // crash, say) still stands: only money above the case's own start is a hit. A start beyond what the case has
+        // seen waited in the queue (Waits) until the case had seen that far, so it is taken as the background set it.
         if ((watch.StartHeight ?? Start(transaction, watch, entry.Start, null)) is not { } start)
         {
             return [];
@@ -273,6 +273,29 @@ internal sealed class BackgroundWatches(
     }
 
     /// <summary>
+    /// Says whether an entry must wait in the queue: it would set the start of a watch that has none, from a start
+    /// beyond what the case's own lookups have seen the chain. The start is only the background's word, so it is not
+    /// taken until the case has seen the chain that far (the runner asks the height and brings the queue in again
+    /// before it checks); taken lower, money from before the watch was made would be hits, and dropped, the open
+    /// check would start later and the background's hits would be lost.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="entry">The entry.</param>
+    /// <returns><see langword="true"/> when it waits.</returns>
+    private bool Waits(ICaseReader reader, QueuedCheck entry)
+    {
+        if (entry.Kind != QueuedKind.Started && entry.Checked is null)
+        {
+            return false;
+        }
+
+        var watch = WatchStore.ReadWatches(reader).FirstOrDefault(each => each.Id == entry.WatchId);
+        var start = entry.Kind == QueuedKind.Started ? entry.Height : entry.Start;
+        return watch is { State: WatchState.Active, StartHeight: null } && SameFilter(watch.Filter, entry.Filter)
+            && !WasImported(reader, entry.Id.ToString("N")) && !(heights.Known(reader, watch.Chain) >= start);
+    }
+
+    /// <summary>
     /// Says whether a watch still looks for what a check looked for: the same filter, how often aside, since a change
     /// of the pace changes nothing of what is a hit.
     /// </summary>
@@ -287,8 +310,8 @@ internal sealed class BackgroundWatches(
     /// Seals the start the background set, for a watch that has none. Like how far it read, the start is only the
     /// background's word, and only money above the start is a hit: it counts no higher than the case's own lookups
     /// have seen the chain, so that a forged entry cannot hide every hit behind a start far ahead, and no lower than
-    /// they had seen when the watch was made, since the open check starts no earlier than that either. When the case
-    /// has seen no block, no start is taken: the open check sets it.
+    /// they had seen when the watch was made, since the open check starts no earlier than that either. An entry with
+    /// a start beyond what the case has seen waits in the queue (<see cref="Waits"/>) until it has seen that far.
     /// </summary>
     /// <param name="transaction">The case's write.</param>
     /// <param name="watch">The watch.</param>

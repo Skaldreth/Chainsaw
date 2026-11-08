@@ -77,6 +77,13 @@ internal sealed class UiThread : SynchronizationContext
     public override SynchronizationContext CreateCopy() => this;
 }
 
+/// <summary>Posts work to a test's <see cref="UiThread"/>, as the window posts to the dispatcher.</summary>
+/// <param name="context">The test's UI thread.</param>
+internal sealed class PostedUi(SynchronizationContext context) : IUiThread
+{
+    public void Post(Action work) => context.Post(_ => work(), null);
+}
+
 /// <summary>Runs posted work at once, as if the test were the UI thread.</summary>
 internal sealed class InlineUi : IUiThread
 {
