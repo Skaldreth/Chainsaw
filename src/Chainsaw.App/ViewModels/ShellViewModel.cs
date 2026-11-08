@@ -375,6 +375,29 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Ctrl+W: saves and closes the open case and goes to the start (the user's decision 2026-11-08). Nothing happens
+    /// without an open case; a case that cannot be closed says why in a toast and stays open.
+    /// </summary>
+    /// <returns>A task that completes when the case is closed, or why not is said.</returns>
+    public async Task CloseCaseAsync()
+    {
+        if (_session.Current is null)
+        {
+            return;
+        }
+
+        var reply = await _workflow.CloseAsync();
+        if (reply.IsError)
+        {
+            _toaster?.Show(ToastKind.Error, reply.Text);
+            return;
+        }
+
+        Show(ViewTable.Start);
+        await _workflow.RefreshCasesAsync();
+    }
+
+    /// <summary>
     /// Opens the case picker (Ctrl+O), unless Nytt ärende or the settings lie over the title bar's space.
     /// </summary>
     public void OpenCasePicker()

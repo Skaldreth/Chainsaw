@@ -36,6 +36,20 @@ public sealed class ShellViewModelTests
 
     /// <summary>Without a case, the views that need one fold away and their shortcuts do nothing.</summary>
     [Fact]
+    public async Task Ctrl_W_closes_the_case_and_goes_to_the_start()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var shell = rig.Shell;
+        rig.Session.Open(new TestCase("2026-0117"));
+        shell.ShowCommand.Execute(AppView.Monitoring);
+
+        await shell.CloseCaseAsync();
+
+        Assert.Null(rig.Session.Current);
+        Assert.Equal(ViewTable.Start, shell.Current);
+    }
+
+    [Fact]
     public void Without_a_case_the_views_that_need_one_fold_away()
     {
         var rig = new GateRig(VaultState.Unlocked);

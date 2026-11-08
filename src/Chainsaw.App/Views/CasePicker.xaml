@@ -125,7 +125,7 @@
                         </Button>
                         <Button Style="{StaticResource Button.Secondary}" Height="30" Padding="12,0" FontSize="13.5"
                                 Margin="8,0,0,0" Content="Stäng" Command="{Binding CloseCaseCommand}"
-                                ToolTip="Sparar och stänger ärendet" />
+                                ToolTip="Sparar och stänger ärendet · Ctrl+W" />
                     </StackPanel>
                     <Border Height="1" Margin="10,0" Background="{StaticResource Brush.BorderStrong}" />
                 </StackPanel>

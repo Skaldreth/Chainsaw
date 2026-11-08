@@ -113,6 +113,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     och senaste aktivitet) genom utgången. Skissas i två varianter.
 39. **Granskning av alla byggda vyer mot skisserna** (användarens synpunkt 2026-11-08: många delar är kraftigt
     förenklade). En lista per skiss tas fram och byggs om i tur och ordning.
+40. **Två App-tester faller ibland** (`CasePickerTests.Stang_closes_the_case_and_the_picker_stays_out`,
+    `SettingsTests.The_lock_screen_says_that_lookups_go_through_windows`, och tidigare en låstidstest): gröna när de
+    körs om. Troligen delat tillstånd mellan tester som körs parallellt; utreds.
 34. **Testärendet är för trångt** (användarens skärmdump 2026-11-08): grafen i `TEST-0001` är ihoptryckt, små noder
     som ligger på varandra, belopp som krockar och alla områden ritade samtidigt över varandra. Strider mot princip 7.
     Utreds: layouten (*Använd ytan*, punkt 30) och att områdena bara visas när de väljs i menyn.

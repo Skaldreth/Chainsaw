@@ -61,6 +61,9 @@ public partial class MainWindow : Window
     /// <summary>The shortcut that folds out the case picker (sketch ÄV1a).</summary>
     private const string CasePickerGesture = "Ctrl+O";
 
+    /// <summary>The shortcut that closes the open case and goes to the start.</summary>
+    private const string CloseCaseGesture = "Ctrl+W";
+
     /// <summary>The graph, whose inspector's open form takes Esc before the Guide's panel (sketch IN1a).</summary>
     private readonly GraphViewModel _graph;
 
@@ -622,6 +625,14 @@ public partial class MainWindow : Window
             CommandBindings.Add(new CommandBinding(
                 open, (_, _) => _shell.OpenCasePicker(), (_, e) => e.CanExecute = _gate.IsShellVisible));
             InputBindings.Add(new KeyBinding(open, gesture));
+        }
+
+        if (Shortcuts.TryParse(CloseCaseGesture) is { } closeGesture)
+        {
+            var close = new RoutedCommand();
+            CommandBindings.Add(new CommandBinding(
+                close, async (_, _) => await _shell.CloseCaseAsync(), (_, e) => e.CanExecute = _gate.IsShellVisible));
+            InputBindings.Add(new KeyBinding(close, closeGesture));
         }
 
         picker.PropertyChanged += (_, e) =>

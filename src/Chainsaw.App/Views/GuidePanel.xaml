@@ -110,7 +110,7 @@
                             IsHitTestVisible="False" Opacity="0">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Offset="0" Color="Transparent" />
+                                <GradientStop Offset="0" Color="{StaticResource Color.Surface.Clear}" />
                                 <GradientStop Offset="1" Color="{StaticResource Color.Surface}" />
                             </LinearGradientBrush>
                         </Border.Background>

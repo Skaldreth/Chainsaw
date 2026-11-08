@@ -7,6 +7,9 @@
     -->
     <Color x:Key="Color.Background">#22262A</Color>
     <Color x:Key="Color.Surface">#2B2E32</Color>
+    <!-- The surface fully transparent: a fade to the surface must start from its own colour, not from Transparent
+         (white without alpha), or it greys on the way. -->
+    <Color x:Key="Color.Surface.Clear">#002B2E32</Color>
     <SolidColorBrush x:Key="Brush.Background" Color="{StaticResource Color.Background}" />
     <SolidColorBrush x:Key="Brush.Surface" Color="{StaticResource Color.Surface}" />
     <SolidColorBrush x:Key="Brush.SurfaceRaised" Color="#33373A" />
