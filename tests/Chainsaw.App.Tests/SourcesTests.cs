@@ -134,6 +134,21 @@ public sealed class SourcesTests
     }
 
     [Fact]
+    public async Task A_problem_is_said_once_in_the_toaster()
+    {
+        var toaster = new Toaster(new InlineUi());
+        var page = Create(toaster);
+        _sources.SaveFailure = new IOException("disk");
+
+        await page.ToggleAsync(page.Rows[0]);
+        await page.ToggleAsync(page.Rows[0]);
+
+        var toast = Assert.Single(toaster.Toasts);
+        Assert.Equal(ToastKind.Error, toast.Kind);
+        Assert.Equal(SourcesViewModel.SaveFailedText, toast.Title);
+    }
+
+    [Fact]
     public void The_form_takes_only_https_and_offers_the_vaults_keys()
     {
         _vault.Set(VaultState.Unlocked);
@@ -384,8 +399,14 @@ public sealed class SourcesTests
         Assert.Equal(2, told);
     }
 
-    private SourcesViewModel Create() =>
-        new(_sources, new ExitWay(_route, _exit, new InlineUi()), _vault, _keys, new InlineUi(), TimeZoneInfo.Utc);
+    private SourcesViewModel Create(Toaster? toaster = null) => new(
+        _sources,
+        new ExitWay(_route, _exit, new InlineUi()),
+        _vault,
+        _keys,
+        new InlineUi(),
+        TimeZoneInfo.Utc,
+        toaster: toaster);
 
     private static EndpointProbe Probe(Guid id, ProbeOutcome outcome, int milliseconds) =>
         new(id, outcome, 921_404, null, TimeSpan.FromMilliseconds(milliseconds), DateTimeOffset.UnixEpoch, null);

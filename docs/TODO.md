@@ -146,6 +146,16 @@ fungerar rättas före allt annat nedan. Särskilt:
 - **Bevakningens huvud** [direkt]: skissen säger *2 nya träffar sedan 09:10*, men vyn säger bara antalet. När
   användaren senast tittade behöver sparas som en tid med *sedd*.
 
+- **Guidens panel** [direkt]:
+  - **Länkar:** välj samma nod igen efter att ha följt en länk, så stannar panelen på länken. Klustrets svar, som
+    kommer efter en stund, kan byta avsnitt medan man läser.
+  - **Tangentbordet:** metodens avsnitt nås bara med högerklick.
+  - **Tolkaren:** en avslutande `*` letas efter utan att kod hoppas över.
+  - **Smalt fönster:** vid 960 px kapas kommandoraden bredvid den öppna panelen.
+
+- **Återanslutningen i utgångsrutan** [direkt]: titelraden säger *Ansluter igen …* med nästa försök, men utgångsrutan
+  (UT2b) visar bara *Offline* i rött medan tunneln ansluts igen.
+
 **Testärendet** [direkt]: fyll på det med det som byggts sedan det byggdes om. Vad som saknas står i
 `docs/BACKLOG.md` under *Testärendet (/testdata)*.
 
@@ -165,27 +175,19 @@ fungerar rättas före allt annat nedan. Särskilt:
 2. **Innehav per adress** [skiss]: Alt + klick vänder noden som ett kort (IN4 skissas först).
    - **Baksidan** visar det som ligger kvar, i rätt tecken (₿, Ξ, ₮) och i inställd valuta till dagens kurs.
    - **Inspektören** visar redan allt som passerat, det som ligger kvar och det som gått ut, vid en blockhöjd.
-3. **Grafens text när Windows är utan nät** [direkt]: godkänd 2026-11-08.
-4. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
+3. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
    - Knappen R finns. En vanlig nyckel ger bara tio anrop i månaden, så uppslag på varje nod kräver partnernyckel.
-5. **Länken `chainsaw:` registreras** [direkt] för användaren, och tas bort under Länkar i inställningarna (i dag
-   tonat *Inte byggt än*).
-   - Registreringen: `HKCU\Software\Classes\chainsaw` med `URL Protocol` och `shell\open\command` till
-     `Chainsaw.exe "%1"`.
-   - Mottagandet är byggt sedan etapp 11.
-6. **Säga till när sparningen inte går** [direkt]: ärendet sparar sig självt efter skrivningar (Spara ofta, byggt
+4. **Säga till när sparningen inte går** [direkt]: ärendet sparar sig självt efter skrivningar (Spara ofta, byggt
    2026-11-08), och en sparning som misslyckas provas igen efter 1, 2, 4 och sedan högst 10 minuter utan att något sägs.
    - Arbetskopian har allt och tas tillbaka efter en krasch, så inget går förlorat, men `.cut` är då inte färsk.
    - Förslag: en varning i toastern (TO1a) när sparningen misslyckats några gånger i rad, och *Försök igen*. Kräver en
      händelse på `ICase` som appen lyssnar på.
-7. **Återanslutning av tunneln** [direkt]: när tunneln faller, till exempel efter att datorn sovit, ansluter Chainsaw
-   inte igen av sig själv. Viktigt för bevakningen.
-8. **Meddelandet mitt på skärmen** [skiss]: bevakningens tredje sätt att säga till.
+5. **Meddelandet mitt på skärmen** [skiss]: bevakningens tredje sätt att säga till.
    - Det är byggt bakom samma gränssnitt som de andra sätten (`ScreenMessage`), men syns inte i inställningarna.
    - Skissa raden i ST1a och själva meddelandet, och lägg raden under Låsning.
-9. **Sanktionslistan mot grafens adresser och vyn Etiketter** [skiss]: `CheckSanctions` körs när grafen byggs, men
+6. **Sanktionslistan mot grafens adresser och vyn Etiketter** [skiss]: `CheckSanctions` körs när grafen byggs, men
    en träff har ingen samlad vy.
-10. **Godkänna en plånbok** [etapp]: en sammanslagning gjord av användaren (`user v1`, förseglad med vem och varför),
+7. **Godkänna en plånbok** [etapp]: en sammanslagning gjord av användaren (`user v1`, förseglad med vem och varför),
     så att plånböckernas förslag (`wallet-proposals v1`) kan godkännas.
 
 ### 4. Skissas först

@@ -36,15 +36,16 @@ public sealed partial class ShellViewModel : ObservableObject
     public const string WindowsOfflineText = "Offline";
 
     /// <summary>What the exit's tooltip says when Windows is the way out and the computer has no network.</summary>
-    public const string WindowsOfflineSourceText =
-        "Offline: datorn når inte internet. Det ärendet redan har visas, men inget nytt hämtas.";
+    public const string WindowsOfflineSourceText = OfflineWords.NoNetworkText;
 
     /// <summary>
     /// What Chainsaw says while no exit is connected (principle 9), in the exit's tooltip and in the graph alike, so
     /// that offline is said one way only.
     /// </summary>
-    public const string OfflineText =
-        "Offline: ingen utgång ansluten. Det ärendet redan har visas, men inget nytt hämtas.";
+    public const string OfflineText = OfflineWords.NoExitText;
+
+    /// <summary>What the title bar says while a fallen tunnel is connected again by itself.</summary>
+    public const string ReconnectingText = "Ansluter igen …";
 
     /// <summary>What the bar says when a sanction list is chosen while one is being imported.</summary>
     public const string ImportRunningText = "En sanktionslista importeras redan.";
@@ -186,7 +187,7 @@ public sealed partial class ShellViewModel : ObservableObject
         OnCaseChanged();
         Show(ViewTable.Start);
         ShowExit();
-        NewCase.FollowExit(IsExitLive, _way.IsWindows, ExitText);
+        NewCase.FollowExit(IsExitLive, _way.IsWindows, ExitText, _way.Offline);
     }
 
     /// <summary>Gets Nytt ärende, the panel from the right.</summary>
@@ -769,7 +770,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>
     /// Shows the way out honestly: Windows, or offline when the computer has no network, or the exit connected with
-    /// its name, connecting, or not connected.
+    /// its name, connecting, being connected again after it fell, or not connected.
     /// </summary>
     private void ShowExit()
     {
@@ -791,9 +792,10 @@ public sealed partial class ShellViewModel : ObservableObject
         (ExitText, SourceText) = status.State switch
         {
             ExitState.Connected => (ConnectedText, "Uppslag går genom utgången"),
-            ExitState.Connecting => ("Ansluter …", OfflineText),
-            ExitState.Failed => ("Utgången är inte ansluten", OfflineText),
-            _ => (NoExitText, OfflineText),
+            _ when _way.IsReconnecting => (ReconnectingText, _way.Offline.Text),
+            ExitState.Connecting => ("Ansluter …", _way.Offline.Text),
+            ExitState.Failed => ("Utgången är inte ansluten", _way.Offline.Text),
+            _ => (NoExitText, _way.Offline.Text),
         };
         if (IsExitLive && status.ExitId is { } id)
         {
@@ -803,11 +805,11 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Tells Nytt ärende the way out whenever the title bar's changes (its tag <c>via …</c>).</summary>
     /// <param name="value">The new text.</param>
-    partial void OnExitTextChanged(string value) => NewCase.FollowExit(IsExitLive, _way.IsWindows, value);
+    partial void OnExitTextChanged(string value) => NewCase.FollowExit(IsExitLive, _way.IsWindows, value, _way.Offline);
 
     /// <summary>Tells Nytt ärende whether lookups can go, so that rows waiting for the exit are fetched.</summary>
     /// <param name="value">Whether they can.</param>
-    partial void OnIsExitLiveChanged(bool value) => NewCase.FollowExit(value, _way.IsWindows, ExitText);
+    partial void OnIsExitLiveChanged(bool value) => NewCase.FollowExit(value, _way.IsWindows, ExitText, _way.Offline);
 
     /// <summary>
     /// Reads the connected exit's name from the vault off the UI thread, and shows it if the exit is still connected.

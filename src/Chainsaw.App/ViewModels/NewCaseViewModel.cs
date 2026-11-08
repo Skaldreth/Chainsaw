@@ -49,6 +49,9 @@ public sealed partial class NewCaseViewModel : ObservableObject
     /// <summary>The lookups under way, which the creation waits for once they are stopped.</summary>
     private readonly HashSet<Task> _inFlight = [];
 
+    /// <summary>How Chainsaw says it is offline, as the way out last told (<see cref="ExitWay.Offline"/>).</summary>
+    private OfflineWords _offline = OfflineWords.NoExit;
+
     /// <summary>Creates the panel, closed.</summary>
     /// <param name="workflow">Creates and opens the case.</param>
     /// <param name="prefetch">Fetches the start points in advance, or <see langword="null"/> for no lookups.</param>
@@ -120,7 +123,7 @@ public sealed partial class NewCaseViewModel : ObservableObject
     /// <summary>Gets the tag's tooltip: what is sent and through what, or that nothing is.</summary>
     public string ExitChipTip => IsExitLive
         ? $"Uppslagen går genom {ExitName} och skickar bara adressen eller tx:en"
-        : "Ingen utgång är ansluten. Inget hämtas förrän den är det.";
+        : _offline.Text;
 
     /// <summary>Gets whether a case number is written.</summary>
     public bool HasNumber => CaseNumber.Trim().Length > 0;
@@ -187,11 +190,21 @@ public sealed partial class NewCaseViewModel : ObservableObject
     /// <param name="isLive">Whether lookups can go out now.</param>
     /// <param name="isWindows">Whether Windows is the way out.</param>
     /// <param name="name">The exit's name, for example <c>Windows</c> or <c>Stockholm</c>.</param>
-    public void FollowExit(bool isLive, bool isWindows, string name)
+    /// <param name="offline">
+    /// How Chainsaw says it is offline (<see cref="ExitWay.Offline"/>), in the tag's tooltip and on the rows that
+    /// wait; no exit connected when <see langword="null"/>.
+    /// </param>
+    public void FollowExit(bool isLive, bool isWindows, string name, OfflineWords? offline = null)
     {
         var wasLive = IsExitLive;
+        _offline = offline ?? OfflineWords.NoExit;
         (IsExitWindows, ExitName, IsExitLive) = (isWindows, name, isLive);
         OnPropertyChanged(nameof(ExitChipTip));
+        foreach (var row in Rows)
+        {
+            row.FollowOffline(_offline.Waiting);
+        }
+
         if (isLive && !wasLive)
         {
             foreach (var row in Rows.Where(row => row.WantsFetch))
@@ -379,6 +392,7 @@ public sealed partial class NewCaseViewModel : ObservableObject
         }
 
         var added = new StartPointRowViewModel(startPoint);
+        added.FollowOffline(_offline.Waiting);
         Rows.Add(added);
         Fetch(added);
     }

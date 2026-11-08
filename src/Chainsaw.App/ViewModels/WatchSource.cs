@@ -21,6 +21,12 @@ public sealed record WatchSnapshot(
     public static WatchSnapshot Empty { get; } = new([], [], [], new Dictionary<string, WatchChecked>(),
         new Dictionary<string, long>());
 
+    /// <summary>
+    /// Gets when the user last looked at the hits, or <see langword="null"/> when never, so that the head can say
+    /// <em>2 nya träffar sedan 09:10</em> (sketch BV1a).
+    /// </summary>
+    public DateTimeOffset? LastSeen { get; init; }
+
     /// <summary>Gives a watch's hits, newest first.</summary>
     /// <param name="watchId">The watch.</param>
     /// <returns>The hits.</returns>
@@ -121,7 +127,10 @@ public sealed class WatchSource(IMonitoringService monitoring) : IWatchSource
             monitoring.GetRecords(@case),
             monitoring.GetHits(@case),
             monitoring.GetChecked(@case),
-            monitoring.GetSeen(@case)),
+            monitoring.GetSeen(@case))
+        {
+            LastSeen = monitoring.GetLastSeen(@case),
+        },
         cancellationToken);
 
     /// <inheritdoc/>

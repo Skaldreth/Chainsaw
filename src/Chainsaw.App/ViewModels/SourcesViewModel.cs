@@ -102,6 +102,9 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>The time zone the probe's time is shown in.</summary>
     private readonly TimeZoneInfo _timeZone;
 
+    /// <summary>The toaster that says a problem (sketch TO1a), or <see langword="null"/> in some tests.</summary>
+    private readonly Toaster? _toaster;
+
     /// <summary>Whether the round at the start has been made (or the chains were off).</summary>
     private bool _startDone;
 
@@ -126,6 +129,7 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <param name="timeZone">The time zone of the probe's time; the computer's when <see langword="null"/>.</param>
     /// <param name="providers">The suppliers of attribution, or <see langword="null"/> where there are none.</param>
     /// <param name="switches">Which suppliers are on, or <see langword="null"/> where there are none.</param>
+    /// <param name="toaster">The toaster that says a problem (sketch TO1a); none in some tests.</param>
     public SourcesViewModel(
         IChainSources sources,
         ExitWay way,
@@ -134,11 +138,13 @@ public sealed partial class SourcesViewModel : ObservableObject
         IUiThread ui,
         TimeZoneInfo? timeZone = null,
         IAttributionProviders? providers = null,
-        AttributionSwitches? switches = null)
+        AttributionSwitches? switches = null,
+        Toaster? toaster = null)
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(way);
         ArgumentNullException.ThrowIfNull(vault);
+        _toaster = toaster;
         _sources = sources;
         _way = way;
         _vault = vault;
@@ -279,13 +285,12 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>Gets whether <em>Prova alla nu</em> can be pressed.</summary>
     public bool CanProbe => IsBuilt && !IsOff && !IsProbing;
 
-    /// <summary>Gets what went wrong last, or empty.</summary>
+    /// <summary>
+    /// Gets what went wrong last, or empty. It is said in the toaster when it comes (sketch TO1a), as Bevakning says
+    /// its problems, not in a line of the page's own.
+    /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasError))]
     public partial string ErrorText { get; private set; } = string.Empty;
-
-    /// <summary>Gets whether there is something wrong to show.</summary>
-    public bool HasError => ErrorText.Length > 0;
 
     /// <summary>Gets whether the form that adds an endpoint is out.</summary>
     [ObservableProperty]
@@ -681,6 +686,16 @@ public sealed partial class SourcesViewModel : ObservableObject
         catch (IOException)
         {
             ErrorText = SaveFailedText;
+        }
+    }
+
+    /// <summary>Says a new problem in the toaster, once: the same problem again is not said again.</summary>
+    /// <param name="value">The problem, or an empty text.</param>
+    partial void OnErrorTextChanged(string value)
+    {
+        if (value.Length > 0)
+        {
+            _toaster?.Show(ToastKind.Error, value);
         }
     }
 

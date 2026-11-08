@@ -23,6 +23,9 @@ public sealed class WatchBoard
     /// <summary>The UI thread.</summary>
     private readonly IUiThread _ui;
 
+    /// <summary>The way out, or <see langword="null"/> where there is none (some tests).</summary>
+    private readonly ExitWay? _exit;
+
     /// <summary>Stops a read when the case changes.</summary>
     private CancellationTokenSource _reading = new();
 
@@ -43,6 +46,7 @@ public sealed class WatchBoard
         _source = source;
         _ui = ui;
         session.Changed += (_, _) => _ = ReloadAsync();
+        _exit = exit;
         if (exit is not null)
         {
             exit.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
@@ -73,6 +77,12 @@ public sealed class WatchBoard
 
     /// <summary>Gets whether a case is open, so that watches can be made.</summary>
     public bool HasCase => _session.Current is not null;
+
+    /// <summary>
+    /// Gets how Chainsaw says that nothing can be looked up while the gate is <see cref="WatchGate.NoExit"/>: no exit,
+    /// no network through Windows, or the exit being connected again (<see cref="ExitWay.Offline"/>).
+    /// </summary>
+    public OfflineWords Offline => _exit?.Offline ?? OfflineWords.NoExit;
 
     /// <summary>Gives whether a chain's watches may be checked now.</summary>
     /// <param name="chain">The chain.</param>
