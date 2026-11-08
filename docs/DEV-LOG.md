@@ -3377,9 +3377,8 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
 - **Konflikten:** `FindConflict` (utan valv), `OpenSettingAsideWorkingCopy` flyttar arbetskopian, dess journal, bas
   och `.tmp` orörda till `Återställda/<nummer> <UTC>Z/` (ett nytt namn om det finns) och öppnar filen med journalraden
   `case.working-copy-set-aside` (mappen och arbetskopians SHA-256). En arbetskopia som hör till filen tas tillbaka som
-  vanligt i stället. `SaveWorkingCopyAsCase` skriver ett nytt ärende med filens huvud (samma kuvert) och arbetskopian,
-  flyttar arbetskopian dit och öppnar det som en återtagning med `case.branch-saved`; misslyckas öppningen flyttas allt
-  tillbaka. Valvets kuvert krävs för båda valen.
+  vanligt i stället. `SaveWorkingCopyAsCase` gör arbetskopian till ett eget ärende (se granskningen nedan). Valvets kuvert
+  krävs för båda valen.
 - **Härdning:** en rollback-journal utan arbetskopia tas bort innan en ny arbetskopia görs, så att SQLite aldrig rullar
   in en främmande journal.
 - **App:** `CaseDialogsViewModel` med `CasePasswordViewModel`, `CasePropertiesViewModel` och `CaseBranchViewModel`, och
@@ -3395,4 +3394,23 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   inte. Se `docs/BACKLOG.md`.
 - Tester: 26 i `Chainsaw.Modules.Cases.Tests` (`EnvelopeTests`, `BranchTests`) och 31 i App.Tests
   (`CaseEnvelopesTests`).
+- **Granskningen (ett C, tre I, sex M), rättad:**
+  - **C1:** en gren fick samma id som ursprunget, så ankarna växlade och `/verify` blev röd. Nu kopieras arbetskopian,
+    får nytt id och nummer i `case_info` och krypteras om under en ny filnyckel (`CaseDatabase.Rebind`, på en egen
+    anslutning utan vakten och innan den öppnas som ärende), och grenen får nya kuvert för valvet och den inbyggda
+    återställningsnyckeln. Raden `case.branch-saved` namnger ärendet den kom ur (nummer och id), det nya id:t och
+    vilka kuvert som inte kunde följa med (ärendelösenordet, andra valv, andra nycklar, okända). `CaseChecks` följer
+    identiteten från första raden genom grenraderna, så `/verify` är grön för båda, också för en gren av en gren.
+    Ursprungets arbetskopia flyttas till `Återställda` först när grenen är öppen, så ett misslyckande lämnar
+    konflikten som den var. Med eget id är också **I1** (fel nummer i exporter) och **I2** (krockar i bevakningen och
+    etikettbiblioteket) borta.
+  - **I3:** *Öppna filen* som misslyckas (skadad `.cut`, låsning) flyttar tillbaka arbetskopian, och raden skrivs
+    först när ärendet är öppet och känt av förrådet.
+  - **M1:** härdningen provas med en verklig het journal från ett annat ärende mitt i en skrivning (testet faller utan
+    härdningen). **M2:** lösenordet provas också på kopian och huvudena jämförs. **M3:** importen journalförs med
+    filnamnet och SHA-256 av det som kopierades. **M4:** `.tmp` tas bort i `finally`, och `IsFree` räknar med den.
+    **M4b:** ett ärende vars id redan finns i mappen under ett annat namn tas inte in igen. **M5:** grenens och
+    flyttens rader skrivs efter `Track`, under ärendets lås. **M6:** tester för felvägarna.
+  - **Kvar:** kraschar Chainsaw mellan att grenen öppnats och grenraden skrivits står grenen utan raden, och
+    `/verify` blir röd för den. Ursprunget är då orört.
 

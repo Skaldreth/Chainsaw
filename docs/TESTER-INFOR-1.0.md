@@ -1173,7 +1173,8 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Varje ändring av kuverten står i journalen (`/verify` är grön efteråt).
 - [ ] Krasch med en arbetskopia som inte hör till filen (öppna ärendet, döda Chainsaw i Aktivitetshanteraren, lägg tillbaka en äldre kopia av `.cut`): när ärendet öppnas kommer *<nummer> gick åt två håll* med de två grenarna, arbetskopian vald och *Spara som <nummer>-B*.
 - [ ] *Filen* + *Öppna filen*: arbetskopian ligger orörd i `Ärenden\Återställda\<nummer> <tid>Z\`, och journalen säger var.
-- [ ] *Arbetskopian* + *Spara som …*: ett nytt ärende `<nummer>-B.cut` öppnas med journalen fram till kraschen, och ursprungsfilen är orörd. Titelraden och ärendeväljaren visar `-B`.
+- [ ] *Arbetskopian* + *Spara som …*: ett nytt ärende `<nummer>-B.cut` öppnas med journalen fram till kraschen och en rad om vilket ärende det kom ur och vilka kuvert som inte följde med; ursprungsfilen är orörd och dess arbetskopia ligger i `Återställda`. Titelraden, ärendeväljaren och en exporterad begäran säger `-B`. Öppna de två ärendena om vartannat några gånger: `/verify` är grön för båda.
+- [ ] *Öppna filen* på en skadad `.cut`: felet sägs i rutan, arbetskopian ligger kvar bredvid filen och rutan kommer tillbaka nästa gång ärendet öppnas.
 - [ ] Låses Chainsaw medan en av rutorna är öppen stängs den.
 
 ## Ikonlisten vid noden och zoomen (polering 2026-11-07)

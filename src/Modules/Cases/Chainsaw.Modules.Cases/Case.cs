@@ -586,6 +586,21 @@ internal sealed class Case : ICase
         return select.ExecuteScalar() as string ?? string.Empty;
     }
 
+    /// <summary>
+    /// Records something the Cases module did in a case that is open and known to the store, and saves; it takes the
+    /// gate like any other operation, since the case may be saving itself.
+    /// </summary>
+    /// <param name="draft">What happened.</param>
+    internal void JournalAndSave(JournalDraft draft)
+    {
+        lock (_gate)
+        {
+            using var operation = BeginOperation();
+            AppendOwnJournal(draft);
+            SaveUnlocked();
+        }
+    }
+
     /// <summary>Records something the Cases module did, in a transaction of its own.</summary>
     /// <param name="draft">What happened.</param>
     /// <returns>The sealed entry.</returns>

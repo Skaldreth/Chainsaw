@@ -120,6 +120,53 @@ public sealed class EnvelopeTests : IDisposable
     }
 
     [Fact]
+    public void Taking_in_a_file_journals_its_name_and_the_SHA256_of_what_was_copied()
+    {
+        var source = CreateShared();
+        var sha256 = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(source)));
+
+        using var opened = _colleague.CreateStore().ImportWithPassword(source, CaseFixture.Password);
+
+        var entry = opened.ReadJournal().Last(item => item.Kind == CaseJournalKinds.OpenedWithPassword);
+        using var details = System.Text.Json.JsonDocument.Parse(entry.Details!);
+        Assert.Equal("A1.cut", details.RootElement.GetProperty("importedFrom").GetString());
+        Assert.Equal(sha256, details.RootElement.GetProperty("importedSha256").GetString());
+        Assert.False(File.Exists(_colleague.CaseFile("A1") + ".tmp"));
+    }
+
+    [Fact]
+    public void A_case_already_in_the_folder_under_another_name_is_not_taken_in_again()
+    {
+        var source = CreateShared();
+        Directory.CreateDirectory(_colleague.Directory);
+        File.Copy(source, _colleague.CaseFile("A7"));
+
+        var error = Assert.Throws<CaseException>(
+            () => _colleague.CreateStore().ImportWithPassword(source, CaseFixture.Password));
+
+        Assert.Equal(CaseError.AlreadyExists, error.Error);
+        Assert.False(File.Exists(_colleague.CaseFile("A1")));
+    }
+
+    [Fact]
+    public void A_copy_whose_database_is_damaged_is_removed_again()
+    {
+        var source = CreateShared();
+        var bytes = File.ReadAllBytes(source);
+        bytes.AsSpan(bytes.Length - 2048, 1024).Fill(0x5A);
+        var damaged = Path.Combine(_owner.Directory, "elsewhere", "A1.cut");
+        Directory.CreateDirectory(Path.GetDirectoryName(damaged)!);
+        File.WriteAllBytes(damaged, bytes);
+
+        var error = Assert.Throws<CaseException>(
+            () => _colleague.CreateStore().ImportWithPassword(damaged, CaseFixture.Password));
+
+        Assert.Equal(CaseError.Corrupt, error.Error);
+        Assert.Empty(Directory.Exists(_colleague.Directory) ? Directory.GetFiles(_colleague.Directory, "A1*") : []);
+        Assert.Equal(bytes, File.ReadAllBytes(damaged));
+    }
+
+    [Fact]
     public void A_wrong_case_password_copies_nothing()
     {
         var source = CreateShared();

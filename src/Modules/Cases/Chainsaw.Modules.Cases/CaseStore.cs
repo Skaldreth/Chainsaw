@@ -111,7 +111,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             DeleteWorkingFiles(paths);
             fileKey = CaseCrypto.NewFileKey();
             anchorKey = DeriveAnchorKey();
-            var header = NewHeader(fileKey);
+            var header = NewHeader(Guid.NewGuid(), fileKey);
             database = OpenDatabase(paths.WorkingCopy, fileKey, header.CaseId);
             SchemaMigrator.Run(database, _services.Catalog);
             var info = new CaseInfo(header.CaseId, caseNumber, _services.Clock.UtcNow.ToUniversalTime());
@@ -229,27 +229,34 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             // The password is tried where the file lies, so that a wrong one copies nothing.
-            var header = ReadHeader(source);
-            if (!KeyEnvelopes.TryOpenPassword(header, password, fileKey))
+            var sourceHeader = ReadHeader(source);
+            if (!KeyEnvelopes.TryOpenPassword(sourceHeader, password, fileKey))
             {
                 throw new CaseException(CaseError.NoAccess);
             }
 
+            CryptographicOperations.ZeroMemory(fileKey);
             if (!WorkingCopyBranches.IsFree(target))
             {
                 throw new CaseException(CaseError.AlreadyExists);
             }
 
-            CopyInto(source, target);
+            RequireIdNotInFolder(sourceHeader.CaseId);
+            var sha256 = CopyInto(source, target);
             copied = true;
 
-            // The copy's header must be the one the key was opened from; a file changed in between is not opened.
-            if (ReadHeader(target).CaseId != header.CaseId)
+            // The key is opened again from the copy, the file that is opened, and the copy must be the file read.
+            var header = ReadHeader(target);
+            if (!SameHeader(header, sourceHeader) || !KeyEnvelopes.TryOpenPassword(header, password, fileKey))
             {
                 throw new CaseException(CaseError.Corrupt);
             }
 
-            return OpenLocked(target, lockFile, header, fileKey, new Opening(OpeningKind.Password, locks));
+            var opening = new Opening(OpeningKind.Password, locks)
+            {
+                Import = new ImportedFile(System.IO.Path.GetFileName(source.CaseFile), sha256),
+            };
+            return OpenLocked(target, lockFile, header, fileKey, opening);
         }
         catch
         {
@@ -311,25 +318,38 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         RequireUnlocked();
         var lockFile = AcquireLock(paths);
         var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        WorkingCopyBranches.SetAside? setAside = null;
         try
         {
             var header = ReadHeader(paths);
             OpenWithVault(header, fileKey);
 
             // A working copy that belongs to the file after all is recovered as an ordinary opening does.
-            WorkingCopyBranches.SetAside? setAside = null;
             if (File.Exists(paths.WorkingCopy) && CaseFiles.MatchingBase(paths) is null)
             {
                 setAside = WorkingCopyBranches.MoveAside(
                     paths, System.IO.Path.GetFullPath(Directory), caseNumber, _services.Clock.UtcNow);
             }
 
-            var opening = new Opening(OpeningKind.Vault, locks) { SetAside = setAside };
-            return OpenLocked(paths, lockFile, header, fileKey, opening);
+            var opened = OpenLocked(paths, lockFile, header, fileKey, new Opening(OpeningKind.Vault, locks));
+            if (setAside is not null)
+            {
+                // Journalled only once the case is open and known, so that a failed opening leaves no line behind.
+                RecordOrUndo(opened, SetAsideDraft(setAside), () => WorkingCopyBranches.MoveBack(setAside));
+            }
+
+            return opened;
         }
         catch
         {
             Clear(fileKey);
+            if (setAside is not null && !File.Exists(paths.WorkingCopy))
+            {
+                // The file did not open: the working copy goes back, while the lock is still held, and the choice is
+                // offered again.
+                WorkingCopyBranches.MoveBack(setAside);
+            }
+
             lockFile.Dispose();
             throw;
         }
@@ -351,6 +371,8 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         var lockFile = AcquireLock(paths);
         FileStream? branchLock = null;
         var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        byte[]? newKey = null;
+        var made = false;
         try
         {
             branchLock = AcquireLock(branch);
@@ -366,33 +388,37 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
             var header = ReadHeader(paths);
             OpenWithVault(header, fileKey);
-            var caseBase = CaseFiles.ReadBase(paths);
-            WorkingCopyBranches.MoveToBranch(paths, branch, header);
-            var opening = new Opening(OpeningKind.Vault, locks) { BranchOf = caseNumber };
-            try
-            {
-                var opened = OpenLocked(branch, branchLock, header, fileKey, opening);
-                branchLock = null;
-                return opened;
-            }
-            catch
-            {
-                // A branch that was saved before the failure (a closing saves) stays; one that was not goes back.
-                if (File.Exists(branch.WorkingCopy))
-                {
-                    WorkingCopyBranches.MoveBack(paths, branch, caseBase);
-                }
+            var origin = new BranchOrigin(caseNumber, header.CaseId, NotCarried(header));
 
-                throw;
-            }
+            // The working copy is copied, made a case of its own with a new id and file key, and written as a new
+            // file; the original stays in place until the new case is open, so that nothing is lost on the way.
+            made = true;
+            newKey = CaseCrypto.NewFileKey();
+            var newHeader = NewHeader(Guid.NewGuid(), newKey);
+            WorkingCopyBranches.CopyToBranch(paths, branch);
+            RebindBranch(branch, (fileKey, header.CaseId), (newKey, newHeader.CaseId), branchNumber);
+            WorkingCopyBranches.WriteCaseFile(branch, newHeader);
+            WorkingCopyBranches.RemoveBranch(branch, caseFileToo: false);
+            var opened = OpenLocked(branch, branchLock, newHeader, newKey, new Opening(OpeningKind.Branch, locks));
+            (branchLock, newKey) = (null, null);
+            RecordOrUndo(opened, BranchDraft(origin, opened), () => { });
+            SetAsideAfterBranch(paths, caseNumber, opened);
+            return opened;
         }
         catch
         {
-            Clear(fileKey);
+            Clear(newKey);
+            if (made)
+            {
+                // The new case was not made: what was written for it goes, and the original is untouched.
+                WorkingCopyBranches.RemoveBranch(branch, caseFileToo: true);
+            }
+
             throw;
         }
         finally
         {
+            Clear(fileKey);
             branchLock?.Dispose();
             lockFile.Dispose();
         }
@@ -575,7 +601,8 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="opening">How the file key was opened.</param>
     private static void JournalOpening(Case opened, bool recovered, IReadOnlyList<string> applied, Opening opening)
     {
-        var anchorsJournalled = opened.ReconcileAnchors();
+        // A case of its own made from a working copy has a new id, and so no anchors yet, like a new case.
+        var anchorsJournalled = opening.Kind != OpeningKind.Branch && opened.ReconcileAnchors();
         if (recovered)
         {
             opened.AppendOwnJournal(new JournalDraft(
@@ -592,8 +619,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
         if (opening.Kind == OpeningKind.Password)
         {
-            opened.AppendOwnJournal(new JournalDraft(
-                CaseJournalKinds.OpenedWithPassword, "Ärendet öppnades med delningslösenordet"));
+            opened.AppendOwnJournal(PasswordDraft(opening.Import));
         }
 
         if (opening.Kind == OpeningKind.Recovery)
@@ -608,52 +634,204 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 })));
         }
 
-        var branched = JournalBranch(opened, opening);
         var recoveryAdded = opened.UpdateRecoveryEnvelopes();
-        if (recovered || applied.Count > 0 || opening.Kind != OpeningKind.Vault || anchorsJournalled || recoveryAdded
-            || branched)
+        if (recovered || applied.Count > 0 || opening.Kind != OpeningKind.Vault || anchorsJournalled || recoveryAdded)
         {
             opened.SaveUnlocked();
         }
     }
 
     /// <summary>
-    /// Journals the choice made in a conflict between the file and a working copy (sketch ÄR1b): that the working
-    /// copy was set aside, and where, or that it was saved as a case of its own.
+    /// The journal line for an opening with the sharing password; for a file taken in from elsewhere, also its name
+    /// and the SHA-256 of the file as it was read, so that the copy can be traced to the file the colleague gave.
     /// </summary>
-    /// <param name="opened">The open case.</param>
-    /// <param name="opening">How the case is being opened.</param>
-    /// <returns><see langword="true"/> when something was journalled.</returns>
-    private static bool JournalBranch(Case opened, Opening opening)
-    {
-        if (opening.SetAside is { } setAside)
-        {
-            opened.AppendOwnJournal(new JournalDraft(
-                CaseJournalKinds.WorkingCopySetAside,
-                $"En arbetskopia som inte hörde till filen flyttades till {setAside.Folder}, och filen öppnades",
-                JsonSerializer.Serialize(new Dictionary<string, string>
-                {
-                    [BranchDetails.Folder] = setAside.Folder,
-                    [BranchDetails.WorkingCopySha256] = setAside.Sha256,
-                })));
-            return true;
-        }
-
-        if (opening.BranchOf is not { } from)
-        {
-            return false;
-        }
-
-        var number = System.IO.Path.GetFileNameWithoutExtension(opened.Path);
-        opened.AppendOwnJournal(new JournalDraft(
-            CaseJournalKinds.BranchSaved,
-            $"Arbetskopian sparades som ett eget ärende, {number}, eftersom filen {from} hade sparats sedan dess",
+    /// <param name="import">The file taken in, or <see langword="null"/>.</param>
+    /// <returns>The line.</returns>
+    private static JournalDraft PasswordDraft(ImportedFile? import) => import is null
+        ? new JournalDraft(CaseJournalKinds.OpenedWithPassword, "Ärendet öppnades med delningslösenordet")
+        : new JournalDraft(
+            CaseJournalKinds.OpenedWithPassword,
+            $"Ärendet togs in från filen {import.FileName} och öppnades med delningslösenordet",
             JsonSerializer.Serialize(new Dictionary<string, string>
             {
-                [BranchDetails.From] = from,
-                [BranchDetails.CaseNumber] = number,
-            })));
-        return true;
+                [BranchDetails.ImportedFrom] = import.FileName,
+                [BranchDetails.ImportedSha256] = import.Sha256,
+            }));
+
+    /// <summary>
+    /// Writes a line in a case that has just opened and is known to the store, and saves it; when that fails, the case
+    /// is closed and the step that led here is undone, so that the user is offered the same choice again.
+    /// </summary>
+    /// <param name="opened">The open case.</param>
+    /// <param name="draft">The line.</param>
+    /// <param name="undo">What undoes the step that led here.</param>
+    private static void RecordOrUndo(Case opened, JournalDraft draft, Action undo)
+    {
+        try
+        {
+            opened.JournalAndSave(draft);
+        }
+        catch
+        {
+            opened.Dispose();
+            undo();
+            throw;
+        }
+    }
+
+    /// <summary>The journal line for a working copy moved aside before the file was opened.</summary>
+    /// <param name="setAside">What was set aside.</param>
+    /// <returns>The line.</returns>
+    private static JournalDraft SetAsideDraft(WorkingCopyBranches.SetAside setAside) => new(
+        CaseJournalKinds.WorkingCopySetAside,
+        $"En arbetskopia som inte hörde till filen flyttades till {setAside.Folder}",
+        JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            [BranchDetails.Folder] = setAside.Folder,
+            [BranchDetails.WorkingCopySha256] = setAside.Sha256,
+        }));
+
+    /// <summary>
+    /// The journal line that makes a working copy a case of its own: the case it came from (number and id), its new
+    /// id and number, and the envelopes that could not follow. <see cref="CaseChecks"/> follows it from the first line.
+    /// </summary>
+    /// <param name="origin">The case it came from.</param>
+    /// <param name="opened">The new case.</param>
+    /// <returns>The line.</returns>
+    private static JournalDraft BranchDraft(BranchOrigin origin, Case opened)
+    {
+        var notCarried = origin.NotCarried.Count == 0
+            ? string.Empty
+            : $" Kuvert som inte kunde följa med: {string.Join(", ", origin.NotCarried)}.";
+        return new JournalDraft(
+            CaseJournalKinds.BranchSaved,
+            $"Arbetskopian blev ett eget ärende, {opened.Info.CaseNumber}, ur ärendet {origin.CaseNumber} "
+            + $"({origin.CaseId:D}), eftersom filen hade sparats sedan dess.{notCarried}",
+            JsonSerializer.Serialize(new Dictionary<string, object>
+            {
+                [BranchDetails.From] = origin.CaseNumber,
+                [BranchDetails.FromCaseId] = origin.CaseId.ToString("D"),
+                [BranchDetails.CaseNumber] = opened.Info.CaseNumber,
+                [BranchDetails.CaseId] = opened.Info.Id.ToString("D"),
+                [BranchDetails.NotCarried] = origin.NotCarried,
+            }));
+    }
+
+    /// <summary>
+    /// Moves the original's working copy aside once it lives on as a case of its own, and says where in the new
+    /// case's journal. A move that fails leaves the conflict as it was; the choice is then offered again.
+    /// </summary>
+    /// <param name="paths">The original's files.</param>
+    /// <param name="caseNumber">The original's case number.</param>
+    /// <param name="opened">The new case.</param>
+    private void SetAsideAfterBranch(CasePaths paths, string caseNumber, Case opened)
+    {
+        WorkingCopyBranches.SetAside setAside;
+        try
+        {
+            setAside = WorkingCopyBranches.MoveAside(
+                paths, System.IO.Path.GetFullPath(Directory), caseNumber, _services.Clock.UtcNow);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        try
+        {
+            opened.JournalAndSave(SetAsideDraft(setAside));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // The new case is open and whole; only the line about the original's working copy is missing.
+        }
+    }
+
+    /// <summary>Says which of a file's envelopes cannot follow its working copy to a case of its own.</summary>
+    /// <param name="header">The file's header.</param>
+    /// <returns>The envelopes, in words, for the journal.</returns>
+    private List<string> NotCarried(CaseHeader header)
+    {
+        var builtIn = _services.Options.RecoveryKey?.Fingerprint;
+        var words = new List<string>();
+        var others = KeyEnvelopes.OfKind(header, KeyEnvelopes.OperatorKind).Count() - 1;
+        if (others > 0)
+        {
+            words.Add(string.Create(CultureInfo.InvariantCulture, $"{others} andra valv"));
+        }
+
+        if (KeyEnvelopes.OfKind(header, KeyEnvelopes.PasswordKind).Any())
+        {
+            words.Add("ärendelösenordet");
+        }
+
+        var otherKeys = RecoveryEnvelopes.Fingerprints(header).Where(fingerprint => fingerprint != builtIn).ToList();
+        words.AddRange(otherKeys.Select(fingerprint => $"återställningsnyckeln {fingerprint}"));
+        var unknown = header.Envelopes.Count(envelope => !KeyEnvelopes.IsKind(envelope, KeyEnvelopes.OperatorKind)
+            && !KeyEnvelopes.IsKind(envelope, KeyEnvelopes.PasswordKind)
+            && RecoveryEnvelopes.FingerprintOf(envelope) is null);
+        if (unknown > 0)
+        {
+            words.Add(string.Create(CultureInfo.InvariantCulture, $"{unknown} okända"));
+        }
+
+        return words;
+    }
+
+    /// <summary>Gives a branch's database a new id, number and key; the database keys are cleared.</summary>
+    /// <param name="branch">The branch's files; its working copy is the copy to change.</param>
+    /// <param name="from">The file key and id it has now.</param>
+    /// <param name="to">The file key and id it gets.</param>
+    /// <param name="branchNumber">The new case number.</param>
+    private static void RebindBranch(
+        CasePaths branch, (byte[] Key, Guid Id) from, (byte[] Key, Guid Id) to, string branchNumber)
+    {
+        var oldKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        var newKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
+        {
+            CaseCrypto.DeriveDatabaseKey(from.Key, from.Id, oldKey);
+            CaseCrypto.DeriveDatabaseKey(to.Key, to.Id, newKey);
+            CaseDatabase.Rebind(branch.WorkingCopy, oldKey, newKey, to.Id, branchNumber);
+        }
+        finally
+        {
+            Clear(oldKey, newKey);
+        }
+    }
+
+    /// <summary>Refuses a case whose id is already in the folder under another file name.</summary>
+    /// <param name="caseId">The id.</param>
+    /// <exception cref="CaseException"><see cref="CaseError.AlreadyExists"/>.</exception>
+    private void RequireIdNotInFolder(Guid caseId)
+    {
+        foreach (var file in List())
+        {
+            try
+            {
+                if (ReadHeader(new CasePaths(file.Path)).CaseId == caseId)
+                {
+                    throw new CaseException(CaseError.AlreadyExists);
+                }
+            }
+            catch (CaseException exception) when (exception.Error != CaseError.AlreadyExists)
+            {
+                // A file whose header cannot be read is not this case.
+            }
+        }
+    }
+
+    /// <summary>Tells whether two headers are the same, as they are written.</summary>
+    /// <param name="first">One header.</param>
+    /// <param name="second">The other.</param>
+    /// <returns><see langword="true"/> when they are.</returns>
+    private static bool SameHeader(CaseHeader first, CaseHeader second)
+    {
+        using var one = new MemoryStream();
+        using var other = new MemoryStream();
+        CaseContainer.WriteHeader(one, first);
+        CaseContainer.WriteHeader(other, second);
+        return one.ToArray().AsSpan().SequenceEqual(other.ToArray());
     }
 
     /// <summary>
@@ -716,28 +894,39 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     }
 
     /// <summary>
-    /// Copies a case file into the folder, written aside and then given its name, never over a file that exists.
+    /// Copies a case file into the folder, written aside and then given its name, never over a file that exists;
+    /// what is written aside is removed whatever happens.
     /// </summary>
     /// <param name="source">The file to copy.</param>
     /// <param name="target">Where it goes.</param>
+    /// <returns>The SHA-256 of what was copied, in lower-case hexadecimal.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.AlreadyExists"/>.</exception>
-    private static void CopyInto(CasePaths source, CasePaths target)
+    private static string CopyInto(CasePaths source, CasePaths target)
     {
-        using (var input = new FileStream(source.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read))
-        using (var output = new FileStream(target.SaveFile, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            input.CopyTo(output);
-            output.Flush(flushToDisk: true);
-        }
-
         try
         {
-            File.Move(target.SaveFile, target.CaseFile, overwrite: false);
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            using (var input = new FileStream(source.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var output = new FileStream(target.SaveFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                CaseFiles.CopyHashing(input, output, hash);
+                output.Flush(flushToDisk: true);
+            }
+
+            try
+            {
+                File.Move(target.SaveFile, target.CaseFile, overwrite: false);
+            }
+            catch (IOException exception) when (File.Exists(target.CaseFile))
+            {
+                throw new CaseException(CaseError.AlreadyExists, exception);
+            }
+
+            return Convert.ToHexStringLower(hash.GetHashAndReset());
         }
-        catch (IOException exception) when (File.Exists(target.CaseFile))
+        finally
         {
             File.Delete(target.SaveFile);
-            throw new CaseException(CaseError.AlreadyExists, exception);
         }
     }
 
@@ -922,11 +1111,11 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// Makes the header of a new case with an envelope for this vault and, when one is configured, one for the
     /// organisation's recovery key.
     /// </summary>
+    /// <param name="caseId">The new case's id.</param>
     /// <param name="fileKey">The new file key.</param>
     /// <returns>The header.</returns>
-    private CaseHeader NewHeader(byte[] fileKey)
+    private CaseHeader NewHeader(Guid caseId, byte[] fileKey)
     {
-        var caseId = Guid.NewGuid();
         var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
         try
         {
@@ -1103,6 +1292,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
         /// <summary>With the organisation's private recovery key.</summary>
         Recovery,
+
+        /// <summary>A working copy just made a case of its own, with a new file key in this vault's envelope.</summary>
+        Branch,
     }
 
     /// <summary>How a case is being opened, for the journal, and the count of vault locks when it began.</summary>
@@ -1113,13 +1305,18 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     private sealed record Opening(
         OpeningKind Kind, long Locks, string? Administrator = null, string? Fingerprint = null)
     {
-        /// <summary>Gets the working copy that was set aside before the opening, or <see langword="null"/>.</summary>
-        public WorkingCopyBranches.SetAside? SetAside { get; init; }
-
-        /// <summary>
-        /// Gets the case number of the file a working copy went apart from when it is opened as a case of its own,
-        /// or <see langword="null"/>.
-        /// </summary>
-        public string? BranchOf { get; init; }
+        /// <summary>Gets the file taken in from elsewhere, with the password, or <see langword="null"/>.</summary>
+        public ImportedFile? Import { get; init; }
     }
+
+    /// <summary>A colleague's file taken into the folder: its name and the SHA-256 of what was copied.</summary>
+    /// <param name="FileName">The file's name.</param>
+    /// <param name="Sha256">The SHA-256 in lower-case hexadecimal.</param>
+    private sealed record ImportedFile(string FileName, string Sha256);
+
+    /// <summary>The case a working copy came from when it was made a case of its own.</summary>
+    /// <param name="CaseNumber">Its case number.</param>
+    /// <param name="CaseId">Its id.</param>
+    /// <param name="NotCarried">The envelopes that could not follow, in words.</param>
+    private sealed record BranchOrigin(string CaseNumber, Guid CaseId, IReadOnlyList<string> NotCarried);
 }

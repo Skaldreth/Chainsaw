@@ -5,8 +5,8 @@ namespace Chainsaw.Modules.Cases;
 
 /// <summary>
 /// Moves the files of a working copy that does not belong to its case file (sketch ÄR1b): aside, unchanged, to a
-/// folder of its own under <see cref="RecoveredFolder"/>, or over to a new case number. Nothing is ever removed; a
-/// move that stops half-way is moved back.
+/// folder of its own under <see cref="RecoveredFolder"/>, or copies it to a new case number. Nothing the user made is
+/// ever removed; a move that stops half-way is moved back.
 /// </summary>
 internal static class WorkingCopyBranches
 {
@@ -19,10 +19,15 @@ internal static class WorkingCopyBranches
     /// <summary>The time in a set-aside folder's name, in UTC, safe in a file name on Windows.</summary>
     private const string StampFormat = "yyyyMMdd-HHmmss'Z'";
 
-    /// <summary>A working copy that was set aside: its folder (relative to the cases folder) and its SHA-256.</summary>
-    /// <param name="Folder">The folder, for example <c>Återställda/2026-0117 20261108-091200Z</c>.</param>
+    /// <summary>A working copy that was set aside: where it went, its SHA-256, and the moves to undo it.</summary>
+    /// <param name="Folder">
+    /// The folder relative to the cases folder, for example <c>Återställda/2026-0117 20261108-091200Z</c>.
+    /// </param>
+    /// <param name="FullPath">The folder's full path.</param>
     /// <param name="Sha256">The working copy's SHA-256 in lower-case hexadecimal.</param>
-    public sealed record SetAside(string Folder, string Sha256);
+    /// <param name="Moves">Where each file was and where it went.</param>
+    public sealed record SetAside(
+        string Folder, string FullPath, string Sha256, IReadOnlyList<(string From, string To)> Moves);
 
     /// <summary>Gives the working copy's own files that exist, the working copy first and its journal second.</summary>
     /// <param name="paths">The case's files.</param>
@@ -39,7 +44,7 @@ internal static class WorkingCopyBranches
     /// <param name="directory">The cases folder.</param>
     /// <param name="caseNumber">The case number, for the folder's name.</param>
     /// <param name="utcNow">The time now, for the folder's name.</param>
-    /// <returns>Where they went and the working copy's hash.</returns>
+    /// <returns>Where they went, the working copy's hash, and the moves.</returns>
     public static SetAside MoveAside(CasePaths paths, string directory, string caseNumber, DateTimeOffset utcNow)
     {
         var sha256 = HashOf(paths.WorkingCopy);
@@ -47,97 +52,90 @@ internal static class WorkingCopyBranches
         var name = FreeName(Path.Combine(directory, RecoveredFolder), $"{caseNumber} {stamp}");
         var folder = Path.Combine(directory, RecoveredFolder, name);
         Directory.CreateDirectory(folder);
-        MoveAll([.. WorkingFiles(paths).Select(file => (file, Path.Combine(folder, Path.GetFileName(file))))]);
-        return new SetAside($"{RecoveredFolder}/{name}", sha256);
-    }
-
-    /// <summary>
-    /// Makes the working copy the working copy of a new case number: writes the new case file from the case file's
-    /// header and the working copy as it lies (the opening that follows recovers it and saves it properly), records
-    /// the new file as the working copy's base, and moves the working copy and its journal over.
-    /// </summary>
-    /// <param name="paths">The case's files.</param>
-    /// <param name="branch">The new case number's files; none of them may exist.</param>
-    /// <param name="header">The case file's header, with the envelopes the new case gets.</param>
-    public static void MoveToBranch(CasePaths paths, CasePaths branch, CaseHeader header)
-    {
-        byte[] hash;
-        using (var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
-        {
-            using (var output = new FileStream(branch.SaveFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                using (var headerBytes = new MemoryStream())
-                {
-                    CaseContainer.WriteHeader(headerBytes, header);
-                    sha.AppendData(headerBytes.GetBuffer(), 0, (int)headerBytes.Length);
-                    headerBytes.WriteTo(output);
-                }
-
-                using (var input = new FileStream(paths.WorkingCopy, FileMode.Open, FileAccess.Read, FileShare.Read))
-                {
-                    CaseFiles.CopyHashing(input, output, sha);
-                }
-
-                output.Flush(flushToDisk: true);
-            }
-
-            hash = sha.GetHashAndReset();
-        }
-
-        try
-        {
-            // Never over a case file that appeared meanwhile.
-            File.Move(branch.SaveFile, branch.CaseFile, overwrite: false);
-        }
-        catch
-        {
-            File.Delete(branch.SaveFile);
-            throw;
-        }
-
-        CaseFiles.WriteBase(branch, [hash]);
-        var moves = new List<(string From, string To)> { (paths.WorkingCopy, branch.WorkingCopy) };
-        if (File.Exists(paths.WorkingJournal))
-        {
-            moves.Add((paths.WorkingJournal, branch.WorkingJournal));
-        }
-
+        List<(string From, string To)> moves =
+            [.. WorkingFiles(paths).Select(file => (file, Path.Combine(folder, Path.GetFileName(file))))];
         try
         {
             MoveAll(moves);
         }
         catch
         {
-            File.Delete(branch.WorkingBase);
-            File.Delete(branch.CaseFile);
+            RemoveIfEmpty(folder);
             throw;
+        }
+
+        return new SetAside($"{RecoveredFolder}/{name}", folder, sha256, moves);
+    }
+
+    /// <summary>
+    /// Undoes <see cref="MoveAside"/> when the case could not be opened, so that the working copy lies where it was
+    /// and the choice is offered again; the folder goes when it is empty.
+    /// </summary>
+    /// <param name="setAside">What was set aside.</param>
+    public static void MoveBack(SetAside setAside)
+    {
+        MoveAll([.. setAside.Moves.Reverse().Select(move => (move.To, move.From))]);
+        RemoveIfEmpty(setAside.FullPath);
+    }
+
+    /// <summary>
+    /// Copies the working copy, and its rollback journal when there is one, to a new case number's working copy,
+    /// unchanged, so that the original stays untouched until the new case is made.
+    /// </summary>
+    /// <param name="paths">The case's files.</param>
+    /// <param name="branch">The new case number's files; none of them may exist.</param>
+    public static void CopyToBranch(CasePaths paths, CasePaths branch)
+    {
+        File.Copy(paths.WorkingCopy, branch.WorkingCopy, overwrite: false);
+        if (File.Exists(paths.WorkingJournal))
+        {
+            File.Copy(paths.WorkingJournal, branch.WorkingJournal, overwrite: false);
         }
     }
 
     /// <summary>
-    /// Undoes <see cref="MoveToBranch"/> when the new case could not be opened: the working copy and its journal go
-    /// back, the case's base is written as it was, and the new case file and its base are removed (they hold nothing
-    /// that is not in the working copy).
+    /// Writes a new case file from a header and the database in its working copy: aside first and then given its
+    /// name, never over a file; what is written aside is removed when it fails.
     /// </summary>
-    /// <param name="paths">The case's files.</param>
     /// <param name="branch">The new case number's files.</param>
-    /// <param name="caseBase">The hashes the case's base recorded before.</param>
-    public static void MoveBack(CasePaths paths, CasePaths branch, IReadOnlyList<byte[]> caseBase)
+    /// <param name="header">The new case's header.</param>
+    public static void WriteCaseFile(CasePaths branch, CaseHeader header)
     {
-        var moves = new List<(string From, string To)> { (branch.WorkingCopy, paths.WorkingCopy) };
-        if (File.Exists(branch.WorkingJournal))
+        try
         {
-            moves.Add((branch.WorkingJournal, paths.WorkingJournal));
-        }
+            using (var output = new FileStream(branch.SaveFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                CaseContainer.WriteHeader(output, header);
+                using (var input = new FileStream(branch.WorkingCopy, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    input.CopyTo(output);
+                }
 
-        MoveAll(moves);
-        if (caseBase.Count > 0)
+                output.Flush(flushToDisk: true);
+            }
+
+            File.Move(branch.SaveFile, branch.CaseFile, overwrite: false);
+        }
+        finally
         {
-            CaseFiles.WriteBase(paths, caseBase);
+            File.Delete(branch.SaveFile);
         }
+    }
 
+    /// <summary>Removes a new case number's working files once its case file is written, or all of them.</summary>
+    /// <param name="branch">The new case number's files.</param>
+    /// <param name="caseFileToo">Whether the case file goes too, when the new case could not be made.</param>
+    public static void RemoveBranch(CasePaths branch, bool caseFileToo)
+    {
+        File.Delete(branch.WorkingCopy);
+        File.Delete(branch.WorkingJournal);
         File.Delete(branch.WorkingBase);
-        File.Delete(branch.CaseFile);
+        File.Delete(branch.WorkingCopyTemporary);
+        File.Delete(branch.SaveFile);
+        if (caseFileToo)
+        {
+            File.Delete(branch.CaseFile);
+        }
     }
 
     /// <summary>
@@ -161,7 +159,8 @@ internal static class WorkingCopyBranches
     /// <param name="paths">The case number's files.</param>
     /// <returns><see langword="true"/> when it is free.</returns>
     public static bool IsFree(CasePaths paths) =>
-        !File.Exists(paths.CaseFile) && !File.Exists(paths.WorkingCopy) && !File.Exists(paths.WorkingJournal);
+        !File.Exists(paths.CaseFile) && !File.Exists(paths.SaveFile) && !File.Exists(paths.WorkingCopy)
+        && !File.Exists(paths.WorkingJournal);
 
     /// <summary>Gives the SHA-256 of a file in lower-case hexadecimal.</summary>
     /// <param name="path">The file.</param>
@@ -170,6 +169,16 @@ internal static class WorkingCopyBranches
     {
         using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         return Convert.ToHexStringLower(SHA256.HashData(input));
+    }
+
+    /// <summary>Removes a folder when nothing is left in it.</summary>
+    /// <param name="folder">The folder.</param>
+    private static void RemoveIfEmpty(string folder)
+    {
+        if (Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any())
+        {
+            Directory.Delete(folder);
+        }
     }
 
     /// <summary>Gives a folder name that is not taken yet, adding <c> (2)</c> and so on when it is.</summary>

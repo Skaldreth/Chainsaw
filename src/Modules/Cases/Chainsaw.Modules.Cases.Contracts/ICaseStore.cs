@@ -110,10 +110,11 @@ public interface ICaseStore
     ICase OpenSettingAsideWorkingCopy(string caseNumber);
 
     /// <summary>
-    /// Chooses the working copy in a conflict (sketch ÄR1b): saves it as a case of its own under a new case number,
-    /// with the case file's envelopes and the journal up to the interruption, and opens it with a line in the
-    /// journal. The case file is left as it is. The new case keeps the case's id and file key, since its envelopes
-    /// (also other vaults' and the recovery keys') can only open that key.
+    /// Chooses the working copy in a conflict (sketch ÄR1b): makes it a case of its own with a new id, case number and
+    /// file key, encrypted anew, with the journal up to the interruption and a line that names the case it came from.
+    /// It gets an envelope for this vault and for the built-in recovery key; the envelopes that cannot follow (the
+    /// case password, other vaults', other keys') are named in that line. The case file is left as it is, and its
+    /// working copy is moved, unchanged, to <c>Återställda</c> once the new case is open.
     /// </summary>
     /// <param name="caseNumber">The case number of the file in conflict.</param>
     /// <param name="branchNumber">The case number of the new case.</param>

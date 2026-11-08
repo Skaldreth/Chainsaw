@@ -56,8 +56,9 @@ public static class CaseJournalKinds
     public const string WorkingCopySetAside = "case.working-copy-set-aside";
 
     /// <summary>
-    /// The case was saved from a working copy that did not belong to its file, as a case of its own under a new case
-    /// number; the details give the case number of the file it went apart from.
+    /// The case was made from a working copy that did not belong to its file, as a case of its own with a new id and
+    /// case number; the details give the case it went apart from (number and id), the new id and number, and the
+    /// envelopes that could not follow.
     /// </summary>
     public const string BranchSaved = "case.branch-saved";
 }

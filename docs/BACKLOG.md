@@ -502,10 +502,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   bara för ägaren; med omdirigerad indata läses lösenordet som en `string` som inte kan nollställas; punkten på kurvan
   kontrolleras av plattformen (OpenSSL, CNG), inte av en egen kontroll (granskningen etapp 9, M).
 
-- **Två grenar av samma ärende (ÄR1b):** en arbetskopia som sparas som eget ärende behåller ärendets id och filnyckel
-  (kuverten kan bara öppna den nyckeln, och `case_info` kan inte ändras), så de två filerna delar ankare på datorn.
-  Varannan öppning journalförs därför som *ankarna ersattes*. Ett eget id för grenen kräver omkryptering och nya kuvert
-  för alla valv, och går bara för de kuvert som kan öppnas här.
 - **Var grenarna gick isär (ÄR1b):** skissen visar journalens rad och hash där filen och arbetskopian gick isär och hur
   många rader som tillkommit på varje gren. Att räkna ut det kräver att båda öppnas; i dag visas bara när var och en
   skrevs senast.

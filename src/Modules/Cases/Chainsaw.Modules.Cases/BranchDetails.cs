@@ -15,6 +15,21 @@ internal static class BranchDetails
     /// <summary>The case number of the file the working copy went apart from.</summary>
     public const string From = "from";
 
+    /// <summary>The id of the case the working copy went apart from.</summary>
+    public const string FromCaseId = "fromCaseId";
+
     /// <summary>The case number the working copy was saved under.</summary>
     public const string CaseNumber = "caseNumber";
+
+    /// <summary>The new id the working copy was saved under.</summary>
+    public const string CaseId = "caseId";
+
+    /// <summary>The name of a colleague's file that was taken into the folder.</summary>
+    public const string ImportedFrom = "importedFrom";
+
+    /// <summary>The SHA-256 of a colleague's file as it was copied, in lower-case hexadecimal.</summary>
+    public const string ImportedSha256 = "importedSha256";
+
+    /// <summary>The envelopes of the file that could not follow to the new case, as words.</summary>
+    public const string NotCarried = "notCarried";
 }

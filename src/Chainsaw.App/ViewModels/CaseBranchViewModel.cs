@@ -18,7 +18,7 @@ public sealed partial class CaseBranchViewModel : ObservableObject
 
     /// <summary>What is said about the working copy's branch.</summary>
     public const string CopyHint =
-        "Sparas som ett eget ärende med samma kuvert. Journalen följer med fram till kraschen.";
+        "Sparas som ett eget ärende med ditt kuvert. Journalen följer med fram till kraschen.";
 
     /// <summary>The cases, which carry out the choice.</summary>
     private readonly CaseWorkflow _workflow;
