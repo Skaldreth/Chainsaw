@@ -106,7 +106,10 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
     som ligger överst tills det stängs. Alla säger bara att en bevakning har slagit till.
   - **Hur ofta källan frågas** ställs per bevakning (användarens beslut 2026-11-07), med förvalet **vid varje nytt
     block** (på kedjor utan block, eller med mycket täta block, något som motsvarar det).
-- **Redovisa:** hur rapporten byggs bestäms när vi kommer dit (användarens beslut 2026-11-06).
+- **Redovisa:** rapporten är **RP1b** (användarens beslut 2026-11-08): ett underlag för underrättelse som byggs ur det
+  som är markerat i grafen, med delar som slås av och på, exporterat till Markdown som Begäran (spåret med tid, UTC,
+  belopp, txid, blockhöjd och hash, slutsatserna med *Varför?* och hashkedjans topphash). Exporten journalförs,
+  skriver aldrig över och tar aldrig med offrens namn. Vyn *Rapport* står sist i pillret (Ctrl+8).
 
 **Mixers är vanliga** i utredningarna (användarens observation 2026-11-07) och är en egen sort i grafen. Spåret tar slut
 vid en mixer, men Chainsaw kan föreslå **troliga utgångar** ur belopp (minus avgift), tid och adresstyp. De är kandidater,
@@ -461,9 +464,33 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   ärligt sitt läge (hämtar, klar, väntar på utgången, inte igenkänd). *Skapa ärende* är nedtonad tills numret finns.
   **Förstagångsinställningens steg Utgång** har *Windows* eller *VPN* som de två korten i ST1a, med **Windows
   förvalt** (användarens beslut 2026-11-08); WireGuard-filen läggs till under VPN.
-- **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
-  Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
-  Etiketter och Guide (Terminal är borttagen).
+- **Vyer** (bekräftade 2026-11-06): Graf, Tx-inspektör, Adresskort och kluster, Bevakning, Begäran, Guide och, i 1.0
+  (användarens val 2026-11-08), **Etiketter (ET1a)**, **Exponering (EP1b)** och **Rapport (RP1b)**. Tidslinje och
+  Flöde (Sankey) kommer efter 1.0 (`docs/BACKLOG.md`). Terminal är borttagen.
+- **Valt för 1.0** (användarens val 2026-11-08, sidan *Mot 1.0* på canvasen):
+  - **IN4a:** Alt + klick vänder noden på plats och baksidan växer till en rad per tillgång; flera kort kan stå vända.
+  - **TL2a:** tidslisten är en rad där valvyns fönster förstoras som under en lins (dygn och timmar) och resten trycks
+    ihop; inzoomade dygnsband får prickade timlinjer; listen slutar prickad vid senaste blocket.
+  - **GR9a:** en tx som bytt block får ett runt märke i beloppets hörn, med förut och nu (höjd och hash) i rutan;
+    *Väntar på källan* är en bricka i grafens huvud med nedräkning, och en väntande nod får ett timglas.
+  - **ET1a:** vyn Etiketter är en tät lista med källorna som filter, sanktionsträffarna i grafen samlade överst och
+    den valda etiketten med sina ursprung, *Sprid inte*, *Ta tillbaka* och *Visa i grafen*; växlar till biblioteket.
+  - **EP1b:** vyn Exponering är ringar runt klustret, en per hopp, utbetalt åt höger och inkommet åt vänster, med
+    andelarna per sort och den valda vägen till höger.
+  - **KU1a:** kronorna står litet under beloppet på linjen; *Varför?* visar stegen (beloppet, Bitstamp-kursen,
+    Riksbankens växelkurs, var och en med hash) i Guidens panel; sidan Kurser har vanliga rader.
+  - **BV4a:** meddelandet mitt på skärmen är ett litet kort med ögat och ringar, utan att något mörkas; sätten att
+    säga till är tre rader under Låsning.
+  - **ST2a:** återställningsnyckeln är en rad i *Om Chainsaw* med fingeravtrycket i grupper och Kopiera, återkallade
+    nycklar överstrukna, och en ärlig varning när ingen nyckel är inbyggd.
+  - **FS2a:** steget Utgång har Windows (förvalt) och VPN som två kort, vägen som bild under och WireGuard-filen under
+    VPN.
+  - **UT3b:** utgångarna sköts i Inställningar › Nätverk som en tabell (Utgång, Plats, Syns som) där en rad fälls ut
+    med namn och plats och kontrollen (*Kontrollera nu*, och valet att kontrollera vid varje anslutning).
+  - **ÄR1b:** ärendets kuvert ritas som kort i dialoger: kollegans fil öppnas med ärendelösenordet och får ett eget
+    kuvert, egenskaperna har fliken *Kuvert*, och efter en krasch väljer man gren (filen eller arbetskopian).
+  - **KR1a:** sökningen i kommandoraden är en lista med *Bästa träff* överst och grupperna Etiketter, Adresser, Tx,
+    Kluster och Guide; den valda raden visas direkt i grafen.
 - **Guiden** (användarens önskemål 2026-11-06): förklaringar inne i programmet, som avsnitt man kan läsa, i stil med de
   förklarande anteckningarna till höger i skisserna. En heuristik, ett slut på spåret eller ett begrepp (UTXO, växeladress,
   CoinJoin, peel chain) har ett *?* som öppnar rätt avsnitt. Texterna ligger i repot och skrivs medan funktionerna byggs.
@@ -557,4 +584,4 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersätts av KF2b (vald 2026-11-08), med områdena från KF1b |
 | **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |
-| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera | Väntar på användarens val (2026-11-08) |
+| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera | Valda 2026-11-08: IN4a, TL2a, GR9a, ET1a, EP1b, RP1b, KU1a, BV4a, ST2a, FS2a, UT3b, ÄR1b, KR1a |

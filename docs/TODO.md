@@ -70,14 +70,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
 - **Spårning genom en swap** (Ethereum): hur stor del av ett byte som räknas som spårat är en bedömning som behöver
   en regel. *Nu:* varje tillgång spåras för sig (`docs/BACKLOG.md`, *Kedjor och data*).
 
-**Behövs för att 1.0 ska kunna bli klar:**
-- **Vad ingår i 1.0?** Vyerna Tidslinje, Flöde (Sankey), Exponering och Etiketter är bekräftade men inte skissade.
-  *Förslag:* Etiketter och Exponering med i 1.0, eftersom de hör till Attribuera och Uttag. Tidslinje och Flöde
-  efter 1.0, eftersom tidslinjen under grafen (TL1a) och linjernas tjocklek redan visar mycket av det.
-- **Rapporten (Redovisa):** antingen som i Gawk med bilagor, eller ett enklare underlag för underrättelse.
-  *Förslag:* ett enklare underlag först, en export till Markdown som Begäran, med spåret, slutsatserna med *Varför?*
-  och hashkedjans topphash.
-
 ## Vägen till 1.0
 
 Ordningen: först provet på Windows, sedan resterna i det som redan är byggt, sedan det som är godkänt men inte byggt,
@@ -140,53 +132,28 @@ fungerar rättas före allt annat nedan. Särskilt:
    - **Kontaktvägar:** katalogen är tom, eftersom ingen kontaktväg gick att kontrollera mot sin källa när modulen
      byggdes (`ExchangeContacts.Catalogue`). Lägg in verifierade vägar med källa och datum.
    - **Fler mallar** per börs, om kryptospåraren vill det.
-2. **Innehav per adress** [skiss]: Alt + klick vänder noden som ett kort (IN4 skissas först).
-   - **Baksidan** visar det som ligger kvar, i rätt tecken (₿, Ξ, ₮) och i inställd valuta till dagens kurs.
-   - **Inspektören** visar redan allt som passerat, det som ligger kvar och det som gått ut, vid en blockhöjd.
-3. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
+2. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
    - Knappen R finns. En vanlig nyckel ger bara tio anrop i månaden, så uppslag på varje nod kräver partnernyckel.
-4. **Säga till när sparningen inte går** [direkt]: ärendet sparar sig självt efter skrivningar (Spara ofta, byggt
+3. **Säga till när sparningen inte går** [direkt]: ärendet sparar sig självt efter skrivningar (Spara ofta, byggt
    2026-11-08), och en sparning som misslyckas provas igen efter 1, 2, 4 och sedan högst 10 minuter utan att något sägs.
    - Arbetskopian har allt och tas tillbaka efter en krasch, så inget går förlorat, men `.cut` är då inte färsk.
    - Förslag: en varning i toastern (TO1a) när sparningen misslyckats några gånger i rad, och *Försök igen*. Kräver en
      händelse på `ICase` som appen lyssnar på.
-5. **Meddelandet mitt på skärmen** [skiss]: bevakningens tredje sätt att säga till.
-   - Det är byggt bakom samma gränssnitt som de andra sätten (`ScreenMessage`), men syns inte i inställningarna.
-   - Skissa raden i ST1a och själva meddelandet, och lägg raden under Låsning.
-6. **Sanktionslistan mot grafens adresser och vyn Etiketter** [skiss]: `CheckSanctions` körs när grafen byggs, men
-   en träff har ingen samlad vy.
-7. **Godkänna en plånbok** [etapp]: en sammanslagning gjord av användaren (`user v1`, förseglad med vem och varför),
+4. **Godkänna en plånbok** [etapp]: en sammanslagning gjord av användaren (`user v1`, förseglad med vem och varför),
     så att plånböckernas förslag (`wallet-proposals v1`) kan godkännas.
 
-### 4. Skissas först
+### 4. Valt 2026-11-08 och ska byggas
 
-- **Vyerna som ingår i 1.0**, efter frågan ovan.
-- **Rapporten**, efter frågan ovan.
-- **Kurserna i gränssnittet:**
-  - SEK på Bitcoins linjer, som Ethereums redan har.
-  - Stegen bakom *Varför?*.
-  - Valet av valuta och upplösning i inställningarna.
-- **Förstagångsinställningens steg Utgång** (FS2a eller FS2b): Windows förvalt (beslutat 2026-11-08). I dag erbjuds
-  bara en WireGuard-fil eller *Senare*, och VPN är förvalt.
-  Steget behöver valet *Windows* eller *VPN* som de två korten i ST1a.
-- **Utgångarna:**
-  - Ta bort en utgång, byta dess namn och ange platsen (`ExitInfo.Place`).
-  - Kontrollera utgången: fråga en källa vilken offentlig adress uppslagen kommer ifrån (*Syns som …*).
-- **Ärendet:**
-  - Öppna en kollegas fil med ärendelösenordet (`OpenWithPassword`) och lägga till ett eget kuvert.
-  - Ärendets egenskaper: titel och delning.
-  - Konflikten med arbetskopian: när arbetskopian inte hör till filen ska användaren få välja mellan att öppna filen
-    och att spara arbetskopian som ett eget ärende.
-- **Återställningsnyckeln i *Om Chainsaw*:** om en nyckel är inbyggd och dess fingeravtryck, och ärligt när den saknas.
-- **Sökning i kommandoraden:** etiketter, adresser i ärendet och kluster. Också Guiden därifrån, till exempel
-  `/guide utxo`.
-- **Tidslisten:**
-  - Den blir för smal för ±48 h i valvyn och behöver zoomas runt fönstret.
-  - Tidsbanden behöver timmar när man zoomar in.
-  - Listens prickade slut vid senaste blocket saknas.
-- **Små markeringar i grafen:**
-  - En tx som bytt block (omorganisation).
-  - *Väntar på källan* i grafens hörn, som statusraden sa förut.
+Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md under *Valt för 1.0*.
+- **Grafen** [direkt]: IN4a kortets baksida, TL2a tidslisten, GR9a bytt block och *Väntar på källan*.
+- **Etiketter ET1a** [etapp], med sanktionsträffarna samlade.
+- **Exponering EP1b** [etapp].
+- **Rapport RP1b** [etapp].
+- **Kurserna KU1a** [etapp]: kronorna via Riksbanken.
+- **Inställningarna** [direkt]: BV4a meddelandet mitt på skärmen, ST2a återställningsnyckeln, FS2a steget Utgång
+  (Windows förvalt) och UT3b utgångarna med kontrollen.
+- **Ärendet ÄR1b** [etapp]: kollegans fil, egenskaperna med kuverten och konflikten med arbetskopian.
+- **Sökningen KR1a** [direkt].
 
 ## Före tjänstebruk
 

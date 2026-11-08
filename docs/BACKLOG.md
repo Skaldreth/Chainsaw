@@ -661,3 +661,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   läggs i indexet i `src/Chainsaw.App/Guide/GuideLibrary.cs` (annars hamnar det under *Övrigt*), och länkar mellan
   avsnitten skrivs `[text](fil.md)` eller `[text](fil.md#ankare)`.
 
+
+## Vyerna efter 1.0
+
+- **Tidslinje** och **Flöde (Sankey)** är bekräftade vyer men kommer efter 1.0 (användarens val 2026-11-08). Tidslinjen
+  under grafen (TL1a, TL2a) och linjernas tjocklek visar mycket av det tills dess. De skissas först.
