@@ -294,6 +294,13 @@ Jämför med skisserna ID8c och FS1a på canvasen, gärna i 1440 × 900 och i et
   hämtas; felraden säger att raden inte hämtades. En lista med kommatecken (`adress, adress`) ger en rad var.
 - Skapa ärendet medan en rad hämtar: ärendet skapas först när hämtningen är klar, och journalen räknar alla råsvar.
 - Lås med Ctrl+L medan ärendet skapas: ärendet får ändå de förhandshämtade råsvaren och raden i journalen.
+- NC2a utseende: inga linjer mellan raderna, hovring ger en ljusare grund och visar ×; en ny rad glider in uppifrån;
+  medan en rad hämtar glider en ljusning över tre streck och snurran går runt på en svag ring (stilla med Windows
+  animeringar avstängda). Med × fokuserad (Tab) tar Del bort raden.
+- Hovra *Lägg till adress eller tx*: plusrutan blir grå. Utan startpunkter står brickorna ₿ Bitcoin, Ξ Ethereum och
+  T TRON. Offline: utgångens bricka har röd text och en svagt röd kant.
+- Reglaget *Kan öppnas av en kollega* glider över och fälten fälls in; *Upprepa* visar *Samma igen* tills man skriver,
+  och igen när fältet töms. *Skapa ärende* är tydligt nedtonad utan nummer. Skuggan faller åt vänster över det mörka.
 
 **Kommandoraden**
 - `/help` listar kommandona. `/hjälp` ger *Okänt kommando*. Fel står i rött ovanför raden; ett lyckat kommando tömmer

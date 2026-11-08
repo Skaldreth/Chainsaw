@@ -103,7 +103,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
       dem svara som cache för det som inte kan ha ändrats.
     - **Sanktionslistans Ethereum-adresser** kontrolleras inte än (som i Attribution), så brickan visas bara för
       Bitcoin.
-    - **Platshållare i *Upprepa*** (*Samma igen* i skissen): `PasswordBox` har ingen, och den är inte byggd.
 39. **Granskning av alla byggda vyer mot skisserna** (användarens synpunkt 2026-11-08: många delar är kraftigt
     förenklade). Gjord 2026-11-08. Skalet och dialogerna följer skisserna nära; förenklingarna sitter i grafens
     arbetsytor. Att bygga om, i ordning:

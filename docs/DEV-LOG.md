@@ -2559,3 +2559,21 @@ och *+ Skäl, frivilligt*) och *Allt avgjort* med ringen, sammanfattningen och l
     flex på samma sätt). Spårad linje är den tjockaste grafen ritar (5,2 px), inte 4.
   - Högen och ledtrådsnoden (*+N tx*) står inte med: de är grafens egen struktur, inte sorter av aktörer.
   - Avståndet mellan bokstäverna i rubrikerna (skissens `letter-spacing`) finns inte i WPF.
+
+## Nytt ärende granskat mot NC2a (2026-11-08)
+
+- Gått igenom panelen element för element mot skissen och användarens synpunkter (*inga linjer vid raderna*,
+  *betydligt mer professionellt*). Logiken från granskningen (höjden är kedjans, inklistring per rad) är orörd.
+- **Rättat:** linjen mellan raderna är borta (hovringens grund skiljer dem åt); en ny rad glider in 4 px på 0,22 s;
+  skimret är en glidande ljusning över tre streck (1,4 s) i stället för en puls, och står still utan animeringar;
+  snurran har sin svaga ring; frågetecknet för det okända är 17 px som TRON-märket; blockhöjden har siffror i fast
+  bredd; × på en rad tar bort med Del när den har tangentbordet (tipset *Ta bort · Del*); plusrutan får den markerade
+  grå på hovring och platshållaren *Lägg till adress eller tx* den svaga textens grå i stället för den svagaste;
+  formerna före första startpunkten är ₿, Ξ och T som i skissen, med 6 px till namnet och tecknet i den mjukare grå;
+  utgångens bricka har en röd kant på 40 % när den är offline (texten hel); panelens skugga faller 24 px åt vänster;
+  × i huvudet har radie 8 och grå kant på hovring; reglaget glider på 0,15 s och lösenordsfälten fälls in; *Upprepa*
+  har platshållaren *Samma igen*; *Skapa ärende* är nedtonad till 40 % (temats 60 % gånger knappens 67 %).
+- **Avsteg kvar:** skissens grå `#C9CDCF` finns inte i temat, så värdena ritas i textens färg på 82 %; *Avbryt* följer
+  temats `Button.Secondary` (grå text) i stället för skissens ljusare; bocken i numret syns så snart numret är giltigt,
+  också medan man skriver; sanktionens ikon är 12 px (minsta storleken) i stället för 11.
+- Inga nya tester: bara vyn ändrades (XAML och två händelser i koden bakom).
