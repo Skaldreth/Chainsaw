@@ -111,7 +111,7 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
 
 Hela `docs/BACKLOG.md` byggs före 1.0, i omgångar där agenterna inte rör samma filer. Varje omgång tar bort det den
 byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
-1. **Skisser** [skiss]: vyerna **Tidslinje** och **Flöde (Sankey)**, och bekräftelsen när en godkänd plånbok ångras.
+1. **Skisserna är valda** (2026-11-08): TL3a, FL1a, PL1b och SW1a (CLAUDE.md, *Valt för 1.0*).
 2. **Ethereum klart:** spårningen genom en swap (när regeln är beslutad), Tornado Cash och kända DEX:ar och bryggor,
    OFAC:s ETH-adresser, kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
    och fynden från etapp 23 och 23b.

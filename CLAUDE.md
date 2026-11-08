@@ -512,6 +512,19 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     kuvert, egenskaperna har fliken *Kuvert*, och efter en krasch väljer man gren (filen eller arbetskopian).
   - **KR1a:** sökningen i kommandoraden är en lista med *Bästa träff* överst och grupperna Etiketter, Adresser, Tx,
     Kluster och Guide; den valda raden visas direkt i grafen.
+  - **TL3a** (vald 2026-11-08): vyn Tidslinje har en vågrät bana per aktör, en tx är ett lodrätt streck mellan banorna,
+    tx som ligger tätt samlas med en siffra som zoomar till timmar, ärendets egna händelser står på en egen bana, och
+    en inspektör till höger visar fakta ur kedjan.
+  - **FL1a** (vald 2026-11-08): vyn Flöde är en Sankey med en kolumn per hopp från vänster till höger, varje band delat
+    i trådar i färgen för var pengarna till sist hamnade, det som ligger kvar som en stump, och spårningsmetoden som
+    räknar om delningen.
+  - **PL1b** (vald 2026-11-08): att ångra en godkänd plånbok (Ctrl+Z eller *Ångra* i KF2b) bekräftas i grafen, där
+    klustret öppnas som ett kort med adresserna och en liten ruta under som i IN1b; panelen säger *Bekräfta i grafen*.
+  - **SW1a** (vald 2026-11-08): valet per swap görs i pillret ₮ → Ξ, som fälls ut på plats till *Följer* och *Följer
+    inte*; följer värdet är linjen efter streckad i accent, annars grå med ett stopp och en person-markering.
+  - **Tornado Cash** (användarens beslut 2026-11-08): märks *Mixer* med markeringen **tidigare sanktionerad**
+    (OFAC tog bort den ur SDN-listan 2025-03-21), en liten hörnmarkering som sanktionerad men nedtonad, med datumen i
+    *Varför?*.
 - **Guiden** (användarens önskemål 2026-11-06): förklaringar inne i programmet, som avsnitt man kan läsa, i stil med de
   förklarande anteckningarna till höger i skisserna. En heuristik, ett slut på spåret eller ett begrepp (UTXO, växeladress,
   CoinJoin, peel chain) har ett *?* som öppnar rätt avsnitt. Texterna ligger i repot och skrivs medan funktionerna byggs.
@@ -605,4 +618,4 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersätts av KF2b (vald 2026-11-08), med områdena från KF1b |
 | **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |
-| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera; TL3, FL1 (vyerna Tidslinje och Flöde), PL1 (ångra en plånbok), SW1 (spåret genom en swap) | Valda 2026-11-08: IN4a, TL2a, GR9a, ET1a, EP1b, RP1b, KU1a, BV4a, ST2a, FS2a, UT3b, ÄR1b, KR1a; TL3, FL1, PL1 och SW1 väntar på val |
+| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera; TL3, FL1 (vyerna Tidslinje och Flöde), PL1 (ångra en plånbok), SW1 (spåret genom en swap) | Valda 2026-11-08: IN4a, TL2a, GR9a, ET1a, EP1b, RP1b, KU1a, BV4a, ST2a, FS2a, UT3b, ÄR1b, KR1a; TL3a, FL1a, PL1b och SW1a valda |
