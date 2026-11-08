@@ -166,6 +166,13 @@ internal sealed class PriceService : IPriceService
         return new PriceLookup<Price>(status, new Price(request.At, currency, cryptoRate, fiatRate), origins, null);
     }
 
+    /// <inheritdoc/>
+    public RateSummary Summarize(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(RateResponseStore.Summarize);
+    }
+
     /// <summary>Says why a request cannot be answered by the sources, before anything is read or sent.</summary>
     /// <param name="request">The request.</param>
     /// <param name="currency">The currency counted in.</param>

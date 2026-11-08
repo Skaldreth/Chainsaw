@@ -35,4 +35,23 @@ public interface IPriceService
     Task<PriceLookup<Price>> GetPriceAsync(
         ICase @case, PriceRequest request, PriceLookupMode mode = PriceLookupMode.AsNeeded,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Counts what the case keeps from the sources: the sealed answers that hold a crypto rate, and those that hold a
+    /// central bank's rates, so that the settings can say honestly how many there are. Nothing is sent.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The counts.</returns>
+    /// <exception cref="ArgumentNullException">The case is null.</exception>
+    /// <exception cref="CaseException"><see cref="CaseError.Closed"/>.</exception>
+    RateSummary Summarize(ICase @case);
+}
+
+/// <summary>How many sealed answers from the rate sources a case keeps.</summary>
+/// <param name="CryptoRates">The answers that hold a crypto rate for a period (Bitstamp).</param>
+/// <param name="FiatResponses">The answers that hold a central bank's rates over some days (the Riksbank).</param>
+public sealed record RateSummary(int CryptoRates, int FiatResponses)
+{
+    /// <summary>Gets every answer kept.</summary>
+    public int Total => CryptoRates + FiatResponses;
 }

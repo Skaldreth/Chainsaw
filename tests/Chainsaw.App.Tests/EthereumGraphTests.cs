@@ -139,6 +139,9 @@ internal sealed class TestPrices : IPriceService
 
     public List<(PriceRequest Request, PriceLookupMode Mode)> Asked { get; } = [];
 
+    /// <summary>Gets or sets how a request without a rate is answered.</summary>
+    public PriceLookupStatus Missing { get; set; } = PriceLookupStatus.NotInCase;
+
     public Task<PriceLookup<Price>> GetPriceAsync(
         ICase @case, PriceRequest request, PriceLookupMode mode = PriceLookupMode.AsNeeded,
         CancellationToken cancellationToken = default)
@@ -147,7 +150,7 @@ internal sealed class TestPrices : IPriceService
         var asset = request.Asset ?? request.Chain.NativeAsset();
         if (!Rates.TryGetValue(asset, out var rate))
         {
-            return Task.FromResult(new PriceLookup<Price>(PriceLookupStatus.NotInCase, null, [], null));
+            return Task.FromResult(new PriceLookup<Price>(Missing, null, [], null));
         }
 
         var origin = new RateOrigin(1, "test", new Uri("https://rates.invalid/"), 200, request.At, request.At,
@@ -157,6 +160,10 @@ internal sealed class TestPrices : IPriceService
         return Task.FromResult(new PriceLookup<Price>(
             PriceLookupStatus.FromCase, new Price(request.At, FiatCurrency.Sek, crypto, null), [origin], null));
     }
+
+    public RateSummary Summary { get; set; } = new(0, 0);
+
+    public RateSummary Summarize(ICase @case) => Summary;
 }
 
 /// <summary>The graph on Ethereum after TK1a (stage 23b): marks, values, swaps, balances, seeds and the forms.</summary>

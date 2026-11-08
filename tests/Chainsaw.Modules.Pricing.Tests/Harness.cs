@@ -41,6 +41,7 @@ internal sealed class Harness : IDisposable
             BitstampBaseUri = new Uri(Fixtures.Bitstamp),
             RiksbankBaseUri = new Uri(Fixtures.Riksbank),
             RiksbankInterval = TimeSpan.Zero,
+            KronaVia = FiatCurrency.Usd,
         });
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(CaseNumber);

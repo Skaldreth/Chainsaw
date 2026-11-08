@@ -20,7 +20,8 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
 {
     /// <summary>The columns read back, in order.</summary>
     private const string SelectColumns =
-        "sequence, source, url, kind, subject, status_code, received_utc, received_local, fetched_by, sha256, body";
+        "sequence, source, url, kind, subject, status_code, received_utc, received_local, exit_route, "
+        + "fetched_by, sha256, body";
 
     /// <summary>The format of a day in the tables and subjects.</summary>
     public const string DayFormat = "yyyy-MM-dd";
@@ -49,7 +50,10 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
         var record = transaction.AppendSealed(PricingSchema.RawResponsesChain, values);
         var origin = new RateOrigin(
             record.Sequence, source, response.Uri, response.StatusCode, response.ReceivedAt, local, fetchedBy,
-            Convert.ToHexStringLower(sha256));
+            Convert.ToHexStringLower(sha256))
+        {
+            Route = response.RouteText,
+        };
         return new StoredRateResponse(kind, subject, origin, body);
     }
 
@@ -170,6 +174,31 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
         return null;
     }
 
+    /// <summary>
+    /// Counts the final answers the indexes point to: a crypto rate per period, and a central bank's response per
+    /// range of days. Only successful responses count, as when a rate is read.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The counts.</returns>
+    public static RateSummary Summarize(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            $"""
+            SELECT
+                (SELECT COUNT(DISTINCT l.sequence) FROM pricing_lookup l
+                    JOIN {PricingSchema.RawResponsesTable} r ON r.sequence = l.sequence
+                    WHERE l.kind = $crypto AND r.status_code BETWEEN 200 AND 299),
+                (SELECT COUNT(DISTINCT f.sequence) FROM pricing_fiat_ranges f
+                    JOIN {PricingSchema.RawResponsesTable} r ON r.sequence = f.sequence
+                    WHERE r.status_code BETWEEN 200 AND 299)
+            """);
+        Add(command, "$crypto", RateKinds.CryptoCandle);
+        using var row = command.ExecuteReader();
+        return row.Read()
+            ? new RateSummary(checked((int)row.GetInt64(0)), checked((int)row.GetInt64(1)))
+            : new RateSummary(0, 0);
+    }
+
     /// <summary>Gives the subject of a request for a fiat series over some days.</summary>
     /// <param name="series">The series.</param>
     /// <param name="from">The first day.</param>
@@ -244,7 +273,10 @@ internal sealed class RateResponseStore(TimeZoneInfo timeZone)
             ParseTime(row.GetString(row.GetOrdinal("received_local"))),
             JsonSerializer.Deserialize<OperatorProfile>(row.GetString(row.GetOrdinal("fetched_by")))
                 ?? throw new CaseException(CaseError.Corrupt),
-            Convert.ToHexStringLower(sha256));
+            Convert.ToHexStringLower(sha256))
+        {
+            Route = row.GetString(row.GetOrdinal("exit_route")),
+        };
     }
 
     /// <summary>Adds a parameter to a command.</summary>

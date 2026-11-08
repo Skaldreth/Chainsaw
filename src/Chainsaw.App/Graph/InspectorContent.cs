@@ -241,13 +241,10 @@ public sealed record InspectorContent(
             new("Tid", model.FirstTime is { } time ? Time(time) : "Obekräftad"),
             new("Tx", transactions.ToString(CultureInfo.InvariantCulture)),
         };
+        facts.Insert(1, new InspectorFact("Värde", edge.Value?.Text ?? NoRateText));
         if (model.Amount.Asset.Chain == Chain.Bitcoin)
         {
             facts.Add(new InspectorFact("Kontroll", Checked(scene, BitcoinTransactions(model))));
-        }
-        else
-        {
-            facts.Insert(1, new InspectorFact("Värde", edge.Value?.Text ?? NoRateText));
         }
 
         if (edge.Swap is { } swap)
@@ -551,7 +548,7 @@ public sealed record InspectorContent(
         return new WhyLine($"Inga av de spårade pengarna gick här enligt {scene.MethodText}.", GuideTopic.Methods);
     }
 
-    /// <summary>Answers what is particular to a line on Ethereum: the token, the swap and its value.</summary>
+    /// <summary>Answers what is particular to a line on Ethereum: the token and the swap.</summary>
     /// <param name="edge">The line.</param>
     /// <returns>The answers.</returns>
     private static IEnumerable<WhyLine> EthereumWhy(EdgeView edge)
@@ -578,16 +575,27 @@ public sealed record InspectorContent(
                 + "inte bytet än, utan räknar varje tillgång för sig.",
                 GuideTopic.Tokens);
         }
+    }
 
-        yield return edge.Value is { } value
-            ? new WhyLine(
+    /// <summary>
+    /// Answers what a line was worth (sketch KU1a): the value with its steps, or why there is none; never a value
+    /// made up.
+    /// </summary>
+    /// <param name="edge">The line.</param>
+    /// <returns>The answer.</returns>
+    private static WhyLine ValueWhy(EdgeView edge)
+    {
+        if (edge.Value is { } value)
+        {
+            return new WhyLine(
                 $"Värdet {value.Text} gäller hela linjens belopp på kedjan, inte bara den spårade delen, vid "
-                + "varje tx:s tid: " + string.Join(" ", value.Steps),
-                GuideTopic.Prices)
-            : new WhyLine(
-                "Ingen kurs: ärendet har inte kursen för varje rörelse på linjen vid dess tid, så inget värde "
-                + "visas hellre än ett påhittat. Kurserna hämtas när grafen expanderas.",
+                + "varje tx:s tid; klicka på beloppet för stegen: " + string.Join(" ", value.Steps),
                 GuideTopic.Prices);
+        }
+
+        var why = edge.ValueGap?.Tip ?? "Ärendet har inte kursen för varje rörelse på linjen vid dess tid.";
+        return new WhyLine(
+            "Ingen kurs: " + why + " Inget värde visas hellre än ett påhittat.", GuideTopic.Prices);
     }
 
     /// <summary>Says how far a node is expanded, when not all the way.</summary>
@@ -646,6 +654,8 @@ public sealed record InspectorContent(
             {
                 why.AddRange(EthereumWhy(edge));
             }
+
+            why.Add(ValueWhy(edge));
         }
 
         why.Add(TracedWhy(scene, edge));

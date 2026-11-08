@@ -48,6 +48,9 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <summary>A mark's icon on its disc.</summary>
     private const double MarkIconSize = 10;
 
+    /// <summary>The mark before a missing value under a line's amount (sketch KU1a), as small as a mark.</summary>
+    private const double GapMarkSize = 10;
+
     /// <summary>How far a cluster's second frame lies behind the first (sketch GR3a: several addresses).</summary>
     private const double StackOffset = 3;
 
@@ -647,7 +650,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         var hit = model.HitTest(surface, Tolerance);
         var guideTip = GuideTipAt(surface);
         Cursor = hit.Node is not null || hit.Edge is not null || guideTip is not null ? Cursors.Hand : null;
-        var text = guideTip ?? model.Scene?.Node(hit.Node)?.ToolTip;
+        var text = guideTip ?? model.AmountTipAt(surface) ?? model.Scene?.Node(hit.Node)?.ToolTip;
         if (text == _hoverTip.Content as string)
         {
             return;
@@ -849,10 +852,12 @@ public sealed partial class GraphCanvas : FrameworkElement
             : GraphPalette.Brush(this, edge.Ink);
         var text = CachedText(edge.Label, 11, ink, FontWeights.Normal);
         var glyphWidth = edge.Glyph.Length > 0 ? AmountLayout.GlyphWidth : 0;
-        var value = edge.Value is { } worth
-            ? CachedText(worth.Text, 9.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal)
+        var value = edge.HasValueLine
+            ? CachedText(edge.ValueLine, 9.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal)
             : null;
-        var width = Math.Max(text.Width + glyphWidth, value?.Width ?? 0);
+        var gap = edge.Value is null ? edge.ValueGap : null;
+        var markWidth = gap is null ? 0 : AmountLayout.GapMarkWidth;
+        var width = Math.Max(text.Width + glyphWidth, (value?.Width ?? 0) + markWidth);
         var height = text.Height + (value?.Height ?? 0);
         var box = new Rect(middle.X - (width / 2) - 5, middle.Y - (text.Height / 2) - 1, width + 10, height + 2);
         if (!taken.TryAdd(new GraphRect(box.X, box.Y, box.Width, box.Height)))
@@ -871,7 +876,16 @@ public sealed partial class GraphCanvas : FrameworkElement
         dc.DrawText(text, new Point(left + glyphWidth, box.Y + 1));
         if (value is not null)
         {
-            dc.DrawText(value, new Point(middle.X - (value.Width / 2), box.Y + 1 + text.Height));
+            var valueLeft = middle.X - ((value.Width + markWidth) / 2);
+            var valueTop = box.Y + 1 + text.Height;
+            if (gap is not null)
+            {
+                // A missing value (sketch KU1a): a small mark says offline or not fetched yet, and hovering says which.
+                var mark = new Point(valueLeft, valueTop + ((value.Height - GapMarkSize) / 2));
+                DrawGlyph(dc, gap.Icon, GraphPalette.Find(this, "Brush.TextMuted"), mark, GapMarkSize);
+            }
+
+            dc.DrawText(value, new Point(valueLeft + markWidth, valueTop));
         }
     }
 

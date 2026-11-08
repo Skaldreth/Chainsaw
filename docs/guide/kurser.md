@@ -1,7 +1,7 @@
 # Kurser och omräkning
 
 > **Som i vardagen:** Kedjan är som ett kvitto i en främmande valuta utan växelkurs. Hur mycket det var värt i kronor
-> får man slå upp i efterhand, för rätt dag och timme, och på en resa växlar man ofta i två steg: först till dollar,
+> får man slå upp i efterhand, för rätt dag och timme, och på en resa växlar man ofta i två steg: först till euro,
 > sedan till kronor. Chainsaw gör samma sak och visar varje steg, så att vem som helst kan räkna om det.
 
 Kedjan säger hur många bitcoin som flyttades och när blocket bröts, men inget om vad de var värda. Värdet i kronor
@@ -14,14 +14,16 @@ kommer från **mellanhänder**, och därför är det två sorters uppgifter i Ch
 
 ## Två källor
 
-Ingen börs med lång historik handlar bitcoin mot kronor i någon större mängd. Därför räknar Chainsaw i två steg:
+Bitstamp har ingen kronkurs, och ingen börs med lång historik handlar bitcoin mot kronor i någon större mängd. Därför
+**följer kronan Riksbanken**, och Chainsaw räknar i två steg:
 
-1. **Bitcoin i dollar** (eller euro) ur **Bitstamps** prishistorik. Bitstamp är en av de äldsta börserna och har öppen
-   historik sedan 2011, per minut, timme och dag, utan API-nyckel.
-2. **Dollar i kronor** ur **Riksbankens** valutakurser (serien `SEKUSDPMI`, eller `SEKEURPMI` för euro). Riksbanken ger
-   en kurs per bankdag, öppet och utan avgift.
+1. **Bitcoin i euro** ur **Bitstamps** prishistorik (`BTC/EUR`; för ether och USDT och USDC samma sak). Bitstamp är en
+   av de äldsta börserna och har öppen historik sedan 2011, per minut, timme och dag, utan API-nyckel.
+2. **Euro i kronor** ur **Riksbankens** dagskurser (serien `SEKEURPMI`, kronor för en euro). Riksbanken ger en kurs per
+   bankdag, öppet och utan avgift, genom sitt öppna API för räntor och valutakurser (SWEA).
 
-Räknar man i dollar eller euro behövs bara det första steget.
+Båda svaren sparas i ärendet, var för sig, med källa, tid och SHA-256. Räknar man i euro eller dollar (*Inställningar
+› Kurser*) behövs bara det första steget.
 
 ## Vilken kurs gäller?
 
@@ -47,17 +49,31 @@ efter midnatt, så att en kurs som publiceras sent inte missas.
 
 ## Så ser stegen ut
 
+Under beloppet på en linje i grafen står värdet i kronor, litet. Ett klick på beloppet öppnar *Varför?* här
+bredvid grafen, med stegen för varje överföring på linjen:
+
+- **Beloppet** på kedjan, som är fakta: tx:en och utgången, blockets höjd och hash, och blocktiden i UTC och lokal tid.
+- **Kursen BTC → EUR** ur Bitstamp: perioden, att det är periodens sista pris, när och genom vilken utgång den
+  hämtades, och SHA-256 av svaret.
+- **Växelkursen EUR → SEK** ur Riksbanken: dagen, serien, när den hämtades och SHA-256 av svaret.
+- **Uträkningen**, till exempel:
+
 ```
-1 BTC = 30 123,45 USD: Bitstamp, BTC/USD, sista priset för 2023-11-14 22:00–23:00 (UTC).
-1 USD = 10,513 SEK: Riksbanken, serien SEKUSDPMI, kursen för 2023-11-14.
-1 BTC = 30 123,45 × 10,513 = 316 687,82985 SEK.
-0,512 BTC × 316 687,82985 = 162 144,1688832 SEK, avrundat 162 144,17 SEK.
+0,512 × 28 010,5 × 11,451 = 164 223,10 kr, avrundat
 ```
 
-(Siffrorna är påhittade.) Uträkningen sker exakt, och bara det som visas avrundas, till två decimaler.
+(Siffrorna är påhittade.) Uträkningen sker exakt, och bara det som visas avrundas. Med SHA-256 kan svaret i ärendet
+kontrolleras: det är samma bytes som källan skickade.
+
+En linje vars kurs inte finns i ärendet visar **– kr** med en liten markering: ett överstruket nät när ingen utgång är
+ansluten, en klocka när kursen inte är hämtad än eller inte är satt än hos källan (en obekräftad tx har ingen blocktid
+än). Hovra över den för att se vilken kurs som saknas.
 
 ## Utan nät
 
-Kurserna ligger i ärendet. Är ingen utgång ansluten svarar ärendet, och saknas kursen där står det **Offline**; inget
-gissas. Uppslagen går, som allt annat, bara genom den valda utgången och innehåller bara marknaden och tiden, aldrig
+Kurserna ligger i ärendet. Är ingen utgång ansluten svarar ärendet, och saknas kursen där står det **– kr** och
+**Offline**; inget gissas. När grafen bara visas frågas inga källor; kurserna hämtas när grafen expanderas.
+Inställningarna (*Kurser*) säger hur många kurser ärendet har sparat.
+
+Uppslagen går, som allt annat, bara genom den valda utgången och innehåller bara marknaden och tiden, aldrig
 något om ärendet.

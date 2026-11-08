@@ -183,6 +183,7 @@ public partial class App : Application
                 .AddSingleton(provider => new LinkRegistration(
                     provider.GetRequiredService<ILinkRegistry>(),
                     Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Chainsaw.exe")))
+                .AddSingleton<RatesSummaryViewModel>()
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphEditor, GraphEditor>()

@@ -649,6 +649,11 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="tolerance">How close to a line counts, in the surface's units.</param>
     public void ChooseAt(GraphPoint point, double tolerance)
     {
+        if (AskValueAt(point))
+        {
+            return;
+        }
+
         var (node, edge) = HitTest(point, tolerance);
         Choose(node, edge);
     }

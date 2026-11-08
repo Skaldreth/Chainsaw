@@ -13,7 +13,7 @@ public sealed class ServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task Prices_in_kronor_by_default_through_dollars_and_the_riksbank()
+    public async Task Prices_in_kronor_through_dollars_and_the_riksbank_when_chosen()
     {
         _harness.AnswerAll();
 
@@ -675,6 +675,7 @@ public sealed class ReviewRegressionTests : IDisposable
             BitstampBaseUri = new Uri(Fixtures.Bitstamp),
             RiksbankBaseUri = new Uri(Fixtures.Riksbank),
             RiksbankInterval = interval,
+            KronaVia = FiatCurrency.Usd,
         });
         var later = Fixtures.At.AddDays(60);
         harness.AnswerCandle(Fixtures.At, "1");
@@ -789,6 +790,7 @@ public sealed class ReviewRegressionTests : IDisposable
             BitstampBaseUri = new Uri(Fixtures.Bitstamp),
             RiksbankBaseUri = new Uri(Fixtures.Riksbank),
             RiksbankInterval = interval,
+            KronaVia = FiatCurrency.Usd,
         });
         harness.AnswerAll();
         await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
@@ -810,6 +812,7 @@ public sealed class ReviewRegressionTests : IDisposable
             BitstampBaseUri = new Uri(Fixtures.Bitstamp),
             RiksbankBaseUri = new Uri(Fixtures.Riksbank),
             RiksbankInterval = TimeSpan.FromMilliseconds(800),
+            KronaVia = FiatCurrency.Usd,
         });
         harness.AnswerAll();
         await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
@@ -870,6 +873,7 @@ public sealed class ReviewRegressionTests : IDisposable
             BitstampBaseUri = new Uri(Fixtures.Bitstamp),
             RiksbankBaseUri = new Uri(Fixtures.Riksbank),
             RiksbankInterval = TimeSpan.FromSeconds(30),
+            KronaVia = FiatCurrency.Usd,
         });
         harness.AnswerAll();
         await harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);

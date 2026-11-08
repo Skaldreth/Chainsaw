@@ -1119,7 +1119,7 @@
                                             </Border>
                                             <StackPanel Margin="0,0,16,0">
                                                 <TextBlock Text="Valuta" Style="{StaticResource Settings.RowTitle}" />
-                                                <TextBlock Text="Belopp räknas om vid tx:ens tid." Style="{StaticResource Settings.RowHint}" />
+                                                <TextBlock Text="Beloppen visas i den här valutan, under beloppet på kedjan." Style="{StaticResource Settings.RowHint}" />
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
@@ -1133,15 +1133,48 @@
                                             </Border>
                                             <StackPanel Margin="0,0,16,0">
                                                 <TextBlock Text="Upplösning" Style="{StaticResource Settings.RowTitle}" />
-                                                <TextBlock Text="Blocktiden är ungefärlig, därför timme." Style="{StaticResource Settings.RowHint}" />
+                                                <TextBlock Text="Kursen för den tidsperiod som blocket bröts i." Style="{StaticResource Settings.RowHint}" />
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
                                     <Border Style="{StaticResource Settings.Row}">
-                                        <StackPanel>
-                                            <TextBlock Text="Källor" Style="{StaticResource Settings.RowTitle}" />
-                                            <TextBlock Text="Bitstamp för BTC, Riksbanken för kronan." Style="{StaticResource Settings.RowHint}" />
-                                        </StackPanel>
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.Success}" Margin="0,0,8,0"
+                                                         VerticalAlignment="Center" />
+                                                <TextBlock Text="Bitstamp" Style="{StaticResource Settings.Value}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Källa för kryptokurser" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Bitstamp, för BTC, ETH, USDT och USDC. Bara genom utgången."
+                                                           Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.Success}" Margin="0,0,8,0"
+                                                         VerticalAlignment="Center" />
+                                                <TextBlock Text="Riksbanken" Style="{StaticResource Settings.Value}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Källa för växelkursen" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Bitstamp har ingen krona; euron räknas om med dagens kurs."
+                                                           Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Settings.Row}">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Rates.StoredText}"
+                                                       ToolTip="{Binding Rates.StoredTip}" Style="{StaticResource Settings.Value}" />
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Sparas i ärendet" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Varje kurs med källa, tid och SHA-256 av svaret. Hämtas aldrig två gånger."
+                                                           Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
                                     </Border>
                                 </StackPanel>
 

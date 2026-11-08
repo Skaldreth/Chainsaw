@@ -125,15 +125,19 @@ public interface IGraphSource
 /// smittar</em>); <see langword="null"/> where there is none.
 /// </param>
 /// <param name="prices">
-/// The rates, which give the lines on Ethereum their value in SEK at the time (sketch TK1a); <see langword="null"/>
-/// where there are none, and the lines then show no value.
+/// The rates, which give the lines their value in the chosen currency at the time (sketches TK1a and KU1a);
+/// <see langword="null"/> where there are none, and the lines then show no value.
+/// </param>
+/// <param name="priceDefaults">
+/// The currency chosen in the settings, which a line without a value names (<c>– kr</c>); kronor where there is none.
 /// </param>
 public sealed class GraphSource(
     ITracingService tracing,
     IAttributionService attribution,
     IClusteringService clustering,
     ILabelLibrary? library = null,
-    IPriceService? prices = null) : IGraphSource
+    IPriceService? prices = null,
+    IPriceDefaults? priceDefaults = null) : IGraphSource
 {
     /// <summary>
     /// The most rates one expansion asks the source for, so that a long history does not flood Pricing's source; the
@@ -175,6 +179,9 @@ public sealed class GraphSource(
     /// <summary>What the trace says when the graph does not yet show a coin to start in.</summary>
     public const string NothingToTraceText =
         "Inget att spåra än: startpunktens mynt finns inte i grafen. Välj startpunkten och expandera den.";
+
+    /// <summary>Gets the code of the currency the lines are valued in, for example <c>SEK</c>.</summary>
+    private string Currency => (priceDefaults?.Currency ?? FiatCurrency.Sek).Code();
 
     /// <inheritdoc/>
     public Task<GraphScene> LoadAsync(ICase @case, GraphReading reading, CancellationToken cancellationToken)
@@ -559,12 +566,13 @@ public sealed class GraphSource(
         }
 
         var latest = new Dictionary<Asset, Price>();
-        var values = await ValuesAsync(@case, graph, rates, latest, cancellationToken).ConfigureAwait(false);
+        var (values, gaps) = await ValuesAsync(@case, graph, rates, latest, cancellationToken).ConfigureAwait(false);
         return GraphScene.Build(new GraphSnapshot(graph, labels, method, seeds, trace, problem)
         {
             AccountSeeds = accountSeeds,
             AccountTrace = accountTrace,
             Values = values,
+            ValueGaps = gaps,
             Rates = latest,
             KeptOutOfPiles = reading.KeptOutOfPiles,
         }, reading.ShowUnspendable);
@@ -596,10 +604,11 @@ public sealed class GraphSource(
     }
 
     /// <summary>
-    /// Values the lines on Ethereum at the time of their movements, in the currency Pricing is set to: each movement
-    /// at its block's time, by the rate of its asset (ether, USDT or USDC by contract). A line gets a value only when
-    /// every movement on it has a rate; otherwise none is shown, never a guess. Reading the graph uses only the case's
-    /// rates; an expansion may ask the source for at most <see cref="MostRateLookups"/>.
+    /// Values the lines at the time of their transfers, in the currency Pricing is set to (sketches TK1a and KU1a):
+    /// each transfer at its block's time, by the rate of its asset (bitcoin, ether, or USDT and USDC by contract). A
+    /// line gets a value only when every transfer on it has a rate; otherwise it gets the reason, never a guess.
+    /// Reading the graph uses only the case's rates; an expansion may ask the source for at most
+    /// <see cref="MostRateLookups"/>.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="graph">The graph.</param>
@@ -608,63 +617,68 @@ public sealed class GraphSource(
     /// Filled with the latest rate found per asset, which values what is left at an address (sketch TK1a).
     /// </param>
     /// <param name="cancellationToken">Stops the work.</param>
-    /// <returns>The values by line key.</returns>
-    private async Task<IReadOnlyDictionary<string, EdgeValue>> ValuesAsync(
-        ICase @case,
-        TraceGraph graph,
-        PriceLookupMode mode,
-        Dictionary<Asset, Price> latest,
-        CancellationToken cancellationToken)
+    /// <returns>The values and the reasons a line has none, by line key.</returns>
+    private async Task<(IReadOnlyDictionary<string, EdgeValue> Values, IReadOnlyDictionary<string, EdgeValueGap> Gaps)>
+        ValuesAsync(
+            ICase @case,
+            TraceGraph graph,
+            PriceLookupMode mode,
+            Dictionary<Asset, Price> latest,
+            CancellationToken cancellationToken)
     {
         var values = new Dictionary<string, EdgeValue>(StringComparer.Ordinal);
+        var gaps = new Dictionary<string, EdgeValueGap>(StringComparer.Ordinal);
         if (prices is null)
         {
-            return values;
+            return (values, gaps);
         }
 
         var asked = 0;
-        var known = new Dictionary<(Asset, DateTimeOffset), Price?>();
-        foreach (var edge in graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.Transfer
-            && edge.Amount.Asset.Chain == Chain.Ethereum))
+        var known = new Dictionary<(Asset, DateTimeOffset), PriceLookup<Price>>();
+        foreach (var edge in graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.Transfer && edge.Transfers.Count > 0))
         {
-            var valuations = new List<Valuation>();
+            var parts = new List<EdgeValuePart>();
+            EdgeValueGap? gap = null;
             foreach (var transfer in edge.Transfers)
             {
                 if (transfer.Time is not { } time)
                 {
+                    gap = EdgeValues.Unconfirmed(Currency);
                     break;
                 }
 
                 var key = (transfer.Amount.Asset, time);
-                if (!known.TryGetValue(key, out var price))
+                if (!known.TryGetValue(key, out var lookup))
                 {
                     var lookupMode = mode == PriceLookupMode.AsNeeded && asked < MostRateLookups
                         ? PriceLookupMode.AsNeeded
                         : PriceLookupMode.CaseOnly;
                     asked += lookupMode == PriceLookupMode.AsNeeded ? 1 : 0;
-                    price = await PriceOf(@case, transfer.Amount.Asset, time, lookupMode, cancellationToken)
+                    lookup = await LookUp(@case, transfer.Amount.Asset, time, lookupMode, cancellationToken)
                         .ConfigureAwait(false);
-                    known[key] = price;
+                    known[key] = lookup;
                 }
 
-                if (price is null)
+                if (lookup.Value is not { } price)
                 {
+                    gap = EdgeValues.GapOf(lookup, time, Currency);
                     break;
                 }
 
-                valuations.Add(price.ValueOf(transfer.Amount));
+                parts.Add(new EdgeValuePart(transfer, price.ValueOf(transfer.Amount)));
             }
 
-            if (valuations.Count == edge.Transfers.Count && valuations.Count > 0)
+            if (parts.Count == edge.Transfers.Count)
             {
-                values[edge.Key] = new EdgeValue(
-                    Math.Round(valuations.Sum(valuation => valuation.Value), 0, MidpointRounding.AwayFromZero),
-                    valuations[0].Price.Currency.Code(),
-                    [.. valuations.SelectMany(valuation => valuation.Steps).Distinct()]);
+                values[edge.Key] = EdgeValues.Sum(parts);
+            }
+            else if (gap is not null)
+            {
+                gaps[edge.Key] = gap;
             }
         }
 
-        foreach (var price in known.Values.OfType<Price>())
+        foreach (var price in known.Values.Select(lookup => lookup.Value).OfType<Price>())
         {
             if (!latest.TryGetValue(price.Asset, out var held) || price.At > held.At)
             {
@@ -672,7 +686,7 @@ public sealed class GraphSource(
             }
         }
 
-        return values;
+        return (values, gaps);
     }
 
     /// <summary>Asks Pricing for an asset's rate at a time; a failure is no rate, never an error in the graph.</summary>
@@ -681,21 +695,20 @@ public sealed class GraphSource(
     /// <param name="at">The time.</param>
     /// <param name="mode">Whether the source may be asked.</param>
     /// <param name="cancellationToken">Stops the work.</param>
-    /// <returns>The price, or <see langword="null"/>.</returns>
-    private async Task<Price?> PriceOf(
+    /// <returns>The answer; a case that cannot be read is answered as a failed lookup.</returns>
+    private async Task<PriceLookup<Price>> LookUp(
         ICase @case, Asset asset, DateTimeOffset at, PriceLookupMode mode, CancellationToken cancellationToken)
     {
         try
         {
-            var lookup = await prices!.GetPriceAsync(
+            return await prices!.GetPriceAsync(
                 @case, new PriceRequest(asset.Chain, at) { Asset = asset }, mode, cancellationToken)
                 .ConfigureAwait(false);
-            return lookup.Value;
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
             or CaseException)
         {
-            return null;
+            return new PriceLookup<Price>(PriceLookupStatus.Failed, null, [], null);
         }
     }
 }

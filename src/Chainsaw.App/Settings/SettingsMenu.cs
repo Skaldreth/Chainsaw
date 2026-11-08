@@ -35,7 +35,10 @@ public static class SettingsMenu
             new(SettingsPage.Look, "Utseende", "Låsskärmens kätting."),
             new(SettingsPage.Links, "Länkar", "Andra program kan öppna en adress i Chainsaw."),
         ]),
-        new("Arbetet", [new(SettingsPage.Pricing, "Kurser", "Kursen vid en tx:s tid, med källa.")]),
+        new("Arbetet",
+        [
+            new(SettingsPage.Pricing, "Kurser", "Belopp i en valuta du väljer, till kursen när pengarna rörde sig."),
+        ]),
         new("Du", [new(SettingsPage.Profile, "Profil", "Vem som hämtade, i ärendets journal.")]),
         new(string.Empty, [new(SettingsPage.About, "Om Chainsaw", string.Empty)]),
     ];

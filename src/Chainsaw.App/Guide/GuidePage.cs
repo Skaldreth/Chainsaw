@@ -23,6 +23,15 @@ public sealed record GuidePage(
     /// <summary>Gets whether the page has answers above the section.</summary>
     public bool HasAnswers => Answers.Count > 0;
 
+    /// <summary>Gets the steps behind a line's value (sketch KU1a), or <see langword="null"/>.</summary>
+    public GuideValuation? Valuation { get; init; }
+
+    /// <summary>Gets whether the page shows a value's steps instead of plain answers.</summary>
+    public bool HasValuation => Valuation is not null;
+
+    /// <summary>Gets whether the page shows plain answers above the section.</summary>
+    public bool HasPlainAnswers => HasAnswers && !HasValuation;
+
     /// <summary>Gives what a place shows, or <see langword="null"/> when its section is not in the library.</summary>
     /// <param name="library">The library.</param>
     /// <param name="place">The place.</param>
@@ -37,7 +46,10 @@ public sealed record GuidePage(
         }
 
         var answers = place.Context?.Lines.Select(line => Answer(library, place, line)).ToList() ?? [];
-        return new GuidePage(section, place.Anchor, place.Context?.Label ?? string.Empty, answers);
+        return new GuidePage(section, place.Anchor, place.Context?.Label ?? string.Empty, answers)
+        {
+            Valuation = place.Context?.Valuation,
+        };
     }
 
     /// <summary>

@@ -14,7 +14,26 @@ public partial class GuidePanel : UserControl
 
     /// <summary>Attaches the panel's view model.</summary>
     /// <param name="model">The view model.</param>
-    public void Attach(GuidePanelViewModel model) => DataContext = model;
+    public void Attach(GuidePanelViewModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        DataContext = model;
+        model.CopyWanted += (_, text) => CopyText(text);
+    }
+
+    /// <summary>Puts an id on the clipboard; a clipboard held by another program is left alone.</summary>
+    /// <param name="text">The id.</param>
+    private static void CopyText(string text)
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(text);
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            // Another program holds the clipboard; nothing is lost but the copy.
+        }
+    }
 
     /// <summary>
     /// Shows the fade at the bottom while there is more text below, and lets it go at the end, so that the reader sees

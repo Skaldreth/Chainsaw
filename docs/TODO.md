@@ -149,7 +149,9 @@ Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md
 - **Etiketter ET1a** [etapp], med sanktionsträffarna samlade.
 - **Exponering EP1b** [etapp].
 - **Rapport RP1b** [etapp].
-- **Kurserna KU1a** [etapp]: kronorna via Riksbanken.
+- **Saknade kurser** [direkt]: grafen hämtar kurser bara vid en expansion, så linjer som expanderades före KU1a står
+  med **– kr**. Ett sätt att hämta de kurser som saknas (till exempel när ärendet öppnas med en ansluten utgång, eller
+  ett val i grafens huvud), och påhittade kurser i `/testdata`.
 - **Inställningarna** [direkt]: BV4a meddelandet mitt på skärmen, ST2a återställningsnyckeln, FS2a steget Utgång
   (Windows förvalt) och UT3b utgångarna med kontrollen.
 - **Ärendet ÄR1b** [etapp]: kollegans fil, egenskaperna med kuverten och konflikten med arbetskopian.
