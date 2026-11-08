@@ -71,6 +71,24 @@ public sealed class HashChainTests : IDisposable
         Assert.Equal(2, journal.HeadSequence);
     }
 
+    [Theory]
+    [InlineData("utc = 'inte en tid'", false)]
+    [InlineData("details = '{\"caseId\":1}'", true)]
+    [InlineData("details = '[]'", true)]
+    public void A_first_record_changed_into_something_unreadable_is_reported_and_not_thrown(
+        string change, bool namesAnotherCase)
+    {
+        Tamper(
+            "DROP TRIGGER seal_journal_no_update",
+            $"UPDATE journal SET {change} WHERE sequence = 1",
+            HashChain.Triggers("journal")[0].Sql);
+
+        var verification = Verify();
+
+        Assert.Equal(namesAnotherCase, verification.Problems.Contains(CaseProblem.CaseInfoChanged));
+        Assert.Equal(new ChainBreak(1, ChainBreakReason.RecordChanged), verification.Chains[0].Break);
+    }
+
     [Fact]
     public void A_changed_record_with_a_recomputed_hash_breaks_the_chain_at_the_next_record()
     {

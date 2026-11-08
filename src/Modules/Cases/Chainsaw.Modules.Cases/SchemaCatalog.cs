@@ -62,14 +62,6 @@ internal sealed partial class SchemaCatalog
     /// <summary>Gets the sealed chains of other modules, the only ones a module may seal records in.</summary>
     public IReadOnlyList<SealedChain> ModuleChains { get; }
 
-    /// <summary>Finds a chain by name.</summary>
-    /// <param name="name">The chain's name.</param>
-    /// <returns>The chain.</returns>
-    /// <exception cref="ArgumentException">No chain has that name.</exception>
-    public SealedChain Chain(string name) =>
-        Chains.FirstOrDefault(chain => string.Equals(chain.Name, name, StringComparison.Ordinal))
-        ?? throw new ArgumentException($"There is no sealed chain named {name}.", nameof(name));
-
     /// <summary>
     /// Finds a chain that another module may seal records in: never the Cases module's own (the journal is written
     /// only through the journal, with the time and the operator added by the Cases module).

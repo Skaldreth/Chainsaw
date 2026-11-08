@@ -115,23 +115,32 @@ internal static class CaseChecks
         using (var row = database.Command("SELECT case_id, case_number, created_utc FROM case_info", transaction))
         using (var reader = row.ExecuteReader())
         {
-            if (!reader.Read() || reader.GetString(0) != info.Id.ToString("D") || reader.GetString(1) != info.CaseNumber)
+            if (!reader.Read() || reader.GetValue(0) as string != info.Id.ToString("D")
+                || reader.GetValue(1) as string != info.CaseNumber || reader.GetValue(2) is not string created)
             {
                 return false;
             }
 
-            createdUtc = reader.GetString(2);
+            createdUtc = created;
             if (reader.Read())
             {
                 return false;
             }
         }
 
-        var first = JournalRecords.Read(database, transaction, 1, 1).FirstOrDefault();
-        if (first is not { Sequence: 1, Kind: CaseJournalKinds.Created }
-            || CreatedIdentity(first.Details, createdUtc) is not { } identity)
+        // The first entry is read as raw values, so that a record changed into something unreadable (a time that
+        // does not parse) is reported as a change rather than failing the verification.
+        (string Id, string Number) identity;
+        using (var first = database.Command("SELECT kind, details FROM journal WHERE sequence = 1", transaction))
+        using (var entry = first.ExecuteReader())
         {
-            return false;
+            if (!entry.Read() || entry.GetValue(0) as string != CaseJournalKinds.Created
+                || CreatedIdentity(entry.GetValue(1) as string, createdUtc) is not { } created)
+            {
+                return false;
+            }
+
+            identity = created;
         }
 
         // A working copy saved as a case of its own got a new id and number with a sealed line that names the case
@@ -185,7 +194,7 @@ internal static class CaseChecks
                     ? (newId, newNumber)
                     : null;
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
             return null;
         }
@@ -246,8 +255,9 @@ internal static class CaseChecks
                     ? (caseId, caseNumber)
                     : null;
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
+            // Not JSON, not an object, or a property that is not text.
             return null;
         }
     }
