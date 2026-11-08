@@ -453,8 +453,8 @@ public sealed partial class MonitoringViewModel : ObservableObject
     private WatchRowViewModel RowOf(WatchSnapshot snapshot, Watch watch)
     {
         var gate = _board.Gate(watch.Chain);
-        var failed = snapshot.Checked.TryGetValue(watch.Id, out var last)
-            && last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
+        var status = snapshot.Checked.TryGetValue(watch.Id, out var last) ? last.Status : (WatchFeedStatus?)null;
+        var failed = status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
         var running = gate == WatchGate.Open && watch.StartHeight is not null && !failed;
         var light = watch.State == WatchState.Paused ? WatchLight.Paused
             : running ? WatchLight.Active : WatchLight.Waiting;
@@ -466,9 +466,9 @@ public sealed partial class MonitoringViewModel : ObservableObject
         return new WatchRowViewModel(
             watch,
             light,
-            failed && watch.State == WatchState.Active && gate == WatchGate.Open
-                ? "Senaste uppslaget misslyckades"
-                : WatchWords.State(watch, gate, _board.Offline.Waiting),
+            !failed || watch.State != WatchState.Active || gate != WatchGate.Open
+                ? WatchWords.State(watch, gate, _board.Offline.Waiting)
+                : status == WatchFeedStatus.NotAsked ? WatchWords.NotAskedRowText : WatchWords.FailedRowText,
             parties,
             WatchWords.Parties(watch.Filter, Name),
             LastOf(snapshot, watch),
@@ -517,7 +517,7 @@ public sealed partial class MonitoringViewModel : ObservableObject
         var checkedText = snapshot.Checked.TryGetValue(watch.Id, out var at) && at.Problem is { } problem
             ? $"{row.LastText} · {problem}"
             : row.LastText;
-        Facts =
+        List<WatchFact> facts =
         [
             new("Kedja", watch.Chain.ToString()),
             new("Riktning", WatchWords.Direction(watch.Filter.Direction)),
@@ -530,8 +530,14 @@ public sealed partial class MonitoringViewModel : ObservableObject
             new("Räknas från", watch.StartHeight is { } start
                 ? $"Efter block {WatchWords.Block(start)}"
                 : "Nästa kontroll"),
-            new("Källa", "Endpoint i fas"),
         ];
+        // The source is named only once a check really asked one; before that it would be the rule, not a fact.
+        if (at is { Status: WatchFeedStatus.Read or WatchFeedStatus.Partial })
+        {
+            facts.Add(new("Källa", "Endpoint i fas"));
+        }
+
+        Facts = facts;
         Hits = [.. snapshot.HitsOf(watch.Id).Select(hit => new WatchHitRow(
             hit,
             WatchWords.Hit(hit, Name),

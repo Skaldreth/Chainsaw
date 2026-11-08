@@ -73,14 +73,58 @@ internal sealed record AccountData(
             fees.TryAdd(fee.Transaction, fee);
         }
 
+        var places = Places(transfers.Values.Select(transfer => (transfer.Transaction, transfer.Block))
+            .Concat(fees.Values.Select(fee => (fee.Transaction, fee.Block))));
         return new AccountData(
-            [.. transfers.Values.OrderBy(AccountGraph.ChainOrder)],
-            [.. fees.Values.Where(fee => fee.Amount.Units.Sign > 0).OrderBy(fee => fee.Block?.Height ?? long.MaxValue)
+            [.. transfers.Values.Select(transfer => WithPlace(transfer, places)).OrderBy(AccountGraph.ChainOrder)],
+            [.. fees.Values.Where(fee => fee.Amount.Units.Sign > 0).Select(fee => WithPlace(fee, places))
+                .OrderBy(fee => fee.Block?.Height ?? long.MaxValue)
+                .ThenBy(fee => fee.Block?.TransactionIndex ?? long.MaxValue)
                 .ThenBy(fee => fee.Transaction.Value, StringComparer.Ordinal)],
             whole,
             read,
             outdated);
     }
+
+    /// <summary>
+    /// Gathers each transaction's place in its block from the answers that gave it, so that every movement of one
+    /// transaction is ordered the same way whichever history it came from (a list of internal transactions gives no
+    /// place, the list of the address's transactions does).
+    /// </summary>
+    /// <param name="blocks">Each movement's or fee's transaction and block.</param>
+    /// <returns>The places by transaction.</returns>
+    private static Dictionary<EthereumTxHash, long> Places(
+        IEnumerable<(EthereumTxHash Transaction, EthereumBlockReference? Block)> blocks)
+    {
+        var places = new Dictionary<EthereumTxHash, long>();
+        foreach (var (transaction, block) in blocks)
+        {
+            if (block?.TransactionIndex is { } place)
+            {
+                places.TryAdd(transaction, place);
+            }
+        }
+
+        return places;
+    }
+
+    /// <summary>Gives a movement with its transaction's place in the block, when an answer gave the place.</summary>
+    /// <param name="transfer">The movement.</param>
+    /// <param name="places">The places by transaction.</param>
+    /// <returns>The movement, with the place on its block.</returns>
+    private static EthereumTransfer WithPlace(EthereumTransfer transfer, Dictionary<EthereumTxHash, long> places) =>
+        transfer.Block is { TransactionIndex: null } block && places.TryGetValue(transfer.Transaction, out var place)
+            ? transfer with { Block = block with { TransactionIndex = place } }
+            : transfer;
+
+    /// <summary>Gives a fee with its transaction's place in the block, when an answer gave the place.</summary>
+    /// <param name="fee">The fee.</param>
+    /// <param name="places">The places by transaction.</param>
+    /// <returns>The fee, with the place on its block.</returns>
+    private static EthereumFee WithPlace(EthereumFee fee, Dictionary<EthereumTxHash, long> places) =>
+        fee.Block is { TransactionIndex: null } block && places.TryGetValue(fee.Transaction, out var place)
+            ? fee with { Block = block with { TransactionIndex = place } }
+            : fee;
 
     /// <summary>
     /// Finds the swaps the transactions show: in one transaction the account that signed it sends exactly one asset
@@ -113,12 +157,48 @@ internal sealed record AccountData(
                         transaction.Key,
                         account.ToChainAddress(),
                         Sum(sold[0].Key, sold[0]),
-                        Sum(bought[0].Key, bought[0])));
+                        Sum(bought[0].Key, bought[0]))
+                    {
+                        Venue = VenueOf(transaction.Key, account, moves),
+                    });
                 }
             }
         }
 
         return swaps;
+    }
+
+    /// <summary>
+    /// Finds the known exchange or aggregator a swap went through: the contract the transaction was sent to, when the
+    /// whole transaction is read, or else a contract the account sent to or received from in it. Only an exchange or
+    /// an aggregator names a swap; a mixer or a bridge on the other side is not one.
+    /// </summary>
+    /// <param name="transaction">The swap's transaction.</param>
+    /// <param name="account">The account that swapped.</param>
+    /// <param name="moves">The transaction's movements between two addresses.</param>
+    /// <returns>The contract, or <see langword="null"/> when none is known.</returns>
+    private KnownContract? VenueOf(
+        EthereumTxHash transaction, EthereumAddress account, IEnumerable<EthereumTransfer> moves)
+    {
+        var called = Transactions.GetValueOrDefault(transaction)?.To;
+        var counterparties = moves.Select(move => CounterpartyOf(move, account)).OfType<EthereumAddress>();
+        return (called is null ? counterparties : counterparties.Prepend(called))
+            .Select(KnownContracts.Find)
+            .FirstOrDefault(known => known?.Category is KnownContractCategory.Dex or KnownContractCategory.Aggregator);
+    }
+
+    /// <summary>Gives the other side of a movement an account is on.</summary>
+    /// <param name="move">The movement.</param>
+    /// <param name="account">The account.</param>
+    /// <returns>The other address, or <see langword="null"/> when the account is not on the movement.</returns>
+    private static EthereumAddress? CounterpartyOf(EthereumTransfer move, EthereumAddress account)
+    {
+        if (move.From == account)
+        {
+            return move.To;
+        }
+
+        return move.To == account ? move.From : null;
     }
 
     /// <summary>Gives a movement's block with its hash, when the case has the hash.</summary>

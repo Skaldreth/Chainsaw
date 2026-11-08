@@ -3737,6 +3737,163 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   streckade, eftersom inga uppslag går (det säkraste), och bara texten ändras. Kommentarer (WPF-element) och
   verktygstips följer inte med när ytan trycks ut, eftersom de ligger under det dimmade.
 
+## Testärendet påfyllt och TESTER-INFOR ordnad (2026-11-08)
+
+- **Byggt:** `/testdata` (berättelse version 2) har nu påhittade kurser (`TestDataPricing` i Pricing, Debug, med
+  `TestRatesHttp` i appen och `TestDataPriceRouter`), så att grafen i testärendet aldrig skickar kursuppslag; ett bytt
+  block på sista skalningshoppet (svaret i en adresslista säger ett föräldralöst block på samma höjd, tx:ens eget svar
+  det riktiga, `TestChain.Orphaning`); en sanktionsträff ur en påhittad lista (`TestDataSanctionLists`, bara medan
+  testärendet byggs, så ingen riktig lista importeras eller ersätts); Virveln, en andra mixer som mixerns näst
+  troligaste utgång går in i (*Mixer efter mixer*); en möjlig CoinJoin vid Sydbörsen vars plånbok godkänns; mixerns
+  troligaste utgång godkänd med resten kvar att avgöra; påfyllnaden uppbruten; kommentaren ändrad; och en kommentar
+  och en egen yta i soptunnan. Åtta nya tester i `TestCaseStoryTests` (kurser, bytt block, sanktion, besluten,
+  soptunnan, begäran och rapport, exponering), 27 i projektet.
+- **Rättat på vägen:** att godkänna en plånbok med många förslag (en skalningskedja, sex adresser) föll på journalens
+  gräns på 1 000 tecken i `ClusteringService.Merge`. Raden säger nu antal adresser och delar när allt inte får plats;
+  detaljerna har alltid varje del.
+- **Egna beslut:** plånboken som godkänns är en egen liten möjlig CoinJoin vid Sydbörsen, inte skalningskedjans:
+  att slå ihop skalningskedjan till en nod gömmer kedjan i grafen och trängde ihop beloppen runt Navet. Uppbrytningen
+  gäller påfyllnaden (inte bedragarens tre adresser, vars enda länk annars bryts helt). Sanktionen kommer ur en lista i
+  stället för som öppen källa, så att den hamnar under SANKTIONSTRÄFFAR i ET1a.
+- **TESTER-INFOR:** ordnad efter område (start, skalet, ärenden, utgångar, inställningar, grafen, förslag, etiketter,
+  bevakning, begäran och rapport, Guiden, testärendet). Struket: förord om att gränssnittet saknas, statusraden,
+  Terminal, NC1a:s startpunktsfält, IN1a:s knappar i inspektören, det första Bevaka-formuläret (BV3a gäller),
+  magenta och rosa (terrakotta och bevakningens turkos), *Skälet krävs*, Ethereum *inte byggt än*, och UT1a:s rad.
+  *Små rättelser* är fördelade på sina områden. Sonaren står kvar i valvyn (EX2) och tidslinjen (TL1a), där
+  CLAUDE.md fortfarande säger den.
+- **Kvar:** se `docs/BACKLOG.md`, *Testärendet (/testdata)*.
+
+## Resterna efter valen, omgång 4 (Begäran, sparningen, plånboken, Exponering, utgången, sökningen, 2026-11-08)
+
+- **Börsens markering (BG1b):** ett nytt märke `NodeBadge.RequestExported` (blått, `Icon.Request`, *Begäran
+  exporterad* i bildspråkets ruta). Det ritas inte ur scenen utan ur ärendets exporter: `RequestsViewModel.ExportedNodes`
+  (uttag med en exporterad begäran om uppgifter, inte frysningar) ges grafen med `GraphViewModel.ShowRequested`, och
+  `MarksOf` lägger märket efter scenens; ögat och kandidatens bock räknar med det.
+- **Sparningen som inte går:** `ICase.SaveStateChanged` (`CaseSaveState`, antalet misslyckade i rad, noll när en
+  sparning går igen) höjs från bakgrundssparningen och när en sparning lyckas efter misslyckanden.
+  `AutosaveSchedule.Failed` och `Saved` säger antalet och om det var misslyckat förut. `SaveAlarm` i appen visar en
+  varning med *Försök igen* efter tre i rad (`FailuresBeforeWarning`, ungefär 7 minuter), en gång, tar bort den när en
+  sparning går och säger *Ärendet är sparat igen*. *Försök igen* sparar på trådpoolen. Eget beslut: tre i rad.
+- **Ett ändrat förslag:** `SuggestionChangedException` (en `ArgumentException`, i Checks.Contracts) när klustringens
+  förslag inte längre fogar ihop plånboken; panelen kör kontrollerna igen och säger `ChangedText`. Bekräftelsen vid
+  Ctrl+Z väntar på en skiss (`docs/TODO.md`).
+- **Exponering, kronorna (KU1a):** `ExposureValues` värderar pengarna på linjerna in till tjänsten efter linjens värde
+  vid tiden (`GraphSnapshot.Values`), i proportion till pengarnas del av linjen; saknar en linje värde står inga
+  kronor. Skrivs efter beloppet i den valda tjänsten (`0,2500 BTC · ≈ 23 400 kr`, som i skissen) och i tipset på
+  andelarna per färg. Avsteg: skissen har kronorna också i tipset på ringarnas noder; det tipset finns inte i appen.
+- **Exponering, vägen tillbaka:** `GraphViewModel.ReturnTo` (en vy) med en knapp *‹ Exponering Esc* i grafens huvud
+  som skissen, och Esc i grafen; glöms när grafen lämnas. Allmän, så att Rapportens *← Rapport* kan använda den.
+- **Exponering i nodens meny:** raden *Exponering …* (`NodeMenuAction.Exposure`) för ett kluster eller en adress som
+  betalat eller fått (`ExposureMap.Subjects`); den öppnar vyn med noden i mitten.
+- **Exponeringens stoppregler:** `SpendRules` är regeln en gång för `TraceCalculator` och `UtxoExposureRun`: en
+  länk till annan kedja (pengarna når den andra kedjans nod, med linjen dit), `TransactionEnds` (CoinJoin som inte
+  räknas som tjänst) och en spend som inte går ihop. Två nya skäl i `ExposureRest`: `TrailEnds` och `Conflicting`.
+  Bakåt (*Fått från*) stoppar en tx där spåret tar slut och en ingång vars spend pekar annanstans; länken gäller bara
+  framåt, eftersom den säger vart myntets pengar fortsatte, inte varifrån utgångarna kom. På kontokedjan går en länkad
+  överföring till den andra kedjan i stället för in i plånboken, som `AccountTraceCalculator`. `exposure v2`.
+- **Utgångens tips (UT3b):** `ExitPanelViewModel.SeenTip` (`ExitCheckWords.TipText`), och titelradens tips slutar med
+  `syns som <adress>, <land>`. Windows som utgång kontrolleras en gång när datorn är online och Chainsaw upplåst, om
+  *Kontrollera vid anslutning* är på; svaret hålls bara i sessionen. Avsteg: raden *Kontrollera vid anslutning* står
+  under VPN i inställningarna, så den ändras där också för Windows.
+- **Sökningen och soptunnan (KR1a, SO1a):** det slängda söks (`SceneEntries.ReadTrashed`), raden säger *I soptunnan*
+  och Enter öppnar soptunnan. *Lägg tillbaka* på raden är inte byggt.
+- **Det instabila testet:** `CaseEnvelopesTests.A_case_this_vault_cannot_open_asks_for_its_case_password` föll ungefär
+  en gång av åtta: dialogen läser kuverten med `Task.Run`, och utan UI-tråd i testet ritades korten om på trådpoolen
+  medan testet läste dem. `CaseDialogsViewModel.Showing` håller visningen, och testet väntar på den.
+- **Inte byggt:** mixerns troliga utgångar i Exponering (skrivet som [skiss] i `docs/TODO.md`).
+- Tester: 7 i `SaveAlarmTests`, nya i `ExitManageTests` (5), `ExposureTests` (3), `RequestsTests` (1),
+  `GraphViewModelTests`, `ChecksViewModelTests` och `CommandSearchTests` (1 vardera) i App.Tests; 2 i
+  `Chainsaw.Modules.Cases.Tests`; 4 i `Chainsaw.Modules.Tracing.Tests`.
+- **Granskningen (ett I, sex M), rättad:**
+  - **I1:** en länkad Bitcoin-coin går till den andra kedjan också när mottagaren är en tjänst eller ligger bortom
+    djupet (`LinkedOn` före `goesOn`). I *Fått från* räknas en länkad ingång inte som källa: den får vikt noll i
+    uppdelningen, som en länkad överföring utanför plånboken på kontokedjan. Betalades en utgång bara av länkade
+    ingångar räknas dess pengar som *Nådde ingen tjänst*. **Omgranskningen:** den länkade ingången behåller sin vikt i
+    uppdelningen, och dess andel blir ett eget skäl, `ExposureRest.OtherChain` (*Fortsätter på annan kedja*), så att
+    ingen annan ingång får mer än den betalade; samma skäl när den andra kedjans nod saknas. *De är körda igen* står
+    före det den nya körningen själv sa.
+  - **M1:** en varning som användaren stängt glöms, så att nästa misslyckande varnar igen. **M2:**
+    `SaveStateChanged` höjs för varje lyssnare för sig (`SayHowSavesGo`), och en lyssnare som kastar räknas aldrig
+    som en misslyckad sparning. **M3:** *Försök igen* fångar alla fel (utom minnesbrist), noterar bara feltypen med
+    `Trace` och visar varningen igen. **M4:** *De är körda igen* sägs bara när kontrollerna gick att köra. **M5:**
+    Begärans exporter töms när ärendet byts. **M6:** Esc i grafen släpper först det valda och går tillbaka först när
+    inget är valt (`ReturnsOnEscape`).
+
+
+## Ethereum klart, omgång 2 (2026-11-08)
+
+- **Kända kontrakt:** `KnownContracts` (Chains.Contracts, bredvid `KnownTokens`) är Chainsaws lista, version
+  `v1 2026-11-08`: Tornado Cash Classics 19 pooler på Ethereum, routern och den gamla proxyn (mixer); Uniswaps V2-,
+  V3-, SwapRouter02- och Universal Router-kontrakt (DEX), 1inch Router v6 och 0x Exchange Proxy (aggregator); och
+  bryggorna till Arbitrum One, OP Mainnet och Polygon PoS. Varje adress är kopierad ur operatörens egen sida (källan
+  och dagen står på posten), Tornados också kontrollerade mot OFAC:s åtgärd 2022-08-08; inga adresser är påhittade.
+  En adress i blandade versaler läses med EIP-55-kontroll, så ett kopieringsfel stoppar Chainsaw vid start (och testet).
+- **Etiketterna:** `IKnownContractLabels` (Attribution) sätter *Mixer* på en pool och *Swap eller brygga* på en
+  brygga, som `LabelSource.OpenSource` med listans namn och version, en rad i journalen
+  (`attribution.known-contracts-matched`) och ursprunget `known-contract/<adress>`, som är detsamma i alla listans
+  versioner. En etikett som redan finns i ärendet på något sätt, också tillbakatagen eller från ett annat ärende, sätts
+  inte igen. `GraphSource` frågar listan om grafens Ethereum-adresser varje gång grafen läses (som etikettbiblioteket)
+  och läser om grafen bara när en etikett sattes; ett fel stoppar aldrig grafen. Spåret tar slut genom
+  `LabelTrailEnds`, som förut.
+- **Swappens DEX:** `TokenSwap.Venue` är den kända DEX eller aggregator som tx:en skickades till (när hela tx:en är
+  läst) eller som adressen skickade till eller fick från i den; en mixer eller brygga på andra sidan räknas inte.
+  *Varför?* för swappen säger namnet, kontraktet och källan.
+- **Plats i blocket:** `EthereumBlockReference.TransactionIndex` läses ur Blockscouts historik (`transactionIndex`).
+  `AccountData.Combine` sprider platsen till tx:ens alla rörelser och avgiften (de interna tx:ernas lista saknar den),
+  och `AccountGraph.ChainOrder` ordnar efter block, plats, hash och position. En tx utan känd plats står efter dem i
+  samma block som har en.
+- **Egna ytor (Z) med Ethereum:** `CheckRules.MemberOf(ChainAddress)` och `CheckRules.AddressOf` tar en Ethereum-adress
+  (`address:0x…`, gemener) bredvid Bitcoins; `GraphAreas` läser medlemmarna med kedja och hittar noderna genom
+  `Node.Addresses`. Formatet i ärendet är detsamma för Bitcoin.
+- **Start-tx som inte finns i ärendet:** `CaseWorkflow.FetchStartTransactionsAsync` hämtar en start-tx (Bitcoin eller
+  Ethereum) som ärendet saknar, genom samma expansion som E, när startpunkten lagts till eller ärendet skapats, och
+  grafen läses om. En Bitcoin-tx följs då framåt som vid E (dess mottagare, högst 50).
+- **Länkens kolumner** (`from_txid`, `from_output` för en Ethereum-rörelse) beskrivs vid `TracingSchema.CrossChainColumns`.
+- **OFAC:s ETH-adresser** var redan byggda (läses och kontrolleras för startpunkterna); punkten är struken ur BACKLOG,
+  och att grafens övriga adresser inte kontrolleras står kvar där, för båda kedjorna.
+- **Guiden:** *Bryggor och swappar* har ett stycke om de kända kontrakten.
+- **Skriver i ärendet (granskas):** etiketterna från listan (förseglade i `attribution.labels`, journalrad), och de
+  expansioner som start-tx:en hämtas med (som E). Egna ytors medlemmar kan nu vara Ethereum-adresser.
+- **Avsteg och egna beslut:** en DEX:s router får ingen etikett, eftersom ingen sort i bildspråket passar (står i TODO
+  som [skiss]). Tornado Cash är *Mixer*, inte *Sanktionerad*: OFAC tog bort Tornado Cash ur SDN-listan 2025-03-21, och
+  en sanktion kommer bara ur listan användaren importerat.
+- **Kvar (BACKLOG):** spårningen genom en swap (väntar på beslut), Tornados troliga utgångar, kontoheuristikerna
+  (`IAccountHeuristic`, kräver kluster med `ChainAddress`), kontrollerna och plånböckerna på Ethereum, saldot vid ett
+  block ur källan, regeln om täckning för en aktiv adress, omexpansionens golv (höjderna sparade med expansionen),
+  Etherscan med nyckel (Network) och fler kända kontrakt.
+
+
+## Granskningen av Ethereum omgång 2 rättad, och Tornado Cash tidigare sanktionerad (2026-11-08)
+
+- **I1–I3, start-tx:** hämtningen är en egen klass, `StartTransactionFetches` (App). Den kör en hämtning i taget i
+  bakgrunden, försöker igen när ärendet öppnas och när utgången ansluts (`GraphViewModel` följer `ExitWay`), stoppas
+  när ärendet stängs (`CloseCurrentAsync` väntar på den) och när Chainsaw låses (`IVault.StateChanged`). En start-tx
+  som inte kunde hämtas sägs i en varning i toastern med skälet ur Tracing och att Chainsaw försöker igen. Ett
+  oväntat fel loggas bara med typen (`Trace.TraceWarning`), aldrig med meddelandet. E väntar på hämtningen
+  (`CaseWorkflow.StartTransactionsSettled`), så att samma tx aldrig hämtas två gånger.
+- **I2:** `KnownContractLabels.Check` läser först (`ICase.Read`) och öppnar en skrivning bara när något nytt ska
+  sättas, så att ärendet inte sparas om för varje läsning av grafen.
+- **M1:** Arbitrums *Bridge* och Base (*L1 Standard Bridge*, *Optimism Portal*) är med, ur Arbitrums och Bases egna
+  sidor. Listan heter fortfarande v1, eftersom den inte är ihopslagen än.
+- **M2:** `transactionIndex` läses också ur `gettxinfo` när svaret har fältet. **De spårade beloppen i ett befintligt
+  Ethereum-ärende kan ändras** med den nya ordningen: två tx i samma block ordnades förut efter hash, nu efter sin
+  plats i blocket, och FIFO räknar då det som kom in före det som gick ut i den ordning kedjan tillämpade dem.
+- **M4:** att en kopia från ett annat ärende (samma ursprung) gör att listan inte sätter sin egen är ett avsiktligt
+  val: samma bedömning ska aldrig stå två gånger. Det står i koden och har ett test.
+- **M5:** `GraphSource.LabelKnownContracts` fångar `CaseException` tyst och loggar andra fel med bara typen.
+- **M6:** journalraden säger *1 adress är ett känt kontrakt* i singular.
+- **Tidigare sanktionerad** (användarens beslut 2026-11-08): Tornado Cashs 21 kontrakt får, utöver *Mixer*, en
+  etikett av den nya sorten `LabelKind.FormerlySanctioned` med namnet *OFAC SDN 2022-08-08 – 2025-03-21*, källan
+  Chainsaws kända kontrakt och skälet med båda datumen och OFAC:s egna meddelanden
+  (`ofac.treasury.gov/recent-actions/20220808` och `/20250321`). Båda datumen och att alla 21 adresser finns i båda
+  meddelandena är kontrollerade mot OFAC:s sidor 2026-11-08. I grafen är det markeringen `NodeBadge.FormerlySanctioned`
+  i hörnet: sanktionens markering med samma ikon, men en mörk dov röd skiva och en dämpad röd ikon. En sanktion som
+  gäller tar över, så då ritas bara den. Rutan med bildspråket har raden *Tidigare sanktionerad*, och inspektören har
+  faktat *Sanktion*. Sorten kan inte väljas i Etikett (L), och den avslutar aldrig spåret. Testärendet har en påhittad
+  tidigare sanktion på mixern.
+- **Skriver i ärendet (granskas):** den nya etiketten (förseglad som de andra), och hämtningarna av start-tx, som nu
+  också görs när ärendet öppnas och när utgången ansluts.
+
 
 ## Omgång 6: säkerhet, ärenden och utgångar (backloggen, 2026-11-08)
 

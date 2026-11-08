@@ -10,8 +10,8 @@ namespace Chainsaw.App.Graph;
 /// </summary>
 /// <param name="Node">The actor, as the graph would draw it.</param>
 /// <param name="Amount">
-/// What moved straight between the actor and the pile's actor, in the asset the graph shows (a fact); zero when the
-/// actor only took part in the same transactions, as a payer's change does.
+/// What moved straight between the actor and the pile's actor, in the pile's asset (a fact); zero when the actor only
+/// took part in the same transactions, as a payer's change does.
 /// </param>
 /// <param name="Time">When money first moved between them, or <see langword="null"/> while unconfirmed.</param>
 public sealed record PileCard(NodeView Node, AssetAmount Amount, DateTimeOffset? Time)
@@ -24,8 +24,7 @@ public sealed record PileCard(NodeView Node, AssetAmount Amount, DateTimeOffset?
 
     /// <summary>Gets the card's second line (sketch EX2b): <c>0,038 BTC · 1 tx</c>.</summary>
     public string Line => string.Create(
-        CultureInfo.InvariantCulture,
-        $"{HeldBackLayout.Btc((double)Amount.Units / Satoshi.PerBitcoin)} BTC · {TransactionIds.Count} tx");
+        CultureInfo.InvariantCulture, $"{GraphFold.PileAmount(Amount)} · {TransactionIds.Count} tx");
 }
 
 /// <summary>
@@ -33,7 +32,10 @@ public sealed record PileCard(NodeView Node, AssetAmount Amount, DateTimeOffset?
 /// </summary>
 /// <param name="Pile">The pile in Tracing's model.</param>
 /// <param name="Cards">The actors that lie in it, in the graph's order.</param>
-/// <param name="Sum">What moved between the pile and its actor, in the asset the graph shows.</param>
+/// <param name="Sum">
+/// What moved between the pile and its actor, in the pile's asset: bitcoin on Bitcoin, and on an account chain the
+/// asset most of the pile's transfers move.
+/// </param>
 public sealed record PileView(GraphPile Pile, IReadOnlyList<PileCard> Cards, AssetAmount Sum)
 {
     /// <summary>Gets the pile's key.</summary>
@@ -169,12 +171,17 @@ public static class GraphFold
         }
 
         var (lines, stubs) = Stub(Reroute(edges, drawnAs, removed), thrown);
+        var byEnds = edges.ToLookup(edge => (edge.Edge.From, edge.Edge.To));
         var pileViews = piles.ToDictionary(
             pair => pair.Pile.Key,
-            pair => new PileView(
-                pair.Pile,
-                [.. pair.Cards.Select(card => CardOf(card, pair.Pile.Anchor, edges))],
-                SumBetween(lines, pair.Pile)),
+            pair =>
+            {
+                var asset = PileAsset(byKey[pair.Pile.Anchor].Node, pair.Pile.Side, pair.Cards, byEnds);
+                return new PileView(
+                    pair.Pile,
+                    [.. pair.Cards.Select(card => CardOf(card, pair.Pile.Anchor, asset, byEnds))],
+                    SumBetween(lines, pair.Pile, asset));
+            },
             StringComparer.Ordinal);
         var drawn = nodes.Where(node => !drawnAs.ContainsKey(node.Key) && !removed.Contains(node.Key)
             && !thrown.Contains(node.Key)).ToList();
@@ -375,6 +382,46 @@ public static class GraphFold
         ? PileLineThinnest + (PileLineGrowth * Math.Clamp((double)amount.Units / PileLineFullAt, 0, 1))
         : PileLineWidth;
 
+    /// <summary>
+    /// Writes what moved in a pile with its unit: bitcoin as the piles always did (<c>4,97 BTC</c>), another asset as
+    /// the lines write it (<c>1 250,0000 USDT</c>), so that a pile on Ethereum never says 0 BTC.
+    /// </summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns>The text.</returns>
+    public static string PileAmount(AssetAmount amount) =>
+        amount.Asset == GraphScene.Shown ? BtcText(amount) + " BTC" : AmountText.WithUnit(amount);
+
+    /// <summary>
+    /// Gives the asset a pile counts in: bitcoin at an actor on Bitcoin; on an account chain the asset most of the
+    /// transfers on the pile's side move (out of the actor for payees, into it for payers), or the chain's own coin
+    /// when none does.
+    /// </summary>
+    /// <param name="anchor">The pile's actor.</param>
+    /// <param name="side">The pile's side.</param>
+    /// <param name="cards">The cards.</param>
+    /// <param name="byEnds">Every line, by its two ends.</param>
+    /// <returns>The asset.</returns>
+    private static Asset PileAsset(
+        GraphNode anchor,
+        PileSide side,
+        IReadOnlyList<NodeView> cards,
+        ILookup<(string From, string To), EdgeView> byEnds)
+    {
+        if (anchor.Chain == Chain.Bitcoin)
+        {
+            return GraphScene.Shown;
+        }
+
+        return cards.SelectMany(card => side == PileSide.Out
+                ? byEnds[(anchor.Key, card.Key)]
+                : byEnds[(card.Key, anchor.Key)])
+            .GroupBy(edge => edge.Edge.Amount.Asset)
+            .OrderByDescending(group => group.Sum(edge => edge.Edge.Transfers.Count))
+            .ThenBy(group => group.Key.Kind)
+            .Select(group => group.Key)
+            .FirstOrDefault() ?? anchor.Chain.NativeAsset();
+    }
+
     /// <summary>Writes a bitcoin amount as the piles do: <c>4,97</c>.</summary>
     /// <param name="amount">The amount.</param>
     /// <returns>The number.</returns>
@@ -384,15 +431,16 @@ public static class GraphFold
     /// <summary>Makes a card: the actor, and what moved straight between it and the pile's actor, and when.</summary>
     /// <param name="node">The actor.</param>
     /// <param name="anchor">The pile's actor.</param>
-    /// <param name="edges">Every line.</param>
+    /// <param name="asset">The pile's asset.</param>
+    /// <param name="byEnds">Every line, by its two ends, so that a pile of many cards is not quadratic.</param>
     /// <returns>The card.</returns>
-    private static PileCard CardOf(NodeView node, string anchor, IReadOnlyList<EdgeView> edges)
+    private static PileCard CardOf(
+        NodeView node, string anchor, Asset asset, ILookup<(string From, string To), EdgeView> byEnds)
     {
-        var between = edges.Where(edge => (edge.Edge.From == node.Key && edge.Edge.To == anchor)
-                || (edge.Edge.From == anchor && edge.Edge.To == node.Key))
-            .Where(edge => edge.Edge.Amount.Asset == GraphScene.Shown)
+        var between = byEnds[(node.Key, anchor)].Concat(byEnds[(anchor, node.Key)])
+            .Where(edge => edge.Edge.Amount.Asset == asset)
             .ToList();
-        var amount = between.Aggregate(AssetAmount.Zero(GraphScene.Shown), (sum, edge) => sum + edge.Edge.Amount);
+        var amount = between.Aggregate(AssetAmount.Zero(asset), (sum, edge) => sum + edge.Edge.Amount);
         var time = between.Select(edge => edge.Edge.FirstTime).Min() ?? node.Node.FirstReceived;
         var transactions = between.SelectMany(edge => edge.Edge.Transfers)
             .Select(transfer => transfer.Transaction.Id).ToHashSet(StringComparer.Ordinal);
@@ -400,19 +448,20 @@ public static class GraphFold
     }
 
     /// <summary>
-    /// Adds what moved between a pile and its actor on the pile's own side, in the asset the graph shows: out of the
-    /// actor for a pile of payees, into it for a pile of payers, so that the sum never mixes the two directions.
+    /// Adds what moved between a pile and its actor on the pile's own side, in the pile's asset: out of the actor for
+    /// a pile of payees, into it for a pile of payers, so that the sum never mixes the two directions.
     /// </summary>
     /// <param name="lines">The lines drawn.</param>
     /// <param name="pile">The pile.</param>
+    /// <param name="asset">The pile's asset.</param>
     /// <returns>The sum.</returns>
-    private static AssetAmount SumBetween(IReadOnlyList<EdgeView> lines, GraphPile pile)
+    private static AssetAmount SumBetween(IReadOnlyList<EdgeView> lines, GraphPile pile, Asset asset)
     {
         var (from, to) = pile.Side == PileSide.Out ? (pile.Anchor, pile.Key) : (pile.Key, pile.Anchor);
         return lines.Where(edge => edge.Edge.From == from && edge.Edge.To == to)
             .Select(edge => edge.Edge.Amount)
-            .Where(amount => amount.Asset == GraphScene.Shown)
-            .Aggregate(AssetAmount.Zero(GraphScene.Shown), (sum, amount) => sum + amount);
+            .Where(amount => amount.Asset == asset)
+            .Aggregate(AssetAmount.Zero(asset), (sum, amount) => sum + amount);
     }
 
     /// <summary>Counts the transactions between a pile's cards and its actor.</summary>
@@ -432,7 +481,7 @@ public static class GraphFold
     {
         var hop = anchor.Hop is { } at ? at + (pile.Pile.Side == PileSide.In ? -1 : 1) : (int?)null;
         var model = Synthetic(pile.Key, GraphNodeKind.Pile, pile.Cards.Count, hop, pile.Pile.Positions);
-        var zero = AssetAmount.Zero(GraphScene.Shown);
+        var zero = AssetAmount.Zero(pile.Sum.Asset);
         var word = pile.Pile.Side == PileSide.In ? InPileWord : OutPileWord;
         return new NodeView(
             model,
@@ -447,7 +496,7 @@ public static class GraphFold
             pile.Pile.Side == PileSide.In ? pile.Sum : zero,
             zero,
             string.Create(
-                CultureInfo.InvariantCulture, $"{BtcText(pile.Sum)} BTC · {TransactionsOf(pile.Cards)} tx"),
+                CultureInfo.InvariantCulture, $"{PileAmount(pile.Sum)} · {TransactionsOf(pile.Cards)} tx"),
             true);
     }
 

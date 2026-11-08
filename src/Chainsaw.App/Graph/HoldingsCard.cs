@@ -266,7 +266,7 @@ public static class HoldingsCards
         if (price is not null && price.Asset == asset)
         {
             var valuation = price.ValueOf(amount);
-            value = Money(valuation.Rounded, price.Currency);
+            value = Money(valuation.Value, price.Currency);
             valueTip = string.Join(" ", valuation.Steps);
         }
 
@@ -360,12 +360,12 @@ public static class HoldingsCards
     }
 
     /// <summary>Writes an amount of money as the card does, for example <c>5 922 540 kr</c>.</summary>
-    /// <param name="rounded">The value, rounded to two decimals.</param>
+    /// <param name="value">The exact value, rounded here once to whole units, never first to öre.</param>
     /// <param name="currency">The currency.</param>
     /// <returns>The text.</returns>
-    private static string Money(decimal rounded, FiatCurrency currency)
+    private static string Money(decimal value, FiatCurrency currency)
     {
-        var whole = Math.Round(rounded, 0, MidpointRounding.AwayFromZero).ToString("#,##0", Swedish)
+        var whole = Math.Round(value, 0, MidpointRounding.AwayFromZero).ToString("#,##0", Swedish)
             .Replace(' ', ' ');
         var code = currency.Code();
         return code == "SEK" ? whole + " kr" : whole + " " + code;

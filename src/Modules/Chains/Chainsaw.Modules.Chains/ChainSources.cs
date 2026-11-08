@@ -355,6 +355,7 @@ internal sealed class ChainSources : IChainSources
         state.Endpoints.RemoveAll(endpoint => endpoint.Id == id);
         state.Probes.Remove(id);
         state.FailedSince.Remove(id);
+        state.OnChain.Remove(id);
         Pacer.Forget(id);
     });
 
@@ -416,7 +417,7 @@ internal sealed class ChainSources : IChainSources
             probes = await Task.WhenAll(endpoints.Select(planned => ProbeOneAsync(
                 planned.Endpoint, planned.Api, withHash: false, cancellationToken))).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             // The exit did not allow lookups (or stopped allowing them): nothing more is sent, and the round says
             // nothing about the endpoints, so the earlier results stand.
@@ -455,7 +456,7 @@ internal sealed class ChainSources : IChainSources
             };
             return await ProbeOneAsync(candidate, sort, withHash: true, cancellationToken).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException exception)
+        catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             return NotSent(Guid.Empty, exception.Message);
         }
@@ -470,7 +471,8 @@ internal sealed class ChainSources : IChainSources
     /// <see cref="HeightMargin"/> (only asked when no other answers, so that switching off the one that was highest
     /// never leaves the chain without a source), then those that failed their probe. In Priority, the user's order,
     /// with those that failed their probe after the others. Either way an endpoint that failed a lookup since it was
-    /// tried comes last while its pause lasts, and in its place again after it.
+    /// tried comes last while its pause lasts, and in its place again after it. An endpoint whose latest probe showed
+    /// it is not on the chain (<see cref="ChainCheckAsync"/>) is never asked.
     /// </summary>
     /// <param name="state">The chain's state, under the lock.</param>
     /// <returns>The endpoints to ask, first first.</returns>
@@ -482,7 +484,8 @@ internal sealed class ChainSources : IChainSources
         }
 
         var now = _clock.UtcNow;
-        var on = state.Endpoints.Where(endpoint => endpoint.Enabled);
+        var on = state.Endpoints.Where(endpoint =>
+            endpoint.Enabled && state.OnChain.GetValueOrDefault(endpoint.Id, true));
         on = state.Mode == SourceMode.Fastest
             ? on.OrderBy(endpoint => Rank(state.Probes.GetValueOrDefault(endpoint.Id)))
                 .ThenBy(endpoint => state.Probes.GetValueOrDefault(endpoint.Id)?.Duration ?? TimeSpan.MaxValue)
@@ -600,9 +603,9 @@ internal sealed class ChainSources : IChainSources
         {
             asked = await AskAsync(endpoint, heightRequest, api.ReadHeight, cancellationToken).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitException exception) when (IsTheWayOuts(exception))
         {
-            // Nothing was sent: the turn goes back.
+            // Nothing was sent, or what was sent was cut by the way out: the turn goes back.
             if (turn is not null)
             {
                 Pacer.Release(turn);
@@ -620,6 +623,12 @@ internal sealed class ChainSources : IChainSources
         if (height is not { } answer)
         {
             return new EndpointProbe(id, ProbeOutcome.Failed, null, null, null, at, heightProblem);
+        }
+
+        if (await ChainCheckAsync(endpoint, api, answer.Value, at, cancellationToken).ConfigureAwait(false)
+            is { } offChain)
+        {
+            return new EndpointProbe(id, ProbeOutcome.Failed, answer.Value, null, answer.Duration, at, offChain);
         }
 
         string? hash = null;
@@ -648,6 +657,98 @@ internal sealed class ChainSources : IChainSources
         }
 
         return new EndpointProbe(id, ProbeOutcome.Answered, answer.Value, hash, answer.Duration, at, null);
+    }
+
+    /// <summary>
+    /// Checks that an endpoint answers for its chain and network, so that a test network or another chain added by
+    /// mistake, or an endpoint that lies about the height, never becomes the height every answer's depth is counted
+    /// from, nor the endpoint asked first. A height above what the chain can have come to by now is refused; the hash
+    /// of the first block (height 0) is then asked for, once per endpoint, and must be the chain's own. An endpoint
+    /// shown not to be on the chain is never asked by a lookup (<see cref="Order"/>) until a probe shows that it is;
+    /// a first block that cannot be had shows nothing either way, and is asked for again in the next round.
+    /// </summary>
+    /// <param name="endpoint">The endpoint, with <see cref="Guid.Empty"/> as id when it is not added yet.</param>
+    /// <param name="api">Its sort of API.</param>
+    /// <param name="height">The height it answered.</param>
+    /// <param name="at">When it was tried.</param>
+    /// <param name="cancellationToken">Stops the probe.</param>
+    /// <returns>Why it is not on the chain, in Swedish, or <see langword="null"/> when nothing shows that.</returns>
+    /// <exception cref="ExitNotConnectedException">The exit does not allow lookups; nothing was sent.</exception>
+    private async Task<string?> ChainCheckAsync(
+        SourceEndpoint endpoint, ISourceApi api, long height, DateTimeOffset at, CancellationToken cancellationToken)
+    {
+        if (ChainLimits.HighestPlausible(api.ChainName, at) is { } most && height > most)
+        {
+            NoteChain(endpoint, onChain: false);
+            var shown = height.ToString("N0", CultureInfo.InvariantCulture).Replace(',', ' ');
+            return $"Höjden {shown} är högre än kedjan kan ha nått, så endpointen svarar inte för kedjan. "
+                + "Den används inte.";
+        }
+
+        if (ChainLimits.Genesis(api.ChainName) is not { } genesis || IsOnChain(endpoint) || IsLocked
+            || WithKey(endpoint.ApiKey, api, api.HashRequest(endpoint.Address, 0), out _) is not { } request)
+        {
+            return null;
+        }
+
+        var (mayAsk, turn) = await TurnAsync(endpoint, api, cancellationToken).ConfigureAwait(false);
+        if (!mayAsk)
+        {
+            return null;
+        }
+
+        ((string Value, TimeSpan Duration)? Answer, string? Problem) asked;
+        try
+        {
+            asked = await AskAsync(endpoint, request, api.ReadHash, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ExitException exception) when (IsTheWayOuts(exception))
+        {
+            if (turn is not null)
+            {
+                Pacer.Release(turn);
+            }
+
+            throw;
+        }
+
+        if (asked.Answer is not { } first)
+        {
+            return null;
+        }
+
+        var same = string.Equals(first.Value, genesis, StringComparison.OrdinalIgnoreCase);
+        NoteChain(endpoint, same);
+        return same
+            ? null
+            : $"Kedjans första block har hashen {first.Value} hos endpointen, inte {genesis}: den svarar för en "
+                + "annan kedja eller ett annat nät. Den används inte.";
+    }
+
+    /// <summary>Gets whether a probe has shown an added endpoint to be on its chain.</summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <returns><see langword="true"/> when it has.</returns>
+    private bool IsOnChain(SourceEndpoint endpoint)
+    {
+        lock (_gate)
+        {
+            return _chains.TryGetValue(endpoint.Chain, out var state)
+                && state.OnChain.GetValueOrDefault(endpoint.Id);
+        }
+    }
+
+    /// <summary>Notes whether an added endpoint is on its chain; an address not yet added is not noted.</summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="onChain">Whether it is.</param>
+    private void NoteChain(SourceEndpoint endpoint, bool onChain)
+    {
+        lock (_gate)
+        {
+            if (endpoint.Id != Guid.Empty && _chains.TryGetValue(endpoint.Chain, out var state))
+            {
+                state.OnChain[endpoint.Id] = onChain;
+            }
+        }
     }
 
     /// <summary>
@@ -702,6 +803,16 @@ internal sealed class ChainSources : IChainSources
             : AskedText + ".";
 
     /// <summary>
+    /// Tells whether a failure is the way out's, not the endpoint's: nothing was sent (no exit connected, or Windows
+    /// without a network), or the exit was disconnected or the way out changed while the request was in flight. Such a
+    /// failure says nothing about the endpoint, so it never marks it as failing.
+    /// </summary>
+    /// <param name="exception">The failure.</param>
+    /// <returns><see langword="true"/> when it is the way out's.</returns>
+    internal static bool IsTheWayOuts(ExitException exception) =>
+        exception is ExitNotConnectedException || exception.Error == ExitError.ConnectionLost;
+
+    /// <summary>
     /// Tells whether a probe sent nothing only because of a wait (the endpoint's or Chainsaw's own pace): it says
     /// nothing about the endpoint, so its earlier probe is kept.
     /// </summary>
@@ -732,7 +843,7 @@ internal sealed class ChainSources : IChainSources
         {
             response = await SendAsync(endpoint, request, limit.Token).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             throw;
         }
@@ -1003,6 +1114,12 @@ internal sealed class ChainSources : IChainSources
 
         /// <summary>Gets the latest probe of each endpoint.</summary>
         public Dictionary<Guid, EndpointProbe> Probes { get; } = [];
+
+        /// <summary>
+        /// Gets whether a probe showed each endpoint to be on the chain (its first block is the chain's) or not
+        /// (another first block, or a height the chain cannot have come to); one not here has not been shown either.
+        /// </summary>
+        public Dictionary<Guid, bool> OnChain { get; } = [];
 
         /// <summary>Gets the endpoints a lookup failed through since they were tried, with their pause.</summary>
         public Dictionary<Guid, Failure> FailedSince { get; } = [];

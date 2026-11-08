@@ -12,7 +12,16 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// did not give it (a list of internal transactions); the block's own lookup gives it.
 /// </param>
 /// <param name="Time">The block's time in UTC (set by the proposer, to the second).</param>
-public sealed record EthereumBlockReference(long Height, string? Hash, DateTimeOffset Time);
+public sealed record EthereumBlockReference(long Height, string? Hash, DateTimeOffset Time)
+{
+    /// <summary>
+    /// Gets the transaction's place in the block (<c>transactionIndex</c>), when the answer gave it; it orders two
+    /// transactions in one block as the chain applied them. <see langword="null"/> when it was not given (a whole
+    /// transaction's lookup, or a list of internal transactions); the graph then takes it from another answer about
+    /// the same transaction (<c>AccountData.Combine</c> in Tracing).
+    /// </summary>
+    public long? TransactionIndex { get; init; }
+}
 
 /// <summary>How money moves on Ethereum, which decides where the chain records it.</summary>
 public enum EthereumTransferKind

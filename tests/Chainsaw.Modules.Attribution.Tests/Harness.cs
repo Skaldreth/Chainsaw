@@ -67,6 +67,8 @@ internal sealed class Harness : IDisposable
 
     public ISanctionLists Sanctions => _provider.GetRequiredService<ISanctionLists>();
 
+    public IKnownContractLabels KnownContracts => _provider.GetRequiredService<IKnownContractLabels>();
+
     public ILabelLibrary Library => _provider.GetRequiredService<ILabelLibrary>();
 
     public IClusteringService Clustering => _provider.GetRequiredService<IClusteringService>();

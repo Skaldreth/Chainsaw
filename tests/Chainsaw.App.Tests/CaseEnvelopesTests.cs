@@ -36,6 +36,7 @@ public sealed class CaseEnvelopesTests
         dialogs.Shown += (_, _) => shown++;
 
         var reply = await _rig.Workflow.OpenAsync("A1");
+        await dialogs.Showing;
 
         Assert.True(reply.IsError);
         Assert.Equal(1, shown);
@@ -174,6 +175,18 @@ public sealed class CaseEnvelopesTests
         var problem = await dialogs.PickAndOpenFileAsync();
 
         Assert.Equal(CaseWorkflow.NotCaseFileText, problem);
+        Assert.False(dialogs.IsAnyOpen);
+    }
+
+    [Fact]
+    public async Task A_chosen_file_that_is_gone_is_said_without_its_path()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "chainsaw-gone-" + Guid.NewGuid().ToString("N"), "B8.cut");
+        var dialogs = Dialogs(new TestCasePicker(file));
+
+        var problem = await dialogs.PickAndOpenFileAsync();
+
+        Assert.Equal(CaseWorkflow.UnreadableFileText, problem);
         Assert.False(dialogs.IsAnyOpen);
     }
 
@@ -321,12 +334,19 @@ public sealed class CaseEnvelopesTests
         var opened = await OpenCaseAsync();
         var dialogs = Dialogs();
         await dialogs.ShowPropertiesAsync();
+        var changes = 0;
+        _rig.Session.Changed += (_, _) => changes++;
 
         dialogs.Properties.TitleText = "Investeringsbedrägeri via chatt";
         await dialogs.Properties.SaveTitleAsync();
 
         Assert.Equal("Investeringsbedrägeri via chatt", opened.Title);
         Assert.Equal("A1 · Investeringsbedrägeri via chatt", _rig.Session.DisplayName);
+        Assert.Equal("A1 · Investeringsbedrägeri via chatt", _rig.Shell.CaseTitle);
+
+        // The same case: the graph, the checks and the requests must not start over for a new title.
+        Assert.Equal(0, changes);
+        Assert.True(dialogs.Properties.IsOpen);
     }
 
     [Fact]

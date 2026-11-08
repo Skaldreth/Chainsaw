@@ -177,14 +177,15 @@ public sealed class SingleInstance : IDisposable
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
                     // A sender that broke off, or a pipe of that name that is not ours: wait a moment and listen
-                    // again with a new instance.
+                    // again with a new instance. A stop during the wait ends the wait quietly, and the loop then ends.
                     if (waiting is not null)
                     {
                         await waiting.DisposeAsync().ConfigureAwait(false);
                         waiting = null;
                     }
 
-                    await Task.Delay(TimeSpan.FromSeconds(1), stop).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(1), stop)
+                        .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
                 }
             }
         }

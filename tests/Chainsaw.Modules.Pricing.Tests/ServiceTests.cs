@@ -333,6 +333,25 @@ public sealed class ServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_period_the_source_has_no_rate_for_is_not_asked_again_until_the_cooldown_has_passed()
+    {
+        _harness.Http.AnswerText(Fixtures.BitstampUsdHour, """{"data": {"pair": "BTC/USD", "ohlc": []}}""");
+
+        var first = await _harness.PriceAsync(Fixtures.At);
+        var again = await _harness.PriceAsync(Fixtures.At);
+        _harness.Clock.UtcNow += new PricingOptions().FailureCooldown;
+        var later = await _harness.PriceAsync(Fixtures.At);
+
+        Assert.Equal(PriceLookupStatus.NotAvailable, first.Status);
+        Assert.Equal(PriceLookupStatus.NotAvailable, again.Status);
+        Assert.False(again.IsThrottled);
+        Assert.Empty(again.Origins);
+        Assert.Equal(PriceLookupStatus.NotAvailable, later.Status);
+        Assert.Equal(2, _harness.Http.Sent.Count);
+        Assert.Equal(2, _harness.RawRows().Count);
+    }
+
+    [Fact]
     public async Task Says_when_the_source_has_no_rate_for_the_period()
     {
         _harness.Http.AnswerText(Fixtures.BitstampUsdHour, """{"data": {"pair": "BTC/USD", "ohlc": []}}""");
@@ -554,6 +573,25 @@ public sealed class StoredRateTests : IDisposable
         Assert.Equal(PriceLookupStatus.Failed, lookup.Status);
         Assert.Equal(2, _harness.RawRows().Count);
         Assert.Equal(0, _harness.Count("pricing_fiat_ranges"));
+    }
+
+    [Fact]
+    public async Task A_failed_riksbank_request_is_not_sent_again_until_the_cooldown_has_passed()
+    {
+        _harness.Http.Answer(Fixtures.BitstampUsdHour, "bitstamp-btcusd-hour.json");
+        _harness.Http.AnswerText(Fixtures.RiksbankUsdNovember, "oops", 503);
+
+        var failed = await _harness.PriceAsync(Fixtures.At);
+        var again = await _harness.PriceAsync(Fixtures.At);
+        _harness.Clock.UtcNow += new PricingOptions().FailureCooldown;
+        var later = await _harness.PriceAsync(Fixtures.At);
+
+        Assert.Equal(PriceLookupStatus.Failed, failed.Status);
+        Assert.Equal(PriceLookupStatus.Failed, again.Status);
+        Assert.False(again.IsThrottled);
+        Assert.Equal(PriceLookupStatus.Failed, later.Status);
+        Assert.Equal(2, _harness.Http.Sent.Count(request => request.Uri.Host == "riksbank.test"));
+        Assert.Equal(3, _harness.RawRows().Count);
     }
 
     [Fact]

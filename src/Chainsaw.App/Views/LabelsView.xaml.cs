@@ -118,9 +118,18 @@ public partial class LabelsView : UserControl
     /// <param name="e">The click.</param>
     private void OnCopyAddress(object sender, RoutedEventArgs e)
     {
-        if (Model?.Selected is { } row)
+        if (Model?.Selected is not { } row)
+        {
+            return;
+        }
+
+        try
         {
             Clipboard.SetText(row.FullAddress);
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            // Another program holds the clipboard; nothing is lost but the copy.
         }
     }
 }

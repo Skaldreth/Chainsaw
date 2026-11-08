@@ -61,6 +61,9 @@ public static class ExitCheckWords
     /// <summary>The words <em>som angivet</em>, when the country is the one the place says.</summary>
     private const string AsGivenText = "som angivet";
 
+    /// <summary>The day of an answer that came today.</summary>
+    private const string TodayText = "i dag";
+
     /// <summary>The trace's host, as the box names where the answer came from.</summary>
     private const string TraceHost = "1.1.1.1";
 
@@ -120,6 +123,24 @@ public static class ExitCheckWords
         return facts;
     }
 
+    /// <summary>
+    /// Gives what the exit's tooltip in the title bar adds about the way out (sketch UT3b): the address and country
+    /// the last check saw, and the day when it was not today.
+    /// </summary>
+    /// <param name="sighting">The answer.</param>
+    /// <param name="now">Now, so that an earlier answer says its day.</param>
+    /// <returns>
+    /// For example <em>syns som 185.213.154.68, Sverige</em> or <em>syns som 81.226.17.40 · 6 nov</em>.
+    /// </returns>
+    public static string TipText(ExitSighting sighting, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(sighting);
+        var country = sighting.HasCountry ? ", " + ExitPlace.NameOf(sighting.CountryCode) : string.Empty;
+        var day = Day(sighting.CheckedAt, now);
+        var earlier = day == TodayText ? string.Empty : " · " + day;
+        return $"syns som {sighting.Address}{country}{earlier}";
+    }
+
     /// <summary>Gives the box's line before any check.</summary>
     /// <returns>One quiet line.</returns>
     public static IReadOnlyList<ExitFact> NotCheckedFacts() =>
@@ -170,7 +191,7 @@ public static class ExitCheckWords
     {
         var local = at.ToLocalTime();
         return local.Date == now.ToLocalTime().Date
-            ? "i dag"
+            ? TodayText
             : local.ToString("d MMM", Swedish).Replace(".", string.Empty, StringComparison.Ordinal);
     }
 }

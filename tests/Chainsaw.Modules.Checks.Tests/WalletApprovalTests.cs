@@ -32,6 +32,17 @@ public sealed class WalletApprovalTests : IDisposable
     }
 
     [Fact]
+    public void A_wallet_says_what_kept_the_clustering_from_merging_it()
+    {
+        var wallet = Wallet();
+
+        // The common-input proposal was lowered because the transaction may be a CoinJoin; the user must see that
+        // before approving, or strangers may be merged on a reason that reads as certain.
+        Assert.Contains(
+            "Det som talar emot: Tx:en kan vara en CoinJoin", wallet.Finding.Why, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Approving_merges_the_addresses_as_the_users_judgement_sealed_with_the_decision()
     {
         var wallet = Wallet();
@@ -44,6 +55,7 @@ public sealed class WalletApprovalTests : IDisposable
         var merge = Assert.Single(Merges()).Merge;
         Assert.Equal(new MergeOrigin("checks.decisions", decision.Sequence), merge.Origin);
         Assert.Equal("Samma inloggning.", merge.Reason);
+        Assert.Contains("Det som talade emot: Tx:en kan vara en CoinJoin", merge.Grounds, StringComparison.Ordinal);
         Assert.Equal(Possible[0].Txid, merge.Txid);
         Assert.Equal(new HeuristicId("common-input-ownership", 1), merge.Proposal);
         Assert.Single(_harness.Journal(CheckJournalKinds.Decided));

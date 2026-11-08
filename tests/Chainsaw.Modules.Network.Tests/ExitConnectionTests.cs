@@ -102,6 +102,20 @@ public sealed class ExitConnectionTests
     }
 
     [Fact]
+    public async Task An_attempt_cancelled_while_its_pipeline_is_refused_ends_not_connected()
+    {
+        using var cancel = new CancellationTokenSource();
+        var harness = new NetworkHarness(handlers: new CancellingHandlerFactory(cancel));
+        await harness.SelectedExitAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harness.Connection.ConnectAsync(cancel.Token));
+
+        Assert.Equal(ExitStatus.NotConnected, harness.Connection.Status);
+        Assert.True(Assert.Single(harness.Connector.Tunnels).Disposed);
+        Assert.False(harness.Connection.TryLease(out _));
+    }
+
+    [Fact]
     public async Task A_tunnel_that_stops_on_its_own_fails_the_exit_and_stops_requests()
     {
         var exit = await _harness.ConnectedExitAsync();
@@ -265,5 +279,16 @@ public sealed class ExitConnectionTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connecting);
         Assert.Equal(other, _harness.Store.FindSelected());
         Assert.Equal(ExitStatus.NotConnected, _harness.Connection.Status);
+    }
+}
+
+/// <summary>Cancels the attempt while its pipeline is built, and then fails to build it.</summary>
+/// <param name="cancel">The attempt's cancellation.</param>
+internal sealed class CancellingHandlerFactory(CancellationTokenSource cancel) : IExitHandlerFactory
+{
+    public HttpMessageHandler Create(IPEndPoint socks5Proxy, NetworkCredential credentials, Func<bool> proxyIsTunnel)
+    {
+        cancel.Cancel();
+        throw new InvalidOperationException("No pipeline.");
     }
 }

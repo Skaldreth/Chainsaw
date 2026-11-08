@@ -597,8 +597,10 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         {
             CaseException { Error: CaseError.NoOperatorProfile } => "operatörsprofilen saknas, och journalen behöver den",
             CaseException { Error: CaseError.Closed } => "ärendet är stängt",
-            ArgumentException => "uppgifterna godtogs inte (" + exception.Message + ")",
-            _ => exception.Message,
+            CaseException { Error: CaseError.VaultLocked } => "valvet är låst",
+            ArgumentException => "uppgifterna godtogs inte",
+            // A raw message may name a path or a column; a fixed text says enough and never leaks one.
+            _ => "ett oväntat fel inträffade",
         };
         return $"{SaveFailedText}: {why}.";
     }

@@ -26,7 +26,7 @@
     <ProjectReference Include="..\..\src\Modules\Checks\Chainsaw.Modules.Checks\Chainsaw.Modules.Checks.csproj" />
     <ProjectReference Include="..\..\src\Modules\Monitoring\Chainsaw.Modules.Monitoring\Chainsaw.Modules.Monitoring.csproj" />
     <ProjectReference Include="..\..\src\Modules\Requests\Chainsaw.Modules.Requests\Chainsaw.Modules.Requests.csproj" />
-    <ProjectReference Include="..\..\src\Modules\Pricing\Chainsaw.Modules.Pricing.Contracts\Chainsaw.Modules.Pricing.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Pricing\Chainsaw.Modules.Pricing\Chainsaw.Modules.Pricing.csproj" />
     <ProjectReference Include="..\..\src\Modules\Network\Chainsaw.Modules.Network.Contracts\Chainsaw.Modules.Network.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Security\Chainsaw.Modules.Security.Contracts\Chainsaw.Modules.Security.Contracts.csproj" />
   </ItemGroup>

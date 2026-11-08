@@ -72,6 +72,10 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
   sparas, så att samma heuristik inte slår ihop dem igen.
 - **Spåra:** användaren expanderar grafen steg för steg. Hur mycket av ett belopp som följer med genom en tx räknas med en
   **vald spårningsmetod** (FIFO, LIFO, haircut eller poison), som alltid visas.
+  **Genom en swap** (användarens beslut 2026-11-08) följer det spårade **värdet** med som en utredare tänker: den
+  spårade andelen av det som gick in i bytet blir samma andel av det som kom ut, i den nya tillgången. Det är en
+  bedömning (analys med namn och version, streckad, med *Varför?*), och utredaren kan välja per swap att den inte
+  följer med.
 - **Attribuera:** etiketter från sanktionslistor, öppna källor, egna etiketter och beteende (till exempel en börs
   insättningsadresser som töms till samma hot wallet).
 - **Uttag:** målet är att hitta den punkt där pengarna lämnar kedjan, oftast en börs, och vilka insättningar det gäller.
@@ -81,7 +85,9 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
   bakgrundsprocess som startar med Windows:
   - Den vet bara det bevakningen kräver: adresserna och ett id för ärendet, krypterat för Windows-användaren (DPAPI), så att
     den kan arbeta utan huvudnyckeln. Ärendet och valvet öppnas aldrig av den.
-  - Den går ut genom Chainsaws utgång och gör inga uppslag om utgången inte är ansluten (princip 4).
+  - Den går ut genom Chainsaws utgång och gör inga uppslag om utgången inte är ansluten (princip 4). En utgångs
+    WireGuard-fil får ligga under DPAPI utanför valvet, så att bakgrunden kan gå genom VPN (användarens beslut
+    2026-11-08).
   - Det den ser sparas i en kö och förs in i ärendet, med journal och hash, först när ärendet öppnas.
   - Aviseringen säger bara att en bevakning har slagit till, inte adressen, beloppet eller ärendet. Detaljerna visas efter
     upplåsning.
@@ -106,7 +112,8 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
     som ligger överst tills det stängs. Alla säger bara att en bevakning har slagit till.
   - **Hur ofta källan frågas** ställs per bevakning (användarens beslut 2026-11-07), med förvalet **vid varje nytt
     block** (på kedjor utan block, eller med mycket täta block, något som motsvarar det).
-- **Redovisa:** rapporten är **RP1b** (användarens beslut 2026-11-08): ett underlag för underrättelse som byggs ur det
+- **Redovisa:** rapporten är **RP1b** (användarens beslut 2026-11-08, med operatörens namn, titel och enhet i
+  huvudet): ett underlag för underrättelse som byggs ur det
   som är markerat i grafen, med delar som slås av och på, exporterat till Markdown som Begäran (spåret med tid, UTC,
   belopp, txid, blockhöjd och hash, slutsatserna med *Varför?* och hashkedjans topphash). Exporten journalförs,
   skriver aldrig över och tar aldrig med offrens namn. Vyn *Rapport* står sist i pillret (Ctrl+8).
@@ -126,6 +133,16 @@ stället för text (princip 7) och kan förklaras med *Varför?* (princip 3). Ka
 
 **Spåret tar slut** är ett eget, uttalat läge med orsak: privacy coin, mixer eller CoinJoin, brygga eller swap till annan
 kedja, börs (uttag funnet), okänd tjänst. Ett slut är aldrig tyst.
+
+**Privacy coins** (Claudes beslut 2026-11-08, användaren lät Claude avgöra): spåret tar slut, men Chainsaw föreslår
+fortsättningar med de etablerade metoderna ur forskningen, alltid som streckade kandidater med *Varför?* (princip 2):
+- **Skyddade pooler** (Zcash t→z→t, Litecoin MWEB in och ut): samma belopp (minus avgift) som går in och kommer ut
+  inom ett tidsfönster, och mönster i tid och belopp som pekar på samma användare.
+- **Monero:** ringarnas kända svagheter, för äldre tx (ringar utan lockbete före RingCT och kedjereaktionen när en
+  utgång visats vara spenderad på annat håll) och för nya (den nyaste ringmedlemmen är oftast den riktiga, utgångar
+  som bara kan ha spenderats på ett sätt); spåret slutar ärligt när inget av det ger något.
+- **Övergången till och från kedjan:** pengar in till en swap-tjänst eller börs på en genomskinlig kedja och ut på en
+  annan, matchade på belopp och tid, som fortsättningen på annan kedja.
 
 **Cross-chain** (Claudes beslut 2026-11-06, användaren lät Claude avgöra): datamodellen har från början en kant *fortsätter
 på annan kedja* mellan två tx på olika kedjor. I första versionen känns kända bryggor och swap-tjänster igen som slut på
@@ -484,8 +501,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     andelarna per sort och den valda vägen till höger.
   - **KU1a:** kronorna står litet under beloppet på linjen; *Varför?* visar stegen (beloppet, Bitstamp-kursen,
     Riksbankens växelkurs, var och en med hash) i Guidens panel; sidan Kurser har vanliga rader.
-  - **BV4a:** meddelandet mitt på skärmen är ett litet kort med ögat och ringar, utan att något mörkas; sätten att
-    säga till är tre rader under Låsning.
+  - **BV4a:** meddelandet mitt på skärmen är ett litet kort med ögat och ringar, utan att något mörkas, och är på
+    från början som de andra två sätten (användarens beslut 2026-11-08); sätten att säga till är tre rader under
+    Låsning.
   - **ST2a:** återställningsnyckeln är en rad i *Om Chainsaw* med fingeravtrycket i grupper och Kopiera, återkallade
     nycklar överstrukna, och en ärlig varning när ingen nyckel är inbyggd.
   - **FS2a:** steget Utgång har Windows (förvalt) och VPN som två kort, vägen som bild under och WireGuard-filen under
@@ -496,6 +514,19 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     kuvert, egenskaperna har fliken *Kuvert*, och efter en krasch väljer man gren (filen eller arbetskopian).
   - **KR1a:** sökningen i kommandoraden är en lista med *Bästa träff* överst och grupperna Etiketter, Adresser, Tx,
     Kluster och Guide; den valda raden visas direkt i grafen.
+  - **TL3a** (vald 2026-11-08): vyn Tidslinje har en vågrät bana per aktör, en tx är ett lodrätt streck mellan banorna,
+    tx som ligger tätt samlas med en siffra som zoomar till timmar, ärendets egna händelser står på en egen bana, och
+    en inspektör till höger visar fakta ur kedjan.
+  - **FL1a** (vald 2026-11-08): vyn Flöde är en Sankey med en kolumn per hopp från vänster till höger, varje band delat
+    i trådar i färgen för var pengarna till sist hamnade, det som ligger kvar som en stump, och spårningsmetoden som
+    räknar om delningen.
+  - **PL1b** (vald 2026-11-08): att ångra en godkänd plånbok (Ctrl+Z eller *Ångra* i KF2b) bekräftas i grafen, där
+    klustret öppnas som ett kort med adresserna och en liten ruta under som i IN1b; panelen säger *Bekräfta i grafen*.
+  - **SW1a** (vald 2026-11-08): valet per swap görs i pillret ₮ → Ξ, som fälls ut på plats till *Följer* och *Följer
+    inte*; följer värdet är linjen efter streckad i accent, annars grå med ett stopp och en person-markering.
+  - **Tornado Cash** (användarens beslut 2026-11-08): märks *Mixer* med markeringen **tidigare sanktionerad**
+    (OFAC tog bort den ur SDN-listan 2025-03-21), en liten hörnmarkering som sanktionerad men nedtonad, med datumen i
+    *Varför?*.
 - **Guiden** (användarens önskemål 2026-11-06): förklaringar inne i programmet, som avsnitt man kan läsa, i stil med de
   förklarande anteckningarna till höger i skisserna. En heuristik, ett slut på spåret eller ett begrepp (UTXO, växeladress,
   CoinJoin, peel chain) har ett *?* som öppnar rätt avsnitt. Texterna ligger i repot och skrivs medan funktionerna byggs.
@@ -589,4 +620,4 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersätts av KF2b (vald 2026-11-08), med områdena från KF1b |
 | **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |
-| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera | Valda 2026-11-08: IN4a, TL2a, GR9a, ET1a, EP1b, RP1b, KU1a, BV4a, ST2a, FS2a, UT3b, ÄR1b, KR1a |
+| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera; TL3, FL1 (vyerna Tidslinje och Flöde), PL1 (ångra en plånbok), SW1 (spåret genom en swap) | Valda 2026-11-08: IN4a, TL2a, GR9a, ET1a, EP1b, RP1b, KU1a, BV4a, ST2a, FS2a, UT3b, ÄR1b, KR1a; TL3a, FL1a, PL1b och SW1a valda |

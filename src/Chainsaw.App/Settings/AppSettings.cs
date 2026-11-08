@@ -52,9 +52,9 @@ public sealed record AppSettings
 
     /// <summary>
     /// Gets whether a hit is said with a message in the middle of the screen (sketch BV4a), which stays on top until it
-    /// is closed; off by default, since it covers the user's work.
+    /// is closed; on by default (the user's decision 2026-11-08, as in the sketch).
     /// </summary>
-    public bool AlertOnScreen { get; init; }
+    public bool AlertOnScreen { get; init; } = true;
 
     /// <summary>
     /// Gets whether an exit is checked once each time it connects (sketch UT3b): the trace is asked through it, and a

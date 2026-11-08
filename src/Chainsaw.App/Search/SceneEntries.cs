@@ -17,6 +17,9 @@ internal sealed class SceneEntries
     /// <summary>The words for a node that lies in a pile (sketch EX2b).</summary>
     public const string InPileText = "i en hög";
 
+    /// <summary>The words for an actor that lies in the trash (sketch SO1a).</summary>
+    public const string InTrashText = "I soptunnan";
+
     /// <summary>The words for a transaction the case has fetched that no line in the graph shows.</summary>
     public const string NotInGraphText = "Hämtad, inte i grafen";
 
@@ -63,6 +66,7 @@ internal sealed class SceneEntries
         ArgumentNullException.ThrowIfNull(scene);
         var reader = new SceneEntries(scene);
         reader.ReadActors();
+        reader.ReadTrashed();
         reader.ReadLabels();
         reader.ReadTransactions();
         return reader._entries;
@@ -83,6 +87,53 @@ internal sealed class SceneEntries
                 _entries.Add(Address(node, address, focus, inPile));
             }
         }
+    }
+
+    /// <summary>
+    /// Reads the actors that lie in the trash: the trash is only a filter, so they are still in the case and are found,
+    /// each with the row <em>I soptunnan</em> instead of a place in the graph.
+    /// </summary>
+    private void ReadTrashed()
+    {
+        foreach (var node in _scene.Snapshot.Graph.Nodes)
+        {
+            if (_actors.ContainsKey(node.Key) || !_scene.Trash.Hides(node))
+            {
+                continue;
+            }
+
+            var labels = _scene.Snapshot.Labels.GetValueOrDefault(node.Key) ?? [];
+            var look = VisualLanguage.Of(GraphScene.SortOf(node, labels));
+            var owner = labels.FirstOrDefault(label => label.Name is not null)?.Name ?? look.Name;
+            if (node.Kind == GraphNodeKind.Cluster)
+            {
+                _entries.Add(Trashed(SearchKind.Cluster, owner, $"Kluster · {node.ClusterSize} adresser", look) with
+                {
+                    Aliases = [.. node.Addresses.Select(address => address.Value)],
+                });
+            }
+
+            foreach (var address in node.Addresses)
+            {
+                _entries.Add(Trashed(SearchKind.Address, address.Value, owner, look) with { IsMono = true });
+            }
+        }
+    }
+
+    /// <summary>Makes the entry of something that lies in the trash: not shown in the graph, and said so.</summary>
+    /// <param name="kind">What it is.</param>
+    /// <param name="text">What it is called.</param>
+    /// <param name="what">What it is, in a few words.</param>
+    /// <param name="look">Its sort, as the graph would draw it.</param>
+    /// <returns>The entry.</returns>
+    private static SearchEntry Trashed(SearchKind kind, string text, string what, SortLook look)
+    {
+        var sub = Join(what, InTrashText);
+        var lead = $"{what}. Ligger i soptunnan och visas inte i grafen; den kan läggas tillbaka därifrån.";
+        return new SearchEntry(kind, text, sub, string.Empty, lead, SearchLook.Of(look), null, null)
+        {
+            IsInTrash = true,
+        };
     }
 
     /// <summary>Makes the entry of a cluster, found by its name or by any of its addresses.</summary>

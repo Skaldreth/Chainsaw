@@ -294,14 +294,14 @@ internal sealed class Case : ICase
         lock (_gate)
         {
             using var operation = BeginOperation();
-            var kept = WithoutSharingEnvelope().ToList();
-            RequireRoomForOneMore(kept);
+            var others = WithoutSharingEnvelope().ToList();
+            RequireRoomFor(others);
             var envelope = KeyEnvelopes.CreatePassword(
                 Info.Id, _fileKey, password, _services.Options.SharingIterations);
             AppendOwnJournal(new JournalDraft(
                 CaseJournalKinds.SharingPasswordSet,
                 HasSharingPasswordUnlocked() ? "Delningslösenordet byttes" : "Ett delningslösenord lades till"));
-            _header = _header.WithEnvelopes(kept.Append(envelope));
+            _header = _header.WithEnvelopes(others.Append(envelope));
             SaveUnlocked();
         }
     }
@@ -340,7 +340,7 @@ internal sealed class Case : ICase
                 return;
             }
 
-            RequireRoomForOneMore(_header.Envelopes);
+            RequireRoomFor(_header.Envelopes);
             var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
             try
             {
@@ -377,6 +377,9 @@ internal sealed class Case : ICase
             }
         }
     }
+
+    /// <inheritdoc />
+    public event EventHandler<CaseSaveState>? SaveStateChanged;
 
     /// <inheritdoc />
     public void Save()
@@ -667,7 +670,30 @@ internal sealed class Case : ICase
         CaseFileHash = saved;
         CaseFiles.WriteBase(_paths, [saved]);
         WriteAnchors();
-        _autosave.Saved();
+        if (_autosave.Saved())
+        {
+            SayHowSavesGo(new CaseSaveState(0));
+        }
+    }
+
+    /// <summary>
+    /// Raises <see cref="SaveStateChanged"/> for every handler on its own, so that a handler that throws is never taken
+    /// for a save that failed and never keeps the others from hearing it.
+    /// </summary>
+    /// <param name="state">How the saves go.</param>
+    private void SayHowSavesGo(CaseSaveState state)
+    {
+        foreach (var handler in SaveStateChanged?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                ((EventHandler<CaseSaveState>)handler)(this, state);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // The save itself went as the state says; a listener's own failure is its own.
+            }
+        }
     }
 
     /// <summary>
@@ -710,6 +736,20 @@ internal sealed class Case : ICase
             })));
         _header = _header.WithEnvelopes(envelopes);
         return true;
+    }
+
+    /// <summary>
+    /// Refuses to add an envelope to a header that is full, before anything is journalled, since a header with one
+    /// more could not be written (and every later save, and the close, would fail).
+    /// </summary>
+    /// <param name="kept">The envelopes the header keeps beside the one to add.</param>
+    /// <exception cref="CaseException"><see cref="CaseError.TooManyEnvelopes"/>.</exception>
+    private static void RequireRoomFor(IReadOnlyCollection<System.Text.Json.Nodes.JsonObject> kept)
+    {
+        if (kept.Count >= CaseContainer.MaximumEnvelopes)
+        {
+            throw new CaseException(CaseError.TooManyEnvelopes);
+        }
     }
 
     /// <summary>The journal's line for a change of the recovery envelopes.</summary>
@@ -1015,20 +1055,6 @@ internal sealed class Case : ICase
         }
     }
 
-    /// <summary>
-    /// Refuses to add an envelope when the header already holds the most a file may: <c>WriteHeader</c> would refuse
-    /// the header, or a reader would refuse the file. Checked before anything is journalled.
-    /// </summary>
-    /// <param name="envelopes">The envelopes the new one would be added to.</param>
-    /// <exception cref="CaseException"><see cref="CaseError.TooManyEnvelopes"/>.</exception>
-    private static void RequireRoomForOneMore(IReadOnlyCollection<System.Text.Json.Nodes.JsonObject> envelopes)
-    {
-        if (envelopes.Count >= CaseContainer.MaximumEnvelopes)
-        {
-            throw new CaseException(CaseError.TooManyEnvelopes);
-        }
-    }
-
     /// <summary>Gives the envelopes without the sharing envelope.</summary>
     /// <returns>The envelopes.</returns>
     private IEnumerable<System.Text.Json.Nodes.JsonObject> WithoutSharingEnvelope() =>
@@ -1176,7 +1202,8 @@ internal sealed class Case : ICase
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // An exception must not leave the timer's thread; the case file is untouched until the atomic replace.
-            _autosave.Failed();
+            // The listeners are told after, each on its own, so that none of them is taken for the save.
+            SayHowSavesGo(new CaseSaveState(_autosave.Failed()));
         }
     }
 

@@ -52,7 +52,9 @@ public sealed partial class GuideSectionsTests
     {
         foreach (var id in Expected.SelectMany(entry => entry.Sections))
         {
-            var text = File.ReadAllText(Path.Combine(GraphSceneTests.Root(), "docs", "guide", id + ".md"));
+            // A checkout on Windows may have CRLF line endings.
+            var text = File.ReadAllText(Path.Combine(GraphSceneTests.Root(), "docs", "guide", id + ".md"))
+                .ReplaceLineEndings("\n");
             var firstBlock = text.Split("\n\n", StringSplitOptions.RemoveEmptyEntries)[1];
             Assert.StartsWith("> **Som i vardagen:**", firstBlock, StringComparison.Ordinal);
         }

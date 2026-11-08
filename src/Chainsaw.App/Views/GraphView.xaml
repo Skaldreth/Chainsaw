@@ -509,14 +509,33 @@
             </Grid>
 
             <!-- What was traced and how: top left, beside the pill's column. -->
-            <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="84,14,0,0" MaxWidth="520"
-                        IsHitTestVisible="False">
-                <TextBlock Text="{Binding TraceText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
-                           Visibility="{Binding Timeline.IsChosen, Converter={x:Static controls:InvertVisibility.Instance}}" />
-                <!-- At a time chosen in the strip (sketch TL1a), the head says so in place of the trace. -->
-                <TextBlock Text="{Binding Timeline.HeadText}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
-                           Visibility="{Binding Timeline.IsChosen, Converter={StaticResource Visible}}" />
-                <!-- What the last step said goes to the toaster (sketch TO1a), not here. -->
+            <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="84,14,0,0" MaxWidth="520">
+                <!--
+                  The way back to the view the graph was shown from (sketch EP1b: ‹ Exponering Esc), only while there
+                  is one; the trace's line stands under it.
+                -->
+                <Button HorizontalAlignment="Left" Height="32" Padding="9,0,12,0" Margin="0,0,0,8" FontSize="13"
+                        Style="{StaticResource Button.Graph}" Background="{StaticResource Brush.Surface}"
+                        Command="{Binding ReturnCommand}" ToolTip="Tillbaka · Esc"
+                        Visibility="{Binding HasReturn, Converter={StaticResource Visible}}">
+                    <StackPanel Orientation="Horizontal">
+                        <controls:GridIcon Size="14" Data="{StaticResource Icon.Back}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ReturnText}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Esc" FontSize="11" Margin="7,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Brush.TextDim}" />
+                    </StackPanel>
+                </Button>
+                <StackPanel IsHitTestVisible="False">
+                    <TextBlock Text="{Binding TraceText}" FontSize="13"
+                               Foreground="{StaticResource Brush.TextDim}"
+                               Visibility="{Binding Timeline.IsChosen,
+                                                    Converter={x:Static controls:InvertVisibility.Instance}}" />
+                    <!-- At a time chosen in the strip (sketch TL1a), the head says so in place of the trace. -->
+                    <TextBlock Text="{Binding Timeline.HeadText}" FontSize="13"
+                               Foreground="{StaticResource Brush.TextDim}"
+                               Visibility="{Binding Timeline.IsChosen, Converter={StaticResource Visible}}" />
+                    <!-- What the last step said goes to the toaster (sketch TO1a), not here. -->
+                </StackPanel>
             </StackPanel>
 
             <!-- The graph's corner: the switch, the method (always shown) and the amounts on the lines. -->

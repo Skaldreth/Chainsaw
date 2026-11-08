@@ -203,6 +203,22 @@ public sealed class BackgroundImportTests : IDisposable
     }
 
     [Fact]
+    public void A_check_whose_start_never_came_in_brings_its_start_and_its_hits()
+    {
+        // The start's entry was set aside, so the watch has no start when the background's check comes in.
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("w"));
+        Queue.Add(Hit(watch, 900_003));
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Single(result.Hits);
+        Assert.Equal(900_000, Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Equal(900_004, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+        Assert.Single(_harness.Journal(MonitoringJournalKinds.Started));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
     public async Task A_start_the_case_already_has_is_kept()
     {
         var watch = await StartedWatch();
@@ -322,6 +338,43 @@ public sealed class BackgroundImportTests : IDisposable
     }
 
     [Fact]
+    public async Task An_entry_whose_file_cannot_be_set_aside_just_now_never_stops_the_others()
+    {
+        var watch = await StartedWatch();
+        var forged = Hit(watch, 900_003) with { Id = Guid.NewGuid() };
+        forged = forged with { Responses = [forged.Responses[0] with { Sha256 = new string('0', 64) }] };
+        Queue.Add(Hit(watch, 900_003));
+        var held = new HeldQueue((WatchQueue)Queue, forged);
+        var transfer = _harness.Get<Chains.Contracts.IResponseTransfer>();
+        var background = new BackgroundWatches(_harness.Get<MonitoringService>(), held, transfer, _harness.Clock);
+
+        var result = background.Import(_harness.Case);
+
+        Assert.Equal(1, result.Entries);
+        Assert.Single(result.Hits);
+        Assert.Equal([BackgroundWatches.UnreadableText], result.Problems);
+        Assert.Empty(Queue.List(CaseId));
+    }
+
+    [Fact]
+    public void A_token_match_whose_decimals_another_source_writes_otherwise_is_read()
+    {
+        var token = Asset.Token(Chain.Ethereum, Synthetic.Eth("t").Value, "TOK", 6);
+        var filter = new WatchFilter(
+            Chain.Ethereum, WatchDirection.Both, [], [], token, new AssetAmount(token, 1_000));
+        var match = new WatchMatch(
+            "0x" + new string('a', 64), new WatchBlock(900_003, "0xab", Seen), WatchDirection.In,
+            new AssetAmount(Asset.Token(Chain.Ethereum, Synthetic.Eth("t").Value, "TOK", 18), 5_000), []);
+        var entry = new QueuedCheck(
+            Guid.NewGuid(), CaseId, "w", QueuedKind.Checked, filter, 900_000, 900_004,
+            new WatchChecked(Seen, 900_004, WatchFeedStatus.Read, null), [match], [], [], Seen);
+
+        var read = BackgroundCodec.DecodeEntry(BackgroundCodec.Encode(entry));
+
+        Assert.Equal(5_000, Assert.Single(read.Matches).Amount.Units);
+    }
+
+    [Fact]
     public void Another_case_s_entries_stay_in_the_queue()
     {
         var other = Guid.NewGuid();
@@ -367,4 +420,26 @@ public sealed class BackgroundImportTests : IDisposable
 
         return all;
     });
+}
+
+/// <summary>
+/// The real queue with one more entry first, whose responses the case refuses and whose file is held so that it cannot
+/// be set aside just now.
+/// </summary>
+/// <param name="inner">The real queue.</param>
+/// <param name="held">The held entry.</param>
+internal sealed class HeldQueue(WatchQueue inner, QueuedCheck held) : IWatchQueue
+{
+    public void Add(QueuedCheck entry) => inner.Add(entry);
+
+    public IReadOnlyList<Guid> List(Guid caseId) => [held.Id, .. inner.List(caseId)];
+
+    public QueuedCheck? Read(Guid caseId, Guid id) => id == held.Id ? held : inner.Read(caseId, id);
+
+    public void Remove(Guid caseId, Guid id) => inner.Remove(caseId, id);
+
+    public void SetAside(Guid caseId, Guid id) =>
+        throw new IOException(id == held.Id ? "The file is held." : "Only the held entry is set aside here.");
+
+    public bool HasHits() => inner.HasHits();
 }

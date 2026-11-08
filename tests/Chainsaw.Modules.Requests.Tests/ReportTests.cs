@@ -76,6 +76,19 @@ public sealed class ReportTemplateTests
     }
 
     [Fact]
+    public void A_token_step_names_the_chain_and_contract_so_a_token_named_alike_is_never_taken_for_it()
+    {
+        var token = Asset.Token(Chain.Ethereum, "0x" + new string('7', 40), "USDT", 6);
+        var step = new ReportStep("0x11…1111", "Börs A", ReportSamples.TxA, new AssetAmount(token, 500_000_000),
+            new DateTimeOffset(2026, 10, 14, 20, 14, 5, TimeSpan.Zero), 21_000_000, ReportSamples.Hash);
+        var trail = new ReportTrail("0x11…1111", "Börs A", ReportTrailEnd.CashOut, [step], []);
+
+        var markdown = Compose(ReportSamples.Draft(trails: [trail]));
+
+        Assert.Contains($"500,00 USDT (Ethereum 0x{new string('7', 40)})", markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Without_the_chain_part_the_height_and_hash_are_left_out()
     {
         var parts = ReportSamples.All.Where(part => part != ReportPart.Chain).ToHashSet();

@@ -310,7 +310,7 @@ internal sealed class ReportTrails(
                 return null;
             }
 
-            var share = Math.Min(1m, (decimal)edge.Traced.Units / (decimal)sent);
+            var priced = new List<(AssetTransfer Transfer, Price Price)>();
             foreach (var transfer in transfers)
             {
                 if (transfer.Time is not { } time || rateAt(transfer.Amount.Asset, time) is not { } price
@@ -320,8 +320,12 @@ internal sealed class ReportTrails(
                 }
 
                 currency = price.Currency.Code();
-                total += price.ValueOf(transfer.Amount).Value * share;
+                priced.Add((transfer, price));
             }
+
+            // Only once every transfer has a rate: a token no source prices may count more units than a decimal holds.
+            var share = Math.Min(1m, (decimal)edge.Traced.Units / (decimal)sent);
+            total += priced.Sum(pair => pair.Price.ValueOf(pair.Transfer.Amount).Value * share);
         }
 
         return currency is null

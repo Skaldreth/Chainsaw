@@ -21,9 +21,11 @@ public sealed class TestCaseTests : IDisposable
     /// <summary>
     /// What the built graph cannot show yet: Kan frysas needs USDT or USDC on Ethereum, whose made-up source is not
     /// built (TODO). The start point and the watch are drawn by the graph from the trace and the watches, not as a
-    /// badge, so they are checked on their own below.
+    /// badge, so they are checked on their own below. An exported request's mark is drawn from the case's exports, not
+    /// from the scene.
     /// </summary>
-    private static readonly NodeBadge[] NotAsBadges = [NodeBadge.CanBeFrozen, NodeBadge.StartPoint, NodeBadge.Watched];
+    private static readonly NodeBadge[] NotAsBadges =
+        [NodeBadge.CanBeFrozen, NodeBadge.StartPoint, NodeBadge.Watched, NodeBadge.RequestExported];
 
     private readonly Harness _harness = new();
 
@@ -89,7 +91,7 @@ public sealed class TestCaseTests : IDisposable
         var checks = _harness.Get<ICheckService>();
         var graph = await _harness.Get<ITracingService>().LoadAsync(@case);
         Assert.Contains(checks.Run(@case, graph).Checks, check => check.Finding.Kind == CheckKind.Suggestion);
-        Assert.Single(checks.GetAreas(@case));
+        Assert.Contains(checks.GetAreas(@case), area => area.Name == "Uttagsvägar");
         var cluster = _harness.Get<IClusteringService>().GetCluster(@case, actors.Scammer.Address!);
         Assert.Contains(actors.Scammer3.Address!, cluster.Addresses);
         Assert.NotEmpty(cluster.Links);
@@ -102,8 +104,8 @@ public sealed class TestCaseTests : IDisposable
         using var @case = _harness.Get<ICaseStore>().Open(build.CaseNumber);
         var actors = _harness.Get<TestActors>();
 
-        var comment = Assert.Single(_harness.Get<IGraphCommentService>().GetComments(@case));
-        Assert.Equal(GraphPile.MemberKey(actors.Victim.Address!), comment.Anchor);
+        var anchor = GraphPile.MemberKey(actors.Victim.Address!);
+        var comment = Assert.Single(_harness.Get<IGraphCommentService>().GetComments(@case), c => c.Anchor == anchor);
         Assert.Contains("chainsaw:bitcoin/" + actors.Exchange.Address!.Value, comment.Text, StringComparison.Ordinal);
     }
 

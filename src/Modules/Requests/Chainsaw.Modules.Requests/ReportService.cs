@@ -127,7 +127,8 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
     /// <summary>Reads the exported reports, oldest first.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>The exports.</returns>
-    internal static IReadOnlyList<ReportExport> ReadExports(ICaseReader reader)
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/>: a row cannot be read.</exception>
+    internal static IReadOnlyList<ReportExport> ReadExports(ICaseReader reader) => RequestService.Readable(() =>
     {
         using var command = reader.CreateCommand("""
             SELECT sequence, file_name, path, sha256, transactions, parts, journal_sequence, recorded_utc
@@ -150,7 +151,7 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
         }
 
         return exports;
-    }
+    });
 
     /// <summary>Records the export in the journal and seals it, in the case's transaction.</summary>
     /// <param name="transaction">The case's transaction.</param>

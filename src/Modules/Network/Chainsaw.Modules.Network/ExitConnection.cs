@@ -321,7 +321,12 @@ internal sealed class ExitConnection : IExitConnection, IDisposable
         if (pipeline is null)
         {
             await StopBoundedAsync(() => ActiveExit.StopQuietlyAsync(tunnel)).ConfigureAwait(false);
-            SetStatus(new ExitStatus(ExitState.Failed, exitId, ExitFailure.ConnectFailed));
+
+            // A cancelled attempt ends not connected, as everywhere else, not as a failure that could be tried again.
+            SetStatus(cancellationToken.IsCancellationRequested
+                ? ExitStatus.NotConnected
+                : new ExitStatus(ExitState.Failed, exitId, ExitFailure.ConnectFailed));
+            cancellationToken.ThrowIfCancellationRequested();
             return Status;
         }
 

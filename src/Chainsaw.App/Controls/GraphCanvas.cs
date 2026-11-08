@@ -107,12 +107,15 @@ public sealed partial class GraphCanvas : FrameworkElement
             if (!IsVisible)
             {
                 KeepRings(false);
+                KeepTurning(false);
                 StopZoom();
             }
             else
             {
-                // Drawn again when shown, so that rings that moved before move on.
-                InvalidateVisual();
+                // The frames stop while hidden (OnMovingFrame): a blast, a pile or a glide halfway is taken up again, so
+                // that it ends rather than stand still and keep the surface from the pointer. Drawing again also lets
+                // the rings and the cards that moved before move on.
+                KeepMoving();
             }
         };
         FocusVisualStyle = null;
@@ -204,6 +207,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         if (_model?.Scene is not { } scene)
         {
             KeepRings(false);
+            KeepTurning(false);
             return;
         }
 
@@ -212,6 +216,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         {
             DrawHeldBack(drawingContext);
             KeepRings(false);
+            KeepTurning(false);
             return;
         }
 
@@ -516,6 +521,9 @@ public sealed partial class GraphCanvas : FrameworkElement
                 break;
             case Key.Escape when _model.Timeline.IsChosen:
                 _model.Timeline.ToNow();
+                break;
+            case Key.Escape when _model.ReturnsOnEscape:
+                _model.Return();
                 break;
             case Key.Escape:
                 _model.Choose(null, null);
@@ -1238,9 +1246,10 @@ public sealed partial class GraphCanvas : FrameworkElement
     private void DrawMarks(DrawingContext dc, NodeView node, GraphPoint place)
     {
         var ring = new Pen(GraphPalette.Find(this, "Brush.Background"), 2);
-        for (var index = 0; index < node.Badges.Count; index++)
+        var marks = _model!.MarksOf(node);
+        for (var index = 0; index < marks.Count; index++)
         {
-            var badge = node.Badges[index];
+            var badge = marks[index];
             var (disc, icon) = GraphPalette.Mark(this, badge);
             var centre = new Point(
                 place.X + node.Width + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),

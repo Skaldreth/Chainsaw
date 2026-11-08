@@ -178,6 +178,22 @@ public sealed class Stage15Tests
     }
 
     [Fact]
+    public async Task The_graph_is_read_again_when_the_library_takes_back_a_withdrawn_copy()
+    {
+        // A copy whose label was withdrawn where it was set is taken back while nothing new comes in: the graph read
+        // before still ends the trail on it, so it must be read again.
+        var tracing = new TestTracing { Graph = GraphSamples.Graph(), Tracer = (_, _) => GraphSamples.Trace() };
+        var attribution = new TestAttribution();
+        attribution.Entries.Add(GraphSamples.Label(GraphSamples.K1, LabelKind.Exchange).Entries[0]);
+        var library = new TestLibrary { Sharing = attribution.Entries.Clear };
+        var source = new GraphSource(tracing, attribution, new TestClustering(), library);
+
+        await source.LoadAsync(new TestCase("2026-0015"), TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Equal(2, tracing.Loads);
+    }
+
+    [Fact]
     public async Task A_library_that_cannot_be_read_never_keeps_the_graph_from_being_shown()
     {
         var tracing = new TestTracing { Graph = GraphSamples.Graph(), Tracer = (_, _) => GraphSamples.Trace() };

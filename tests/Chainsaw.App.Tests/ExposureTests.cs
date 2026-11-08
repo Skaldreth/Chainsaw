@@ -316,6 +316,74 @@ public sealed class ExposureTests
     }
 
     [Fact]
+    public async Task The_kronor_stand_after_the_amount_when_the_lines_have_a_value()
+    {
+        var value = new EdgeValue(23_400m, "SEK", []);
+        var valued = GraphScene.Build(Labelled().Snapshot with
+        {
+            Values = new Dictionary<string, EdgeValue> { [VU] = value },
+        });
+
+        var model = await Opened(valued, VKey);
+        var without = await Opened(Labelled(), VKey);
+
+        Assert.EndsWith(" · " + value.Text, model.Detail!.Amount, StringComparison.Ordinal);
+        Assert.DoesNotContain(" kr", without.Detail!.Amount, StringComparison.Ordinal);
+        var risk = model.Sides[0].Rows.Single(row => row.Group == ExposureGroup.Risk);
+        Assert.EndsWith(value.Text, risk.ToolTip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_money_is_valued_in_proportion_to_its_part_of_the_line_and_not_at_all_without_a_value()
+    {
+        var scene = Labelled();
+        var line = scene.Snapshot.Graph.Edges.Single(edge => edge.Key == VU);
+        var half = new AssetAmount(line.Amount.Asset, line.Amount.Units / 2);
+        var result = new ExposureResult(
+            VKey, ExposureDirection.Out, 1, new TracingMethodId(TracingMethodKind.Fifo, 1), line.Amount,
+            [new ExposureReach(UKey, half, 1, [VKey, UKey], [VU], [])],
+            new Dictionary<ExposureRest, AssetAmount>(),
+            [new ExposureFlow(VU, VKey, UKey, half)],
+            new Dictionary<string, int> { [VKey] = 0, [UKey] = 1 });
+        var valued = scene.Snapshot with
+        {
+            Values = new Dictionary<string, EdgeValue> { [VU] = new(1_000m, "SEK", []) },
+        };
+
+        Assert.Equal(new EdgeValue(500m, "SEK", []).Text, ExposureValues.OfServices(valued, result, [UKey]));
+        Assert.Equal(string.Empty, ExposureValues.OfServices(scene.Snapshot, result, [UKey]));
+        Assert.Equal("0,1 BTC", ExposureValues.After("0,1 BTC", string.Empty));
+    }
+
+    [Fact]
+    public async Task The_node_menu_opens_the_view_with_the_node_in_the_centre_and_the_graph_has_a_way_back()
+    {
+        var graph = await Graph();
+        var wanted = new List<string>();
+        var back = new List<AppView>();
+        graph.ExposureWanted += (_, key) => wanted.Add(key);
+        graph.ReturnWanted += (_, view) => back.Add(view);
+
+        graph.OpenMenu(VKey);
+        var row = Assert.Single(graph.MenuRows, row => row.Action == NodeMenuAction.Exposure);
+        graph.RunMenu(row);
+        graph.ShowPath(new ExposurePath([VKey, KKey], [VK], "V → K"));
+
+        Assert.Equal([VKey], wanted);
+        Assert.Equal("Exponering", graph.ReturnText);
+        Assert.False(graph.ReturnsOnEscape);
+        graph.Choose(null, null);
+        Assert.True(graph.ReturnsOnEscape);
+        graph.Return();
+        Assert.Equal([AppView.Exposure], back);
+        Assert.False(graph.HasReturn);
+        graph.ShowPath(new ExposurePath([VKey, KKey], [VK], "V → K"));
+        graph.ForgetReturn();
+        Assert.Null(graph.PathFocus);
+        Assert.False(graph.HasReturn);
+    }
+
+    [Fact]
     public async Task Nothing_is_read_while_the_view_is_hidden_and_a_stale_view_is_read_when_shown()
     {
         var analysis = new DirectExposure();
@@ -350,6 +418,7 @@ public sealed class ExposureTests
         await model.Computed;
 
         Assert.True(model.HasProblem);
+        Assert.Equal(ExposureViewModel.FailedText, model.Problem);
         Assert.False(model.Picture.HasSubject);
     }
 
@@ -361,6 +430,19 @@ public sealed class ExposureTests
         Assert.Equal("Aktören är inte expanderad", ExposureViewModel.RestText(ExposureRest.NotExpanded, 2, "adressen"));
         Assert.Equal("Gick till avgifter", ExposureViewModel.RestText(ExposureRest.Fees, 2, "adressen"));
         Assert.Equal("Gick tillbaka till adressen", ExposureViewModel.RestText(ExposureRest.Returned, 2, "adressen"));
+    }
+
+    private static async Task<GraphViewModel> Graph()
+    {
+        var session = new CaseSession();
+        var workflow = new CaseWorkflow(
+            new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), session);
+        var graph = new GraphViewModel(
+            session, workflow, new TestGraphSource(), TestWays.For(new TestExitConnection()), new InlineUi(),
+            new TestGraphEditor(), new TestClock());
+        session.Open(new TestCase("2026-0077"));
+        await graph.ReloadAsync(fit: false);
+        return graph;
     }
 
     private static async Task<(ExposureViewModel Model, DirectExposure Analysis)> Shown(GraphScene scene)

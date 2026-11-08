@@ -139,9 +139,6 @@ internal sealed class EthereumReader(IEthereumSource source)
                 continue;
             }
 
-            // Only an expansion that brought in all it found carries money on; one held back at the limit or left
-            // incomplete has a gap in its ledger, so the money stops there instead of being counted through it.
-            (expansion.IsComplete ? read : partly).Add(address.ToChainAddress());
             if (walk.Outdated)
             {
                 outdated.Add(address.ToChainAddress());
@@ -152,6 +149,11 @@ internal sealed class EthereumReader(IEthereumSource source)
             var seen = walk.Transfers.Select(transfer => transfer.Transaction)
                 .Concat(walk.Fees.Select(fee => fee.Transaction)).ToHashSet();
             var lost = wanted.Count(hash => !seen.Contains(hash));
+
+            // Only an expansion that brought in all it found, and whose transactions the case's pages still hold,
+            // carries money on; one held back at the limit, left incomplete or missing from the pages has a gap in its
+            // ledger, so the money stops there instead of being counted through it.
+            (expansion.IsComplete && lost == 0 ? read : partly).Add(address.ToChainAddress());
             if (lost > 0)
             {
                 problems.Add(string.Format(

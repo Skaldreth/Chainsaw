@@ -79,7 +79,10 @@ internal sealed class TestAttribution : IAttributionService
     public IReadOnlyList<LabelHistoryEntry> GetHistory(ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
         [];
 
-    public IReadOnlyList<LabelEntry> GetEntries(ICase @case) => throw new NotSupportedException();
+    /// <summary>The labels in force, as the case holds them.</summary>
+    public List<LabelEntry> Entries { get; } = [];
+
+    public IReadOnlyList<LabelEntry> GetEntries(ICase @case) => [.. Entries];
 
     public IReadOnlyList<Label> GetLabels(ICase @case) => throw new NotSupportedException();
 

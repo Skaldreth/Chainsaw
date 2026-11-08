@@ -67,8 +67,17 @@ public sealed class TestActors
     /// <summary>Gets the mixer's less likely way out: another type and 5 % less.</summary>
     public TestAddress MixerOut2 { get; } = TestAddress.Wpkh("blandat-ut-2");
 
+    /// <summary>Gets the second mixer the less likely way out goes into: mixer after mixer.</summary>
+    public TestAddress SecondMixer { get; } = TestAddress.Wsh("virveln");
+
     /// <summary>Gets the exchange the mixer's way out goes on to, for the user to find.</summary>
     public TestAddress SouthExchange { get; } = TestAddress.Wpkh("sydborsen-insattning");
+
+    /// <summary>Gets the exchange's second deposit address, paid the same amount at the same time.</summary>
+    public TestAddress SouthExchange2 { get; } = TestAddress.Wpkh("sydborsen-insattning-2");
+
+    /// <summary>Gets a coin of the mixer's way out's own, spent with it: proposed as the same wallet.</summary>
+    public TestAddress MixerOut1Reserve { get; } = TestAddress.Pkh("blandat-ut-1-reserv");
 
     /// <summary>Gets the scammer's coin into the CoinJoin.</summary>
     public TestAddress CoinJoinIn { get; } = TestAddress.Wpkh("whirlpool-in");

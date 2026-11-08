@@ -61,6 +61,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>The open case.</summary>
     private readonly CaseSession _session;
 
+    /// <summary>The cases' workflow, whose fetching of start points an expansion waits for.</summary>
+    private readonly CaseWorkflow _workflow;
+
     /// <summary>The modules, off the UI thread.</summary>
     private readonly IGraphSource _source;
 
@@ -208,7 +211,20 @@ public sealed partial class GraphViewModel : ObservableObject
             _toldThrownStarts = string.Empty;
             _ = RefreshAsync();
         });
-        exit.Changed += (_, _) => ShowWay(exit);
+        _workflow = workflow;
+        workflow.StartTransactionsMissed += (_, text) => ui.Post(() => Tell(ToastKind.Warning, text));
+        var wasLive = exit.IsLive;
+        exit.Changed += (_, _) =>
+        {
+            ShowWay(exit);
+            // A start point that could not be fetched offline is tried again once the exit connects (principle 9).
+            if (exit.IsLive && !wasLive)
+            {
+                workflow.RetryStartTransactions();
+            }
+
+            wasLive = exit.IsLive;
+        };
         ShowWay(exit);
         OnCaseChanged();
     }
@@ -826,7 +842,15 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="retry">What <em>Försök igen</em> does when it fails.</param>
     /// <returns>A task that completes when the graph is shown after the expansion.</returns>
     private Task ExpandWithAsync(ICase openCase, IReadOnlyList<ExpansionRequest> requests, Action retry) =>
-        ExpandWithAsync(token => _source.ExpandAsync(openCase, requests, Reading, token), retry);
+        ExpandWithAsync(
+            async token =>
+            {
+                // A start point being fetched is waited for, so that the same transaction is never fetched twice;
+                // the expansion then finds it in the case.
+                await _workflow.StartTransactionsSettled.WaitAsync(token).ConfigureAwait(false);
+                return await _source.ExpandAsync(openCase, requests, Reading, token).ConfigureAwait(false);
+            },
+            retry);
 
     /// <summary>
     /// Expands the graph by a step off the UI thread, and says what came in; after it, a lingering toast says how many
@@ -860,12 +884,12 @@ public sealed partial class GraphViewModel : ObservableObject
         {
             if (version == _version)
             {
-                // Say why, so that the user can tell a source that refused from a fault (a cancelled one says nothing).
+                // The case's reason is said in Swedish; a raw message is never shown, since it may name a path.
                 Notice = string.Empty;
                 Tell(
                     ToastKind.Error,
                     ExpandFailedText,
-                    exception is OperationCanceledException ? string.Empty : exception.Message,
+                    exception is CaseException failure ? CaseTexts.For(failure.Error) : string.Empty,
                     retry);
             }
         }
@@ -998,6 +1022,7 @@ public sealed partial class GraphViewModel : ObservableObject
         _viewport = null;
         StoredViewport = null;
         _viewLoaded = false;
+        _viewChangedMeanwhile = false;
         Method = TracingMethodKind.Fifo;
         Layout = GraphLayout.Free;
         Labels = AmountLabelMode.All;
@@ -1075,10 +1100,10 @@ public sealed partial class GraphViewModel : ObservableObject
         var openCase = _session.Current;
         do
         {
-            _viewChangedMeanwhile = false;
             if (openCase is null || _session.Current != openCase || !_viewLoaded)
             {
-                // A change made in the case opened meanwhile is stored on its own, not lost.
+                // A change made in the case opened meanwhile is stored on its own, not lost; the flag is read before
+                // it is reset, and was reset when that case was opened, so it is only that case's change.
                 if (_viewChangedMeanwhile && _viewLoaded && _session.Current is not null)
                 {
                     _savingView = SaveViewAsync();
@@ -1087,6 +1112,7 @@ public sealed partial class GraphViewModel : ObservableObject
                 return;
             }
 
+            _viewChangedMeanwhile = false;
             var view = new GraphViewState(Method, Layout, Labels.ToStored(), _viewport?.ToStored())
             {
                 ShowUnspendable = _showUnspendable,

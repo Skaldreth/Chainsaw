@@ -344,6 +344,37 @@ public sealed class ReportSelectionTests
     }
 
     [Fact]
+    public void A_token_amount_too_large_to_value_gives_no_value_and_never_throws()
+    {
+        // 10^30 units of an 18-decimal token (a trillion tokens, as meme tokens move) is more than a decimal holds.
+        var token = Asset.Token(Chain.Ethereum, "0x" + new string('7', 40), "MEME", 18);
+        var sent = new AssetAmount(token, System.Numerics.BigInteger.Pow(10, 30));
+        var half = new AssetAmount(token, System.Numerics.BigInteger.Pow(10, 30) / 2);
+        var shaped = Shaped([("a", true), ("e", false)], [("ae", "a", "e", 0, 1.0m)], exchange: "e");
+        var line = shaped.Snapshot.Graph.Edges[0];
+        var graph = shaped.Snapshot.Graph with
+        {
+            Edges = [line with { Amount = sent, Transfers = [line.Transfers[0] with { Amount = sent }] }],
+        };
+        var trace = new TraceResult(
+            Fifo, [], half, [], [], [new TracedEdge("ae", new TracedAmount(half, Fifo, [Tx[0]]), false)], []);
+        var scene = Scene(
+            new Dictionary<string, IReadOnlyList<Label>>
+            {
+                ["e"] = [Label(Address(22), LabelKind.Exchange, "Börs A")],
+            },
+            graph,
+            trace);
+
+        // No source prices such a token; only bitcoin has a rate here.
+        Func<Asset, DateTimeOffset, Price?> rateAt = (asset, _) => asset == Asset.Bitcoin ? Rate(1m) : null;
+
+        var trail = Assert.Single(ReportSelection.Build(scene, ["a", "e"], NoClusters, rateAt).Trails);
+
+        Assert.Null(trail.Value);
+    }
+
+    [Fact]
     public void A_line_with_no_transfer_told_traced_marks_its_steps()
     {
         var scene = Shaped(
@@ -603,6 +634,7 @@ public sealed class ReportViewModelTests
 
         var toast = Assert.Single(_toaster.Toasts);
         Assert.Equal(ReportViewModel.ExportFailedTitle, toast.Title);
+        Assert.Equal("Filen gick inte att skriva.", toast.Text);
         Assert.False(model.IsExporting);
     }
 

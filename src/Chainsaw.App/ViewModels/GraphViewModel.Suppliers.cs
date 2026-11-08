@@ -69,6 +69,12 @@ public sealed partial class GraphViewModel
         try
         {
             var answers = await _suppliers.LookupAsync(open, node.Node.Addresses[0], _switches.Enabled);
+            if (_session.Current != open)
+            {
+                // The case was closed meanwhile: what came back is that case's, and is not said over another.
+                return;
+            }
+
             if (answers.Any(answer => answer.Added.Count > 0))
             {
                 await RefreshAsync();
@@ -83,9 +89,10 @@ public sealed partial class GraphViewModel
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // The case may have closed meanwhile; the call is fire and forget, so the fault is said here or never.
+            // A raw message is never shown, since it may name a path or a host.
             if (_session.Current == open)
             {
-                Tell(ToastKind.Error, SuppliersFailedText, exception.Message);
+                Tell(ToastKind.Error, SuppliersFailedText);
             }
         }
         finally

@@ -124,6 +124,18 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// <summary>The WireGuard file being added; only its path is kept, never its text.</summary>
     private string? _path;
 
+    /// <summary>
+    /// The last check of Windows as the way out while the computer has been online, for the title bar's tooltip;
+    /// never kept beyond the session, since it belongs to no exit.
+    /// </summary>
+    private ExitSighting? _windowsSighting;
+
+    /// <summary>
+    /// Whether Windows as the way out has been asked since the computer came online, so that a check that failed is
+    /// not asked again at every change; it is asked anew the next time the computer comes online.
+    /// </summary>
+    private bool _windowsAsked;
+
     /// <summary>Creates the panel and follows the connection's status.</summary>
     /// <param name="connection">The connection to the program's exit.</param>
     /// <param name="way">The way out chosen in the settings (VPN or Windows).</param>
@@ -158,6 +170,12 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         _toaster = toaster;
         _clock = clock ?? new SystemClock();
         _vault = vault;
+        if (vault is not null)
+        {
+            // Unlocked, Windows as the way out may be checked; nothing is asked while Chainsaw is locked.
+            vault.StateChanged += (_, _) => ui.Post(ShowRoute);
+        }
+
         _status = connection.Status;
         connection.StatusChanged += (_, status) => ui.Post(() => Show(status));
         Show(_status);
@@ -231,6 +249,13 @@ public sealed partial class ExitPanelViewModel : ObservableObject
 
     /// <summary>Gets whether something went wrong.</summary>
     public bool HasError => ErrorText.Length > 0;
+
+    /// <summary>
+    /// Gets what the exit's tooltip in the title bar adds about the way out while lookups can go (sketch UT3b), for
+    /// example <em>syns som 185.213.154.68, Sverige</em>; empty when the way has not been checked.
+    /// </summary>
+    [ObservableProperty]
+    public partial string SeenTip { get; private set; } = string.Empty;
 
     /// <summary>Gets whether exits can be checked here (sketch UT3b).</summary>
     public bool CanCheck => _check is not null;
@@ -676,6 +701,75 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         {
             (Rows.FirstOrDefault(other => other.Id == row.Id) ?? row).ShowCheckFailed();
         }
+        finally
+        {
+            ShowSeenTip();
+        }
+    }
+
+    /// <summary>
+    /// Checks Windows as the way out once each time the computer comes online with Windows chosen, when checks on
+    /// connecting are on (sketch UT3b, <em>datorns eget nät</em>). The answer is kept only for the session, since it
+    /// belongs to no exit; it shows in the title bar's tooltip. Nothing is asked while Chainsaw is locked.
+    /// </summary>
+    private void CheckWindows()
+    {
+        if (!_way.IsWindows || !IsLive)
+        {
+            // The computer's address may change with its network; the next time it is online it is checked anew.
+            _windowsSighting = null;
+            _windowsAsked = false;
+            return;
+        }
+
+        if (_windowsAsked || !ChecksOnConnect || _check is not { } check || IsLocked)
+        {
+            return;
+        }
+
+        _windowsAsked = true;
+        WindowsChecked = CheckWindowsAsync(check);
+    }
+
+    /// <summary>Asks the trace through Windows and keeps the answer for the tooltip, if it went out that way.</summary>
+    /// <param name="check">The check.</param>
+    /// <returns>A task that completes when the answer, or that none came, is kept.</returns>
+    private async Task CheckWindowsAsync(IExitCheck check)
+    {
+        try
+        {
+            var sighting = await Task.Run(() => check.CheckAsync());
+            if (sighting.Route == ExitRoute.Windows && _way.IsWindows && IsLive)
+            {
+                _windowsSighting = sighting;
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // Without an answer the tooltip says only where lookups go; the lookups go through Windows all the same.
+        }
+        finally
+        {
+            ShowSeenTip();
+        }
+    }
+
+    /// <summary>
+    /// Gets the last check of Windows as the way out, which runs off the UI thread when the computer comes online;
+    /// complete when none runs.
+    /// </summary>
+    public Task WindowsChecked { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Says in the title bar's tooltip which address the way out is seen as, when it is known.</summary>
+    private void ShowSeenTip()
+    {
+        var sighting = (IsLive, _way.IsWindows) switch
+        {
+            (false, _) => null,
+            (true, true) => _windowsSighting,
+            (true, false) => Rows.FirstOrDefault(row => row.Id == _status.ExitId)?.Sighting,
+        };
+        SeenTip = sighting is null ? string.Empty : ExitCheckWords.TipText(sighting, _clock.UtcNow);
     }
 
     /// <summary>Reads the exits, the selected one and each exit's latest check, off the UI thread.</summary>
@@ -847,14 +941,18 @@ public sealed partial class ExitPanelViewModel : ObservableObject
             IsReconnecting = false;
             RetryText = string.Empty;
             RouteText = IsLive ? WindowsRouteText : NoRouteText;
-            return;
+        }
+        else
+        {
+            IsLive = _status.State == ExitState.Connected;
+            IsReconnecting = !IsLive && _way.IsReconnecting;
+            RetryText = IsReconnecting ? OfflineWords.NextAttempt(_way.RetryAt) : string.Empty;
+            var connected = IsLive ? Rows.FirstOrDefault(row => row.Id == _status.ExitId) : null;
+            RouteText = connected?.Name ?? DownRouteText();
         }
 
-        IsLive = _status.State == ExitState.Connected;
-        IsReconnecting = !IsLive && _way.IsReconnecting;
-        RetryText = IsReconnecting ? OfflineWords.NextAttempt(_way.RetryAt) : string.Empty;
-        var connected = IsLive ? Rows.FirstOrDefault(row => row.Id == _status.ExitId) : null;
-        RouteText = connected?.Name ?? DownRouteText();
+        CheckWindows();
+        ShowSeenTip();
     }
 
     /// <summary>Gives what the middle of the route says when no named exit is connected.</summary>

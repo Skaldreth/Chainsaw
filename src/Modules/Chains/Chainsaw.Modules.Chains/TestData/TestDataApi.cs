@@ -38,6 +38,9 @@ internal sealed class TestDataApi : ISourceApi
     /// <inheritdoc/>
     public IReadOnlyList<SourceEndpoint> Defaults { get; }
 
+    /// <summary>Gets its own name, so that its made-up chain is never checked against the real chain's.</summary>
+    public string ChainName => TestDataBitcoin.SourceCode;
+
     /// <inheritdoc/>
     public ExitRequest HeightRequest(Uri address) => _esplora.HeightRequest(address);
 

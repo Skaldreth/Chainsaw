@@ -62,6 +62,13 @@ public enum LabelKind
     /// says what it was reported as.
     /// </summary>
     Reported,
+
+    /// <summary>
+    /// Was on a sanction list and has been taken off it, for example Tornado Cash's contracts (on OFAC's SDN list from
+    /// 2022-08-08 to 2025-03-21): a toned-down mark beside the actor's sort, never a sanction and never an end of the
+    /// trail. The label's name and reason say which list and the dates.
+    /// </summary>
+    FormerlySanctioned,
 }
 
 /// <summary>The colour group of a <see cref="LabelKind"/> in the graph, after what happens to the money.</summary>
@@ -127,6 +134,7 @@ public static class LabelKinds
         LabelKind.Victim => "Offer",
         LabelKind.Unknown => "Okänd",
         LabelKind.Reported => "Rapporterad",
+        LabelKind.FormerlySanctioned => "Tidigare sanktionerad",
         _ => kind.ToString(),
     };
 }

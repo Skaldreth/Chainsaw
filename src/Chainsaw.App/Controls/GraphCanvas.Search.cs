@@ -110,15 +110,20 @@ public sealed partial class GraphCanvas
     /// <param name="target">Where it was going.</param>
     private void EndFoundGlide(Viewport target)
     {
+        DropFoundGlide();
+        _viewport = target;
+        _model?.ViewportChanged(_viewport);
+        InvalidateVisual();
+    }
+
+    /// <summary>Unhooks the glide's frames where it is, without storing the place.</summary>
+    private void DropFoundGlide()
+    {
         if (_foundFrames)
         {
             _foundFrames = false;
             CompositionTarget.Rendering -= OnFoundFrame;
         }
-
-        _viewport = target;
-        _model?.ViewportChanged(_viewport);
-        InvalidateVisual();
     }
 
     /// <summary>Draws the ring around the found node, and its pulse, on the surface.</summary>

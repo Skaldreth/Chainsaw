@@ -457,7 +457,7 @@ public sealed class BranchTests : IDisposable
                 transaction.AppendJournal(new JournalDraft("test.note", new string('x', 500)));
             }
 
-            journal = File.ReadAllBytes(other + ".work-journal");
+            journal = CaseFileSurgery.ReadOpenFile(other + ".work-journal");
             return 0;
         });
         Assert.NotNull(journal);

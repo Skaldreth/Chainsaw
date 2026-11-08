@@ -193,14 +193,24 @@ public sealed partial class GraphCanvas
     /// <summary>Stops a glide where it is, and stores the place it reached.</summary>
     private void StopGlide()
     {
+        if (DropGlide())
+        {
+            _model?.ViewportChanged(_viewport);
+        }
+    }
+
+    /// <summary>Stops a glide without storing the place it reached.</summary>
+    /// <returns><see langword="true"/> when a glide was running.</returns>
+    private bool DropGlide()
+    {
         if (!_gliding)
         {
-            return;
+            return false;
         }
 
         _gliding = false;
         CompositionTarget.Rendering -= OnGlideFrame;
-        _model?.ViewportChanged(_viewport);
+        return true;
     }
 
     /// <summary>Moves the surface one frame of the glide, by the rendering time rather than counting frames.</summary>

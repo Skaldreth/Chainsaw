@@ -132,7 +132,7 @@ public sealed partial class GraphCanvas
             return;
         }
 
-        var index = node.Badges.Count;
+        var index = _model.MarksOf(node).Count;
         var centre = new Point(
             place.X + node.Width + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
             place.Y - MarkOverhang + (MarkSize / 2));
@@ -299,8 +299,7 @@ public sealed partial class GraphCanvas
     /// <param name="e">The arguments.</param>
     private void OnRingFrame(object? sender, EventArgs e)
     {
-        // A minimised window stays visible to WPF; nothing is drawn for it, as for the lock screen's figure.
-        if (Window.GetWindow(this) is { WindowState: WindowState.Minimized })
+        if (IsMinimised(this))
         {
             return;
         }
@@ -308,6 +307,26 @@ public sealed partial class GraphCanvas
         _ringPhase = (DateTime.UtcNow - _ringStart).TotalMilliseconds / RingBeat.TotalMilliseconds % 1;
         InvalidateVisual();
     }
+
+    /// <summary>Draws again on a timer's frame, unless the window is minimised.</summary>
+    /// <param name="sender">The timer.</param>
+    /// <param name="e">The arguments.</param>
+    private void OnFrameWhileShown(object? sender, EventArgs e)
+    {
+        if (!IsMinimised(this))
+        {
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>
+    /// Says whether an element's window is minimised: a minimised window stays visible to WPF, but nothing is drawn
+    /// for it, so a timer's frames are skipped (as for the lock screen's figure).
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <returns><see langword="true"/> when its window is minimised.</returns>
+    internal static bool IsMinimised(DependencyObject element) =>
+        Window.GetWindow(element) is { WindowState: WindowState.Minimized };
 
     /// <summary>Gives the point a distance from another in a direction.</summary>
     /// <param name="from">The point.</param>

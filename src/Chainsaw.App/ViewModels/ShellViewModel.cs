@@ -32,6 +32,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>What the exit's tooltip says when lookups go through Windows.</summary>
     public const string WindowsSourceText = "Uppslag går genom Windows";
 
+    /// <summary>What the exit's tooltip says while lookups go through the connected exit.</summary>
+    public const string ConnectedSourceText = "Uppslag går genom utgången";
+
     /// <summary>What the title bar says when Windows is the way out and the computer has no network.</summary>
     public const string WindowsOfflineText = "Offline";
 
@@ -176,6 +179,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         workflow.CasesListed += (_, _) => ui.Post(() => CommandHint = _commands.Hint(CommandText));
         session.Changed += (_, _) => OnCaseChanged();
+        session.Renamed += (_, _) => OnPropertyChanged(nameof(CaseTitle));
         newCase.Created += (_, reply) => OnCreated(reply);
         newCase.PropertyChanged += (_, e) =>
         {
@@ -185,6 +189,13 @@ public sealed partial class ShellViewModel : ObservableObject
             }
         };
         exit.Changed += (_, _) => ShowExit();
+        exitPanel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ExitPanelViewModel.SeenTip))
+            {
+                ShowExit();
+            }
+        };
         Top = ViewTable.In(RailGroup.Top).Select(e => new RailItemViewModel(e)).ToList();
         Work = ViewTable.In(RailGroup.Work).Select(e => new RailItemViewModel(e)).ToList();
         Bottom = ViewTable.In(RailGroup.Bottom).Select(e => new RailItemViewModel(e)).ToList();
@@ -907,14 +918,14 @@ public sealed partial class ShellViewModel : ObservableObject
 
         if (_way.IsWindows)
         {
-            (ExitText, SourceText) = (WindowsText, WindowsSourceText);
+            (ExitText, SourceText) = (WindowsText, WithSeen(WindowsSourceText));
             return;
         }
 
         var status = _way.Status;
         (ExitText, SourceText) = status.State switch
         {
-            ExitState.Connected => (ConnectedText, "Uppslag går genom utgången"),
+            ExitState.Connected => (ConnectedText, WithSeen(ConnectedSourceText)),
             _ when _way.IsReconnecting => (ReconnectingText, _way.Offline.Text),
             ExitState.Connecting => ("Ansluter …", _way.Offline.Text),
             ExitState.Failed => ("Utgången är inte ansluten", _way.Offline.Text),
@@ -925,6 +936,13 @@ public sealed partial class ShellViewModel : ObservableObject
             _ = NameExitAsync(id);
         }
     }
+
+    /// <summary>
+    /// Adds to the exit's tooltip which address the way out is seen as (sketch UT3b), when the last check knows it.
+    /// </summary>
+    /// <param name="text">Where lookups go.</param>
+    /// <returns>For example <em>Uppslag går genom utgången · syns som 185.213.154.68, Sverige</em>.</returns>
+    private string WithSeen(string text) => ExitPanel.SeenTip.Length == 0 ? text : $"{text} · {ExitPanel.SeenTip}";
 
     /// <summary>Tells Nytt ärende the way out whenever the title bar's changes (its tag <c>via …</c>).</summary>
     /// <param name="value">The new text.</param>
@@ -967,7 +985,7 @@ public sealed partial class ShellViewModel : ObservableObject
                 if (IsExitLive && !_way.IsWindows && _way.Status.ExitId == id)
                 {
                     var name = exit.Place.Length > 0 ? exit.Place : exit.Name;
-                    (ExitText, SourceText) = (name, $"Uppslag går genom utgången {name}");
+                    (ExitText, SourceText) = (name, WithSeen($"{ConnectedSourceText} {name}"));
                 }
             });
         }

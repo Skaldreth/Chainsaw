@@ -221,4 +221,15 @@ public sealed class ExitStoreTests
 
         Assert.Equal(VaultError.Locked, exception.Error);
     }
+
+    [Theory]
+    [InlineData("10.64.0.1", true)]
+    [InlineData("fd00::1", true)]
+    [InlineData("10", false)]
+    [InlineData("010.0.0.1", false)]
+    [InlineData("0x0a.0.0.1", false)]
+    [InlineData("[fd00::1]", false)]
+    [InlineData("example.internal", false)]
+    public void The_dns_rule_shared_with_the_file_check_accepts_only_plain_addresses(string item, bool accepted) =>
+        Assert.Equal(accepted, ExitRules.IsDnsServerAddress(item));
 }

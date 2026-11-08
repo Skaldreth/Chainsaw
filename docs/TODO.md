@@ -18,10 +18,6 @@ Varje punkt i *Vägen till 1.0* är märkt med hur den byggs (CLAUDE.md, *Proces
 
 Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
 
-**Från valen 2026-11-08:**
-- **Meddelandet mitt på skärmen** (BV4a) är av från början; i skissen var det på. *Nu:* av.
-- **Operatörens namn, titel och enhet** står i rapportens huvud (RP1b), som i Begäran. *Nu:* de står där.
-
 **Från bygget 2026-11-08**, så som det är byggt nu:
 1. **Kandidaternas linjer** i mixerns förslag ritas alltid. Förut ritades de bara när områdena var på. *Nu:* alltid.
 2. **SEK för det som ligger kvar i inspektören** räknas till den senaste kursen ärendet har för tillgången. Kortets
@@ -52,8 +48,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
     - Ska *Sprid inte* också gå att sätta för ett helt ärende?
 
 **Äldre, där sessionen valt det säkraste:**
-- **WireGuard i bakgrunden** (etapp 27): ska en utgångs WireGuard-fil kunna sparas under DPAPI utanför valvet, så
-  att bakgrunden kan bevaka genom VPN när Chainsaw är stängt? *Nu:* nej, bakgrunden går bara genom Windows.
 - **Återkallade återställningsnycklar** (etapp 9):
   - När nyckeln byts ligger den gamla nyckelns kuvert kvar. Det tas bort först när nyckeln återkallas med en rad
     `REVOKED` i `organization-recovery-key.pem`.
@@ -71,8 +65,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
   - *?* visar bildspråket, och dess *Guiden F1* öppnar panelen.
 
   I GD1b öppnade båda Guiden direkt. Bekräfta.
-- **Spårning genom en swap** (Ethereum): hur stor del av ett byte som räknas som spårat är en bedömning som behöver
-  en regel. *Nu:* varje tillgång spåras för sig (`docs/BACKLOG.md`, *Kedjor och data*).
 
 ## Vägen till 1.0
 
@@ -81,49 +73,40 @@ byggt; det som står här är rester. Inget nytt byggs förrän det som finns k�
 
 ### 1. Provet på Windows
 
-Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTER-INFOR-1.0.md` (rensas och ordnas
-uppifrån och ner [pågår]), och det som inte fungerar rättas före allt annat nedan. Särskilt:
+Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTER-INFOR-1.0.md`, ordnad uppifrån och ner, och det som inte fungerar rättas före allt annat nedan. Särskilt:
 - **Kraschen vid start** (`NewCasePanel`) är rättad men inte bekräftad.
 - **Expansionen gav *Inget nytt att hämta*** med mempool vald (rättat 2026-11-07, väntar på prov).
 - **Allt som byggdes 2026-11-08** är osett: KF2b, NC2a, KN1a, SO1a, GR7a, TL1a/TL2a, IN4a, GR9a, BG1b, ET1a, EP1b,
   RP1b, KU1a, BV4a, ST2a, FS2a, UT3b, ÄR1b, KR1a, Spara ofta, plånböckerna och soptunnan för lappar och högar.
 
-### 2. Rester som byggs nu [pågår]
-
-**Vyerna och inställningarna**
-- **Begäran:** börsens blå markering i grafen när en begäran är exporterad.
-- **Säga till när sparningen inte går:** en varning i toastern med *Försök igen* när Spara ofta misslyckats några
-  gånger i rad (en händelse på `ICase`).
-- **Godkänna en plånbok:** ett förslag som ändrats sedan det förseglades ska säga att kontrollerna behöver köras igen.
-- **Exponering (EP1b):** kronorna under beloppen, mixerns godkända utgångar som streckade förslag bortom mixern,
-  *Tillbaka · Esc* i grafen och *Exponering …* i nodens meny; vägen ska stanna på samma ställen som grafen.
-- **Inställningarna:** *Syns som* på utgångens tips i titelraden, och kontrollen av Windows som utgång.
-- **Sökningen (KR1a):** det slängda i soptunnan söks, med *Lägg tillbaka*.
-- **Det instabila testet** i App.Tests.
-
-**Testärendet** (`/testdata`): det som byggts sedan det byggdes om, ett bytt block och påhittade kurser, så att det
-aldrig skickar riktiga uppslag (listan i `docs/BACKLOG.md`, *Testärendet*).
-
-### 3. Kvar efter omgången
+### 2. Kvar efter omgång 4
 
 - **Spårningen efter en tx som inte finns** [etapp]: linjerna och aktörerna efter den ritas streckade, men Tracing
   läser fortfarande det sparade svaret, så de spårade beloppen och *Spårat* räknar med den.
 - **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*; vilken
   tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
-- **Ångra en godkänd plånbok** [skiss]: Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås
-  ihop igen; det gör bara *Historik*.
+- **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
+- **Spåret genom en swap** (SW1a, vald) [etapp]: värdet följer med, och valet per swap i pillret.
+- **En DEX:s router i grafen** [skiss]: listan över kända kontrakt (omgång 2) har Uniswaps, 1inchs och 0x:s routrar,
+  men de får ingen etikett, eftersom ingen sort i bildspråket passar: *Swap eller brygga* avslutar spåret som
+  *Fortsätter på annan kedja*, och ett byte på samma kedja byter inte ägare. Namnet står i *Varför?* för swappen. En
+  egen sort, eller en markering i hörnet, skissas.
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
-  [etapp].
+  [etapp]; *Lägg tillbaka* direkt på raden *I soptunnan* [direkt] (nu öppnar Enter soptunnan).
+- **Exponering, mixerns troliga utgångar** [direkt, efter EP1b]: godkända troliga utgångar ur en mixer som streckade
+  förslag bortom mixern (en streckad rund nod, en prickad linje och *förslag* i stället för andelen). Ringarna
+  (`Controls/ExposureRings`) har varken streckade linjer eller kandidater i dag, kandidaterna bär inget belopp
+  (`CandidateLine`), och en mixer i tredje ringen har ingen ring bortom sig.
 - **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa
   och datum) och fler mallar per börs, om kryptospåraren vill det.
 - **Chainabuse automatiskt** [etapp], när en partnernyckel finns: en vanlig nyckel ger tio anrop i månaden, så nu
   frågas den bara med R.
 
-### 4. Backloggen (användarens beslut 2026-11-08: allt före 1.0)
+### 3. Backloggen (användarens beslut 2026-11-08: allt före 1.0)
 
 Hela `docs/BACKLOG.md` byggs före 1.0, i omgångar där agenterna inte rör samma filer. Varje omgång tar bort det den
 byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
-1. **Skisser** [skiss]: vyerna **Tidslinje** och **Flöde (Sankey)**, och bekräftelsen när en godkänd plånbok ångras.
+1. **Skisserna är valda** (2026-11-08): TL3a, FL1a, PL1b och SW1a (CLAUDE.md, *Valt för 1.0*).
 2. **Ethereum klart:** spårningen genom en swap (när regeln är beslutad), Tornado Cash och kända DEX:ar och bryggor,
    OFAC:s ETH-adresser, kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
    och fynden från etapp 23 och 23b.
@@ -153,11 +136,9 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    (utan språkmodell, princip 5).
 10. **Vyerna Tidslinje och Flöde**, när skisserna är valda.
 
-**Väntar på beslut innan de byggs** (står också under *Väntar på dig*):
-- **Spårning genom en swap:** hur stor del av ett byte som räknas som spårat.
-- **LIFO och poison:** definitionerna (kryptospåraren, `docs/KRYPTOSPARAREN.md`).
-- **VPN i bakgrunden:** WireGuard-filen under DPAPI utanför valvet.
-- **Privacy coins:** vilka forskningsmetoder som ska med, utöver *Spåret tar slut här*.
+**Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (förvalet följer värdet, utredaren väljer per
+swap; valet i pillret skissas [skiss]), VPN i bakgrunden (byggs i omgång 3) och metoderna för privacy coins
+(omgång 9). **LIFO och poison** väntar på kryptospåraren (`docs/KRYPTOSPARAREN.md`, fråga 1).
 
 ## Före tjänstebruk
 

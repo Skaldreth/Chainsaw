@@ -69,6 +69,9 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>What a round says when nothing could be sent.</summary>
     public const string NotSentText = "Inget provades: utgången tillåter inga uppslag nu";
 
+    /// <summary>What a round or a try says when it failed unexpectedly.</summary>
+    public const string ProbeFailedText = "Provet misslyckades";
+
     /// <summary>The chains as the page lists them, built or not; Solana is not a chain Chainsaw knows yet.</summary>
     private static readonly (string Name, Chain? Chain)[] ChainNames =
     [
@@ -505,8 +508,8 @@ public sealed partial class SourcesViewModel : ObservableObject
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            // A round that fails is said on the page, never left to close Chainsaw.
-            ProbeText = $"Provet misslyckades: {exception.Message}";
+            // A round that fails is said on the page, never left to close Chainsaw; never with the raw message.
+            ProbeText = ProbeFailedText;
         }
         finally
         {
@@ -587,15 +590,25 @@ public sealed partial class SourcesViewModel : ObservableObject
         IsTrying = true;
         TryText = "Provar …";
         TryAnswered = false;
-        var probe = await _sources.TryAsync(chain, address!, ChosenApi, ChosenKey, NewLocal).ConfigureAwait(true);
+        EndpointProbe? probe;
+        try
+        {
+            probe = await _sources.TryAsync(chain, address!, ChosenApi, ChosenKey, NewLocal).ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // A try that throws is said in the form, never left to close Chainsaw with the form stuck on Provar.
+            probe = null;
+        }
+
         if (attempt != _tries)
         {
             return;
         }
 
         IsTrying = false;
-        TryAnswered = probe.Outcome == ProbeOutcome.Answered;
-        TryText = TryAnswered ? AnswerText(probe) : probe.Problem ?? "Svarade inte.";
+        TryAnswered = probe?.Outcome == ProbeOutcome.Answered;
+        TryText = probe is null ? ProbeFailedText : TryAnswered ? AnswerText(probe) : probe.Problem ?? "Svarade inte.";
     }
 
     /// <summary>Adds the address in the form last in the list, switched on (Lägg till, Enter).</summary>

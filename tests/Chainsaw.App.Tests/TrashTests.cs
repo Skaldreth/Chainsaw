@@ -790,4 +790,27 @@ public sealed class TrashViewTests
             }
         }
     }
+
+    /// <summary>
+    /// The warning's tree is virtualized in a bounded box: a throw that takes most of a large graph with it builds
+    /// only the rows on screen (principle 6).
+    /// </summary>
+    [Fact]
+    public void The_warning_tree_is_virtualized()
+    {
+        var path = Path.Combine(GraphSceneTests.Root(), "src", "Chainsaw.App", "Views", "TrashWarningView.xaml");
+        var document = System.Xml.Linq.XDocument.Load(path);
+        System.Xml.Linq.XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var list = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "RowList");
+
+        Assert.NotNull(list.Attribute("MaxHeight"));
+        Assert.Equal("True", (string?)list.Attribute("VirtualizingPanel.IsVirtualizing"));
+        Assert.Contains(list.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel");
+        Assert.Contains(
+            list.Descendants(),
+            element => element.Name.LocalName == "ScrollViewer"
+                && (string?)element.Attribute("CanContentScroll") == "True");
+        Assert.DoesNotContain(list.Ancestors(), element => element.Name.LocalName == "ScrollViewer");
+    }
 }

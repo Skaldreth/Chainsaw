@@ -39,6 +39,15 @@ internal sealed class FakeEthereumSource : IEthereumSource
         }
     }
 
+    /// <summary>Makes the case lose the pages it holds of one of an address's histories.</summary>
+    public void ForgetPages(EthereumAddress address, EthereumHistory history)
+    {
+        foreach (var key in _givenPages.Keys.Where(key => key.Item1 == address && key.Item2 == history).ToList())
+        {
+            _givenPages.Remove(key);
+        }
+    }
+
     public static string HashOf(long height) =>
         "0x" + height.ToString("x", CultureInfo.InvariantCulture).PadLeft(64, 'b');
 

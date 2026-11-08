@@ -65,6 +65,13 @@ internal sealed class AccountExposureRun
     /// <summary>The actors waiting to be read, the nearest first.</summary>
     private readonly PriorityQueue<string, int> _queue = new();
 
+    /// <summary>
+    /// The user's links to other chains, by the transfer they leave from: the line on to the other chain's
+    /// transaction as an entry, where the money on the transfer goes instead of into the receiving wallet, as in the
+    /// graph's trace.
+    /// </summary>
+    private readonly Dictionary<AssetTransfer, ExposureEntry> _continues = [];
+
     /// <summary>The actors in the queue, so that one is queued once however much reaches it before it is read.</summary>
     private readonly HashSet<string> _pending = new(StringComparer.Ordinal);
 
@@ -87,6 +94,17 @@ internal sealed class AccountExposureRun
                 _tally.When(transfer.Transaction, transfer.Time);
             }
         }
+
+        foreach (var edge in request.Graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.ContinuesOnOtherChain))
+        {
+            var index = 0;
+            foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset == request.Asset))
+            {
+                var entry = new ExposureEntry(edge, transfer, index++);
+                _continues[transfer] = entry;
+                ListOf(_in, edge.To).Add(entry);
+            }
+        }
     }
 
     /// <summary>Gets whether the money is read out (paid) rather than in (got).</summary>
@@ -104,6 +122,7 @@ internal sealed class AccountExposureRun
             _through[entry] = [entry.Transfer.Transaction];
             total += entry.Units;
             Reach(Far(entry), subject);
+            ContinueElsewhere(entry);
         }
 
         while (_queue.TryDequeue(out var actor, out _))
@@ -143,10 +162,41 @@ internal sealed class AccountExposureRun
     private static IReadOnlyList<ExposureEntry> Of(Dictionary<string, List<ExposureEntry>> lists, string key) =>
         lists.TryGetValue(key, out var list) ? list : [];
 
-    /// <summary>Gives the transfers through which the money reaches an actor: in when read out, out when read in.</summary>
+    /// <summary>
+    /// Gives the transfers through which the money reaches an actor: in when read out (but not those the user linked
+    /// to another chain, whose money goes on there), out when read in.
+    /// </summary>
     /// <param name="actor">The actor.</param>
     /// <returns>The transfers.</returns>
-    private IReadOnlyList<ExposureEntry> Arriving(string actor) => IsOut ? Of(_in, actor) : Of(_out, actor);
+    private IEnumerable<ExposureEntry> Arriving(string actor) =>
+        IsOut ? Of(_in, actor).Where(entry => !IsLinked(entry)) : Of(_out, actor);
+
+    /// <summary>
+    /// Says whether a transfer between two actors is linked by the user to another chain, so that its money continues
+    /// there and not in the receiving wallet (<see cref="SpendRules"/> on a UTXO chain says the same of a coin).
+    /// </summary>
+    /// <param name="entry">The transfer.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private bool IsLinked(ExposureEntry entry) =>
+        entry.Edge.Kind == GraphEdgeKind.Transfer && _continues.ContainsKey(entry.Transfer);
+
+    /// <summary>
+    /// Read out: sends the money on a transfer the user linked to another chain on to the other chain's transaction,
+    /// where it stops, as the graph's trace does.
+    /// </summary>
+    /// <param name="entry">The transfer that just got money.</param>
+    private void ContinueElsewhere(ExposureEntry entry)
+    {
+        if (!IsOut || !IsLinked(entry))
+        {
+            return;
+        }
+
+        var onward = _continues[entry.Transfer];
+        _money[onward] = Money(entry);
+        _through[onward] = _through.GetValueOrDefault(entry, [entry.Transfer.Transaction]);
+        _tally.Reach(onward.Edge.To, onward.Edge.From);
+    }
 
     /// <summary>Gives the transfers an actor passes the money on through, away from the subject.</summary>
     /// <param name="actor">The actor.</param>
@@ -202,6 +252,7 @@ internal sealed class AccountExposureRun
             if (money.Sign > 0)
             {
                 Reach(Far(entry), actor);
+                ContinueElsewhere(entry);
             }
         }
 
@@ -276,7 +327,8 @@ internal sealed class AccountExposureRun
         string actor, Func<ExposureEntry, BigInteger> traced)
     {
         var asset = _request.Asset;
-        var moves = Of(_in, actor).Select(entry => (Entry: entry, Direction: TransferDirection.In))
+        var moves = Of(_in, actor).Where(entry => !IsLinked(entry))
+            .Select(entry => (Entry: entry, Direction: TransferDirection.In))
             .Concat(Of(_out, actor).Select(entry => (Entry: entry, Direction: TransferDirection.Out)))
             .OrderBy(move => move.Entry.Transfer.Time ?? DateTimeOffset.MaxValue)
             .ThenBy(move => move.Direction)

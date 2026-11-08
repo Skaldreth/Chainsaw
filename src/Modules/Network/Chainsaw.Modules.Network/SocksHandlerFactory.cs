@@ -77,9 +77,7 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
             // its root programme from Windows Update, straight from the computer's network.
             TrustMode = X509ChainTrustMode.CustomRootTrust,
         };
-        var disallowed = ReadStores(StoreName.Disallowed)
-            .Select(certificate => certificate.Thumbprint)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var disallowed = DistrustedThumbprints();
         policy.CustomTrustStore.AddRange(Allowed(StoreName.Root, disallowed));
 
         // Only offered to build a chain with: an intermediate is never trusted by itself, it must lead to a root.
@@ -93,8 +91,49 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
     /// <param name="name">The store: the trusted roots, or the intermediate authorities.</param>
     /// <param name="disallowed">The thumbprints of the distrusted certificates.</param>
     /// <returns>The certificates.</returns>
-    private static X509Certificate2[] Allowed(StoreName name, IReadOnlySet<string> disallowed) =>
-        [.. ReadStores(name).Where(certificate => !disallowed.Contains(certificate.Thumbprint))];
+    /// <remarks>
+    /// Every certificate read and not kept is disposed at once: the stores are read for each new pipeline, also for
+    /// each probe of the internet, so their handles must not wait for the garbage collector.
+    /// </remarks>
+    private static X509Certificate2Collection Allowed(StoreName name, IReadOnlySet<string> disallowed)
+    {
+        var kept = new X509Certificate2Collection();
+        foreach (var certificate in ReadStores(name))
+        {
+            if (disallowed.Contains(certificate.Thumbprint))
+            {
+                certificate.Dispose();
+            }
+            else
+            {
+                kept.Add(certificate);
+            }
+        }
+
+        return kept;
+    }
+
+    /// <summary>Reads the thumbprints of the certificates Windows distrusts, and lets go of the certificates.</summary>
+    /// <returns>The thumbprints.</returns>
+    private static HashSet<string> DistrustedThumbprints()
+    {
+        var distrusted = ReadStores(StoreName.Disallowed);
+        var thumbprints = distrusted
+            .Select(certificate => certificate.Thumbprint)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Dispose(distrusted);
+        return thumbprints;
+    }
+
+    /// <summary>Disposes every certificate of a collection.</summary>
+    /// <param name="certificates">The certificates.</param>
+    private static void Dispose(X509Certificate2Collection certificates)
+    {
+        foreach (var certificate in certificates)
+        {
+            certificate.Dispose();
+        }
+    }
 
     /// <summary>Reads a certificate store for the user and for the computer, as it is now.</summary>
     /// <param name="name">The store.</param>

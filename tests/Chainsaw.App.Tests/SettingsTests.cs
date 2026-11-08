@@ -295,7 +295,7 @@ public sealed class SettingsTests : IDisposable
         Assert.False(Settings.AlertsInWindows);
         Assert.False(Settings.AlertsWithSound);
         Assert.Equal(Settings.Current, told);
-        Assert.Equal(Chainsaw.Modules.Monitoring.Contracts.WatchAlerts.None, told!.Alerts);
+        Assert.Equal(Chainsaw.Modules.Monitoring.Contracts.WatchAlerts.Screen, told!.Alerts);
         Assert.True(SpinWait.SpinUntil(() => File.Exists(_rig.SettingsStore.FilePath)
             && !_rig.SettingsStore.Load().WatchInBackground && !_rig.SettingsStore.Load().AlertWithSound, Wait));
     }
@@ -677,9 +677,11 @@ public sealed class SettingsTests : IDisposable
     [Fact]
     public void The_screen_message_is_a_way_with_its_switch_and_the_page_says_when_none_is_chosen()
     {
-        Assert.False(Settings.AlertsOnScreen);
+        Assert.True(Settings.AlertsOnScreen);
         Assert.False(Settings.HasNoAlertWay);
 
+        Settings.ToggleAlertOnScreen();
+        Assert.False(Settings.AlertsOnScreen);
         Settings.ToggleAlertOnScreen();
         Assert.True(Settings.AlertsOnScreen);
         Assert.True(Settings.Current.Alerts.HasFlag(Chainsaw.Modules.Monitoring.Contracts.WatchAlerts.Screen));

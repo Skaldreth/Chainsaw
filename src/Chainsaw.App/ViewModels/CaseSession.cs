@@ -27,8 +27,17 @@ public sealed class CaseSession
     /// <summary>Gets the open case's number and title for the title bar, or an empty text when none is open.</summary>
     public string DisplayName => Current is { } open ? NameOf(open) : string.Empty;
 
-    /// <summary>Raised on the UI thread when a case is opened or forgotten, or its title changes.</summary>
+    /// <summary>
+    /// Raised on the UI thread when a case is opened or forgotten, so that what was shown for the case before is let
+    /// go; a new title is <see cref="Renamed"/>, since it is the same case.
+    /// </summary>
     public event EventHandler? Changed;
+
+    /// <summary>
+    /// Raised on the UI thread when the open case's title has changed, so that what shows its name follows without
+    /// starting over for a case that is still the same.
+    /// </summary>
+    public event EventHandler? Renamed;
 
     /// <summary>
     /// Raised on the UI thread just before the open case is let go (closed, forgotten at a lock, or replaced), while it
@@ -69,8 +78,8 @@ public sealed class CaseSession
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Tells the window that the open case has changed, for example its title.</summary>
-    public void Refresh() => Changed?.Invoke(this, EventArgs.Empty);
+    /// <summary>Tells the window that the open case's title has changed.</summary>
+    public void Refresh() => Renamed?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// Closes the open case properly: the window forgets it at once, and it is saved and closed off the UI thread.

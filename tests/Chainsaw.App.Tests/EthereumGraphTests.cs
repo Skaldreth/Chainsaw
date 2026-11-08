@@ -310,6 +310,23 @@ public sealed class EthereumGraphTests
             valued.Facts, fact => fact.Name == "Belopp" && fact.Value.StartsWith("₮ ", StringComparison.Ordinal));
         Assert.Contains(valued.Why, line => line.Topic == GuideTopic.Prices && line.Text.Contains("10,5"));
         Assert.Contains(valued.Why, line => line.Text.Contains("räknat genom 1 tx", StringComparison.Ordinal));
+        Assert.DoesNotContain(swapLine.Why, line => line.Text.Contains(KnownContracts.Name, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_swap_through_a_known_exchange_names_it_and_its_source_in_why()
+    {
+        var router = KnownContracts.All.First(contract => contract.Category == KnownContractCategory.Dex);
+        var scene = EthSamples.Scene();
+        var line = scene.Edge(EthSamples.EdgeKey(EthSamples.S, EthSamples.P, "USDT"))!;
+        var named = line with { Swaps = [.. line.Swaps.Select(swap => swap with { Venue = router })] };
+
+        var why = InspectorContent.ForEdge(scene, named).Why;
+
+        var swapWhy = Assert.Single(why, each => each.Text.StartsWith("Swap", StringComparison.Ordinal));
+        Assert.Contains(router.Name, swapWhy.Text, StringComparison.Ordinal);
+        Assert.Contains(router.Source.AbsoluteUri, swapWhy.Text, StringComparison.Ordinal);
+        Assert.Contains(KnownContracts.Version, swapWhy.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -440,5 +457,74 @@ public sealed class EthereumGraphTests
         Assert.All(prices.Asked, asked => Assert.Equal(PriceLookupMode.CaseOnly, asked.Mode));
         Assert.Equal(GraphSource.AccountTraceFailedText, expansion.Scene.Snapshot.TraceProblem);
         Assert.Null(expansion.Scene.Snapshot.AccountTrace);
+    }
+
+    [Fact]
+    public void A_pile_on_Ethereum_counts_in_the_asset_its_transfers_move_never_in_bitcoin()
+    {
+        var anchor = EthSamples.Key(EthSamples.S);
+        var pileKey = GraphPile.KeyPrefix + "out:" + anchor;
+        var graph = EthSamples.Graph() with
+        {
+            Piles =
+            [
+                new GraphPile(pileKey, anchor, PileSide.Out, [EthSamples.Key(EthSamples.P)], [],
+                    new Dictionary<GraphLayout, NodePosition>()),
+            ],
+        };
+
+        var scene = GraphScene.Build(new GraphSnapshot(
+            graph, new Dictionary<string, IReadOnlyList<Label>>(), TracingMethodKind.Fifo, [], null, null));
+
+        var pile = scene.Pile(pileKey)!;
+        Assert.Equal(EthSamples.Usdt(400), pile.Sum);
+        Assert.Equal("400,0000 USDT · 1 tx", Assert.Single(pile.Cards).Line.Replace('\u00A0', ' '));
+        Assert.Equal("400,0000 USDT · 1 tx", scene.Node(pileKey)!.Subject.Replace('\u00A0', ' '));
+    }
+
+    [Fact]
+    public void A_report_trail_of_a_token_with_more_units_than_a_decimal_holds_is_built_without_a_value()
+    {
+        var token = Asset.Token(Chain.Ethereum, "0x" + new string('9', 40), "MEME", 18);
+        var huge = new AssetAmount(token, BigInteger.Pow(10, 30));
+        var move = EthSamples.Move(9, EthereumTransferKind.Token, EthSamples.V, EthSamples.S, huge, 1);
+        var key = EthSamples.EdgeKey(EthSamples.V, EthSamples.S, "MEME");
+        var nodes = new[] { EthSamples.V, EthSamples.S }.Select(address => new GraphNode(
+                EthSamples.Key(address), GraphNodeKind.Address, [], 1, null, null, null, address == EthSamples.V,
+                address == EthSamples.V ? 0 : 1, null, NodeExpansion.NotExpanded, [],
+                new Dictionary<GraphLayout, NodePosition>())
+            {
+                Chain = Chain.Ethereum,
+                Accounts = [address.ToChainAddress()],
+            })
+            .ToList();
+        var edge = new GraphEdge(key, EthSamples.Key(EthSamples.V), EthSamples.Key(EthSamples.S),
+            GraphEdgeKind.Transfer, huge, [AssetTransfer.OfEthereum(move, EthSamples.BlockOf(move.Block!))],
+            move.Block!.Time, EdgeDirection.Forward);
+        var graph = new TraceGraph(
+            [TraceStartPoint.ForEthereumAddress(EthSamples.V)], nodes, [edge],
+            new UtxoGraph(new Dictionary<Txid, GraphTransaction>(), new Dictionary<Outpoint, CoinSpend>(),
+                new Dictionary<Txid, IReadOnlyList<TrailEndHint>>()),
+            [], [], [])
+        {
+            Account = new AccountGraph(
+                [move], [], new Dictionary<EthereumTxHash, EthereumTransaction>(), new HashSet<ChainAddress>(), []),
+        };
+        var scene = GraphScene.Build(new GraphSnapshot(
+            graph, new Dictionary<string, IReadOnlyList<Label>>(), TracingMethodKind.Fifo, [], null, null)
+        {
+            AccountSeeds = [AccountSeed.Of(move)],
+            AccountTrace = new AccountTraceResult(
+                new TracingMethodId(TracingMethodKind.Fifo, 1), [AccountSeed.Of(move)],
+                [new AssetTrace(huge, [EthSamples.Traced(key, huge)], [])]),
+        });
+
+        var material = ReportSelection.Build(
+            scene, [EthSamples.Key(EthSamples.V), EthSamples.Key(EthSamples.S)],
+            new Dictionary<string, Chainsaw.Modules.Clustering.Contracts.Cluster>(), (_, _) => null);
+
+        var trail = Assert.Single(material.Trails);
+        Assert.Equal([huge], trail.Traced);
+        Assert.Null(trail.Value);
     }
 }

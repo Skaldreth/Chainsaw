@@ -158,7 +158,7 @@ public sealed partial class GraphCanvas
     private int CornerMarks(string nodeKey)
     {
         var model = _model!;
-        var badges = model.Scene?.Node(nodeKey)?.Badges.Count ?? 0;
+        var badges = model.Scene?.Node(nodeKey) is { } node ? model.MarksOf(node).Count : 0;
         return badges + (model.WatchOverlay.MarkOf(nodeKey) is null ? 0 : 1);
     }
 

@@ -11,12 +11,18 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   byggda). Kvar:
   - **Spårning genom en swap:** pillret visar bytet, men spårningen räknar varje tillgång för sig, så spårade USDT blir
     inte spårad ether hos den som bytte (de stannar som *inte expanderad* hos poolen). Att föra över den spårade
-    andelen i bytet är en bedömning (analys med namn och version) och behöver ett beslut om hur andelen räknas.
+    andelen i bytet är en bedömning (analys med namn och version); regeln är beslutad (CLAUDE.md, *Spåra*), och valet
+    per swap i pillret skissas först.
   - **Swap genom en känd DEX:** pillret sätts på mönstret (den som signerade skickade en tillgång och fick en annan i
     samma tx), utan lista över DEX-kontrakt. En lista över kända DEX:ar och aggregatorer kan visa namnet i *Varför?*.
   - **Tx:ens plats i blocket:** källornas historik ger inte `transactionIndex`, så två tx i samma block ordnas efter
     hash. Det påverkar bara FIFO när en adress både tar emot och betalar i samma block. Läs `transactionIndex` i
     Blockscout-tolkningen (Chains, etapp 25 arbetar där samtidigt).
+
+    andelen i bytet är en bedömning (analys med namn och version) och behöver ett beslut om hur andelen räknas.
+  - **Tx:ens plats i blocket för en hel tx:** `transactionIndex` läses också ur `gettxinfo` när svaret har det, men
+    det är inte kontrollerat att Blockscouts `gettxinfo` ger fältet; utan det ordnas en start-tx som bara är hämtad hel
+    efter hash i sitt block, efter de tx vars plats är känd. Pröva mot en riktig Blockscout (omgång 2).
   - **Välja vad som spåras:** frön väljs av `AccountSeedPicker` (allt som kom in till startadressen, eller en start-tx:s
     rörelser till andra än den som signerade); att välja dem i grafen saknas, som för Bitcoin.
   - **Saldot och snöflingan** räknas ur grafens linjer för en expanderad adress, alltså bara så långt historiken är
@@ -35,23 +41,19 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     tx som inte längre nås (ett ärende från före rättelsen, eller en läsning som stannade vid 50 sidor) läses inte om;
     spara höjderna med expansionen. Att expandera en adress igen efter lång tid kan kosta upp till 150 uppslag; visa
     det som väntan. Golvet räknas med en läsning av hela Ethereum-delen; det räcker att läsa adressens egna sidor.
-  - **Egna ytor (Z) och områdena** tar inte Ethereum-noder (`OwnArea` lagrar Bitcoin-adresser och txid;
-    `GraphAreas.MembersOf` läser bara `GraphAddresses`), så valda Ethereum-aktörer ger en tom yta (granskningen av
-    etapp 23b, M4). Använd `Node.Addresses`, eller säg att det inte går.
-  - **En start-tx som inte finns i ärendet** (Ethereum, och likadant för Bitcoin) blir bara en rad i grafens problem;
-    det finns ingen nod att expandera, så den hämtas inte från appen. Hämta den när startpunkten läggs till, eller visa
-    en nod som kan expanderas (granskningen av etapp 23b, M1).
-  - **Den förseglade länkens kolumner** `from_txid` och `from_output` håller för en Ethereum-rörelse `token:0x…` och
-    positionen; det står i koden men inte i någon beskrivning av tabellerna för den som kontrollerar raderna för hand
-    (granskningen av etapp 23b, M6).
   - **Kontrollerna (KF1a)** körs inte på Ethereum; listan säger det. Kontoheuristikerna och Tornado Cash nedan.
-  - **OFAC:s ETH-adresser** (`Digital Currency Address - ETH`) läses inte; sanktionskontrollen är Bitcoins.
+  - **Sanktionskontrollen av grafens adresser:** OFAC:s ETH-adresser läses och startpunkterna kontrolleras när ärendet
+    skapas, för båda kedjorna, men adresser som kommer in vid en expansion kontrolleras inte (inte heller på
+    Bitcoin). Kontrollera dem som de kända kontrakten, när grafen läses (omgång 2).
+  - **Listan över kända kontrakt** (`KnownContracts`, v1 2026-11-08) har Tornado Cash Classic på Ethereum, Uniswap,
+    1inch, 0x och bryggorna till Arbitrum One, OP Mainnet, Base och Polygon PoS, var och en ur operatörens egen sida.
+    Fler (SushiSwap, Curve, Balancer, Paraswap, CoW, Stargate, Across, Hop, Wormhole, deBridge, THORChain) läggs till
+    när deras adresser kan beläggas med en offentlig källa; höj då versionen.
   - **Länk till annan kedja från Ethereum** lagras i samma förseglade kolumner som ett mynt (`token:0x…` och
     positionen). Spårningen stannar fortfarande vid bryggan som *inte expanderad* eller dess etikett; länken ritas som
     lila linje men för inte de spårade pengarna vidare.
   - **Kontoheuristiker** (`IAccountHeuristic`): börsens insättningsadresser som töms till samma hot wallet, och
     adresser som betalar varandras gas. Kräver att kluster och bevis kan hålla `ChainAddress`.
-  - **Tornado Cash** och andra kända kontrakt (DEX, bryggor) som etiketter och slut på spåret (se nedan).
 - **Ethereum-källan, det som återstår** (etapp 23):
   - **Etherscan med API-nyckel:** Etherscan tar nyckeln bara som `apikey` i adressen, som förseglas i ärendet (CLAUDE.md:
     nycklar aldrig i ärendet). Byggs först när Network kan skicka en nyckel i adressen och adressen förseglas utan den.
@@ -82,10 +84,12 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     eget uppslag säger att den saknar decimaler.
   - **`BitcoinLookup<T>`** används av båda kedjorna och borde heta `ChainLookup<T>`; byts när ingen annan etapp rör
     Chains.
-- **Tornado Cash** (användarens fråga 2026-11-07) kommer med Ethereum: kontrakten känns igen som mixer och blir *Spåret
-  tar slut här*. Poolerna har fasta belopp (0,1, 1, 10 och 100 ETH), så beloppet säger inget, och de troliga utgångarna
-  kräver egna heuristiker ur forskningen: samma adress in och ut, ovanligt gaspris, adresser som betalar varandras gas,
-  flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater som mixerns.
+- **Tornado Cash, de troliga utgångarna** (användarens fråga 2026-11-07): poolerna känns igen som mixer och blir *Spåret
+  tar slut här* (omgång 2, `KnownContracts`). Poolerna har fasta belopp (0,1, 1, 10 och 100 ETH), så beloppet säger
+  inget, och de troliga utgångarna kräver egna heuristiker ur forskningen: samma adress in och ut, ovanligt gaspris,
+  adresser som betalar varandras gas, flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater
+  som mixerns. Uttagen går till en adress genom poolens kontrakt (eller en relayer), så en pools historik behöver läsas
+  också för de uttag som inte rör grafens adresser.
 - **TRON och USDT (TRC-20)**, efter Ethereums andra del: återanvänder kontomodellen, `IAccountTracingMethod`,
   `KnownTokens.TronUsdt` och *Kan frysas*.
 - **Fler kedjor** efter behov: Litecoin, BSC.
@@ -119,8 +123,7 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   tjänst med API-nyckel eller egen nod med Zebra). Tx som går in i den skyddade poolen (Sapling, Orchard) blir *Spåret
   tar slut här* med orsaken skyddad pool. Senare kan pengar som kommer ut ur poolen föreslås som kandidater ur belopp
   och tid, streckade som mixerns troliga utgångar.
-- **Privacy coins:** först *Spåret tar slut här*. Senare forskningsmetoderna (till exempel tidsanalys och kända svagheter i
-  äldre Monero-tx, Zcash-tx som går in och ut ur den skyddade poolen med samma belopp).
+- **Privacy coins:** metoderna är beslutade (CLAUDE.md, *Spåret tar slut*) och byggs som förslag i omgång 9.
 - **Cross-chain automatiskt:** hitta fortsättningen på den andra kedjan själv (belopp och tid hos swap-tjänster, bryggornas
   egna händelser). Kanten finns i modellen från början.
 - **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
@@ -481,9 +484,14 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Exponering (EP1b)
 
+- **Kontokedjan och länkade insättningar** (omgranskningen 2026-11-08, M): `AccountExposureRun.Ledger` tar bort en
+  länkad insättning helt, så dess del av plånbokens utbetalningar står som *Kom före historiken* eller *Inte
+  expanderat* i stället för *Fortsätter på annan kedja* (`ExposureRest.OtherChain`), som Bitcoin säger. Beloppen stämmer.
+- **Pengar i cirkel i *Fått från*** (M, fanns före): `ReadIn` skriver `_units[coin]` för varje ingång, så ett
+  startmynt som också är ingång i en tx som läses bakåt tappar sitt belopp och analysen vägras. Test saknas.
+
 - **M4 från granskningen:** Ethereums gasavgifter finns inte som poster i grafens linjer, så plånboksläsningen räknar
   dem inte; pengar som betalade gas står som kvar hos aktören.
-- **M7 från granskningen av EP1b** (se granskningen).
 - *Fått från* kör metoden en gång per inbetalning hos varje aktör på vägen; en aktör med tusentals överföringar kan
   behöva en metod som delar upp på källor i ett svep.
 
@@ -549,8 +557,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Bevakning i bakgrunden (etapp 27)
 - **VPN i bakgrunden:** WireGuard-filerna ligger krypterade i valvet, så bakgrunden kan inte starta en tunnel utan
-  huvudnyckeln och gör inga uppslag med VPN vald. Att lägga en utgångs nycklar under DPAPI utanför valvet kräver
-  användarens beslut (*Väntar på beslut*).
+  huvudnyckeln och gör inga uppslag med VPN vald. Användaren har beslutat (2026-11-08) att en utgångs
+  WireGuard-fil får ligga under DPAPI utanför valvet för bakgrunden, om det inte är alldeles för stort arbete.
 - **Kluster i bakgrunden** följer klustringen som den var när planen skrevs (när ärendet senast var öppet), inte nya
   adresser som kommer med senare.
 - **Ett ärende som tas bort eller flyttas** ligger kvar i planen och bevakas tills det öppnas och dess bevakningar
@@ -584,18 +592,18 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Kan frysas** syns inte i testärendet: det kräver USDT eller USDC på Ethereum, och Blockscout-källan går inte lika
   lätt att fejka som Esplora (tx, kvitton med Transfer-loggar, tokenuppgifter). En påhittad Ethereum-källa på samma sätt
   (en egen `ISourceApi` i Debug) och en del av berättelsen på Ethereum fyller luckan; TRON när den kedjan byggs.
-- **Kurser** för testärendets tider hämtas från Bitstamp som i ett riktigt ärende (bara tiden skickas, aldrig
-  adresserna). En påhittad kurskälla i Debug skulle göra testärendet helt fritt från nätet.
-- **Uppbrytning** och **ett avgjort förslag** finns inte från början; användaren provar dem själv. Lägg gärna till ett
-  steg för var och en, så att historiken (AN1b) har något att visa direkt.
 - **Kollegans etiketter** (Garantitorget, Nordbörsen) ligger kvar i etikettbiblioteket på datorn efter `/testdata`. De
   gäller bara påhittade adresser och kan aldrig träffa en riktig, men biblioteket saknar ännu ett sätt att rensa dem.
 - **Valvyn i testärendet:** Navet (66 tx, många motparter) och gruvbelöningens OP_RETURN finns i testärendet; en
   adress med en spårad ankomst, en mixer och en utbetalning nära det spårade beloppet bland det som hölls tillbaka
   saknas, så att markeringen och tidsfönstret runt ankomsten syns i `/testdata`.
-- **Det som byggts 2026-11-08** saknas: en insättning som betalas ut i delar (`mixer-parts`), mixer efter mixer
-  (`mixer-chain`), något i soptunnan (också en slängd kommentar och en slängd egen yta), en kommentarsnod med en
-  ändrad text så att dess historik har något att visa, och en egen yta.
+- **Delarna tillsammans** i testärendet är en slump: kombinationen hittas bland skalningskedjans och navets
+  utbetalningar. En avsiktlig utbetalning i delar ur en mixer (helst Virveln, med egna mynt att betala ur) vore
+  tydligare.
+- **Högar** i testärendet: grafens samlingsnod kommer först när användaren expanderar Navet, och startvyns högar
+  (GR8a) sparas på datorn och läses bara när startvyn visas, så `/testdata` lägger inga ärenden i en hög.
+- **Bara Bitcoin** i det bytta blocket och i kurserna: en tx på Ethereum som bytt block väntar på att Ethereums svar
+  jämförs (TODO, *Bytt block på Ethereum*).
 
 ## Övrigt
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` och byggs in i programmet. Ett nytt avsnitt
@@ -619,8 +627,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   Anteckning borde varna för att skriva offrets namn där; `HeldBack` gäller bara på den egna datorn (en kollegas
   bibliotek kan sprida en kopia tills ursprungsärendet öppnats där); *Visa i grafen* på en sanktionsträff i en hög
   hittar inte högen (`GraphViewModel.ShowNode`); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
-- **Ett instabilt test i App.Tests** (2026-11-08): efter ihopslagningen av Exponering föll ett test en gång av fyra
-  körningar utan att namnet syntes i den korta utskriften. Kör sviten några gånger med `--logger "console;verbosity=detailed"` och rätta det.
 - **Grafens kort och markeringar, efter omgranskningen 2026-11-08:** en grund tx hämtas inte om när den endpoint
   som är i fas väntar eller fallerar, och *i fas* bygger bara på provet vid start; schemasteg 1 ändrades på plats
   (`block_hash`, `chains_not_found`), så äldre testärenden ska slängas.

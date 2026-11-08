@@ -197,6 +197,19 @@ public sealed class EnvelopeTests : IDisposable
     }
 
     [Fact]
+    public void A_colleagues_file_with_the_number_of_the_case_open_here_is_said_to_exist_not_to_be_in_use()
+    {
+        var source = CreateShared();
+        var store = _colleague.CreateStore();
+        using var mine = store.Create("A1");
+
+        var error = Assert.Throws<CaseException>(() => store.ImportWithPassword(source, CaseFixture.Password));
+
+        Assert.Equal(CaseError.AlreadyExists, error.Error);
+        Assert.False(mine.IsClosed);
+    }
+
+    [Fact]
     public void A_file_already_in_the_folder_is_opened_where_it_lies()
     {
         var source = CreateShared();

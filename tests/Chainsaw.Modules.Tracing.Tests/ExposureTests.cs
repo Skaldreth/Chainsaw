@@ -8,7 +8,7 @@ using static Chainsaw.Modules.Tracing.Tests.Synthetic;
 namespace Chainsaw.Modules.Tracing.Tests;
 
 /// <summary>
-/// The analysis <em>exposure v1</em> (sketch EP1b) against a key of synthetic transfers: what reaches a service
+/// The analysis <em>exposure v2</em> (sketch EP1b) against a key of synthetic transfers: what reaches a service
 /// directly and over hops by FIFO and haircut, what reaches none and why, read out and in, and that the services and the
 /// rest always add up to what the subject paid or got.
 /// </summary>
@@ -201,7 +201,7 @@ public sealed class ExposureTests
 
         var text = result.Explain(result.Reached[0]);
 
-        Assert.Contains("exposure v1", text, StringComparison.Ordinal);
+        Assert.Contains("exposure v2", text, StringComparison.Ordinal);
         Assert.Contains("FIFO v1", text, StringComparison.Ordinal);
         Assert.Contains("0x" + Tx(4), text, StringComparison.Ordinal);
         Assert.Contains("bedömning", text, StringComparison.Ordinal);
@@ -419,6 +419,179 @@ public sealed class ExposureTests
     }
 
     [Fact]
+    public void OnBitcoinReadInMoneyThatCameFromTheSubjectItselfIsReturned()
+    {
+        // V paid S 1.0; S paid K with that coin, and K paid it back to S. Read in, the first coin came from V and the
+        // second from S itself.
+        var fromV = Synthetic.Tx("v-s", 1).In(Wpkh("v"), 100_010_000).Out(Wpkh("s"), 100_000_000).Build();
+        var toK = Synthetic.Tx("s-k", 2).Spend(fromV, 0).Out(Wpkh("k"), 99_990_000).Build();
+        var back = Synthetic.Tx("k-s", 3).Spend(toK, 0).Out(Wpkh("s"), 99_980_000).Build();
+        var (graph, keys) = Expanded([fromV, toK, back], "v", "s", "k");
+
+        foreach (var method in Enum.GetValues<TracingMethodKind>())
+        {
+            var result = UtxoOnly.Analyse(Coins(graph, keys, ExposureDirection.In, method, "v"));
+
+            Assert.Equal(199_980_000, (long)result.Total.Units);
+            Assert.Equal([(keys["v"], 100_000_000L)], result.Reached.Select(r => (r.NodeKey, (long)r.Amount.Units)));
+            Assert.Equal(99_980_000, (long)result.Rest[ExposureRest.Returned].Units);
+        }
+    }
+
+    [Fact]
+    public void OnBitcoinTheMoneyStopsWhereTheTrailEndsAsInTheGraphsTrace()
+    {
+        var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 50_010_000).Out(Wpkh("k"), 50_000_000).Build();
+        var mix = Synthetic.Tx("mix", 2).Spend(pay, 0).In(Wpkh("x"), 50_000_000)
+            .Out(Wpkh("a"), 49_990_000).Out(Wpkh("b"), 49_990_000).Build();
+        var (expanded, keys) = Expanded([pay, mix], "s", "k", "x", "a", "b");
+        var hint = new TrailEndHint(TrailEndReason.CoinJoin, "coinjoin v1", "Lika utgångar.");
+        var graph = expanded with
+        {
+            TransactionEnds = new Dictionary<Txid, IReadOnlyList<TrailEndHint>> { [mix.Txid] = [hint] },
+        };
+
+        var paid = UtxoOnly.Analyse(Coins(graph, keys, ExposureDirection.Out, TracingMethodKind.Fifo, "b"));
+        var got = UtxoOnly.Analyse(new ExposureRequest(
+            graph, keys["a"], Asset.Bitcoin, ExposureDirection.In, 3, TracingMethodKind.Fifo,
+            new HashSet<string>(StringComparer.Ordinal) { keys["s"] }));
+
+        Assert.Empty(paid.Reached);
+        Assert.Equal(50_000_000, (long)paid.Rest[ExposureRest.TrailEnds].Units);
+        Assert.Empty(got.Reached);
+        Assert.Equal(49_990_000, (long)got.Rest[ExposureRest.TrailEnds].Units);
+        var traced = TraceCalculator.Trace(graph, new FifoMethod(), [new TraceSeed(new Outpoint(pay.Txid, 0))]);
+        Assert.Contains(traced.Ends, end => end.Reason == TrailEndReason.CoinJoin);
+    }
+
+    [Fact]
+    public void OnBitcoinASpendThatDoesNotAgreeStopsTheMoneyBothWays()
+    {
+        var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 100_010_000).Out(Wpkh("k"), 100_000_000).Build();
+        var on = Synthetic.Tx("on", 2).Spend(pay, 0).Out(Wpkh("e"), 99_990_000).Build();
+        var (expanded, keys) = Expanded([pay, on], "s", "k", "e");
+        var coin = new Outpoint(pay.Txid, 0);
+        var graph = expanded with
+        {
+            Spends = new Dictionary<Outpoint, CoinSpend>(expanded.Spends)
+            {
+                [coin] = new CoinSpend(SpendState.Spent, new BitcoinSpend(on.Txid, 5, null), false),
+            },
+        };
+
+        var paid = UtxoOnly.Analyse(Coins(graph, keys, ExposureDirection.Out, TracingMethodKind.Fifo, "e"));
+        var got = UtxoOnly.Analyse(new ExposureRequest(
+            graph, keys["e"], Asset.Bitcoin, ExposureDirection.In, 3, TracingMethodKind.Fifo,
+            new HashSet<string>(StringComparer.Ordinal) { keys["s"] }));
+
+        Assert.Empty(paid.Reached);
+        Assert.Equal(100_000_000, (long)paid.Rest[ExposureRest.Conflicting].Units);
+        Assert.Empty(got.Reached);
+        Assert.True(got.Rest.ContainsKey(ExposureRest.Conflicting));
+        var traced = TraceCalculator.Trace(graph, new FifoMethod(), [new TraceSeed(coin)]);
+        Assert.Contains(traced.Ends, end => end.Reason == TrailEndReason.Conflicting);
+    }
+
+    [Fact]
+    public void OnBitcoinACoinLinkedToAnotherChainStopsThereAndNotInItsSpend()
+    {
+        var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 100_010_000).Out(Wpkh("k"), 100_000_000).Build();
+        var on = Synthetic.Tx("on", 2).Spend(pay, 0).Out(Wpkh("e"), 99_990_000).Build();
+        var to = new ChainTransactionRef(Chain.Tron, new string('a', 64));
+        var link = new CrossChainLink(1, new Outpoint(pay.Txid, 0), to, "Bryggan", 1, Start);
+        var graph = PureGraph.Of([pay, on], [link]);
+        graph = graph with { Nodes = [.. graph.Nodes.Select(n => n with { Expansion = NodeExpansion.Expanded })] };
+        var keys = new[] { "s", "k", "e" }.ToDictionary(label => label, label => graph.NodeOf(Wpkh(label))!.Key);
+        var other = NodeKeys.OtherChain(to);
+        var request = Coins(graph, keys, ExposureDirection.Out, TracingMethodKind.Fifo, "e") with
+        {
+            Services = new HashSet<string>(StringComparer.Ordinal) { keys["e"], other },
+        };
+
+        var result = UtxoOnly.Analyse(request);
+
+        var reached = Assert.Single(result.Reached);
+        Assert.Equal((other, 100_000_000L, 2), (reached.NodeKey, (long)reached.Amount.Units, reached.Hops));
+        Assert.Contains(result.Flows, flow => flow.Far == other);
+        Assert.False(result.Rest.ContainsKey(ExposureRest.Fees));
+    }
+
+    [Fact]
+    public void OnBitcoinALinkedCoinGoesToTheOtherChainAlsoWhenItsActorIsAServiceOrBeyondTheDepth()
+    {
+        var (graph, keys, other) = LinkedCase();
+        var bridge = Coins(graph, keys, ExposureDirection.Out, TracingMethodKind.Fifo) with
+        {
+            Services = new HashSet<string>(StringComparer.Ordinal) { keys["k"], keys["e"], other },
+        };
+        var shallow = Coins(graph, keys, ExposureDirection.Out, TracingMethodKind.Fifo, 1, "e") with
+        {
+            Services = new HashSet<string>(StringComparer.Ordinal) { keys["e"], other },
+        };
+
+        foreach (var request in new[] { bridge, shallow })
+        {
+            var reached = Assert.Single(UtxoOnly.Analyse(request).Reached);
+            Assert.Equal((other, 100_000_000L), (reached.NodeKey, (long)reached.Amount.Units));
+        }
+    }
+
+    [Fact]
+    public void OnBitcoinReadInALinkedInputsShareContinuesOnTheOtherChainAndNoOtherInputTakesIt()
+    {
+        var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 100_010_000).Out(Wpkh("k"), 100_000_000).Build();
+        var both = Synthetic.Tx("both", 2).Spend(pay, 0).In(Wpkh("x"), 50_000_000).Out(Wpkh("e"), 149_990_000)
+            .Build();
+        var (graph, subject, sources) = LinkedReadIn(pay, both, "x", "k");
+        var x = graph.NodeOf(Wpkh("x"))!.Key;
+
+        var result = UtxoOnly.Analyse(new ExposureRequest(
+            graph, subject, Asset.Bitcoin, ExposureDirection.In, 3, TracingMethodKind.Fifo, sources));
+
+        // FIFO: the linked coin's 1 BTC comes first, so x's 0.5 pays the rest and the fee.
+        var reached = Assert.Single(result.Reached);
+        Assert.Equal((x, 49_990_000L), (reached.NodeKey, (long)reached.Amount.Units));
+        Assert.Equal(100_000_000, (long)result.Rest[ExposureRest.OtherChain].Units);
+        Assert.Equal(149_990_000, (long)result.Total.Units);
+    }
+
+    [Fact]
+    public void OnBitcoinReadInWhatOnlyALinkedInputPaidContinuesOnTheOtherChain()
+    {
+        var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 100_010_000).Out(Wpkh("k"), 100_000_000).Build();
+        var only = Synthetic.Tx("only", 2).Spend(pay, 0).Out(Wpkh("e"), 99_990_000).Build();
+        var (graph, subject, sources) = LinkedReadIn(pay, only, "k");
+
+        var result = UtxoOnly.Analyse(new ExposureRequest(
+            graph, subject, Asset.Bitcoin, ExposureDirection.In, 3, TracingMethodKind.Fifo, sources));
+
+        Assert.Empty(result.Reached);
+        Assert.Equal(99_990_000, (long)result.Rest[ExposureRest.OtherChain].Units);
+    }
+
+    [Fact]
+    public void OnAnAccountChainATransferLinkedToAnotherChainGoesThereAndNotIntoTheWallet()
+    {
+        // S's 0.6 to K is linked to another chain; K's own payments to E and M carry only O's 0.4.
+        var hops = TwoHops();
+        var linked = hops.Edges.Single(edge => edge.Key == "S>K");
+        var onward = new GraphEdge(
+            "K>X", "K", "X", GraphEdgeKind.ContinuesOnOtherChain, linked.Amount, linked.Transfers, linked.FirstTime,
+            EdgeDirection.Forward);
+        var graph = hops with
+        {
+            Nodes = [.. hops.Nodes, Node("X", GraphNodeKind.OtherChain)],
+            Edges = [.. hops.Edges, onward],
+        };
+
+        var result = Out(graph, depth: 2, TracingMethodKind.Fifo, "E", "M", "X");
+
+        var other = Assert.Single(result.Reached);
+        Assert.Equal(("X", 60_000_000L, 2), (other.NodeKey, (long)other.Amount.Units, other.Hops));
+        Assert.Contains(result.Flows, flow => flow.EdgeKey == "K>X");
+    }
+
+    [Fact]
     public void ATallyThatCountsMoreThanTheTotalIsRefused()
     {
         var request = Request(TwoHops(), ExposureDirection.Out, 2, TracingMethodKind.Fifo, "E");
@@ -427,6 +600,34 @@ public sealed class ExposureTests
         tally.Arrive("E", 10, []);
 
         Assert.Throws<InvalidOperationException>(() => tally.Result(5, new TracingMethodId(TracingMethodKind.Fifo, 1)));
+    }
+
+    /// <summary>
+    /// The graph of S's payment to K, whose coin is linked to a TRON tx, and a spend of it to E; read in from E with
+    /// the given actors as services.
+    /// </summary>
+    private static (TraceGraph Graph, string Subject, IReadOnlySet<string> Services) LinkedReadIn(
+        BitcoinTransaction pay, BitcoinTransaction spend, params string[] services)
+    {
+        var to = new ChainTransactionRef(Chain.Tron, new string('a', 64));
+        var link = new CrossChainLink(1, new Outpoint(pay.Txid, 0), to, "Bryggan", 1, Start);
+        var graph = PureGraph.Of([pay, spend], [link]);
+        graph = graph with { Nodes = [.. graph.Nodes.Select(n => n with { Expansion = NodeExpansion.Expanded })] };
+        var keys = services.Select(label => graph.NodeOf(Wpkh(label))!.Key).ToHashSet(StringComparer.Ordinal);
+        return (graph, graph.NodeOf(Wpkh("e"))!.Key, keys);
+    }
+
+    /// <summary>S paid K 1 BTC, a coin linked to a TRON tx, which K then spent to E.</summary>
+    private static (TraceGraph Graph, Dictionary<string, string> Keys, string Other) LinkedCase()
+    {
+        var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 100_010_000).Out(Wpkh("k"), 100_000_000).Build();
+        var on = Synthetic.Tx("on", 2).Spend(pay, 0).Out(Wpkh("e"), 99_990_000).Build();
+        var to = new ChainTransactionRef(Chain.Tron, new string('a', 64));
+        var link = new CrossChainLink(1, new Outpoint(pay.Txid, 0), to, "Bryggan", 1, Start);
+        var graph = PureGraph.Of([pay, on], [link]);
+        graph = graph with { Nodes = [.. graph.Nodes.Select(n => n with { Expansion = NodeExpansion.Expanded })] };
+        var keys = new[] { "s", "k", "e" }.ToDictionary(label => label, label => graph.NodeOf(Wpkh(label))!.Key);
+        return (graph, keys, NodeKeys.OtherChain(to));
     }
 
     private BitcoinTransaction _coinPay = null!;

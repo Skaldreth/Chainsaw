@@ -106,8 +106,16 @@ internal sealed class BackgroundWatches(
             }
             catch (ArgumentException)
             {
-                queue.SetAside(caseId, id);
                 problems.Add(UnreadableText);
+                try
+                {
+                    queue.SetAside(caseId, id);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // The file is held just now (a scanner); it is set aside at the next round.
+                }
+
                 continue;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -176,16 +184,23 @@ internal sealed class BackgroundWatches(
 
         if (entry.Kind == QueuedKind.Started)
         {
-            Start(transaction, watch, entry);
+            if (watch.StartHeight is null)
+            {
+                Start(transaction, watch, entry.Height, entry.Utc);
+            }
+
             return [];
         }
 
-        // A check counted from another start than the case's (one the background set before a crash, say) still
-        // stands: only money above the case's own start is a hit.
-        if (watch.StartHeight is not { } start || entry.Checked is not { } checkedAt)
+        if (entry.Checked is not { } checkedAt)
         {
             return [];
         }
+
+        // A check whose start never came in (its entry was set aside) brings the start it counted from, so that its
+        // hits are not lost. A check counted from another start than the case's (one the background set before a
+        // crash, say) still stands: only money above the case's own start is a hit.
+        var start = watch.StartHeight ?? Start(transaction, watch, entry.Start, null);
 
         // How far it read counts only when it read from the case's start or lower: a check from a later start never
         // read the blocks between, and must not mark them as read.
@@ -241,28 +256,29 @@ internal sealed class BackgroundWatches(
         WatchCodec.Encode(watch with { Pace = WatchPace.EveryBlock })
         == WatchCodec.Encode(checkedWith with { Pace = WatchPace.EveryBlock });
 
-    /// <summary>Seals the start the background set, when the watch still has none.</summary>
+    /// <summary>Seals the start the background set, for a watch that has none.</summary>
     /// <param name="transaction">The case's write.</param>
     /// <param name="watch">The watch.</param>
-    /// <param name="entry">The entry.</param>
-    private void Start(ICaseTransaction transaction, Watch watch, QueuedCheck entry)
+    /// <param name="height">The start.</param>
+    /// <param name="checkedUtc">
+    /// When it was set, to note the watch as read to its start when nothing is noted yet; <see langword="null"/> when
+    /// the check that brings it notes how far it read.
+    /// </param>
+    /// <returns>The start.</returns>
+    private static long Start(ICaseTransaction transaction, Watch watch, long height, DateTimeOffset? checkedUtc)
     {
-        if (watch.StartHeight is not null)
-        {
-            return;
-        }
-
         var journal = transaction.AppendJournal(new JournalDraft(
             MonitoringJournalKinds.Started,
-            $"Bevakningen av {watch.Subject.Name} börjar efter block {WatchTexts.Number(entry.Height)} (i bakgrunden)",
-            JsonSerializer.Serialize(new { watch = watch.Id, start = entry.Height, background = true })));
-        var started = watch with { StartHeight = entry.Height, ChangedUtc = journal.Utc };
+            $"Bevakningen av {watch.Subject.Name} börjar efter block {WatchTexts.Number(height)} (i bakgrunden)",
+            JsonSerializer.Serialize(new { watch = watch.Id, start = height, background = true })));
+        var started = watch with { StartHeight = height, ChangedUtc = journal.Utc };
         WatchStore.Seal(transaction, WatchAction.Started, started, null, journal);
-        if (WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id) is null)
+        if (checkedUtc is { } utc && WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id) is null)
         {
-            WatchStore.WriteChecked(
-                transaction, watch.Id, new WatchChecked(entry.Utc, entry.Height, WatchFeedStatus.Read, null));
+            WatchStore.WriteChecked(transaction, watch.Id, new WatchChecked(utc, height, WatchFeedStatus.Read, null));
         }
+
+        return height;
     }
 
     /// <summary>Says whether an entry is already in the case.</summary>

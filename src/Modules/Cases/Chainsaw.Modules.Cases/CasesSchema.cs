@@ -36,27 +36,41 @@ internal sealed class CasesSchema : ICaseSchemaContributor
             BEGIN SELECT RAISE(ABORT, 'the case information cannot be changed'); END;
         """;
 
+    /// <summary>The trigger that keeps the case information from being removed.</summary>
+    private const string CaseInfoNoDeleteTrigger = """
+        CREATE TRIGGER seal_case_info_no_delete BEFORE DELETE ON case_info
+            BEGIN SELECT RAISE(ABORT, 'the case information cannot be removed'); END;
+        """;
+
+    /// <summary>The trigger that keeps a registered sealed chain from being redefined.</summary>
+    private const string SealedChainNoUpdateTrigger = """
+        CREATE TRIGGER seal_sealed_chain_no_update BEFORE UPDATE ON sealed_chain
+            BEGIN SELECT RAISE(ABORT, 'a sealed chain cannot be redefined'); END;
+        """;
+
+    /// <summary>The trigger that keeps a registered sealed chain from being unregistered.</summary>
+    private const string SealedChainNoDeleteTrigger = """
+        CREATE TRIGGER seal_sealed_chain_no_delete BEFORE DELETE ON sealed_chain
+            BEGIN SELECT RAISE(ABORT, 'a sealed chain cannot be unregistered'); END;
+        """;
+
     /// <summary>The first version of the tables.</summary>
-    private const string Version1 = """
+    private const string Version1 = $$"""
         CREATE TABLE case_info (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             case_id TEXT NOT NULL,
             case_number TEXT NOT NULL,
             created_utc TEXT NOT NULL
         ) STRICT;
-        CREATE TRIGGER seal_case_info_no_update BEFORE UPDATE ON case_info
-            BEGIN SELECT RAISE(ABORT, 'the case information cannot be changed'); END;
-        CREATE TRIGGER seal_case_info_no_delete BEFORE DELETE ON case_info
-            BEGIN SELECT RAISE(ABORT, 'the case information cannot be removed'); END;
+        {{CaseInfoNoUpdateTrigger}}
+        {{CaseInfoNoDeleteTrigger}}
         CREATE TABLE sealed_chain (
             name TEXT PRIMARY KEY,
             table_name TEXT NOT NULL,
             columns TEXT NOT NULL
         ) STRICT;
-        CREATE TRIGGER seal_sealed_chain_no_update BEFORE UPDATE ON sealed_chain
-            BEGIN SELECT RAISE(ABORT, 'a sealed chain cannot be redefined'); END;
-        CREATE TRIGGER seal_sealed_chain_no_delete BEFORE DELETE ON sealed_chain
-            BEGIN SELECT RAISE(ABORT, 'a sealed chain cannot be unregistered'); END;
+        {{SealedChainNoUpdateTrigger}}
+        {{SealedChainNoDeleteTrigger}}
         CREATE TABLE chain_head (
             chain TEXT PRIMARY KEY,
             sequence INTEGER NOT NULL,
@@ -86,6 +100,18 @@ internal sealed class CasesSchema : ICaseSchemaContributor
             hash BLOB NOT NULL
         ) STRICT;
         """;
+
+    /// <summary>
+    /// The Cases module's own tables that triggers protect, with each trigger's name and SQL as it was created, for
+    /// <see cref="CaseChecks"/>.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Table, string Name, string Sql)> ProtectingTriggers =
+    [
+        ("case_info", CaseInfoNoUpdate, CaseInfoNoUpdateTrigger),
+        ("case_info", "seal_case_info_no_delete", CaseInfoNoDeleteTrigger),
+        (HashChain.RegistryTable, "seal_sealed_chain_no_update", SealedChainNoUpdateTrigger),
+        (HashChain.RegistryTable, "seal_sealed_chain_no_delete", SealedChainNoDeleteTrigger),
+    ];
 
     /// <inheritdoc />
     public string Module => ModuleName;
