@@ -619,6 +619,42 @@ $p.StandardInput.Close()              # programmet ska avslutas inom någon seku
 - [ ] Koppla från utgången för hand medan Chainsaw väntar på nästa försök: inget nytt försök görs.
 - [ ] En bevakning som väntade på utgången går igen av sig själv när tunneln är tillbaka.
 
+
+### Proxy med inloggning (PX1a)
+
+- [ ] Ställ in en proxy för hand i Windows (Inställningar › Nätverk och Internet › Proxy, utan *Identifiera
+      inställningar automatiskt*), och välj *Windows* i Chainsaw. Under korten står *Proxy* med adressen och *inställd för
+      hand*, och raden *Logga in med Windows-kontot* är av.
+- [ ] Med en proxy som kräver inloggning och raden av: titelraden säger *Offline*, raden *Proxy* säger *Når inte
+      internet: proxyn vill ha inloggning*, och en röd ruta säger att proxyn svarade 407 och när.
+- [ ] Slå på raden: tre rader fälls ut (Skickas, Till, Aldrig) med ditt konto (`DOMÄN\namn`) och proxyns adress. Inom
+      några sekunder blir titelraden grön och uppslag går. Proxyns logg visar Kerberos eller NTLM, aldrig Basic.
+- [ ] Slå på *Identifiera inställningar automatiskt* eller ett skript i Windows: raden *Logga in* försvinner, en streckad
+      gul ruta säger varför, och proxyn får inga uppgifter (kontrollera i proxyns logg).
+- [ ] Byt proxyns adress i Windows och öppna Nätverk igen: raden är av och måste slås på för den nya adressen.
+- [ ] Stäng Chainsaw med en bevakning och raden påslagen: bakgrunden går genom proxyn och loggar in; slå av raden, och
+      bakgrunden loggar inte in längre (nästa varv).
+- [ ] *Proxy i Windows* öppnar Windows proxyinställningar.
+
+### En ansluten utgång i läget Windows (UT4a)
+
+- [ ] Anslut en VPN-utgång och välj sedan *Windows*. Utgångsrutan visar listan tonad; bara den anslutna raden har färg,
+      en ihålig grön prick, *Ansluten · används inte* och strömknappen. Verktygstipset säger sedan när den är ansluten.
+- [ ] Tryck på strömknappen: utgången kopplas ner, listan försvinner och läget är fortfarande *Windows*.
+- [ ] De andra raderna har ingen knapp och säger på hovring att VPN väljs i Inställningar.
+
+### Den egna nodens certifikat (KL3b)
+
+- [ ] Lägg till en egen nod med självsignerat certifikat, märkt *Lokal*. Raden har en gul nål *Inte fäst*, och noden
+      vägras. Klicka på nålen: rutan visar *Inte betrott av Windows*, *Självsignerat*, fingeravtrycket som ett rutnät,
+      utfärdare, giltighet och *Kopiera* (jämför med `openssl x509 -fingerprint -sha256` på noden).
+- [ ] *Fäst certifikatet*: nålen blir grön, noden svarar och används; toastern säger att certifikatet är fäst.
+- [ ] Byt certifikat på noden: toastern säger *Egen nod vägras* med *Visa*, nålen blir röd *Bytt*, de andra endpointarna
+      används. *Visa* öppnar Inställningar › Källor med rutan: det fästa och det nya bredvid varandra.
+- [ ] *Lita på det nya …* frågar först; *Avbryt* lämnar allt som det var. Efter *Lita på det nya* är nålen grön igen.
+- [ ] *Ta bort fästet …* frågar först, och efter det vägras det självsignerade certifikatet igen.
+- [ ] Fästet står kvar efter omstart (`sources.json`), och bevakningen i bakgrunden vägrar också ett bytt certifikat.
+
 ## Inställningar och källor
 
 ### Inställningarna och Windows som utgång (etapp 19, ST1a)

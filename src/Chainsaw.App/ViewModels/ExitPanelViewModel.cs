@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Chainsaw.App.Exits;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
@@ -12,7 +13,9 @@ namespace Chainsaw.App.ViewModels;
 /// The exits' panel under the exit in the title bar (sketch UT2b): the route from the computer through the exit to the
 /// chains as a large picture, green while lookups can go and red and dashed while they cannot, and with VPN the exits
 /// in the vault with their state and a button that connects or disconnects each (only one is connected at a time).
-/// With Windows chosen as the way out (sketch ST1a) the route goes through Windows and no exits are shown. The
+/// With Windows chosen as the way out (sketch ST1a) the route goes through Windows and no exits are shown, unless one
+/// is still connected (sketch UT4a): then the list stands toned with only the connected row in colour, so that it can
+/// be disconnected without choosing VPN. The
 /// settings' page Nätverk shows the same exits through this view model, and only there is a WireGuard file added.
 /// There each exit folds out (sketch UT3b) with its name and place to change, <em>Ta bort …</em>, and its check: the
 /// address and country lookups are seen from, asked through the exit with <see cref="IExitCheck"/> on
@@ -118,6 +121,13 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// <summary>Counts the reads of the exits, so that an older read never replaces a newer one.</summary>
     private int _refresh;
 
+    /// <summary>The tip of a connected exit while Windows is the way out; <c>{0}</c> is when it connected.</summary>
+    public const string IdleTipFormat =
+        "Ansluten sedan {0}, men läget är Windows. Kopplas den ner frågas inget genom den ändå.";
+
+    /// <summary>When the connected exit connected, in UTC, for the tip of its idle row, or none.</summary>
+    private DateTimeOffset? _connectedAt;
+
     /// <summary>Counts the times the panel opened or closed, so a late answer is not shown after a close.</summary>
     private int _shown;
 
@@ -205,6 +215,13 @@ public sealed partial class ExitPanelViewModel : ObservableObject
 
     /// <summary>Gets whether Windows is the way out, so that the list says where to change it.</summary>
     public bool IsWindowsMode => !IsVpnMode;
+
+    /// <summary>
+    /// Gets whether the panel shows the exits: always with VPN, and with Windows only while one is still connected
+    /// (sketch UT4a), so that it can be disconnected there.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowsExits { get; private set; } = true;
 
     /// <summary>Gets whether the settings' step that adds a file is shown in place of the list.</summary>
     [ObservableProperty]
@@ -876,8 +893,24 @@ public sealed partial class ExitPanelViewModel : ObservableObject
             row.Show(status);
         }
 
+        NoteConnectedAt(status);
         ShowRoute();
         CheckOnConnect(status);
+    }
+
+    /// <summary>Notes when an exit connected, before <see cref="CheckOnConnect"/> takes it as the one known.</summary>
+    /// <param name="status">The program's exit status.</param>
+    private void NoteConnectedAt(ExitStatus status)
+    {
+        var connected = status.State == ExitState.Connected ? status.ExitId : null;
+        if (connected is null)
+        {
+            _connectedAt = null;
+        }
+        else if (connected != _connected)
+        {
+            _connectedAt = _clock.UtcNow;
+        }
     }
 
     /// <summary>
@@ -951,8 +984,28 @@ public sealed partial class ExitPanelViewModel : ObservableObject
             RouteText = connected?.Name ?? DownRouteText();
         }
 
+        ShowRowsForWay();
         CheckWindows();
         ShowSeenTip();
+    }
+
+    /// <summary>
+    /// Shows the rows for the way out chosen (sketch UT4a): with Windows, the connected exit is idle and the others are
+    /// toned, and the list is shown only while one is connected.
+    /// </summary>
+    private void ShowRowsForWay()
+    {
+        var windows = _way.IsWindows;
+        var since = _connectedAt is { } at
+            ? TimeZoneInfo.ConvertTime(at, TimeZoneInfo.Local).ToString("HH:mm", CultureInfo.InvariantCulture)
+            : null;
+        var tip = since is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, IdleTipFormat, since);
+        foreach (var row in Rows)
+        {
+            row.ShowWay(windows, tip);
+        }
+
+        ShowsExits = !windows || Rows.Any(row => row.IsOn);
     }
 
     /// <summary>Gives what the middle of the route says when no named exit is connected.</summary>

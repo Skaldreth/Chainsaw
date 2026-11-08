@@ -119,11 +119,13 @@
 
         <!--
           An exit in the vault: the dot of its state (green when connected), its name and the round power button. What
-          went wrong is not written on the row; the red dot says it, and the words come on hover (principle 7).
+          went wrong is not written on the row; the red dot says it, and the words come on hover (principle 7). With
+          Windows as the way out (sketch UT4a) the connected row is idle, with a hollow green dot and *används inte*
+          under its name, and the other rows are toned without a button, since they cannot be used in that mode.
         -->
         <DataTemplate x:Key="ExitRow" DataType="{x:Type vm:ExitRowViewModel}">
             <Border x:Name="Row" Height="48" CornerRadius="8" Background="Transparent" Padding="14,0,8,0"
-                    ToolTip="{Binding Word}" ToolTipService.IsEnabled="{Binding HasWord}">
+                    ToolTip="{Binding RowTip}" ToolTipService.IsEnabled="{Binding HasRowTip}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -131,8 +133,16 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Ellipse x:Name="Dot" Width="9" Height="9" Fill="{StaticResource Brush.TextDim}" Margin="0,0,12,0" />
-                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="14.5" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="14.5" TextTrimming="CharacterEllipsis" />
+                        <StackPanel x:Name="Idle" Orientation="Horizontal" Margin="0,2,0,0" Visibility="Collapsed">
+                            <controls:GridIcon Size="12" Data="{StaticResource Icon.Monitor}"
+                                               Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,5,0"
+                                               VerticalAlignment="Center" />
+                            <TextBlock Text="{x:Static vm:ExitRowViewModel.IdleText}" FontSize="12"
+                                       Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
                     <Button x:Name="Power" Grid.Column="2" Style="{StaticResource PowerButton}" Margin="12,0,0,0"
                             Command="{Binding DataContext.PowerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding}" ToolTip="{Binding ActionText}"
@@ -158,6 +168,18 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding State}" Value="{x:Static exits:ExitRowState.Failed}">
                     <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Error}" />
+                </DataTrigger>
+                <!-- Connected but not used (UT4a): the hollow green dot, a taller row and the words under the name. -->
+                <DataTrigger Binding="{Binding IsIdle}" Value="True">
+                    <Setter TargetName="Row" Property="Height" Value="56" />
+                    <Setter TargetName="Dot" Property="Fill" Value="Transparent" />
+                    <Setter TargetName="Dot" Property="Stroke" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="Dot" Property="StrokeThickness" Value="1.5" />
+                    <Setter TargetName="Idle" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsToned}" Value="True">
+                    <Setter TargetName="Row" Property="Opacity" Value="0.32" />
+                    <Setter TargetName="Power" Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -251,8 +273,11 @@
                     <TextBlock Grid.Row="1" Grid.Column="4" Text="Blockkedjor" Style="{StaticResource SideLabel}" />
                 </Grid>
 
-                <!-- With VPN: the exits in the vault. With Windows there is no list at all (sketch UT2b). -->
-                <StackPanel Visibility="{Binding IsVpnMode, Converter={StaticResource Visible}}">
+                <!--
+                  With VPN: the exits in the vault. With Windows there is no list (sketch UT2b), unless an exit is still
+                  connected (sketch UT4a): then it stands toned, with the connected row in colour.
+                -->
+                <StackPanel Visibility="{Binding ShowsExits, Converter={StaticResource Visible}}">
                     <Border Height="1.5" Background="{StaticResource Brush.Submenu}" />
                     <ItemsControl Margin="6" ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource ExitRow}"
                                   Focusable="False" AutomationProperties.Name="Utgångar" />

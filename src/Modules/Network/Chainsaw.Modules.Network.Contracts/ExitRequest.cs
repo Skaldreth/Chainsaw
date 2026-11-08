@@ -23,6 +23,14 @@ public sealed record ExitRequest(ExitMethod Method, Uri Uri)
     /// </summary>
     public ExitCredential? Credential { get; init; }
 
+    /// <summary>
+    /// Gets the fingerprint of the certificate pinned for the user's own node (<see cref="CertificatePin"/>, sketch
+    /// KL3b), or <see langword="null"/> for none. Only <see cref="ILocalHttp"/> takes it: the node must then show
+    /// exactly that certificate, trusted by Windows or not, and any other is refused with
+    /// <see cref="ExitError.CertificateChanged"/>. A request through the way out with a pin is refused.
+    /// </summary>
+    public string? CertificatePin { get; init; }
+
     /// <summary>Creates a GET request.</summary>
     /// <param name="uri">The address.</param>
     /// <returns>The request.</returns>

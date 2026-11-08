@@ -11,6 +11,7 @@ using Chainsaw.Modules.Pricing;
 using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Monitoring;
 using Chainsaw.Modules.Monitoring.Contracts;
+using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Requests;
 using Chainsaw.App.Commands;
 using Chainsaw.App.Controls;
@@ -191,7 +192,11 @@ public partial class App : Application
                 .AddSingleton(provider => StartAutoLock(provider.GetRequiredService<IClock>(), settings))
                 .AddCasesModule()
                 .AddSecurityModule()
-                .AddNetworkModule(options => options.Route = settings.ExitRoute)
+                .AddNetworkModule(options =>
+                {
+                    options.Route = settings.ExitRoute;
+                    options.ProxyLoginFor = settings.ProxyLoginFor;
+                })
                 .AddChainsModule(sources: options => options.Directory = Path.GetDirectoryName(store.FilePath))
                 .AddClusteringModule()
                 .AddAttributionModule()
@@ -239,6 +244,11 @@ public partial class App : Application
                 .AddSingleton<IAlertPreview>(provider => new WpfAlertPreview(
                     () => provider.GetRequiredService<ShellViewModel>().Show(AppView.Monitoring)))
                 .AddSingleton<RatesSummaryViewModel>()
+                .AddSingleton(provider => new ProxyLoginViewModel(
+                    provider.GetRequiredService<IWindowsProxy>(),
+                    provider.GetRequiredService<INetworkPresence>(),
+                    provider.GetRequiredService<IUiThread>(),
+                    $"{Environment.UserDomainName}\\{Environment.UserName}"))
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphChainState, GraphChainState>()

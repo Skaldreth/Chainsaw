@@ -438,6 +438,11 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   behövs.
 
 ## Utgångar (Network)
+- **Efter säkerhetsgranskningen av PX1a och KL3b (2026-11-08, M):** NTLM tillåts för proxyns inloggning (Negotiate kan
+  falla tillbaka till NTLM; en förfalskad proxy kan få ett NTLMv2-svar) — överväg bara Kerberos eller säg det i
+  Inställningar; ett utgånget nålat certifikat godtas för alltid — markera det i KL3b-raden när `NotAfter` passerat;
+  nålen och flaggan *lokal* i `sources.json` saknar integritetsskydd (MAC under en nyckel i valvet); ett förseglat
+  råsvar från en nålad nod säger inte att kontrollen var en nål — ta med fingeravtrycket i härkomsten.
 - **Certifikatkedjor som saknar en mellanliggande nivå** som datorn aldrig sett: de som Windows redan har erbjuds
   (omgång 6), men inget hämtas runt utgången (AIA och spärrlistor), och `IExitHttp` tar bara https. Att hämta en
   mellannivå genom utgången över http är ett beslut för användaren (granskningen etapp 4, C).

@@ -106,6 +106,28 @@ public sealed class WatcherLoopTests : IDisposable
     }
 
     [Fact]
+    public async Task The_login_to_Windows_proxy_follows_the_plan_and_is_off_without_it()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        _world.Height(800_010);
+        var plan = _world.WritePlan();
+        _world.App<IBackgroundPlan>().Update(_ => plan with { ProxyLoginFor = "Proxy.lan.corp:8080" });
+        var proxy = _world.Background<IWindowsProxy>();
+
+        await Loop.RunOnceAsync();
+        Assert.Equal("proxy.lan.corp:8080", proxy.LoginFor);
+
+        _world.App<IBackgroundPlan>().Update(_ => plan with { ProxyLoginFor = null });
+        await Loop.RunOnceAsync();
+        Assert.Null(proxy.LoginFor);
+
+        _world.App<IBackgroundPlan>().Update(_ => plan with { ProxyLoginFor = "http://" });
+        await Loop.RunOnceAsync();
+        Assert.Null(proxy.LoginFor);
+    }
+
+    [Fact]
     public async Task Without_anything_to_watch_it_says_it_stops_and_ends()
     {
         Assert.False(await Loop.RunOnceAsync());

@@ -144,11 +144,6 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
    *Attribution* och *Kurser*.
 6. **Säkerhet, ärenden och utgångar:** byggt 2026-11-08 (DEV-LOG, *Omgång 6*). Kvar, som behöver ritas först:
-   - [skiss] **En proxy som kräver inloggning:** en rad under Inställningar › Nätverk som låter Chainsaw skicka
-     Windows-användarens uppgifter, bara till en proxy som är inställd för hand (aldrig en som hittats med WPAD).
-   - [skiss] **En ansluten utgång i läget Windows:** strömknappen kvar på den anslutna raden i utgångsrutan medan
-     listan i övrigt är tonad, så att den kan kopplas ner utan att välja VPN.
-   - [skiss] **Den egna nodens certifikat:** fästa en lokal endpoints certifikat (pinning) på sidan Källor.
 7. **Vyerna och appen:** fynden under Exponering, Begäran, Rapport, Undermenyerna, Låsskärmen, Historiken,
    Kommentarsnoden, Spårning, Testärendet och *Vyerna efter 1.0*; grafens prestanda vid tusentals noder.
 8. **TRON med USDT**, sedan **Litecoin**, **BSC**, **Solana** och den genomskinliga delen av **Zcash**.

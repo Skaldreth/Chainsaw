@@ -4,6 +4,22 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Chainsaw.App.ViewModels;
 
+/// <summary>The state of the own node's certificate on its row (sketch KL3b).</summary>
+public enum EndpointPin
+{
+    /// <summary>Not the own node: no pin.</summary>
+    None,
+
+    /// <summary>The own node, whose certificate is not pinned: the amber pin struck through.</summary>
+    Unpinned,
+
+    /// <summary>Its certificate is pinned and shown: the green pin.</summary>
+    Pinned,
+
+    /// <summary>It showed another certificate than the pinned one and is refused: the red pin.</summary>
+    Changed,
+}
+
 /// <summary>An endpoint's dot on the page Källor (sketches KL1a and KL2b).</summary>
 public enum EndpointDot
 {
@@ -164,6 +180,37 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     /// <summary>Gets the latest probe's time in milliseconds, so that Snabbast's reserves are ordered by it.</summary>
     public int? Milliseconds { get; private set; }
 
+    /// <summary>
+    /// Gets the state of the own node's certificate, the pin after its name in the state's colour (sketch KL3b): amber
+    /// when it is not pinned, green when it is, red when the node shows another; none for an endpoint not marked local.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPin), nameof(PinWord), nameof(PinTip))]
+    public partial EndpointPin Pin { get; private set; }
+
+    /// <summary>Gets whether the row has the pin: only an endpoint marked local.</summary>
+    public bool HasPin => Pin != EndpointPin.None;
+
+    /// <summary>Gets the pin's word on a reserve's row.</summary>
+    public string PinWord => Pin switch
+    {
+        EndpointPin.Pinned => "Fäst",
+        EndpointPin.Changed => "Bytt",
+        _ => "Inte fäst",
+    };
+
+    /// <summary>Gets the pin's tip.</summary>
+    public string PinTip => Pin switch
+    {
+        EndpointPin.Pinned => "Certifikatet är fäst",
+        EndpointPin.Changed => "Certifikatet har bytts sedan det fästes",
+        _ => "Certifikatet är inte fäst. Klicka för att se det.",
+    };
+
+    /// <summary>Gets or sets whether the pin's box is folded out at this row; the box closes it by itself.</summary>
+    [ObservableProperty]
+    public partial bool IsPinOpen { get; set; }
+
     /// <summary>Shows the endpoint as it is now.</summary>
     /// <param name="view">The endpoint with its probe.</param>
     /// <param name="mode">The chain's mode.</param>
@@ -180,6 +227,7 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
         var probe = view.Probe;
         Name = endpoint.Name;
         IsLocal = endpoint.Local;
+        Pin = PinOf(view);
         HasKey = endpoint.ApiKey is not null;
         Address = endpoint.Address.AbsoluteUri.TrimEnd('/');
         IsOn = endpoint.Enabled;
@@ -196,6 +244,25 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
         IsPriority = mode == SourceMode.Priority;
         CanMoveUp = place.Index > 0;
         CanMoveDown = place.Index < place.Count - 1;
+    }
+
+    /// <summary>Gives the state of an endpoint's certificate.</summary>
+    /// <param name="view">The endpoint.</param>
+    /// <returns>None for one not marked local; else whether its certificate is pinned, and still shown.</returns>
+    public static EndpointPin PinOf(EndpointView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        if (!view.Endpoint.Local)
+        {
+            return EndpointPin.None;
+        }
+
+        if (view.Endpoint.Pin is null)
+        {
+            return EndpointPin.Unpinned;
+        }
+
+        return view.CertificateRefused ? EndpointPin.Changed : EndpointPin.Pinned;
     }
 
     /// <summary>Formats a height with a space between the thousands, such as <c>921 404</c>.</summary>

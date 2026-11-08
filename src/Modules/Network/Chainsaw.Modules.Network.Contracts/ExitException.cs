@@ -72,6 +72,11 @@ public class ExitException : Exception
         ExitError.RequestFailed => "Uppslaget misslyckades på vägen genom utgången.",
         ExitError.ConnectionLost => "Utgången kopplades ner medan uppslaget pågick.",
         ExitError.Offline => "Datorn når inte internet. Chainsaw gör inga uppslag förrän nätet är tillbaka.",
+        ExitError.ProxyLoginRequired =>
+            "Proxyn kräver inloggning. Inga uppslag görs förrän den släpper igenom; se Inställningar › Nätverk.",
+        ExitError.CertificateChanged =>
+            "Den egna noden visar ett annat certifikat än det som är fäst, så inget skickades. "
+            + "Se Inställningar › Källor.",
         ExitError.NotLocal =>
             "Adressen pekar inte på datorn eller ett privat nät. En lokal endpoint nås bara där, och inget skickades.",
         _ => "Uppslaget genom utgången misslyckades.",

@@ -20,6 +20,13 @@ public interface IChainSources
     /// </summary>
     event EventHandler<Chain>? Changed;
 
+    /// <summary>
+    /// Raised when the user's own node shows another certificate than the one pinned for it (sketch KL3b), so that
+    /// the toaster can say so; once per endpoint and pin, on the thread of the request. A handler that throws does not
+    /// affect the lookup, which goes on to the other endpoints.
+    /// </summary>
+    event EventHandler<SourceEndpoint>? CertificateRefused;
+
     /// <summary>Gets the sorts of API Chainsaw can speak for a chain.</summary>
     /// <param name="chain">The chain.</param>
     /// <returns>The sorts; empty when the chain is not built yet.</returns>
@@ -65,6 +72,44 @@ public interface IChainSources
     /// <param name="enabled">Whether it may be asked.</param>
     /// <returns>A task that completes when the change is written.</returns>
     Task SetEnabledAsync(Chain chain, Guid id, bool enabled);
+
+    /// <summary>
+    /// Reads the certificate an endpoint marked local shows, without trusting it and without sending a request, so
+    /// that the user can compare it with what the node itself shows and pin it (sketch KL3b). The request goes
+    /// straight to the node in the user's own network, never through the way out.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <param name="cancellationToken">Stops the reading.</param>
+    /// <returns>The certificate.</returns>
+    /// <exception cref="ArgumentException">The endpoint is not there or not marked local.</exception>
+    /// <exception cref="Network.Contracts.ExitException">The node did not answer or could not be reached.</exception>
+    Task<Network.Contracts.NodeCertificate> ReadCertificateAsync(
+        Chain chain, Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Pins a certificate for an endpoint marked local (sketch KL3b): the node must then show exactly it. A pin it had
+    /// is kept among the former ones with when and by whom it was replaced.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <param name="fingerprint">The certificate's fingerprint (<c>CertificatePin</c>).</param>
+    /// <param name="by">Who pins it: the operator's name.</param>
+    /// <returns>A task that completes when the change is written.</returns>
+    /// <exception cref="ArgumentException">
+    /// The endpoint is not there or not marked local, or the fingerprint is not one.
+    /// </exception>
+    Task PinAsync(Chain chain, Guid id, string fingerprint, string by);
+
+    /// <summary>
+    /// Removes an endpoint's pin; it is kept among the former ones with when and by whom. Without a pin the node's
+    /// certificate is checked against the roots installed on the computer again. An endpoint without a pin is left.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <param name="by">Who removes it: the operator's name.</param>
+    /// <returns>A task that completes when the change is written.</returns>
+    Task UnpinAsync(Chain chain, Guid id, string by);
 
     /// <summary>Moves an endpoint up (negative) or down (positive) in the user's order, within the list.</summary>
     /// <param name="chain">The chain.</param>
