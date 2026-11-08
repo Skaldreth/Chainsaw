@@ -115,8 +115,9 @@ aldrig skickar riktiga uppslag (listan i `docs/BACKLOG.md`, *Testärendet*).
   frågas den bara med R.
 - **Inspektören i skissernas stil** [skiss] (användarens önskemål 2026-11-08): användaren gillar uppställningen i
   skissernas förklarande spalt (som i ID8f): en liten rubrik i accentfärgen och versaler överst, en stor fet rubrik,
-  luftiga stycken i dämpad text och knapparna som en rad rundade knappar under. Inspektören skissas om i den stilen,
-  i två varianter.
+  luftiga stycken i dämpad text och knapparna som en rad rundade knappar under, och panelen ska ligga *under* grafen
+  i full höjd. Skissat som IN5a (under allt, också titelraden) och IN5b (under grafen, titelraden över); väntar på
+  användarens val.
 
 ### 4. Backloggen (användarens beslut 2026-11-08: allt före 1.0)
 
