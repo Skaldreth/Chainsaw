@@ -7,6 +7,7 @@ using System.Windows.Media;
 using Chainsaw.App.Graph;
 using Chainsaw.App.Motion;
 using Chainsaw.App.ViewModels;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
@@ -725,15 +726,6 @@ public sealed partial class GraphCanvas : FrameworkElement
             LineDashes[(dash, rounded)] = style;
         }
 
-        return style;
-    }
-
-    /// <summary>Freezes a dash style, so that it can be shared.</summary>
-    /// <param name="style">The style.</param>
-    /// <returns>The frozen style.</returns>
-    private static DashStyle Frozen(DashStyle style)
-    {
-        style.Freeze();
         return style;
     }
 

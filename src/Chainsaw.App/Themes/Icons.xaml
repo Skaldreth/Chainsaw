@@ -19,12 +19,10 @@
     <Geometry x:Key="Icon.Hash">M5 9h14 M5 15h14 M10 4L8 20 M16 4l-2 16</Geometry>
     <Geometry x:Key="Icon.Coin">M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z</Geometry>
     <Geometry x:Key="Icon.Eye">M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</Geometry>
-    <!-- Copy (Kopiera adress), the directions of a watch and the pick in the graph (sketch BV1a). -->
+    <!-- Copy (Kopiera adress) and the directions of a watch (sketch BV1a). -->
     <Geometry x:Key="Icon.Copy">M9 9h11v11H9z M5 15H4V4h11v1</Geometry>
     <Geometry x:Key="Icon.Dir.In">M17 7L7 17 M7 9v8h8</Geometry>
     <Geometry x:Key="Icon.Dir.Out">M7 17L17 7 M9 7h8v8</Geometry>
-    <Geometry x:Key="Icon.Dir.Both">M4 12h16 M8 8l-4 4 4 4 M16 8l4 4-4 4</Geometry>
-    <Geometry x:Key="Icon.Pick">M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</Geometry>
     <Geometry x:Key="Icon.Tag">M3.5 12V3.5H12l8.5 8.5-8.5 8.5z M8 8h.01</Geometry>
     <Geometry x:Key="Icon.Guide">M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5</Geometry>
     <!-- The Guide's panel (sketch GD1b): back through what was read, close, and open in the view Guide. -->
@@ -50,9 +48,7 @@
     <!-- The page Källor (sketch KL1a): the one used, the handle, moving, the modes and trying them all. -->
     <Geometry x:Key="Icon.Star">M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z</Geometry>
     <Geometry x:Key="Icon.Grip">M9 6h.01 M15 6h.01 M9 12h.01 M15 12h.01 M9 18h.01 M15 18h.01</Geometry>
-    <Geometry x:Key="Icon.ChevronUp">M6 15l6-6 6 6</Geometry>
     <Geometry x:Key="Icon.Bolt">M13 3L5 13.5h6L10 21l8-10.5h-6z</Geometry>
-    <Geometry x:Key="Icon.List">M9 6h11 M9 12h11 M9 18h11 M4.5 6h.01 M4.5 12h.01 M4.5 18h.01</Geometry>
     <!-- The page Källor (sketch KL2b): Prioriterad as a numbered list, the own node, one behind, trying them all and
          the folding group of those switched off. -->
     <Geometry x:Key="Icon.ListOrdered">M10 6h11 M10 12h11 M10 18h11 M4 6h1v4 M4 10h2 M6 18H4c0-1 2-2 2-3s-1-1.5-2-1</Geometry>

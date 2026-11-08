@@ -5,6 +5,7 @@ using System.Windows.Media;
 using Chainsaw.App.Graph;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Checks.Contracts;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 

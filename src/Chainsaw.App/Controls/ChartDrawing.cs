@@ -6,8 +6,9 @@ using System.Windows.Media;
 namespace Chainsaw.App.Controls;
 
 /// <summary>
-/// What the drawn charts of the views Tidslinje and Flöde share: the theme's brushes, text in the page's font with a
-/// halo of the background, and icons of the 24 grid with the line kept 1.5 px on screen, as <see cref="GridIcon"/>.
+/// What the drawn charts (Tidslinje, Flöde, Exponering, a suggestion's flow) share: the theme's brushes, text in the
+/// page's font with a halo of the background, and icons of the 24 grid with the line kept 1.5 px on screen, as
+/// <see cref="GridIcon"/>.
 /// </summary>
 /// <param name="owner">The control that draws, whose resources and font are used.</param>
 internal sealed class ChartDrawing(FrameworkElement owner)

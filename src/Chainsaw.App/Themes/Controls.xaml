@@ -337,10 +337,22 @@
         </Setter>
     </Style>
 
-    <!-- A choice of the exit step: 52 px, left aligned, a title and a line under it (sketch FS1a). -->
-    <Style x:Key="Button.Choice" TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
-        <Setter Property="Height" Value="52" />
-        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <!--
+      A row of a search list (the case picker, the command bar) as a button that never takes the keyboard: the search
+      field keeps it. Without its own colour a button's text is Windows' black.
+    -->
+    <Style x:Key="Button.SearchRow" TargetType="Button">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <ContentPresenter />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Om Chainsaw in the lock screen's corner: plain text that gets a grey ground on hover. -->
@@ -399,6 +411,18 @@
     </Style>
 
     <!-- ===== The first case of the setup (FS1a) ===== -->
+
+    <!-- A chip of what an exposure rests on (the views Exponering and Flöde): the icon and the word, the why on hover. -->
+    <DataTemplate x:Key="ExposureBasisChip" DataType="{x:Type vm:ExposureBasis}">
+        <Border Height="22" Padding="6,0,8,0" Margin="0,0,6,6" CornerRadius="6"
+                Background="{StaticResource Brush.SurfaceRaised}" ToolTip="{Binding ToolTip}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <controls:GridIcon Size="12" Foreground="{StaticResource Brush.TextMuted}"
+                                   Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                <TextBlock Text="{Binding Text}" FontSize="11.5" Margin="5,0,0,0" Foreground="{StaticResource Brush.TextMuted}" />
+            </StackPanel>
+        </Border>
+    </DataTemplate>
 
     <!--
       What Chains recognises in a start point: the chain's tag in a small frame, the value shortened and what it is.
@@ -538,15 +562,6 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
-    </Style>
-
-    <!-- One half of the graph's switch between the free surface and the hop columns: an icon, no frame of its own. -->
-    <Style x:Key="Button.Segment" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
-        <Setter Property="Width" Value="34" />
-        <Setter Property="Height" Value="28" />
-        <Setter Property="Padding" Value="0" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
     </Style>
 
     <!-- The legend's ? in the graph's corner (sketch GR4): a small round button. -->

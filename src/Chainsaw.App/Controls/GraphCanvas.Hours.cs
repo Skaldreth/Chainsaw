@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 

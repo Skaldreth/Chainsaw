@@ -11,28 +11,12 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
 
-        <!-- A row of the list as a button that never takes the keyboard: the search field keeps it. -->
-        <Style x:Key="Button.CaseRow" TargetType="Button">
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Cursor" Value="Hand" />
-            <!-- Without its own colour a button's text is Windows' black. -->
-            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <ContentPresenter />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <!--
           A case file: the accent bar while it is the open case, the file icon, the number and when it was saved, and at
           the right Öppet for the open case or Enter öppnar for the chosen row.
         -->
         <DataTemplate x:Key="CaseRow" DataType="{x:Type vm:CasePickerRow}">
-            <Button Style="{StaticResource Button.CaseRow}"
+            <Button Style="{StaticResource Button.SearchRow}"
                     Command="{Binding DataContext.PressCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     CommandParameter="{Binding}" AutomationProperties.Name="{Binding CaseNumber}">
                 <Border x:Name="Row" Height="42" CornerRadius="6" Background="Transparent" Padding="12,0,10,0">

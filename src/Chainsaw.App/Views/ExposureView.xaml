@@ -285,25 +285,13 @@
 
                             <!-- What it rests on, and Varför?. -->
                             <WrapPanel Margin="0,10,0,0">
-                                <ItemsControl ItemsSource="{Binding Detail.Basis}" Focusable="False">
+                                <ItemsControl ItemsSource="{Binding Detail.Basis}" Focusable="False"
+                                              ItemTemplate="{StaticResource ExposureBasisChip}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type vm:ExposureBasis}">
-                                            <Border Height="22" Padding="6,0,8,0" Margin="0,0,6,6" CornerRadius="6"
-                                                    Background="{StaticResource Brush.SurfaceRaised}" ToolTip="{Binding ToolTip}">
-                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <controls:GridIcon Size="12" Foreground="{StaticResource Brush.TextMuted}"
-                                                                       Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
-                                                    <TextBlock Text="{Binding Text}" FontSize="11.5" Margin="5,0,0,0"
-                                                               Foreground="{StaticResource Brush.TextMuted}" />
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                                 <Button Style="{StaticResource Row}" Height="22" Margin="0,0,0,6" Command="{Binding AskWhyCommand}"
                                         ToolTip="Öppnar Guiden bredvid · ?">

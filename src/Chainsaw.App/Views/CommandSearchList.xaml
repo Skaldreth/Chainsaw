@@ -7,21 +7,6 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
 
-        <!-- A row as a button that never takes the keyboard: the bar's field keeps it. -->
-        <Style x:Key="Button.SearchRow" TargetType="Button">
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <ContentPresenter />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <!-- The name, with what was written in bold; hashes and addresses in the mono font. -->
         <Style x:Key="Text.SearchName" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13.5" />

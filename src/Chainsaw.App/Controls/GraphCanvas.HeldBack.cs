@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
 using Chainsaw.App.ViewModels;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
