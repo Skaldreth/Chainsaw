@@ -106,8 +106,16 @@ internal sealed class BackgroundWatches(
             }
             catch (ArgumentException)
             {
-                queue.SetAside(caseId, id);
                 problems.Add(UnreadableText);
+                try
+                {
+                    queue.SetAside(caseId, id);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // The file is held just now (a scanner); it is set aside at the next round.
+                }
+
                 continue;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

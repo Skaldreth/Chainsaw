@@ -419,6 +419,26 @@ public sealed class ExposureTests
     }
 
     [Fact]
+    public void OnBitcoinReadInMoneyThatCameFromTheSubjectItselfIsReturned()
+    {
+        // V paid S 1.0; S paid K with that coin, and K paid it back to S. Read in, the first coin came from V and the
+        // second from S itself.
+        var fromV = Synthetic.Tx("v-s", 1).In(Wpkh("v"), 100_010_000).Out(Wpkh("s"), 100_000_000).Build();
+        var toK = Synthetic.Tx("s-k", 2).Spend(fromV, 0).Out(Wpkh("k"), 99_990_000).Build();
+        var back = Synthetic.Tx("k-s", 3).Spend(toK, 0).Out(Wpkh("s"), 99_980_000).Build();
+        var (graph, keys) = Expanded([fromV, toK, back], "v", "s", "k");
+
+        foreach (var method in Enum.GetValues<TracingMethodKind>())
+        {
+            var result = UtxoOnly.Analyse(Coins(graph, keys, ExposureDirection.In, method, "v"));
+
+            Assert.Equal(199_980_000, (long)result.Total.Units);
+            Assert.Equal([(keys["v"], 100_000_000L)], result.Reached.Select(r => (r.NodeKey, (long)r.Amount.Units)));
+            Assert.Equal(99_980_000, (long)result.Rest[ExposureRest.Returned].Units);
+        }
+    }
+
+    [Fact]
     public void ATallyThatCountsMoreThanTheTotalIsRefused()
     {
         var request = Request(TwoHops(), ExposureDirection.Out, 2, TracingMethodKind.Fifo, "E");
