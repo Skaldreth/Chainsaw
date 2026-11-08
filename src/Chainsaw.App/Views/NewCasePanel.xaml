@@ -9,7 +9,8 @@
         <BooleanToVisibilityConverter x:Key="Visible" />
 
         <!-- The placeholder of a quiet field: faint for the title; the add row sets its own, a step brighter. -->
-        <StaticResource x:Key="Brush.QuietHint" ResourceKey="Brush.TextFaint" />
+        <SolidColorBrush x:Key="Brush.QuietHint"
+                         Color="{Binding Color, Source={StaticResource Brush.TextFaint}}" />
 
         <!-- The case number (NC2a): 50 px, large and semibold, on the page's ground, the frame in the accent on focus. -->
         <Style x:Key="TextBox.CaseNumber" TargetType="TextBox">
@@ -663,7 +664,8 @@
                                                  Text="{Binding AddText, UpdateSourceTrigger=PropertyChanged}"
                                                  PreviewKeyDown="OnAddKey">
                                             <TextBox.Resources>
-                                                <StaticResource x:Key="Brush.QuietHint" ResourceKey="Brush.TextDim" />
+                                                <SolidColorBrush x:Key="Brush.QuietHint"
+                                                                 Color="{Binding Color, Source={StaticResource Brush.TextDim}}" />
                                             </TextBox.Resources>
                                         </TextBox>
                                         <TextBlock Grid.Column="2" Text="Ctrl+V klistrar in flera" FontSize="11"
