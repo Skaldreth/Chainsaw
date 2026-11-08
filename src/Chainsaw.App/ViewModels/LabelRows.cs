@@ -567,7 +567,7 @@ public static class LabelRows
     [
         .. entries.Select((entry, index) => words.Origin(
             entry.Label.Origin,
-            entry.Label.Origin.IsFromOtherCase ? LabelWords.OtherCaseText : words.ThisCase,
+            entry.Label.Origin.IsFromOtherCase ? LabelWords.OtherCase(entry.Label.Origin.CaseNumber) : words.ThisCase,
             entry.IsRetracted,
             hasLine: index < entries.Count - 1)),
     ];
@@ -762,6 +762,12 @@ public sealed record LabelWords(string CaseNumber, string Providers, TimeZoneInf
 {
     /// <summary>What an origin from another case says about its case: its number stays there.</summary>
     public const string OtherCaseText = "Från ett annat ärende";
+
+    /// <summary>Writes the case an origin from another case was set in, when its number came along.</summary>
+    /// <param name="caseNumber">The number, or <see langword="null"/> for a copy made before it followed.</param>
+    /// <returns>For example <c>Från ärende 2026-0098 · ett annat ärende</c>.</returns>
+    public static string OtherCase(string? caseNumber) =>
+        caseNumber is null ? OtherCaseText : $"Från ärende {caseNumber} · ett annat ärende";
 
     /// <summary>Gets what an origin set here says about its case.</summary>
     public string ThisCase => $"Ärende {CaseNumber} · här";

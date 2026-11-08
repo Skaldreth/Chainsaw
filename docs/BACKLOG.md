@@ -329,14 +329,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Attribution
 - **Vyn Etiketter (ET1a), det som återstår:**
-  - *Sprid inte* som slås på i efterhand tar etiketten ur biblioteket, men kopior som redan gått till andra ärenden
-    ligger kvar där (toasten säger det). Att också ta tillbaka kopiorna kräver att biblioteket minns markeringen som
-    ett tillbakatagande.
+  - *Sprid inte* som slås på i efterhand tar etiketten ur biblioteket och hindrar att den ges vidare, men kopior som
+    redan gått till andra ärenden ligger kvar där (toasten säger det).
   - *Ångra* i toasten efter *Ta tillbaka* (skissens Ctrl+Z) är inte byggt: en tillbakatagen etikett sätts på nytt, och
     då med den som ångrar som ursprung, inte den ursprungliga. Behöver ett eget förseglat *återinsatt*.
-  - Ett ursprung från ett annat ärende visar *Från ett annat ärende* utan nummer, eftersom biblioteket bara ger
-    kopian vem, när och etiketten. CLAUDE.md (*Allt följer med*) säger att numret, skälet och anteckningen ska följa
-    med; modulen gör inte det än. Biblioteksvyn visar numren.
   - Raderna *Kom in*, *Gick ut* och *Sprids inte* under BIBLIOTEKET är bara antal; de kunde filtrera listan.
 - **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.
 - **Kan frysas** (CLAUDE.md, *Sorterna*): markeringen för adresser med USDT eller USDC hör till Ethereum och TRON. SDN
@@ -375,8 +371,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   etapp 8, M1).
 - **Etiketter från ett annat ärende i grafen** avslutar spåret som en egen etikett; grafen bör rita dem streckade
   (`Label.IsOnlyFromOtherCases`) tills någon i ärendet bekräftat dem (granskningen etapp 8, M2).
-- **Namnet sprids:** etikettens namn, en analys eller källas namn och hela operatörsprofilen följer med till andra
-  ärenden. Gränssnittet ska säga det, och kanske varna när namnet liknar ett ärendenummer (granskningen etapp 8, M3).
+- **Allt sprids:** etikettens namn, skälet, anteckningen, ärendenumret och hela operatörsprofilen följer med till andra
+  ärenden (Allt följer med). Gränssnittet ska säga det, och kanske varna när namnet liknar ett ärendenummer (granskningen etapp 8, M3).
 - **Listan i ärendet:** ärendet sparar listans hash, datum och postens uid, inte listan. En kollega eller en annan dator
   kan inte kontrollera träffen utan filen. Försegla postens XML i ärendet? (granskningen etapp 8, M4).
 - **Sanktionslistorna i appdata:** ingen funktion för att ta bort en lista (en lista med fel datum i framtiden förblir

@@ -83,6 +83,19 @@ internal static class LabelStore
             ]);
     }
 
+    /// <summary>
+    /// Seals the case a copy from the library was set in, so that it follows the label (CLAUDE.md, <em>Allt följer
+    /// med</em>).
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="label">The sealed copy.</param>
+    /// <param name="caseNumber">The case it was set in.</param>
+    /// <param name="journal">The journal entry that records it.</param>
+    public static void SealCaseNumber(
+        ICaseTransaction transaction, LabelEntry label, string caseNumber, JournalEntry journal) =>
+        transaction.AppendSealed(
+            AttributionSchema.LabelCasesChain, [label.Sequence, caseNumber, journal.Sequence, Text(journal.Utc)]);
+
     /// <summary>Reads every label in the case, also those taken back.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>The labels.</returns>
@@ -141,11 +154,42 @@ internal static class LabelStore
                 rows.GetInt64(17)));
         }
 
+        var cases = CaseNumbers(reader);
         return new StoredLabels(
-            [.. all.Select(label => spread.TryGetValue(label.Sequence, out var marked)
-                ? label with { DoNotSpread = marked }
-                : label)],
+            [.. all.Select(label => WithMarks(label, spread, cases))],
             retractions);
+    }
+
+    /// <summary>Gives a label with its latest <em>Sprid inte</em> and, for a copy, the case it was set in.</summary>
+    /// <param name="label">The label as sealed.</param>
+    /// <param name="spread">The latest marking of each label, by sequence.</param>
+    /// <param name="cases">The case each copy was set in, by sequence.</param>
+    /// <returns>The label as it counts now.</returns>
+    private static LabelEntry WithMarks(
+        LabelEntry label, IReadOnlyDictionary<long, bool> spread, IReadOnlyDictionary<long, string> cases)
+    {
+        var marked = spread.TryGetValue(label.Sequence, out var doNotSpread) ? doNotSpread : label.DoNotSpread;
+        var origin = cases.TryGetValue(label.Sequence, out var number)
+            ? label.Origin with { CaseNumber = number }
+            : label.Origin;
+        return label with { DoNotSpread = marked, Origin = origin };
+    }
+
+    /// <summary>Reads the case each copy from the library was set in.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The case numbers, by the copy's sequence.</returns>
+    private static Dictionary<long, string> CaseNumbers(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            "SELECT label_sequence, case_number FROM attribution_label_cases ORDER BY sequence");
+        using var rows = command.ExecuteReader();
+        var cases = new Dictionary<long, string>();
+        while (rows.Read())
+        {
+            cases.TryAdd(rows.GetInt64(0), rows.GetString(1));
+        }
+
+        return cases;
     }
 
     /// <summary>

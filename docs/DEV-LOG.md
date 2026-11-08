@@ -3332,8 +3332,7 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
   rad med en kopia från ett annat ärende också när *Andra ärenden* är av (som skissen). *Sprid inte* och *Ta tillbaka*
   gäller alla radens etiketter som användaren får ändra. *Gick ut* räknas som bibliotekets etiketter med ärendets
   nummer. Tider skrivs `yyyy-MM-dd HH:mm (HH:mm UTC)` som i Begäran.
-- **Avsteg från skissen:** *Ångra* i toasten efter *Ta tillbaka* är inte byggt (se `docs/BACKLOG.md`); en kopia från
-  ett annat ärende visar inte det ärendets nummer, eftersom modulen inte för det vidare.
+- **Avsteg från skissen:** *Ångra* i toasten efter *Ta tillbaka* är inte byggt (se `docs/BACKLOG.md`).
 - Tester: 6 i `Chainsaw.Modules.Attribution.Tests` (`SpreadTests`), 16 i `LabelsTests`, en i `GraphEditorTests` och
   en för *Nytt → Etikett* i `SubmenuTests`.
 - **Granskningen (två I, tio M), rättad:**
@@ -3355,3 +3354,16 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
     här får adressen sin egen träff.
   - **M7:** posten `spread` läses inte av en äldre version av Chainsaw, som då visar etiketten som den sattes. Före 1.0
     får schemat ändras fritt, så ingen migrering görs.
+
+## Allt följer med (2026-11-08, CLAUDE.md *Etiketter smittar*)
+
+- **Byggt:** en etikett som biblioteket ger ett annat ärende bär nu med sig skälet, anteckningen, hela
+  operatörsprofilen och numret på ärendet där den sattes (`LabelOrigin.CaseNumber`). Biblioteket minns det ärendet
+  (`OriginCase`) också när etiketten kom in genom en kollegas kopia, och journalraden för etiketterna nämner numret.
+- **Lagringen:** numret förseglas i en egen kedja, `attribution.label_cases` (schemasteg 3), med kopians sekvens, så att
+  etiketter som redan är förseglade behåller sina hashar. En kopia som kom in före detta saknar nummer och visar *Från
+  ett annat ärende*.
+- Vyn Etiketter skriver *Från ärende 2026-0098 · ett annat ärende*; *Varför?* skriver *Från ärende …*.
+- Offrets etiketter och etiketter nära ett offer sprids fortfarande aldrig, och *Sprid inte* gäller som förut.
+- Guiden (*Etikettbiblioteket*) och `docs/BACKLOG.md` är rättade; testerna som sa att skäl, anteckning och nummer aldrig
+  följer med är omskrivna till motsatsen.

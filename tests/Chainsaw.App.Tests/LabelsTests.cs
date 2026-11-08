@@ -414,6 +414,21 @@ public sealed class LabelsTests
     }
 
     [Fact]
+    public async Task A_copy_names_the_case_it_was_set_in_and_carries_its_reason()
+    {
+        var copy = Entry(1, E, LabelKind.Exchange, "Börs A", LabelSource.OtherCase, Colleague);
+        var origin = copy.Label.Origin with { CaseNumber = "2026-0098", Reason = "Enligt börsens svar" };
+        _attribution.History = [copy with { Label = copy.Label with { Origin = origin } }];
+
+        var model = await ModelAsync(Scene());
+
+        var shown = Assert.Single(model.Selected!.Origins);
+        Assert.Equal("Från ärende 2026-0098 · ett annat ärende", shown.CaseText);
+        Assert.Equal("Enligt börsens svar", shown.Why);
+        Assert.Equal("A. Lind · analytiker · Enhet Väst", shown.Who);
+    }
+
+    [Fact]
     public void A_title_is_the_sort_and_the_name()
     {
         Assert.Equal("Mixer", LabelRows.Title(LabelKind.Mixer, " "));

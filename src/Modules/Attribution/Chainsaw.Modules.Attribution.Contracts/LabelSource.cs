@@ -16,8 +16,8 @@ public enum LabelSource
     Behaviour,
 
     /// <summary>
-    /// Another case, through the label library on this computer. Only who, when and the label came along; never
-    /// the other case's number, the note or why it was set there.
+    /// Another case, through the label library on this computer. Everything follows: who with title and unit, when,
+    /// why, the note and the case it was set in (the user's decision 2026-11-07, <em>Allt följer med</em>).
     /// </summary>
     OtherCase,
 
