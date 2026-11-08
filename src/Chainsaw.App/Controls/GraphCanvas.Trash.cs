@@ -86,13 +86,13 @@ public sealed partial class GraphCanvas
         foreach (var stub in scene.TrashStubs)
         {
             if (!_model.Places.TryGetValue(stub.NodeKey, out var place)
-                || !GraphSizes.NodeFrame(place).Inflate(StubLength * 2).Intersects(visible))
+                || !_model.FrameAt(stub.NodeKey, place).Inflate(StubLength * 2).Intersects(visible))
             {
                 continue;
             }
 
             var y = place.Y + (GraphSizes.NodeHeight / 2);
-            var port = stub.IsOut ? place.X + GraphSizes.NodeWidth : place.X;
+            var port = stub.IsOut ? place.X + _model.WidthOf(stub.NodeKey) : place.X;
             var end = stub.IsOut ? port + StubLength : port - StubLength;
             dc.DrawLine(pen, new Point(port, y), new Point(end, y));
             // A watch at the node goes on into the trash: the stub says so in the watch's own tone (sketch BV2a).

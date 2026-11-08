@@ -32,13 +32,24 @@ public static class HopLayout
     /// </summary>
     public const int MostRows = 8;
 
+    /// <summary>
+    /// The gap between two columns, beside the widest node in the first: room for the longest amount on a line, as
+    /// <see cref="GraphSizes.LaneSpacing"/> leaves beside a node of the graph's width.
+    /// </summary>
+    public const double ColumnGap = GraphSizes.LaneSpacing - GraphSizes.NodeWidth;
+
     /// <summary>Gives the columns and every node's place in them.</summary>
     /// <param name="nodes">The nodes in the graph's order.</param>
+    /// <param name="widthOf">
+    /// How wide each node is drawn (sketch GR5), so that a column's band holds its widest node; <see langword="null"/>
+    /// for the graph's width.
+    /// </param>
     /// <returns>The columns from left to right, and each node's top-left corner.</returns>
     public static (IReadOnlyList<HopLane> Lanes, IReadOnlyDictionary<string, GraphPoint> Places) Arrange(
-        IReadOnlyList<GraphNode> nodes)
+        IReadOnlyList<GraphNode> nodes, Func<string, double>? widthOf = null)
     {
         ArgumentNullException.ThrowIfNull(nodes);
+        widthOf ??= _ => GraphSizes.NodeWidth;
         var hops = nodes.Select(node => node.Hop).OfType<int>().Distinct().Order().ToList();
         var first = hops.Count == 0 ? 0 : hops[0];
         var lastColumn = hops.Count == 0 ? -1 : hops[^1] - first;
@@ -58,16 +69,19 @@ public static class HopLayout
             var rows = RowsFor(actors.Count);
             var spread = Math.Max(1, (actors.Count + rows - 1) / rows);
             var name = column == noHopColumn && hasUnordered ? NoHopName : NameOf(column + first);
-            lanes.Add(new HopLane(left, name) { Width = ((spread - 1) * GraphSizes.LaneSpacing) + GraphSizes.NodeWidth });
+            // A column with a wide node (sketch GR5) moves the next one along, so that the gap for the amounts stays.
+            var widest = actors.Count == 0 ? GraphSizes.NodeWidth : actors.Max(actor => widthOf(actor.Key));
+            var step = widest + ColumnGap;
+            lanes.Add(new HopLane(left, name) { Width = ((spread - 1) * step) + widest });
             for (var index = 0; index < actors.Count; index++)
             {
                 // Down each column first, so that the order by time still reads from the top.
                 var (sub, row) = Math.DivRem(index, rows);
                 places[actors[index].Key] = new GraphPoint(
-                    left + (sub * GraphSizes.LaneSpacing), GraphSizes.Top + (row * GraphSizes.RowSpacing));
+                    left + (sub * step), GraphSizes.Top + (row * GraphSizes.RowSpacing));
             }
 
-            left += spread * GraphSizes.LaneSpacing;
+            left += spread * step;
         }
 
         return (lanes, places);

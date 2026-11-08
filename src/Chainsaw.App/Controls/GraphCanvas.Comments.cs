@@ -138,7 +138,7 @@ public sealed partial class GraphCanvas
             return null;
         }
 
-        return CommentGeometry.Thread(_commentLayer.FrameOf(note), GraphSizes.NodeFrame(place));
+        return CommentGeometry.Thread(_commentLayer.FrameOf(note), _model.FrameAt(node, place));
     }
 
     /// <summary>Makes the thread's dotted pen, with the dots measured in pixels on the screen.</summary>

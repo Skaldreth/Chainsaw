@@ -46,33 +46,41 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
     public GraphPoint Middle => At(0.5);
 
     /// <summary>
-    /// Gives the line from one node to another. The two places are the nodes' top-left corners.
+    /// Gives the line from one node to another of the graph's width. The two places are the nodes' top-left corners.
     /// </summary>
     /// <param name="from">The sender's place.</param>
     /// <param name="to">The receiver's place.</param>
     /// <param name="hopColumns">Whether the graph is sorted in hop columns.</param>
     /// <returns>The curve.</returns>
-    public static EdgeCurve Between(GraphPoint from, GraphPoint to, bool hopColumns)
+    public static EdgeCurve Between(GraphPoint from, GraphPoint to, bool hopColumns) =>
+        Between(GraphSizes.NodeFrame(from), GraphSizes.NodeFrame(to), hopColumns);
+
+    /// <summary>
+    /// Gives the line from one node to another, each as wide as it is drawn (sketch GR5: a node grows with its name).
+    /// </summary>
+    /// <param name="from">The sender's frame.</param>
+    /// <param name="to">The receiver's frame.</param>
+    /// <param name="hopColumns">Whether the graph is sorted in hop columns.</param>
+    /// <returns>The curve.</returns>
+    public static EdgeCurve Between(GraphRect from, GraphRect to, bool hopColumns)
     {
-        const double width = GraphSizes.NodeWidth;
         const double half = GraphSizes.NodeHeight / 2;
         if (Math.Abs(to.X - from.X) < SameColumn)
         {
             // In one column: a loop out to the right, from side to side, never a line through the nodes between.
-            var right = from.X + width;
-            const double reach = SideLoop;
+            var reach = Math.Max(from.Right, to.Right) + SideLoop;
             return new EdgeCurve(
-                new GraphPoint(right, from.Y + half),
-                new GraphPoint(right + reach, from.Y + half),
-                new GraphPoint(right + reach, to.Y + half),
-                new GraphPoint(to.X + width, to.Y + half),
+                new GraphPoint(from.Right, from.Y + half),
+                new GraphPoint(reach, from.Y + half),
+                new GraphPoint(reach, to.Y + half),
+                new GraphPoint(to.Right, to.Y + half),
                 IsArc: true);
         }
 
         if (!hopColumns && to.X < from.X)
         {
             // Backward on the free surface: from the sender's left side to the receiver's right side.
-            var (x1, x2) = (from.X, to.X + width);
+            var (x1, x2) = (from.X, to.Right);
             var pull = Math.Max(MinimumPull, (x1 - x2) / 2);
             return Curve(new GraphPoint(x1, from.Y + half), new GraphPoint(x2, to.Y + half), -pull);
         }
@@ -80,7 +88,7 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
         if (to.X < from.X)
         {
             // Back in the hops: an arc over the top, from top centre to top centre.
-            var (x1, x2) = (from.X + (width / 2), to.X + (width / 2));
+            var (x1, x2) = (from.Centre.X, to.Centre.X);
             var lift = Math.Min(from.Y, to.Y) - ArcLift - (Math.Abs(x1 - x2) * ArcLiftPerSpan);
             return new EdgeCurve(
                 new GraphPoint(x1, from.Y),
@@ -90,7 +98,7 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
                 IsArc: true);
         }
 
-        var (start, end) = (from.X + width, to.X);
+        var (start, end) = (from.Right, to.X);
         return Curve(
             new GraphPoint(start, from.Y + half),
             new GraphPoint(end, to.Y + half),

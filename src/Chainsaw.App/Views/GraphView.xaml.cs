@@ -58,7 +58,11 @@ public partial class GraphView : UserControl
     public GraphView()
     {
         InitializeComponent();
-        Canvas.Drawn += (_, _) => PlaceOverNode();
+        Canvas.Drawn += (_, _) =>
+        {
+            PlaceOverNode();
+            PlaceAreaForm();
+        };
     }
 
     /// <summary>
@@ -133,11 +137,17 @@ public partial class GraphView : UserControl
             {
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(Canvas));
             }
+
+            if (e.PropertyName == nameof(ChecksViewModel.IsFormOpen))
+            {
+                PlaceAreaForm();
+            }
         };
         model.PropertyChanged += (_, e) =>
         {
             // The node's menu opens where the right click was, inside the page.
-            if (e.PropertyName == nameof(GraphViewModel.MenuNode) && model.IsMenuOpen)
+            if (e.PropertyName is nameof(GraphViewModel.MenuNode) or nameof(GraphViewModel.SurfaceMenuAt)
+                && model.IsMenuOpen)
             {
                 var at = Canvas.MenuAt;
                 NodeMenu.Margin = new Thickness(
@@ -185,10 +195,50 @@ public partial class GraphView : UserControl
         };
     }
 
-    /// <summary>Keeps what stands over the chosen node at it once its size is known.</summary>
+    /// <summary>Keeps what stands over the chosen node, and the own area's form, in place once sized.</summary>
     /// <param name="sender">The actions or the form.</param>
     /// <param name="e">The size.</param>
-    private void OnOverNodeSized(object sender, SizeChangedEventArgs e) => PlaceOverNode();
+    private void OnOverNodeSized(object sender, SizeChangedEventArgs e)
+    {
+        PlaceOverNode();
+        PlaceAreaForm();
+    }
+
+    /// <summary>
+    /// Puts the own area's form beside the actors it is about (sketch KF1b): to the right of them, or else to their
+    /// left, its top at theirs; under the graph's corner when none of them is on the graph.
+    /// </summary>
+    private void PlaceAreaForm()
+    {
+        if (DataContext is not GraphViewModel { Checks.IsFormOpen: true } model)
+        {
+            return;
+        }
+
+        var frames = model.Checks.FormActors
+            .Select(Canvas.NodeOnScreen)
+            .OfType<Rect>()
+            .ToList();
+        var width = OwnAreaForm.ActualWidth;
+        var height = OwnAreaForm.ActualHeight;
+        if (frames.Count == 0)
+        {
+            OwnAreaForm.Margin = new Thickness(Canvas.ActualWidth - width - CornerMargin.Right, AreaFormTop, 0, 0);
+            return;
+        }
+
+        var actors = frames.Skip(1).Aggregate(frames[0], Rect.Union);
+        var right = actors.Right + FormGap + width <= Canvas.ActualWidth - EdgeSpace;
+        OwnAreaForm.Margin = new Thickness(
+            Within(right ? actors.Right + FormGap : actors.Left - FormGap - width, EdgeSpace,
+                Canvas.ActualWidth - width - EdgeSpace),
+            Within(actors.Top, EdgeSpace, Canvas.ActualHeight - height - EdgeSpace),
+            0,
+            0);
+    }
+
+    /// <summary>The own area's form's top under the graph's corner, when none of its actors is on the graph.</summary>
+    private const double AreaFormTop = 56;
 
     /// <summary>
     /// Puts the chosen node's actions over it (under it when there is no room above, sketch IN2b) and its open form

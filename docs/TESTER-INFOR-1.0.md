@@ -1132,6 +1132,41 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Med animeringar avstängda i Windows: varje hack zoomar direkt ett steg, utan glidning.
 - [ ] Zooma och öppna ärendet igen: zoomnivån finns kvar (den sparas när zoomen landat, inte under den).
 
+## Grafens rester (GR4, GR5, GR6c, TK1a, KF1b och KF2b, 2026-11-08)
+- [ ] Ge en nod ett långt namn (Etikett, L): noden blir bredare så att namnet syns helt, högst ungefär 214 px, och
+      adressen under står kvar förkortad i mitten. En nod utan namn är lika bred som förut.
+- [ ] I hoppkolumnerna flyttas kolumnen efter en bred nod åt höger, så att beloppen fortfarande får plats mellan
+      kolumnerna; linjerna går ut från den breda nodens högra kant och markeringarna sitter i dess hörn.
+- [ ] Testärendet i hoppkolumner: ett hopp med fler än åtta aktörer sprids över två kolumner, och linjen till den andra
+      kolumnen (CoinJoin) böjer av mellan raderna i stället för att gå rakt genom en nod i den första.
+- [ ] Ett belopp i USDT eller ETH: tokenen står som en liten rund bricka (₮, Ξ) först i beloppet, i krämvitt på en
+      mörk skiva, och beloppet behåller linjens färg.
+- [ ] En linje med en swap: ett piller mitt på linjen med två brickor och en pil (₮ → Ξ), som linjen går in i och ut ur;
+      beloppet står bredvid pillret och aldrig på det, och pillret står kvar när beloppen gallras bort.
+- [ ] En graf med aktörer på två kedjor (till exempel efter *Annan kedja*): en svag rubrik i versaler (BITCOIN,
+      ETHEREUM) står ovanför varje kedjas del av ytan. En graf på en kedja har inga rubriker.
+- [ ] En graf med dolda OP_RETURN-utgångar: grafens hörnrad har ett överstruket öga med en prick, verktygstipset säger
+      hur många som döljs. Ett klick visar dem (ögat öppnas och lyser), ett klick till döljer dem igen. Stäng och öppna
+      ärendet: markeringen finns kvar, också när toasten är borta.
+- [ ] Nytt ärende med en startpunkt, innan något hämtats: bredvid startpunkten står guidenoden *Expandera* med streckad
+      accentram och två ringar som pulserar, en prickad linje från startpunkten och raden *Hämtar startpunktens tx och
+      ritar motparterna.* under. Efter den står *Hitta uttaget* svagt med en blå bank. Hovra båda: förklaringen visas.
+- [ ] Samma sak offline: raden under *Expandera* säger att expansionen inte kan hämta något förrän en utgång är ansluten.
+- [ ] Klicka på *Expandera* (eller tryck E med startpunkten vald): startpunkten väljs och expanderas, och guiden
+      försvinner när de första linjerna kommer. Med animeringar avstängda står ringarna still.
+- [ ] Dubbelklicka på en nod: den expanderas (som E). Dubbelklick på en hög eller en ledtråd gör inget nytt, och
+      dubbelklick på tom yta ger fortfarande en kommentar.
+- [ ] Högerklicka på tom yta: en meny med *Kommentar … N*, *Passa in F*, *Zooma in +* och *Zooma ut −*. Varje rad gör
+      det den säger; kommentaren hamnar där man högerklickade. Högerklick på en nod ger nodens meny som förut.
+- [ ] Välj två aktörer (Ctrl+klick eller ruta) och tryck Z: formuläret för en egen yta står bredvid aktörerna, till höger
+      om dem (eller till vänster när det inte får plats), och följer med när grafen panoreras och zoomas.
+- [ ] Byt namn på eller ta bort en egen yta från dess bricka: formuläret står bredvid ytans aktörer.
+- [ ] En mixers förslag med kandidater: numret (1, 2, 3) står på kandidatens nod uppe till vänster, ifyllt i accenten
+      för den valda, inte mitt på linjen. En godkänd kandidat får en grön bock uppe till höger, efter nodens andra
+      markeringar, och linjen förblir streckad.
+- [ ] Öppna Etikett (L) på en nod, klicka i Guidens panel och tryck Esc: formuläret stängs. Esc en gång till stänger
+      Guidens panel. Samma sak med Bevaka (B) och formuläret för en egen yta (Z).
+
 ## Grafens ikon (IK1)
 - [ ] Grafens ikon i pillret är en förgrening: en rund aktör till vänster vars linje delar sig mot en rund aktör uppe till höger och en fyrkantig tjänst nere till höger, skarp i 20 px.
 
