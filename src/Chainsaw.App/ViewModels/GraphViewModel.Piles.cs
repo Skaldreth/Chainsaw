@@ -189,8 +189,14 @@ public sealed partial class GraphViewModel
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             OpeningClue = null;
-            var detail = exception is OperationCanceledException ? string.Empty : exception.Message;
-            Tell(ToastKind.Error, HeldBackFailedText, detail, () => _ = OpenHeldBackAsync(clue));
+
+            // A read cancelled, or one for a case that was closed or reread meanwhile, is no fault to say.
+            if (exception is OperationCanceledException || version != _version || _session.Current != openCase)
+            {
+                return;
+            }
+
+            Tell(ToastKind.Error, HeldBackFailedText, exception.Message, () => _ = OpenHeldBackAsync(clue));
             return;
         }
 
@@ -211,9 +217,9 @@ public sealed partial class GraphViewModel
             Tell(ToastKind.Warning, problem);
         }
 
-        var view = new HeldBackViewModel(choices);
+        var view = new HeldBackViewModel(choices, now: _clock.UtcNow);
         view.Changed += (_, _) => Redraw?.Invoke(this, EventArgs.Empty);
-        view.TakeWanted += (_, keys) => _ = TakeHeldBackAsync(choices.Clue, keys);
+        view.TakeWanted += (_, keys) => _ = TakeHeldBackAsync(choices, keys);
         view.CloseWanted += (_, _) => CloseHeldBack();
         HeldBack = view;
     }
@@ -232,23 +238,23 @@ public sealed partial class GraphViewModel
     /// Brings the chosen held-back transactions into the graph (<em>Plocka ut</em>): the view closes, the graph comes
     /// back, and the new counterparties lie in the address's pile when they are many.
     /// </summary>
-    /// <param name="clue">The clue the view was opened from.</param>
+    /// <param name="choices">What the view was opened with, which knows the address each was read at.</param>
     /// <param name="txids">The chosen transactions' ids.</param>
     /// <returns>A task that completes when the graph is shown with them.</returns>
-    public async Task TakeHeldBackAsync(HeldBackClue clue, IReadOnlyList<string> txids)
+    public async Task TakeHeldBackAsync(HeldBackChoices choices, IReadOnlyList<string> txids)
     {
-        ArgumentNullException.ThrowIfNull(clue);
+        ArgumentNullException.ThrowIfNull(choices);
         ArgumentNullException.ThrowIfNull(txids);
         CloseHeldBack();
-        if (IsExpanding || _session.Current is not { } openCase || clue.Address is not { } address || txids.Count == 0)
+        var picks = choices.PicksOf(txids);
+        if (IsExpanding || _session.Current is not { } openCase || picks.Count == 0)
         {
             return;
         }
 
-        IReadOnlyList<Txid> chosen = [.. txids.Select(Txid.Parse)];
         await ExpandWithAsync(
-            token => _source.TakeHeldBackAsync(openCase, address, chosen, Method, token),
-            () => _ = TakeHeldBackAsync(clue, txids));
+            token => _source.TakeHeldBackAsync(openCase, picks, Method, token),
+            () => _ = TakeHeldBackAsync(choices, txids));
     }
 
     /// <summary>

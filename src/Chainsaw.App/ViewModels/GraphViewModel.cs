@@ -63,6 +63,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>The modules, off the UI thread.</summary>
     private readonly IGraphSource _source;
 
+    /// <summary>The clock, which says when <em>now</em> is for what is not confirmed yet.</summary>
+    private readonly IClock _clock;
+
     /// <summary>The places the user has dragged nodes to in this session, per layout.</summary>
     private readonly Dictionary<(string Key, GraphLayout Layout), GraphPoint> _moved = [];
 
@@ -135,6 +138,7 @@ public sealed partial class GraphViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(ui);
         _session = session;
         _source = source;
+        _clock = clock;
         Start = new GraphStartViewModel(session, workflow, ui, clock);
         Start.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
         OnEmptyTextChanged(EmptyText);

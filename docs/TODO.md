@@ -506,12 +506,18 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Högens och ledtrådens nycklar bygger på ankarets representant**, och ledtrådens linje är en `Transfer` med
   beloppet 0; ge den en egen sort.
 - **Valvyn finns bara för en Bitcoin-adress:** en tx-expansions mottagare och en Ethereum-adress hämtar fortfarande
-  nästa del med ett klick. Historiken läses högst 2 000 tx bakåt (`HeldBackList.Most`); längre historik behöver ett
-  tidsfönster mot källan (se *Tidsfönster för en adress historik*).
+  nästa del med ett klick. Historiken läses högst 2 000 tx bakåt (`HeldBackList.Most`), och högst 500 till runt den
+  spårade ankomsten när grafen har en tx vid adressen att läsa bakåt från; längre historik behöver ett tidsfönster
+  mot källan (se *Tidsfönster för en adress historik*).
+- **Fråga användaren: ska utplockningen journalföras?** *Plocka ut* sparar tx:erna i expansionen (vanlig data, som
+  grafens läge) men skriver ingen rad i journalen. Ska varje utplockning få en rad (vad, var, hur många)?
+- **En lång läsning av historiken går inte att avbryta** (upp till 2 000 tx i källans takt, några dussin uppslag):
+  stöten och *Läser …* står kvar tills den är klar. Lägg en *Avbryt* (Esc) vid ledtråden som avbryter läsningen; det
+  som redan hämtats ligger förseglat i ärendet ändå.
 - **Avsteg från skissen:** pillen står där hopplayouten lägger den i adressens kolumn, inte alltid rakt under adressen;
   högens linje har summan mitt på linjen, inte vid högen; inspektörens kolumn står kvar bredvid valvyn; motpartens
   grupp *Spel* omfattar all gul sort (spel, handel, presentkort) som i skissen. Etiketten *Rapporterad* (Chainabuse)
-  har ingen form än och räknas som okänd i valvyn.
+  har ingen form än och sorteras som okänd i valvyn, men räknas som negativ och pulserar.
 - **In, ut eller alla** i högen är fortfarande två högar, en på var sida om adressen; valvyn har filtret.
 - **Startvyn grupperar ärenden** (punkt 21) använder fortfarande spiralen (`PileFanLayout.Centres`); grafens hög har
   ringen (`PileFanLayout.Ring`). Samma ring i startvyn kräver korten i skissens storlek där.

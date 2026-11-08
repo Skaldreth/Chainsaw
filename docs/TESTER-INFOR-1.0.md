@@ -1091,6 +1091,16 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Utan nät och utan sparad historik: ett fel säger *Det som hölls tillbaka kunde inte läsas.* med *Försök igen*,
       och grafen kommer tillbaka. Ett ärende som läst historiken förut öppnar valvyn också offline.
 - [ ] En tx-expansion med fler mottagare än gränsen har också en pill; ett klick där hämtar nästa del (ingen valvy).
+- [ ] Ett kluster med två expanderade adresser som båda hölls tillbaka: pillen räknar båda, och valvyn visar tx från
+      båda (samma antal som pillen när inget annat i grafen tar dem). En utplockad tx hamnar vid rätt adress. Har
+      klustret också en tx-expansion som hölls tillbaka står en egen pill för den.
+- [ ] En tx där adressen betalar tillsammans med andra (CoinJoin): pricken har streckad ring och svag fyllning, och
+      tipset säger *Flera betalade in: adressens andel, osäkert*; beloppet är adressens insats minus växeln, inte
+      allas mynt. En tx med flera mottagare säger *Ut till 3 mottagare*, och *Nära det spårade* säger *skillnad* och
+      tx:ens avgift.
+- [ ] En obekräftad tx syns i fönstret ±48 h när det når nuet och alltid under *Allt*, och tipset säger *obekräftad*.
+- [ ] En konsolidering till sig själv syns som *Till sig själv · 0,49 BTC*, inte som damm.
+- [ ] Stäng ärendet medan valvyn läser: inget fel visas.
 - [ ] Högen ritas som en kortlek (två kort bakom), *12 mottagare* och *4,97 BTC · 12 tx*, med en grå linje som är
       tjockare ju mer den bär och säger *4,97 BTC · 12 tx*.
 - [ ] Ett klick på högen dimmar resten av grafen och korten flyger ut i en ring runt den (tolv i den inre, resten i

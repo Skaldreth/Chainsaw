@@ -137,14 +137,23 @@ public interface ITracingService
     /// <summary>
     /// Reads what the expansions of an address held back (sketch EX1): its history past the transactions already in
     /// the graph, through the source as any lookup (every response sealed in the case, principle 1), without adding
-    /// anything to the graph. Offline, it answers from what the case holds.
+    /// anything to the graph. Offline, it answers from what the case holds. When the newest
+    /// <see cref="HeldBackList.Most"/> do not reach back to <paramref name="around"/>, the history is also read back
+    /// from a transaction of the graph's just after it, so that the time round it is covered.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="address">The address that was expanded.</param>
+    /// <param name="around">
+    /// A time the read must also cover, ±<see cref="HeldBackList.AroundArrival"/> (the traced money's arrival), or
+    /// <see langword="null"/>.
+    /// </param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The transactions held back, newest first.</returns>
     Task<HeldBackList> ListHeldBackAsync(
-        ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default);
+        ICase @case,
+        BitcoinAddress address,
+        DateTimeOffset? around = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Brings chosen transactions that an address's expansion held back into the graph (sketch EX2: <em>Plocka

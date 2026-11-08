@@ -160,11 +160,16 @@ internal sealed class TracingService : ITracingService
 
     /// <inheritdoc/>
     public Task<HeldBackList> ListHeldBackAsync(
-        ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default)
+        ICase @case,
+        BitcoinAddress address,
+        DateTimeOffset? around = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(address);
-        return Task.Run(() => ListHeldBackCoreAsync(@case, address, cancellationToken), cancellationToken);
+        return Task.Run(
+            () => new HeldBackHistory(_source).ReadAsync(@case, address, around, cancellationToken),
+            cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -650,66 +655,6 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <summary>
-    /// Reads an address's history, newest first, and keeps what the graph does not hold yet: what its expansions held
-    /// back. Every page goes through the source as an expansion's does, so it is sealed in the case (principle 1) and
-    /// read from there offline (principle 9).
-    /// </summary>
-    /// <param name="case">The open case.</param>
-    /// <param name="address">The address.</param>
-    /// <param name="cancellationToken">Stops the work.</param>
-    /// <returns>What was held back.</returns>
-    private async Task<HeldBackList> ListHeldBackCoreAsync(
-        ICase @case, BitcoinAddress address, CancellationToken cancellationToken)
-    {
-        var inGraph = @case.Read(GraphStateStore.Read).Transactions.ToHashSet();
-        var seen = new HashSet<Txid>();
-        var held = new List<HeldBackTransaction>();
-        string? problem = null;
-        Txid? after = null;
-        while (seen.Count < HeldBackList.Most)
-        {
-            var page = await _source.GetAddressTransactionsAsync(@case, address, after, cancellationToken)
-                .ConfigureAwait(false);
-            if (page.Value is null)
-            {
-                return new HeldBackList(address, held, false, Join(problem, Problem(page.Status, page.Problem)));
-            }
-
-            if (page.Status == LookupStatus.FromCaseMayBeOutdated)
-            {
-                problem ??= Outdated(page);
-            }
-
-            var before = seen.Count;
-            foreach (var transaction in page.Value.Transactions.Where(tx => seen.Add(tx.Txid)))
-            {
-                if (!inGraph.Contains(transaction.Txid) && HeldBackReader.Read(transaction, address) is { } one)
-                {
-                    held.Add(one);
-                }
-            }
-
-            if (page.Value.NextAfter is null)
-            {
-                return new HeldBackList(address, held, true, problem);
-            }
-
-            if (page.Value.NextAfter == after || seen.Count == before)
-            {
-                const string SamePage = "Källan gav samma sida igen; historiken lästes så långt den gick.";
-                return new HeldBackList(address, held, false, Join(problem, SamePage));
-            }
-
-            after = page.Value.NextAfter;
-        }
-
-        return new HeldBackList(address, held, false, Join(problem, string.Format(
-            CultureInfo.InvariantCulture,
-            "Adressens historik är längre än {0} tx; de nyaste {0} lästes.",
-            HeldBackList.Most)));
-    }
-
-    /// <summary>
     /// Brings chosen held-back transactions into the address's expansion: each is read (from the case when it is
     /// there), one that does not touch the address is left out, and what the expansion held back stays, so that its
     /// clue counts what is left.
@@ -752,7 +697,8 @@ internal sealed class TracingService : ITracingService
             return new ExpansionResult(ExpansionOutcome.NotExpanded, [], problem, unchanged);
         }
 
-        var expansion = new Expansion(address, null, taken, earlier?.IsComplete ?? true, _clock.UtcNow)
+        // Picked without an earlier expansion, the address's history was not brought in whole.
+        var expansion = new Expansion(address, null, taken, earlier?.IsComplete ?? false, _clock.UtcNow)
         {
             Chosen = taken,
         };

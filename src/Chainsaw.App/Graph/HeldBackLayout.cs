@@ -73,8 +73,17 @@ public sealed record HeldBackDot(
     /// <summary>Gets how many transactions it stands for.</summary>
     public int Count => Choices.Count;
 
+    /// <summary>Gets whether any of its transactions comes from or goes to an actor with a negative label.</summary>
+    public bool IsNegative => Choices.Any(choice => choice.IsNegative);
+
+    /// <summary>
+    /// Gets whether its amount is uncertain, the address's share of a transaction others paid into too: drawn dashed,
+    /// since dashed always means uncertain (principle 2).
+    /// </summary>
+    public bool IsUncertain => Choices.Any(choice => choice.IsUncertain);
+
     /// <summary>Gets whether it pulses: a negative label, or an amount near the traced one.</summary>
-    public bool Pulses => First.IsNegative || IsNear;
+    public bool Pulses => IsNegative || IsNear;
 }
 
 /// <summary>A word on the selection view's guides: a date, an amount, the traced arrival.</summary>

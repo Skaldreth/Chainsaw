@@ -21,7 +21,7 @@ public sealed class HeldBackTests
 
     /// <summary>The clue the made-up choices come from.</summary>
     private static readonly HeldBackClue Clue = new(
-        "held-back:" + VKey, VKey, 6, [], new Dictionary<GraphLayout, NodePosition>()) { Address = V };
+        "held-back:" + VKey, VKey, 6, [], new Dictionary<GraphLayout, NodePosition>()) { Addresses = [V] };
 
     /// <summary>Makes a held-back transaction.</summary>
     private static HeldBackChoice Choice(
@@ -235,10 +235,146 @@ public sealed class HeldBackTests
 
         var choices = HeldBackChoices.Build(Clue, list, labels, scene);
 
-        Assert.True(choices.Choices[0].InGraph);
-        Assert.Equal("Mixer X", choices.Choices[1].Name);
-        Assert.True(choices.Choices[1].IsNegative);
-        Assert.False(choices.Choices[1].InGraph);
+        // Newest first, whatever order the reading gave.
+        Assert.Equal([TxidOf(51), TxidOf(50)], choices.Choices.Select(choice => choice.Transaction.Txid));
+        Assert.True(choices.Choices[1].InGraph);
+        Assert.Equal("Mixer X", choices.Choices[0].Name);
+        Assert.True(choices.Choices[0].IsNegative);
+        Assert.False(choices.Choices[0].InGraph);
+    }
+
+    [Fact]
+    public void A_negative_label_on_any_counterparty_and_any_of_its_labels_marks_the_transaction()
+    {
+        var scene = Scene(graph: GraphSamples.Graph());
+        var batch = new HeldBackTransaction(TxidOf(60), Block(160), PileSide.Out, new Satoshi(5_000), Address(910), 3)
+        {
+            Parties = [Address(910), Address(911), Address(912)],
+        };
+        var list = new HeldBackList(V, [batch], true, null);
+        var labels = new Dictionary<BitcoinAddress, IReadOnlyList<Label>>
+        {
+            [Address(910)] = [Label(Address(910), LabelKind.Exchange, "Börsen")],
+            [Address(912)] =
+            [
+                Label(Address(912), LabelKind.Merchant, "Butiken"),
+                Label(Address(912), LabelKind.Reported, "Nätfiske"),
+            ],
+        };
+
+        var choice = Assert.Single(HeldBackChoices.Build(Clue, list, labels, scene).Choices);
+
+        Assert.Equal("Börsen", choice.Name);
+        Assert.Equal(CounterpartyGroup.CashOut, choice.Group);
+        Assert.True(choice.IsNegative);
+        Assert.Equal(HeldBackChoice.ReportedName, choice.NegativeName);
+    }
+
+    [Fact]
+    public void Choices_from_several_addresses_of_a_cluster_are_one_list_and_picks_go_to_their_address()
+    {
+        var scene = Scene(graph: GraphSamples.Graph());
+        var clue = Clue with { Addresses = [V, W] };
+        var atV = new HeldBackList(
+            V, [new HeldBackTransaction(TxidOf(70), Block(170), PileSide.In, new Satoshi(1_000), null, 0)], true, null);
+        var atW = new HeldBackList(
+            W,
+            [
+                new HeldBackTransaction(TxidOf(71), Block(171), PileSide.In, new Satoshi(2_000), null, 0),
+                new HeldBackTransaction(TxidOf(70), Block(170), PileSide.Out, new Satoshi(1_000), null, 0),
+            ],
+            false,
+            "Offline.");
+
+        var none = new Dictionary<BitcoinAddress, IReadOnlyList<Label>>();
+
+        var choices = HeldBackChoices.Build(clue, [atV, atW], none, scene);
+
+        Assert.Equal([TxidOf(71), TxidOf(70)], choices.Choices.Select(choice => choice.Transaction.Txid));
+        Assert.EndsWith(": Offline.", choices.Problem, StringComparison.Ordinal);
+        var picks = choices.PicksOf([TxidOf(70).Value, TxidOf(71).Value]);
+        Assert.Equal([TxidOf(70)], picks[V]);
+        Assert.Equal([TxidOf(71)], picks[W]);
+    }
+
+    [Fact]
+    public void An_unconfirmed_transaction_lies_at_now_in_a_window_that_reaches_it_and_always_under_the_whole_time()
+    {
+        var now = Arrival.AddHours(30);
+        var pending = new HeldBackChoice(
+            new HeldBackTransaction(TxidOf(80), null, PileSide.Out, new Satoshi(5_000_000), Address(480), 1),
+            NodeSort.Unknown,
+            "pending",
+            false,
+            false);
+        var choices = Choices() with { Choices = [pending, .. Choices().Choices] };
+
+        var view = new HeldBackViewModel(choices, TimeZoneInfo.Utc, now);
+
+        Assert.Contains(view.Dots, dot => dot.First.Name == "pending");
+        Assert.Equal("obekräftad", view.TipOf(view.Dots.Single(dot => dot.First.Name == "pending")).Sub[^10..]);
+        view.MoveWindowTo(0);
+        Assert.DoesNotContain(view.Dots, dot => dot.First.Name == "pending");
+        view.WholeTimeCommand.Execute(null);
+        Assert.Contains(view.Dots, dot => dot.First.Name == "pending");
+    }
+
+    [Fact]
+    public void The_tip_says_how_many_receivers_a_shared_amount_is_uncertain_and_near_shows_the_difference_and_fee()
+    {
+        var block = new BlockReference(900_100, BlockHash.Parse(new string('a', 64)), Arrival.AddHours(1));
+        var batch = new HeldBackTransaction(TxidOf(90), block, PileSide.Out, new Satoshi(91_000_000), Address(490), 3)
+        {
+            IsShared = true,
+            Fee = new Satoshi(12_000),
+        };
+        var self = new HeldBackTransaction(TxidOf(91), block, PileSide.Out, new Satoshi(4_000_000), null, 0)
+        {
+            IsSelf = true,
+        };
+        var choices = Choices() with
+        {
+            Choices =
+            [
+                new HeldBackChoice(batch, NodeSort.Unknown, "p-batch", false, false),
+                new HeldBackChoice(self, NodeSort.Unknown, "tx self", false, false),
+            ],
+        };
+
+        var view = new HeldBackViewModel(choices, TimeZoneInfo.Utc);
+
+        var shared = view.Dots.Single(dot => dot.First.Name == "p-batch");
+        Assert.True(shared.IsUncertain);
+        var tip = view.TipOf(shared);
+        Assert.StartsWith("Ut till 3 mottagare · ", tip.Head, StringComparison.Ordinal);
+        Assert.Contains(tip.Lines, line => line.Text == HeldBackViewModel.SharedText);
+        var near = Assert.Single(tip.Lines, line => line.Text.StartsWith("Nära det spårade", StringComparison.Ordinal));
+        Assert.Contains("skillnad", near.Text, StringComparison.Ordinal);
+        Assert.Contains("avgift", near.Text, StringComparison.Ordinal);
+        var consolidation = view.TipOf(view.Dots.Single(dot => dot.First.IsSelf));
+        Assert.StartsWith("Till sig själv · ", consolidation.Head, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_cancelled_reading_says_nothing()
+    {
+        var source = new TestGraphSource { HeldBack = _ => throw new OperationCanceledException() };
+        var session = new CaseSession();
+        var workflow = new CaseWorkflow(
+            new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), session);
+        var graph = new GraphViewModel(
+            session, workflow, source, TestWays.For(new TestExitConnection()), new InlineUi(), new TestGraphEditor(),
+            new TestClock());
+        var toasts = new List<ToastRequest>();
+        graph.ToastWanted += (_, toast) => toasts.Add(toast);
+        session.Open(new TestCase("2026-0001"));
+        await graph.ReloadAsync(fit: true);
+
+        await graph.OpenHeldBackAsync(Clue);
+
+        Assert.Null(graph.HeldBack);
+        Assert.Null(graph.OpeningClue);
+        Assert.DoesNotContain(toasts, toast => toast.Title == GraphViewModel.HeldBackFailedText);
     }
 
     [Fact]

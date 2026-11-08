@@ -50,8 +50,44 @@ public sealed record HeldBackChoice(
     /// <summary>Gets the group the counterparty is sorted in.</summary>
     public CounterpartyGroup Group => GroupOf(Sort);
 
-    /// <summary>Gets whether the counterparty has a negative label (red: risk or a sanction), which pulses.</summary>
-    public bool IsNegative => Group == CounterpartyGroup.Risk;
+    /// <summary>
+    /// Gets the name of the first negative label (risk, a sanction, a report) on any counterparty of the transaction,
+    /// not only the largest, or <see langword="null"/> when the case has none.
+    /// </summary>
+    public string? Negative { get; init; }
+
+    /// <summary>
+    /// Gets whether money comes from or goes to an actor with a negative label (red: risk, a sanction, a report),
+    /// which pulses.
+    /// </summary>
+    public bool IsNegative => Negative is not null || Group == CounterpartyGroup.Risk;
+
+    /// <summary>Gets the negative label's name for the tip, or <see langword="null"/> when there is none.</summary>
+    public string? NegativeName => IsNegative ? Negative ?? VisualLanguage.Of(Sort).Name : null;
+
+    /// <summary>
+    /// Gets whether the amount is uncertain (drawn dashed, principle 2): the address's share of a transaction others
+    /// paid into too.
+    /// </summary>
+    public bool IsUncertain => Transaction.IsShared;
+
+    /// <summary>Gets whether the address only paid itself (a consolidation).</summary>
+    public bool IsSelf => Transaction.IsSelf;
+
+    /// <summary>Says whether a label is negative: red in the graph (risk, a sanction) or a supplier's report.</summary>
+    /// <param name="kind">The label's kind.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public static bool IsNegativeKind(LabelKind kind) =>
+        kind == LabelKind.Reported || GroupOf(VisualLanguage.SortOf(kind)) == CounterpartyGroup.Risk;
+
+    /// <summary>Names a negative label's kind for the tip.</summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns>For example <c>Mixer</c> or <c>Rapporterad</c>.</returns>
+    public static string NegativeKindName(LabelKind kind) =>
+        kind == LabelKind.Reported ? ReportedName : VisualLanguage.Of(VisualLanguage.SortOf(kind)).Name;
+
+    /// <summary>The word for a report from a supplier (for example Chainabuse), as the graph's mark says it.</summary>
+    public const string ReportedName = "Rapporterad";
 
     /// <summary>Gets the counterparty's key, which groups its transactions per side.</summary>
     public string CounterpartyKey =>
@@ -134,6 +170,24 @@ public sealed record HeldBackChoices(
     }
 
     /// <summary>
+    /// Sorts chosen transactions by the address whose history they were read from, so that each is brought into that
+    /// address's expansion; a key that is not a choice is left out.
+    /// </summary>
+    /// <param name="keys">The chosen transactions' ids.</param>
+    /// <returns>The transactions per address, in the order of the choices.</returns>
+    public IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Txid>> PicksOf(IReadOnlyCollection<string> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        var wanted = keys.ToHashSet(StringComparer.Ordinal);
+        return Choices
+            .Where(choice => wanted.Contains(choice.Key))
+            .Select(choice => (Address: choice.Transaction.Address ?? Clue.Address, choice.Transaction.Txid))
+            .Where(pick => pick.Address is not null)
+            .GroupBy(pick => pick.Address!)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<Txid>)[.. group.Select(pick => pick.Txid)]);
+    }
+
+    /// <summary>
     /// Builds the choices from what Tracing read and the labels the case has for the counterparties.
     /// </summary>
     /// <param name="clue">The clue.</param>
@@ -145,34 +199,80 @@ public sealed record HeldBackChoices(
         HeldBackClue clue,
         HeldBackList list,
         IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Label>> labels,
+        GraphScene scene) => Build(clue, [list], labels, scene);
+
+    /// <summary>
+    /// Builds the choices from what Tracing read at each of the clue's addresses (a cluster can have several) and the
+    /// labels the case has for the counterparties. A transaction read at two of them is one choice.
+    /// </summary>
+    /// <param name="clue">The clue.</param>
+    /// <param name="lists">What was held back at each address.</param>
+    /// <param name="labels">The labels by counterparty; missing for one without.</param>
+    /// <param name="scene">The graph as it is drawn.</param>
+    /// <returns>The choices, newest first.</returns>
+    public static HeldBackChoices Build(
+        HeldBackClue clue,
+        IReadOnlyList<HeldBackList> lists,
+        IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Label>> labels,
         GraphScene scene)
     {
         ArgumentNullException.ThrowIfNull(clue);
-        ArgumentNullException.ThrowIfNull(list);
+        ArgumentNullException.ThrowIfNull(lists);
         ArgumentNullException.ThrowIfNull(labels);
         ArgumentNullException.ThrowIfNull(scene);
         var inGraph = scene.Snapshot.Graph.Nodes.SelectMany(node => node.GraphAddresses).ToHashSet();
-        var choices = list.Transactions.Select(held => Choice(held, labels, inGraph)).ToList();
+        var choices = lists.SelectMany(list => list.Transactions.Select(held => held.Address is null
+                ? held with { Address = list.Address }
+                : held))
+            .DistinctBy(held => held.Txid)
+            .OrderByDescending(held => held.Time ?? DateTimeOffset.MaxValue)
+            .Select(held => Choice(held, labels, inGraph))
+            .ToList();
         var anchor = scene.Node(clue.Anchor);
         var traced = anchor is { TracedIn.Units.Sign: > 0 } && anchor.TracedIn.Asset == GraphScene.Shown
             ? new Satoshi((long)anchor.TracedIn.Units)
             : (Satoshi?)null;
-        var arrival = scene.Edges
-            .Where(edge => edge.Edge.To == clue.Anchor && edge.Traced.Units.Sign > 0)
-            .Select(edge => edge.Edge.FirstTime)
-            .OfType<DateTimeOffset>()
-            .DefaultIfEmpty()
-            .Min();
         return new HeldBackChoices(
             clue,
             anchor?.Subject ?? clue.Anchor,
             choices,
             traced,
-            arrival == default ? null : arrival,
-            list.Problem);
+            ArrivalAt(scene, clue.Anchor),
+            ProblemOf(lists));
     }
 
-    /// <summary>Makes one choice: the transaction with its counterparty's label, name and place in the graph.</summary>
+    /// <summary>Gives when the traced money first reached an actor, by the traced lines into it.</summary>
+    /// <param name="scene">The graph as it is drawn.</param>
+    /// <param name="anchor">The actor's node key.</param>
+    /// <returns>The time, or <see langword="null"/> when no traced money reached it.</returns>
+    public static DateTimeOffset? ArrivalAt(GraphScene scene, string anchor)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        var times = scene.Edges
+            .Where(edge => edge.Edge.To == anchor && edge.Traced.Units.Sign > 0)
+            .Select(edge => edge.Edge.FirstTime)
+            .OfType<DateTimeOffset>()
+            .ToList();
+        return times.Count == 0 ? null : times.Min();
+    }
+
+    /// <summary>
+    /// Joins what the user should know about the reading, each text prefixed with its address when there are several.
+    /// </summary>
+    /// <param name="lists">What was read at each address.</param>
+    /// <returns>The text, or <see langword="null"/>.</returns>
+    private static string? ProblemOf(IReadOnlyList<HeldBackList> lists)
+    {
+        var said = lists.Where(list => list.Problem is not null)
+            .Select(list => lists.Count == 1 ? list.Problem! : Prefixed(list))
+            .ToList();
+        return said.Count == 0 ? null : string.Join(" ", said);
+    }
+
+    /// <summary>
+    /// Makes one choice: the transaction with its main counterparty's label, name and place in the graph, and the
+    /// first negative label on any of its counterparties.
+    /// </summary>
     /// <param name="held">The transaction.</param>
     /// <param name="labels">The labels by counterparty.</param>
     /// <param name="inGraph">The addresses already in the graph.</param>
@@ -183,17 +283,49 @@ public sealed record HeldBackChoices(
         HashSet<BitcoinAddress> inGraph)
     {
         var address = held.Counterparty;
-        var own = address is not null && labels.TryGetValue(address, out var found) ? found : [];
+        var own = LabelsAt(address, labels);
         var label = own.FirstOrDefault();
         var sort = label is null ? NodeSort.Unknown : VisualLanguage.SortOf(label.Kind);
         var name = label?.Name ?? (address is null ? ShortTxid(held.Txid) : SubjectText.Fit(address.Value, 0));
+        var negative = PartiesOf(held).SelectMany(party => LabelsAt(party, labels))
+            .FirstOrDefault(one => HeldBackChoice.IsNegativeKind(one.Kind));
         return new HeldBackChoice(
             held,
             sort,
             name,
             address is not null && inGraph.Contains(address),
-            own.Count > 0 && own.All(one => one.IsOnlyFromOtherCases));
+            own.Count > 0 && own.All(one => one.IsOnlyFromOtherCases))
+        {
+            Negative = negative is null ? null : HeldBackChoice.NegativeKindName(negative.Kind),
+        };
     }
+
+    /// <summary>Writes what the user should know about one address's reading, after the address shortened.</summary>
+    /// <param name="list">The reading.</param>
+    /// <returns>For example <c>bc1q…x0wl: Offline: …</c>.</returns>
+    private static string Prefixed(HeldBackList list) => SubjectText.Fit(list.Address.Value, 0) + ": " + list.Problem;
+
+    /// <summary>Gives every counterparty of a transaction: its parties, or its main one without them.</summary>
+    /// <param name="held">The transaction.</param>
+    /// <returns>The addresses.</returns>
+    public static IReadOnlyList<BitcoinAddress> PartiesOf(HeldBackTransaction held)
+    {
+        ArgumentNullException.ThrowIfNull(held);
+        if (held.Parties.Count > 0)
+        {
+            return held.Parties;
+        }
+
+        return held.Counterparty is { } main ? [main] : [];
+    }
+
+    /// <summary>Gives the labels the case has for an address.</summary>
+    /// <param name="address">The address, or <see langword="null"/>.</param>
+    /// <param name="labels">The labels by address.</param>
+    /// <returns>Its labels; empty without.</returns>
+    private static IReadOnlyList<Label> LabelsAt(
+        BitcoinAddress? address, IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Label>> labels) =>
+        address is not null && labels.TryGetValue(address, out var found) ? found : [];
 
     /// <summary>Shortens a transaction's id, the name of a choice without a counterparty address.</summary>
     /// <param name="txid">The id.</param>

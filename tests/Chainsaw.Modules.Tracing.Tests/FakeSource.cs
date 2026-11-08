@@ -32,6 +32,9 @@ internal sealed class FakeSource : IBitcoinSource
     /// <summary>Makes every address page point back at itself, as a misbehaving source might.</summary>
     public bool RepeatPages { get; set; }
 
+    /// <summary>Gives a transaction of the synthetic chain, as the test made it.</summary>
+    public BitcoinTransaction Transaction(Txid txid) => _chain[txid];
+
     public void Add(params BitcoinTransaction[] transactions)
     {
         foreach (var transaction in transactions)

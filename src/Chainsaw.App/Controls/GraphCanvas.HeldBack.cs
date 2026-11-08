@@ -49,6 +49,12 @@ public sealed partial class GraphCanvas
     /// <summary>The lasso's dashes (sketch EX2: 5 4).</summary>
     private static readonly DashStyle LassoDash = Frozen(new DashStyle([3.3, 2.7], 0));
 
+    /// <summary>The dashes of a dot whose amount is uncertain (principle 2: dashed always means uncertain).</summary>
+    private static readonly DashStyle UncertainDash = Frozen(new DashStyle([2, 1.6], 0));
+
+    /// <summary>How strongly an uncertain payment out is filled, so that its dashed ring shows.</summary>
+    private const double UncertainFill = 0.4;
+
     /// <summary>The step of the blast.</summary>
     private BlastPhase _blast;
 
@@ -406,7 +412,7 @@ public sealed partial class GraphCanvas
                 DrawSonar(dc, dot, at, index);
             }
 
-            dc.DrawEllipse(dot.IsOut ? ink : background, new Pen(ink, 1.5), at, size / 2, size / 2);
+            DrawDotBody(dc, dot, ink, background, at, size);
             if (view.IsChosen(dot))
             {
                 dc.DrawEllipse(null, accent, at, (size / 2) + 2.75, (size / 2) + 2.75);
@@ -429,6 +435,38 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
+    /// Draws a dot: filled for a payment out, hollow for one in; an uncertain amount (the address's share of a
+    /// transaction others paid into too) has a dashed ring and a faint fill.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="dot">The dot.</param>
+    /// <param name="ink">Its group's colour.</param>
+    /// <param name="background">The surface's colour, inside a hollow dot.</param>
+    /// <param name="at">Its centre on screen.</param>
+    /// <param name="size">Its diameter.</param>
+    private static void DrawDotBody(
+        DrawingContext dc, HeldBackDot dot, Brush ink, Brush background, Point at, double size)
+    {
+        var ring = new Pen(ink, 1.5);
+        if (!dot.IsUncertain)
+        {
+            dc.DrawEllipse(dot.IsOut ? ink : background, ring, at, size / 2, size / 2);
+            return;
+        }
+
+        ring.DashStyle = UncertainDash;
+        dc.DrawEllipse(background, null, at, size / 2, size / 2);
+        if (dot.IsOut)
+        {
+            dc.PushOpacity(UncertainFill);
+            dc.DrawEllipse(ink, null, at, size / 2, size / 2);
+            dc.Pop();
+        }
+
+        dc.DrawEllipse(null, ring, at, size / 2, size / 2);
+    }
+
+    /// <summary>
     /// Draws a dot's sonar (sketch EX2): red for a negative label, the accent for an amount near the traced one; a wave
     /// that swells and fades, each dot a little out of step, and a still ring when animations are off.
     /// </summary>
@@ -439,7 +477,7 @@ public sealed partial class GraphCanvas
     private void DrawSonar(DrawingContext dc, HeldBackDot dot, Point at, int index)
     {
         var inks = new List<string>();
-        if (dot.First.IsNegative)
+        if (dot.IsNegative)
         {
             inks.Add("Brush.Error");
         }

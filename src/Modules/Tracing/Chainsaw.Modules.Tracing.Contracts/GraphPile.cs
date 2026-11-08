@@ -78,10 +78,21 @@ public sealed record HeldBackClue(
     public const string KeyPrefix = "held-back:";
 
     /// <summary>
-    /// Gets the address whose history can be read for what was held back (sketch EX1), or <see langword="null"/> when
-    /// the clue is a transaction's or an Ethereum address's, where the next part is brought in instead.
+    /// The prefix of the key of a clue for transactions' spenders held back at an actor that also has a clue for
+    /// addresses' histories, so that the two never share a count the selection view cannot show.
     /// </summary>
-    public Chains.Contracts.BitcoinAddress? Address { get; init; }
+    public const string SpendsKeyPrefix = "held-back-spends:";
+
+    /// <summary>
+    /// Gets the addresses whose histories can be read for what was held back (sketch EX1), one per expanded address
+    /// of the actor (a cluster can have several), in the order of the expansions; <see cref="Remaining"/> counts
+    /// what is held back at them all. Empty when the clue is a transaction's or an Ethereum address's, where the next
+    /// part is brought in instead.
+    /// </summary>
+    public IReadOnlyList<Chains.Contracts.BitcoinAddress> Addresses { get; init; } = [];
+
+    /// <summary>Gets the first of <see cref="Addresses"/>, or <see langword="null"/> when there are none.</summary>
+    public Chains.Contracts.BitcoinAddress? Address => Addresses.Count > 0 ? Addresses[0] : null;
 
     /// <summary>Gets how many held-back transactions the user picked out (sketch EX2).</summary>
     public int Chosen { get; init; }

@@ -54,24 +54,25 @@ public interface IGraphSource
     /// (its label, whether it is in the graph), for the selection view.
     /// </summary>
     /// <param name="case">The open case.</param>
-    /// <param name="clue">The clue, whose <see cref="HeldBackClue.Address"/> is set.</param>
+    /// <param name="clue">The clue, whose <see cref="HeldBackClue.Addresses"/> are read, every one.</param>
     /// <param name="scene">The graph as it is drawn.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The choices.</returns>
     Task<HeldBackChoices> ListHeldBackAsync(
         ICase @case, HeldBackClue clue, GraphScene scene, CancellationToken cancellationToken);
 
-    /// <summary>Brings chosen held-back transactions into the graph (sketch EX2) and reads it again.</summary>
+    /// <summary>
+    /// Brings chosen held-back transactions into the graph (sketch EX2), each into the expansion of the address it was
+    /// read at, and reads it again.
+    /// </summary>
     /// <param name="case">The open case.</param>
-    /// <param name="address">The address that was expanded.</param>
-    /// <param name="transactions">The chosen transactions.</param>
+    /// <param name="picks">The chosen transactions per expanded address.</param>
     /// <param name="method">The tracing method.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>What came in.</returns>
     Task<GraphExpansion> TakeHeldBackAsync(
         ICase @case,
-        BitcoinAddress address,
-        IReadOnlyCollection<Txid> transactions,
+        IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Txid>> picks,
         TracingMethodKind method,
         CancellationToken cancellationToken);
 
@@ -249,18 +250,25 @@ public sealed class GraphSource(
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(clue);
         ArgumentNullException.ThrowIfNull(scene);
-        if (clue.Address is not { } address)
+        if (clue.Addresses.Count == 0)
         {
             throw new ArgumentException("Only an address's clue has a history to read.", nameof(clue));
         }
 
+        var around = HeldBackChoices.ArrivalAt(scene, clue.Anchor);
         return Task.Run(
             async () =>
             {
-                var list = await tracing.ListHeldBackAsync(@case, address, cancellationToken).ConfigureAwait(false);
-                var counterparties = list.Transactions.Select(held => held.Counterparty)
-                    .OfType<BitcoinAddress>().Distinct().ToList();
-                return HeldBackChoices.Build(clue, list, LabelsOf(@case, counterparties), scene);
+                var lists = new List<HeldBackList>();
+                foreach (var address in clue.Addresses)
+                {
+                    lists.Add(await tracing.ListHeldBackAsync(@case, address, around, cancellationToken)
+                        .ConfigureAwait(false));
+                }
+
+                var counterparties = lists.SelectMany(list => list.Transactions)
+                    .SelectMany(HeldBackChoices.PartiesOf).Distinct().ToList();
+                return HeldBackChoices.Build(clue, lists, LabelsOf(@case, counterparties), scene);
             },
             cancellationToken);
     }
@@ -268,24 +276,37 @@ public sealed class GraphSource(
     /// <inheritdoc/>
     public Task<GraphExpansion> TakeHeldBackAsync(
         ICase @case,
-        BitcoinAddress address,
-        IReadOnlyCollection<Txid> transactions,
+        IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Txid>> picks,
         TracingMethodKind method,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        ArgumentNullException.ThrowIfNull(address);
-        ArgumentNullException.ThrowIfNull(transactions);
+        ArgumentNullException.ThrowIfNull(picks);
         return Task.Run(
             async () =>
             {
-                var result = await tracing.TakeHeldBackAsync(@case, address, transactions, cancellationToken)
-                    .ConfigureAwait(false);
-                var graph = await WithSharedLabelsAsync(@case, result.Graph, cancellationToken).ConfigureAwait(false);
+                var outcomes = new List<ExpansionOutcome>();
+                var problems = new List<string>();
+                var added = 0;
+                TraceGraph? graph = null;
+                foreach (var (address, transactions) in picks)
+                {
+                    var result = await tracing.TakeHeldBackAsync(@case, address, [.. transactions], cancellationToken)
+                        .ConfigureAwait(false);
+                    outcomes.Add(result.Outcome);
+                    added += result.NewCount;
+                    graph = result.Graph;
+                    if (result.Problem is { } problem && !problems.Contains(problem))
+                    {
+                        problems.Add(problem);
+                    }
+                }
+
+                graph ??= await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
+                graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
                 var scene = await ComposeAsync(@case, graph, method, PriceLookupMode.AsNeeded, cancellationToken)
                     .ConfigureAwait(false);
-                IReadOnlyList<string> problems = result.Problem is { } problem ? [problem] : [];
-                return new GraphExpansion(scene, result.Outcome, result.NewCount, problems);
+                return new GraphExpansion(scene, Combine(outcomes), added, problems);
             },
             cancellationToken);
     }

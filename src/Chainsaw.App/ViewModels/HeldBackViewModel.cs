@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Chainsaw.App.Graph;
+using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -104,6 +105,9 @@ public sealed partial class HeldBackViewModel : ObservableObject
     /// <summary>The whole span of the history, padded, which the time slider covers.</summary>
     private readonly (DateTimeOffset From, DateTimeOffset To) _span;
 
+    /// <summary>When the view was opened: where a transaction not confirmed yet lies in time.</summary>
+    private readonly DateTimeOffset _now;
+
     /// <summary>The transactions the filters let through, newest first.</summary>
     private List<HeldBackChoice> _visible = [];
 
@@ -118,12 +122,17 @@ public sealed partial class HeldBackViewModel : ObservableObject
     /// <summary>Creates the view for what was held back.</summary>
     /// <param name="choices">The choices and the traced arrival.</param>
     /// <param name="zone">The time zone dates are written in; the computer's when not given.</param>
-    public HeldBackViewModel(HeldBackChoices choices, TimeZoneInfo? zone = null)
+    /// <param name="now">
+    /// When it is now, where a transaction not confirmed yet lies (inside every window that reaches the present);
+    /// the computer's clock when not given.
+    /// </param>
+    public HeldBackViewModel(HeldBackChoices choices, TimeZoneInfo? zone = null, DateTimeOffset? now = null)
     {
         ArgumentNullException.ThrowIfNull(choices);
         Choices = choices;
         _zone = zone ?? TimeZoneInfo.Local;
-        var times = choices.Choices.Select(choice => choice.Transaction.Time).OfType<DateTimeOffset>().ToList();
+        _now = now ?? DateTimeOffset.UtcNow;
+        var times = choices.Choices.Select(TimeOf).ToList();
         var newest = times.Count == 0 ? DateTimeOffset.UnixEpoch : times.Max();
         var oldest = times.Count == 0 ? newest : times.Min();
         _span = (oldest - TimeSpan.FromDays(4), newest + TimeSpan.FromDays(2));
@@ -403,8 +412,7 @@ public sealed partial class HeldBackViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(dot);
         var first = dot.First;
         var head = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{(dot.IsOut ? "Ut till" : "In från")} {first.Name} · {HeldBackLayout.Btc(dot.Btc)} BTC");
+            CultureInfo.InvariantCulture, $"{HeadWords(dot)} · {HeldBackLayout.Btc(dot.Btc)} BTC");
         var when = dot.Time is { } time
             ? time.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " UTC"
             : "obekräftad";
@@ -412,18 +420,19 @@ public sealed partial class HeldBackViewModel : ObservableObject
             ? string.Create(CultureInfo.InvariantCulture, $"{dot.Count} tx · senast {when}")
             : SubjectText.Fit(first.Key, 0) + " · " + when;
         var lines = new List<TipLine>();
-        if (first.IsNegative)
+        if (dot.Choices.FirstOrDefault(choice => choice.IsNegative)?.NegativeName is { } negative)
         {
-            lines.Add(new TipLine(VisualLanguage.Of(first.Sort).Name + ": negativ etikett", GraphInk.Risk));
+            lines.Add(new TipLine(negative + ": negativ etikett", GraphInk.Risk));
+        }
+
+        if (dot.IsUncertain)
+        {
+            lines.Add(new TipLine(SharedText, GraphInk.Unknown));
         }
 
         if (dot.IsNear && Choices.Traced is { } traced)
         {
-            var tracedBtc = traced.Value / 1e8;
-            lines.Add(new TipLine(
-                $"Nära det spårade: {HeldBackLayout.Btc(dot.Btc)} av {HeldBackLayout.Btc(tracedBtc)} BTC, avgift "
-                + HeldBackLayout.Btc(Math.Max(0, tracedBtc - dot.Btc)),
-                GraphInk.Accent));
+            lines.Add(new TipLine(NearWords(dot, traced), GraphInk.Accent));
         }
 
         if (first.InGraph)
@@ -437,6 +446,57 @@ public sealed partial class HeldBackViewModel : ObservableObject
         }
 
         return (head, sub, lines);
+    }
+
+    /// <summary>
+    /// The tip's line for an amount that is the address's share of a transaction others paid into too (principle 2).
+    /// </summary>
+    public const string SharedText = "Flera betalade in: adressens andel, osäkert";
+
+    /// <summary>
+    /// Writes the tip's head before the amount: a transfer to itself, the one counterparty, or how many there are
+    /// when there are several, never one of them as if it were all.
+    /// </summary>
+    /// <param name="dot">The dot.</param>
+    /// <returns>For example <c>Ut till bc1q…x0wl</c>, <c>Ut till 3 mottagare</c> or <c>Till sig själv</c>.</returns>
+    private static string HeadWords(HeldBackDot dot)
+    {
+        var first = dot.First;
+        if (first.IsSelf)
+        {
+            return "Till sig själv";
+        }
+
+        var direction = dot.IsOut ? "Ut till" : "In från";
+        var parties = dot.Count == 1 ? first.Transaction.Counterparties : 1;
+        if (parties <= 1)
+        {
+            return direction + " " + first.Name;
+        }
+
+        var many = dot.IsOut ? "mottagare" : "avsändare";
+        return string.Create(CultureInfo.InvariantCulture, $"{direction} {parties} {many}");
+    }
+
+    /// <summary>
+    /// Writes why a dot is near the traced amount: the two amounts and the difference between them, and, for one
+    /// transaction, its fee as the chain has it (the difference is worked out, the fee is a fact).
+    /// </summary>
+    /// <param name="dot">The dot.</param>
+    /// <param name="traced">What was traced in.</param>
+    /// <returns>The line.</returns>
+    private static string NearWords(HeldBackDot dot, Satoshi traced)
+    {
+        var tracedBtc = traced.Value / (double)Satoshi.PerBitcoin;
+        var line = $"Nära det spårade: {HeldBackLayout.Btc(dot.Btc)} av {HeldBackLayout.Btc(tracedBtc)} BTC, "
+            + "skillnad " + HeldBackLayout.Btc(Math.Max(0, tracedBtc - dot.Btc));
+        if (dot.Count > 1)
+        {
+            return line;
+        }
+
+        var fee = dot.First.Transaction.Fee.Value / (double)Satoshi.PerBitcoin;
+        return line + " · avgift " + HeldBackLayout.Btc(fee);
     }
 
     /// <summary>Shows the spiral.</summary>
@@ -638,8 +698,8 @@ public sealed partial class HeldBackViewModel : ObservableObject
     private DateTimeOffset DefaultCentre() => Choices.Arrival ?? (_span.To - TimeSpan.FromDays(2));
 
     /// <summary>
-    /// Sets every filter to its default (sketch EX2): all amounts and sides, ±48 h around the traced arrival (the whole
-    /// history without one), every group, dust hidden, nothing else.
+    /// Sets every filter to its default (sketch EX2): all amounts and sides, ±48 h around the traced arrival (the
+    /// whole history without one), every group, dust hidden, nothing else.
     /// </summary>
     private void ResetFilters()
     {
@@ -681,8 +741,8 @@ public sealed partial class HeldBackViewModel : ObservableObject
     {
         var sideShown = Direction == HeldBackDirection.All || (Direction == HeldBackDirection.Out) == choice.IsOut;
         var share = AmountShare(choice.Btc);
-        var inWindow = WindowHours == 0
-            || (choice.Transaction.Time is { } time && time >= window.From && time <= window.To);
+        var time = TimeOf(choice);
+        var inWindow = WindowHours == 0 || (time >= window.From && time <= window.To);
         return sideShown
             && Groups.First(chip => chip.Group == choice.Group).IsOn
             && share >= Low - 1e-9 && share <= High + 1e-9
@@ -707,7 +767,7 @@ public sealed partial class HeldBackViewModel : ObservableObject
         WindowStart = WindowHours == 0 ? 0 : start;
         WindowEnd = WindowHours == 0 ? 1 : end;
         TimeBars = Histogram(
-            Choices.Choices.Select(choice => choice.Transaction.Time).OfType<DateTimeOffset>().Select(SpanShare),
+            Choices.Choices.Select(TimeOf).Select(SpanShare),
             TimeSlices, WindowStart, WindowEnd, TimeBarTallest, 2);
         AmountText = AmountWords();
         TimeText = WindowHours == 0
@@ -801,11 +861,18 @@ public sealed partial class HeldBackViewModel : ObservableObject
     /// <returns>The sum in bitcoin.</returns>
     private static double Sum(IReadOnlyList<HeldBackChoice> item) => item.Sum(choice => choice.Btc);
 
-    /// <summary>Gives an item's newest time; an unconfirmed one is the newest of all.</summary>
+    /// <summary>Gives an item's newest time; an unconfirmed one lies at now.</summary>
     /// <param name="item">The transactions.</param>
     /// <returns>The time.</returns>
-    private static DateTimeOffset Newest(IReadOnlyList<HeldBackChoice> item) =>
-        item.Max(choice => choice.Transaction.Time ?? DateTimeOffset.MaxValue);
+    private DateTimeOffset Newest(IReadOnlyList<HeldBackChoice> item) => item.Max(TimeOf);
+
+    /// <summary>
+    /// Gives when a transaction happened: its block's time, or now while it is not confirmed (principle 9: it is
+    /// shown, not lost outside every window).
+    /// </summary>
+    /// <param name="choice">The transaction.</param>
+    /// <returns>The time.</returns>
+    private DateTimeOffset TimeOf(HeldBackChoice choice) => choice.Transaction.Time ?? _now;
 
     /// <summary>Chooses every transaction of some dots.</summary>
     /// <param name="dots">The dots.</param>

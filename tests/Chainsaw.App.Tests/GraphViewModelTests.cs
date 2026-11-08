@@ -72,16 +72,24 @@ internal sealed class TestGraphSource : IGraphSource
             ? Task.FromResult(make(clue))
             : Task.FromException<HeldBackChoices>(new InvalidOperationException("Offline"));
 
+    /// <summary>The addresses the picks were brought in at, per pick.</summary>
+    public List<BitcoinAddress> TakenAt { get; } = [];
+
     public Task<GraphExpansion> TakeHeldBackAsync(
         ICase @case,
-        BitcoinAddress address,
-        IReadOnlyCollection<Txid> transactions,
+        IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Txid>> picks,
         TracingMethodKind method,
         CancellationToken cancellationToken)
     {
-        Taken.Add(transactions);
+        foreach (var (address, transactions) in picks)
+        {
+            TakenAt.Add(address);
+            Taken.Add([.. transactions]);
+        }
+
+        var count = picks.Values.Sum(transactions => transactions.Count);
         return Task.FromResult(
-            Expansion ?? new GraphExpansion(Scene(), ExpansionOutcome.Expanded, transactions.Count, []));
+            Expansion ?? new GraphExpansion(Scene(), ExpansionOutcome.Expanded, count, []));
     }
 
     public Task SavePositionAsync(ICase @case, string nodeKey, GraphLayout layout, GraphPoint place)
@@ -801,11 +809,10 @@ public sealed class GraphViewModelTests
 
         public Task<GraphExpansion> TakeHeldBackAsync(
             ICase @case,
-            BitcoinAddress address,
-            IReadOnlyCollection<Txid> transactions,
+            IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Txid>> picks,
             TracingMethodKind method,
             CancellationToken cancellationToken) =>
-            inner.TakeHeldBackAsync(@case, address, transactions, method, cancellationToken);
+            inner.TakeHeldBackAsync(@case, picks, method, cancellationToken);
     }
 }
 

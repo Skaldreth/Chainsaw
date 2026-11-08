@@ -456,7 +456,10 @@ internal sealed class TestTracing : ITracingService
     public List<IReadOnlyCollection<Txid>> Taken { get; } = [];
 
     public Task<HeldBackList> ListHeldBackAsync(
-        ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default) =>
+        ICase @case,
+        BitcoinAddress address,
+        DateTimeOffset? around = null,
+        CancellationToken cancellationToken = default) =>
         Task.FromResult(HeldBack ?? new HeldBackList(address, [], true, null));
 
     public Task<ExpansionResult> TakeHeldBackAsync(

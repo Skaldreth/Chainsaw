@@ -2413,3 +2413,30 @@ förslag, att rensa kollegans etiketter ur biblioteket. **Inte provat på Window
 - Egna val: bara rapporter som nämner adressen används; en sida (50 rapporter) per uppslag för att spara anrop;
   en tillbakatagen rapport dras tillbaka också ur biblioteket, som en egen etikett.
 - Återstår: sidan i inställningarna, när uppslagen görs (nyckelns gräns), TRON och grafens form för *Rapporterad*.
+
+## Granskningen av valvyn för det som hölls tillbaka (2026-11-08)
+
+Rättat efter en oberoende granskning av `ListHeldBackAsync`/`TakeHeldBackAsync` och valvyn (EX1, EX2):
+- **Ett klusters ledtråd** räknade det som hölls tillbaka vid alla adresser men läste bara den första. Nu har
+  `HeldBackClue.Addresses` alla expanderade adresser; valvyn läser alla, slår ihop dem (en tx en gång) och plockar ut
+  varje tx i expansionen för den adress den lästes vid. En tx-expansions mottagare vid samma aktör får en egen ledtråd
+  (`held-back-spends:`), så att räkningen aldrig tar med det valvyn inte kan visa.
+- **Belopp ur tx med flera betalare** (CoinJoin, batch): adressens andel är det den satte in minus det som kom
+  tillbaka (högst det som gick till andra), och när den fick tillbaka mer är tx:en en betalning in; utan inputs
+  belopp andelen efter antal inputs. Beloppet märks `IsShared`, ritas streckat och sägs *osäkert* (princip 2).
+- **Text som räknats fram** sägs inte som fakta: *Ut till 3 mottagare* när de är flera, *skillnad* i stället för
+  avgift, och tx:ens riktiga avgift ur kedjan.
+- **Negativ etikett** prövas på alla motparter och alla deras etiketter, också *Rapporterad*.
+- **Obekräftade tx** ligger vid *nu*: inne i ett fönster som når nuet och alltid under *Allt*.
+- **En upptagen adress:** når de nyaste 2 000 inte den spårade ankomsten läses historiken också bakåt från grafens tx
+  vid adressen nära ankomsten (högst 500, sidorna förseglade genom källan som alla andra), `HeldBackHistory`.
+- Mindre: exakt 2 000 tx säger inte *längre än*; utplockning utan tidigare expansion sparas som inte hel; en läsning
+  som avbryts eller vars ärende stängts säger inget; en konsolidering är *Till sig själv* med beloppet som kom
+  tillbaka, inte damm.
+- Eget val: frövalet för läsningen runt ankomsten är grafens tx vid adressen, eftersom Esploras sidor bara kan börja
+  vid en tx i adressens historik; utan en sådan tx läses bara de nyaste 2 000, och problemet säger det.
+- Tester: sidor med en mempool-tx, offline ur ärendet och en saknad senare sida, gränsen och dess text, läsningen
+  runt ankomsten, `HeldBackReader` (växel, flera inputs, saknade belopp, coinbase, CoinJoin, konsolidering),
+  migreringen 3→4 och ett klusters ledtråd med två adresser; i appen negativ etikett på vilken motpart som helst,
+  flera adresser, obekräftad tx, tipsen och en avbruten läsning.
+- Återstår (TODO): om utplockning ska journalföras (fråga användaren) och att kunna avbryta en lång läsning.

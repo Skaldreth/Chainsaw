@@ -177,8 +177,19 @@ internal static class PileRules
     }
 
     /// <summary>
-    /// Gives the clues: one per actor with an expansion held back at its limit, with how many are left when every
-    /// source said how many there are, and the lookups that bring in the next part.
+    /// Gives a clue's key for transactions' spenders held back at an actor that also has a clue for addresses'
+    /// histories.
+    /// </summary>
+    /// <param name="anchor">The actor's node key.</param>
+    /// <returns>For example <c>held-back-spends:cluster:…</c>.</returns>
+    public static string SpendsClueKey(string anchor) => HeldBackClue.SpendsKeyPrefix + NodeKeys.Position(anchor);
+
+    /// <summary>
+    /// Gives the clues: per actor with an expansion held back at its limit, one for its addresses' histories (which
+    /// the selection view reads and picks from, at every expanded address of a cluster) and one for the rest
+    /// (transactions' spenders, an Ethereum address), whose next part is brought in instead; each with how many are
+    /// left when every source said how many there are, and the lookups that bring in the next part. Kept apart, a
+    /// count never includes what the view opened from it cannot show.
     /// </summary>
     /// <param name="graph">The graph.</param>
     /// <param name="state">The graph's state.</param>
@@ -186,7 +197,7 @@ internal static class PileRules
     /// <returns>The clues.</returns>
     private static List<HeldBackClue> Clues(TraceGraph graph, GraphState state, TransferIndex facts)
     {
-        var clues = new List<(string Anchor, long? Remaining, ExpansionRequest Next, Expansion Expansion)>();
+        var parts = new List<CluePart>();
         foreach (var expansion in state.Expansions)
         {
             if (expansion.HeldBack is not { } heldBack || AnchorOf(graph, expansion) is not { } anchor)
@@ -201,32 +212,47 @@ internal static class PileRules
                 continue;
             }
 
-            clues.Add((anchor.Key, remaining, next, expansion));
+            parts.Add(new CluePart(anchor.Key, remaining, next, expansion));
         }
 
+        var withHistory = parts.Where(part => part.IsHistory).Select(part => part.Anchor)
+            .ToHashSet(StringComparer.Ordinal);
         return
         [
-            .. clues.GroupBy(clue => clue.Anchor, StringComparer.Ordinal).Select(group =>
+            .. parts.GroupBy(part => (part.Anchor, part.IsHistory)).Select(group =>
             {
-                var expansions = group.Select(clue => clue.Expansion).ToList();
-                var chosen = expansions.SelectMany(expansion => expansion.Chosen).Select(txid => txid.Value).ToList();
-                var dated = chosen.Count > 0
-                    ? chosen
-                    : [.. expansions.SelectMany(expansion => expansion.Transactions).Select(txid => txid.Value)];
-                return new HeldBackClue(
-                    ClueKey(group.Key),
-                    group.Key,
-                    group.All(clue => clue.Remaining is not null) ? group.Sum(clue => clue.Remaining!.Value) : null,
-                    [.. group.Select(clue => clue.Next)],
-                    PlacesOf(ClueKey(group.Key), state))
-                {
-                    Address = expansions.Select(expansion => expansion.Address).OfType<BitcoinAddress>()
-                        .FirstOrDefault(),
-                    Chosen = chosen.Count,
-                    Oldest = facts.Oldest(dated),
-                };
+                var key = !group.Key.IsHistory && withHistory.Contains(group.Key.Anchor)
+                    ? SpendsClueKey(group.Key.Anchor)
+                    : ClueKey(group.Key.Anchor);
+                return Clue(key, group.Key.Anchor, [.. group], state, facts);
             }),
         ];
+    }
+
+    /// <summary>Makes one clue of the held-back expansions at an actor that are read the same way.</summary>
+    /// <param name="key">The clue's key.</param>
+    /// <param name="anchor">The actor's node key.</param>
+    /// <param name="parts">The expansions held back, with what is left at each.</param>
+    /// <param name="state">The graph's state.</param>
+    /// <param name="facts">The transfers by transaction.</param>
+    /// <returns>The clue.</returns>
+    private static HeldBackClue Clue(
+        string key, string anchor, List<CluePart> parts, GraphState state, TransferIndex facts)
+    {
+        var expansions = parts.Select(part => part.Expansion).ToList();
+        var chosen = expansions.SelectMany(expansion => expansion.Chosen).Select(txid => txid.Value).ToList();
+        var dated = chosen.Count > 0
+            ? chosen
+            : [.. expansions.SelectMany(expansion => expansion.Transactions).Select(txid => txid.Value)];
+        var remaining = parts.All(part => part.Remaining is not null)
+            ? parts.Sum(part => part.Remaining!.Value)
+            : (long?)null;
+        return new HeldBackClue(key, anchor, remaining, [.. parts.Select(part => part.Next)], PlacesOf(key, state))
+        {
+            Addresses = [.. expansions.Select(expansion => expansion.Address).OfType<BitcoinAddress>().Distinct()],
+            Chosen = chosen.Count,
+            Oldest = facts.Oldest(dated),
+        };
     }
 
     /// <summary>
@@ -268,6 +294,17 @@ internal static class PileRules
         state.Positions.TryGetValue(key, out var stored)
             ? stored.ToDictionary(pair => pair.Key, pair => pair.Value.Position)
             : [];
+
+    /// <summary>An expansion held back at an actor, with what is left at it and the lookup for its next part.</summary>
+    /// <param name="Anchor">The actor's node key.</param>
+    /// <param name="Remaining">How many are left, or <see langword="null"/> when the source did not say.</param>
+    /// <param name="Next">The lookup that brings in the next part.</param>
+    /// <param name="Expansion">The expansion.</param>
+    private sealed record CluePart(string Anchor, long? Remaining, ExpansionRequest Next, Expansion Expansion)
+    {
+        /// <summary>Gets whether it is a Bitcoin address's history, which the selection view reads.</summary>
+        public bool IsHistory => Expansion.Address is not null;
+    }
 
     /// <summary>The graph's transfers by transaction: who takes part in each, who pays in it and when it was.</summary>
     private sealed class TransferIndex
