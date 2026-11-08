@@ -117,7 +117,7 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     3. **Grafen** (GR4, GR5, TK1a): noden växer inte med namn och lång adress;
        tokenmärket som liten rund bricka; swappen som piller på linjen; rubrikerna för kedjornas delar av ytan.
     4. **Bildspråkets ruta GR7a**: *byggd 2026-11-08*.
-    5. **Guiden** (GD1b): skissens små diagram inne i avsnitten saknas.
+    5. **Guiden** (GD1b): *figurer och analogier byggda 2026-11-08*.
     6. Små: BV1a (kedjan som bricka, bakgrundens läge i ram, knapparna längst ner), TO1a (färgat streck i nederkanten
        för fel och varningar).
 41. **Källor är KL2b** (användarens beslut 2026-11-08), utan den färgade kanten vid det valda, strecken vid
@@ -186,9 +186,6 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
   grupper av dygn), och listens prickade slut vid senaste blocket, som ärendet inte vet i dag.
 - Skalet: sidopanelen och vyernas ordning.
 - Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.
-- **Guidens figurer** (GD1b och GD1a): skisserna har små figurer i avsnitten (UTXO, common-input-ownership, växeln,
-  peel chain, CoinJoin, spårningsmetoderna) ritade med grafens bildspråk. Inte byggda i etapp 18; texterna står utan
-  dem. Behöver ett sätt att skriva en figur i Markdown (till exempel ett eget block som pekar på en ritning).
 - **Guidens panel, det som återstår** (etapp 18, granskningen): välj samma nod igen efter att ha följt en länk, så
   stannar panelen på länken (det går inte att skilja ett nytt val från ett nytt svar om samma sak); klustrets svar som
   kommer efter en stund kan byta avsnitt medan man läser; ett nytt *Varför?* börjar historiken om (som i skissen);

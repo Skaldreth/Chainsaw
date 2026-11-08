@@ -1,8 +1,14 @@
 # CoinJoin
 
+> **Som i vardagen:** Fem personer lämnar in var sin sedelbunt i ett växelkontor och får tillbaka lika många helt nya
+> hundralappar var. Efteråt går det inte att säga vems gamla sedlar som blev vems nya. Eller en garderob på en fest,
+> där alla hänger likadana svarta rockar: när alla har gått hem vet ingen vem som tog vilken.
+
 En CoinJoin är en tx som **flera personer bygger tillsammans** för att sudda ut spåret. Var och en lägger in en eller
 flera inputs och får tillbaka en output med **exakt samma belopp** som de andra. Eftersom alla utgångar ser likadana ut
 går det inte att läsa ut vem som fick vilken.
+
+![Fem deltagare lägger in olika belopp (till vänster) och får tillbaka lika stora outputs (till höger). Offrets pengar (accent) går in, men vilken utgång som är deras går inte att läsa: alla är lika troliga, därför streckade.](figur:coinjoin-lika)
 
 ## Vad Chainsaw tittar efter
 

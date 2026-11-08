@@ -1,5 +1,9 @@
 # Common-input-ownership
 
+> **Som i vardagen:** Någon betalar i kassan med pengar ur tre olika bankfack. För att få ut dem har hen behövt
+> nycklarna till alla tre facken. Det enklaste skälet är att facken är hens egna, och det är just den slutsatsen
+> heuristiken drar: adresser som betalar tillsammans i samma tx har samma ägare.
+
 Den äldsta och starkaste heuristiken för att slå ihop adresser till en plånbok.
 
 ## Idén
@@ -9,6 +13,8 @@ olika adresser har någon alltså signerat för alla. Det enklaste skälet är a
 då har adresserna **samma ägare**.
 
 > Tx:en spenderar outputs från A och B. Slutsats: A och B hör till samma plånbok.
+
+![Tre adresser, var och en med sin nyckel, betalar i samma tx. Någon har haft alla tre nycklarna, så adresserna slås ihop till en plånbok. Ramen är streckad: sammanslagningen är en slutsats, inte ett faktum.](figur:cio-sammanslagning)
 
 Chainsaw slår ihop sådana adresser **automatiskt**, och varje sammanslagning sparar vilken heuristik och version
 (`common-input-ownership v1`) och vilken tx den bygger på. Klicka på *varför?* för att se tx:en.
@@ -23,6 +29,8 @@ Chainsaw slår ihop sådana adresser **automatiskt**, och varje sammanslagning s
 - **Delade tjänster.** En börs äger sina kunders insättningsadresser. När börsen samlar ihop dem (en *sweep*) slås de
   ihop till börsens kluster, och det är rätt: det är börsens nycklar. Kunderna som betalade in hamnar däremot inte i
   börsens kluster, eftersom deras adresser aldrig är inputs i börsens tx.
+
+![Kunderna (till vänster) betalar in till var sin insättningsadress hos börsen. När börsen samlar ihop insättningarna till sin egen plånbok (blå) slås insättningsadresserna ihop med börsen, inom den blå streckade ramen. Kunderna står kvar utanför.](figur:cio-sweep)
 
 ## Om du inte håller med
 

@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
 using Chainsaw.App.Navigation;
@@ -439,6 +440,162 @@ public sealed class GuideTests
         Assert.False(new GuideViewModel(empty).HasSection);
     }
 
+    /// <summary>
+    /// A figure on a line of its own is read with its id and caption, and ends the paragraph above it; a figure line
+    /// with another target, or an id that is no id, gives a figure without a drawing, never an error or plain text.
+    /// </summary>
+    [Fact]
+    public void ReadsFigures()
+    {
+        const string text = """
+            # T
+
+            Ett stycke
+            ![En tx med **växel**, se [UTXO](utxo-modellen.md)](figur:utxo-vaxel)
+            ![Bild](https://example.org/bild.png)
+            ![Bild](figur:Fel id)
+            ![](figur:tom)
+            Text med ![inbäddad](figur:x) bild.
+            """;
+
+        var blocks = GuideMarkdown.Parse("x", text).Blocks;
+
+        Assert.Equal("Ett stycke", Plain(blocks[0]));
+        var figure = Assert.IsType<GuideFigure>(blocks[1]);
+        Assert.Equal("utxo-vaxel", figure.Id);
+        Assert.Equal("Figure.utxo-vaxel", figure.ResourceKey);
+        Assert.Equal("En tx med växel, se UTXO", Text(figure.Caption));
+        Assert.Contains(figure.Caption, run => run.IsStrong);
+        Assert.Contains(figure.Caption, run => run.Link == new GuideLink("utxo-modellen", null));
+        Assert.Null(Assert.IsType<GuideFigure>(blocks[2]).ResourceKey);
+        Assert.Equal(string.Empty, Assert.IsType<GuideFigure>(blocks[2]).Id);
+        Assert.Equal(string.Empty, Assert.IsType<GuideFigure>(blocks[3]).Id);
+        Assert.Empty(Assert.IsType<GuideFigure>(blocks[4]).Caption);
+        Assert.IsType<GuideParagraph>(blocks[5]);
+        Assert.Equal(6, blocks.Count);
+    }
+
+    /// <summary>
+    /// A quote that starts with the bold label <em>Som i vardagen:</em> is an analogy without the label; any other quote
+    /// stays a quote, also one that has the words later or not in bold.
+    /// </summary>
+    [Fact]
+    public void ReadsAnalogies()
+    {
+        const string text = """
+            # T
+
+            > **Som i vardagen:** som sedlar
+            > i en plånbok, se [Växel](vaxeladress.md).
+
+            > Som i vardagen: inte fetstil.
+
+            > En regel. **Som i vardagen:** sent.
+            """;
+
+        var blocks = GuideMarkdown.Parse("x", text).Blocks;
+
+        var analogy = Assert.IsType<GuideAnalogy>(blocks[0]);
+        Assert.Equal("som sedlar i en plånbok, se Växel.", Text(analogy.Runs));
+        Assert.Equal("Som i vardagen", GuideAnalogy.Heading);
+        Assert.Contains(new GuideLink("vaxeladress", null), GuideMarkdown.Parse("x", text).Links);
+        Assert.IsType<GuideQuote>(blocks[1]);
+        Assert.IsType<GuideQuote>(blocks[2]);
+    }
+
+    /// <summary>
+    /// Every figure a text names is drawn in the theme (GuideFigures*.xaml) under its key, and no key is drawn twice,
+    /// so that no section in the program shows <em>Bilden saknas</em>.
+    /// </summary>
+    [Fact]
+    public void EveryFigureIsDrawn()
+    {
+        var keys = FigureKeys();
+        var figures = Library.Sections.SelectMany(section => section.Document.Figures).ToList();
+
+        Assert.Equal(keys.Count, keys.Distinct(StringComparer.Ordinal).Count());
+        Assert.NotEmpty(figures);
+        Assert.All(figures, figure =>
+        {
+            Assert.True(figure.ResourceKey is { } key && keys.Contains(key), figure.Id);
+            Assert.NotEmpty(figure.Caption);
+        });
+    }
+
+    /// <summary>
+    /// The sections written before the figures each open with an everyday analogy for a reader who is not technical,
+    /// and those where a picture helps have at least one figure.
+    /// </summary>
+    [Theory]
+    [InlineData("sa-sparar-man", true)]
+    [InlineData("utxo-modellen", true)]
+    [InlineData("adresstyper", true)]
+    [InlineData("startpunkter", false)]
+    [InlineData("kontroll-mot-kedjan", true)]
+    [InlineData("kontomodellen", true)]
+    [InlineData("erc-20", true)]
+    [InlineData("interna-tx", true)]
+    [InlineData("kan-frysas", true)]
+    [InlineData("common-input-ownership", true)]
+    [InlineData("vaxeladress", true)]
+    [InlineData("peel-chain", true)]
+    [InlineData("coinjoin", true)]
+    [InlineData("grafen", true)]
+    [InlineData("sparningsmetoder", true)]
+    [InlineData("sparet-tar-slut", true)]
+    [InlineData("kurser", true)]
+    [InlineData("etiketter", true)]
+    [InlineData("bevakning", true)]
+    [InlineData("kontroller-och-forslag", false)]
+    [InlineData("omraden", true)]
+    public void SectionsOpenWithAnAnalogy(string id, bool hasFigure)
+    {
+        var section = Library.Section(id);
+
+        Assert.NotNull(section);
+        Assert.IsType<GuideAnalogy>(section.Document.Blocks[0]);
+        Assert.Equal(hasFigure, section.Document.Figures.Any());
+    }
+
+    /// <summary>The view and the panel show a section with its analogy and figures as read, in their order.</summary>
+    [Fact]
+    public void ViewAndPanelShowTheFigures()
+    {
+        var guide = new GuideViewModel(Library);
+        var panel = new GuidePanelViewModel(Library);
+
+        guide.Go(new GuideLink("utxo-modellen", null));
+        panel.Open(GuideRequest.ForTopic(GuideTopic.Graph), fresh: true);
+        panel.Go(new GuideLink("sparningsmetoder", null));
+
+        Assert.IsType<GuideAnalogy>(guide.Section!.Document.Blocks[0]);
+        Assert.Equal(
+            ["utxo-vaxel", "utxo-avgift", "utxo-bekraftelser"],
+            guide.Section.Document.Figures.Select(figure => figure.Id));
+        Assert.Equal(
+            ["sparning-fifo", "sparning-haircut", "sparning-jamforelse"],
+            panel.Page!.Section.Document.Figures.Select(figure => figure.Id));
+    }
+
+    /// <summary>Reads the keys of the figures drawn in the theme, from the figure files built into the tests.</summary>
+    /// <returns>Every <c>x:Key</c> in the files, in order.</returns>
+    private static List<string> FigureKeys()
+    {
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var assembly = typeof(GuideTests).Assembly;
+        var keys = new List<string>();
+        foreach (var name in assembly.GetManifestResourceNames().Where(n => n.Contains(".Figures.", StringComparison.Ordinal)))
+        {
+            using var stream = assembly.GetManifestResourceStream(name)!;
+            keys.AddRange(XDocument.Load(stream).Descendants()
+                .Select(element => (string?)element.Attribute(xaml + "Key"))
+                .OfType<string>()
+                .Where(key => key.StartsWith(GuideFigure.KeyPrefix, StringComparison.Ordinal)));
+        }
+
+        return keys;
+    }
+
     /// <summary>Writes a block's text plainly.</summary>
     /// <param name="block">The block.</param>
     /// <returns>The text.</returns>
@@ -447,6 +604,8 @@ public sealed class GuideTests
         GuideParagraph paragraph => Text(paragraph.Runs),
         GuideHeading heading => heading.Text,
         GuideQuote quote => Text(quote.Runs),
+        GuideAnalogy analogy => Text(analogy.Runs),
+        GuideFigure figure => Text(figure.Caption),
         GuideList list => string.Join(' ', list.Items.Select(item => Text(item.Runs))),
         GuideTable table => string.Join(' ', table.Header.Concat(table.Rows.SelectMany(row => row)).Select(Text)),
         _ => string.Empty,

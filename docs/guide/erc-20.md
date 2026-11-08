@@ -1,5 +1,10 @@
 # ERC-20 och tokens
 
+> **Som i vardagen:** En token är som presentkort i en butikskedja. Kortens värde finns inte på kortet utan i butikens
+> egen bokföring, där varje kort har en rad med sitt saldo. Kontraktet är butikens bokförare: när ett belopp flyttas
+> skriver den om två rader. Och precis som ett falskt presentkort kan bära rätt logga känns en riktig token igen på
+> vem som bokför, inte på namnet.
+
 En **token** på Ethereum är ett kontrakt som håller ett eget saldo för varje adress. USDT, USDC och tusentals andra är
 tokens. Standarden heter **ERC-20**.
 
@@ -10,6 +15,8 @@ symbolen, bara på **kontraktets adress**. Riktig USDT på Ethereum är kontrakt
 symbol men ett annat kontrakt visas med sin egen adress och får aldrig USDT:s märke eller utgivare.
 
 ## Händelsen Transfer
+
+![Kontraktet (rutan) håller en rad per adress. En överföring flyttar ett belopp från en rad till en annan: det streckade är det som lämnade den översta raden, och accenten det som kom till den nedersta.](figur:erc20-kontrakt)
 
 När en token flyttas skriver kontraktet en händelse i tx:ens logg: `Transfer(från, till, belopp)`. Händelsen är
 **kontraktets eget besked** om sin bokföring. För USDT och USDC är det utgivarens kontrakt; ett okänt kontrakt kan

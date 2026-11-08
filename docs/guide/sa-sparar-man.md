@@ -1,7 +1,13 @@
 # Så spårar man i Chainsaw
 
+> **Som i vardagen:** Att spåra kryptovalutor är som att följa fotspår i snö. Spåren syns för alla och går inte att
+> sudda ut, men de säger inte vem som gick. Man följer dem steg för steg tills de går in genom en dörr där någon vet
+> vem som kom in, oftast en börs, som har sina kunders namn.
+
 Kryptospårning i en utredning handlar oftast om en sak: att följa pengarna till den punkt där någon tar ut dem,
 oftast en börs. Där finns någon som kan svara på vem det var. Chainsaw följer ärendets gång i fem steg.
+
+![Spåret börjar i startpunkten (flaggan), följer offrets pengar (accent) hopp för hopp förbi andras pengar (grått) och slutar helst i en börs (blå) med uttag funnet (bocken), dit en begäran om uppgifter kan gå.](figur:sa-sparar-man-flode)
 
 ## 1. Ett ärende
 

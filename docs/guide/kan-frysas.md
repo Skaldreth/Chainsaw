@@ -1,10 +1,16 @@
 # Kan frysas
 
+> **Som i vardagen:** Ett presentkort kan spärras av butiken som gav ut det, var kortet än ligger. På samma sätt kan
+> utgivaren av USDT och USDC spärra en adress i sin bokföring, så att det som ligger där inte går att flytta, oavsett
+> vilken plånbok eller börs adressen hör till.
+
 **USDT** (Tether) och **USDC** (Circle) är tokens vars utgivare kan **frysa** dem: kontraktet har en spärrlista, och
 en adress på listan kan inte flytta sina tokens. Utgivarna fryser på begäran, ofta snabbt, och det gäller oavsett
 vilken plånbok eller börs adressen hör till.
 
 ## Snöflingan
+
+![USDT har kommit till adressen i mitten och en del ligger kvar, så den får en snöflinga. Utgivaren (uppe till höger) kan spärra det som ligger kvar; den prickade linjen visar vem som kan det, inte att något är fryst.](figur:kan-frysas)
 
 En adress där USDT eller USDC **ligger kvar** får en liten **snöflinga** i hörnet. Inspektören listar saldot per token
 och säger vem som är utgivare. Har adressen skickat vidare allt finns det inget att frysa, och då står ingen

@@ -1,5 +1,9 @@
 # Peel chain
 
+> **Som i vardagen:** Tänk på en lök som skalas ett lager i taget, eller en salami som skivas: varje gång går en tunn
+> skiva iväg, och det mesta ligger kvar och skivas igen. Den som vill flytta en stor summa utan att det syns skickar
+> den inte på en gång, utan skalar av lite åt gången, ofta till en börs, och skickar resten vidare till en ny adress.
+
 En **peel chain** är ett vanligt sätt att flytta ett stort belopp i små delar. Varje steg (hopp) är en tx med:
 
 - **en input:** det som är kvar sedan förra hoppet;
@@ -13,6 +17,8 @@ En **peel chain** är ett vanligt sätt att flytta ett stort belopp i små delar
 ```
 
 Den stora outputen är **växeln**: samma ägare som hoppets input. De små är **betalningar** till andra.
+
+![En trappa: den tjocka linjen går ner steg för steg och blir lite tunnare för varje hopp, när en tunn skiva skalas av uppåt. Skivorna går ofta till en börs (blå) eller till okända mottagare.](figur:peel-trappa)
 
 ## Hur Chainsaw känner igen den
 

@@ -1,11 +1,17 @@
 # Grafen och bildspråket
 
+> **Som i vardagen:** Grafen är som en tunnelbanekarta. Den visar inte hur staden ser ut, bara vilka stationer som
+> hänger ihop och hur man tar sig mellan dem. Formen och färgen på en station säger vad den är, och linjens tjocklek
+> hur mycket pengar som gick den vägen. Kartans teckenförklaring finns bakom *?* i grafens hörn.
+
 Grafen är där spåret följs. Varje **nod** är en aktör pengarna passerar: en adress, ett kluster av adresser med samma
 ägare, en tx med flera ägare (till exempel en CoinJoin) eller en tx på en annan kedja. Varje **linje** är pengar som
 gick från en aktör till en annan, summerade per par.
 
 Grafen visar så lite text som möjligt. Det mesta syns i **form, färg, ikon och linje**, och resten visas när du håller
 pekaren över något eller väljer det. Hela bildspråket finns också bakom *?* i grafens nedre hörn.
+
+![Överst formen och färgen: en okänd aktör (rund, grå), ett offer (rund, accent), en börs (blå), spel (gult), en mixer (rött) och en annan kedja (lila). Underst linjerna: tjock i accent är mycket av offrets pengar, tunn grå är andras pengar, och streckat är alltid osäkert.](figur:grafen-bildsprak)
 
 ## Formen säger vad det är
 
@@ -15,7 +21,7 @@ pekaren över något eller väljer det. Hela bildspråket finns också bakom *?*
 
 ## Färgen säger vad som händer med pengarna
 
-- **Magenta (accenten):** offrets pengar och offret, som är en etikett du sätter. Accenten betyder också det du har
+- **Terrakotta (accenten):** offrets pengar och offret, som är en etikett du sätter. Accenten betyder också det du har
   valt.
 - **Blått: uttag.** Här lämnar pengarna kedjan och här kan man begära uppgifter: börs, börs utan kundkontroll (streckad
   ram, eftersom det är tveksamt att en begäran ger något), nästlad tjänst, OTC och P2P, kryptoautomat och kryptokort.
@@ -31,7 +37,7 @@ etikett är en adress okänd och ett kluster ett kluster, också startpunkten.
 
 En startpunkt behåller sin sort: en okänd adress är rund och grå, ett kluster fyrkantigt. Bara en **liten flagga uppe
 till vänster** säger att spåret började här, eftersom startpunkten lika gärna kan vara den misstänktes plånbok som
-offrets. Är någon ett offer sätter du etiketten *Offer*, som gör noden magenta.
+offrets. Är någon ett offer sätter du etiketten *Offer*, som ger noden accentfärgen.
 
 ## Namnen
 

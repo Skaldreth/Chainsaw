@@ -1,5 +1,10 @@
 # Spårningsmetoder: FIFO och haircut
 
+> **Som i vardagen:** Häll ett glas saft och ett glas vatten i samma kanna och fyll sedan tre nya glas. Hur mycket saft
+> finns i varje glas? Det beror på hur man tänker. Rörs kannan om innehåller varje glas lika stor andel saft: det är
+> **haircut**. Hälls vätskorna i lager utan att blandas, så att det som kom in först också hälls ut först, hamnar all
+> saft i några av glasen och inget i de andra: det är **FIFO**. Kedjan säger inte vilket som hände, så det är ett val.
+
 När pengar går in i en tx tillsammans med andra pengar säger kedjan **inte** vems satoshi som gick vart. En tx har
 bara inputs och outputs; den har ingen koppling mellan en viss input och en viss output. Hur mycket av offrets pengar
 som följer med genom en tx är därför en **regel**, inte ett faktum. Regeln kallas spårningsmetod.
@@ -18,6 +23,8 @@ Exempel: inputs 0,3 BTC (någon annans) och 0,7 BTC (offrets), en output på 0,9
 - Outputen är 0 till 0,99, så den får offrets pengar från 0,3 till 0,99, alltså 0,69 BTC.
 - Avgiften är 0,99 till 1,0, och den är helt offrets: 0,01 BTC går till mineraren.
 
+![Överst ligger inputs på en linje: 0,3 BTC någon annans (grått) och 0,7 BTC offrets (accent). Underst klipps outputen och avgiften ur samma linje. Offrets del hamnar där den låg: 0,69 BTC i outputen och 0,01 BTC i avgiften längst till höger.](figur:sparning-fifo)
+
 Pengarna **behåller sin plats** genom nästa tx, så pengar som kom in tillsammans går ut tillsammans. Därför ger FIFO
 skarpa svar: en output har ofta antingen allt eller inget av det spårade.
 
@@ -31,6 +38,8 @@ Exempel: inputs 0,6 BTC (offrets) och 0,4 BTC, outputs 0,5 och 0,4 BTC och avgif
 - 60 % av 0,5 = 0,3 BTC.
 - 60 % av 0,4 = 0,24 BTC.
 - 60 % av avgiften 0,1 = 0,06 BTC.
+
+![Haircut som färg i vatten: offrets pengar (accent) och andras (grått) hälls ihop i tx:en och blandas. Varje output får samma andel, och avgiften (det streckade glaset) också.](figur:sparning-haircut)
 
 Haircut tappar aldrig spåret, men pengarna **tunnas ut** över alla vägar de kan ha tagit. Den passar när man vill se
 allt som kan vara berört, och visar sämre var huvuddelen tog vägen.
@@ -47,6 +56,8 @@ Oavsett metod går summan alltid jämnt ut, på satoshin:
   började spåra. Chainsaw kontrollerar det och vägrar visa ett spår som inte går ihop.
 
 ## Vilken ska jag välja?
+
+![Samma tx med båda metoderna. Till vänster FIFO: offrets pengar följer med i sin helhet till den ena outputen, och den andra får inget. Till höger haircut: båda outputs får en del, och spåret tunnas ut.](figur:sparning-jamforelse)
 
 - **FIFO** när du vill följa huvuddelen av pengarna, till exempel mot den börs där de togs ut.
 - **Haircut** när du vill se allt som kan vara berört, till exempel inför en bevakning.

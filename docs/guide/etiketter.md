@@ -1,5 +1,9 @@
 # Etiketter och varifrån de kommer
 
+> **Som i vardagen:** En etikett är som namnskylten på en brevlåda. Den säger vem som bor där, men vem som helst kan ha
+> satt upp den, och den kan vara gammal. Därför står det alltid på etiketten vem som satte den, när och varför, och
+> två skyltar från olika håll som säger samma sak väger tyngre än en.
+
 En **etikett** säger vad en adress eller ett kluster är: en börs, en mixer, ett casino, ett offer. Etiketterna är det
 som gör en graf av adresser till en berättelse om pengar, och det är oftast en etikett som säger att spåret har nått
 en börs och att en begäran om uppgifter kan skickas.
@@ -23,7 +27,7 @@ ingen etikett har ändrats i efterhand. Att ta tillbaka en etikett går inte att
 Välj en adress eller ett kluster och tryck **L** (eller *Etikett* i inspektören). Du anger namn, sort, källa och skäl,
 och kan slå på *Sprid inte*. En etikett på ett kluster sätts på klustret, en på en adress på adressen. Källan
 *Beställningen* och *Svar från börs* är din egen bedömning ur ett dokument, och står först i skälet; en *öppen källa*
-får sitt namn och dagen du läste den som version. Etiketten *Offer* är det som gör en nod magenta: startpunkten är aldrig
+får sitt namn och dagen du läste den som version. Etiketten *Offer* är det som ger en nod accentfärgen: startpunkten är aldrig
 ett offer av sig själv. En etikett som redan kom från ett annat ärende och som du sätter igen blir ett eget ursprung,
 och två oberoende ursprung visas som bekräftelse.
 
@@ -70,6 +74,8 @@ att en träff alltid kan kontrolleras mot exakt den fil den kom från.
 
 Det du har lärt dig i ett ärende ska inte behöva läras igen i nästa. Därför finns ett **etikettbibliotek** på datorn,
 krypterat med en nyckel ur valvet:
+
+![En etikett som sätts i ett ärende (till vänster) läses in i biblioteket på datorn (mitten) och följer med in i nästa ärende som öppnas (till höger), märkt från ett annat ärende.](figur:etiketter-smittar)
 
 - När ett ärende öppnas läses dess etiketter in i biblioteket, också när det är en kollegas fil.
 - Biblioteket ger tillbaka: adresser i ärendet som har en etikett i biblioteket får den, märkt **från ett annat ärende**.

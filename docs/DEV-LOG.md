@@ -2652,3 +2652,22 @@ Geometrin står utan WPF i `Graph/TimeAxis.cs`, `Graph/TimeBands.cs`, `Graph/Tim
 - **Historik (AN1b):** runda markörer på 18 px, tiden i svag text, *Ta tillbaka*/*Ångra* som piller under raden (accentens
   ram när formuläret är öppet), och formuläret utan egen ruta. Klustringens slutsatser är nedtonade som fakta.
 - 10 nya tester i `InspectorContentTests`; tre tester ändrade (*Sort* och *Kedja* står nu i raden under rubriken).
+
+## Guidens figurer och analogier, spalten centrerad (2026-11-08)
+
+- **Spalten centrerad:** vyn Guide håller textspalten (högst 620 px) mitt i ytan till höger om förteckningen; texten i
+  den är vänsterställd. Panelen (GD1b) fyller sin bredd som förut.
+- **Figurer:** `![Bildtext](figur:<id>)` på en egen rad blir `GuideFigure`, ritad av `GuideDocumentView` ur
+  `DrawingImage` med nyckeln `Figure.<id>` i `Themes/GuideFigures.xaml` (25 figurer). Nya avsnitts figurer läggs i
+  `Themes/GuideFigures.Sections.xaml` (tom, sammanfogad i `App.xaml`). En figur är högst 560 px och krymper i panelen.
+  En okänd figur visar en streckad ram och *Bilden saknas*, aldrig ett fel. Bildtexten får innehålla länkar.
+- **Figurerna är utan ord** (princip 7): form, färg och linje som i grafen, och bildtexten säger vad de visar. De är
+  ritade med ett skript i sessionens scratchpad (inte incheckat) och provritade i Chromium före; vill man ändra en
+  figur ändras XAML direkt.
+- **Analogier:** `> **Som i vardagen:** …` blir `GuideAnalogy`, ritad som en ruta på upphöjd yta med en glödlampa
+  (`Icon.Suggest`) i sandtonen (`Brush.Area.Sand`), inte i accenten, som betyder offrens pengar. Alla avsnitt utom
+  *Mixerns troliga utgångar* (en annan agents) börjar med en. Etikettexterna sa *magenta*; ändrat till accentfärgen.
+- **Återstår:** *Mixerns troliga utgångar* saknar analogi och figur. Figurer i *Startpunkter* och *Kontroller och
+  förslag* tillfördes inte (texten räcker). Kryptospåraren bör titta på analogierna.
+- Tester: `ReadsFigures`, `ReadsAnalogies`, `EveryFigureIsDrawn` (varje figur som en text nämner finns som nyckel i
+  `GuideFigures*.xaml`), `SectionsOpenWithAnAnalogy` (21 fall) och `ViewAndPanelShowTheFigures`.

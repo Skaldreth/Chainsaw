@@ -1,5 +1,10 @@
 # Områden i grafen
 
+> **Som i vardagen:** Som när man stryker under med överstrykningspenna på en karta: stadsdelar, ett område man ska
+> hålla ögonen på, en egen anteckning. Kartan är densamma, men färgen bakom visar vad som hör ihop.
+
+![Områden ligger svagt bakom aktörerna. Streckad kant är ett förslag (plånboken till vänster), hel kant en kontroll (mixern i mitten), och en yta med en liten person på kanten är din egen bedömning (till höger).](figur:omraden)
+
 Ett **område** är en svag yta bakom aktörer som hör ihop. Det visar var något händer utan att skriva det i grafen:
 färgen säger vad, kanten hur säker bedömningen är, och en liten bricka med en ikon sitter på kanten. Namnet visas när
 du håller pekaren över brickan eller väljer den.

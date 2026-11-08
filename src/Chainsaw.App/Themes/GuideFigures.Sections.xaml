@@ -1,0 +1,9 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+      The figures of the Guide's newer sections, kept apart from GuideFigures.xaml so that the two can be written side
+      by side. The same rules: a DrawingImage with the key Figure.<id>, written in a text as ![Bildtext](figur:<id>),
+      at most 560 wide, in the theme's colours and the graph's visual language, without words.
+    -->
+</ResourceDictionary>

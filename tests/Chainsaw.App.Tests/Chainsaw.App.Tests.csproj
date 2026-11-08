@@ -46,6 +46,9 @@
   <!-- The Guide's texts, built in as in the program, so that the tests read what the program shows. -->
   <ItemGroup>
     <EmbeddedResource Include="..\..\docs\guide\*.md" LogicalName="Chainsaw.App.Guide.%(Filename).md" />
+    <!-- The Guide's figures, so that the tests can see that every figure a text names is drawn. -->
+    <EmbeddedResource Include="..\..\src\Chainsaw.App\Themes\GuideFigures*.xaml"
+                      LogicalName="Chainsaw.App.Tests.Figures.%(Filename).xaml" />
     <EmbeddedResource Include="..\..\THIRD_PARTY.md" LogicalName="Chainsaw.App.Licenses.md" />
   </ItemGroup>
 </Project>
