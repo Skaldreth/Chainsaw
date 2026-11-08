@@ -64,7 +64,7 @@ public sealed class TestCaseStoryTests : IDisposable
 
         var changes = await _harness.Get<IBitcoinSource>().GetBlockChangesAsync(@case);
 
-        var change = Assert.Single(changes, each => each.Txid == txid);
+        var change = Assert.Single(changes, each => each.TransactionId == txid.Value);
         Assert.Equal(BlockChangeKind.Moved, change.Kind);
         Assert.Equal(change.Before.Height, change.Now.Height);
         Assert.NotEqual(change.Before.Hash, change.Now.Hash);

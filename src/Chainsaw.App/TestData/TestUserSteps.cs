@@ -54,7 +54,7 @@ public sealed record ReorganisationStep(string Transaction, TestAddress Receiver
         await bitcoin.GetTransactionAsync(run.Case, run.TxidOf(Transaction), cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         var changes = await bitcoin.GetBlockChangesAsync(run.Case, cancellationToken).ConfigureAwait(false);
-        if (!changes.Any(change => change.Txid == run.TxidOf(Transaction)))
+        if (!changes.Any(change => change.TransactionId == run.TxidOf(Transaction).Value))
         {
             run.Note($"Blocket för {Transaction} syns inte som bytt.");
         }
