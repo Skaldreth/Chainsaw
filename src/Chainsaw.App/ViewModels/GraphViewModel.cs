@@ -378,11 +378,8 @@ public sealed partial class GraphViewModel : ObservableObject
     [ObservableProperty]
     public partial string Notice { get; private set; } = string.Empty;
 
-    /// <summary>Gets the sorts of the legend behind the <em>?</em>.</summary>
-    public IReadOnlyList<SortLook> LegendSorts => VisualLanguage.Sorts;
-
-    /// <summary>Gets the marks of the legend behind the <em>?</em>.</summary>
-    public IReadOnlyList<BadgeLook> LegendBadges => VisualLanguage.Badges;
+    /// <summary>Gets the legend behind the <em>?</em> (sketch GR7a).</summary>
+    public LegendViewModel Legend { get; } = new();
 
     /// <summary>Gets what is near what is chosen, which the view draws clearly while the rest is faint.</summary>
     /// <remarks>While the list of checks is open, the chosen row's actors are near instead (sketch KF1a).</remarks>
@@ -525,6 +522,16 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Shows or hides the legend behind the <em>?</em>.</summary>
     [RelayCommand]
     public void ToggleLegend() => IsLegendOpen = !IsLegendOpen;
+
+    /// <summary>Lets a closed legend open with its rule, not with what was hovered last.</summary>
+    /// <param name="value">Whether the legend is shown.</param>
+    partial void OnIsLegendOpenChanged(bool value)
+    {
+        if (!value)
+        {
+            Legend.Reset();
+        }
+    }
 
     /// <summary>
     /// <em>Varför?</em>: asks for the Guide with the answers for what is chosen at the top, opened at the section and

@@ -60,12 +60,6 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <summary>How faint a line is that carries none of the traced money.</summary>
     private const double UntracedLineOpacity = 0.7;
 
-    /// <summary>The short dashes of an uncertain line, in pixels on the screen (sketch GR3a: 2 5).</summary>
-    private static readonly double[] UncertainDashPixels = [2, 5];
-
-    /// <summary>The long dashes of a line to another chain, in pixels on the screen (sketch GR3a: 7 5).</summary>
-    private static readonly double[] OtherChainDashPixels = [7, 5];
-
     /// <summary>The lines' dashes made so far, by pattern and width, so that each is made and frozen once.</summary>
     private static readonly Dictionary<(EdgeDash Dash, double Width), DashStyle> LineDashes = [];
 
@@ -73,7 +67,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     private const double DashWidthStep = 0.25;
 
     /// <summary>The dashes of a frame that is uncertain or ends the trail.</summary>
-    private static readonly DashStyle FrameDash = Frozen(new DashStyle([3, 2], 0));
+    private static readonly DashStyle FrameDash = Frozen(new DashStyle(GraphDashes.Frame, 0));
 
     /// <summary>The view model, once attached.</summary>
     private GraphViewModel? _model;
@@ -602,29 +596,23 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <summary>
     /// Gives a line's dashes. WPF measures dashes in multiples of the pen's thickness, so a fixed pattern grows with
     /// the line and a thick line got long, heavy dashes; the sketch's pattern is in pixels, so it is divided by the
-    /// width here. The round caps add the width to each dash, as in the sketch's SVG.
+    /// width (<see cref="GraphDashes.ForLine"/>). The round caps add the width to each dash, as in the sketch's SVG.
     /// </summary>
     /// <param name="dash">The pattern.</param>
     /// <param name="width">The line's width in pixels.</param>
     /// <returns>The frozen dashes.</returns>
     private static DashStyle LineDash(EdgeDash dash, double width)
     {
-        var pixels = dash switch
-        {
-            EdgeDash.Uncertain => UncertainDashPixels,
-            EdgeDash.OtherChain => OtherChainDashPixels,
-            _ => null,
-        };
-        if (pixels is null || width <= 0)
+        // Widths are rounded to a quarter pixel, so that the cache holds a few styles and not one per amount.
+        var rounded = Math.Max(DashWidthStep, Math.Round(width / DashWidthStep) * DashWidthStep);
+        if (width <= 0 || GraphDashes.Pixels(dash) is null)
         {
             return DashStyles.Solid;
         }
 
-        // Widths are rounded to a quarter pixel, so that the cache holds a few styles and not one per amount.
-        var rounded = Math.Max(DashWidthStep, Math.Round(width / DashWidthStep) * DashWidthStep);
         if (!LineDashes.TryGetValue((dash, rounded), out var style))
         {
-            style = Frozen(new DashStyle(pixels.Select(length => length / rounded), 0));
+            style = Frozen(new DashStyle(GraphDashes.ForLine(dash, rounded)!, 0));
             LineDashes[(dash, rounded)] = style;
         }
 

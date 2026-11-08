@@ -40,15 +40,24 @@ public static class GraphPalette
     /// <param name="owner">The element whose resources are searched.</param>
     /// <param name="badge">The mark.</param>
     /// <returns>The disc's brush and the icon's.</returns>
-    public static (Brush Disc, Brush Icon) Mark(FrameworkElement owner, NodeBadge badge) => badge switch
+    public static (Brush Disc, Brush Icon) Mark(FrameworkElement owner, NodeBadge badge)
     {
-        NodeBadge.CashOutFound => (Find(owner, "Brush.Kind.CashOut"), Find(owner, "Brush.Mark.OnCashOut")),
-        NodeBadge.Sanctioned => (Find(owner, "Brush.Kind.Sanctioned"), Find(owner, "Brush.Mark.OnSanctioned")),
-        NodeBadge.StartPoint => (Find(owner, "Brush.Mark.Start"), Find(owner, "Brush.Background")),
-        NodeBadge.CanBeFrozen => (Find(owner, "Brush.Mark.Freeze"), Find(owner, "Brush.Mark.OnFreeze")),
-        NodeBadge.Watched => (Find(owner, "Brush.Accent"), Find(owner, "Brush.Mark.OnAccent")),
-        NodeBadge.Reported => (Find(owner, "Brush.Kind.Risk"), Find(owner, "Brush.Mark.OnSanctioned")),
-        _ => (Find(owner, "Brush.Mark.OtherCase"), Find(owner, "Brush.Text")),
+        var (disc, icon) = MarkKeys(badge);
+        return (Find(owner, disc), Find(owner, icon));
+    }
+
+    /// <summary>Gives the resource keys of a mark's disc and of the icon on it.</summary>
+    /// <param name="badge">The mark.</param>
+    /// <returns>The disc's key and the icon's.</returns>
+    public static (string Disc, string Icon) MarkKeys(NodeBadge badge) => badge switch
+    {
+        NodeBadge.CashOutFound => ("Brush.Kind.CashOut", "Brush.Mark.OnCashOut"),
+        NodeBadge.Sanctioned => ("Brush.Kind.Sanctioned", "Brush.Mark.OnSanctioned"),
+        NodeBadge.StartPoint => ("Brush.Mark.Start", "Brush.Background"),
+        NodeBadge.CanBeFrozen => ("Brush.Mark.Freeze", "Brush.Mark.OnFreeze"),
+        NodeBadge.Watched => ("Brush.Accent", "Brush.Mark.OnAccent"),
+        NodeBadge.Reported => ("Brush.Kind.Risk", "Brush.Mark.OnSanctioned"),
+        _ => ("Brush.Mark.OtherCase", "Brush.Text"),
     };
 
     /// <summary>Finds a brush, or a neutral grey if the theme lacks it, so that drawing never fails.</summary>

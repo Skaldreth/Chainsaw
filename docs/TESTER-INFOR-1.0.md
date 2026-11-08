@@ -406,8 +406,16 @@ offline och se att det sägs ärligt). Grafen är förstavyn.
   streckad. Beloppet står mitt på linjen, *0,1570 av 0,2400* när bara en del är spårad.
 - Knappen *Alla belopp* växlar till *Spårade belopp* (bara magenta linjer har belopp) och *Inga belopp*. Håll pekaren
   över en linje: beloppet visas ändå. Välj en nod: bara linjerna runt den har belopp.
-- *?* nere till höger öppnar bildspråket: sorterna med ikon och färg, markeringarna och linjerna, och en länk till
-  Guiden. Hovring över *?* visar grafens tangenter.
+- *?* nere till höger öppnar bildspråket (GR7a), en ruta på 600 px ovanför knappen: en rad per färg (*Offrens pengar*,
+  *Uttag*, *Spenderas*, *Risk, slut*, *Annan kedja*, *Okänt*) med en prick och sorterna som små noder i rätt form och
+  färg (Utan KYC, Mixer, CoinJoin, Swap och Annan kedja streckade; Offer, Okänd, CoinJoin och Mynt runda), under en
+  tunn linje *Form*, *Markering* och *Linje · tjock är mycket* i tre kolumner, och längst ner regeln *Formen säger vad
+  det är, färgen vad det betyder.* med *Guiden F1* till höger. Inga sorter radbryts och inga namn klipps (*Etikett från
+  ett annat ärende* får plats). Markeringarna ser ut som i grafens hörn, de streckade linjerna har samma streck som på
+  ytan. Hovring över *?* visar grafens tangenter.
+- Hovra en färg, en sort, en form, en markering eller en linje: den får en mjuk yta, och raden längst ner byter till
+  dess namn och förklaring i ljus text; när pekaren lämnar kommer regeln tillbaka. Stäng och öppna rutan: regeln står
+  där igen. *Guiden F1* blir ljus vid hovring, har pekhand och öppnar Guiden vid *Grafen och bildspråket*.
 
 **Fri yta och hoppkolumner**
 - Dra noder åt alla håll på den fria ytan. Växla till hoppkolumner (ikonen med fyra streck): noderna glider in i
@@ -429,7 +437,7 @@ offline och se att det sägs ärligt). Grafen är förstavyn.
 
 **Efter granskningen**
 - Ett klick på en nod eller linje väljer den (inspektören fylls); ett drag flyttar noden och sparas en gång.
-- Växelns två ikoner och länken *Guiden: Grafen och bildspråket* i legenden är klickbara direkt när vyn visas (inte
+- Växelns två ikoner och *Guiden F1* i bildspråket är klickbara direkt när vyn visas (inte
   tonade).
 - Håll pekaren över en nod: ett verktygstips med sort, markeringar och om den är expanderad; flytta till en annan
   nod: tipset byter innehåll.
@@ -532,7 +540,7 @@ Rutan under utgången provas under *Utgångsrutan (UT2b)*.
   väljer inget, som förut.
 - Högerklicka på *FIFO* i grafens hörn: panelen öppnas vid *FIFO (först in, först ut)* med det spårade överst. Ett
   vanligt klick byter fortfarande metod. Efter byte till haircut: högerklick öppnar vid *Haircut (andel)*.
-- *?* nere till höger visar bildspråket; länken *Guiden: Grafen och bildspråket* stänger bildspråket och öppnar
+- *?* nere till höger visar bildspråket; *Guiden F1* längst ner i rutan stänger bildspråket och öppnar
   panelen vid avsnittets början. Med panelen redan öppen blir det ett steg, och pilen går tillbaka.
 - Byt vy i pillret: panelen stängs. Öppna eller stäng ett ärende: panelen stängs.
 - Svarsrutan står kvar överst medan avsnittet under den rullar till den markerade rubriken; ett långt svar (ett
