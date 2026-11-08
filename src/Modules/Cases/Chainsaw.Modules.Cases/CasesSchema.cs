@@ -12,7 +12,7 @@ internal sealed class CasesSchema : ICaseSchemaContributor
 
     /// <summary>The journal, sealed like every other sealed table.</summary>
     public static readonly SealedChain Journal = new(
-        "cases.journal",
+        CaseChains.Journal,
         "journal",
         [
             "utc", "local", "time_zone", "operator_name", "operator_title", "operator_organization",

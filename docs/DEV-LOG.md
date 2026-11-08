@@ -3398,3 +3398,23 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
   försegling, journal, topphash, återöppning) och 23 i `ReportTests` i App.Tests (spåren ur scenen, offrets och
   rapportens namn, kluster, bilden, vymodellen, exporten, pillret).
 
+## Granskningen av RP1b rättad (2026-11-08)
+
+- **I1:** kronvärdet räknas på den spårade delen, inte hela linjen: varje linjes spårade andel av dess spårade
+  överföringar, var och en till ärendets kurs vid sin tid (`IPriceService`, bara ur ärendet, aldrig ut). Saknas en
+  kurs, en tid eller blandas valutor blir värdet `null`. Andelen antas lika för linjens överföringar (en bedömning).
+- **I2 och M2:** ett spår är delgrafen av följda linjer som leder till slutet (`ReportTrails`): alla starter, grenar och
+  pengar som vänder står med, och *Spårat* summeras per tillgång över alla linjer in i slutet. Ett slut är en
+  markerad aktör där pengarna lämnar kedjan eller spåret slutar, eller som pengarna bara går vidare från till aktörer
+  som skickar tillbaka; av aktörer som pengarna cirkulerar mellan står den första för alla.
+- **I3a:** topphashen är SHA-256 över de sorterade raderna `kedja:sekvens:hash` för alla förseglade kedjor ur
+  `ICaseVerifier`, med antalet kedjor och journalens rad. **I3b:** *inte kontrollerad* (ingen kontroll) skiljs från
+  *bruten* (`LedgerBroken`); ett sunt ärende utan journalkedja ger `CaseError.Corrupt`.
+- **M1:** har journalen vuxit mellan kontrollen och sigillet rullas exporten tillbaka, filen tas bort och den görs om
+  (högst tre gånger; den sista förseglas ändå, eftersom filen är sann för den rad den nämner). Kontrollen läser bara
+  journalens sekvens i transaktionen, så en kedja som växer utan journalrad fångas inte.
+- **M3:** steg vars överföring inte kan sägas spårad märks *(ej spårad)*. **M4:** `CaseChains.Journal` i
+  Cases.Contracts. **M5:** rapporten byggs och topphashen kontrolleras bara när vyn visas. **M6:** exporten skriver det
+  utkast som den visade rapporten gjordes av. **M8:** tester för två starter, romb, cykel, värdet, saknad kurs, ospårade
+  steg, flera tillgångar, topphashen, bruten och saknad kedja, ny export efter en ändring, dold vy och visat utkast.
+- **M7** (operatören i huvudet) står kvar som i Begäran.

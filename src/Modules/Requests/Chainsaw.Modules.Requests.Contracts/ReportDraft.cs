@@ -29,7 +29,7 @@ public enum ReportPart
     /// <summary>The traced amounts in SEK at the rate when the money moved.</summary>
     Sek,
 
-    /// <summary>The top hash of the case's hash chain, checked before the export.</summary>
+    /// <summary>The top hash over every sealed chain of the case, checked before the export.</summary>
     Ledger,
 }
 
@@ -79,28 +79,42 @@ public sealed record ReportStep(
     public string Transaction { get; } = string.IsNullOrWhiteSpace(Transaction)
         ? throw new ArgumentException("A step names its transaction.", nameof(Transaction))
         : Transaction;
+
+    /// <summary>
+    /// Gets whether the trace holds traced money in this transfer; <see langword="false"/> when the line carries traced
+    /// money but no single transfer on it can be told traced, so that the report marks it (a conclusion either way).
+    /// </summary>
+    public bool IsTraced { get; init; } = true;
 }
 
 /// <summary>
-/// A trail in a report: from an actor marked in the graph to where the money leaves the chain, or to where the trail
-/// ends, along traced money. The traced amount is a conclusion by the method (principle 2).
+/// A trail in a report: every line of traced money between the actors marked in the graph that leads to one end, where
+/// the money leaves the chain or the trail ends, with all its starts, branches and money that turns back. The traced
+/// amount is a conclusion by the method (principle 2).
 /// </summary>
-/// <param name="From">The start, as the report may name it.</param>
+/// <param name="From">The starts, as the report may name them, for example <c>bc1q…a8f3, bc1q…r2mv</c>.</param>
 /// <param name="To">The end, as the report may name it.</param>
 /// <param name="End">What the end is.</param>
-/// <param name="Steps">The transfers along the trail, in its order; at least one.</param>
-/// <param name="Traced">How much of the traced money reached the end, or <see langword="null"/> when unknown.</param>
+/// <param name="Steps">The transfers along the trail, in time order; at least one.</param>
+/// <param name="Traced">
+/// How much of the traced money reached the end, one amount per asset, summed over every line into it; empty when
+/// unknown.
+/// </param>
 public sealed record ReportTrail(
-    string From, string To, ReportTrailEnd End, IReadOnlyList<ReportStep> Steps, AssetAmount? Traced)
+    string From, string To, ReportTrailEnd End, IReadOnlyList<ReportStep> Steps, IReadOnlyList<AssetAmount> Traced)
 {
     /// <summary>Gets the transfers along the trail.</summary>
     public IReadOnlyList<ReportStep> Steps { get; } = Steps is { Count: > 0 }
         ? Steps
         : throw new ArgumentException("A trail has at least one step.", nameof(Steps));
 
+    /// <summary>Gets how much of the traced money reached the end, per asset.</summary>
+    public IReadOnlyList<AssetAmount> Traced { get; } = Traced ?? throw new ArgumentNullException(nameof(Traced));
+
     /// <summary>
-    /// Gets what the traced amount was worth when it moved, for example <c>≈ 263 100 kr</c>, by the rates in the case;
-    /// <see langword="null"/> when the case has no rate for it, which the report then does not make up.
+    /// Gets what the traced amount was worth when it moved, for example <c>≈ 263 100 kr</c>: each line's traced share
+    /// at the rate of its transfers' time in the case; <see langword="null"/> when a rate is missing for any of them,
+    /// which the report then does not make up.
     /// </summary>
     public string? Value { get; init; }
 
@@ -133,14 +147,19 @@ public sealed record ReportConclusion(string Statement, string Why)
 public sealed record ReportLabel(string Text, string Source);
 
 /// <summary>
-/// The top of the case's hash chain as checked: the journal's last sealed line and its hash, and whether the whole
-/// case was found unchanged (what <c>/verify</c> runs).
+/// The top of the case's hash chains as checked (what <c>/verify</c> runs): one SHA-256 over every sealed chain's
+/// head, so that it anchors the journal and also the raw responses, rates, labels and every other sealed chain.
 /// </summary>
-/// <param name="Line">The journal's last sealed line that was found unbroken.</param>
-/// <param name="Hash">That line's hash in lower-case hex, or <see langword="null"/> when no line is unbroken.</param>
+/// <param name="Digest">
+/// The SHA-256, in lower-case hex, of the lines <c>chain:sequence:hash</c> of every sealed chain, sorted by the
+/// chain's name and joined by line feeds; an empty chain is written <c>chain:0:</c>.
+/// </param>
+/// <param name="Chains">How many sealed chains it covers.</param>
+/// <param name="JournalLine">The journal's last sealed line when it was checked.</param>
 /// <param name="CheckedUtc">When it was checked.</param>
-/// <param name="IsIntact">Whether every chain in the case was found unbroken.</param>
-public sealed record ReportLedger(long Line, string? Hash, DateTimeOffset CheckedUtc, bool IsIntact);
+/// <param name="IsIntact">Whether the case as a whole and every chain was found unbroken.</param>
+public sealed record ReportLedger(
+    string Digest, int Chains, long JournalLine, DateTimeOffset CheckedUtc, bool IsIntact);
 
 /// <summary>
 /// What a report is made from, built in the view Rapport out of what is marked in the graph (sketch RP1b): only the
@@ -178,7 +197,7 @@ public sealed record ReportDraft(
     public TimeZoneInfo TimeZone { get; } = TimeZone ?? throw new ArgumentNullException(nameof(TimeZone));
 
     /// <summary>
-    /// Gets the top of the hash chain as last checked, for the preview; an export checks it anew. <see langword="null"/>
+    /// Gets the top of the hash chains as last checked, for the preview; an export checks it anew. <see langword="null"/>
     /// while it has not been checked, which the report says honestly.
     /// </summary>
     public ReportLedger? Ledger { get; init; }

@@ -1781,6 +1781,10 @@ några steg).
 - *Exportera .md …* (eller Ctrl+S): filen sparas, en toast säger att den exporterats och journalförts, och filen står
   under förhandsvisningen med SHA-256 i verktygstipset. Exportera igen till samma namn: den nya filen får `(2)`.
 - Journalen har raden *Rapport exporterad som …* med SHA-256, och `/verify` är grön efteråt.
-- *Kontroll* i filen visar hashkedjans topphash vid journalraden före exporten.
+- *Kontroll* i filen visar en topphash över alla ärendets förseglade kedjor (och journalens rad) från precis före
+  exporten. Ett ärende där `/verify` hittar fel får texten *kontrollen fann ändringar*, aldrig *inga ändringar*.
+- Markera två offer som båda betalar till samma kluster och vidare till en börs: rapporten har ett spår med båda som
+  start, och *Spårat* är summan av allt som når börsen. Pengar som går tillbaka till en markerad aktör står med.
+- Belopp i SEK står bara när ärendet har en kurs för tiden när pengarna rörde sig, och då för den spårade delen.
 - *Ändra i grafen* och klicket på den lilla bilden går till grafen; ändra markeringen och gå tillbaka med Ctrl+8:
   rapporten följer med.

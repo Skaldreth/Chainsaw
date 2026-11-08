@@ -9,17 +9,21 @@ namespace Chainsaw.Modules.Requests.Contracts;
 /// </summary>
 /// <remarks>
 /// A report takes only what its draft holds: the trails with time, UTC, amount, transaction, block height and hash,
-/// the conclusions with why, the labels with their sources and the top hash of the hash chain, with the case number
+/// the conclusions with why, the labels with their sources and the top hash over the sealed chains, with the case number
 /// and the operator who made it. Never the victim's name, the case's title or its notes (principle 4). The methods are
 /// synchronous and touch the disk and the case; call them off the UI thread.
 /// </remarks>
 public interface IReportService
 {
-    /// <summary>Checks the case's hash chains and gives the journal's top, for the part <see cref="ReportPart.Ledger"/>.
+    /// <summary>
+    /// Checks the case's hash chains and gives their top, one SHA-256 over every sealed chain's head, for the part
+    /// <see cref="ReportPart.Ledger"/>. A case found broken gives a top that says so (<see cref="ReportLedger.IsIntact"/>).
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <returns>The top as checked.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Closed"/>.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Closed"/>, or <see cref="CaseError.Corrupt"/> when a sound case has no journal chain.
+    /// </exception>
     ReportLedger Check(ICase @case);
 
     /// <summary>Composes the report, as the preview shows it and the file will hold it.</summary>

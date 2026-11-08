@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Requests.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -22,7 +23,7 @@ internal static class ReportSamples
     public static ReportTrail Trail(ReportTrailEnd end = ReportTrailEnd.CashOut, string to = "Börs A") =>
         new("bc1q…a8f3", to, end,
             [Step("bc1q…a8f3", "bc1q…x0wl", TxA, 55_000_000, 14), Step("bc1q…x0wl", to, TxB, 25_000_000, 16)],
-            new AssetAmount(Asset.Bitcoin, 25_000_000))
+            [new AssetAmount(Asset.Bitcoin, 25_000_000)])
         {
             Value = "≈ 263 100 kr",
         };
@@ -157,24 +158,58 @@ public sealed class ReportTemplateTests
     }
 
     [Fact]
-    public void The_ledger_writes_the_top_hash_or_that_it_is_checked_at_export()
+    public void The_ledger_writes_the_top_hash_over_the_chains_or_that_it_is_checked_at_export()
     {
         var unchecked_ = Compose(ReportSamples.Draft());
-        var ledger = new ReportLedger(42, new string('e', 64), new(2026, 11, 8, 13, 36, 0, TimeSpan.Zero), true);
-        var broken = ledger with { IsIntact = false };
+        var ledger = new ReportLedger(new string('e', 64), 9, 42, new(2026, 11, 8, 13, 36, 0, TimeSpan.Zero), true);
 
         var checkedText = Compose(ReportSamples.Draft() with { Ledger = ledger });
 
         Assert.Contains("Hashkedjan kontrolleras när rapporten exporteras.", unchecked_, StringComparison.Ordinal);
         Assert.Contains(
-            "Hashkedjans topphash vid journalrad 42, kontrollerad 2026-11-08 14:36 (2026-11-08 13:36 UTC): "
-            + "inga ändringar.",
+            "Topphash över ärendets 9 förseglade kedjor (SHA-256 av kedja:sekvens:hash, sorterade efter kedjan), "
+            + "med journalen vid rad 42, kontrollerad 2026-11-08 14:36 (2026-11-08 13:36 UTC): inga ändringar.",
             checkedText,
             StringComparison.Ordinal);
         Assert.Contains("`" + new string('e', 64) + "`", checkedText, StringComparison.Ordinal);
-        Assert.Contains(
-            "kontrollen fann ändringar", Compose(ReportSamples.Draft() with { Ledger = broken }),
-            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_broken_case_is_said_so_and_never_taken_for_unchecked()
+    {
+        var broken = new ReportLedger(new string('e', 64), 9, 42, new(2026, 11, 8, 13, 36, 0, TimeSpan.Zero), false);
+
+        var text = Compose(ReportSamples.Draft() with { Ledger = broken });
+
+        Assert.Contains("kontrollen fann ändringar i ärendet", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("kontrolleras när rapporten exporteras", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("inga ändringar", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_step_not_told_traced_is_marked()
+    {
+        var step = ReportSamples.Step("A", "B", ReportSamples.TxA, 1_000, 14) with { IsTraced = false };
+        var trail = new ReportTrail("A", "B", ReportTrailEnd.Open, [step], []);
+
+        var markdown = Compose(ReportSamples.Draft(trails: [trail]));
+
+        Assert.Contains("A → B (ej spårad)", markdown, StringComparison.Ordinal);
+        Assert.Contains("FIFO v1, en bedömning", markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Traced_amounts_of_several_assets_are_written_together()
+    {
+        var usdt = Asset.Token(Chain.Ethereum, "0x2222222222222222222222222222222222222222", "USDT", 6);
+        var sample = ReportSamples.Trail();
+        var trail = new ReportTrail(
+            sample.From, sample.To, sample.End, sample.Steps,
+            [new AssetAmount(Asset.Bitcoin, 25_000_000), new AssetAmount(usdt, 1_200_000_000)]);
+
+        var markdown = Compose(ReportSamples.Draft(trails: [trail]));
+
+        Assert.Contains("0,25 BTC + 1200,00 USDT till Börs A", markdown, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -206,17 +241,57 @@ public sealed class ReportServiceTests
     }
 
     [Fact]
-    public void Check_gives_the_journals_top_hash()
+    public void Check_gives_one_hash_over_every_chains_head()
     {
         using var harness = new Harness();
 
         var ledger = harness.Reports.Check(harness.Case);
 
-        var journal = harness.Verify().Chains.Single(chain => chain.Chain == ReportService.JournalChain);
+        var verification = harness.Verify();
+        var lines = verification.Chains.OrderBy(chain => chain.Chain, StringComparer.Ordinal)
+            .Select(chain => $"{chain.Chain}:{chain.HeadSequence}:{chain.HeadHash}");
+        var expected = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', lines))));
         Assert.True(ledger.IsIntact);
-        Assert.Equal(journal.HeadSequence, ledger.Line);
-        Assert.Equal(journal.HeadHash, ledger.Hash);
+        Assert.Equal(expected, ledger.Digest);
+        Assert.Equal(verification.Chains.Count, ledger.Chains);
+        Assert.Contains(verification.Chains, chain => chain.Chain == RequestsSchema.ReportsChain);
+        Assert.Equal(
+            verification.Chains.Single(chain => chain.Chain == CaseChains.Journal).HeadSequence, ledger.JournalLine);
         Assert.Equal(harness.Clock.UtcNow, ledger.CheckedUtc);
+    }
+
+    [Fact]
+    public void The_top_changes_when_any_chain_grows()
+    {
+        using var harness = new Harness();
+        var before = harness.Reports.Check(harness.Case);
+
+        harness.Reports.Export(harness.Case, ReportSamples.Draft(), Path.Combine(harness.Exports, "r.md"));
+
+        Assert.NotEqual(before.Digest, harness.Reports.Check(harness.Case).Digest);
+    }
+
+    [Fact]
+    public void A_sound_case_without_its_journal_chain_is_an_error()
+    {
+        var verification = new CaseVerification(
+            DateTimeOffset.UnixEpoch, [], [new ChainVerification("requests.reports", 0, 0, null, null)]);
+
+        var error = Assert.Throws<CaseException>(() => ReportService.LedgerOf(verification));
+
+        Assert.Equal(CaseError.Corrupt, error.Error);
+    }
+
+    [Fact]
+    public void An_unsound_case_gives_a_broken_top_not_an_error()
+    {
+        var verification = new CaseVerification(
+            DateTimeOffset.UnixEpoch, [CaseProblem.DatabaseUnsound], []);
+
+        var ledger = ReportService.LedgerOf(verification);
+
+        Assert.False(ledger.IsIntact);
+        Assert.Equal(0, ledger.Chains);
     }
 
     [Fact]
@@ -253,9 +328,48 @@ public sealed class ReportServiceTests
         harness.Reports.Export(harness.Case, ReportSamples.Draft(), Path.Combine(harness.Exports, "r.md"));
 
         var text = File.ReadAllText(Path.Combine(harness.Exports, "r.md"), Encoding.UTF8);
-        Assert.Contains("`" + before.Hash + "`", text, StringComparison.Ordinal);
-        Assert.Contains("journalrad " + before.Line.ToString(System.Globalization.CultureInfo.InvariantCulture), text,
+        Assert.Contains("`" + before.Digest + "`", text, StringComparison.Ordinal);
+        Assert.Contains(
+            "journalen vid rad " + before.JournalLine.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            text,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Export_is_made_again_when_the_case_changed_after_the_check()
+    {
+        using var harness = new Harness();
+        var verifier = new WritingVerifier(harness.Verifier);
+        var reports = new ReportService(harness.Clock, harness.Profiles, verifier);
+
+        var export = reports.Export(harness.Case, ReportSamples.Draft(), Path.Combine(harness.Exports, "r.md"));
+
+        Assert.Equal(2, verifier.Calls);
+        Assert.Equal("r.md", export.FileName);
+        Assert.Single(Directory.GetFiles(harness.Exports));
+        var sealedLedger = reports.Check(harness.Case);
+        Assert.Equal(export.JournalSequence, sealedLedger.JournalLine);
+        var details = JsonDocument.Parse(Assert.Single(harness.Journal(RequestJournalKinds.ReportExported)).Details!);
+        Assert.Equal(export.JournalSequence - 1, details.RootElement.GetProperty("ledgerJournalLine").GetInt64());
+        Assert.True(harness.Verify().IsIntact);
+    }
+
+    /// <summary>A verifier that writes a line to the journal after its first check, as another part of Chainsaw may.
+    /// </summary>
+    private sealed class WritingVerifier(ICaseVerifier inner) : ICaseVerifier
+    {
+        public int Calls { get; private set; }
+
+        public CaseVerification Verify(ICase @case)
+        {
+            var verification = inner.Verify(@case);
+            if (++Calls == 1)
+            {
+                @case.AppendJournal(new JournalDraft("test.between", "Något skrevs mellan kontrollen och sigillet."));
+            }
+
+            return verification;
+        }
     }
 
     [Fact]

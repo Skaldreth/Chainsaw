@@ -2,8 +2,10 @@ using System.Globalization;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Requests.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
 
@@ -54,6 +56,9 @@ public static class ReportSelection
     /// <summary>The most transactions a cluster's <em>Varför?</em> names before it counts the rest.</summary>
     private const int MostTransactionsNamed = 2;
 
+    /// <summary>Gives no rate, when the case's rates are not at hand.</summary>
+    private static readonly Func<Asset, DateTimeOffset, Price?> NoRate = (_, _) => null;
+
     /// <summary>The groups of labels that name a service, whose name a report may write.</summary>
     private static readonly HashSet<LabelGroup> ServiceGroups =
         [LabelGroup.Withdrawal, LabelGroup.Spending, LabelGroup.Risk, LabelGroup.OtherChain];
@@ -62,9 +67,15 @@ public static class ReportSelection
     /// <param name="scene">The graph shown.</param>
     /// <param name="picked">The actors marked, by key.</param>
     /// <param name="clusters">The clusters of the marked cluster nodes, by node key, read from the case.</param>
+    /// <param name="rateAt">
+    /// The case's rate of an asset at a time, which values the traced amounts; <see langword="null"/> for none.
+    /// </param>
     /// <returns>The material; empty when nothing marked is drawn.</returns>
     public static ReportMaterial Build(
-        GraphScene scene, IReadOnlyCollection<string> picked, IReadOnlyDictionary<string, Cluster> clusters)
+        GraphScene scene,
+        IReadOnlyCollection<string> picked,
+        IReadOnlyDictionary<string, Cluster> clusters,
+        Func<Asset, DateTimeOffset, Price?>? rateAt = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(picked);
@@ -76,7 +87,7 @@ public static class ReportSelection
             return ReportMaterial.Empty;
         }
 
-        var trails = new TrailFinder(scene, actors).Find();
+        var trails = new ReportTrails(scene, actors, rateAt ?? NoRate).Find();
         var conclusions = new List<ReportConclusion>();
         conclusions.AddRange(actors.Select(node => ClusterConclusion(node, clusters)).OfType<ReportConclusion>());
         conclusions.AddRange(actors.SelectMany(LabelConclusions));
@@ -265,249 +276,4 @@ public static class ReportSelection
     private static ReportConclusion MethodConclusion(string method) => new(
         $"De spårade beloppen är räknade med {method}.",
         $"spårningsmetoden {method} följer pengarna genom varje tx i spåren; en annan metod ger andra belopp");
-
-    /// <summary>
-    /// Finds the trails between the marked actors: each end (a marked actor the traced money reaches but leaves for
-    /// no other marked actor) is joined to the nearest start along traced lines.
-    /// </summary>
-    /// <param name="scene">The graph.</param>
-    /// <param name="actors">The marked actors.</param>
-    private sealed class TrailFinder(GraphScene scene, IReadOnlyList<NodeView> actors)
-    {
-        /// <summary>The marked actors by key.</summary>
-        private readonly Dictionary<string, NodeView> _marked =
-            actors.ToDictionary(node => node.Key, StringComparer.Ordinal);
-
-        /// <summary>The traced lines a trail may follow, by the node they go into.</summary>
-        private readonly Dictionary<string, List<EdgeView>> _into = new(StringComparer.Ordinal);
-
-        /// <summary>The traced lines a trail may follow, by the node they come from.</summary>
-        private readonly Dictionary<string, List<EdgeView>> _outOf = new(StringComparer.Ordinal);
-
-        /// <summary>The coins the trace holds, which tell a traced transfer on Bitcoin.</summary>
-        private readonly HashSet<Outpoint> _tracedCoins = [.. (scene.Snapshot.Trace?.Coins ?? [])
-            .Where(coin => coin.Amount.Amount.Units.Sign > 0).Select(coin => coin.Coin)];
-
-        /// <summary>The keys of the lines that carry traced money.</summary>
-        private readonly HashSet<string> _traced = [.. scene.Edges.Where(e => e.IsTraced).Select(e => e.Key)];
-
-        /// <summary>Finds the trails, in the graph's order of their ends.</summary>
-        /// <returns>The trails.</returns>
-        public IReadOnlyList<ReportTrail> Find()
-        {
-            foreach (var edge in scene.Edges.Where(IsFollowed))
-            {
-                Add(_into, edge.Edge.To, edge);
-                Add(_outOf, edge.Edge.From, edge);
-            }
-
-            var trails = new List<ReportTrail>();
-            foreach (var end in actors.Where(IsEnd))
-            {
-                if (PathTo(end.Key) is { Count: > 0 } path && Trail(path, end) is { } trail)
-                {
-                    trails.Add(trail);
-                }
-            }
-
-            return trails;
-        }
-
-        /// <summary>Adds a line to an index.</summary>
-        /// <param name="index">The index.</param>
-        /// <param name="key">The node.</param>
-        /// <param name="edge">The line.</param>
-        private static void Add(Dictionary<string, List<EdgeView>> index, string key, EdgeView edge)
-        {
-            if (!index.TryGetValue(key, out var list))
-            {
-                index[key] = list = [];
-            }
-
-            list.Add(edge);
-        }
-
-        /// <summary>
-        /// Says whether a trail may follow a line: a transfer of traced money between marked actors, or through a
-        /// transaction drawn as a node of its own.
-        /// </summary>
-        /// <param name="edge">The line.</param>
-        /// <returns><see langword="true"/> when it may.</returns>
-        private bool IsFollowed(EdgeView edge) =>
-            edge.IsTraced && edge.Edge.Kind == GraphEdgeKind.Transfer
-            && IsPassable(edge.Edge.From) && IsPassable(edge.Edge.To);
-
-        /// <summary>Says whether a trail may pass a node: a marked actor, or a transaction node.</summary>
-        /// <param name="key">The node.</param>
-        /// <returns><see langword="true"/> when it may.</returns>
-        private bool IsPassable(string key) =>
-            _marked.ContainsKey(key) || scene.Node(key)?.Node.Kind == GraphNodeKind.Transaction;
-
-        /// <summary>
-        /// Says whether a marked actor ends a trail: traced money reaches it, and leaves for no other marked actor.
-        /// </summary>
-        /// <param name="node">The actor.</param>
-        /// <returns><see langword="true"/> when it does.</returns>
-        private bool IsEnd(NodeView node) =>
-            _into.ContainsKey(node.Key) && !Reach(node.Key, _outOf, edge => edge.Edge.To).Any(IsOtherMarked(node.Key));
-
-        /// <summary>Gives a test for a marked actor other than the given one.</summary>
-        /// <param name="key">The actor.</param>
-        /// <returns>The test.</returns>
-        private Func<string, bool> IsOtherMarked(string key) => other => other != key && _marked.ContainsKey(other);
-
-        /// <summary>Gives every node reached from one along the followed lines, in either direction.</summary>
-        /// <param name="start">The node.</param>
-        /// <param name="index">The lines out of each node in the direction walked.</param>
-        /// <param name="next">The node at a line's far end.</param>
-        /// <returns>The nodes reached, without the start.</returns>
-        private static IEnumerable<string> Reach(
-            string start, Dictionary<string, List<EdgeView>> index, Func<EdgeView, string> next)
-        {
-            var seen = new HashSet<string>(StringComparer.Ordinal) { start };
-            var queue = new Queue<string>([start]);
-            while (queue.Count > 0)
-            {
-                foreach (var edge in index.GetValueOrDefault(queue.Dequeue()) ?? [])
-                {
-                    var key = next(edge);
-                    if (seen.Add(key))
-                    {
-                        queue.Enqueue(key);
-                        yield return key;
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Walks back from an end to the nearest start: a marked start point, or a marked actor no traced money
-        /// reaches from another marked one.
-        /// </summary>
-        /// <param name="end">The end.</param>
-        /// <returns>The lines from the start to the end, or an empty list.</returns>
-        private List<EdgeView> PathTo(string end)
-        {
-            var cameBy = new Dictionary<string, EdgeView>(StringComparer.Ordinal);
-            var queue = new Queue<string>([end]);
-            var seen = new HashSet<string>(StringComparer.Ordinal) { end };
-            while (queue.Count > 0)
-            {
-                var key = queue.Dequeue();
-                if (key != end && IsStart(key))
-                {
-                    return Unwind(cameBy, key, end);
-                }
-
-                foreach (var edge in _into.GetValueOrDefault(key) ?? [])
-                {
-                    if (seen.Add(edge.Edge.From))
-                    {
-                        cameBy[edge.Edge.From] = edge;
-                        queue.Enqueue(edge.Edge.From);
-                    }
-                }
-            }
-
-            return [];
-        }
-
-        /// <summary>Says whether a node starts a trail.</summary>
-        /// <param name="key">The node.</param>
-        /// <returns><see langword="true"/> when it does.</returns>
-        private bool IsStart(string key) =>
-            _marked.TryGetValue(key, out var node)
-            && (node.IsStartPoint || !Reach(key, _into, edge => edge.Edge.From).Any(IsOtherMarked(key)));
-
-        /// <summary>Reads the lines from the start to the end out of the line each node was reached by.</summary>
-        /// <param name="cameBy">The line each node leads on by, towards the end.</param>
-        /// <param name="start">The start.</param>
-        /// <param name="end">The end.</param>
-        /// <returns>The lines in order.</returns>
-        private static List<EdgeView> Unwind(Dictionary<string, EdgeView> cameBy, string start, string end)
-        {
-            var path = new List<EdgeView>();
-            for (var key = start; key != end; key = cameBy[key].Edge.To)
-            {
-                path.Add(cameBy[key]);
-            }
-
-            return path;
-        }
-
-        /// <summary>
-        /// Makes a trail of a path: a step per hop between actors, a transaction node passed through, with the
-        /// transfers of the line into the hop's receiver.
-        /// </summary>
-        /// <param name="path">The lines from the start to the end.</param>
-        /// <param name="end">The end.</param>
-        /// <returns>The trail, or <see langword="null"/> when no transfer is found.</returns>
-        private ReportTrail? Trail(List<EdgeView> path, NodeView end)
-        {
-            var steps = new List<ReportStep>();
-            var from = path[0].Edge.From;
-            foreach (var edge in path.Where(edge => _marked.ContainsKey(edge.Edge.To)))
-            {
-                var (sender, receiver) = (Name(from), Name(edge.Edge.To));
-                steps.AddRange(Transfers(edge).Select(transfer => new ReportStep(
-                    sender,
-                    receiver,
-                    transfer.Transaction.Id,
-                    transfer.Amount,
-                    transfer.Time,
-                    transfer.Height,
-                    transfer.Block?.Hash.Value ?? transfer.AccountBlock?.Hash)));
-                from = edge.Edge.To;
-            }
-
-            if (steps.Count == 0)
-            {
-                return null;
-            }
-
-            var last = path[^1];
-            return new ReportTrail(Name(path[0].Edge.From), Name(end.Key), EndOf(end), steps, last.Traced)
-            {
-                Value = last.Value?.Text,
-            };
-        }
-
-        /// <summary>Gives the transfers along a line that carry traced money; all of them when none can be told.
-        /// </summary>
-        /// <param name="edge">The line.</param>
-        /// <returns>The transfers, in time order.</returns>
-        private IEnumerable<AssetTransfer> Transfers(EdgeView edge)
-        {
-            var traced = edge.Edge.Transfers
-                .Where(transfer => RequestExits.IsTraced(transfer, edge.Edge, _tracedCoins, _traced))
-                .ToList();
-            return (traced.Count > 0 ? traced : edge.Edge.Transfers)
-                .OrderBy(transfer => transfer.Time ?? DateTimeOffset.MaxValue);
-        }
-
-        /// <summary>Names a marked actor for the report.</summary>
-        /// <param name="key">The actor.</param>
-        /// <returns>The name.</returns>
-        private string Name(string key) => SafeName(_marked[key]);
-
-        /// <summary>Says how a trail ends, by its end's sort and marks.</summary>
-        /// <param name="end">The end.</param>
-        /// <returns>The end.</returns>
-        private static ReportTrailEnd EndOf(NodeView end)
-        {
-            if (end.Badges.Contains(NodeBadge.Sanctioned) || end.Look.Sort == NodeSort.Sanctioned)
-            {
-                return ReportTrailEnd.Sanctioned;
-            }
-
-            return end.Look.Ink switch
-            {
-                GraphInk.CashOut => ReportTrailEnd.CashOut,
-                GraphInk.Risk or GraphInk.Sanctioned => ReportTrailEnd.Risk,
-                GraphInk.Spent => ReportTrailEnd.Spent,
-                GraphInk.OtherChain => ReportTrailEnd.OtherChain,
-                _ => ReportTrailEnd.Open,
-            };
-        }
-    }
 }

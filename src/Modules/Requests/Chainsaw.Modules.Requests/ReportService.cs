@@ -19,8 +19,8 @@ namespace Chainsaw.Modules.Requests;
 internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles, ICaseVerifier verifier)
     : IReportService
 {
-    /// <summary>The chain whose top is the report's top hash: the journal, which every write in the case adds to.</summary>
-    public const string JournalChain = "cases.journal";
+    /// <summary>How many times an export is made again when the case changed between the check and the seal.</summary>
+    public const int MostAttempts = 3;
 
     /// <summary>The file's encoding: UTF-8 without a byte order mark, which every program reads.</summary>
     private static readonly UTF8Encoding FileEncoding = new(encoderShouldEmitUTF8Identifier: false);
@@ -29,10 +29,35 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
     public ReportLedger Check(ICase @case)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        var verification = verifier.Verify(@case);
-        var journal = verification.Chains.FirstOrDefault(chain => chain.Chain == JournalChain);
+        return LedgerOf(verifier.Verify(@case));
+    }
+
+    /// <summary>
+    /// Gives the top of the case's hash chains: one SHA-256 over every chain's head, sorted by name, so that the report
+    /// anchors the raw responses, rates and labels as well as the journal.
+    /// </summary>
+    /// <param name="verification">What the verifier found.</param>
+    /// <returns>The top.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/>: the case was found sound but has no journal chain, which every case has.
+    /// </exception>
+    internal static ReportLedger LedgerOf(CaseVerification verification)
+    {
+        ArgumentNullException.ThrowIfNull(verification);
+        var journal = verification.Chains.FirstOrDefault(chain => chain.Chain == CaseChains.Journal);
+        if (journal is null && verification.Problems.Count == 0)
+        {
+            throw new CaseException(CaseError.Corrupt);
+        }
+
+        var lines = verification.Chains
+            .OrderBy(chain => chain.Chain, StringComparer.Ordinal)
+            .Select(chain => string.Create(
+                CultureInfo.InvariantCulture, $"{chain.Chain}:{chain.HeadSequence}:{chain.HeadHash}"));
+        var digest = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', lines))));
         return new ReportLedger(
-            journal?.HeadSequence ?? 0, journal?.HeadHash, verification.CheckedUtc, verification.IsIntact);
+            digest, verification.Chains.Count, journal?.HeadSequence ?? 0, verification.CheckedUtc,
+            verification.IsIntact);
     }
 
     /// <inheritdoc/>
@@ -49,8 +74,27 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(draft);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        for (var attempt = 1; ; attempt++)
+        {
+            if (TryExport(@case, draft, path, lastAttempt: attempt >= MostAttempts) is { } export)
+            {
+                return export;
+            }
+        }
+    }
 
-        // The top hash is checked anew, so that the file says how the case stood just before it was written.
+    /// <summary>
+    /// Checks the hash chains, writes the file and seals it. When the ledger part is on and the journal has grown since
+    /// the check, the seal is rolled back and the file removed, so that the file never states a top that was already
+    /// old when it was sealed; the last attempt seals all the same, since the file is true for the moment it names.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="draft">What the report is made from.</param>
+    /// <param name="path">Where the user wants the file.</param>
+    /// <param name="lastAttempt">Whether this attempt seals even when the case has changed.</param>
+    /// <returns>The export, or <see langword="null"/> when it is to be made again.</returns>
+    private ReportExport? TryExport(ICase @case, ReportDraft draft, string path, bool lastAttempt)
+    {
         var checkedDraft = draft.Has(ReportPart.Ledger) ? draft with { Ledger = Check(@case) } : draft;
         var document = ReportTemplate.Compose(checkedDraft, Context(@case, draft.MadeUtc ?? clock.UtcNow));
         var bytes = FileEncoding.GetBytes(document.Markdown);
@@ -58,7 +102,12 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
         var sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
         try
         {
-            return @case.Write(transaction => Seal(transaction, checkedDraft, written, sha));
+            return @case.Write(transaction => Seal(transaction, checkedDraft, written, sha, lastAttempt));
+        }
+        catch (CaseChangedException)
+        {
+            RequestFiles.TryDelete(written);
+            return null;
         }
         catch
         {
@@ -108,8 +157,12 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
     /// <param name="draft">What the report was made from, with the top hash it holds.</param>
     /// <param name="path">Where the file was written.</param>
     /// <param name="sha">The file's SHA-256.</param>
+    /// <param name="lastAttempt">Whether it seals even when the journal has grown since the check.</param>
     /// <returns>The export.</returns>
-    private static ReportExport Seal(ICaseTransaction transaction, ReportDraft draft, string path, string sha)
+    /// <exception cref="CaseChangedException">The journal grew since the check; the transaction is rolled back.
+    /// </exception>
+    private static ReportExport Seal(
+        ICaseTransaction transaction, ReportDraft draft, string path, string sha, bool lastAttempt)
     {
         var fileName = Path.GetFileName(path);
         var transactions = draft.Transactions;
@@ -123,13 +176,19 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
             transactions,
             parts = partNames,
             trails = draft.Trails.Count,
-            ledgerLine = draft.Ledger?.Line,
-            ledgerHash = draft.Ledger?.Hash,
+            ledgerJournalLine = draft.Ledger?.JournalLine,
+            ledgerDigest = draft.Ledger?.Digest,
         });
         var summary = string.Create(
             CultureInfo.InvariantCulture, $"Rapport exporterad som {fileName} (SHA-256 {sha}).");
         var journal = transaction.AppendJournal(
             new JournalDraft(RequestJournalKinds.ReportExported, summary, details));
+        if (draft.Ledger is { } ledger && journal.Sequence != ledger.JournalLine + 1 && !lastAttempt)
+        {
+            // Something was recorded between the check and this seal: the file's top is already old.
+            throw new CaseChangedException();
+        }
+
         var utc = journal.Utc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
         var record = transaction.AppendSealed(
             RequestsSchema.ReportsChain,
@@ -165,5 +224,18 @@ internal sealed class ReportService(IClock clock, IOperatorProfileStore profiles
         {
             return null;
         }
+    }
+}
+
+/// <summary>
+/// Says that the case was written to between the check of its hash chains and the seal of a report, so that the
+/// export is rolled back and made again.
+/// </summary>
+internal sealed class CaseChangedException : Exception
+{
+    /// <summary>Creates the exception.</summary>
+    public CaseChangedException()
+        : base("The case changed between the check and the seal.")
+    {
     }
 }

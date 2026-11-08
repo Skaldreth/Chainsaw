@@ -5,7 +5,11 @@ using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Requests.Contracts;
+using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 using static Chainsaw.App.Tests.GraphSamples;
 
 namespace Chainsaw.App.Tests;
@@ -28,7 +32,7 @@ internal sealed class TestReports : IReportService
     public ReportLedger Check(ICase @case)
     {
         Checks++;
-        return new ReportLedger(7, new string('e', 64), Made, true);
+        return new ReportLedger(new string('e', 64), 5, 7, Made, true);
     }
 
     public RequestDocument Compose(ICase @case, ReportDraft draft)
@@ -66,6 +70,98 @@ internal sealed class TestReports : IReportService
 
 public sealed class ReportSelectionTests
 {
+    /// <summary>Writes the shortened address of a shaped graph's node by its number.</summary>
+    /// <param name="number">The number, 1 for the first node.</param>
+    /// <returns>The short address.</returns>
+    private static string Short(int number) => ReportShapes.Short(number);
+
+    /// <summary>
+    /// Builds a graph of address nodes and traced lines, each node numbered in order (a = 1, b = 2 …).
+    /// </summary>
+    /// <param name="nodes">The nodes' keys and whether each is a start point.</param>
+    /// <param name="lines">The lines: key, from, to, transaction, amount sent and, optionally, how much is traced.</param>
+    /// <param name="exchange">A node labelled an exchange, or <see langword="null"/>.</param>
+    /// <param name="twoTransfers">Whether the first line carries two transfers, so that none can be told traced.</param>
+    /// <returns>The scene.</returns>
+    private static GraphScene Shaped(
+        IReadOnlyList<(string Key, bool Start)> nodes,
+        IReadOnlyList<(string Key, string From, string To, int Tx, decimal Amount)> lines,
+        string? exchange = null,
+        bool twoTransfers = false) =>
+        Shaped(nodes, [.. lines.Select(l => (l.Key, l.From, l.To, l.Tx, l.Amount, l.Amount))], exchange, twoTransfers);
+
+    /// <summary>Builds a graph whose lines may carry less traced money than was sent.</summary>
+    /// <param name="nodes">The nodes.</param>
+    /// <param name="lines">The lines, with the traced amount last.</param>
+    /// <param name="exchange">A node labelled an exchange, or <see langword="null"/>.</param>
+    /// <param name="twoTransfers">Whether the first line carries two transfers.</param>
+    /// <returns>The scene.</returns>
+    private static GraphScene Shaped(
+        IReadOnlyList<(string Key, bool Start)> nodes,
+        IReadOnlyList<(string Key, string From, string To, int Tx, decimal Amount, decimal Traced)> lines,
+        string? exchange = null,
+        bool twoTransfers = false)
+    {
+        var addresses = nodes.Select((node, index) => (node.Key, Address: Address(21 + index)))
+            .ToDictionary(pair => pair.Key, pair => pair.Address);
+        GraphNode[] graphNodes =
+        [
+            .. nodes.Select((node, index) =>
+                Node(node.Key, GraphNodeKind.Address, [addresses[node.Key]], index, start: node.Start)),
+        ];
+        var edges = lines.Select((line, index) => Line(line.Key, line.From, line.To, line.Tx, line.Amount,
+            twoTransfers && index == 0)).ToArray();
+        var graph = new TraceGraph(
+            [.. nodes.Where(node => node.Start).Select(node => TraceStartPoint.ForAddress(addresses[node.Key]))],
+            graphNodes,
+            edges,
+            new UtxoGraph(new Dictionary<Txid, GraphTransaction>(), new Dictionary<Outpoint, CoinSpend>(),
+                new Dictionary<Txid, IReadOnlyList<TrailEndHint>>()),
+            [], [], []);
+        var trace = new TraceResult(
+            Fifo, [], Btc(1.0m), [], [], [.. lines.Select(line => Traced(line.Key, line.Traced))], []);
+        var labels = exchange is null
+            ? null
+            : new Dictionary<string, IReadOnlyList<Label>>
+            {
+                [exchange] = [Label(addresses[exchange], LabelKind.Exchange, "Börs A")],
+            };
+        return Scene(labels, graph, trace);
+    }
+
+    /// <summary>A line with one transfer, or two in the same transaction so that neither can be told traced.</summary>
+    /// <param name="key">Its key.</param>
+    /// <param name="from">The sender.</param>
+    /// <param name="to">The receiver.</param>
+    /// <param name="tx">The transaction's number.</param>
+    /// <param name="amount">The amount sent.</param>
+    /// <param name="two">Whether it carries two transfers.</param>
+    /// <returns>The line.</returns>
+    private static GraphEdge Line(string key, string from, string to, int tx, decimal amount, bool two)
+    {
+        var line = Edge(key, from, to, tx, 0, amount);
+        if (!two)
+        {
+            return line;
+        }
+
+        var second = AssetTransfer.OfCoin(Tx[tx], new Outpoint(Tx[tx], 1), Satoshi.FromBitcoin(0.1m), Block(100 + tx));
+        return line with { Transfers = [.. line.Transfers, second], Amount = Btc(amount + 0.1m) };
+    }
+
+    /// <summary>A price of bitcoin in SEK.</summary>
+    /// <param name="sek">One bitcoin in SEK.</param>
+    /// <returns>The price.</returns>
+    private static Price Rate(decimal sek)
+    {
+        var at = new DateTimeOffset(2026, 11, 1, 12, 0, 0, TimeSpan.Zero);
+        var origin = new RateOrigin(1, "test", new Uri("https://rates.invalid/"), 200, at, at,
+            new OperatorProfile("Test", "Analytiker", "Enheten"), new string('0', 64));
+        var crypto = new CryptoRate(Chain.Bitcoin, FiatCurrency.Sek, PriceResolution.Hour, at, at.AddHours(1), "test",
+            sek, sek, sek, sek, 1m, origin);
+        return new Price(at, FiatCurrency.Sek, crypto, null);
+    }
+
     private const string VictimName = "Anna Offersson";
 
     private static readonly Dictionary<string, Cluster> NoClusters = [];
@@ -92,7 +188,8 @@ public sealed class ReportSelectionTests
         var trail = Assert.Single(material.Trails);
         Assert.Equal("Börs A", trail.To);
         Assert.Equal(ReportTrailEnd.CashOut, trail.End);
-        Assert.Equal(Btc(0.5m), trail.Traced);
+        Assert.Equal([Btc(0.5m)], trail.Traced);
+        Assert.Null(trail.Value);
         Assert.Equal([Tx[1].Value, Tx[2].Value], trail.Steps.Select(step => step.Transaction));
         var last = trail.Steps[^1];
         Assert.Equal(102, last.BlockHeight);
@@ -183,6 +280,82 @@ public sealed class ReportSelectionTests
     }
 
     [Fact]
+    public void Two_starts_into_one_end_are_one_trail_with_both()
+    {
+        var scene = Shaped(
+            [("a", true), ("b", true), ("c", false), ("e", false)],
+            [("ac", "a", "c", 0, 0.4m), ("bc", "b", "c", 1, 0.3m), ("ce", "c", "e", 2, 0.7m)],
+            exchange: "e");
+
+        var trail = Assert.Single(ReportSelection.Build(scene, ["a", "b", "c", "e"], NoClusters).Trails);
+
+        Assert.Equal($"{Short(1)}, {Short(2)}", trail.From);
+        Assert.Equal(3, trail.Steps.Count);
+        Assert.Equal([Btc(0.7m)], trail.Traced);
+    }
+
+    [Fact]
+    public void A_rhombus_keeps_both_branches_and_sums_what_arrives()
+    {
+        var scene = Shaped(
+            [("a", true), ("b", false), ("c", false), ("d", false)],
+            [("ab", "a", "b", 0, 0.5m), ("ac", "a", "c", 0, 0.5m), ("bd", "b", "d", 1, 0.5m), ("cd", "c", "d", 2, 0.4m)]);
+
+        var trail = Assert.Single(ReportSelection.Build(scene, ["a", "b", "c", "d"], NoClusters).Trails);
+
+        Assert.Equal(Short(4), trail.To);
+        Assert.Equal(4, trail.Steps.Count);
+        Assert.Equal([Btc(0.9m)], trail.Traced);
+    }
+
+    [Fact]
+    public void Money_that_turns_back_stays_in_the_trail()
+    {
+        var scene = Shaped(
+            [("a", true), ("b", false), ("c", false)],
+            [("ab", "a", "b", 0, 0.5m), ("bc", "b", "c", 1, 0.5m), ("cb", "c", "b", 2, 0.2m)]);
+
+        var trail = Assert.Single(ReportSelection.Build(scene, ["a", "b", "c"], NoClusters).Trails);
+
+        Assert.Equal(Short(2), trail.To);
+        Assert.Contains(trail.Steps, step => step.From == Short(3) && step.To == Short(2));
+        Assert.Equal(3, trail.Steps.Count);
+    }
+
+    [Fact]
+    public void The_traced_share_is_valued_at_the_rate_when_it_moved()
+    {
+        var scene = Shaped([("a", true), ("e", false)], [("ae", "a", "e", 0, 1.0m, 0.5m)], exchange: "e");
+
+        var trail = Assert.Single(ReportSelection.Build(scene, ["a", "e"], NoClusters, (_, _) => Rate(100_000m)).Trails);
+
+        // Half of the 1 BTC sent is traced: 0,5 × 100 000 kr.
+        Assert.Equal("≈ 50 000 kr", trail.Value?.Replace('\u00A0', ' '));
+    }
+
+    [Fact]
+    public void A_missing_rate_gives_no_value()
+    {
+        var scene = Shaped([("a", true), ("e", false)], [("ae", "a", "e", 0, 1.0m)], exchange: "e");
+
+        var trail = Assert.Single(ReportSelection.Build(scene, ["a", "e"], NoClusters, (_, _) => null).Trails);
+
+        Assert.Null(trail.Value);
+    }
+
+    [Fact]
+    public void A_line_with_no_transfer_told_traced_marks_its_steps()
+    {
+        var scene = Shaped(
+            [("a", true), ("e", false)], [("ae", "a", "e", 0, 1.0m)], exchange: "e", twoTransfers: true);
+
+        var trail = Assert.Single(ReportSelection.Build(scene, ["a", "e"], NoClusters).Trails);
+
+        Assert.Equal(2, trail.Steps.Count);
+        Assert.All(trail.Steps, step => Assert.False(step.IsTraced));
+    }
+
+    [Fact]
     public void A_reports_name_is_never_written()
     {
         var scene = Scene(new Dictionary<string, IReadOnlyList<Label>>
@@ -236,6 +409,15 @@ public sealed class ReportSelectionTests
     }
 }
 
+/// <summary>Small graphs of addresses for the trails' shapes.</summary>
+internal static class ReportShapes
+{
+    /// <summary>Writes the shortened address of address number <paramref name="number"/>.</summary>
+    /// <param name="number">The node's number, 1 for the first.</param>
+    /// <returns>The short address.</returns>
+    public static string Short(int number) => GraphScene.Shorten(Address(20 + number).Value);
+}
+
 public sealed class ReportViewModelTests
 {
     private static readonly TimeZoneInfo Zone = TimeZoneInfo.CreateCustomTimeZone("T", TimeSpan.FromHours(1), "T", "T");
@@ -258,7 +440,8 @@ public sealed class ReportViewModelTests
         _session.Open(new TestCase("2026-0117"));
         var model = new ReportViewModel(_reports, _session, _picker, new InlineUi(), null, _toaster, Zone);
         await model.Built;
-        model.Update(LabelledScene(), picked ?? [VKey, KKey, EKey], new Dictionary<string, GraphPoint>());
+        await model.SetShownAsync(
+            true, LabelledScene(), picked ?? [VKey, KKey, EKey], new Dictionary<string, GraphPoint>());
         await model.Built;
         return model;
     }
@@ -285,8 +468,52 @@ public sealed class ReportViewModelTests
         Assert.Equal("3 aktörer · 2 tx · 1 där pengarna lämnar eller spåret slutar", model.StatsText);
         var draft = _reports.Composed[^1];
         Assert.Single(draft.Trails);
-        Assert.Equal(7, draft.Ledger?.Line);
+        Assert.Equal(7, draft.Ledger?.JournalLine);
         Assert.Equal(1, _reports.Checks);
+    }
+
+    [Fact]
+    public async Task Nothing_is_built_or_checked_while_the_view_is_hidden()
+    {
+        _session.Open(new TestCase("2026-0117"));
+        var model = new ReportViewModel(_reports, _session, _picker, new InlineUi(), null, _toaster, Zone);
+        await model.Built;
+
+        model.Update(LabelledScene(), [VKey, KKey, EKey], new Dictionary<string, GraphPoint>());
+        await model.Built;
+
+        Assert.Empty(_reports.Composed);
+        Assert.Equal(0, _reports.Checks);
+        Assert.False(model.HasActors);
+    }
+
+    [Fact]
+    public async Task Hiding_the_view_stops_it_following_the_graph()
+    {
+        var model = await ModelAsync();
+        var composed = _reports.Composed.Count;
+
+        await model.SetShownAsync(false, null, [], new Dictionary<string, GraphPoint>());
+        model.Update(LabelledScene(), [VKey], new Dictionary<string, GraphPoint>());
+        await model.Built;
+
+        Assert.Equal(composed, _reports.Composed.Count);
+    }
+
+    [Fact]
+    public async Task Export_writes_the_draft_the_shown_report_was_composed_from()
+    {
+        var model = await ModelAsync();
+        model.TogglePart(model.Parts.Single(row => row.Part == ReportPart.Labels));
+        await model.Built;
+        var shown = _reports.Composed[^1];
+
+        await model.ExportAsync();
+
+        var (draft, _) = Assert.Single(_reports.Exported);
+        Assert.Same(shown.Parts, draft.Parts);
+        Assert.Same(shown.Trails, draft.Trails);
+        Assert.Contains(ReportPart.Labels, draft.Parts);
     }
 
     [Fact]

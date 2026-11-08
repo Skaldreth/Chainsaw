@@ -9,9 +9,9 @@ namespace Chainsaw.App;
 public partial class MainWindow
 {
     /// <summary>
-    /// Wires the view Rapport (sketch RP1b): the report follows the graph shown and what is marked in it, checks the
-    /// hash chain again each time it is shown, takes the keyboard then, so that Ctrl+S reaches it, and
-    /// <em>Ändra i grafen</em> shows the graph.
+    /// Wires the view Rapport (sketch RP1b): the report follows the graph shown and what is marked in it while it is
+    /// shown, checks the hash chains again each time it is shown, takes the keyboard then, so that Ctrl+S reaches it,
+    /// and <em>Ändra i grafen</em> shows the graph.
     /// </summary>
     /// <param name="shell">The shell.</param>
     /// <param name="graph">The graph.</param>
@@ -39,7 +39,9 @@ public partial class MainWindow
         shell.PropertyChanged += (_, e) => OnReportShown(shell, graph, report, e);
     }
 
-    /// <summary>When the view Rapport is shown: the marking and the hash chain are read anew, and it takes the keys.
+    /// <summary>
+    /// When the view Rapport is shown or hidden: shown, the marking and the hash chains are read anew and it takes the
+    /// keys; hidden, it stops building.
     /// </summary>
     /// <param name="shell">The shell.</param>
     /// <param name="graph">The graph.</param>
@@ -48,14 +50,15 @@ public partial class MainWindow
     private void OnReportShown(
         ShellViewModel shell, GraphViewModel graph, ReportViewModel report, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(ShellViewModel.IsReportShown) || !shell.IsReportShown)
+        if (e.PropertyName != nameof(ShellViewModel.IsReportShown))
         {
             return;
         }
 
-        // The places may have moved since the marking last changed, so the small picture is drawn anew.
-        report.Update(graph.Scene, graph.Checks.Picked, graph.Places);
-        _ = report.RefreshAsync();
-        Dispatcher.BeginInvoke(() => ReportPage.Focus(), DispatcherPriority.Input);
+        _ = report.SetShownAsync(shell.IsReportShown, graph.Scene, graph.Checks.Picked, graph.Places);
+        if (shell.IsReportShown)
+        {
+            Dispatcher.BeginInvoke(() => ReportPage.Focus(), DispatcherPriority.Input);
+        }
     }
 }

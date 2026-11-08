@@ -64,14 +64,19 @@ internal static class ReportTexts
     /// <summary>The heading of the check of the hash chain.</summary>
     public const string LedgerHeading = "Kontroll";
 
-    /// <summary>The check when the case was found unchanged.</summary>
+    /// <summary>The check when the case was found unchanged: how many chains, the journal's line and when.</summary>
     public const string LedgerIntact =
-        "Hashkedjans topphash vid journalrad {0}, kontrollerad {1} ({2} UTC): inga ändringar.";
+        "Topphash över ärendets {0} förseglade kedjor (SHA-256 av kedja:sekvens:hash, sorterade efter kedjan), "
+        + "med journalen vid rad {1}, kontrollerad {2} ({3} UTC): inga ändringar.";
 
-    /// <summary>The check when a chain was found broken.</summary>
+    /// <summary>The check when a chain was found broken, or the case unsound.</summary>
     public const string LedgerBroken =
-        "Hashkedjans topphash vid journalrad {0}, kontrollerad {1} ({2} UTC): kontrollen fann ändringar i ärendet. "
-        + "Kör Verifiera innan rapporten används.";
+        "Topphash över ärendets {0} förseglade kedjor, med journalen vid rad {1}, kontrollerad {2} ({3} UTC): "
+        + "kontrollen fann ändringar i ärendet. Kör Verifiera innan rapporten används.";
+
+    /// <summary>The mark after a step whose transfer could not be told traced, though its line carries traced money.
+    /// </summary>
+    public const string UntracedStep = " (ej spårad)";
 
     /// <summary>The check before it has run; an export always runs it.</summary>
     public const string LedgerNotChecked = "Hashkedjan kontrolleras när rapporten exporteras.";
@@ -188,8 +193,8 @@ internal static class ReportTemplate
             return;
         }
 
-        var ends = string.Join(", ", draft.Trails.Select(trail => trail.Traced is { } traced
-            ? $"{Amount(traced)} till {trail.To}"
+        var ends = string.Join(", ", draft.Trails.Select(trail => trail.Traced.Count > 0
+            ? $"{Amounts(trail.Traced)} till {trail.To}"
             : $"till {trail.To}"));
         blocks.Add(new RequestBlock(RequestBlockKind.Paragraph, string.Format(
             CultureInfo.InvariantCulture,
@@ -234,7 +239,7 @@ internal static class ReportTemplate
     {
         var row = new List<string>
         {
-            $"{step.From} → {step.To}",
+            $"{step.From} → {step.To}{(step.IsTraced ? string.Empty : ReportTexts.UntracedStep)}",
             RequestTemplates.LocalTime(step.Time, zone, Words),
             RequestTemplates.UtcTime(step.Time, Words),
             Amount(step.Amount),
@@ -255,12 +260,12 @@ internal static class ReportTemplate
     /// <returns>The line.</returns>
     private static string TracedNote(ReportTrail trail, ReportDraft draft)
     {
-        if (trail.Traced is not { } traced)
+        if (trail.Traced.Count == 0)
         {
             return string.Format(CultureInfo.InvariantCulture, ReportTexts.UntracedNote, draft.Method);
         }
 
-        var amount = Amount(traced);
+        var amount = Amounts(trail.Traced);
         if (draft.Has(ReportPart.Sek) && trail.Value is { } value)
         {
             amount += $" · {value}{ReportTexts.ValueNote}";
@@ -285,7 +290,7 @@ internal static class ReportTemplate
         foreach (var trail in ends)
         {
             var format = trail.End == ReportTrailEnd.Sanctioned ? ReportTexts.SanctionedItem : ReportTexts.CashOutItem;
-            var traced = trail.Traced is { } amount ? Amount(amount) : Words.Unknown;
+            var traced = trail.Traced.Count > 0 ? Amounts(trail.Traced) : Words.Unknown;
             blocks.Add(new RequestBlock(RequestBlockKind.Item, string.Format(
                 CultureInfo.InvariantCulture,
                 format,
@@ -341,7 +346,7 @@ internal static class ReportTemplate
         }
 
         blocks.Add(new RequestBlock(RequestBlockKind.Heading, ReportTexts.LedgerHeading));
-        if (draft.Ledger is not { Hash: { } hash } ledger)
+        if (draft.Ledger is not { } ledger)
         {
             blocks.Add(new RequestBlock(RequestBlockKind.Paragraph, ReportTexts.LedgerNotChecked));
             return;
@@ -352,8 +357,9 @@ internal static class ReportTemplate
         var utc = ledger.CheckedUtc.UtcDateTime.ToString(MadeFormat, CultureInfo.InvariantCulture);
         var format = ledger.IsIntact ? ReportTexts.LedgerIntact : ReportTexts.LedgerBroken;
         blocks.Add(new RequestBlock(
-            RequestBlockKind.Paragraph, string.Format(CultureInfo.InvariantCulture, format, ledger.Line, local, utc)));
-        blocks.Add(new RequestBlock(RequestBlockKind.Hash, hash));
+            RequestBlockKind.Paragraph,
+            string.Format(CultureInfo.InvariantCulture, format, ledger.Chains, ledger.JournalLine, local, utc)));
+        blocks.Add(new RequestBlock(RequestBlockKind.Hash, ledger.Digest));
     }
 
     /// <summary>Writes a moment in the local zone with UTC in brackets.</summary>
@@ -370,6 +376,11 @@ internal static class ReportTemplate
     /// <param name="amount">The amount.</param>
     /// <returns>For example <c>0,25 BTC</c>.</returns>
     private static string Amount(AssetAmount amount) => RequestTemplates.Amount(amount, Words);
+
+    /// <summary>Writes amounts of several assets, one after the other.</summary>
+    /// <param name="amounts">The amounts, one per asset.</param>
+    /// <returns>For example <c>0,25 BTC + 1 200,00 USDT</c>.</returns>
+    private static string Amounts(IReadOnlyList<AssetAmount> amounts) => string.Join(" + ", amounts.Select(Amount));
 
     /// <summary>Names the file: the case number, the word and the day.</summary>
     /// <param name="draft">The draft.</param>

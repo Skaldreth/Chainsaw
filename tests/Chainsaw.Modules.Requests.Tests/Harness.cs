@@ -59,7 +59,9 @@ internal sealed class Harness : IDisposable
     /// <summary>The folder the tests export to.</summary>
     public string Exports { get; }
 
-    public CaseVerification Verify() => _provider.GetRequiredService<ICaseVerifier>().Verify(Case);
+    public ICaseVerifier Verifier => _provider.GetRequiredService<ICaseVerifier>();
+
+    public CaseVerification Verify() => Verifier.Verify(Case);
 
     public void Reopen()
     {

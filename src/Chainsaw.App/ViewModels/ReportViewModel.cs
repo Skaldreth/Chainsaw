@@ -2,7 +2,9 @@ using System.Globalization;
 using Chainsaw.App.Graph;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Requests.Contracts;
+using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -154,7 +156,8 @@ public sealed partial class ReportViewModel : ObservableObject
             "Icon.Question", true),
         (ReportPart.Labels, "Etiketter och källor", "Vilken källa, version och dag", "Icon.Tag", false),
         (ReportPart.Sek, "Belopp i SEK", RateText, "Icon.Coin", true),
-        (ReportPart.Ledger, "Hashkedjans topphash", "Kontrollerad före exporten", "Icon.Shield", true),
+        (ReportPart.Ledger, "Hashkedjornas topphash", "Alla förseglade kedjor, kontrollerade före exporten",
+            "Icon.Shield", true),
     ];
 
     /// <summary>The reports: compose, check, export.</summary>
@@ -172,6 +175,9 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <summary>The clusters, whose heuristics a cluster's conclusion names; or <see langword="null"/>.</summary>
     private readonly IClusteringService? _clustering;
 
+    /// <summary>The case's rates, which value the traced amounts; or <see langword="null"/>.</summary>
+    private readonly IPriceService? _prices;
+
     /// <summary>The toaster, which says what an export did; or <see langword="null"/>.</summary>
     private readonly Toaster? _toaster;
 
@@ -184,8 +190,14 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <summary>The material found from the marking.</summary>
     private ReportMaterial _material = ReportMaterial.Empty;
 
-    /// <summary>The top of the hash chain as last checked, or <see langword="null"/>.</summary>
+    /// <summary>The top of the hash chains as last checked, or <see langword="null"/>.</summary>
     private ReportLedger? _ledger;
+
+    /// <summary>The draft the report shown was composed from, which an export writes; or <see langword="null"/>.</summary>
+    private ReportDraft? _shownDraft;
+
+    /// <summary>Whether the view is shown; the report is built only then (principle 6).</summary>
+    private bool _isShown;
 
     /// <summary>Counts the rebuilds, so that one overtaken by a newer is never shown.</summary>
     private int _version;
@@ -198,6 +210,7 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <param name="clustering">The clusters, or <see langword="null"/>.</param>
     /// <param name="toaster">The toaster, or <see langword="null"/>.</param>
     /// <param name="zone">The zone local times are written in; the computer's own when <see langword="null"/>.</param>
+    /// <param name="prices">The case's rates, which value the traced amounts; or <see langword="null"/>.</param>
     public ReportViewModel(
         IReportService reports,
         CaseSession session,
@@ -205,8 +218,10 @@ public sealed partial class ReportViewModel : ObservableObject
         IUiThread ui,
         IClusteringService? clustering = null,
         Toaster? toaster = null,
-        TimeZoneInfo? zone = null)
+        TimeZoneInfo? zone = null,
+        IPriceService? prices = null)
     {
+        _prices = prices;
         _reports = reports;
         _session = session;
         _picker = picker;
@@ -294,8 +309,36 @@ public sealed partial class ReportViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(picked);
         ArgumentNullException.ThrowIfNull(places);
         _source = (scene, [.. picked]);
+        if (!_isShown)
+        {
+            return;
+        }
+
         Picture = scene is null ? ReportPicture.Empty : ReportPicture.Of(scene, picked, places);
         Built = RebuildAsync();
+    }
+
+    /// <summary>
+    /// Says whether the view is shown. The report is found and composed only while it is, since the graph changes
+    /// often and nobody reads a report that is not shown; when it is shown again, it follows the graph and checks the
+    /// hash chains anew.
+    /// </summary>
+    /// <param name="shown">Whether it is shown.</param>
+    /// <param name="scene">The graph, or <see langword="null"/>.</param>
+    /// <param name="picked">The actors marked.</param>
+    /// <param name="places">Where each node stands.</param>
+    /// <returns>A task that completes when the report is built, or at once when it is hidden.</returns>
+    public Task SetShownAsync(
+        bool shown, GraphScene? scene, IReadOnlyList<string> picked, IReadOnlyDictionary<string, GraphPoint> places)
+    {
+        _isShown = shown;
+        if (!shown)
+        {
+            return Task.CompletedTask;
+        }
+
+        Update(scene, picked, places);
+        return RefreshAsync();
     }
 
     /// <summary>
@@ -353,7 +396,8 @@ public sealed partial class ReportViewModel : ObservableObject
         IsExporting = true;
         try
         {
-            var draft = Draft() with { MadeUtc = document.MadeUtc };
+            // The very draft the report shown was composed from, so that the file holds what was seen.
+            var draft = (_shownDraft ?? Draft()) with { MadeUtc = document.MadeUtc };
             var export = await Task.Run(() => _reports.Export(open, draft, path));
             _toaster?.Show(ToastKind.Success, ExportedTitle, export.FileName + ExportedText);
             await LoadExportsAsync(open);
@@ -387,18 +431,24 @@ public sealed partial class ReportViewModel : ObservableObject
         var (scene, picked) = _source;
         if (_session.Current is not { } open || scene is null || picked.Count == 0)
         {
-            Show(version, ReportMaterial.Empty, null);
+            Show(version, ReportMaterial.Empty, null, null);
+            return;
+        }
+
+        if (!_isShown)
+        {
             return;
         }
 
         try
         {
-            var (material, document) = await Task.Run(() =>
+            var (material, draft, document) = await Task.Run(() =>
             {
-                var found = ReportSelection.Build(scene, picked, Clusters(open, scene, picked));
-                return (found, found.Actors.Count == 0 ? null : _reports.Compose(open, DraftOf(found)));
+                var found = ReportSelection.Build(scene, picked, Clusters(open, scene, picked), RateAt(open));
+                var made = DraftOf(found);
+                return (found, made, found.Actors.Count == 0 ? null : _reports.Compose(open, made));
             });
-            _ui.Post(() => Show(version, material, document));
+            _ui.Post(() => Show(version, material, draft, document));
         }
         catch (CaseException)
         {
@@ -419,8 +469,9 @@ public sealed partial class ReportViewModel : ObservableObject
         var draft = Draft();
         try
         {
+            var material = _material;
             var document = await Task.Run(() => _reports.Compose(open, draft));
-            _ui.Post(() => Show(version, _material, document));
+            _ui.Post(() => Show(version, material, draft, document));
         }
         catch (CaseException)
         {
@@ -465,6 +516,53 @@ public sealed partial class ReportViewModel : ObservableObject
         Ledger = _ledger,
     };
 
+    /// <summary>
+    /// Gives the case's rate of an asset at a time, read once per asset and time and never asked of a source, so that
+    /// building a report never goes out (principle 4); none when the rates are not at hand.
+    /// </summary>
+    /// <param name="open">The case.</param>
+    /// <returns>The lookup, run off the UI thread.</returns>
+    private Func<Asset, DateTimeOffset, Price?>? RateAt(ICase open)
+    {
+        if (_prices is not { } prices)
+        {
+            return null;
+        }
+
+        var known = new Dictionary<(Asset, DateTimeOffset), Price?>();
+        return (asset, at) =>
+        {
+            if (!known.TryGetValue((asset, at), out var price))
+            {
+                price = CaseRate(prices, open, asset, at);
+                known[(asset, at)] = price;
+            }
+
+            return price;
+        };
+    }
+
+    /// <summary>Reads one rate from the case; a failure is no rate, never an error in the report.</summary>
+    /// <param name="prices">The rates.</param>
+    /// <param name="open">The case.</param>
+    /// <param name="asset">The asset.</param>
+    /// <param name="at">The time.</param>
+    /// <returns>The price, or <see langword="null"/>.</returns>
+    private static Price? CaseRate(IPriceService prices, ICase open, Asset asset, DateTimeOffset at)
+    {
+        try
+        {
+            // Off the UI thread already, and the case only is read, so waiting here blocks no one.
+            return prices.GetPriceAsync(
+                    open, new PriceRequest(asset.Chain, at) { Asset = asset }, PriceLookupMode.CaseOnly)
+                .GetAwaiter().GetResult().Value;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Reads the clusters of the marked cluster nodes; none when clustering is not at hand.</summary>
     /// <param name="open">The case.</param>
     /// <param name="scene">The graph.</param>
@@ -489,8 +587,9 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <summary>Shows a rebuild, unless a newer one has begun since.</summary>
     /// <param name="version">The rebuild's number.</param>
     /// <param name="material">The material.</param>
+    /// <param name="draft">The draft the report was composed from, or <see langword="null"/>.</param>
     /// <param name="document">The report, or <see langword="null"/>.</param>
-    private void Show(int version, ReportMaterial material, RequestDocument? document)
+    private void Show(int version, ReportMaterial material, ReportDraft? draft, RequestDocument? document)
     {
         if (version != Volatile.Read(ref _version))
         {
@@ -498,6 +597,7 @@ public sealed partial class ReportViewModel : ObservableObject
         }
 
         _material = material;
+        _shownDraft = document is null ? null : draft;
         Actors = material.Actors;
         Document = document;
         RawLines = document is null ? [] : RawLine.Of(document.Markdown);
@@ -518,16 +618,17 @@ public sealed partial class ReportViewModel : ObservableObject
     private void OnCaseChanged()
     {
         _ledger = null;
+        _shownDraft = null;
+        _source = (null, []);
+        Picture = ReportPicture.Empty;
         if (_session.Current is { } open)
         {
             _ = LoadExportsAsync(open);
-            Built = CheckAndRebuildAsync();
+            Built = _isShown ? CheckAndRebuildAsync() : RebuildAsync();
         }
         else
         {
             Exports = [];
-            _source = (null, []);
-            Picture = ReportPicture.Empty;
             Built = RebuildAsync();
         }
     }
