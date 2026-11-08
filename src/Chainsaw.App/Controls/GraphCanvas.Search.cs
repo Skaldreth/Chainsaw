@@ -140,7 +140,7 @@ public sealed partial class GraphCanvas
         var pen = PenOf(accent, FoundRingThickness);
         var radius = NodeRadius + FoundRingGap;
         dc.DrawRoundedRectangle(null, pen, Around(frame, FoundRingGap), radius, radius);
-        _ringsOnScreen = true;
+        RingsAt(frame.Inflate(FoundRingGap + FoundPulseReach));
         var step = AnimationsOn ? _ringPhase : 0;
         var reach = FoundRingGap + (step * FoundPulseReach);
         dc.PushOpacity(AnimationsOn ? 0.7 * (1 - step) : 0);

@@ -96,7 +96,7 @@ public sealed partial class GraphCanvas
             switch (line.Kind)
             {
                 case WatchLineKind.Guard:
-                    dc.DrawGeometry(null, DotPen(line.Idle), Geometry(curve));
+                    dc.DrawGeometry(null, DotPen(line.Idle), CurveGeometry(curve));
                     DrawLineEye(dc, curve.Middle, line.Idle);
                     break;
                 case WatchLineKind.Hit:
@@ -246,7 +246,7 @@ public sealed partial class GraphCanvas
     /// <param name="idle">Whether lookups cannot be made now (grey).</param>
     private void DrawRings(DrawingContext dc, Point centre, double radius, bool idle)
     {
-        _ringsOnScreen = true;
+        RingsAt(new GraphRect(centre.X - (radius * 3), centre.Y - (radius * 3), radius * 6, radius * 6));
         var tint = Ink(idle ? "Brush.Watch.Idle" : "Brush.Watch");
         var phase = AnimationsOn ? _ringPhase : 0;
         for (var ring = 0; ring < 2; ring++)

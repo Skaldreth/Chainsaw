@@ -215,7 +215,7 @@ public sealed partial class GraphCanvas
     /// <param name="accent">The accent.</param>
     private void DrawSonar(DrawingContext dc, GraphRect frame, Brush accent)
     {
-        _ringsOnScreen = true;
+        RingsAt(frame.Inflate(frame.Width));
         var pen = PenOf(accent, 1.5);
         for (var ring = 0; ring < 2; ring++)
         {

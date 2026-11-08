@@ -22,13 +22,22 @@ public sealed partial class GraphCanvas
     private readonly SceneWindow _sceneWindow = new();
 
     /// <summary>The layer that holds the scene's drawing, on the surface's units.</summary>
-    private readonly DrawingVisual _sceneVisual = new();
+    private readonly LayerVisual _sceneVisual = new();
 
     /// <summary>The layer over the scene, drawn on screen units in every frame.</summary>
-    private readonly DrawingVisual _overlayVisual = new();
+    private readonly LayerVisual _overlayVisual = new();
 
     /// <summary>Moves the scene's layer onto the screen: changed in place, so that a pan sends only it.</summary>
     private readonly MatrixTransform _sceneTransform = new();
+
+    /// <summary>The part of the surface on screen when the scene was last drawn, without the margin.</summary>
+    private GraphRect _screenNow;
+
+    /// <summary>
+    /// Whether something changed what the scene shows since it was last drawn, so that it is drawn again without the
+    /// margin: a hover, a drag or a choice draws no more than is seen, and the margin is taken by the next pan.
+    /// </summary>
+    private bool _sceneChanged = true;
 
     /// <summary>Whether the scene's layer holds a drawing, so that it is emptied only once.</summary>
     private bool _sceneMade;
@@ -63,6 +72,7 @@ public sealed partial class GraphCanvas
     private void Redraw()
     {
         _sceneWindow.Forget();
+        _sceneChanged = true;
         InvalidateVisual();
     }
 
@@ -108,8 +118,10 @@ public sealed partial class GraphCanvas
         var visible = _viewport.Visible(ActualWidth, ActualHeight);
         if (!SceneIsStill || !_sceneWindow.Covers(visible, _viewport.Zoom, _zoomFrames))
         {
-            var margin = SceneMovesByItself ? 0 : SceneWindow.Margin;
+            var margin = _sceneChanged || SceneMovesByItself ? 0 : SceneWindow.Margin;
             var region = _sceneWindow.Take(visible, _viewport.Zoom, margin);
+            _screenNow = visible;
+            _sceneChanged = false;
             using (var dc = _sceneVisual.RenderOpen())
             {
                 DrawScene(dc, scene, region);
@@ -196,6 +208,18 @@ public sealed partial class GraphCanvas
         DrawFound(dc);
     }
 
+    /// <summary>
+    /// Says whether a part of the surface is on screen, not only in the margin, so that something that moves by
+    /// itself keeps the frames running only while it is seen.
+    /// </summary>
+    /// <param name="area">The part of the surface.</param>
+    /// <returns><see langword="true"/> when it is on screen.</returns>
+    private bool OnScreenNow(GraphRect area) => area.Intersects(_screenNow);
+
+    /// <summary>Notes that moving rings were drawn over a part of the surface, if that part is on screen.</summary>
+    /// <param name="area">Where the rings reach.</param>
+    private void RingsAt(GraphRect area) => _ringsOnScreen |= OnScreenNow(area);
+
     /// <summary>Draws what stands on the screen over the scene, in screen units.</summary>
     /// <param name="dc">Where to draw.</param>
     private void DrawOverScene(DrawingContext dc)
@@ -205,4 +229,21 @@ public sealed partial class GraphCanvas
         DrawBlockMarkBox(dc);
         DrawHeldBack(dc);
     }
+}
+
+/// <summary>
+/// A layer of the graph's surface that the pointer passes through: the surface finds what is under the pointer from
+/// the view model, so WPF need not test every line and frame of the scene on each move of the mouse (principle 6).
+/// </summary>
+internal sealed class LayerVisual : DrawingVisual
+{
+    /// <summary>Takes no point, so that the surface's own ground under the layer takes it.</summary>
+    /// <param name="hitTestParameters">The point.</param>
+    /// <returns>Nothing.</returns>
+    protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters) => null;
+
+    /// <summary>Takes no geometry, for the same reason.</summary>
+    /// <param name="hitTestParameters">The geometry.</param>
+    /// <returns>Nothing.</returns>
+    protected override GeometryHitTestResult? HitTestCore(GeometryHitTestParameters hitTestParameters) => null;
 }
