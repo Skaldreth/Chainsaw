@@ -129,6 +129,149 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     }
 
     /// <summary>
+    /// Gives the transactions whose block may have changed since the case first saw them in one: a later answer that
+    /// shows another block (another hash, or another height when the hash was not kept) or none, two or more answers to
+    /// the transaction itself (a shallow one is asked for again), or a later answer the lookup took as the source not
+    /// knowing it. Only the indexes are read, so that the answers themselves are read only for these few.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The transactions, in txid order.</returns>
+    public IReadOnlyList<Txid> BlockChangeCandidates(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            $"""
+            SELECT a.txid FROM chains_bitcoin_seen a
+                JOIN chains_bitcoin_seen b ON b.chain = a.chain AND b.txid = a.txid AND b.sequence > a.sequence
+                WHERE a.chain = $chain AND a.block_height IS NOT NULL
+                    AND (b.block_height IS NULL OR b.block_height <> a.block_height
+                        OR COALESCE(b.block_hash <> a.block_hash, 0))
+            UNION
+            SELECT subject FROM chains_lookup WHERE chain = $chain AND kind = $kind
+                GROUP BY subject HAVING COUNT(*) > 1
+            UNION
+            SELECT n.subject FROM chains_not_found n
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = n.sequence AND r.chain = n.chain
+                    AND r.kind = n.kind AND r.subject = n.subject AND r.status_code = $gone
+                JOIN chains_bitcoin_seen s ON s.chain = n.chain AND s.txid = n.subject AND s.sequence < n.sequence
+                WHERE n.chain = $chain AND n.kind = $kind AND s.block_height IS NOT NULL
+            ORDER BY 1
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", ResponseKinds.Transaction);
+        Add(command, "$gone", NotFoundStatus);
+        var txids = new List<Txid>();
+        using var rows = command.ExecuteReader();
+        while (rows.Read())
+        {
+            if (Txid.TryParse(rows.GetString(0), out var txid))
+            {
+                txids.Add(txid);
+            }
+        }
+
+        return txids;
+    }
+
+    /// <summary>
+    /// Notes that a lookup took a sealed answer as the source not knowing what was asked (an endpoint it trusts, or
+    /// every endpoint asked, said so). The note is an index beside the sealed answer, which says nothing more than the
+    /// answer and the lookup's decision; an answer from an endpoint the lookup did not believe is never noted.
+    /// </summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="kind">What was asked.</param>
+    /// <param name="subject">What it was asked about.</param>
+    /// <param name="sequence">The sealed answer's number.</param>
+    public void MarkNotFound(ICaseTransaction transaction, string kind, string subject, long sequence)
+    {
+        using var command = transaction.CreateCommand(
+            """
+            INSERT OR IGNORE INTO chains_not_found (chain, kind, subject, sequence)
+            VALUES ($chain, $kind, $subject, $sequence)
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", kind);
+        Add(command, "$subject", subject);
+        Add(command, "$sequence", sequence);
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Finds every answer that a lookup took as the source not knowing a transaction (<c>404</c>, see
+    /// <see cref="MarkNotFound"/>): sealed as every answer is, but never used as one. Only an answer that is a
+    /// <c>404</c> to that very request counts, whatever the register says.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>Each answer's number, when it came in local time, and its endpoint's id and name, oldest first.</returns>
+    public IReadOnlyList<(long Sequence, DateTimeOffset ReceivedLocal, string EndpointId, string Endpoint)> NotFound(
+        ICaseReader reader, Txid txid)
+    {
+        using var command = reader.CreateCommand(
+            $"""
+            SELECT r.sequence, r.received_local, r.endpoint_id, r.endpoint_name FROM chains_not_found n
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = n.sequence AND r.chain = n.chain
+                    AND r.kind = n.kind AND r.subject = n.subject AND r.status_code = $gone
+            WHERE n.chain = $chain AND n.kind = $kind AND n.subject = $txid
+            ORDER BY r.sequence
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", ResponseKinds.Transaction);
+        Add(command, "$txid", txid.Value);
+        Add(command, "$gone", NotFoundStatus);
+        var found = new List<(long, DateTimeOffset, string, string)>();
+        using var row = command.ExecuteReader();
+        while (row.Read())
+        {
+            found.Add((row.GetInt64(0), ParseTime(row.GetString(1)), row.GetString(2), row.GetString(3)));
+        }
+
+        return found;
+    }
+
+    /// <summary>Says whether a lookup took a sealed answer as the source not knowing what was asked.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="sequence">The answer's number.</param>
+    /// <returns><see langword="true"/> when it is noted.</returns>
+    public bool IsNotFound(ICaseReader reader, long sequence)
+    {
+        using var command = reader.CreateCommand(
+            "SELECT 1 FROM chains_not_found WHERE chain = $chain AND sequence = $sequence LIMIT 1");
+        Add(command, "$chain", ChainName);
+        Add(command, "$sequence", sequence);
+        return command.ExecuteScalar() is not null;
+    }
+
+    /// <summary>The status with which a source says that it does not know what was asked about.</summary>
+    private const long NotFoundStatus = 404;
+
+    /// <summary>
+    /// Gives the highest block an endpoint had shown up to an answer: the chain's heights it answered and the blocks of
+    /// the transactions in its answers, all sealed. A newer answer from an endpoint that had not come as far as a block
+    /// says nothing about that block, since the endpoint may only lag behind (finding C1 of GR9a).
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="endpointId">The endpoint's id as sealed.</param>
+    /// <param name="upTo">The last answer to count.</param>
+    /// <returns>The height, or <see langword="null"/> when its answers show none.</returns>
+    public long? EndpointHeight(ICaseReader reader, string endpointId, long upTo)
+    {
+        using var command = reader.CreateCommand(
+            $"""
+            SELECT MAX(height) FROM (
+                SELECT MAX(l.height) AS height FROM chains_lookup l
+                    JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = l.sequence
+                    WHERE l.chain = $chain AND r.endpoint_id = $endpoint AND l.sequence <= $upTo
+                UNION ALL SELECT MAX(s.block_height) FROM chains_bitcoin_seen s
+                    JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = s.sequence
+                    WHERE s.chain = $chain AND r.endpoint_id = $endpoint AND s.sequence <= $upTo)
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$endpoint", endpointId);
+        Add(command, "$upTo", upTo);
+        return command.ExecuteScalar() as long?;
+    }
+
+    /// <summary>
     /// Gives the highest block the case knows of: the newest height fetched, or the highest block a fetched
     /// transaction is in, whichever is higher. The chain is at least this high.
     /// </summary>
@@ -233,10 +376,10 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             height = row.IsDBNull(0) ? null : row.GetInt64(0);
         }
 
-        var transactions = new List<(Txid Txid, long? Height)>();
+        var transactions = new List<(Txid Txid, long? Height, string? Hash)>();
         using (var command = reader.CreateCommand(
             """
-            SELECT txid, block_height FROM chains_bitcoin_seen WHERE chain = $chain AND sequence = $sequence
+            SELECT txid, block_height, block_hash FROM chains_bitcoin_seen WHERE chain = $chain AND sequence = $sequence
             ORDER BY txid
             """))
         {
@@ -245,7 +388,9 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             using var rows = command.ExecuteReader();
             while (rows.Read())
             {
-                transactions.Add((Txid.Parse(rows.GetString(0)), rows.IsDBNull(1) ? null : rows.GetInt64(1)));
+                transactions.Add((
+                    Txid.Parse(rows.GetString(0)), rows.IsDBNull(1) ? null : rows.GetInt64(1),
+                    rows.IsDBNull(2) ? null : rows.GetString(2)));
             }
         }
 
@@ -287,13 +432,14 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             command.ExecuteNonQuery();
         }
 
-        foreach (var (txid, height) in index.Transactions)
+        foreach (var (txid, height, hash) in index.Transactions)
         {
             using var command = transaction.CreateCommand(
                 """
-                INSERT OR IGNORE INTO chains_bitcoin_seen (chain, txid, sequence, block_height)
-                VALUES ($chain, $txid, $sequence, $height)
+                INSERT OR IGNORE INTO chains_bitcoin_seen (chain, txid, sequence, block_height, block_hash)
+                VALUES ($chain, $txid, $sequence, $height, $hash)
                 """);
+            Add(command, "$hash", hash);
             Add(command, "$chain", ChainName);
             Add(command, "$txid", txid.Value);
             Add(command, "$sequence", sequence);

@@ -3534,3 +3534,70 @@ Tester: 9 nya i Pricing (`EuroTests`) och 20 i App (`RatesTests`).
   skäl och en tx-nods bok ordnas efter index; en tjänsts tx är bara de som pengarna dit gick genom; *klustret* eller
   *adressen* efter ämnet; Guiden har ett avsnitt om rundturer. Facit för cykel, omläsning och `MaxRuns`.
 - M4 och M7 står i `docs/BACKLOG.md`. Kronorna under beloppen väntar på KU1a, som inte finns på huvudgrenen än.
+
+## Grafen: kortets baksida, markeringarna och tidslisten som lins (IN4a, GR9a och TL2a, 2026-11-08)
+
+- **IN4a:** Alt + klick vänder en adress eller ett kluster runt sin lodräta axel (0,6 s, still utan animeringar), och
+  baksidan växer till 260 px med en rad per tillgång. Flera kort kan stå vända; de ritas över noderna i ett eget pass
+  (`GraphCanvas.Cards.cs`). Saldot hämtas genom utgången (`IGraphChainState`, `GraphChainState`): Bitcoin ur
+  adressens sammanfattning (bekräftat mottaget minus spenderat, för högst tio adresser i ett kluster), Ethereum ur
+  `IEthereumSource.GetBalanceAsync` med ETH och de tokens vars utgivare Chainsaw känner (USDT, USDC). Dagens kurs är
+  den senaste avslutade timmen hos Bitstamp (eller dagen före när den inte finns än), förseglad i ärendet som varje
+  kurs; offline den senaste kursen i ärendet med datum och kronorna streckade under. Höjden i foten är kedjans topp
+  när saldot hämtades.
+- **GR9a, bytt block:** `IBitcoinSource.GetBlockChangesAsync` läser bara ärendet: tx:er där ett senare förseglat svar
+  visar en annan höjd, ingen höjd eller där källan svarat `404`, och jämför sedan det första svaret som hade tx:en i
+  ett block med det nyaste (hash, inte bara höjd). **Inga nya skrivningar i ärendet:** båda svaren fanns redan
+  förseglade (Chains hämtar om ett svar i ett grunt block), och jämförelsen görs vid läsning. Märket sitter i
+  beloppets övre hörn, gult för *Bytte block* och *Tillbaka i mempool*, rött med överstruket belopp för *Finns inte
+  längre*; rutan har förut och nu med höjd, hash och tid, och *?* öppnar Guiden (nytt ämne `ChainCheck`).
+- **GR9a, Väntar på källan:** brickan i grafens huvud visas bara när varje påslagen endpoint för en kedja ber om
+  väntan eller inte svarar, och minst en ber om väntan (`SourceWait`). Ringen töms till den första väntan är över,
+  och vyn räknar ned varje sekund. Noden som expanderas får ett timglas som andas.
+- **TL2a:** valvyns fönster blir listens lins när valvyn stängs (±48 h, ±7 d, ±6 h, sedan hela ärendet med brickan).
+  Linsen tar 56 % av listen med dygn och timmar, resten trycks ihop med bara måndagarna. Listen slutar prickad vid det
+  nyaste block ärendet har (`GetTipAsync(…, LookupMode.CaseOnly)`, inget uppslag). Inzoomade dygnsband (minst 320 px)
+  får prickade timlinjer vid 06, 12 och 18.
+- **Avsteg:** foten säger *Hämtar kurs genom utgången*, inte utgångens namn. En tx som inte längre finns streckar inte
+  linjerna och aktörerna efter sig. Valvyns fönster har inte ±6 h, så det finns bara i listens steg. Rutan över
+  *Väntar på källan* är verktygstipset, inte en egen panel.
+- **Återstår:** se `docs/TODO.md` under *Grafen: kortet, markeringarna och listen*.
+
+## Granskningen av IN4a, GR9a och TL2a rättad (2026-11-08)
+
+- **C1, en endpoint som ligger efter:** ett grunt svar hämtas om hos en endpoint i fas med kedjan när någon är känd
+  (`SourceLookups.FetchAsync(…, preferInStep)`), annars som förut. Ett nyare svar utan block, eller ett *finns inte*,
+  räknas bara när dess endpoint enligt sina egna förseglade svar (kedjans höjd och tx:ernas block) hade kommit minst
+  till blocket ärendet först såg tx:en i (`RawResponseStore.EndpointHeight`); annars hoppas svaret över.
+  Märkets texter är bedömningar: *Källan svarar nu …, troligen …* (princip 2).
+- **I1:** bara en `404` som uppslaget godtog (en betrodd endpoint, eller alla tillfrågade) noteras, i ett nytt register
+  `chains_not_found` bredvid de förseglade svaren. En `404` från en endpoint som inte trodds, följd av ett fel, blir
+  aldrig *Finns inte längre*.
+- **I2:** `chains_bitcoin_seen` har `block_hash`, och kandidaterna jämförs på hash, så att ett byte till ett annat
+  block på samma höjd syns också i en adresslista. `SealedResponseTransaction.BlockHash` följer med när ett svar
+  förseglas om i ett annat ärende. Schemat ändrades i version 1 (före 1.0).
+- **I3:** `GraphChainStateTests` provar den riktiga `GraphChainState` med fakes: klustrets summa och taket på tio
+  adresser, en adress som fallerar, den äldsta tiden, reserven från timme till dygn, Ethereums kända tokens och att
+  markeringarna läses bara ur ärendet. `BlockChangeTests` visar att läsningen inte skickar något, och `ChainStateTests`
+  att timglaset står under en expansion.
+- **M1–M7:** höjdens verktygstips säger blockets hash och om saldot hämtades nu eller lästes ur ärendet; det som väntar i
+  mempool står som en liten klocka på tillgångens rad; foten säger *Ingen ny kurs* när utgången är ansluten men ingen
+  kurs kom; läsningen av markeringarna har ett löpnummer, och ett äldre svar släpps; varje vändning har ett id, så att
+  ett svar till en tidigare vändning släpps; en paus som slutar senare än den förra börjar ringen om; rutan visar
+  endpointen och hashen med sex tecken först och åtta sist, och är 340 px bred.
+
+## Omgranskningen av GR9a rättad (2026-11-08)
+
+- **I1, en endpoint med flera noder:** en publik endpoint (mempool.space) har flera noder bakom en adress, och en av
+  dem kan ligga efter sekunden efter ett nytt block, fast samma endpoint redan visat blocket. *Tillbaka i mempool* och
+  *Finns inte längre* sätts därför bara när två svar i rad, efter det senaste som hade tx:en i ett block, säger samma
+  sak: från olika endpoints, eller med minst ett nytt block i ärendet mellan dem (`EsploraBitcoinSource.Confirms`).
+  Varje svar måste fortfarande komma från en endpoint som visat minst blockets höjd. Ett ensamt sådant svar ger inget
+  märke; ett *Bytte block* (ett annat block) kräver ingen bekräftelse.
+- **M1:** registret `chains_not_found` räknas bara när det förseglade svaret har status `404` och samma kind och subject,
+  både i kandidatfrågan och när svaren läses.
+- **M2:** en `404` som uppslaget godtog följer med när svaret förseglas om i ett annat ärende
+  (`SealedResponseIndex.NotFound`), och läggs där i registret, aldrig som ett svar.
+- **M5:** ett test med enbart utgående i mempool (en negativ väntande summa med −).
+- **M3 och M4** ur omgranskningen är inte rättade här; de står i granskningens rapport till huvudsessionen och förs
+  in i `docs/BACKLOG.md` därifrån.

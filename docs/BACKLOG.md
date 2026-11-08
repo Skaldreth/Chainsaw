@@ -692,3 +692,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   hittar inte högen (`GraphViewModel.ShowNode`); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
 - **Ett instabilt test i App.Tests** (2026-11-08): efter ihopslagningen av Exponering föll ett test en gång av fyra
   körningar utan att namnet syntes i den korta utskriften. Kör sviten några gånger med `--logger "console;verbosity=detailed"` och rätta det.
+- **Grafens kort och markeringar, efter omgranskningen 2026-11-08:** en grund tx hämtas inte om när den endpoint
+  som är i fas väntar eller fallerar, och *i fas* bygger bara på provet vid start; schemasteg 1 ändrades på plats
+  (`block_hash`, `chains_not_found`), så äldre testärenden ska slängas.

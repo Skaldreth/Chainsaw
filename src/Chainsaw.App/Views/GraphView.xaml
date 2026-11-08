@@ -526,6 +526,75 @@
                            Margin="0,0,12,0" ToolTip="{Binding OfflineTip}"
                            Visibility="{Binding ShowsOffline, Converter={StaticResource Visible}}" />
                 <!--
+                  Väntar på källan (sketch GR9a): only while every source of a chain asks Chainsaw to wait. The chain's
+                  mark in a ring that drains until Chainsaw may ask again, the seconds beside it, and on hovering the
+                  sources with why and how long.
+                -->
+                <Border Height="32" CornerRadius="16" Padding="6,0,12,0" Margin="0,0,10,0" VerticalAlignment="Top"
+                        Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Pending.Edge}"
+                        BorderThickness="1.5" AutomationProperties.Name="Väntar på källan"
+                        ToolTipService.InitialShowDelay="150" ToolTipService.ShowDuration="60000"
+                        Visibility="{Binding HasWait, Converter={StaticResource Visible}}">
+                    <Border.ToolTip>
+                        <ToolTip Placement="Bottom" Padding="0">
+                            <StackPanel Width="300">
+                                <DockPanel Margin="14,12,14,8">
+                                    <controls:GridIcon Size="16" Data="{StaticResource Icon.Hourglass}"
+                                                       Foreground="{StaticResource Brush.Pending}" />
+                                    <TextBlock Text="Källorna ber Chainsaw vänta" FontSize="13.5" FontWeight="SemiBold"
+                                               Margin="9,0,0,0" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <ItemsControl ItemsSource="{Binding WaitRows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Height="36" Padding="14,0" BorderThickness="0,1,0,0"
+                                                    BorderBrush="{StaticResource Brush.Card.Rule}">
+                                                <DockPanel VerticalAlignment="Center">
+                                                    <Ellipse Width="7" Height="7" DockPanel.Dock="Left" Margin="0,0,10,0"
+                                                             VerticalAlignment="Center">
+                                                        <Ellipse.Style>
+                                                            <Style TargetType="Ellipse">
+                                                                <Setter Property="Fill" Value="{StaticResource Brush.TextDim}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                                                        <Setter Property="Fill" Value="{StaticResource Brush.Pending}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Ellipse.Style>
+                                                    </Ellipse>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Left}" Width="34"
+                                                               TextAlignment="Right" FontSize="12"
+                                                               Foreground="{StaticResource Brush.Pending}" />
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Why}" FontSize="11.5"
+                                                               Margin="10,0,0,0" Foreground="{StaticResource Brush.TextDim}" />
+                                                    <TextBlock Text="{Binding Host}" FontSize="12.5"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Border Padding="14,9" BorderThickness="0,1,0,0" Background="{StaticResource Brush.Surface}"
+                                        BorderBrush="{StaticResource Brush.Card.Rule}">
+                                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                               Text="Chainsaw frågar inte fortare än källorna tillåter, och tar den första som svarar igen. Arbetet går vidare." />
+                                </Border>
+                            </StackPanel>
+                        </ToolTip>
+                    </Border.ToolTip>
+                    <StackPanel Orientation="Horizontal">
+                        <Grid Width="22" Height="22" VerticalAlignment="Center">
+                            <controls:DrainRing Share="{Binding WaitLeftShare}" Ink="{StaticResource Brush.Pending}"
+                                                Track="{StaticResource Brush.BorderStrong}" />
+                            <TextBlock Text="{Binding Wait.Glyph}" FontSize="11" Foreground="{StaticResource Brush.Pending}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock Text="{Binding WaitLeftText}" FontSize="12.5" Margin="8,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Brush.Pending}" Typography.NumeralAlignment="Tabular" />
+                    </StackPanel>
+                </Border>
+                <!--
                   The graph's corner as one row of icons (the user's wish 2026-11-07), as the actions over a node: the
                   checks and suggestions, the areas, the layout, the method (always shown) and the amounts on the lines.
                   A dot on an icon says that something is there; the words are in the tips.

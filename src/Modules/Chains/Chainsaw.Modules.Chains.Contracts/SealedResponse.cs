@@ -63,12 +63,23 @@ public static class SealedResponses
 /// </summary>
 /// <param name="Height">The chain's height the response shows, or <see langword="null"/>.</param>
 /// <param name="Transactions">The transactions in it, with their block's height when confirmed.</param>
-public sealed record SealedResponseIndex(long? Height, IReadOnlyList<SealedResponseTransaction> Transactions);
+public sealed record SealedResponseIndex(long? Height, IReadOnlyList<SealedResponseTransaction> Transactions)
+{
+    /// <summary>
+    /// Gets whether the lookup took the response as the source not knowing what was asked (a <c>404</c> it believed),
+    /// so that it is taken so in the other case too; such a response is never an answer.
+    /// </summary>
+    public bool NotFound { get; init; }
+}
 
 /// <summary>A transaction a sealed response holds.</summary>
 /// <param name="Txid">The transaction's id as the chain writes it.</param>
 /// <param name="BlockHeight">Its block's height, or <see langword="null"/> while unconfirmed.</param>
-public sealed record SealedResponseTransaction(string Txid, long? BlockHeight);
+public sealed record SealedResponseTransaction(string Txid, long? BlockHeight)
+{
+    /// <summary>Gets its block's hash, or <see langword="null"/> while unconfirmed or when it is not known.</summary>
+    public string? BlockHash { get; init; }
+}
 
 /// <summary>
 /// Moves sealed raw responses from one case to another: reads one with all its values, and seals it again unchanged in

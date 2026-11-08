@@ -129,6 +129,7 @@ public partial class GraphView : UserControl
         Canvas.Attach(model);
         TimeStrip.Attach(model.Timeline);
         AttachTrash(model);
+        AttachWait(model);
         model.Checks.PropertyChanged += (_, e) =>
         {
             // The list's keys (J, K, Enter, X and ?) and Z work in the graph; the keyboard goes back to it.

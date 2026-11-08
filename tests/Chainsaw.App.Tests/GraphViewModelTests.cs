@@ -72,10 +72,20 @@ internal sealed class TestGraphSource : IGraphSource
     {
         Expansions.Add(requests);
         ExpansionReadings.Add(reading);
+        if (ExpandGate is { } gate)
+        {
+            return gate.Task.ContinueWith(
+                _ => Expansion ?? new GraphExpansion(Scene(), ExpansionOutcome.Expanded, 2, []),
+                TaskScheduler.Default);
+        }
+
         return ExpandFailure is { } failure
             ? Task.FromException<GraphExpansion>(failure)
             : Task.FromResult(Expansion ?? new GraphExpansion(Scene(), ExpansionOutcome.Expanded, 2, []));
     }
+
+    /// <summary>Holds an expansion until the test lets it go, or none when <see langword="null"/>.</summary>
+    public TaskCompletionSource? ExpandGate { get; set; }
 
     public Task<IReadOnlyList<WhyLine>> ExplainClusterAsync(
         ICase @case, GraphNode node, CancellationToken cancellationToken) => Task.FromResult(ClusterLines);

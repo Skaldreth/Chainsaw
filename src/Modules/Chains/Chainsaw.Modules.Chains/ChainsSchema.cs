@@ -63,9 +63,17 @@ internal sealed class ChainsSchema : ICaseSchemaContributor
             txid TEXT NOT NULL,
             sequence INTEGER NOT NULL,
             block_height INTEGER,
+            block_hash TEXT,
             PRIMARY KEY (chain, txid, sequence)
         ) STRICT, WITHOUT ROWID;
         CREATE INDEX chains_bitcoin_seen_height ON chains_bitcoin_seen (chain, block_height);
+        CREATE TABLE chains_not_found (
+            chain TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            sequence INTEGER NOT NULL,
+            PRIMARY KEY (chain, kind, subject, sequence)
+        ) STRICT, WITHOUT ROWID;
         """;
 
     /// <inheritdoc/>

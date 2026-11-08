@@ -119,6 +119,16 @@ public static class TestDataBitcoin
         public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default) =>
             inner.GetTipAsync(@case, cancellationToken);
 
+        /// <inheritdoc/>
+        public Task<BitcoinLookup<ChainTip>> GetTipAsync(
+            ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+            inner.GetTipAsync(@case, mode, cancellationToken);
+
+        /// <inheritdoc/>
+        public Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
+            ICase @case, CancellationToken cancellationToken = default) =>
+            inner.GetBlockChangesAsync(@case, cancellationToken);
+
         /// <summary>Tries the endpoint the first time it is needed in step, and never again.</summary>
         /// <param name="cancellationToken">Stops the wait.</param>
         /// <returns>A task that completes when the endpoint has been tried.</returns>

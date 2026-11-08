@@ -1236,6 +1236,32 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Öppna Etikett (L) på en nod, klicka i Guidens panel och tryck Esc: formuläret stängs. Esc en gång till stänger
       Guidens panel. Samma sak med Bevaka (B) och formuläret för en egen yta (Z).
 
+## Kortet, markeringarna och tidslisten (IN4a, GR9a och TL2a, 2026-11-08)
+- [ ] Alt + klick på en Bitcoin-adress med pengar kvar: noden vänds runt sin lodräta axel (0,6 s) och baksidan växer
+      till 260 px med en rad: en ring med ₿, beloppet med de sista fyra decimalerna dämpade och kronorna under. Foten
+      säger *Bitstamp · i dag 14:00* med en grön prick, och blockhöjden med en kub till höger.
+- [ ] Vänd en till nod: båda står vända samtidigt och ligger över noderna runt omkring. Alt + klick igen, eller pilen
+      uppe till höger på baksidan (syns vid hovring), vänder tillbaka.
+- [ ] En Ethereum-adress med ETH och USDT: två rader, ₮-raden med snöflingan *Kan frysas*.
+- [ ] En tom adress: raden *Tom · sedan 29 sep 10:20* med en streckad ring och ingen kurs i foten.
+- [ ] Offline (VPN vald men inte ansluten): foten har en gul klocka och *Offline · kurs 5 nov 09:14*, och kronorna är
+      streckade under. Utan kurs i ärendet: *Offline · ingen kurs i ärendet* och *– kr*.
+- [ ] Hovra en rad, foten och höjden: verktygstipset visar hur kronorna räknats, kursen i sin helhet och vilket block
+      saldot gäller. Med animeringar avstängda vänds kortet direkt.
+- [ ] En tx som bytt block (svårt att framkalla; ett ärende med en tx hämtad i ett grunt block som sedan omorganiserats):
+      ett gult runt märke i beloppets övre hörn. Hovra eller klicka: rutan *Bytte block* med förut (överstruket) och nu,
+      höjd, hash och när svaret kom. *?* öppnar Guiden på *Omorganisation av kedjan*.
+- [ ] Alla Bitcoin-källor ber Chainsaw vänta (till exempel många expansioner i följd mot publika källor): en bricka
+      med ₿ i en ring som töms och sekunderna nedräknade står i grafens huvud; hovra för källorna och hur länge.
+      Noden som expanderas får ett timglas i nedre högra hörnet som andas. Ber bara en källa om väntan syns inget.
+- [ ] Öppna det som hölls tillbaka (+N tx), välj ±48 h och stäng: tidslisten blir en lins där fönstret tar drygt
+      halva listen med dygn och timmar, de utelämnade tx:erna som korta grå streck och ankomsten som en streckad
+      accentlinje. Brickan *Valvyn · ±48 h* över linsen byter till ±7 d, ±6 h och sedan hela ärendet.
+- [ ] En adress med en obekräftad tx: tillgångens rad har en liten gul klocka; hovra raden för det som väntar i mempool.
+- [ ] Med utgången ansluten men kurskällan nere: foten säger *Ingen ny kurs · kurs …*, inte *Offline*.
+- [ ] Listen slutar prickad vid senaste blocket, en kub med höjden under; hovra kuben för höjden och tiden.
+- [ ] Zooma in i grafen tills ett dygn är brett: prickade timlinjer vid 06, 12 och 18 med timmen överst.
+
 ## Grafens ikon (IK1)
 - [ ] Grafens ikon i pillret är en förgrening: en rund aktör till vänster vars linje delar sig mot en rund aktör uppe till höger och en fyrkantig tjänst nere till höger, skarp i 20 px.
 

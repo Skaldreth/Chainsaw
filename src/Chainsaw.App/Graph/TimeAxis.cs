@@ -78,6 +78,11 @@ public sealed class TimeAxis
     public string TimeName(DateTimeOffset time) =>
         TimeZoneInfo.ConvertTime(time, _zone).ToString("d MMMM HH:mm", Swedish);
 
+    /// <summary>Gives a time's hour of the day in the axis's time zone.</summary>
+    /// <param name="time">The time.</param>
+    /// <returns>The hour, 0 to 23.</returns>
+    public int HourOf(DateTimeOffset time) => TimeZoneInfo.ConvertTime(time, _zone).Hour;
+
     /// <summary>Gives a time's date in the axis's time zone.</summary>
     /// <param name="time">The time.</param>
     /// <returns>The date.</returns>

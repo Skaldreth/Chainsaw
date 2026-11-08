@@ -255,6 +255,8 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawFlying(drawingContext, node, _model.Places[node.Key], nearNodes);
         }
 
+        DrawCards(drawingContext, nearNodes);
+
         DrawTrashPending(drawingContext);
 
         drawingContext.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
@@ -267,6 +269,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         drawingContext.Pop();
         DrawTimeNames(drawingContext);
         DrawBox(drawingContext);
+        DrawBlockMarkBox(drawingContext);
         DrawHeldBack(drawingContext);
         KeepRings(_ringsOnScreen && _blast == BlastPhase.None);
     }
@@ -285,7 +288,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
         _model?.Comments.Select(null);
-        if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressThread(surface)
+        if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressBlockMark(at, surface)
+            || PressCard(surface) || PressThread(surface)
             || PressGuide(surface) || PressForComment(e, surface) || PressArea(surface) || PressToExpand(e, surface)))
         {
             e.Handled = true;
@@ -325,6 +329,8 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         if (!_gesture.IsPressed)
         {
+            HoverCard(surface);
+            HoverBlockMark(surface);
             ShowHover(surface);
             return;
         }
@@ -653,7 +659,9 @@ public sealed partial class GraphCanvas : FrameworkElement
         var hit = model.HitTest(surface, Tolerance);
         var guideTip = GuideTipAt(surface);
         Cursor = hit.Node is not null || hit.Edge is not null || guideTip is not null ? Cursors.Hand : null;
-        var text = guideTip ?? model.AmountTipAt(surface) ?? model.Scene?.Node(hit.Node)?.ToolTip;
+        var chainTip = BlockMarkTipAt(surface) ?? CardTipAt(surface);
+        Cursor = chainTip is not null ? Cursors.Hand : Cursor;
+        var text = guideTip ?? chainTip ?? model.AmountTipAt(surface) ?? model.Scene?.Node(hit.Node)?.ToolTip;
         if (text == _hoverTip.Content as string)
         {
             return;
@@ -893,6 +901,8 @@ public sealed partial class GraphCanvas : FrameworkElement
 
             dc.DrawText(value, new Point(valueLeft + markWidth, valueTop));
         }
+
+        DrawBlockMark(dc, edge.Key, box);
     }
 
     /// <summary>
@@ -982,6 +992,11 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
+        if (LeftToCard(node.Key))
+        {
+            return;
+        }
+
         var chosen = model.SelectedNode == node.Key;
         var opacity = NodeOpacity(node, near);
         var frame = new Rect(place.X, place.Y, node.Width, GraphSizes.NodeHeight);
@@ -1019,6 +1034,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         DrawMarks(dc, node, place);
         DrawWatchMark(dc, node, place);
+        DrawWaitGlass(dc, node, place);
         if (node.IsStartPoint)
         {
             DrawStartFlag(dc, place);

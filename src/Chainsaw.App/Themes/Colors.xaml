@@ -90,6 +90,19 @@
     <SolidColorBrush x:Key="Brush.Watch" Color="#9AD0DC" />
     <SolidColorBrush x:Key="Brush.Watch.Idle" Color="#747575" />
     <SolidColorBrush x:Key="Brush.Mark.OnAccent" Color="#2A0C1E" />
+    <!--
+      The card's back (sketch IN4a): each asset's own quiet ring (bitcoin sand, ether steel, the stablecoins' green), the rules
+      between its rows and its foot; and the small marks of sketch GR9a: an amber edge for the wait for a source, the
+      dark ink on an amber disc, the hours' dotted lines in a zoomed band and the held-back strokes in the strip's lens.
+    -->
+    <SolidColorBrush x:Key="Brush.Asset.Bitcoin" Color="#D9CBB8" />
+    <SolidColorBrush x:Key="Brush.Asset.Ether" Color="#B6BFD0" />
+    <SolidColorBrush x:Key="Brush.Asset.Token" Color="#5EC2A8" />
+    <SolidColorBrush x:Key="Brush.Card.Rule" Color="#3B3E42" />
+    <SolidColorBrush x:Key="Brush.Pending.Edge" Color="#5C523F" />
+    <SolidColorBrush x:Key="Brush.Mark.OnPending" Color="#2A2110" />
+    <Color x:Key="Color.Graph.HourLine">#55585C</Color>
+    <SolidColorBrush x:Key="Brush.Strip.HeldBack" Color="#6A6D71" />
     <!-- The areas behind the actors (sketch KF1b): drawn faint as fill and a little stronger as edge. -->
     <SolidColorBrush x:Key="Brush.Area.Red" Color="#EC8C8C" />
     <SolidColorBrush x:Key="Brush.Area.Sand" Color="#D6C4A0" />

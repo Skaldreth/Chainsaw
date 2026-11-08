@@ -20,8 +20,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
 
 **Från bygget 2026-11-08**, så som det är byggt nu:
 1. **Kandidaternas linjer** i mixerns förslag ritas alltid. Förut ritades de bara när områdena var på. *Nu:* alltid.
-2. **SEK för det som ligger kvar** räknas till den senaste kursen ärendet har för tillgången, inte till dagens kurs
-   som kortets baksida ska visa. *Nu:* den senaste kursen i ärendet. Dagens kurs kräver ett uppslag genom utgången.
+2. **SEK för det som ligger kvar i inspektören** räknas till den senaste kursen ärendet har för tillgången. Kortets
+   baksida (IN4a) visar dagens kurs genom utgången. *Nu:* inspektören tar den senaste kursen i ärendet.
 3. **Soptunnans vy ritar noderna i sortens färg**, så en mixer blir röd, fast soptunnan aldrig ska använda rött.
    *Förslag:* neutralt grått i soptunnan.
 4. **N med en vald nod** knyter den nya lappen till noden. Skissen säger det bara om ikonen i nodens list. *Nu:*
@@ -98,8 +98,16 @@ fungerar rättas före allt annat nedan. Särskilt:
 - **Grafens samlingsnod trycks inte ut** [direkt]: stöten och centreringen är som startvyns, men ytan bakom trycks
   inte ut lite som i `FanOutLayer` (grafen ritas i en `DrawingContext`, så det kräver en egen skalning av det dimmade).
 
+**Grafen: kortet, markeringarna och listen (IN4a, GR9a, TL2a)**
+- **Bytt block på Ethereum** [direkt]: bara Bitcoins svar jämförs. Ethereums block är slutgiltiga efter 64 block, så
+  det gäller bara det som hämtats medan blocket var grunt.
+- **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*. Vilken tx
+  som spenderar samma pengar i stället står inte i svaren; det kräver uppslag på de spenderade utgångarna.
+- **Linjerna efter en tx som inte finns** [direkt]: märket blir rött och beloppet överstruket, men linjen och
+  aktörerna efter den streckas inte som i skissen, eftersom Tracing fortfarande läser det sparade svaret.
+- **Testärendet** [direkt]: `/testdata` har inget bytt block; den påhittade kedjan svarar alltid likadant.
+
 **Inspektören, Nytt ärende och Guiden**
-- **Kortets baksida i dagens kurs** [direkt]: efter fråga 2 ovan.
 - **Källors felrad till toastern** [direkt], som Bevakningens felrad redan är.
 - **Bevakningens huvud** [direkt]: skissen säger *2 nya träffar sedan 09:10*, men vyn säger bara antalet. När
   användaren senast tittade behöver sparas som en tid med *sedd*.
@@ -142,6 +150,8 @@ fungerar rättas före allt annat nedan. Särskilt:
 
 Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md under *Valt för 1.0*.
 - **Grafen** [direkt]: IN4a kortets baksida, TL2a tidslisten, GR9a bytt block och *Väntar på källan*.
+
+- **Etiketter ET1a** [etapp], med sanktionsträffarna samlade.
 - **Exponering EP1b** [etapp].
 
 - **Etiketter ET1a** [etapp], med sanktionsträffarna samlade.

@@ -200,6 +200,7 @@ public partial class App : Application
                 .AddSingleton<RatesSummaryViewModel>()
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
+                .AddSingleton<IGraphChainState, GraphChainState>()
                 .AddSingleton<IGraphEditor, GraphEditor>()
                 .AddSingleton<ICheckSource, CheckSource>()
                 .AddSingleton<IGraphComments, GraphComments>()

@@ -4,6 +4,7 @@ using Chainsaw.App.Navigation;
 using Chainsaw.App.Settings;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -125,6 +126,10 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="caseTrash">
     /// The cases thrown on the start page, shared with the window; a trash in memory when none is given.
     /// </param>
+    /// <param name="chainState">
+    /// The balances, today's rates and the block changes (sketches IN4a and GR9a); none where they are not wired.
+    /// </param>
+    /// <param name="chainSources">The chains' endpoints, whose waits are shown (sketch GR9a); none where not wired.</param>
     public GraphViewModel(
         CaseSession session,
         CaseWorkflow workflow,
@@ -138,7 +143,9 @@ public sealed partial class GraphViewModel : ObservableObject
         AttributionSwitches? switches = null,
         IGraphComments? comments = null,
         ITrashSource? trash = null,
-        CaseTrash? caseTrash = null)
+        CaseTrash? caseTrash = null,
+        IGraphChainState? chainState = null,
+        IChainSources? chainSources = null)
     {
         _suppliers = suppliers;
         _switches = switches;
@@ -193,6 +200,7 @@ public sealed partial class GraphViewModel : ObservableObject
             }
         };
         UseTrash(trash, caseTrash ?? new CaseTrash(clock));
+        UseChainState(chainState, chainSources, ui);
         session.Changed += (_, _) => OnCaseChanged();
         workflow.StartPointAdded += (_, _) => ui.Post(() =>
         {

@@ -65,6 +65,11 @@ public enum GuideTopic
 
     /// <summary><em>Exponering</em>: which services a cluster paid to or got from (sketch EP1b).</summary>
     Exposure,
+    /// <summary>
+    /// <em>Hur Chainsaw kontrollerar svaren mot kedjan</em>: the answers checked against the chain, and a transaction
+    /// that left its block (sketch GR9a).
+    /// </summary>
+    ChainCheck,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -103,6 +108,7 @@ public static class GuideTopics
         GuideTopic.Prices => "kurser",
         GuideTopic.HowToTrace => "sa-sparar-man",
         GuideTopic.Exposure => "exponering",
+        GuideTopic.ChainCheck => "kontroll-mot-kedjan",
         _ => "utxo-modellen",
     };
 
@@ -130,6 +136,7 @@ public static class GuideTopics
         GuideTopic.Prices => "Kurser och omräkning",
         GuideTopic.HowToTrace => "Så spårar man i Chainsaw",
         GuideTopic.Exposure => "Exponering",
+        GuideTopic.ChainCheck => "Hur Chainsaw kontrollerar svaren mot kedjan",
         _ => "UTXO-modellen",
     };
 
