@@ -2678,8 +2678,18 @@ Geometrin står utan WPF i `Graph/TimeAxis.cs`, `Graph/TimeBands.cs`, `Graph/Tim
   att en ändring där inte kan göra resultaten icke-deterministiska; vikterna och gränserna i `MixerPartsCheck` (risken
   att en kombination passar av en slump i en stor graf); att `MixerOutputsCheck` efter omskrivningen till
   `MixerDeposits` ger samma resultat (samma tester gröna); att kedjans text aldrig kallar ett steg ett faktum.
-- **Återstår:** se TODO (testärendet, andra bästa kombinationen, okända mixers mitt i en kedja, delar som går in i
-  nästa mixer tillsammans).
+- **Återstår:** se TODO (testärendet, okända mixers mitt i en kedja, delar som går in i nästa mixer tillsammans).
+- **Efter granskningen (2026-11-08):** högst en del per tx, och aldrig två där den ena spenderar den andra
+  (`MixerPartsCheck.Related`). `CheckInput` bär också `Dismissed` (avfärdade kandidater och hela förslag i kraft), och
+  `CheckService.DecisionsOf` ger båda listorna. `mixer-parts` kombinerar aldrig en avfärdad del, väger först en
+  kombination som håller de godkända delarna och visar beslutade delar utanför kombinationen för sig med poäng 0 och en
+  mening om att de inte hör dit. `mixer-chain` följer aldrig en avfärdad kandidat eller ett helt avfärdat förslag,
+  läser bara godkännanden i `mixer-outputs` och `mixer-parts` (namn och version), kallar en godkänd del utanför
+  kombinationen *del* med avgiften mot alla godkända delar, slutar bara vid en igenkänd CoinJoin (formulerad som
+  klustringens bedömning), säger när den kapats vid 10 steg och räknar aktörer med samma tjänst (mixerslutets
+  förklaring i `KnownMixer.Service`) som samma mixer. Panelens avgift klipps vid 0, säger *Delarna är mer än
+  insättningen* när delarna inte kan höra ihop, och visas inte när alla delar är avfärdade. Kandidater med samma poäng
+  står i analysens ordning (delarna efter tid) i `KeepCandidates`. Brickan säger *samma block*, som poängen mäter.
 
 ## BV1a, TO1a och de instabila App-testerna (2026-11-08)
 

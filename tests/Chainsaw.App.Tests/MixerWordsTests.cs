@@ -7,7 +7,7 @@ using static Chainsaw.App.Tests.GraphSamples;
 
 namespace Chainsaw.App.Tests;
 
-/// <summary>The panel's words for <c>mixer-parts</c> and <c>mixer-chain</c> (sketch KF2b): chips, fee and look.</summary>
+/// <summary>The panel's words for <c>mixer-parts</c> and <c>mixer-chain</c> (KF2b): chips, fee and look.</summary>
 public sealed class MixerWordsTests
 {
     private static CheckCandidate Part(int tx, long satoshi) =>
@@ -46,6 +46,35 @@ public sealed class MixerWordsTests
         var row = new CheckRowViewModel(Parts(dismissed), null, [], new Satoshi(100_000_000), TimeZoneInfo.Utc);
 
         Assert.Equal("−40 % trolig avgift, 1 del", row.Flow.FeeText);
+    }
+
+    [Fact]
+    public void Parts_that_are_more_than_came_in_say_so_instead_of_a_fee_below_none()
+    {
+        var row = new CheckRowViewModel(Parts(), null, [], new Satoshi(90_000_000), TimeZoneInfo.Utc);
+
+        Assert.Equal(CheckRowViewModel.PartsTooMuchText, row.Flow.FeeText);
+    }
+
+    [Fact]
+    public void Without_any_part_left_no_fee_is_shown()
+    {
+        CheckDecision Dismissed(int tx, long sequence) => new(
+            sequence, new HeuristicId("mixer-parts", 1), "deposit:0", $"{Tx[tx].Value}:0", CheckVerdict.Dismissed,
+            null, CheckSamples.Who, new DateTimeOffset(2026, 11, 8, 9, 5, 0, TimeSpan.Zero), sequence);
+
+        var row = new CheckRowViewModel(
+            Parts(Dismissed(1, 1), Dismissed(2, 2)), null, [], new Satoshi(100_000_000), TimeZoneInfo.Utc);
+
+        Assert.Equal(string.Empty, row.Flow.FeeText);
+    }
+
+    [Fact]
+    public void An_output_larger_than_came_in_has_no_fee_below_none()
+    {
+        var row = new CheckRowViewModel(CheckSamples.Mixer(), null, [], new Satoshi(500), TimeZoneInfo.Utc);
+
+        Assert.Equal("−0 % trolig avgift", row.Flow.FeeText);
     }
 
     [Fact]

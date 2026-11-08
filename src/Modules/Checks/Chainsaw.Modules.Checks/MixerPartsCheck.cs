@@ -24,6 +24,9 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
     /// <summary>The analysis's stable name.</summary>
     public const string Name = "mixer-parts";
 
+    /// <summary>The analysis's name and version, which the user's decisions about its suggestions are kept by.</summary>
+    public static readonly HeuristicId Identity = new(Name, 1);
+
     /// <summary>The most parts a combination has.</summary>
     public const int MostParts = 4;
 
@@ -46,7 +49,7 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
     private const double TypeWeight = 0.2;
 
     /// <inheritdoc/>
-    public HeuristicId Id { get; } = new(Name, 1);
+    public HeuristicId Id => Identity;
 
     /// <inheritdoc/>
     public string DisplayName => "Delarna tillsammans";
@@ -54,7 +57,7 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
     /// <inheritdoc/>
     public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 
-    /// <summary>Gives the smallest part weighed: a tenth of the deposit, so that no part alone is a whole output.</summary>
+    /// <summary>Gives the smallest part weighed: a tenth of the deposit, so no part alone is a whole output.</summary>
     /// <param name="deposited">The deposit.</param>
     /// <returns>The smallest part, in satoshi.</returns>
     public static long SmallestPart(Satoshi deposited) =>
@@ -72,7 +75,9 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
     }
 
     /// <summary>
-    /// Finds the best combination of parts for a deposit, and how many combinations fit at all.
+    /// Finds the best combination of parts for a deposit, and how many combinations fit at all. Parts the user
+    /// dismissed are never combined. When a combination that holds every approved part in the pool fits, the best of
+    /// those is given, so that approved parts and new ones belong to the same combination.
     /// </summary>
     /// <param name="input">The input.</param>
     /// <param name="deposit">The deposit.</param>
@@ -82,13 +87,18 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
     internal static PartsCombination? Best(CheckInput input, MixerDeposit deposit, IReadOnlySet<BitcoinAddress> mixer)
     {
         var smallest = SmallestPart(deposit.Output.Amount);
+        var dismissed = MixerDeposits.DismissedCoins(input, Identity, deposit);
         var pool = MixerDeposits.PayoutsAfter(input, deposit, mixer)
-            .Where(payout => payout.Output.Amount.Value >= smallest)
+            .Where(payout => payout.Output.Amount.Value >= smallest && !dismissed.Contains(payout.Key))
             .OrderBy(payout => payout.After)
             .ThenBy(payout => payout.Key, StringComparer.Ordinal)
             .Take(MostPool)
             .ToList();
+        var approved = MixerDeposits.ApprovedCoins(input, Identity, deposit)
+            .Where(key => pool.Any(payout => payout.Key == key))
+            .ToHashSet(StringComparer.Ordinal);
         PartsCombination? best = null;
+        PartsCombination? holding = null;
         var fitting = 0;
         foreach (var parts in Combinations(pool, deposit.Output.Amount.Value))
         {
@@ -102,14 +112,21 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
             {
                 best = combination;
             }
+
+            var holds = approved.Count > 0 && approved.All(key => parts.Any(part => part.Key == key));
+            if (holds && (holding is null || Better(combination, holding)))
+            {
+                holding = combination;
+            }
         }
 
-        return best is null ? null : best with { Fitting = fitting };
+        return (holding ?? best) is { } chosen ? chosen with { Fitting = fitting } : null;
     }
 
     /// <summary>
     /// Gives every combination of two to <see cref="MostParts"/> payouts whose sum is at most the deposit, without
-    /// following a branch past the deposit.
+    /// following a branch past the deposit, and never two payouts that are not independent of each other
+    /// (<see cref="Related"/>).
     /// </summary>
     /// <param name="pool">The payouts to combine.</param>
     /// <param name="most">The deposit, in satoshi.</param>
@@ -124,7 +141,7 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
             for (var index = from; index < pool.Count; index++)
             {
                 var next = sum + pool[index].Output.Amount.Value;
-                if (next > most)
+                if (next > most || chosen.Any(part => Related(part, pool[index])))
                 {
                     continue;
                 }
@@ -147,6 +164,24 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
             }
         }
     }
+
+    /// <summary>
+    /// Says whether two payouts are not independent: outputs of the same transaction (a payment and its change look
+    /// like parts), or one's transaction spends the other (money moved on, not paid out twice).
+    /// </summary>
+    /// <param name="first">A payout.</param>
+    /// <param name="second">Another payout.</param>
+    /// <returns><see langword="true"/> when they may not be parts of the same combination.</returns>
+    internal static bool Related(MixerPayout first, MixerPayout second) =>
+        first.Transaction.Txid == second.Transaction.Txid || Spends(first, second) || Spends(second, first);
+
+    /// <summary>Says whether a payout's transaction spends another payout.</summary>
+    /// <param name="spender">The payout whose transaction may spend.</param>
+    /// <param name="spent">The payout that may be spent.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool Spends(MixerPayout spender, MixerPayout spent) =>
+        spender.Transaction.Inputs.Any(i => i.PreviousTxid == spent.Transaction.Txid
+            && i.PreviousIndex == spent.Output.Index);
 
     /// <summary>Scores a combination, or nothing when its sum is not the deposit minus a fee it weighs.</summary>
     /// <param name="deposit">The deposit.</param>
@@ -212,32 +247,21 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
 
         var deposited = deposit.Output.Amount;
         var count = CheckText.Count(best.Parts.Count);
-        var first = best.Parts[0].After;
-        var last = best.Parts[^1].After;
-        var candidates = best.Parts.Select((part, index) => new CheckCandidate(
-            part.Key,
-            part.Address,
-            part.Transaction.Txid,
-            part.Output.Index,
-            part.Output.Amount,
+        var candidates = best.Parts.Select((part, index) => Candidate(
+            part,
             best.Score,
             $"Del {CheckText.Count(index + 1)} av {count}: {CheckText.Btc(part.Output.Amount)} av "
                 + $"{CheckText.Btc(deposited)} in; {CheckText.Span(part.After)} senare; "
-                + MixerOutputsCheck.TypeText(deposit, part.Address)));
-        var why = $"{Id} prövar kombinationer av två till {CheckText.Count(MostParts)} utbetalningar i grafen, var och "
-            + $"en minst {CheckText.Percent(MixerOutputsCheck.MostFee)} av insättningen, inom "
-            + $"{CheckText.Span(MixerOutputsCheck.Window)} efter insättningen på {CheckText.Btc(deposited)} BTC i block "
-            + $"{deposit.Block.Height}. De {CheckText.Count(best.Parts.Count)} delarna blir tillsammans "
-            + $"{CheckText.Btc(best.Sum)} BTC, insättningen minus {CheckText.Percent(best.Fee)} i trolig avgift, och kom "
-            + $"mellan {CheckText.Span(first)} och {CheckText.Span(last)} efter insättningen i "
-            + $"{CheckText.Count(best.Parts.Select(part => part.Transaction.Block!.Height).Distinct().Count())} "
-            + "olika block. Poängen väger summan "
-            + "mot insättningen minus avgift, tiden, hur utspridda delarna är och adresstypen; den bästa av "
-            + $"{CheckText.Count(best.Fitting)} kombinationer som passar visas. Bara de "
-            + $"{CheckText.Count(MostPool)} utbetalningarna närmast efter insättningen prövas, och bara det som finns "
-            + "i grafen. Fler kombinationer som "
-            + "passar betyder större risk att en passar av en slump. Det är en bedömning, aldrig ett faktum: mixern "
-            + "betalar ut från andra mynt, så ingen tx på kedjan knyter delarna till insättningen.";
+                + MixerOutputsCheck.TypeText(deposit, part.Address))).ToList();
+        var outside = Outside(input, deposit, mixer, best);
+        candidates.AddRange(outside.Select(item => Candidate(item.Payout, 0, item.Reason)));
+        var why = WhyOf(deposit, best);
+        if (outside.Any(item => item.Approved))
+        {
+            why += " Delar som du har godkänt hör inte till den här kombinationen och står kvar med poäng 0; de och "
+                + "kombinationen kan inte båda stämma.";
+        }
+
         return new CheckFinding(
             deposit.Key,
             CheckKind.Suggestion,
@@ -246,13 +270,74 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
             $"{count} delar · {CheckText.Btc(best.Sum)} av {CheckText.Btc(deposited)} in · avgift "
                 + CheckText.Percent(best.Fee),
             why,
-            [deposit.Output.Address!, .. best.Parts.Select(part => part.Address).Distinct()],
+            [deposit.Output.Address!, .. candidates.Select(candidate => candidate.Address).Distinct()],
             [],
             [
                 CheckBasis.Of(deposit.Transaction),
-                .. best.Parts.Select(part => part.Transaction).Distinct().Select(CheckBasis.Of),
+                .. best.Parts.Concat(outside.Select(item => item.Payout))
+                    .Select(part => part.Transaction).DistinctBy(t => t.Txid).Select(CheckBasis.Of),
             ],
             [.. candidates]);
+    }
+
+    /// <summary>
+    /// Gives the parts the user decided that are not in the combination, so that a decision never disappears from the
+    /// suggestion: approved parts the combination could not hold and dismissed ones, each with why it stands apart.
+    /// </summary>
+    /// <param name="input">The input.</param>
+    /// <param name="deposit">The deposit.</param>
+    /// <param name="mixer">The mixers' known addresses.</param>
+    /// <param name="best">The combination.</param>
+    /// <returns>The payouts, approved first, soonest first, with their reasons.</returns>
+    private static IReadOnlyList<(MixerPayout Payout, bool Approved, string Reason)> Outside(
+        CheckInput input, MixerDeposit deposit, IReadOnlySet<BitcoinAddress> mixer, PartsCombination best)
+    {
+        var approved = MixerDeposits.ApprovedCoins(input, Identity, deposit);
+        var dismissed = MixerDeposits.DismissedCoins(input, Identity, deposit);
+        var inside = best.Parts.Select(part => part.Key).ToHashSet(StringComparer.Ordinal);
+        return
+        [
+            .. MixerDeposits.PayoutsAfter(input, deposit, mixer)
+                .Where(payout => !inside.Contains(payout.Key)
+                    && (approved.Contains(payout.Key) || dismissed.Contains(payout.Key)))
+                .OrderByDescending(payout => approved.Contains(payout.Key))
+                .ThenBy(payout => payout.After)
+                .ThenBy(payout => payout.Key, StringComparer.Ordinal)
+                .Select(payout => approved.Contains(payout.Key)
+                    ? (payout, true, $"Godkänd, men inte med i den bästa kombinationen nu; "
+                        + $"{CheckText.Btc(payout.Output.Amount)} {CheckText.Span(payout.After)} senare")
+                    : (payout, false, "Avfärdad; prövas inte i kombinationerna")),
+        ];
+    }
+
+    /// <summary>Makes a payout a candidate of the suggestion.</summary>
+    /// <param name="part">The payout.</param>
+    /// <param name="score">Its score.</param>
+    /// <param name="reason">Why, in plain Swedish.</param>
+    /// <returns>The candidate.</returns>
+    private static CheckCandidate Candidate(MixerPayout part, double score, string reason) => new(
+        part.Key, part.Address, part.Transaction.Txid, part.Output.Index, part.Output.Amount, score, reason);
+
+    /// <summary>Writes why the combination is suggested, with the search's limits.</summary>
+    /// <param name="deposit">The deposit.</param>
+    /// <param name="best">The combination.</param>
+    /// <returns>The text.</returns>
+    private string WhyOf(MixerDeposit deposit, PartsCombination best)
+    {
+        var blocks = best.Parts.Select(part => part.Transaction.Block!.Height).Distinct().Count();
+        return $"{Id} prövar kombinationer av två till {CheckText.Count(MostParts)} utbetalningar i grafen, var och "
+            + $"en minst {CheckText.Percent(MixerOutputsCheck.MostFee)} av insättningen och högst en per tx, inom "
+            + $"{CheckText.Span(MixerOutputsCheck.Window)} efter insättningen på {CheckText.Btc(deposit.Output.Amount)} "
+            + $"BTC i block {deposit.Block.Height}. De {CheckText.Count(best.Parts.Count)} delarna blir tillsammans "
+            + $"{CheckText.Btc(best.Sum)} BTC, insättningen minus {CheckText.Percent(best.Fee)} i trolig avgift, "
+            + $"och kom mellan {CheckText.Span(best.Parts[0].After)} och {CheckText.Span(best.Parts[^1].After)} "
+            + $"efter insättningen i {CheckText.Count(blocks)} olika block. Poängen väger summan mot insättningen "
+            + "minus avgift, tiden, hur utspridda delarna är över block och adresstypen; den bästa av "
+            + $"{CheckText.Count(best.Fitting)} kombinationer som passar visas. Delar ur samma tx, eller där den ena "
+            + $"spenderar den andra, kombineras aldrig. Bara de {CheckText.Count(MostPool)} utbetalningarna närmast "
+            + "efter insättningen prövas, och bara det som finns i grafen. Fler kombinationer som passar betyder större "
+            + "risk att en passar av en slump. Det är en bedömning, aldrig ett faktum: mixern betalar ut från andra "
+            + "mynt, så ingen tx på kedjan knyter delarna till insättningen.";
     }
 }
 

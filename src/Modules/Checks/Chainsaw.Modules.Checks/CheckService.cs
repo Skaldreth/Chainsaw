@@ -58,7 +58,8 @@ internal sealed class CheckService : ICheckService
         ArgumentNullException.ThrowIfNull(graph);
         var (results, decisions) = @case.Read(
             reader => (CheckStore.ReadResults(reader), CheckStore.ReadDecisions(reader)));
-        var input = InputOf(@case, graph) with { Approved = ApprovedOf(results, decisions) };
+        var (approved, dismissed) = DecisionsOf(results, decisions);
+        var input = InputOf(@case, graph) with { Approved = approved, Dismissed = dismissed };
         var problems = new List<string>();
         var found = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding, string Content)>();
         foreach (var analysis in _analyses)
@@ -385,7 +386,7 @@ internal sealed class CheckService : ICheckService
             .ToList();
         var mixers = graph.Nodes
             .Where(node => node.GraphAddresses.Count > 0 && node.Ends.Any(end => end.Reason == TrailEndReason.Mixer))
-            .Select(node => new KnownMixer(node.GraphAddresses))
+            .Select(node => new KnownMixer(node.GraphAddresses, ServiceOf(node)))
             .ToList();
         var conclusions = new Dictionary<Txid, TransactionConclusions>();
         foreach (var transaction in transactions)
@@ -401,44 +402,65 @@ internal sealed class CheckService : ICheckService
     }
 
     /// <summary>
-    /// Gives the candidates whose approval is in force, ordered by analysis, suggestion and coin, so that an analysis
-    /// that follows the user's judgements (<c>mixer-chain</c>) runs on the same input every time.
+    /// Gives the decisions in force about candidates and suggestions: the approved candidates with their coins, and
+    /// the dismissals of a candidate or of a whole suggestion; each ordered by analysis, version, suggestion and then
+    /// coin or candidate, so that an analysis that follows the user's judgements (<c>mixer-chain</c>,
+    /// <c>mixer-parts</c>) runs on the same input every time.
     /// </summary>
     /// <param name="results">The sealed findings.</param>
-    /// <param name="decisions">The decisions, by finding.</param>
-    /// <returns>The approved candidates.</returns>
-    private static IReadOnlyList<ApprovedCandidate> ApprovedOf(
-        Dictionary<ResultKey, SealedResult> results, Dictionary<ResultKey, List<CheckDecision>> decisions)
+    /// <param name="decisions">The decisions, by finding, oldest first.</param>
+    /// <returns>The approvals and the dismissals in force.</returns>
+    internal static (IReadOnlyList<ApprovedCandidate> Approved, IReadOnlyList<DismissedDecision> Dismissed)
+        DecisionsOf(Dictionary<ResultKey, SealedResult> results, Dictionary<ResultKey, List<CheckDecision>> decisions)
     {
         var approved = new List<ApprovedCandidate>();
+        var dismissed = new List<DismissedDecision>();
         foreach (var (key, made) in decisions)
         {
-            var inForce = made.Where(decision => decision.CandidateKey is not null)
-                .GroupBy(decision => decision.CandidateKey!, StringComparer.Ordinal)
-                .Where(group => group.Last().Verdict == CheckVerdict.Approved)
-                .Select(group => group.Key)
-                .ToHashSet(StringComparer.Ordinal);
-            if (inForce.Count == 0 || !results.TryGetValue(key, out var result))
-            {
-                continue;
-            }
-
             var analysis = new HeuristicId(key.Analysis, (int)key.Version);
-            approved.AddRange(FindingCodec.Decode(result.Content).Candidates
-                .Where(candidate => inForce.Contains(candidate.Key))
-                .Select(candidate => new ApprovedCandidate(analysis, key.FindingKey, candidate.Txid, candidate.Output)));
+            var latest = made.GroupBy(decision => decision.CandidateKey ?? string.Empty, StringComparer.Ordinal)
+                .Select(group => group.Last())
+                .ToList();
+            dismissed.AddRange(latest
+                .Where(decision => decision.Verdict == CheckVerdict.Dismissed)
+                .Select(decision => new DismissedDecision(analysis, key.FindingKey, decision.CandidateKey)));
+            var inForce = latest
+                .Where(decision => decision.CandidateKey is not null && decision.Verdict == CheckVerdict.Approved)
+                .Select(decision => decision.CandidateKey!)
+                .ToHashSet(StringComparer.Ordinal);
+            if (inForce.Count > 0 && results.TryGetValue(key, out var result))
+            {
+                approved.AddRange(FindingCodec.Decode(result.Content).Candidates
+                    .Where(candidate => inForce.Contains(candidate.Key))
+                    .Select(c => new ApprovedCandidate(analysis, key.FindingKey, c.Txid, c.Output)));
+            }
         }
 
-        return
-        [
-            .. approved
-                .OrderBy(a => a.Analysis.Name, StringComparer.Ordinal)
-                .ThenBy(a => a.Analysis.Version)
-                .ThenBy(a => a.FindingKey, StringComparer.Ordinal)
-                .ThenBy(a => a.Txid.Value, StringComparer.Ordinal)
-                .ThenBy(a => a.Output),
-        ];
+        return (
+            [
+                .. approved
+                    .OrderBy(a => a.Analysis.Name, StringComparer.Ordinal)
+                    .ThenBy(a => a.Analysis.Version)
+                    .ThenBy(a => a.FindingKey, StringComparer.Ordinal)
+                    .ThenBy(a => a.Txid.Value, StringComparer.Ordinal)
+                    .ThenBy(a => a.Output),
+            ],
+            [
+                .. dismissed
+                    .OrderBy(d => d.Analysis.Name, StringComparer.Ordinal)
+                    .ThenBy(d => d.Analysis.Version)
+                    .ThenBy(d => d.FindingKey, StringComparer.Ordinal)
+                    .ThenBy(d => d.CandidateKey ?? string.Empty, StringComparer.Ordinal),
+            ]);
     }
+
+    /// <summary>
+    /// Gives what a mixer's label says it is, so that two actors with the same service are known as the same mixer.
+    /// </summary>
+    /// <param name="node">The mixer's actor.</param>
+    /// <returns>The first mixer end's explanation, which names the label.</returns>
+    private static string ServiceOf(GraphNode node) =>
+        node.Ends.First(end => end.Reason == TrailEndReason.Mixer).Explanation;
 
     /// <summary>Seals every finding that is new or changed, with one line in the journal.</summary>
     /// <param name="transaction">The case's transaction.</param>
@@ -485,7 +507,10 @@ internal sealed class CheckService : ICheckService
     /// </summary>
     /// <param name="finding">What the analysis found, with all its candidates.</param>
     /// <param name="decisions">The decisions about it in this version.</param>
-    /// <returns>The finding with the candidates kept, best first.</returns>
+    /// <returns>
+    /// The finding with the candidates kept, best first; equal scores stay in the analysis's order (for example the
+    /// parts of a combination soonest first).
+    /// </returns>
     internal static CheckFinding KeepCandidates(CheckFinding finding, IReadOnlyList<CheckDecision> decisions)
     {
         if (finding.Candidates.Count == 0)
@@ -498,12 +523,17 @@ internal sealed class CheckService : ICheckService
             .OfType<string>()
             .Where(key => InForce(decisions, key))
             .ToHashSet(StringComparer.Ordinal);
+        var order = finding.Candidates.Select((c, index) => (c.Key, Index: index))
+            .DistinctBy(item => item.Key, StringComparer.Ordinal)
+            .ToDictionary(item => item.Key, item => item.Index, StringComparer.Ordinal);
         var waiting = finding.Candidates.Where(c => !decided.Contains(c.Key)).Take(CheckRules.MostWaitingCandidates);
         var kept = finding.Candidates
             .Where(c => decided.Contains(c.Key))
             .Concat(waiting)
-            .OrderByDescending(c => c.Score)
-            .ThenBy(c => c.Key, StringComparer.Ordinal)
+            .Select(c => (Candidate: c, Order: order[c.Key]))
+            .OrderByDescending(item => item.Candidate.Score)
+            .ThenBy(item => item.Order)
+            .Select(item => item.Candidate)
             .ToList();
         var dropped = finding.Candidates.Except(kept).ToList();
         var droppedAddresses = dropped.Select(c => c.Address).Except(kept.Select(c => c.Address)).ToHashSet();

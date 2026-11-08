@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
 
 namespace Chainsaw.Modules.Checks;
 
@@ -128,6 +129,34 @@ internal static class MixerDeposits
             }
         }
     }
+
+    /// <summary>Gives the coins the user approved in an analysis's suggestion about a deposit.</summary>
+    /// <param name="input">The input.</param>
+    /// <param name="analysis">The analysis and version.</param>
+    /// <param name="deposit">The deposit.</param>
+    /// <returns>The approved coins' keys, <c>txid:index</c>.</returns>
+    public static IReadOnlySet<string> ApprovedCoins(CheckInput input, HeuristicId analysis, MixerDeposit deposit) =>
+        input.Approved.Where(a => a.Analysis == analysis && a.FindingKey == deposit.Key)
+            .Select(a => CoinKey(a.Txid, a.Output))
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>Gives the candidates the user dismissed in an analysis's suggestion about a deposit.</summary>
+    /// <param name="input">The input.</param>
+    /// <param name="analysis">The analysis and version.</param>
+    /// <param name="deposit">The deposit.</param>
+    /// <returns>The dismissed candidates' keys (coins, for the mixer analyses).</returns>
+    public static IReadOnlySet<string> DismissedCoins(CheckInput input, HeuristicId analysis, MixerDeposit deposit) =>
+        input.Dismissed.Where(d => d.Analysis == analysis && d.FindingKey == deposit.Key && d.CandidateKey is not null)
+            .Select(d => d.CandidateKey!)
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>Says whether the user dismissed an analysis's whole suggestion about a deposit.</summary>
+    /// <param name="input">The input.</param>
+    /// <param name="analysis">The analysis and version.</param>
+    /// <param name="deposit">The deposit.</param>
+    /// <returns><see langword="true"/> when the whole is dismissed.</returns>
+    public static bool DismissedWhole(CheckInput input, HeuristicId analysis, MixerDeposit deposit) =>
+        input.Dismissed.Any(d => d.Analysis == analysis && d.FindingKey == deposit.Key && d.CandidateKey is null);
 
     /// <summary>
     /// Gives the transaction in the input that spends a coin, or <see langword="null"/> when none in the graph does.

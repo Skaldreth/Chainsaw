@@ -86,7 +86,7 @@ public sealed record SuggestionWords(
             new("Icon.Split", "Delarna tillsammans", "Två till fyra utbetalningar som tillsammans är insättningen "
                 + "minus mixerns avgift"),
             new("Icon.Clock", "Tid", "Ju kortare tid efter insättningen, desto högre poäng"),
-            new("Icon.Block", "Spridda block", "Delar i olika block väger mer än delar i samma tx"),
+            new("Icon.Block", "Spridda block", "Delar i olika block väger mer än delar i samma block"),
             new("Icon.Layers", "Adresstyp", "Samma adresstyp som insättarens väger in"),
         ],
         "Trolig del",
@@ -230,6 +230,12 @@ public sealed partial class CheckRowViewModel : ObservableObject
 
     /// <summary>What a suggestion dismissed is written as in the log.</summary>
     public const string DismissedText = "Avfärdad";
+
+    /// <summary>
+    /// What the flow says instead of a fee when the parts not dismissed are more than came in: they cannot all belong
+    /// to the same combination.
+    /// </summary>
+    public const string PartsTooMuchText = "Delarna är mer än insättningen: de hör inte till samma kombination";
 
     /// <summary>What a check that marked the graph by itself is written as in the log.</summary>
     public const string MarkedText = "Markerad";
@@ -516,18 +522,28 @@ public sealed partial class CheckRowViewModel : ObservableObject
         }
 
         var parts = Candidates.Where(c => !c.IsDismissed).ToList();
+        var paid = parts.Sum(c => c.Candidate.Amount.Value);
+        if (parts.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        if (paid > amount.Value)
+        {
+            return PartsTooMuchText;
+        }
+
         var count = parts.Count.ToString(CultureInfo.InvariantCulture);
-        return FeeWords(amount, parts.Sum(c => c.Candidate.Amount.Value)) + ", "
-            + (parts.Count == 1 ? count + " del" : count + " delar");
+        return FeeWords(amount, paid) + ", " + (parts.Count == 1 ? count + " del" : count + " delar");
     }
 
     /// <summary>Writes a fee as the share of what came in that did not come out.</summary>
     /// <param name="incoming">What came in.</param>
     /// <param name="paid">What came out, in satoshi.</param>
-    /// <returns>For example <c>−1 % trolig avgift</c>.</returns>
+    /// <returns>For example <c>−1 % trolig avgift</c>; never below none.</returns>
     private static string FeeWords(Satoshi incoming, long paid)
     {
-        var fee = (double)(incoming.Value - paid) / incoming.Value;
+        var fee = Math.Max(0, (double)(incoming.Value - paid) / incoming.Value);
         return "−" + Math.Round(fee * 100, 1).ToString("0.#", Swedish) + " % trolig avgift";
     }
 
