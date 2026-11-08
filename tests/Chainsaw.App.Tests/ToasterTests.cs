@@ -46,6 +46,21 @@ public sealed class ToasterTests
         Assert.Equal(sticky, toaster.Toasts[0].IsSticky);
     }
 
+    [Theory]
+    [InlineData(ToastKind.Error, false)]
+    [InlineData(ToastKind.Warning, false)]
+    [InlineData(ToastKind.Success, true)]
+    [InlineData(ToastKind.Information, true)]
+    public void The_line_in_the_bottom_edge_runs_down_only_for_those_that_fade_by_themselves(
+        ToastKind kind, bool countsDown)
+    {
+        var toaster = NewToaster();
+
+        toaster.Show(kind, "Något");
+
+        Assert.Equal(countsDown, toaster.Toasts[0].CountsDown);
+    }
+
     [Fact]
     public void Closing_starts_the_way_out_and_the_view_removes_it()
     {

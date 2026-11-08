@@ -173,7 +173,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Wires the watches (sketches BV1a and BV2a): the graph and the view Bevakning share the form and the watches, the
-    /// view names counterparties by the graph's nodes, <em>Öppna i grafen</em> shows the graph, and a hit is told in
+    /// view names counterparties by the graph's nodes and draws a watched node in its sort's look, <em>Öppna i
+    /// grafen</em> shows the graph, and a hit is told in
     /// the graph's notice.
     /// </summary>
     /// <param name="shell">The shell.</param>
@@ -184,6 +185,7 @@ public partial class MainWindow : Window
         MonitoringPage.Attach(monitoring);
         graph.FollowWatches(monitoring.Board, monitoring.Form);
         monitoring.Names = graph.NameIn;
+        monitoring.Looks = graph.LookIn;
         monitoring.OpenInGraphWanted += (_, watch) =>
         {
             shell.Show(AppView.Graph);

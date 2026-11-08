@@ -315,8 +315,18 @@ public sealed partial class GraphViewModel
     /// <summary>Names an address by its node in the graph.</summary>
     /// <param name="address">The address.</param>
     /// <returns>The node's name, or <see langword="null"/> when it is not in the graph.</returns>
-    public string? NameIn(ChainAddress address) =>
-        Scene?.Nodes.FirstOrDefault(node => node.Node.Addresses.Contains(address))?.Name;
+    public string? NameIn(ChainAddress address) => NodeIn(address)?.Name;
+
+    /// <summary>Gives the look of an address's node in the graph: its sort's icon, colour and shape (sketch GR3c).</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The node's look, or <see langword="null"/> when it is not in the graph.</returns>
+    public SortLook? LookIn(ChainAddress address) => NodeIn(address)?.Look;
+
+    /// <summary>Finds the node in the graph that holds an address.</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The node, or <see langword="null"/> when it is not in the graph.</returns>
+    private NodeView? NodeIn(ChainAddress address) =>
+        Scene?.Nodes.FirstOrDefault(node => node.Node.Addresses.Contains(address));
 
     /// <summary>
     /// Says whether a node can be watched: an address or a cluster on Bitcoin or Ethereum, with a case.

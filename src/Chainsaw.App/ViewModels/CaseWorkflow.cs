@@ -531,7 +531,11 @@ public sealed class CaseWorkflow
         }
     }
 
-    /// <summary>Runs work unless other work runs; unexpected failures become a short answer, never a crash.</summary>
+    /// <summary>
+    /// Runs work unless other work runs; unexpected failures become a short answer, never a crash. The case files are
+    /// listed anew before the answer comes, so that a caller sees the list as the work left it and never lists it a
+    /// second time beside this listing.
+    /// </summary>
     /// <param name="work">The work.</param>
     /// <returns>The work's answer.</returns>
     private async Task<CommandReply> RunAlone(Func<Task<CommandReply>> work)
@@ -541,6 +545,16 @@ public sealed class CaseWorkflow
             return CommandReply.Failed(BusyText);
         }
 
+        var reply = await RunBusy(work);
+        await RefreshCasesAsync();
+        return reply;
+    }
+
+    /// <summary>Runs work while the workflow is busy; unexpected failures become a short answer, never a crash.</summary>
+    /// <param name="work">The work.</param>
+    /// <returns>The work's answer.</returns>
+    private async Task<CommandReply> RunBusy(Func<Task<CommandReply>> work)
+    {
         _busy = true;
         try
         {
@@ -559,7 +573,6 @@ public sealed class CaseWorkflow
         finally
         {
             _busy = false;
-            _ = RefreshCasesAsync();
         }
     }
 }

@@ -309,6 +309,46 @@ public sealed class WatchGraphTests
     }
 
     [Fact]
+    public async Task A_row_draws_the_watched_node_as_the_graph_does_and_by_its_kind_when_it_is_not_there()
+    {
+        var (graph, board, form) = Graph();
+        await graph.ReloadAsync(fit: false);
+        _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
+        _source.Add(new WatchSubject(WatchSubjectKind.Cluster, WatchSamples.On(K1), "K"), WatchSamples.Filter());
+        _source.Add(WatchSamples.Subject(Address(99), "Utanför"), WatchSamples.Filter());
+        var view = new MonitoringViewModel(board, form, new TestClock());
+
+        await board.ReloadAsync();
+        Assert.Equal(
+            [NodeSort.Unknown, NodeSort.Cluster, NodeSort.Unknown], view.Rows.Select(row => row.Look.Sort));
+        Assert.Equal([true, false, true], view.Rows.Select(row => row.IsRound));
+
+        view.Looks = graph.LookIn;
+        await board.ReloadAsync();
+
+        Assert.Equal(graph.Scene!.Nodes.Single(node => node.Key == VKey).Look, view.Rows[0].Look);
+        Assert.Equal(graph.Scene.Nodes.Single(node => node.Key == KKey).Look, view.Rows[1].Look);
+        Assert.Equal(NodeSort.Unknown, view.Rows[2].Look.Sort);
+        Assert.Null(graph.LookIn(WatchSamples.On(Address(99))));
+    }
+
+    [Fact]
+    public void A_problem_is_said_once_in_the_toaster()
+    {
+        var (_, board) = WatchSamples.Board(_source);
+        var toaster = new Toaster(new InlineUi());
+        var view = new MonitoringViewModel(board, new WatchFormViewModel(board), new TestClock(), toaster: toaster);
+
+        board.Report("Bevakningen gick inte att läsa.");
+        board.Report("Bevakningen gick inte att läsa.");
+
+        var toast = Assert.Single(toaster.Toasts);
+        Assert.Equal(ToastKind.Error, toast.Kind);
+        Assert.Equal("Bevakningen gick inte att läsa.", toast.Title);
+        Assert.Equal("Bevakningen gick inte att läsa.", view.Problem);
+    }
+
+    [Fact]
     public async Task A_height_that_cannot_be_had_is_said_in_the_head()
     {
         _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());

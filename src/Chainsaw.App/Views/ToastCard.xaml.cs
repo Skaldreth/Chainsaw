@@ -96,13 +96,16 @@ public partial class ToastCard : UserControl
             Root.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, SlideTime));
         }
 
-        if (!toast.IsSticky)
+        if (toast.CountsDown)
         {
             StartCountdown(toast.TimeShown);
         }
     }
 
-    /// <summary>Runs the thin line in the bottom edge down; when it is out, the toast closes.</summary>
+    /// <summary>
+    /// Runs the thin line in the bottom edge down; when it is out, the toast closes. Hovering pauses it, and leaving
+    /// goes on from where it stood.
+    /// </summary>
     /// <param name="time">How long the toast stands.</param>
     private void StartCountdown(TimeSpan time)
     {

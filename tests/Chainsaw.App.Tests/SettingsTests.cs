@@ -24,12 +24,22 @@ public sealed class SettingsTests : IDisposable
 
     public void Dispose()
     {
+        // The file is written off the UI thread: a write still under way would put a file back into the folder while
+        // it is removed, and the removal would fail.
+        Assert.True(Settings.Saving.Wait(Wait));
         var folder = Path.GetDirectoryName(_rig.SettingsStore.FilePath)!;
         if (Directory.Exists(folder))
         {
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    /// <summary>
+    /// Waits until the dialog has read the profile Alex Berg into all three fields. The read writes them one after the
+    /// other off the UI thread, so a test that waits for the name alone could write a field the read then overwrites.
+    /// </summary>
+    private void WaitForTheProfile() => Assert.True(SpinWait.SpinUntil(
+        () => Settings is { ProfileName: "Alex Berg", ProfileTitle: "Utredare", ProfileUnit: "Kryptogruppen" }, Wait));
 
     [Fact]
     public void The_menu_has_the_sketchs_pages_in_groups_with_om_last_on_its_own()
@@ -357,7 +367,7 @@ public sealed class SettingsTests : IDisposable
     {
         _rig.Profiles.Save(new OperatorProfile("Alex Berg", "Utredare", "Kryptogruppen"));
         Settings.Open();
-        Assert.True(SpinWait.SpinUntil(() => Settings.ProfileName == "Alex Berg", Wait));
+        WaitForTheProfile();
 
         Settings.ProfileTitle = "  Analytiker ";
         await Settings.SaveProfileAsync();
@@ -371,7 +381,7 @@ public sealed class SettingsTests : IDisposable
     {
         _rig.Profiles.Save(new OperatorProfile("Alex Berg", "Utredare", "Kryptogruppen"));
         Settings.Open();
-        Assert.True(SpinWait.SpinUntil(() => Settings.ProfileName == "Alex Berg", Wait));
+        WaitForTheProfile();
 
         Settings.ProfileName = "   ";
         await Settings.SaveProfileAsync();
@@ -385,7 +395,7 @@ public sealed class SettingsTests : IDisposable
     {
         _rig.Profiles.Save(new OperatorProfile("Alex Berg", "Utredare", "Kryptogruppen"));
         Settings.Open();
-        Assert.True(SpinWait.SpinUntil(() => Settings.ProfileName == "Alex Berg", Wait));
+        WaitForTheProfile();
         _rig.Profiles.Failure = new VaultException(VaultError.Locked);
 
         Settings.ProfileUnit = "Annan enhet";
@@ -402,7 +412,7 @@ public sealed class SettingsTests : IDisposable
     {
         _rig.Profiles.Save(new OperatorProfile("Alex Berg", "Utredare", "Kryptogruppen"));
         Settings.Open();
-        Assert.True(SpinWait.SpinUntil(() => Settings.ProfileName == "Alex Berg", Wait));
+        WaitForTheProfile();
         _rig.Profiles.Failure = new VaultException(VaultError.Locked);
         Settings.ProfileUnit = "Annan enhet";
         await Settings.SaveProfileAsync();
@@ -419,7 +429,7 @@ public sealed class SettingsTests : IDisposable
     {
         _rig.Profiles.Save(new OperatorProfile("Alex Berg", "Utredare", "Kryptogruppen"));
         Settings.Open();
-        Assert.True(SpinWait.SpinUntil(() => Settings.ProfileName == "Alex Berg", Wait));
+        WaitForTheProfile();
         Settings.ProfileTitle = "Analytiker";
 
         Settings.Close();
@@ -513,7 +523,7 @@ public sealed class SettingsTests : IDisposable
     {
         _rig.Profiles.Save(new OperatorProfile("Alex Berg", "Utredare", "Kryptogruppen"));
         _rig.Shell.Show(AppView.Settings);
-        Assert.True(SpinWait.SpinUntil(() => Settings.ProfileName == "Alex Berg", Wait));
+        WaitForTheProfile();
         Settings.ProfileTitle = "Analytiker";
 
         _rig.Shell.Show(AppView.Settings, SettingsPage.Profile);

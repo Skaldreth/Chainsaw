@@ -937,8 +937,11 @@ start (en endpoint måste vara *i fas* för att bevakningen ska fråga).
 - [ ] Bevakning i ett ärende utan bevakningar: ett stort öga i en mjuk rund cirkel mitt på ytan med *Inga bevakningar än*, två dämpade rader under och knappen *Ny bevakning …*; ingen räknare, inget bakgrundsläge, ingen knapp uppe till höger och ingen högerpanel.
 - [ ] Klicka på *Ny bevakning …* i det tomma läget (eller tryck B): formuläret öppnas och det tomma läget försvinner medan det är öppet.
 - [ ] Bevakning utan öppet ärende: *Inget ärende öppet* med en förklarande rad och ingen knapp.
-- [ ] Med en bevakning: listan, räknaren, bakgrundens läge som prick och text utan ram och *Ny bevakning … B* syns i huvudet, och högerpanelen visar den valda.
-- [ ] Bakgrundens läge i huvudet: grön prick när den går, gul när den väntar på utgången, grå när den är av; hovra för förklaringen.
+- [ ] Med en bevakning: listan, räknaren, bakgrundens läge i en rundad ram och *Ny bevakning … B* syns i huvudet, och högerpanelen visar den valda.
+- [ ] Bakgrundens läge i huvudet (BV1a, omgjort 2026-11-08): en rundad ram med prick och text. Hel grå ram och grön prick när den går, streckad gul ram med gul text när den väntar på utgången, streckad grå ram med grå text när den är av; hovra för förklaringen.
+- [ ] Varje rad har nodens egen ikon och färg som i grafen (en börs blå och fyrkantig, en okänd adress rund med ett frågetecken, ett kluster fyrkantigt med plånboken); en bevakning på en adress som inte finns i grafen visas som okänd eller kluster. Motparternas brickor har en liten pil för riktningen (ut till en mottagare, in från en avsändare).
+- [ ] Högerpanelen: nodens ikon i en ram på 30 px bredvid namnet, läget i lägets färg (grönt, gult eller grått), och knapparna längst ner där *Öppna i grafen* är ljusare än de andra.
+- [ ] Ett fel när bevakningen skriver eller läses (till exempel ett låst ärende) kommer som en röd toast nere till höger, inte som en röd rad i vyn.
 - [ ] Ta bort den sista bevakningen: högerpanelen fälls bort och det tomma läget kommer tillbaka.
 
 ## Bevakningen, andra delen: när Chainsaw är stängt (etapp 27)
@@ -997,6 +1000,12 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Sju toasts i rad: högst fem står, den äldsta tonar ut när en sjätte kommer.
 - [ ] Lås med Ctrl+L: inga toasts ligger kvar över låsskärmen.
 - [ ] Med animeringar avstängda i Windows dyker en toast upp utan glidning och försvinner utan att tona.
+- [ ] Efter skissen (TO1a, 2026-11-08): varje toast har ett färgat streck i nederkanten i sortens färg. För lyckat
+      och information krymper det med tiden (hovring stoppar det, och det fortsätter där det stod), för fel och
+      varningar står det stilla över hela bredden. Ikonen står på en rund tonad skiva i sortens färg, åtgärden
+      (*Försök igen*, *Visa dem*) är i accentfärgen, och krysset är dämpat men ljusnar vid hovring.
+- [ ] Toasterna står 76 px upp från nederkanten, så att bildspråkets *?* nere till höger i grafen går att klicka på
+      medan en toast visas.
 - [ ] Bildspråkets *?* nere till höger i grafen är tydligt, med ett skarpt frågetecken och en ring på 1,5 px.
 - [ ] Inspektörens vänsterkant har ett litet grepp mitt på; vilar pekaren där en stund tonar en mörkgrå linje in längs
       hela kanten.
