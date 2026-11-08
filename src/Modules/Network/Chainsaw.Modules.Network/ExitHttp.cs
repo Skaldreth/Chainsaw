@@ -64,6 +64,8 @@ internal sealed class ExitHttp(
                 lease.Route)
             {
                 RetryAfter = RetryAfterOf(response, receivedAt),
+                ServerDate = response.Headers.Date,
+                ETag = response.Headers.ETag?.ToString(),
             };
         }
         catch (ExitException)
@@ -76,15 +78,15 @@ internal sealed class ExitHttp(
         }
         catch (Exception exception) when (lease.Stopping.IsCancellationRequested || exception is ObjectDisposedException)
         {
-            throw new ExitException(ExitError.ConnectionLost, exception);
+            throw new ExitException(ExitError.ConnectionLost, lease.Route, exception);
         }
         catch (OperationCanceledException exception)
         {
-            throw new ExitException(ExitError.Timeout, exception);
+            throw new ExitException(ExitError.Timeout, lease.Route, exception);
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
-            throw new ExitException(ExitError.RequestFailed, exception);
+            throw new ExitException(ExitError.RequestFailed, lease.Route, exception);
         }
     }
 

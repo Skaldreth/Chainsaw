@@ -48,7 +48,9 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
     /// <summary>
     /// Builds the server certificate's chain without fetching anything: a missing intermediate (from the certificate's
     /// AIA address) or a revocation list would otherwise be fetched by the operating system straight from the
-    /// computer's network, around the exit. A server that sends an incomplete chain therefore fails.
+    /// computer's network, around the exit. The intermediates the computer already has (Windows keeps those it has met
+    /// in its store of intermediate authorities) are offered, so that a server that leaves out an intermediate the
+    /// computer knows is still reached; one that leaves out an intermediate the computer has never seen fails.
     /// </summary>
     /// <returns>The policy, new for each pipeline since a policy is mutable.</returns>
     internal static X509ChainPolicy OfflineChainPolicy()
@@ -64,25 +66,24 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
             // its root programme from Windows Update, straight from the computer's network.
             TrustMode = X509ChainTrustMode.CustomRootTrust,
         };
-        policy.CustomTrustStore.AddRange(InstalledRoots());
+        var disallowed = ReadStores(StoreName.Disallowed)
+            .Select(certificate => certificate.Thumbprint)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        policy.CustomTrustStore.AddRange(Allowed(StoreName.Root, disallowed));
+
+        // Only offered to build a chain with: an intermediate is never trusted by itself, it must lead to a root.
+        policy.ExtraStore.AddRange(Allowed(StoreName.CertificateAuthority, disallowed));
         return policy;
     }
 
     /// <summary>
-    /// Reads the trusted roots installed for the user and the computer, without the ones Windows distrusts.
+    /// Reads a store for the user and the computer, without the certificates Windows distrusts.
     /// </summary>
-    /// <returns>The roots.</returns>
-    private static X509Certificate2Collection InstalledRoots()
-    {
-        var disallowed = ReadStores(StoreName.Disallowed)
-            .Select(certificate => certificate.Thumbprint)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var roots = new X509Certificate2Collection();
-        roots.AddRange(ReadStores(StoreName.Root)
-            .Where(root => !disallowed.Contains(root.Thumbprint))
-            .ToArray());
-        return roots;
-    }
+    /// <param name="name">The store: the trusted roots, or the intermediate authorities.</param>
+    /// <param name="disallowed">The thumbprints of the distrusted certificates.</param>
+    /// <returns>The certificates.</returns>
+    private static X509Certificate2[] Allowed(StoreName name, IReadOnlySet<string> disallowed) =>
+        [.. ReadStores(name).Where(certificate => !disallowed.Contains(certificate.Thumbprint))];
 
     /// <summary>Reads a certificate store for the user and for the computer, as it is now.</summary>
     /// <param name="name">The store.</param>

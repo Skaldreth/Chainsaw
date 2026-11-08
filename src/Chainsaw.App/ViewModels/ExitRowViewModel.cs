@@ -158,8 +158,7 @@ public sealed partial class ExitRowViewModel : ObservableObject
         {
             ExitRowState.Connected => ConnectedText,
             ExitRowState.Connecting => ConnectingText,
-            ExitRowState.Failed when status.Failure is { } failure => ExitNames.FailureText(failure),
-            ExitRowState.Failed => ExitNames.FailureText(ExitFailure.ConnectFailed),
+            ExitRowState.Failed => ExitNames.FailureText(status),
             _ => string.Empty,
         };
         ShowCheck();

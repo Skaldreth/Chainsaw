@@ -96,6 +96,20 @@ public sealed class WireGuardConnectorTests
         Assert.True(process.Disposed);
         Assert.DoesNotContain("PrivateKey = ", exception.Message, StringComparison.Ordinal);
         Assert.Equal(code == "configuration", exception.Message.Contains("line 3", StringComparison.Ordinal));
+        Assert.Equal(code == "configuration" ? 3 : null, exception.Line);
+    }
+
+    [Theory]
+    [InlineData("""{"error":"configuration","message":"line 12: Endpoint must be host:port"}""", 12)]
+    [InlineData("""{"error":"configuration","message":"no [Peer] section"}""", null)]
+    [InlineData("""{"error":"configuration","message":"line 0: x"}""", null)]
+    [InlineData("""{"error":"configuration","message":"line -1: x"}""", null)]
+    [InlineData("""{"error":"handshake","message":"line 2: x"}""", null)]
+    public void The_refused_line_is_read_only_from_a_refused_configuration(string answer, int? line)
+    {
+        var exception = Assert.Throws<ExitConnectException>(() => WireGuardConnector.ReadPort(answer));
+
+        Assert.Equal(line, exception.Line);
     }
 
     [Theory]
