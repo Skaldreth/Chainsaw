@@ -124,46 +124,28 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 
 ## Nästa steg
 
-**Läget 2026-11-07 natt (före clear).** Användarens polerlista står i `docs/TODO.md` under *Polering först*, punkt
-1–31, och tas i tur och ordning. Inget har högre prioritet. Kör bara de tester som berör ändringen (användarens önskemål).
+**Läget 2026-11-08 natt.** Polerlistan i `docs/TODO.md` (*Polering först*) gäller fortfarande; punkt 31–39 är nya.
+Klart och pushat i dag: startvyns högar (GR8a), Chainabuse som underleverantör (hämtningen, granskad), streck i
+pixlar, inspektören bara när något är valt, pulsen borta från Nytt ärende och startpunkten, Graf-ikonen borta utan
+ärende, foten utan *Utgång*.
 
-**Klart och pushat i den här omgången** (rader att prova i `docs/TESTER-INFOR-1.0.md`):
-- toastern TO1a, ikonlisten IN2b, formulären IN1b och BV3a;
-- pillret följer ärendet, Terminal borta, ÄV1a med Ctrl+O, Spotlight-kommandoraden (Ctrl+K), statusraden borta;
-- Bevakningens tomma läge, UT2b, grafens ikon IK1 *Förgrening*;
-- Windows utan nät och utan internet: ett https-prov genom proxyn, inte ping;
-- **testärendet `/testdata`** (bara i Debug): `TEST-0001` med en påhittad kedja offline, se TESTER-INFOR;
-- mempool-rättelsen och panorering med höger- och mittknappen som i Gawk (`Motion/`);
-- ikonlisten krymper vid zoom;
-- **etappen EX1/EX2b**: ledtrådsnoden, samlingsnoden med valvyn, dolda OP_RETURN med en kvardröjande toast, och att
-  grafen använder ytan.
+**Agenter som arbetar** (i worktrees under `.claude/worktrees/`, committar men pushar inte; slå ihop med
+`git merge worktree-agent-<id>`, behåll båda sidor i dokumenten, bygg, kör berörda tester och pusha):
+- **Valvyn och högen byggs om efter EX2b** (`HeldBack2B.dc.html`): filterpanelen, ringen av prickar, Spiral/Tidsbåge,
+  Lasso, nederlisten, kortleken med dimning. Rättar också granskningens fel i EX1/EX2b.
+- **Granskning av alla byggda vyer mot skisserna**, rapport i scratchpadens `skissgranskning.md` (sessionens
+  scratchpad). Blir en ordnad lista att bygga om efter.
+- **Skisserna NC2a/NC2b (Nytt ärende med startpunkter som lista som förhandshämtar) och KF2a/KF2b (Kontroller och
+  förslag)** ritas i scratchpadens `canvas/project/`; de läggs ut på canvasen under Ärenden och Kontroller och
+  förslag, och byggs först när användaren valt.
 
-**Agenter som arbetade när sessionen rensades.** De ligger i worktrees under `.claude/worktrees/`, committar men pushar inte.
-Finns en commit på grenen, slå ihop den med `git merge worktree-agent-<id>`, behåll båda sidor i dokumenten, kör de
-berörda testerna och pusha. Saknas en commit, eller är arbetet halvfärdigt, gör om uppgiften.
-- `agent-a590e627fec3f3248`: **startvyns högar GR8a** (punkt 21), med högen ritad som grafens samlingsnod och samma
-  stöt och centrering. Den fick besked om att återanvända `PileFanLayout`.
-- **Skissen IN4** (`HoldingsFlip.dc.html` i scratchpadens `canvas/project/`): innehavet vänds med Alt + klick. Den är
-  inte publicerad. Gör om den om filen saknas.
+**Väntar på användaren:** KL2a eller KL2b (sidan Källor); NC2 och KF2 när de är utlagda; när Chainabuse ska frågas
+(knapp eller automatiskt, nyckelns gräns är 10 anrop i månaden); Ctrl+W.
 
-**Val som väntar på användaren** (skisserna ligger på canvasen):
-- **KL2a eller KL2b**: sidan Källor (punkt 26), under Inställningar.
-- **SN1a eller SN1b**: sonarn (punkt 31), under Grafen, omgång 17. Användarens reglagevärden förs in i `SonarRing`.
-- **IN4**: innehavet (punkt 28) när skissen är publicerad.
+**Godkänt och inte byggt, i ordning:** GR7a, KN1a, SO1a (soptunnan, också i startvyn), resten av EX2 efter
+ombygget, grafens offlinetext för Windows utan nät, testärendet som är för trångt (punkt 34).
 
-**Godkänt och inte byggt.** Bygg i den här ordningen, en etapp i taget i grafen eftersom filerna är gemensamma:
-0. **Rätta granskningens fel i EX1/EX2b först** (TODO, *Ledtrådsnoden och samlingsnoden*, *Den oberoende granskningen*),
-   framför allt punkt 1–4.
-1. **Bildspråkets ruta GR7a** (punkt 17).
-2. **Kommentarsnoden KN1a**, med Gawks Markdown-parser, storlekshandtag och sparad i ärendet (punkt 24–25).
-3. **Soptunnan SO1a**, också för ärenden i startvyn, med frågan om bevakningar (punkt 20).
-4. **Det som återstår av EX2** (TODO, *Ledtrådsnoden och samlingsnoden*).
-5. Grafens offlinetext säger *ingen utgång ansluten* också när Windows saknar nät. Den ska rättas.
-
-**Erbjudet, inte svarat:** Ctrl+W som stänger ärendet och går till start.
-
-**Canvasen:** läs alltid in den levande `project/canvas.json` med Artifact `read` och `path` innan något läggs ut, och
-slå ihop. Användaren kan ha flyttat tavlor. Lokala kopior av tavlorna och canvas.json ligger i
-`/tmp/claude-0/-home-user/bca05bd4-48dc-4768-aef6-4ae127968446/scratchpad/canvas/project/`. För att provrendera: lägg
-`dc-runtime.js` som `support.js` i `scratchpad/preview/` och servera mappen över http. Skisserna står i CLAUDE.md under
-*Skisserna*.
+**Canvasen:** läs in den levande `project/canvas.json` med Artifact `read` innan något läggs ut, och slå ihop.
+Artefakten är https://claude.ai/code/artifact/9dd2fd6d-b424-4bdb-aac7-38a36a2494d8 (samma som
+https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h). Provrendering: lägg `artifact-type/dc-runtime.js` som
+`support.js` bredvid tavlorna och servera mappen över http.
