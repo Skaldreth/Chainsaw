@@ -497,6 +497,48 @@ public sealed class ExposureTests
     }
 
     [Fact]
+    public void OnBitcoinALinkedCoinGoesToTheOtherChainAlsoWhenItsActorIsAServiceOrBeyondTheDepth()
+    {
+        var (graph, keys, other) = LinkedCase();
+        var bridge = Coins(graph, keys, ExposureDirection.Out, TracingMethodKind.Fifo) with
+        {
+            Services = new HashSet<string>(StringComparer.Ordinal) { keys["k"], keys["e"], other },
+        };
+        var shallow = Coins(graph, keys, ExposureDirection.Out, TracingMethodKind.Fifo, 1, "e") with
+        {
+            Services = new HashSet<string>(StringComparer.Ordinal) { keys["e"], other },
+        };
+
+        foreach (var request in new[] { bridge, shallow })
+        {
+            var reached = Assert.Single(UtxoOnly.Analyse(request).Reached);
+            Assert.Equal((other, 100_000_000L), (reached.NodeKey, (long)reached.Amount.Units));
+        }
+    }
+
+    [Fact]
+    public void OnBitcoinReadInALinkedCoinIsNoSourceOfWhatItsSpendPaid()
+    {
+        var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 100_010_000).Out(Wpkh("k"), 100_000_000).Build();
+        var both = Synthetic.Tx("both", 2).Spend(pay, 0).In(Wpkh("x"), 50_000_000).Out(Wpkh("e"), 149_990_000)
+            .Build();
+        var only = Synthetic.Tx("only", 3).In(Wpkh("y"), 10_000).Out(Wpkh("z"), 5_000).Build();
+        var to = new ChainTransactionRef(Chain.Tron, new string('a', 64));
+        var link = new CrossChainLink(1, new Outpoint(pay.Txid, 0), to, "Bryggan", 1, Start);
+        var graph = PureGraph.Of([pay, both, only], [link]);
+        graph = graph with { Nodes = [.. graph.Nodes.Select(n => n with { Expansion = NodeExpansion.Expanded })] };
+        var x = graph.NodeOf(Wpkh("x"))!.Key;
+        var k = graph.NodeOf(Wpkh("k"))!.Key;
+
+        var result = UtxoOnly.Analyse(new ExposureRequest(
+            graph, graph.NodeOf(Wpkh("e"))!.Key, Asset.Bitcoin, ExposureDirection.In, 3, TracingMethodKind.Fifo,
+            new HashSet<string>(StringComparer.Ordinal) { x, k }));
+
+        var reached = Assert.Single(result.Reached);
+        Assert.Equal((x, 149_990_000L), (reached.NodeKey, (long)reached.Amount.Units));
+    }
+
+    [Fact]
     public void OnAnAccountChainATransferLinkedToAnotherChainGoesThereAndNotIntoTheWallet()
     {
         // S's 0.6 to K is linked to another chain; K's own payments to E and M carry only O's 0.4.
@@ -527,6 +569,19 @@ public sealed class ExposureTests
         tally.Arrive("E", 10, []);
 
         Assert.Throws<InvalidOperationException>(() => tally.Result(5, new TracingMethodId(TracingMethodKind.Fifo, 1)));
+    }
+
+    /// <summary>S paid K 1 BTC, a coin linked to a TRON tx, which K then spent to E.</summary>
+    private static (TraceGraph Graph, Dictionary<string, string> Keys, string Other) LinkedCase()
+    {
+        var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 100_010_000).Out(Wpkh("k"), 100_000_000).Build();
+        var on = Synthetic.Tx("on", 2).Spend(pay, 0).Out(Wpkh("e"), 99_990_000).Build();
+        var to = new ChainTransactionRef(Chain.Tron, new string('a', 64));
+        var link = new CrossChainLink(1, new Outpoint(pay.Txid, 0), to, "Bryggan", 1, Start);
+        var graph = PureGraph.Of([pay, on], [link]);
+        graph = graph with { Nodes = [.. graph.Nodes.Select(n => n with { Expansion = NodeExpansion.Expanded })] };
+        var keys = new[] { "s", "k", "e" }.ToDictionary(label => label, label => graph.NodeOf(Wpkh(label))!.Key);
+        return (graph, keys, NodeKeys.OtherChain(to));
     }
 
     private BitcoinTransaction _coinPay = null!;

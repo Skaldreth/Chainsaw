@@ -1,3 +1,5 @@
+using System.Collections.Specialized;
+using System.Diagnostics;
 using Chainsaw.Modules.Cases.Contracts;
 
 namespace Chainsaw.App.ViewModels;
@@ -52,6 +54,7 @@ public sealed class SaveAlarm
         _toaster = toaster;
         _ui = ui;
         session.Changed += (_, _) => Follow(session.Current);
+        toaster.Toasts.CollectionChanged += OnToastsChanged;
         Follow(session.Current);
     }
 
@@ -60,6 +63,27 @@ public sealed class SaveAlarm
 
     /// <summary>Gets the last <em>Försök igen</em>, which completes once the toaster is told how it went.</summary>
     public Task Retrying { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// Forgets the warning when its toast is gone (closed by the user, or emptied at a lock), so that the next failure
+    /// warns again.
+    /// </summary>
+    /// <param name="sender">The toasts.</param>
+    /// <param name="e">What changed.</param>
+    private void OnToastsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_warning is not { } warning)
+        {
+            return;
+        }
+
+        var gone = e.Action == NotifyCollectionChangedAction.Reset
+            || (e.OldItems?.OfType<Toast>().Any(toast => ReferenceEquals(toast.Request, warning)) ?? false);
+        if (gone)
+        {
+            _warning = null;
+        }
+    }
 
     /// <summary>Follows another case's saves; a warning about the one before is taken away.</summary>
     /// <param name="open">The case open now, or <see langword="null"/>.</param>
@@ -154,8 +178,10 @@ public sealed class SaveAlarm
             // The case closed meanwhile, and the closing saved it or said why not.
             return;
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or CaseException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
+            // Whatever stopped the save, the warning comes back; only the kind is noted, never a path or the case.
+            Trace.TraceWarning("Saving the case by hand failed: {0}", exception.GetType().Name);
             succeeded = false;
         }
 

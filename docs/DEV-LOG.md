@@ -3751,3 +3751,14 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
 - Tester: 7 i `SaveAlarmTests`, nya i `ExitManageTests` (5), `ExposureTests` (3), `RequestsTests` (1),
   `GraphViewModelTests`, `ChecksViewModelTests` och `CommandSearchTests` (1 vardera) i App.Tests; 2 i
   `Chainsaw.Modules.Cases.Tests`; 4 i `Chainsaw.Modules.Tracing.Tests`.
+- **Granskningen (ett I, sex M), rättad:**
+  - **I1:** en länkad Bitcoin-coin går till den andra kedjan också när mottagaren är en tjänst eller ligger bortom
+    djupet (`LinkedOn` före `goesOn`). I *Fått från* räknas en länkad ingång inte som källa: den får vikt noll i
+    uppdelningen, som en länkad överföring utanför plånboken på kontokedjan. Betalades en utgång bara av länkade
+    ingångar räknas dess pengar som *Nådde ingen tjänst*.
+  - **M1:** en varning som användaren stängt glöms, så att nästa misslyckande varnar igen. **M2:**
+    `SaveStateChanged` höjs för varje lyssnare för sig (`SayHowSavesGo`), och en lyssnare som kastar räknas aldrig
+    som en misslyckad sparning. **M3:** *Försök igen* fångar alla fel (utom minnesbrist), noterar bara feltypen med
+    `Trace` och visar varningen igen. **M4:** *De är körda igen* sägs bara när kontrollerna gick att köra. **M5:**
+    Begärans exporter töms när ärendet byts. **M6:** Esc i grafen släpper först det valda och går tillbaka först när
+    inget är valt (`ReturnsOnEscape`).

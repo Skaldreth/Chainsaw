@@ -502,6 +502,8 @@ public sealed partial class RequestsViewModel : ObservableObject
         _withoutTrail.Clear();
         if (_session.Current is { } open)
         {
+            // The case before's exports go at once, so that no mark or row of it stands while the new are read.
+            ShowExports([]);
             ExportsRead = LoadExportsAsync(open);
         }
         else

@@ -56,7 +56,11 @@ internal sealed class TestRequests : IRequestService
         return export;
     }
 
-    public IReadOnlyList<RequestExport> ListExports(ICase @case) => [.. Exports];
+    /// <summary>Gets or sets what reading the exports throws, as when the case closed meanwhile.</summary>
+    public Exception? ListFailure { get; set; }
+
+    public IReadOnlyList<RequestExport> ListExports(ICase @case) =>
+        ListFailure is { } failure ? throw failure : [.. Exports];
 
     public IReadOnlyList<ExchangeContact> ContactsFor(string name) =>
         [.. Contacts.Where(contact => contact.Recipient == name)];
@@ -390,6 +394,24 @@ public sealed class RequestsViewModelTests
         Assert.Equal(["b.md", "a.md"], model.Exports.Select(row => row.FileName));
         Assert.Equal("Exporterad 2026-11-06 09:00", model.Exits[0].ExportedText);
         Assert.Equal([model.Exits[0].Exit.NodeKey], model.ExportedNodes);
+    }
+
+    [Fact]
+    public async Task Another_case_forgets_the_marks_of_the_case_before_also_when_its_exports_cannot_be_read()
+    {
+        _requests.Exports.Add(new RequestExport(
+            1, RequestKind.Information, RequestLanguage.Swedish, RequestTarget.KeyOf(E.ToChainAddress()), "Börs A",
+            "a.md", "/a.md", new string('a', 64), [], new DateTimeOffset(2026, 11, 6, 8, 0, 0, TimeSpan.Zero), 3));
+        var model = Model();
+        await model.ExportsRead;
+        Assert.NotEmpty(model.ExportedNodes);
+        _requests.ListFailure = new CaseException(CaseError.Closed);
+
+        _session.Open(new TestCase("2026-0118"));
+        await model.ExportsRead;
+
+        Assert.Empty(model.ExportedNodes);
+        Assert.Empty(model.Exports);
     }
 
     [Fact]

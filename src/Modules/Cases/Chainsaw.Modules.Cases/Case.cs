@@ -654,7 +654,27 @@ internal sealed class Case : ICase
         WriteAnchors();
         if (_autosave.Saved())
         {
-            SaveStateChanged?.Invoke(this, new CaseSaveState(0));
+            SayHowSavesGo(new CaseSaveState(0));
+        }
+    }
+
+    /// <summary>
+    /// Raises <see cref="SaveStateChanged"/> for every handler on its own, so that a handler that throws is never taken
+    /// for a save that failed and never keeps the others from hearing it.
+    /// </summary>
+    /// <param name="state">How the saves go.</param>
+    private void SayHowSavesGo(CaseSaveState state)
+    {
+        foreach (var handler in SaveStateChanged?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                ((EventHandler<CaseSaveState>)handler)(this, state);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // The save itself went as the state says; a listener's own failure is its own.
+            }
         }
     }
 
@@ -1049,8 +1069,8 @@ internal sealed class Case : ICase
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // An exception must not leave the timer's thread; the case file is untouched until the atomic replace.
-            var failures = _autosave.Failed();
-            SaveStateChanged?.Invoke(this, new CaseSaveState(failures));
+            // The listeners are told after, each on its own, so that none of them is taken for the save.
+            SayHowSavesGo(new CaseSaveState(_autosave.Failed()));
         }
     }
 

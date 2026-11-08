@@ -248,6 +248,25 @@ public sealed class AutosaveTests : IDisposable
     }
 
     [Fact]
+    public void A_listener_that_throws_is_never_taken_for_a_failed_save()
+    {
+        using var opened = Create();
+        var heard = new List<CaseSaveState>();
+        opened.SaveStateChanged += (_, _) => throw new InvalidOperationException("Lyssnaren föll.");
+        opened.SaveStateChanged += (_, state) => heard.Add(state);
+        opened.AppendJournal(new JournalDraft("test.note", "Sparas när det går"));
+        var saveFile = CasePaths.For(_fixture.Directory, "A1").SaveFile;
+        System.IO.Directory.CreateDirectory(saveFile);
+        _fixture.Time.Advance(Quiet);
+        System.IO.Directory.Delete(saveFile);
+
+        _fixture.Time.Advance(Maximum);
+
+        Assert.Equal([1, 0], heard.Select(state => state.FailuresInARow));
+        Assert.False(opened.HasUnsavedWrites);
+    }
+
+    [Fact]
     public void A_lock_of_the_vault_between_the_checks_and_the_save_ends_the_save_quietly()
     {
         var store = _fixture.CreateStore();

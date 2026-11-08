@@ -183,6 +183,34 @@ internal sealed class UtxoExposureRun
             : null;
 
     /// <summary>
+    /// Paid out: sends a coin the user linked to another chain there, where it stops, whoever its actor is (a service
+    /// or one beyond the depth too), since the graph's trace looks at the link first.
+    /// </summary>
+    /// <param name="coin">The coin.</param>
+    /// <param name="owner">Its actor.</param>
+    /// <returns><see langword="true"/> when the coin is linked.</returns>
+    private bool LinkedOn(Outpoint coin, string owner)
+    {
+        if (SpendRules.Continuations(Graph, coin) is not [var link, ..])
+        {
+            return false;
+        }
+
+        var node = NodeKeys.OtherChain(link.To);
+        if (Graph.Node(node) is not null)
+        {
+            _tally.Reach(node, owner);
+            _stopAt[coin] = node;
+        }
+        else
+        {
+            _ended[coin] = ExposureRest.NotReached;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Paid out: sends a followed actor's coin on as the graph's trace does (<see cref="SpendRules"/>): to the other
     /// chain it is linked to, where it stops; not at all when the spend disagrees with its transaction or the trail
     /// ends there; otherwise through the transaction that spends it.
@@ -191,22 +219,6 @@ internal sealed class UtxoExposureRun
     /// <param name="owner">Its actor.</param>
     private void GoOn(Outpoint coin, string owner)
     {
-        if (SpendRules.Continuations(Graph, coin) is [var link, ..])
-        {
-            var node = NodeKeys.OtherChain(link.To);
-            if (Graph.Node(node) is not null)
-            {
-                _tally.Reach(node, owner);
-                _stopAt[coin] = node;
-            }
-            else
-            {
-                _ended[coin] = ExposureRest.NotReached;
-            }
-
-            return;
-        }
-
         if (Spender(coin) is not { } by || Output(coin) is not { } output)
         {
             return;
@@ -354,6 +366,11 @@ internal sealed class UtxoExposureRun
         }
 
         _tally.Reach(owner, from);
+        if (LinkedOn(coin, owner))
+        {
+            return;
+        }
+
         var goesOn = _seeds.Contains(coin) ? owner == Subject || _tally.Follows(owner) : _tally.Follows(owner);
         if (goesOn)
         {
@@ -422,9 +439,11 @@ internal sealed class UtxoExposureRun
         }
 
         var flow = MethodChecks.Flow(transaction);
-        var shares = transaction.Inputs.Select((_, index) => _method.Propagate(flow, [
-            .. flow.Inputs.Select((amount, other) => other == index ? TaintSet.FirstPart(amount) : TaintSet.None),
-        ]).Outputs.Select(set => set.Units).ToList()).ToList();
+        var shares = transaction.Inputs.Select((input, index) => IsLinkedInput(input)
+            ? [.. transaction.Outputs.Select(_ => 0L)]
+            : _method.Propagate(flow, [
+                .. flow.Inputs.Select((amount, other) => other == index ? TaintSet.FirstPart(amount) : TaintSet.None),
+            ]).Outputs.Select(set => set.Units).ToList()).ToList();
         var parts = new BigInteger[transaction.Inputs.Count];
         var through = transaction.Inputs.Select(_ => new HashSet<ChainTransactionRef> { ChainTransactionRef.Of(txid) })
             .ToList();
@@ -436,7 +455,16 @@ internal sealed class UtxoExposureRun
                 continue;
             }
 
-            var split = Split(_units[coin], [.. shares.Select(share => share[output])]);
+            var weights = shares.Select(share => share[output]).ToList();
+            if (weights.All(weight => weight == 0))
+            {
+                // Only linked inputs paid it: by the trace their money went on to another chain, not here.
+                _passed.Remove(coin);
+                _ended[coin] = ExposureRest.NotReached;
+                continue;
+            }
+
+            var split = Split(_units[coin], weights);
             for (var input = 0; input < split.Length; input++)
             {
                 parts[input] += split[input];
@@ -489,6 +517,16 @@ internal sealed class UtxoExposureRun
             || (Output(coin) is { } output
                 && SpendRules.IsConflicting(Graph.Transactions[txid].Transaction, index, coin, output));
     }
+
+    /// <summary>
+    /// Got: says whether an input spends a coin the user linked to another chain; by the trace its money went on there,
+    /// so it is no source of the transaction's outputs, as a linked transfer is none of a wallet's on an account chain.
+    /// </summary>
+    /// <param name="input">The input.</param>
+    /// <returns><see langword="true"/> when it is linked.</returns>
+    private bool IsLinkedInput(BitcoinInput input) =>
+        !input.IsCoinbase
+        && SpendRules.Continuations(Graph, new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value)).Count > 0;
 
     /// <summary>Got: stops the money in a transaction's followed outputs there, for a reason.</summary>
     /// <param name="txid">The transaction.</param>

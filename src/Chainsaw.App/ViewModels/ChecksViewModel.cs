@@ -1108,7 +1108,12 @@ public sealed partial class ChecksViewModel : ObservableObject
             catch (SuggestionChangedException)
             {
                 await FollowAsync(_scene);
-                Problem = ChangedText;
+                if (Problem != RunFailedText)
+                {
+                    // Said only when the checks did run again; otherwise the panel says that they could not.
+                    Problem = ChangedText;
+                }
+
                 return null;
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)

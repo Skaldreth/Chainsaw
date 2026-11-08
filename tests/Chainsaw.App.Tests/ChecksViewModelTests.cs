@@ -122,6 +122,22 @@ public sealed class ChecksViewModelTests
     }
 
     [Fact]
+    public async Task A_changed_wallet_whose_checks_cannot_run_again_says_that_they_could_not()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Clear();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
+        rig.Source.DecideFailure = new SuggestionChangedException();
+        rig.Source.RunFailure = new InvalidOperationException("Kunde inte köras.");
+        rig.Checks.StartReview(null);
+
+        await rig.Checks.ApproveAsync();
+
+        Assert.Equal(ChecksViewModel.RunFailedText, rig.Checks.Problem);
+    }
+
+    [Fact]
     public async Task Dismissing_a_wallet_leaves_the_clusters_alone()
     {
         var rig = new Rig();

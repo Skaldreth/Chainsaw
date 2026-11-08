@@ -371,6 +371,9 @@ public sealed class ExposureTests
 
         Assert.Equal([VKey], wanted);
         Assert.Equal("Exponering", graph.ReturnText);
+        Assert.False(graph.ReturnsOnEscape);
+        graph.Choose(null, null);
+        Assert.True(graph.ReturnsOnEscape);
         graph.Return();
         Assert.Equal([AppView.Exposure], back);
         Assert.False(graph.HasReturn);

@@ -108,6 +108,33 @@ public sealed class SaveAlarmTests
     }
 
     [Fact]
+    public void A_warning_the_user_closed_comes_back_at_the_next_failure()
+    {
+        var alarm = Alarm();
+        _case.SayHowSavesGo(SaveAlarm.FailuresBeforeWarning);
+
+        _toaster.Remove(_toaster.Toasts[0]);
+        Assert.False(alarm.IsWarning);
+        _case.SayHowSavesGo(SaveAlarm.FailuresBeforeWarning + 1);
+
+        Assert.True(alarm.IsWarning);
+        Assert.Equal(SaveAlarm.WarningTitle, Assert.Single(_toaster.Toasts).Title);
+    }
+
+    [Fact]
+    public async Task Try_again_that_fails_for_any_reason_brings_the_warning_back()
+    {
+        var alarm = Alarm();
+        _case.SayHowSavesGo(SaveAlarm.FailuresBeforeWarning);
+        _case.SaveFailure = new InvalidOperationException("Något annat.");
+
+        _toaster.Toasts[0].Request.Action!();
+        await alarm.Retrying;
+
+        Assert.True(alarm.IsWarning);
+    }
+
+    [Fact]
     public void Another_case_takes_the_warning_away_and_the_old_case_is_no_longer_heard()
     {
         var alarm = Alarm();

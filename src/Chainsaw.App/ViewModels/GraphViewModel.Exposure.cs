@@ -23,6 +23,11 @@ public sealed partial class GraphViewModel
     /// <summary>Gets whether the head has a way back.</summary>
     public bool HasReturn => ReturnTo is not null;
 
+    /// <summary>
+    /// Gets whether Esc in the graph goes back: only when nothing is chosen, since Esc first lets go of what is.
+    /// </summary>
+    public bool ReturnsOnEscape => HasReturn && SelectedNode is null && SelectedEdge is null;
+
     /// <summary>Gets the way back's text: the view's name, for example <c>Exponering</c>.</summary>
     public string ReturnText => ReturnTo is { } view ? ViewTable.For(view).Name : string.Empty;
 

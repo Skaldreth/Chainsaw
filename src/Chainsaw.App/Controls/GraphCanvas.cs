@@ -509,7 +509,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             case Key.Escape when _model.Timeline.IsChosen:
                 _model.Timeline.ToNow();
                 break;
-            case Key.Escape when _model.HasReturn:
+            case Key.Escape when _model.ReturnsOnEscape:
                 _model.Return();
                 break;
             case Key.Escape:
