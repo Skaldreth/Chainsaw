@@ -517,25 +517,36 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void OnBitcoinReadInALinkedCoinIsNoSourceOfWhatItsSpendPaid()
+    public void OnBitcoinReadInALinkedInputsShareContinuesOnTheOtherChainAndNoOtherInputTakesIt()
     {
         var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 100_010_000).Out(Wpkh("k"), 100_000_000).Build();
         var both = Synthetic.Tx("both", 2).Spend(pay, 0).In(Wpkh("x"), 50_000_000).Out(Wpkh("e"), 149_990_000)
             .Build();
-        var only = Synthetic.Tx("only", 3).In(Wpkh("y"), 10_000).Out(Wpkh("z"), 5_000).Build();
-        var to = new ChainTransactionRef(Chain.Tron, new string('a', 64));
-        var link = new CrossChainLink(1, new Outpoint(pay.Txid, 0), to, "Bryggan", 1, Start);
-        var graph = PureGraph.Of([pay, both, only], [link]);
-        graph = graph with { Nodes = [.. graph.Nodes.Select(n => n with { Expansion = NodeExpansion.Expanded })] };
+        var (graph, subject, sources) = LinkedReadIn(pay, both, "x", "k");
         var x = graph.NodeOf(Wpkh("x"))!.Key;
-        var k = graph.NodeOf(Wpkh("k"))!.Key;
 
         var result = UtxoOnly.Analyse(new ExposureRequest(
-            graph, graph.NodeOf(Wpkh("e"))!.Key, Asset.Bitcoin, ExposureDirection.In, 3, TracingMethodKind.Fifo,
-            new HashSet<string>(StringComparer.Ordinal) { x, k }));
+            graph, subject, Asset.Bitcoin, ExposureDirection.In, 3, TracingMethodKind.Fifo, sources));
 
+        // FIFO: the linked coin's 1 BTC comes first, so x's 0.5 pays the rest and the fee.
         var reached = Assert.Single(result.Reached);
-        Assert.Equal((x, 149_990_000L), (reached.NodeKey, (long)reached.Amount.Units));
+        Assert.Equal((x, 49_990_000L), (reached.NodeKey, (long)reached.Amount.Units));
+        Assert.Equal(100_000_000, (long)result.Rest[ExposureRest.OtherChain].Units);
+        Assert.Equal(149_990_000, (long)result.Total.Units);
+    }
+
+    [Fact]
+    public void OnBitcoinReadInWhatOnlyALinkedInputPaidContinuesOnTheOtherChain()
+    {
+        var pay = Synthetic.Tx("pay", 1).In(Wpkh("s"), 100_010_000).Out(Wpkh("k"), 100_000_000).Build();
+        var only = Synthetic.Tx("only", 2).Spend(pay, 0).Out(Wpkh("e"), 99_990_000).Build();
+        var (graph, subject, sources) = LinkedReadIn(pay, only, "k");
+
+        var result = UtxoOnly.Analyse(new ExposureRequest(
+            graph, subject, Asset.Bitcoin, ExposureDirection.In, 3, TracingMethodKind.Fifo, sources));
+
+        Assert.Empty(result.Reached);
+        Assert.Equal(99_990_000, (long)result.Rest[ExposureRest.OtherChain].Units);
     }
 
     [Fact]
@@ -569,6 +580,21 @@ public sealed class ExposureTests
         tally.Arrive("E", 10, []);
 
         Assert.Throws<InvalidOperationException>(() => tally.Result(5, new TracingMethodId(TracingMethodKind.Fifo, 1)));
+    }
+
+    /// <summary>
+    /// The graph of S's payment to K, whose coin is linked to a TRON tx, and a spend of it to E; read in from E with
+    /// the given actors as services.
+    /// </summary>
+    private static (TraceGraph Graph, string Subject, IReadOnlySet<string> Services) LinkedReadIn(
+        BitcoinTransaction pay, BitcoinTransaction spend, params string[] services)
+    {
+        var to = new ChainTransactionRef(Chain.Tron, new string('a', 64));
+        var link = new CrossChainLink(1, new Outpoint(pay.Txid, 0), to, "Bryggan", 1, Start);
+        var graph = PureGraph.Of([pay, spend], [link]);
+        graph = graph with { Nodes = [.. graph.Nodes.Select(n => n with { Expansion = NodeExpansion.Expanded })] };
+        var keys = services.Select(label => graph.NodeOf(Wpkh(label))!.Key).ToHashSet(StringComparer.Ordinal);
+        return (graph, graph.NodeOf(Wpkh("e"))!.Key, keys);
     }
 
     /// <summary>S paid K 1 BTC, a coin linked to a TRON tx, which K then spent to E.</summary>

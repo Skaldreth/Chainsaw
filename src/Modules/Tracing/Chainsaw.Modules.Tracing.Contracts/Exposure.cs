@@ -65,6 +65,13 @@ public enum ExposureRest
     /// rather than guessed, as in the graph's trace. Expanding again, or another source, may settle it.
     /// </summary>
     Conflicting,
+
+    /// <summary>
+    /// It continues on another chain by the user's link: paid out, a coin linked there whose other chain is not in the
+    /// graph; got, the share of a transaction's outputs paid by an input linked there, which by the graph's trace went
+    /// on to the other chain and is no source of them.
+    /// </summary>
+    OtherChain,
 }
 
 /// <summary>What to read the exposure of, and how.</summary>

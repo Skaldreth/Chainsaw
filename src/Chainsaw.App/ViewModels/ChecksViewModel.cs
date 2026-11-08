@@ -1110,8 +1110,8 @@ public sealed partial class ChecksViewModel : ObservableObject
                 await FollowAsync(_scene);
                 if (Problem != RunFailedText)
                 {
-                    // Said only when the checks did run again; otherwise the panel says that they could not.
-                    Problem = ChangedText;
+                    // Said only when the checks did run again, before what the new run itself said, if anything.
+                    Problem = Problem.Length == 0 ? ChangedText : $"{ChangedText} {Problem}";
                 }
 
                 return null;

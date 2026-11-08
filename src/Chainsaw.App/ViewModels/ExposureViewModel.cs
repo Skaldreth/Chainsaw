@@ -609,6 +609,7 @@ public sealed partial class ExposureViewModel : ObservableObject
         ExposureRest.BeforeHistory => "Kom före historiken i grafen",
         ExposureRest.TrailEnds => "Spåret tar slut i en tx, till exempel en CoinJoin",
         ExposureRest.Conflicting => "Uppgifterna om vart pengarna gick går inte ihop",
+        ExposureRest.OtherChain => "Fortsätter på annan kedja",
         _ => depth == 1 ? "Gick vidare till en aktör som inte följs" : $"Nådde ingen tjänst inom {depth} hopp",
     };
 

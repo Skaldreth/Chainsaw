@@ -3755,7 +3755,10 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   - **I1:** en länkad Bitcoin-coin går till den andra kedjan också när mottagaren är en tjänst eller ligger bortom
     djupet (`LinkedOn` före `goesOn`). I *Fått från* räknas en länkad ingång inte som källa: den får vikt noll i
     uppdelningen, som en länkad överföring utanför plånboken på kontokedjan. Betalades en utgång bara av länkade
-    ingångar räknas dess pengar som *Nådde ingen tjänst*.
+    ingångar räknas dess pengar som *Nådde ingen tjänst*. **Omgranskningen:** den länkade ingången behåller sin vikt i
+    uppdelningen, och dess andel blir ett eget skäl, `ExposureRest.OtherChain` (*Fortsätter på annan kedja*), så att
+    ingen annan ingång får mer än den betalade; samma skäl när den andra kedjans nod saknas. *De är körda igen* står
+    före det den nya körningen själv sa.
   - **M1:** en varning som användaren stängt glöms, så att nästa misslyckande varnar igen. **M2:**
     `SaveStateChanged` höjs för varje lyssnare för sig (`SayHowSavesGo`), och en lyssnare som kastar räknas aldrig
     som en misslyckad sparning. **M3:** *Försök igen* fångar alla fel (utom minnesbrist), noterar bara feltypen med

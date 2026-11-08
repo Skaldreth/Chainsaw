@@ -65,6 +65,12 @@ internal sealed class UtxoExposureRun
     /// </summary>
     private readonly Dictionary<Outpoint, ExposureRest> _ended = [];
 
+    /// <summary>
+    /// Got: the money each transaction read back owes to inputs the user linked to another chain, which by the trace
+    /// went on there and are no source of it; set anew each time the transaction is read.
+    /// </summary>
+    private readonly Dictionary<Txid, BigInteger> _onOtherChain = [];
+
     /// <summary>The fee each transaction read took of the money.</summary>
     private readonly Dictionary<Txid, long> _fees = [];
 
@@ -204,7 +210,7 @@ internal sealed class UtxoExposureRun
         }
         else
         {
-            _ended[coin] = ExposureRest.NotReached;
+            _ended[coin] = ExposureRest.OtherChain;
         }
 
         return true;
@@ -439,11 +445,11 @@ internal sealed class UtxoExposureRun
         }
 
         var flow = MethodChecks.Flow(transaction);
-        var shares = transaction.Inputs.Select((input, index) => IsLinkedInput(input)
-            ? [.. transaction.Outputs.Select(_ => 0L)]
-            : _method.Propagate(flow, [
-                .. flow.Inputs.Select((amount, other) => other == index ? TaintSet.FirstPart(amount) : TaintSet.None),
-            ]).Outputs.Select(set => set.Units).ToList()).ToList();
+        var shares = transaction.Inputs.Select((_, index) => _method.Propagate(flow, [
+            .. flow.Inputs.Select((amount, other) => other == index ? TaintSet.FirstPart(amount) : TaintSet.None),
+        ]).Outputs.Select(set => set.Units).ToList()).ToList();
+        var linked = transaction.Inputs.Select(IsLinkedInput).ToList();
+        var onOtherChain = BigInteger.Zero;
         var parts = new BigInteger[transaction.Inputs.Count];
         var through = transaction.Inputs.Select(_ => new HashSet<ChainTransactionRef> { ChainTransactionRef.Of(txid) })
             .ToList();
@@ -455,18 +461,16 @@ internal sealed class UtxoExposureRun
                 continue;
             }
 
-            var weights = shares.Select(share => share[output]).ToList();
-            if (weights.All(weight => weight == 0))
-            {
-                // Only linked inputs paid it: by the trace their money went on to another chain, not here.
-                _passed.Remove(coin);
-                _ended[coin] = ExposureRest.NotReached;
-                continue;
-            }
-
-            var split = Split(_units[coin], weights);
+            var split = Split(_units[coin], [.. shares.Select(share => share[output])]);
             for (var input = 0; input < split.Length; input++)
             {
+                if (linked[input])
+                {
+                    // The linked input's share: by the trace its money went on to another chain, not into this.
+                    onOtherChain += split[input];
+                    continue;
+                }
+
                 parts[input] += split[input];
                 if (!split[input].IsZero)
                 {
@@ -475,6 +479,7 @@ internal sealed class UtxoExposureRun
             }
         }
 
+        _onOtherChain[txid] = onOtherChain;
         for (var index = 0; index < transaction.Inputs.Count; index++)
         {
             var input = transaction.Inputs[index];
@@ -688,6 +693,11 @@ internal sealed class UtxoExposureRun
     /// </summary>
     private void CountIn()
     {
+        foreach (var units in _onOtherChain.Values)
+        {
+            _tally.Rest(ExposureRest.OtherChain, units);
+        }
+
         foreach (var (coin, units) in _units)
         {
             if (units.IsZero)
