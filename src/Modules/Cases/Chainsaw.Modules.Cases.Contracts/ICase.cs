@@ -142,9 +142,9 @@ public interface ICase : IDisposable
     void Save();
 
     /// <summary>
-    /// Saves, closes the database, removes the working copy and clears the file key from memory. Closing twice is
-    /// harmless. If the save fails, the working copy is kept so that the next opening recovers it, and the failure
-    /// is thrown.
+    /// Saves what was written since the last save (a case only read is not written again), closes the database,
+    /// removes the working copy and clears the file key from memory. Closing twice is harmless. If the save fails, the
+    /// working copy is kept so that the next opening recovers it, and the failure is thrown.
     /// </summary>
     void Close();
 }

@@ -93,6 +93,50 @@ internal static class CaseFiles
         return caseFileHash;
     }
 
+    /// <summary>
+    /// Copies the database out of a case file into a file of its own, for reading only, when the seal over the file
+    /// holds; the copy is removed when it does not.
+    /// </summary>
+    /// <param name="paths">The case's files.</param>
+    /// <param name="caseId">The case id the key was opened for.</param>
+    /// <param name="fileKey">The file key.</param>
+    /// <param name="destination">The new file; replaced when it exists.</param>
+    /// <returns><see langword="true"/> when the copy is made and the file is whole.</returns>
+    public static bool ExtractDatabase(CasePaths paths, Guid caseId, ReadOnlySpan<byte> fileKey, string destination)
+    {
+        bool holds;
+        using (var seal = CaseFileSeal.Begin(fileKey, caseId))
+        using (var input = new FileStream(
+            paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize))
+        {
+            var header = CaseContainer.ReadHeader(input);
+            var headerLength = input.Position;
+            var databaseLength = input.Length - headerLength - CaseFileSeal.TrailerLength;
+            if (header.CaseId != caseId || databaseLength <= 0)
+            {
+                return false;
+            }
+
+            input.Position = 0;
+            CopySealing(input, Stream.Null, headerLength, hash: null, seal);
+            using (var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                CopySealing(input, output, databaseLength, hash: null, seal);
+            }
+
+            var trailer = new byte[CaseFileSeal.TrailerLength];
+            input.ReadExactly(trailer);
+            holds = CaseFileSeal.Holds(trailer, seal);
+        }
+
+        if (!holds)
+        {
+            File.Delete(destination);
+        }
+
+        return holds;
+    }
+
     /// <summary>Checks the seal over a whole case file, reading it once and writing nothing.</summary>
     /// <param name="paths">The case's files.</param>
     /// <param name="caseId">The case id the key was opened for; the header must still say it.</param>

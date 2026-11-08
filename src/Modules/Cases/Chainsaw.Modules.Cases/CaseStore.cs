@@ -306,7 +306,42 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             caseNumber,
             new DateTimeOffset(File.GetLastWriteTimeUtc(paths.CaseFile), TimeSpan.Zero),
             new DateTimeOffset(File.GetLastWriteTimeUtc(paths.WorkingCopy), TimeSpan.Zero),
-            WorkingCopyBranches.SuggestBranchNumber(System.IO.Path.GetFullPath(Directory), caseNumber));
+            WorkingCopyBranches.SuggestBranchNumber(System.IO.Path.GetFullPath(Directory), caseNumber))
+        {
+            Divergence = FindDivergence(paths),
+        };
+    }
+
+    /// <summary>
+    /// Finds where the file and its working copy went apart, with this vault's key; nothing when the vault cannot
+    /// open the file. Neither is changed.
+    /// </summary>
+    /// <param name="paths">The case's files.</param>
+    /// <returns>The divergence, or <see langword="null"/>.</returns>
+    private CaseDivergence? FindDivergence(CasePaths paths)
+    {
+        if (_services.Vault.State != VaultState.Unlocked)
+        {
+            return null;
+        }
+
+        var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
+        {
+            var header = ReadHeader(paths);
+            OpenWithVault(header, fileKey);
+            var key = fileKey;
+            return BranchDivergence.Find(
+                paths, header.CaseId, fileKey, path => OpenDatabase(path, key, header.CaseId));
+        }
+        catch (CaseException)
+        {
+            return null;
+        }
+        finally
+        {
+            Clear(fileKey);
+        }
     }
 
     /// <inheritdoc />
@@ -1146,7 +1181,8 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             Case.DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
-            List<JsonObject> envelopes = [KeyEnvelopes.CreateOperator(caseId, fileKey, wrappingKey)];
+            List<JsonObject> envelopes =
+                [KeyEnvelopes.CreateOperator(caseId, fileKey, wrappingKey, CurrentProfile().Name)];
             if (_services.Options.RecoveryKey is { } recoveryKey)
             {
                 envelopes.Add(RecoveryEnvelopes.Create(caseId, fileKey, recoveryKey));

@@ -319,6 +319,120 @@ public sealed class RoundSixTests : IDisposable
         Assert.DoesNotContain(opened.ReadJournal(), item => item.Kind == CaseJournalKinds.RecoveryAccessChanged);
     }
 
+    [Fact]
+    public void A_colleagues_envelope_carries_her_name_for_those_who_can_open_the_case_only()
+    {
+        string path;
+        using (var created = _fixture.CreateStore().Create("A1"))
+        {
+            created.SetSharingPassword(CaseFixture.Password);
+            path = created.Path;
+        }
+
+        using var colleague = new CaseFixture("vault-b");
+        colleague.Profiles.Profile = new("Kollega Kollegasson", "Analytiker", "Andra enheten");
+        using (var shared = colleague.CreateStore().OpenWithPassword(path, CaseFixture.Password))
+        {
+            shared.AddOperatorAccess();
+        }
+
+        using (var opened = _fixture.CreateStore().Open("A1"))
+        {
+            var envelopes = opened.DescribeEnvelopes();
+            Assert.Equal("Testa Testsson", Assert.Single(envelopes, item => item.Kind == CaseEnvelopeKind.Yours).Name);
+            var other = Assert.Single(envelopes, item => item.Kind == CaseEnvelopeKind.OtherVault);
+            Assert.Equal("Kollega Kollegasson", other.Name);
+        }
+
+        // Without the file key the name is not read, and it is nowhere in the file as text.
+        Assert.All(_fixture.CreateStore().DescribeEnvelopes(path), item => Assert.Null(item.Name));
+        var bytes = File.ReadAllBytes(path);
+        Assert.Equal(-1, bytes.AsSpan().IndexOf("Kollegasson"u8));
+    }
+
+    [Fact]
+    public void A_name_moved_from_one_envelope_to_another_is_not_read()
+    {
+        string path;
+        using (var created = _fixture.CreateStore().Create("A1"))
+        {
+            created.SetSharingPassword(CaseFixture.Password);
+            path = created.Path;
+        }
+
+        using var colleague = new CaseFixture("vault-b");
+        colleague.Profiles.Profile = new("Kollega Kollegasson", "Analytiker", "Andra enheten");
+        using (var shared = colleague.CreateStore().OpenWithPassword(path, CaseFixture.Password))
+        {
+            shared.AddOperatorAccess();
+        }
+
+        CaseFileSurgery.RewriteHeader(_fixture, path, header =>
+        {
+            var operators = header.Envelopes.Where(item => KeyEnvelopes.IsKind(item, KeyEnvelopes.OperatorKind))
+                .Select(item => (JsonObject)item.DeepClone()).ToList();
+            (operators[0]["label"], operators[1]["label"]) =
+                (operators[1]["label"]!.DeepClone(), operators[0]["label"]!.DeepClone());
+            return header.WithEnvelopes(
+                [.. operators, .. header.Envelopes.Where(item => !KeyEnvelopes.IsKind(item, KeyEnvelopes.OperatorKind))]);
+        });
+
+        using var opened = _fixture.CreateStore().Open("A1");
+        Assert.All(opened.DescribeEnvelopes().Where(item => item.Kind is CaseEnvelopeKind.Yours
+            or CaseEnvelopeKind.OtherVault), item => Assert.Null(item.Name));
+    }
+
+    [Fact]
+    public void An_unknown_envelope_says_its_kind_cleaned()
+    {
+        using (_fixture.CreateStore().Create("A1"))
+        {
+        }
+
+        CaseFileSurgery.RewriteHeader(_fixture, _fixture.CaseFile("A1"), header => header.WithEnvelopes(
+            [.. header.Envelopes, new JsonObject { ["kind"] = "fido2\n" + new string('x', 100) }]));
+
+        using var opened = _fixture.CreateStore().Open("A1");
+        var unknown = Assert.Single(opened.DescribeEnvelopes(), item => item.Kind == CaseEnvelopeKind.Unknown);
+        Assert.Equal("fido2" + new string('x', 27), unknown.UnknownKind);
+    }
+
+    [Fact]
+    public void A_case_only_read_is_not_written_again_when_it_closes()
+    {
+        var store = _fixture.CreateStore();
+        var path = _fixture.CaseFile("A1");
+        using (store.Create("A1"))
+        {
+        }
+
+        var before = File.ReadAllBytes(path);
+        using (var opened = store.Open("A1"))
+        {
+            Assert.NotEmpty(opened.ReadJournal());
+        }
+
+        Assert.Equal(before, File.ReadAllBytes(path));
+        Assert.False(File.Exists(path + ".work"));
+    }
+
+    [Fact]
+    public void A_case_written_is_saved_when_it_closes()
+    {
+        var store = _fixture.CreateStore();
+        using (store.Create("A1"))
+        {
+        }
+
+        using (var opened = store.Open("A1"))
+        {
+            opened.AppendJournal(new JournalDraft("test.note", "Skrivet"));
+        }
+
+        using var reopened = store.Open("A1");
+        Assert.Contains(reopened.ReadJournal(), entry => entry.Summary == "Skrivet");
+    }
+
     private static int FirstDifferentPage(byte[] older, byte[] newer)
     {
         var pages = Math.Min(older.Length, newer.Length) / PageSize;

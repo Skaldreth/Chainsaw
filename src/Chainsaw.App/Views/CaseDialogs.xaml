@@ -596,13 +596,16 @@
                                      Stroke="{StaticResource Brush.Text}" StrokeThickness="2" />
                             <TextBlock Canvas.Left="20" Canvas.Top="164" Text="Ärendet" FontSize="12"
                                        Foreground="{StaticResource Brush.TextDim}" />
-                            <TextBlock Canvas.Left="250" Canvas.Top="164" Width="100" TextAlignment="Center"
-                                       Text="Gick isär" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                            <TextBlock Canvas.Left="220" Canvas.Top="164" Width="160" TextAlignment="Center"
+                                       Text="{Binding ApartText}" ToolTip="{Binding ApartHash}" FontSize="12"
+                                       Foreground="{StaticResource Brush.TextDim}" />
                             <TextBlock Canvas.Left="400" Canvas.Top="32" FontSize="12" Foreground="{StaticResource Brush.TextDim}">
-                                <Run Text="Filen · " /><Run Text="{Binding FileWhen, Mode=OneWay}" />
+                                <Run Text="Filen · " /><Run Text="{Binding FileGrowth, Mode=OneWay}" /><Run
+                                    Text="{Binding FileWhen, Mode=OneWay}" />
                             </TextBlock>
                             <TextBlock Canvas.Left="400" Canvas.Top="252" FontSize="12" Foreground="{StaticResource Brush.TextDim}">
-                                <Run Text="Arbetskopian · " /><Run Text="{Binding CopyWhen, Mode=OneWay}" />
+                                <Run Text="Arbetskopian · " /><Run Text="{Binding CopyGrowth, Mode=OneWay}" /><Run
+                                    Text="{Binding CopyWhen, Mode=OneWay}" />
                             </TextBlock>
                         </Canvas>
 

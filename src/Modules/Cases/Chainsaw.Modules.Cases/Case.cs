@@ -345,7 +345,7 @@ internal sealed class Case : ICase
             try
             {
                 DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
-                var envelope = KeyEnvelopes.CreateOperator(Info.Id, _fileKey, wrappingKey);
+                var envelope = KeyEnvelopes.CreateOperator(Info.Id, _fileKey, wrappingKey, CurrentOperator().Name);
                 AppendOwnJournal(new JournalDraft(
                     CaseJournalKinds.OperatorAccessAdded, "Operatörens valv fick ett eget kuvert"));
                 _header = _header.WithEnvelopes(_header.Envelopes.Append(envelope));
@@ -414,7 +414,13 @@ internal sealed class Case : ICase
             _inWork = true;
             try
             {
-                SaveUnlocked();
+                // A case that has not been written since it was last saved is the file already: it is not copied
+                // again, which matters for a large case that is only read. Every change of the header saves at once.
+                if (_autosave.IsDirty)
+                {
+                    SaveUnlocked();
+                }
+
                 ReleaseDatabase();
                 // The base goes last: a working copy that is left behind still belongs to the file it was just
                 // saved to, and is recovered rather than taken for a conflict.
