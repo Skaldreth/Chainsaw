@@ -104,7 +104,8 @@ public sealed class CheckServiceTests
 
         var decision = harness.Service.Decide(
             harness.Case,
-            new DecisionRequest(check.Analysis, check.Finding.Key, best.Key, CheckVerdict.Approved, "  Samma belopp. "));
+            new DecisionRequest(
+                check.Analysis, check.Finding.Key, best.Key, CheckVerdict.Approved, "  Samma belopp. "));
         var after = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
 
         Assert.Equal("Samma belopp.", decision.Reason);
@@ -137,11 +138,10 @@ public sealed class CheckServiceTests
         using var harness = new Harness();
         var check = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
         var best = check.Finding.Candidates[0];
-        harness.Service.Decide(harness.Case, new DecisionRequest(
+        var approved = harness.Service.Decide(harness.Case, new DecisionRequest(
             check.Analysis, check.Finding.Key, best.Key, CheckVerdict.Approved));
 
-        harness.Service.Decide(harness.Case, new DecisionRequest(
-            check.Analysis, check.Finding.Key, best.Key, CheckVerdict.Withdrawn));
+        harness.Service.Decide(harness.Case, DecisionRequest.TakeBack(approved));
         var after = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
 
         Assert.False(after.IsSettled);
@@ -188,15 +188,81 @@ public sealed class CheckServiceTests
         using var harness = new Harness();
         var check = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
         var key = check.Finding.Candidates[0].Key;
-        harness.Service.Decide(
+        var approved = harness.Service.Decide(
             harness.Case, new DecisionRequest(check.Analysis, check.Finding.Key, key, CheckVerdict.Approved));
+        harness.Service.Decide(harness.Case, DecisionRequest.TakeBack(approved));
         harness.Service.Decide(
             harness.Case, new DecisionRequest(check.Analysis, check.Finding.Key, key, CheckVerdict.Dismissed));
 
         var after = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
 
         Assert.Equal(CheckVerdict.Dismissed, after.DecisionFor(key)!.Verdict);
-        Assert.Equal(2, after.Decisions.Count);
+        Assert.Equal(3, after.Decisions.Count);
+    }
+
+    [Fact]
+    public void A_settled_suggestion_or_a_decided_candidate_is_not_decided_again()
+    {
+        using var harness = new Harness();
+        var check = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
+        var first = check.Finding.Candidates[0].Key;
+        var second = check.Finding.Candidates[1].Key;
+        harness.Service.Decide(
+            harness.Case, new DecisionRequest(check.Analysis, check.Finding.Key, first, CheckVerdict.Approved));
+
+        Assert.Throws<ArgumentException>(() => harness.Service.Decide(harness.Case, new DecisionRequest(
+            check.Analysis, check.Finding.Key, first, CheckVerdict.Dismissed)));
+        Assert.Throws<ArgumentException>(() => harness.Service.Decide(harness.Case, new DecisionRequest(
+            check.Analysis, check.Finding.Key, second, CheckVerdict.Approved)));
+        Assert.Throws<ArgumentException>(() => harness.Service.Decide(harness.Case, new DecisionRequest(
+            check.Analysis, check.Finding.Key, null, CheckVerdict.Dismissed)));
+        Assert.Equal(1, harness.Count("checks_decisions"));
+    }
+
+    [Fact]
+    public void An_old_take_back_never_takes_back_a_newer_decision()
+    {
+        using var harness = new Harness();
+        var check = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
+        var key = check.Finding.Candidates[0].Key;
+        var approved = harness.Service.Decide(
+            harness.Case, new DecisionRequest(check.Analysis, check.Finding.Key, key, CheckVerdict.Approved));
+        harness.Service.Decide(harness.Case, DecisionRequest.TakeBack(approved));
+        harness.Service.Decide(
+            harness.Case, new DecisionRequest(check.Analysis, check.Finding.Key, null, CheckVerdict.Dismissed));
+
+        Assert.Throws<ArgumentException>(
+            () => harness.Service.Decide(harness.Case, DecisionRequest.TakeBack(approved)));
+        Assert.Throws<ArgumentException>(() => harness.Service.Decide(harness.Case, new DecisionRequest(
+            check.Analysis, check.Finding.Key, null, CheckVerdict.Withdrawn)));
+        Assert.True(Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther)).IsSettled);
+    }
+
+    [Fact]
+    public void Several_decisions_are_sealed_together_or_not_at_all()
+    {
+        using var harness = new Harness();
+        var check = Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther));
+        var first = check.Finding.Candidates[0].Key;
+        var second = check.Finding.Candidates[1].Key;
+
+        Assert.Throws<ArgumentException>(() => harness.Service.DecideAll(harness.Case,
+        [
+            new DecisionRequest(check.Analysis, check.Finding.Key, first, CheckVerdict.Dismissed),
+            new DecisionRequest(check.Analysis, check.Finding.Key, first, CheckVerdict.Dismissed),
+        ]));
+        Assert.Equal(0, harness.Count("checks_decisions"));
+
+        var made = harness.Service.DecideAll(harness.Case,
+        [
+            new DecisionRequest(check.Analysis, check.Finding.Key, first, CheckVerdict.Dismissed),
+            new DecisionRequest(check.Analysis, check.Finding.Key, second, CheckVerdict.Dismissed),
+        ]);
+        harness.Service.DecideAll(harness.Case, [.. made.Select(DecisionRequest.TakeBack)]);
+
+        Assert.Equal(4, harness.Count("checks_decisions"));
+        Assert.Equal(3, Mixer(harness.Run(Mixing.All(), Mixing.Mixer, Mixing.MixerOther)).Waiting);
+        Assert.True(harness.Verify().IsIntact);
     }
 
     [Fact]

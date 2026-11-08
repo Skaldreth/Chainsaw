@@ -19,7 +19,9 @@ public enum CheckRowGroup
     Decided,
 }
 
-/// <summary>A chip under the suggestion that says what it rests on (sketch KF2b), with the longer text on hover.</summary>
+/// <summary>
+/// A chip under the suggestion that says what it rests on (sketch KF2b), with the longer text on hover.
+/// </summary>
 /// <param name="Icon">The chip's icon's resource key.</param>
 /// <param name="Label">The short label.</param>
 /// <param name="Tip">What it means.</param>
@@ -36,7 +38,8 @@ public sealed record FlowBand(int Rank, double Width, string AmountText, bool Is
 /// The small picture of how the money flows (sketch KF2b): the money in on the left, the candidates on the right.
 /// </summary>
 /// <param name="InText">What came in, for example <c>0,8000 in</c>; empty when it is not known.</param>
-/// <param name="FeeText">The chosen candidate's fee, for example <c>−1 % avgift</c>; empty when it is not known.</param>
+/// <param name="FeeText">The chosen candidate's fee, for example <c>−1 % trolig avgift</c>;
+/// empty when it is not known. A judgement: it holds only if the candidate is right.</param>
 /// <param name="Bands">One band per candidate, best first.</param>
 public sealed record SuggestionFlow(string InText, string FeeText, IReadOnlyList<FlowBand> Bands)
 {
@@ -98,7 +101,8 @@ public sealed partial class CandidateRowViewModel : ObservableObject
     /// <param name="candidate">The candidate.</param>
     /// <param name="rank">Its rank, from 1.</param>
     /// <param name="decision">The user's decision in force about it, or <see langword="null"/>.</param>
-    /// <param name="after">How long after the money came in it was paid, or <see langword="null"/> if not known.</param>
+    /// <param name="after">How long after the money came in it was paid, or <see langword="null"/> if not
+    /// known.</param>
     public CandidateRowViewModel(CheckCandidate candidate, int rank, CheckDecision? decision, TimeSpan? after)
     {
         ArgumentNullException.ThrowIfNull(candidate);
@@ -371,7 +375,9 @@ public sealed partial class CheckRowViewModel : ObservableObject
             Check.Analysis, Check.Finding.Key, ChosenCandidate?.Candidate.Key, CheckVerdict.Approved, ReasonText());
     }
 
-    /// <summary>Gives the decision X makes: dismiss the suggestion as a whole; null when nothing is to decide.</summary>
+    /// <summary>
+    /// Gives the decision X makes: dismiss the suggestion as a whole; null when nothing is to decide.
+    /// </summary>
     /// <returns>The request, or <see langword="null"/>.</returns>
     public DecisionRequest? DismissRequest() => CanDecide
         ? new DecisionRequest(Check.Analysis, Check.Finding.Key, null, CheckVerdict.Dismissed, ReasonText())
@@ -381,8 +387,8 @@ public sealed partial class CheckRowViewModel : ObservableObject
     /// Gives the decisions <em>Ångra</em> takes back in the log: every decision in force about it, so that it waits
     /// again.
     /// </summary>
-    /// <returns>One request per decision in force; empty for a check.</returns>
-    public IReadOnlyList<DecisionRequest> UndoRequests()
+    /// <returns>The decisions in force; empty for a check.</returns>
+    public IReadOnlyList<CheckDecision> InForce()
     {
         if (!IsSuggestion)
         {
@@ -390,11 +396,7 @@ public sealed partial class CheckRowViewModel : ObservableObject
         }
 
         IEnumerable<string?> keys = [null, .. Check.Finding.Candidates.Select(c => c.Key)];
-        return
-        [
-            .. keys.Where(key => Check.DecisionFor(key) is not null).Select(key =>
-                new DecisionRequest(Check.Analysis, Check.Finding.Key, key, CheckVerdict.Withdrawn)),
-        ];
+        return [.. keys.Select(key => Check.DecisionFor(key)).OfType<CheckDecision>()];
     }
 
     /// <summary>Gives the group a check stands in.</summary>
@@ -433,7 +435,10 @@ public sealed partial class CheckRowViewModel : ObservableObject
         return new SuggestionFlow(inText, FeeText(), [.. bands]);
     }
 
-    /// <summary>Writes the chosen candidate's fee against what came in, for example <c>−1 % avgift</c>.</summary>
+    /// <summary>
+    /// Writes the chosen candidate's fee against what came in, for example <c>−1 % trolig avgift</c>: only if the
+    /// candidate is right, so it says <em>trolig</em> (principle 2).
+    /// </summary>
     /// <returns>The fee, or an empty text when what came in is not known or nothing is chosen.</returns>
     private string FeeText()
     {
@@ -443,7 +448,7 @@ public sealed partial class CheckRowViewModel : ObservableObject
         }
 
         var fee = (double)(amount.Value - chosen.Candidate.Amount.Value) / amount.Value;
-        return "−" + Math.Round(fee * 100, 1).ToString("0.#", Swedish) + " % avgift";
+        return "−" + Math.Round(fee * 100, 1).ToString("0.#", Swedish) + " % trolig avgift";
     }
 
     /// <summary>Works out how long after the money came in a candidate was paid, from the blocks it rests on.</summary>

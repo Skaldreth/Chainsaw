@@ -148,7 +148,11 @@ public sealed class SuggestionFlowPicture : FrameworkElement
     {
         var center = new Point(RankX, y);
         dc.DrawEllipse(
-            band.IsChosen ? accent : null, new Pen(band.IsChosen ? accent : faint, 1.4), center, RankRadius, RankRadius);
+            band.IsChosen ? accent : null,
+            new Pen(band.IsChosen ? accent : faint, 1.4),
+            center,
+            RankRadius,
+            RankRadius);
         var text = band.IsChosen ? GraphPalette.Find(this, "Brush.OnAccent") : muted;
         var rank = Text(band.Rank.ToString(CultureInfo.InvariantCulture), 10, text, FontWeights.SemiBold);
         dc.DrawText(rank, new Point(RankX - (rank.Width / 2), y - (rank.Height / 2)));

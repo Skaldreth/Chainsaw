@@ -3,6 +3,7 @@ using System.Globalization;
 using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -29,7 +30,8 @@ public sealed record AreaSortItem(AreaSort Sort, string Name, string TintKey, st
 public sealed record HereLine(string Title, string State, AreaLook Look, bool IsWaiting);
 
 /// <summary>
-/// A dashed line from a mixer to a likely output (CLAUDE.md, <em>Mixers är vanliga</em>): never a transfer on the chain,
+/// A dashed line from a mixer to a likely output (CLAUDE.md, <em>Mixers är vanliga</em>): never a transfer on the
+/// chain,
 /// only a candidate, as faint as its score is low.
 /// </summary>
 /// <param name="From">The mixer's actor.</param>
@@ -132,6 +134,9 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>The toast's action that takes a decision back.</summary>
     public const string UndoText = "Ångra · Ctrl+Z";
 
+    /// <summary>The toast that says a decision was taken back.</summary>
+    public const string UndoneText = "Beslutet ångrat";
+
     /// <summary>What the form says when no actor is chosen.</summary>
     public const string PickFirstText = "Välj aktörer först: Ctrl+klick, sedan Z.";
 
@@ -182,8 +187,20 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>The suggestions of this round through the queue, by key, for the progress bar.</summary>
     private readonly List<string> _round = [];
 
-    /// <summary>The decisions the last approve or dismiss made, which Ctrl+Z takes back; null when none.</summary>
-    private IReadOnlyList<DecisionRequest>? _undo;
+    /// <summary>
+    /// The decisions the last approve or dismiss sealed, with the case they are in, which Ctrl+Z takes back; null when
+    /// none.
+    /// </summary>
+    private MadeDecisions? _undo;
+
+    /// <summary>
+    /// The suggestions decided since the checks were last read in full, so that a run that was overtaken never shows
+    /// one of them as waiting again (it could be decided twice).
+    /// </summary>
+    private readonly HashSet<string> _justDecided = new(StringComparer.Ordinal);
+
+    /// <summary>The run's version when the last decision was sealed; a run after it reads the decisions.</summary>
+    private int _decidedAt;
 
     /// <summary>When the checks last ran, or <see langword="null"/>.</summary>
     private DateTimeOffset? _ranUtc;
@@ -223,6 +240,7 @@ public sealed partial class ChecksViewModel : ObservableObject
 
     /// <summary>Gets whether the panel is folded out where the inspector stands (Ctrl+J).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUndoLast))]
     public partial bool IsOpen { get; private set; }
 
     /// <summary>Gets what the panel shows.</summary>
@@ -272,7 +290,7 @@ public sealed partial class ChecksViewModel : ObservableObject
     public bool HasDecided => Decided.Count > 0;
 
     /// <summary>Gets whether Ctrl+Z takes back a decision now.</summary>
-    public bool CanUndoLast => _undo is not null;
+    public bool CanUndoLast => _undo is not null && IsOpen;
 
     /// <summary>Gets the rows that wait for a decision (<em>Att avgöra</em>).</summary>
     public ObservableCollection<CheckRowViewModel> ToDecide { get; } = [];
@@ -558,27 +576,30 @@ public sealed partial class ChecksViewModel : ObservableObject
             return Task.CompletedTask;
         }
 
-        return IsReview && Selected?.ApproveRequest() is { } request ? DecideAsync([request]) : Task.CompletedTask;
+        return IsReview && Selected?.ApproveRequest() is { } request ? DecideAsync(request) : Task.CompletedTask;
     }
 
     /// <summary>X: dismisses the shown suggestion as a whole.</summary>
     /// <returns>A task that completes when the decision is stored and the checks read again.</returns>
     [RelayCommand]
     public Task DismissAsync() =>
-        IsReview && Selected?.DismissRequest() is { } request ? DecideAsync([request]) : Task.CompletedTask;
+        IsReview && Selected?.DismissRequest() is { } request ? DecideAsync(request) : Task.CompletedTask;
 
-    /// <summary>Ctrl+Z, or the toast's <em>Ångra</em>: takes back the last decision, sealed in the case.</summary>
+    /// <summary>
+    /// Ctrl+Z while the panel is open: takes back the last decision, sealed in the case. Closed, Ctrl+Z does nothing
+    /// here, so that undoing something else in the graph never takes back a decision without a word.
+    /// </summary>
     /// <returns>A task that completes when it is stored and the checks read again.</returns>
     [RelayCommand]
-    public Task UndoAsync() => _undo is { } last ? TakeBackAsync(last) : Task.CompletedTask;
+    public Task UndoAsync() => IsOpen && _undo is { } last ? TakeBackAsync(last) : Task.CompletedTask;
 
     /// <summary><em>Ångra</em> on a row in the log: takes back every decision in force about it.</summary>
     /// <param name="row">The row.</param>
     /// <returns>A task that completes when it is stored and the checks read again.</returns>
     [RelayCommand]
     public Task UndoRowAsync(CheckRowViewModel? row) =>
-        row is { CanUndo: true } && row.UndoRequests() is { Count: > 0 } requests
-            ? TakeBackAsync(requests)
+        row is { CanUndo: true } && _session.Current is { } openCase && row.InForce() is { Count: > 0 } decisions
+            ? TakeBackAsync(new MadeDecisions(openCase, decisions))
             : Task.CompletedTask;
 
     /// <summary>?: asks the Guide why, with the row's answer and its candidates on top.</summary>
@@ -805,6 +826,12 @@ public sealed partial class ChecksViewModel : ObservableObject
             _own = own;
             _checks = run.Checks;
             _ranUtc = run.RanUtc;
+            if (version > _decidedAt)
+            {
+                // The run started after the last decision was sealed, so it reads every decision there is.
+                _justDecided.Clear();
+            }
+
             StatusText = string.Create(
                 CultureInfo.InvariantCulture,
                 $"Kördes {Stamp(run.RanUtc)} på {run.Transactions} tx") + AccountNote(scene);
@@ -828,7 +855,8 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// chain, the mixer's candidates and the wallets from Clustering) and are not run on an account chain.
     /// </summary>
     public const string AccountChainsText =
-        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum än; Ethereum-delen är inte kontrollerad.";
+        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum än; "
+        + "Ethereum-delen är inte kontrollerad.";
 
     /// <summary>Says, after the status, that the checks did not run on the graph's Ethereum part.</summary>
     /// <param name="scene">The graph.</param>
@@ -887,47 +915,60 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// Seals an approve or a dismiss about the shown suggestion, reads the checks again, shows the next that waits
     /// (or <em>Allt avgjort</em>) and says so in a toast with <em>Ångra</em>.
     /// </summary>
-    /// <param name="requests">The decisions.</param>
-    /// <returns>A task that completes when they are stored.</returns>
-    private async Task DecideAsync(IReadOnlyList<DecisionRequest> requests)
+    /// <param name="request">The decision.</param>
+    /// <returns>A task that completes when it is stored.</returns>
+    private async Task DecideAsync(DecisionRequest request)
     {
-        if (IsBusy || Selected is not { } row)
+        if (IsBusy || Selected is not { } row || _justDecided.Contains(row.Key)
+            || _session.Current is not { } openCase)
         {
             return;
         }
 
-        var toast = ToastOf(row, requests[0]);
+        var toast = ToastOf(row, request);
         var at = Math.Max(0, _round.IndexOf(row.Key));
-        if (await StoreAsync(requests))
+        if (await StoreAsync(openCase, [request], row.Key) is { } made)
         {
-            _undo = requests;
+            var decided = new MadeDecisions(openCase, made);
+            _undo = decided;
             OnPropertyChanged(nameof(CanUndoLast));
             IsReasonOpen = false;
             Advance(at);
-            ToastWanted?.Invoke(this, toast with { Action = () => _ = TakeBackAsync(requests) });
+            ToastWanted?.Invoke(this, toast with { Action = () => _ = TakeBackAsync(decided) });
         }
     }
 
-    /// <summary>Takes decisions back, sealed in the case, and shows the suggestion again where it waits.</summary>
-    /// <param name="decided">The decisions to take back.</param>
+    /// <summary>
+    /// Takes decisions back, sealed in the case, and shows the suggestion again where it waits. Only the decisions
+    /// still in force in the case they were made in are taken back: an old <em>Ångra</em> after a newer decision, or
+    /// after another case was opened, does nothing.
+    /// </summary>
+    /// <param name="decided">The decisions to take back, with their case.</param>
     /// <returns>A task that completes when it is stored and the checks read again.</returns>
-    private async Task TakeBackAsync(IReadOnlyList<DecisionRequest> decided)
+    private async Task TakeBackAsync(MadeDecisions decided)
     {
-        var requests = decided
-            .Select(request => request with { Verdict = CheckVerdict.Withdrawn, Reason = null })
-            .ToList();
-        if (!await StoreAsync(requests))
+        if (decided.Case != _session.Current || decided.Decisions.Count == 0)
         {
             return;
         }
 
-        if (ReferenceEquals(_undo, decided))
+        var first = decided.Decisions[0];
+        var key = GraphAreas.KeyOf(first.Analysis, first.FindingKey);
+        var inForce = decided.Decisions.Where(StillInForce).ToList();
+        if (inForce.Count == 0)
         {
-            _undo = null;
-            OnPropertyChanged(nameof(CanUndoLast));
+            // Taken back already, from the log or another toast: nothing is left to undo.
+            ForgetUndo(key);
+            return;
         }
 
-        var key = GraphAreas.KeyOf(requests[0].Analysis, requests[0].FindingKey);
+        if (await StoreAsync(decided.Case, [.. inForce.Select(DecisionRequest.TakeBack)], null) is null)
+        {
+            return;
+        }
+
+        ForgetUndo(key);
+        ToastWanted?.Invoke(this, new ToastRequest(ToastKind.Information, UndoneText));
         if (ToDecide.FirstOrDefault(row => row.Key == key) is { } again && IsOpen)
         {
             if (!IsReview)
@@ -942,38 +983,69 @@ public sealed partial class ChecksViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Stores decisions one after the other and reads the checks again; busy until then, so that a second Enter or X
+    /// Says whether a decision is still the one in force about its subject, as the checks were last read.
+    /// </summary>
+    /// <param name="decision">The decision.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private bool StillInForce(CheckDecision decision) =>
+        _checks.FirstOrDefault(check => check.Analysis == decision.Analysis
+                && check.Finding.Key == decision.FindingKey)
+            ?.DecisionFor(decision.CandidateKey)?.Sequence == decision.Sequence;
+
+    /// <summary>Forgets what Ctrl+Z would take back when it concerns a suggestion just taken back.</summary>
+    /// <param name="key">The suggestion's key.</param>
+    private void ForgetUndo(string key)
+    {
+        if (_undo is { } last
+            && GraphAreas.KeyOf(last.Decisions[0].Analysis, last.Decisions[0].FindingKey) == key)
+        {
+            _undo = null;
+            OnPropertyChanged(nameof(CanUndoLast));
+        }
+    }
+
+    /// <summary>
+    /// Stores decisions in one transaction and reads the checks again; busy until then, so that a second Enter or X
     /// never decides the same suggestion twice.
     /// </summary>
+    /// <param name="openCase">The case the decisions are made in.</param>
     /// <param name="requests">The decisions.</param>
-    /// <returns><see langword="true"/> when all were stored.</returns>
-    private async Task<bool> StoreAsync(IReadOnlyList<DecisionRequest> requests)
+    /// <param name="decidedKey">
+    /// The suggestion an approve or a dismiss settles, kept from being shown as waiting until the checks are read
+    /// again; <see langword="null"/> for a take-back.
+    /// </param>
+    /// <returns>The sealed decisions, or <see langword="null"/> when they could not be stored.</returns>
+    private async Task<IReadOnlyList<CheckDecision>?> StoreAsync(
+        ICase openCase, IReadOnlyList<DecisionRequest> requests, string? decidedKey)
     {
-        if (IsBusy || requests.Count == 0 || _session.Current is not { } openCase)
+        if (IsBusy || requests.Count == 0 || _session.Current != openCase)
         {
-            return false;
+            return null;
         }
 
         IsBusy = true;
         try
         {
+            IReadOnlyList<CheckDecision> made;
             try
             {
-                foreach (var request in requests)
-                {
-                    await _source.DecideAsync(openCase, request);
-                }
-
+                made = await _source.DecideAsync(openCase, requests);
                 Problem = string.Empty;
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
                 Problem = SaveFailedText;
-                return false;
+                return null;
             }
 
+            if (decidedKey is not null)
+            {
+                _justDecided.Add(decidedKey);
+            }
+
+            _decidedAt = _version;
             await FollowAsync(_scene);
-            return _session.Current == openCase;
+            return _session.Current == openCase ? made : null;
         }
         finally
         {
@@ -981,7 +1053,9 @@ public sealed partial class ChecksViewModel : ObservableObject
         }
     }
 
-    /// <summary>Shows the next suggestion that waits after a decision, or <em>Allt avgjort</em> when none does.</summary>
+    /// <summary>
+    /// Shows the next suggestion that waits after a decision, or <em>Allt avgjort</em> when none does.
+    /// </summary>
     /// <param name="at">Where in the round the decided suggestion stood.</param>
     private void Advance(int at)
     {
@@ -1078,9 +1152,17 @@ public sealed partial class ChecksViewModel : ObservableObject
     private CheckRowViewModel? NextWaiting(int from)
     {
         var keys = _round.Skip(from).Concat(_round.Take(from));
-        return keys.Select(key => ToDecide.FirstOrDefault(row => row.Key == key)).FirstOrDefault(row => row is not null)
-            ?? ToDecide.FirstOrDefault();
+        return keys.Select(key => ToDecide.FirstOrDefault(row => row.Key == key && Waits(row)))
+                .FirstOrDefault(row => row is not null)
+            ?? ToDecide.FirstOrDefault(Waits);
     }
+
+    /// <summary>
+    /// Says whether a row waits for a decision and was not just decided (see <see cref="_justDecided"/>).
+    /// </summary>
+    /// <param name="row">The row.</param>
+    /// <returns><see langword="true"/> when it can be decided now.</returns>
+    private bool Waits(CheckRowViewModel row) => row.CanDecide && !_justDecided.Contains(row.Key);
 
     /// <summary>Shows a suggestion in the panel, or none, and follows it with the progress and the graph.</summary>
     /// <param name="row">The suggestion, or <see langword="null"/>.</param>
@@ -1170,7 +1252,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         foreach (var check in _checks)
         {
             var area = AllAreas.FirstOrDefault(a => a.CheckKey == GraphAreas.KeyOf(check));
-            var row = new CheckRowViewModel(check, AnchorName(check), area?.Nodes ?? [], Incoming(check), TimeZone);
+            var row = new CheckRowViewModel(check, AnchorName(check), NodesOf(check, area), Incoming(check), TimeZone);
             if (row.Group == CheckRowGroup.Done && check.Finding.Area != AreaSort.Obfuscation)
             {
                 // Wallets are areas only (sketch KF1b); the panel holds what obfuscates and what waits.
@@ -1193,7 +1275,7 @@ public sealed partial class ChecksViewModel : ObservableObject
             again.IsSelected = true;
         }
 
-        if (IsOpen && IsReview && Selected is not { CanDecide: true })
+        if (IsOpen && IsReview && (Selected is null || !Waits(Selected)))
         {
             Advance(0);
         }
@@ -1284,11 +1366,13 @@ public sealed partial class ChecksViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Gives what came in to a suggestion, as the graph knows it: what the first transaction it rests on paid to its
-    /// first address (the mixer's deposit).
+    /// Gives what came in to a suggestion, as the graph knows it: the deposit's output the finding is about (its key is
+    /// <c>txid:index</c>), or, for a finding keyed otherwise, what the first transaction it rests on paid to its first
+    /// address.
     /// </summary>
     /// <param name="check">The suggestion.</param>
-    /// <returns>The amount, or <see langword="null"/> when it is not a suggestion with candidates or not known.</returns>
+    /// <returns>The amount, or <see langword="null"/> when it is not a suggestion with candidates or not
+    /// known.</returns>
     private Satoshi? Incoming(StoredCheck check)
     {
         var finding = check.Finding;
@@ -1299,8 +1383,47 @@ public sealed partial class ChecksViewModel : ObservableObject
             return null;
         }
 
-        var paid = known.Transaction.Outputs.Where(output => output.Address == finding.Addresses[0]).ToList();
+        var outputs = known.Transaction.Outputs;
+        if (OutputIndexOf(finding.Key, finding.Basis[0].Txid) is { } index)
+        {
+            return outputs.FirstOrDefault(output => output.Index == index && output.Address == finding.Addresses[0])
+                ?.Amount;
+        }
+
+        var paid = outputs.Where(output => output.Address == finding.Addresses[0]).ToList();
         return paid.Count == 0 ? null : new Satoshi(paid.Sum(output => output.Amount.Value));
+    }
+
+    /// <summary>Reads the output's index from a finding keyed <c>txid:index</c> on the given transaction.</summary>
+    /// <param name="key">The finding's key.</param>
+    /// <param name="txid">The transaction it rests on first.</param>
+    /// <returns>The index, or <see langword="null"/> when the key is not of that form.</returns>
+    private static int? OutputIndexOf(string key, Txid txid)
+    {
+        var colon = key.LastIndexOf(':');
+        return colon > 0 && key[..colon] == txid.Value
+            && int.TryParse(key[(colon + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+                ? index
+                : null;
+    }
+
+    /// <summary>
+    /// Gives a row's actors: its area's, or, when it draws no area (a suggestion dismissed as a whole), every actor
+    /// it was about, so that the log and <em>Här</em> still find it.
+    /// </summary>
+    /// <param name="check">The check.</param>
+    /// <param name="area">Its area, or <see langword="null"/>.</param>
+    /// <returns>The actors' keys.</returns>
+    private IReadOnlyList<string> NodesOf(StoredCheck check, AreaView? area)
+    {
+        if (area is not null)
+        {
+            return area.Nodes;
+        }
+
+        return _scene is { } scene
+            ? GraphAreas.NodesOf(scene, check.Finding.Addresses, check.Finding.Transactions)
+            : [];
     }
 
     /// <summary>Gives the collection a group's rows stand in.</summary>
@@ -1339,6 +1462,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         _order.Clear();
         _round.Clear();
         _undo = null;
+        _justDecided.Clear();
         _ranUtc = null;
         Form = AreaFormMode.None;
         IsOpen = false;
@@ -1352,7 +1476,9 @@ public sealed partial class ChecksViewModel : ObservableObject
         Rebuild();
     }
 
-    /// <summary>Works out the areas drawn: the chosen row's alone while the list is open, else the sorts shown.</summary>
+    /// <summary>
+    /// Works out the areas drawn: the chosen row's alone while the list is open, else the sorts shown.
+    /// </summary>
     /// <returns>The areas.</returns>
     private IReadOnlyList<AreaView> ShownAreas()
     {
@@ -1417,3 +1543,8 @@ public sealed partial class ChecksViewModel : ObservableObject
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }
+
+/// <summary>Decisions sealed together, with the case they are sealed in, which <em>Ångra</em> takes back.</summary>
+/// <param name="Case">The case.</param>
+/// <param name="Decisions">The sealed decisions.</param>
+internal sealed record MadeDecisions(ICase Case, IReadOnlyList<CheckDecision> Decisions);

@@ -7,7 +7,9 @@ using static Chainsaw.App.Tests.GraphSamples;
 
 namespace Chainsaw.App.Tests;
 
-/// <summary>The checks and suggestions one at a time (sketch KF2b) and the own areas (sketch KF1b) without WPF.</summary>
+/// <summary>
+/// The checks and suggestions one at a time (sketch KF2b) and the own areas (sketch KF1b) without WPF.
+/// </summary>
 public sealed class ChecksViewModelTests
 {
     /// <summary>A case open, the checks and the graph.</summary>
@@ -138,6 +140,120 @@ public sealed class ChecksViewModelTests
     }
 
     [Fact]
+    public async Task Undo_names_the_decision_it_takes_back_and_says_so()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.StartReview(null);
+        var toasts = new List<ToastRequest>();
+        rig.Checks.ToastWanted += (_, request) => toasts.Add(request);
+        await rig.Checks.ApproveAsync();
+
+        await rig.Checks.UndoAsync();
+
+        Assert.Equal(1, rig.Source.Decisions[1].Undoes);
+        Assert.Equal(2, rig.Source.Batches);
+        Assert.Equal(ChecksViewModel.UndoneText, toasts[^1].Title);
+    }
+
+    [Fact]
+    public async Task An_old_toasts_undo_never_takes_back_a_newer_decision()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.StartReview(null);
+        var toasts = new List<ToastRequest>();
+        rig.Checks.ToastWanted += (_, request) => toasts.Add(request);
+        await rig.Checks.ApproveAsync();
+        var first = toasts[0];
+        await rig.Checks.UndoAsync();
+        await rig.Checks.DismissAsync();
+
+        first.Action!();
+        await Task.Yield();
+
+        Assert.Equal(
+            [CheckVerdict.Approved, CheckVerdict.Withdrawn, CheckVerdict.Dismissed],
+            rig.Source.Decisions.Select(decision => decision.Verdict));
+        Assert.True(rig.Checks.IsSettled);
+    }
+
+    [Fact]
+    public async Task Undo_after_another_case_is_opened_writes_nothing()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.StartReview(null);
+        ToastRequest? toast = null;
+        rig.Checks.ToastWanted += (_, request) => toast = request;
+        await rig.Checks.ApproveAsync();
+
+        rig.Session.Open(new TestCase("2026-0023"));
+        await rig.Follow();
+        toast!.Action!();
+        await Task.Yield();
+
+        Assert.Single(rig.Source.Decisions);
+    }
+
+    [Fact]
+    public async Task Ctrl_Z_with_the_panel_closed_takes_nothing_back()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.StartReview(null);
+        await rig.Checks.ApproveAsync();
+        rig.Checks.Toggle();
+        Assert.False(rig.Checks.IsOpen);
+        Assert.False(rig.Checks.CanUndoLast);
+
+        await rig.Checks.UndoAsync();
+
+        Assert.Single(rig.Source.Decisions);
+    }
+
+    [Fact]
+    public async Task Ctrl_Z_after_the_log_took_it_back_does_nothing_and_fails_nothing()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.StartReview(null);
+        await rig.Checks.DismissAsync();
+        await rig.Checks.UndoRowAsync(rig.Checks.Decided[0]);
+
+        await rig.Checks.UndoAsync();
+
+        Assert.Equal(2, rig.Source.Decisions.Count);
+        Assert.False(rig.Checks.CanUndoLast);
+        Assert.Equal(string.Empty, rig.Checks.Problem);
+    }
+
+    [Fact]
+    public async Task A_suggestion_just_decided_never_waits_again_while_an_older_run_is_shown()
+    {
+        var rig = await new Rig().Follow();
+        rig.Checks.StartReview(null);
+        var decisionHeld = new TaskCompletionSource();
+        rig.Source.HoldDecision = decisionHeld;
+        var deciding = rig.Checks.ApproveAsync();
+
+        // The graph changes while the decision is stored: a run reads the case before the decision is sealed, and
+        // the run after the decision is overtaken by a newer one that is still running.
+        await rig.Checks.FollowAsync(Scene());
+        var afterDecision = new TaskCompletionSource();
+        rig.Source.HoldRun = afterDecision;
+        decisionHeld.SetResult();
+        await Task.Yield();
+        var newest = new TaskCompletionSource();
+        rig.Source.HoldRun = newest;
+        var running = rig.Checks.FollowAsync(Scene());
+        afterDecision.SetResult();
+        await deciding;
+
+        await rig.Checks.ApproveAsync();
+
+        Assert.Single(rig.Source.Decisions);
+        newest.SetResult();
+        await running;
+        Assert.Empty(rig.Checks.ToDecide);
+    }
+
+    [Fact]
     public async Task X_dismisses_the_suggestion_as_a_whole_and_the_log_takes_it_back()
     {
         var rig = await new Rig().Follow();
@@ -152,6 +268,7 @@ public sealed class ChecksViewModelTests
         var row = Assert.Single(rig.Checks.Decided);
         Assert.Equal(CheckRowViewModel.DismissedText, row.StateText);
         Assert.DoesNotContain(rig.Checks.AllAreas, area => area.CheckKey == "mixer-outputs v1/deposit:0");
+        Assert.NotEmpty(row.Nodes);
         Assert.Equal("1 avfärdad · inget nytt sedan 13:02", rig.Checks.SettledText);
 
         await rig.Checks.UndoRowAsync(row);

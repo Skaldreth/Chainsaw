@@ -745,6 +745,11 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
   en grön bock i mitten (en bedömning, princip 2).
 - Ctrl+Z (eller *Ångra* i toasten) tar tillbaka beslutet: journalen får en ny rad *Beslut om förslag ångrat*, det gamla
   står kvar, och förslaget visas igen. `/verify` är hel efteråt.
+- Ctrl+Z ångrar ett beslut bara medan panelen är öppen, och alltid med en toast *Beslutet ångrat*. Med panelen
+  stängd gör Ctrl+Z ingenting med förslagen. En gammal toasts *Ångra* efter ett nyare beslut om samma förslag, eller
+  efter att ett annat ärende öppnats (Ctrl+O), skriver ingenting.
+- Godkänn, och tryck Enter igen direkt medan grafen expanderar: samma förslag avgörs aldrig två gånger.
+- Panelens *in*-belopp är insättningens utgång, och avgiften står som *trolig avgift*.
 - Avfärda (X) avfärdar hela förslaget: dess område och linjer försvinner ur grafen.
 - Senare (J) lägger förslaget sist i kön och visar nästa; inget skrivs i ärendet eller journalen. K och pilen åt vänster
   går tillbaka, pilen åt höger framåt.

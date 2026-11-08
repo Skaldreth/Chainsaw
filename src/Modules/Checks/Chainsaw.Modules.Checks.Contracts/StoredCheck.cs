@@ -118,5 +118,31 @@ public sealed record CheckRun(
 /// <param name="CandidateKey">The candidate's key, or <see langword="null"/> for the suggestion as a whole.</param>
 /// <param name="Verdict">Approved, dismissed or taken back.</param>
 /// <param name="Reason">Why, or <see langword="null"/>.</param>
+/// <param name="Undoes">
+/// For <see cref="CheckVerdict.Withdrawn"/>: the sequence of the decision it takes back, which must be the one in
+/// force,
+/// so that an old <em>Ångra</em> never takes back a newer decision; <see langword="null"/> otherwise.
+/// </param>
 public sealed record DecisionRequest(
-    HeuristicId Analysis, string FindingKey, string? CandidateKey, CheckVerdict Verdict, string? Reason = null);
+    HeuristicId Analysis,
+    string FindingKey,
+    string? CandidateKey,
+    CheckVerdict Verdict,
+    string? Reason = null,
+    long? Undoes = null)
+{
+    /// <summary>Gives the request that takes a sealed decision back.</summary>
+    /// <param name="decision">The decision in force.</param>
+    /// <returns>The request.</returns>
+    public static DecisionRequest TakeBack(CheckDecision decision)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        return new DecisionRequest(
+            decision.Analysis,
+            decision.FindingKey,
+            decision.CandidateKey,
+            CheckVerdict.Withdrawn,
+            null,
+            decision.Sequence);
+    }
+}

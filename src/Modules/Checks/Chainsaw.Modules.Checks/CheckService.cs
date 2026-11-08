@@ -107,56 +107,149 @@ internal sealed class CheckService : ICheckService
     /// <inheritdoc/>
     public CheckDecision Decide(ICase @case, DecisionRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        return DecideAll(@case, [request])[0];
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<CheckDecision> DecideAll(ICase @case, IReadOnlyList<DecisionRequest> requests)
+    {
         ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(requests);
+        var reasons = requests.Select(request => ReasonOf(request)).ToList();
+        if (requests.Count == 0)
+        {
+            return [];
+        }
+
+        return @case.Write(transaction =>
+        {
+            var results = CheckStore.ReadResults(transaction);
+            var decisions = CheckStore.ReadDecisions(transaction);
+            var sealedNow = new List<CheckDecision>();
+            for (var index = 0; index < requests.Count; index++)
+            {
+                var decision = SealOne(transaction, requests[index], reasons[index], results, decisions);
+                var key = KeyOf(requests[index]);
+                if (!decisions.TryGetValue(key, out var list))
+                {
+                    decisions[key] = list = [];
+                }
+
+                list.Add(decision);
+                sealedNow.Add(decision);
+            }
+
+            return (IReadOnlyList<CheckDecision>)sealedNow;
+        });
+    }
+
+    /// <summary>Checks a decision's verdict and reason before anything is written.</summary>
+    /// <param name="request">The decision.</param>
+    /// <returns>The checked reason, or <see langword="null"/>.</returns>
+    /// <exception cref="ArgumentException">The verdict is not known or the reason is too long.</exception>
+    private static string? ReasonOf(DecisionRequest request)
+    {
         ArgumentNullException.ThrowIfNull(request);
         if (!Enum.IsDefined(request.Verdict))
         {
             throw new ArgumentException("The decision's verdict is not known.", nameof(request));
         }
 
-        var reason = Optional(request.Reason, CheckRules.MaximumTextLength, nameof(request));
-        return @case.Write(transaction =>
-        {
-            var key = new ResultKey(request.Analysis.Name, request.Analysis.Version, request.FindingKey);
-            if (!CheckStore.ReadResults(transaction).TryGetValue(key, out var result))
-            {
-                throw new ArgumentException("The suggestion is not sealed in the case.", nameof(request));
-            }
+        return Optional(request.Reason, CheckRules.MaximumTextLength, nameof(request));
+    }
 
-            var finding = FindingCodec.Decode(result.Content);
-            var candidate = finding.Candidates.FirstOrDefault(c => c.Key == request.CandidateKey);
-            if (finding.Kind != CheckKind.Suggestion
-                || (request.CandidateKey is not null && candidate is null)
-                || (request.CandidateKey is null && finding.Candidates.Count > 0
-                    && request.Verdict == CheckVerdict.Approved))
+    /// <summary>Gives the key of the finding a decision is about.</summary>
+    /// <param name="request">The decision.</param>
+    /// <returns>The key.</returns>
+    private static ResultKey KeyOf(DecisionRequest request) =>
+        new(request.Analysis.Name, request.Analysis.Version, request.FindingKey);
+
+    /// <summary>
+    /// Checks one decision against the finding and the decisions sealed so far in the transaction, and seals it with
+    /// its line in the journal.
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="request">The decision.</param>
+    /// <param name="reason">The checked reason.</param>
+    /// <param name="results">The sealed findings.</param>
+    /// <param name="decisions">The decisions sealed so far, by finding.</param>
+    /// <returns>The sealed decision.</returns>
+    /// <exception cref="ArgumentException">The decision is refused (see <see
+    /// cref="ICheckService.Decide"/>).</exception>
+    private static CheckDecision SealOne(
+        ICaseTransaction transaction,
+        DecisionRequest request,
+        string? reason,
+        Dictionary<ResultKey, SealedResult> results,
+        Dictionary<ResultKey, List<CheckDecision>> decisions)
+    {
+        var key = KeyOf(request);
+        if (!results.TryGetValue(key, out var result))
+        {
+            throw new ArgumentException("The suggestion is not sealed in the case.", nameof(request));
+        }
+
+        var finding = FindingCodec.Decode(result.Content);
+        var candidate = finding.Candidates.FirstOrDefault(c => c.Key == request.CandidateKey);
+        if (finding.Kind != CheckKind.Suggestion
+            || (request.CandidateKey is not null && candidate is null)
+            || (request.CandidateKey is null && finding.Candidates.Count > 0
+                && request.Verdict == CheckVerdict.Approved))
+        {
+            throw new ArgumentException(
+                "Only a suggestion is decided: a candidate of it, or the whole when it has none; a suggestion "
+                + "with candidates is dismissed as a whole but approved through one of them.",
+                nameof(request));
+        }
+
+        var made = decisions.GetValueOrDefault(key) ?? [];
+        var stored = new StoredCheck(
+            result.Sequence, request.Analysis, string.Empty, finding, result.JournalSequence, result.RecordedUtc, made);
+        Refuse(request, stored);
+        var verb = VerbOf(request.Verdict);
+        var what = candidate is null ? finding.Title : $"{finding.Title}, kandidat {candidate.Address}";
+        var journal = transaction.AppendJournal(new JournalDraft(
+            CheckJournalKinds.Decided,
+            $"{verb}: {what} ({request.Analysis})",
+            JsonSerializer.Serialize(new
+            {
+                analysis = request.Analysis.ToString(),
+                finding = request.FindingKey,
+                candidate = request.CandidateKey,
+                verdict = request.Verdict.ToString(),
+                undoes = request.Undoes,
+                reason,
+            })));
+        return CheckStore.SealDecision(transaction, request, reason, result, journal);
+    }
+
+    /// <summary>
+    /// Refuses a decision the suggestion's state does not allow: an approve or a dismiss on a settled suggestion or on
+    /// a candidate with a decision in force, and a take-back that does not name the decision in force.
+    /// </summary>
+    /// <param name="request">The decision.</param>
+    /// <param name="stored">The suggestion with the decisions sealed so far.</param>
+    /// <exception cref="ArgumentException">The decision is refused.</exception>
+    private static void Refuse(DecisionRequest request, StoredCheck stored)
+    {
+        var inForce = stored.DecisionFor(request.CandidateKey);
+        if (request.Verdict == CheckVerdict.Withdrawn)
+        {
+            if (inForce is null || request.Undoes != inForce.Sequence)
             {
                 throw new ArgumentException(
-                    "Only a suggestion is decided: a candidate of it, or the whole when it has none; a suggestion "
-                    + "with candidates is dismissed as a whole but approved through one of them.",
-                    nameof(request));
+                    "The decision to take back is not the one in force about it.", nameof(request));
             }
 
-            if (request.Verdict == CheckVerdict.Withdrawn
-                && !InForce(CheckStore.ReadDecisions(transaction).GetValueOrDefault(key) ?? [], request.CandidateKey))
-            {
-                throw new ArgumentException("There is no decision in force to take back.", nameof(request));
-            }
+            return;
+        }
 
-            var verb = VerbOf(request.Verdict);
-            var what = candidate is null ? finding.Title : $"{finding.Title}, kandidat {candidate.Address}";
-            var journal = transaction.AppendJournal(new JournalDraft(
-                CheckJournalKinds.Decided,
-                $"{verb}: {what} ({request.Analysis})",
-                JsonSerializer.Serialize(new
-                {
-                    analysis = request.Analysis.ToString(),
-                    finding = request.FindingKey,
-                    candidate = request.CandidateKey,
-                    verdict = request.Verdict.ToString(),
-                    reason,
-                })));
-            return CheckStore.SealDecision(transaction, request, reason, result, journal);
-        });
+        if (request.Undoes is not null || stored.IsSettled || inForce is not null)
+        {
+            throw new ArgumentException(
+                "The suggestion is settled already, or the candidate has a decision in force.", nameof(request));
+        }
     }
 
     /// <summary>Gives the journal's words for a verdict.</summary>

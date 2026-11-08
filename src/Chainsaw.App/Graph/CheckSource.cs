@@ -17,11 +17,11 @@ public interface ICheckSource
     /// <returns>What the run gave.</returns>
     Task<CheckRun> RunAsync(ICase @case, TraceGraph graph, CancellationToken cancellationToken);
 
-    /// <summary>Seals the user's decision about a suggestion.</summary>
+    /// <summary>Seals the user's decisions about a suggestion, all in one transaction or none.</summary>
     /// <param name="case">The open case.</param>
-    /// <param name="request">The decision.</param>
-    /// <returns>The sealed decision.</returns>
-    Task<CheckDecision> DecideAsync(ICase @case, DecisionRequest request);
+    /// <param name="requests">The decisions.</param>
+    /// <returns>The sealed decisions, in order.</returns>
+    Task<IReadOnlyList<CheckDecision>> DecideAsync(ICase @case, IReadOnlyList<DecisionRequest> requests);
 
     /// <summary>Reads the own areas.</summary>
     /// <param name="case">The open case.</param>
@@ -59,8 +59,8 @@ public sealed class CheckSource(ICheckService checks) : ICheckSource
         Task.Run(() => checks.Run(@case, graph), cancellationToken);
 
     /// <inheritdoc/>
-    public Task<CheckDecision> DecideAsync(ICase @case, DecisionRequest request) =>
-        Task.Run(() => checks.Decide(@case, request));
+    public Task<IReadOnlyList<CheckDecision>> DecideAsync(ICase @case, IReadOnlyList<DecisionRequest> requests) =>
+        Task.Run(() => checks.DecideAll(@case, requests));
 
     /// <inheritdoc/>
     public Task<IReadOnlyList<OwnArea>> GetAreasAsync(ICase @case, CancellationToken cancellationToken) =>
@@ -93,8 +93,8 @@ public sealed class NoCheckSource : ICheckSource
         Task.FromResult(new CheckRun([], 0, 0, DateTimeOffset.UtcNow, []));
 
     /// <inheritdoc/>
-    public Task<CheckDecision> DecideAsync(ICase @case, DecisionRequest request) =>
-        Task.FromException<CheckDecision>(new InvalidOperationException("Inga kontroller."));
+    public Task<IReadOnlyList<CheckDecision>> DecideAsync(ICase @case, IReadOnlyList<DecisionRequest> requests) =>
+        Task.FromException<IReadOnlyList<CheckDecision>>(new InvalidOperationException("Inga kontroller."));
 
     /// <inheritdoc/>
     public Task<IReadOnlyList<OwnArea>> GetAreasAsync(ICase @case, CancellationToken cancellationToken) =>

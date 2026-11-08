@@ -129,22 +129,33 @@ internal sealed class TestCheckSource : ICheckSource
                 checks, 0, graph.Transactions.Count, new DateTimeOffset(2026, 11, 7, 13, 2, 0, TimeSpan.Zero), []);
     }
 
-    public async Task<CheckDecision> DecideAsync(ICase @case, DecisionRequest request)
+    public async Task<IReadOnlyList<CheckDecision>> DecideAsync(ICase @case, IReadOnlyList<DecisionRequest> requests)
     {
-        Decisions.Add(request);
+        Batches++;
+        var first = Decisions.Count;
+        Decisions.AddRange(requests);
         if (HoldDecision is { } hold)
         {
             HoldDecision = null;
             await hold.Task;
         }
 
-        var decision = new CheckDecision(
-            Decisions.Count, request.Analysis, request.FindingKey, request.CandidateKey, request.Verdict, request.Reason,
-            CheckSamples.Who, DateTimeOffset.UnixEpoch, 10);
-        var index = Checks.FindIndex(check => check.Finding.Key == request.FindingKey);
-        Checks[index] = Checks[index] with { Decisions = [.. Checks[index].Decisions, decision] };
-        return decision;
+        var made = new List<CheckDecision>();
+        foreach (var request in requests)
+        {
+            var decision = new CheckDecision(
+                first + made.Count + 1, request.Analysis, request.FindingKey, request.CandidateKey, request.Verdict,
+                request.Reason, CheckSamples.Who, DateTimeOffset.UnixEpoch, 10);
+            var index = Checks.FindIndex(check => check.Finding.Key == request.FindingKey);
+            Checks[index] = Checks[index] with { Decisions = [.. Checks[index].Decisions, decision] };
+            made.Add(decision);
+        }
+
+        return made;
     }
+
+    /// <summary>Gets how many times decisions were stored, each in one transaction.</summary>
+    public int Batches { get; private set; }
 
     public Task<IReadOnlyList<OwnArea>> GetAreasAsync(ICase @case, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<OwnArea>>([.. Areas]);

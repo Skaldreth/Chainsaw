@@ -2510,3 +2510,18 @@ och *+ Skäl, frivilligt*) och *Allt avgjort* med ringen, sammanfattningen och l
   gränsen 50) och `MemoryCaseTests` i Cases.
 - Återstår (TODO 38): Ethereums saldo, kedjans hash vid höjden, det förhandshämtade som cache och sanktionslistans
   Ethereum-adresser.
+
+## Granskningen av KF2b rättad (2026-11-08)
+
+- **Ångra pekar ut beslutet:** `DecisionRequest.Undoes` bär sekvensen för beslutet som tas tillbaka, och modulen
+  vägrar ett Ångrat som inte gäller beslutet i kraft; sekvensen står i journalraden. Vymodellen sparar de förseglade
+  besluten med ärendet (`MadeDecisions`) och tar bara tillbaka det som fortfarande är i kraft i samma ärende.
+- **Modulen stoppar ett andra beslut:** Godkänn eller Avfärda vägras i transaktionen när förslaget redan är avgjort
+  eller kandidaten har ett beslut i kraft. Vymodellen håller nyss avgjorda förslag utanför kön tills en körning som
+  startat efter beslutet har läst ärendet.
+- **Ctrl+Z bara med panelen öppen**, och alltid toasten *Beslutet ångrat*.
+- Mindre: flera beslut förseglas i en transaktion (`ICheckService.DecideAll`, `ICheckSource.DecideAsync` tar en lista);
+  ett Ångra som redan gjorts från loggen nollställer Ctrl+Z utan fel; *in*-beloppet är insättningens utgång ur
+  fyndets nyckel och avgiften står som *trolig avgift*; ett förslag avfärdat som helhet behåller sina aktörer i loggen
+  och under *Här*; långa rader brutna. `StoredCheck.Waiting` behölls, eftersom modulens tester läser den.
+

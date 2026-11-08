@@ -36,9 +36,21 @@ public interface ICheckService
     /// <param name="request">The decision.</param>
     /// <returns>The sealed decision.</returns>
     /// <exception cref="ArgumentException">
-    /// The suggestion or candidate is not sealed in the case, it is a check, or the reason is too long.
+    /// The suggestion or candidate is not sealed in the case, it is a check, the reason is too long, the suggestion is
+    /// settled already or the candidate has a decision in force (an approve or a dismiss), or a take-back does not
+    /// name the decision in force.
     /// </exception>
     CheckDecision Decide(ICase @case, DecisionRequest request);
+
+    /// <summary>
+    /// Seals several decisions in one transaction, in order, each checked as <see cref="Decide"/> checks it against
+    /// what the ones before it sealed; when one is refused, none is sealed.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="requests">The decisions.</param>
+    /// <returns>The sealed decisions, in order.</returns>
+    /// <exception cref="ArgumentException">One of the decisions is refused, as <see cref="Decide"/> says.</exception>
+    IReadOnlyList<CheckDecision> DecideAll(ICase @case, IReadOnlyList<DecisionRequest> requests);
 
     /// <summary>Reads the own areas in force, oldest first.</summary>
     /// <param name="case">The open case.</param>

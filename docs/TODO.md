@@ -166,44 +166,7 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
 - **Bevakningens aviseringar** (etapp 27, CLAUDE.md *Bevaka*): sätten i inställningarna (avisering i Windows, ljud,
   meddelande mitt på skärmen överst) och hur ofta per bevakning. Ljudet behöver en fri licens eller göras själv.
 
-### Granskningen av KF2b (2026-11-08): rättas först
-
-Oberoende granskning av `7f3a77f`. Förseglingen håller (Ångrat går genom samma `AppendSealed` och journalrad, och
-`DecisionFor`, `IsSettled` och `KeepCandidates` bortser från det som ångrats). Felen gäller *vilket* beslut som skrivs.
-
-**Viktiga:**
-1. **Ångra säger inte vilket beslut det tar tillbaka** (`CheckService.cs` ~139, `ChecksViewModel.cs` ~907–919). En
-   gammal toasts *Ångra* kan ta tillbaka ett nyare beslut (godkänn, Ctrl+Z, avfärda, och sedan den första toastens
-   Ångra tar tillbaka avfärdandet), och efter Ctrl+O till ett annat ärende med samma insättning (nycklarna är
-   `txid:index`) skrivs Ångrat i *det* ärendet, eftersom toasterna bara töms vid låsning. Rättning: lägg det ångrade
-   beslutets sekvens i `DecisionRequest`, kräv i skrivningen att det är beslutet i kraft och skriv det i journalen;
-   i vymodellen sparas de returnerade `CheckDecision` och ärendet, och Ångra eller Ctrl+Z för ett annat ärende ignoreras.
-2. **Modulen stoppar inte ett andra beslut på ett avgjort förslag** (`CheckService.Decide` ~118–159). Regeln *en
-   godkänd kandidat avgör förslaget* finns bara i gränssnittet. En graf som ändras medan `StoreAsync` väntar gör att
-   `FollowAsync` returnerar tidigt (`version != _version`, ~800), `Advance` väljer ur en gammal `ToDecide` och kan visa
-   förslaget som just avgjordes som väntande; ett nytt Enter eller X förseglar ett andra beslut. Rättning: vägra i
-   transaktionen Godkänn eller Avfärda när förslaget redan är avgjort eller kandidaten har ett beslut i kraft; i
-   vymodellen, håll de nyss avgjorda nycklarna utanför `NextWaiting` och `CanDecide` tills körningen är ikapp.
-3. **Ctrl+Z i grafen ångrar tyst ett gammalt beslut** (`GraphView.xaml` ~249, `_undo` lever tills ärendet byts).
-   Användaren som vill ångra något i grafen skriver ett förseglat Ångrat utan toast. Rättning: Ctrl+Z bara medan
-   panelen är öppen eller toasten syns, och alltid en toast *Beslutet ångrat*.
-
-**Mindre:**
-4. Ångra från loggens rad nollställer inte `_undo` (`UndoRowAsync` ger en ny lista), så ett senare Ctrl+Z ger
-   *Det kunde inte sparas i ärendet* fast inget gick fel. Nollställ `_undo` vid varje ångring av samma fynd, och tolka
-   *inget i kraft* som redan ångrat.
-5. Ett Ångra med flera beslut skrivs i flera transaktioner (`StoreAsync` ~962). Ett batchanrop som förseglar alla i en
-   `@case.Write`.
-6. Panelens *in*-belopp och avgift (`ChecksViewModel.Incoming` ~1292) summerar alla utgångar i insättningens tx till
-   adressen, medan analysen utgår från en utgång (`txid:index`); två utgångar till samma mixer ger dubbelt belopp och
-   fel avgift. Ta utgången ur fyndet, och skriv avgiften som en bedömning (*om kandidaten stämmer*).
-7. Ett förslag som avfärdats som helhet tappar sina aktörer i loggen och under *Här* (`GraphAreas.OfCheck` ger null).
-   Räkna radens noder för sig.
-8. `StoredCheck.Waiting` läses inte längre i `src`: ta bort eller använd i `CountText`.
-9. Några rader är 121–123 tecken (`SuggestionFlowPicture.cs`, XML-dokumentation i `CheckRowViewModel.cs` och
-   `ChecksViewModel.cs`).
-
-### Granskningen av NC2a (2026-11-08): rättas efter KF2b
+### Granskningen av NC2a (2026-11-08): rättas först
 
 Oberoende granskning av `9302657`. Inget kritiskt: allt förseglas genom `IResponseTransfer` i en transaktion med
 journalraden, SHA-256 kontrolleras vid läsning och försegling, inget skickas utan levande utgång, och låsning släpper
