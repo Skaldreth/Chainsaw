@@ -134,13 +134,12 @@ valt, sonarn borttagen helt, en kvalitetsgenomgång av kvällens egna commits (`
    tre viktiga (Ångra säger inte vilket beslut det tar tillbaka och kan träffa ett annat ärende; modulen stoppar inte
    ett andra beslut på ett avgjort förslag; Ctrl+Z i grafen ångrar tyst) och sex mindre. Rätta de viktiga, gärna de
    mindre, bygg, kör `tests/Chainsaw.App.Tests` och `tests/Chainsaw.Modules.Checks.Tests`, pusha och ta bort blocket.
-2. **Granskningen av NC2a.** Panelen är byggd av en agent och sammanslagen (`68bc89e`, commit `9302657`), inte sedd
-   på Windows. Förhandshämtningen skriver i ärendet (ärende i minnet, `IMemoryCase`, förseglat med
-   `IResponseTransfer` och journalraden `app.prefetch-sealed` när ärendet skapas), så en oberoende granskning
-   startades 2026-11-08. Kommer rapporten inte fram: kör om den mot `git show 9302657`. Rätta, bygg, kör
-   `tests/Chainsaw.App.Tests`, `Chainsaw.Modules.Cases.Tests` och `Chainsaw.Watcher.Tests`, pusha. Granska också
-   själv mot skissen `NewCase2A` och användarens synpunkter (inga linjer vid raderna, *betydligt mer professionellt*),
-   eftersom agenten bara fick CLAUDE.md och uppdraget. Det som återstår står i TODO punkt 38.
+2. **Rätta granskningen av NC2a** (sammanslagen `68bc89e`, commit `9302657`, inte sedd på Windows). Rapporten står i
+   `docs/TODO.md` under *Granskningen av NC2a*: ett viktigt (en tx-rad visar tx:ens block som höjden när den
+   hämtades) och sex mindre, bland dem att inklistrad löptext slås upp ord för ord (princip 4). Rätta, bygg, kör
+   `tests/Chainsaw.App.Tests`, `Chainsaw.Modules.Cases.Tests` och `Chainsaw.Watcher.Tests`, pusha och ta bort blocket.
+   Granska också själv mot skissen `NewCase2A` och användarens synpunkter (inga linjer vid raderna, *betydligt mer
+   professionellt*), eftersom agenten bara fick CLAUDE.md och uppdraget. Det som återstår står i TODO punkt 38.
 3. **Fråga användaren om KF2b:** ett godkänt förslag är avgjort helt (kön går vidare som i skissen), så en mixer som
    betalar ut i flera delar kan bara ha en godkänd utgång i taget. Behålla, eller låta förslaget stå öppet efter ett
    godkännande? Står i TODO under *Kontroller, förslag och områden* som fråga till kryptospåraren.
