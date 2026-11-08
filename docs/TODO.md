@@ -1,199 +1,257 @@
 # Att göra
 
-Backloggen: det som inte är byggt, sorterat efter vad det väntar på. **Ta bort en punkt när den är byggd.** Här står allt
-som diskuterats, så att inget tappas bort medan vi bygger MVP:n.
+Backloggen: allt som inte är byggt. **Ta bort en punkt när den är byggd**, och lägg inte samma sak på två ställen.
 
-## Väntar på beslut
+Filen har fyra delar:
+1. **Väntar på dig:** frågor som bara användaren kan avgöra. Till dess gäller det som står efter *Nu*.
+2. **Vägen till 1.0:** det som ska vara gjort för att Chainsaw ska vara färdigt, i den ordning det tas.
+3. **Före tjänstebruk:** sådant som inte är kod men måste vara klart innan Chainsaw används i tjänsten.
+4. **Efter 1.0 och kända svagheter:** nya förmågor och de mindre fynden från granskningarna, per område.
 
-Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står användarens egna beslut.
+Varje punkt i *Vägen till 1.0* är märkt med hur den byggs (CLAUDE.md, *Processen efter storleken*):
+- **[direkt]:** en rest eller rättelse inom en godkänd skiss, som byggs och granskas mot skissen av sessionen själv.
+- **[skiss]:** ritas först på canvasen, och byggs när användaren sagt ok.
+- **[etapp]:** skriver i ärendet eller rör principerna, och byggs med oberoende granskning.
 
-- **WireGuard i bakgrunden** (etapp 27): ska en utgångs WireGuard-fil kunna sparas under DPAPI utanför valvet, så att
-  bakgrunden kan bevaka genom VPN när Chainsaw är stängt? I dag nej (säkrast): bakgrunden går bara genom Windows.
-- **Återkallade återställningsnycklar** (etapp 9): en bytt nyckels kuvert ligger kvar, och tas bort först när nyckeln
-  återkallas med en rad `REVOKED` i `organization-recovery-key.pem`. Att ta bort alla andra nycklars kuvert vid ett
-  byte prövades men vägrades i granskningen: en äldre version eller en annan organisations Chainsaw tog då bort den
-  nyare nyckelns kuvert. Bekräfta att återkallelse för hand räcker.
-- **Endpointarna, andra delen** (etapp 25, valt av sessionen, det säkraste; förklarat för användaren 2026-11-07):
-  - **Takten:** Chainsaw frågar en endpoint på internet högst fyra gånger i sekunden, ett eget förval, i stället för
-    att läsa varje källas egen gräns (som ofta inte är publicerad). Ska takten gå att ställa per endpoint?
+## Väntar på dig
+
+Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
+
+**Från bygget 2026-11-08**, så som det är byggt nu:
+1. **Kandidaternas linjer** i mixerns förslag ritas alltid. Förut ritades de bara när områdena var på. *Nu:* alltid.
+2. **SEK för det som ligger kvar** räknas till den senaste kursen ärendet har för tillgången, inte till dagens kurs
+   som kortets baksida ska visa. *Nu:* den senaste kursen i ärendet. Dagens kurs kräver ett uppslag genom utgången.
+3. **Soptunnans vy ritar noderna i sortens färg**, så en mixer blir röd, fast soptunnan aldrig ska använda rött.
+   *Förslag:* neutralt grått i soptunnan.
+4. **N med en vald nod** knyter den nya lappen till noden. Skissen säger det bara om ikonen i nodens list. *Nu:*
+   lappen knyts.
+5. **Lappen och noden:**
+   - När en grupp dras följer de knutna lapparna med, men när en ensam nod dras står lappen kvar och bara tråden
+     följer.
+   - I hoppkolumnerna står lapparna kvar på sin plats från den fria ytan, så tråden kan bli lång.
+
+   Ska en knuten lapp alltid följa sin nod?
+6. **Ett vanligt klick tömmer markeringen**, också ett klick på en nod, som i Utforskaren. Förut låg en markering
+   gjord med Ctrl+klick kvar tills Esc. *Nu:* klicket tömmer.
+7. **Chainabuse och flera adresser:** får ett anrop (av tio i månaden) användas för att prova två adresser
+   kommaseparerade? Går det kan ett helt kluster frågas i ett anrop (se *Attribution*).
+8. **Pausad bevakning:** det som hände under pausen räknas som träffar när bevakningen återupptas, så att inget
+   tappas. *Nu:* det räknas. Det andra valet är att räkna från återupptagandet.
+9. **En godkänd mixerkandidat** förseglas som beslut men blir inte en ny startpunkt eller en kant i spåret. Ska den
+   kunna bli en startpunkt med beloppet?
+10. **Kopior och sanktionsträffar i historiken** har ingen knapp, eftersom skissen bara visar det egna. Ska en etikett
+    som kopierats från ett annat ärende kunna avvisas där?
+11. **Etiketter och offer:**
+    - En etikett på ett offer sprids aldrig till andra ärenden. Den regeln är sessionens egen och står kvar tills du
+      säger annat.
+    - Ska *Sprid inte* också gå att sätta för ett helt ärende?
+
+**Äldre, där sessionen valt det säkraste:**
+- **WireGuard i bakgrunden** (etapp 27): ska en utgångs WireGuard-fil kunna sparas under DPAPI utanför valvet, så
+  att bakgrunden kan bevaka genom VPN när Chainsaw är stängt? *Nu:* nej, bakgrunden går bara genom Windows.
+- **Återkallade återställningsnycklar** (etapp 9):
+  - När nyckeln byts ligger den gamla nyckelns kuvert kvar. Det tas bort först när nyckeln återkallas med en rad
+    `REVOKED` i `organization-recovery-key.pem`.
+  - Att ta bort alla andra nycklars kuvert vid ett byte vägrades i granskningen. En äldre version, eller en annan
+    organisations Chainsaw, tog då bort den nyare nyckelns kuvert.
+
+  Bekräfta att det räcker att återkalla för hand.
+- **Endpointarna** (etapp 25):
+  - **Takten:** Chainsaw frågar en endpoint på internet högst fyra gånger i sekunden. Ska takten gå att ställa per
+    endpoint?
   - **Tailscale och CGNAT** (100.64.0.0/10) räknas inte som det egna nätet, så en nod där kan inte märkas lokal.
   - **Prioriterad** sprider inte uppslagen: nästa endpoint tas först när den första ber Chainsaw vänta.
+- **Guiden från spårningsmetoden** (etapp 18):
+  - Ett klick på spårningsmetoden byter metod, och ett högerklick öppnar Guiden vid metoden.
+  - *?* visar bildspråket, och dess *Guiden F1* öppnar panelen.
 
-- **Rapporten:** hur redovisningen byggs (som i Gawk med bilagor, eller enklare underlag för underrättelse). Bestäms när vi
-  kommer dit.
+  I GD1b öppnade båda Guiden direkt. Bekräfta.
+- **Spårning genom en swap** (Ethereum): hur stor del av ett byte som räknas som spårat är en bedömning som behöver
+  en regel. *Nu:* varje tillgång spåras för sig (se *Kedjor och data*).
 
-- **Guiden från spårningsmetoden och *?*** (etapp 18, valt av sessionen): ett klick på metoden byter metod som förut,
-  och ett **högerklick** öppnar Guiden vid metoden (verktygstipset säger det). *?* visar bildspråket (GR7a), och
-  dess *Guiden F1* öppnar panelen. I GD1b öppnade ett klick på metoden och på *?* Guiden
-  direkt; då behövs en annan väg att byta metod och se bildspråket. Bekräfta eller välj.
+**Behövs för att 1.0 ska kunna bli klar:**
+- **Vad ingår i 1.0?** Vyerna Tidslinje, Flöde (Sankey), Exponering och Etiketter är bekräftade men inte skissade.
+  *Förslag:* Etiketter och Exponering med i 1.0, eftersom de hör till Attribuera och Uttag. Tidslinje och Flöde
+  efter 1.0, eftersom tidslinjen under grafen (TL1a) och linjernas tjocklek redan visar mycket av det.
+- **Rapporten (Redovisa):** antingen som i Gawk med bilagor, eller ett enklare underlag för underrättelse.
+  *Förslag:* ett enklare underlag först, en export till Markdown som Begäran, med spåret, slutsatserna med *Varför?*
+  och hashkedjans topphash.
 
+## Vägen till 1.0
 
-## Bygga härnäst
+Ordningen: först provet på Windows, sedan resterna i det som redan är byggt, sedan det som är godkänt men inte byggt,
+och sist det som skissas. Inget nytt byggs förrän det som finns känns bra (användarens beslut 2026-11-07).
 
-### Polering först (användarens beslut 2026-11-07: inget nytt byggs förrän det som finns känns bra)
+### 1. Provet på Windows
 
-**Användarens lista 2026-11-07, tas i tur och ordning** (ingen punkt går före någon annan; så polerar användaren):
-1. **TO1a, toastern** (godkänd): fel, varning, lyckat och information nere till höger, högst fem, staplas uppåt och
-   tonar ut. Tar över grafens Notice, och fel som ingen fångat. *Byggd 2026-11-07*, och följer skissen
-   punkt för punkt sedan 2026-11-08. Bevakningens felrad är en toast sedan 2026-11-08; Källors egen felrad går över
-   till toastern när den sidan ses över.
-2. **IN2b, ikonlisten vid noden:** *byggd 2026-11-07*, med bara de åtgärder som går att använda.
-3. **IN1b, formulären vid noden:** *byggd 2026-11-07* för Etikett, Bryt upp och Annan kedja.
-4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. *Rättat 2026-11-07, väntar på prov på Windows:* med
-   appens hela sammansättning (GraphSource, modulerna och utgången genom Windows) ger startpunkten 50 tx; *Inget nytt*
-   kom bara från de OP_RETURN-noder som varje coinbase har (adressen är en pools), som nu inte kan expanderas. En
-   proxy på det lokala nätet fällde varje uppslag genom Windows; rättat. Långsamheten: de 6 minuterna var provets
-   stillastående testklocka (takten 250 ms lades på varje tur), men appen läste också om hela adressidor per tx och
-   växelheuristiken var kvadratisk i antal outputs; rättat, och var mynten tog vägen frågas fyra i taget i
-   endpointens takt. OP_RETURN-utgångar på 0 BTC **döljs** (*byggt 2026-11-07* med samlingsnoden): en toast som
-   ligger kvar 20 s säger hur många, med *Visa dem*; valet sparas med grafens läge.
-5. **Grafens hörn uppe till höger:** *byggt 2026-11-07* som en rad ikoner med prick när något finns.
-6. **Inspektörens skugga** över titelraden: *rättad 2026-11-07* (sidan klipper vid sin kant).
-7. **Bevaka-dialogen** är rörig och för komplex och hamnade uppe i högra hörnet. Skissad 2026-11-07: BV3a (bara
-   riktningen syns, resten som tillval) och BV3b (bevakningen som en mening), båda vid noden; **BV3a vald och byggd 2026-11-07**.
-8. **Undermenyn Nytt** i pillret: *animerad 2026-11-07* (växer ut ur knappen och tonar in).
-9. **Pillret:** *klart 2026-11-07*, vyer som inte är byggda är nedtonade.
-10. **Byta ärende i titelraden:** *ÄV1a byggd 2026-11-07* (klick på ärendet eller Ctrl+O).
-11. **Grafens ikon i pillret:** *IK1 Förgrening vald och byggd 2026-11-07* (en tx delar pengarna till en aktör och en tjänst).
-12. **Terminal:** *borttagen 2026-11-07*.
-13. **Bevakningens tomma läge** (*byggt 2026-11-07*) såg inte professionellt ut: en större ikon i mitten med en förklarande text under att
-    det är tomt; knapparna och pillret uppe till höger (*Bevakar medan Chainsaw är öppet*, *Ny bevakning …*) görs om.
-14. **Bevakningens högra panel:** *klart 2026-11-07*, syns bara när en bevakning är vald.
-15. **Statusraden längst ner:** *borttagen 2026-11-07*; väntan är en gul prick vid utgången.
-16. **Pillret efter läget:** *klart 2026-11-07*, och bildspråkets *?* syns bara med ett ärende.
-17. **Bildspråkets ruta:** *GR7a byggd 2026-11-08* (`Views/GraphLegendView`).
-18. **Kommandoraden:** *dold 2026-11-07*, fälls fram med Ctrl+K som Spotlight; svar när den är dold blir en toast.
-19. **Sonarpulsen runt *Nytt ärende*:** *omgjord 2026-11-07*, tre tunna ringar ur nodens egen kant.
-20. **Soptunnan (SO1a):** *byggd 2026-11-08, väntar på prov på Windows* (grafen, Delete, varningen med bevakningarna,
-    vyn och startvyn). Det som återstår: kommentarsnoder (KN1a) och egna ytor går inte att slänga än, en hel hög i
-    startvyn kan inte dras till soptunnan, noden krymper inte när den närmar sig soptunnan som i skissen, och
-    testärendet (`/testdata`) har ingen slängning. Kvar efter granskningen 2026-11-08: ett ärende i en hög i startvyn
-    kan inte slängas, och ett nytt ärende med samma nummer som ett slängt döljs; soptunnans vy ritar raderna i
-    sortens färg, så en mixer blir röd där (bildspråket, men stäm av mot regeln att soptunnan aldrig är röd); när
-    inga startpunkter finns kvar och grafen bara är cykler följer allt med (saknar test). En bevakningsträff till något i
-    soptunnan visas bara som *i soptunnan · bevakad* på stumpen, inte som linje med belopp och ringar.
-21. **Startvyn grupperar ärenden:** *byggt 2026-11-07, väntar på prov på Windows* (GR8a, högen ritad som grafens
-    samlingsnod och utfälld som den, med stöt och centrering). Det som återstår: att dra en hel hög (till soptunnan
-    eller på en annan hög); tangentbordet för högarna (en hög tar inte fokus med Tab); och att grafens samlingsnod får samma stöt och centrering genom `FanOutLayer`.
-22. **En expansion ritar allt rakt ut:** *byggt 2026-11-07, väntar på prov på Windows:* ledtrådsnoden `+N tx`,
-    samlingsnoden (EX2b) med valvyn i två lägen (EX1a, EX1b) och filtren, urvalet sparat i ärendet; omgjort efter
-    skissen 2026-11-08. Det som återstår står under *Spårning (Tracing)*, *Ledtrådsnoden, valvyn och samlingsnoden*.
-23. **Utgångsrutan i titelraden (UT1a)** går knappt att läsa: ikonen för liten och för mycket information. *Lägg till
-    WireGuard-fil* hör hemma i Inställningar, inte där. **UT2b vald och byggd 2026-11-07.**
-25. **Ändra storlek på noder** (användarens önskemål 2026-11-07): *kommentarsnoden byggd 2026-11-08 (KN1a)*; vilka
-    fler noder som får handtaget (samlingsnoden EX2b, egna ytor) avgörs när de skissas. Storleken sparas med grafens
-    läge.
-28. **Innehav per adress** (användarens beslut 2026-11-07, efter IN3a–d som inte blev rätt): innehavet är **dolt** på
-    noden. **Alt + klick** på en nod vänder den som ett kort, och baksidan visar beloppen: det som ligger kvar i rätt
-    tecken (₿, Ξ, ₮; inte ett B) och samma belopp i inställd valuta (SEK) till dagens kurs. **Inspektören** visar allt
-    som passerat adressen, hur mycket som ligger kvar och hur mycket som gått ut. Fakta från kedjan vid en blockhöjd
-    (Esplora `chain_stats`); kursen med källa. Vändningen skissas (IN4) innan den byggs.
-29. **Panorering:** *byggd 2026-11-07*, höger- och mittknappen panorerar (också över en nod) och ytan glider vidare
-    som i Gawk; ett högerklick utan rörelse öppnar nodens meny. Vänsterknappen drar bara noder.
-30. **Använd ytan:** *byggt 2026-11-07, väntar på prov på Windows:* ett hopp med fler än åtta aktörer sprids över
-    kolumner sida vid sida till ett ungefär kvadratiskt block. *Luftigare 2026-11-08 (TODO 34):* kolumner och rader
-    längre isär, och varje belopp får en plats på sin linje där det inte rör ett annat belopp eller en nod; bara ett
-    belopp utan plats visas på hovring.
-31. **Sonarn är borttagen** (användarens beslut 2026-11-08: *det blev inte bra alls*): ingen puls runt *Nytt ärende*,
-    i första gången-läget eller runt den tomma startpunkten, och `SonarRing` är borttagen. Markeringarna i grafen som
-    CLAUDE.md kallar sonar (EX2:s intressanta kort) får en egen, lugn form när de byggs, efter en skiss.
-38. **Nytt ärende är NC2a** (användarens beslut 2026-11-08). Byggt 2026-11-08; det som återstår:
-    - **Ethereums saldo:** källan ger inget saldo för en adress, så raden visar bara antal tx och aktivitet. Ett
-      uppslag av saldot (ETH och tokens) i `IEthereumSource` behövs för att visa det.
-    - **Kedjans hash vid höjden:** `GetTipHeightAsync` ger bara höjden, så hashen i raden är den senaste tx:ens block.
-      `/blocks/tip/hash` (Esplora) och motsvarande för Blockscout skulle ge hashen för det saldot bygger på.
-    - **Det förhandshämtade som cache:** råsvaren förseglas i ärendet som underlag (`IResponseTransfer`), men läggs
-      inte i uppslagens index, så grafens första expansion hämtar adressen igen. Ett eget steg i Chains kunde låta
-      dem svara som cache för det som inte kan ha ändrats.
-    - **Sanktionslistans Ethereum-adresser** kontrolleras inte än (som i Attribution), så brickan visas bara för
-      Bitcoin.
-39. **Granskning av alla byggda vyer mot skisserna** (användarens synpunkt 2026-11-08: många delar är kraftigt
-    förenklade). Gjord 2026-11-08. Skalet och dialogerna följer skisserna nära; förenklingarna sitter i grafens
-    arbetsytor. Att bygga om, i ordning:
-    1. **Kontroller och förslag**: *Löst 2026-11-08* genom KF2b (ett förslag i taget). Kvar: formuläret för en egen
-       yta står fortfarande under grafens hörn (se *Kontroller, förslag och områden*).
-    2. **Inspektören**: *Byggd 2026-11-08* efter IN2b, GR5, TK1a och AN1b. Kvar: *Begäran om frysning …* (TK1a)
-       visas inte förrän en begäran om frysning till utgivaren går att göra (mall i Requests, BG1b); SEK för det som
-       ligger kvar räknas till den senaste kursen ärendet har för tillgången (vid den senaste rörelsen i grafen), inte
-       till dagens kurs, som kortets baksida ska visa.
-    3. **Grafen** (GR4, GR5, TK1a): noden växer inte med namn och lång adress;
-       tokenmärket som liten rund bricka; swappen som piller på linjen; rubrikerna för kedjornas delar av ytan.
-    4. **Bildspråkets ruta GR7a**: *byggd 2026-11-08*.
-41. **Källor är KL2b** (användarens beslut 2026-11-08), utan den färgade kanten vid det valda, strecken vid
-    svarstiderna och strecket under endpointen som används (*mindre AI-slop*). Chainabuse får en rad under
-    *Etiketter* i samma lista. Byggs.
-42. **Chainabuse frågas med en knapp nu, automatiskt senare** (användarens beslut 2026-11-08). *Knappen byggd
-    2026-11-08:* skölden *Fråga om rapporter* (R) i nodens ikonlist, bara för en nod med en adress, online och när en
-    underleverantör är på. Kvar: automatiska uppslag när nyckeln tillåter.
-    **Batchning är oklar** (användarens fråga 2026-11-08): ett anrop är en fråga om en adress med högst 50 rapporter
-    (en sida); `address` är en sträng och ingen batch-endpoint finns dokumenterad, fast guiden säger *one or more*.
-    Prova en gång med två adresser kommaseparerade när nyckeln finns (kostar ett anrop), eller fråga Chainabuse; går
-    det kan ett kluster frågas i ett anrop.
-34. **Linjer genom noder** (kvar efter att testärendets trängsel rättades 2026-11-08): när ett hopp med fler än åtta
-    aktörer sprids över två kolumner går en linje till den andra kolumnen rakt genom en nod i den första (i
-    testärendet linjen till CoinJoin). Beloppen hålls redan undan; linjerna kunde böjas runt noderna, eller aktörer med
-    linjer vidare läggas i den kolumn som är närmast.
+Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTER-INFOR-1.0.md`, och det som inte
+fungerar rättas före allt annat nedan. Särskilt:
+- **Kraschen vid start** (`NewCasePanel`) är rättad men inte bekräftad.
+- **Expansionen gav *Inget nytt att hämta*** med mempool vald (rättat 2026-11-07, väntar på prov).
+- **Det som byggdes 2026-11-08** och inte är sett av användaren:
+  - KF2b, NC2a, KN1a, SO1a, GR7a, TL1a, inspektören och BV1a.
+  - Guiden, *Sortera grafen*, den mjuka zoomen, inspektörens glidning och rutmarkeringen.
+- **Inaktuella rader i TESTER-INFOR** [direkt]: läs igenom hela filen och stryk det som ersatts, till exempel
+  NC1a, IN1a, KF1a, UT1a, sonarn, statusraden och Terminal.
 
-Klart ur listan 2026-11-07: testärendet `/testdata` (punkt 27, se *Testärendet* nedan);
-*Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om
-två medietyper, som utgången läste som en); skälet är frivilligt för etikett, uppbrytning och länk till annan kedja;
-bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje vid hovring; piller med 1,5 px kant.
+### 2. Resterna i det som är byggt
 
-1. **Felrättningar utan ny form:** inaktuella rader i TESTER-INFOR (väntar tills etapp 27 är inne, som skriver i
-   samma fil). (Rättat 2026-11-07: GateView och Windows som utgång, *Kättingen* i stället för *Teckenfältet*, en
-   text för offline, *Ctrl+K* ur `ViewTable`, hovring på `Toggle.Switch`, bildspråkets *?* nere till höger.)
-2. **GR6c, resten:** byggd 2026-11-07 utan ärende och utan startpunkt. Kvar är skissens tredje läge, *Startpunkten
-   tillagd*: den riktiga noden med en pulserande guidenod *Expandera* bredvid och *Hitta uttaget* svagt efter, som
-   behöver ritas i grafens duk. Avsteg från skissen: Enter är inte grått offline, eftersom en startpunkt går att lägga
-   till utan nät (princip 9) och inget hämtas förrän den expanderas; raden säger det i stället.
-3. **Öppna ett ärende** går bara med `/open`: ingen lista över senaste ärenden, inget Ctrl+O, ärendet i titelraden går
-   inte att klicka, `/close` och `/verify` saknar knapp. Skissas (ÄV1).
-4. **Sex vyer är platshållare** (Tidslinje, Flöde, Exponering, Begäran, Etiketter, Terminal) men syns som byggda i
-   pillret. Tona dem och säg det i verktygstipset; journalen syns ingenstans utan Terminal.
-5. **Förmågor utan synlig knapp:** startpunkt och sökning bara i kommandoraden (platshållaren lovar sökning som inte
-   finns); Bevaka och Kopiera saknas i inspektören; passa in (F) och zoom bara i verktygstips; dubbelklick på en nod
-   expanderar inte; inget högerklick eller inklistring på tom yta.
-6. **Tomma lägen:** Bevakning utan ärende ger ingen väg vidare; inget ärende föreslås efter upplåsning.
-7. Därefter det godkända: EX1/EX2b, BG1b.
+**Grafen**
+- **Linjer genom noder** [direkt]: när ett hopp med fler än åtta aktörer sprids över två kolumner går en linje till
+  den andra kolumnen rakt genom en nod i den första (i testärendet linjen till CoinJoin). Linjerna kunde böjas runt
+  noderna, eller aktörer med linjer vidare läggas i den närmaste kolumnen.
+- **Granskningen mot GR4, GR5 och TK1a** [direkt]:
+  - Noden växer inte med namnet och en lång adress.
+  - Tokenmärket ska vara en liten rund bricka.
+  - Swappen ska vara ett piller på linjen.
+  - Kedjornas delar av ytan saknar rubriker.
+- **Dolda OP_RETURN går inte att visa igen** [direkt] när toasten tonat ut eller ärendet öppnats på nytt. Lägg en
+  markering i grafens hörnrad när några är dolda.
+- **GR6c, tredje läget** [direkt]: när startpunkten lagts till ska den riktiga noden få en guidenod *Expandera*
+  bredvid sig, med *Hitta uttaget* svagt efter. Det ritas i grafens duk.
+  - Avsteg från skissen: Enter är inte grått offline. En startpunkt går att lägga till utan nät (princip 9), och
+    inget hämtas förrän den expanderas, så raden säger det i stället.
+- **Förmågor utan synlig väg** [direkt]:
+  - Dubbelklick på en nod expanderar inte.
+  - Passa in (F) och zoom finns bara i verktygstips.
+  - Kontrollera att högerklick på tom yta ger något.
+- **Formuläret för en egen yta** [direkt] står under grafens hörn, inte vid de valda aktörerna som i KF1b.
+- **Numren på kandidaterna** [direkt] står mitt på linjen, inte vid kandidatens nod som i KF2b.
+- **Esc med ett formulär öppet och fokus någon annanstans** [direkt]: står fokus i Guidens panel gör Esc ingenting,
+  eftersom formuläret tar Esc före panelen. Esc ska då stänga formuläret.
 
-- **Allt följer med en etikett** (CLAUDE.md, *Etiketter smittar*, användarens beslut 2026-11-07): etapp 8 för bara
-  vem, när, etiketten och källans sort in i ett annat ärende; ärendenumret, anteckningen, skälet, titeln och enheten
-  ska också följa med. Sessionens egen regel att en etikett på ett offer aldrig sprids står kvar tills användaren säger
-  annat. Om *Sprid inte* också ska gå att sätta för ett helt ärende är inte bestämt.
-- **Bevakningens aviseringar** (etapp 27, CLAUDE.md *Bevaka*): sätten i inställningarna (avisering i Windows, ljud,
-  meddelande mitt på skärmen överst) och hur ofta per bevakning. Ljudet behöver en fri licens eller göras själv.
+**Soptunnan och startvyn (SO1a, GR8a)**
+- **Det som ännu inte går att slänga** [etapp]:
+  - Kommentarsnoder och egna ytor. Delete tar i dag bort en lapp förseglat direkt, utan soptunna.
+  - En hel hög i startvyn, och ett ärende som ligger i en hög.
+- **Startvyns högar** [direkt]:
+  - En hög går inte att dra på en annan hög.
+  - En hög tar inte fokus med Tab.
+  - Startvyn fäller ut korten i en spiral i stället för grafens ring.
+  - Grafens samlingsnod får inte samma stöt och centrering genom `FanOutLayer`.
+- **Ett nytt ärende med samma nummer som ett slängt** döljs [direkt].
+- **Noden krymper inte** när den närmar sig soptunnan, som i skissen [direkt].
+- **En bevakningsträff till något i soptunnan** [direkt] visas bara som *i soptunnan · bevakad* på stumpen. Den
+  borde visas som en linje med beloppet och ringarna.
+- **Test saknas** [direkt] för när inga startpunkter finns kvar och grafen bara är cykler, så att allt följer med.
 
-## Väntar på skiss
+**Kommentarsnoden (KN1a)**
+- **Skrivandet** [direkt]:
+  - Enter i en lista fortsätter inte listan, och Tab drar inte in. Gawks `MarkdownEdits` kan tas över.
+  - Radavståndet medan man skriver är tätare än de 1,55 som ritas.
+  - Hjulet över en lapp som man skriver i zoomar inte grafen.
+- **Tråden** [direkt]:
+  - En lapp vars adress ligger i en hög får ingen tråd. Den borde gå till högen.
+  - `CommentGeometry.Resolve` tolkar bara Bitcoin.
+- **Historiken** [etapp]: lappens förseglade poster syns inte i inspektörens *Historik* (AN1b), och en borttagen lapp
+  kan inte läggas tillbaka.
 
+**Inspektören, Nytt ärende och Guiden**
+- **Nytt ärende (NC2a)** [etapp]:
+  - **Ethereums saldo** saknas. Källan ger inget saldo för en adress, så `IEthereumSource` behöver ett uppslag av
+    saldot för ETH och tokens.
+  - **Kedjans hash vid höjden:** raden visar den senaste tx:ens block, inte hashen för höjden. Esplora har
+    `/blocks/tip/hash`, och Blockscout har motsvarande.
+  - **Det förhandshämtade som cache:** grafens första expansion hämtar adressen igen. Ett eget steg i Chains kunde
+    låta det som inte kan ha ändrats svara som cache.
+  - **Sanktionslistans Ethereum-adresser** kontrolleras inte, så brickan visas bara för Bitcoin.
+- **Kortets baksida i dagens kurs** [direkt]: efter fråga 2 ovan.
+- **Guidens panel** [direkt]:
+  - **Länkar:** välj samma nod igen efter att ha följt en länk, så stannar panelen på länken. Klustrets svar, som
+    kommer efter en stund, kan byta avsnitt medan man läser.
+  - **Tangentbordet:** metodens avsnitt nås bara med högerklick.
+  - **Tolkaren:** en avslutande `*` letas efter utan att kod hoppas över.
+  - **Smalt fönster:** vid 960 px kapas kommandoraden bredvid den öppna panelen.
+- **Källors felrad till toastern** [direkt], som Bevakningens felrad redan är.
+- **Bevakningens huvud** [direkt]: skissen säger *2 nya träffar sedan 09:10*, men vyn säger bara antalet. När
+  användaren senast tittade behöver sparas som en tid med *sedd*.
 
-- **Förstagångsinställningens steg Utgång** (etapp 19): erbjuder bara en WireGuard-fil eller *Senare*, och VPN är
-  förvalt. Valet *Windows* eller *VPN* där, som de två korten i ST1a, behöver en ändring av FS1a.
+**Testärendet** [direkt]: fyll på det med det som byggts sedan det byggdes om. Vad som saknas står under
+*Testärendet (/testdata)* längre ner.
 
-- **Det som hölls tillbaka och det som kontrollerats** (etapp 15): en expansion tar högst 50 tx (en adress nyaste,
-  en tx:s spenderare efter belopp). Användarens idé 2026-11-07: en **ledtrådsnod** `+243 tx` vid adressen; ett klick
-  skickar de andra noderna bort i en cirkulär stöt (en övergång), centrerar på ledtråden, som byts mot alla tx runt
-  om, och användaren väljer vilka som plockas ut i den stora vyn. Inspektören bör också visa om en tx är kontrollerad
-  mot sina bytes och om den bytt block (omorganisation). EX1a och EX1b valda som två lägen, med EX2:s filter
-  och samlingsnoden EX2b (CLAUDE.md). Kvar att lösa: tidslisten blir för smal för ±48 h och behöver zoomas runt
-  fönstret.
-- **Tidslinjen under grafen, det som återstår** (TL1a byggd 2026-11-08): band i timmar när man zoomar in (nu dygn och
-  grupper av dygn), och listens prickade slut vid senaste blocket, som ärendet inte vet i dag.
-- Skalet: sidopanelen och vyernas ordning.
-- Vyerna: Tidslinje, Flöde (Sankey), Tx-inspektör, Adresskort och kluster, Exponering, Bevakning, Etiketter, Terminal.
-- **Guidens panel, det som återstår** (etapp 18, granskningen): välj samma nod igen efter att ha följt en länk, så
-  stannar panelen på länken (det går inte att skilja ett nytt val från ett nytt svar om samma sak); klustrets svar som
-  kommer efter en stund kan byta avsnitt medan man läser; ett nytt *Varför?* börjar historiken om (som i skissen);
-  metodens avsnitt nås bara med högerklick, inte med tangentbordet; tolkaren letar efter en avslutande `*` utan att
-  hoppa över kod (en kursiv start före kod med en stjärna i blir kursiv resten av raden; händer inte i texterna
-  nu). Vid fönstrets minsta bredd (960 px) får kommandoraden inte plats bredvid den öppna panelen och kapas i
-  kanterna, och grafens flyttade hörn kan ligga över raden med det spårade uppe till vänster.
-- **Sök i Guiden:** GD1a har en sökruta i vyn. Sök finns bara i kommandoraden (CLAUDE.md), så sökningen bör gå därifrån
-  (till exempel `/guide utxo`). Inte byggt.
-- **Begäran om uppgifter till börser:** först en enkel **export till Markdown** (användarens beslut 2026-11-07), med
-  börsen, insättningarna (tx, tid, belopp, adress) och spåret dit. Formen är BG1b (CLAUDE.md).
+### 3. Godkänt men inte byggt
 
-## Senare (efter MVP:n)
+1. **Begäran, BG1b** [etapp]: kärnan i *Uttag → Begäran*, och det sista steget i det Chainsaw är till för.
+   - **Vyn och exporten:**
+     - Vyn listar alla uttag som spårade pengar nått.
+     - Förhandsvisningen av Markdown, och brickor för insättningarna och spåret dit.
+     - *Exportera .md …* och *Exporterade* med SHA-256. Exporten journalförs och skriver aldrig över.
+   - **Modulen Requests:** mallar på svenska och engelska, med tx, tider, belopp och insättningsadresser.
+   - **Börsernas kontaktvägar** för brottsbekämpande myndigheter, var och en med källa och datum. Inga påhittade
+     kontaktvägar.
+   - **När den finns:**
+     - *Nytt → Begäran* och *Nytt → Etikett* kopplas i `SubmenuTable` (se *Undermenyer i pillret*).
+     - Inspektörens *Begäran om frysning …* (TK1a) visas.
+2. **Innehav per adress** [skiss]: Alt + klick vänder noden som ett kort (IN4 skissas först).
+   - **Baksidan** visar det som ligger kvar, i rätt tecken (₿, Ξ, ₮) och i inställd valuta till dagens kurs.
+   - **Inspektören** visar redan allt som passerat, det som ligger kvar och det som gått ut, vid en blockhöjd.
+3. **Grafens text när Windows är utan nät** [direkt]: godkänd 2026-11-08.
+4. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
+   - Knappen R finns. En vanlig nyckel ger bara tio anrop i månaden, så uppslag på varje nod kräver partnernyckel.
+5. **Länken `chainsaw:` registreras** [direkt] för användaren, och tas bort under Länkar i inställningarna (i dag
+   tonat *Inte byggt än*).
+   - Registreringen: `HKCU\Software\Classes\chainsaw` med `URL Protocol` och `shell\open\command` till
+     `Chainsaw.exe "%1"`.
+   - Mottagandet är byggt sedan etapp 11.
+6. **Spara ofta** [etapp]:
+   - **Varför:** `.cut` skrivs bara vid sparning och stängning, och ett ärende som lämnas vidare ska vara färskt.
+   - **Hur:** spara efter skrivningar när det är lugnt, till exempel efter några sekunder utan nya.
+   - Arbetskopian tas redan tillbaka efter en krasch, så inget går förlorat i dag.
+7. **Återanslutning av tunneln** [direkt]: när tunneln faller, till exempel efter att datorn sovit, ansluter Chainsaw
+   inte igen av sig själv. Viktigt för bevakningen.
+8. **Meddelandet mitt på skärmen** [skiss]: bevakningens tredje sätt att säga till.
+   - Det är byggt bakom samma gränssnitt som de andra sätten (`ScreenMessage`), men syns inte i inställningarna.
+   - Skissa raden i ST1a och själva meddelandet, och lägg raden under Låsning.
+9. **Sanktionslistan mot grafens adresser och vyn Etiketter** [skiss]: `CheckSanctions` körs när grafen byggs, men
+   en träff har ingen samlad vy.
+10. **Godkänna en plånbok** [etapp]: en sammanslagning gjord av användaren (`user v1`, förseglad med vem och varför),
+    så att plånböckernas förslag (`wallet-proposals v1`) kan godkännas.
 
+### 4. Skissas först
+
+- **Vyerna som ingår i 1.0**, efter frågan ovan.
+- **Rapporten**, efter frågan ovan.
+- **Kurserna i gränssnittet:**
+  - SEK på Bitcoins linjer, som Ethereums redan har.
+  - Stegen bakom *Varför?*.
+  - Valet av valuta och upplösning i inställningarna.
+- **Förstagångsinställningens steg Utgång:** i dag erbjuds bara en WireGuard-fil eller *Senare*, och VPN är förvalt.
+  Steget behöver valet *Windows* eller *VPN* som de två korten i ST1a.
+- **Utgångarna:**
+  - Ta bort en utgång, byta dess namn och ange platsen (`ExitInfo.Place`).
+  - Kontrollera utgången: fråga en källa vilken offentlig adress uppslagen kommer ifrån (*Syns som …*).
+- **Ärendet:**
+  - Öppna en kollegas fil med ärendelösenordet (`OpenWithPassword`) och lägga till ett eget kuvert.
+  - Ärendets egenskaper: titel och delning.
+  - Konflikten med arbetskopian: när arbetskopian inte hör till filen ska användaren få välja mellan att öppna filen
+    och att spara arbetskopian som ett eget ärende.
+- **Återställningsnyckeln i *Om Chainsaw*:** om en nyckel är inbyggd och dess fingeravtryck, och ärligt när den saknas.
+- **Sökning i kommandoraden:** etiketter, adresser i ärendet och kluster. Också Guiden därifrån, till exempel
+  `/guide utxo`.
+- **Tidslisten:**
+  - Den blir för smal för ±48 h i valvyn och behöver zoomas runt fönstret.
+  - Tidsbanden behöver timmar när man zoomar in.
+  - Listens prickade slut vid senaste blocket saknas.
+- **Små markeringar i grafen:**
+  - En tx som bytt block (omorganisation).
+  - *Väntar på källan* i grafens hörn, som statusraden sa förut.
+
+## Före tjänstebruk
+
+Inte kod, men klart innan Chainsaw används i tjänsten:
+- **Organisationens återställningsnyckel** skapas och byggs in. Ingen nyckel är inbyggd än, se
+  `docs/ATERSTALLNINGSNYCKEL.md`.
+- **Bitstamps villkor för data:** API-sidan säger både att data får spridas för kommersiella syften och att företag
+  ska teckna licensavtal (partners@bitstamp.net). Kontrollera vad som gäller för en myndighets interna,
+  icke-kommersiella bruk.
+- **Signera** Chainsaw och `chainsaw-tunnel.exe` med organisationens certifikat.
+- **Kryptospårarens frågor** (`docs/KRYPTOSPARAREN.md`), till exempel LIFO och poison.
+- **Ljudet:** lyssna på myntets swoosh och justera skriptet (`tools/sounds/coin-swoosh.py`) efter användarens öra.
+
+## Efter 1.0 och kända svagheter
+
+Nya förmågor efter 1.0, och de mindre fynden (M) från granskningarna, per område. En punkt här flyttas upp till
+*Vägen till 1.0* om den visar sig behövas.
 ### Kedjor och data
 - **Ethereum efter etapp 23b** (grafen, inspektören, startpunkterna, swap-pillret och kurserna för USDT och USDC är
   byggda). Kvar:
@@ -277,9 +335,6 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
 - **TRON och USDT (TRC-20)**, efter Ethereums andra del: återanvänder kontomodellen, `IAccountTracingMethod`,
   `KnownTokens.TronUsdt` och *Kan frysas*.
 - **Fler kedjor** efter behov: Litecoin, BSC.
-- **Efter etapp 20, i ordning:** Ethereum med ERC-20 (4–6 etapper, källan med API-nyckel i valvet, saldobaserad
-  spårning, egna heuristiker som insättningsadresser som töms till samma plånbok), TRON med USDT (2–3 etapper,
-  återanvänder kontomodellen) och UTXO-kedjor som Litecoin efter behov (en etapp var). Tokens visas enligt TK1a.
 - **Det som fortfarande är bundet till Bitcoin efter etapp 20** (står i DEV-LOG, etapp 20):
   - **Efter etapp 23b** (Ethereum byggt vid sidan av): grafens noder har `Chain`, `Accounts` och `Addresses`
     (`ChainAddress`) bredvid `GraphAddresses`, och kontomodellens del är `TraceGraph.Account` med ett eget resultat
@@ -351,8 +406,6 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
   OP_RETURN, och `KnownHeight` söker igenom registren per uppslag. Spara tolkningen per bygge och ett index på höjd.
 - **Bytesen tolkas om vid varje läsning** (granskningen etapp 15, omgång 2, M): `StoredTransaction` tolkar och hashar
   de förseglade bytesen, och `GetTransactionAsync` gör det igen. Ge tillbaka tolkningen med tx:en.
-- **Omorganisationen sägs bara en gång** (granskningen etapp 15, omgång 2, M): att en tx bytt block står i
-  expansionens rad, men grafen visar det inte när den läses igen. En markering på noden eller linjen (skiss).
 - **Takten per endpoint** (etapp 25): förvalet är Chainsaws eget (högst fyra uppslag i sekunden per endpoint på
   internet, ingen paus för en egen nod), inte källornas publicerade gränser. Takten står bara i `sources.json`
   (`IntervalMilliseconds`, aldrig snabbare än förvalet för en endpoint på internet); sidan Källor har inget val för den.
@@ -373,9 +426,6 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
 - **Spridningen i Prioriterad** (etapp 25): varje endpoint är en egen grupp, så användarens ordning gäller och nästa tas
   först när den första bett om väntan eller dess kö är längre än fem sekunder. I Snabbast sprids uppslagen inom den bästa
   gruppen (de som svarat rätt). Ändras om användaren vill ha spridning också i Prioriterad.
-- **Väntan som syns** (etapp 25): statusraden säger *Väntar på källan · Bitcoin* medan ett uppslag väntar mer än en sekund,
-  och raden i Källor säger *Väntar* när källan bett om det. Grafens hörn säger det inte (grafen byggdes om i etapp 23b
-  samtidigt); en liten markering där kan skissas.
 - **Svaret om spenderade utgångar och omorganisationer** (etapp 15): en tx som bytt block säger det, men ett svar om
   vem som spenderar en output jämförs inte med det förra.
 
@@ -450,11 +500,6 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **Mixerns kandidater ur kedjan:** `mixer-outputs v1` prövar bara det som finns i grafen. Att söka igenom blocken i
   tidsfönstret efter insättningen (genom utgången, med gränser) behövs för att hitta kandidater som inte är hämtade.
   Också kända avgifter och belopp per mixer.
-- **En godkänd kandidat i spårningen:** att godkänna en kandidat förseglar beslutet men gör den inte till en
-  startpunkt eller en kant i spåret. Ska en godkänd kandidat kunna bli en ny startpunkt (med beloppet), och hur visas det?
-- **Godkänna en plånbok:** plånböckernas områden (`wallet-proposals v1`) är bara kontroller, eftersom en sammanslagning
-  av användaren inte finns i Clustering (se *Godkänna ett förslag och ångra en uppbrytning* ovan).
-- **Formuläret för en egen yta** står under grafens hörn, inte vid de valda aktörerna som i skissen.
 - **Delarna tillsammans** (byggt 2026-11-08 som `mixer-parts v1`). Återstår: fler än fyra delar och fler än de 20
   första utbetalningarna prövas inte; samma utbetalning kan stå både som hel utgång i `mixer-outputs` och, för en
   annan insättning, som del; bara direkta spenderingar mellan delar utesluts, inte längre led.
@@ -462,13 +507,10 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   på den första (den andra blir en egen kedja); avgifterna längs kedjan anges i procent av den första insättningen,
   fast varje stegs avgift räknas mot sin egen; `mixer-chain` räknar om `Weigh`, `MixerPartsCheck.Best` och vem som
   spenderar ett mynt per insättning (spara per insättning och bygg ett index över spenderade mynt).
-- **Testärendet** (`/testdata`) har ingen insättning som betalas ut i delar och ingen mixer efter mixer än; lades inte
-  till 2026-11-08 eftersom testärendets layout byggdes om samtidigt.
 - **Växeladressen i KF2b** (bandens bredd efter belopp, kolumnen *SEDD*) är inte byggd: det finns ingen analys som
   föreslår växeladresser som förslag (Clustering gör det själv). Bilden kan bara rita band efter poäng.
 - **Brickorna under förslaget** står i en tabell i appen per analys (`SuggestionWords`), utan siffror (skissens *48 h*
   är analysens tidsfönster, som bor i modulen). En analys bör själv kunna ge sina brickor.
-- **Numren på kandidaterna i grafen** står mitt på linjen, inte vid kandidatens nod som i skissen.
 - **En kandidats tid** räknas ur blocken förslaget bygger på; en kandidat vars tx inte finns bland dem får ingen tid.
 - **Menyns val sparas inte** i ärendet; alla sorter visas när ärendet öppnas.
 - **Kontrollerna körs vid varje läsning av grafen**, och varje körning frågar Clustering om varje tx
@@ -505,8 +547,6 @@ högen som kortlek och korten i en ring. Rättat ur granskningen 2026-11-07: led
 `held_back` som nollställdes av en delvis omexpansion, högens summa per riktning, valvyns filter och urval som
 nollställdes, *Lägg tillbaka* under alla medlemmar, `first_expanded_utc`, högerklick över valvyn och högen, reglagen
 som filtrerade två gånger och villkoret för sidan. Kvar:
-- **Dolda OP_RETURN går inte att visa igen** efter att toasten tonat ut eller ärendet öppnats på nytt. Lägg en
-  markering eller ikon i grafens hörnrad när några är dolda, aldrig tyst.
 - **Byggt 2026-11-08:** scenen byggs i bakgrunden med *Visa dem* (`GraphReading`), pennor och texter i högen, valvyn
   och beloppen cachas (`DrawCache`) och beloppens krocktest ligger i ett rutnät (`RoomGrid`), bevakade adresser och
   bevakningarnas motparter viks aldrig in i en hög, ledtrådens linje är `GraphEdgeKind.HeldBack`, och högens och
@@ -523,27 +563,16 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   grupp *Spel* omfattar all gul sort (spel, handel, presentkort) som i skissen. Etiketten *Rapporterad* (Chainabuse)
   har ingen form än och sorteras som okänd i valvyn, men räknas som negativ och pulserar.
 - **In, ut eller alla** i högen är fortfarande två högar, en på var sida om adressen; valvyn har filtret.
-- **Startvyn grupperar ärenden** (punkt 21) använder fortfarande spiralen (`PileFanLayout.Centres`); grafens hög har
-  ringen (`PileFanLayout.Ring`). Samma ring i startvyn kräver korten i skissens storlek där.
 
 ### Kommentarsnoden (KN1a, byggd 2026-11-08)
 
-- **I hoppkolumnerna** står lapparna kvar på sin plats från den fria ytan, och tråden kan bli lång. Ska en lapp ha en
-  egen plats per läge, eller följa sin nod?
-- **En lapp följer inte sin nod** när noden dras; bara tråden följer. Kanske ska en knuten lapp flytta med.
-- **Historiken:** lappens förseglade poster (`IGraphCommentService.GetCommentHistory`) syns inte i inspektörens
-  *Historik* (AN1b), och en borttagen lapp kan inte läggas tillbaka i gränssnittet. Soptunnan (SO1a) bör ta lappen
-  när den byggs, i stället för att Delete tar bort den.
-- **Skrivandet:** Enter i en lista fortsätter inte listan och Tab drar inte in (Gawks `MarkdownEdits` är inte
-  övertagen); radavståndet medan man skriver är AvalonEdits, tätare än de 1,55 som ritas; hjulet över en lapp som
-  skrivs i zoomar inte grafen.
 - **Länkar:** `chainsaw:` till något som inte finns i grafen säger det bara; kanske ska det kunna bli en startpunkt.
-- **N med vald nod** knyter lappen till noden (skissen säger det bara om ikonen i nodens list). Fråga användaren.
-- **Kvar efter granskningen av KN1a 2026-11-08:** `CommentGeometry.Resolve` tolkar bara Bitcoin, och en lapp vars
-  adress ligger i en hög får ingen tråd (den borde gå till högen); Delete tar bort en lapp förseglat direkt, utan
-  soptunna; när en hög eller valvy är utfälld döljs lagret med `Opacity=0` men fokus kan ligga kvar i en dold
-  redigerare, `PlaceComments` gör en ny `MatrixTransform` per omritning och `DropShadowEffect` per lapp kostar vid
-  panorering med många lappar.
+- **Kvar efter granskningen av KN1a 2026-11-08** (tråden och soptunnan står under *Vägen till 1.0*): när en hög
+  eller valvy är utfälld döljs lagret med `Opacity=0` men fokus kan ligga kvar i en dold redigerare;
+  `PlaceComments` gör en ny `MatrixTransform` per omritning och `DropShadowEffect` per lapp kostar vid panorering
+  med många lappar.
+- **Fler noder med storlekshandtag** (användarens önskemål 2026-11-07): kommentarsnoden har det; vilka fler som får
+  det (samlingsnoden EX2b, egna ytor) avgörs när de skissas.
 - **En skrivning i kö när ärendet stängs:** lappen som skrivs i förseglas innan ärendet släpps, men en skrivning som
   redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
@@ -559,10 +588,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   (`IAttributionProviders`, `ChainabuseProvider`): Bitcoin och Ethereum (TRON när etiketter går att sätta där), en
   etikett *Rapporterad* per kategori, varje svar förseglat också vid avslag. **Sidan i inställningarna är byggd
   2026-11-08** (Källor, under *Etiketter*: strömbrytaren, av som förval, och nyckeln i valvet; `AttributionSwitches`
-  har namnen på dem som är på, sparade i `settings.json`, för grafen att skicka till `LookupAsync`). Kvar: **när**
-  Chainsaw frågar. En vanlig nyckel ger bara **10 anrop i månaden**
-  (partner: 5 000 i timmen), så automatiska uppslag på varje nod kräver partnernyckel; frågan till användaren är om
-  det ska vara ett knapptryck i ikonlisten eller automatiskt vid expansion. Sorten *Rapporterad* ritas som okänd i
+  har namnen på dem som är på, sparade i `settings.json`, för grafen att skicka till `LookupAsync`). Knappen R i
+  ikonlisten är byggd; automatiska uppslag står under *Vägen till 1.0*. **Batchning är oklar:** ett anrop är en fråga
+  om en adress med högst 50 rapporter (en sida); `address` är en sträng och ingen batch-endpoint finns dokumenterad,
+  fast guiden säger *one or more* (fråga 7 under *Väntar på dig*). Sorten *Rapporterad* ritas som okänd i
   grafen tills den har en form (rött, risk). Rapportens beskrivning, förluster och kategorier som API:t lägger till
   läses inte än. Efter granskningen 2026-11-08: etikettens skäl står kvar med det första antalet rapporter när fler
   kommer in (bara journalen och det nya förseglade svaret visar det nya antalet); en tillbakatagen rapport hålls
@@ -573,15 +602,13 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   hämtar från alla källor som är på, inte bara en, och varje källa kan stängas av.
 - **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster). Varje källa granskas för licens och kvalitet innan den byggs in. `LabelSource.OpenSource`
   finns i kontraktet.
-- **Sanktionslistan mot grafens adresser** (`CheckSanctions`) och vyn Etiketter (skissas först). Biblioteket är
-  kopplat sedan etapp 15: `Absorb` när ett ärende öppnas och innan det stängs, `ShareInto` när grafen läses.
 - **Etiketterna läses två gånger per bygge** (granskningen etapp 15, M6): `LabelTrailEnds` och grafens etiketter läser
   var för sig, och klustren byggs om för etiketterna. Ett gemensamt underlag per bygge.
 - **Biblioteket vid avslut och låsning** (granskningen etapp 15, M8): `Absorb` körs när ett ärende öppnas och stängs
   med `/close` eller byts, men inte när Chainsaw avslutas eller låses; etiketterna kommer då in nästa gång ärendet
   öppnas. `ShareInto` körs vid varje läsning av grafen, och etiketter som bara tagits tillbaka läser inte om grafen.
 - **Ett bibliotek som inte går att läsa syns inte** (etapp 15, granskningen M7): grafen och ärendet fungerar, men etiketterna från andra
-  ärenden kommer inte, och inget säger varför. Ett meddelande i statusraden eller i vyn Etiketter behövs.
+  ärenden kommer inte, och inget säger varför. En toast eller en rad i vyn Etiketter behövs.
 - **Slutet *Börs, uttag funnet*** gäller alla blå sorter (också börs utan kundkontroll, P2P, automat och kort), där
   en begäran inte alltid går att göra; sorten står i förklaringen. En egen orsak eller text per sort? (granskningen
   etapp 8, M1).
@@ -610,9 +637,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Samma person på två datorer:** en egen etikett räknas som oberoende per operatörsprofil (namn, titel, enhet). En
   profil som ändras räknas som en annan person; ett stabilt operatörs-id i Security vore bättre.
 - **Etiketter på tx** (till exempel en känd brygga eller swap): `ClassifyTransaction` ger inget från etiketter än.
-- **Esc med ett formulär öppet och tangentbordet någon annanstans** (granskningen etapp 16, omgång 3, M2): står
-  fokus i Guidens panel eller en annan kontroll utanför formuläret och grafen gör Esc ingenting, eftersom formuläret
-  tar Esc före panelen. Esc borde då stänga formuläret (eller panelen).
 - **Uppbrytningen mot den riktiga klustringen** (granskningen etapp 16, M4): `InspectorForms.BreakOut` testas mot
   ett handbyggt kluster i App.Tests; ett test i Clustering.Tests som sparar bevis, bryter ut genom `Split` och läser
   klustret efteråt (blandat val i en CIO-länk med tre adresser, en senare länk med annan heuristik, valda adresser som
@@ -624,12 +648,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   hänvisning till dokumentet) vore tydligare i *Varför?* och i rapporten.
 
 ### Kurser (etapp 14)
-- **Kurserna i gränssnittet:** beloppen i SEK på grafens linjer och i inspektören, stegen bakom *Varför?*, och valet av
-  valuta och upplösning i inställningarna (nu bara `PricingOptions` och per anrop). Kräver skiss.
-- **Bitstamps villkor för data:** API-sidan säger både att data får användas och spridas vidare för kommersiella syften
-  och att företag som vill använda den kommersiellt ska teckna ett licensavtal (partners@bitstamp.net). Användarvillkoren
-  gick inte att läsa (tom sida 2026-11-07). Kontrollera vad som gäller för en myndighets interna, icke-kommersiella
-  bruk innan Chainsaw används i tjänsten.
 - **Inte kontrollerat i dokumentationen** (bara med ett riktigt anrop 2026-11-07): att Riksbankens adress
   `Observations/{serie}/{från}/{till}` är den dokumenterade (FAQ:n nämner datumintervall men visade inte formen), att
   värdet är kronor per *en* enhet (stämmer med nivån, cirka 10 kr per dollar), vilken tid på dagen kursen sätts, och
@@ -646,11 +664,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   anrop i minuten) i valvet om gränsen på 5 i minuten blir ett problem.
 - **Ett gemensamt lager för råsvar:** Chains och Pricing har var sin likadan tabell och kod för förseglade råsvar. Kan
   bli ett kontrakt i Cases när en tredje modul behöver det.
-
-### Begäran om uppgifter
-- **Mallar** för en begäran till börser, på svenska och engelska, med tx, tider, belopp och insättningsadresser.
-- **Börsernas kontaktvägar** för brottsbekämpande myndigheter (portaler och adresser). Varje uppgift ska verifieras och ha en
-  källa och ett datum; inga påhittade kontaktvägar.
 
 ### Säkerhet
 - **Klartext i minnet:** API-nycklarnas hemligheter och profilen ligger som `string` medan valvet är upplåst och kan inte
@@ -672,8 +685,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   samma användare ta porten medan `IsRunning` ännu är sant. Stängs med en kontroll av vem som äger anslutningens andra
   ände (`GetExtendedTcpTable` med processens id) eller med ett bevis från hjälpprogrammet (HMAC över en nonce med en
   nyckel från stdin) innan Chainsaw skickar något.
-- **Återanslutning:** när tunneln faller (*förbindelsen förlorad*, till exempel efter att datorn sovit) ansluter
-  Chainsaw inte igen av sig själv. Viktigt för bevakningen.
 - **Svarshuvuden som ursprung:** `ExitResponse` har bara status, medietyp och den råa kroppen. Behöver Chains huvuden
   som `Date` eller `ETag` som en del av ursprunget läggs de till då (granskningen etapp 4, M).
 - **Certifikatkedjor som saknar en mellanliggande nivå:** för att operativsystemet inte ska hämta något runt utgången
@@ -690,8 +701,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Raden i en vägrad WireGuard-fil:** vilken rad som är fel står bara i `ExitConnectException` (hjälpprogrammet nämner
   rad och nyckel, aldrig ett värde); rutan UT1a säger bara *Filen godtas inte*. `ExitStatus` behöver ett fält för raden
   om rutan ska visa den (granskningen etapp 13, M).
-- **Ta bort och byta namn på en utgång** (etapp 17): `IExitStore.RemoveAsync` finns, men rutan UT1a har ingen knapp för
-  det, och inget sätt att byta namn eller ange plats (`ExitInfo.Place`, som titelraden visar först). Skissas.
 - **En proxy som kräver inloggning** (etapp 19): med Windows som utgång går uppslagen genom systemets proxy, men
   Chainsaw skickar aldrig Windows-användarens uppgifter till den (`DefaultProxyCredentials` är tomt), eftersom en
   proxy som hittas automatiskt (WPAD) annars kunde få dem. En sådan proxy svarar 407 och uppslaget misslyckas ärligt.
@@ -725,9 +734,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   IPv6 når man med en adress i `Endpoint`.
 - **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan
   valvet. Hur den får konfigurationen (DPAPI för Windows-användaren) bestäms med bevakningen.
-- **Kontroll av utgången:** fråga en källa vilken offentlig adress uppslagen kommer ifrån, så att användaren ser att
-  utgången verkligen används (till exempel när den ansluts). Skissen UT1a har den som sista raden i rutan (*Syns som …*
-  och *Kontrollera igen*); den visas inte förrän den är byggd (etapp 17).
 
 ### Ärenden
 - **Återställningskuvertet kontrolleras bara med fingeravtrycket:** ett skadat kuvert med rätt fingeravtryck räknas
@@ -741,15 +747,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   också saknas (stavfel eller svenska) märks inte. En grupp som tappas och ersätts av ett annat ord med fyra
   hexadecimala tecken ser ut som ett giltigt fingeravtryck och återkallar en nyckel som inte finns. Ett eget kommando i verktyget som skriver raden (`revoke
   <publik.pem>`) skulle ta bort risken för skrivfel (granskningen etapp 9, omgång 7, M).
-- **Gränssnittet för återställningsnyckeln:** visa i inställningarna eller *Om Chainsaw* om en nyckel är inbyggd och
-  dess fingeravtryck (`ICaseStore.RecoveryKey`), och ärligt när den saknas. Skissas med inställningarna.
 - **Verktyget `Chainsaw.Recovery`:** på Windows får den privata nyckelns fil mappens rättigheter, inte en egen ACL
   bara för ägaren; med omdirigerad indata läses lösenordet som en `string` som inte kan nollställas; punkten på kurvan
   kontrolleras av plattformen (OpenSSL, CNG), inte av en egen kontroll (granskningen etapp 9, M).
 
-- **Spara ofta:** ett öppet ärende arbetar i en krypterad arbetskopia och `.cut` skrivs vid sparning och stängning.
-  Appen bör spara efter skrivningar när det är lugnt (till exempel efter några sekunder utan nya), så att `.cut` som
-  lämnas vidare är färsk. Arbetskopian tas tillbaka efter en krasch, så inget går förlorat.
 - **Ankra hashkedjan utanför ärendet:** verifieringen ger varje kedjas sista hash. Den bör stå i rapporter och underlag
   (och kanske i en egen logg utanför ärendet), så att den som har filnyckeln inte kan skriva om hela kedjan oupptäckt.
 - **Stora ärenden:** att öppna och spara kopierar hela databasen. Mät när ärendena blir stora (hundratals MB) och
@@ -762,9 +763,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Vem har tillgång:** operatörens kuvert bär inget namn (så att filen inte visar vems den är), okända kuvert sparas
   orörda, och att ta bort delningslösenordet byter inte filnyckeln. Den som en gång haft lösenordet och en kopia av
   filen kan alltså läsa den kopian. Ett *byt filnyckel* (nyckelrotation) behövs om tillgång ska kunna dras tillbaka.
-- **Konflikt med arbetskopian:** när en arbetskopia inte hör till ärendefilen (filen har bytts ut) vägras öppningen och
-  båda lämnas orörda. Gränssnittet behöver visa det och låta användaren välja (öppna filen, eller spara arbetskopian
-  som ett eget ärende).
 - **Ankarna i valvet:** ankarfilen kan tas bort eller bytas mot en äldre (tillsammans med en äldre `.cut`) av den som
   kan skriva i `%LOCALAPPDATA%`. En borttagen fil märks och skrivs i journalen när valvet har ett eget kuvert i ärendet,
   men en återspelad äldre fil märks inte. Det kräver en räknare per ärende i valvet (en ändring i Security), så att
@@ -783,11 +781,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   Hur det ska förklaras i gränssnittet bestäms med `/verify`.
 
 ### Ärenden i appen (etapp 11)
-- **Öppna en kollegas fil** med ärendelösenordet (`ICaseStore.OpenWithPassword`) och lägga till ett eget kuvert
-  (`AddOperatorAccess`): ett kommando eller en filväljare, och NC1a som ärendets egenskaper (titel, delning). Ändra
-  titeln går i Cases men har inget gränssnitt än.
-- **Sökning i kommandoraden** (etiketter, adresser i ärendet, kluster): text som inte är en adress eller tx svarar nu
-  *Sökning är inte byggd än*.
 - **Moduler som bidrar med kommandon:** `IShellCommand` ligger i SharedKernel, men ett kommando som behöver det öppna
   ärendet måste nu få det från appen (`CaseSession`). Flytta det öppna ärendet till ett kontrakt (till exempel
   `IOpenCase` i Cases.Contracts) när en modul behöver egna kommandon.
@@ -831,15 +824,11 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 
 ### Bevakning (etapp 26)
-- **Huvudets räknare efter BV1a** (2026-11-08): skissen säger *2 nya träffar sedan 09:10*; vyn säger bara antalet,
-  eftersom när användaren senast tittade inte sparas som en tid. Spara den med *sedd* om den ska stå där.
 - **Starten från en höjd i fas** (granskningen omgång 1, M5): starten är kedjans höjd från `GetTipHeightAsync`, som
   frågar vilken endpoint som helst; ligger den ett block efter kan pengar i det nyaste blocket före bevakningen räknas
   som en träff. Höjden borde komma från en endpoint i fas (eller provets högsta höjd).
 - **Omorganisation** (granskningen omgång 1, M6): en träff förseglas en gång per tx; byter tx:en block står den gamla
   hashen kvar. Kontrollera träffarnas block mot kedjan och säg det.
-- **Pausen** räknar det som hände under pausen som träffar när bevakningen återupptas (inget tappas). Bekräfta eller
-  välj att räkna från återupptagandet.
 - **Mycket aktiva adresser:** en kontroll läser högst fem sidor bakåt. Har en adress fler nya tx än så går kontrollen
   vidare från det äldsta block den läste och sparar luckan (*tx under block N kan ha missats*) med kontrollen; tx i luckan
   kan ha missats. Samma när källan inte kan bläddra längre (en full sida i ett block) eller inte läst historiken
@@ -859,9 +848,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   block. Ärendet växer med bevakningar som går länge; att slå ihop lika svar (samma hash) vore en ändring i Chains.
 
 ### Bevakning i bakgrunden (etapp 27)
-- **Meddelandet mitt på skärmen** (användarens beslut 2026-11-07) är byggt bakom samma gränssnitt som de andra sätten
-  (`ScreenMessage`, i dag en Windows-meddelanderuta överst) men **visas inte i inställningarna** förrän formen är skissad
-  och godkänd. Skissa det (ST1a-raden och själva meddelandet), bygg formen och lägg raden under Låsning.
 - **VPN i bakgrunden:** WireGuard-filerna ligger krypterade i valvet, så bakgrunden kan inte starta en tunnel utan
   huvudnyckeln och gör inga uppslag med VPN vald. Att lägga en utgångs nycklar under DPAPI utanför valvet kräver
   användarens beslut (*Väntar på beslut*).
@@ -882,15 +868,12 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   sin takt per endpoint, för olika ärenden. Tillsammans kan de fråga fortare än en endpoint vill; `429` följs ändå.
 - **Adresserna ligger kvar i planen** (under DPAPI) när bakgrunden slås av, så att den kan slås på igen utan att varje
   ärende öppnas (granskningen omgång 1, M8). Överväg att tömma planen när den är av.
-- **Lyssna på ljudet** och justera skriptet (`tools/sounds/coin-swoosh.py`) efter användarens öra.
 
 ### Historik, ta tillbaka och ångra (etapp 21)
 - **Hämtad i historiken:** en adress visar *Först in* med blocket men inte när den hämtades, eftersom
   `IBitcoinSource.GetAddressTransactionsAsync` inte kan läsa ur ärendet utan att fråga källan. Ett läge bara ur ärendet
   (som för tx) skulle ge raden *Hämtad · block · källa*.
 - **Ta tillbaka en egen yta** (KF1b, Z) när ytorna finns (etapp 22): samma rad och samma formulär i historiken.
-- **Kopior och sanktionsträffar i historiken** har ingen knapp (skissen: bara det egna), men tjänsten låter dem tas
-  tillbaka. Ska en kopia från ett annat ärende kunna avvisas i historiken?
 - **Äldre ärenden** (före etapp 21) har en journalrad per uppbrytning och visar en rad per länk.
 - **Test saknas** för en omläsning av grafen medan en ångring sparas (granskningen omgång 3, M4).
 - En adressnod visar inte en klusteretikett som sitter på en annan adress i ett kluster den inte är en del av i grafen
@@ -909,15 +892,12 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   gäller bara påhittade adresser och kan aldrig träffa en riktig, men biblioteket saknar ännu ett sätt att rensa dem.
 - **Valvyn i testärendet:** Navet (66 tx, många motparter) och gruvbelöningens OP_RETURN finns i testärendet; en
   adress med en spårad ankomst, en mixer och en utbetalning nära det spårade beloppet bland det som hölls tillbaka
-  saknas, så att sonaren och tidsfönstret runt ankomsten syns i `/testdata`.
+  saknas, så att markeringen och tidsfönstret runt ankomsten syns i `/testdata`.
+- **Det som byggts 2026-11-08** saknas: en insättning som betalas ut i delar (`mixer-parts`), mixer efter mixer
+  (`mixer-chain`), något i soptunnan, en kommentarsnod och en egen yta.
 
 ### Övrigt
-- **Registrera länken `chainsaw:`** för användaren (HKCU\Software\Classes\chainsaw med `URL Protocol` och
-  `shell\open\command` till `Chainsaw.exe "%1"`), som valet under Länkar i inställningarna (ST1a, tonat *Inte byggt
-  än*), och ta bort registreringen där.
-  Mottagandet är byggt i etapp 11 (ett exemplar per användare, named pipe, väntar på upplåsning).
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` och byggs in i programmet. Ett nytt avsnitt
   läggs i indexet i `src/Chainsaw.App/Guide/GuideLibrary.cs` (annars hamnar det under *Övrigt*), och länkar mellan
-  avsnitten skrivs `[text](fil.md)` eller `[text](fil.md#ankare)`. Kvar att skriva: begrepp som saknar avsnitt (mixer,
-  brygga och swap, kryptoautomat, kan frysas).
-- **Testdata:** `/testdata` med påhittade ärenden och syntetiska tx-mönster, bara i Debug.
+  avsnitten skrivs `[text](fil.md)` eller `[text](fil.md#ankare)`.
+
