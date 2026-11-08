@@ -2948,3 +2948,38 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   som rullat in under kantrullningen; kostnaden är densamma som `VisibleNodes`, som också går igenom alla.
 - Tester: `BoxSelectionTests` (13) i App.Tests. Tracing är orört.
 - Återstår: Shift+klick på en nod väljer inget intervall (det finns ingen ordning att välja intervall i).
+
+## Begäran, BG1b (2026-11-08)
+
+- **Modulen Requests:** `IRequestService` (Compose, Export, ListExports, ContactsFor) med mallar på svenska och
+  engelska (`RequestTexts`, `RequestTemplates`). Dokumentet är block (`RequestBlock`: titel, rubrik, stycke, notering,
+  tabell), och både förhandsvisningen och filen görs av samma block, så att det som syns är det som exporteras.
+  Markdown skrivs av `RequestMarkdown`, som escapar det en etikett kunde göra till markup.
+- **Bara det begäran behöver** (princip 4): mottagaren, adresserna, de valda insättningarna (tid lokal med offset och
+  UTC till sekunden, exakt belopp, adress, hela txid, blockhöjd och blockhash), spåret i en mening om det tas med,
+  ärendenumret och operatörsprofilen. Aldrig ärendets titel, offrets namn eller anteckningar.
+- **Spårets steg** är förkortade adresser och bara slutet heter med sitt namn (`RequestExits`), så att ett offers
+  eller en misstänkts namn aldrig kan hamna i en begäran. Skissen skriver *Kluster 7*; eget beslut av sekretesskäl.
+- **Export:** `RequestFiles.WriteNew` skriver med `FileMode.CreateNew` och tar nästa nummer, `(2)`, `(3)`, när namnet
+  är taget (spara-dialogen frågar aldrig om att skriva över). SHA-256 av filens byte journalförs
+  (`requests.exported`) och förseglas i kedjan `requests.exports` i samma transaktion; misslyckas det tas filen bort
+  igen, så att ingen fil finns som ärendet inte känner till.
+- **Kontaktvägar:** katalogen (`ExchangeContacts.Catalogue`) är tom. Inga börsers sidor för myndigheter gick att
+  hämta och kontrollera från molnmiljön, och ingen väg läggs in ur minnet. Vyn säger ärligt att ingen verifierad
+  kontaktväg finns.
+- **Frysning** (TK1a): en egen sorts begäran till utgivaren (Tether, Circle) med token, kontrakt och det som ligger
+  kvar enligt ärendets historik, sagt som en bedömning. Den nås med inspektörens *Begäran om frysning …* och står
+  som en isblå rad efter uttagen i listan (ett tillägg till skissen).
+- **Vyn** (`RequestsView`, `RequestsViewModel`, `Controls/RequestPreview`) följer grafens scen: uttag är de blå
+  sorterna som en spårad linje når, också aktörer som ligger i en hög. Det slängda (soptunnan) är inte med.
+  Insättningarna är fakta ur grafens linjer; spårad är en insättning vars mynt spåret håller (Bitcoin) eller vars
+  linje bär spårade pengar (Ethereum, som spåras per linje).
+- **Avsteg från skissen:** språkknappen *Svenska/English* bredvid Exportera (skissen har ett språk); raden under
+  förhandsvisningen om kontaktvägen; förhandsvisningen rullar när dokumentet är längre än rutan; tider skrivs ISO
+  (`2026-10-28 21:14:05 +01:00`) i stället för *28 okt 2026 21:14*, så att en börs kan söka i sina loggar.
+  Grafens menyrad *Begäran …* har ingen tangent, eftersom R är underleverantörernas.
+- **Inte byggt:** börsens markering i grafens hörn när en begäran är exporterad (grafen byggdes om samtidigt av en
+  annan agent), se `docs/TODO.md`.
+- Tester: 35 i `Chainsaw.Modules.Requests.Tests` (mallar, Markdown, export utan överskrivning, försegling, journal,
+  verifiering, kontaktvägar) och `RequestsTests` i App.Tests (uttagen ur scenen, spåret utan namn, vymodellen,
+  exporten, pillret).

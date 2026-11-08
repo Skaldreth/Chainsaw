@@ -240,6 +240,10 @@
                         <views:MonitoringView x:Name="MonitoringPage"
                                               Visibility="{Binding DataContext.IsMonitoringShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
 
+                        <!-- Begäran (sketch BG1b). -->
+                        <views:RequestsView x:Name="RequestsPage"
+                                            Visibility="{Binding DataContext.IsRequestsShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+
                         <!-- The Guide (F1, sketch GD1a in a simple form). -->
                         <views:GuideView x:Name="GuidePage"
                                          Visibility="{Binding DataContext.IsGuideShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />

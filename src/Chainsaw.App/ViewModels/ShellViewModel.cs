@@ -108,6 +108,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="casePicker">
     /// The case picker under the case in the title bar (sketch ÄV1a), or <see langword="null"/>.
     /// </param>
+    /// <param name="requests">The view Begäran (sketch BG1b), or <see langword="null"/>.</param>
     public ShellViewModel(
         CaseSession session,
         CommandRegistry commands,
@@ -122,9 +123,11 @@ public sealed partial class ShellViewModel : ObservableObject
         MonitoringViewModel? monitoring = null,
         WatchBoard? watches = null,
         Toaster? toaster = null,
-        CasePickerViewModel? casePicker = null)
+        CasePickerViewModel? casePicker = null,
+        RequestsViewModel? requests = null)
     {
         _toaster = toaster;
+        Requests = requests;
         CasePicker = casePicker;
         Monitoring = monitoring;
         _way = exit;
@@ -242,7 +245,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets the view shown.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentEntry), nameof(IsGraphShown), nameof(IsGuideShown),
-        nameof(IsMonitoringShown), nameof(IsPlaceholderShown))]
+        nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsPlaceholderShown))]
     public partial AppView Current { get; private set; }
 
     /// <summary>Gets whether the graph is shown (sketch GR4).</summary>
@@ -254,8 +257,14 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets whether the view Bevakning is shown (sketch BV1a).</summary>
     public bool IsMonitoringShown => Current == AppView.Monitoring && Monitoring is not null;
 
+    /// <summary>Gets whether the view Begäran is shown (sketch BG1b).</summary>
+    public bool IsRequestsShown => Current == AppView.Requests && Requests is not null;
+
     /// <summary>Gets whether the shown view is not built yet, so that the page says so.</summary>
-    public bool IsPlaceholderShown => !IsGraphShown && !IsGuideShown && !IsMonitoringShown;
+    public bool IsPlaceholderShown => !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown;
+
+    /// <summary>Gets the view Begäran, or <see langword="null"/> when the shell is built without it.</summary>
+    public RequestsViewModel? Requests { get; }
 
     /// <summary>Gets the view Bevakning, or <see langword="null"/> when the shell is built without it.</summary>
     public MonitoringViewModel? Monitoring { get; }
@@ -395,6 +404,23 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         Show(ViewTable.Start);
+    }
+
+    /// <summary>
+    /// Shows the view Begäran with a node's request chosen, as the graph's <em>Begäran …</em> and the inspector's
+    /// <em>Begäran om frysning …</em> ask (sketches BG1b and TK1a).
+    /// </summary>
+    /// <param name="wanted">The node and what the request asks for.</param>
+    public void OpenRequest(RequestWanted wanted)
+    {
+        ArgumentNullException.ThrowIfNull(wanted);
+        if (Requests is null)
+        {
+            return;
+        }
+
+        Show(AppView.Requests);
+        Requests.Open(wanted.NodeKey, wanted.Kind);
     }
 
     /// <summary>
@@ -633,6 +659,9 @@ public sealed partial class ShellViewModel : ObservableObject
             case SubmenuAction.Watch when Monitoring is not null:
                 Show(AppView.Monitoring);
                 Monitoring.New();
+                break;
+            case SubmenuAction.Request:
+                Show(AppView.Requests);
                 break;
             default:
                 break;

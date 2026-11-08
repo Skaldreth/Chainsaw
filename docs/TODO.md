@@ -172,17 +172,12 @@ fungerar rättas före allt annat nedan. Särskilt:
 
 ### 3. Godkänt men inte byggt
 
-1. **Begäran, BG1b** [etapp]: kärnan i *Uttag → Begäran*, och det sista steget i det Chainsaw är till för.
-   - **Vyn och exporten:**
-     - Vyn listar alla uttag som spårade pengar nått.
-     - Förhandsvisningen av Markdown, och brickor för insättningarna och spåret dit.
-     - *Exportera .md …* och *Exporterade* med SHA-256. Exporten journalförs och skriver aldrig över.
-   - **Modulen Requests:** mallar på svenska och engelska, med tx, tider, belopp och insättningsadresser.
-   - **Börsernas kontaktvägar** för brottsbekämpande myndigheter, var och en med källa och datum. Inga påhittade
-     kontaktvägar.
-   - **När den finns:**
-     - *Nytt → Begäran* och *Nytt → Etikett* kopplas i `SubmenuTable` (`docs/BACKLOG.md`, *Undermenyer i pillret*).
-     - Inspektörens *Begäran om frysning …* (TK1a) visas.
+1. **Begäran, resterna efter BG1b** [direkt]:
+   - **Markeringen i grafen:** skissen ger börsen en liten blå markering i hörnet när en begäran är exporterad. Den
+     är inte ritad, eftersom grafen byggdes om samtidigt; listan i vyn Begäran har den gröna markeringen.
+   - **Kontaktvägar:** katalogen är tom, eftersom ingen kontaktväg gick att kontrollera mot sin källa när modulen
+     byggdes (`ExchangeContacts.Catalogue`). Lägg in verifierade vägar med källa och datum.
+   - **Fler mallar** per börs, om kryptospåraren vill det.
 2. **Innehav per adress** [skiss]: Alt + klick vänder noden som ett kort (IN4 skissas först).
    - **Baksidan** visar det som ligger kvar, i rätt tecken (₿, Ξ, ₮) och i inställd valuta till dagens kurs.
    - **Inspektören** visar redan allt som passerat, det som ligger kvar och det som gått ut, vid en blockhöjd.

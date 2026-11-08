@@ -303,9 +303,8 @@
                         </ItemsControl>
 
                         <!--
-                          Who can freeze what is left, and that it is asked of the issuer, not the exchange. The sketch's
-                          Begäran om frysning … is not shown: no such request can be made yet, and a button that cannot be
-                          used is not shown (principle 7).
+                          Who can freeze what is left, and that it is asked of the issuer, not the exchange; Begäran om
+                          frysning … (sketch TK1a) opens the view Begäran with the freeze to the issuer chosen (BG1b).
                         -->
                         <Border Margin="0,8,0,0" Padding="12,10" CornerRadius="8" BorderThickness="1"
                                 Background="{StaticResource Brush.Freeze.Box}" BorderBrush="{StaticResource Brush.Freeze.Edge}"
@@ -313,8 +312,15 @@
                             <DockPanel>
                                 <controls:GridIcon DockPanel.Dock="Left" Size="14" Margin="0,2,9,0" VerticalAlignment="Top"
                                                    Foreground="{StaticResource Brush.Mark.Freeze}" Data="{StaticResource Icon.Snow}" />
-                                <TextBlock Text="{Binding FreezeText}" FontSize="12.5" TextWrapping="Wrap" LineHeight="19"
-                                           Foreground="{StaticResource Brush.Freeze.Text}" />
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FreezeText}" FontSize="12.5" TextWrapping="Wrap" LineHeight="19"
+                                               Foreground="{StaticResource Brush.Freeze.Text}" />
+                                    <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="12" Padding="10,0"
+                                            Margin="0,8,0,0" HorizontalAlignment="Left"
+                                            Command="{Binding DataContext.AskFreezeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            Content="Begäran om frysning …"
+                                            ToolTip="Öppnar Begäran med en begäran om frysning till utgivaren" />
+                                </StackPanel>
                             </DockPanel>
                         </Border>
                     </StackPanel>

@@ -1510,3 +1510,32 @@ några steg).
 - [ ] Dra rutan mot grafens kant: ytan rullar och rutan växer vidare utanför det som syntes.
 - [ ] Inget av detta händer i valvyn eller i en utfälld hög; där fungerar ringen och korten som förut. Att dra en
       kommentar, dess tråd, en hög eller en nod fungerar som förut.
+
+## Begäran (BG1b, 2026-11-08)
+
+- Öppna testärendet och spåra till en börs. Begäran i pillret (Ctrl+5) är inte längre nedtonad. Vänster: *Uttag som
+  nåtts i ärendet · N*, en rad per uttag med den blå fyrkanten som i grafen (streckad för börs utan KYC), kedjan,
+  antal insättningar och summan. Hovring ger en mjuk bakgrund och pekhand; den valda raden har ram.
+- Utan spårade pengar till ett uttag står ikonen och en ärlig text mitt i vyn, inga påhittade rader.
+- Höger: *Ta med* med en bricka per insättning (hel kant och accentprick för spårade pengar, streckad kant för andra
+  insättningar till adressen), *Spåret dit* när spåret når hit, språkknappen *Svenska/English* och *Exportera .md …*.
+  Ett klick på en bricka tar med eller lämnar insättningen, och förhandsvisningen ändras direkt. Utan insättningar
+  står *Välj minst en insättning att ta med.* och exporten går inte.
+- Förhandsvisningen: rubrik, *Ärende … upprättad … av* (din profil), *Det vi ber om*, insättningsadressen,
+  insättningarna som tabell (tid lokal med offset, UTC, belopp, adress, tx, block, blockhash; tx och hashar i
+  Cascadia Mono, förkortade bara när de inte får plats, hela på hovring) och *Spåret dit* i en mening. Inget
+  offernamn, ingen ärendetitel och inga anteckningar får stå i den.
+- *Exportera .md …* (eller Ctrl+S i vyn) öppnar Windows spara-dialog med förslaget
+  `<ärendenummer> Begäran <börs> <datum>.md`. Välj en fil som redan finns: dialogen frågar **inte** om att skriva
+  över, och filen blir `… (2).md`. Öppna filen i Anteckningar: samma innehåll som förhandsvisningen.
+- Efter exporten: en grön toast med filnamn och SHA-256, raden får en grön dokumentikon (hovring: *Exporterad …*),
+  och *Exporterade* nere till vänster visar filen, tiden och SHA-256 (hela på hovring). Kontrollera med
+  `Get-FileHash -Algorithm SHA256` att hashen stämmer, och att journalen har en rad `requests.exported`; `/verify`
+  är grön.
+- Stäng och öppna ärendet: *Exporterade* står kvar.
+- Under förhandsvisningen står att ingen verifierad kontaktväg finns för börsen (katalogen är tom med avsikt).
+- Nytt → Begäran (R) öppnar vyn när ett ärende är öppet, och är nedtonad utan ärende.
+- Högerklick på en börs som spårade pengar når: *Begäran …* i menyn öppnar vyn med börsen vald. Andra noder har
+  inte raden.
+- En Ethereum-adress med USDT eller USDC kvar: inspektörens snöflingeruta har *Begäran om frysning …*, som öppnar
+  vyn med raden *Tether · …* (isblå fyrkant) och en begäran till utgivaren med det som ligger kvar.

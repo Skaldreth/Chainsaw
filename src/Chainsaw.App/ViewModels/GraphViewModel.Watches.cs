@@ -1,5 +1,6 @@
 using Chainsaw.App.Graph;
 using Chainsaw.Modules.Monitoring.Contracts;
+using Chainsaw.Modules.Requests.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -39,6 +40,9 @@ public enum NodeMenuAction
     /// node's address (the user's decision 2026-11-08: a button for now, automatic later).
     /// </summary>
     AskSuppliers,
+
+    /// <summary>Begäran …: the view Begäran with the request to this cash-out chosen (sketch BG1b).</summary>
+    Request,
 }
 
 /// <summary>A row of the node's menu.</summary>
@@ -201,6 +205,7 @@ public sealed partial class GraphViewModel
             new(NodeMenuAction.CrossChain, "Annan kedja …", "K", "Icon.Link", Forms.CanCrossChain),
             new(NodeMenuAction.Watch, "Bevaka …", "B", "Icon.Eye", CanWatch(node)),
             new(NodeMenuAction.Comment, CommentToolText + " …", CommentKey, "Icon.Note", true),
+            .. RequestRow(node.Key),
             new(NodeMenuAction.Expand, "Expandera", "E", "Icon.Plus", CanExpand, HasGapBefore: true),
             new(NodeMenuAction.Copy, "Kopiera adress", "Ctrl+C", "Icon.Copy", hasAddress),
         ];
@@ -247,6 +252,9 @@ public sealed partial class GraphViewModel
                 break;
             case NodeMenuAction.Comment:
                 BeginComment(default);
+                break;
+            case NodeMenuAction.Request:
+                WantRequest(SelectedNode, RequestKind.Information);
                 break;
             default:
                 CopyAddress();
