@@ -68,6 +68,10 @@ public sealed partial class CommentNote : ObservableObject
     [ObservableProperty]
     public partial string? AnchorNode { get; internal set; }
 
+    /// <summary>Gets whether the node the thread goes to lies in the trash, so that the note is hidden with it.</summary>
+    [ObservableProperty]
+    public partial bool IsInTrash { get; internal set; }
+
     /// <summary>Gets the note's top left corner on the surface.</summary>
     [ObservableProperty]
     public partial GraphPoint Place { get; internal set; }

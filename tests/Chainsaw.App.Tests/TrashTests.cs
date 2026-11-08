@@ -2,6 +2,7 @@ using Chainsaw.App.Graph;
 using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using static Chainsaw.App.Tests.GraphSamples;
@@ -21,21 +22,47 @@ internal sealed class TestTrashSource : ITrashSource
 
     public bool Fails { get; set; }
 
-    public Task<IReadOnlyList<TrashThrow>> ReadAsync(ICase @case, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<TrashThrow>>([.. Throws]);
+    /// <summary>Makes a throw find its node already in the trash.</summary>
+    public bool AlreadyThrown { get; set; }
 
-    public Task<TrashThrow> ThrowAsync(ICase @case, IReadOnlyList<TrashMember> members)
+    /// <summary>Holds the next throws until the test lets them go.</summary>
+    public TaskCompletionSource? HoldThrow { get; set; }
+
+    /// <summary>Readings that wait for what the test gives, taken in order.</summary>
+    public Queue<TaskCompletionSource<IReadOnlyList<TrashThrow>>> HeldReads { get; } = [];
+
+    /// <summary>Called when a throw is written, before it returns.</summary>
+    public Action? OnThrow { get; set; }
+
+    public Task<IReadOnlyList<TrashThrow>> ReadAsync(ICase @case, CancellationToken cancellationToken) =>
+        HeldReads.TryDequeue(out var held)
+            ? held.Task
+            : Task.FromResult<IReadOnlyList<TrashThrow>>([.. Throws]);
+
+    public async Task<TrashThrow> ThrowAsync(ICase @case, IReadOnlyList<TrashMember> members)
     {
+        if (HoldThrow is { } hold)
+        {
+            await hold.Task;
+        }
+
         if (Fails)
         {
-            return Task.FromException<TrashThrow>(new CaseException(CaseError.NoOperatorProfile));
+            throw new CaseException(CaseError.NoOperatorProfile);
         }
+
+        if (AlreadyThrown)
+        {
+            throw new InvalidOperationException("Already in the trash.");
+        }
+
+        OnThrow?.Invoke();
 
         Thrown.Add(members);
         var thrown = new TrashThrow(
             _next++, members, new OperatorProfile("Testa", "Utredare", "Enheten"), DateTimeOffset.UnixEpoch, 1);
         Throws.Add(thrown);
-        return Task.FromResult(thrown);
+        return thrown;
     }
 
     public Task<IReadOnlyList<TrashMember>> RestoreAsync(ICase @case, long throwSequence, string? key)
@@ -67,10 +94,18 @@ internal sealed class TestCaseTrashStore : ICaseTrashStore
 {
     public List<TrashedCase> Saved { get; set; } = [];
 
+    /// <summary>Makes every save fail, as on a full disk.</summary>
+    public bool Refuses { get; set; }
+
     public IReadOnlyList<TrashedCase> Load() => Saved;
 
     public bool Save(IReadOnlyList<TrashedCase> cases)
     {
+        if (Refuses)
+        {
+            return false;
+        }
+
         Saved = [.. cases];
         return true;
     }
@@ -120,15 +155,29 @@ public sealed class GraphTrashTests
     }
 
     [Fact]
-    public void A_cluster_is_found_again_by_any_of_its_addresses()
+    public void A_cluster_is_found_again_by_all_its_addresses_under_another_key()
     {
-        var member = new TrashMember("cluster:other", null, "K", "Cluster") { Keys = [GraphPile.MemberKey(K2)] };
+        var member = new TrashMember("cluster:other", null, "K", "Cluster")
+        {
+            Keys = [GraphPile.MemberKey(K1), GraphPile.MemberKey(K2)],
+        };
 
         var scene = Scene().WithTrash(new TrashFilter([ThrowOf(member)]));
 
         Assert.Null(scene.Node(KKey));
         Assert.Contains(new TrashStub(VKey, true), scene.TrashStubs);
         Assert.Contains(new TrashStub(EKey, false), scene.TrashStubs);
+    }
+
+    [Fact]
+    public void A_cluster_that_grew_into_a_thrown_address_is_not_hidden()
+    {
+        var member = new TrashMember("address:k2", null, "K2", "Unknown") { Keys = [GraphPile.MemberKey(K2)] };
+
+        var scene = Scene().WithTrash(new TrashFilter([ThrowOf(member)]));
+
+        Assert.NotNull(scene.Node(KKey));
+        Assert.Empty(scene.TrashStubs);
     }
 
     [Fact]
@@ -313,6 +362,204 @@ public sealed class GraphTrashTests
         Assert.False(rig.Graph.Bin.IsDragging);
     }
 
+    [Fact]
+    public async Task Undo_after_another_case_was_opened_puts_nothing_back_there()
+    {
+        var rig = new Rig();
+        await rig.Graph.ReloadAsync(fit: false);
+        rig.Graph.AskThrow([UKey]);
+        await Task.Yield();
+        var undo = rig.Toasts.Last().Action!;
+
+        rig.Session.Open(new TestCase("2026-0002"));
+        await rig.Graph.UndoThrowAsync();
+        undo();
+        await Task.Yield();
+
+        Assert.Empty(rig.Trash.Restored);
+        Assert.Equal(GraphViewModel.UndoOtherCaseText, rig.Toasts.Last().Title);
+    }
+
+    [Fact]
+    public async Task A_throw_that_ends_after_another_case_was_opened_is_neither_remembered_nor_told()
+    {
+        var rig = new Rig();
+        await rig.Graph.ReloadAsync(fit: false);
+        rig.Trash.HoldThrow = new TaskCompletionSource();
+        rig.Graph.AskThrow([UKey]);
+
+        rig.Session.Open(new TestCase("2026-0002"));
+        await rig.Graph.ReloadAsync(fit: false);
+        rig.Trash.HoldThrow.SetResult();
+        await Task.Yield();
+        await rig.Graph.UndoThrowAsync();
+
+        Assert.Empty(rig.Trash.Restored);
+        Assert.DoesNotContain(rig.Toasts, toast => toast.Title.StartsWith("Slängde", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task An_older_reading_of_the_trash_never_replaces_a_newer_one()
+    {
+        var rig = new Rig();
+        rig.Trash.Throws.Add(ThrowOf(new TrashMember(UKey, null, "U", "Unknown")));
+        await rig.Graph.ReloadAsync(fit: false);
+        Assert.Null(rig.Graph.Scene!.Node(UKey));
+        var stale = new TaskCompletionSource<IReadOnlyList<TrashThrow>>();
+        rig.Trash.HeldReads.Enqueue(stale);
+        var older = rig.Graph.ReloadAsync(fit: false);
+
+        await rig.Graph.RestoreAsync(1, null);
+        Assert.NotNull(rig.Graph.Scene!.Node(UKey));
+        stale.SetResult([ThrowOf(new TrashMember(UKey, null, "U", "Unknown"))]);
+        await older;
+
+        Assert.NotNull(rig.Graph.Scene!.Node(UKey));
+        Assert.Empty(rig.Graph.TrashView.Groups);
+    }
+
+    [Fact]
+    public async Task Two_quick_deletes_throw_once()
+    {
+        var rig = new Rig();
+        await rig.Graph.ReloadAsync(fit: false);
+        rig.Trash.HoldThrow = new TaskCompletionSource();
+        rig.Graph.Choose(UKey, null);
+
+        rig.Graph.ThrowChosen();
+        rig.Graph.ThrowChosen();
+        rig.Trash.HoldThrow.SetResult();
+        await Task.Yield();
+
+        Assert.Single(rig.Trash.Thrown);
+    }
+
+    [Fact]
+    public async Task What_already_lies_in_the_trash_is_said_apart_from_a_write_error()
+    {
+        var rig = new Rig();
+        await rig.Graph.ReloadAsync(fit: false);
+        rig.Trash.AlreadyThrown = true;
+
+        rig.Graph.AskThrow([UKey]);
+        await Task.Yield();
+
+        Assert.Equal(GraphViewModel.AlreadyThrownText, rig.Toasts.Last().Title);
+        Assert.Equal(ToastKind.Information, rig.Toasts.Last().Kind);
+    }
+
+    [Fact]
+    public async Task A_watch_is_ended_only_after_the_throw_is_written()
+    {
+        var rig = new Rig();
+        var watches = new TestWatchSource();
+        var watch = watches.Add(WatchSamples.Subject(U, "U"), WatchSamples.Filter(WatchDirection.Out, []));
+        var board = new WatchBoard(rig.Session, watches, new InlineUi());
+        rig.Graph.FollowWatches(board, new WatchFormViewModel(board));
+        await board.ReloadAsync();
+        await rig.Graph.ReloadAsync(fit: false);
+        var endedBeforeThrow = -1;
+        rig.Trash.OnThrow = () => endedBeforeThrow = watches.Removed.Count;
+
+        rig.Trash.Fails = true;
+        rig.Graph.AskThrow([UKey]);
+        Assert.Equal("Släng och avsluta 1 bevakning · Enter", rig.Graph.TrashWarning!.ConfirmText);
+        await rig.Graph.ConfirmThrowAsync();
+        Assert.Empty(watches.Removed);
+        Assert.Equal(GraphViewModel.ThrowFailedText, rig.Toasts.Last().Title);
+
+        rig.Trash.Fails = false;
+        rig.Graph.AskThrow([UKey]);
+        await rig.Graph.ConfirmThrowAsync();
+
+        Assert.Equal(0, endedBeforeThrow);
+        Assert.Equal((watch.Id, (string?)GraphViewModel.WatchEndedReason), Assert.Single(watches.Removed));
+        var toast = rig.Toasts.Last();
+        Assert.Equal("Slängde 1 aktör · bevakningen avslutad", toast.Title);
+        Assert.Equal(GraphViewModel.WatchesStayEndedText, toast.Text);
+    }
+
+    [Fact]
+    public async Task A_watch_that_cannot_be_ended_after_the_throw_is_said()
+    {
+        var rig = new Rig();
+        var watches = new TestWatchSource { RemoveFails = true };
+        watches.Add(WatchSamples.Subject(U, "U"), WatchSamples.Filter(WatchDirection.Out, []));
+        var board = new WatchBoard(rig.Session, watches, new InlineUi());
+        rig.Graph.FollowWatches(board, new WatchFormViewModel(board));
+        await board.ReloadAsync();
+        await rig.Graph.ReloadAsync(fit: false);
+
+        rig.Graph.AskThrow([UKey]);
+        await rig.Graph.ConfirmThrowAsync();
+
+        Assert.Single(rig.Trash.Thrown);
+        Assert.Contains(rig.Toasts, toast => toast.Title == GraphViewModel.WatchesNotEndedText);
+    }
+
+    [Fact]
+    public async Task A_watch_whose_counterparty_is_thrown_is_asked_about_too()
+    {
+        var rig = new Rig();
+        var watches = new TestWatchSource();
+        var watch = watches.Add(
+            WatchSamples.Subject(V), WatchSamples.Filter(WatchDirection.Out, [WatchSamples.On(U)]));
+        var board = new WatchBoard(rig.Session, watches, new InlineUi());
+        rig.Graph.FollowWatches(board, new WatchFormViewModel(board));
+        await board.ReloadAsync();
+        await rig.Graph.ReloadAsync(fit: false);
+
+        rig.Graph.AskThrow([UKey]);
+
+        Assert.Equal([watch.Id], Assert.Single(rig.Graph.TrashWarning!.Rows).Watches);
+    }
+
+    [Fact]
+    public async Task A_thrown_start_point_is_told_with_put_back_and_never_leaves_the_graph_silent()
+    {
+        var rig = new Rig();
+        rig.Trash.Throws.Add(ThrowOf(new TrashMember(VKey, null, "V", "Unknown") { Keys = [GraphPile.MemberKey(V)] }));
+
+        await rig.Graph.ReloadAsync(fit: false);
+
+        var told = rig.Toasts.Single(toast => toast.Title == GraphViewModel.StartPointThrownText);
+        Assert.Equal(GraphViewModel.RestoreActionText, told.ActionText);
+        await rig.Graph.ReloadAsync(fit: false);
+        Assert.Single(rig.Toasts, toast => toast.Title == GraphViewModel.StartPointThrownText);
+
+        told.Action!();
+        await Task.Yield();
+
+        Assert.Equal((1L, (string?)VKey), Assert.Single(rig.Trash.Restored));
+        Assert.NotNull(rig.Graph.Scene!.Node(VKey));
+    }
+
+    [Fact]
+    public async Task A_graph_whose_every_node_lies_in_the_trash_says_so()
+    {
+        var rig = new Rig();
+        rig.Trash.Throws.Add(ThrowOf(
+            new TrashMember(WKey, null, "W", "Unknown"), new TrashMember(VKey, null, "V", "Unknown"),
+            new TrashMember(KKey, null, "K", "Cluster"), new TrashMember(UKey, null, "U", "Unknown"),
+            new TrashMember(EKey, null, "E", "Unknown")));
+
+        await rig.Graph.ReloadAsync(fit: false);
+
+        Assert.Empty(rig.Graph.Scene!.Nodes);
+        Assert.Equal(GraphViewModel.AllInTrashText, rig.Graph.EmptyText);
+    }
+
+    [Fact]
+    public async Task Delete_with_nothing_chosen_has_nothing_to_throw()
+    {
+        var rig = new Rig();
+        await rig.Graph.ReloadAsync(fit: false);
+
+        Assert.False(rig.Graph.HasChosenToThrow);
+        rig.Graph.Choose(UKey, null);
+        Assert.True(rig.Graph.HasChosenToThrow);
+    }
+
     [Theory]
     [InlineData(1, 0, "Slängde 1 aktör")]
     [InlineData(5, 1, "Slängde 5 aktörer · bevakningen avslutad")]
@@ -397,10 +644,18 @@ public sealed class TrashBinAndRowTests
             + "ska avslutas.",
             warning.Text);
         Assert.Equal(["w1", "w2"], warning.WatchesToEnd);
+        Assert.Equal("Släng och avsluta 2 bevakningar · Enter", warning.ConfirmText);
+        var told = new List<string?>();
+        warning.PropertyChanged += (_, e) => told.Add(e.PropertyName);
 
         rows[2].EndsWatches = false;
 
         Assert.Equal(["w1"], warning.WatchesToEnd);
+        Assert.Equal("Släng och avsluta 1 bevakning · Enter", warning.ConfirmText);
+        Assert.Contains(nameof(TrashWarningViewModel.ConfirmText), told);
+
+        rows[1].EndsWatches = false;
+
         Assert.Equal("Släng alla 3 · Enter", warning.ConfirmText);
     }
 }
@@ -468,6 +723,35 @@ public sealed class TrashViewTests
 
         Assert.False(view.HasCases);
         Assert.Empty(store.Saved);
+    }
+
+    [Fact]
+    public async Task A_case_thrown_before_the_saved_ones_are_read_is_kept_and_written()
+    {
+        var clock = new TestClock();
+        var trash = new CaseTrash(clock);
+        var store = new TestCaseTrashStore { Saved = [new TrashedCase("2026-0001", clock.UtcNow)] };
+
+        trash.Throw("2026-0002");
+        await trash.UseAsync(store, new InlineUi());
+        await trash.Saved;
+
+        Assert.Equal(["2026-0001", "2026-0002"], store.Saved.Select(each => each.CaseNumber));
+    }
+
+    [Fact]
+    public async Task A_failed_save_is_told()
+    {
+        var clock = new TestClock();
+        var trash = new CaseTrash(clock);
+        var failures = 0;
+        trash.SaveFailed += (_, _) => failures++;
+        await trash.UseAsync(new TestCaseTrashStore { Refuses = true }, new InlineUi());
+
+        trash.Throw("2026-0003");
+        await trash.Saved;
+
+        Assert.Equal(1, failures);
     }
 
     [Fact]

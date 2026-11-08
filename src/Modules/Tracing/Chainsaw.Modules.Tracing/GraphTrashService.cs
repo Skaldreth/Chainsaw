@@ -38,11 +38,12 @@ internal sealed class GraphTrashService : IGraphTrash
         CheckTree(members);
         return @case.Write(transaction =>
         {
-            var lying = Replay(transaction).SelectMany(each => each.Members).SelectMany(member => member.FoundBy)
+            var lying = Replay(transaction).SelectMany(each => each.Members)
+                .SelectMany(member => member.FoundBy.Append(member.Key))
                 .ToHashSet(StringComparer.Ordinal);
-            if (members.SelectMany(member => member.FoundBy).FirstOrDefault(lying.Contains) is { } twice)
+            if (members.FirstOrDefault(member => TrashMember.IsHidden(member.Key, member.Keys, lying)) is { } twice)
             {
-                throw new ArgumentException($"The node {twice} already lies in the trash.", nameof(members));
+                throw new InvalidOperationException($"The node {twice.Key} already lies in the trash.");
             }
 
             var journal = transaction.AppendJournal(new JournalDraft(
@@ -69,7 +70,7 @@ internal sealed class GraphTrashService : IGraphTrash
                 return [];
             }
 
-            var back = key is null ? thrown.Members : thrown.Branch(key);
+            var back = key is null ? thrown.Members : thrown.Restoring(key);
             if (back.Count == 0)
             {
                 return back;

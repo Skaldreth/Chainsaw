@@ -1425,6 +1425,12 @@ några steg).
   *Ångra*, och filen ligger kvar i `%LOCALAPPDATA%\Chainsaw\Ärenden`. Soptunnans vy listar det under *Ärenden från
   startsidan* med *Lägg tillbaka*. Starta om Chainsaw: det är fortfarande dolt.
 - Med animeringar avstängda i Windows står ringvågen stilla.
+- Släng en nod och byt ärende: Ctrl+Z och toastens *Ångra* lägger inget tillbaka i det nya ärendet, utan säger att
+  Ångra gäller ett annat ärende.
+- Släng startpunkten: en varning *Startpunkten ligger i soptunnan* med *Lägg tillbaka*. Släng allt: grafen säger att
+  allt ligger i soptunnan.
+- Släng en nod med en kommentarslapp: lappen försvinner med noden och kommer tillbaka med den.
+- Tryck Delete två gånger snabbt på samma nod: den slängs en gång.
 
 ## Kommentarsnoden (KN1a)
 - [ ] Välj en nod och tryck **N** (eller ikonen *Kommentar* i listen över noden, eller *Kommentar …* i högerklicket):

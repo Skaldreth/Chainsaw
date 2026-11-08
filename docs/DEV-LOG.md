@@ -2849,3 +2849,23 @@ Byggd som en etapp, eftersom den skriver i ärendet.
 - Efter sammanslagningen: *Soptunnan* och *Kommentarer i grafen* med tre nya figurer (`s-soptunnan`,
   `s-soptunnan-vyn`, `s-kommentar`), i gruppen *Arbeta i grafen*; ärendeväljaren, kortkommandona, *Röra sig i
   grafen*, ordlistan och inspektören (× *Stäng · Esc*, ikonen *Kommentar*) uppdaterade.
+
+## Soptunnan efter granskningen (SO1a, 2026-11-08)
+
+- **Ärendet följer med (C1, I3):** en slängning och en återläggning hör till ärendet som var öppet när de började.
+  Ångra och Ctrl+Z vägras i ett annat ärende, och efter varje väntan kontrolleras att samma ärende är öppet. En
+  läsning av soptunnan behålls bara om den är den senaste och ärendet är detsamma.
+- **Slängningen först, bevakningarna sedan (I1):** en slängning som misslyckas avslutar ingen bevakning; en bevakning
+  som inte kunde avslutas efteråt sägs. Toasten säger att Ångra inte lägger tillbaka bevakningarna, och knappen
+  säger *Släng och avsluta N bevakningar* (M1). Också bevakningar som har det slängda som motpart frågas om (I5),
+  och stumpen vid en bevakad nod säger *i soptunnan · bevakad*.
+- **Dolt bara när allt pekar dit (I2):** en nod döljs när dess nyckel ligger i soptunnan eller alla dess adresser gör
+  det (`TrashMember.IsHidden`, samma regel i modulen och appen); ett kluster som vuxit in i en slängd adress döljs inte.
+- **Startpunkten (I2b):** en slängd startpunkt sägs med en varning och *Lägg tillbaka*, igen när en startpunkt läggs
+  till; en graf där allt ligger i soptunnan säger det.
+- **En slängning i taget (I4):** två snabba Delete slänger en gång, och *Det ligger redan i soptunnan* skiljs från ett
+  skrivfel (modulen kastar `InvalidOperationException` för det).
+- **Kommentarer (I6):** en lapp vars nod ligger i soptunnan döljs med den och kommer tillbaka med den.
+- **Mindre:** `GraphPile.AccountKey` är den enda regeln för en nyckel på en kontokedja (M2); att lägga tillbaka en
+  del tar med det den hänger under (M3); ett ärende som slängs innan soptunnan på datorn lästs sparas, och ett fel vid
+  sparandet sägs (M4); trädet går utan rekursion (M7); Delete hanteras bara när något är valt (M9).

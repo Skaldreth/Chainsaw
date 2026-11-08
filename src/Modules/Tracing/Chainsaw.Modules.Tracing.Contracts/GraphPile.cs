@@ -56,6 +56,15 @@ public sealed record GraphPile(
 
     /// <summary>The prefix of an address's node key on an account chain: then the chain and the address.</summary>
     public const string AccountKeyPrefix = "account:";
+
+    /// <summary>Gives the node key of an address on an account chain.</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The key, for example <c>account:Ethereum:0x…</c>.</returns>
+    public static string AccountKey(SharedKernel.ChainAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return AccountKeyPrefix + address.Chain + ":" + address.Value;
+    }
 }
 
 /// <summary>

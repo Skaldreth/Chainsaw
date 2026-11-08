@@ -181,7 +181,7 @@ public sealed partial class TrashRowViewModel : ObservableObject
 /// what is thrown on top and what follows under it, and for each watch whether it ends. The graph meanwhile frames
 /// what follows dashed and tones the rest down. No WPF.
 /// </summary>
-public sealed class TrashWarningViewModel
+public sealed class TrashWarningViewModel : ObservableObject
 {
     /// <summary>The warning's title.</summary>
     public const string Head = "Det här följer med";
@@ -200,6 +200,16 @@ public sealed class TrashWarningViewModel
         }
 
         Rows = rows;
+        foreach (var row in rows)
+        {
+            row.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(TrashRowViewModel.EndsWatches))
+                {
+                    OnPropertyChanged(nameof(ConfirmText));
+                }
+            };
+        }
     }
 
     /// <summary>Gets the tree's rows.</summary>
@@ -250,10 +260,26 @@ public sealed class TrashWarningViewModel
         }
     }
 
-    /// <summary>Gets the button's text: <c>Släng alla 5 · Enter</c>, or <c>Släng · Enter</c> for one.</summary>
-    public string ConfirmText => Rows.Count == 1
-        ? "Släng · Enter"
-        : string.Create(CultureInfo.InvariantCulture, $"Släng alla {Rows.Count} · Enter");
+    /// <summary>
+    /// Gets the button's text: <c>Släng alla 5 · Enter</c>, <c>Släng · Enter</c> for one, and with the watches that end
+    /// named, <c>Släng och avsluta 2 bevakningar · Enter</c>, so that ending them is never a surprise.
+    /// </summary>
+    public string ConfirmText
+    {
+        get
+        {
+            var ending = WatchesToEnd.Count;
+            if (ending > 0)
+            {
+                var word = ending == 1 ? "bevakning" : "bevakningar";
+                return string.Create(CultureInfo.InvariantCulture, $"Släng och avsluta {ending} {word} · Enter");
+            }
+
+            return Rows.Count == 1
+                ? "Släng · Enter"
+                : string.Create(CultureInfo.InvariantCulture, $"Släng alla {Rows.Count} · Enter");
+        }
+    }
 
     /// <summary>Gets the members to throw, as the trash stores them.</summary>
     public IReadOnlyList<TrashMember> Members => [.. Rows.Select(row => row.Member)];

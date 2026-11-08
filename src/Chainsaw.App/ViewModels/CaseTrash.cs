@@ -17,8 +17,14 @@ public sealed class CaseTrash(IClock clock)
     /// <summary>Where they are kept, once read.</summary>
     private ICaseTrashStore? _store;
 
+    /// <summary>The UI thread, where a failed save is told; none until the store is read.</summary>
+    private IUiThread? _ui;
+
     /// <summary>Raised when a case is thrown or put back, or the saved cases are read.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Raised on the UI thread when the cases could not be saved on this computer.</summary>
+    public event EventHandler? SaveFailed;
 
     /// <summary>Gets the thrown cases, the latest last.</summary>
     public IReadOnlyList<TrashedCase> Cases => _cases;
@@ -34,11 +40,21 @@ public sealed class CaseTrash(IClock clock)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(ui);
-        _store = store;
+        _ui = ui;
         var saved = await Task.Run(store.Load);
         ui.Post(() =>
         {
+            // A case thrown before the saved ones were read is kept, and written with them.
+            var thrownMeanwhile = _cases.Any(each => !saved.Any(stored =>
+                string.Equals(stored.CaseNumber, each.CaseNumber, StringComparison.OrdinalIgnoreCase)));
             _cases = [.. saved.Concat(_cases).DistinctBy(each => each.CaseNumber, StringComparer.OrdinalIgnoreCase)];
+            _store = store;
+            if (thrownMeanwhile)
+            {
+                Keep();
+                return;
+            }
+
             Changed?.Invoke(this, EventArgs.Empty);
         });
     }
@@ -99,8 +115,18 @@ public sealed class CaseTrash(IClock clock)
         if (_store is { } store)
         {
             var cases = _cases.ToList();
+            var ui = _ui;
             Saved = Saved.ContinueWith(
-                _ => store.Save(cases), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+                _ =>
+                {
+                    if (!store.Save(cases))
+                    {
+                        ui?.Post(() => SaveFailed?.Invoke(this, EventArgs.Empty));
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.None,
+                TaskScheduler.Default);
         }
     }
 }
