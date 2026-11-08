@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains;
@@ -119,7 +120,11 @@ internal sealed class SourcesFile(string? directory)
         .. chain.Endpoints.Select(endpoint => new EndpointDto(
             endpoint.Id, endpoint.Name, endpoint.Address.AbsoluteUri, endpoint.Api, endpoint.ApiKey,
             endpoint.Enabled, endpoint.Local,
-            endpoint.Interval == DefaultPace(endpoint.Local) ? null : (int)endpoint.Interval.TotalMilliseconds)),
+            endpoint.Interval == DefaultPace(endpoint.Local) ? null : (int)endpoint.Interval.TotalMilliseconds)
+        {
+            Pin = endpoint.Pin,
+            FormerPins = endpoint.FormerPins.Count == 0 ? null : endpoint.FormerPins,
+        }),
     ]);
 
     /// <summary>
@@ -156,8 +161,23 @@ internal sealed class SourcesFile(string? directory)
         {
             Local = saved.Local,
             Interval = pace,
+
+            // Only the own node is pinned; a pin whose fingerprint cannot be read is dropped, never loosened.
+            Pin = saved.Local ? KnownPin(saved.Pin) : null,
+            FormerPins = saved.Local
+                ? [.. (saved.FormerPins ?? []).Select(KnownPin).OfType<EndpointCertificate>()
+                    .Take(EndpointCertificate.MaximumFormer)]
+                : [],
         };
     }
+
+    /// <summary>Keeps a saved pin only when its fingerprint is one and it says who pinned it.</summary>
+    /// <param name="saved">The saved pin.</param>
+    /// <returns>The pin, or <see langword="null"/>.</returns>
+    private static EndpointCertificate? KnownPin(EndpointCertificate? saved) =>
+        saved is not null && CertificatePin.IsValid(saved.Fingerprint) && !string.IsNullOrWhiteSpace(saved.PinnedBy)
+            ? saved
+            : null;
 
     /// <summary>
     /// Gives the pace an endpoint has when the file says nothing, so that only another pace is written.
@@ -189,5 +209,14 @@ internal sealed class SourcesFile(string? directory)
     /// </param>
     private sealed record EndpointDto(
         Guid Id, string? Name, string? Address, string? Api, string? ApiKey, bool Enabled, bool Local = false,
-        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? IntervalMilliseconds = null);
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? IntervalMilliseconds = null)
+    {
+        /// <summary>Gets the certificate pinned for the own node (sketch KL3b), or none.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public EndpointCertificate? Pin { get; init; }
+
+        /// <summary>Gets the certificates pinned before, the latest first, or none.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public IReadOnlyList<EndpointCertificate>? FormerPins { get; init; }
+    }
 }

@@ -52,6 +52,30 @@ på grafikkortet** bakom samma `GraphCanvas`, så att inget annat ändras. *Vän
       säger annat.
     - Ska *Sprid inte* också gå att sätta för ett helt ärende?
 
+**Från kodgranskningen 2026-11-08** (DEV-LOG, *Kodgranskningen i sju varv*):
+12. **Bakgrundens plan när bevakning i bakgrunden är av:** planen behåller alla ärendens bevakade adresser och txid:er
+    (under DPAPI) fast inget använder dem. *Förslag:* töm planen när inställningen är av; ärendena kommer tillbaka när
+    de öppnas. *Nu:* planen ligger kvar.
+13. **Windows felrapportering:** en hård krasch kan ge en minnesdump med dekrypterade ärendedata och nycklar som
+    Microsoft kan begära in. *Förslag:* undanta Chainsaw och bakgrundsprocessen (`WerAddExcludedApplication`, per
+    användare). *Nu:* inte undantagna.
+14. **Recall och skärmdumpar** kan spara grafen. *Förslag:* blockera inte (det stoppar också egna skärmdumpar och
+    skärmdelning), skriv om det i Guiden. *Nu:* ingenting.
+15. **Återställningskuvertet kan bytas mot ett giltigt utseende kuvert med skräp** (av en tjuv eller en kollega med
+    delningslösenordet), och Chainsaw och verktyget säger ändå "täckt". *Förslag:* gör kuvertets tillfälliga nyckel
+    härledd ur filnyckeln och ärendets id, så att Chainsaw kan pröva kuvertet vid varje öppning och skriva ett nytt med
+    en journalrad; en egen etapp, eftersom formatet ändras och EC-importen ska provas på Windows först.
+16. **Programmappens rättigheter:** Run-nyckeln startar bakgrundsprocessen och `chainsaw:` startar Chainsaw ur samma
+    mapp, men bara tunneln har en kontrollerad hash. Packas Chainsaw upp i t.ex. `C:\Chainsaw` (där alla inloggade får
+    ändra) kan en annan användare byta ut programmet. *Förslag:* kontrollera mappens rättigheter vid start, registrera
+    då inte Run-nyckeln eller länken och säg var Chainsaw ska installeras.
+17. **Huvudnyckeln byttes medan Chainsaw låstes:** bytet blir klart men användaren får aldrig veta det och kan få "Fel
+    huvudnyckel" med den gamla. Vilken text, och var (låsskärmen eller efter upplåsningen)?
+18. **Konfliktdialogen** ("X gick åt två håll") säger "…fram till kraschen" också när filen bytts ut på disken medan
+    ärendet var öppet. Ny, neutral text?
+19. **Det en kollega har lagt till** i ett delat ärende efter den här datorns ankare godtas som äkta och visas inte som
+    tillagt någon annanstans. Ska raderna efter det egna ankaret märkas?
+
 **Äldre, där sessionen valt det säkraste:**
 - **Återkallade återställningsnycklar** (etapp 9):
   - När nyckeln byts ligger den gamla nyckelns kuvert kvar. Det tas bort först när nyckeln återkallas med en rad
@@ -125,18 +149,6 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
    *Attribution* och *Kurser*.
 6. **Säkerhet, ärenden och utgångar:** byggt 2026-11-08 (DEV-LOG, *Omgång 6*). Kvar, som behöver ritas först:
-   - [skiss] **Vem har tillgång / byt filnyckel:** en knapp i fliken *Kuvert* som byter filnyckeln (krypterar om
-     databasen och lindar om kuverten för valvet och organisationen; delningslösenordet och andra valv faller bort),
-     så att tillgång kan dras tillbaka, med en bekräftelse som visar vilka kuvert som försvinner.
-   - [skiss] **En proxy som kräver inloggning:** en rad under Inställningar › Nätverk som låter Chainsaw skicka
-     Windows-användarens uppgifter, bara till en proxy som är inställd för hand (aldrig en som hittats med WPAD).
-   - [skiss] **En ansluten utgång i läget Windows:** strömknappen kvar på den anslutna raden i utgångsrutan medan
-     listan i övrigt är tonad, så att den kan kopplas ner utan att välja VPN.
-   - [skiss] **Den egna nodens certifikat:** fästa en lokal endpoints certifikat (pinning) på sidan Källor.
-   - [skiss] **Välja ett befintligt ärende för en länk** efter upplåsningen (*lägg i ärende …*), i stället för att en
-     länk alltid öppnar Nytt ärende.
-   - [skiss] **Ankarna och flera datorer:** hur `/verify` och journalen förklarar en rad *case.anchors-replaced*
-     (äldre kopia, parallella ändringar på två datorer, ankare som rullats tillbaka).
 7. **Vyerna och appen:** fynden under Exponering, Begäran, Rapport, Undermenyerna, Låsskärmen, Historiken,
    Kommentarsnoden, Spårning, Testärendet och *Vyerna efter 1.0*; grafens prestanda vid tusentals noder.
 8. **TRON med USDT**, sedan **Litecoin**, **BSC**, **Solana** och den genomskinliga delen av **Zcash**.

@@ -8,7 +8,9 @@ namespace Chainsaw.Modules.Tracing;
 /// The Ethereum facts the graph is built from, read from the case: every movement and fee each once, the whole
 /// transactions, the accounts whose history was read, and the blocks' hashes.
 /// </summary>
-/// <param name="Transfers">The movements, each once, in chain order (<see cref="AccountGraph.ChainOrder"/>).</param>
+/// <param name="Transfers">
+/// The movements, each once, in chain order (<see cref="AccountGraph.ChainOrder(EthereumTransfer)"/>).
+/// </param>
 /// <param name="Fees">The fees, one per transaction.</param>
 /// <param name="Transactions">The transactions read whole.</param>
 /// <param name="ReadAccounts">The accounts whose history was read.</param>

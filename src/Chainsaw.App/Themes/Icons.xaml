@@ -176,4 +176,10 @@
     <Geometry x:Key="Icon.Pin">M9 4h6 M10 4v6l-3 4h10l-3-4V4 M12 14v6</Geometry>
     <!-- A revoked key (sketch ST2a): a ring struck through. -->
     <Geometry x:Key="Icon.Strike">M5 19L19 5 M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z</Geometry>
+    <!-- The own node's certificate (sketch KL3b): the pin struck through when it is not pinned, the shield with a cross. -->
+    <Geometry x:Key="Icon.PinOff">M9 4h6 M10 4v6l-3 4h10l-3-4V4 M12 14v6 M3 3l18 18</Geometry>
+    <Geometry x:Key="Icon.ShieldX">M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9.5 9.5l5 5 M14.5 9.5l-5 5</Geometry>
+    <!-- The proxy of the way through Windows (sketch PX1a): a funnel, and the key struck through for no login. -->
+    <Geometry x:Key="Icon.Proxy">M3.5 5h17l-6.5 7.5V19l-4 2v-8.5z</Geometry>
+    <Geometry x:Key="Icon.KeyOff">M8.5 15.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M11.5 11.5H21 M18 11.5v3 M15 11.5v2 M3 3l18 18</Geometry>
 </ResourceDictionary>

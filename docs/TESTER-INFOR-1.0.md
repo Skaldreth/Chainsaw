@@ -386,7 +386,7 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows (fingeravtrycket i appen p
 - [ ] Klicka på ärendet i titelraden (eller *Inget ärende öppet*): ärendeväljaren fälls ut under det med samma yta, kant och skugga som utgångarnas ruta och glider in mjukt (stilla med animeringar avstängda).
 - [ ] Ctrl+O öppnar den med markören i *Sök ärendenummer*; Esc stänger den och tangentbordet går tillbaka till ärendet i titelraden.
 - [ ] Ett klick utanför stänger den utan att klicket når det som ligger under; ett klick på ärendet igen fäller in den.
-- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Kontrollerat nu · inget ändrat* (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
+- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Hashkedjan är hel* med *431 rader · 10:42 · topp …* under (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
 - [ ] Listan visar ärendena med det senast ändrade först, med nummer och *ändrad i dag 14:02*; det öppna har accentstreck och brickan *Öppet*.
 - [ ] Sökfältet filtrerar på ärendenummer och räknaren följer med; utan träff står *Inget ärende har det numret.*
 - [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
@@ -400,7 +400,7 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows (fingeravtrycket i appen p
 - [ ] Fel lösenord: rött *Lösenordet stämmer inte. Inget har ändrats i filen.*, ingen kopia i Ärenden och det öppna ärendet står kvar. Markören står kvar i fältet.
 - [ ] Rätt lösenord med *Lägg till ett kuvert för mig* ikryssad: filen kopieras till Ärenden, *Du* blir grönt och *Ditt kuvert ligger i filen. Nästa gång räcker huvudnyckeln.*; Enter eller *Till grafen* stänger. Stäng ärendet och öppna det igen: inget lösenord frågas.
 - [ ] Utan krysset: ärendet öppnas och rutan säger att lösenordet behövs igen nästa gång.
-- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert med flik som ett kuvert, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
+- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert, utan kuvertlinjen, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
 - [ ] *Skapa lösenord …* och *Byt …* fäller ut två fält i kortet; olika lösenord ger *Lösenorden är inte lika.*, för kort ger felet om längden; Enter eller *Spara* sparar, Esc eller *Avbryt* fäller in.
 - [ ] *Ta bort* på lösenordet i en kollegas fil utan eget kuvert vägras med en förklaring; efter *Lägg till mitt kuvert* går det.
 - [ ] Titeln överst ändras och sparas när fältet lämnas eller med Enter; titelraden följer med. Fliken *Information* visar filen och ärendets id.
@@ -410,6 +410,35 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows (fingeravtrycket i appen p
 - [ ] *Arbetskopian* + *Spara som …*: ett nytt ärende `<nummer>-B.cut` öppnas med journalen fram till kraschen och en rad om vilket ärende det kom ur och vilka kuvert som inte följde med; ursprungsfilen är orörd och dess arbetskopia ligger i `Återställda`. Titelraden, ärendeväljaren och en exporterad begäran säger `-B`. Öppna de två ärendena om vartannat några gånger: `/verify` är grön för båda.
 - [ ] *Öppna filen* på en skadad `.cut`: felet sägs i rutan, arbetskopian ligger kvar bredvid filen och rutan kommer tillbaka nästa gång ärendet öppnas.
 - [ ] Låses Chainsaw medan en av rutorna är öppen stängs den.
+
+### Byt filnyckel (VT1a)
+
+- [ ] I en kollegas fil som du och kollegan båda har kuvert i, med ett ärendelösenord: fliken *Kuvert* har *Byt filnyckel …* under korten. Ett klick fäller ut bekräftelsen under korten med markören i *Huvudnyckel*; ditt kort och organisationens får den gröna brickan *Lindas om*, kollegans och ärendelösenordets blir streckade och överstrukna med den gula *Faller bort*, och knapparna i korten försvinner.
+- [ ] Bekräftelsen säger *Bara du och organisationen kan öppna filen efter bytet* (utan inbyggd återställningsnyckel: *Bara du …*) och ärligt att kopior som redan lämnats ut inte kan dras tillbaka, med vad som fortfarande öppnar dem.
+- [ ] Esc eller *Avbryt* fäller in bekräftelsen och korten blir som förut. Fel huvudnyckel: *Fel huvudnyckel. Inget ändrades.* och filen är orörd (samma storlek och tid i Utforskaren).
+- [ ] Rätt huvudnyckel och Enter: en rad säger att bytet pågår, sedan toasten *Filnyckeln är bytt* och korten visar bara ditt och organisationens; en streckad rad under säger *Filnyckeln byttes … Dragna tillbaka: … Journalrad N*.
+- [ ] Kollegan kan inte längre öppna filen, varken med sitt valv eller med det gamla lösenordet. En kopia som togs före bytet öppnas fortfarande som förut.
+- [ ] Med *Skapa ett nytt ärendelösenord efteråt* på: två fält till; olika lösenord eller för kort ger felet och inget byts. Efter bytet öppnar det nya lösenordet filen och det gamla inte.
+- [ ] `/verify` är grön efter bytet, journalen har raden *case.file-key-replaced*, och ärendet går att arbeta vidare i och öppna igen utan fråga om lösenord.
+- [ ] Administratörens verktyg (`Chainsaw.Recovery open`) öppnar filen efter bytet med organisationens nyckel.
+- [ ] Döda Chainsaw i Aktivitetshanteraren mitt i ett byte av ett stort ärende: nästa öppning ger antingen det gamla ärendet (utan raden) eller det nya (med raden), aldrig ett fel, och inga filer `.rekey`, `.old-key` eller `.cut.tmp` ligger kvar bredvid. Gav det det gamla ärendet kommer en gul varning *Filnyckeln byttes inte*, som ligger kvar, och journalen har raden *case.file-key-replacement-interrupted*.
+- [ ] Ett ärende som öppnats bara med ärendelösenordet (utan eget kuvert) erbjuder inte *Byt filnyckel …*.
+
+### En länk medan Chainsaw är låst (LN1a)
+
+- [ ] Lås Chainsaw (Ctrl+L) och öppna `chainsaw:bitcoin/<en adress>` med Win+R: låsskärmen säger *En länk väntar* med *Från ett annat program …*, aldrig adressen.
+- [ ] Lås upp: ärendeväljaren fälls ut av sig själv med länken överst (*Länk från ett annat program · tid*, kedjan och hela adressen i Cascadia Mono), rubriken *Lägg i ärende*, och den valda raden säger *Lägg i · Enter*.
+- [ ] Sök ett ärendenummer och tryck Enter (eller klicka två gånger): ärendet öppnas, adressen blir en ny startpunkt och hämtas genom utgången, en toast säger det, och journalen har raden *app.start-point-from-link*.
+- [ ] *Nytt ärende med adressen …* (eller Ctrl+N i rutan) öppnar Nytt ärende med adressen som första startpunkt, förhämtad.
+- [ ] Esc eller krysset slänger länken: rutan stängs och nästa Ctrl+O visar ärendeväljaren som vanligt.
+- [ ] En länk medan Chainsaw är upplåst går som förut till kommandoraden (med ett ärende öppet) eller Nytt ärende.
+
+### Ankaret (AK1a)
+
+- [ ] Kopiera ett ärendes `.cut`, arbeta vidare i ärendet och stäng det, lägg tillbaka kopian och öppna ärendet: *Verifiera* säger ändå *Hashkedjan är hel* med rader och topp, och under en lugn gul rad *Ankaret byttes i dag …* med *Troligast: äldre kopia*.
+- [ ] *Varför?* i den gula raden stänger ärendeväljaren och öppnar Guidens panel: rubriken med tid, journalrad och `case.anchors-replaced`, *Filens hashkedja är hel från rad 1 till …*, kedjan som prickar med ankaret i gult och filens topp i grönt (rad och hash, hela hashen på hovring), en streckad bricka *Troligast: …* och vad du kan göra; *Öppna i Guide* visar avsnittet *Ankaret och flera datorer*.
+- [ ] Ta bort ankarfilen för ärendet (i mappen för ankare under `%LOCALAPPDATA%\Chainsaw`) och öppna ärendet: orsaken blir *ankaret saknas*.
+- [ ] `/verify` säger *Hashkedjan är hel …* och på nästa rad, i gult, att filen inte stämde med datorn (äldre kopia); när bara ankarfilen saknades står raden lugnt, inte i gult.
 
 ### Ärenden i högar (GR8a)
 
@@ -589,6 +618,42 @@ $p.StandardInput.Close()              # programmet ska avslutas inom någon seku
       försöker direkt när nätet kommer tillbaka.
 - [ ] Koppla från utgången för hand medan Chainsaw väntar på nästa försök: inget nytt försök görs.
 - [ ] En bevakning som väntade på utgången går igen av sig själv när tunneln är tillbaka.
+
+
+### Proxy med inloggning (PX1a)
+
+- [ ] Ställ in en proxy för hand i Windows (Inställningar › Nätverk och Internet › Proxy, utan *Identifiera
+      inställningar automatiskt*), och välj *Windows* i Chainsaw. Under korten står *Proxy* med adressen och *inställd för
+      hand*, och raden *Logga in med Windows-kontot* är av.
+- [ ] Med en proxy som kräver inloggning och raden av: titelraden säger *Offline*, raden *Proxy* säger *Når inte
+      internet: proxyn vill ha inloggning*, och en röd ruta säger att proxyn svarade 407 och när.
+- [ ] Slå på raden: tre rader fälls ut (Skickas, Till, Aldrig) med ditt konto (`DOMÄN\namn`) och proxyns adress. Inom
+      några sekunder blir titelraden grön och uppslag går. Proxyns logg visar Kerberos eller NTLM, aldrig Basic.
+- [ ] Slå på *Identifiera inställningar automatiskt* eller ett skript i Windows: raden *Logga in* försvinner, en streckad
+      gul ruta säger varför, och proxyn får inga uppgifter (kontrollera i proxyns logg).
+- [ ] Byt proxyns adress i Windows och öppna Nätverk igen: raden är av och måste slås på för den nya adressen.
+- [ ] Stäng Chainsaw med en bevakning och raden påslagen: bakgrunden går genom proxyn och loggar in; slå av raden, och
+      bakgrunden loggar inte in längre (nästa varv).
+- [ ] *Proxy i Windows* öppnar Windows proxyinställningar.
+
+### En ansluten utgång i läget Windows (UT4a)
+
+- [ ] Anslut en VPN-utgång och välj sedan *Windows*. Utgångsrutan visar listan tonad; bara den anslutna raden har färg,
+      en ihålig grön prick, *Ansluten · används inte* och strömknappen. Verktygstipset säger sedan när den är ansluten.
+- [ ] Tryck på strömknappen: utgången kopplas ner, listan försvinner och läget är fortfarande *Windows*.
+- [ ] De andra raderna har ingen knapp och säger på hovring att VPN väljs i Inställningar.
+
+### Den egna nodens certifikat (KL3b)
+
+- [ ] Lägg till en egen nod med självsignerat certifikat, märkt *Lokal*. Raden har en gul nål *Inte fäst*, och noden
+      vägras. Klicka på nålen: rutan visar *Inte betrott av Windows*, *Självsignerat*, fingeravtrycket som ett rutnät,
+      utfärdare, giltighet och *Kopiera* (jämför med `openssl x509 -fingerprint -sha256` på noden).
+- [ ] *Fäst certifikatet*: nålen blir grön, noden svarar och används; toastern säger att certifikatet är fäst.
+- [ ] Byt certifikat på noden: toastern säger *Egen nod vägras* med *Visa*, nålen blir röd *Bytt*, de andra endpointarna
+      används. *Visa* öppnar Inställningar › Källor med rutan: det fästa och det nya bredvid varandra.
+- [ ] *Lita på det nya …* frågar först; *Avbryt* lämnar allt som det var. Efter *Lita på det nya* är nålen grön igen.
+- [ ] *Ta bort fästet …* frågar först, och efter det vägras det självsignerade certifikatet igen.
+- [ ] Fästet står kvar efter omstart (`sources.json`), och bevakningen i bakgrunden vägrar också ett bytt certifikat.
 
 ## Inställningar och källor
 
@@ -1962,7 +2027,7 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Klicka på ärendet i titelraden (eller *Inget ärende öppet*): ärendeväljaren fälls ut under det med samma yta, kant och skugga som utgångarnas ruta och glider in mjukt (stilla med animeringar avstängda).
 - [ ] Ctrl+O öppnar den med markören i *Sök ärendenummer*; Esc stänger den och tangentbordet går tillbaka till ärendet i titelraden.
 - [ ] Ett klick utanför stänger den utan att klicket når det som ligger under; ett klick på ärendet igen fäller in den.
-- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Kontrollerat nu · inget ändrat* (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
+- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Hashkedjan är hel* med *431 rader · 10:42 · topp …* under (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
 - [ ] Listan visar ärendena med det senast ändrade först, med nummer och *ändrad i dag 14:02*; det öppna har accentstreck och brickan *Öppet*.
 - [ ] Sökfältet filtrerar på ärendenummer och räknaren följer med; utan träff står *Inget ärende har det numret.*
 - [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
@@ -1975,7 +2040,7 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Fel lösenord: rött *Lösenordet stämmer inte. Inget har ändrats i filen.*, ingen kopia i Ärenden och det öppna ärendet står kvar. Markören står kvar i fältet.
 - [ ] Rätt lösenord med *Lägg till ett kuvert för mig* ikryssad: filen kopieras till Ärenden, *Du* blir grönt och *Ditt kuvert ligger i filen. Nästa gång räcker huvudnyckeln.*; Enter eller *Till grafen* stänger. Stäng ärendet och öppna det igen: inget lösenord frågas.
 - [ ] Utan krysset: ärendet öppnas och rutan säger att lösenordet behövs igen nästa gång.
-- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert med flik som ett kuvert, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
+- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert, utan kuvertlinjen, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
 - [ ] *Skapa lösenord …* och *Byt …* fäller ut två fält i kortet; olika lösenord ger *Lösenorden är inte lika.*, för kort ger felet om längden; Enter eller *Spara* sparar, Esc eller *Avbryt* fäller in.
 - [ ] *Ta bort* på lösenordet i en kollegas fil utan eget kuvert vägras med en förklaring; efter *Lägg till mitt kuvert* går det.
 - [ ] Titeln överst ändras och sparas när fältet lämnas eller med Enter; titelraden följer med. Fliken *Information* visar filen och ärendets id.
@@ -3124,4 +3189,27 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
 - Under en tunn linje: fakta i två kolumner, saldot per token (Ethereum), *Här* och adresserna med kopiera.
 - Dra panelens kant: titelradens hörn följer med. Stäng med × eller Esc: panelen glider ut, titelraden och grafen fyller
   bredden och fönstrets knappar står på titelraden igen. Byt till en annan vy: titelraden går över hela bredden.
+- **Andra paneler under arbetet:** öppna Guidens panel (*Varför?* eller *?*), förslagen (Ctrl+J), och välj något i
+  Bevakning, Tidslinje, Flöde, Exponering och Etiketter. Varje panel till höger ligger i full höjd under arbetet som
+  inspektören: mörkare ton, skugga och rundat hörn mot arbetet, texten fri från skuggan, titelraden slutar där panelen
+  börjar och fönstrets knappar står på panelen. Stäng panelen: titelraden går över hela bredden igen.
 
+
+## Kodgranskningen (sju varv, 2026-11-08)
+
+- **Urklipp:** kopiera en adress i grafen, i Etiketter, i Tidslinjen och en rad i en anteckning (Ctrl+C). Öppna Win+V:
+  inget av det står i historiken, och med *Synkronisera mellan enheter* på kommer det inte till andra datorer. Klistra
+  in i Chainsaw och i Anteckningar: det fungerar som vanligt. Dra en adress: draget fungerar.
+- **Senaste filer:** öppna en kollegas `.cut` och exportera en begäran. Varken filen eller exporten står under
+  Senaste i Utforskaren eller i Chainsaws hopplista.
+- **Bakgrundens träffar som tips:** låt bakgrunden hitta en träff medan Chainsaw är stängt, och öppna ärendet med VPN
+  vald men inte ansluten. Träffen står grå och streckad med *väntar på kontroll* (hovring), i BV1a och som en grå
+  streckad vaktlinje utan belopp och utan ringar i grafen. Anslut: vid nästa runda blir den en riktig träff med belopp
+  och ringar.
+- **Internetkontrollen:** välj VPN i inställningarna och se i en nätverksmonitor (Resursövervakaren, fliken Nätverk)
+  att Chainsaw inte kontaktar 1.1.1.1 eller msftconnecttest.com. Byt till Windows: kontrollen görs direkt.
+- **Ärendefilen ändrad på disken:** öppna ett ärende, ersätt `.cut`-filen i Utforskaren med en annan kopia och gör en
+  ändring i Chainsaw. Filen på disken skrivs inte över; ärendet stängs och dialogen *X gick åt två håll* erbjuder
+  *Spara som X-B*, som har ditt arbete.
+- **Länk med citattecken:** kör `chainsaw:btc/x" "--watch-alert` från Kör (Win+R): inget kort om en bevakning visas.
+- **Kraschrutan** visar bara rubriken och var loggen ligger, aldrig felets text.

@@ -13,6 +13,10 @@ public interface ICaseHeights
     /// <summary>Reads the highest block a case's own lookups have shown of a chain.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="chain">The chain, on the network the sources are set to.</param>
+    /// <param name="by">
+    /// Only lookups whose answer came at or before this time, so that what the case knew at a time can be read (the
+    /// chain was at least that high then); every lookup when <see langword="null"/>.
+    /// </param>
     /// <returns>The height, or <see langword="null"/> when the case's lookups show none.</returns>
-    long? Known(ICaseReader reader, Chain chain);
+    long? Known(ICaseReader reader, Chain chain, DateTimeOffset? by = null);
 }

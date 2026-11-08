@@ -15,7 +15,10 @@
       What lies under the work (sketch IN5a): the inspector's panel, a step darker than the background, so the graph and
       its title bar read as a sheet lifted over it.
     -->
-    <SolidColorBrush x:Key="Brush.Underlay" Color="#1B1E21" />
+    <Color x:Key="Color.Underlay">#1B1E21</Color>
+    <!-- The underlay fully transparent, for a fade to it (as Color.Surface.Clear). -->
+    <Color x:Key="Color.Underlay.Clear">#001B1E21</Color>
+    <SolidColorBrush x:Key="Brush.Underlay" Color="{StaticResource Color.Underlay}" />
     <SolidColorBrush x:Key="Brush.Surface" Color="{StaticResource Color.Surface}" />
     <SolidColorBrush x:Key="Brush.SurfaceRaised" Color="#33373A" />
     <SolidColorBrush x:Key="Brush.SurfaceHover" Color="#383B3E" />

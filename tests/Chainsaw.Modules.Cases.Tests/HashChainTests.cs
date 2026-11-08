@@ -158,6 +158,18 @@ public sealed class HashChainTests : IDisposable
         Assert.Equal(CaseJournalKinds.AnchorsReplaced, entry.Kind);
         Assert.Contains("Diverged", entry.Details, StringComparison.Ordinal);
         Assert.Contains(removedHash, entry.Details, StringComparison.Ordinal);
+
+        // AK1a reads the same line back: the anchor before, ahead of the head after (an older copy, most likely).
+        var replacement = AnchorReplacement.FromJournal(entry);
+        Assert.NotNull(replacement);
+        Assert.Equal(AnchorReplacementProblem.Diverged, replacement.Problem);
+        Assert.Equal(5, replacement.Sequence);
+        var anchor = replacement.BeforeOf(CaseChains.Journal);
+        Assert.NotNull(anchor);
+        Assert.Equal(5, anchor.Sequence);
+        Assert.Equal(removedHash, anchor.Hash);
+        Assert.Equal(4, replacement.AfterOf(CaseChains.Journal)?.Sequence);
+        Assert.Null(AnchorReplacement.FromJournal(opened.ReadJournal()[0]));
     }
 
     [Fact]

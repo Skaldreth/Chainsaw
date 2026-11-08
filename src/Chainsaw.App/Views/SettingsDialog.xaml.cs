@@ -61,6 +61,45 @@ public partial class SettingsDialog : UserControl
         {
             sources.PropertyChanged += OnSourcesChanged;
         }
+
+        if (settings.Proxy is { } proxy)
+        {
+            proxy.WindowsSettingsWanted += (_, _) => OpenWindowsProxySettings();
+        }
+    }
+
+    /// <summary><em>Proxy i Windows</em>: opens Windows' own proxy settings, where the proxy is set by hand.</summary>
+    private static void OpenWindowsProxySettings()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo("ms-settings:network-proxy") { UseShellExecute = true })
+                ?.Dispose();
+        }
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception
+                                              or InvalidOperationException)
+        {
+            // Windows' settings could not be opened here; the row still says what to do.
+        }
+    }
+
+    /// <summary>Copies the fingerprint in the own node's box (sketch KL3b).</summary>
+    /// <param name="sender">The button.</param>
+    /// <param name="e">The click.</param>
+    private void OnCopyFingerprint(object sender, RoutedEventArgs e)
+    {
+        if (_settings?.Sources?.NodePin is not { HasCopy: true } box)
+        {
+            return;
+        }
+
+        // Through the case clipboard, which keeps the copy out of the clipboard history and the cloud clipboard; when
+        // another program holds the clipboard, nothing is copied.
+        if (Interop.CaseClipboard.TrySetText(box.CopyText))
+        {
+            box.MarkCopied();
+        }
     }
 
     /// <summary>Puts the focus in the address when the form that adds an endpoint folds out, and back after.</summary>

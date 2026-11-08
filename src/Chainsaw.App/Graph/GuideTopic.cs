@@ -94,6 +94,9 @@ public enum GuideTopic
 
     /// <summary><em>Tidsmönster</em>: the hours an owner is active, and the time zone they hint at.</summary>
     TimePattern,
+
+    /// <summary><em>Ankaret och flera datorer</em>: why an anchor was replaced (sketch AK1a).</summary>
+    Anchors,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -141,6 +144,7 @@ public static class GuideTopics
         GuideTopic.Dust => "damm-och-forgiftning",
         GuideTopic.PayJoin => "payjoin",
         GuideTopic.TimePattern => "tidsmonster",
+        GuideTopic.Anchors => "ankaret",
         _ => "utxo-modellen",
     };
 
@@ -177,6 +181,7 @@ public static class GuideTopics
         GuideTopic.Dust => "Damm och adressförgiftning",
         GuideTopic.PayJoin => "PayJoin",
         GuideTopic.TimePattern => "Tidsmönster",
+        GuideTopic.Anchors => "Ankaret och flera datorer",
         _ => "UTXO-modellen",
     };
 

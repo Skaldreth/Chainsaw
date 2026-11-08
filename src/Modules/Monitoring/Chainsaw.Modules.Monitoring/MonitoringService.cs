@@ -185,8 +185,16 @@ internal sealed class MonitoringService(
             throw new ArgumentException("The reason is too long.", nameof(reason));
         }
 
-        return Update(@case, id, WatchAction.Removed, why, watch => watch with { State = WatchState.Removed })
-            is not null;
+        // Its waiting tips are closed unchecked in the same write: no check of its chain may come again to close them.
+        return Update(@case, id, WatchAction.Removed, why, watch => watch with { State = WatchState.Removed },
+            (transaction, removed) =>
+            {
+                foreach (var tip in WatchStore.ReadTips(transaction)
+                    .Where(tip => tip.WatchId == removed.Id && tip.State == WatchTipState.Pending).ToList())
+                {
+                    CloseTip(transaction, tip, removed, null);
+                }
+            }) is not null;
     }
 
     /// <inheritdoc/>
@@ -537,8 +545,15 @@ internal sealed class MonitoringService(
     /// <param name="action">What the change is.</param>
     /// <param name="reason">Why, for a removal.</param>
     /// <param name="change">Makes the changed watch.</param>
+    /// <param name="then">What else the change writes, in the same write, or <see langword="null"/>.</param>
     /// <returns>The changed watch, or <see langword="null"/> when there is no such watch in force.</returns>
-    private static Watch? Update(ICase @case, string id, WatchAction action, string? reason, Func<Watch, Watch> change)
+    private static Watch? Update(
+        ICase @case,
+        string id,
+        WatchAction action,
+        string? reason,
+        Func<Watch, Watch> change,
+        Action<ICaseTransaction, Watch>? then = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         return @case.Write(transaction =>
@@ -555,6 +570,7 @@ internal sealed class MonitoringService(
                 Details(watch.Id, watch.Subject, changed.Filter, reason)));
             changed = changed with { ChangedUtc = journal.Utc };
             WatchStore.Seal(transaction, action, changed, reason, journal);
+            then?.Invoke(transaction, changed);
             return changed;
         });
     }

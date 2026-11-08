@@ -117,10 +117,20 @@ public sealed class BackgroundLinkTests
         Assert.Equal(2, _fakes.Process.Starts);
     }
 
+    // The two tests below start the link's loop, whose waits pass at once. Its look at the background holds the open
+    // case on the UI thread, so they run on one (UiThread), as in the window: run inline on the loop's own thread, it
+    // would hold the case at the same time as the test (between Forget and Changed in Open), twice.
     [Fact]
-    public async Task The_open_case_is_held_and_let_go_when_another_opens_or_it_closes()
+    public Task The_open_case_is_held_and_let_go_when_another_opens_or_it_closes() =>
+        UiThread.RunAsync(TheOpenCaseIsHeldAndLetGoAsync);
+
+    [Fact]
+    public Task A_case_let_go_is_written_into_the_plan_first_so_the_background_never_watches_what_was_taken_back() =>
+        UiThread.RunAsync(ACaseLetGoIsWrittenIntoThePlanFirstAsync);
+
+    private async Task TheOpenCaseIsHeldAndLetGoAsync()
     {
-        var (session, link) = Link(Windows);
+        var (session, link) = Link(Windows, new PostedUi(SynchronizationContext.Current!));
         link.Start();
         var first = session.Current!.Info.Id;
         Assert.Equal([first], _fakes.Holds.Held);
@@ -134,10 +144,9 @@ public sealed class BackgroundLinkTests
         link.Dispose();
     }
 
-    [Fact]
-    public async Task A_case_let_go_is_written_into_the_plan_first_so_the_background_never_watches_what_was_taken_back()
+    private async Task ACaseLetGoIsWrittenIntoThePlanFirstAsync()
     {
-        var (session, link) = Link(Windows);
+        var (session, link) = Link(Windows, new PostedUi(SynchronizationContext.Current!));
         link.Start();
         await link.WriteCaseAsync();
         Assert.Single(_fakes.Plan.Plan.Cases);
@@ -194,6 +203,27 @@ public sealed class BackgroundLinkTests
         session.Forget();
         await runner.RunOnceAsync();
         Assert.Single(order);
+    }
+
+    [Fact]
+    public async Task A_watch_without_a_start_has_the_queue_brought_in_again_after_the_height_and_before_the_check()
+    {
+        // A start the background set waits in the queue until the case has seen the chain that far: the height asked
+        // shows it, and it must come in before the check would start the watch at that height.
+        var (_, board) = WatchSamples.Board(_source);
+        var checksAtImport = new List<int>();
+        _source.Add(WatchSamples.Subject(GraphSamples.Address(1)), WatchSamples.Filter(), start: null);
+        var runner = new WatchRunner(board, new TestClock(), (_, _) => Task.CompletedTask, _ =>
+        {
+            checksAtImport.Add(_source.Checks.Count);
+            return Task.CompletedTask;
+        });
+        await board.ReloadAsync();
+
+        await runner.RunOnceAsync();
+
+        Assert.Equal([0, 0], checksAtImport);
+        Assert.NotEmpty(_source.Checks);
     }
 
     [Fact]
@@ -313,11 +343,12 @@ public sealed class BackgroundLinkTests
         }).Alerts);
     }
 
-    private (CaseSession Session, BackgroundLinkHarness Link) Link(AppSettings settings)
+    private (CaseSession Session, BackgroundLinkHarness Link) Link(AppSettings settings, IUiThread? ui = null)
     {
         var (session, board) = WatchSamples.Board(_source);
         var link = new BackgroundLinkHarness(
-            new BackgroundLink(_fakes.Parts, session, board, new InlineUi(), settings, (_, _) => Task.CompletedTask),
+            new BackgroundLink(
+                _fakes.Parts, session, board, ui ?? new InlineUi(), settings, (_, _) => Task.CompletedTask),
             board);
         return (session, link);
     }

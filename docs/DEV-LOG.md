@@ -4167,6 +4167,172 @@ Användaren provade på Windows: kedjan ryckte konstigt när den kom in, och rö
 - **Darret** när den långa länken spänns är lugnare: 8 svängningar i sekunden och 0,9 px i stället för 15 och 1,4 px,
   som vid 60 bilder i sekunden bara fick fyra bilder per svängning och såg ut som skakigt brus.
 
+## Panelerna under arbetet (2026-11-08)
+
+Användarens krav: allt som står på inspektörens plats ska ligga under arbetet som IN5a.
+
+- **`Controls/UnderPanel`** är en `Decorator` som ritar panelens ton (`Brush.Underlay`), bladets skugga längs
+  vänsterkanten (en toning, inte en effekt, så att texten förblir skarp) och bladets rundade hörn vid foten, och
+  lägger innehållet med 40 px luft till vänster. De paneler som visas räknas, och `UnderPanel.Reach` säger hur långt in
+  från fönstrets högerkant de når; `MainWindow.ShowSheet` tar det största av det och grafens inspektör, så att
+  titelraden slutar där panelen börjar och fönstrets knappar står på den.
+- **Ombyggda:** Guidens panel (GD1b), vyn Bevakningens valda bevakning, Tidslinjens inspektör, Flödets och
+  Exponeringens sidor och Etiketternas valda etikett. Vyernas sidor var kort inne i marginalen; nu står de i kanten i
+  full höjd, och vyns övriga innehåll har kvar sin luft upptill och nedtill. Förslagspanelen (KF2b) står redan i
+  grafens inspektör och har fått panelens ton och luften.
+
+**Egna beslut:** Nytt ärende (NC2a) och dialogerna mörkar resten och ligger över arbetet; de är oförändrade.
+Begärans och Rapportens förhandsvisningar är dokument, inte inspektörer, och står kvar som kort.
+
+
+## Kodgranskningen i sju varv (2026-11-08)
+
+Användaren bad om en fullständig granskning med minst sex varv: semantiska fel, säkerhet och kodkvalitet med *less is
+more*. Varje varv kördes av parallella granskande agenter, som rättade C och I med tester; huvudsessionen byggde och
+testade varje del ovanpå grenen och pushade (commits *Audit round 1 … 6*). Under granskningen pushade en annan session
+drygt 250 commits till samma gren; varv 1 granskade därför den äldre koden och varv 2 hela den nya (ungefär 150 000
+rader).
+
+- **Varv 1, per modul:** bland annat en fientlig kö från bakgrundsprocessen som kunde stoppa ärendets bevakning för
+  gott eller försegla en träff filtret inte kunde ge (C), en sanktionslista daterad i framtiden som skuggade alla
+  senare, en nyare heuristikversion som inte kunde ta tillbaka en äldre sammanslagning, `/verify` som kastade på en
+  ändrad första post och en kvarlämnad SQLite-journal som spelades in i en ny arbetskopia.
+- **Varv 2, per modul på den nya koden:** en endpoint med orimlig höjd eller fel genesis (testnet, eller en som ljuger)
+  som fick alla svar att se djupa ut och dolde omorganiseringar; en Ethereum-expansion med förlorade tx som räknades
+  som läst; exponeringen som vägrade vid en rundtur; grafen som byggdes i O(noder × linjer); Bryt upp som bara sparade
+  den första valda adressen; zoom och panorering som kunde vägras för gott; råa felmeddelanden på ett tiotal ställen.
+- **Varv 3, flöden tvärs över modulerna:** en ny titel som läste om alla vyer, en tillbakatagen etikettkopia som syntes
+  kvar, samma token-träff två gånger under olika symbol, en borttagen bevakning som bakgrunden fortsatte med, uppslag
+  genom Windows med VPN valt när planen inte kunde skrivas, högar på Ethereum i BTC, exporter av token utan kontrakt,
+  och det instabila exporttestets orsak.
+- **Varv 4, användarens tre beslut och säkerhet:** bakgrundens träffar är tips tills Chainsaws eget uppslag ger dem
+  (`monitoring.tips`, grå och streckade medan de väntar); internetkontrollen bara med Windows som väg; en ändrad
+  ärendefil skrivs aldrig över (arbetet sparas som gren); kopior utanför urklippshistoriken och molnet; filer inte i
+  Senaste; planterade utlösare rapporteras av `/verify`; en länk kan inte visa ett falskt bevakningskort.
+- **Varv 5, *less is more* och integritet:** omkring 400 rader död eller dubblerad kod borta med oförändrat beteende;
+  indexhöjder räknas bara med ett förseglat svar bakom sig och under det kedjan kan ha nått; `/verify` prövar varje
+  förseglat svar mot sin SHA-256; bakgrundens lästa höjd begränsas; ett försvagat delningslösenordskuvert vägras och tas
+  bort med journalrad.
+- **Varv 6, granskning av granskningen:** varje rättelse lästes om efter sammanslagningarna. Varv 5:s höjdfråga hade
+  gjort cachade uppslag 100 gånger långsammare (rättad); Tidslinjen kopierade förbi urklippsskyddet (ny kod); bakgrundens
+  starthöjd begränsas som den lästa höjden; exponeringen ordnar en kontos poster som spåret, så Graf och Exponering
+  stämmer; det instabila högtestet berodde på testets trådar, inte produkten.
+- **Varv 7:** rättelserna från varv 6 och det sista instabila testet.
+
+**Användarens beslut under granskningen:** txid:er får stå i bakgrundens plan; bakgrundens träffar kontrolleras mot
+kedjan innan de förseglas; internetkontrollen bara när Windows är vägen.
+
+**Egna beslut:** en ändrad ärendefil på disken räknas som en konflikt (inte som ett beslut för användaren), eftersom
+det säkra valet var givet; bakgrundens start- och lästa höjder följer användarens beslut att bakgrunden bara ger tips.
+
+**Kvar:** frågorna 12–19 i TODO (*Från kodgranskningen*) och de mindre fynden i BACKLOG (*Kodgranskningen
+2026-11-08*). Det som ska provas på Windows står i TESTER-INFOR.
+
+## VT1a, LN1a och AK1a (2026-11-08): byt filnyckel, en länk till ett befintligt ärende och ankaret
+
+Byggt efter skisserna VT1a, LN1a och AK1a (användarens val 2026-11-08).
+
+- **VT1a, byt filnyckel** (`ICase.ReplaceFileKey`, `Case.FileKey.cs`): huvudnyckeln kontrolleras igen
+  (`IVault.VerifyMasterKey`, nytt, med ett förval som kastar `NotSupportedException` så att testernas valv inte
+  behöver ändras), ärendet sparas, arbetskopian kopieras till `.work.rekey` där journalraden
+  `case.file-key-replaced` förseglas under den gamla nyckeln och kopian krypteras om (SQLite3 Multiple Ciphers rekey)
+  under en ny slumpad filnyckel. Den nya filen (nytt huvud med ditt valvs kuvert, den inbyggda återställningsnyckelns
+  och vid behov ett nytt ärendelösenord, kopian och sigillet under den nya nyckeln) skrivs bredvid, arbetskopian
+  flyttas undan till `.work.old-key` och den nya filen tar den gamlas plats i en flytt. Sedan blir kopian
+  arbetskopian och ärendet fortsätter under den nya nyckeln; ankarna flyttas fram som vid varje sparning.
+  - **En krasch** före flytten lämnar den gamla filen hel (arbetskopian tas ut på nytt nästa gång), efter flytten den
+    nya; det som blir kvar (`.rekey`, `.old-key`) tas bort vid nästa öppning. Ett fel före flytten lämnar ärendet
+    öppet under den gamla nyckeln; ett fel efter flytten stänger det, och det öppnas från den nya filen.
+  - **Testerna** (`FileKeyTests`) tar en bild av mappen vid varje steg, som en krasch skulle lämna den, och öppnar
+    den: gamla filen till och med *set-aside*, nya från *replaced*. Kollegans valv, det gamla lösenordet och en
+    ändrad byte (sigillet) öppnar inte; organisationens nyckel, ett nytt lösenord och en tidigare utlämnad kopia gör det.
+  - **Fliken Kuvert:** *Byt filnyckel …* under korten (bara med eget kuvert), korten får *Lindas om* eller *Faller
+    bort* (streckat och överstruket), bekräftelsen fälls ut under korten med huvudnyckeln och strömbrytaren för ett
+    nytt ärendelösenord, och efteråt står en streckad rad med det som drogs tillbaka och journalraden (läst ur
+    journalen, så den står kvar nästa gång).
+- **LN1a:** `LinkInbox` säger när en länk börjar och slutar vänta (`WaitingChanged`), och låsskärmen säger då bara
+  *En länk väntar*. Efter upplåsningen fälls ärendeväljaren ut med länken överst (`CasePickerViewModel.OpenForLink`);
+  Enter eller ett andra klick öppnar ärendet och lägger adressen som startpunkt med raden
+  `app.start-point-from-link` i journalen (`CaseWorkflow.AddLinkedStartPointAsync`), *Nytt ärende med adressen …*
+  (Ctrl+N) öppnar NC2a med adressen, och Esc slänger länken. En länk medan Chainsaw är upplåst går som förut.
+- **AK1a:** `AnchorReplacement` (Contracts) läser raden `case.anchors-replaced`. *Verifiera* säger *Hashkedjan är
+  hel* med rader, tid och topp, och ett bytt ankare som en gul rad med *Troligast: …*; *Varför?* öppnar Guidens panel
+  (`GuideAnchorChange`) med kedjan som prickar, före och efter och orsaken som en streckad bricka. `/verify` säger
+  också att kedjan är hel och ankaret byttes, i stället för ett fel. Guideavsnittet `docs/guide/ankaret.md`.
+
+**Egna beslut och avsteg från skisserna:**
+- **Kuvert som faller bort:** också andra (icke inbyggda) återställningsnycklars och okända kuvert, eftersom Chainsaw
+  inte kan linda den nya nyckeln åt dem; de skulle annars bära en nyckel som inte öppnar något.
+- **Inga steg med förlopp** under bytet (skissens list med fyra steg): Cases säger inte hur långt det kommit, så en
+  rad säger vad som görs och att ärendet är låst under tiden, i stället för påhittade steg.
+- **Länkens ursprung:** skissen säger *Länk från Gawk*, men länken bär inte vilket program som skickade den, så det
+  står *Länk från ett annat program*. Brickan *Etikett härifrån* (etikettbiblioteket per ärende) är inte byggd.
+- **Två datorer** avgörs ur raderna: ett ankare längre fram än filens topp är en äldre kopia, annars två datorer.
+  Raden där de gick isär (*samma rader fram till 402*) står inte, eftersom raden bara sparar ankaret och toppen.
+
+**Granskningen** (oberoende, nyckeln, de gamla sidorna, varje kraschsteg och ankarna): inga C eller I, fyra M:
+- **M1:** `/verify` svarar nu med en gul varning (`CommandReply.Warning`, nytt) när ankaret byttes av ett skäl i filen
+  (`AnchorReplacement.ConcernsTheFile`: Diverged, RolledBack, okänt), och lugnt *klart* bara när det gäller datorn
+  (ankaret saknades eller gick inte att läsa).
+- **M2:** andra fel från valvet blir `CaseError.VaultFailed` (nytt), och ett SQLite-fel när journalraden skrivs i kopian
+  blir `Corrupt`, så att fliken Kuvert säger det i stället för ett ohanterat fel.
+- **M3:** den nya filen som skrivits bredvid (`.cut.tmp`, med den nya nyckeln och ett nytt lösenord) tas bort med de
+  andra resterna. Fanns det rester från ett byte och är journalens sista rad inte bytet, säger öppningen det med raden
+  `case.file-key-replacement-interrupted` och en varning som ligger kvar: filen har kvar sina gamla kuvert.
+- **M4** står i BACKLOG under *Säkerhet* (den gamla databasnyckeln i bibliotekets minne).
+
+**Återstår:** brickan *Etikett härifrån* i LN1a, och att prova allt på Windows.
+
+
+## PX1a, UT4a och KL3b: proxy med inloggning, en ansluten utgång i läget Windows, den egna nodens certifikat (2026-11-08)
+
+Byggt efter skisserna PX1a, UT4a och KL3b (användarens val samma dag). PX1a och KL3b rör princip 4 och väntar på en
+oberoende granskning.
+
+- **PX1a, proxyn under Windows** (`IWindowsProxy`, `WindowsProxyLogin`, `WinHttpProxyReader`, `ProxyLoginViewModel`):
+  Chainsaw läser Windows proxyinställning som .NET själv gör (`WinHttpGetIEProxyConfigForCurrentUser`) och ändrar inget.
+  Automatisk identifiering (WPAD) eller ett skript (PAC) gör inställningen *automatisk*, också när en proxy dessutom är
+  inställd för hand, eftersom Windows då frågar nätet först. Bara en proxy inställd för hand får raden *Logga in med
+  Windows-kontot*. Påslagen sparas adressen (`host:port`) i `settings.json` (`ProxyLoginFor`) och i bakgrundens plan.
+  Röret genom Windows får då `DefaultProxyCredentials` som en grind: den svarar bara när proxyn som frågar (.NET skickar
+  proxyns egen adress till `GetCredential`, provat mot en proxy på loopback) är exakt den adressen, bara medan Windows
+  inställning fortfarande är just den proxyn inställd för hand (läses om vid varje fråga, så att ett byte till WPAD eller
+  en annan adress gäller direkt), och bara för Negotiate, Kerberos och NTLM, där lösenordet aldrig lämnar datorn
+  (Basic och Digest får inget). Källorna får aldrig några uppgifter (`Credentials` är fortsatt `null`). Att slå av,
+  på eller flytta inloggningen bygger röret genom Windows på nytt, så att ingen inloggad anslutning står kvar.
+  En `407` från proxyn noteras (`LoginAskedAt`, också från provet om datorn når internet) och sägs i raden; ett
+  uppslag som får `407` ger `ExitError.ProxyLoginRequired`, som räknas som utgångens fel och aldrig märker en endpoint.
+  Bevakningen i bakgrunden följer valet genom samma grind (`WatcherLoop.FollowProxyLogin`).
+- **UT4a, en ansluten VPN-utgång i läget Windows** (`ExitPanelViewModel.ShowsExits`, `ExitRowViewModel.IsIdle` och
+  `IsToned`): listan visas när en utgång är ansluten, tonad, och bara den anslutna raden har färg, en ihålig grön prick,
+  *Ansluten · används inte* under namnet och strömknappen. Verktygstipset säger sedan när den är ansluten. När den
+  kopplas ner försvinner listan; de andra raderna har ingen knapp.
+- **KL3b, den egna nodens certifikat** (`CertificatePin`, `NodeCertificate`, `EndpointCertificate`,
+  `ILocalHttp.ReadCertificateAsync`, `IChainSources.PinAsync`/`UnpinAsync`/`ReadCertificateAsync`/`CertificateRefused`,
+  `NodePinViewModel`): fingeravtrycket är **SHA-256 av hela certifikatet** i DER-form, eftersom det är det Windows
+  certifikatdialog, webbläsarna och `openssl x509 -fingerprint -sha256` visar, så att användaren kan jämföra det med
+  det noden visar, och eftersom det fäster exakt det certifikat användaren tittade på; ett förnyat certifikat med samma
+  nyckel blir då ett byte som syns och bekräftas, aldrig ett som går tyst. Bara endpoints märkta lokala fästs. Fästet
+  sparas i `sources.json` med endpointen (inställningarna, aldrig ärendet), med vem och när, och de tidigare fästena
+  (högst tio) med när och av vem de byttes. Varje uppslag till noden bär fästet i `ExitRequest.CertificatePin`, och
+  `LocalHttp` har ett eget rör per fäste som godtar exakt det certifikatet, betrott av Windows eller inte, och vägrar
+  alla andra innan något av förfrågan skickas (`ExitError.CertificateChanged`); utan fäste gäller Windows rötter som
+  förut. `IExitHttp` vägrar en förfrågan med fäste. Att läsa certifikatet gör bara TLS-handskakningen, direkt till noden
+  i det egna nätet. Ett byte sägs en gång per endpoint och fäste i toastern (*Egen nod vägras* med *Visa*), noden
+  vägras tills *Lita på det nya …* har bekräftats, och de andra endpointarna används under tiden.
+
+**Egna beslut och avsteg:**
+- PX1a: raden under de tre utfällda raderna (vilken metod proxyn godtog och när) är inte byggd, eftersom .NET inte säger
+  vilken metod som användes; rutan säger *Kerberos eller NTLM*. Utan proxy står bara raden *Proxy* med *Ingen*.
+  Den automatiska proxyns adress visas inte (den blir känd först när en förfrågan frågar efter den); chipet säger
+  *WPAD eller skript*. *Proxy i Windows* öppnar `ms-settings:network-proxy`.
+- PX1a: en inloggning vars proxy har bytts i Windows slås av och sparas som av när sidan Nätverk visas; tills dess
+  gäller den ändå inte (grinden läser om inställningen).
+- KL3b: ett fäst certifikat godtas också när det har gått ut eller har ett annat namn: det är just det certifikatet som
+  användaren litar på. *Ta bort fästet …* frågar först, som *Lita på det nya …*.
+
+**Återstår:** att prova på Windows (`docs/TESTER-INFOR-1.0.md`), särskilt en riktig proxy med Kerberos och NTLM.
+
 ## Grafens fart (2026-11-08)
 
 Användaren bad om så många bildrutor som möjligt i grafen. Inget provat på Windows än.

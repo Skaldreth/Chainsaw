@@ -92,15 +92,15 @@
                        Foreground="{StaticResource Brush.Error}" Visibility="{Binding HasProblem, Converter={StaticResource Visible}}" />
         </StackPanel>
 
-        <Grid x:Name="Room" Margin="84,16,20,16" Visibility="{Binding HasFlow, Converter={StaticResource Visible}}">
+        <Grid x:Name="Room" Margin="84,0,0,0" Visibility="{Binding HasFlow, Converter={StaticResource Visible}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
             <!-- ===== The Sankey, with the method, the key and the unit over it. ===== -->
-            <Grid Grid.Column="0">
+            <Grid Grid.Column="0" Margin="0,16,0,16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="36" />
                     <RowDefinition Height="*" />
@@ -165,11 +165,11 @@
             </Grid>
 
             <!-- ===== The side: where the victims' money ended, and the chosen band. ===== -->
-            <Border Grid.Column="2" CornerRadius="14" BorderThickness="1" BorderBrush="{StaticResource Brush.Border}"
-                    Background="{StaticResource Brush.Surface}" ClipToBounds="True">
+            <!-- Under the work, as the graph's inspector (sketch IN5a): 20 px more room on the left than the content's 20. -->
+            <controls:UnderPanel Grid.Column="2" Padding="20,0,6,0">
                 <DockPanel>
                     <Border DockPanel.Dock="Bottom" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Brush.Border}"
-                            Background="{StaticResource Brush.Floating}" Padding="20,16,20,18" CornerRadius="0,0,13,13"
+                            Background="{StaticResource Brush.Floating}" Padding="20,16,20,18" CornerRadius="0"
                             Visibility="{Binding HasDetail, Converter={StaticResource Visible}}">
                         <StackPanel>
                             <DockPanel>
@@ -309,7 +309,7 @@
                         </ItemsControl>
                     </StackPanel>
                 </DockPanel>
-            </Border>
+            </controls:UnderPanel>
         </Grid>
     </Grid>
 </UserControl>

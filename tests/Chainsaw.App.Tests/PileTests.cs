@@ -441,7 +441,14 @@ public sealed class PileTests
     }
 
     [Fact]
-    public async Task A_watch_on_a_member_takes_it_out_of_the_pile_so_that_its_watch_line_stands()
+    public Task A_watch_on_a_member_takes_it_out_of_the_pile_so_that_its_watch_line_stands() =>
+        UiThread.RunAsync(AWatchOnAMemberTakesItOutOfThePileAsync);
+
+    /// <summary>
+    /// The test above, on one thread like the UI thread: the graph's work off the UI thread comes back to it, so the
+    /// test never sees a scene shown before its watch lines are drawn.
+    /// </summary>
+    private static async Task AWatchOnAMemberTakesItOutOfThePileAsync()
     {
         var watchSource = new TestWatchSource();
         watchSource.Add(

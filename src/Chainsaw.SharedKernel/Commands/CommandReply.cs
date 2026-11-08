@@ -17,4 +17,15 @@ public sealed record CommandReply(bool IsError, string Text)
     /// <param name="text">Why, briefly.</param>
     /// <returns>The answer.</returns>
     public static CommandReply Failed(string text) => new(true, text);
+
+    /// <summary>
+    /// Gets whether the answer is a warning: the command did what was asked, but found something the user should look
+    /// at (shown in yellow, not as an error).
+    /// </summary>
+    public bool IsWarning { get; init; }
+
+    /// <summary>Gives an answer for a command that did what was asked but found something to look at.</summary>
+    /// <param name="text">What it found, briefly.</param>
+    /// <returns>The answer.</returns>
+    public static CommandReply Warning(string text) => new(false, text) { IsWarning = true };
 }

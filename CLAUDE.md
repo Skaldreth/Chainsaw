@@ -453,7 +453,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   arbetet i fönstrets hela höjd, med fönstrets knappar uppe på den; titelraden och grafen är ett lyft blad med rundat
   hörn och skugga mot panelen. Innehållet står som skissernas spalt: sorten som en liten rubrik i accentfärgen och
   versaler, namnet stort, vad som hänt i luftiga meningar, *Varför?* och *Historik* som en rad rundade knappar, och
-  under en tunn linje fakta och adresserna. Texten står 40 px in från bladets kant, fri från skuggan. **Skälet är frivilligt**
+  under en tunn linje fakta och adresserna. Texten står 40 px in från bladets kant, fri från skuggan.
+  **Alla paneler på inspektörens plats ligger under arbetet på samma sätt** (användarens krav 2026-11-08): Guidens
+  panel, förslagen (KF2b) och vyernas valda till höger (Bevakning, Tidslinje, Flöde, Exponering, Etiketter) är
+  `UnderPanel`, med panelens ton, bladets skugga och rundade hörn och 40 px luft, och titelraden slutar där de börjar. **Skälet är frivilligt**
   i alla formulär (användarens beslut 2026-11-07). **Utgångarna är UT2b** (användarens beslut 2026-11-07, ersätter UT1a): utgången i titelraden fäller ut en
   ruta med vägen som en stor bild (Datorn, utgångens namn i en stor ring i lägets färg, Blockkedjor; linjen hel och grön
   när uppslag går, streckad och röd annars), med VPN utgångarna under med en rund knapp för att ansluta, och längst ner

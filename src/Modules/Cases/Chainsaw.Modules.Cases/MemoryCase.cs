@@ -164,6 +164,11 @@ internal sealed class MemoryCase : IMemoryCase
     public IReadOnlyList<CaseEnvelope> DescribeEnvelopes() => [];
 
     /// <inheritdoc/>
+    /// <remarks>A case in memory has no file and so no file key.</remarks>
+    public FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword) =>
+        throw new NotSupportedException();
+
+    /// <inheritdoc/>
     public void Save()
     {
         // Nothing to save: it lives in memory only.

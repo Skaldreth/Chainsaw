@@ -25,6 +25,12 @@ public sealed partial class ExitRowViewModel : ObservableObject
     /// <summary>The button's words for a row that is connected or being connected.</summary>
     public const string DisconnectText = "Koppla ner";
 
+    /// <summary>What a connected row says under its name while Windows is the way out (sketch UT4a).</summary>
+    public const string IdleText = "Ansluten · används inte";
+
+    /// <summary>The tip of a row that cannot be used while Windows is the way out (sketch UT4a).</summary>
+    public const string TonedTip = "Välj VPN i Inställningar för att använda den";
+
     /// <summary>The latest answer of the check, or <see langword="null"/>.</summary>
     private ExitSighting? _sighting;
 
@@ -68,7 +74,7 @@ public sealed partial class ExitRowViewModel : ObservableObject
 
     /// <summary>Gets the words under the name: the state, the reason for a failure, or nothing.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasWord))]
+    [NotifyPropertyChangedFor(nameof(HasWord), nameof(RowTip), nameof(HasRowTip))]
     public partial string Word { get; private set; } = string.Empty;
 
     /// <summary>Gets whether the exit is the program's selected one (the accent bar at the left).</summary>
@@ -77,6 +83,39 @@ public sealed partial class ExitRowViewModel : ObservableObject
 
     /// <summary>Gets whether there are words under the name.</summary>
     public bool HasWord => Word.Length > 0;
+
+    /// <summary>
+    /// Gets whether the exit is connected while Windows is the way out (sketch UT4a): it stands in full colour with a
+    /// hollow green dot, <see cref="IdleText"/> under its name and its button, so that it can be disconnected without
+    /// choosing VPN; nothing is asked through it.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RowTip), nameof(HasRowTip))]
+    public partial bool IsIdle { get; private set; }
+
+    /// <summary>
+    /// Gets whether the row is toned in the panel while Windows is the way out and the exit is not connected: it has
+    /// no button, since it cannot be used in that mode (sketch UT4a).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RowTip), nameof(HasRowTip))]
+    public partial bool IsToned { get; private set; }
+
+    /// <summary>Gets the tip of the connected row while Windows is the way out, with the time it connected.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RowTip), nameof(HasRowTip))]
+    public partial string IdleTip { get; private set; } = string.Empty;
+
+    /// <summary>Gets the row's tip in the panel: why it is idle or toned, else the words of its state.</summary>
+    public string RowTip => (IsIdle, IsToned) switch
+    {
+        (true, _) => IdleTip,
+        (_, true) => TonedTip,
+        _ => Word,
+    };
+
+    /// <summary>Gets whether the row has a tip in the panel.</summary>
+    public bool HasRowTip => RowTip.Length > 0;
 
     /// <summary>Gets whether the exit is connected or being connected, so that its button disconnects.</summary>
     public bool IsOn => State is ExitRowState.Connected or ExitRowState.Connecting;
@@ -165,6 +204,20 @@ public sealed partial class ExitRowViewModel : ObservableObject
             _ => string.Empty,
         };
         ShowCheck();
+    }
+
+    /// <summary>
+    /// Shows the row for the way out chosen (sketch UT4a): with Windows, a connected exit is idle and every other row
+    /// is toned; with VPN neither.
+    /// </summary>
+    /// <param name="windows">Whether Windows is the way out.</param>
+    /// <param name="idleTip">The tip of an idle row, which says since when it is connected.</param>
+    public void ShowWay(bool windows, string idleTip)
+    {
+        ArgumentNullException.ThrowIfNull(idleTip);
+        IdleTip = idleTip;
+        IsIdle = windows && IsOn;
+        IsToned = windows && !IsOn;
     }
 
     /// <summary>Takes the exit's new name and place after they are stored.</summary>

@@ -22,7 +22,8 @@ public sealed class GuideLibrary
     public static readonly IReadOnlyList<(string Group, IReadOnlyList<string> Sections)> Index =
     [
         ("Kom igång", ["sa-sparar-man", "vyerna", "kortkommandon"]),
-        ("Ärendet", ["nytt-arende", "arendevaljaren", "arendefilen", "journalen", "offline", "kommandoraden"]),
+        ("Ärendet",
+            ["nytt-arende", "arendevaljaren", "arendefilen", "journalen", "ankaret", "offline", "kommandoraden"]),
         ("Säkerhet och utgångar",
             ["huvudnyckeln", "lasning", "utgangen", "vpn-utgangar", "kallor", "aterstallningsnyckeln"]),
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan"]),
