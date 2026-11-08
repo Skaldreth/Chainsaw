@@ -39,6 +39,9 @@ public static class TestStoryChain
     /// <summary>The mixer's payout.</summary>
     public const string MixerPayout = "blandarens-utbetalning";
 
+    /// <summary>The mixer's less likely way out paid into a second mixer: mixer after mixer.</summary>
+    public const string SecondMixerDeposit = "blandat-till-virveln";
+
     /// <summary>The CoinJoin (a Whirlpool mix).</summary>
     public const string CoinJoin = "whirlpool";
 
@@ -126,7 +129,8 @@ public static class TestStoryChain
 
     /// <summary>
     /// The mixer pays out five hours after the deposit, from its own coins: one way out about 2 % less than the
-    /// deposit, of the depositor's address type, and one 5 % less of another; the first goes on to an exchange.
+    /// deposit, of the depositor's address type, and one 5 % less of another; the first goes on to an exchange, the
+    /// second into another mixer.
     /// </summary>
     /// <param name="chain">The chain.</param>
     /// <param name="funding">Gives fresh money.</param>
@@ -140,7 +144,15 @@ public static class TestStoryChain
             .Pay(actors.MixerOut1, 78_400_000)
             .Pay(actors.MixerOut2, 76_000_000)
             .Rest(actors.Mixer).Done();
-        chain.Tx("blandat-till-sydborsen", Start + 150).From(MixerPayout).Rest(actors.SouthExchange).Done();
+
+        // The receiver adds a coin of its own and pays two equal deposits: a possible CoinJoin to the heuristics, so
+        // that its two inputs are only proposed as one wallet, for the user to approve.
+        var reserve = funding.Give(actors.MixerOut1Reserve, 21_600_000);
+        chain.Tx("blandat-till-sydborsen", Start + 150).From(MixerPayout).From(reserve.Label)
+            .Pay(actors.SouthExchange, 49_999_000)
+            .Pay(actors.SouthExchange2, 49_999_000)
+            .Done();
+        chain.Tx(SecondMixerDeposit, Start + 160).From(MixerPayout, 1).Rest(actors.SecondMixer).Done();
     }
 
     /// <summary>A Whirlpool mix: five inputs of the pool's amount with its fee, five equal outputs.</summary>

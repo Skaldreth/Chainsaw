@@ -56,7 +56,7 @@ public static class EsploraJson
         writer.WriteNumber("weight", transaction.Weight);
         writer.WriteNumber("fee", transaction.Fee);
         writer.WritePropertyName("status");
-        Status(writer, chain, transaction.Height);
+        Status(writer, chain.BlockOf(transaction));
         writer.WriteEndObject();
     }
 
@@ -79,7 +79,7 @@ public static class EsploraJson
                 writer.WriteString("txid", spend.By.Txid);
                 writer.WriteNumber("vin", spend.Input);
                 writer.WritePropertyName("status");
-                Status(writer, chain, spend.By.Height);
+                Status(writer, chain.BlockOf(spend.By));
             }
             else
             {
@@ -198,12 +198,9 @@ public static class EsploraJson
 
     /// <summary>Writes a confirmed status in a block.</summary>
     /// <param name="writer">The writer.</param>
-    /// <param name="chain">The chain.</param>
-    /// <param name="height">The block's height.</param>
-    private static void Status(Utf8JsonWriter writer, TestChain chain, long height)
+    /// <param name="block">The block, from <see cref="TestChain.BlockOf"/>.</param>
+    private static void Status(Utf8JsonWriter writer, TestBlock block)
     {
-        var block = chain.BlockAt(height)
-            ?? throw new InvalidOperationException("The made-up chain is not sealed up to the transaction.");
         writer.WriteStartObject();
         writer.WriteBoolean("confirmed", true);
         writer.WriteNumber("block_height", block.Height);

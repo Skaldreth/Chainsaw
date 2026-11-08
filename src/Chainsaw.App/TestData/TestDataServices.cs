@@ -4,7 +4,10 @@ using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Chains.TestData;
 using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
+using Chainsaw.Modules.Pricing.TestData;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -39,6 +42,16 @@ public static class TestDataServices
                 provider.GetRequiredService<TestChainHttp>(),
                 provider.GetRequiredService<IOperatorProfileStore>(),
                 provider.GetRequiredService<IClock>()))));
+        services.AddSingleton(provider => new TestRatesHttp(provider.GetRequiredService<IClock>()));
+        TryDecorate<IPriceService>(services, (provider, real) => new TestDataPriceRouter(
+            real,
+            new Lazy<IPriceService>(() => TestDataPricing.Create(
+                provider.GetRequiredService<TestRatesHttp>(),
+                provider.GetRequiredService<IOperatorProfileStore>(),
+                provider.GetRequiredService<IClock>(),
+                provider.GetRequiredService<IPriceDefaults>()))));
+        Decorate<ISanctionLists>(services, (provider, real) => new TestDataSanctionLists(
+            real, provider.GetRequiredService<TestActors>()));
         Decorate<IWatchGate>(services, (_, real) => new TestDataWatchGate(real));
         Decorate<IBackgroundWatches>(services, (_, real) => new TestDataBackgroundWatches(real));
         services.AddSingleton(provider => new TestServices(
@@ -50,10 +63,29 @@ public static class TestDataServices
             provider.GetRequiredService<ICheckService>())
         {
             Comments = provider.GetService<IGraphCommentService>(),
+            Trash = provider.GetService<IGraphTrash>(),
+            Clustering = provider.GetService<IClusteringService>(),
+            Bitcoin = provider.GetRequiredService<IBitcoinSource>(),
         });
         services.AddSingleton<TestCaseBuilder>();
         services.AddSingleton<IShellCommand, TestDataCommand>();
         return services;
+    }
+
+    /// <summary>
+    /// Replaces the last registration of a service with one that wraps it, when the service is registered; a part of
+    /// the program that is not there (the rates in a test without them) is left out.
+    /// </summary>
+    /// <typeparam name="T">The service.</typeparam>
+    /// <param name="services">The container.</param>
+    /// <param name="wrap">Wraps the registered service.</param>
+    private static void TryDecorate<T>(IServiceCollection services, Func<IServiceProvider, T, T> wrap)
+        where T : class
+    {
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(T)))
+        {
+            Decorate(services, wrap);
+        }
     }
 
     /// <summary>Replaces the last registration of a service with one that wraps it.</summary>

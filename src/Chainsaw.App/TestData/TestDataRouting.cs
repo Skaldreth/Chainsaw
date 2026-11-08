@@ -1,7 +1,11 @@
 #if DEBUG
+using System.Security.Cryptography;
+using System.Text;
+using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.TestData;
@@ -110,6 +114,89 @@ public sealed class TestDataBackgroundWatches(IBackgroundWatches inner) : IBackg
 
     /// <inheritdoc/>
     public BackgroundImport Import(ICase @case) => inner.Import(@case);
+}
+
+/// <summary>
+/// The price service Chainsaw uses in a Debug build: made-up rates for a test case, and the real ones (Bitstamp and the
+/// Riksbank through the exit) for every other case, so that showing the test case's graph never sends a rate lookup.
+/// </summary>
+/// <param name="real">The real service.</param>
+/// <param name="testData">The service over made-up rates, made the first time a test case asks.</param>
+public sealed class TestDataPriceRouter(IPriceService real, Lazy<IPriceService> testData) : IPriceService
+{
+    /// <inheritdoc/>
+    public Task<PriceLookup<Price>> GetPriceAsync(
+        ICase @case, PriceRequest request, PriceLookupMode mode = PriceLookupMode.AsNeeded,
+        CancellationToken cancellationToken = default) =>
+        For(@case).GetPriceAsync(@case, request, mode, cancellationToken);
+
+    /// <inheritdoc/>
+    public RateSummary Summarize(ICase @case) => For(@case).Summarize(@case);
+
+    /// <summary>Chooses the service for a case.</summary>
+    /// <param name="case">The case.</param>
+    /// <returns>The made-up rates for a test case, the real ones otherwise.</returns>
+    private IPriceService For(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return TestCases.IsTestCase(@case) ? testData.Value : real;
+    }
+}
+
+/// <summary>
+/// Gives the sanction lists a made-up hit while <c>/testdata</c> builds the test case: the story's sanctioned actor is
+/// on a made-up list, under the list's own made-up name, so that the test case has a sanction hit (sketch ET1a) without
+/// a real list being imported or replaced. Every other time, and for every other address, the lists are the real ones.
+/// </summary>
+/// <param name="inner">The real lists.</param>
+/// <param name="actors">The story's actors.</param>
+public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actors) : ISanctionLists
+{
+    /// <summary>The made-up list's name, as the sanction hit names it.</summary>
+    public const string ListName = "Påhittad sanktionslista (testdata)";
+
+    /// <summary>The made-up entry's name.</summary>
+    public const string EntryName = "Sanktionerad aktör (påhittad)";
+
+    /// <summary>The made-up entry's id on the list.</summary>
+    private const string EntryUid = "testdata-1";
+
+    /// <summary>The made-up sanctions programme.</summary>
+    private const string Programme = "TESTDATA";
+
+    /// <summary>The made-up list, the same in every run.</summary>
+    private static readonly SanctionListInfo MadeUp = new(
+        ListName,
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(ListName))),
+        new DateOnly(2026, 10, 1),
+        new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero),
+        new Dictionary<string, int>(StringComparer.Ordinal) { [SanctionCurrency.Bitcoin] = 1 },
+        0);
+
+    /// <inheritdoc/>
+    public SanctionListInfo? Current => inner.Current;
+
+    /// <inheritdoc/>
+    public SanctionListInfo Import(Stream content) => inner.Import(content);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionListInfo> List() => inner.List();
+
+    /// <inheritdoc/>
+    public SanctionMatch? Find(BitcoinAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        if (!TestDataScope.IsBuilding || address != actors.Sanctioned.Address)
+        {
+            return inner.Find(address);
+        }
+
+        var hit = new SanctionedAddress(SanctionCurrency.Bitcoin, address.Value, EntryUid, EntryName, [Programme]);
+        return new SanctionMatch(MadeUp, [hit]);
+    }
+
+    /// <inheritdoc/>
+    public SanctionMatch? Find(EthereumAddress address) => inner.Find(address);
 }
 
 /// <summary>Marks the work of building the test case, in the flow that does it and nowhere else.</summary>

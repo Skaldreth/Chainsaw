@@ -13,6 +13,8 @@ using Chainsaw.Modules.Clustering;
 using Chainsaw.Modules.Monitoring;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Network.Contracts;
+using Chainsaw.Modules.Pricing;
+using Chainsaw.Modules.Requests;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing;
 using Chainsaw.SharedKernel;
@@ -52,6 +54,8 @@ internal sealed class Harness : IDisposable
         services.AddTracingModule();
         services.AddChecksModule();
         services.AddMonitoringModule();
+        services.AddPricingModule();
+        services.AddRequestsModule();
         services.AddSingleton<IUserDataProtector, PlainProtector>();
         services.AddBackgroundWatchFiles(Path.Combine(_directory, "Bevakning"));
         services.AddTestData();

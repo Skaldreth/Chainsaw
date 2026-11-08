@@ -89,7 +89,7 @@ public sealed class TestCaseTests : IDisposable
         var checks = _harness.Get<ICheckService>();
         var graph = await _harness.Get<ITracingService>().LoadAsync(@case);
         Assert.Contains(checks.Run(@case, graph).Checks, check => check.Finding.Kind == CheckKind.Suggestion);
-        Assert.Single(checks.GetAreas(@case));
+        Assert.Contains(checks.GetAreas(@case), area => area.Name == "Uttagsvägar");
         var cluster = _harness.Get<IClusteringService>().GetCluster(@case, actors.Scammer.Address!);
         Assert.Contains(actors.Scammer3.Address!, cluster.Addresses);
         Assert.NotEmpty(cluster.Links);
@@ -102,8 +102,8 @@ public sealed class TestCaseTests : IDisposable
         using var @case = _harness.Get<ICaseStore>().Open(build.CaseNumber);
         var actors = _harness.Get<TestActors>();
 
-        var comment = Assert.Single(_harness.Get<IGraphCommentService>().GetComments(@case));
-        Assert.Equal(GraphPile.MemberKey(actors.Victim.Address!), comment.Anchor);
+        var anchor = GraphPile.MemberKey(actors.Victim.Address!);
+        var comment = Assert.Single(_harness.Get<IGraphCommentService>().GetComments(@case), c => c.Anchor == anchor);
         Assert.Contains("chainsaw:bitcoin/" + actors.Exchange.Address!.Value, comment.Text, StringComparison.Ordinal);
     }
 
