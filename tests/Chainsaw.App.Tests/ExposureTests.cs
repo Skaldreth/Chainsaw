@@ -334,6 +334,58 @@ public sealed class ExposureTests
     }
 
     [Fact]
+    public void An_approved_way_out_of_a_mixer_stands_dashed_on_the_next_ring_as_a_suggestion_and_changes_no_number()
+    {
+        var scene = Labelled();
+        var line = scene.Snapshot.Graph.Edges.Single(edge => edge.Key == VU);
+        var paid = new ExposureResult(
+            VKey, ExposureDirection.Out, 1, new TracingMethodId(TracingMethodKind.Fifo, 1), line.Amount,
+            [new ExposureReach(UKey, line.Amount, 1, [VKey, UKey], [VU], [])],
+            new Dictionary<ExposureRest, AssetAmount>(),
+            [new ExposureFlow(VU, VKey, UKey, line.Amount)],
+            new Dictionary<string, int> { [VKey] = 0, [UKey] = 1 });
+        var got = paid with { Direction = ExposureDirection.In, Reached = [], Flows = [] };
+        var subject = scene.Node(VKey)!;
+        var names = ExposureNames.Of(scene);
+
+        var plain = ExposureLayout.Build(subject, paid, got, names);
+        var picture = ExposureLayout.Build(
+            subject, paid, got, names, [new ApprovedWayOut(UKey, KKey), new ApprovedWayOut(UKey, VKey)]);
+
+        var way = Assert.Single(picture.Candidates);
+        Assert.Equal((KKey, true, ExposureLayout.CandidateWord), (way.Key, way.IsCandidate, way.Line));
+        var radius = way.At.DistanceTo(ExposureLayout.Centre);
+        Assert.Equal(ExposureLayout.Rings[2], radius, 6);
+        var dotted = Assert.Single(picture.Lines, ring => ring.IsDotted);
+        Assert.Equal(way.At, dotted.To);
+        Assert.Equal(plain.Services, picture.Services);
+        Assert.Empty(plain.Candidates);
+        Assert.DoesNotContain(picture.Services.Concat(picture.Via), place => place.IsCandidate);
+    }
+
+    [Fact]
+    public void A_way_out_of_a_mixer_on_the_last_ring_stands_beyond_it_inside_the_picture()
+    {
+        var scene = Labelled();
+        var line = scene.Snapshot.Graph.Edges.Single(edge => edge.Key == VU);
+        var paid = new ExposureResult(
+            VKey, ExposureDirection.Out, 3, new TracingMethodId(TracingMethodKind.Fifo, 1), line.Amount,
+            [new ExposureReach(UKey, line.Amount, 3, [VKey, UKey], [VU], [])],
+            new Dictionary<ExposureRest, AssetAmount>(),
+            [new ExposureFlow(VU, VKey, UKey, line.Amount)],
+            new Dictionary<string, int> { [VKey] = 0, [UKey] = 3 });
+        var got = paid with { Direction = ExposureDirection.In, Reached = [], Flows = [] };
+
+        var picture = ExposureLayout.Build(
+            scene.Node(VKey)!, paid, got, ExposureNames.Of(scene), [new ApprovedWayOut(UKey, KKey)]);
+
+        var way = Assert.Single(picture.Candidates);
+        Assert.Equal(ExposureLayout.Beyond, way.At.DistanceTo(ExposureLayout.Centre), 6);
+        Assert.InRange(way.At.X + (way.Size / 2), 0, ExposureLayout.Width);
+        Assert.InRange(way.At.Y + (way.Size / 2), 0, ExposureLayout.Height);
+    }
+
+    [Fact]
     public void The_money_is_valued_in_proportion_to_its_part_of_the_line_and_not_at_all_without_a_value()
     {
         var scene = Labelled();

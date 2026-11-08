@@ -285,6 +285,7 @@ public partial class MainWindow : Window
 
         ExposurePage.Attach(exposure);
         exposure.Update(graph.Scene);
+        graph.Checks.Changed += (_, _) => exposure.UpdateWaysOut(graph.Checks.ApprovedWaysOut);
         graph.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(GraphViewModel.Scene))

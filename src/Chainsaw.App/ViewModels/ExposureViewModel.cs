@@ -153,6 +153,9 @@ public sealed partial class ExposureViewModel : ObservableObject
     /// <summary>What the subject got, or <see langword="null"/>.</summary>
     private ExposureResult? _got;
 
+    /// <summary>The approved likely ways out of the graph's mixers, drawn beyond them (sketch KF2b).</summary>
+    private IReadOnlyList<ApprovedWayOut> _waysOut = [];
+
     /// <summary>Creates the view.</summary>
     /// <param name="analysis">Tracing's analysis.</param>
     /// <param name="ui">The UI thread.</param>
@@ -275,6 +278,26 @@ public sealed partial class ExposureViewModel : ObservableObject
         if (IsShown)
         {
             Refresh();
+        }
+    }
+
+    /// <summary>
+    /// Follows the approved likely ways out of the graph's mixers, so that the picture draws them beyond the mixers as
+    /// suggestions (TODO, <em>Exponering, mixerns troliga utgångar</em>); they change no number.
+    /// </summary>
+    /// <param name="waysOut">The approved ways out.</param>
+    public void UpdateWaysOut(IReadOnlyList<ApprovedWayOut> waysOut)
+    {
+        ArgumentNullException.ThrowIfNull(waysOut);
+        if (waysOut.SequenceEqual(_waysOut))
+        {
+            return;
+        }
+
+        _waysOut = waysOut;
+        if (_paid is not null && _got is not null && Subject is { } subject)
+        {
+            Picture = ExposureLayout.Build(subject.Node, _paid, _got, _names, _waysOut);
         }
     }
 
@@ -519,7 +542,7 @@ public sealed partial class ExposureViewModel : ObservableObject
 
         MethodText = paid.Method.Name;
         VersionText = $"{paid.Method} · {ExposureResult.Analysis}";
-        Picture = ExposureLayout.Build(subject.Node, paid, got, _names);
+        Picture = ExposureLayout.Build(subject.Node, paid, got, _names, _waysOut);
         var word = SubjectWord(subject);
         Sides = [SideRows("BETALAT TILL", paid, word), SideRows("FÅTT FRÅN", got, word)];
         if (_selectedId is null || !Picture.Services.Any(place => place.Id == _selectedId))
