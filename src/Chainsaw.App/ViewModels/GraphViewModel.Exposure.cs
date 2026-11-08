@@ -86,6 +86,13 @@ public sealed partial class GraphViewModel
         Redraw?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Offers a way back to the view the graph was just shown from, as <em>‹ Rapport Esc</em> after <em>Ändra i
+    /// grafen</em> in the view Rapport (sketch RP1b), until the graph is left.
+    /// </summary>
+    /// <param name="view">The view to go back to.</param>
+    public void OfferReturn(AppView view) => ReturnTo = view;
+
     /// <summary>Goes back to the view the graph was shown from (<em>Tillbaka · Esc</em>).</summary>
     [RelayCommand]
     public void Return()

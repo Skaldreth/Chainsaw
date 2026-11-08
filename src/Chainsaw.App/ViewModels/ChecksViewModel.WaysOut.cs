@@ -3,15 +3,15 @@ using Chainsaw.Modules.Checks.Contracts;
 
 namespace Chainsaw.App.ViewModels;
 
-/// <summary>The approved ways out, read from the stored checks whatever the panel shows.</summary>
+/// <summary>The approved candidates, read from the stored checks whatever the panel shows.</summary>
 public sealed partial class ChecksViewModel
 {
     /// <summary>
-    /// Gets every candidate the user approved among a suggestion's (sketch KF2b), from the actor the suggestion is about
-    /// to the candidate's actor, both in the graph shown; each once. The view Exponering draws them beyond the actor
-    /// (TODO, <em>Exponering, mixerns troliga utgångar</em>), as judgements, never facts (principle 2).
+    /// Gets every candidate the user approved among a suggestion's (sketch KF2b), as a mixer's likely payout, with the
+    /// analysis that suggested it: judgements, never facts (principle 2). The report writes them among its conclusions
+    /// (BACKLOG, <em>Rapport</em>).
     /// </summary>
-    public IReadOnlyList<ApprovedWayOut> ApprovedWaysOut
+    public IReadOnlyList<ApprovedPayout> ApprovedPayouts
     {
         get
         {
@@ -21,7 +21,7 @@ public sealed partial class ChecksViewModel
             }
 
             var graph = scene.Snapshot.Graph;
-            var ways = new List<ApprovedWayOut>();
+            var approved = new List<ApprovedPayout>();
             foreach (var check in _checks.Where(check => check.Finding.Addresses.Count > 0))
             {
                 if (graph.NodeOf(check.Finding.Addresses[0]) is not { } from)
@@ -31,16 +31,31 @@ public sealed partial class ChecksViewModel
 
                 foreach (var candidate in check.Finding.Candidates)
                 {
-                    if (check.DecisionFor(candidate.Key)?.Verdict == CheckVerdict.Approved
-                        && graph.NodeOf(candidate.Address) is { } to
-                        && to.Key != from.Key)
+                    if (check.DecisionFor(candidate.Key)?.Verdict == CheckVerdict.Approved)
                     {
-                        ways.Add(new ApprovedWayOut(from.Key, to.Key));
+                        approved.Add(new ApprovedPayout(
+                            from.Key,
+                            graph.NodeOf(candidate.Address)?.Key,
+                            candidate.Address.Value,
+                            candidate.Txid.Value,
+                            check.Analysis.ToString()));
                     }
                 }
             }
 
-            return [.. ways.Distinct()];
+            return approved;
         }
     }
+
+    /// <summary>
+    /// Gets the approved candidates drawn in the graph as ways out of the actor the suggestion is about, each once. The
+    /// view Exponering draws them beyond the actor (TODO, <em>Exponering, mixerns troliga utgångar</em>).
+    /// </summary>
+    public IReadOnlyList<ApprovedWayOut> ApprovedWaysOut =>
+    [
+        .. ApprovedPayouts
+            .Where(candidate => candidate.To is not null && candidate.To != candidate.From)
+            .Select(candidate => new ApprovedWayOut(candidate.From, candidate.To!))
+            .Distinct(),
+    ];
 }

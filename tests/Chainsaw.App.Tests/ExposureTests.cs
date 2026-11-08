@@ -408,6 +408,22 @@ public sealed class ExposureTests
     }
 
     [Fact]
+    public async Task The_report_offers_its_own_way_back_from_the_graph()
+    {
+        var graph = await Graph();
+        var back = new List<AppView>();
+        graph.ReturnWanted += (_, view) => back.Add(view);
+
+        graph.OfferReturn(AppView.Report);
+
+        Assert.Equal("Rapport", graph.ReturnText);
+        Assert.True(graph.ReturnsOnEscape);
+        graph.Return();
+        Assert.Equal([AppView.Report], back);
+        Assert.False(graph.HasReturn);
+    }
+
+    [Fact]
     public async Task The_node_menu_opens_the_view_with_the_node_in_the_centre_and_the_graph_has_a_way_back()
     {
         var graph = await Graph();
