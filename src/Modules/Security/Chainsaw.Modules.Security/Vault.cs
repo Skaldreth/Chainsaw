@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel.Text;
 
 namespace Chainsaw.Modules.Security;
 
@@ -275,7 +276,7 @@ internal sealed class Vault : IVault, IDisposable
         Span<byte> wrappingKey = stackalloc byte[VaultCrypto.KeySize];
         try
         {
-            VaultCrypto.DeriveWrappingKey(masterKey, kdf.Salt, kdf.Iterations, wrappingKey);
+            VaultCrypto.DeriveWrappingKey(masterKey, kdf, kdf.Normalizes, wrappingKey);
             return VaultCrypto.Seal(wrappingKey, dataKey, VaultDocument.DataKeyAssociatedData);
         }
         finally
@@ -284,7 +285,11 @@ internal sealed class Vault : IVault, IDisposable
         }
     }
 
-    /// <summary>Decrypts the data key with the key derived from a master key.</summary>
+    /// <summary>
+    /// Decrypts the data key with the key derived from a master key. A vault written before the normalization is
+    /// tried as typed and, when that fails and normalizing would change the key, in normalization form C too, since
+    /// the key may first have been typed that way.
+    /// </summary>
     /// <param name="masterKey">The master key to try.</param>
     /// <param name="document">The checked vault file.</param>
     /// <returns>The data key in a pinned array that the caller owns and clears.</returns>
@@ -294,18 +299,40 @@ internal sealed class Vault : IVault, IDisposable
     /// </exception>
     private static byte[] UnwrapDataKey(ReadOnlySpan<char> masterKey, VaultDocument document)
     {
+        var kdf = document.Kdf;
+        if (TryUnwrapDataKey(masterKey, document, kdf.Normalizes) is { } dataKey)
+        {
+            return dataKey;
+        }
+
+        if (!kdf.Normalizes && !SecretText.IsNormalized(masterKey)
+            && TryUnwrapDataKey(masterKey, document, normalize: true) is { } normalized)
+        {
+            return normalized;
+        }
+
+        throw new VaultException(VaultError.WrongMasterKey);
+    }
+
+    /// <summary>Tries to decrypt the data key with the key derived one way from a master key.</summary>
+    /// <param name="masterKey">The master key to try.</param>
+    /// <param name="document">The checked vault file.</param>
+    /// <param name="normalize">Whether the key is derived in normalization form C.</param>
+    /// <returns>The data key in a pinned array that the caller owns and clears, or none when it does not open.</returns>
+    private static byte[]? TryUnwrapDataKey(ReadOnlySpan<char> masterKey, VaultDocument document, bool normalize)
+    {
         Span<byte> wrappingKey = stackalloc byte[VaultCrypto.KeySize];
         var dataKey = VaultCrypto.AllocateSecret(VaultCrypto.KeySize);
         try
         {
-            VaultCrypto.DeriveWrappingKey(masterKey, document.Kdf.Salt, document.Kdf.Iterations, wrappingKey);
+            VaultCrypto.DeriveWrappingKey(masterKey, document.Kdf, normalize, wrappingKey);
             VaultCrypto.Open(wrappingKey, document.DataKey, VaultDocument.DataKeyAssociatedData, dataKey);
             return dataKey;
         }
-        catch (AuthenticationTagMismatchException exception)
+        catch (AuthenticationTagMismatchException)
         {
             CryptographicOperations.ZeroMemory(dataKey);
-            throw new VaultException(VaultError.WrongMasterKey, exception);
+            return null;
         }
         finally
         {
@@ -313,22 +340,29 @@ internal sealed class Vault : IVault, IDisposable
         }
     }
 
-    /// <summary>Serialises and encrypts the content; the plaintext buffer is cleared afterwards.</summary>
+    /// <summary>
+    /// Serialises and encrypts the content. The plaintext is written straight into a pinned buffer that is cleared
+    /// afterwards, so that no copy of it is left for the garbage collector to move.
+    /// </summary>
     /// <param name="dataKey">The data key, from which the content key is derived.</param>
     /// <param name="content">The content.</param>
     /// <returns>The encrypted content under a fresh nonce.</returns>
     private static SealedBox SealContent(ReadOnlySpan<byte> dataKey, VaultContent content)
     {
         Span<byte> contentKey = stackalloc byte[VaultCrypto.KeySize];
-        var plaintext = JsonSerializer.SerializeToUtf8Bytes(content);
+        using var plaintext = new PinnedBufferWriter();
         try
         {
+            using (var writer = new Utf8JsonWriter(plaintext))
+            {
+                JsonSerializer.Serialize(writer, content);
+            }
+
             VaultCrypto.DeriveContentKey(dataKey, contentKey);
-            return VaultCrypto.Seal(contentKey, plaintext, VaultDocument.ContentAssociatedData);
+            return VaultCrypto.Seal(contentKey, plaintext.WrittenSpan, VaultDocument.ContentAssociatedData);
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(plaintext);
             CryptographicOperations.ZeroMemory(contentKey);
         }
     }
@@ -501,13 +535,18 @@ internal sealed class Vault : IVault, IDisposable
         }
     }
 
-    /// <summary>Gives new derivation parameters with a fresh salt and the configured iteration count.</summary>
+    /// <summary>
+    /// Gives new derivation parameters with a fresh salt, the configured iteration count and normalization form C.
+    /// </summary>
     /// <returns>The parameters.</returns>
-    private KdfParameters NewKdf() => new(KdfParameters.AlgorithmName, _iterations, VaultCrypto.NewSalt());
+    private KdfParameters NewKdf() =>
+        new(KdfParameters.AlgorithmName, _iterations, VaultCrypto.NewSalt(), KdfParameters.NormalizationName);
 
     /// <summary>
-    /// Wraps the data key again with the configured iteration count when the file was written with fewer, so that a
-    /// raised default reaches old vaults. A failed write keeps the old file, which still opens.
+    /// Wraps the data key again with the configured iteration count and normalization form C when the file was
+    /// written with fewer iterations or without the normalization, so that a raised default and the normalization
+    /// reach old vaults without locking anyone out: the key that just opened the vault is the one wrapped again. A
+    /// failed write keeps the old file, which still opens.
     /// </summary>
     /// <param name="masterKey">The master key that just opened the vault.</param>
     /// <param name="document">The vault file as read.</param>
@@ -517,7 +556,7 @@ internal sealed class Vault : IVault, IDisposable
     {
         // Runs before the commit, so an unlock that a lock overtakes may still have strengthened the file; the file is
         // valid either way.
-        if (document.Kdf.Iterations >= _iterations)
+        if (document.Kdf.Iterations >= _iterations && document.Kdf.Normalizes)
         {
             return document;
         }

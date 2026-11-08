@@ -29,10 +29,22 @@ internal sealed record VaultDocument(
 /// <param name="Algorithm">Always <see cref="AlgorithmName"/>.</param>
 /// <param name="Iterations">The PBKDF2 iteration count.</param>
 /// <param name="Salt">The random salt, new for every master key.</param>
-internal sealed record KdfParameters(string Algorithm, int Iterations, byte[] Salt)
+/// <param name="Normalization">
+/// <see cref="NormalizationName"/> when the master key is put in Unicode normalization form C before it is derived;
+/// <see langword="null"/> in a vault written before that, whose key is derived as typed until it is next unlocked
+/// (and then wrapped again in form C).
+/// </param>
+internal sealed record KdfParameters(string Algorithm, int Iterations, byte[] Salt, string? Normalization = null)
 {
     /// <summary>The value of <see cref="Algorithm"/>.</summary>
     public const string AlgorithmName = "PBKDF2-SHA512";
+
+    /// <summary>The value of <see cref="Normalization"/> for normalization form C.</summary>
+    public const string NormalizationName = "NFC";
+
+    /// <summary>Gets whether the master key is derived in normalization form C.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Normalizes => Normalization == NormalizationName;
 
     /// <summary>
     /// The highest iteration count a file may ask for, so that a damaged or hostile file cannot hang the unlock.
