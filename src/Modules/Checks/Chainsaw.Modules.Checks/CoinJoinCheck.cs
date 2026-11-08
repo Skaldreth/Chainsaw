@@ -62,6 +62,7 @@ internal sealed class CoinJoinCheck : ICheckAnalysis
     {
         CoinJoinPattern.Whirlpool => "Whirlpool",
         CoinJoinPattern.Wasabi => "Wasabi",
+        CoinJoinPattern.Wasabi2 => "Wasabi 2",
         CoinJoinPattern.JoinMarket => "JoinMarket",
         _ => "okänt mönster",
     };

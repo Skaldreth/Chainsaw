@@ -38,7 +38,32 @@ public sealed record CheckInput(
     /// wallet analysis shows each as approved and suggests only what is new around it.
     /// </summary>
     public IReadOnlyList<ApprovedWallet> ApprovedWallets { get; init; } = [];
+
+    /// <summary>
+    /// Gets the actors that labels say are exchanges or other services (not mixers); empty when none. An analysis
+    /// reads them to say where a pattern ends, for example a peel chain that ends at an exchange.
+    /// </summary>
+    public IReadOnlyList<KnownService> Services { get; init; } = [];
+
+    /// <summary>
+    /// Gets the owner of each address in the graph as the clustering counts it now: the smallest address of its
+    /// cluster, so that addresses with the same owner key are in the same cluster. An address missing here is its own
+    /// owner. The clusters are judgements, so what an analysis concludes from them is too (principle 2).
+    /// </summary>
+    public IReadOnlyDictionary<BitcoinAddress, BitcoinAddress> Owners { get; init; } =
+        new Dictionary<BitcoinAddress, BitcoinAddress>();
+
+    /// <summary>Gives the owner of an address (<see cref="Owners"/>).</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>Its owner key; the address itself when the clustering links it to no other.</returns>
+    public BitcoinAddress OwnerOf(BitcoinAddress address) => Owners.GetValueOrDefault(address) ?? address;
 }
+
+/// <summary>An actor that a label says is an exchange or another service, but not a mixer.</summary>
+/// <param name="Addresses">The service's known addresses; never empty.</param>
+/// <param name="IsExchange">Whether the label says it is an exchange, where money is taken out.</param>
+/// <param name="Name">What the label calls it, or <see langword="null"/>.</param>
+public sealed record KnownService(IReadOnlyList<BitcoinAddress> Addresses, bool IsExchange, string? Name = null);
 
 /// <summary>
 /// A wallet the user approved (<see cref="CheckAnalysisNames.Wallets"/>), and not taken back, as the clustering holds
