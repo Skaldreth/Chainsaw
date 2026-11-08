@@ -460,8 +460,10 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 - **Delarna tillsammans** (byggt 2026-11-08 som `mixer-parts v1`). Återstår: fler än fyra delar och fler än de 20
   första utbetalningarna prövas inte; samma utbetalning kan stå både som hel utgång i `mixer-outputs` och, för en
   annan insättning, som del; bara direkta spenderingar mellan delar utesluts, inte längre led.
-- **Granskningens mindre fynd M3, M4 och M8** om `mixer-parts` och `mixer-chain` (2026-11-08) är inte åtgärdade;
-  beskrivningen står i granskningen av commit 6389cd2.
+- **Mixer efter mixer, kvar efter granskningen 2026-11-08:** en tx som betalar in till två mixeradresser följs bara
+  på den första (den andra blir en egen kedja); avgifterna längs kedjan anges i procent av den första insättningen,
+  fast varje stegs avgift räknas mot sin egen; `mixer-chain` räknar om `Weigh`, `MixerPartsCheck.Best` och vem som
+  spenderar ett mynt per insättning (spara per insättning och bygg ett index över spenderade mynt).
 - **Testärendet** (`/testdata`) har ingen insättning som betalas ut i delar och ingen mixer efter mixer än; lades inte
   till 2026-11-08 eftersom testärendets layout byggdes om samtidigt.
 - **Växeladressen i KF2b** (bandens bredd efter belopp, kolumnen *SEDD*) är inte byggd: det finns ingen analys som
