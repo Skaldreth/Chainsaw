@@ -180,7 +180,7 @@ den låses upp, och användaren väljer ärende.
   Multiple Ciphers. Samma val som Gawk, men **koden kopieras inte** från Gawk (användarens beslut 2026-11-06). Det som tas
   över är designstilen, temat och gränssnittets komponenter (scrubbern, tidslinjen, tavlan med kolumner och
   kort), skrivna om för Chainsaw. Undantag: **Gawks Markdown-parser och -visare får tas över** (användarens beslut
-  2026-11-07), för kommentarsnoden i grafen, och **Gawks mjuka panorering** (`Motion/`: VelocityTracker, Easing,
+  2026-11-07), för kommentarsnoden i grafen, och **Gawks mjuka panorering och zoom** (`Motion/`: VelocityTracker, Easing,
   FrameClock; användarens beslut 2026-11-07).
 - **Modulär monolit med separation of concerns.** Varje modul består av ett `*.Contracts`-projekt (publika gränssnitt och
   typer) och ett implementationsprojekt med `internal`-typer, och registreras med `services.AddXxxModule()`. Moduler beror
