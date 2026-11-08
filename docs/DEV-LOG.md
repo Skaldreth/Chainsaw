@@ -4373,3 +4373,21 @@ Användaren bad om så många bildrutor som möjligt i grafen. Inget provat på 
 - **Återstår:** när en nod dras ritas hela scenen om i varje ruta. Nästa steg är ett eget draglager för de dragna
   noderna och deras linjer, så att resten står still.
 
+### Draglagret och ingen förlust i kvalitet (samma dag)
+
+Användarens krav: optimeringarna får inte minska kvaliteten alls.
+
+- **Zoomen ritas exakt i varje ruta igen.** Den skalade förut den färdiga ritningen under svepet, så att ikonernas
+  linjer blev en aning tjockare eller tunnare. Ikonernas linjebredd avrundas inte längre. Bara panorering och
+  glidning flyttar den färdiga ritningen, vilket ger exakt samma bild.
+- **Scenen ligger i fyra lager i sin ritordning:** linjernas lager (hoppkolumner, tidsband, rubriker, områden,
+  lapparnas trådar, linjer, belopp och bevakningar), nodernas lager, det lösa lagret (dragna noder) och lagret över
+  noderna (kort, soptunnans varning, kandidater, områdenas brickor, guiden, högen och sökringen).
+- **Draglagret:** medan noder dras skickar vymodellen `Moved` (de noder som fått ny plats och de dragna) i stället
+  för `Redraw`. Varje ruta ritar linjernas lager, det lösa lagret och lagret över noderna igen, medan de stilla
+  noderna, den dyraste delen, behåller sin ritning. Bilden blir exakt densamma som en hel ritning. Överlappar en
+  dragen nod en nod som ritas efter den, ritas hela scenen, så att den stilla noden ligger kvar ovanpå.
+- **Fler bäckar:** opacitet 1 öppnar inget lager, en linjes opacitet ligger i penseln (samma bildpunkter för en
+  enda stråke), `Near` räknas en gång per ritning i stället för en gång per lager, och kurvor som inte ändrats
+  behåller sin instans, så att deras geometri används igen.
+

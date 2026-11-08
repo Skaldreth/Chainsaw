@@ -1207,13 +1207,16 @@ och K först).
 
 ### Grafens fart (2026-11-08)
 
-Grafen ritar scenen i ett eget lager som bara flyttas när man panorerar, glider eller zoomar, och ritar om den först
-när något ändras eller man har panorerat förbi kanten av det ritade. Provas helst med ett stort ärende (hundratals
+Grafen ritar scenen i egna lager som bara flyttas när man panorerar eller glider, och ritar om den när något
+ändras, när man zoomar eller när man har panorerat förbi kanten av det ritade. När noder dras ritas bara de dragna
+noderna, linjerna och det som ligger över noderna om. Provas helst med ett stort ärende (hundratals
 noder).
 
 - [ ] Panorera fort åt alla håll och släpp i farten: rörelsen är jämn, utan hack, också när nya delar av grafen kommer in.
-- [ ] Zooma med hjulet: under själva svepet kan linjer och ikoner bli en aning tjockare eller tunnare, och när zoomen
-  landar är allt skarpt igen (linjerna 1,5 px). Säg till om det syns och stör.
+- [ ] Zooma med hjulet: allt är lika skarpt under svepet som när zoomen landat (ikonernas linjer 1,5 px hela vägen).
+- [ ] Dra en nod, och en grupp valda noder, fort över en stor graf: rörelsen är jämn, linjerna och beloppen följer
+  med, och noderna ser ut exakt som när de står still. Dra en nod in under en annan: den andra ligger kvar ovanpå
+  som förut. Dra mot soptunnan: noden krymper som förut.
 - [ ] Hovra och välj noder och linjer, dra noder, vänd ett kort (Alt + klick), öppna ett blockmärke och dra en ruta:
   allt ritas om direkt som förut.
 - [ ] Efter en panorering: hovring och klick på belopp, blockmärken och områdenas brickor träffar rätt.

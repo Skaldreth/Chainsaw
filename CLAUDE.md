@@ -213,8 +213,10 @@ den låses upp, och användaren väljer ärende.
 - **Grafens rendering är eventstyrd** (användarens krav 2026-11-08): grafytan har **en enda bildruteslinga**
   (`FramePump` och `GraphCanvas.Frames.cs`). Indata, vymodellens `Redraw` och rörelserna begär en ändring
   (`GraphChange`: Scene, View, Overlay), och slingan gör det minsta arbete som rutans ändringar kräver tillsammans.
-  Scenen ritas i ett eget lager som bara flyttas vid panorering och zoom (`SceneWindow`), och det som står på skärmen
-  över den ritas i ett andra lager. Ritkoden begär aldrig omritning och startar inga rörelser; ingen annan del håller
+  Scenen ritas i fyra lager i sin ritordning (linjer, noder, dragna noder, det över noderna) som bara flyttas vid
+  panorering (`SceneWindow`); när noder dras ritas de stilla noderna inte om (`GraphMoved`), och det som står på
+  skärmen över scenen ritas i ett eget lager. **Ingen optimering får sänka kvaliteten** (användarens krav
+  2026-11-08): varje bildruta visar exakt det en hel ritning skulle visa. Ritkoden begär aldrig omritning och startar inga rörelser; ingen annan del håller
   bildrutor, kör egna timrar eller anropar `InvalidateVisual` (ett test vaktar det).
 - **Varje förmåga är ett steg** med tydlig in- och utdata, som kan köras i bakgrunden och misslyckas för sig, och vars
   resultat vet varifrån det kommer (steg, version, data och tid). Det gör att heuristiker, analyser och senare en lokal
