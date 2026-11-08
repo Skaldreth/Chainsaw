@@ -30,10 +30,17 @@ public sealed record GraphSnapshot(
     public AccountTraceResult? AccountTrace { get; init; }
 
     /// <summary>
-    /// Gets what each line on Ethereum was worth at the time, by the line's key, when Pricing has a rate for every
-    /// movement on it (sketch TK1a: SEK small under the amount); a line without is missing, and shows no value.
+    /// Gets what each line was worth at the time, by the line's key, when Pricing has a rate for every transfer on it
+    /// (sketches TK1a and KU1a: the value small under the amount); a line without is missing, and shows no value.
     /// </summary>
     public IReadOnlyDictionary<string, EdgeValue> Values { get; init; } = new Dictionary<string, EdgeValue>();
+
+    /// <summary>
+    /// Gets why a line has no value although its asset can be priced (sketch KU1a: <c>– kr</c> under the amount),
+    /// by the line's key; a line that has a value, or whose asset no source prices, is missing.
+    /// </summary>
+    public IReadOnlyDictionary<string, EdgeValueGap> ValueGaps { get; init; } =
+        new Dictionary<string, EdgeValueGap>();
 
     /// <summary>
     /// Gets the latest rate the case has for each asset on the graph's account chains, which values what is left at an
@@ -59,7 +66,67 @@ public sealed record EdgeValue(decimal Rounded, string Currency, IReadOnlyList<s
 {
     /// <summary>Gets the value as the line writes it small under the amount, for example <c>≈ 546 000 kr</c>.</summary>
     public string Text => "≈ " + Rounded.ToString("#,##0", System.Globalization.CultureInfo.GetCultureInfo("sv-SE"))
-        + (Currency == "SEK" ? " kr" : " " + Currency);
+        + MoneyText.Unit(Currency);
+
+    /// <summary>
+    /// Gets each transfer on the line valued at its own time, in time order, so that <em>Varför?</em> can show the
+    /// amount, the rates and their hashes step by step (sketch KU1a); empty where only the steps are known.
+    /// </summary>
+    public IReadOnlyList<EdgeValuePart> Parts { get; init; } = [];
+}
+
+/// <summary>One transfer on a line valued at its time: a fact from the chain and a calculation from rates.</summary>
+/// <param name="Transfer">The transfer, with its transaction, block and amount.</param>
+/// <param name="Valuation">Its value with the price and the rates it rests on.</param>
+public sealed record EdgeValuePart(AssetTransfer Transfer, Valuation Valuation);
+
+/// <summary>
+/// Why a line shows no value (sketch KU1a): <c>– kr</c> under the amount with a mark, and on hovering which rate is
+/// missing; never a value made up.
+/// </summary>
+/// <param name="Currency">The currency's code, for example <c>SEK</c>.</param>
+/// <param name="Tip">What is missing and why, in Swedish, for the tooltip.</param>
+/// <param name="IsOffline">Whether it is missing because no exit is connected, so that the mark says offline.</param>
+public sealed record EdgeValueGap(string Currency, string Tip, bool IsOffline)
+{
+    /// <summary>
+    /// Gets whether the source can still be asked for the rate (the case only lacks it), so that the graph fetches it
+    /// in the background while the line shows the clock.
+    /// </summary>
+    public bool IsPending { get; init; }
+
+    /// <summary>Gets what stands under the amount, for example <c>– kr</c>.</summary>
+    public string Text => "–" + MoneyText.Unit(Currency);
+
+    /// <summary>Gets the mark's icon: offline, or the clock for a rate that is not fetched or not set yet.</summary>
+    public string Icon => IsOffline ? "Icon.Offline" : "Icon.Clock";
+}
+
+/// <summary>The lines' values after the rates were asked for again (sketch KU1a).</summary>
+/// <param name="Values">The values by line key.</param>
+/// <param name="Gaps">Why a line has no value, by line key.</param>
+/// <param name="Rates">The latest rate found per asset.</param>
+public sealed record GraphRates(
+    IReadOnlyDictionary<string, EdgeValue> Values,
+    IReadOnlyDictionary<string, EdgeValueGap> Gaps,
+    IReadOnlyDictionary<Asset, Price> Rates)
+{
+    /// <summary>Gets how many lines still wait for a rate the source can be asked for.</summary>
+    public int Pending => Gaps.Values.Count(gap => gap.IsPending);
+
+    /// <summary>
+    /// Gets whether a source asked Chainsaw to wait while these were fetched (429), so that no more is asked now.
+    /// </summary>
+    public bool IsThrottled { get; init; }
+}
+
+/// <summary>How money in a currency is written in the graph.</summary>
+public static class MoneyText
+{
+    /// <summary>Gives the unit after an amount of money: <c> kr</c> for kronor, else the currency's code.</summary>
+    /// <param name="currency">The currency's code, for example <c>SEK</c> or <c>EUR</c>.</param>
+    /// <returns>For example <c> kr</c> or <c> EUR</c>.</returns>
+    public static string Unit(string currency) => currency == "SEK" ? " kr" : " " + currency;
 }
 
 /// <summary>How a line is dashed (sketch GR3a): dashed always means uncertain.</summary>
@@ -179,6 +246,15 @@ public sealed record EdgeView(
     /// <summary>Gets what the line was worth at the time, small under the amount, or <see langword="null"/>.</summary>
     public EdgeValue? Value { get; init; }
 
+    /// <summary>Gets why the line has no value, when its asset can be priced, or <see langword="null"/>.</summary>
+    public EdgeValueGap? ValueGap { get; init; }
+
+    /// <summary>Gets what stands small under the amount: the value, <c>– kr</c>, or an empty text.</summary>
+    public string ValueLine => Value?.Text ?? ValueGap?.Text ?? string.Empty;
+
+    /// <summary>Gets whether something stands small under the amount.</summary>
+    public bool HasValueLine => ValueLine.Length > 0;
+
     /// <summary>
     /// Gets the swap's pill on the line (sketch TK1a), for example <c>₮ → Ξ</c>, when a transaction on it shows that
     /// the sender swapped what it sent for another asset; otherwise <see langword="null"/>.
@@ -280,6 +356,25 @@ public sealed record GraphScene(
 
     /// <summary>Gets how many drawn nodes the trash hides.</summary>
     public int Trashed { get; init; }
+
+    /// <summary>
+    /// Gives the scene again with its lines' values (sketch KU1a), keeping how it draws the outputs that can never be
+    /// spent and what the trash hides.
+    /// </summary>
+    /// <param name="rates">The values and why some lines have none.</param>
+    /// <returns>The scene.</returns>
+    public GraphScene WithRates(GraphRates rates)
+    {
+        ArgumentNullException.ThrowIfNull(rates);
+        var snapshot = Snapshot with { Values = rates.Values, ValueGaps = rates.Gaps, Rates = rates.Rates };
+        return Build(snapshot, ShowsUnspendable, Trash);
+    }
+
+    /// <summary>Gets how many lines wait for a rate the source can be asked for (sketch KU1a).</summary>
+    public int PendingRates => Snapshot.ValueGaps.Values.Count(gap => gap.IsPending);
+
+    /// <summary>Gives the lines' values as the scene has them, to be changed and shown again.</summary>
+    public GraphRates Rates => new(Snapshot.Values, Snapshot.ValueGaps, Snapshot.Rates);
 
     /// <summary>Gives the scene again with what the trash hides; itself when it is the same filter.</summary>
     /// <param name="trash">The filter.</param>
@@ -399,6 +494,7 @@ public sealed record GraphScene(
             {
                 Glyph = TokenMarks.Glyph(edge.Amount.Asset),
                 Value = snapshot.Values.GetValueOrDefault(edge.Key),
+                ValueGap = snapshot.ValueGaps.GetValueOrDefault(edge.Key),
                 Swaps = SwapsOn(edge, swaps),
             })
             .Select(edge => edge.Swaps.Count == 0 ? edge : edge with { Swap = SwapText(edge.Swaps) })

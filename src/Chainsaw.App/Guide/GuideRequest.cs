@@ -9,7 +9,14 @@ namespace Chainsaw.App.Guide;
 /// </summary>
 /// <param name="Label">What the answer is about, for example <c>Varför? · bc1q…x0wl</c>.</param>
 /// <param name="Lines">The answers, each with its own section of the Guide.</param>
-public sealed record GuideContext(string Label, IReadOnlyList<WhyLine> Lines);
+public sealed record GuideContext(string Label, IReadOnlyList<WhyLine> Lines)
+{
+    /// <summary>
+    /// Gets the steps behind a line's value (sketch KU1a), shown above the section in their own form, or
+    /// <see langword="null"/> when the answer is about something else.
+    /// </summary>
+    public GuideValuation? Valuation { get; init; }
+}
 
 /// <summary>
 /// A wish to open the Guide: a section, the heading to mark in it, and the answer for what is chosen.
@@ -75,6 +82,29 @@ public sealed record GuideRequest(GuideTopic Topic, string? Heading, GuideContex
         GuideTopics.MethodHeading(method),
         new GuideContext("Spårningsmetoden i grafen", [new WhyLine(answer, null)]),
         null);
+
+    /// <summary>The heading in the section on rates that shows the steps.</summary>
+    public const string ValueHeading = "Så ser stegen ut";
+
+    /// <summary>What <em>Varför?</em> for a value says first: what it rests on, and that it is no fact.</summary>
+    public const string ValueAnswer = "Uträknat ur beloppet på kedjan och kurserna. Inte på kedjan.";
+
+    /// <summary>
+    /// Gives the request for <em>Varför?</em> on a line's value (sketch KU1a): the steps (the amount, the crypto rate
+    /// and the exchange rate, each with its hash, and the calculation) above the section on rates.
+    /// </summary>
+    /// <param name="subject">The line's key.</param>
+    /// <param name="valuation">The steps.</param>
+    /// <returns>The request, chosen just now.</returns>
+    public static GuideRequest ForValue(string subject, GuideValuation valuation)
+    {
+        ArgumentNullException.ThrowIfNull(valuation);
+        var context = new GuideContext("Varför " + valuation.Total + "?", [new WhyLine(ValueAnswer, null)])
+        {
+            Valuation = valuation,
+        };
+        return new GuideRequest(GuideTopic.Prices, ValueHeading, context, subject) { IsChoice = true };
+    }
 
     /// <summary>Gives the request for a section without an answer, for example the visual language.</summary>
     /// <param name="topic">The section.</param>

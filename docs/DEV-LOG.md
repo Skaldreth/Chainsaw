@@ -3429,3 +3429,59 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - **M6:** tester för kontrollen mot den riktiga `ExitHttp` utan ansluten utgång (inget skickas), för Windows vid
   anslutning och för att förhandsvisningens kort stängs när allt stängs vid låsning.
 
+## Kurserna, KU1a (2026-11-08)
+
+Kronan följer Riksbanken (användarens beslut 2026-11-08): Bitstamps kurs i euro räknas om med Riksbankens dagskurs för
+EUR/SEK, och båda svaren förseglas i ärendet var för sig.
+
+- **Pricing:** `PricingOptions.KronaVia` är nu euro (var dollar). Riksbankens öppna API (SWEA) nåddes härifrån och
+  svarar som källan redan läser: `GET /swea/v1/Observations/SEKEURPMI/{från}/{till}` ger en lista med `date` och
+  `value`, och `Series/SEKEURPMI` beskriver serien (*Euroland euro*, sedan 1993). Inget nät i testerna; ett syntetiskt
+  svar `riksbank-sekeurpmi.json`.
+- `RateOrigin.Route` läser den förseglade kolumnen `exit_route`, så att *Varför?* kan säga genom vilken sorts utgång
+  kursen hämtades. `IPriceService.Summarize` räknar kurserna i ärendet (`RateSummary`) utan att skicka något.
+- **Grafen:** alla linjer värderas, inte bara Ethereums (`EdgeValues`, `EdgeValuePart`): varje överföring vid sin
+  blocktid, och en linje får ett värde bara när varje överföring har en kurs. Annars får den `EdgeValueGap`:
+  **– kr** med en ikon (överstruket nät för offline, klocka för inte hämtad, inte satt eller obekräftad) och på hovring
+  vilken kurs som saknas. En tillgång som ingen källa prissätter får inget under beloppet.
+- **Varför? (Guidens panel):** ett klick på beloppet väljer linjen och öppnar `GuideRequest.ForValue` med
+  `GuideValuation`: per överföring *Beloppet* (fakta: tx och utgång, block med hash, blocktid i UTC och lokal tid),
+  *Kursen BTC → EUR* (perioden, *Timmens stängning*, hämtad och genom vilken utgång, SHA-256 i grupper med kopiera),
+  *Växelkursen EUR → SEK* (dagen, serien, hämtad, SHA-256) och uträkningen; en linje med flera överföringar slutar
+  med summan. Avsnittet *Kurser och omräkning* öppnas under, vid *Så ser stegen ut*. Inspektörens *Värde* och
+  *Varför?* gäller nu också Bitcoin.
+- **Inställningar › Kurser:** raderna Valuta, Upplösning (*Dygn* i stället för *Dag*), Källa för kryptokurser, Källa
+  för växelkursen och *Sparas i ärendet* (`RatesSummaryViewModel`, räknat utanför UI-tråden när sidan visas).
+- **Guiden:** `docs/guide/kurser.md` om euro och Riksbanken, stegen i panelen och **– kr**.
+
+**Egna beslut och avsteg från skissen:**
+- Skissens *Hämtad … genom Stockholm* blir *genom VPN* eller *genom Windows*: råsvaret förseglar sortens utgång och
+  utgångens id, inte dess namn.
+- *Sparas i ärendet* räknar kurserna från Bitstamp (en per period); svaren från Riksbanken (ett per månad) står på
+  hovring.
+- Skissen visar ett värde för en obekräftad tx; Chainsaw visar **– kr** med en klocka, eftersom kursen gäller
+  blockets tid.
+- Ett klick på **– kr** väljer bara linjen (det finns inga steg att visa).
+
+**Granskningen** (oberoende, inga C):
+- **I1:** taket på 30 uppslag räknades också för kurser ur ärendet. *Nu:* ärendet frågas först, och bara ett svar
+  `NotInCase` räknas mot taket (`GraphSource.ValuesAsync`).
+- **I2:** `ComposeAsync` väntade på alla kursuppslag. *Nu:* grafen och expansionen visas direkt med ärendets kurser;
+  `IGraphSource.FillRatesAsync` hämtar de saknade (`EdgeValueGap.IsPending`) i bakgrunden, ett tak i taget, och
+  `GraphViewModel.FillRatesAsync` fyller i linjerna utan att läsa grafen igen, tills inget mer går framåt. Offline
+  frågas inget och linjerna säger *Offline* (M9); när utgången kommer tillbaka hämtas de.
+- **Omgranskningen, I3:** hämtningen fortsatte så länge färre linjer väntade, också när varje kurs misslyckades, och
+  ett misslyckat svar frågades om vid varje läsning. *Nu:* grafen fortsätter bara när en omgång gav minst en ny kurs
+  och slutar direkt när källan svarar 429 (`PriceLookup.IsThrottled`, `GraphRates.IsThrottled`; källan frågas då inte
+  mer i omgången). Pricing minns en period vars uppslag misslyckats och frågar inte om den förrän
+  `PricingOptions.FailureCooldown` (fem minuter) har gått; under tiden svarar den *Failed* utan att något skickas.
+  Den nya scenen byggs utanför UI-tråden och visas bara om ingen nyare hämtning eller läsning kommit (M1), och
+  `FollowReadingAsync` körs efteråt så att läsningens val står kvar (M2).
+- **M:** *dagskurs* (M1), utan fasta gröna prickar (M2), *En kurs som är satt hämtas aldrig igen* (M3), summeringen
+  fångar allt utom avbrott och räknar om när ärendet byts (M4), en blocktid före datorns klocka skiljs från en
+  tillgång utan källa (M5), valutan läses en gång per körning (M6), träffytan är den ritade rutan (M7) och ett test
+  för euro på en lördag (M8).
+
+**Återstår:** testärendet `/testdata` har inga påhittade kurser, så dess linjer hämtar riktiga kurser genom utgången.
+
+Tester: 9 nya i Pricing (`EuroTests`) och 20 i App (`RatesTests`).

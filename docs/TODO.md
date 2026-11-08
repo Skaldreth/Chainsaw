@@ -148,6 +148,9 @@ Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md
 - **Inställningarnas rester** [direkt] (efter BV4a, ST2a, FS2a och UT3b):
   - Titelraden visar inte *Syns som* på utgångens tips (UT3b har det i skissen).
   - Kontrollen av Windows som utgång (*datorns eget nät*) visas ingenstans, eftersom tabellen bara står under VPN.
+
+- **Inställningarna** [direkt]: BV4a meddelandet mitt på skärmen, ST2a återställningsnyckeln, FS2a steget Utgång
+  (Windows förvalt) och UT3b utgångarna med kontrollen.
 - **Ärendet ÄR1b** [etapp]: kollegans fil, egenskaperna med kuverten och konflikten med arbetskopian.
 - **Sökningen, resterna efter KR1a** [direkt]: det slängda i soptunnan söks inte (raden kunde säga *I soptunnan* med
   *Lägg tillbaka*), och en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret.

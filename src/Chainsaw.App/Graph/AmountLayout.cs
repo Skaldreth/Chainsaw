@@ -35,6 +35,9 @@ public static class AmountLayout
     /// <summary>The height of the value in the currency, small under the amount.</summary>
     public const double ValueHeight = 13;
 
+    /// <summary>The room the mark before a missing value takes (sketch KU1a): a 10 px icon and its gap.</summary>
+    public const double GapMarkWidth = 13;
+
     /// <summary>The height of a swap's pill on its line (sketch TK1a: 26 px).</summary>
     public const double SwapHeight = 26;
 
@@ -87,9 +90,10 @@ public static class AmountLayout
         ArgumentNullException.ThrowIfNull(edge);
         var glyph = edge.Glyph.Length > 0 ? GlyphWidth : 0;
         var text = (edge.Label.Length * CharWidth) + glyph;
-        var value = edge.Value is { } worth ? worth.Text.Length * CharWidth * ValueScale : 0;
+        var mark = edge.Value is null && edge.ValueGap is not null ? GapMarkWidth : 0;
+        var value = (edge.ValueLine.Length * CharWidth * ValueScale) + mark;
         var width = Math.Max(text, value) + (2 * PaddingX);
-        var height = TextHeight + (edge.Value is null ? 0 : ValueHeight);
+        var height = TextHeight + (edge.HasValueLine ? ValueHeight : 0);
         return new GraphRect(
             anchor.X - (width / 2), anchor.Y - (TextHeight / 2) - PaddingY, width, height + (2 * PaddingY));
     }

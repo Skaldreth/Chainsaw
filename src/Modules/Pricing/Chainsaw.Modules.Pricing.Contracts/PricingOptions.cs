@@ -19,10 +19,10 @@ public sealed record PricingOptions
 
     /// <summary>
     /// Gets the currency the crypto rate is taken in when counting in kronor, which no exchange in the sources quotes
-    /// directly; the rate is then converted with the Riksbank's rate for this currency. US dollars by default, the
-    /// market with the most trading.
+    /// directly; the rate is then converted with the Riksbank's day rate for this currency. Euro by default (the
+    /// user's decision 2026-11-08): Bitstamp's rate in euro, converted with the Riksbank's EUR/SEK.
     /// </summary>
-    public FiatCurrency KronaVia { get; init; } = FiatCurrency.Usd;
+    public FiatCurrency KronaVia { get; init; } = FiatCurrency.Eur;
 
     /// <summary>
     /// Gets the shortest time between two requests to the Riksbank, which allows 5 anonymous requests a minute from one
@@ -30,6 +30,13 @@ public sealed record PricingOptions
     /// since Chainsaw started, and computers that share an exit share both limits without knowing it.
     /// </summary>
     public TimeSpan RiksbankInterval { get; init; } = TimeSpan.FromSeconds(12);
+
+    /// <summary>
+    /// Gets how long a crypto rate whose request just failed (an error, a refusal to answer more, a failure on the
+    /// way) is not asked for again, so that a source that is down is not asked over and over and the case is not
+    /// filled with sealed errors; five minutes by default. The answer meanwhile says so, and nothing is sent.
+    /// </summary>
+    public TimeSpan FailureCooldown { get; init; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Gets the base address of Bitstamp's public API.</summary>
     public Uri BitstampBaseUri { get; init; } = new("https://www.bitstamp.net/api/v2/");

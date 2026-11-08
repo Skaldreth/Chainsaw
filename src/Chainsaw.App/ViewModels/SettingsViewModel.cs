@@ -122,6 +122,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// Shows the message in the middle of the screen and plays the sound (<em>Prova</em>, <em>Lyssna</em>), or
     /// <see langword="null"/> where they cannot be shown.
     /// </param>
+    /// <param name="rates">
+    /// How many rates the open case keeps, on the page Kurser (sketch KU1a), or <see langword="null"/> where there is
+    /// no case to count.
+    /// </param>
     public SettingsViewModel(
         AppSettings settings,
         AppSettingsStore store,
@@ -137,7 +141,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         AttributionSwitches? suppliers = null,
         LinkRegistration? links = null,
         AboutViewModel? about = null,
-        IAlertPreview? alerts = null)
+        IAlertPreview? alerts = null,
+        RatesSummaryViewModel? rates = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(cases);
@@ -153,6 +158,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _alerts = alerts;
         Exits = exits;
         Sources = sources;
+        Rates = rates;
         Menu = SettingsMenu.Groups
             .Select(group => new SettingsMenuGroup(group.Name, [.. group.Entries.Select(e => new SettingsMenuItem(e))]))
             .ToList();
@@ -161,7 +167,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             [.. Enum.GetValues<FiatCurrency>().Select(currency => new SettingsChoice(currency.Code(), currency))];
         ResolutionChoices =
         [
-            new("Minut", PriceResolution.Minute), new("Timme", PriceResolution.Hour), new("Dag", PriceResolution.Day),
+            new("Minut", PriceResolution.Minute), new("Timme", PriceResolution.Hour), new("Dygn", PriceResolution.Day),
         ];
         About = about ?? new AboutViewModel(cases, build);
         SavedRoute = store.SavedRoute();
@@ -182,6 +188,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets the exits under VPN, the same view model as the exits' panel in the title bar.</summary>
     public ExitPanelViewModel Exits { get; }
+
+    /// <summary>Gets how many rates the open case keeps (page Kurser), or <see langword="null"/>.</summary>
+    public RatesSummaryViewModel? Rates { get; }
 
     /// <summary>Gets the page Källor, or <see langword="null"/> where there is none.</summary>
     public SourcesViewModel? Sources { get; }
@@ -722,6 +731,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ShowPage(SettingsPage page)
     {
         Page = page;
+        if (page == SettingsPage.Pricing)
+        {
+            _ = Rates?.RefreshAsync();
+        }
+
         foreach (var item in Menu.SelectMany(group => group.Items))
         {
             item.IsSelected = item.Entry.Page == page;

@@ -22,4 +22,11 @@ public sealed record RateOrigin(
     DateTimeOffset ReceivedUtc,
     DateTimeOffset ReceivedLocal,
     OperatorProfile FetchedBy,
-    string Sha256);
+    string Sha256)
+{
+    /// <summary>
+    /// Gets the way out the response came through, as sealed with it: <c>vpn</c>, <c>windows</c> or <c>local</c>;
+    /// <see langword="null"/> when it is not known.
+    /// </summary>
+    public string? Route { get; init; }
+}

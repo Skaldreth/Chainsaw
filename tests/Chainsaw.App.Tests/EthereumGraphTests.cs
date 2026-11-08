@@ -139,15 +139,41 @@ internal sealed class TestPrices : IPriceService
 
     public List<(PriceRequest Request, PriceLookupMode Mode)> Asked { get; } = [];
 
+    /// <summary>Gets or sets how a request without a rate is answered.</summary>
+    public PriceLookupStatus Missing { get; set; } = PriceLookupStatus.NotInCase;
+
+    /// <summary>
+    /// Gets or sets whether the rates are only at the source: the case has a rate only for the times in
+    /// <see cref="InCase"/>, and asking the source puts it there.
+    /// </summary>
+    public bool AtSourceOnly { get; set; }
+
+    /// <summary>Gets or sets whether the source answers every request with 429: it takes no more requests now.</summary>
+    public bool Throttles { get; set; }
+
+    /// <summary>Gets the times the case has a rate for, when <see cref="AtSourceOnly"/>.</summary>
+    public HashSet<DateTimeOffset> InCase { get; } = [];
+
     public Task<PriceLookup<Price>> GetPriceAsync(
         ICase @case, PriceRequest request, PriceLookupMode mode = PriceLookupMode.AsNeeded,
         CancellationToken cancellationToken = default)
     {
         Asked.Add((request, mode));
         var asset = request.Asset ?? request.Chain.NativeAsset();
-        if (!Rates.TryGetValue(asset, out var rate))
+        if (Throttles && mode == PriceLookupMode.AsNeeded)
         {
-            return Task.FromResult(new PriceLookup<Price>(PriceLookupStatus.NotInCase, null, [], null));
+            return Task.FromResult(
+                new PriceLookup<Price>(PriceLookupStatus.Failed, null, [], "429") { IsThrottled = true });
+        }
+
+        if (AtSourceOnly && mode == PriceLookupMode.AsNeeded)
+        {
+            InCase.Add(request.At);
+        }
+
+        if (!Rates.TryGetValue(asset, out var rate) || (AtSourceOnly && !InCase.Contains(request.At)))
+        {
+            return Task.FromResult(new PriceLookup<Price>(Missing, null, [], null));
         }
 
         var origin = new RateOrigin(1, "test", new Uri("https://rates.invalid/"), 200, request.At, request.At,
@@ -157,6 +183,10 @@ internal sealed class TestPrices : IPriceService
         return Task.FromResult(new PriceLookup<Price>(
             PriceLookupStatus.FromCase, new Price(request.At, FiatCurrency.Sek, crypto, null), [origin], null));
     }
+
+    public RateSummary Summary { get; set; } = new(0, 0);
+
+    public RateSummary Summarize(ICase @case) => Summary;
 }
 
 /// <summary>The graph on Ethereum after TK1a (stage 23b): marks, values, swaps, balances, seeds and the forms.</summary>
@@ -393,7 +423,7 @@ public sealed class EthereumGraphTests
     }
 
     [Fact]
-    public async Task An_expansion_may_ask_for_rates_and_a_failed_account_trace_is_said()
+    public async Task An_expansion_reads_the_case_s_rates_only_and_a_failed_account_trace_is_said()
     {
         var tracing = new TestTracing
         {
@@ -407,7 +437,7 @@ public sealed class EthereumGraphTests
             new TestCase("2026-0001"), [ExpansionRequest.ForEthereumAddress(EthSamples.M)], TracingMethodKind.Fifo,
             CancellationToken.None);
 
-        Assert.Contains(prices.Asked, asked => asked.Mode == PriceLookupMode.AsNeeded);
+        Assert.All(prices.Asked, asked => Assert.Equal(PriceLookupMode.CaseOnly, asked.Mode));
         Assert.Equal(GraphSource.AccountTraceFailedText, expansion.Scene.Snapshot.TraceProblem);
         Assert.Null(expansion.Scene.Snapshot.AccountTrace);
     }

@@ -43,7 +43,7 @@ public sealed class PricingModuleTests
 
         Assert.Equal(FiatCurrency.Sek, options.Currency);
         Assert.Equal(PriceResolution.Hour, options.Resolution);
-        Assert.Equal(FiatCurrency.Usd, options.KronaVia);
+        Assert.Equal(FiatCurrency.Eur, options.KronaVia);
         Assert.Equal("https://www.bitstamp.net/api/v2/", options.BitstampBaseUri.AbsoluteUri);
         Assert.Equal("https://api.riksbank.se/swea/v1/", options.RiksbankBaseUri.AbsoluteUri);
     }

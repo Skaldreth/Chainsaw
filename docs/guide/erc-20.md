@@ -43,8 +43,8 @@ först i beloppet, **₮** för USDT, **$** för USDC och **Ξ** för ether, med
 kurs. En token utan känt märke står med sin symbol. Se också [Kan frysas](kan-frysas.md).
 
 Värdet i kronor räknas för varje överföring vid dess blocks tid, ur kursen för just den tillgången (ether, eller
-USDT och USDC igenkända på kontraktet). Saknar ärendet kursen för någon överföring på linjen står inget värde, hellre
-än ett påhittat; kurserna hämtas när grafen expanderas. En stablecoin räknas aldrig som en dollar av sig själv.
+USDT och USDC igenkända på kontraktet). Saknar ärendet kursen för någon överföring på linjen står **– kr**, hellre
+än ett påhittat värde; de saknade kurserna hämtas i bakgrunden. En stablecoin räknas aldrig som en dollar av sig själv.
 
 ## Swap
 

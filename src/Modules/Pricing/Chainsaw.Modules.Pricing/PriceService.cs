@@ -76,6 +76,12 @@ internal sealed class PriceService : IPriceService
     /// </summary>
     private readonly Dictionary<string, (PriceLookup<FiatRate> Lookup, DateTimeOffset At)> _pendingFiat = [];
 
+    /// <summary>
+    /// The crypto periods whose request failed lately, by subject, with when and whether the source asked to wait;
+    /// such a period is not asked for again until <see cref="PricingOptions.FailureCooldown"/> has passed.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, (DateTimeOffset At, bool Throttled)> _failedCrypto = new();
+
     /// <summary>The source of crypto rates.</summary>
     private readonly ICryptoRateSource _crypto;
 
@@ -143,7 +149,10 @@ internal sealed class PriceService : IPriceService
             .ConfigureAwait(false);
         if (crypto.Value is not { } cryptoRate)
         {
-            return new PriceLookup<Price>(crypto.Status, null, crypto.Origins, crypto.Problem);
+            return new PriceLookup<Price>(crypto.Status, null, crypto.Origins, crypto.Problem)
+            {
+                IsThrottled = crypto.IsThrottled,
+            };
         }
 
         if (currency == quote)
@@ -157,13 +166,23 @@ internal sealed class PriceService : IPriceService
         IReadOnlyList<RateOrigin> origins = [.. crypto.Origins, .. fiat.Origins];
         if (fiat.Value is not { } fiatRate)
         {
-            return new PriceLookup<Price>(fiat.Status, null, origins, fiat.Problem);
+            return new PriceLookup<Price>(fiat.Status, null, origins, fiat.Problem)
+            {
+                IsThrottled = fiat.IsThrottled || Throttled(fiat.Origins),
+            };
         }
 
         var status = crypto.Status == PriceLookupStatus.Fetched || fiat.Status == PriceLookupStatus.Fetched
             ? PriceLookupStatus.Fetched
             : PriceLookupStatus.FromCase;
         return new PriceLookup<Price>(status, new Price(request.At, currency, cryptoRate, fiatRate), origins, null);
+    }
+
+    /// <inheritdoc/>
+    public RateSummary Summarize(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(RateResponseStore.Summarize);
     }
 
     /// <summary>Says why a request cannot be answered by the sources, before anything is read or sent.</summary>
@@ -257,6 +276,11 @@ internal sealed class PriceService : IPriceService
                 "Inget skickades.");
         }
 
+        if (RecentFailure(query) is { } failure)
+        {
+            return failure;
+        }
+
         // Per open case: a response is sealed in the case that asked, and a case opened again is a new one.
         var flights = _cryptoFlights.GetValue(@case, _ => new ConcurrentDictionary<string, CryptoFlight>());
         CryptoFlight? mine = null;
@@ -285,13 +309,57 @@ internal sealed class PriceService : IPriceService
                 return new PriceLookup<CryptoRate>(PriceLookupStatus.FromCase, kept, [kept.Origin], null);
             }
 
-            return await FetchCryptoRateAsync(@case, query).ConfigureAwait(false);
+            var fetched = await FetchCryptoRateAsync(@case, query).ConfigureAwait(false);
+            RememberFailure(query, fetched);
+            return fetched;
         }
         finally
         {
             flights.TryRemove(KeyValuePair.Create(query.Subject, self));
         }
     }
+
+    /// <summary>
+    /// Answers a period whose request failed lately without asking again, until the cooldown has passed.
+    /// </summary>
+    /// <param name="query">The period.</param>
+    /// <returns>The answer, or <see langword="null"/> when the period may be asked for.</returns>
+    private PriceLookup<CryptoRate>? RecentFailure(CandleQuery query)
+    {
+        if (!_failedCrypto.TryGetValue(query.Subject, out var failed)
+            || _clock.UtcNow - failed.At >= _options.FailureCooldown)
+        {
+            return null;
+        }
+
+        return new PriceLookup<CryptoRate>(
+            PriceLookupStatus.Failed, null, [], "Kursen kunde inte hämtas nyss och frågas igen om en stund. " +
+            "Inget skickades.")
+        {
+            IsThrottled = failed.Throttled,
+        };
+    }
+
+    /// <summary>Remembers a failed request for a period, or forgets an earlier failure when it answered.</summary>
+    /// <param name="query">The period.</param>
+    /// <param name="lookup">The answer.</param>
+    private void RememberFailure(CandleQuery query, PriceLookup<CryptoRate> lookup)
+    {
+        if (lookup.Status == PriceLookupStatus.Failed)
+        {
+            _failedCrypto[query.Subject] = (_clock.UtcNow, lookup.IsThrottled);
+        }
+        else
+        {
+            _failedCrypto.TryRemove(query.Subject, out _);
+        }
+    }
+
+    /// <summary>Gets whether a source answered that it takes no more requests now.</summary>
+    /// <param name="origins">The sealed responses.</param>
+    /// <returns><see langword="true"/> when one of them is 429.</returns>
+    private static bool Throttled(IEnumerable<RateOrigin> origins) =>
+        origins.Any(origin => origin.StatusCode == TooManyRequestsStatus);
 
     /// <summary>Finds a final crypto rate for a period in the case.</summary>
     /// <param name="case">The open case.</param>
@@ -364,6 +432,9 @@ internal sealed class PriceService : IPriceService
         var origin = sealedResponse.Origin;
         return candle is null
             ? new PriceLookup<CryptoRate>(StatusOf(failed), null, [origin], problem)
+            {
+                IsThrottled = origin.StatusCode == TooManyRequestsStatus,
+            }
             : new PriceLookup<CryptoRate>(PriceLookupStatus.Fetched, Rate(query, candle, origin), [origin], null);
     }
 

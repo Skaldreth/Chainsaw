@@ -31,6 +31,12 @@ public sealed partial class GuidePanelViewModel : ObservableObject
     /// <summary>Gets the Guide's sections, for the titles of the sections a text links to.</summary>
     public GuideLibrary Library => _library;
 
+    /// <summary>
+    /// Raised when a full id in a value's steps is to be copied (a txid, a block hash, a SHA-256), for the view to put
+    /// on the clipboard.
+    /// </summary>
+    public event EventHandler<string>? CopyWanted;
+
     /// <summary>Raised when <em>Öppna i Guide</em> asks for the view Guide at the place shown.</summary>
     public event EventHandler<GuidePlace>? FullGuideWanted;
 
@@ -157,6 +163,17 @@ public sealed partial class GuidePanelViewModel : ObservableObject
 
         _history.Push(new GuidePlace(section.Id, section.FindAnchor(link.Anchor), null, null));
         ShowCurrent();
+    }
+
+    /// <summary>Copies a full id from a value's steps (sketch KU1a), so that it can be checked with any tool.</summary>
+    /// <param name="text">The id; an empty one is not copied.</param>
+    [RelayCommand]
+    public void Copy(string? text)
+    {
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            CopyWanted?.Invoke(this, text);
+        }
     }
 
     /// <summary>Goes one step back through what was read.</summary>

@@ -134,12 +134,28 @@ ansluten utgång.
 - `/verify` på ett ärende med hämtade svar är grönt, och svarens SHA-256 stämmer med `sha256sum` av samma svar hämtat
   med `curl` genom samma utgång (så länge svaret inte har ändrats).
 
-## Kurserna (etapp 14, Pricing)
+## Kurserna (etapp 14, Pricing, och KU1a)
 
-Pricing har inget gränssnitt än. Det provas när beloppen i SEK visas, och först med en ansluten utgång.
+Kronan följer Riksbanken: Bitstamps kurs i euro räknas om med Riksbankens dagskurs för EUR/SEK. Provas med en
+ansluten utgång.
 
-- Kursen för en känd tx stämmer med Bitstamps egen graf för samma timme (sista priset) och med Riksbankens kurs för
-  samma dag på riksbank.se.
+- Kursen för en känd tx stämmer med Bitstamps egen graf för samma timme i euro (sista priset, `BTC/EUR`) och med
+  Riksbankens kurs för euro samma dag på riksbank.se.
+- **Kronorna under beloppet (KU1a):** expandera en Bitcoin-adress; linjerna får kronorna litet under beloppet, som
+  Ethereums. Ett klick på beloppet väljer linjen och öppnar *Varför?* i Guidens panel: *Beloppet* (fakta, grön bock,
+  tx och utgång, block med hash, blocktid i UTC och lokal tid), *Kursen BTC → EUR* (Bitstamp, timmen, *Timmens
+  stängning*, hämtad och genom vilken utgång, *Svaret* med hashen i grupper), *Växelkursen EUR → SEK* (Riksbanken,
+  dagen, serien, hämtad, hashen) och uträkningen. Kopiera vid tx, block och svaret lägger hela värdet i urklipp.
+- Under panelens steg öppnas avsnittet *Kurser och omräkning* vid *Så ser stegen ut*.
+- **Kurs saknas:** koppla ner utgången och öppna ett ärende vars linjer saknar kurs; under beloppet står **– kr** med
+  ett överstruket nät, och hovring säger vilken kurs som saknas (*… är inte hämtad · Offline*). En obekräftad tx ger
+  en klocka. Ett klick på **– kr** väljer bara linjen.
+- **I bakgrunden:** en expansion visas direkt, också när många kurser saknas; linjerna står med **– kr** och en klocka
+  och fylls i medan kurserna kommer (Riksbanken svarar högst var tolfte sekund). Anslut utgången igen efter offline:
+  de saknade kurserna hämtas utan att något annat görs. Ett ärende med fler än 30 tider får kurser för alla.
+- **Inställningar › Kurser:** Valuta (SEK, EUR, USD), Upplösning (Minut, Timme, Dygn), Källa för kryptokurser
+  (Bitstamp), Källa för växelkursen (Riksbanken) och *Sparas i ärendet* med antalet kurser i det öppna ärendet (på
+  hovring hur många svar från varje källa); utan ärende *Inget ärende öppet*.
 - En tx på en lördag får fredagens kurs från Riksbanken, och stegen säger det.
 - Samma kurs hämtas inte två gånger: två uppslag för samma timme ger bara ett nytt svar i ärendet.
 - Utan utgång: en kurs som redan är hämtad visas ur ärendet, och en ny säger *Offline* utan att något går ut.

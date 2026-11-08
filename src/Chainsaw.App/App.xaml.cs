@@ -197,6 +197,7 @@ public partial class App : Application
                 .AddSingleton<AboutViewModel>()
                 .AddSingleton<IAlertPreview>(provider => new WpfAlertPreview(
                     () => provider.GetRequiredService<ShellViewModel>().Show(AppView.Monitoring)))
+                .AddSingleton<RatesSummaryViewModel>()
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphEditor, GraphEditor>()

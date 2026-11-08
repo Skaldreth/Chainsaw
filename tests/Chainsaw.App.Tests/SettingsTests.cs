@@ -330,7 +330,7 @@ public sealed class SettingsTests : IDisposable
     public void The_currency_and_resolution_go_to_pricing_and_are_saved()
     {
         Assert.Equal(["SEK", "USD", "EUR"], Settings.CurrencyChoices.Select(c => c.Label));
-        Assert.Equal(["Minut", "Timme", "Dag"], Settings.ResolutionChoices.Select(c => c.Label));
+        Assert.Equal(["Minut", "Timme", "Dygn"], Settings.ResolutionChoices.Select(c => c.Label));
 
         Settings.ChooseCurrency(Settings.CurrencyChoices[2]);
         Settings.ChooseResolution(Settings.ResolutionChoices[2]);
