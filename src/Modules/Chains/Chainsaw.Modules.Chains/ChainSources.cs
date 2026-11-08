@@ -414,8 +414,10 @@ internal sealed class ChainSources : IChainSources
         EndpointProbe[] probes;
         try
         {
+            // The block's hash is asked too (KL2b), so that the card shows it with the height; an endpoint whose hash
+            // does not come still counts by its height.
             probes = await Task.WhenAll(endpoints.Select(planned => ProbeOneAsync(
-                planned.Endpoint, planned.Api, withHash: false, cancellationToken))).ConfigureAwait(false);
+                planned.Endpoint, planned.Api, ProbeHash.Optional, cancellationToken))).ConfigureAwait(false);
         }
         catch (ExitException exception) when (IsTheWayOuts(exception))
         {
@@ -454,7 +456,7 @@ internal sealed class ChainSources : IChainSources
             {
                 Local = local,
             };
-            return await ProbeOneAsync(candidate, sort, withHash: true, cancellationToken).ConfigureAwait(false);
+            return await ProbeOneAsync(candidate, sort, ProbeHash.Required, cancellationToken).ConfigureAwait(false);
         }
         catch (ExitException exception) when (IsTheWayOuts(exception))
         {
@@ -573,12 +575,12 @@ internal sealed class ChainSources : IChainSources
     /// </summary>
     /// <param name="endpoint">The endpoint, with <see cref="Guid.Empty"/> as id when it is not added yet.</param>
     /// <param name="api">Its sort of API.</param>
-    /// <param name="withHash">Whether to ask for the block's hash too.</param>
+    /// <param name="hashMode">Whether to ask for the block's hash too, and whether the probe fails without it.</param>
     /// <param name="cancellationToken">Stops the probe.</param>
     /// <returns>What it answered.</returns>
     /// <exception cref="ExitNotConnectedException">The exit does not allow lookups; nothing was sent.</exception>
     private async Task<EndpointProbe> ProbeOneAsync(
-        SourceEndpoint endpoint, ISourceApi api, bool withHash, CancellationToken cancellationToken)
+        SourceEndpoint endpoint, ISourceApi api, ProbeHash hashMode, CancellationToken cancellationToken)
     {
         var (id, address, apiKey) = (endpoint.Id, endpoint.Address, endpoint.ApiKey);
         var at = _clock.UtcNow;
@@ -632,7 +634,7 @@ internal sealed class ChainSources : IChainSources
         }
 
         string? hash = null;
-        if (withHash)
+        if (hashMode != ProbeHash.None)
         {
             if (IsLocked)
             {
@@ -645,18 +647,65 @@ internal sealed class ChainSources : IChainSources
                 return NotSent(id, hashKeyProblem!, at);
             }
 
-            var (read, hashProblem) = await AskAsync(endpoint, hashRequest, api.ReadHash, cancellationToken)
+            var (read, hashProblem) = await AskHashAsync(endpoint, hashRequest, api, hashMode, cancellationToken)
                 .ConfigureAwait(false);
-            if (read is null)
+            if (read is null && hashMode == ProbeHash.Required)
             {
                 return new EndpointProbe(id, ProbeOutcome.Failed, answer.Value, null, answer.Duration, at,
                     "Höjden kom, men inte blockets hash: " + hashProblem);
             }
 
-            hash = read.Value.Value;
+            hash = read?.Value;
         }
 
         return new EndpointProbe(id, ProbeOutcome.Answered, answer.Value, hash, answer.Duration, at, null);
+    }
+
+    /// <summary>
+    /// Asks for the block's hash at the height. In a round (<see cref="ProbeHash.Optional"/>) the endpoint's turn is
+    /// waited for again, as for any request, and a hash that does not come leaves the probe as its height made it.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="request">The request for the hash.</param>
+    /// <param name="api">Its sort of API.</param>
+    /// <param name="hashMode">Whether the hash is required.</param>
+    /// <param name="cancellationToken">Stops the probe.</param>
+    /// <returns>The hash, or why it did not come.</returns>
+    private async Task<((string Value, TimeSpan Duration)? Answer, string? Problem)> AskHashAsync(
+        SourceEndpoint endpoint, ExitRequest request, ISourceApi api, ProbeHash hashMode,
+        CancellationToken cancellationToken)
+    {
+        if (hashMode == ProbeHash.Optional)
+        {
+            var (mayAsk, _) = await TurnAsync(endpoint, api, cancellationToken).ConfigureAwait(false);
+            if (!mayAsk)
+            {
+                return (null, PacedText);
+            }
+        }
+
+        try
+        {
+            return await AskAsync(endpoint, request, api.ReadHash, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ExitException) when (hashMode == ProbeHash.Optional && !cancellationToken.IsCancellationRequested)
+        {
+            // The height counted; a hash cut off by the way out says nothing more about the endpoint.
+            return (null, null);
+        }
+    }
+
+    /// <summary>Whether a probe asks for the block's hash at the height, and whether it needs it.</summary>
+    private enum ProbeHash
+    {
+        /// <summary>Only the height.</summary>
+        None,
+
+        /// <summary>The hash too, but the probe stands on its height without it (the round at start).</summary>
+        Optional,
+
+        /// <summary>The hash too, and without it the probe fails (the form's <em>Prova</em>).</summary>
+        Required,
     }
 
     /// <summary>
