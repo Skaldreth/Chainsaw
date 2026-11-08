@@ -8,10 +8,19 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace Chainsaw.App.ViewModels;
 
 /// <summary>
+/// A note thrown in the trash (sketch SO1a), for the graph to read the trash again and say it with <em>Ångra</em>.
+/// </summary>
+/// <param name="Case">The case the note was thrown in.</param>
+/// <param name="Throw">The throw.</param>
+public sealed record CommentThrow(ICase Case, TrashThrow Throw);
+
+/// <summary>
 /// The graph's comments (sketch KN1a): notes on the surface, written in Markdown directly in the note, with a thin
 /// dotted thread to the node they are about. A note is sealed in the case only when it is left with something written;
-/// every later change of its text, its thread and its removal is sealed anew by Tracing, while a move or a new size is
-/// ordinary data like the nodes' places. Without WPF, so that it is tested.
+/// every later change of its text and its thread is sealed anew by Tracing, while a move or a new size is ordinary data
+/// like the nodes' places. A note is never removed: Delete, a drag onto the bin or a note left empty throws it in the
+/// trash (sketch SO1a), which only hides it, sealed, so that it can be put back with what it said. Without WPF, so that
+/// it is tested.
 /// </summary>
 public sealed partial class CommentsViewModel : ObservableObject
 {
@@ -27,6 +36,9 @@ public sealed partial class CommentsViewModel : ObservableObject
     /// <summary>What the graph says when a comment is too long to store.</summary>
     public const string TooLongText = "Kommentaren är för lång för att sparas.";
 
+    /// <summary>What the graph says when a comment could not be thrown in the trash.</summary>
+    public const string ThrowFailedText = "Kommentaren kunde inte slängas: ärendet gick inte att skriva.";
+
     /// <summary>The prefix of a draft's key, which never looks like a comment's id.</summary>
     private const string DraftPrefix = "draft:";
 
@@ -35,6 +47,9 @@ public sealed partial class CommentsViewModel : ObservableObject
 
     /// <summary>Where the comments are read and written.</summary>
     private readonly IGraphComments _source;
+
+    /// <summary>The trash a note is thrown in, or none where it is not wired and a note cannot leave the surface.</summary>
+    private readonly ITrashSource? _trash;
 
     /// <summary>Counts the readings, so that an answer to an older one is dropped.</summary>
     private int _version;
@@ -48,14 +63,22 @@ public sealed partial class CommentsViewModel : ObservableObject
     /// <summary>Creates the comments for the window's open case.</summary>
     /// <param name="session">The open case.</param>
     /// <param name="source">Where the comments are read and written.</param>
-    public CommentsViewModel(CaseSession session, IGraphComments source)
+    /// <param name="trash">The trash a note is thrown in; none where it is not wired.</param>
+    public CommentsViewModel(CaseSession session, IGraphComments source, ITrashSource? trash = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(source);
         _session = session;
         _source = source;
+        _trash = trash;
         session.Closing += (_, closing) => SealBeforeClose(closing);
     }
+
+    /// <summary>
+    /// Raised when a note was thrown in the trash, with the case and the throw, so that the graph reads the trash again
+    /// and says it with <em>Ångra</em>.
+    /// </summary>
+    public event EventHandler<CommentThrow>? Thrown;
 
     /// <summary>Raised when the notes change in a way that is drawn (a place, a thread, a note more or less).</summary>
     public event EventHandler? Changed;
@@ -132,8 +155,16 @@ public sealed partial class CommentsViewModel : ObservableObject
     private static void Tie(CommentNote note, GraphScene? scene, string? anchor)
     {
         note.AnchorNode = CommentGeometry.Resolve(scene, anchor);
-        note.IsInTrash = note.AnchorNode is null && CommentGeometry.IsThrown(scene, anchor);
+        note.IsInTrash = IsThrown(note, scene)
+            || (note.AnchorNode is null && CommentGeometry.IsThrown(scene, anchor));
     }
+
+    /// <summary>Says whether a stored note lies in the trash itself.</summary>
+    /// <param name="note">The note.</param>
+    /// <param name="scene">The graph, whose trash is read, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool IsThrown(CommentNote note, GraphScene? scene) =>
+        note.Id is { } id && scene?.Trash.Hides(TrashKeys.OfComment(id)) == true;
 
     /// <summary>Ties the threads into the graph shown: each note's node, found again after a cluster changed.</summary>
     /// <param name="scene">The graph, or <see langword="null"/>.</param>
@@ -287,14 +318,17 @@ public sealed partial class CommentsViewModel : ObservableObject
         return Enqueue(note, () => SavePlaceAsync(note));
     }
 
-    /// <summary>Removes a note (Delete): sealed as removed, its text kept in its history; a draft is dropped.</summary>
+    /// <summary>
+    /// Throws a note in the trash (Delete, or dragged onto the bin): sealed, with what it said kept, and put back from
+    /// the trash's view or with <em>Ångra</em>. A draft that was never stored is only dropped.
+    /// </summary>
     /// <param name="note">The note.</param>
-    /// <returns>A task that completes when it is stored.</returns>
-    public Task RemoveAsync(CommentNote note)
+    /// <returns>A task that completes when it is thrown.</returns>
+    public Task ThrowAsync(CommentNote note)
     {
         ArgumentNullException.ThrowIfNull(note);
         StopEditing(note);
-        return Enqueue(note, () => RemoveNowAsync(note));
+        return Enqueue(note, () => ThrowNowAsync(note));
     }
 
     /// <summary>Ties a note's thread to another node, or unties it (its end dragged to empty surface).</summary>
@@ -381,10 +415,15 @@ public sealed partial class CommentsViewModel : ObservableObject
             return;
         }
 
-        Task write = written.Length == 0
-            ? _source.RemoveAsync(closing, stored.Id)
-            : _source.EditAsync(closing, stored.Id, written);
-        write.GetAwaiter().GetResult();
+        if (written.Length > 0)
+        {
+            _source.EditAsync(closing, stored.Id, written).GetAwaiter().GetResult();
+        }
+        else if (_trash is not null)
+        {
+            // An emptied note is thrown, so that what it said can be put back; the throw runs on the thread pool.
+            _trash.ThrowAsync(closing, [TrashKeys.Comment(stored.Id, stored.Text)]).GetAwaiter().GetResult();
+        }
     }
 
     /// <summary>Stores what a left note says: seals a draft, changes or removes a stored note, or nothing.</summary>
@@ -404,7 +443,7 @@ public sealed partial class CommentsViewModel : ObservableObject
         }
 
         return written.Length == 0
-            ? RemoveNowAsync(note)
+            ? ThrowNowAsync(note)
             : StoreAsync(note, written, openCase => _source.EditAsync(openCase, stored.Id, written));
     }
 
@@ -478,29 +517,70 @@ public sealed partial class CommentsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Seals that a stored note is removed, or drops a draft, and takes it off the surface.</summary>
+    /// <summary>
+    /// Throws a stored note in the trash and hides it, or drops a draft that was never stored. What it showed while it
+    /// was written goes back to what is stored, which is what comes back when it is put back. A note already in the
+    /// trash (thrown from another window) is only hidden.
+    /// </summary>
     /// <param name="note">The note.</param>
-    /// <returns>A task that completes when it is stored.</returns>
-    private async Task RemoveNowAsync(CommentNote note)
+    /// <returns>A task that completes when it is thrown.</returns>
+    private async Task ThrowNowAsync(CommentNote note)
     {
-        if (note.Id is not { } id || _session.Current is not { } openCase)
+        if (note.Comment is not { } stored || _session.Current is not { } openCase)
         {
             Forget(note);
             return;
         }
 
+        if (_trash is null)
+        {
+            Failed?.Invoke(this, ThrowFailedText);
+            return;
+        }
+
+        TrashThrow thrown;
         try
         {
-            await _source.RemoveAsync(openCase, id);
+            thrown = await _trash.ThrowAsync(openCase, [TrashKeys.Comment(stored.Id, stored.Text)]);
+        }
+        catch (InvalidOperationException)
+        {
             if (_session.Current == openCase)
             {
-                Forget(note);
+                Hide(note);
             }
+
+            return;
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            Failed?.Invoke(this, SaveFailedText);
+            Failed?.Invoke(this, ThrowFailedText);
+            return;
         }
+
+        if (_session.Current != openCase)
+        {
+            return;
+        }
+
+        Hide(note);
+        Thrown?.Invoke(this, new CommentThrow(openCase, thrown));
+    }
+
+    /// <summary>
+    /// Hides a thrown note at once, before the trash is read again, and lets go of it; it shows what is stored again.
+    /// </summary>
+    /// <param name="note">The note.</param>
+    private void Hide(CommentNote note)
+    {
+        note.Writing = note.Text;
+        note.IsInTrash = true;
+        if (Selected == note)
+        {
+            Select(null);
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Stores a change of a stored note and shows what the case says about its text and thread then.</summary>

@@ -644,7 +644,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   adress med en spårad ankomst, en mixer och en utbetalning nära det spårade beloppet bland det som hölls tillbaka
   saknas, så att markeringen och tidsfönstret runt ankomsten syns i `/testdata`.
 - **Det som byggts 2026-11-08** saknas: en insättning som betalas ut i delar (`mixer-parts`), mixer efter mixer
-  (`mixer-chain`), något i soptunnan, en kommentarsnod och en egen yta.
+  (`mixer-chain`), något i soptunnan (också en slängd kommentar och en slängd egen yta), en kommentarsnod med en
+  ändrad text så att dess historik har något att visa, och en egen yta.
 
 ## Övrigt
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` och byggs in i programmet. Ett nytt avsnitt

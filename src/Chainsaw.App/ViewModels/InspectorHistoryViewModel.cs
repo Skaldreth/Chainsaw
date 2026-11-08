@@ -4,6 +4,7 @@ using Chainsaw.App.Graph;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -81,6 +82,9 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     /// <summary>The chosen node, or <see langword="null"/>.</summary>
     private NodeView? _node;
 
+    /// <summary>The chosen comment, or <see langword="null"/>; never at the same time as a node.</summary>
+    private GraphComment? _comment;
+
     /// <summary>Counts the readings of the history, so that only the latest is shown.</summary>
     private int _reads;
 
@@ -122,9 +126,15 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     /// <summary>Gets whether the facts tab is shown.</summary>
     public bool IsFactsShown => !IsShown;
 
-    /// <summary>Gets whether the chosen node has a history, so that the tabs show.</summary>
+    /// <summary>Gets whether the chosen node or comment has a history, so that the tabs show.</summary>
     [ObservableProperty]
     public partial bool HasNode { get; private set; }
+
+    /// <summary>
+    /// Gets or sets where a chosen comment's history is read (sketch KN1a); none when <see langword="null"/>, and a
+    /// comment then has no tabs.
+    /// </summary>
+    public ICommentHistorySource? Comments { get; set; }
 
     /// <summary>Gets the rows, oldest first.</summary>
     public ObservableCollection<HistoryRowViewModel> Rows { get; } = [];
@@ -227,8 +237,8 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     /// <param name="node">The chosen node, or <see langword="null"/>.</param>
     public void Follow(GraphScene? scene, NodeView? node)
     {
-        var same = node is not null && _node?.Key == node.Key;
-        (_scene, _node) = (scene, node);
+        var same = node is not null && _comment is null && _node?.Key == node.Key;
+        (_scene, _node, _comment) = (scene, node, null);
         HasNode = node is not null && NodeHistory.HasHistory(node);
         if (!same)
         {
@@ -246,6 +256,35 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         }
 
         _ = ReadAsync();
+    }
+
+    /// <summary>
+    /// Follows a chosen comment (sketch KN1a): its history is read, its sealed records and its throws and puttings back,
+    /// in place of a node's. The same comment read again (after it was written in) keeps the tab shown.
+    /// </summary>
+    /// <param name="scene">The scene, whose nodes name the comment's threads, or <see langword="null"/>.</param>
+    /// <param name="comment">The chosen comment, or <see langword="null"/>.</param>
+    public void FollowComment(GraphScene? scene, GraphComment? comment)
+    {
+        var same = comment is not null && _node is null && _comment?.Id == comment.Id;
+        (_scene, _node, _comment) = (scene, null, comment);
+        HasNode = comment is not null && Comments is not null;
+        if (!same)
+        {
+            Close();
+            Rows.Clear();
+            CountText = string.Empty;
+            Notice = string.Empty;
+        }
+
+        if (!HasNode)
+        {
+            IsShown = false;
+            _reads++;
+            return;
+        }
+
+        _ = ReadCommentAsync();
     }
 
     /// <summary>Opens a row's form, or closes it when it is already open.</summary>
@@ -447,6 +486,46 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>Reads the chosen comment's history off the UI thread and shows it, if it is still the latest reading.</summary>
+    /// <returns>A task that completes when it is shown or could not be read.</returns>
+    private async Task ReadCommentAsync()
+    {
+        if (_session.Current is not { } openCase || _comment is not { } comment || Comments is not { } source)
+        {
+            return;
+        }
+
+        var read = ++_reads;
+        if (Rows.Count == 0)
+        {
+            Notice = ReadingText;
+        }
+
+        var scene = _scene;
+        try
+        {
+            var data = await source.ReadAsync(openCase, comment.Id, CancellationToken.None);
+            if (read == _reads)
+            {
+                Show(CommentHistory.Build(data, anchor => ThreadName(scene, anchor)));
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            if (read == _reads)
+            {
+                Notice = ReadFailedText;
+            }
+        }
+    }
+
+    /// <summary>Gives the name of the node a thread's key goes to in the graph shown.</summary>
+    /// <param name="scene">The graph, or <see langword="null"/>.</param>
+    /// <param name="anchor">The thread's key.</param>
+    /// <returns>The node's name, or <see langword="null"/> when it is not shown.</returns>
+    private static string? ThreadName(GraphScene? scene, string anchor) =>
+        scene?.Node(CommentGeometry.Resolve(scene, anchor))?.Name;
 
     /// <summary>Shows the rows, keeping the open form when its row is still there and can be undone.</summary>
     /// <param name="events">The rows, oldest first.</param>

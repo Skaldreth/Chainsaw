@@ -33,6 +33,9 @@ public enum HistoryKind
 
     /// <summary>A watch on the node found money moving: a fact from the chain that the watch picked out.</summary>
     WatchHit,
+
+    /// <summary>A comment was written, changed, tied or thrown in the trash and put back (sketch KN1a).</summary>
+    Comment,
 }
 
 /// <summary>What the row's button does, when the row is the user's own and still counts.</summary>

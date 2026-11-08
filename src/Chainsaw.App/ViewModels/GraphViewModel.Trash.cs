@@ -1,6 +1,7 @@
 using System.Globalization;
 using Chainsaw.App.Graph;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -41,6 +42,10 @@ public sealed partial class GraphViewModel
 
     /// <summary>What the toast says under a case thrown on the start page: the file is untouched.</summary>
     public const string CaseThrownText = "Filen ligger kvar på datorn; ärendet döljs bara på startsidan.";
+
+    /// <summary>What the toast says under a pile thrown on the start page: the files and the pile are untouched.</summary>
+    public const string PileThrownText =
+        "Filerna ligger kvar på datorn; högen döljs bara på startsidan och kommer tillbaka hel.";
 
     /// <summary>What is said when the cases thrown on the start page could not be saved on this computer.</summary>
     public const string CaseTrashSaveFailedText =
@@ -103,9 +108,16 @@ public sealed partial class GraphViewModel
     /// </summary>
     public bool CanThrow => _trashSource is not null && _session.Current is not null && Scene is not null && !_throwing;
 
-    /// <summary>Gets whether Delete has something to throw: a chosen node, picked actors or chosen cards.</summary>
+    /// <summary>
+    /// Gets whether Delete has something to throw: a chosen node, picked actors, chosen cards or a chosen own area.
+    /// </summary>
     public bool HasChosenToThrow =>
-        Fan is { HasSelection: true } || Checks.Picked.Count > 0 || SelectedNode is not null;
+        Fan is { HasSelection: true } || Checks.Picked.Count > 0 || ChosenOwnArea is not null
+        || SelectedNode is not null;
+
+    /// <summary>Gets the own area whose chip is chosen (sketch KF1b), or <see langword="null"/>.</summary>
+    public OwnArea? ChosenOwnArea =>
+        Checks.ChosenArea is { } chosen ? Checks.AllAreas.FirstOrDefault(area => area.Key == chosen)?.Own : null;
 
     /// <summary>Connects the trash, the bin and the trash's view.</summary>
     /// <param name="source">The trash in the case, or none.</param>
@@ -123,6 +135,7 @@ public sealed partial class GraphViewModel
                 Bin.IsViewOpen = TrashView.IsOpen;
             }
         };
+        Comments.Thrown += (_, thrown) => _ = OnCommentThrownAsync(thrown);
         cases.Changed += (_, _) => ShowBinDot();
         cases.SaveFailed += (_, _) => Tell(ToastKind.Warning, CaseTrashSaveFailedText);
         Start.UseCaseTrash(cases);
@@ -133,6 +146,29 @@ public sealed partial class GraphViewModel
             CaseThrownText,
             UndoText,
             () => Start.RestoreCase(number)));
+        Start.PileThrown += (_, pile) => ToastWanted?.Invoke(this, new ToastRequest(
+            ToastKind.Information,
+            "Högen " + pile.ShownName + " ligger i soptunnan",
+            PileThrownText,
+            UndoText,
+            () => Start.RestorePile(pile.Id)));
+        Start.CardsThrown += (_, numbers) => ToastWanted?.Invoke(this, new ToastRequest(
+            ToastKind.Information,
+            CardsThrownTitle(numbers),
+            CaseThrownText,
+            UndoText,
+            () => Start.RestoreCases(numbers)));
+    }
+
+    /// <summary>Writes what the toast says when cards of a pile are thrown.</summary>
+    /// <param name="numbers">The cases thrown.</param>
+    /// <returns>For example <c>Ärendet 2026-0129 ligger i soptunnan</c> or <c>3 ärenden ligger i soptunnan</c>.</returns>
+    public static string CardsThrownTitle(IReadOnlyList<string> numbers)
+    {
+        ArgumentNullException.ThrowIfNull(numbers);
+        return numbers.Count == 1
+            ? "Ärendet " + numbers[0] + " ligger i soptunnan"
+            : string.Create(CultureInfo.InvariantCulture, $"{numbers.Count} ärenden ligger i soptunnan");
     }
 
     /// <summary>Says whether a case is still the open one.</summary>
@@ -194,10 +230,15 @@ public sealed partial class GraphViewModel
         BeginTrashRead();
     }
 
-    /// <summary>Shows what the trash holds in the bin's dot and the trash's view.</summary>
+    /// <summary>
+    /// Shows what the trash holds in the bin's dot and the trash's view; the comments and own areas in it count as hidden
+    /// in the graph beside the nodes.
+    /// </summary>
     private void ShowTrash()
     {
-        TrashView.Show(_trash.Throws, Scene?.Trashed ?? 0, WatchesOfMember);
+        var besideNodes = _trash.Throws.SelectMany(each => each.Members)
+            .Count(member => TrashKeys.IsComment(member) || TrashKeys.IsArea(member));
+        TrashView.Show(_trash.Throws, (Scene?.Trashed ?? 0) + besideNodes, WatchesOfMember);
         ShowBinDot();
     }
 
@@ -316,8 +357,8 @@ public sealed partial class GraphViewModel
     }
 
     /// <summary>
-    /// Throws what is chosen (Delete): the cards chosen in a fanned pile, the actors picked for an area, or the chosen
-    /// node.
+    /// Throws what is chosen (Delete): the cards chosen in a fanned pile, the actors picked for an area, the chosen own
+    /// area, or the chosen node.
     /// </summary>
     [RelayCommand]
     public void ThrowChosen()
@@ -331,6 +372,12 @@ public sealed partial class GraphViewModel
         if (Checks.Picked.Count > 0)
         {
             AskThrow([.. Checks.Picked]);
+            return;
+        }
+
+        if (ChosenOwnArea is { } area)
+        {
+            ThrowArea(area);
             return;
         }
 
@@ -365,6 +412,65 @@ public sealed partial class GraphViewModel
             scene.Nodes.Where(node => node.IsStartPoint).Select(node => node.Key));
         var members = tree.Select(branch => MemberOf(scene.Node(branch.Key)!, branch.Parent)).ToList();
         Warn(members);
+    }
+
+    /// <summary>
+    /// Throws an own area (sketch KF1b) in the trash: only the area is hidden, its actors stay, and nothing follows with
+    /// it, so it is thrown at once with <em>Ångra</em> on the toast. The area stays in the case as it was drawn.
+    /// </summary>
+    /// <param name="area">The own area.</param>
+    public void ThrowArea(OwnArea area)
+    {
+        ArgumentNullException.ThrowIfNull(area);
+        if (CanThrow && !HasTrashWarning)
+        {
+            Checks.ChooseArea(null);
+            Warn([TrashKeys.Area(area.Id, area.Name)]);
+        }
+    }
+
+    /// <summary>Ends a note's drag at the bin: a release on it throws the note (sketch SO1a).</summary>
+    /// <param name="note">The dragged note.</param>
+    /// <returns><see langword="true"/> when the release was on the bin, so that the note's place is not stored.</returns>
+    public bool DropNoteOnBin(CommentNote note)
+    {
+        ArgumentNullException.ThrowIfNull(note);
+        if (!Bin.EndDrag())
+        {
+            return false;
+        }
+
+        _ = Comments.ThrowAsync(note);
+        return true;
+    }
+
+    /// <summary>
+    /// Shows a note thrown in the trash: the trash is read again, and the toast says it with <em>Ångra</em>, which Ctrl+Z
+    /// also does; nothing is said once another case is open.
+    /// </summary>
+    /// <param name="thrown">The case and the throw.</param>
+    /// <returns>A task that completes when it is shown.</returns>
+    private async Task OnCommentThrownAsync(CommentThrow thrown)
+    {
+        var (openCase, sequence) = (thrown.Case, thrown.Throw.Sequence);
+        if (!IsStillOpen(openCase))
+        {
+            return;
+        }
+
+        _lastThrow = (openCase, sequence);
+        await ApplyTrashAsync(openCase);
+        if (!IsStillOpen(openCase))
+        {
+            return;
+        }
+
+        ToastWanted?.Invoke(this, new ToastRequest(
+            ToastKind.Information,
+            ThrownText(thrown.Throw.Members, 0),
+            string.Empty,
+            UndoText,
+            () => _ = RestoreInAsync(openCase, sequence, null)));
     }
 
     /// <summary>Asks to throw the cards chosen in a fanned pile, each on its own: a card leads nowhere else.</summary>
@@ -472,7 +578,7 @@ public sealed partial class GraphViewModel
             await ApplyTrashAsync(openCase);
             if (back.Count > 0 && IsStillOpen(openCase))
             {
-                Say("Lade tillbaka " + TrashViewModel.CountText(back.Count) + " i grafen.");
+                Say("Lade tillbaka " + TrashViewModel.CountText(back) + " i grafen.");
             }
         }
         catch (Exception exception) when (exception is CaseException or InvalidOperationException)
@@ -526,7 +632,7 @@ public sealed partial class GraphViewModel
 
             ToastWanted?.Invoke(this, new ToastRequest(
                 ToastKind.Information,
-                ThrownText(thrown.Members.Count, ended),
+                ThrownText(thrown.Members, ended),
                 ended > 0 ? WatchesStayEndedText : string.Empty,
                 UndoText,
                 () => _ = RestoreInAsync(openCase, thrown.Sequence, null)));
@@ -628,9 +734,24 @@ public sealed partial class GraphViewModel
     /// <param name="count">How many were thrown.</param>
     /// <param name="ended">How many watches ended.</param>
     /// <returns>The text.</returns>
-    public static string ThrownText(int count, int ended)
+    public static string ThrownText(int count, int ended) => ThrownText(TrashViewModel.CountText(count), ended);
+
+    /// <summary>
+    /// Writes what a throw's toast says, counting actors, comments and own areas apart: <c>Slängde 1 kommentar</c>.
+    /// </summary>
+    /// <param name="members">What was thrown.</param>
+    /// <param name="ended">How many watches ended.</param>
+    /// <returns>The text.</returns>
+    public static string ThrownText(IReadOnlyCollection<TrashMember> members, int ended) =>
+        ThrownText(TrashViewModel.CountText(members), ended);
+
+    /// <summary>Writes what a throw's toast says, after how many were thrown in words.</summary>
+    /// <param name="what">How many, in words.</param>
+    /// <param name="ended">How many watches ended.</param>
+    /// <returns>The text.</returns>
+    private static string ThrownText(string what, int ended)
     {
-        var text = "Slängde " + TrashViewModel.CountText(count);
+        var text = "Slängde " + what;
         return ended switch
         {
             0 => text,

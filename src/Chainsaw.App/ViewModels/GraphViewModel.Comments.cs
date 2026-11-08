@@ -23,6 +23,58 @@ public sealed partial class GraphViewModel
     public CommentsViewModel Comments { get; }
 
     /// <summary>
+    /// Gets whether a stored comment is chosen, which the inspector shows with its history (sketches KN1a and AN1b); a
+    /// draft has nothing to show until it is sealed.
+    /// </summary>
+    public bool HasChosenComment => Comments.Selected is { IsDraft: false, IsInTrash: false };
+
+    /// <summary>Whether choosing nothing in the graph keeps the chosen comment, because the comment was just chosen.</summary>
+    private bool _keepComment;
+
+    /// <summary>The comment the inspector shows, so that it is shown again only when the comment changed.</summary>
+    private Chainsaw.Modules.Tracing.Contracts.GraphComment? _inspectedComment;
+
+    /// <summary>
+    /// Shows a comment chosen on the surface in the inspector, in place of a chosen node or line, or lets the inspector
+    /// go when it is let go.
+    /// </summary>
+    private void OnCommentChosen()
+    {
+        if (HasChosenComment && (SelectedNode is not null || SelectedEdge is not null))
+        {
+            _keepComment = true;
+            try
+            {
+                Choose(null, null);
+            }
+            finally
+            {
+                _keepComment = false;
+            }
+        }
+        else
+        {
+            Inspect();
+        }
+
+        OnPropertyChanged(nameof(IsInspectorShown));
+    }
+
+    /// <summary>Shows the chosen comment again when what the case says about it changed (a new text or thread).</summary>
+    private void FollowChosenComment()
+    {
+        if (Comments.Selected?.Comment is { } comment && !ReferenceEquals(comment, _inspectedComment))
+        {
+            Inspect();
+        }
+    }
+
+    /// <summary>Gives the name of the node a note's thread goes to in the graph shown.</summary>
+    /// <param name="note">The note.</param>
+    /// <returns>The name, or <see langword="null"/> when the thread goes to no node shown.</returns>
+    private string? ThreadName(CommentNote note) => Scene?.Node(note.AnchorNode)?.Name;
+
+    /// <summary>
     /// Begins a comment: about the chosen node, beside it with its thread tied to it, or else on its own where it was
     /// asked for.
     /// </summary>
@@ -86,7 +138,18 @@ public sealed partial class GraphViewModel
     /// <summary>Connects the comments to the graph: drawing, toasts, the case and the threads' nodes.</summary>
     private void WireComments()
     {
-        Comments.Changed += (_, _) => Redraw?.Invoke(this, EventArgs.Empty);
+        Comments.Changed += (_, _) =>
+        {
+            FollowChosenComment();
+            Redraw?.Invoke(this, EventArgs.Empty);
+        };
+        Comments.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(CommentsViewModel.Selected))
+            {
+                OnCommentChosen();
+            }
+        };
         Comments.Failed += (_, text) => Tell(ToastKind.Error, text);
         CaseChanged += (_, _) => _ = Comments.LoadAsync();
         PropertyChanged += (_, e) =>

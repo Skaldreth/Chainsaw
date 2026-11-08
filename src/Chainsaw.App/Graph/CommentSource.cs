@@ -5,7 +5,8 @@ namespace Chainsaw.App.Graph;
 
 /// <summary>
 /// Where the graph's comments (sketch KN1a) read and write the case, through Tracing's contract. Every method does its
-/// work off the UI thread (principle 6); what changes a comment is sealed with a line in the journal by the module.
+/// work off the UI thread (principle 6); what changes a comment is sealed with a line in the journal by the module. A
+/// comment is never removed from here: Delete throws it in the trash (sketch SO1a), from where it can be put back.
 /// </summary>
 public interface IGraphComments
 {
@@ -35,11 +36,12 @@ public interface IGraphComments
     /// <returns>The comment, or <see langword="null"/> when it is gone.</returns>
     Task<GraphComment?> AnchorAsync(ICase @case, string id, string? anchor);
 
-    /// <summary>Seals that a comment is removed.</summary>
+    /// <summary>Reads every sealed record about a comment, oldest first, for its history (sketch AN1b).</summary>
     /// <param name="case">The open case.</param>
     /// <param name="id">The comment.</param>
-    /// <returns><see langword="false"/> when it was gone already.</returns>
-    Task<bool> RemoveAsync(ICase @case, string id);
+    /// <param name="cancellationToken">Stops the work before it starts.</param>
+    /// <returns>The records.</returns>
+    Task<IReadOnlyList<GraphCommentRecord>> HistoryAsync(ICase @case, string id, CancellationToken cancellationToken);
 
     /// <summary>Stores where a comment stands and its size (ordinary data).</summary>
     /// <param name="case">The open case.</param>
@@ -71,8 +73,9 @@ public sealed class GraphComments(IGraphCommentService comments) : IGraphComment
         Task.Run(() => comments.AnchorComment(@case, id, anchor));
 
     /// <inheritdoc/>
-    public Task<bool> RemoveAsync(ICase @case, string id) =>
-        Task.Run(() => comments.RemoveComment(@case, id));
+    public Task<IReadOnlyList<GraphCommentRecord>> HistoryAsync(
+        ICase @case, string id, CancellationToken cancellationToken) =>
+        Task.Run(() => comments.GetCommentHistory(@case, id), cancellationToken);
 
     /// <inheritdoc/>
     public Task<bool> SavePlaceAsync(ICase @case, string id, NodePosition place, CommentSize? size) =>
@@ -102,7 +105,9 @@ public sealed class NoGraphComments : IGraphComments
         Task.FromResult<GraphComment?>(null);
 
     /// <inheritdoc/>
-    public Task<bool> RemoveAsync(ICase @case, string id) => Task.FromResult(false);
+    public Task<IReadOnlyList<GraphCommentRecord>> HistoryAsync(
+        ICase @case, string id, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<GraphCommentRecord>>([]);
 
     /// <inheritdoc/>
     public Task<bool> SavePlaceAsync(ICase @case, string id, NodePosition place, CommentSize? size) =>
