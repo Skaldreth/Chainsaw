@@ -20,4 +20,7 @@ public static class ClusteringJournalKinds
 
     /// <summary>A version of an analysis was drawn back, so that its conclusions no longer count.</summary>
     public const string VersionWithdrawn = "clustering.version-withdrawn";
+
+    /// <summary>A withdrawal of a version was taken back, so that the version runs and counts again.</summary>
+    public const string WithdrawalTakenBack = "clustering.withdrawal-taken-back";
 }

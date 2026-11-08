@@ -178,6 +178,9 @@ internal sealed class TestClustering : IClusteringService
     public VersionWithdrawal Withdraw(ICase @case, HeuristicId heuristic, string? reason) =>
         throw new NotSupportedException();
 
+    public VersionWithdrawalUndo? TakeBackWithdrawal(ICase @case, long withdrawalSequence, string? reason) =>
+        throw new NotSupportedException();
+
     public IReadOnlyList<VersionWithdrawal> GetWithdrawals(ICase @case) => [];
 }
 

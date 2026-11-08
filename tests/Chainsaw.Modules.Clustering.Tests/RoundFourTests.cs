@@ -1,5 +1,7 @@
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.SharedKernel;
+using Microsoft.Extensions.DependencyInjection;
 using static Chainsaw.Modules.Clustering.Tests.Synthetic;
 
 namespace Chainsaw.Modules.Clustering.Tests;
@@ -128,24 +130,6 @@ public sealed class RoundFourTests : IDisposable
     }
 
     [Fact]
-    public void A_peel_chain_whose_change_is_the_smaller_output_follows_what_the_next_hop_spends()
-    {
-        var hop1 = Tx("small-1", 900_400).In(Wpkh("small-holder-0"), 50_000_000)
-            .Out(Pkh("small-big-1"), 30_000_000).Out(Wpkh("small-holder-1"), 19_990_000).Build();
-        var hop2 = Tx("small-2", 900_401).Spend(hop1, 1)
-            .Out(Pkh("small-big-2"), 12_000_000).Out(Wpkh("small-holder-2"), 7_980_000).Build();
-        var hop3 = Tx("small-3", 900_402).Spend(hop2, 1)
-            .Out(Pkh("small-peel-3"), 470_000).Out(Wpkh("small-holder-3"), 7_500_000).Build();
-
-        _harness.Analyse(hop1, hop2, hop3);
-
-        var finding = Peel(hop1);
-        Assert.Equal((1, 0), (finding.ContinuingOutput, finding.PeelOutput));
-        Assert.Contains("den mindre", finding.Reason, StringComparison.Ordinal);
-        Assert.Equal(3, Peel(hop2).ChainLength);
-    }
-
-    [Fact]
     public void Two_payments_of_the_same_shape_that_do_not_follow_each_other_are_no_peel_chain()
     {
         var first = Tx("lone-1", 900_500).In(Wpkh("lone-a"), 10_000_000)
@@ -161,7 +145,82 @@ public sealed class RoundFourTests : IDisposable
     }
 
     [Fact]
-    public void A_version_drawn_back_stops_counting_without_anything_removed()
+    public void A_peel_chain_whose_smaller_output_goes_on_is_followed_when_the_larger_is_known_spent_elsewhere()
+    {
+        var hop1 = Tx("small-1", 900_400).In(Wpkh("small-holder-0"), 50_000_000)
+            .Out(Pkh("small-big-1"), 30_000_000).Out(Wpkh("small-holder-1"), 19_990_000).Build();
+        var shop = Tx("small-shop", 900_401).Spend(hop1, 0).Out(Pkh("small-shop-wallet"), 29_990_000).Build();
+        var hop2 = Tx("small-2", 900_401).Spend(hop1, 1)
+            .Out(Pkh("small-peel-2"), 2_000_000).Out(Wpkh("small-holder-2"), 17_980_000).Build();
+        var hop3 = Tx("small-3", 900_402).Spend(hop2, 1)
+            .Out(Pkh("small-peel-3"), 1_500_000).Out(Wpkh("small-holder-3"), 16_470_000).Build();
+
+        _harness.Analyse(hop1, shop, hop2, hop3);
+
+        var finding = Peel(hop1);
+        Assert.Equal((1, 0), (finding.ContinuingOutput, finding.PeelOutput));
+        Assert.Contains("den mindre", finding.Reason, StringComparison.Ordinal);
+        Assert.Contains(shop.Txid.Value, finding.Hops.Concat(Basis(hop1)));
+        Assert.Equal(3, Peel(hop2).ChainLength);
+    }
+
+    [Fact]
+    public void A_payment_the_investigator_followed_is_never_taken_for_the_victims_change()
+    {
+        var victim = Tx("victim-pay", 900_700).In(Wpkh("victim"), 250_000_000)
+            .Out(Wpkh("scammer"), 50_000_000).Out(Wpkh("victim-change"), 199_990_000).Build();
+        var scam1 = Tx("scam-1", 900_701).Spend(victim, 0)
+            .Out(Wpkh("s-a"), 30_000_000).Out(Wpkh("s-b"), 19_990_000).Build();
+        var scam2 = Tx("scam-2", 900_702).Spend(scam1, 0)
+            .Out(Wpkh("s-c"), 25_000_000).Out(Wpkh("s-d"), 4_990_000).Build();
+
+        _harness.Analyse(victim, scam1, scam2);
+
+        Assert.DoesNotContain(
+            _harness.Service.GetConclusions(_harness.Case, victim.Txid).Findings,
+            found => found.Finding is PeelChainFinding);
+        Assert.False(_harness.ClusterOf(Wpkh("victim")).Contains(Wpkh("scammer")));
+        Assert.DoesNotContain(
+            _harness.ClusterOf(Wpkh("victim")).Suggestions,
+            link => link.Evidence.Addresses.Contains(Wpkh("scammer")));
+    }
+
+    [Fact]
+    public void The_fingerprint_never_makes_a_merge_of_the_victim_and_the_scammer()
+    {
+        // The victim pays the scammer's P2WPKH from two P2WPKH coins and gets the change to a P2TR address. The
+        // scammer spends with the common fingerprint, the victim later without RBF.
+        var pay = Tx("fp2-pay", 900_900).In(Wpkh("fp2-victim-a"), 5_000_000).In(Wpkh("fp2-victim-b"), 5_000_000)
+            .Out(Wpkh("fp2-scammer"), 2_345_678).Out(Tr("fp2-victim-change"), 7_644_000).Build();
+        var scam = Tx("fp2-scam-spend", 900_901).Spend(pay, 0).Out(Wpkh("fp2-scam-next"), 2_340_000).Build();
+        var victim = Tx("fp2-victim-spend", 900_902).Final().Spend(pay, 1).Out(Wpkh("fp2-shop"), 7_640_000).Build();
+
+        _harness.Analyse(pay, scam, victim);
+
+        Assert.False(_harness.ClusterOf(Wpkh("fp2-victim-a")).Contains(Wpkh("fp2-scammer")));
+        var change = Assert.Single(
+            _harness.Service.GetConclusions(_harness.Case, pay.Txid).Evidence,
+            evidence => evidence.Heuristic.Name == HeuristicNames.ChangeAddress);
+        Assert.Equal(EvidenceStrength.Suggestion, change.Strength);
+        Assert.Contains("räknas aldrig för att slå ihop", change.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_spender_of_only_one_output_never_seals_an_unchanged_conclusion_again()
+    {
+        var payment = Tx("rs-pay", 900_800).In(Wpkh("rs-payer"), 10_000_000)
+            .Out(Wpkh("rs-shop"), 4_000_000).Out(Wpkh("rs-change"), 5_990_000).Build();
+        _harness.Analyse(payment);
+        var before = _harness.Count("clustering_evidence");
+        var spend = Tx("rs-spend", 900_801).Spend(payment, 0).Out(Wpkh("rs-x"), 3_990_000).Build();
+
+        _harness.Analyse(payment, spend);
+
+        Assert.Equal(before, _harness.Count("clustering_evidence"));
+    }
+
+    [Fact]
+    public void A_version_drawn_back_stops_counting_and_the_older_runs_instead()
     {
         _harness.Analyse(Patterns.PaymentWithChange());
         Assert.True(_harness.ClusterOf(Wpkh("payer-1")).Contains(Wpkh("payer-change")));
@@ -173,17 +232,65 @@ public sealed class RoundFourTests : IDisposable
         Assert.False(_harness.ClusterOf(Wpkh("payer-1")).Contains(Wpkh("payer-change")));
         Assert.True(_harness.ClusterOf(Wpkh("payer-1")).Contains(Wpkh("payer-2")));
         Assert.Equal(stored, _harness.Count("clustering_evidence"));
-        Assert.DoesNotContain(
-            _harness.Service.GetConclusions(_harness.Case, Txid("payment")).Findings,
-            found => found.Heuristic.Name == HeuristicNames.ChangeAddress);
         Assert.Equal(withdrawal, Assert.Single(_harness.Service.GetWithdrawals(_harness.Case)));
         Assert.Equal("Slog ihop fel i provet.", withdrawal.Reason);
         Assert.Single(_harness.Case.ReadJournal(), entry => entry.Kind == ClusteringJournalKinds.VersionWithdrawn);
+
+        var run = _harness.Analyse(Patterns.PaymentWithChange());
+
+        Assert.Contains("change-address v1", run.Journal!.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("change-address v2", run.Journal.Details, StringComparison.Ordinal);
+        var change = Assert.Single(
+            _harness.Service.GetConclusions(_harness.Case, Txid("payment")).Findings,
+            found => found.Heuristic.Name == HeuristicNames.ChangeAddress);
+        Assert.Equal(1, change.Heuristic.Version);
+        Assert.True(_harness.ClusterOf(Wpkh("payer-1")).Contains(Wpkh("payer-change")));
         Assert.True(_harness.Verify().IsIntact);
     }
 
     [Fact]
-    public void Drawing_back_twice_gives_the_first_record_and_the_users_merges_are_never_drawn_back()
+    public void A_new_coinjoin_after_the_running_version_is_drawn_back_is_still_recognised()
+    {
+        _harness.Service.Withdraw(_harness.Case, new HeuristicId(HeuristicNames.CoinJoin, 2), null);
+
+        _harness.Analyse(Patterns.Whirlpool());
+
+        var conclusions = _harness.Service.GetConclusions(_harness.Case, Txid("whirlpool"));
+        var coinJoin = Assert.IsType<CoinJoinFinding>(conclusions.TrailEnd);
+        Assert.Equal(CoinJoinPattern.Whirlpool, coinJoin.Pattern);
+        Assert.Equal(1, Assert.Single(conclusions.Findings).Heuristic.Version);
+        Assert.All(conclusions.Evidence, evidence => Assert.Equal(EvidenceStrength.Stopped, evidence.Strength));
+    }
+
+    [Fact]
+    public void A_version_drawn_back_never_vetoes_what_it_weighed_before()
+    {
+        _harness.Analyse(Patterns.Whirlpool());
+        var withdrawal = _harness.Service.Withdraw(_harness.Case, new HeuristicId(HeuristicNames.CoinJoin, 2), null);
+
+        var weighed = _harness.Service.GetConclusions(_harness.Case, Txid("whirlpool"));
+
+        Assert.Null(weighed.TrailEnd);
+        var stopped = Assert.Single(weighed.Evidence);
+        Assert.Equal(EvidenceStrength.Suggestion, stopped.Strength);
+        Assert.Equal(EvidenceStore.WithdrawnWeighing, stopped.Adjustment);
+
+        _harness.Analyse(Patterns.Whirlpool());
+        Assert.Equal(EvidenceStrength.Stopped, Assert.Single(
+            _harness.Service.GetConclusions(_harness.Case, Txid("whirlpool")).Evidence).Strength);
+
+        var undo = _harness.Service.TakeBackWithdrawal(_harness.Case, withdrawal.Sequence, "Fel version.");
+        Assert.NotNull(undo);
+        Assert.False(Assert.Single(_harness.Service.GetWithdrawals(_harness.Case)).IsInForce);
+        Assert.Null(_harness.Service.TakeBackWithdrawal(_harness.Case, withdrawal.Sequence, null));
+        Assert.Equal(2, _harness.Service.GetConclusions(_harness.Case, Txid("whirlpool")).Findings
+            .Single(found => found.Finding is CoinJoinFinding).Heuristic.Version);
+        Assert.Single(_harness.Case.ReadJournal(), entry => entry.Kind == ClusteringJournalKinds.WithdrawalTakenBack);
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public void Only_a_registered_version_with_another_left_can_be_drawn_back_and_twice_gives_the_first()
     {
         var change = new HeuristicId(HeuristicNames.ChangeAddress, 2);
         var first = _harness.Service.Withdraw(_harness.Case, change, null);
@@ -192,21 +299,79 @@ public sealed class RoundFourTests : IDisposable
         Assert.Equal(1, _harness.Count("clustering_withdrawals"));
         Assert.Throws<ArgumentException>(() =>
             _harness.Service.Withdraw(_harness.Case, new HeuristicId(UserMerges.Name, 1), null));
+        Assert.Throws<ArgumentException>(() =>
+            _harness.Service.Withdraw(_harness.Case, new HeuristicId("no-such", 9), null));
+        Assert.Throws<ArgumentException>(() =>
+            _harness.Service.Withdraw(_harness.Case, new HeuristicId(HeuristicNames.ChangeAddress, 1), null));
+        Assert.Throws<ArgumentException>(() => _harness.Service.Withdraw(
+            _harness.Case, new HeuristicId(HeuristicNames.CommonInputOwnership, 1), null));
+        Assert.Equal(1, _harness.Count("clustering_withdrawals"));
     }
 
     [Fact]
-    public void An_older_version_counts_again_when_the_newer_is_drawn_back()
+    public void An_older_version_runs_again_when_the_newer_is_drawn_back()
     {
-        _harness.Analyse(Patterns.Consolidation());
-        new ClusteringService([new SilentCommonInputV2()]).Analyse(_harness.Case, [Patterns.Consolidation()]);
-        Assert.Single(_harness.ClusterOf(Wpkh("cons-1")).Members);
+        using var harness = new CaseHarness(services =>
+            services.AddSingleton<IClusteringHeuristic, SilentCommonInputV2>());
+        harness.Analyse(Patterns.Consolidation());
+        Assert.Single(harness.ClusterOf(Wpkh("cons-1")).Members);
 
-        _harness.Service.Withdraw(_harness.Case, new HeuristicId(HeuristicNames.CommonInputOwnership, 2), null);
+        harness.Service.Withdraw(harness.Case, new HeuristicId(HeuristicNames.CommonInputOwnership, 2), null);
+        harness.Analyse(Patterns.Consolidation());
 
-        Assert.Equal(6, _harness.ClusterOf(Wpkh("cons-1")).Members.Count);
+        Assert.Equal(6, harness.ClusterOf(Wpkh("cons-1")).Members.Count);
         Assert.All(
-            _harness.Service.GetConclusions(_harness.Case, Txid("consolidation")).Evidence,
+            harness.Service.GetConclusions(harness.Case, Txid("consolidation")).Evidence,
             evidence => Assert.Equal(1, evidence.Heuristic.Version));
+    }
+
+    [Fact]
+    public void A_batch_payout_of_round_amounts_is_never_a_wasabi_2_round()
+    {
+        var tx = Tx("round-payout");
+        for (var i = 1; i <= 25; i++)
+        {
+            tx.In(Wpkh($"rp-in-{i}"), 10_000_000 + i);
+        }
+
+        var amounts = new long[] { 1_000_000, 5_000_000, 10_000_000 };
+        for (var i = 0; i < 24; i++)
+        {
+            tx.Out(Wpkh($"rp-out-{i}"), amounts[i % 3]);
+        }
+
+        var result = new CoinJoinHeuristic().Analyse(tx.Build(), new KnownTransactions([]));
+
+        Assert.DoesNotContain(
+            result.Findings.OfType<CoinJoinFinding>(), finding => finding.Pattern == CoinJoinPattern.Wasabi2);
+    }
+
+    [Fact]
+    public void A_finding_of_a_sort_of_its_own_is_sealed_and_read_back()
+    {
+        using var harness = new CaseHarness(services =>
+            services.AddSingleton<IClusteringHeuristic, GenericProbe>());
+
+        harness.Analyse(Patterns.PaymentWithChange());
+
+        var found = Assert.IsType<GenericFinding>(Assert.Single(
+            harness.Service.GetConclusions(harness.Case, Txid("payment")).Findings,
+            stored => stored.Heuristic.Name == GenericProbe.Name).Finding);
+        Assert.Equal(("prov", "{\"outputs\":2}", "Ett prov."), (found.Sort, found.Data, found.Reason));
+        Assert.True(harness.Verify().IsIntact);
+    }
+
+    /// <summary>An analysis that gives a finding of a sort of its own.</summary>
+    private sealed class GenericProbe : IUtxoHeuristic
+    {
+        public const string Name = "generic-probe";
+
+        public HeuristicId Id { get; } = new(Name, 1);
+
+        public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
+
+        public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
+            new(Id, transaction.Txid, [], [new GenericFinding("Ett prov.", "prov", "{\"outputs\":2}")]);
     }
 
     [Fact]
@@ -250,6 +415,14 @@ public sealed class RoundFourTests : IDisposable
         var result = new ChangeAddressHeuristic().Analyse(transactions[0], new KnownTransactions(transactions));
         return Assert.IsType<ChangeFinding>(Assert.Single(result.Findings));
     }
+
+    private IEnumerable<string> Basis(BitcoinTransaction hop) =>
+        _harness.Case.Read(reader =>
+        {
+            using var command = reader.CreateCommand(
+                $"SELECT basis FROM clustering_evidence WHERE heuristic = 'peel-chain' AND txid = '{hop.Txid.Value}'");
+            return (string)command.ExecuteScalar()!;
+        }).Split('"').Where(part => part.Length == 64);
 
     private PeelChainFinding Peel(BitcoinTransaction hop) =>
         Assert.Single(_harness.Service.GetConclusions(_harness.Case, hop.Txid).Findings

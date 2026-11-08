@@ -23,10 +23,15 @@ public static class ClusteringModule
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddSingleton<ICaseSchemaContributor, ClusteringSchema>();
-        services.AddSingleton<IClusteringHeuristic, CoinJoinHeuristic>();
+        // The older versions stay registered, so that a case that draws a newer one back runs the older instead
+        // (IClusteringService.Withdraw); only the highest version not drawn back runs.
+        services.AddSingleton<IClusteringHeuristic>(new CoinJoinHeuristic(1));
+        services.AddSingleton<IClusteringHeuristic>(new CoinJoinHeuristic(2));
         services.AddSingleton<IClusteringHeuristic, CommonInputOwnershipHeuristic>();
-        services.AddSingleton<IClusteringHeuristic, ChangeAddressHeuristic>();
-        services.AddSingleton<IClusteringHeuristic, PeelChainHeuristic>();
+        services.AddSingleton<IClusteringHeuristic>(new ChangeAddressHeuristic(1));
+        services.AddSingleton<IClusteringHeuristic>(new ChangeAddressHeuristic(2));
+        services.AddSingleton<IClusteringHeuristic>(new PeelChainHeuristic(1));
+        services.AddSingleton<IClusteringHeuristic>(new PeelChainHeuristic(2));
         services.AddSingleton<IClusteringService, ClusteringService>();
         return services;
     }

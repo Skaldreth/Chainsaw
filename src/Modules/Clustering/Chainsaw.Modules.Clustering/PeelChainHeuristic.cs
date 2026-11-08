@@ -14,10 +14,12 @@ namespace Chainsaw.Modules.Clustering;
 /// <remarks>
 /// <para>
 /// Version 2 follows a hop that is topped up with more inputs besides the coin from the hop before, and a chain where
-/// the change is not the larger output: when the case knows that just one of a hop's outputs is spent by another
-/// transaction of a hop's shape, that output is the one that goes on, whatever its size. When it knows of none (or of
-/// both), the larger output goes on, and only when it is at least <see cref="MinimumContinuingRatio"/> times the
-/// smaller, as in version 1.
+/// the change is not the larger output. The smaller output goes on only when the case knows what became of both: the
+/// smaller is spent by a peel hop (whose larger output is at least <see cref="MinimumContinuingRatio"/> times its
+/// smaller), and the larger by a transaction that is no hop. A payment is never followed only because it is the one
+/// spend the case knows, since that depends on what the investigator expanded. Otherwise the larger output goes on,
+/// and only when it is at least <see cref="MinimumContinuingRatio"/> times the smaller, as in version 1. Version 1
+/// stays registered, so that a case can go back to it if version 2 is drawn back.
 /// </para>
 /// <para>
 /// Many ordinary payments have the same shape (one input, a small payment, the bulk back as change), so the shape
@@ -28,7 +30,7 @@ namespace Chainsaw.Modules.Clustering;
 /// </remarks>
 internal sealed class PeelChainHeuristic : IUtxoHeuristic
 {
-    /// <summary>The heuristic's name and version.</summary>
+    /// <summary>The heuristic's name and newest version.</summary>
     public static readonly HeuristicId Identity = new(HeuristicNames.PeelChain, 2);
 
     /// <summary>How many hops in a row the case must know of before it is a peel chain.</summary>
@@ -40,8 +42,22 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
     /// </summary>
     public const long MinimumContinuingRatio = 4;
 
+    /// <summary>Whether this version follows topped-up hops and a smaller change (version 2).</summary>
+    private readonly bool _followsMore;
+
+    /// <summary>Creates the heuristic in a version.</summary>
+    /// <param name="version">1 or 2 (the newest, the default).</param>
+    /// <exception cref="ArgumentOutOfRangeException">Another version.</exception>
+    public PeelChainHeuristic(int version = 2)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(version, Identity.Version);
+        Id = new HeuristicId(HeuristicNames.PeelChain, version);
+        _followsMore = version >= 2;
+    }
+
     /// <inheritdoc/>
-    public HeuristicId Id => Identity;
+    public HeuristicId Id { get; }
 
     /// <inheritdoc/>
     public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
@@ -53,7 +69,7 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
         ArgumentNullException.ThrowIfNull(context);
         if (Hop(transaction, context) is not { } hop)
         {
-            return HeuristicResult.Nothing(Identity, transaction.Txid);
+            return HeuristicResult.Nothing(Id, transaction.Txid);
         }
 
         var (before, from) = HopsBefore(transaction, context);
@@ -61,12 +77,15 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
         var length = before.Count + 1 + after.Count;
         if (length < MinimumChainLength)
         {
-            return HeuristicResult.Nothing(Identity, transaction.Txid);
+            return HeuristicResult.Nothing(Id, transaction.Txid);
         }
 
         var extra = transaction.Inputs.Count - 1;
         var reason = Reason(before.Count + 1, length, hop, extra);
-        var basis = before.Concat(after).ToList();
+
+        // What became of the output that does not go on can decide which one does, so it is basis too.
+        var peelSpender = _followsMore ? context.FindSpender(transaction.Txid, hop.Peel.Index)?.Txid : null;
+        var basis = before.Concat(after).Append(peelSpender).OfType<Txid>().Distinct().ToList();
         var finding = new PeelChainFinding(
             reason, hop.Continuing.Index, hop.Peel.Index, before.Count, after.Count,
             [.. basis.Select(txid => txid.Value)], extra);
@@ -81,7 +100,7 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
                     reason,
                     hop.Continuing.Index),
             ];
-        return new HeuristicResult(Identity, transaction.Txid, proposals, [finding]) { Basis = basis };
+        return new HeuristicResult(Id, transaction.Txid, proposals, [finding]) { Basis = basis };
     }
 
     /// <summary>Writes the reason in plain Swedish.</summary>
@@ -113,14 +132,15 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
     }
 
     /// <summary>
-    /// Reads a transaction as a peel hop (<see cref="Shape"/>). The output that goes on is the only one the case knows
-    /// another transaction of that shape spends; otherwise the larger, when it is at least
-    /// <see cref="MinimumContinuingRatio"/> times the smaller.
+    /// Reads a transaction as a peel hop (<see cref="Shape"/>). The larger output goes on when it is at least
+    /// <see cref="MinimumContinuingRatio"/> times the smaller. From version 2 the smaller goes on instead when the
+    /// case knows that a peel hop by size (<see cref="BySize"/>) spends it and that a transaction that is no hop
+    /// spends the larger.
     /// </summary>
     /// <param name="transaction">The transaction.</param>
-    /// <param name="context">What the case knows, to see which output the next hop spends.</param>
+    /// <param name="context">What the case knows, to see what became of the outputs.</param>
     /// <returns>The continuing and peeled-off outputs, or <see langword="null"/> when it is not a hop.</returns>
-    private static (BitcoinOutput Continuing, BitcoinOutput Peel)? Hop(
+    private (BitcoinOutput Continuing, BitcoinOutput Peel)? Hop(
         BitcoinTransaction transaction, IHeuristicContext context)
     {
         if (Shape(transaction) is not { } outputs)
@@ -128,13 +148,32 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
             return null;
         }
 
-        var spentOn = outputs.Where(output =>
-                context.FindSpender(transaction.Txid, output.Index) is { } spender && Shape(spender) is not null)
-            .ToList();
-        if (spentOn.Count == 1)
+        var ordered = outputs.OrderByDescending(output => output.Amount.Value).ToList();
+        var (large, small) = (ordered[0], ordered[1]);
+        if (_followsMore
+            && context.FindSpender(transaction.Txid, small.Index) is { } smallSpender
+            && Shape(smallSpender) is not null
+            && BySize(smallSpender) is not null
+            && context.FindSpender(transaction.Txid, large.Index) is { } largeSpender
+            && Shape(largeSpender) is null)
         {
-            var continuing = spentOn[0];
-            return (continuing, outputs.Single(output => output.Index != continuing.Index));
+            return (small, large);
+        }
+
+        return BySize(transaction);
+    }
+
+    /// <summary>
+    /// Reads a hop by size alone: of its two outputs the larger goes on when it is at least
+    /// <see cref="MinimumContinuingRatio"/> times the smaller.
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns>The continuing and peeled-off outputs, or <see langword="null"/>.</returns>
+    private (BitcoinOutput Continuing, BitcoinOutput Peel)? BySize(BitcoinTransaction transaction)
+    {
+        if (Shape(transaction) is not { } outputs)
+        {
+            return null;
         }
 
         var ordered = outputs.OrderByDescending(output => output.Amount.Value).ToList();
@@ -145,16 +184,16 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
     }
 
     /// <summary>
-    /// Reads a transaction's outputs when it has a hop's shape: at least one input and two outputs, both with
-    /// addresses (and nothing else).
+    /// Reads a transaction's outputs when it has a hop's shape: two outputs, both with addresses (and nothing else),
+    /// and one input in version 1 or at least one from version 2.
     /// </summary>
     /// <param name="transaction">The transaction.</param>
     /// <returns>The two outputs, or <see langword="null"/>.</returns>
-    private static IReadOnlyList<BitcoinOutput>? Shape(BitcoinTransaction transaction)
+    private IReadOnlyList<BitcoinOutput>? Shape(BitcoinTransaction transaction)
     {
         var outputs = transaction.PayingOutputs();
-        var isHop = !transaction.IsCoinbase && transaction.Inputs.Count > 0 && outputs.Count == 2
-            && transaction.Outputs.Count == 2;
+        var inputs = _followsMore ? transaction.Inputs.Count > 0 : transaction.Inputs.Count == 1;
+        var isHop = !transaction.IsCoinbase && inputs && outputs.Count == 2 && transaction.Outputs.Count == 2;
         return isHop ? outputs : null;
     }
 
@@ -167,7 +206,7 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
     /// The hops in a row before it, nearest first, and the address of the transaction's coin from the nearest, or
     /// <see langword="null"/> when there is none.
     /// </returns>
-    private static (List<Txid> Hops, BitcoinAddress? From) HopsBefore(
+    private (List<Txid> Hops, BitcoinAddress? From) HopsBefore(
         BitcoinTransaction transaction, IHeuristicContext context)
     {
         var hops = new List<Txid>();
@@ -187,7 +226,7 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
     /// <param name="transaction">The transaction.</param>
     /// <param name="context">What the case knows.</param>
     /// <returns>The hop before and the input that spends it, or <see langword="null"/>.</returns>
-    private static (BitcoinTransaction Hop, BitcoinInput Coin)? Previous(
+    private (BitcoinTransaction Hop, BitcoinInput Coin)? Previous(
         BitcoinTransaction transaction, IHeuristicContext context)
     {
         foreach (var input in transaction.Inputs.OrderBy(input => input.Index))
@@ -209,7 +248,7 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
     /// <param name="continuing">Its continuing output.</param>
     /// <param name="context">What the case knows.</param>
     /// <returns>The hops in a row after it, nearest first.</returns>
-    private static List<Txid> HopsAfter(
+    private List<Txid> HopsAfter(
         BitcoinTransaction transaction, BitcoinOutput continuing, IHeuristicContext context)
     {
         var hops = new List<Txid>();

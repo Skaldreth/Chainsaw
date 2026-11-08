@@ -13,7 +13,10 @@ namespace Chainsaw.Modules.Clustering.Contracts;
 /// </remarks>
 public interface IClusteringService
 {
-    /// <summary>Gets the analyses that run on Bitcoin, in the order they run.</summary>
+    /// <summary>
+    /// Gets the analyses that run on Bitcoin, in the order they run: the highest registered version of each. A case
+    /// that has drawn a version back runs the highest version it has not drawn back instead.
+    /// </summary>
     IReadOnlyList<HeuristicId> Heuristics { get; }
 
     /// <summary>
@@ -233,23 +236,44 @@ public interface IClusteringService
 
     /// <summary>
     /// Draws a version of an analysis back (<see cref="VersionWithdrawal"/>): its conclusions stop counting, without
-    /// being removed, and the highest version of the same analysis that is not drawn back counts instead. Sealed with
-    /// a line in the journal; drawing back a version already drawn back gives the earlier record.
+    /// being removed, it no longer runs on the case's transactions, and the highest registered version of the same
+    /// analysis that is not drawn back runs and counts instead. A proposal that was weighed against the version before
+    /// it was drawn back (for example stopped by its CoinJoin) counts as a suggestion until the transaction is analysed
+    /// again, so that a version drawn back never vetoes. Sealed with a line in the journal; drawing back a version
+    /// that is already drawn back gives the earlier record.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="heuristic">The analysis and version.</param>
     /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
-    /// <returns>The withdrawal.</returns>
+    /// <returns>The withdrawal in force.</returns>
     /// <exception cref="ArgumentException">
-    /// It names the user's own merges, which are undone one by one instead, or the reason is too long.
+    /// It names an analysis and version that is not registered, the user's own merges (which are undone one by one),
+    /// or the only version of an analysis left in force (without it nothing would, for example, stop a CoinJoin's
+    /// inputs from being merged); or the reason is too long.
     /// </exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
     /// </exception>
     VersionWithdrawal Withdraw(ICase @case, HeuristicId heuristic, string? reason);
 
-    /// <summary>Reads the versions drawn back, oldest first.</summary>
+    /// <summary>
+    /// Takes a withdrawal back (sketch AN1b): the version runs and counts again. Sealed as a record of its own with a
+    /// line in the journal; the withdrawal stays as it was.
+    /// </summary>
     /// <param name="case">The open case.</param>
-    /// <returns>The withdrawals.</returns>
+    /// <param name="withdrawalSequence">The withdrawal's <see cref="VersionWithdrawal.Sequence"/>.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>
+    /// The taking back, or <see langword="null"/> when no withdrawal in force has that number (nothing is sealed).
+    /// </returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    VersionWithdrawalUndo? TakeBackWithdrawal(ICase @case, long withdrawalSequence, string? reason);
+
+    /// <summary>Reads every withdrawal, also those taken back, oldest first.</summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The withdrawals, each with its taking back.</returns>
     IReadOnlyList<VersionWithdrawal> GetWithdrawals(ICase @case);
 }

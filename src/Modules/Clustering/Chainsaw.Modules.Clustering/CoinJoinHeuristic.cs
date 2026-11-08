@@ -12,13 +12,13 @@ namespace Chainsaw.Modules.Clustering;
 /// </summary>
 /// <remarks>
 /// Version 2 adds Wasabi 2's standard amounts (which need not come in equal groups) and the pools of Whirlpool's
-/// successor Ashigaru (0.025 and 0.25 BTC).
-/// The rules err towards seeing a CoinJoin: a CoinJoin that is missed would merge strangers into one cluster, while
+/// successor Ashigaru (0.025 and 0.25 BTC). Version 1 stays registered, so that a case can go back to it if version 2
+/// is drawn back. The rules err towards seeing a CoinJoin: a CoinJoin that is missed would merge strangers into one cluster, while
 /// a transaction wrongly taken for one only leaves some addresses unmerged.
 /// </remarks>
 internal sealed class CoinJoinHeuristic : IUtxoHeuristic
 {
-    /// <summary>The heuristic's name and version.</summary>
+    /// <summary>The heuristic's name and newest version.</summary>
     public static readonly HeuristicId Identity = new(HeuristicNames.CoinJoin, 2);
 
     /// <summary>
@@ -37,6 +37,12 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
     public static readonly IReadOnlySet<long> WhirlpoolPools = new HashSet<long>
     {
         100_000, 1_000_000, 2_500_000, 5_000_000, 25_000_000, 50_000_000,
+    };
+
+    /// <summary>Whirlpool's pools as version 1 knew them: Samourai's only.</summary>
+    public static readonly IReadOnlySet<long> WhirlpoolPoolsVersion1 = new HashSet<long>
+    {
+        100_000, 1_000_000, 5_000_000, 50_000_000,
     };
 
     /// <summary>The smallest of Wasabi 2's standard amounts, in satoshi.</summary>
@@ -59,14 +65,44 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
     /// </summary>
     public static readonly IReadOnlySet<long> Wasabi2Denominations = BuildWasabi2Denominations();
 
+    /// <summary>
+    /// Wasabi 2's standard amounts that are not 1, 2 or 5 times a power of 10: the powers of 2 and 3 and twice the
+    /// powers of 3. People and exchanges pay round amounts in the 1-2-5 series; Wasabi 2 splits coins into these too.
+    /// </summary>
+    public static readonly IReadOnlySet<long> Wasabi2LadderOnly = BuildLadderOnly();
+
+    /// <summary>
+    /// How many different amounts from <see cref="Wasabi2LadderOnly"/> a Wasabi 2 round's outputs must have, so that a
+    /// batch payout of round amounts (0.01, 0.05, 0.1 BTC) is never taken for one.
+    /// </summary>
+    public const int Wasabi2MinimumLadderAmounts = 2;
+
     /// <summary>The fewest inputs and outputs a Wasabi round has in version 1's reading.</summary>
     public const int WasabiMinimumParticipants = 20;
 
     /// <summary>The fewest equal outputs a JoinMarket round has in version 1's reading.</summary>
     public const int JoinMarketMinimumEqualOutputs = 3;
 
+    /// <summary>The pools this version knows.</summary>
+    private readonly IReadOnlySet<long> _pools;
+
+    /// <summary>Whether this version knows Wasabi 2 (version 2).</summary>
+    private readonly bool _knowsWasabi2;
+
+    /// <summary>Creates the heuristic in a version.</summary>
+    /// <param name="version">1 or 2 (the newest, the default).</param>
+    /// <exception cref="ArgumentOutOfRangeException">Another version.</exception>
+    public CoinJoinHeuristic(int version = 2)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(version, Identity.Version);
+        Id = new HeuristicId(HeuristicNames.CoinJoin, version);
+        _knowsWasabi2 = version >= 2;
+        _pools = _knowsWasabi2 ? WhirlpoolPools : WhirlpoolPoolsVersion1;
+    }
+
     /// <inheritdoc/>
-    public HeuristicId Id => Identity;
+    public HeuristicId Id { get; }
 
     /// <inheritdoc/>
     public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
@@ -77,7 +113,7 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
         ArgumentNullException.ThrowIfNull(transaction);
         if (transaction.IsCoinbase)
         {
-            return HeuristicResult.Nothing(Identity, transaction.Txid);
+            return HeuristicResult.Nothing(Id, transaction.Txid);
         }
 
         var outputs = transaction.PayingOutputs();
@@ -86,7 +122,7 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
         var funding = transaction.FundingTransactions();
         if (group is not { } found || found.Count < 2 || inputAddresses < 2 || funding < 2)
         {
-            return HeuristicResult.Nothing(Identity, transaction.Txid);
+            return HeuristicResult.Nothing(Id, transaction.Txid);
         }
 
         var (denomination, equal) = found;
@@ -98,7 +134,7 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
         var veto = certainty == CoinJoinCertainty.Recognised
             ? new OwnershipVeto(VetoKind.Stop, "Tx:en är en CoinJoin; dess inputs har många ägare.")
             : new OwnershipVeto(VetoKind.Suggest, "Tx:en kan vara en CoinJoin; därför slås inget ihop automatiskt.");
-        return new HeuristicResult(Identity, transaction.Txid, [], [finding], veto);
+        return new HeuristicResult(Id, transaction.Txid, [], [finding], veto);
     }
 
     /// <summary>
@@ -125,7 +161,7 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
     /// <param name="equal">How many equal outputs.</param>
     /// <param name="inputAddresses">How many different addresses the inputs have.</param>
     /// <returns>The pattern and the certainty.</returns>
-    private static (CoinJoinPattern Pattern, CoinJoinCertainty Certainty) Classify(
+    private (CoinJoinPattern Pattern, CoinJoinCertainty Certainty) Classify(
         BitcoinTransaction transaction,
         IReadOnlyList<BitcoinOutput> outputs,
         Satoshi denomination,
@@ -137,7 +173,7 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
             return (CoinJoinPattern.Whirlpool, CoinJoinCertainty.Recognised);
         }
 
-        if (IsWasabi2(transaction, outputs))
+        if (_knowsWasabi2 && IsWasabi2(transaction, outputs))
         {
             return (CoinJoinPattern.Wasabi2, CoinJoinCertainty.Recognised);
         }
@@ -166,11 +202,11 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
     /// <param name="denomination">The equal outputs' amount.</param>
     /// <param name="equal">How many equal outputs.</param>
     /// <returns><see langword="true"/> when it matches.</returns>
-    private static bool IsWhirlpool(BitcoinTransaction transaction, Satoshi denomination, int equal) =>
+    private bool IsWhirlpool(BitcoinTransaction transaction, Satoshi denomination, int equal) =>
         transaction.Inputs.Count == WhirlpoolParticipants
         && transaction.Outputs.Count == WhirlpoolParticipants
         && equal == WhirlpoolParticipants
-        && WhirlpoolPools.Contains(denomination.Value)
+        && _pools.Contains(denomination.Value)
         && transaction.Outputs.All(output => output.ScriptType == BitcoinScriptType.PayToWitnessPublicKeyHash);
 
     /// <summary>
@@ -189,7 +225,8 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
 
     /// <summary>
     /// Wasabi 2: many inputs and outputs, all outputs SegWit (P2WPKH or P2TR), at least half of the outputs of Wasabi
-    /// 2's standard amounts, and at least <see cref="Wasabi2MinimumDenominations"/> different ones among them.
+    /// 2's standard amounts, at least <see cref="Wasabi2MinimumDenominations"/> different ones among them, and at
+    /// least <see cref="Wasabi2MinimumLadderAmounts"/> of them outside the 1-2-5 series.
     /// </summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="outputs">Its outputs with an address.</param>
@@ -197,9 +234,11 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
     private static bool IsWasabi2(BitcoinTransaction transaction, IReadOnlyList<BitcoinOutput> outputs)
     {
         var standard = outputs.Where(output => Wasabi2Denominations.Contains(output.Amount.Value)).ToList();
+        var amounts = standard.Select(output => output.Amount.Value).Distinct().ToList();
         return IsLargeSegWitRound(transaction, outputs)
             && standard.Count * 2 >= outputs.Count
-            && standard.Select(output => output.Amount).Distinct().Count() >= Wasabi2MinimumDenominations;
+            && amounts.Count >= Wasabi2MinimumDenominations
+            && amounts.Count(Wasabi2LadderOnly.Contains) >= Wasabi2MinimumLadderAmounts;
     }
 
     /// <summary>
@@ -215,6 +254,19 @@ internal sealed class CoinJoinHeuristic : IUtxoHeuristic
             output.ScriptType is BitcoinScriptType.PayToWitnessPublicKeyHash or BitcoinScriptType.PayToTaproot)
         && transaction.Inputs.Count >= WasabiMinimumParticipants
         && outputs.Count >= WasabiMinimumParticipants;
+
+    /// <summary>Builds the standard amounts outside the 1-2-5 series (<see cref="Wasabi2LadderOnly"/>).</summary>
+    /// <returns>The amounts in satoshi.</returns>
+    private static HashSet<long> BuildLadderOnly()
+    {
+        var decimals = new HashSet<long>();
+        for (var power = 1L; power <= Wasabi2LargestDenomination; power *= 10)
+        {
+            decimals.UnionWith([power, 2 * power, 5 * power]);
+        }
+
+        return [.. Wasabi2Denominations.Where(amount => !decimals.Contains(amount))];
+    }
 
     /// <summary>Builds Wasabi 2's standard amounts (<see cref="Wasabi2Denominations"/>).</summary>
     /// <returns>The amounts in satoshi.</returns>

@@ -34,7 +34,7 @@ public sealed class ClusteringModuleTests
         Assert.Equal(
             [
                 "clustering.evidence", "clustering.splits", "clustering.split_undos", "clustering.merges",
-                "clustering.merge_undos", "clustering.withdrawals",
+                "clustering.merge_undos", "clustering.withdrawals", "clustering.withdrawal_undos",
             ],
             schema.SealedChains.Select(chain => chain.Name));
     }

@@ -6,22 +6,24 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Clustering;
 
 /// <summary>
-/// Change address v2: points out the output that is probably the sender's change, from signs that tell the outputs
-/// apart, and says how many signs hold. The change is merged with the sender only when the signs are enough
+/// Change address: points out the output that is probably the sender's change, from signs that tell the outputs
+/// apart, and says how many signs hold. The change is merged with the sender only when the strong signs are enough
 /// (<see cref="AutomaticMergeSigns"/>, two outputs and nothing against); otherwise it is a suggestion.
 /// </summary>
 /// <remarks>
 /// Version 2 adds the wallet's fingerprint (<see cref="ChangeSign.SameFingerprintSpent"/>): the output that the same
-/// kind of wallet spends later is the sender's. A fingerprint is no proof (many wallets share one), so it is only one
-/// sign among the others.
+/// kind of wallet spends later is the sender's. A fingerprint is weak (most wallets share one, and a wallet can change
+/// it between transactions), so it never counts towards an automatic merge: it can only break a tie or strengthen a
+/// suggestion. Version 1 stays registered, so that the case can go back to it if version 2 is drawn back.
 /// </remarks>
 internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
 {
-    /// <summary>The heuristic's name and version.</summary>
+    /// <summary>The heuristic's name and newest version.</summary>
     public static readonly HeuristicId Identity = new(HeuristicNames.ChangeAddress, 2);
 
     /// <summary>
-    /// How many signs must point at the change, with none pointing elsewhere, before it is merged automatically.
+    /// How many strong signs (every sign but the fingerprint) must point at the change, with none pointing elsewhere,
+    /// before it is merged automatically.
     /// </summary>
     public const int AutomaticMergeSigns = 3;
 
@@ -31,11 +33,26 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
     /// </summary>
     public const int AutomaticMergeOutputs = 2;
 
-    /// <summary>How many kinds of sign there are, to show the score against.</summary>
-    private static readonly int SignKinds = Enum.GetValues<ChangeSign>().Length;
+    /// <summary>Whether this version reads the wallet's fingerprint (version 2).</summary>
+    private readonly bool _readsFingerprint;
+
+    /// <summary>How many kinds of sign this version checks, to show the score against.</summary>
+    private readonly int _signKinds;
+
+    /// <summary>Creates the heuristic in a version.</summary>
+    /// <param name="version">1 or 2 (the newest, the default).</param>
+    /// <exception cref="ArgumentOutOfRangeException">Another version.</exception>
+    public ChangeAddressHeuristic(int version = 2)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(version, Identity.Version);
+        Id = new HeuristicId(HeuristicNames.ChangeAddress, version);
+        _readsFingerprint = version >= 2;
+        _signKinds = Enum.GetValues<ChangeSign>().Length - (_readsFingerprint ? 0 : 1);
+    }
 
     /// <inheritdoc/>
-    public HeuristicId Id => Identity;
+    public HeuristicId Id { get; }
 
     /// <inheritdoc/>
     public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
@@ -48,10 +65,10 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
         var outputs = transaction.PayingOutputs();
         if (transaction.IsCoinbase || outputs.Count < 2)
         {
-            return HeuristicResult.Nothing(Identity, transaction.Txid);
+            return HeuristicResult.Nothing(Id, transaction.Txid);
         }
 
-        var sightings = Sightings.Of(transaction, outputs, context);
+        var sightings = Sightings.Of(transaction, outputs, context, _readsFingerprint);
         var scored = outputs.Select(output => (Output: output, Signs: Signs(output, outputs, sightings)))
             .OrderByDescending(entry => entry.Signs.Signs.Count)
             .ThenBy(entry => entry.Output.Index)
@@ -61,13 +78,14 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
         if (signs.Count == 0 || signs.Count <= against)
         {
             // A tie rests on the same sightings as a finding would, so a narrower run must not replace it either.
-            return HeuristicResult.Nothing(Identity, transaction.Txid) with { Basis = seenIn };
+            return HeuristicResult.Nothing(Id, transaction.Txid) with { Basis = seenIn };
         }
 
-        var merge = outputs.Count <= AutomaticMergeOutputs && signs.Count >= AutomaticMergeSigns && against == 0;
+        var strong = signs.Count(sign => sign != ChangeSign.SameFingerprintSpent);
+        var merge = outputs.Count <= AutomaticMergeOutputs && strong >= AutomaticMergeSigns && against == 0;
         var reason = Reason(change.Index, signs, against, merge, outputs.Count);
         var finding = new ChangeFinding(
-            reason, change.Index, signs, against, SignKinds, [.. seenIn.Select(txid => txid.Value)]);
+            reason, change.Index, signs, against, _signKinds, [.. seenIn.Select(txid => txid.Value)]);
         var sender = transaction.InputAddresses().FirstOrDefault();
         IReadOnlyList<OwnershipProposal> proposals = sender is null || sender == change.Address
             ? []
@@ -79,7 +97,7 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
                     reason,
                     change.Index),
             ];
-        return new HeuristicResult(Identity, transaction.Txid, proposals, [finding]) { Basis = seenIn };
+        return new HeuristicResult(Id, transaction.Txid, proposals, [finding]) { Basis = seenIn };
     }
 
     /// <summary>Gives the signs that hold for one output and for none of the others.</summary>
@@ -87,8 +105,7 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
     /// <param name="outputs">All outputs with an address.</param>
     /// <param name="sightings">What the transaction and the case say once for all its outputs.</param>
     /// <returns>
-    /// The signs, in the order of <see cref="ChangeSign"/>, and the earlier transactions where any output's address
-    /// was seen, which the signs rest on.
+    /// The signs, in the order of <see cref="ChangeSign"/>, and the other transactions the signs rest on.
     /// </returns>
     private static (List<ChangeSign> Signs, List<Txid> SeenIn) Signs(
         BitcoinOutput candidate, IReadOnlyList<BitcoinOutput> outputs, Sightings sightings)
@@ -135,26 +152,28 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
             signs.Add(ChangeSign.SameFingerprintSpent);
         }
 
-        // Every earlier sighting counts as basis, also of the outputs that did not get the sign: without one of them
-        // the signs could tie, and a narrower run must not take the conclusion back.
+        // Every sighting counts as basis, also of the outputs that did not get the sign: without one of them the signs
+        // could tie, and a narrower run must not take the conclusion back.
         return (signs, sightings.Basis);
     }
 
     /// <summary>
     /// What a transaction and the case say once for all its outputs: the inputs' addresses, script type and smallest
-    /// amount, and where each output's address was seen before. Read once per transaction rather than once per output
-    /// and pair of outputs, since a batch payout with a few hundred outputs otherwise took a tenth of a second.
+    /// amount, where each output's address was seen before, and the fingerprints of the transactions that spend the
+    /// outputs. Read once per transaction rather than once per output and pair of outputs, since a batch payout with a
+    /// few hundred outputs otherwise took a tenth of a second.
     /// </summary>
     /// <param name="InputAddresses">The inputs' addresses.</param>
     /// <param name="InputType">The one script type every input has, or <see langword="null"/>.</param>
     /// <param name="SmallestInput">The smallest input, when every input's amount is known.</param>
     /// <param name="Seen">The earliest earlier transaction each output's address was seen in, by output index.</param>
     /// <param name="SameWallet">
-    /// By output index, whether the transaction the case knows spends it has the same wallet fingerprint as this one;
-    /// missing when the case knows of no spender.
+    /// By output index, whether the transaction that spends it has the same wallet fingerprint as this one; empty
+    /// unless the case knows a spender of every output, since only then can the fingerprint sign be tested.
     /// </param>
     /// <param name="Basis">
-    /// The earlier transactions any output's address was seen in and the later ones that spend an output, each once.
+    /// The earlier transactions any output's address was seen in, and the spenders when the fingerprint was tested,
+    /// each once.
     /// </param>
     private sealed record Sightings(
         IReadOnlySet<BitcoinAddress> InputAddresses,
@@ -168,16 +187,17 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
         /// <param name="transaction">The transaction.</param>
         /// <param name="outputs">Its outputs with an address.</param>
         /// <param name="context">What the case knows around the transaction.</param>
+        /// <param name="readsFingerprint">Whether the version reads the wallet's fingerprint.</param>
         /// <returns>The sightings.</returns>
         public static Sightings Of(
-            BitcoinTransaction transaction, IReadOnlyList<BitcoinOutput> outputs, IHeuristicContext context)
+            BitcoinTransaction transaction,
+            IReadOnlyList<BitcoinOutput> outputs,
+            IHeuristicContext context,
+            bool readsFingerprint)
         {
             var seen = outputs.ToDictionary(
                 output => output.Index, output => context.SeenBefore(output.Address!, transaction));
-            var spenders = outputs
-                .Select(output => (output.Index, Spender: context.FindSpender(transaction.Txid, output.Index)))
-                .Where(entry => entry.Spender is not null)
-                .ToDictionary(entry => entry.Index, entry => entry.Spender!);
+            var spenders = readsFingerprint ? Spenders(transaction, outputs, context) : [];
             var fingerprint = transaction.Fingerprint();
             var basis = outputs.Select(output => seen[output.Index])
                 .OfType<BitcoinTransaction>()
@@ -194,6 +214,32 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
                 basis);
         }
 
+        /// <summary>
+        /// Finds the transactions that spend the outputs, but only when the case knows one for every output: the
+        /// fingerprint sign can only be tested then, and a spender that cannot change the conclusion must not make it
+        /// be sealed again.
+        /// </summary>
+        /// <param name="transaction">The transaction.</param>
+        /// <param name="outputs">Its outputs with an address.</param>
+        /// <param name="context">What the case knows.</param>
+        /// <returns>The spender of each output by index, or none.</returns>
+        private static Dictionary<int, BitcoinTransaction> Spenders(
+            BitcoinTransaction transaction, IReadOnlyList<BitcoinOutput> outputs, IHeuristicContext context)
+        {
+            var spenders = new Dictionary<int, BitcoinTransaction>();
+            foreach (var output in outputs)
+            {
+                if (context.FindSpender(transaction.Txid, output.Index) is not { } spender)
+                {
+                    return [];
+                }
+
+                spenders[output.Index] = spender;
+            }
+
+            return spenders;
+        }
+
         /// <summary>Gives the earliest earlier transaction an output's address was seen in.</summary>
         /// <param name="output">The output.</param>
         /// <returns>The transaction, or <see langword="null"/> when the address is new.</returns>
@@ -202,7 +248,7 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
         /// <summary>Tells whether the transaction that spends an output has the same wallet fingerprint.</summary>
         /// <param name="output">The output.</param>
         /// <returns>
-        /// Whether it has, or <see langword="null"/> when the case knows of no transaction that spends it.
+        /// Whether it has, or <see langword="null"/> when the fingerprint was not tested.
         /// </returns>
         public bool? SpentBySameWallet(BitcoinOutput output) =>
             SameWallet.TryGetValue(output.Index, out var same) ? same : null;
@@ -220,7 +266,7 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
     /// <param name="merge">Whether it is merged.</param>
     /// <param name="outputs">How many outputs with an address the transaction has.</param>
     /// <returns>The reason.</returns>
-    private static string Reason(int index, IReadOnlyList<ChangeSign> signs, int against, bool merge, int outputs)
+    private string Reason(int index, IReadOnlyList<ChangeSign> signs, int against, bool merge, int outputs)
     {
         var listed = string.Join(", ", signs.Select(Describe));
         var verdict = (merge, outputs > AutomaticMergeOutputs) switch
@@ -229,15 +275,19 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
             (false, true) => "tx:en har fler än två outputs, så det är bara ett förslag",
             _ => "tecknen räcker inte för att slå ihop, så det är bara ett förslag",
         };
+        var fingerprint = signs.Contains(ChangeSign.SameFingerprintSpent)
+            ? " Plånbokens fingeravtryck är ett svagt tecken och räknas aldrig för att slå ihop."
+            : string.Empty;
         return string.Format(
             CultureInfo.InvariantCulture,
-            "Output {0} är trolig växel: {1} av {2} tecken ({3}), {4} mot. {5}.",
+            "Output {0} är trolig växel: {1} av {2} tecken ({3}), {4} mot. {5}.{6}",
             index,
             signs.Count,
-            SignKinds,
+            _signKinds,
             listed,
             against,
-            char.ToUpperInvariant(verdict[0]) + verdict[1..]);
+            char.ToUpperInvariant(verdict[0]) + verdict[1..],
+            fingerprint);
     }
 
     /// <summary>Describes a sign in plain Swedish.</summary>

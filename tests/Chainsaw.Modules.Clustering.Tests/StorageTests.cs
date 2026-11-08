@@ -110,9 +110,9 @@ public sealed class StorageTests : IDisposable
     [Fact]
     public void A_newer_version_replaces_an_older_versions_results_which_stay_sealed()
     {
-        using var harness = new CaseHarness(services =>
-            services.AddSingleton<IClusteringHeuristic, SilentCoinJoinNext>());
+        using var harness = new CaseHarness();
         harness.Analyse(Patterns.Whirlpool());
+        new ClusteringService([new SilentCoinJoinNext()]).Analyse(harness.Case, [Patterns.Whirlpool()]);
         var conclusions = harness.Service.GetConclusions(harness.Case, Txid("whirlpool"));
 
         Assert.Null(conclusions.TrailEnd);
