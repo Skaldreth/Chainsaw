@@ -152,7 +152,7 @@ public sealed partial class GraphCanvas
         foreach (var hit in model.WatchOverlay.TrashHits)
         {
             if (!model.Places.TryGetValue(hit.NodeKey, out var place)
-                || !GraphSizes.NodeFrame(place).Inflate(TrashHitLength * 2).Intersects(visible))
+                || !model.FrameAt(hit.NodeKey, place).Inflate(TrashHitLength * 2).Intersects(visible))
             {
                 continue;
             }

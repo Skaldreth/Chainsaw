@@ -211,7 +211,7 @@ public sealed partial class GraphCanvas
             return false;
         }
 
-        var frame = GraphSizes.NodeFrame(place);
+        var frame = _model.FrameAt(fan.Pile.Key, place);
         var deck = new GraphRect(frame.X, frame.Y, frame.Width + (2 * DeckStep), frame.Height + (2 * DeckStep));
         return deck.Contains(surface);
     }
