@@ -179,6 +179,8 @@ public sealed partial class CaseWorkflow
 
         _session.Open(opened);
         _absorbing = AbsorbAsync(opened);
+        // A start point that could not be fetched before is tried again (principle 9).
+        _fetches.Start(opened);
         return CommandReply.Done($"{prefix}Ärendet {CaseSession.NameOf(opened)} är öppet.");
     }
 

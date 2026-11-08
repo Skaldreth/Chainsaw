@@ -41,7 +41,11 @@ internal sealed record TokenLog(EthereumAddress Contract, EthereumAddress From, 
 internal sealed record TransactionInfo(
     EthereumTxHash Hash, long? Height, DateTimeOffset? Time, EthereumAddress From, EthereumAddress? To,
     EthereumAddress? Receiver, BigInteger Value, BigInteger Fee, EthereumOutcome Outcome,
-    IReadOnlyList<TokenLog> Tokens, int Unread, bool LogsCut);
+    IReadOnlyList<TokenLog> Tokens, int Unread, bool LogsCut)
+{
+    /// <summary>Gets the transaction's place in its block, when the answer gave it.</summary>
+    public long? TransactionIndex { get; init; }
+}
 
 /// <summary>An internal transaction as the source lists it.</summary>
 /// <param name="From">The contract that sent the ether.</param>
@@ -258,7 +262,10 @@ internal static class BlockscoutParser
             outcome,
             tokens,
             unread,
-            logsCut);
+            logsCut)
+        {
+            TransactionIndex = height is null ? null : PlaceOf(result),
+        };
     });
 
     /// <summary>Reads a transaction's internal transactions from <c>txlistinternal&amp;txhash=</c>.</summary>
@@ -643,16 +650,21 @@ internal static class BlockscoutParser
         }
 
         var hash = OptionalString(item, "blockHash");
-        var index = long.TryParse(OptionalString(item, "transactionIndex"), NumberStyles.None,
-            CultureInfo.InvariantCulture, out var place)
-            ? place
-            : (long?)null;
         return new EthereumBlockReference(height, EthereumTxHash.IsHash(hash) ? hash!.ToLowerInvariant() : null,
             Time(item))
         {
-            TransactionIndex = index,
+            TransactionIndex = PlaceOf(item),
         };
     }
+
+    /// <summary>Gives a transaction's place in its block (<c>transactionIndex</c>), when the entry has it.</summary>
+    /// <param name="item">The entry or the transaction.</param>
+    /// <returns>The place, or <see langword="null"/>.</returns>
+    private static long? PlaceOf(JsonElement item) =>
+        long.TryParse(OptionalString(item, "transactionIndex"), NumberStyles.None, CultureInfo.InvariantCulture,
+            out var place)
+            ? place
+            : null;
 
     /// <summary>Gives an internal transaction's place in its trace, or its order on the page.</summary>
     /// <param name="item">The entry.</param>

@@ -996,6 +996,10 @@ Kräver en ansluten utgång och Ethereum i Källor, som ovan.
   röd med mixerns ikon och etiketten *Tornado Cash 1 ETH*, och spåret tar slut där. *Varför?* på noden säger
   *Chainsaws kända kontrakt v1 2026-11-08* och sidan adressen lästes från. Journalen har en rad *… adresser är kända
   kontrakt*. Ta tillbaka etiketten i Historik och läs om grafen: den kommer inte tillbaka.
+- **Tidigare sanktionerad:** samma pool har en liten, nedtonad röd markering i hörnet (inte den ljusröda för
+  sanktionerad). Hovra: *Tidigare sanktionerad*. Inspektören har raden *Sanktion: Tidigare sanktionerad, OFAC SDN
+  2022-08-08 – 2025-03-21*, och *Varför?* länkar OFAC:s två meddelanden. Bildspråkets *?* har raden. I Etikett (L)
+  går sorten inte att välja. I testärendet (`/testdata`) har mixern markeringen.
 - **Brygga:** en adress som skickat ether till Arbitrums *Delayed Inbox* eller OP Mainnets *L1 Standard Bridge*:
   noden blir lila (*Swap eller brygga*) och spåret säger *Fortsätter på annan kedja*.
 - **Swap genom Uniswap:** en adress som bytt USDT mot ether genom Uniswaps router: *Varför?* på linjen med pillret
@@ -1006,8 +1010,10 @@ Kräver en ansluten utgång och Ethereum i Källor, som ovan.
 - **Egen yta (Z) med Ethereum-aktörer:** välj två Ethereum-noder (och gärna en Bitcoin-nod), tryck Z och spara: ytan
   ritas runt alla valda, också efter att ärendet öppnats igen.
 - **Start-tx som inte finns i ärendet:** lägg till en Ethereum- eller Bitcoin-tx som startpunkt med kommandoraden (eller
-  i Nytt ärende) med utgången ansluten: den hämtas av sig själv, och grafen ritas om med noden. Utan utgång står den
-  kvar som en rad i grafens problem; expandera den när utgången är ansluten.
+  i Nytt ärende) med utgången ansluten: den hämtas av sig själv, och grafen ritas om med noden. Utan utgång säger en
+  varning i toastern att den inte kunde hämtas och att Chainsaw försöker igen; anslut utgången (eller stäng och öppna
+  ärendet) och se att den hämtas och ritas utan att du gör något. Tryck E på noden medan den hämtas: den hämtas inte
+  två gånger. Lås Chainsaw medan den hämtas: inget varnar, och den hämtas när ärendet öppnas igen.
 
 ## Den tomma grafen (GR6c)
 

@@ -65,6 +65,9 @@ public sealed partial class CaseWorkflow
     /// <summary>The taking in of the open case's labels under way, waited for before the case is closed.</summary>
     private Task _absorbing = Task.CompletedTask;
 
+    /// <summary>The fetching of the start points that are transactions the case lacks.</summary>
+    private readonly StartTransactionFetches _fetches;
+
     /// <summary>Keeps two openings, creations or closings from running at once.</summary>
     private bool _busy;
 
@@ -97,6 +100,40 @@ public sealed partial class CaseWorkflow
         _vault = vault;
         _session = session;
         _library = library;
+        _fetches = new StartTransactionFetches(tracing);
+        _fetches.Fetched += (_, _) => StartPointAdded?.Invoke(this, EventArgs.Empty);
+        _fetches.Missed += (_, text) => StartTransactionsMissed?.Invoke(this, text);
+        vault.StateChanged += (_, state) =>
+        {
+            // Nothing is looked up while Chainsaw is locked; what is left is tried when the case is opened again.
+            if (state != VaultState.Unlocked)
+            {
+                _fetches.Cancel();
+            }
+        };
+    }
+
+    /// <summary>
+    /// Raised off the UI thread when start points that are transactions could not be fetched, with the reason in
+    /// Swedish and that Chainsaw tries again (principle 9).
+    /// </summary>
+    public event EventHandler<string>? StartTransactionsMissed;
+
+    /// <summary>
+    /// Gets the fetching of start points under way, which never fails; an expansion waits for it, so that the same
+    /// transaction is not fetched twice.
+    /// </summary>
+    public Task StartTransactionsSettled => _fetches.Settled;
+
+    /// <summary>
+    /// Tries again to fetch the open case's start points that are transactions it lacks, as when the exit connects.
+    /// </summary>
+    public void RetryStartTransactions()
+    {
+        if (_session.Current is { IsClosed: false } openCase && _vault.State == VaultState.Unlocked)
+        {
+            _fetches.Start(openCase);
+        }
     }
 
     /// <summary>
@@ -260,7 +297,7 @@ public sealed partial class CaseWorkflow
 
             _session.Open(created.Case);
             _absorbing = AbsorbAsync(created.Case);
-            _ = FetchStartTransactionsAsync(
+            _fetches.Start(
                 created.Case,
                 [.. request.StartPoints.Take(MaximumStartPoints).Select(ToTrace).OfType<TraceStartPoint>()]);
             isCreated = true;
@@ -294,7 +331,7 @@ public sealed partial class CaseWorkflow
             if (added)
             {
                 StartPointAdded?.Invoke(this, EventArgs.Empty);
-                _ = FetchStartTransactionsAsync(openCase, [traced]);
+                _fetches.Start(openCase, [traced]);
             }
 
             var shown = CaseTexts.Shorten(startPoint.Value);
@@ -304,71 +341,6 @@ public sealed partial class CaseWorkflow
         {
             return CommandReply.Failed(CaseTexts.For(exception.Error));
         }
-    }
-
-    /// <summary>
-    /// Fetches the transactions among some start points that the case does not hold yet, through the exit, one after
-    /// the other, so that a start point that is a transaction becomes a node in the graph rather than only a line among
-    /// its problems; the graph is read again after each one that came in. A start point the case holds is not fetched
-    /// again (the data layer never fetches what it has), and one that cannot be fetched now (offline, the source
-    /// failed) stays a problem in the graph, which says so; nothing here ever fails the work that added it.
-    /// </summary>
-    /// <param name="openCase">The open case.</param>
-    /// <param name="startPoints">The start points that were added.</param>
-    /// <returns>A task that completes when every one has been tried.</returns>
-    public async Task FetchStartTransactionsAsync(ICase openCase, IReadOnlyList<TraceStartPoint> startPoints)
-    {
-        ArgumentNullException.ThrowIfNull(openCase);
-        ArgumentNullException.ThrowIfNull(startPoints);
-        var requests = startPoints.Select(StartTransactionRequest).OfType<ExpansionRequest>().ToList();
-        if (requests.Count == 0)
-        {
-            return;
-        }
-
-        try
-        {
-            var graph = await _tracing.LoadAsync(openCase).ConfigureAwait(false);
-            foreach (var request in requests.Where(request => !Holds(graph, request)))
-            {
-                var result = await _tracing.ExpandAsync(openCase, request).ConfigureAwait(false);
-                if (result.Outcome != ExpansionOutcome.NotExpanded)
-                {
-                    StartPointAdded?.Invoke(this, EventArgs.Empty);
-                }
-            }
-        }
-        catch (Exception exception) when (exception is not OutOfMemoryException)
-        {
-            // See the summary: the graph says that the start point is not fetched yet, and expanding it fetches it.
-        }
-    }
-
-    /// <summary>Gives the lookup that fetches a start point that is a transaction.</summary>
-    /// <param name="startPoint">The start point.</param>
-    /// <returns>The lookup, or <see langword="null"/> for a start point that is an address.</returns>
-    private static ExpansionRequest? StartTransactionRequest(TraceStartPoint startPoint)
-    {
-        if (startPoint.EthereumTransaction is { } hash)
-        {
-            return ExpansionRequest.ForEthereumTransaction(hash);
-        }
-
-        return startPoint.Txid is { } txid ? ExpansionRequest.ForTransaction(txid) : null;
-    }
-
-    /// <summary>Says whether the graph already holds the transaction a lookup would fetch.</summary>
-    /// <param name="graph">The graph as the case holds it.</param>
-    /// <param name="request">The lookup.</param>
-    /// <returns><see langword="true"/> when the transaction is in the case.</returns>
-    private static bool Holds(TraceGraph graph, ExpansionRequest request)
-    {
-        if (request.EthereumTransaction is { } hash)
-        {
-            return graph.Account.Transactions.ContainsKey(hash);
-        }
-
-        return request.Txid is { } txid && graph.Transactions.ContainsKey(txid);
     }
 
     /// <summary>Says that a start point's chain cannot be traced yet (TRON).</summary>
@@ -575,6 +547,8 @@ public sealed partial class CaseWorkflow
         }
 
         var name = CaseSession.NameOf(current);
+        // A start point being fetched is stopped first; it is tried again when the case is opened.
+        await _fetches.StopAsync();
         // The labels set while it was open go into the library before it closes, so that the next case gets them.
         await _absorbing;
         await AbsorbAsync(current);

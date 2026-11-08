@@ -44,8 +44,11 @@ Chainsaw har en egen lista över **kända kontrakt** på Ethereum, var och en me
 
 - **Tornado Cash** (en mixer): poolerna har fasta belopp (0,1, 1, 10 och 100 ETH, och några i DAI, USDC, USDT och
   WBTC). Den som sätter in får ett kvitto, och kan ta ut till vilken adress som helst, så kedjan säger inte vem som tog
-  ut. En adress som är en pool får etiketten *Mixer*, och spåret tar slut där i rött.
-- **Bryggor** till Arbitrum, OP Mainnet och Polygon: får etiketten *Swap eller brygga*, och spåret tar slut i lila med
+  ut. En adress som är en pool får etiketten *Mixer*, och spåret tar slut där i rött. Den får också en nedtonad
+  markering i hörnet, **Tidigare sanktionerad**: OFAC satte Tornado Cash på SDN-listan 2022-08-08 och tog bort den
+  2025-03-21. Datumen och OFAC:s egna meddelanden står i *Varför?*. Det är ingen sanktion som gäller nu; en sanktion
+  kommer bara ur listan du själv har läst in.
+- **Bryggor** till Arbitrum, OP Mainnet, Base och Polygon: får etiketten *Swap eller brygga*, och spåret tar slut i lila med
   *Fortsätter på annan kedja*.
 - **DEX:ar och aggregatorer** (Uniswap, 1inch, 0x): får ingen etikett, eftersom ett byte där inte byter ägare. När en
   swap gick genom en av dem står namnet i *Varför?* för swappen.

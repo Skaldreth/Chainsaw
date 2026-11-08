@@ -109,6 +109,9 @@ public static class TestStory
         new LabelStep(actors.Darknet, LabelKind.Darknet, "Skuggtorget"),
         new LabelStep(actors.Darknet, LabelKind.Sanctioned, "Skuggtorget"),
         new LabelStep(actors.Mixer, LabelKind.Mixer, "Blandaren"),
+
+        // A made-up former sanction beside the mixer, as Tornado Cash's on Ethereum: the toned-down mark.
+        new LabelStep(actors.Mixer, LabelKind.FormerlySanctioned, "Påhittad lista 2022-08-08 – 2025-03-21"),
         new LabelStep(actors.Sanctioned, LabelKind.Sanctioned, "Sanktionerad aktör"),
         new LabelStep(actors.Swap, LabelKind.SwapBridge, "Bytaren"),
 

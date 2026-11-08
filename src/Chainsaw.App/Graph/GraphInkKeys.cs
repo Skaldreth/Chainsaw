@@ -21,6 +21,7 @@ public static class GraphInkKeys
         GraphInk.Unknown => "Brush.Kind.Unknown",
         GraphInk.StartMark => "Brush.Mark.Start",
         GraphInk.Freeze => "Brush.Mark.Freeze",
+        GraphInk.FormerlySanctioned => "Brush.Mark.FormerlySanctioned",
         _ => "Brush.Graph.Untraced",
     };
 }

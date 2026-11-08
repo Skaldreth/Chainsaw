@@ -1,4 +1,5 @@
 using System.Globalization;
+using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -185,6 +186,13 @@ public sealed record InspectorContent(
             facts.Add(new InspectorFact("Senast", "block " + Count(latest)));
         }
 
+        if (node.Badges.Contains(NodeBadge.FormerlySanctioned)
+            && node.Labels.FirstOrDefault(label => label.Kind == LabelKind.FormerlySanctioned) is { } former)
+        {
+            // The dates stand in the fact; the notices are in Varför?.
+            facts.Add(new InspectorFact(FormerSanctionFact, $"Tidigare sanktionerad, {former.Name}"));
+        }
+
         var (ids, more) = Limit(NodeDetails(model));
         return new InspectorContent(
             node.Name,
@@ -355,6 +363,9 @@ public sealed record InspectorContent(
 
     /// <summary>What a line on Ethereum says when the case has no rate for every movement on it.</summary>
     public const string NoRateText = "Ingen kurs";
+
+    /// <summary>The name of the fact that says an actor was on a sanction list and has been taken off it.</summary>
+    public const string FormerSanctionFact = "Sanktion";
 
     /// <summary>Writes an amount with the token's mark first (sketch TK1a), for example <c>₮ 600,0000 USDT</c>.</summary>
     /// <param name="amount">The amount.</param>

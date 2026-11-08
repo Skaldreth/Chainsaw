@@ -176,8 +176,10 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             }
         }
 
-        return parts.Result(Assemble(transaction, calls?.Calls ?? [], tokens, block
-            ?? (transaction.Height is { } at ? new EthereumBlockReference(at, null, transaction.Time!.Value) : null)));
+        var placed = block
+            ?? (transaction.Height is { } at ? new EthereumBlockReference(at, null, transaction.Time!.Value) : null);
+        return parts.Result(Assemble(transaction, calls?.Calls ?? [], tokens,
+            placed is null ? null : placed with { TransactionIndex = transaction.TransactionIndex }));
     }
 
     /// <inheritdoc/>

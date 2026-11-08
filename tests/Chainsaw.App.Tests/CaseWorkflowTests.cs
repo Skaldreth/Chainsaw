@@ -2,6 +2,7 @@ using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Tests;
@@ -145,11 +146,97 @@ public sealed class CaseWorkflowTests
             ]);
 
         var creation = await workflow.CreateAsync(request, sharingPassword: null);
+        await workflow.StartTransactionsSettled;
 
         Assert.True(creation.IsCreated);
         var fetched = Assert.Single(rig.Tracing.Expanded);
         Assert.Equal(EthereumTxHash.Parse(Samples.EthereumTx), fetched.EthereumTransaction);
         Assert.Equal(1, refreshed);
+    }
+
+    [Fact]
+    public async Task A_start_transaction_that_cannot_be_fetched_is_said_and_tried_again_when_the_case_opens()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Tracing.Graph = GraphSamples.Graph() with
+        {
+            StartPoints = [TraceStartPoint.ForEthereumTransaction(EthereumTxHash.Parse(Samples.EthereumTx))],
+        };
+        rig.Tracing.ForcedOutcome = ExpansionOutcome.NotExpanded;
+        var workflow = new CaseWorkflow(rig.Cases, rig.Tracing, rig.Vault, rig.Session);
+        var missed = new List<string>();
+        workflow.StartTransactionsMissed += (_, text) => missed.Add(text);
+        var request = new NewCaseRequest("2026-0116", string.Empty, [ChainStartPoint.Recognise(Samples.EthereumTx)]);
+
+        await workflow.CreateAsync(request, sharingPassword: null);
+        await workflow.StartTransactionsSettled;
+        var said = Assert.Single(missed);
+        workflow.RetryStartTransactions();
+        await workflow.StartTransactionsSettled;
+
+        Assert.Contains("kunde inte hämtas", said, StringComparison.Ordinal);
+        Assert.Contains("Ingen utgång är ansluten", said, StringComparison.Ordinal);
+        Assert.Contains(StartTransactionFetches.TryAgainText, said, StringComparison.Ordinal);
+        Assert.Equal(2, rig.Tracing.Expanded.Count);
+        Assert.Equal(2, missed.Count);
+    }
+
+    [Fact]
+    public async Task A_fetch_under_way_stops_when_chainsaw_locks_and_says_nothing()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Tracing.Graph = GraphSamples.Graph();
+        var gate = new TaskCompletionSource();
+        rig.Tracing.ExpandGate = gate.Task;
+        var workflow = new CaseWorkflow(rig.Cases, rig.Tracing, rig.Vault, rig.Session);
+        var missed = 0;
+        workflow.StartTransactionsMissed += (_, _) => missed++;
+        await workflow.CreateAsync(
+            new NewCaseRequest("2026-0115", string.Empty, [ChainStartPoint.Recognise(Samples.EthereumTx)]),
+            sharingPassword: null);
+        await WaitUntilAsync(() => rig.Tracing.Expanded.Count == 1);
+
+        rig.Vault.Lock();
+        await workflow.StartTransactionsSettled.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(gate.Task.IsCompleted);
+        Assert.Equal(0, missed);
+        workflow.RetryStartTransactions();
+        Assert.Single(rig.Tracing.Expanded);
+    }
+
+    [Fact]
+    public async Task Closing_the_case_stops_a_fetch_under_way_and_waits_for_it()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Tracing.Graph = GraphSamples.Graph();
+        var gate = new TaskCompletionSource();
+        rig.Tracing.ExpandGate = gate.Task;
+        var workflow = new CaseWorkflow(rig.Cases, rig.Tracing, rig.Vault, rig.Session);
+        await workflow.CreateAsync(
+            new NewCaseRequest("2026-0114", string.Empty, [ChainStartPoint.Recognise(Samples.EthereumTx)]),
+            sharingPassword: null);
+        await WaitUntilAsync(() => rig.Tracing.Expanded.Count == 1);
+
+        var closed = await workflow.CloseAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(closed.IsError, closed.Text);
+        Assert.True(workflow.StartTransactionsSettled.IsCompleted);
+        Assert.False(gate.Task.IsCompleted);
+    }
+
+    /// <summary>Waits, at most ten seconds, until something has happened on another thread.</summary>
+    /// <param name="condition">What should become true.</param>
+    /// <returns>A task that completes when it is true.</returns>
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var until = DateTime.UtcNow.AddSeconds(10);
+        while (!condition() && DateTime.UtcNow < until)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.True(condition());
     }
 
     [Fact]

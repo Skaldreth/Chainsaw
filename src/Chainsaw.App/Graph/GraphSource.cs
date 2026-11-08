@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Chainsaw.Modules.Attribution.Contracts;
@@ -486,10 +487,16 @@ public sealed class GraphSource(
         {
             return knownContracts.Check(@case, accounts).Count;
         }
+        catch (CaseException)
+        {
+            // No operator profile, or a case that is closed or cannot be written, must never keep the graph from
+            // being shown; the labels are set the next time the graph is read.
+            return 0;
+        }
         catch (Exception exception) when (exception is not OutOfMemoryException and not OperationCanceledException)
         {
-            // No operator profile, or a case that cannot be written, must never keep the graph from being shown; the
-            // labels are set the next time the graph is read.
+            // The same, but unexpected: only the type is logged, since the message could name the case's data.
+            Trace.TraceWarning("Labelling the known contracts failed: {0}", exception.GetType().FullName);
             return 0;
         }
     }

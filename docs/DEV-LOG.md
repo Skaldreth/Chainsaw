@@ -3779,3 +3779,35 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   (`IAccountHeuristic`, kräver kluster med `ChainAddress`), kontrollerna och plånböckerna på Ethereum, saldot vid ett
   block ur källan, regeln om täckning för en aktiv adress, omexpansionens golv (höjderna sparade med expansionen),
   Etherscan med nyckel (Network) och fler kända kontrakt.
+
+
+## Granskningen av Ethereum omgång 2 rättad, och Tornado Cash tidigare sanktionerad (2026-11-08)
+
+- **I1–I3, start-tx:** hämtningen är en egen klass, `StartTransactionFetches` (App). Den kör en hämtning i taget i
+  bakgrunden, försöker igen när ärendet öppnas och när utgången ansluts (`GraphViewModel` följer `ExitWay`), stoppas
+  när ärendet stängs (`CloseCurrentAsync` väntar på den) och när Chainsaw låses (`IVault.StateChanged`). En start-tx
+  som inte kunde hämtas sägs i en varning i toastern med skälet ur Tracing och att Chainsaw försöker igen. Ett
+  oväntat fel loggas bara med typen (`Trace.TraceWarning`), aldrig med meddelandet. E väntar på hämtningen
+  (`CaseWorkflow.StartTransactionsSettled`), så att samma tx aldrig hämtas två gånger.
+- **I2:** `KnownContractLabels.Check` läser först (`ICase.Read`) och öppnar en skrivning bara när något nytt ska
+  sättas, så att ärendet inte sparas om för varje läsning av grafen.
+- **M1:** Arbitrums *Bridge* och Base (*L1 Standard Bridge*, *Optimism Portal*) är med, ur Arbitrums och Bases egna
+  sidor. Listan heter fortfarande v1, eftersom den inte är ihopslagen än.
+- **M2:** `transactionIndex` läses också ur `gettxinfo` när svaret har fältet. **De spårade beloppen i ett befintligt
+  Ethereum-ärende kan ändras** med den nya ordningen: två tx i samma block ordnades förut efter hash, nu efter sin
+  plats i blocket, och FIFO räknar då det som kom in före det som gick ut i den ordning kedjan tillämpade dem.
+- **M4:** att en kopia från ett annat ärende (samma ursprung) gör att listan inte sätter sin egen är ett avsiktligt
+  val: samma bedömning ska aldrig stå två gånger. Det står i koden och har ett test.
+- **M5:** `GraphSource.LabelKnownContracts` fångar `CaseException` tyst och loggar andra fel med bara typen.
+- **M6:** journalraden säger *1 adress är ett känt kontrakt* i singular.
+- **Tidigare sanktionerad** (användarens beslut 2026-11-08): Tornado Cashs 21 kontrakt får, utöver *Mixer*, en
+  etikett av den nya sorten `LabelKind.FormerlySanctioned` med namnet *OFAC SDN 2022-08-08 – 2025-03-21*, källan
+  Chainsaws kända kontrakt och skälet med båda datumen och OFAC:s egna meddelanden
+  (`ofac.treasury.gov/recent-actions/20220808` och `/20250321`). Båda datumen och att alla 21 adresser finns i båda
+  meddelandena är kontrollerade mot OFAC:s sidor 2026-11-08. I grafen är det markeringen `NodeBadge.FormerlySanctioned`
+  i hörnet: sanktionens markering med samma ikon, men en mörk dov röd skiva och en dämpad röd ikon. En sanktion som
+  gäller tar över, så då ritas bara den. Rutan med bildspråket har raden *Tidigare sanktionerad*, och inspektören har
+  faktat *Sanktion*. Sorten kan inte väljas i Etikett (L), och den avslutar aldrig spåret. Testärendet har en påhittad
+  tidigare sanktion på mixern.
+- **Skriver i ärendet (granskas):** den nya etiketten (förseglad som de andra), och hämtningarna av start-tx, som nu
+  också görs när ärendet öppnas och när utgången ansluts.

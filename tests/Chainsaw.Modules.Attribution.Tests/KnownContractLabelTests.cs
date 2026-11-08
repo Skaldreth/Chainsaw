@@ -20,6 +20,8 @@ public sealed class KnownContractLabelTests : IDisposable
 
     private static readonly ChainAddress Stranger = new(Chain.Ethereum, "0x" + new string('7', 40));
 
+    private const LabelKind Former = LabelKind.FormerlySanctioned;
+
     private readonly Harness _harness = new();
 
     public void Dispose() => _harness.Dispose();
@@ -30,8 +32,8 @@ public sealed class KnownContractLabelTests : IDisposable
         var added = _harness.KnownContracts.Check(
             _harness.Case, [AddressOf(Pool), AddressOf(Bridge), AddressOf(Router), Stranger]);
 
-        Assert.Equal(2, added.Count);
-        var mixer = added.Single(label => label.Subject.Target == AddressOf(Pool));
+        Assert.Equal(3, added.Count);
+        var mixer = added.Single(label => label.Subject.Target == AddressOf(Pool) && label.Kind != Former);
         Assert.Equal(LabelKind.Mixer, mixer.Kind);
         Assert.Equal(Pool.Name, mixer.Name);
         Assert.Equal(LabelSource.OpenSource, mixer.Origin.Source);
@@ -42,6 +44,23 @@ public sealed class KnownContractLabelTests : IDisposable
         var journal = _harness.Case.ReadJournal().Last();
         Assert.Equal(AttributionJournalKinds.KnownContractsMatched, journal.Kind);
         Assert.Contains(Pool.Address.Value, journal.Details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_tornado_pool_is_also_formerly_sanctioned_with_the_dates_and_ofac_s_notices_never_sanctioned()
+    {
+        var added = _harness.KnownContracts.Check(_harness.Case, [AddressOf(Pool)]);
+
+        var former = Assert.Single(added, label => label.Kind == Former);
+        Assert.Equal("OFAC SDN 2022-08-08 – 2025-03-21", former.Name);
+        var reason = former.Origin.Reason!;
+        Assert.Contains("https://ofac.treasury.gov/recent-actions/20220808", reason, StringComparison.Ordinal);
+        Assert.Contains("https://ofac.treasury.gov/recent-actions/20250321", reason, StringComparison.Ordinal);
+        Assert.Equal(LabelSource.OpenSource, former.Origin.Source);
+        Assert.DoesNotContain(added, label => label.Kind == LabelKind.Sanctioned);
+        Assert.DoesNotContain(
+            _harness.KnownContracts.Check(_harness.Case, [AddressOf(Bridge)]), label => label.Kind == Former);
+        Assert.Equal(LabelGroup.Neutral, Former.Group());
     }
 
     [Fact]
@@ -58,13 +77,46 @@ public sealed class KnownContractLabelTests : IDisposable
     [Fact]
     public void A_contract_is_labelled_once_and_never_again_after_it_is_taken_back()
     {
-        var first = Assert.Single(_harness.KnownContracts.Check(_harness.Case, [AddressOf(Pool)]));
+        var first = _harness.KnownContracts.Check(_harness.Case, [AddressOf(Pool)]).First(label => label.Kind != Former);
         var journalLength = _harness.Case.ReadJournal().Count;
 
         Assert.Empty(_harness.KnownContracts.Check(_harness.Case, [AddressOf(Pool)]));
         Assert.True(_harness.Labels.Retract(_harness.Case, first.Sequence, null));
         Assert.Empty(_harness.KnownContracts.Check(_harness.Case, [AddressOf(Pool)]));
         Assert.Equal(journalLength + 1, _harness.Case.ReadJournal().Count);
+    }
+
+    [Fact]
+    public void A_copy_from_another_case_with_the_same_origin_is_not_labelled_again_deliberately()
+    {
+        Assert.Single(_harness.KnownContracts.Check(_harness.Case, [AddressOf(Bridge)]));
+        _harness.Library.Absorb(_harness.Case);
+        using var other = _harness.Create("2026-0102");
+        var copy = Assert.Single(_harness.Library.ShareInto(other, [AddressOf(Bridge)]));
+        Assert.Equal(LabelSource.OtherCase, copy.Origin.Source);
+
+        // The same judgement must never stand twice, so the list does not set its own beside the copy.
+        Assert.Empty(_harness.KnownContracts.Check(other, [AddressOf(Bridge)]));
+        Assert.Single(_harness.Labels.GetLabels(other, [AddressOf(Bridge)])[AddressOf(Bridge)]);
+    }
+
+    [Fact]
+    public void A_contract_already_labelled_is_checked_without_writing_to_the_case()
+    {
+        _harness.KnownContracts.Check(_harness.Case, [AddressOf(Pool)]);
+        var (counted, counter) = WriteCountingCase.Wrap(_harness.Case);
+
+        Assert.Empty(_harness.KnownContracts.Check(counted, [AddressOf(Pool), AddressOf(Router)]));
+        Assert.Equal(0, counter.Writes);
+    }
+
+    [Fact]
+    public void One_contract_is_written_in_the_singular_in_the_journal()
+    {
+        _harness.KnownContracts.Check(_harness.Case, [AddressOf(Pool)]);
+
+        Assert.StartsWith("1 adress är ett känt kontrakt", _harness.Case.ReadJournal().Last().Summary,
+            StringComparison.Ordinal);
     }
 
     [Fact]

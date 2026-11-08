@@ -57,6 +57,18 @@ public sealed class KnownContractsTests
         Assert.Null(Assert.Single(without.Transfers).Block!.TransactionIndex);
     }
 
+    [Fact]
+    public void AWholeTransactionGivesItsPlaceInTheBlockWhenTheAnswerHasIt()
+    {
+        var text = Fixtures.Text("../Ethereum/tx-b1.json");
+        var placed = text.Replace("\"blockNumber\": \"900\",", "\"blockNumber\": \"900\", \"transactionIndex\": \"5\",",
+            StringComparison.Ordinal);
+        var hash = EthereumTxHash.Parse("0x" + string.Concat(Enumerable.Repeat("b1", 32)));
+
+        Assert.Equal(5, BlockscoutParser.ParseTransaction(Encoding.UTF8.GetBytes(placed), hash).TransactionIndex);
+        Assert.Null(BlockscoutParser.ParseTransaction(Encoding.UTF8.GetBytes(text), hash).TransactionIndex);
+    }
+
     /// <summary>Writes a synthetic page of the address's transactions with one entry it signed.</summary>
     /// <param name="index">The entry's place in the block as JSON, or nothing.</param>
     /// <returns>The page.</returns>

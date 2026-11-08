@@ -40,6 +40,7 @@ public static class GraphPalette
     {
         NodeBadge.CashOutFound => ("Brush.Kind.CashOut", "Brush.Mark.OnCashOut"),
         NodeBadge.Sanctioned => ("Brush.Kind.Sanctioned", "Brush.Mark.OnSanctioned"),
+        NodeBadge.FormerlySanctioned => ("Brush.Mark.FormerlySanctioned", "Brush.Mark.OnFormerlySanctioned"),
         NodeBadge.StartPoint => ("Brush.Mark.Start", "Brush.Background"),
         NodeBadge.CanBeFrozen => ("Brush.Mark.Freeze", "Brush.Mark.OnFreeze"),
         NodeBadge.Watched => ("Brush.Accent", "Brush.Mark.OnAccent"),

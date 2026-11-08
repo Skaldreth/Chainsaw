@@ -6,7 +6,9 @@ namespace Chainsaw.Modules.Attribution.Contracts;
 /// <summary>
 /// Labels the addresses of an open case that are on Chainsaw's list of known contracts on Ethereum (the Chains
 /// module's <c>KnownContracts</c>): Tornado Cash's pools as <see cref="LabelKind.Mixer"/> and the layer-2 chains'
-/// bridges as <see cref="LabelKind.SwapBridge"/>, so that the trail ends there with the list as its reason. The label is
+/// bridges as <see cref="LabelKind.SwapBridge"/>, so that the trail ends there with the list as its reason, and a
+/// contract that was on a sanction list and taken off it (Tornado Cash) also as
+/// <see cref="LabelKind.FormerlySanctioned"/>, with the dates and the list's notices. The label is
 /// an open source's judgement with the list's name, version, the page the address was read from and the day, never a
 /// fact (principle 2). An exchange's or an aggregator's router is not labelled: a swap there changes the token but not
 /// the owner, and names the swap in <em>varför?</em> instead.

@@ -12,9 +12,9 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   - **Spårning genom en swap:** pillret visar bytet, men spårningen räknar varje tillgång för sig, så spårade USDT blir
     inte spårad ether hos den som bytte (de stannar som *inte expanderad* hos poolen). Att föra över den spårade
     andelen i bytet är en bedömning (analys med namn och version) och behöver ett beslut om hur andelen räknas.
-  - **Tx:ens plats i blocket för en hel tx:** `transactionIndex` läses ur historikerna, men inte ur `gettxinfo`; en
-    start-tx som bara är hämtad hel (och inte finns i någon läst historik) ordnas därför efter hash i sitt block, efter
-    de tx vars plats är känd (omgång 2).
+  - **Tx:ens plats i blocket för en hel tx:** `transactionIndex` läses också ur `gettxinfo` när svaret har det, men
+    det är inte kontrollerat att Blockscouts `gettxinfo` ger fältet; utan det ordnas en start-tx som bara är hämtad hel
+    efter hash i sitt block, efter de tx vars plats är känd. Pröva mot en riktig Blockscout (omgång 2).
   - **Välja vad som spåras:** frön väljs av `AccountSeedPicker` (allt som kom in till startadressen, eller en start-tx:s
     rörelser till andra än den som signerade); att välja dem i grafen saknas, som för Bitcoin.
   - **Saldot och snöflingan** räknas ur grafens linjer för en expanderad adress, alltså bara så långt historiken är
@@ -38,7 +38,7 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     skapas, för båda kedjorna, men adresser som kommer in vid en expansion kontrolleras inte (inte heller på
     Bitcoin). Kontrollera dem som de kända kontrakten, när grafen läses (omgång 2).
   - **Listan över kända kontrakt** (`KnownContracts`, v1 2026-11-08) har Tornado Cash Classic på Ethereum, Uniswap,
-    1inch, 0x och bryggorna till Arbitrum One, OP Mainnet och Polygon PoS, var och en ur operatörens egen sida.
+    1inch, 0x och bryggorna till Arbitrum One, OP Mainnet, Base och Polygon PoS, var och en ur operatörens egen sida.
     Fler (SushiSwap, Curve, Balancer, Paraswap, CoW, Stargate, Across, Hop, Wormhole, deBridge, THORChain) läggs till
     när deras adresser kan beläggas med en offentlig källa; höj då versionen.
   - **Länk till annan kedja från Ethereum** lagras i samma förseglade kolumner som ett mynt (`token:0x…` och

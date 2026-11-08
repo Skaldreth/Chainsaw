@@ -47,9 +47,35 @@ public sealed record KnownContract(
     Uri Source,
     DateOnly Checked)
 {
+    /// <summary>
+    /// Gets the sanction the contract was under and has been taken off, or <see langword="null"/> when it never was
+    /// one Chainsaw knows of.
+    /// </summary>
+    public FormerSanction? FormerSanction { get; init; }
+
     /// <summary>Says where Chainsaw has the contract from, in Swedish, for <em>varför?</em>.</summary>
     /// <returns>For example <c>enligt https://… (läst 2026-11-08)</c>.</returns>
     public string Provenance() => $"enligt {Source} (läst {Checked:yyyy-MM-dd})";
+}
+
+/// <summary>
+/// A sanction a contract was under and has been taken off, with the list's own public notices of both (principle 2: a
+/// judgement with its source; a sanction in force comes only from the list the user imported).
+/// </summary>
+/// <param name="List">The list, for example <c>OFAC SDN</c>.</param>
+/// <param name="Designated">The day it was put on the list.</param>
+/// <param name="DesignationSource">The list's notice of the designation.</param>
+/// <param name="Removed">The day it was taken off the list.</param>
+/// <param name="RemovalSource">The list's notice of the removal.</param>
+/// <param name="Checked">The day the notices were read.</param>
+public sealed record FormerSanction(
+    string List, DateOnly Designated, Uri DesignationSource, DateOnly Removed, Uri RemovalSource, DateOnly Checked)
+{
+    /// <summary>Says what the sanction was, in Swedish, for <em>varför?</em>.</summary>
+    /// <returns>The dates and both notices.</returns>
+    public string Describe() =>
+        $"Stod på {List} från {Designated:yyyy-MM-dd} ({DesignationSource}) till {Removed:yyyy-MM-dd} "
+        + $"({RemovalSource}), läst {Checked:yyyy-MM-dd}. Det är inte en sanktion som gäller nu.";
 }
 
 /// <summary>
@@ -60,8 +86,10 @@ public sealed record KnownContract(
 /// which list it came from.
 /// </summary>
 /// <remarks>
-/// Tornado Cash's addresses are on OFAC's SDN list of 2022-08-08 too; they were taken off it on 2025-03-21, so the
-/// list here says mixer, not sanctioned. A sanction comes only from the list the user imported.
+/// Tornado Cash's addresses were put on OFAC's SDN list on 2022-08-08 and taken off it on 2025-03-21 (both read from
+/// OFAC's own notices on 2026-11-08), so the list here says mixer and formerly sanctioned (the user's decision
+/// 2026-11-08), never sanctioned. A sanction in force comes only from the list the user imported. Every Tornado entry
+/// here, the 19 pools, the router and the proxy, is among the addresses of both notices.
 /// </remarks>
 public static class KnownContracts
 {
@@ -77,6 +105,18 @@ public static class KnownContracts
     /// <summary>Tornado Cash's own list of its contracts.</summary>
     private static readonly Uri TornadoDocs =
         new("https://github.com/tornadocash/docs/blob/en/general/tornado-cash-smart-contracts.md");
+
+    /// <summary>
+    /// Tornado Cash's time on OFAC's SDN list: the designation of 2022-08-08 and the delisting of 2025-03-21, each
+    /// read from OFAC's own notice of recent actions, which lists every Tornado address here.
+    /// </summary>
+    private static readonly FormerSanction TornadoSanction = new(
+        "OFAC SDN",
+        new DateOnly(2022, 8, 8),
+        new Uri("https://ofac.treasury.gov/recent-actions/20220808"),
+        new DateOnly(2025, 3, 21),
+        new Uri("https://ofac.treasury.gov/recent-actions/20250321"),
+        new DateOnly(2026, 11, 8));
 
     /// <summary>Uniswap's list of its v2 contracts on Ethereum.</summary>
     private static readonly Uri UniswapV2Docs = new("https://developers.uniswap.org/docs/protocols/v2/deployments");
@@ -103,6 +143,10 @@ public static class KnownContracts
     /// <summary>The Superchain registry's entry for OP Mainnet.</summary>
     private static readonly Uri OptimismDocs = new(
         "https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/op.toml");
+
+    /// <summary>Base's list of its contracts on Ethereum.</summary>
+    private static readonly Uri BaseDocs =
+        new("https://docs.base.org/base-chain/network-information/base-contracts");
 
     /// <summary>Polygon's list of its contracts on Ethereum.</summary>
     private static readonly Uri PolygonDocs = new("https://static.polygon.technology/network/mainnet/v1/index.json");
@@ -141,7 +185,10 @@ public static class KnownContracts
     {
         const string tornado = "Tornado Cash";
         KnownContract Pool(string address, string pool) =>
-            Entry(address, $"{tornado} {pool}", tornado, KnownContractCategory.Mixer, TornadoDocs);
+            Entry(address, $"{tornado} {pool}", tornado, KnownContractCategory.Mixer, TornadoDocs) with
+            {
+                FormerSanction = TornadoSanction,
+            };
 
         yield return Pool("0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc", "0,1 ETH");
         yield return Pool("0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936", "1 ETH");
@@ -200,16 +247,20 @@ public static class KnownContracts
         const string arbitrum = "Arbitrum One";
         const string optimism = "OP Mainnet";
         const string polygon = "Polygon PoS";
+        const string baseChain = "Base";
         KnownContract Bridge(string address, string name, string chain, Uri source) =>
             Entry(address, $"{chain} {name}", chain, KnownContractCategory.Bridge, source);
 
         yield return Bridge("0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f", "Delayed Inbox", arbitrum, ArbitrumDocs);
+        yield return Bridge("0x8315177aB297bA92A06054cE80a67Ed4DBd7ed3a", "Bridge", arbitrum, ArbitrumDocs);
         yield return Bridge("0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef", "L1 Gateway Router", arbitrum, ArbitrumDocs);
         yield return Bridge("0xa3A7B6F88361F48403514059F1F16C8E78d60EeC", "L1 ERC20 Gateway", arbitrum, ArbitrumDocs);
         yield return Bridge("0xcEe284F754E854890e311e3280b767F80797180d", "L1 Custom Gateway", arbitrum, ArbitrumDocs);
         yield return Bridge("0xd92023E9d9911199a6711321D1277285e6d4e2db", "L1 WETH Gateway", arbitrum, ArbitrumDocs);
         yield return Bridge("0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1", "L1 Standard Bridge", optimism, OptimismDocs);
         yield return Bridge("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed", "Optimism Portal", optimism, OptimismDocs);
+        yield return Bridge("0x3154Cf16ccdb4C6d922629664174b904d80F2C35", "L1 Standard Bridge", baseChain, BaseDocs);
+        yield return Bridge("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e", "Optimism Portal", baseChain, BaseDocs);
         yield return Bridge("0xA0c68C638235ee32657e8f720a23ceC1bFc77C77", "RootChainManager", polygon, PolygonDocs);
         yield return Bridge("0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf", "ERC20 Predicate", polygon, PolygonDocs);
         yield return Bridge("0x8484Ef722627bf18ca5Ae6BcF031c23E6e922B30", "Ether Predicate", polygon, PolygonDocs);
