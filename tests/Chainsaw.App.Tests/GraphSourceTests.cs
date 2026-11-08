@@ -177,6 +177,14 @@ internal sealed class TestClustering : IClusteringService
     public IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICase @case) => MergeHistory;
 
     public IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICaseReader reader) => MergeHistory;
+
+    public VersionWithdrawal Withdraw(ICase @case, HeuristicId heuristic, string? reason) =>
+        throw new NotSupportedException();
+
+    public VersionWithdrawalUndo? TakeBackWithdrawal(ICase @case, long withdrawalSequence, string? reason) =>
+        throw new NotSupportedException();
+
+    public IReadOnlyList<VersionWithdrawal> GetWithdrawals(ICase @case) => [];
 }
 
 /// <summary>The graph's way into the modules: labels, seeds, the trace and the expansion, off the UI thread.</summary>

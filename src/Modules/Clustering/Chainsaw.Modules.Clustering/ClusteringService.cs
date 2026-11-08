@@ -19,8 +19,11 @@ internal sealed class ClusteringService : IClusteringService
     /// <summary>The longest line the case's journal takes (Cases refuses a longer summary).</summary>
     private const int JournalSummaryLength = 1_000;
 
-    /// <summary>The analyses that run on Bitcoin's transactions, in the order they run.</summary>
-    private readonly IReadOnlyList<IUtxoHeuristic> _heuristics;
+    /// <summary>
+    /// Every registered version of the analyses for Bitcoin, grouped by name in the order the names were first
+    /// registered, highest version first; the first that a case has not drawn back runs.
+    /// </summary>
+    private readonly IReadOnlyList<IReadOnlyList<IUtxoHeuristic>> _versions;
 
     /// <summary>
     /// Takes the analyses and keeps those registered for Bitcoin; two for Bitcoin with the same name and version are
@@ -44,13 +47,19 @@ internal sealed class ClusteringService : IClusteringService
                 $"{misfit.Id} is registered for Bitcoin but does not implement the UTXO contract.", nameof(heuristics));
         }
 
-        _heuristics = [.. forBitcoin.Cast<IUtxoHeuristic>()];
-        if (_heuristics.Select(heuristic => heuristic.Id).Distinct().Count() != _heuristics.Count)
+        var utxo = forBitcoin.Cast<IUtxoHeuristic>().ToList();
+        if (utxo.Select(heuristic => heuristic.Id).Distinct().Count() != utxo.Count)
         {
             throw new ArgumentException("Two analyses have the same name and version.", nameof(heuristics));
         }
 
-        Heuristics = [.. _heuristics.Select(heuristic => heuristic.Id)];
+        _versions =
+        [
+            .. utxo.GroupBy(heuristic => heuristic.Id.Name, StringComparer.Ordinal)
+                .Select(group => (IReadOnlyList<IUtxoHeuristic>)
+                    [.. group.OrderByDescending(heuristic => heuristic.Id.Version)]),
+        ];
+        Heuristics = [.. _versions.Select(versions => versions[0].Id)];
     }
 
     /// <inheritdoc/>
@@ -62,11 +71,13 @@ internal sealed class ClusteringService : IClusteringService
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(transactions);
         var known = new KnownTransactions(transactions);
+        var running = Running(@case.Read(EvidenceStore.ReadWithdrawals));
         var failed = new List<Txid>();
         var analysed = new List<(Txid Txid, List<(WeighedResult Result, string Fingerprint)> Results)>();
         foreach (var transaction in known.All)
         {
-            if (AnalyseOne(transaction, known) is { } results && Fingerprinted(results) is { } fingerprinted)
+            if (AnalyseOne(running, transaction, known) is { } results
+                && Fingerprinted(results) is { } fingerprinted)
             {
                 analysed.Add((transaction.Txid, fingerprinted));
             }
@@ -88,7 +99,10 @@ internal sealed class ClusteringService : IClusteringService
                 .SelectMany(entry => entry.Results)
                 .Where(entry => Replaces(entry.Result, entry.Fingerprint, latest))
                 .ToList();
-            if (changed.Count == 0 && failed.Count == 0 && heldBack.Count == 0)
+            // A run that only holds something back stores nothing, so it writes nothing in the journal either; an app
+            // that analyses often with few transactions would otherwise fill the journal with such lines. What it held
+            // back is still in the run's result.
+            if (changed.Count == 0 && failed.Count == 0)
             {
                 return new ClusteringRun(null, known.Count, 0, 0, 0, 0, [], failed, heldBack);
             }
@@ -109,7 +123,7 @@ internal sealed class ClusteringService : IClusteringService
                 {
                     transactions = known.Count,
                     results = changed.Count,
-                    heuristics = Heuristics.Select(heuristic => heuristic.ToString()),
+                    heuristics = running.Select(heuristic => heuristic.Id.ToString()),
                     merges,
                     suggestions,
                     stopped,
@@ -356,6 +370,93 @@ internal sealed class ClusteringService : IClusteringService
     }
 
     /// <inheritdoc/>
+    public IReadOnlyDictionary<Txid, TransactionConclusions> GetConclusions(
+        ICase @case, IReadOnlyCollection<Txid> txids)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txids);
+        var wanted = txids.ToHashSet();
+        return @case.Read(reader => EvidenceStore.ReadLatest(reader, wanted));
+    }
+
+    /// <inheritdoc/>
+    public VersionWithdrawal Withdraw(ICase @case, HeuristicId heuristic, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(heuristic);
+        if (heuristic.Name == UserMerges.Name)
+        {
+            throw new ArgumentException(
+                "The user's own merges are undone one by one, not drawn back.", nameof(heuristic));
+        }
+
+        var versions = _versions.FirstOrDefault(group => group[0].Id.Name == heuristic.Name);
+        if (versions is null || versions.All(registered => registered.Id != heuristic))
+        {
+            throw new ArgumentException($"{heuristic} is not a registered analysis.", nameof(heuristic));
+        }
+
+        var checkedReason = OptionalReason(reason);
+        return @case.Write(transaction =>
+        {
+            var inForce = EvidenceStore.ReadWithdrawals(transaction).Where(known => known.IsInForce).ToList();
+            if (inForce.FirstOrDefault(known => known.Heuristic == heuristic) is { } earlier)
+            {
+                return earlier;
+            }
+
+            if (versions.All(registered => registered.Id == heuristic
+                || inForce.Any(known => known.Heuristic == registered.Id)))
+            {
+                throw new ArgumentException(
+                    $"{heuristic} is the only version of {heuristic.Name} left; it cannot be drawn back.",
+                    nameof(heuristic));
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                ClusteringJournalKinds.VersionWithdrawn,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0} dragen tillbaka: dess slutsatser räknas inte längre, men står kvar förseglade.",
+                    heuristic),
+                JsonSerializer.Serialize(new { heuristic = heuristic.ToString(), reason = checkedReason })));
+            return EvidenceStore.AppendWithdrawal(transaction, heuristic, checkedReason, journal);
+        });
+    }
+
+    /// <inheritdoc/>
+    public VersionWithdrawalUndo? TakeBackWithdrawal(ICase @case, long withdrawalSequence, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var checkedReason = OptionalReason(reason);
+        return @case.Write(transaction =>
+        {
+            if (EvidenceStore.ReadWithdrawals(transaction)
+                    .FirstOrDefault(known => known.Sequence == withdrawalSequence && known.IsInForce)
+                is not { } withdrawal)
+            {
+                return null;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                ClusteringJournalKinds.WithdrawalTakenBack,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Tillbakadragandet av {0} är taget tillbaka: versionen körs och räknas igen.",
+                    withdrawal.Heuristic),
+                JsonSerializer.Serialize(new { withdrawal = withdrawal.Sequence, reason = checkedReason })));
+            return EvidenceStore.AppendWithdrawalUndo(transaction, withdrawal, checkedReason, journal);
+        });
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<VersionWithdrawal> GetWithdrawals(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(EvidenceStore.ReadWithdrawals);
+    }
+
+    /// <inheritdoc/>
     public TransactionConclusions GetConclusions(ICaseReader reader, Txid txid)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -575,16 +676,36 @@ internal sealed class ClusteringService : IClusteringService
     }
 
     /// <summary>
+    /// Gives the analyses that run in a case: of each name the highest registered version the case has not drawn
+    /// back, in the order the names were registered; a name whose every version is drawn back runs none.
+    /// </summary>
+    /// <param name="withdrawals">The case's withdrawals.</param>
+    /// <returns>The analyses to run.</returns>
+    private List<IUtxoHeuristic> Running(IReadOnlyList<VersionWithdrawal> withdrawals)
+    {
+        var withdrawn = withdrawals.Where(withdrawal => withdrawal.IsInForce)
+            .Select(withdrawal => withdrawal.Heuristic)
+            .ToHashSet();
+        return
+        [
+            .. _versions.Select(versions => versions.FirstOrDefault(heuristic => !withdrawn.Contains(heuristic.Id)))
+                .OfType<IUtxoHeuristic>(),
+        ];
+    }
+
+    /// <summary>
     /// Runs every analysis over one transaction. When one of them fails, nothing about the transaction is used: a
     /// failed CoinJoin analysis must never let the other analyses merge a CoinJoin's inputs.
     /// </summary>
+    /// <param name="running">The analyses that run in the case (<see cref="Running"/>).</param>
     /// <param name="transaction">The transaction.</param>
     /// <param name="known">What the case knows around it.</param>
     /// <returns>Every analysis's result, or <see langword="null"/> when one failed.</returns>
-    private List<HeuristicResult>? AnalyseOne(BitcoinTransaction transaction, KnownTransactions known)
+    private static List<HeuristicResult>? AnalyseOne(
+        IReadOnlyList<IUtxoHeuristic> running, BitcoinTransaction transaction, KnownTransactions known)
     {
-        var results = new List<HeuristicResult>(_heuristics.Count);
-        foreach (var heuristic in _heuristics)
+        var results = new List<HeuristicResult>(running.Count);
+        foreach (var heuristic in running)
         {
             try
             {

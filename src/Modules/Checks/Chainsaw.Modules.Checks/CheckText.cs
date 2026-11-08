@@ -43,6 +43,11 @@ internal static class CheckText
     /// <returns>For example <c>4a5e1e4b…a33b3c44</c>.</returns>
     public static string Short(Txid txid) => txid.Value[..8] + "…" + txid.Value[^8..];
 
+    /// <summary>Shortens an address to its first eight and last four characters.</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>For example <c>bc1qxy2k…x0wl</c>.</returns>
+    public static string Short(BitcoinAddress address) => address.Value[..8] + "…" + address.Value[^4..];
+
     /// <summary>Writes a count.</summary>
     /// <param name="count">The count.</param>
     /// <returns>The digits.</returns>

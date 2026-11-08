@@ -31,8 +31,15 @@ se ut som en vanlig betalning, hamna under en gräns för kontroll, eller göra 
   [Börser och uttag](borser.md)).
 - **Etikettera** mellanstegen med ett eget namn när du förstått mönstret, så att det syns i grafen och i nästa ärende.
 
-## Det som inte är byggt än
+## Kontrollen Uppdelning
 
-En egen kontroll som av sig själv säger *här delas ett belopp i många likstora delar* eller *här samlas de igen*, och
-föreslår att följa summan, är **inte byggd än**. Den kommer som en analys med namn och version, på samma sätt som de
-andra [kontrollerna och förslagen](kontroller-och-forslag.md).
+Kontrollen `split-merge v1` gör det av sig själv, som en av [kontrollerna](kontroller-och-forslag.md):
+
+- **Uppdelning:** en tx från en eller två adresser med minst **fem utgångar av ungefär samma storlek** (högst tio
+  procent skillnad). Växeln, som är större, räknas inte. Området läggs runt delarna.
+- **Delarna samlas igen:** en senare tx som spenderar minst två av delarna, direkt eller efter högst tre mellanled som
+  bara tar ett mynt och skickar det vidare. *Varför?* säger hur många av delarna som möts och genom vilka hopp, så att
+  du kan följa summan därifrån.
+
+Det är bedömningar: en utbetalning med lika belopp till många kan se ut som en uppdelning, och att delar möts kan också
+betyda att de når samma tjänst.

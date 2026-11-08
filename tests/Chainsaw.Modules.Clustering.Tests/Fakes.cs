@@ -69,9 +69,9 @@ internal sealed class FailingHeuristic : IUtxoHeuristic
 /// A second version of the CoinJoin analysis that only ever sees a possible CoinJoin, to show that it replaces
 /// version 1 in what counts.
 /// </summary>
-internal sealed class SilentCoinJoinV2 : IUtxoHeuristic
+internal sealed class SilentCoinJoinNext : IUtxoHeuristic
 {
-    public HeuristicId Id { get; } = new(HeuristicNames.CoinJoin, 2);
+    public HeuristicId Id { get; } = new(HeuristicNames.CoinJoin, 3);
 
     public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
 

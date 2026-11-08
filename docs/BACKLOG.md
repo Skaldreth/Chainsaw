@@ -187,23 +187,12 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   vem som spenderar en output jämförs inte med det förra.
 
 ## Klustring och heuristiker
-- **Tjänster ur beteende:** en börs insättningsadresser (många insättningar som sveps till samma hot wallet),
-  utbetalningar i batch, konsolidering. Etapp 6 slår ihop insättningsadresserna i en sweep men säger inte *börs*.
-- **Fler tecken för växeln:** jämna belopp i SEK eller USD vid tx:ens tid (kräver kurser), plånbokens fingeravtryck
-  (tx-version, locktime, RBF, ordningen på outputs), och adressens hela historik från källan i stället för bara det
-  ärendet känner till (*ny adress* är nu *inte sedd i ärendet*).
-- **Fler mönster för CoinJoin:** Wasabi 2:s exakta lista över standardbelopp, nyare Whirlpool-pooler (efterföljarna
-  till Samourai), JoinMarkets avgifter och fidelity bonds, och PayJoin (syns inte på kedjan; kan bara anas).
-- **Peel chain med fler inputs** (ett hopp som fylls på) och kedjor där växeln inte är den största outputen.
-- **Nya sorters fynd:** en ny analys med en egen sorts fynd måste deklarera den på `HeuristicFinding` i
-  Contracts (fyndet förseglas som JSON med sin sort); annars misslyckas dess tx för sig. En allmän sort med namn och
-  JSON skulle göra det öppet utan ändring i Contracts.
-- **Slutsatser som hålls tillbaka** (`ClusteringRun.HeldBack`): när en körning saknar en tx som en sparad slutsats
-  bygger på sparas inget nytt för den tx:en. Kan en sådan tx aldrig skickas med igen (till exempel en obekräftad tx
-  som ersatts) står den gamla slutsatsen kvar; gränssnittet bör visa det.
-- **En version som dras tillbaka:** visar det sig att en heuristik i en version slog ihop fel ska dess slutsatser kunna
-  sluta räknas utan att tas bort (princip 8), till exempel med en förseglad post *dras tillbaka* per version. Nu räknas
-  alltid den högsta version som har sparats för ett namn, så en avsiktlig återgång till en äldre version räknas inte.
+- **Fler tecken för växeln** (fingeravtrycket är byggt i `change-address v2`): jämna belopp i SEK eller USD vid tx:ens
+  tid (kräver kurser i klustringen, som i dag inte läser Pricing), ordningen på outputs som en del av fingeravtrycket,
+  och adressens hela historik från källan i stället för bara det ärendet känner till (*ny adress* är nu *inte sedd i
+  ärendet*).
+- **Fler mönster för CoinJoin** (Wasabi 2:s standardbelopp och Ashigarus pooler är byggda i `coinjoin v2`):
+  JoinMarkets avgifter och fidelity bonds (tidslåsta P2WSH-utgångar), och Whirlpools tx0 (förberedelsen före en mix).
 - **Klustringens underlag ur ärendet** (granskningen etapp 6): `IClusteringService.Analyse` tar de tx som anroparen
   skickar, både som det som analyseras och som det analysen vet runt varje tx. En snävare körning kan inte ta tillbaka
   en slutsats vars underlag den saknar, men en tx som aldrig hämtats in i ärendet kan analyseras. Bättre: Clustering
@@ -212,43 +201,49 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   Tills dess kan en tx som analyseras första gången i en snäv körning få en sammanslagning av växeln som en bredare
   körning skulle vägra (den betalda adressen har setts i en tx som inte skickades med); den står kvar tills en bredare
   körning ersätter den (granskningen etapp 6, omgång 3, M).
-- **Journalen och körningar som hålls tillbaka:** varje körning som håller tillbaka något skriver en rad i journalen,
-  också när inget sparas. Om appen anropar `Analyse` ofta med få tx kan journalen fyllas; överväg då att bara skriva
-  när något sparas eller att samla raderna (granskningen etapp 6, omgång 3, M).
-- **Uppbrytning av ett par som inte hör ihop:** en uppbrytning får göras i förväg, mellan två adresser som inte är i
-  samma kluster. Gränssnittet bör föreslå länken på vägen mellan dem (`ExplainConnection`) och varna när de inte hör
-  ihop.
 - **Stora ärenden i klustringen:** klustren byggs om ur alla förseglade slutsatser vid varje fråga, och en körning
-  läser alla fingeravtryck. Det räcker för tusentals tx; för större ärenden behövs ett register bredvid (som Chains
-  har) eller en cache som byggs om när något nytt förseglas.
+  läser alla fingeravtryck. Kontrollerna läser nu alla tx:ers slutsatser i en fråga (`GetConclusions` för många tx),
+  men för större ärenden behövs ett register bredvid (som Chains har) eller en cache av klustren som byggs om när
+  något nytt förseglas.
+- **En version som dras tillbaka, kvar** (byggd 2026-11-08 som `IClusteringService.Withdraw` och
+  `TakeBackWithdrawal`): ett förslag som vägdes mot den tillbakadragna versionen räknas som förslag tills tx:en
+  analyseras igen; att analysera om de berörda tx:erna direkt vid tillbakadragandet kräver att Clustering läser tx:erna
+  ur ärendet (*Klustringens underlag ur ärendet* ovan).
 - **Mönsterigenkänning** (kanske en lokal modell senare): läggs till som ännu en analys med namn och version.
 
 ## Förvirringstekniker (användarens beslut 2026-11-07)
 Allt som används för att förvirra spårningen ska kännas igen och analyseras, med så mycket automatiska kontroller och
-förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Katalogen, med det som redan står ovan och under Spårning:
-- **Centrala mixers:** kända adresser och mönster per mixer, troliga utgångar ur belopp minus avgift och tid.
+förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Byggt 2026-11-08 (omgång 4): mixade mynt som slås ihop
+igen (`coinjoin-merge`), peel chain till börs (`peel-chain-area v2`), uppdelning och ihopslagning (`split-merge`),
+många hopp och fördröjning (`pass-through`), damm och adressförgiftning (`dust`), möjlig PayJoin (`payjoin-hint`),
+tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). Kvar av katalogen:
+- **Centrala mixers:** kända adresser och mönster per mixer, och kända avgifter per mixer så att troliga utgångar kan
+  räknas ur belopp minus mixerns egen avgift. Kräver en källa för avgifterna (inga påhittade siffror); fråga 8 till
+  kryptospåraren. Också: känna igen en trolig mixer ur beteende (många insättningar från olika avsändare, utbetalningar
+  i andra belopp).
 - **Mixer efter mixer** (byggt 2026-11-08 som `mixer-chain v1`). Återstår: en mixer utan etikett mitt i kedjan syns
   inte (förslag: känna igen en trolig mixer ur beteende); när flera delar går in i nästa mixer tillsammans följs bara
   en av dem, och stegets belopp är den delen; kedjan grenar sig inte när två utgångar går till olika mixers.
-- **CoinJoin** (Wasabi, Whirlpool och efterföljare, JoinMarket): finns som heuristik (etapp 6), fler mönster ovan.
-  Förslag: utgångar ur CoinJoin som slås ihop igen efteråt (toxic change, ihopslagning av mixade mynt).
 - **Tornado Cash och andra zk-mixers:** under *Kedjor och data*.
-- **Peel chain:** finns (etapp 6), med fler inputs ovan. Kontroll: en lång peel chain som slutar vid en börs.
-- **Uppdelning och ihopslagning** (smurfing, fan-out och fan-in): kontroll som visar när ett belopp delas i många
-  likstora delar eller samlas igen, och förslag att följa summan.
-- **Många hopp och fördröjning** (layering): kontroll av hopp där pengarna bara passerar (in och ut snabbt, nästan
-  samma belopp), som kan fällas ihop till en kedja i grafen.
 - **Byte av kedja och token** (bryggor, swap-tjänster utan konto, DEX): kända kontrakt och tjänster känns igen som
   *Fortsätter på annan kedja*; förslag på fortsättningen ur belopp och tid (under Spårning).
 - **Nästlade tjänster** (en tjänst som har konto hos en börs): beteende som insättningar och uttag i mönster.
 - **Privacy coins och skyddade pooler** (Monero, Zcash, Litecoin MWEB): slut på spåret; förslag på uttag ur poolen ur
   belopp och tid.
-- **PayJoin och ändrade fingeravtryck:** kan bara anas; kontroll som säger när klustringen är osäkrare.
-- **Damm och adressförgiftning** (dusting, address poisoning): små belopp som skickas för att förvirra eller lura;
-  kontroll som tonar ner dem så att de inte drar spåret fel.
-- **Jämna belopp i fiat och tidsmönster** (tidszon ur aktiva timmar): stöd för växeln och för vem som står bakom.
-Ramverket, listan (KF1a) och områdena (KF1b) är byggda i etapp 22 med CoinJoin, peel chain, plånböcker och mixerns
-kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalysis`) med namn och version.
+- **Jämna belopp i fiat:** ett belopp som är jämnt i SEK, EUR eller USD vid tx:ens tid som stöd för växeln och för vem
+  som står bakom. Kräver att kontrollerna får kurserna ur ärendet (Pricing är asynkront och Checks synkront).
+- **Uppdelning, kvar:** en uppdelning där delarna skickas i flera tx i stället för en, och delar som möts efter fler än
+  tre mellanled, syns inte. *Följa summan* är en mening i *Varför?*, inget förslag med en knapp.
+- **Många hopp, kvar:** bara hopp med en input och en output räknas; ett hopp som också betalar en liten avgift till
+  en tjänst syns inte.
+- **Tidsmönster, kvar:** bara ägare som spenderar räknas (inte de som tar emot), och mönstret läses i UTC utan hänsyn
+  till sommartid. Testet görs per ägare utan korrektion för att många ägare prövas samtidigt (granskningen omgång 4,
+  M): med hundra ägare kan någon få ett mönster av slumpen; en korrektion (till exempel Bonferroni eller en falsk
+  upptäcktsgrad) behövs.
+- **Tjänst ur beteende, kvar** (granskningen omgång 4, M): en bedragare med tio eller fler offer som inte är märkta
+  (varken startpunkt eller etikett) och betalningar över mer än ett dygn ser fortfarande ut som en tjänst. Fler
+  tecken behövs, till exempel insättningsadresser som bara används en gång, utbetalningar i batch från samma hot
+  wallet, eller att avsändarna själva är vanliga plånböcker.
 
 ## Kontroller, förslag och områden (etapp 22)
 - **Mixerns kandidater ur kedjan:** `mixer-outputs v1` prövar bara det som finns i grafen. Att söka igenom blocken i
@@ -267,15 +262,15 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   är analysens tidsfönster, som bor i modulen). En analys bör själv kunna ge sina brickor.
 - **En kandidats tid** räknas ur blocken förslaget bygger på; en kandidat vars tx inte finns bland dem får ingen tid.
 - **Menyns val sparas inte** i ärendet; alla sorter visas när ärendet öppnas.
-- **Kontrollerna körs vid varje läsning av grafen**, och varje körning frågar Clustering om varje tx
-  (`GetConclusions`). Det räcker för hundratals tx; för stora ärenden behövs en fråga för alla tx på en gång och att
-  bara köra om när grafen ändrats.
-- **Beslut om en kandidat som analysen inte längre ger** (granskningen etapp 22, M): en avgjord kandidat behålls bara
-  om körningen ger den. Blir dess adress märkt som mixer, eller lämnar dess tx grafen, syns beslutet inte längre (det
-  står kvar förseglat). Tjänsten bör bära med sig avgjorda kandidater ur det senast förseglade.
-- **Beslut mellan läsning och förseglning** (granskningen etapp 22, M): `CheckService.Run` läser besluten före
-  analyserna; ett beslut som förseglas under tiden gör att körningen förseglar en kandidatlista utan det. Nästa körning
-  rättar det, med en extra förseglad post.
+- **Kontrollerna körs vid varje läsning av grafen.** Slutsatserna läses nu i en fråga för alla tx, men klustren
+  (ägarna) byggs om och alla analyser körs om varje gång; för stora ärenden behövs att bara köra om när grafen eller
+  klustringen ändrats.
+- **Ett förslag som analysen inte längre ger alls** (granskningen etapp 22, M): en avgjord kandidat följer nu med ur
+  det senast förseglade när analysen inte längre ger den, men försvinner hela förslaget (till exempel när insättningen
+  lämnar grafen eller adressen blir märkt som mixer) syns besluten inte längre (de står kvar förseglade).
+- **Besluten i analysernas indata:** besluten läses om i skrivningen, så att kandidatlistan som förseglas alltid har
+  ett beslut som förseglats under tiden, men analyserna som bygger på godkännanden (`mixer-chain`, `mixer-parts`) körs
+  på besluten från före; nästa körning rättar det.
 - **Historiken (AN1b, etapp 21)** bör visa beslut om förslag och egna ytor. `ICheckService.RemoveArea` tar bort en yta
   förseglat, och ett nytt beslut om samma kandidat ersätter det förra.
 

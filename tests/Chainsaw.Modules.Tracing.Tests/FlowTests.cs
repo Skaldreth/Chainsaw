@@ -46,7 +46,7 @@ public sealed class FlowTests : IDisposable
         var coinJoin = Assert.Single(ends, end => end.Reason == TrailEndReason.CoinJoin);
         Assert.Equal(_flows.Mix.Txid, coinJoin.Transaction);
         Assert.Equal("tx:" + _flows.Mix.Txid.Value, coinJoin.NodeKey);
-        Assert.Equal("coinjoin v1", Assert.Single(coinJoin.Basis).Source);
+        Assert.Equal("coinjoin v2", Assert.Single(coinJoin.Basis).Source);
         var notExpanded = Assert.Single(ends, end => end.Reason == TrailEndReason.NotExpanded);
         Assert.Equal(_flows.Further.Txid, notExpanded.Transaction);
         Assert.False(notExpanded.Reason.EndsTrail());

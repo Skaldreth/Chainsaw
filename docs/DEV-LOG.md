@@ -4073,3 +4073,75 @@ i meningen är grafens (*i grafen*), inte adressens alla. Stängknappen står kv
 **Återstår:** prova på Windows, särskilt titelradens hörn och skugga mot panelen, och att fönstret går att dra i panelens
 topp.
 
+## Omgång 4: klustring, förvirring och kontroller (2026-11-08)
+
+- **Klustringen** (Bitcoin):
+  - `coinjoin v2`: Wasabi 2 känns igen på standardbeloppen (potenser av 2 och 3, 2·3ⁿ, 1, 2 och 5 gånger tiopotenser,
+    5 000 satoshi till 2³⁷), minst hälften av utgångarna och minst tre olika belopp; Whirlpool har också Ashigarus
+    pooler 0,025 och 0,25 BTC. Nytt mönster `CoinJoinPattern.Wasabi2`.
+  - `change-address v2`: tecknet `SameFingerprintSpent` (version, sorts låsning, RBF): den output som spenderas av en
+    tx med samma fingeravtryck, när de andra spenderas av en med ett annat. Spenderarna räknas till underlaget.
+  - `peel-chain v2`: ett hopp får fyllas på med fler inputs (`PeelChainFinding.ExtraInputs`), och den output som nästa
+    hopp spenderar går vidare även när den är den mindre. Förslaget gäller adressen som kom från hoppet före.
+  - `GenericFinding`: en ny analys kan spara ett fynd med sort och JSON utan att Contracts ändras.
+  - **En version dras tillbaka** (`IClusteringService.Withdraw`, `GetWithdrawals`, tabellen `clustering_withdrawals`,
+    förseglad, schema 4): dess slutsatser räknas inte längre, inget tas bort, och den högsta version som inte dragits
+    tillbaka räknas i stället. Journalraden `clustering.version-withdrawn`.
+  - `GetConclusions` för många tx i en läsning; en körning som bara håller tillbaka något skriver inte i journalen.
+- **Kontrollerna** (alla `CheckKind.Check`, Bitcoin, med område, *Varför?* och Guide-text):
+  `service-behaviour v1` (svep av insättningsadresser till en hot wallet, utbetalning i batch), `coinjoin-merge v1`
+  (mixade mynt och toxic change som spenderas tillsammans), `split-merge v1` (uppdelning i lika delar och delarna som
+  möts igen, genom högst tre mellanled), `pass-through v1` (många hopp och fördröjning), `dust v1` (damm och
+  adressförgiftning), `payjoin-hint v1` (en onödig input bland sammanslagna inputs), `active-hours v1` (aktiva timmar
+  och trolig tidszon per ägare) och `peel-chain-area v2` (*Peel chain till börs*, påfyllda hopp).
+  `CheckInput` har nu `Services` (aktörer med etiketten börs eller tjänst) och `Owners` (klustrets minsta adress).
+- **Fynden under Kontroller:** en avgjord kandidat som analysen inte längre ger följer med ur det senast förseglade;
+  besluten och resultaten läses om i skrivningen, så att ett beslut som förseglats under tiden får sin kandidat i
+  listan; slutsatserna läses i en fråga för alla tx.
+- **Appen:** Guidens ämnen för de nya analyserna (`GuideTopic`, `TopicOf`), ikonerna och färgerna i `AreaLooks`, och
+  Guidens nya avsnitt *Tjänster ur beteende*, *PayJoin*, *Damm och adressförgiftning* och *Tidsmönster*; *CoinJoin*,
+  *Växeladress*, *Peel chain*, *Uppdelning*, *Fördröjning och många hopp* och *Börser* uppdaterade.
+- **Tester:** facit i `RoundFourTests` (Clustering, 13) och `RoundFourChecksTests` (Checks, 19), med en liknande adress
+  som malts fram så att de fyra första och sista tecknen efter `bc1q` är lika. Golden-filen i Tracing är omskriven för
+  de nya versionerna (bara versionerna och växelns nya underlag skiljer).
+- **Egna beslut:** alla nya analyser är kontroller, inte förslag, eftersom inget i KF2b ännu kan göra något av ett
+  godkännande av dem (en etikett ur en trolig tjänst kräver en form, TODO [skiss]). `coinjoin-merge` räknar bara
+  kända CoinJoins, inte möjliga, som kan vara batchutbetalningar. `service-behaviour` säger *trolig tjänst*, aldrig
+  *börs*. Gränsvärdena står som frågor till kryptospåraren (6b).
+- **Skriver i ärendet** (granskas oberoende): klustringens nya versioner förseglar nya resultat, tillbakadragandet är
+  en ny förseglad tabell med journalrad, de nya kontrollerna förseglas som de andra, och `CheckService.Run` läser och
+  förseglar nu besluten och resultaten i samma skrivning.
+- **Avsteg och kvar:** jämna belopp i fiat (kräver kurser i kontrollerna), centrala mixers med kända avgifter (kräver
+  en källa), JoinMarkets avgifter och fidelity bonds, adressens hela historik från källan och klustringens cache står
+  kvar i BACKLOG. Ytor (dra tillbaka en version, slutsatser som hålls tillbaka, tona ned damm, fälla ihop hopp, en
+  trolig tjänst som etikett) står i TODO avsnitt 4 som [skiss], och testärendet som [direkt].
+- **Rättat efter den oberoende granskningen** (1 C, 4 I, 7 M, alla rättade):
+  - **C1:** fingeravtrycket räknas aldrig för en automatisk sammanslagning (bara de starka tecknen mot
+    `AutomaticMergeSigns`); det kan bara avgöra lika läge eller stärka ett förslag, och *Varför?* säger det. Test med
+    offret och bedragaren ur granskningen.
+  - **I1:** `peel-chain v2` följer den mindre outputen bara när ärendet vet att ett hopp av samma form (efter storlek)
+    spenderar den och att en tx som inte är ett hopp spenderar den större; en betalning följs aldrig bara för att den
+    är den enda kända spenderingen. Test med offret som betalar bedragaren.
+  - **I2:** de äldre versionerna (`coinjoin`, `change-address`, `peel-chain` v1) är registrerade, och ett ärende kör
+    den högsta version det inte dragit tillbaka. Ett förslag som vägdes mot en tillbakadragen version räknas som
+    förslag (aldrig stoppat av den) och vägs om vid nästa analys. `Withdraw` tar bara registrerade versioner och aldrig
+    den sista i kraft; `TakeBackWithdrawal` tar tillbaka en tillbakadragning som egen förseglad post
+    (`clustering_withdrawal_undos`, journalrad `clustering.withdrawal-taken-back`). Ingen yta (KV1 skissas).
+  - **I3:** `service-behaviour` kräver minst två svep, tio insättningsadresser från tio oberoende avsändare och minst
+    ett dygn, och räknar aldrig adresser som en startpunkt eller ett offer (etikett) betalade (`CheckInput.Protected`,
+    offren ur Attribution när modulen finns). Texten säger *kan gälla dem*. Test med tre offer som bedragaren sveper.
+  - **I4:** `active-hours` kräver tjugo tx och ett permutationstest med fast frö (2 000 dragningar, högst 1 % chans).
+    Test med slumpade tider (fast frö) och 100 slumpade ägare.
+  - **M1:** spenderarna är underlag för växeln bara när fingeravtryckets tecken håller; peel chains spenderare bara när
+    de kan avgöra. Golden-filen har inga dubbla rader längre. **M2:** Wasabi 2 kräver minst två belopp utanför
+    1-2-5-serien. **M3:** peel chains avgörande spenderare är underlag. **M4:** `FindingTxids` borttagen, det senast
+    förseglade avkodas bara för fynd med beslut, och kandidaterna hålls om bara när något förseglats under tiden.
+    **M5:** `GenericFinding` skrivs och läses tillbaka i ett test. **M6:** `active-hours` nycklas på adressen som
+    spenderade först och `pass-through` på första hoppet, stabila när spåret följs framåt. **M7:** damm av bara 330 och
+    546 satoshi heter *Damm eller inskriptioner*; PayJoin är nu en klustringsanalys som kontrollen visar.
+  - **Andra granskningen (I):** `payjoin` håller sammanslagningar som förslag bara vid starka tecken (`payjoin v2`:
+    två eller tre inputs, mottagarens input av en adresstyp som ingen annan input har men som exakt en output har, den
+    outputen större än inputen, och inputen onödig). Den breda regeln (en onödig input) ändrar aldrig klustringen och
+    syns bara som *Onödig input*. `payjoin v1` noterar utan veto, så ett ärende stänger av vetot genom att dra
+    tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
+    en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.
