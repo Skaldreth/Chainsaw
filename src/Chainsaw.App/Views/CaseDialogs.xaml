@@ -8,13 +8,11 @@
     <!--
       The case's dialogs of sketch ÄR1b, each over a darkened background under the title bar: the colleague's file opened
       with its case password, the case's properties with the tab Kuvert, and the choice of branch after a crash. Every
-      envelope is drawn as a small card with a flap; dashed means that it is not there (yet).
+      envelope is drawn as a small card, without a flap (the user's decision 2026-11-08); dashed means that it is not
+      there (yet).
     -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
-
-        <!-- An envelope's flap: a V across the top of its card. -->
-        <Geometry x:Key="Envelope.Flap">M0 0 L50 22 L100 0</Geometry>
 
         <!-- A dialog's frame: the floating surface with its border and shadow. -->
         <Style x:Key="Dialog.Frame" TargetType="Border">
@@ -86,10 +84,7 @@
                 <Rectangle x:Name="Wash" RadiusX="10" RadiusY="10" Fill="Transparent" />
                 <Rectangle x:Name="Frame" RadiusX="10" RadiusY="10" StrokeThickness="1.5"
                            Stroke="{StaticResource Brush.BorderStrong}" />
-                <Path x:Name="Flap" Data="{StaticResource Envelope.Flap}" Stretch="Fill" Height="20" Margin="10,1,10,0"
-                      VerticalAlignment="Top" StrokeThickness="1.5" Stroke="{StaticResource Brush.BorderStrong}"
-                      StrokeLineJoin="Round" />
-                <StackPanel VerticalAlignment="Center" Margin="0,14,0,0">
+                <StackPanel VerticalAlignment="Center">
                     <controls:GridIcon x:Name="Icon" Size="18" HorizontalAlignment="Center"
                                        Data="{StaticResource Icon.Envelope}" Foreground="{StaticResource Brush.TextDim}" />
                     <TextBlock x:Name="Label" Text="{Binding Label}" FontSize="12" Margin="4,8,4,0"
@@ -115,7 +110,6 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsLit}" Value="True">
                     <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Accent}" />
-                    <Setter TargetName="Flap" Property="Stroke" Value="{StaticResource Brush.Accent}" />
                     <Setter TargetName="Wash" Property="Fill" Value="{StaticResource Brush.Accent}" />
                     <Setter TargetName="Wash" Property="Opacity" Value="0.08" />
                     <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource Brush.Text}" />
@@ -124,15 +118,12 @@
                 <DataTrigger Binding="{Binding IsPending}" Value="True">
                     <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Accent}" />
                     <Setter TargetName="Frame" Property="StrokeDashArray" Value="3 3" />
-                    <Setter TargetName="Flap" Property="Stroke" Value="{StaticResource Brush.Accent}" />
-                    <Setter TargetName="Flap" Property="StrokeDashArray" Value="3 3" />
                     <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Plus}" />
                     <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource Brush.Accent}" />
                     <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Brush.Accent}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsAdded}" Value="True">
                     <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Success}" />
-                    <Setter TargetName="Flap" Property="Stroke" Value="{StaticResource Brush.Success}" />
                     <Setter TargetName="Wash" Property="Fill" Value="{StaticResource Brush.Success}" />
                     <Setter TargetName="Wash" Property="Opacity" Value="0.08" />
                     <Setter TargetName="Icon" Property="Data" Value="{StaticResource Icon.Check}" />
@@ -147,9 +138,6 @@
             <Grid MinHeight="172" Margin="0,0,14,14">
                 <Rectangle x:Name="Frame" RadiusX="12" RadiusY="12" StrokeThickness="1.5"
                            Fill="{StaticResource Brush.Background}" Stroke="{StaticResource Brush.Border}" />
-                <Path x:Name="Flap" Data="{StaticResource Envelope.Flap}" Stretch="Fill" Height="16" Margin="18,1,18,0"
-                      VerticalAlignment="Top" StrokeThickness="1.5" Stroke="{StaticResource Brush.Border}"
-                      StrokeLineJoin="Round" />
                 <DockPanel Margin="18,28,18,16">
                     <DockPanel DockPanel.Dock="Top">
                         <Border x:Name="IconFrame" Width="36" Height="36" CornerRadius="18" BorderThickness="1.5"
@@ -229,8 +217,6 @@
                 <DataTrigger Binding="{Binding IsDashed}" Value="True">
                     <Setter TargetName="Frame" Property="StrokeDashArray" Value="3 3" />
                     <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.BorderStrong}" />
-                    <Setter TargetName="Flap" Property="StrokeDashArray" Value="3 3" />
-                    <Setter TargetName="Flap" Property="Stroke" Value="{StaticResource Brush.BorderStrong}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsEditing}" Value="True">
                     <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Accent}" />

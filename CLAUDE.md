@@ -524,6 +524,14 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     klustret öppnas som ett kort med adresserna och en liten ruta under som i IN1b; panelen säger *Bekräfta i grafen*.
   - **SW1a** (vald 2026-11-08): valet per swap görs i pillret ₮ → Ξ, som fälls ut på plats till *Följer* och *Följer
     inte*; följer värdet är linjen efter streckad i accent, annars grå med ett stopp och en person-markering.
+  - **VT1a** (vald 2026-11-08): *Byt filnyckel* i fliken *Kuvert* (ÄR1b); korten får *Lindas om* eller *Faller
+    bort*, och bekräftelsen fälls ut under dem med huvudnyckeln och valet att skapa ett nytt ärendelösenord. Kuvertens
+    kort ritas **utan kuvertlinjen** (fliken som gör dem till brev), också i ÄR1b.
+  - **LN1a** (vald 2026-11-08): en länk som väntat på upplåsningen står överst i ärendeväljaren (ÄV1a), som fälls ut av
+    sig själv, med sökfältet, *Lägg i ärende* och *Nytt ärende med adressen …* (NC2a med adressen hämtad); låsskärmen
+    säger bara att en länk väntar, aldrig adressen.
+  - **AK1a** (vald 2026-11-08): *Verifiera* säger att hashkedjan är hel och, med en lugn gul rad, att ankaret byttes;
+    *Varför?* öppnar Guidens panel med förklaringen, kedjan som prickar och den troligaste orsaken streckad.
   - **Tornado Cash** (användarens beslut 2026-11-08): märks *Mixer* med markeringen **tidigare sanktionerad**
     (OFAC tog bort den ur SDN-listan 2025-03-21), en liten hörnmarkering som sanktionerad men nedtonad, med datumen i
     *Varför?*.
