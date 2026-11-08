@@ -130,10 +130,10 @@ valt, sonarn borttagen helt, en kvalitetsgenomgång av kvällens egna commits (`
 `c352c7a`) och **NC2a** (sammanslagen `68bc89e`), båda byggda av agenter och inte sedda på Windows.
 
 **Att göra, i ordning:**
-1. **Granskningen av KF2b.** En oberoende granskning av Checks-modulens skrivningar (beslutet *Ångrat*
-   (`CheckVerdict.Withdrawn`), avfärda hela förslaget, `IsSettled`, `DecisionFor`, köns tangenter) startades
-   2026-11-08. Kommer rapporten inte till den nya sessionen: kör om den mot `git show 7f3a77f`. Rätta Critical och
-   Important, lägg Minor i TODO, bygg, kör `tests/Chainsaw.App.Tests` och `tests/Chainsaw.Modules.Checks.Tests`, pusha.
+1. **Rätta granskningen av KF2b.** Rapporten kom 2026-11-08 och står i `docs/TODO.md` under *Granskningen av KF2b*:
+   tre viktiga (Ångra säger inte vilket beslut det tar tillbaka och kan träffa ett annat ärende; modulen stoppar inte
+   ett andra beslut på ett avgjort förslag; Ctrl+Z i grafen ångrar tyst) och sex mindre. Rätta de viktiga, gärna de
+   mindre, bygg, kör `tests/Chainsaw.App.Tests` och `tests/Chainsaw.Modules.Checks.Tests`, pusha och ta bort blocket.
 2. **Granskningen av NC2a.** Panelen är byggd av en agent och sammanslagen (`68bc89e`, commit `9302657`), inte sedd
    på Windows. Förhandshämtningen skriver i ärendet (ärende i minnet, `IMemoryCase`, förseglat med
    `IResponseTransfer` och journalraden `app.prefetch-sealed` när ärendet skapas), så en oberoende granskning
