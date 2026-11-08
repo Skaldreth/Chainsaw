@@ -129,16 +129,15 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
   Reth eller Erigon för Ethereum; java-tron för TRON). Kräver en server. Esplora går att köra själv, så Bitcoin blir bara en
   annan adress i datalagret.
-- **Bevakning i realtid:** websocket där källan har det (mempool.space har bevakning av adresser), senare ZMQ från egen nod.
+- **Bevakning i realtid, resten** (nya block via mempool.space:s websocket är byggt, omgång 3): ZMQ från egen nod (en
+  egen nod nås bara genom `ILocalHttp`, och dess websocket lyssnas inte på), Ethereum (Blockscout har websockets) och
+  mempool.space:s `track-address` för obekräftade tx. Det sista skickar de bevakade adresserna tillsammans över en
+  anslutning, så att källan ser att de hör ihop; ett beslut för användaren innan det byggs.
 
 ## Bitcoin-källan (Chains)
 - **Svarshuvuden som ursprung:** se *Utgångar*. Behövs om källans `Date` ska stå bredvid Chainsaws egen tid.
 - **Flera källor att jämföra:** samma tx från två Esplora-källor, och en varning om de skiljer sig.
 - **Endpointens namn** (etapp 24): namnet tas ur adressens värd och kan inte ändras i sidan Källor.
-- **Blockhash i provet vid start** (KL2b, 2026-11-08): kortet för den endpoint som används visar *Höjd 921 404* men
-  hashen bara när den är känd, eftersom provet vid start och *Prova alla nu* bara frågar efter höjden (bara formulärets
-  *Prova* frågar efter hashen). Skissen visar båda; provet kunde fråga efter blockets hash vid höjden också, ett uppslag
-  till per endpoint.
 - **Nyckeln som huvud** (etapp 24): Esplora skickar nyckeln som `Authorization: Bearer`. Huvudena som tillåts är
   `Authorization` och `X-Api-Key` (`ExitCredential`); en källa som vill ha något annat lägger till det i Network.
 - **Varför en endpoint fick röd prick** (etapp 24, granskningen omgång 2, M): en nyckel som saknas i valvet gör att
@@ -148,14 +147,9 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Tx på en adress sida kontrolleras inte mot sina bytes** (etapp 15): bara tx som expanderas för sig (och deras
   spenderare) hämtar `/tx/:txid/hex`. En adress historik med 50 tx skulle kosta 50 uppslag till. Kontrollera dem när
   de visas i inspektören, eller i bakgrunden?
-- **Tx:en i blocket** (etapp 15): bytesen binder beskrivningen till txid, men att tx:en ligger i just det blocket
-  vilar på källan. `/tx/:txid/merkle-proof` och blockets merklerot skulle binda dem; och om `bits` är nätets rätta
-  svårighet på höjden kontrolleras inte.
-- **Målet i blockhuvudet** (granskningen etapp 15, M2): huvudet måste nå det mål dess egna `bits` anger, men `bits`
-  prövas inte mot nätets gräns (powLimit, `0x1d00ffff` på mainnet), och blockets `bits` och nonce i källans svar
-  jämförs inte med huvudet.
-- **Ett block som en gång motsäger sitt huvud** (granskningen etapp 15, M3): både blocket och huvudet ändras aldrig,
-  så `GetBlockAsync` vägrar för gott. Hämta blockets beskrivning igen i stället (`GetBlockAsync` används inte än).
+- **Svårigheten på höjden** (etapp 15): att tx:en ligger i blocket kontrolleras nu med merkle-beviset
+  (`VerifyInBlockAsync`, omgång 3) och att huvudets mål ligger inom nätets gräns, men om `bits` är nätets exakta
+  svårighet på höjden kontrolleras inte; det kräver huvudena före (var 2016:e block). Görs med egen nod.
 - **Svar som hämtades när blocket var grunt** (granskningen etapp 15, M4): de räknas aldrig som säkra vid läsning bara
   ur ärendet, och står som *kan ha ändrats* tills noden expanderas igen. Fråga om dem i bakgrunden när utgången är
   ansluten.
@@ -169,13 +163,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   Skissas om det behövs.
 - **Den egna noden provas inte utan utgång** (etapp 25, granskningen M1): ett prov där utgången vägrar sparas inte, också
   när den egna noden svarade, och provet vid start väntar på en ansluten utgång (eller Windows). Uppslagen går ändå till
-  noden, men den kan inte bli *i fas* för bevakningen förrän ett prov med utgång gjorts. Prova lokala endpoints för sig.
-- **NotFound när alla tillfrågade är otrodda** (granskningen av etapp 25, omgång 2, M; regeln är etapp 24:s): sa varje
-  endpoint som frågades 404, ges *finns inte* också när ingen av dem kunde tros (till exempel en enda Blockscout vars
-  sökväg ändrats). Kunde i stället ge *misslyckades* med texten att källan inte känner till det.
-- ***Prova* i formuläret följer inte takten** (granskningen av etapp 25, omgång 2, M): en adress som prövas innan den
-  lagts till har ingen takt, också om samma adress redan finns som endpoint. Två frågor per tryck.
-- **Ett behållet prov åldras** (granskningen av etapp 25, omgång 5, M): ett prov som behålls när endpointen bara väntade
+  noden, men den kan inte bli *i fas* för bevakningen förrän ett prov med utgång gjorts. Lämnat i omgång 3: prövas den
+  egna noden för sig blir den sin egen högsta höjd och därmed *i fas* också när den ligger efter kedjan, så bevakningen
+  skulle kunna missa block utan att det syns. Ett beslut (lita på den egna noden som facit, eller inte) behövs först.
+- **Ett behållet prov åldras** (granskningen av etapp 25, omgång 5, M; lämnat i omgång 3 som ett avvägningsbeslut, det
+  försiktiga valet står kvar): ett prov som behålls när endpointen bara väntade
   mäts mot den nya omgångens höjd, så block som kommit sedan räknas mot den. På Ethereum (block var tolfte sekund) blir
   ett behållet prov äldre än en halv minut *efter*, tills nästa *Prova alla nu*. Försiktigt för bevakningen, men kunde
   i stället bara ta bort *i fas* och behålla *svarar rätt*. Och en referenshöjd ur ett behållet prov följer med så länge
@@ -183,9 +175,6 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Spridningen i Prioriterad** (etapp 25): varje endpoint är en egen grupp, så användarens ordning gäller och nästa tas
   först när den första bett om väntan eller dess kö är längre än fem sekunder. I Snabbast sprids uppslagen inom den bästa
   gruppen (de som svarat rätt). Ändras om användaren vill ha spridning också i Prioriterad.
-- **Svaret om spenderade utgångar och omorganisationer** (etapp 15): en tx som bytt block säger det, men ett svar om
-  vem som spenderar en output jämförs inte med det förra.
-
 ## Klustring och heuristiker
 - **PayJoin v2 och en plånbok som byter adresstyp** (slutgranskningen 2026-11-08, M1): en Taproot-plånbok som spenderar
   ett gammalt P2WPKH-mynt och ett P2TR-mynt, betalar till P2WPKH och lägger växeln på P2TR har samma form som BIP78 och
@@ -429,9 +418,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Klartext i minnet:** API-nycklarnas hemligheter och profilen ligger som `string` medan valvet är upplåst och kan inte
   nollställas (valvets JSON skrivs nu i en fäst buffert, omgång 6). `char[]` för hemligheterna ändrar `IApiKeyStore`
   och varje källa som läser en nyckel; görs när ingen annan omgång arbetar i Chains och Attribution.
-- **DPAPI för bevakningsprocessen** (CLAUDE.md, *Bevaka*): bevakningens adresser krypteras för Windows-användaren, utanför
-  valvet. Byggs med bevakningen.
-
 ## Utgångar (Network)
 - **Certifikatkedjor som saknar en mellanliggande nivå** som datorn aldrig sett: de som Windows redan har erbjuds
   (omgång 6), men inget hämtas runt utgången (AIA och spärrlistor), och `IExitHttp` tar bara https. Att hämta en
@@ -452,10 +438,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   säkerhetsrättelser, minst när en Go-version slutar få stöd.
   `dotnet test` kör inte Go-testerna; de körs av byggskriptet. Signera programmet med organisationens certifikat när
   Chainsaw signeras.
-- **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan
-  valvet. Hur den får konfigurationen (DPAPI för Windows-användaren) bestäms med bevakningen (väntar på användarens
-  beslut om VPN i bakgrunden).
-
 ## Ärenden
 - **Vem som förseglade en post:** en modul kan försegla poster i en annan moduls kedja (inte i Cases egna), och posten
   säger inte vilken modul som skrev den. Att binda transaktionen till sin modul ändrar varje moduls sätt att försegla
@@ -532,15 +514,11 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 
 ## Bevakning (etapp 26)
-- **Starten från en höjd i fas** (granskningen omgång 1, M5): starten är kedjans höjd från `GetTipHeightAsync`, som
-  frågar vilken endpoint som helst; ligger den ett block efter kan pengar i det nyaste blocket före bevakningen räknas
-  som en träff. Höjden borde komma från en endpoint i fas (eller provets högsta höjd).
-- **Omorganisation** (granskningen omgång 1, M6): en träff förseglas en gång per tx; byter tx:en block står den gamla
-  hashen kvar. Kontrollera träffarnas block mot kedjan och säg det.
 - **Mycket aktiva adresser:** en kontroll läser högst fem sidor bakåt. Har en adress fler nya tx än så går kontrollen
   vidare från det äldsta block den läste och sparar luckan (*tx under block N kan ha missats*) med kontrollen; tx i luckan
   kan ha missats. Samma när källan inte kan bläddra längre (en full sida i ett block) eller inte läst historiken
-  färdigt. Läs luckan i efterhand med en markör, eller med källans egen bevakning (websocket).
+  färdigt. Läs luckan i efterhand med en markör. (Websocketen som byggdes i omgång 3 säger bara att ett nytt block
+  kommit, så att kontrollen kommer tidigare och luckorna blir färre, men den läser inte luckan.)
 - **Flera adresser på Ethereum** (granskningen omgång 5, M): `WatchCheckResult.CompleteAbove` tar den högsta över
   adresserna, så en adress som håller kontrollen tillbaka (ett block utan hash) kan köras över av en annans högre golv.
   Kan inte hända i dag (bara Bitcoin har kluster); håll isär golv och spärrar innan kluster på andra kedjor bevakas.
@@ -553,23 +531,24 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   övre gräns, inte ett faktum (granskningen omgång 3, M4): träffen borde bära en markering och visas som *högst …*
   (streckat) i stället för som fakta i historiken och listan.
 - **Varje råsvar förseglas** också för bevakningen: höjden en gång i minuten och adressernas första sida vid varje nytt
-  block. Ärendet växer med bevakningar som går länge; att slå ihop lika svar (samma hash) vore en ändring i Chains.
+  block. Ärendet växer med bevakningar som går länge; att slå ihop lika svar (samma hash) vore en ändring i Chains och
+  ett beslut om princip 1 (ett svar som hämtats igen och var likadant sparas då bara en gång). Bakgrundens kö slår sedan
+  omgång 3 ihop tysta kontroller till en post per bevakning, men behåller varje svar.
 
 ## Bevakning i bakgrunden (etapp 27)
-- **VPN i bakgrunden:** WireGuard-filerna ligger krypterade i valvet, så bakgrunden kan inte starta en tunnel utan
-  huvudnyckeln och gör inga uppslag med VPN vald. Användaren har beslutat (2026-11-08) att en utgångs
-  WireGuard-fil får ligga under DPAPI utanför valvet för bakgrunden, om det inte är alldeles för stort arbete.
 - **Kluster i bakgrunden** följer klustringen som den var när planen skrevs (när ärendet senast var öppet), inte nya
   adresser som kommer med senare.
 - **Ett ärende som tas bort eller flyttas** ligger kvar i planen och bevakas tills det öppnas och dess bevakningar
-  pausas. Rensa planen från ärenden som inte längre finns (ärendenas id i `Ärenden`).
+  pausas. Rensa planen från ärenden som inte längre finns (ärendenas id i `Ärenden`). Lämnat i omgång 3: ett ärende kan
+  öppnas var som helst (`OpenWithPassword`, en kollegas fil), så ett id som saknas i `Ärenden` betyder inte att ärendet
+  är borta, och att rensa det skulle tyst sluta bevaka. Ett beslut: planen kunde hålla filens sökväg (under DPAPI), eller
+  `ICaseStore` lista id:n ur huvudena.
 - **Höjden som inte ledde till någon kontroll** förs inte in i något ärende (den hör inte till ett ärende); höjden som en
   kontroll byggde på förs in med ärendets första post i varvet.
-- **Endpoints med API-nyckel** fungerar inte i bakgrunden (nyckeln ligger i valvet); de hoppas över och nästa tas.
+- **Endpoints med API-nyckel** fungerar inte i bakgrunden (nyckeln ligger i valvet); de hoppas över och nästa tas. Samma
+  väg som för VPN-utgångarna (en kopia under DPAPI för de nycklar användaren väljer) går att bygga om användaren vill.
 - **Aviseringen i Windows** kommer från en ikon i meddelandefältet (`Shell_NotifyIcon`), som Windows visar som en toast.
   En riktig toast med appens identitet (AUMID) kräver att Chainsaw registreras som app; pröva om det behövs.
-- **Kön växer** med en post per kontroll (på Ethereum ungefär en i minuten per bevakning), med alla råsvar, så länge
-  ärendet inte öppnas (granskningen omgång 1, M3). Slå ihop poster per bevakning eller sätt ett tak, och säg det.
 - **Sammanfattningsraden i journalen** (*Bakgrundens bevakning förd in*) skrivs efter posterna; kraschar Chainsaw
   mitt i kan den saknas för de poster som redan förts in (granskningen omgång 1, M2). Träffarna har alltid sin egen rad.
 - **Två takter mot samma endpoints** (granskningen omgång 1, M7): medan Chainsaw är öppet har appen och bakgrunden var

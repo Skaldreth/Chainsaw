@@ -1885,6 +1885,35 @@ ligger bredvid `Chainsaw.exe`.
   är öppet, `held\…`. Öppna `plan.bin` och en fil i `queue` i en texteditor: inga adresser ska gå att läsa (DPAPI).
   Kopiera `plan.bin` till en annan Windows-användare: bakgrunden där bevakar ingenting.
 
+## Bevakningen och källan, omgång 3 (VPN i bakgrunden och realtid, 2026-11-08)
+
+**VPN i bakgrunden**
+- Välj VPN och en utgång under *Inställningar → Nätverk*: raden *Bevaka genom utgången när Chainsaw är stängt* står
+  under *Kontrollera vid anslutning*. Reglaget är grått när *Bevaka när Chainsaw är stängt* (Låsning) är av.
+- Slå på det: `%LOCALAPPDATA%\Chainsaw\Bevakning\exits.bin` skapas. Öppna den i en texteditor: varken utgångens namn
+  eller `PrivateKey` går att läsa (DPAPI).
+- Med en aktiv bevakning, stäng Chainsaw: `Chainsaw.Watcher.exe` startar `chainsaw-tunnel.exe` (syns i
+  Aktivitetshanteraren), och en träff aviseras som med Windows. Huvudet i vyn Bevakning säger *Går i bakgrunden*.
+- Byt `chainsaw-tunnel.exe` mot en annan fil: bakgrunden ansluter inte (samma SHA-256-kontroll som i Chainsaw) och gör
+  inga uppslag.
+- Välj en annan utgång utan att slå på reglaget för den: bakgrunden kopplar ner tunneln inom en kontroll och väntar på
+  utgången (huvudet gult). Välj tillbaka: den ansluter igen.
+- Slå av reglaget, ta bort utgången, eller slå av *Bevaka när Chainsaw är stängt*: `exits.bin` försvinner och tunneln i
+  bakgrunden stängs.
+- Dra ur nätet medan bakgrunden går genom VPN: den försöker ansluta igen högst en gång i minuten, och inga uppslag går
+  någon annan väg.
+
+**Nya block i realtid**
+- Med mempool.space som endpoint och en aktiv bevakning: en ny tx i ett nytt block syns i vyn Bevakning inom några
+  sekunder efter blocket, inte först efter upp till en minut. Med bara Blockstream (ingen websocket där) kommer den som
+  förut, inom ungefär en minut.
+- Lås Chainsaw: anslutningen till `wss://mempool.space/api/v1/ws` stängs (syns i en nätverksmonitor, eller i VPN:ens
+  trafik).
+
+**Källan**
+- *Inställningar → Källor*: efter start visar kortet för den endpoint som används både höjden och blockets hash.
+- *Prova* på en adress som redan är en endpoint: provet går i endpointens takt (ingen 429 när du trycker flera gånger).
+
 ## Meddelanden och polering (TO1a, 2026-11-07)
 
 - [ ] Expandera en adress: en grön toast *N nya tx i grafen* glider in nere till höger och tonar ut efter några

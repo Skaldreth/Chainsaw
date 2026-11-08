@@ -4145,3 +4145,51 @@ topp.
     syns bara som *Onödig input*. `payjoin v1` noterar utan veto, så ett ärende stänger av vetot genom att dra
     tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
     en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.
+
+## Omgång 3: Bitcoin-källan, bevakningen och bakgrunden (backloggen, 2026-11-08)
+
+- **VPN i bakgrunden** (användarens beslut 2026-11-08): `IBackgroundExits` i Network håller en kopia av en utgångs post
+  ur valvet (namn, plats och WireGuard-fil) under DPAPI i `Bevakning\exits.bin`, bara för utgångar användaren tillåter,
+  och programmets valda utgång. Bakgrundsprocessen läser utgångarna bara därifrån (`NetworkOptions.ExitsFromBackground`,
+  `BackgroundExitSecrets`), så att samma `ExitConnection`, hjälpprogram och SHA-256-kontroll startar tunneln utan valvet.
+  Den ansluter bara den valda utgången när den är tillåten, högst en gång i minuten efter ett misslyckande, kopplar ner
+  när tillåtelsen tas tillbaka eller en annan utgång väljs, och gör inga uppslag utan ansluten utgång (princip 4).
+  Kopian tas bort när utgången tas bort (`ExitStore.RemoveAsync`), när reglaget slås av och när bakgrunden slås av
+  (`BackgroundLink`), och följer namnbyte och val. `BackgroundLink` startar bakgrunden också med VPN när den valda
+  utgången är tillåten. Reglaget är en enkel rad under Nätverk (*Bevaka genom utgången när Chainsaw är stängt*).
+- **Nya block i realtid:** `IExitWebSocket` (Network) öppnar bara `wss`, genom samma utgång som `IExitHttp`, med samma
+  User-Agent och utan kakor, och stängs när utgången går. `IBlockNews` (Chains) frågar en Esplora-endpoints
+  `/api/v1/ws` bara efter `blocks` och räknar nya block; en endpoint utan websocket (Blockstream) hoppas över en timme.
+  `WatchRunner` och bakgrunden frågar höjden genast när ett nytt block hörts, i stället för att vänta på minuten, och
+  slutar lyssna när grinden stängs, ärendet stängs eller utgången saknas. Nyheten sparas aldrig och tros aldrig: varje
+  kontroll frågar som förut och förseglar svaren (princip 1). Reserven är de vanliga frågorna en gång i minuten.
+- **Bevakningen:** höjden en bevakning startar och räknar från kommer bara från en endpoint i fas
+  (`GetTipHeightAsync(…, LookupMode.InStep)`; källor utan valet vägrar `InStep` i stället för att strunta i det). En
+  träff vars tx hittas i ett annat block förseglas igen med det nya blocket under journalraden `monitoring.hit.moved`
+  (*… förut i block N (omorganisation)*); `GetHits` ger träffen en gång, med `MovedFrom`.
+- **Bakgrundens kö:** tysta kontroller (inga träffar) slås ihop till en post per bevakning och körning, med varje svar
+  kvar (inget som hämtats släpps), högst 600 svar per post.
+- **Bitcoin-källan:** provet vid start frågar också blockets hash vid höjden (KL2b; en hash som inte kommer fäller inte
+  provet); *finns inte* bara från endpoints som inte går att lita på blir *misslyckades* med orsaken; *Prova* på en
+  adress som redan är en endpoint går i dess takt; huvudets mål måste ligga inom nätets gräns (powLimit, mainnet
+  `0x1d00ffff`, testnät signets `0x1e0377ae`) och beskrivningens `bits` och `nonce` vara huvudets; en beskrivning som
+  motsäger huvudet hämtas igen i stället för att vägras för gott; `VerifyInBlockAsync` kontrollerar med
+  `/tx/:txid/merkle-proof` att tx:en ligger i blocket (roten räknas av Chainsaw och jämförs med huvudets);
+  svaret om spenderade utgångar jämförs med det förra och en ändring sägs.
+- **Tester:** `BackgroundExitsTests`, `ExitWebSocketTests` (Network), `BlockNewsTests`, `MerkleProofTests` (block 170 och
+  ett syntetiskt block), `SpendChangeTests` och nya fall i `VerificationTests`, `EndpointPaceTests`,
+  `EndpointPhaseAndLocalTests` och `ChainSourcesTests` (Chains), `VpnInBackgroundTests` och nya fall i
+  `WatcherLoopTests` (Watcher), omorganisationen och höjden i fas (Monitoring), `BackgroundLinkTests` och
+  `WatchRunnerTests` (App). Inget test når nätet.
+- **Egna beslut:** websocketen frågar bara efter block, aldrig `track-address`, eftersom det skickar de bevakade
+  adresserna tillsammans över en anslutning (BACKLOG). Bakgrunden går bara genom den valda utgången, aldrig en annan
+  tillåten. De inspelade testblocken är brutna i regtest-svårighet, så Chains-testernas harness slår av gränsen
+  (`BitcoinSourceOptions.CheckWorkLimit`, internal); gränsen prövas för sig mot Bitcoins första block.
+- **Skriver i ärendet** (granskas oberoende): `monitoring.hit.moved` och en ny träffpost i `monitoring.hits`;
+  merkle-beviset förseglas som `bitcoin.merkle-proof`; provets hash och den nya hämtningen av en motsagd blockbeskrivning
+  förseglas som andra svar; bakgrundens hopslagna köposter förs in som förut. Princip 4: `exits.bin`, websocketen och
+  bakgrundens tunnel.
+- **Kvar:** ytorna står i TODO (*Ur omgång 3*, [skiss]); i BACKLOG med en notering: den egna noden utan utgång, ett
+  behållet prov som åldras, ärenden som flyttats ur planen, sammanslagning av lika svar, luckor hos mycket aktiva
+  adresser, svårigheten på höjden, realtid för Ethereum och egen nod, och resten under Bitcoin-källan (prestanda,
+  jämförelse mellan källor, svarshuvuden).

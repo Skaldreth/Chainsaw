@@ -113,8 +113,9 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 2. **Ethereum klart:** spårningen genom en swap (när regeln är beslutad), Tornado Cash och kända DEX:ar och bryggor,
    OFAC:s ETH-adresser, kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
    och fynden från etapp 23 och 23b.
-3. **Bitcoin-källan, bevakningen och bakgrunden:** fynden under *Bitcoin-källan*, *Bevakning* och *Bevakning i
-   bakgrunden*, och bevakning i realtid (websocket).
+3. **Bitcoin-källan, bevakningen och bakgrunden:** byggt 2026-11-08 (DEV-LOG, *Omgång 3*): VPN i bakgrunden, nya
+   block i realtid, starten i fas, omorganisationer, merkle-beviset och de andra fynden. Det som är kvar står i
+   BACKLOG med en notering om beslutet det väntar på, och ytorna nedan.
 4. **Klustring, förvirring och kontroller:** tjänster ur beteende, fler tecken för växeln, CoinJoin och peel chain,
    centrala mixers, damm och adressförgiftning, jämna belopp och tidsmönster, och fynden under *Kontroller*.
 5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
@@ -153,6 +154,18 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 - **Testärendet** (`/testdata`) visar inte de nya kontrollerna än: en uppdelning med delar som möts, damm, en
   adressförgiftning, ett svep till Sydbörsens hot wallet och en möjlig PayJoin behöver läggas in i berättelsen
   (`TestStoryChain`) med stegen som hämtar dem [direkt].
+
+**Ur omgång 3 (Bitcoin-källan, bevakningen och bakgrunden), väntar på en yta** [skiss]:
+- **VPN i bakgrunden per utgång:** i dag en brytare under Inställningar › Nätverk (*Bevaka genom utgången när Chainsaw
+  är stängt*) som gäller den valda utgången. Ska valet stå per rad i utgångarnas tabell (UT3b), och ska det synas
+  vilka utgångar som har en kopia under DPAPI, skissas raden.
+- **En träff som bytt block** (omorganisation, `WatchHit.MovedFrom`, journalraden `monitoring.hit.moved`): träffen
+  vilar nu på sitt nya block, men listan i Bevakning och vaktlinjen säger det inte. Förslag: GR9a:s runda märke med
+  förut och nu.
+- **Kontrollerad mot blocket** (`IBitcoinSource.VerifyInBlockAsync`, `BitcoinTransaction.InBlockVerified`): beviset
+  finns men inget anropar det; var det visas i inspektören (som *kontrollerad mot bytes*) och om det körs när tx:en
+  visas eller i bakgrunden skissas.
+- **Pengar ut ur en CoinJoin som *högst …*** (BACKLOG, *Bevakning*): markeringen och den streckade formen i listan.
 
 **Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (förvalet följer värdet, utredaren väljer per
 swap; valet i pillret skissas [skiss]), VPN i bakgrunden (byggs i omgång 3) och metoderna för privacy coins
