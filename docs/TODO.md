@@ -18,9 +18,6 @@ Varje punkt i *Vägen till 1.0* är märkt med hur den byggs (CLAUDE.md, *Proces
 
 Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
 
-**Från valen 2026-11-08:**
-- **Meddelandet mitt på skärmen** (BV4a) är av från början; i skissen var det på. *Nu:* av.
-
 **Från bygget 2026-11-08**, så som det är byggt nu:
 1. **Kandidaternas linjer** i mixerns förslag ritas alltid. Förut ritades de bara när områdena var på. *Nu:* alltid.
 2. **SEK för det som ligger kvar i inspektören** räknas till den senaste kursen ärendet har för tillgången. Kortets

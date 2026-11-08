@@ -499,8 +499,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     andelarna per sort och den valda vägen till höger.
   - **KU1a:** kronorna står litet under beloppet på linjen; *Varför?* visar stegen (beloppet, Bitstamp-kursen,
     Riksbankens växelkurs, var och en med hash) i Guidens panel; sidan Kurser har vanliga rader.
-  - **BV4a:** meddelandet mitt på skärmen är ett litet kort med ögat och ringar, utan att något mörkas; sätten att
-    säga till är tre rader under Låsning.
+  - **BV4a:** meddelandet mitt på skärmen är ett litet kort med ögat och ringar, utan att något mörkas, och är på
+    från början som de andra två sätten (användarens beslut 2026-11-08); sätten att säga till är tre rader under
+    Låsning.
   - **ST2a:** återställningsnyckeln är en rad i *Om Chainsaw* med fingeravtrycket i grupper och Kopiera, återkallade
     nycklar överstrukna, och en ärlig varning när ingen nyckel är inbyggd.
   - **FS2a:** steget Utgång har Windows (förvalt) och VPN som två kort, vägen som bild under och WireGuard-filen under

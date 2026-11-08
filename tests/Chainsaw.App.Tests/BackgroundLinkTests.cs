@@ -31,7 +31,7 @@ public sealed class BackgroundLinkTests
         var plan = _fakes.Plan.Plan;
         Assert.True(plan.Enabled);
         Assert.Equal(ExitRoute.Windows, plan.Route);
-        Assert.Equal(WatchAlerts.Windows | WatchAlerts.Sound, plan.Alerts);
+        Assert.Equal(WatchAlerts.Windows | WatchAlerts.Sound | WatchAlerts.Screen, plan.Alerts);
         Assert.Equal([session.Current!.Info.Id], plan.Cases.Select(@case => @case.CaseId));
         Assert.Equal(BackgroundFakes.Command, _fakes.Autostart.Command);
         Assert.Equal(1, _fakes.Process.Starts);
@@ -267,7 +267,7 @@ public sealed class BackgroundLinkTests
         var defaults = new AppSettings();
 
         Assert.True(defaults.WatchInBackground);
-        Assert.Equal(WatchAlerts.Windows | WatchAlerts.Sound, defaults.Alerts);
+        Assert.Equal(WatchAlerts.Windows | WatchAlerts.Sound | WatchAlerts.Screen, defaults.Alerts);
         Assert.Equal(WatchAlerts.Screen, (defaults with
         {
             AlertInWindows = false,
