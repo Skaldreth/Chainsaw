@@ -298,6 +298,8 @@ internal sealed class CommentNoteView : Grid
     /// <summary>Shows the note as it is now.</summary>
     private void Show()
     {
+        // A note whose node lies in the trash is hidden with it, and comes back when the node is put back.
+        Visibility = _note.IsInTrash ? Visibility.Collapsed : Visibility.Visible;
         Width = _note.Width;
         MinHeight = _note.MinimumHeight;
         _view.Markdown = _note.Text;

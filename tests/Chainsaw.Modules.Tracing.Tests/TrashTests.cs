@@ -43,17 +43,20 @@ public sealed class TrashTests : IDisposable
     }
 
     [Fact]
-    public void A_branch_is_put_back_with_what_hangs_under_it_and_the_rest_stays()
+    public void A_branch_is_put_back_with_what_hangs_under_it_and_what_it_hangs_under_and_the_rest_stays()
     {
-        var thrown = _harness.Trash.Throw(_harness.Case, Branch());
+        var members = Branch().Append(new TrashMember("address:bc1qo5", "cluster:bc1qx", "bc1q…o5", "Unknown"))
+            .ToList();
+        var thrown = _harness.Trash.Throw(_harness.Case, members);
 
         var back = _harness.Trash.Restore(_harness.Case, thrown.Sequence, "address:bc1qo3");
 
-        Assert.Equal(["address:bc1qo3", "address:bc1qo4"], back.Select(member => member.Key));
+        Assert.Equal(["cluster:bc1qx", "address:bc1qo3", "address:bc1qo4"], back.Select(member => member.Key));
         Assert.Equal(TracingJournalKinds.Restored, _harness.Case.ReadJournal().Last().Kind);
         _harness.Reopen();
         var left = Assert.Single(_harness.Trash.GetThrows(_harness.Case));
-        Assert.Equal("cluster:bc1qx", Assert.Single(left.Members).Key);
+        Assert.Equal("address:bc1qo5", Assert.Single(left.Members).Key);
+        Assert.Equal(0, left.DepthOf("address:bc1qo5"));
         Assert.True(_harness.Verify().IsIntact);
     }
 
@@ -75,8 +78,34 @@ public sealed class TrashTests : IDisposable
     {
         _harness.Trash.Throw(_harness.Case, Branch());
 
-        Assert.Throws<ArgumentException>(() => _harness.Trash.Throw(
+        Assert.Throws<InvalidOperationException>(() => _harness.Trash.Throw(
             _harness.Case, [new("cluster:bc1qy", null, "Kluster", "Cluster") { Keys = ["address:bc1qy"] }]));
+        Assert.Throws<InvalidOperationException>(() => _harness.Trash.Throw(
+            _harness.Case, [new("address:bc1qo3", null, "O3", "Unknown")]));
+    }
+
+    [Fact]
+    public void A_cluster_that_grew_into_a_thrown_address_can_still_be_thrown()
+    {
+        _harness.Trash.Throw(_harness.Case, Branch());
+
+        var grown = _harness.Trash.Throw(_harness.Case,
+            [new("cluster:bc1qz", null, "Kluster", "Cluster") { Keys = ["address:bc1qy", "address:bc1qz"] }]);
+
+        Assert.Equal(2, _harness.Trash.GetThrows(_harness.Case).Count);
+        Assert.Equal("cluster:bc1qz", Assert.Single(grown.Members).Key);
+    }
+
+    [Theory]
+    [InlineData("k", true)]
+    [InlineData("other", false)]
+    public void A_node_is_hidden_by_its_key_or_all_its_addresses_never_one_of_them(string key, bool byKey)
+    {
+        var lying = new HashSet<string>(StringComparer.Ordinal) { "k", "address:a", "address:b" };
+
+        Assert.Equal(byKey, TrashMember.IsHidden(key, ["address:a", "address:c"], lying));
+        Assert.True(TrashMember.IsHidden(key, ["address:a", "address:b"], lying));
+        Assert.Equal(byKey, TrashMember.IsHidden(key, [], lying));
     }
 
     [Fact]
@@ -189,6 +218,20 @@ public sealed class TrashTreeTests
         Assert.Equal(
             [new TrashBranch("o3", null), new("o6", "o3"), new("o4", null), new("o5", "o4")],
             tree);
+    }
+
+    [Fact]
+    public void A_long_peel_chain_is_walked_without_running_out_of_stack()
+    {
+        var lines = Enumerable.Range(0, 100_000)
+            .Select(index => (From: "p" + index, To: "p" + (index + 1)))
+            .Prepend(("s", "p0"))
+            .ToList();
+
+        var tree = TrashTree.Follow(["p0"], lines, ["s"]);
+
+        Assert.Equal(100_001, tree.Count);
+        Assert.Equal(new TrashBranch("p100000", "p99999"), tree[^1]);
     }
 
     [Fact]

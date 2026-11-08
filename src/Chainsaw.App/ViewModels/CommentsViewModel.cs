@@ -122,6 +122,19 @@ public sealed partial class CommentsViewModel : ObservableObject
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Ties a note's thread into the graph shown, and hides the note while its node lies in the trash (sketch SO1a), so
+    /// that it never hangs loose and comes back with its node.
+    /// </summary>
+    /// <param name="note">The note.</param>
+    /// <param name="scene">The graph, or <see langword="null"/>.</param>
+    /// <param name="anchor">The thread's stored key, or <see langword="null"/>.</param>
+    private static void Tie(CommentNote note, GraphScene? scene, string? anchor)
+    {
+        note.AnchorNode = CommentGeometry.Resolve(scene, anchor);
+        note.IsInTrash = note.AnchorNode is null && CommentGeometry.IsThrown(scene, anchor);
+    }
+
     /// <summary>Ties the threads into the graph shown: each note's node, found again after a cluster changed.</summary>
     /// <param name="scene">The graph, or <see langword="null"/>.</param>
     public void Follow(GraphScene? scene)
@@ -129,7 +142,7 @@ public sealed partial class CommentsViewModel : ObservableObject
         _scene = scene;
         foreach (var note in Notes)
         {
-            note.AnchorNode = CommentGeometry.Resolve(scene, note.Anchor);
+            Tie(note, scene, note.Anchor);
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
@@ -531,7 +544,7 @@ public sealed partial class CommentsViewModel : ObservableObject
         }
 
         note.ShowText(comment);
-        note.AnchorNode = CommentGeometry.Resolve(_scene, comment.Anchor);
+        Tie(note, _scene, comment.Anchor);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -609,7 +622,7 @@ public sealed partial class CommentsViewModel : ObservableObject
                 note.Show(comment);
             }
 
-            note.AnchorNode = CommentGeometry.Resolve(_scene, comment.Anchor);
+            Tie(note, _scene, comment.Anchor);
             Notes.Add(note);
         }
 

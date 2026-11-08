@@ -59,7 +59,7 @@ public sealed partial class GraphCanvas
             case Key.Escape when model.TrashView.IsOpen:
                 model.TrashView.Close();
                 return true;
-            case Key.Delete when !model.TrashView.IsOpen:
+            case Key.Delete when !model.TrashView.IsOpen && model.HasChosenToThrow:
                 model.ThrowChosen();
                 return true;
             default:
@@ -95,7 +95,11 @@ public sealed partial class GraphCanvas
             var port = stub.IsOut ? place.X + GraphSizes.NodeWidth : place.X;
             var end = stub.IsOut ? port + StubLength : port - StubLength;
             dc.DrawLine(pen, new Point(port, y), new Point(end, y));
-            var label = Text(TrashStub.Label, StubLabelSize, ink, FontWeights.Normal);
+            // A watch at the node goes on into the trash: the stub says so in the watch's own tone (sketch BV2a).
+            var watched = _model.WatchOverlay.MarkOf(stub.NodeKey) is not null;
+            var label = watched
+                ? Text(TrashStub.WatchedLabel, StubLabelSize, GraphPalette.Find(this, "Brush.Watch"), FontWeights.Normal)
+                : Text(TrashStub.Label, StubLabelSize, ink, FontWeights.Normal);
             var x = stub.IsOut ? end + StubLabelGap : end - StubLabelGap - label.Width;
             dc.DrawText(label, new Point(x, y - (label.Height / 2)));
         }

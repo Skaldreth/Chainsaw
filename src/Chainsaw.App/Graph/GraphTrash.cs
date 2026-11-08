@@ -12,11 +12,18 @@ public sealed record TrashStub(string NodeKey, bool IsOut)
 {
     /// <summary>What the stub's small label says.</summary>
     public const string Label = "i soptunnan";
+
+    /// <summary>
+    /// What the stub says at a watched node: the watch's hits to what lies in the trash are not drawn, so the stub
+    /// never hides them without a word.
+    /// </summary>
+    public const string WatchedLabel = "i soptunnan · bevakad";
 }
 
 /// <summary>
-/// What the trash hides in the graph (sketch SO1a): every key its throws are found by. A node is hidden when its key or
-/// any key it is known by lies in the trash, so that a cluster that grew or got another representative stays hidden.
+/// What the trash hides in the graph (sketch SO1a): every key its throws are found by. A node is hidden when its key
+/// lies in the trash, or every key it is known by does (<see cref="TrashMember.IsHidden"/>), so that a cluster that got
+/// another representative stays hidden, while one that grew into a thrown address is never hidden without a word.
 /// No WPF.
 /// </summary>
 public sealed class TrashFilter
@@ -50,7 +57,7 @@ public sealed class TrashFilter
     public bool Hides(GraphNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
-        return _keys.Contains(node.Key) || KeysOf(node).Any(_keys.Contains);
+        return TrashMember.IsHidden(node.Key, KeysOf(node), _keys);
     }
 
     /// <summary>Says whether a key the graph draws (a pile's or a clue's) is hidden.</summary>

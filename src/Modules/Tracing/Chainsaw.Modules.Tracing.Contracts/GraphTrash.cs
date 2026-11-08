@@ -33,6 +33,23 @@ public sealed record TrashMember(string Key, string? Parent, string Name, string
 
     /// <summary>Gets whether the user threw it, rather than that it followed with something.</summary>
     public bool IsRoot => Parent is null;
+
+    /// <summary>
+    /// Says whether a node is hidden by what lies in the trash: its key lies there, or every key it is known by does.
+    /// One shared address is not enough, so that a start point or a watched cluster that grows into a thrown address
+    /// never disappears without a word.
+    /// </summary>
+    /// <param name="key">The node's key.</param>
+    /// <param name="keys">The keys it is known by; empty means the key alone.</param>
+    /// <param name="lying">Every key the trash's members are found by, and their keys.</param>
+    /// <returns><see langword="true"/> when it is hidden.</returns>
+    public static bool IsHidden(string key, IReadOnlyCollection<string> keys, IReadOnlySet<string> lying)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(lying);
+        return lying.Contains(key) || (keys.Count > 0 && keys.All(lying.Contains));
+    }
 }
 
 /// <summary>One throw in the trash: what the user threw, what followed with it, who and when (sketch SO1a).</summary>
@@ -85,6 +102,23 @@ public sealed record TrashThrow(
         return branch;
     }
 
+    /// <summary>
+    /// Gives what putting a member back brings back: the members it hangs under that still lie in the trash, so that it
+    /// never stands in the graph cut off from where it was reached, and its branch; in the throw's order.
+    /// </summary>
+    /// <param name="key">The member's key.</param>
+    /// <returns>What comes back; empty when the member is not in the throw.</returns>
+    public IReadOnlyList<TrashMember> Restoring(string key)
+    {
+        var back = Branch(key).Select(member => member.Key).ToHashSet(StringComparer.Ordinal);
+        for (var parent = Find(Find(key)?.Parent); parent is not null; parent = Find(parent.Parent))
+        {
+            back.Add(parent.Key);
+        }
+
+        return [.. Members.Where(member => back.Contains(member.Key))];
+    }
+
     /// <summary>Gives a member by its key.</summary>
     /// <param name="key">The key, or <see langword="null"/>.</param>
     /// <returns>The member, or <see langword="null"/>.</returns>
@@ -134,7 +168,6 @@ public static class TrashTree
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var root in thrown.Where(seen.Add))
         {
-            tree.Add(new TrashBranch(root, null));
             Walk(root, next, reached, roots, seen, tree);
         }
 
@@ -219,30 +252,39 @@ public static class TrashTree
         return reached;
     }
 
-    /// <summary>Hangs what is reached only through a node under it, depth first.</summary>
-    /// <param name="node">The node.</param>
+    /// <summary>
+    /// Hangs a thrown node and what is reached only through it under it, depth first, with a stack of its own rather
+    /// than the call stack, so that a peel chain of thousands of hops is walked as safely as a short one.
+    /// </summary>
+    /// <param name="root">The thrown node.</param>
     /// <param name="next">The neighbours.</param>
     /// <param name="reached">What stays.</param>
     /// <param name="roots">What is thrown, each its own top.</param>
     /// <param name="seen">What already hangs in the tree.</param>
     /// <param name="tree">The tree, added to.</param>
     private static void Walk(
-        string node,
+        string root,
         Dictionary<string, List<string>> next,
         HashSet<string> reached,
         HashSet<string> roots,
         HashSet<string> seen,
         List<TrashBranch> tree)
     {
-        foreach (var other in next.GetValueOrDefault(node) ?? [])
+        var stack = new Stack<TrashBranch>();
+        stack.Push(new TrashBranch(root, null));
+        while (stack.TryPop(out var branch))
         {
-            if (reached.Contains(other) || roots.Contains(other) || !seen.Add(other))
-            {
-                continue;
-            }
+            tree.Add(branch);
+            var children = (next.GetValueOrDefault(branch.Key) ?? [])
+                .Where(other => !reached.Contains(other) && !roots.Contains(other) && !seen.Contains(other))
+                .ToList();
+            seen.UnionWith(children);
 
-            tree.Add(new TrashBranch(other, node));
-            Walk(other, next, reached, roots, seen, tree);
+            // Pushed in reverse, so that they are taken in the lines' order, as a recursive walk would.
+            for (var index = children.Count - 1; index >= 0; index--)
+            {
+                stack.Push(new TrashBranch(children[index], branch.Key));
+            }
         }
     }
 }
@@ -267,17 +309,17 @@ public interface IGraphTrash
     /// parent before its children, each key once.
     /// </param>
     /// <returns>The throw.</returns>
-    /// <exception cref="ArgumentException">
-    /// The members do not make such a tree, a name or sort is empty, or a node already lies in the trash.
-    /// </exception>
+    /// <exception cref="ArgumentException">The members do not make such a tree, or a name or sort is empty.</exception>
+    /// <exception cref="InvalidOperationException">A node already lies in the trash.</exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
     /// </exception>
     TrashThrow Throw(ICase @case, IReadOnlyList<TrashMember> members);
 
     /// <summary>
-    /// Puts back a member with everything under it, or a whole throw, sealed with a line in the journal. What is put
-    /// back stands where it stood, since its places were never touched.
+    /// Puts back a member with everything under it and the members it hangs under (see
+    /// <see cref="TrashThrow.Restoring"/>), or a whole throw, sealed with a line in the journal. What is put back
+    /// stands where it stood, since its places were never touched.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="throwSequence">The throw.</param>

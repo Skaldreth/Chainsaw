@@ -63,6 +63,37 @@ public static class CommentGeometry
             : null;
     }
 
+    /// <summary>
+    /// Says whether a stored thread goes to a node that lies in the trash (sketch SO1a): the node by its key, the pile or
+    /// clue by its key, or the actor that holds its address.
+    /// </summary>
+    /// <param name="scene">The graph.</param>
+    /// <param name="anchor">The stored key, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the thread's node is thrown.</returns>
+    public static bool IsThrown(GraphScene? scene, string? anchor)
+    {
+        if (scene is null || anchor is null || scene.Trash.IsEmpty)
+        {
+            return false;
+        }
+
+        if (scene.Trash.Hides(anchor))
+        {
+            return true;
+        }
+
+        var graph = scene.Snapshot.Graph;
+        var node = graph.Node(anchor);
+        if (node is null && anchor.StartsWith(GraphPile.AddressKeyPrefix, StringComparison.Ordinal)
+            && Chainsaw.Modules.Chains.Contracts.BitcoinAddress.TryParse(
+                anchor[GraphPile.AddressKeyPrefix.Length..], out var address))
+        {
+            node = graph.NodeOf(address);
+        }
+
+        return node is not null && scene.Trash.Hides(node);
+    }
+
     /// <summary>Gives where a new comment stands: up and to the right of its node, or where it was asked for.</summary>
     /// <param name="nodePlace">The node's place, when the comment is about a node.</param>
     /// <param name="at">Where the comment was asked for on the surface (a double click, the pointer).</param>

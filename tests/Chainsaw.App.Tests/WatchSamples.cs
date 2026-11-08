@@ -79,8 +79,16 @@ internal sealed class TestWatchSource : IWatchSource
         id, watch => watch with { State = paused ? WatchState.Paused : WatchState.Active },
         paused ? WatchAction.Paused : WatchAction.Resumed));
 
+    /// <summary>Makes ending a watch fail, as when the case cannot be written.</summary>
+    public bool RemoveFails { get; set; }
+
     public Task<bool> RemoveAsync(ICase @case, string id, string? reason)
     {
+        if (RemoveFails)
+        {
+            return Task.FromException<bool>(new CaseException(CaseError.Closed));
+        }
+
         Removed.Add((id, reason));
         return Task.FromResult(Replace(id, watch => watch with { State = WatchState.Removed }, WatchAction.Removed)
             is not null);

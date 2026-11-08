@@ -67,7 +67,11 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 20. **Soptunnan (SO1a):** *byggd 2026-11-08, väntar på prov på Windows* (grafen, Delete, varningen med bevakningarna,
     vyn och startvyn). Det som återstår: kommentarsnoder (KN1a) och egna ytor går inte att slänga än, en hel hög i
     startvyn kan inte dras till soptunnan, noden krymper inte när den närmar sig soptunnan som i skissen, och
-    testärendet (`/testdata`) har ingen slängning.
+    testärendet (`/testdata`) har ingen slängning. Kvar efter granskningen 2026-11-08: ett ärende i en hög i startvyn
+    kan inte slängas, och ett nytt ärende med samma nummer som ett slängt döljs; soptunnans vy ritar raderna i
+    sortens färg, så en mixer blir röd där (bildspråket, men stäm av mot regeln att soptunnan aldrig är röd); när
+    inga startpunkter finns kvar och grafen bara är cykler följer allt med (saknar test). En bevakningsträff till något i
+    soptunnan visas bara som *i soptunnan · bevakad* på stumpen, inte som linje med belopp och ringar.
 21. **Startvyn grupperar ärenden:** *byggt 2026-11-07, väntar på prov på Windows* (GR8a, högen ritad som grafens
     samlingsnod och utfälld som den, med stöt och centrering). Det som återstår: att dra en hel hög (till soptunnan
     eller på en annan hög); tangentbordet för högarna (en hög tar inte fokus med Tab); och att grafens samlingsnod får samma stöt och centrering genom `FanOutLayer`.

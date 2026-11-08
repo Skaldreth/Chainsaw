@@ -183,7 +183,12 @@ public sealed partial class GraphViewModel : ObservableObject
         };
         UseTrash(trash, caseTrash ?? new CaseTrash(clock));
         session.Changed += (_, _) => OnCaseChanged();
-        workflow.StartPointAdded += (_, _) => ui.Post(() => _ = RefreshAsync());
+        workflow.StartPointAdded += (_, _) => ui.Post(() =>
+        {
+            // A start point added again may be one in the trash; it is told again, with Lägg tillbaka.
+            _toldThrownStarts = string.Empty;
+            _ = RefreshAsync();
+        });
         exit.Changed += (_, _) => ShowWay(exit);
         ShowWay(exit);
         OnCaseChanged();
@@ -802,10 +807,12 @@ public sealed partial class GraphViewModel : ObservableObject
 
         try
         {
+            var read = BeginTrashRead();
             var scene = await _source.LoadAsync(openCase, Reading, _work.Token);
-            await ReadTrashAsync(openCase, _work.Token);
+            var trash = await ReadTrashAsync(openCase, _work.Token);
             if (version == _version)
             {
+                KeepTrash(read, openCase, trash);
                 Show(scene, fit, keepNotice);
             }
         }
@@ -897,9 +904,7 @@ public sealed partial class GraphViewModel : ObservableObject
         Labels = AmountLabelMode.All;
         _showUnspendable = false;
         CloseFan();
-        TrashWarning = null;
-        _trash = TrashFilter.Empty;
-        _lastThrow = null;
+        ForgetTrash();
         Scene = null;
         SelectedNode = null;
         SelectedEdge = null;
@@ -1016,7 +1021,9 @@ public sealed partial class GraphViewModel : ObservableObject
     {
         Scene = scene.WithTrash(_trash);
         scene = Scene;
-        EmptyText = scene.Snapshot.Graph.StartPoints.Count == 0 && scene.Nodes.Count == 0 ? NoStartPointsText : "";
+        EmptyText = scene.Snapshot.Graph.StartPoints.Count == 0 && scene.Nodes.Count == 0
+            ? NoStartPointsText
+            : TrashEmptyText(scene);
         if (!keepNotice || Notice.Length == 0)
         {
             Notice = string.Join(" ", scene.Snapshot.Graph.Problems);
@@ -1036,6 +1043,7 @@ public sealed partial class GraphViewModel : ObservableObject
         _ = Checks.FollowAsync(scene);
         FollowFan();
         ShowTrash();
+        TellThrownStartPoints(scene);
         OnPropertyChanged(nameof(MethodToolTip));
         if (fit)
         {
