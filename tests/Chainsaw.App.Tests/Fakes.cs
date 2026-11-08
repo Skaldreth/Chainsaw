@@ -376,6 +376,9 @@ internal sealed class TestCaseStore : ICaseStore
     /// <summary>When set, <see cref="Create"/> runs this first, so a test can lock while a case is created.</summary>
     public Action? DuringCreate { get; set; }
 
+    /// <summary>When set, <see cref="Open"/> runs this first, so a test can lock while a case is opened.</summary>
+    public Action? DuringOpen { get; set; }
+
     public List<string> Created { get; } = [];
 
     public List<TestCase> Cases { get; } = [];
@@ -422,6 +425,8 @@ internal sealed class TestCaseStore : ICaseStore
         {
             throw Failure;
         }
+
+        DuringOpen?.Invoke();
 
         if (!Files.Any(file => file.CaseNumber == caseNumber))
         {

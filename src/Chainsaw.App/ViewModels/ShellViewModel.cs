@@ -88,6 +88,14 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The text Tab put in the bar last, so that the next Tab goes on to the next way.</summary>
     private string? _completed;
 
+    /// <summary>
+    /// Counts the locks, so that a command that was running when Chainsaw locked does not answer after the unlock.
+    /// </summary>
+    private long _round;
+
+    /// <summary>A start point from a link that waits for the bar to be emptied, or <see langword="null"/>.</summary>
+    private ChainStartPoint? _waitingLink;
+
     /// <summary>Creates the shell with every view of <see cref="ViewTable"/> and the start view shown.</summary>
     /// <param name="session">The open case, named in the title bar.</param>
     /// <param name="commands">The command bar's commands.</param>
@@ -356,7 +364,11 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets what the exit's tooltip in the title bar says about where lookups go.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExitToolTip))]
     public partial string SourceText { get; private set; } = OfflineText;
+
+    /// <summary>Gets the exit's tooltip in the title bar: where lookups go, and the shortcut to the exits' panel.</summary>
+    public string ExitToolTip => $"{SourceText} · {ViewTable.ExitsGesture}";
 
     /// <summary>
     /// Gets what the amber dot by the exit in the title bar says on hover while a lookup waits for a source (its pace
@@ -550,6 +562,7 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         IsRunning = true;
+        var round = _round;
         CommandReply reply;
         try
         {
@@ -558,6 +571,12 @@ public sealed partial class ShellViewModel : ObservableObject
         finally
         {
             IsRunning = false;
+        }
+
+        if (round != _round)
+        {
+            // Chainsaw locked while the command ran: its answer belongs to before the lock and is not shown after it.
+            return;
         }
 
         if (!reply.IsError && CommandText == text)
@@ -596,7 +615,18 @@ public sealed partial class ShellViewModel : ObservableObject
         CommandText = chosen;
     }
 
-    /// <summary>Clears the command bar and its answer, for example when Chainsaw locks.</summary>
+    /// <summary>
+    /// Clears the command bar when Chainsaw locks, and lets an answer still on its way be dropped when it comes, so
+    /// that nothing from before the lock is shown after the unlock.
+    /// </summary>
+    public void ClearForLock()
+    {
+        _round++;
+        _waitingLink = null;
+        ClearCommand();
+    }
+
+    /// <summary>Clears the command bar and its answer.</summary>
     [RelayCommand]
     public void ClearCommand()
     {
@@ -660,7 +690,8 @@ public sealed partial class ShellViewModel : ObservableObject
     /// Offers a start point from a <c>chainsaw:</c> link. Nothing is written: with Nytt ärende shown it is added as a
     /// line there; with a case open the bar comes up with it, for Enter to add; with none it fills in Nytt ärende.
     /// The value is written with its chain when it is not Bitcoin (<see cref="StartPointText"/>), so that a TRON tx is
-    /// never read as a Bitcoin txid. What the user is writing in the bar is never replaced.
+    /// never read as a Bitcoin txid. What the user is writing in the bar is never replaced: the link waits, and comes
+    /// into the bar as soon as it is empty.
     /// </summary>
     /// <param name="startPoint">The recognised start point.</param>
     public void Offer(ChainStartPoint startPoint)
@@ -676,15 +707,16 @@ public sealed partial class ShellViewModel : ObservableObject
         OpenCommandBar();
         if (CommandText.Length > 0)
         {
-            Answer(CommandReply.Done($"Från en länk: {text}. Raden har redan text, så den lades inte in."));
+            _waitingLink = startPoint;
+            Answer(CommandReply.Done($"Från en länk: {text}. Den kommer i raden när raden är tom."));
             return;
         }
 
-        CommandText = text;
-        Answer(startPoint.IsSupported
-            ? CommandReply.Done($"Från en länk: Enter lägger den som startpunkt i {_session.DisplayName}.")
-            : CommandReply.Failed("Från en länk: " + CaseWorkflow.NotBuiltText(startPoint)));
+        PutInBar(startPoint);
     }
+
+    /// <summary>Gets whether a start point from a link waits for the bar to be empty.</summary>
+    public bool HasWaitingLink => _waitingLink is not null;
 
     /// <summary>Shows an answer that came from elsewhere, for example the first case of the setup.</summary>
     /// <param name="reply">The answer.</param>
@@ -943,7 +975,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>
     /// Clears an old answer as soon as the text changes, so that it never answers something else, and gives the hint
-    /// for the new text.
+    /// for the new text. A start point from a link that waited for the bar comes in when it is emptied.
     /// </summary>
     /// <param name="value">The new text.</param>
     partial void OnCommandTextChanged(string value)
@@ -951,5 +983,20 @@ public sealed partial class ShellViewModel : ObservableObject
         CommandAnswer = string.Empty;
         CommandHint = _commands.Hint(value);
         _ = Search.SearchAsync(value);
+        if (value.Length == 0 && _waitingLink is { } waiting && _session.Current is not null)
+        {
+            _waitingLink = null;
+            PutInBar(waiting);
+        }
+    }
+
+    /// <summary>Writes a start point from a link in the bar and says what Enter does with it.</summary>
+    /// <param name="startPoint">The start point.</param>
+    private void PutInBar(ChainStartPoint startPoint)
+    {
+        CommandText = StartPointText.Write(startPoint);
+        Answer(startPoint.IsSupported
+            ? CommandReply.Done($"Från en länk: Enter lägger den som startpunkt i {_session.DisplayName}.")
+            : CommandReply.Failed("Från en länk: " + CaseWorkflow.NotBuiltText(startPoint)));
     }
 }

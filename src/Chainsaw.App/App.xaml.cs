@@ -40,6 +40,9 @@ public partial class App : Application
     /// <summary>How long the exit waits for the modules to stop, after the case has been saved.</summary>
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(10);
 
+    /// <summary>How long the exit waits for an opening or a creation under way to end, before the case is saved.</summary>
+    private static readonly TimeSpan RunningWorkTimeout = TimeSpan.FromSeconds(15);
+
     /// <summary>The host with every module, once built.</summary>
     private IHost? _host;
 
@@ -48,7 +51,8 @@ public partial class App : Application
 
     /// <summary>
     /// Becomes the one Chainsaw of this user, or hands the link to the one that runs and ends. Then builds and starts
-    /// the host, shows the main window and takes the link Chainsaw was started with, which waits for the unlock.
+    /// the host, shows the main window and takes the link Chainsaw was started with, which waits for the unlock; links
+    /// that came over the pipe while the host was built are held and handed over after it.
     /// </summary>
     /// <param name="e">The arguments Chainsaw was started with, for example a <c>chainsaw:</c> link.</param>
     protected override async void OnStartup(StartupEventArgs e)
@@ -98,6 +102,7 @@ public partial class App : Application
         {
             if (_host is not null)
             {
+                WaitOnDispatcher(_host.Services.GetRequiredService<CaseWorkflow>().Running, RunningWorkTimeout);
                 _host.Services.GetRequiredService<CaseSession>().CloseNow();
                 StopModules(_host);
             }
@@ -115,6 +120,34 @@ public partial class App : Application
                 _instance?.Dispose();
                 base.OnExit(e);
             }
+        }
+    }
+
+    /// <summary>
+    /// Waits for work under way (an opening or a creation of a case) while the UI thread goes on serving what the work
+    /// posts to it, for at most a limit; a case it makes is then open and is saved and closed like any other. A
+    /// dispatcher that has already begun to shut down is not waited on.
+    /// </summary>
+    /// <param name="work">The work.</param>
+    /// <param name="limit">The longest wait.</param>
+    private void WaitOnDispatcher(Task work, TimeSpan limit)
+    {
+        if (work.IsCompleted || Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        using var timer = new System.Threading.Timer(
+            _ => frame.Continue = false, null, limit, Timeout.InfiniteTimeSpan);
+        _ = work.ContinueWith(_ => frame.Continue = false, TaskScheduler.Default);
+        try
+        {
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
+        }
+        catch (InvalidOperationException)
+        {
+            // The dispatcher cannot run a frame now; the case is saved as it stands.
         }
     }
 

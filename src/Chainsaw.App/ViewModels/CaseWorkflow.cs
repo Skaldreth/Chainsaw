@@ -68,6 +68,9 @@ public sealed partial class CaseWorkflow
     /// <summary>Keeps two openings, creations or closings from running at once.</summary>
     private bool _busy;
 
+    /// <summary>The work under way, or a completed task (see <see cref="Running"/>).</summary>
+    private Task _running = Task.CompletedTask;
+
     /// <summary>
     /// The case files as last listed off the UI thread, so that suggestions never read the folder while typing
     /// (principle 6).
@@ -113,6 +116,12 @@ public sealed partial class CaseWorkflow
 
     /// <summary>Gets whether an opening, creation or closing runs.</summary>
     public bool IsBusy => _busy;
+
+    /// <summary>
+    /// Gets the work under way (an opening, a creation or a closing), or a completed task, so that Chainsaw can wait
+    /// for it, with a limit, before it exits instead of leaving a case half made.
+    /// </summary>
+    public Task Running => _running;
 
     /// <summary>Raised on the UI thread when the case files have been listed anew.</summary>
     public event EventHandler? CasesListed;
@@ -565,6 +574,8 @@ public sealed partial class CaseWorkflow
     private async Task<CommandReply> RunBusy(Func<Task<CommandReply>> work)
     {
         _busy = true;
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _running = done.Task;
         try
         {
             // A case that a lock started closing in the background must be closed before it can be opened again.
@@ -582,6 +593,7 @@ public sealed partial class CaseWorkflow
         finally
         {
             _busy = false;
+            done.SetResult();
         }
     }
 }
