@@ -32,7 +32,10 @@ public sealed class ClusteringModuleTests
         var schema = Assert.Single(provider.GetServices<ICaseSchemaContributor>());
         Assert.Equal("clustering", schema.Module);
         Assert.Equal(
-            ["clustering.evidence", "clustering.splits", "clustering.split_undos"],
+            [
+                "clustering.evidence", "clustering.splits", "clustering.split_undos", "clustering.merges",
+                "clustering.merge_undos",
+            ],
             schema.SealedChains.Select(chain => chain.Name));
     }
 

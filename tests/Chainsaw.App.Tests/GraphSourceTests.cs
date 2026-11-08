@@ -117,6 +117,22 @@ internal sealed class TestClustering : IClusteringService
         throw new NotSupportedException();
 
     public TransactionConclusions GetConclusions(ICase @case, Txid txid) => throw new NotSupportedException();
+
+    public TransactionConclusions GetConclusions(ICaseReader reader, Txid txid) => throw new NotSupportedException();
+
+    public IReadOnlyList<ClusterMerge> Merge(
+        ICaseTransaction transaction, IReadOnlyList<MergeRequest> requests, string? reason, MergeOrigin? origin) =>
+        throw new NotSupportedException();
+
+    public int UndoMerges(ICaseTransaction transaction, IReadOnlyCollection<long> mergeSequences, string? reason) =>
+        throw new NotSupportedException();
+
+    /// <summary>Gets the user's merges the case holds.</summary>
+    public List<MergeHistoryEntry> MergeHistory { get; } = [];
+
+    public IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICase @case) => MergeHistory;
+
+    public IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICaseReader reader) => MergeHistory;
 }
 
 /// <summary>The graph's way into the modules: labels, seeds, the trace and the expansion, off the UI thread.</summary>

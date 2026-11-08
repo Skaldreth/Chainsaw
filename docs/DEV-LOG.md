@@ -2948,3 +2948,53 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   som rullat in under kantrullningen; kostnaden är densamma som `VisibleNodes`, som också går igenom alla.
 - Tester: `BoxSelectionTests` (13) i App.Tests. Tracing är orört.
 - Återstår: Shift+klick på en nod väljer inget intervall (det finns ingen ordning att välja intervall i).
+
+## Godkänna en plånbok (2026-11-08, etapp, KF2b)
+
+**Byggt:**
+- **Clustering:** användarens egna sammanslagningar, `user v1` (`UserMerges`, `ClusterMerge`, `MergeRequest`,
+  `MergeOrigin`). Schema 3 har två nya förseglade kedjor: `clustering.merges` (adresserna, tx:en den vilar på,
+  förslagets analys och version, vad förslaget sa, valfritt skäl, ursprunget, journalrad och tid) och
+  `clustering.merge_undos`. Journalkoderna `clustering.merged` och `clustering.merge-undone`.
+  - `Merge`, `UndoMerges`, `GetMergeHistory` och `GetConclusions` finns i en form som tar en `ICaseTransaction` eller
+    `ICaseReader`, så att Checks kan försegla beslutet och sammanslagningen **i samma transaktion** (som
+    `SealedResponse.Seal`).
+  - `ClusterGraph` lägger användarens sammanslagningar **först**, före heuristikerna, så att en heuristik aldrig går
+    före användarens beslut. En sammanslagning av användaren bryts av **varje** uppbrytning den skulle korsa
+    (*Bryt upp* skriver uppbrytningar med namnet `user`, som nu godtas av `Split`).
+  - En sammanslagning som en gällande uppbrytning skulle stoppa vägras när den görs, i stället för att sparas utan
+    verkan; hela transaktionen rullas tillbaka.
+- **Checks:** `wallet-proposals v1` är ett **förslag** (var en kontroll) utan kandidater. `Decide`/`DecideAll` följer
+  ett beslut om en plånbok i Clustering i samma transaktion: godkänt slår ihop förslagets tx:er (en sammanslagning per
+  förslag, med sin tx), och ett tillbakatagande ångrar de sammanslagningar beslutet gjorde (`MergeOrigin` pekar på
+  `checks.decisions`). `TakeBackMerges` ångrar från historiken genom att ta tillbaka godkännandet, så att panelen och
+  klustren alltid säger samma sak.
+- **Appen:** inget nytt utseende. Plånboken står i KF2b:s kö med brickorna *Samma ägare troligt* och *Din bedömning*;
+  Enter, X, Ctrl+Z och *Ångra* som för andra förslag. `ChecksViewModel.ClustersChanged` läser om grafen efter ett
+  godkännande eller tillbakatagande. Historiken (AN1b) har raden *Sammanslagen av användaren* med *Ångra*
+  (`HistoryUndo.UndoMerge`, genom `GraphEditor.UndoMergesAsync` → `ICheckService.TakeBackMerges`), och *Klustrad*
+  räknar inte användarens länkar två gånger. Kortnamnet är *Egen*.
+- Guiden: *En plånbok att godkänna* i *Kontroller och förslag*.
+
+**Egna beslut:**
+- Sammanslagningen vilar på förslagets tx (CLAUDE.md: varje sammanslagning sparar heuristik, version och tx), därför
+  en sammanslagning per förslag och inte en för hela plånboken.
+- Användarens sammanslagning går före heuristikerna: har användaren brutit ut växeln från A och sedan godkänt att
+  växeln hör till B, visas heuristikens länk A–B som förslag (*SuggestedAfterSplit*) i stället för att stoppa
+  användarens beslut.
+- Ett godkännande av adresser som användaren har brutit isär vägras (*ångra uppbrytningen först*). Panelen säger då
+  bara det allmänna *kunde inte sparas*.
+- Bryts sammanslagningen upp (U) står godkännandet kvar i panelen; uppbrytningen är användarens senare beslut och
+  syns i historiken.
+- Versionen är kvar på `wallet-proposals v1` (före 1.0 får det ändras fritt); resultat som förseglats som kontroll
+  förseglas om som förslag vid nästa körning.
+
+**Tester:** `MergeTests` (13) i Clustering.Tests, `WalletApprovalTests` (10) i Checks.Tests, och i App.Tests fem i
+`ChecksViewModelTests`, två i `InspectorHistoryTests`, två i `GraphEditorTests` och en i `InspectorFormsTests`. Facit i
+`Tracing.Tests/Golden` har schemat 3.
+
+**Återstår:**
+- Ett tydligare fel i panelen när godkännandet vägras för att adresserna är uppbrutna.
+- Att slå ihop för hand utan förslag (välja aktörer och *Slå ihop*) är inte skissat; `Merge` tar redan emot det.
+- `/testdata` har ingen godkänd plånbok än.
+

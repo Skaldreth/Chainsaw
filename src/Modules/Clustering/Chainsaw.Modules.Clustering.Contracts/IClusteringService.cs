@@ -39,7 +39,8 @@ public interface IClusteringService
     /// <param name="request">The two addresses, the heuristic that merged them and the reason.</param>
     /// <returns>The stored split.</returns>
     /// <exception cref="ArgumentException">
-    /// The addresses are the same, the heuristic is not a valid name, or the reason is too long.
+    /// The addresses are the same, the heuristic is not one that runs or <see cref="UserMerges.Name"/>, or the reason
+    /// is too long.
     /// </exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
@@ -145,4 +146,60 @@ public interface IClusteringService
     /// <param name="txid">The transaction.</param>
     /// <returns>The conclusions; empty lists when the transaction has not been analysed.</returns>
     TransactionConclusions GetConclusions(ICase @case, Txid txid);
+
+    /// <summary>
+    /// Gives everything the analyses concluded about one transaction, read in a transaction the caller holds, so that
+    /// another module can act on the conclusions in the same transaction as its own records.
+    /// </summary>
+    /// <param name="reader">The case's reader or write transaction.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The conclusions; empty lists when the transaction has not been analysed.</returns>
+    TransactionConclusions GetConclusions(ICaseReader reader, Txid txid);
+
+    /// <summary>
+    /// Stores the user's decision that addresses have the same owner (<c>user v1</c>), all or none, each merge sealed,
+    /// under one journal entry, in a transaction the caller holds (for example with the decision that approved a
+    /// suggestion, so that the two are stored together or not at all). The clusters respect it from now on: no
+    /// heuristic takes it back, and a split that names <see cref="UserMerges.Name"/> breaks it out.
+    /// </summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="requests">The merges; at least one.</param>
+    /// <param name="reason">
+    /// The user's reason, at most 1 000 characters; optional (the user's decision 2026-11-07).
+    /// </param>
+    /// <param name="origin">The sealed record the merges came from, or <see langword="null"/>.</param>
+    /// <returns>The stored merges, in the order given; they share their journal entry.</returns>
+    /// <exception cref="ArgumentException">
+    /// There is no merge, one has fewer than two different addresses or empty or too long grounds, the reason is too
+    /// long, or a merge would join addresses the user has split (undo the split first).
+    /// </exception>
+    /// <exception cref="CaseException"><see cref="CaseError.NoOperatorProfile"/>.</exception>
+    IReadOnlyList<ClusterMerge> Merge(
+        ICaseTransaction transaction, IReadOnlyList<MergeRequest> requests, string? reason, MergeOrigin? origin);
+
+    /// <summary>
+    /// Undoes the user's merges, all or none, in a transaction the caller holds: a new sealed record per merge, under
+    /// one journal entry, says that it no longer holds. Nothing is removed; the merges stay readable in
+    /// <see cref="GetMergeHistory(ICase)"/>.
+    /// </summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="mergeSequences">The merges' <see cref="ClusterMerge.Sequence"/>.</param>
+    /// <param name="reason">Why, at most 1 000 characters; optional.</param>
+    /// <returns>How many were undone; a merge that does not exist or is already undone is not counted.</returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException"><see cref="CaseError.NoOperatorProfile"/>.</exception>
+    int UndoMerges(ICaseTransaction transaction, IReadOnlyCollection<long> mergeSequences, string? reason);
+
+    /// <summary>Reads every merge the user made, also those undone, each with its undoing, oldest first.</summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The merges and their undoing.</returns>
+    IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICase @case);
+
+    /// <summary>
+    /// Reads every merge the user made, also those undone, each with its undoing, oldest first, in a transaction the
+    /// caller holds.
+    /// </summary>
+    /// <param name="reader">The case's reader or write transaction.</param>
+    /// <returns>The merges and their undoing.</returns>
+    IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICaseReader reader);
 }

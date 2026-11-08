@@ -27,3 +27,13 @@ public interface ICheckAnalysis
     /// <returns>What it found; empty when nothing.</returns>
     IReadOnlyList<CheckFinding> Run(CheckInput input);
 }
+
+/// <summary>The names of the analyses that the shell needs to know by name.</summary>
+public static class CheckAnalysisNames
+{
+    /// <summary>
+    /// The wallets the clustering proposes but did not merge (<c>wallet-proposals</c>): approving one merges its
+    /// addresses as the user's judgement (<c>user v1</c> in Clustering), and taking the approval back undoes that.
+    /// </summary>
+    public const string Wallets = "wallet-proposals";
+}

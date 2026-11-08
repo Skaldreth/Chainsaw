@@ -4,10 +4,11 @@ using Chainsaw.Modules.Clustering.Contracts;
 namespace Chainsaw.Modules.Clustering;
 
 /// <summary>
-/// The clusters as they stand: built from the stored proposals in the order they first appeared, with the user's splits
-/// applied to every one of them, whenever the splits were made. A proposal that would bring two split addresses into
-/// the same cluster merges nothing: it is refused when it comes from the heuristic the split names, and shown as a
-/// suggestion when it comes from another.
+/// The clusters as they stand: built from the user's own merges first, so that a heuristic never comes before what the
+/// user decided, and then the stored proposals in the order they first appeared, with the user's splits applied to
+/// every one of them, whenever the splits were made. A proposal that would bring two split addresses into the same
+/// cluster merges nothing: it is refused when it comes from the heuristic the split names, and shown as a suggestion
+/// when it comes from another. A user's merge is refused by any split it would cross, since only the user splits.
 /// </summary>
 /// <remarks>
 /// A merge proposal joins all its addresses or none, so the result depends only on the stored records and their
@@ -27,16 +28,30 @@ internal sealed class ClusterGraph
     /// <summary>The splits, in sequence order.</summary>
     private readonly IReadOnlyList<ClusterSplit> _splits;
 
-    /// <summary>Builds the clusters.</summary>
+    /// <summary>Builds the clusters without merges of the user's own.</summary>
     /// <param name="evidence">
     /// The proposals that count now, in the order their results first appeared; one with fewer than two different
     /// addresses links nothing and is left out.
     /// </param>
     /// <param name="splits">The user's splits, in sequence order.</param>
     public ClusterGraph(IEnumerable<ClusterEvidence> evidence, IReadOnlyList<ClusterSplit> splits)
+        : this(evidence, [], splits)
+    {
+    }
+
+    /// <summary>Builds the clusters.</summary>
+    /// <param name="evidence">
+    /// The proposals that count now, in the order their results first appeared; one with fewer than two different
+    /// addresses links nothing and is left out.
+    /// </param>
+    /// <param name="merges">The user's merges in force, in sequence order; they are placed first.</param>
+    /// <param name="splits">The user's splits, in sequence order.</param>
+    public ClusterGraph(
+        IEnumerable<ClusterEvidence> evidence, IEnumerable<ClusterMerge> merges, IReadOnlyList<ClusterSplit> splits)
     {
         _splits = splits;
-        foreach (var item in evidence.Where(item => item.Addresses.Distinct().Count() >= 2))
+        var all = merges.Select(MergeStore.AsEvidence).Concat(evidence);
+        foreach (var item in all.Where(item => item.Addresses.Distinct().Count() >= 2))
         {
             var link = Place(item);
             _links.Add(link);
@@ -115,8 +130,10 @@ internal sealed class ClusterGraph
         var crossed = _splits.Where(split => Crosses(split, roots)).ToList();
         if (crossed.Count > 0)
         {
-            var own = crossed.FirstOrDefault(split =>
-                string.Equals(split.Heuristic, evidence.Heuristic.Name, StringComparison.Ordinal));
+            var own = IsUsers(evidence)
+                ? crossed[0]
+                : crossed.FirstOrDefault(split =>
+                    string.Equals(split.Heuristic, evidence.Heuristic.Name, StringComparison.Ordinal));
             return own is not null
                 ? new ClusterLink(evidence, LinkState.RefusedBySplit, own)
                 : new ClusterLink(evidence, LinkState.SuggestedAfterSplit, crossed[0]);
@@ -170,6 +187,20 @@ internal sealed class ClusterGraph
 
         return (members, byAddress);
     }
+
+    /// <summary>Says whether a proposal is one of the user's own merges.</summary>
+    /// <param name="evidence">The proposal.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public static bool IsUsers(ClusterEvidence evidence) =>
+        string.Equals(evidence.Heuristic.Name, UserMerges.Name, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Gives the user's merges that the clusters refuse, for example because a split in force would be crossed.
+    /// </summary>
+    /// <returns>The sequences of the user's merges that merge nothing.</returns>
+    public IReadOnlyList<long> RefusedMerges() =>
+        [.. _links.Where(link => IsUsers(link.Evidence) && link.State != LinkState.Merged)
+            .Select(link => link.Evidence.Sequence)];
 
     /// <summary>Says whether a link contains any of the addresses.</summary>
     /// <param name="link">The link.</param>

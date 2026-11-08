@@ -205,8 +205,6 @@ fungerar rättas före allt annat nedan. Särskilt:
    - Skissa raden i ST1a och själva meddelandet, och lägg raden under Låsning.
 9. **Sanktionslistan mot grafens adresser och vyn Etiketter** [skiss]: `CheckSanctions` körs när grafen byggs, men
    en träff har ingen samlad vy.
-10. **Godkänna en plånbok** [etapp]: en sammanslagning gjord av användaren (`user v1`, förseglad med vem och varför),
-    så att plånböckernas förslag (`wallet-proposals v1`) kan godkännas.
 
 ### 4. Skissas först
 

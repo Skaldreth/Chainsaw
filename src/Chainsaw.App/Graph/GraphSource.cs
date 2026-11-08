@@ -451,7 +451,7 @@ public sealed class GraphSource(
                 + " adresser i ärendet har enligt heuristikerna samma ägare.",
                 null),
         };
-        var links = cluster.Links.DistinctBy(link => link.Evidence.Sequence).ToList();
+        var links = cluster.Links.DistinctBy(link => (link.Evidence.Heuristic.Name, link.Evidence.Sequence)).ToList();
         foreach (var link in links.Take(MostClusterLinks))
         {
             var evidence = link.Evidence;

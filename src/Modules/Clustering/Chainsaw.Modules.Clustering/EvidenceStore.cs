@@ -331,7 +331,7 @@ internal static class EvidenceStore
     /// <param name="json">The JSON.</param>
     /// <returns>The value.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/>.</exception>
-    private static T Deserialize<T>(string? json)
+    internal static T Deserialize<T>(string? json)
     {
         try
         {
@@ -350,7 +350,7 @@ internal static class EvidenceStore
     /// <param name="version">The version.</param>
     /// <returns>The heuristic.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when they break the rules.</exception>
-    private static HeuristicId Heuristic(string name, long version)
+    internal static HeuristicId Heuristic(string name, long version)
     {
         try
         {
@@ -366,21 +366,21 @@ internal static class EvidenceStore
     /// <param name="text">The text.</param>
     /// <returns>The txid.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is not one.</exception>
-    private static Txid ParseTxid(string text) =>
+    internal static Txid ParseTxid(string text) =>
         Txid.TryParse(text, out var txid) ? txid : throw new CaseException(CaseError.Corrupt);
 
     /// <summary>Reads an address back.</summary>
     /// <param name="text">The text.</param>
     /// <returns>The address.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is not one.</exception>
-    private static BitcoinAddress ParseAddress(string text) =>
+    internal static BitcoinAddress ParseAddress(string text) =>
         BitcoinAddress.TryParse(text, out var address) ? address : throw new CaseException(CaseError.Corrupt);
 
     /// <summary>Reads a time written with the round-trip format back.</summary>
     /// <param name="text">The text.</param>
     /// <returns>The time.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is not one.</exception>
-    private static DateTimeOffset ParseTime(string text) =>
+    internal static DateTimeOffset ParseTime(string text) =>
         DateTimeOffset.TryParseExact(text, "O", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time)
             ? time
             : throw new CaseException(CaseError.Corrupt);

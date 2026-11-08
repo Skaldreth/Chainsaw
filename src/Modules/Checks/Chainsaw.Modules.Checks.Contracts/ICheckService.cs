@@ -30,15 +30,17 @@ public interface ICheckService
 
     /// <summary>
     /// Seals the user's decision about a suggestion or one of its candidates, with a line in the journal. The latest
-    /// decision about the same subject counts; the earlier ones stay sealed.
+    /// decision about the same subject counts; the earlier ones stay sealed. Approving a wallet
+    /// (<see cref="CheckAnalysisNames.Wallets"/>) also merges its addresses in the clustering as the user's judgement,
+    /// and taking that approval back undoes the merge, in the same transaction.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="request">The decision.</param>
     /// <returns>The sealed decision.</returns>
     /// <exception cref="ArgumentException">
     /// The suggestion or candidate is not sealed in the case, it is a check, the reason is too long, the suggestion is
-    /// settled already or the candidate has a decision in force (an approve or a dismiss), or a take-back does not
-    /// name the decision in force.
+    /// settled already or the candidate has a decision in force (an approve or a dismiss), a take-back does not
+    /// name the decision in force, or the clustering refuses an approved wallet's merge.
     /// </exception>
     CheckDecision Decide(ICase @case, DecisionRequest request);
 
@@ -51,6 +53,18 @@ public interface ICheckService
     /// <returns>The sealed decisions, in order.</returns>
     /// <exception cref="ArgumentException">One of the decisions is refused, as <see cref="Decide"/> says.</exception>
     IReadOnlyList<CheckDecision> DecideAll(ICase @case, IReadOnlyList<DecisionRequest> requests);
+
+    /// <summary>
+    /// Undoes the user's merges from the node's history (sketch AN1b) in one transaction: a merge that approving a
+    /// wallet made is undone by taking that approval back (sealed, with the reason), so that the suggestion waits
+    /// again; any other merge is undone in the clustering alone.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="mergeSequences">The merges' sequences in the clustering.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>How many merges were in force and are undone now.</returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    int TakeBackMerges(ICase @case, IReadOnlyCollection<long> mergeSequences, string? reason);
 
     /// <summary>Reads the own areas in force, oldest first.</summary>
     /// <param name="case">The open case.</param>

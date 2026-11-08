@@ -155,6 +155,7 @@ public sealed partial class GraphViewModel : ObservableObject
         Checks.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
         Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
         Checks.ToastWanted += (_, toast) => ToastWanted?.Invoke(this, toast);
+        Checks.ClustersChanged += (_, _) => _ = RefreshAsync();
         Comments = new CommentsViewModel(session, comments ?? NoGraphComments.Instance);
         WireComments();
         WireTidy();

@@ -239,6 +239,12 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>Raised when a decision is stored, for a toast with <em>Ångra</em> (sketch TO1a).</summary>
     public event EventHandler<ToastRequest>? ToastWanted;
 
+    /// <summary>
+    /// Raised when a stored decision changed the clusters (a wallet approved, or its approval taken back), so that the
+    /// graph is read again and shows the merged actors.
+    /// </summary>
+    public event EventHandler? ClustersChanged;
+
     /// <summary>Gets or sets the time zone the time areas are written in; the computer's by default.</summary>
     public TimeZoneInfo TimeZone { get; set; } = TimeZoneInfo.Local;
 
@@ -1080,12 +1086,29 @@ public sealed partial class ChecksViewModel : ObservableObject
 
             _decidedAt = _version;
             await FollowAsync(_scene);
+            if (requests.Any(ChangesClusters))
+            {
+                ClustersChanged?.Invoke(this, EventArgs.Empty);
+            }
+
             return _session.Current == openCase ? made : null;
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Says whether a decision changes the clusters: approving a wallet merges its addresses, and taking that approval
+    /// back undoes the merge (Checks follows it in Clustering); a dismissal changes nothing there.
+    /// </summary>
+    /// <param name="request">The decision.</param>
+    /// <returns><see langword="true"/> when the graph should be read again.</returns>
+    public static bool ChangesClusters(DecisionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return request.Analysis.Name == CheckAnalysisNames.Wallets && request.Verdict != CheckVerdict.Dismissed;
     }
 
     /// <summary>
@@ -1309,7 +1332,8 @@ public sealed partial class ChecksViewModel : ObservableObject
             var row = new CheckRowViewModel(check, AnchorName(check), NodesOf(check, area), Incoming(check), TimeZone);
             if (row.Group == CheckRowGroup.Done && check.Finding.Area != AreaSort.Obfuscation)
             {
-                // Wallets are areas only (sketch KF1b); the panel holds what obfuscates and what waits.
+                // A check that is only an area stays out (sketch KF1b); the panel holds what obfuscates and what
+                // waits, wallets among them, since a wallet is a suggestion to approve.
                 continue;
             }
 
