@@ -20,7 +20,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
 
 **Från valen 2026-11-08:**
 - **Meddelandet mitt på skärmen** (BV4a) är av från början; i skissen var det på. *Nu:* av.
-- **Operatörens namn, titel och enhet** står i rapportens huvud (RP1b), som i Begäran. *Nu:* de står där.
 
 **Från bygget 2026-11-08**, så som det är byggt nu:
 1. **Kandidaternas linjer** i mixerns förslag ritas alltid. Förut ritades de bara när områdena var på. *Nu:* alltid.
@@ -52,8 +51,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
     - Ska *Sprid inte* också gå att sätta för ett helt ärende?
 
 **Äldre, där sessionen valt det säkraste:**
-- **WireGuard i bakgrunden** (etapp 27): ska en utgångs WireGuard-fil kunna sparas under DPAPI utanför valvet, så
-  att bakgrunden kan bevaka genom VPN när Chainsaw är stängt? *Nu:* nej, bakgrunden går bara genom Windows.
 - **Återkallade återställningsnycklar** (etapp 9):
   - När nyckeln byts ligger den gamla nyckelns kuvert kvar. Det tas bort först när nyckeln återkallas med en rad
     `REVOKED` i `organization-recovery-key.pem`.
@@ -71,8 +68,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
   - *?* visar bildspråket, och dess *Guiden F1* öppnar panelen.
 
   I GD1b öppnade båda Guiden direkt. Bekräfta.
-- **Spårning genom en swap** (Ethereum): hur stor del av ett byte som räknas som spårat är en bedömning som behöver
-  en regel. *Nu:* varje tillgång spåras för sig (`docs/BACKLOG.md`, *Kedjor och data*).
 
 ## Vägen till 1.0
 
@@ -142,11 +137,9 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    (utan språkmodell, princip 5).
 10. **Vyerna Tidslinje och Flöde**, när skisserna är valda.
 
-**Väntar på beslut innan de byggs** (står också under *Väntar på dig*):
-- **Spårning genom en swap:** hur stor del av ett byte som räknas som spårat.
-- **LIFO och poison:** definitionerna (kryptospåraren, `docs/KRYPTOSPARAREN.md`).
-- **VPN i bakgrunden:** WireGuard-filen under DPAPI utanför valvet.
-- **Privacy coins:** vilka forskningsmetoder som ska med, utöver *Spåret tar slut här*.
+**Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (förvalet följer värdet, utredaren väljer per
+swap; valet i pillret skissas [skiss]), VPN i bakgrunden (byggs i omgång 3) och metoderna för privacy coins
+(omgång 9). **LIFO och poison** väntar på kryptospåraren (`docs/KRYPTOSPARAREN.md`, fråga 1).
 
 ## Före tjänstebruk
 

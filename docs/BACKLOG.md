@@ -11,7 +11,8 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   byggda). Kvar:
   - **Spårning genom en swap:** pillret visar bytet, men spårningen räknar varje tillgång för sig, så spårade USDT blir
     inte spårad ether hos den som bytte (de stannar som *inte expanderad* hos poolen). Att föra över den spårade
-    andelen i bytet är en bedömning (analys med namn och version) och behöver ett beslut om hur andelen räknas.
+    andelen i bytet är en bedömning (analys med namn och version); regeln är beslutad (CLAUDE.md, *Spåra*), och valet
+    per swap i pillret skissas först.
   - **Swap genom en känd DEX:** pillret sätts på mönstret (den som signerade skickade en tillgång och fick en annan i
     samma tx), utan lista över DEX-kontrakt. En lista över kända DEX:ar och aggregatorer kan visa namnet i *Varför?*.
   - **Tx:ens plats i blocket:** källornas historik ger inte `transactionIndex`, så två tx i samma block ordnas efter
@@ -119,8 +120,7 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   tjänst med API-nyckel eller egen nod med Zebra). Tx som går in i den skyddade poolen (Sapling, Orchard) blir *Spåret
   tar slut här* med orsaken skyddad pool. Senare kan pengar som kommer ut ur poolen föreslås som kandidater ur belopp
   och tid, streckade som mixerns troliga utgångar.
-- **Privacy coins:** först *Spåret tar slut här*. Senare forskningsmetoderna (till exempel tidsanalys och kända svagheter i
-  äldre Monero-tx, Zcash-tx som går in och ut ur den skyddade poolen med samma belopp).
+- **Privacy coins:** metoderna är beslutade (CLAUDE.md, *Spåret tar slut*) och byggs som förslag i omgång 9.
 - **Cross-chain automatiskt:** hitta fortsättningen på den andra kedjan själv (belopp och tid hos swap-tjänster, bryggornas
   egna händelser). Kanten finns i modellen från början.
 - **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
@@ -636,8 +636,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Bevakning i bakgrunden (etapp 27)
 - **VPN i bakgrunden:** WireGuard-filerna ligger krypterade i valvet, så bakgrunden kan inte starta en tunnel utan
-  huvudnyckeln och gör inga uppslag med VPN vald. Att lägga en utgångs nycklar under DPAPI utanför valvet kräver
-  användarens beslut (*Väntar på beslut*).
+  huvudnyckeln och gör inga uppslag med VPN vald. Användaren har beslutat (2026-11-08) att en utgångs
+  WireGuard-fil får ligga under DPAPI utanför valvet för bakgrunden, om det inte är alldeles för stort arbete.
 - **Kluster i bakgrunden** följer klustringen som den var när planen skrevs (när ärendet senast var öppet), inte nya
   adresser som kommer med senare.
 - **Ett ärende som tas bort eller flyttas** ligger kvar i planen och bevakas tills det öppnas och dess bevakningar
