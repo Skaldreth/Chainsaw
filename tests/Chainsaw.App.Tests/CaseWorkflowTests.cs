@@ -152,6 +152,25 @@ public sealed class CaseWorkflowTests
     }
 
     [Fact]
+    public async Task A_failed_check_for_bitcoin_never_keeps_ethereum_from_being_checked()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var attribution = new TestAttribution { BitcoinSanctionsFail = true };
+        var workflow = new CaseWorkflow(rig.Cases, rig.Tracing, rig.Vault, rig.Session, null, attribution);
+        var request = new NewCaseRequest(
+            "2026-0119",
+            string.Empty,
+            [ChainStartPoint.Recognise(Samples.Address), ChainStartPoint.Recognise(Samples.Ethereum)]);
+
+        var creation = await workflow.CreateAsync(request, sharingPassword: null);
+
+        Assert.True(creation.IsCreated);
+        Assert.Equal([new ChainAddress(Chain.Ethereum, Samples.Ethereum)], attribution.SanctionChecked);
+        Assert.Contains("för Bitcoin", creation.Reply.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("för Ethereum", creation.Reply.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_shared_case_gets_its_sharing_envelope()
     {
         var rig = new GateRig(VaultState.Unlocked);

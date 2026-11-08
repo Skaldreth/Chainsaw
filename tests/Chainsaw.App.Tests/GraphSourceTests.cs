@@ -68,8 +68,16 @@ internal sealed class TestAttribution : IAttributionService
     /// <summary>The addresses checked against the sanction list, each with its chain, in order.</summary>
     public List<ChainAddress> SanctionChecked { get; } = [];
 
+    /// <summary>Whether checking Bitcoin addresses against the sanction list fails.</summary>
+    public bool BitcoinSanctionsFail { get; set; }
+
     public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
     {
+        if (BitcoinSanctionsFail)
+        {
+            throw new IOException("Listan är låst.");
+        }
+
         SanctionChecked.AddRange(addresses.Select(address => address.ToChainAddress()));
         return new SanctionCheck(null, [], 0);
     }

@@ -69,7 +69,8 @@ internal sealed record EtherBalance(BigInteger Wei);
 /// <summary>An address's ERC-20 tokens as the source listed them.</summary>
 /// <param name="Tokens">The tokens with a balance above zero, USDT and USDC first and then by symbol.</param>
 /// <param name="Skipped">How many entries are not counted: an NFT, or a token without decimals to count in.</param>
-internal sealed record TokenBalances(IReadOnlyList<AssetAmount> Tokens, int Skipped);
+/// <param name="IsIncomplete">Whether the source said it has not read all of the address's tokens yet (status 2).</param>
+internal sealed record TokenBalances(IReadOnlyList<AssetAmount> Tokens, int Skipped, bool IsIncomplete);
 
 /// <summary>
 /// Reads Blockscout's answers and checks that they add up: every value is a whole number that is not negative, every
@@ -153,7 +154,7 @@ internal static class BlockscoutParser
     /// <exception cref="FormatException">An entry does not add up, or the source did not answer.</exception>
     public static TokenBalances ParseTokenBalances(byte[] body) => Read(body, root =>
     {
-        var (items, _) = List(root);
+        var (items, incomplete) = List(root);
         var tokens = new List<AssetAmount>();
         var skipped = 0;
         foreach (var item in items)
@@ -186,7 +187,8 @@ internal static class BlockscoutParser
                     .ThenBy(token => token.Asset.Symbol, StringComparer.Ordinal)
                     .ThenBy(token => token.Asset.Contract, StringComparer.Ordinal),
             ],
-            skipped);
+            skipped,
+            incomplete);
     });
 
     /// <summary>Reads a block object as Blockscout's v2 API gives it: its height, hash and time.</summary>

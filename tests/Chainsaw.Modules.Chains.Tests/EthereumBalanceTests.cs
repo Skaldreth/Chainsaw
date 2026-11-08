@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using Chainsaw.Modules.Chains.Contracts;
@@ -59,6 +60,73 @@ public sealed class EthereumBalanceTests : IDisposable
         Assert.Equal(
             ["ethereum.balance", "ethereum.token-balances"], _harness.Rows().Select(row => row.Kind));
         Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public async Task Tokens_the_source_has_not_read_all_of_make_the_balance_incomplete()
+    {
+        _harness.Http.AnswerBytes(BalanceUrl, Body("""{"status":"1","message":"OK","result":"1"}"""), 200);
+        var foo = Token("ERC-20", EthereumHarness.Foo.Value, "FOO", "18", "5");
+        _harness.Http.AnswerBytes(TokensUrl, Body(List(foo).Replace("\"status\":\"1\"", "\"status\":\"2\"")), 200);
+
+        var lookup = await _harness.Source.GetBalanceAsync(_harness.Case, EthereumHarness.A);
+
+        Assert.False(lookup.Value!.IsComplete);
+        Assert.Single(lookup.Value.Tokens);
+        Assert.Contains(lookup.Notes, note => note.Contains("inte läst alla", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_token_from_a_contract_chainsaw_does_not_know_is_never_taken_for_usdt_by_its_symbol()
+    {
+        _harness.Http.AnswerBytes(BalanceUrl, Body("""{"status":"1","message":"OK","result":"1"}"""), 200);
+        var fake = Token("ERC-20", "0x" + Fixtures.Repeat("99", 20), "USDT", "6", "12500000000");
+        _harness.Http.AnswerBytes(TokensUrl, Body(List(fake)), 200);
+
+        var lookup = await _harness.Source.GetBalanceAsync(_harness.Case, EthereumHarness.A);
+
+        var token = Assert.Single(lookup.Value!.Tokens);
+        Assert.Equal("USDT", token.Asset.Symbol);
+        Assert.NotEqual(KnownTokens.EthereumUsdt, token.Asset);
+        Assert.Null(KnownTokens.IssuerOf(token.Asset));
+    }
+
+    [Fact]
+    public async Task Ether_above_what_a_long_holds_is_read_whole()
+    {
+        _harness.Http.AnswerBytes(
+            BalanceUrl, Body("""{"status":"1","message":"OK","result":"123456789012345678901234567"}"""), 200);
+        _harness.Http.AnswerBytes(TokensUrl, Body(List()), 200);
+
+        var lookup = await _harness.Source.GetBalanceAsync(_harness.Case, EthereumHarness.A);
+
+        Assert.Equal(BigInteger.Parse("123456789012345678901234567"), lookup.Value!.Ether.Units);
+        Assert.True(lookup.Value.Ether.Units > long.MaxValue);
+    }
+
+    [Fact]
+    public async Task A_transaction_after_the_newest_block_sealed_again_with_its_index_is_not_fetched_again()
+    {
+        _harness.Http.AnswerBytes(NewestUrl, Body(Newest(1_000, NewestHash[2..])), 200);
+        _harness.AnswerTransaction();
+        await _harness.Source.GetTipAsync(_harness.Case);
+        await _harness.Source.GetTransactionAsync(_harness.Case, EthereumHarness.H1);
+        using var other = _harness.CreateCase("2026-0050");
+        var moved = _harness.Case.Read(reader => Enumerable.Range(1, 20)
+            .Select(sequence => (Response: _harness.Transfer.Read(reader, sequence),
+                Index: _harness.Transfer.ReadIndex(reader, sequence)))
+            .Where(each => each.Response is not null && each.Index is not null)
+            .ToList());
+        other.Write(transaction => moved.Select(each =>
+            _harness.Transfer.Seal(transaction, each.Response!, each.Index!)).ToList());
+        var sent = _harness.Http.Sent.Count;
+
+        var lookup = await _harness.Source.GetTransactionAsync(other, EthereumHarness.H1);
+
+        Assert.Equal(LookupStatus.FromCase, lookup.Status);
+        Assert.True(lookup.Value!.IsComplete);
+        Assert.Equal(sent, _harness.Http.Sent.Count);
+        Assert.True(_harness.Verify(other).IsIntact);
     }
 
     [Fact]

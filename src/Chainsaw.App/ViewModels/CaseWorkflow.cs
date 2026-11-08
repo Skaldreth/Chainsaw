@@ -417,25 +417,20 @@ public sealed class CaseWorkflow
             return;
         }
 
+        // One step per chain, so that a failure for one never keeps the other from being checked.
         var bitcoin = startPoints.Select(each => each.Bitcoin?.Address).OfType<BitcoinAddress>().ToList();
-        var ethereum = startPoints.Select(each => each.EthereumAccount).OfType<EthereumAddress>().ToList();
-        if (bitcoin.Count == 0 && ethereum.Count == 0)
+        if (bitcoin.Count > 0)
         {
-            return;
+            Try(missed, "sanktionslistan kontrollerades inte för Bitcoin",
+                () => attribution.CheckSanctions(created, bitcoin));
         }
 
-        Try(missed, "sanktionslistan kontrollerades inte", () =>
+        var ethereum = startPoints.Select(each => each.EthereumAccount).OfType<EthereumAddress>().ToList();
+        if (ethereum.Count > 0)
         {
-            if (bitcoin.Count > 0)
-            {
-                attribution.CheckSanctions(created, bitcoin);
-            }
-
-            if (ethereum.Count > 0)
-            {
-                attribution.CheckSanctions(created, ethereum);
-            }
-        });
+            Try(missed, "sanktionslistan kontrollerades inte för Ethereum",
+                () => attribution.CheckSanctions(created, ethereum));
+        }
     }
 
     /// <summary>Runs one step after the creation, and notes it when it fails.</summary>

@@ -39,16 +39,20 @@ public sealed class EthereumSanctionTests : IDisposable
     }
 
     [Fact]
-    public void An_ether_address_whose_checksum_is_wrong_can_never_match_and_is_counted_as_skipped()
+    public void An_address_whose_checksum_is_wrong_still_matches_since_a_missed_sanction_is_worse()
     {
         var wrong = SwapCaseOfFirstLetter(Broker.Checksummed);
+        var mixerWrong = SwapCaseOfFirstLetter(Mixer.Checksummed);
         var info = _harness.Sanctions.Import(new SdnFile()
-            .Entry("9104", "SYNTETISK", "CYBER3", ("Digital Currency Address - ETH", wrong))
+            .Entry("9104", "SYNTETISK", "CYBER3", ("Digital Currency Address - USDC", wrong))
+            .Entry("9106", "SYNTETISK MIXER", "CYBER3", ("Digital Currency Address - ETH", mixerWrong))
             .Entry("9105", "SYNTETISK TRON", "CYBER3", ("Digital Currency Address - USDT", "TQ7mX9inteEthereum"))
+            .Entry("9107", "SYNTETISK TRASIG", "CYBER3", ("Digital Currency Address - ETH", "0x12"))
             .Stream());
 
         Assert.Equal(1, info.Skipped);
-        Assert.Empty(_harness.Sanctions.Find(Broker)!.Hits);
+        Assert.Equal("USDC", Assert.Single(_harness.Sanctions.Find(Broker)!.Hits).Currency);
+        Assert.Equal("SYNTETISK MIXER", Assert.Single(_harness.Sanctions.Find(Mixer)!.Hits).EntryName);
     }
 
     [Fact]

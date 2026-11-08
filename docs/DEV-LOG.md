@@ -2987,3 +2987,14 @@ Byggd som en etapp, eftersom den skriver i ärendet.
   förseglingen med register) och `CaseWorkflowTests`.
 - Återstår: Ethereums saldo visas bara i Nytt ärende, inte på kortets baksida eller i inspektören.
 
+
+## Granskningen av NC2a (Ethereums saldo, hashen, cachen) rättad (2026-11-08)
+
+- **M1:** sanktionslistans Ethereum-adresser nycklas på gemener utan kontroll av EIP-55, så att en adress med fel
+  kontrollsumma ändå ger träff (ett missat sanktionsfynd är värre än ett falskt); bara text som inte är `0x` och 40
+  hex räknas som överhoppad.
+- **M3:** finns inte blocket för toppens hash (en endpoint ett block efter), frågas hashen en gång till med sitt block.
+- **M4:** `CaseWorkflow` kontrollerar sanktionslistan i ett steg per kedja; felet säger vilken kedja.
+- **M5:** `tokenlist` med status 2 ger ett ofullständigt saldo med en anteckning.
+- **M6:** tester för en skräptoken som heter USDT, wei över `long.MaxValue` och toppen följd av överföring med
+  registret på både Bitcoin och Ethereum. M2 står i `docs/BACKLOG.md`.
