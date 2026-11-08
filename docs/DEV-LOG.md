@@ -3736,3 +3736,78 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
 - **Avsteg och egna beslut:** ingen skiss visar återanslutningen i UT2b; ringen och linjerna står kvar röda och
   streckade, eftersom inga uppslag går (det säkraste), och bara texten ändras. Kommentarer (WPF-element) och
   verktygstips följer inte med när ytan trycks ut, eftersom de ligger under det dimmade.
+
+
+## Omgång 6: säkerhet, ärenden och utgångar (backloggen, 2026-11-08)
+
+- **Hela filen förseglad (Cases):** `.cut` har nu format 2: efter databasen står ett sigill, `CHSWSEAL` och
+  HMAC-SHA256 under en nyckel ur filnyckeln och ärendets id (`CaseFileSeal`), över prefixet, huvudet med alla kuvert
+  (också okända) och databasen. `CaseFiles.Extract` kontrollerar sigillet innan arbetskopian får sitt namn; en fil
+  vars sigill inte håller (en äldre sida inbytt, ett kuvert ändrat utan nyckeln, en avkortad fil, något tillagt
+  efter) är `Corrupt` och blir ingen arbetskopia. Format 1 vägras som `OutdatedFormat` i stället för att läsas utan
+  sigill, eftersom en fil annars kunde ha fått sitt sigill borttaget och kallas 1 (gamla ärenden får avvisas före 1.0).
+  En återställd arbetskopia kontrolleras som förut mot den förseglade filens SHA-256.
+- **Gränsen för kuvert:** `SetSharingPassword` och `AddOperatorAccess` vägrar med `TooManyEnvelopes` innan något
+  journalförs, när huvudet redan har 64 kuvert (ett delningslösenord får ersätta det som finns).
+- **Unicode-normalisering:** huvudnyckeln och delningslösenordet härleds i NFC (`SecretText` i SharedKernel, i en
+  fäst `char[]` som nollställs). Ett valv utan `normalization` i `kdf` (skrivet före) provas som det skrivs och sedan
+  i NFC, och lindas om i NFC vid upplåsningen, som `StrengthenIfWeak`; ingen låses ute. Delningskuverten behöver ingen
+  migrering, eftersom filer i format 1 inte öppnas.
+- **Klartext i minnet:** valvets innehåll serialiseras direkt in i en fäst buffert som nollställs
+  (`PinnedBufferWriter`). API-nycklarna och profilen är fortfarande `string` medan valvet är upplåst (BACKLOG).
+- **Sparning som en låsning hinner före:** `Save` kastar `LockedWhileSaving` efter skrivningen när låsningen kom under
+  den: filen är sparad, men ärendet stängs.
+- **Ankarna:** ankarfilen har en generation som HMAC:en täcker, och valvet minns den senaste genom
+  `IVaultSecrets` (`cases/anchors/<namn ur ankarnyckeln>`). En ankarfil som är äldre än valvet säger
+  (`RolledBack`) eller saknas fast valvet har skrivit ankare (också utan eget kuvert) journalförs och ersätts, och
+  `/verify` räknar äldre ankare som oläsliga. Varje `case.anchors-replaced` har nu kedjornas huvuden (`heads`) i
+  detaljerna, så också *Unreadable* säger hur långt ärendet hade kommit. Filen skrivs före valvet, så att en krasch
+  emellan lämnar filen före valvet (godtas). Utan `IVaultSecrets` (en värd utan valvets hemligheter) kontrolleras
+  ankarna som förut. Gränsen: den som också kan lägga tillbaka en äldre valvfil hindras inte; rapportens topphash är
+  ankaret utanför datorn.
+- **Återställningskuverten:** varje nytt kuvert har en `check`, HMAC-SHA256 under en nyckel ur filnyckeln över
+  kuvertets fält. Ett kuvert för den inbyggda nyckeln vars check inte håller räknas inte som täckt: ett nytt läggs
+  till och de skadade tas bort, med en rad i journalen (`replaced`). `check --key` i verktyget provar den privata
+  nyckeln på riktigt och sigillet över filen (`ICaseStore.TryRecoveryKey`), utan att ändra något.
+- **Verktyget `Chainsaw.Recovery`:** `revoke <publik.pem> [--to <fil>]` skriver raden `REVOKED <fingeravtryck>` ur
+  nyckeln själv (och vägrar filens egen nyckel); den privata nyckelns fil får på Windows en egen ACL (bara ägaren,
+  inget arv) när den skapas; omdirigerad indata läses tecken för tecken, aldrig som `string`. `RecoveryPublicKey`
+  kontrollerar själv att punkten ligger på P-384 (fält och kurvekvation), före plattformen.
+- **Kuvertens namn (ÄR1b):** ett valvs kuvert bär operatörens namn krypterat med AES-GCM under en nyckel ur
+  filnyckeln och bundet till kuvertets inlindade nyckel (`EnvelopeLabels`). Den som inte kan öppna filen ser inget
+  namn, men kollegans kort i *Kuvert* visar namnet. Ett okänt kuvert visar sin sort (kortad, utan styrtecken).
+- **Var grenarna gick isär (ÄR1b):** `FindConflict` jämför journalerna i kopior av filen och arbetskopian (med valvets
+  nyckel; ingen av dem rörs, kopiorna tas bort) och ger sista gemensamma raden, dess hash och antalet rader efter på
+  varje gren. Grenbilden säger *Gick isär vid rad N* med hashen på hovring och *+N rader* vid varje gren.
+- **Stora ärenden:** ett ärende som bara lästs skrivs inte om när det stängs. Att öppna kopierar fortfarande hela
+  databasen (mäts när ärendena blir stora, BACKLOG).
+- **Utgångar (Network):**
+  - **Hjälpprogrammets bevis:** innan något av SOCKS5 sägs skickar Chainsaw 32 slumpade byte och kräver
+    HMAC-SHA256 under tunnelns lösenord tillbaka (`ProveAsync`, `prove` i `socks.go`). Luckan när ett kraschat
+    hjälpprogram släpper porten innan Windows räknar det som avslutat är stängd, och garantin gäller på alla system.
+  - **Tunnelns IPv6:** ett namn i `Endpoint` med både IPv4 och IPv6 provas med IPv4 och sedan IPv6, med halva
+    väntetiden var (`handshakeOnAny`), så startgränsen på 30 s håller. Hjälpprogrammet är ombyggt med Go 1.27.3.
+  - **Certifikatkedjor:** mellanliggande certifikat som datorn redan har (Windows lager *Intermediate Certification
+    Authorities*) erbjuds kedjan, utan att något hämtas; spärrade (Disallowed) tas bort. En källa som utelämnar en
+    mellannivå datorn aldrig sett når man fortfarande inte.
+  - **Namn bakom systemets proxy:** med Windows och en proxy slås källans namn upp på datorn först, och en adress (eller
+    ett namn med någon adress) på datorn eller ett privat nät vägras (`ProxiedNameGuard`). Ett namn datorn inte
+    känner lämnas till proxyn.
+  - **Felen genom Windows** säger *datorns nät* och *Vägen ut byttes* i stället för utgången (`ExitException.Route`).
+  - **Den vägrade raden** i en WireGuard-fil följer med till rutan: *Filen godtas inte (rad 4)*.
+  - **Svarshuvuden:** `ExitResponse.ServerDate` och `ETag`.
+  - **Stoppen vid avslut:** `Dispose` väntar (inom samma gräns) på operationen i tur, så en tunnel som ett försök
+    lämnar över efter avslutet är stoppad innan `Dispose` returnerar.
+  - **Namnuppslag med Windows** är meningen med valet och står kvar som det är (punkten borttagen ur BACKLOG).
+- **Appen:**
+  - **Pipen:** lyssnar från första stund (före värden) och håller länkarna tills mottagaren finns (`MessageHold`, högst
+    16); nästa instans av pipen skapas innan en ansluten avsändare läses, så att namnet aldrig står utan en instans.
+  - **Svar efter en låsning:** ett kommando eller en skapelse som pågick när Chainsaw låstes svarar inte efter
+    upplåsningen (en räknare per låsning i skalet och panelen).
+  - **En länk medan raden har text** väntar och kommer in när raden töms.
+  - **Avslut mitt i en öppning eller skapelse:** `OnExit` väntar (högst 15 s, med UI-tråden igång) på arbetet i
+    `CaseWorkflow.Running` innan ärendet sparas.
+  - **Ctrl+U** fäller ut och in utgångsrutan; verktygstipset säger det.
+- **Avsteg och det som återstår:** se BACKLOG (det som väntar på beslut eller hör till andra omgångar) och TODO
+  avsnitt 4 (det som behöver skissas). *Vem som förseglade en post* är inte byggd: varje moduls sätt att försegla
+  måste ändras, vilket görs när ingen annan omgång arbetar i modulerna.
