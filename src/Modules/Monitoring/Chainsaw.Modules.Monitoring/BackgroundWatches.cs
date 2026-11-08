@@ -202,7 +202,7 @@ internal sealed class BackgroundWatches(
             return [];
         }
 
-        if (entry.Checked is not { } checkedAt)
+        if (entry.Checked is null)
         {
             return [];
         }
@@ -216,23 +216,11 @@ internal sealed class BackgroundWatches(
             return [];
         }
 
-        // How far it read counts only when it read from the case's start or lower: a check from a later start never
-        // read the blocks between, and must not mark them as read. Like a hit, how far it read is only the
-        // background's word: it counts no further than the case's own lookups have seen the chain, so that a forged
-        // entry cannot make the open check skip blocks it never read. When the case has seen no block, it waits.
-        var current = WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id);
-        if (entry.Start <= start && (current is null || checkedAt.CheckedUtc > current.CheckedUtc)
-            && heights.Known(transaction, watch.Chain) is { } seen)
-        {
-            var bounded = checkedAt with
-            {
-                Height = Math.Min(checkedAt.Height, seen), Tip = Math.Min(checkedAt.Tip, seen),
-            };
-            if (current is null || bounded.Height >= current.Height)
-            {
-                WatchStore.WriteChecked(transaction, watch.Id, bounded);
-            }
-        }
+        // How far it read, and when, never move the case's own progress: like a hit, they are only the background's
+        // word, and the case's own height is no bound once the open Chainsaw has asked it again (as it does before it
+        // brings in a start), so a forged entry could make the open check skip blocks it never read, or never come
+        // (dated in a far future). The open check reads from where the case itself had read; what it finds again of
+        // the background's hits closes their tips (MonitoringService).
 
         // A hit the case has, or a tip it already holds in any state, is never brought in again.
         var known = WatchStore.ReadHits(transaction).Select(hit => WatchSchedule.Key(hit.WatchId, hit.Match))
@@ -274,10 +262,10 @@ internal sealed class BackgroundWatches(
 
     /// <summary>
     /// Says whether an entry must wait in the queue: it would set the start of a watch that has none, from a start
-    /// beyond what the case's own lookups have seen the chain. The start is only the background's word, so it is not
-    /// taken until the case has seen the chain that far (the runner asks the height and brings the queue in again
-    /// before it checks); taken lower, money from before the watch was made would be hits, and dropped, the open
-    /// check would start later and the background's hits would be lost.
+    /// beyond what the case's own lookups have seen the chain, or while the watch is paused. The start is only the
+    /// background's word, so it is not taken until the case has seen the chain that far (the runner asks the height and
+    /// brings the queue in again before it checks); taken lower, money from before the watch was made would be hits,
+    /// and dropped, the open check would start later and the background's hits would be lost.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="entry">The entry.</param>
@@ -290,9 +278,16 @@ internal sealed class BackgroundWatches(
         }
 
         var watch = WatchStore.ReadWatches(reader).FirstOrDefault(each => each.Id == entry.WatchId);
+        if (watch is not { StartHeight: null, State: WatchState.Active or WatchState.Paused }
+            || !SameFilter(watch.Filter, entry.Filter) || WasImported(reader, entry.Id.ToString("N")))
+        {
+            return false;
+        }
+
+        // A watch paused before it had a start keeps the entry until it is resumed: brought in now, the start would be
+        // dropped, and the open check would start the watch only then, after the background's hits.
         var start = entry.Kind == QueuedKind.Started ? entry.Height : entry.Start;
-        return watch is { State: WatchState.Active, StartHeight: null } && SameFilter(watch.Filter, entry.Filter)
-            && !WasImported(reader, entry.Id.ToString("N")) && !(heights.Known(reader, watch.Chain) >= start);
+        return watch.State == WatchState.Paused || !(heights.Known(reader, watch.Chain) >= start);
     }
 
     /// <summary>
@@ -310,7 +305,8 @@ internal sealed class BackgroundWatches(
     /// Seals the start the background set, for a watch that has none. Like how far it read, the start is only the
     /// background's word, and only money above the start is a hit: it counts no higher than the case's own lookups
     /// have seen the chain, so that a forged entry cannot hide every hit behind a start far ahead, and no lower than
-    /// they had seen when the watch was made, since the open check starts no earlier than that either. An entry with
+    /// the chain can have been when the watch was made (what they had seen by then, or what a later lookup bounds),
+    /// since the open check starts no earlier than that either and money from before would be hits. An entry with
     /// a start beyond what the case has seen waits in the queue (<see cref="Waits"/>) until it has seen that far.
     /// </summary>
     /// <param name="transaction">The case's write.</param>
@@ -328,7 +324,7 @@ internal sealed class BackgroundWatches(
             return null;
         }
 
-        var made = heights.Known(transaction, watch.Chain, watch.CreatedUtc) ?? 0;
+        var made = heights.AtLeast(transaction, watch.Chain, watch.CreatedUtc) ?? 0;
         var height = Math.Max(Math.Min(background, seen), made);
         var journal = transaction.AppendJournal(new JournalDraft(
             MonitoringJournalKinds.Started,
@@ -338,7 +334,9 @@ internal sealed class BackgroundWatches(
         WatchStore.Seal(transaction, WatchAction.Started, started, null, journal);
         if (checkedUtc is { } utc && WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id) is null)
         {
-            WatchStore.WriteChecked(transaction, watch.Id, new WatchChecked(utc, height, WatchFeedStatus.Read, null));
+            // Never later than now: a start dated in a far future would make the watch never due.
+            var at = utc < clock.UtcNow ? utc : clock.UtcNow;
+            WatchStore.WriteChecked(transaction, watch.Id, new WatchChecked(at, height, WatchFeedStatus.Read, null));
         }
 
         return height;

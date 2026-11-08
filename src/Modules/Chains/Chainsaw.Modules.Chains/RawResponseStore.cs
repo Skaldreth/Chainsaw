@@ -366,6 +366,12 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     private const long NotFoundStatus = 404;
 
     /// <summary>
+    /// The blocks more than its pace a chain may make between two times when a lower bound is counted from a later
+    /// height (<see cref="LowestAt"/>): blocks come at random, and over a short time many may come close together.
+    /// </summary>
+    private const long Burst = 24;
+
+    /// <summary>
     /// Gives the highest block an endpoint had shown up to an answer: the chain's heights it answered and the blocks of
     /// the transactions in its answers. A newer answer from an endpoint that had not come as far as a block says
     /// nothing about that block, since the endpoint may only lag behind (finding C1 of GR9a). The heights are read as
@@ -395,6 +401,52 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     /// <returns>The height, or <see langword="null"/> when the case knows of no block.</returns>
     public long? KnownHeight(ICaseReader reader, long? upTo = null, DateTimeOffset? receivedBy = null) =>
         Heights(reader, null, upTo, receivedBy);
+
+    /// <summary>
+    /// Gives the lowest the chain can have been at a time, from the heights fetched after it: each, as
+    /// <see cref="Heights"/> counts it, less the most blocks the chain can have made between (twice as fast as it has
+    /// ever made them on average, and a burst more for the chance of many blocks close together). It gives a bound
+    /// when the case had fetched no height by then; it is lower than the chain was, never higher.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="at">The time.</param>
+    /// <returns>
+    /// The height, or <see langword="null"/> when no counted answer came after it or the chain's pace is not known.
+    /// </returns>
+    public long? LowestAt(ICaseReader reader, DateTimeOffset at)
+    {
+        if (ChainLimits.Pace(ChainName) is not { } pace)
+        {
+            return null;
+        }
+
+        using var command = reader.CreateCommand(
+            $"""
+            SELECT l.height, unixepoch(r.received_utc) FROM chains_lookup l
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = l.sequence AND r.chain = l.chain
+                    AND r.kind = l.kind AND r.subject = l.subject AND r.status_code BETWEEN 200 AND 299
+                WHERE l.chain = $chain AND l.height IS NOT NULL AND unixepoch(r.received_utc) > $at
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$at", at.ToUnixTimeSeconds());
+        var fastest = (long)pace.Fastest.TotalSeconds;
+        long? lowest = null;
+        using var rows = command.ExecuteReader();
+        while (rows.Read())
+        {
+            if (rows.IsDBNull(1))
+            {
+                continue;
+            }
+
+            var received = rows.GetInt64(1);
+            var height = Math.Min(rows.GetInt64(0), (received - pace.Made.ToUnixTimeSeconds()) / fastest);
+            var made = ((received - at.ToUnixTimeSeconds()) / fastest) + 1 + Burst;
+            lowest = Math.Max(lowest ?? 0, Math.Max(0, height - made));
+        }
+
+        return lowest;
+    }
 
     /// <summary>
     /// Gives the highest block the indexes show. The indexes are not sealed, so a height only counts when its row
