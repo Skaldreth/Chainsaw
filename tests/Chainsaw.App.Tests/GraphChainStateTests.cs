@@ -47,6 +47,21 @@ public sealed class GraphChainStateTests
     }
 
     [Fact]
+    public async Task Only_outgoing_money_in_the_mempool_waits_as_a_negative_amount()
+    {
+        _bitcoin.Funded[V] = (5_000_000, 0);
+        _bitcoin.MempoolOut[V] = 1_000_000;
+
+        var holdings = await State.HoldingsAsync(_case, Node(VKey, GraphNodeKind.Address, [V], hop: 0), default);
+        var card = HoldingsCards.Build(
+            VKey, holdings, new Dictionary<Asset, Price>(), CardRateKind.FromCase, null, Now, TimeZoneInfo.Utc);
+
+        Assert.Equal(-1_000_000, (long)holdings.Pending!.Value.Units);
+        Assert.Equal(5_000_000, (long)holdings.Held[0].Units);
+        Assert.StartsWith(HoldingsCards.PendingPrefix + "−0,0100 BTC", card.Rows[0].Pending, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_large_cluster_is_asked_for_its_first_ten_addresses_and_says_so()
     {
         var addresses = Enumerable.Range(20, 12).Select(Address).ToList();
@@ -117,6 +132,8 @@ public sealed class GraphChainStateTests
 
         public Dictionary<BitcoinAddress, long> MempoolIn { get; } = [];
 
+        public Dictionary<BitcoinAddress, long> MempoolOut { get; } = [];
+
         public Dictionary<BitcoinAddress, DateTimeOffset> Received { get; } = [];
 
         public HashSet<BitcoinAddress> Failing { get; } = [];
@@ -139,7 +156,8 @@ public sealed class GraphChainStateTests
 
             var (funded, spent) = Funded.GetValueOrDefault(address);
             var confirmed = new BitcoinAddressStats(1, 1, new Satoshi(funded), 0, new Satoshi(spent));
-            var mempool = new BitcoinAddressStats(0, 0, new Satoshi(MempoolIn.GetValueOrDefault(address)), 0, Satoshi.Zero);
+            var mempool = new BitcoinAddressStats(0, 0, new Satoshi(MempoolIn.GetValueOrDefault(address)), 0,
+                new Satoshi(MempoolOut.GetValueOrDefault(address)));
             var origin = new ResponseOrigin(Summaries, "esplora", new Uri("https://e.invalid/"), 200, Now,
                 Received.GetValueOrDefault(address, Now), new OperatorProfile("T", "T", "T"), new string('0', 64));
             return Task.FromResult(new BitcoinLookup<BitcoinAddressSummary>(

@@ -95,15 +95,19 @@ internal sealed class ResponseTransfer : IResponseTransfer
             return null;
         }
 
-        var index = new RawResponseStore(TimeZoneInfo.Utc, chain).IndexOf(reader, sequence);
-        return index is null
-            ? null
-            : new SealedResponseIndex(
-                index.TipHeight,
-                [.. index.Transactions.Select(each => new SealedResponseTransaction(each.Txid.Value, each.Height)
-                {
-                    BlockHash = each.Hash,
-                })]);
+        var store = new RawResponseStore(TimeZoneInfo.Utc, chain);
+        var index = store.IndexOf(reader, sequence);
+        if (index is null)
+        {
+            return store.IsNotFound(reader, sequence) ? new SealedResponseIndex(null, []) { NotFound = true } : null;
+        }
+
+        return new SealedResponseIndex(
+            index.TipHeight,
+            [.. index.Transactions.Select(each => new SealedResponseTransaction(each.Txid.Value, each.Height)
+            {
+                BlockHash = each.Hash,
+            })]);
     }
 
     /// <inheritdoc/>
@@ -122,9 +126,17 @@ internal sealed class ResponseTransfer : IResponseTransfer
         }
 
         var origin = Seal(transaction, response);
+        var store = new RawResponseStore(TimeZoneInfo.Utc, response.Chain);
+        if (index.NotFound)
+        {
+            // A 404 the lookup believed is noted as such, and never added to the indexes as an answer.
+            store.MarkNotFound(transaction, response.Kind, response.Subject, origin.Sequence);
+            return origin;
+        }
+
         // The index holds nothing the response does not, and the lookups only take a response through it when the
         // response itself is of the chain, kind and subject asked for; so the response, not the index, names them.
-        new RawResponseStore(TimeZoneInfo.Utc, response.Chain).Index(
+        store.Index(
             transaction, response.Kind, response.Subject, origin.Sequence, new ResponseIndex(transactions, index.Height));
         return origin;
     }

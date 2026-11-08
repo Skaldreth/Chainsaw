@@ -361,14 +361,16 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     }
 
     /// <summary>
-    /// Compares the first sealed answer that had a transaction in a block with the newest that can be believed: another
-    /// block, no block or an answer the lookup took as the source not knowing it means that the chain was most likely
-    /// reorganised (principle 1: both stay). An answer without a block counts only from an endpoint that had come at
-    /// least as far as that block; one that lags behind is passed over.
+    /// Compares the first sealed answer that had a transaction in a block with the newest: another block means that
+    /// the chain was most likely reorganised. An answer that the transaction is in no block, or not known, says the
+    /// same only when it is confirmed (finding I1 of the second review): two such answers in a row, after the last that
+    /// had it in a block, from different endpoints or with at least one new block between them, each from an endpoint
+    /// that had come as far as the block. A public endpoint has several nodes behind one address, and one of them can
+    /// lag behind the second after a new block. Both answers stay in the case (principle 1).
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txid">The transaction.</param>
-    /// <returns>The change, or <see langword="null"/> when its block is the same.</returns>
+    /// <returns>The change, or <see langword="null"/> when its block is the same or it is not confirmed.</returns>
     private BlockChange? BlockChangeOf(ICaseReader reader, Txid txid)
     {
         var sightings = Sightings(reader, txid);
@@ -377,23 +379,55 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return null;
         }
 
-        var now = sightings.LastOrDefault(each => each.Sighting.Sequence > before.Sequence
-            && (each.Sighting.Hash is not null || Reached(reader, each.EndpointId, each.Sighting.Sequence, before)))
-            .Sighting;
-        if (_store.NewestNotFound(reader, txid) is { } gone && gone.Sequence > (now?.Sequence ?? before.Sequence)
-            && Reached(reader, gone.EndpointId, gone.Sequence, before))
-        {
-            var unknown = new BlockSighting(null, null, gone.ReceivedLocal, gone.Sequence) { Endpoint = gone.Endpoint };
-            return new BlockChange(txid, BlockChangeKind.Gone, before, unknown);
-        }
-
-        if (now is null || now.Hash == before.Hash)
+        var gone = _store.NotFound(reader, txid)
+            .Select(each => (Sighting: new BlockSighting(null, null, each.ReceivedLocal, each.Sequence)
+            {
+                Endpoint = each.Endpoint,
+            }, each.EndpointId, IsGone: true));
+        var after = sightings.Select(each => (each.Sighting, each.EndpointId, IsGone: false))
+            .Concat(gone)
+            .Where(each => each.Sighting.Sequence > before.Sequence)
+            .OrderBy(each => each.Sighting.Sequence)
+            .ToList();
+        if (after.Count == 0)
         {
             return null;
         }
 
-        return new BlockChange(txid, now.Hash is null ? BlockChangeKind.Unconfirmed : BlockChangeKind.Moved, before, now);
+        var newest = after[^1];
+        if (newest.Sighting.Hash is not null)
+        {
+            return newest.Sighting.Hash == before.Hash
+                ? null
+                : new BlockChange(txid, BlockChangeKind.Moved, before, newest.Sighting);
+        }
+
+        var lastInBlock = after.FindLastIndex(each => each.Sighting.Hash is not null);
+        var negatives = after.Skip(lastInBlock + 1)
+            .Where(each => Reached(reader, each.EndpointId, each.Sighting.Sequence, before))
+            .ToList();
+        if (negatives.Count < 2 || !Confirms(reader, negatives[^2], negatives[^1]))
+        {
+            return null;
+        }
+
+        var kind = newest.IsGone ? BlockChangeKind.Gone : BlockChangeKind.Unconfirmed;
+        return new BlockChange(txid, kind, before, newest.Sighting);
     }
+
+    /// <summary>
+    /// Says whether a later answer confirms an earlier one: it came from another endpoint, or the case knew of at least
+    /// one more block when it came.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="earlier">The earlier answer.</param>
+    /// <param name="later">The later answer.</param>
+    /// <returns><see langword="true"/> when it confirms it.</returns>
+    private bool Confirms(
+        ICaseReader reader, (BlockSighting Sighting, string EndpointId, bool IsGone) earlier,
+        (BlockSighting Sighting, string EndpointId, bool IsGone) later) =>
+        earlier.EndpointId != later.EndpointId
+        || _store.KnownHeight(reader, later.Sighting.Sequence) > _store.KnownHeight(reader, earlier.Sighting.Sequence);
 
     /// <summary>Reads every sealed answer that has a transaction, oldest first, with where it put it.</summary>
     /// <param name="reader">The case's reader.</param>

@@ -76,12 +76,19 @@ public sealed class BlockChangeTests : IDisposable
     }
 
     [Fact]
-    public async Task A_transaction_unconfirmed_again_is_back_in_the_mempool()
+    public async Task A_transaction_unconfirmed_again_is_back_in_the_mempool_once_a_new_block_confirms_it()
     {
+        await TipAsync(Fixtures.Base, 800_001);
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         AnswerStatus(new JsonObject { ["confirmed"] = false });
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
 
+        // The same endpoint had shown the block, then answered mempool: one of its nodes may lag behind (finding I1).
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+
+        // The same answer again after a new block confirms it.
+        await TipAsync(Fixtures.Base, 800_002);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
 
         Assert.Equal(BlockChangeKind.Unconfirmed, change.Kind);
@@ -90,12 +97,16 @@ public sealed class BlockChangeTests : IDisposable
     }
 
     [Fact]
-    public async Task A_transaction_the_source_no_longer_knows_is_gone()
+    public async Task A_transaction_the_source_no_longer_knows_is_gone_once_a_new_block_confirms_it()
     {
+        await TipAsync(Fixtures.Base, 800_001);
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}"), Encoding.UTF8.GetBytes("Transaction not found"), 404);
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
 
+        await TipAsync(Fixtures.Base, 800_002);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
 
         Assert.Equal(BlockChangeKind.Gone, change.Kind);
@@ -167,9 +178,11 @@ public sealed class BlockChangeTests : IDisposable
 
         Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
 
-        // Once the same endpoint has shown the block's height, its answer counts.
-        Http.AnswerBytes(Second + "blocks/tip/height", Encoding.ASCII.GetBytes("800003"), 200);
-        await Source.GetTipHeightAsync(_harness.Case);
+        // Once the same endpoint has shown the block's height, its answers count, when a new block confirms them.
+        await TipAsync(Second, 800_003);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+        await TipAsync(Second, 800_004);
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
         Assert.Equal(BlockChangeKind.Unconfirmed, change.Kind);
@@ -186,8 +199,10 @@ public sealed class BlockChangeTests : IDisposable
 
         Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
 
-        Http.AnswerBytes(Second + "blocks/tip/height", Encoding.ASCII.GetBytes("800003"), 200);
-        await Source.GetTipHeightAsync(_harness.Case);
+        await TipAsync(Second, 800_003);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+        await TipAsync(Second, 800_004);
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
         Assert.Equal(BlockChangeKind.Gone, Assert.Single(await Source.GetBlockChangesAsync(_harness.Case)).Kind);
     }
@@ -252,6 +267,57 @@ public sealed class BlockChangeTests : IDisposable
         await Source.GetTipAsync(_harness.Case, LookupMode.CaseOnly);
 
         Assert.Empty(Http.Sent);
+    }
+
+    [Fact]
+    public async Task Two_endpoints_that_both_say_mempool_confirm_each_other_without_a_new_block()
+    {
+        await TipAsync(Fixtures.Base, 800_001);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var (second, saved) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        await saved;
+        await TipAsync(Second, 800_001);
+        AnswerStatus(new JsonObject { ["confirmed"] = false });
+        AnswerSecond(new JsonObject { ["confirmed"] = false }, 200);
+        var first = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint;
+
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, second.Id, false);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, second.Id, true);
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, first.Id, false);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(BlockChangeKind.Unconfirmed, Assert.Single(await Source.GetBlockChangesAsync(_harness.Case)).Kind);
+    }
+
+    [Fact]
+    public async Task A_believed_not_found_follows_the_response_to_another_case()
+    {
+        await TipAsync(Fixtures.Base, 800_001);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}"), Encoding.UTF8.GetBytes("Transaction not found"), 404);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var sequence = _harness.RawRows().Single(row => row.Status == 404).Sequence;
+        using var other = _harness.CreateCase("2026-0051");
+
+        var index = _harness.Case.Read(reader => _harness.Transfer.ReadIndex(reader, sequence));
+        var response = _harness.Case.Read(reader => _harness.Transfer.Read(reader, sequence))!;
+        other.Write(transaction => _harness.Transfer.Seal(transaction, response, index!));
+
+        Assert.True(index!.NotFound);
+        Assert.True(other.Read(reader => _harness.Transfer.ReadIndex(reader, 1)!.NotFound));
+    }
+
+    /// <summary>Answers and fetches the chain's height from an endpoint.</summary>
+    /// <param name="baseUrl">The endpoint's address.</param>
+    /// <param name="height">The height.</param>
+    /// <returns>A task that completes when it is sealed.</returns>
+    private async Task TipAsync(string baseUrl, long height)
+    {
+        Http.AnswerBytes(baseUrl + "blocks/tip/height", Encoding.ASCII.GetBytes(height.ToString(
+            System.Globalization.CultureInfo.InvariantCulture)), 200);
+        await Source.GetTipHeightAsync(_harness.Case);
     }
 
     /// <summary>The second endpoint's address.</summary>

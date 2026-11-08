@@ -3392,3 +3392,19 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
   kurs kom; läsningen av markeringarna har ett löpnummer, och ett äldre svar släpps; varje vändning har ett id, så att
   ett svar till en tidigare vändning släpps; en paus som slutar senare än den förra börjar ringen om; rutan visar
   endpointen och hashen med sex tecken först och åtta sist, och är 340 px bred.
+
+## Omgranskningen av GR9a rättad (2026-11-08)
+
+- **I1, en endpoint med flera noder:** en publik endpoint (mempool.space) har flera noder bakom en adress, och en av
+  dem kan ligga efter sekunden efter ett nytt block, fast samma endpoint redan visat blocket. *Tillbaka i mempool* och
+  *Finns inte längre* sätts därför bara när två svar i rad, efter det senaste som hade tx:en i ett block, säger samma
+  sak: från olika endpoints, eller med minst ett nytt block i ärendet mellan dem (`EsploraBitcoinSource.Confirms`).
+  Varje svar måste fortfarande komma från en endpoint som visat minst blockets höjd. Ett ensamt sådant svar ger inget
+  märke; ett *Bytte block* (ett annat block) kräver ingen bekräftelse.
+- **M1:** registret `chains_not_found` räknas bara när det förseglade svaret har status `404` och samma kind och subject,
+  både i kandidatfrågan och när svaren läses.
+- **M2:** en `404` som uppslaget godtog följer med när svaret förseglas om i ett annat ärende
+  (`SealedResponseIndex.NotFound`), och läggs där i registret, aldrig som ett svar.
+- **M5:** ett test med enbart utgående i mempool (en negativ väntande summa med −).
+- **M3 och M4** ur omgranskningen är inte rättade här; de står i granskningens rapport till huvudsessionen och förs
+  in i `docs/BACKLOG.md` därifrån.
