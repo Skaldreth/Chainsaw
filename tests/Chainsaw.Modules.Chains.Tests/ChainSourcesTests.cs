@@ -72,8 +72,9 @@ public sealed class ChainSourcesTests : IDisposable
         var run = await sources.ProbeAsync(Chain.Bitcoin);
 
         Assert.Equal(ProbeRun.Probed, run);
-        Assert.All(_http.Sent, request => Assert.EndsWith("/blocks/tip/height", request.Uri.AbsoluteUri));
-        Assert.Equal(3, _http.Sent.Count);
+        Assert.Equal(3, _http.Sent.Count(request => request.Uri.AbsoluteUri.EndsWith("/blocks/tip/height")));
+        Assert.Equal(3, _http.Sent.Count(request => request.Uri.AbsoluteUri.EndsWith("/block-height/0")));
+        Assert.Equal(6, _http.Sent.Count);
         var view = sources.Get(Chain.Bitcoin);
         Assert.Equal(Fast, view.InUse!.Endpoint.Address.AbsoluteUri);
         var behind = view.Endpoints.Single(e => e.Endpoint.Address.AbsoluteUri == Lagging).Probe!;
@@ -278,10 +279,14 @@ public sealed class ChainSourcesTests : IDisposable
 
         await sources.ProbeAsync(Chain.Bitcoin);
 
-        var request = Assert.Single(_http.Sent);
-        Assert.Equal(new ExitCredential("Authorization", "Bearer s3cret"), request.Credential);
-        Assert.DoesNotContain("s3cret", request.Uri.AbsoluteUri, StringComparison.Ordinal);
-        Assert.DoesNotContain("s3cret", request.Credential!.ToString(), StringComparison.Ordinal);
+        // The height and the chain's first block, each with the key.
+        Assert.Equal(2, _http.Sent.Count);
+        Assert.All(_http.Sent, request =>
+        {
+            Assert.Equal(new ExitCredential("Authorization", "Bearer s3cret"), request.Credential);
+            Assert.DoesNotContain("s3cret", request.Uri.AbsoluteUri, StringComparison.Ordinal);
+            Assert.DoesNotContain("s3cret", request.Credential!.ToString(), StringComparison.Ordinal);
+        });
         Assert.Equal(ProbeOutcome.Answered, sources.Get(Chain.Bitcoin).Endpoints[0].Probe!.Outcome);
         Assert.Equal(endpoint.Id, sources.Get(Chain.Bitcoin).InUse!.Endpoint.Id);
     }
@@ -441,6 +446,64 @@ public sealed class ChainSourcesTests : IDisposable
         Assert.Equal(Fast, sources.Plan(Chain.Bitcoin).Endpoints[0].Endpoint.Address.AbsoluteUri);
         Assert.Equal(Fast, sources.Get(Chain.Bitcoin).InUse!.Endpoint.Address.AbsoluteUri);
     }
+
+    [Fact]
+    public async Task An_endpoint_of_another_network_is_never_asked_and_puts_no_one_behind()
+    {
+        // A test network added under the real chain answers a far higher height (testnet3) and another first block.
+        var sources = Create(Endpoints(Slow, Fast, Lagging));
+        Height(Slow, 921_404, 240);
+        Height(Fast, 4_800_000, 20);
+        Height(Lagging, 921_404, 30);
+        Genesis(Slow, MainnetGenesis);
+        Genesis(Lagging, "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943");
+
+        await sources.ProbeAsync(Chain.Bitcoin);
+
+        var view = sources.Get(Chain.Bitcoin);
+        var tooHigh = view.Endpoints[1].Probe!;
+        var otherNetwork = view.Endpoints[2].Probe!;
+        Assert.Equal(ProbeOutcome.Failed, tooHigh.Outcome);
+        Assert.Contains("högre än kedjan kan ha nått", tooHigh.Problem, StringComparison.Ordinal);
+        Assert.Equal(ProbeOutcome.Failed, otherNetwork.Outcome);
+        Assert.Contains("annat nät", otherNetwork.Problem, StringComparison.Ordinal);
+        Assert.Equal(ProbeOutcome.Answered, view.Endpoints[0].Probe!.Outcome);
+        Assert.Null(view.Endpoints[0].Probe!.BlocksBehind);
+        Assert.Equal([Slow], sources.Plan(Chain.Bitcoin).Endpoints.Select(p => p.Endpoint.Address.AbsoluteUri));
+        Assert.Equal([Slow], sources.Plan(Chain.Bitcoin, inStep: true).Endpoints
+            .Select(p => p.Endpoint.Address.AbsoluteUri));
+        Assert.DoesNotContain(_http.Sent, request => request.Uri.AbsoluteUri == Fast + "block-height/0");
+
+        // Its first block is asked for only once it is known to be the chain's; one shown to be another's is asked
+        // again, and is used again once it answers as the chain.
+        _http.Sent.Clear();
+        Genesis(Lagging, MainnetGenesis);
+        await sources.ProbeAsync(Chain.Bitcoin);
+
+        Assert.DoesNotContain(_http.Sent, request => request.Uri.AbsoluteUri == Slow + "block-height/0");
+        Assert.Contains(_http.Sent, request => request.Uri.AbsoluteUri == Lagging + "block-height/0");
+        Assert.Equal(
+            [Lagging, Slow], sources.Plan(Chain.Bitcoin).Endpoints.Select(p => p.Endpoint.Address.AbsoluteUri));
+    }
+
+    [Fact]
+    public async Task Prova_says_when_the_address_answers_for_another_chain()
+    {
+        var sources = Create(Endpoints(Fast));
+        Height(Slow, 101_000, 38);
+        Genesis(Slow, "00000000da84f2bafbbc53dee25a72ae507ff4914b867c565be350b0da8bf043");
+
+        var tried = await sources.TryAsync(Chain.Bitcoin, new Uri(Slow), "esplora", null);
+
+        Assert.Equal(ProbeOutcome.Failed, tried.Outcome);
+        Assert.Contains("annan kedja", tried.Problem, StringComparison.Ordinal);
+    }
+
+    /// <summary>The hash of Bitcoin's first block.</summary>
+    private const string MainnetGenesis = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f";
+
+    private void Genesis(string address, string hash) =>
+        _http.AnswerBytes(address + "block-height/0", Encoding.ASCII.GetBytes(hash), 200);
 
     private ChainSources Create(BitcoinSourceOptions options, string? directory = null) =>
         new([new EsploraApi(options)], _http, _keys, _vault, _clock, new ChainSourcesOptions { Directory = directory },

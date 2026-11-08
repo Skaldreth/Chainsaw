@@ -26,9 +26,14 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     /// <param name="timeZone">The time zone the local time is written in.</param>
     /// <param name="network">The network the source answers for.</param>
     public RawResponseStore(TimeZoneInfo timeZone, BitcoinNetwork network)
-        : this(timeZone, "bitcoin-" + network.ToString().ToLowerInvariant())
+        : this(timeZone, NameOf(network))
     {
     }
+
+    /// <summary>Gives a Bitcoin network's name in the tables.</summary>
+    /// <param name="network">The network.</param>
+    /// <returns>For example <c>bitcoin-mainnet</c>.</returns>
+    public static string NameOf(BitcoinNetwork network) => "bitcoin-" + network.ToString().ToLowerInvariant();
 
     /// <summary>Gets the chain's name in the tables, for example <c>bitcoin-mainnet</c>.</summary>
     public string ChainName { get; } = chainName;

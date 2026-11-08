@@ -35,6 +35,9 @@ internal sealed class BlockscoutApi : ISourceApi
     /// <inheritdoc/>
     public IReadOnlyList<SourceEndpoint> Defaults { get; }
 
+    /// <inheritdoc/>
+    public string ChainName => BlockscoutEthereumSource.ChainName;
+
     /// <summary>The path of the chain's height.</summary>
     public static string HeightPath => "?module=block&action=eth_block_number";
 

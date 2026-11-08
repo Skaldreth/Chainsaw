@@ -127,6 +127,14 @@ internal sealed class ResponseTransfer : IResponseTransfer
 
         var origin = Seal(transaction, response);
         var store = new RawResponseStore(TimeZoneInfo.Utc, response.Chain);
+        var entry = new ResponseIndex(transactions, index.Height);
+        if (entry.Highest > ChainLimits.HighestPlausible(response.Chain, origin.ReceivedUtc))
+        {
+            // A block higher than the chain can have come to when the response came is not this chain's: the response
+            // is sealed as it is, but never used as an answer, as a fresh one would not be (SourceLookups).
+            return origin;
+        }
+
         if (index.NotFound)
         {
             // A 404 the lookup believed is noted as such, and never added to the indexes as an answer.
@@ -137,7 +145,7 @@ internal sealed class ResponseTransfer : IResponseTransfer
         // The index holds nothing the response does not, and the lookups only take a response through it when the
         // response itself is of the chain, kind and subject asked for; so the response, not the index, names them.
         store.Index(
-            transaction, response.Kind, response.Subject, origin.Sequence, new ResponseIndex(transactions, index.Height));
+            transaction, response.Kind, response.Subject, origin.Sequence, entry);
         return origin;
     }
 

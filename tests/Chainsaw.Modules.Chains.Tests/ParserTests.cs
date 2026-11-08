@@ -9,6 +9,23 @@ public sealed class ParserTests
     private readonly EsploraParser _parser = new(BitcoinNetwork.Mainnet);
 
     [Fact]
+    public void A_summary_is_about_the_address_only_in_the_case_the_address_has()
+    {
+        var summary = Fixtures.Text("address-summary.json");
+        var bech32 = summary.Replace(Fixtures.AddressText("wpkh"), Fixtures.AddressText("wpkh").ToUpperInvariant());
+        var base58 = summary.Replace(Fixtures.AddressText("wpkh"), Fixtures.AddressText("pkh"));
+        var otherCase = summary.Replace(Fixtures.AddressText("wpkh"), Swapped(Fixtures.AddressText("pkh")));
+
+        Assert.NotNull(EsploraParser.ParseAddressSummary(Encoding.UTF8.GetBytes(bech32), Fixtures.WitnessKeyHash));
+        Assert.NotNull(EsploraParser.ParseAddressSummary(Encoding.UTF8.GetBytes(base58), Fixtures.KeyHash));
+        Assert.Throws<EsploraFormatException>(
+            () => EsploraParser.ParseAddressSummary(Encoding.UTF8.GetBytes(otherCase), Fixtures.KeyHash));
+
+        static string Swapped(string text) => string.Concat(
+            text.Select(c => char.IsUpper(c) ? char.ToLowerInvariant(c) : char.ToUpperInvariant(c)));
+    }
+
+    [Fact]
     public void A_confirmed_transaction_is_read_as_on_the_chain()
     {
         var transaction = _parser.ParseTransaction(Fixtures.Bytes("tx-confirmed.json"), Fixtures.Confirmed);

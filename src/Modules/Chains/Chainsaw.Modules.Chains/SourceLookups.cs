@@ -245,10 +245,19 @@ internal sealed class SourceLookups
             }
 
             var (value, interpretProblem, outcome) = Interpret(query, response);
+            var index = value is null ? null : query.Index(value);
+            if (index?.Highest > ChainLimits.HighestPlausible(_store.ChainName, response.ReceivedAt))
+            {
+                // A block higher than the chain can have come to: the answer is not this chain's (a test network or
+                // another chain added by mistake, or a source that lies). Taken, it would make every answer deep.
+                (value, index, outcome) = (null, null, Outcome.Failed);
+                interpretProblem = "Källan uppgav ett block högre än kedjan kan ha nått. "
+                    + "Svaret är sparat i ärendet men används inte.";
+            }
+
             var sealedResponse = await Task.Run(
                 () => @case.Write(transaction => _store.Append(
-                    transaction, query.Kind, query.Subject, response, endpoint, fetchedBy,
-                    value is null ? null : query.Index(value))),
+                    transaction, query.Kind, query.Subject, response, endpoint, fetchedBy, index)),
                 CancellationToken.None).ConfigureAwait(false);
             if (value is not null)
             {

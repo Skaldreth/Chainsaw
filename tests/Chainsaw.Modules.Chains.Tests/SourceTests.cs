@@ -117,6 +117,23 @@ public sealed class SourceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_height_the_chain_cannot_have_come_to_is_sealed_but_never_counted()
+    {
+        // A test network's height (testnet3) from an endpoint added under the real chain.
+        Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("4800000"), 200);
+
+        var tip = await Source.GetTipHeightAsync(_harness.Case);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var again = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Failed, tip.Status);
+        Assert.Null(tip.Value);
+        Assert.Contains("högre än kedjan kan ha nått", tip.Problem, StringComparison.Ordinal);
+        Assert.Single(tip.Origins);
+        Assert.Equal(LookupStatus.Fetched, again.Status);
+    }
+
+    [Fact]
     public async Task A_shallow_transaction_is_fetched_again()
     {
         Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("800002"), 200);

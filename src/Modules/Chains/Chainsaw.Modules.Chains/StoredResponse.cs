@@ -19,6 +19,9 @@ internal sealed record ResponseIndex(IReadOnlyList<(Txid Txid, long? Height, str
 {
     /// <summary>Gets an index entry that adds nothing.</summary>
     public static ResponseIndex None { get; } = new([], null);
+
+    /// <summary>Gets the highest block the entry names, or <see langword="null"/> when it names none.</summary>
+    public long? Highest => Transactions.Select(transaction => transaction.Height).Append(TipHeight).Max();
 }
 
 /// <summary>The kinds of request, stored with each response so that it can be found again.</summary>
