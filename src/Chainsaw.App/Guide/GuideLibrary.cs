@@ -21,14 +21,25 @@ public sealed class GuideLibrary
     /// <summary>The groups and the sections in each, in the order they are read.</summary>
     public static readonly IReadOnlyList<(string Group, IReadOnlyList<string> Sections)> Index =
     [
-        ("Kom igång", ["sa-sparar-man"]),
+        ("Kom igång", ["sa-sparar-man", "vyerna", "kortkommandon"]),
+        ("Ärendet", ["nytt-arende", "arendevaljaren", "arendefilen", "journalen", "offline", "kommandoraden"]),
+        ("Säkerhet och utgångar",
+            ["huvudnyckeln", "lasning", "utgangen", "vpn-utgangar", "kallor", "aterstallningsnyckeln"]),
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan"]),
         ("Ethereum", ["kontomodellen", "erc-20", "interna-tx", "kan-frysas"]),
-        ("Klustring", ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin"]),
+        ("Klustring", ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin", "bryta-upp-kluster"]),
         ("Spårning", ["grafen", "sparningsmetoder", "sparet-tar-slut", "kurser"]),
-        ("Etiketter", ["etiketter"]),
+        ("Arbeta i grafen",
+            ["inspektoren", "rora-sig-i-grafen", "tidslinjen", "det-som-holls-tillbaka", "historik", "annan-kedja",
+                "dolda-utgangar"]),
+        ("Etiketter", ["etiketter", "etikettbiblioteket", "chainabuse"]),
+        ("Uttag och begäran", ["borser", "begaran"]),
         ("Bevakning", ["bevakning"]),
         ("Förvirring", ["kontroller-och-forslag", "mixerns-kandidater", "omraden"]),
+        ("Fler sätt att förvirra",
+            ["uppdelning", "fordrojning-och-hopp", "bryggor-och-swappar", "nastlade-tjanster", "privacy-coins",
+                "usdt-pa-tron"]),
+        ("Ordlista", ["ordlista"]),
     ];
 
     /// <summary>The sections by id.</summary>

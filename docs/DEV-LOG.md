@@ -2652,3 +2652,23 @@ Geometrin står utan WPF i `Graph/TimeAxis.cs`, `Graph/TimeBands.cs`, `Graph/Tim
 - **Historik (AN1b):** runda markörer på 18 px, tiden i svag text, *Ta tillbaka*/*Ångra* som piller under raden (accentens
   ram när formuläret är öppet), och formuläret utan egen ruta. Klustringens slutsatser är nedtonade som fakta.
 - 10 nya tester i `InspectorContentTests`; tre tester ändrade (*Sort* och *Kedja* står nu i raden under rubriken).
+
+## Guiden: fler avsnitt med vardagsbilder och figurer (2026-11-08)
+
+- 31 nya avsnitt i `docs/guide/` för det som är byggt: ärendet (Nytt ärende, ärendeväljaren och högarna, ärendefilen,
+  journalen och `/verify`, offline, kommandoraden och länken), säkerhet och utgångar (huvudnyckeln och valvet, låsning,
+  Windows eller VPN, WireGuard, källornas endpoints, återställningsnyckeln), arbetet i grafen (inspektören och
+  ikonlisten, att röra sig, tidslinjen, det som hölls tillbaka och valvyn, historiken, uppbrytning, annan kedja,
+  OP_RETURN), etikettbiblioteket och Chainabuse, börser och begäran, förvirring (uppdelning, fördröjning och hopp,
+  bryggor och swappar, nästlade tjänster, privacy coins, USDT på TRON), vyerna, kortkommandon och en ordlista.
+- Varje avsnitt börjar med en analogi (`> **Som i vardagen:**`) för den som inte är tekniker, och säger ärligt *inte
+  byggt än* om det som inte finns (vyerna Begäran, Etiketter, Tidslinje, Flöde och Exponering, att öppna en kollegas
+  fil, länken i Windows, TRON, kontrollerna för uppdelning och hopp, soptunnan, kommentarsnoden, innehavet med Alt).
+- 29 figurer (`Figure.s-*`) i `Themes/GuideFigures.Sections.xaml`, sammanslagen i `App.xaml`, ritade ur ett skript
+  på en yta om 560 × 200 med bara temats färger och bildspråket, utan text. Provritade som SVG i Chromium.
+- Index: nya grupper i `GuideLibrary.Index`. Förvirringens nya avsnitt står i en egen grupp, *Fler sätt att förvirra*,
+  så att gruppen *Förvirring* (mixerns analyser) inte krockar.
+- Tester: `GuideSectionsTests` (avsnitten i sina grupper, analogin först, varje figur som nämns finns ritad, ordboken
+  sammanslagen).
+- Avsteg: soptunnan, kommentarsnoden och innehavet på nodens baksida fick inga avsnitt, eftersom de inte är byggda;
+  de skrivs när de byggs.

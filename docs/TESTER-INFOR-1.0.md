@@ -529,6 +529,13 @@ Rutan under utgången provas under *Utgångsrutan (UT2b)*.
 
 ## Guiden (etapp 18, GD1b)
 
+**Fler avsnitt med bilder (2026-11-08)**
+- [ ] F1: indexet har grupperna *Kom igång*, *Ärendet*, *Säkerhet och utgångar*, *Arbeta i grafen*, *Uttag och begäran*,
+      *Fler sätt att förvirra* och *Ordlista*, och inget står under *Övrigt*.
+- [ ] Varje nytt avsnitt börjar med en ruta *Som i vardagen:* och har en eller två bilder (till exempel pärmen med
+      stämplar i *Journalen, hashkedjan och /verify*). Bilderna är skarpa, i temats färger, lika breda och utan text i
+      själva bilden; bildtexten står under. Ingen bild saknas eller visas som en tom ruta.
+
 **Panelen bredvid grafen**
 - Välj en nod och klicka *Varför?*: en panel (440 px) glider inte in utan står direkt till höger, över inspektören, med
   skugga mot grafen. Grafen mörkas inte och går att panorera, zooma och klicka i medan panelen är öppen.
