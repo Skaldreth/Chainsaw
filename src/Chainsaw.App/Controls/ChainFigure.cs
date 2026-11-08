@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using Chainsaw.App.Figure;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
@@ -191,15 +192,6 @@ public sealed class ChainFigure : FrameworkElement
     {
         _glyphs.Clear();
         base.OnDpiChanged(oldDpi, newDpi);
-    }
-
-    /// <summary>Freezes a shape, so that it is shared and drawn without being watched for changes.</summary>
-    /// <param name="geometry">The shape.</param>
-    /// <returns>The same shape, frozen.</returns>
-    private static Geometry Frozen(Geometry geometry)
-    {
-        geometry.Freeze();
-        return geometry;
     }
 
     /// <summary>Draws one link: its joint and, unless it is the last before the helix, its bars.</summary>
