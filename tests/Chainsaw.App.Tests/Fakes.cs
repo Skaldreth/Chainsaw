@@ -298,7 +298,8 @@ internal sealed class TestCase(string caseNumber) : ICase
         return null!;
     }
 
-    public IReadOnlyList<JournalEntry> ReadJournal(long fromSequence = 1, int maximumCount = int.MaxValue) => [];
+    public IReadOnlyList<JournalEntry> ReadJournal(long fromSequence = 1, int maximumCount = int.MaxValue) =>
+        [.. Entries.Where(entry => entry.Sequence >= fromSequence).Take(maximumCount)];
 
     public bool SetTitle(string title)
     {
@@ -353,6 +354,37 @@ internal sealed class TestCase(string caseNumber) : ICase
         }
 
         return envelopes;
+    }
+
+    /// <summary>The master key the case's vault takes, as the real check against the vault would.</summary>
+    public const string MasterKey = "rätt huvudnyckel, lång nog";
+
+    /// <summary>The sealed lines the journal reads back, for those a test needs; others read none.</summary>
+    public List<JournalEntry> Entries { get; } = [];
+
+    /// <summary>
+    /// Replaces the file key as Cases does as far as the window sees it: the master key is checked, every envelope but
+    /// this vault's and the built-in recovery key's falls away, and the line is journalled.
+    /// </summary>
+    public FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword)
+    {
+        if (!masterKey.SequenceEqual(MasterKey))
+        {
+            throw new CaseException(CaseError.WrongMasterKey);
+        }
+
+        var dropped = DescribeEnvelopes().Where(envelope => !FileKeyReplacement.Keeps(envelope))
+            .Select(envelope => envelope.Name ?? envelope.Kind.ToString()).ToList();
+        OtherEnvelopes.RemoveAll(envelope => !FileKeyReplacement.Keeps(envelope));
+        SharingPassword = sharingPassword.IsEmpty ? null : sharingPassword.ToString();
+        var details = System.Text.Json.JsonSerializer.Serialize(
+            new FileKeyReplacementDetails(dropped, [], !sharingPassword.IsEmpty));
+        var entry = new JournalEntry(
+            Entries.Count + 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "UTC",
+            new("Testa Testsson", string.Empty, string.Empty), CaseJournalKinds.FileKeyReplaced, "Filnyckeln byttes",
+            details, string.Empty);
+        Entries.Add(entry);
+        return FileKeyReplacement.FromJournal(entry)!;
     }
 
     /// <summary>Gets or sets what <see cref="Save"/> throws, as when the case file cannot be written.</summary>

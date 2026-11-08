@@ -513,6 +513,104 @@ public sealed class CaseEnvelopesTests
         Assert.Equal("A1-B", CaseSession.NumberOf(branch));
     }
 
+    // ===== Byt filnyckel (VT1a) =====
+
+    [Fact]
+    public async Task Byt_filnyckel_marks_each_card_and_says_what_still_opens_the_copies()
+    {
+        var opened = await OpenCaseAsync();
+        opened.OtherEnvelopes.AddRange(
+        [
+            new(CaseEnvelopeKind.OtherVault) { Name = "Maria Lind" },
+            new(CaseEnvelopeKind.Recovery, new string('a', 64), RecoveryEnvelopeKey.BuiltIn),
+        ]);
+        opened.SetSharingPassword("ett långt lösenord");
+        var dialogs = Dialogs();
+        await dialogs.ShowPropertiesAsync();
+        var properties = dialogs.Properties;
+        Assert.True(properties.CanReplaceFileKey);
+
+        properties.BeginReplaceFileKey();
+
+        Assert.True(properties.IsReplacingFileKey);
+        Assert.False(properties.CanReplaceFileKey);
+        Assert.True(properties.Cards.Single(card => card.Kind == EnvelopeCardKind.Yours).IsRewrapped);
+        Assert.True(properties.Cards.Single(card => card.Kind == EnvelopeCardKind.Recovery).IsRewrapped);
+        Assert.True(properties.Cards.Single(card => card.Kind == EnvelopeCardKind.OtherVault).FallsAway);
+        var sharing = properties.Cards.Single(card => card.Kind == EnvelopeCardKind.SharingPassword);
+        Assert.True(sharing.FallsAway);
+        Assert.False(sharing.CanChange);
+        Assert.Equal("Bara du och organisationen kan öppna filen efter bytet", properties.ReplaceHeading);
+        Assert.Contains(
+            "De öppnas fortfarande med Maria Linds huvudnyckel och det gamla ärendelösenordet.",
+            properties.CopiesText,
+            StringComparison.Ordinal);
+
+        properties.CancelReplaceFileKey();
+
+        Assert.False(properties.IsReplacingFileKey);
+        Assert.All(properties.Cards, card => Assert.Equal(EnvelopeFate.None, card.Fate));
+    }
+
+    [Fact]
+    public async Task Byt_filnyckel_with_the_master_key_replaces_it_and_shows_what_was_taken_back()
+    {
+        var opened = await OpenCaseAsync();
+        opened.OtherEnvelopes.Add(new(CaseEnvelopeKind.OtherVault) { Name = "Maria Lind" });
+        var dialogs = Dialogs();
+        await dialogs.ShowPropertiesAsync();
+        var properties = dialogs.Properties;
+        properties.BeginReplaceFileKey();
+        var key = new TestEntry(TestCase.MasterKey);
+
+        await properties.ReplaceFileKeyAsync(key, new TestEntry(string.Empty), new TestEntry(string.Empty));
+
+        Assert.False(properties.IsReplacingFileKey);
+        Assert.Equal(string.Empty, properties.ErrorText);
+        Assert.DoesNotContain(properties.Cards, card => card.Kind == EnvelopeCardKind.OtherVault);
+        Assert.True(properties.HasReplacement);
+        Assert.Contains("Dragna tillbaka: Maria Lind", properties.ReplacementText, StringComparison.Ordinal);
+        Assert.Contains("Journalrad 1", properties.ReplacementText, StringComparison.Ordinal);
+        Assert.All(key.Taken, taken => Assert.All(taken, character => Assert.Equal('\0', character)));
+    }
+
+    [Fact]
+    public async Task A_wrong_master_key_or_two_different_new_passwords_change_nothing()
+    {
+        var opened = await OpenCaseAsync();
+        opened.OtherEnvelopes.Add(new(CaseEnvelopeKind.OtherVault));
+        var dialogs = Dialogs();
+        await dialogs.ShowPropertiesAsync();
+        var properties = dialogs.Properties;
+        properties.BeginReplaceFileKey();
+
+        await properties.ReplaceFileKeyAsync(
+            new TestEntry("fel huvudnyckel"), new TestEntry(string.Empty), new TestEntry(string.Empty));
+
+        Assert.Equal(CaseTexts.For(CaseError.WrongMasterKey), properties.ErrorText);
+        Assert.True(properties.IsReplacingFileKey);
+
+        properties.CreatesSharingPassword = true;
+        await properties.ReplaceFileKeyAsync(
+            new TestEntry(TestCase.MasterKey), new TestEntry("ett långt lösenord"), new TestEntry("ett annat lösenord"));
+
+        Assert.Equal(CasePropertiesViewModel.MismatchText, properties.ErrorText);
+        Assert.Single(opened.OtherEnvelopes);
+        Assert.Empty(opened.Entries);
+    }
+
+    [Fact]
+    public async Task A_case_opened_with_the_password_alone_is_not_offered_a_new_file_key()
+    {
+        var opened = await OpenCaseAsync();
+        opened.HasOwnEnvelope = false;
+        var dialogs = Dialogs();
+
+        await dialogs.ShowPropertiesAsync();
+
+        Assert.False(dialogs.Properties.CanReplaceFileKey);
+    }
+
     private static CaseFileOffer Offer() => new(Path.Combine("Ärenden", "A1.cut"), "A1", 4_404_019, InFolder: true);
 
     private static WorkingCopyConflict Conflict() => new(
