@@ -129,16 +129,20 @@ KL2b, EX1/EX2/EX2b ombyggda, Esc avbryter en lång läsning, Ctrl+W, Guidens ton
 valt, sonarn borttagen helt, en kvalitetsgenomgång av kvällens egna commits (`6f67d1b`) **KF2b** (sammanslagen
 `c352c7a`) och **NC2a** (sammanslagen `68bc89e`), båda byggda av agenter och inte sedda på Windows. Granskningarna av KF2b och NC2a är rättade (alla fynd).
 
-**Pågår 2026-11-08 (eftermiddag): agenter parallellt**, var och en i en worktree (`.claude/worktrees/`, grenar
-`worktree-agent-*`), huvudsessionen slår ihop med `git merge`, löser dokumentkonflikter genom att behålla båda sidor
-(`/tmp/claude-0/tools/keepboth.py`, finns inte efter omstart), bygger, kör `tests/Chainsaw.App.Tests` och pushar.
-- **Ihopslaget och pushat:** GR7a, Nytt ärende mot NC2a, testärendets layout (punkt 34), TL1a, inspektören
-  (IN2b, GR5, TK1a, AN1b), flera godkända kandidater i KF2b (`e40363f`).
-- **Kör fortfarande:** kommentarsnoden KN1a (skriver i ärendet: oberoende granskning efter sammanslagningen), små
-  rättningar (BV1a, TO1a, instabila tester), soptunnan SO1a (etapp, granskning efteråt), resten av EX2
-  (prestanda), mixerns analyser *Delarna tillsammans* och *Mixer efter mixer* (granskning efteråt).
+**2026-11-08 eftermiddag: agenter parallellt, alla klara och ihopslagna.** Agenterna arbetar i worktrees
+(`.claude/worktrees/`, grenar `worktree-agent-*`); huvudsessionen slår ihop med `git merge`, löser
+dokumentkonflikter genom att behålla båda sidor (`/tmp/claude-0/tools/keepboth.py`, finns inte efter omstart),
+bygger, kör de berörda testprojekten och pushar.
+- **Ihopslaget och pushat:** GR7a, NC2a, testärendets layout, TL1a, inspektören, flera godkända kandidater i KF2b,
+  mixerns *Delarna tillsammans* och *Mixer efter mixer*, KN1a (kommentarsnoden), SO1a (soptunnan), EX2-resten
+  (prestanda), BV1a, TO1a och de instabila testerna, Guiden (centrerad spalt, figurer, *Som i vardagen*, 33 nya
+  avsnitt), inspektörens × (Esc), Guidens väg tillbaka (Esc), *Sortera grafen* (fråga först, Ångra i toasten),
+  mjuk zoom efter Gawk, och rättningen av kraschen vid start (`NewCasePanel`, ett `<StaticResource>`-element).
+- **Oberoende granskning gjord och rättad:** mixeranalyserna, KN1a och SO1a.
 - **Frågor till användaren:** kandidaternas linjer ritas nu alltid (förut med områdena); SEK för det som ligger kvar
-  räknas till senaste kursen i ärendet, inte dagens.
+  räknas till senaste kursen i ärendet, inte dagens; soptunnans vy ritar noderna i sortens färg (en mixer blir röd),
+  fast soptunnan inte ska använda rött; N med en vald nod knyter lappen till noden (skissen säger det bara om
+  ikonen).
 - Skisserna och det gemensamma uppdraget ligger i `.claude/sketches/` (inte i git; hämtas om ur canvasen).
 
 **Att göra, i ordning:**
@@ -147,8 +151,8 @@ valt, sonarn borttagen helt, en kvalitetsgenomgång av kvällens egna commits (`
    rättade 2026-11-08. Det som återstår står i TODO punkt 38.
 2. **Granskningen av byggda vyer mot skisserna** (`docs/TODO.md` punkt 39): nästa att bygga om är inspektören
    (IN2b, GR5, TK1a, AN1b), sedan grafen (TL1a, nodens bredd, tokenmärket, swap-pillret).
-3. **Godkänt och inte byggt:** GR7a, KN1a, SO1a (soptunnan, också i startvyn), resten av EX2, grafens offlinetext
-   för Windows utan nät, testärendet som är för trångt (punkt 34), Chainabuse automatiskt (efter knappen).
+3. **Godkänt och inte byggt:** grafens offlinetext för Windows utan nät, Chainabuse automatiskt (efter knappen);
+   resterna av KN1a, SO1a och mixeranalyserna står i TODO.
 
 **Väntar på användaren:** om ett anrop till Chainabuse får användas för att prova flera adresser
 kommaseparerat (TODO punkt 42).
