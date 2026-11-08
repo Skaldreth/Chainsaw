@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 
 namespace Chainsaw.Modules.Network;
 
@@ -13,6 +15,15 @@ namespace Chainsaw.Modules.Network;
 /// <param name="options">The limits on requests.</param>
 internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandlerFactory
 {
+    /// <summary>The size of the nonce sent to the helper before SOCKS5.</summary>
+    internal const int ProofNonceSize = 32;
+
+    /// <summary>The size of the helper's proof.</summary>
+    private const int ProofSize = 32;
+
+    /// <summary>The domain in front of the nonce in the proof, the same as the helper's.</summary>
+    private static ReadOnlySpan<byte> ProofDomain => "chainsaw/tunnel/proof/v1\n"u8;
+
     /// <inheritdoc />
     public HttpMessageHandler Create(IPEndPoint socks5Proxy, NetworkCredential credentials, Func<bool> proxyIsTunnel)
     {
@@ -40,8 +51,8 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
                 AllowTlsResume = false,
                 CertificateChainPolicy = OfflineChainPolicy(),
             },
-            ConnectCallback = (context, cancellationToken) =>
-                ConnectOnlyToProxyAsync(socks5Proxy, context.DnsEndPoint, proxyIsTunnel, cancellationToken),
+            ConnectCallback = (context, cancellationToken) => ConnectOnlyToProxyAsync(
+                socks5Proxy, context.DnsEndPoint, new TunnelCheck(proxyIsTunnel, credentials), cancellationToken),
         };
     }
 
@@ -110,18 +121,20 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
 
     /// <summary>
     /// Opens the handler's socket, but only to the tunnel's proxy. Any other endpoint is refused before a socket is
-    /// made, and the proxy is reached by its address, so no name is resolved on the computer.
+    /// made, and the proxy is reached by its address, so no name is resolved on the computer. Before the stream is
+    /// handed to SOCKS5, the helper must prove that it knows the tunnel's password (<see cref="ProveAsync"/>).
     /// </summary>
     /// <param name="socks5Proxy">The tunnel's proxy.</param>
     /// <param name="requested">The endpoint the handler asks for.</param>
-    /// <param name="proxyIsTunnel">Tells, once connected, whether the port still belongs to the tunnel.</param>
+    /// <param name="check">Tells whether the port still belongs to the tunnel, and its credentials for the proof.</param>
     /// <param name="cancellationToken">Stops the connection.</param>
     /// <returns>The stream to the proxy.</returns>
     /// <exception cref="HttpRequestException">
-    /// The endpoint is not the tunnel's proxy, or the tunnel no longer holds the port.
+    /// The endpoint is not the tunnel's proxy, the tunnel no longer holds the port, or what answers on it cannot prove
+    /// that it is the helper.
     /// </exception>
     internal static async ValueTask<Stream> ConnectOnlyToProxyAsync(
-        IPEndPoint socks5Proxy, DnsEndPoint requested, Func<bool> proxyIsTunnel, CancellationToken cancellationToken)
+        IPEndPoint socks5Proxy, DnsEndPoint requested, TunnelCheck check, CancellationToken cancellationToken)
     {
         if (!IsProxy(socks5Proxy, requested))
         {
@@ -134,19 +147,72 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
             await socket.ConnectAsync(socks5Proxy, cancellationToken).ConfigureAwait(false);
 
             // Asked after the connection, before anything is sent: the helper holds its port exclusively and never
-            // frees it before it ends, so a helper that still lives now has held the port all along. The one gap
-            // left is the moment a crashing helper's handles close before Windows marks it exited (TODO).
-            if (!proxyIsTunnel())
+            // frees it before it ends, so a helper that still lives now has held the port all along. The moment a
+            // crashing helper's handles close before Windows marks it exited is closed by the proof below.
+            if (!check.ProxyIsTunnel())
             {
                 throw new HttpRequestException("The tunnel no longer holds its proxy's port.");
             }
 
-            return new NetworkStream(socket, ownsSocket: true);
+            var stream = new NetworkStream(socket, ownsSocket: true);
+            await ProveAsync(stream, check.Credentials, cancellationToken).ConfigureAwait(false);
+            return stream;
         }
         catch
         {
             socket.Dispose();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Asks what answers on the proxy's port to prove that it is the helper: a fresh random nonce goes out, and the
+    /// answer must be HMAC-SHA256 under the tunnel's password over a fixed domain and the nonce (see <c>prove</c> in
+    /// <c>tools/Chainsaw.Tunnel/socks.go</c>). Nothing of SOCKS5, the credentials least of all, is sent before it
+    /// holds, so a program that has taken the port after the helper ended learns nothing.
+    /// </summary>
+    /// <param name="stream">The connection to the proxy.</param>
+    /// <param name="credentials">The tunnel's credentials.</param>
+    /// <param name="cancellationToken">Stops the proof.</param>
+    /// <exception cref="HttpRequestException">The proof does not hold or does not come.</exception>
+    internal static async Task ProveAsync(
+        Stream stream, NetworkCredential credentials, CancellationToken cancellationToken)
+    {
+        var nonce = RandomNumberGenerator.GetBytes(ProofNonceSize);
+        var answer = new byte[ProofSize];
+        try
+        {
+            await stream.WriteAsync(nonce, cancellationToken).ConfigureAwait(false);
+            await stream.ReadExactlyAsync(answer, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or EndOfStreamException)
+        {
+            throw new HttpRequestException("The tunnel's proxy did not prove that it is the helper.", exception);
+        }
+
+        if (!CryptographicOperations.FixedTimeEquals(answer, ProofFor(credentials, nonce)))
+        {
+            throw new HttpRequestException("The tunnel's proxy did not prove that it is the helper.");
+        }
+    }
+
+    /// <summary>Computes the helper's proof of a nonce under the tunnel's password.</summary>
+    /// <param name="credentials">The tunnel's credentials.</param>
+    /// <param name="nonce">The nonce.</param>
+    /// <returns>The proof.</returns>
+    internal static byte[] ProofFor(NetworkCredential credentials, ReadOnlySpan<byte> nonce)
+    {
+        var password = Encoding.UTF8.GetBytes(credentials.Password);
+        try
+        {
+            using var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, password);
+            hmac.AppendData(ProofDomain);
+            hmac.AppendData(nonce);
+            return hmac.GetHashAndReset();
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(password);
         }
     }
 

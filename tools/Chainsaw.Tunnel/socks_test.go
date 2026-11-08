@@ -49,8 +49,8 @@ func (e *echoDial) dial(_ context.Context, host string, port uint16) (net.Conn, 
 	return client, nil
 }
 
-// connectTo opens a connection to the proxy with a deadline.
-func connectTo(t *testing.T, address string) net.Conn {
+// dialProxy opens a connection to the proxy with a deadline, without the proof.
+func dialProxy(t *testing.T, address string) net.Conn {
 	t.Helper()
 	conn, err := net.Dial("tcp4", address)
 	if err != nil {
@@ -59,6 +59,22 @@ func connectTo(t *testing.T, address string) net.Conn {
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	t.Cleanup(func() { conn.Close() })
 	return conn
+}
+
+// connectTo opens a connection to the proxy and checks its proof under the test password, as Chainsaw does.
+func connectTo(t *testing.T, address string) net.Conn {
+	t.Helper()
+	conn := dialProxy(t, address)
+	prove(t, conn)
+	return conn
+}
+
+// prove sends a nonce and checks the proof under the test password.
+func prove(t *testing.T, conn net.Conn) {
+	t.Helper()
+	nonce := bytes.Repeat([]byte{7}, nonceSize)
+	_, _ = conn.Write(nonce)
+	expect(t, conn, proofFor([]byte("secret"), nonce))
 }
 
 // expect reads exactly len(want) bytes and compares them.
@@ -88,6 +104,31 @@ func authenticate(t *testing.T, conn net.Conn, user, pass string) {
 func connectRequest(name string, port uint16) []byte {
 	request := append([]byte{5, 1, 0, 3, byte(len(name))}, name...)
 	return append(request, byte(port>>8), byte(port))
+}
+
+func TestProxyProvesItKnowsThePasswordBeforeSocks(t *testing.T) {
+	address := startTestProxy(t, (&echoDial{}).dial)
+	conn := dialProxy(t, address)
+	nonce := bytes.Repeat([]byte{1}, nonceSize)
+
+	_, _ = conn.Write(nonce)
+
+	expect(t, conn, proofFor([]byte("secret"), nonce))
+	if bytes.Equal(proofFor([]byte("other"), nonce), proofFor([]byte("secret"), nonce)) {
+		t.Fatal("the proof does not depend on the password")
+	}
+}
+
+func TestProxyClosesAClientThatSendsNoNonce(t *testing.T) {
+	address := startTestProxy(t, (&echoDial{}).dial)
+	conn := dialProxy(t, address)
+
+	_, _ = conn.Write([]byte{5, 1, 2})
+	conn.(*net.TCPConn).CloseWrite()
+
+	if _, err := conn.Read(make([]byte, 1)); err == nil {
+		t.Fatal("the proxy answered a client that never sent a whole nonce")
+	}
 }
 
 func TestProxyRefusesAClientWithoutCredentials(t *testing.T) {
@@ -239,8 +280,9 @@ func TestAConnectionBeyondTheLimitWaitsForAFreeSlot(t *testing.T) {
 		held = append(held, conn)
 	}
 
-	waiting := connectTo(t, address)
-	_, _ = waiting.Write([]byte{5, 1, 2})
+	waiting := dialProxy(t, address)
+	nonce := bytes.Repeat([]byte{9}, nonceSize)
+	_, _ = waiting.Write(nonce)
 	_ = waiting.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 	if _, err := waiting.Read(make([]byte, 2)); err == nil {
 		t.Fatal("a connection beyond the limit was served at once")
@@ -248,5 +290,5 @@ func TestAConnectionBeyondTheLimitWaitsForAFreeSlot(t *testing.T) {
 	held[0].Close()
 	_ = waiting.SetReadDeadline(time.Now().Add(5 * time.Second))
 
-	expect(t, waiting, []byte{5, 2})
+	expect(t, waiting, proofFor([]byte("secret"), nonce))
 }
