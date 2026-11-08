@@ -255,6 +255,8 @@ public sealed class GraphChainStateTests
 
         public List<DateTimeOffset> Asked { get; } = [];
 
+        public RateSummary Summarize(ICase @case) => throw new NotSupportedException();
+
         public Task<PriceLookup<Price>> GetPriceAsync(
             ICase @case, PriceRequest request, PriceLookupMode mode = PriceLookupMode.AsNeeded,
             CancellationToken cancellationToken = default)
