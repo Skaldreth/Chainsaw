@@ -39,6 +39,9 @@ public sealed record OfflineWords(string Text, string Reason, string Until, stri
     /// <summary>What a row says while it waits for an exit.</summary>
     public const string NoExitWaiting = "Väntar på utgången";
 
+    /// <summary>What is said of the next attempt while one runs now.</summary>
+    public const string AttemptingNowText = "Försöker nu";
+
     /// <summary>The culture the next attempt's time is written in.</summary>
     private static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
 
@@ -58,10 +61,17 @@ public sealed record OfflineWords(string Text, string Reason, string Until, stri
     /// <returns>The words, with the next attempt's time in the sentence when one waits.</returns>
     public static OfflineWords Reconnecting(DateTimeOffset? next)
     {
-        var text = next is { } at
-            ? $"{ReconnectingText} Nästa försök kl. {at.ToLocalTime().ToString("HH:mm:ss", Swedish)}."
-            : ReconnectingText;
+        var text = next is null ? ReconnectingText : $"{ReconnectingText} {NextAttempt(next)}.";
         return new(
             text, "utgången ansluts igen", "utgången är ansluten igen", text, "Väntar på att utgången ansluts igen");
     }
+
+    /// <summary>
+    /// Says when a fallen tunnel is next tried, in the words of the title bar, so that the exits' panel says the same.
+    /// </summary>
+    /// <param name="next">When the next attempt is made, or <see langword="null"/> while one runs now.</param>
+    /// <returns>For example <c>Nästa försök kl. 14:02:31</c>, or <see cref="AttemptingNowText"/>.</returns>
+    public static string NextAttempt(DateTimeOffset? next) => next is { } at
+        ? "Nästa försök kl. " + at.ToLocalTime().ToString("HH:mm:ss", Swedish)
+        : AttemptingNowText;
 }

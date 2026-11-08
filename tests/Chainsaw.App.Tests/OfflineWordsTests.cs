@@ -71,6 +71,33 @@ public sealed class OfflineWordsTests
     }
 
     [Fact]
+    public void The_exits_panel_says_it_reconnects_and_when_the_next_attempt_is_made_as_the_title_bar()
+    {
+        var next = new DateTimeOffset(2026, 11, 8, 14, 2, 31, TimeSpan.Zero);
+        _rig.Exit.Set(Lost);
+        Assert.Equal(ExitPanelViewModel.NoRouteText, _rig.ExitPanel.RouteText);
+
+        _rig.Reconnect.Set(next, 1);
+
+        var panel = _rig.ExitPanel;
+        var time = next.ToLocalTime().ToString("HH:mm:ss", CultureInfo.GetCultureInfo("sv-SE"));
+        Assert.True(panel.IsReconnecting);
+        Assert.False(panel.IsLive);
+        Assert.Equal(ShellViewModel.ReconnectingText, panel.RouteText);
+        Assert.Equal($"Nästa försök kl. {time}", panel.RetryText);
+        Assert.Contains(panel.RetryText, _rig.Shell.SourceText, StringComparison.Ordinal);
+
+        _rig.Reconnect.Set(null, 2);
+        Assert.Equal(OfflineWords.AttemptingNowText, panel.RetryText);
+
+        _rig.Exit.Set(new ExitStatus(ExitState.Connected, ExitId, null));
+        _rig.Reconnect.Set(null, 0);
+        Assert.False(panel.IsReconnecting);
+        Assert.Empty(panel.RetryText);
+        Assert.True(panel.IsLive);
+    }
+
+    [Fact]
     public void An_attempt_under_way_is_still_reconnecting_and_connected_ends_it()
     {
         _rig.Exit.Set(Lost);

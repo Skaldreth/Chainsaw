@@ -89,27 +89,12 @@ fungerar rättas före allt annat nedan. Särskilt:
 
 ### 2. Resterna i det som är byggt
 
-**Grafen**
-- **Breda noder i resten av grafen** [direkt]: noden växer med namnet (GR5), men *Sortera grafen* (`TidyLayout`)
-  räknar fortfarande med 132 px breda noder, och en ny kommentar vid en bred nod (`CommentGeometry.PlaceOfNew`)
-  placeras efter samma bredd.
-
-**Soptunnan och startvyn (SO1a, GR8a)**
-- **Grafens samlingsnod trycks inte ut** [direkt]: stöten och centreringen är som startvyns, men ytan bakom trycks
-  inte ut lite som i `FanOutLayer` (grafen ritas i en `DrawingContext`, så det kräver en egen skalning av det dimmade).
-
 **Grafen: kortet, markeringarna och listen (IN4a, GR9a, TL2a)**
-- **Bytt block på Ethereum** [direkt]: bara Bitcoins svar jämförs. Ethereums block är slutgiltiga efter 64 block, så
-  det gäller bara det som hämtats medan blocket var grunt.
 - **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*. Vilken tx
   som spenderar samma pengar i stället står inte i svaren; det kräver uppslag på de spenderade utgångarna.
-- **Linjerna efter en tx som inte finns** [direkt]: märket blir rött och beloppet överstruket, men linjen och
-  aktörerna efter den streckas inte som i skissen, eftersom Tracing fortfarande läser det sparade svaret.
+- **Spårningen efter en tx som inte finns** [etapp]: linjerna och aktörerna efter den ritas streckade, men Tracing
+  läser fortfarande det sparade svaret, så de spårade beloppen och *Spårat* räknar med den.
 - **Testärendet** [direkt]: `/testdata` har inget bytt block; den påhittade kedjan svarar alltid likadant.
-
-**Inspektören, Nytt ärende och Guiden**
-- **Återanslutningen i utgångsrutan** [direkt]: titelraden säger *Ansluter igen …* med nästa försök, men utgångsrutan
-  (UT2b) visar bara *Offline* i rött medan tunneln ansluts igen.
 
 **Testärendet** [direkt]: fyll på det med det som byggts sedan det byggdes om. Vad som saknas står i
 `docs/BACKLOG.md` under *Testärendet (/testdata)*.

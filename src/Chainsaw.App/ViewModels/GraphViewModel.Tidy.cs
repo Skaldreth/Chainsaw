@@ -178,7 +178,7 @@ public sealed partial class GraphViewModel
     {
         var now = new Dictionary<string, GraphPoint>(Places, StringComparer.Ordinal);
         var links = scene.Edges.Select(edge => (edge.Edge.From, edge.Edge.To)).ToList();
-        var places = await Task.Run(() => TidyLayout.Arrange(scene.LayoutNodes, links));
+        var places = await Task.Run(() => TidyLayout.Arrange(scene.LayoutNodes, links, scene.WidthOf));
         var moving = places.Count(pair => !now.TryGetValue(pair.Key, out var place) || place != pair.Value);
         return new TidyPlan(scene, places, moving);
     }

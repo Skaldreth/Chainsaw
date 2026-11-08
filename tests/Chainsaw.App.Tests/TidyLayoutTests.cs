@@ -111,6 +111,35 @@ public sealed class TidyLayoutTests
         Assert.Equal(GraphSizes.Top, places.Values.Min(place => place.Y));
     }
 
+    /// <summary>
+    /// A wide node (sketch GR5) moves the next column along by as much as it is wider, so that the amounts keep their
+    /// gap, and many wide counterparties side by side never overlap.
+    /// </summary>
+    [Fact]
+    public void WideNodesKeepTheGapForTheAmounts()
+    {
+        var (nodes, links) = Fan(40);
+        static double Wide(string key) => key == "start" || key.StartsWith("fan", StringComparison.Ordinal)
+            ? NodeWidths.Widest
+            : GraphSizes.NodeWidth;
+
+        var narrow = TidyLayout.Arrange(nodes, links);
+        var wide = TidyLayout.Arrange(nodes, links, Wide);
+
+        var extra = NodeWidths.Widest - GraphSizes.NodeWidth;
+        var start = nodes.Single(node => node.Hop == 0).Key;
+        var firstFan = nodes.First(node => node.Hop == 1).Key;
+        Assert.Equal(narrow[firstFan].X - narrow[start].X + extra, wide[firstFan].X - wide[start].X);
+        var frames = wide.Select(pair => GraphSizes.NodeFrame(pair.Value, Wide(pair.Key))).ToList();
+        for (var i = 0; i < frames.Count; i++)
+        {
+            for (var j = i + 1; j < frames.Count; j++)
+            {
+                Assert.False(frames[i].Intersects(frames[j]), $"{frames[i]} and {frames[j]} overlap");
+            }
+        }
+    }
+
     /// <summary>An empty graph gives no places.</summary>
     [Fact]
     public void EmptyGraphGivesNoPlaces() => Assert.Empty(TidyLayout.Arrange([], []));

@@ -125,6 +125,16 @@ public sealed class GraphChainStateTests
         Assert.Equal(921_000, reading.Tip!.Height);
     }
 
+    [Fact]
+    public async Task Ethereums_changes_are_read_with_bitcoins()
+    {
+        var reading = await State.ReadMarksAsync(_case, default);
+
+        var change = Assert.Single(reading.Changes);
+        Assert.Equal(Chain.Ethereum, change.Chain);
+        Assert.Equal(FakeEthereum.Moved, change.TransactionId);
+    }
+
     /// <summary>A Bitcoin source answering from what the test set, counting what it was asked.</summary>
     private sealed class FakeBitcoin : IBitcoinSource
     {
@@ -246,6 +256,18 @@ public sealed class GraphChainStateTests
 
         public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
             ICase @case, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        /// <summary>The transaction this source says has moved to another block.</summary>
+        public static string Moved { get; } = "0x" + new string('7', 64);
+
+        public Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
+            ICase @case, CancellationToken cancellationToken = default)
+        {
+            var before = new BlockSighting(102, "0x" + new string('a', 64), Now, 1);
+            var now = new BlockSighting(103, "0x" + new string('b', 64), Now, 2);
+            return Task.FromResult<IReadOnlyList<BlockChange>>(
+                [new BlockChange(Moved, BlockChangeKind.Moved, before, now) { Chain = Chain.Ethereum }]);
+        }
     }
 
     /// <summary>Rates for Bitcoin only; the hour that has not ended yet has none.</summary>

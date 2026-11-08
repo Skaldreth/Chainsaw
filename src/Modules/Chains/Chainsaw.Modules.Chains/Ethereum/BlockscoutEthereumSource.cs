@@ -271,6 +271,102 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         };
     }
 
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
+        ICase @case, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run<IReadOnlyList<BlockChange>>(
+            () => @case.Read(reader => _lookups.Store.SubjectsAskedAgain(reader, EthereumResponseKinds.Transaction)
+                .Select(subject => EthereumTxHash.TryParse(subject, out var hash) ? BlockChangeOf(reader, hash) : null)
+                .OfType<BlockChange>()
+                .ToList()),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Compares a transaction's sealed answers by the rule every chain shares (<see cref="BlockChangeRule"/>): each
+    /// answer with its block's height and, from the block fetched with it, the block's hash, and the answers the lookup
+    /// took as the source not knowing it.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="hash">The transaction.</param>
+    /// <returns>The change, or <see langword="null"/> when its block is the same or it is not confirmed.</returns>
+    private BlockChange? BlockChangeOf(ICaseReader reader, EthereumTxHash hash)
+    {
+        var store = _lookups.Store;
+        var seen = store.All(reader, EthereumResponseKinds.Transaction, hash.Value)
+            .Select(response => SourceLookups.StoredAs(response, body => BlockscoutParser.ParseTransaction(body, hash)))
+            .OfType<(TransactionInfo Value, StoredResponse Response)>()
+            .Select(found => Answer(found.Response.Origin, found.Value.Height, BlockHash(reader, found), false));
+        var gone = store.NotFoundAnswers(reader, EthereumResponseKinds.Transaction, hash.Value)
+            .Where(response => SaysNotFound(response, hash))
+            .Select(response => Answer(response.Origin, null, null, true));
+        return BlockChangeRule.Compare(seen.Concat(gone), store, reader) is { } change
+            ? new BlockChange(hash.Value, change.Kind, change.Before, change.Now) { Chain = Chain.Ethereum }
+            : null;
+    }
+
+    /// <summary>Reads the hash of the block a transaction's answer put it in, from the block fetched with it.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="found">The transaction's answer.</param>
+    /// <returns>The hash, or <see langword="null"/> when unconfirmed or the case has no answer for the block.</returns>
+    private string? BlockHash(ICaseReader reader, (TransactionInfo Value, StoredResponse Response) found)
+    {
+        if (found.Value.Height is not { } height)
+        {
+            return null;
+        }
+
+        var subject = height.ToString(CultureInfo.InvariantCulture);
+        var block = _lookups.Store.Nearest(reader, EthereumResponseKinds.Block, subject, found.Response.Origin.Sequence);
+        return SourceLookups.StoredAs(block, body => BlockscoutParser.ParseBlock(body, height))?.Value.Hash;
+    }
+
+    /// <summary>
+    /// Says whether a noted answer really says that the source does not know the transaction: a <c>404</c>, or the
+    /// Etherscan-style <c>status 0</c> and <em>not found</em>, whatever the register says.
+    /// </summary>
+    /// <param name="response">The sealed answer.</param>
+    /// <param name="hash">The transaction asked about.</param>
+    /// <returns><see langword="true"/> when it says so.</returns>
+    private static bool SaysNotFound(StoredResponse response, EthereumTxHash hash)
+    {
+        if (response.Origin.StatusCode == (int)System.Net.HttpStatusCode.NotFound)
+        {
+            return true;
+        }
+
+        try
+        {
+            BlockscoutParser.ParseTransaction(response.Body, hash);
+            return false;
+        }
+        catch (SourceNotFoundException)
+        {
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Makes one answer for the comparison.</summary>
+    /// <param name="origin">The sealed answer.</param>
+    /// <param name="height">The block's height it gave, or <see langword="null"/>.</param>
+    /// <param name="blockHash">The block's hash, or <see langword="null"/> when not known.</param>
+    /// <param name="isGone">Whether it said the source does not know the transaction.</param>
+    /// <returns>The answer.</returns>
+    private static BlockAnswer Answer(ResponseOrigin origin, long? height, string? blockHash, bool isGone) =>
+        new(
+            new BlockSighting(height, blockHash, origin.ReceivedLocal, origin.Sequence)
+            {
+                Endpoint = origin.Endpoint.Length > 0 ? origin.Endpoint : origin.Source,
+            },
+            origin.EndpointId.ToString("D"),
+            isGone);
+
     /// <summary>The lookup of an address's ether, which always changes.</summary>
     /// <param name="address">The address.</param>
     /// <returns>The query.</returns>

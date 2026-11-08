@@ -1897,3 +1897,21 @@ några steg).
 - Belopp i SEK står bara när ärendet har en kurs för tiden när pengarna rörde sig, och då för den spårade delen.
 - *Ändra i grafen* och klicket på den lilla bilden går till grafen; ändra markeringen och gå tillbaka med Ctrl+8:
   rapporten följer med.
+
+## Grafens rester mot 1.0 (breda noder, högen, bytt block och utgångsrutan, 2026-11-08)
+- [ ] Ge några aktörer långa namn (etikett *Misstänktes plånbok* och liknande) och välj *Sortera grafen*: kolumnen
+      med en bred nod flyttar nästa kolumn åt höger, så att beloppen fortfarande har luft mellan noderna och ingen nod
+      ligger över en annan.
+- [ ] Välj en bred nod och tryck N: den nya kommentaren står uppe till höger om nodens högra kant, inte över noden.
+- [ ] Klicka på en hög i grafen: ytan bakom trycks ut lite från högen (som i startvyn) medan ringarna går ut och
+      högen glider till mitten, och dras ihop igen när högen fälls ihop. Högen själv står still och skarp ovanpå.
+      Med animeringar avstängda är ytan utskjuten direkt.
+- [ ] En tx som källan inte längre känner (*Finns inte längre*, svårt att framkalla): linjen blir grå och streckad,
+      aktörerna som bara pengarna genom den når får streckad ram och tonas ner, och linjerna ut från dem streckas.
+      En aktör som också får pengar från en linje som står kvar ritas som vanligt.
+- [ ] En Ethereum-tx hämtad i ett grunt block (yngre än 64 block) som sedan omorganiserats: samma gula märke
+      *Bytte block* i beloppets hörn som på Bitcoin, också när den ligger kvar på samma höjd i ett annat block.
+      Ett ensamt *finns inte* från en endpoint som ligger efter ger inget märke.
+- [ ] Låt en VPN-tunnel falla (stäng av nätet en stund): utgångsrutan säger *Ansluter igen …* under mittringen och
+      *Nästa försök kl. 14:02:31* litet under, samma tid som titelradens tips; *Försöker nu* medan ett försök pågår.
+      Ringen och linjerna är fortfarande röda och streckade, eftersom inga uppslag går. Ansluten igen: utgångens namn.

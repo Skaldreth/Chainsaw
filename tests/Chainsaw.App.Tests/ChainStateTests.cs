@@ -192,6 +192,75 @@ public sealed class ChainStateTests
     }
 
     [Fact]
+    public void The_lines_and_actors_after_a_gone_transaction_are_uncertain_but_not_those_reached_otherwise()
+    {
+        // K pays E (tx 2), which pays some back to K (tx 3); K is also paid by V, so only E rests on the gone tx.
+        var scene = Scene();
+        var marks = BlockMarks.ForLines(scene, [Gone(Tx[2])], Now, Utc);
+
+        var trail = GoneTrail.Of(scene, marks);
+
+        Assert.Equal([KE], trail.GoneLines);
+        Assert.Equal([EKey], trail.Nodes);
+        Assert.Equal([EK], trail.Lines);
+    }
+
+    [Fact]
+    public void An_ethereum_transaction_that_left_its_block_marks_its_line_and_never_a_bitcoin_one()
+    {
+        var scene = EthSamples.Scene();
+        var hash = EthSamples.Hash(2).Value;
+        var gone = new BlockChange(hash, BlockChangeKind.Gone, Sighting(102, Hash('a'), 1),
+            new BlockSighting(null, null, Now, 2)) { Chain = Chain.Ethereum };
+        var onBitcoin = gone with { Chain = Chain.Bitcoin };
+
+        var marks = BlockMarks.ForLines(scene, [gone], Now, Utc);
+        var trail = GoneTrail.Of(scene, marks);
+
+        var line = EthSamples.EdgeKey(EthSamples.S, EthSamples.M, "USDT");
+        Assert.Equal([line], marks.Keys);
+        Assert.True(marks[line].IsGone);
+        Assert.Equal([EthSamples.Key(EthSamples.M)], trail.Nodes);
+        Assert.Empty(BlockMarks.ForLines(scene, [onBitcoin], Now, Utc));
+    }
+
+    [Fact]
+    public void Money_that_circles_back_within_the_trail_does_not_keep_an_actor_certain()
+    {
+        // V pays K and U (tx 1); K pays E, and E pays back to K: all three rest on the gone tx alone.
+        var scene = Scene();
+        var marks = BlockMarks.ForLines(scene, [Gone(Tx[1])], Now, Utc);
+
+        var trail = GoneTrail.Of(scene, marks);
+
+        Assert.Equal([VK, VU], trail.GoneLines.Order(StringComparer.Ordinal));
+        Assert.Equal([EKey, UKey, KKey], trail.Nodes.Order(StringComparer.Ordinal));
+        Assert.Equal([EK, KE], trail.Lines.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void A_start_point_and_a_moved_transaction_leave_nothing_uncertain()
+    {
+        var scene = Scene();
+
+        Assert.Empty(GoneTrail.Of(scene, BlockMarks.ForLines(scene, [Gone(Tx[0])], Now, Utc)).Nodes);
+        Assert.Same(GoneTrail.Empty, GoneTrail.Of(scene, BlockMarks.ForLines(scene, [Moved(Tx[1])], Now, Utc)));
+        Assert.Same(GoneTrail.Empty, GoneTrail.Of(null, BlockMarks.ForLines(scene, [Gone(Tx[1])], Now, Utc)));
+    }
+
+    [Fact]
+    public async Task The_graph_draws_the_trail_of_the_gone_transactions_it_reads()
+    {
+        _state.Marks = new ChainMarksReading([Gone(Tx[2])], null);
+
+        var graph = await Open();
+
+        Assert.Equal([EKey], graph.GoneTrail.Nodes);
+        _session.Forget();
+        Assert.Empty(graph.GoneTrail.Nodes);
+    }
+
+    [Fact]
     public async Task The_graph_reads_its_marks_and_the_newest_block_from_the_case()
     {
         _state.Marks = new ChainMarksReading([Moved(Tx[2])], new ChainTip(921_344, "00", Now));
@@ -436,6 +505,12 @@ public sealed class ChainStateTests
     /// <param name="sequence">The answer's number.</param>
     /// <returns>The sighting.</returns>
     private static BlockSighting Sighting(long height, string hash, long sequence) => new(height, hash, Now, sequence);
+
+    /// <summary>A transaction the source no longer knows.</summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The change.</returns>
+    private static BlockChange Gone(Txid txid) =>
+        new(txid, BlockChangeKind.Gone, Sighting(921_340, Hash('a'), 1), new BlockSighting(null, null, Now, 2));
 
     /// <summary>A made-up hash.</summary>
     /// <param name="digit">Its digit.</param>

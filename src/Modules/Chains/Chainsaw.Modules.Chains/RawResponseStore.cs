@@ -173,6 +173,122 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     }
 
     /// <summary>
+    /// Gives what may have left its block, on a chain whose answers name no transactions in the indexes (Ethereum):
+    /// the subjects of a kind asked two or more times (a shallow answer is asked for again), and those the lookup took
+    /// as the source not knowing them. Only the indexes are read.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="kind">What was asked, for example a transaction.</param>
+    /// <returns>The subjects, in order.</returns>
+    public IReadOnlyList<string> SubjectsAskedAgain(ICaseReader reader, string kind)
+    {
+        using var command = reader.CreateCommand(
+            """
+            SELECT subject FROM chains_lookup WHERE chain = $chain AND kind = $kind
+                GROUP BY subject HAVING COUNT(*) > 1
+            UNION
+            SELECT subject FROM chains_not_found WHERE chain = $chain AND kind = $kind
+            ORDER BY 1
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", kind);
+        var subjects = new List<string>();
+        using var rows = command.ExecuteReader();
+        while (rows.Read())
+        {
+            subjects.Add(rows.GetString(0));
+        }
+
+        return subjects;
+    }
+
+    /// <summary>Finds every usable response to a request, oldest first.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="kind">What was asked.</param>
+    /// <param name="subject">What it was asked about.</param>
+    /// <returns>The responses.</returns>
+    public IReadOnlyList<StoredResponse> All(ICaseReader reader, string kind, string subject) =>
+        Sequences(reader, kind, subject)
+            .Select(sequence => Read(reader, sequence, kind, subject))
+            .OfType<StoredResponse>()
+            .ToList();
+
+    /// <summary>
+    /// Finds the usable response to a request that stands nearest after an answer: the first sealed after it, or else
+    /// the last sealed before it, so that a transaction's block hash is read from the block fetched with it.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="kind">What was asked.</param>
+    /// <param name="subject">What it was asked about.</param>
+    /// <param name="sequence">The answer it is read with.</param>
+    /// <returns>The response, or <see langword="null"/> when the case has none.</returns>
+    public StoredResponse? Nearest(ICaseReader reader, string kind, string subject, long sequence)
+    {
+        var sequences = Sequences(reader, kind, subject);
+        var nearest = sequences.Where(each => each > sequence).Cast<long?>().FirstOrDefault()
+            ?? sequences.Where(each => each < sequence).Cast<long?>().LastOrDefault();
+        return nearest is { } found ? Read(reader, found, kind, subject) : null;
+    }
+
+    /// <summary>
+    /// Finds every answer that a lookup took as the source not knowing what was asked, whatever its status, so that the
+    /// caller can check that it says so (an Etherscan-style source answers <c>200</c> with <c>status 0</c>).
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="kind">What was asked.</param>
+    /// <param name="subject">What it was asked about.</param>
+    /// <returns>The answers, oldest first.</returns>
+    public IReadOnlyList<StoredResponse> NotFoundAnswers(ICaseReader reader, string kind, string subject)
+    {
+        var sequences = new List<long>();
+        using (var command = reader.CreateCommand(
+            """
+            SELECT sequence FROM chains_not_found WHERE chain = $chain AND kind = $kind AND subject = $subject
+            ORDER BY sequence
+            """))
+        {
+            Add(command, "$chain", ChainName);
+            Add(command, "$kind", kind);
+            Add(command, "$subject", subject);
+            using var rows = command.ExecuteReader();
+            while (rows.Read())
+            {
+                sequences.Add(rows.GetInt64(0));
+            }
+        }
+
+        return sequences
+            .Select(sequence => Read(reader, sequence, kind, subject, anyStatus: true))
+            .OfType<StoredResponse>()
+            .ToList();
+    }
+
+    /// <summary>Gives the numbers of every usable response to a request, oldest first.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="kind">What was asked.</param>
+    /// <param name="subject">What it was asked about.</param>
+    /// <returns>The numbers.</returns>
+    private List<long> Sequences(ICaseReader reader, string kind, string subject)
+    {
+        using var command = reader.CreateCommand(
+            """
+            SELECT sequence FROM chains_lookup WHERE chain = $chain AND kind = $kind AND subject = $subject
+            ORDER BY sequence
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", kind);
+        Add(command, "$subject", subject);
+        var sequences = new List<long>();
+        using var rows = command.ExecuteReader();
+        while (rows.Read())
+        {
+            sequences.Add(rows.GetInt64(0));
+        }
+
+        return sequences;
+    }
+
+    /// <summary>
     /// Notes that a lookup took a sealed answer as the source not knowing what was asked (an endpoint it trusts, or
     /// every endpoint asked, said so). The note is an index beside the sealed answer, which says nothing more than the
     /// answer and the lookup's decision; an answer from an endpoint the lookup did not believe is never noted.
@@ -305,18 +421,24 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     /// <param name="sequence">The response's number.</param>
     /// <param name="kind">The kind it must have, or <see langword="null"/> for any.</param>
     /// <param name="subject">The subject it must have, or <see langword="null"/> for any.</param>
+    /// <param name="anyStatus">
+    /// Whether an answer with any status is read, for an answer that said the source does not know what was asked;
+    /// otherwise only a successful one.
+    /// </param>
     /// <returns>The response, or <see langword="null"/> when there is no such response.</returns>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.Corrupt"/> when the bytes do not match their SHA-256.
     /// </exception>
-    private StoredResponse? Read(ICaseReader reader, long sequence, string? kind, string? subject)
+    private StoredResponse? Read(
+        ICaseReader reader, long sequence, string? kind, string? subject, bool anyStatus = false)
     {
         using var command = reader.CreateCommand(
             $"""
             SELECT {SelectColumns} FROM {ChainsSchema.RawResponsesTable}
-            WHERE sequence = $sequence AND chain = $chain AND status_code BETWEEN 200 AND 299
+            WHERE sequence = $sequence AND chain = $chain AND ($any = 1 OR status_code BETWEEN 200 AND 299)
                 AND ($kind IS NULL OR kind = $kind) AND ($subject IS NULL OR subject = $subject)
             """);
+        Add(command, "$any", anyStatus ? 1L : 0L);
         Add(command, "$sequence", sequence);
         Add(command, "$chain", ChainName);
         Add(command, "$kind", kind);

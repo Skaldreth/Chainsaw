@@ -50,7 +50,7 @@ public sealed class BlockChangeTests : IDisposable
         var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
 
         Assert.Equal(BlockChangeKind.Moved, change.Kind);
-        Assert.Equal(Fixtures.Confirmed, change.Txid);
+        Assert.Equal(Fixtures.Confirmed.Value, change.TransactionId);
         Assert.Equal(800_000, change.Before.Height);
         Assert.Equal(Fixtures.Block.Value, change.Before.Hash);
         Assert.Equal(800_001, change.Now.Height);

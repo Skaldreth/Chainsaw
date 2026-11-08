@@ -80,6 +80,17 @@ public sealed class FanShockTests
     }
 
     [Fact]
+    public void The_graph_behind_a_pile_is_pushed_out_a_little_as_far_as_the_pile_is_open()
+    {
+        Assert.Equal(1, FanShock.Push(0));
+        Assert.Equal(FanShock.PushScale, FanShock.Push(1), 9);
+        Assert.Equal(1 + ((FanShock.PushScale - 1) / 2), FanShock.Push(0.5), 9);
+        Assert.Equal(1, FanShock.Push(-1));
+        Assert.Equal(FanShock.PushScale, FanShock.Push(2), 9);
+        Assert.InRange(FanShock.PushScale, 1.01, 1.2);
+    }
+
+    [Fact]
     public void The_start_pages_cards_stand_on_the_graphs_ring_from_the_top()
     {
         var ring = PileFanLayout.Ring(3);

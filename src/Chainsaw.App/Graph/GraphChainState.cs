@@ -123,9 +123,10 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
     public async Task<ChainMarksReading> ReadMarksAsync(ICase @case, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        var changes = await bitcoin.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        var onBitcoin = await bitcoin.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        var onEthereum = await ethereum.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
         var tip = await bitcoin.GetTipAsync(@case, LookupMode.CaseOnly, cancellationToken).ConfigureAwait(false);
-        return new ChainMarksReading(changes, tip.Value);
+        return new ChainMarksReading([.. onBitcoin, .. onEthereum], tip.Value);
     }
 
     /// <summary>

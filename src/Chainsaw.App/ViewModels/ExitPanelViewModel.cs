@@ -27,6 +27,9 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// </summary>
     public const string NoRouteText = "Offline";
 
+    /// <summary>What the middle of the route says while a fallen tunnel is connected again, as the title bar does.</summary>
+    public const string ReconnectingRouteText = ShellViewModel.ReconnectingText;
+
     /// <summary>What the route says when lookups go through Windows.</summary>
     public const string WindowsRouteText = "Windows";
 
@@ -206,6 +209,20 @@ public sealed partial class ExitPanelViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     public partial string RouteText { get; private set; } = NoRouteText;
+
+    /// <summary>
+    /// Gets whether a fallen tunnel is being connected again by itself, so that the route says so and when the next
+    /// attempt is made, as the title bar does.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsReconnecting { get; private set; }
+
+    /// <summary>
+    /// Gets when the next attempt to connect a fallen tunnel is made, small under the route, for example
+    /// <c>Nästa försök kl. 14:02:31</c>; empty while no tunnel is connected again.
+    /// </summary>
+    [ObservableProperty]
+    public partial string RetryText { get; private set; } = string.Empty;
 
     /// <summary>Gets what went wrong last, in the error colour; empty when nothing did.</summary>
     [ObservableProperty]
@@ -818,7 +835,8 @@ public sealed partial class ExitPanelViewModel : ObservableObject
 
     /// <summary>
     /// Makes the route green through Windows while the computer has a network or with the connected exit's name, or
-    /// red and dashed with <em>Offline</em>.
+    /// red and dashed with <em>Offline</em>, or with <em>Ansluter igen …</em> and the next attempt while a fallen
+    /// tunnel is connected again (lookups still cannot go, so the route stays red).
     /// </summary>
     private void ShowRoute()
     {
@@ -826,13 +844,29 @@ public sealed partial class ExitPanelViewModel : ObservableObject
         if (_way.IsWindows)
         {
             IsLive = _way.IsOnline;
+            IsReconnecting = false;
+            RetryText = string.Empty;
             RouteText = IsLive ? WindowsRouteText : NoRouteText;
             return;
         }
 
         IsLive = _status.State == ExitState.Connected;
+        IsReconnecting = !IsLive && _way.IsReconnecting;
+        RetryText = IsReconnecting ? OfflineWords.NextAttempt(_way.RetryAt) : string.Empty;
         var connected = IsLive ? Rows.FirstOrDefault(row => row.Id == _status.ExitId) : null;
-        RouteText = connected?.Name ?? (IsLive ? ExitRowViewModel.ConnectedText : NoRouteText);
+        RouteText = connected?.Name ?? DownRouteText();
+    }
+
+    /// <summary>Gives what the middle of the route says when no named exit is connected.</summary>
+    /// <returns>Connected, connecting again, or <see cref="NoRouteText"/>.</returns>
+    private string DownRouteText()
+    {
+        if (IsLive)
+        {
+            return ExitRowViewModel.ConnectedText;
+        }
+
+        return IsReconnecting ? ReconnectingRouteText : NoRouteText;
     }
 
     /// <summary>Reads and checks a WireGuard file, and clears its text.</summary>

@@ -1,3 +1,5 @@
+using Chainsaw.SharedKernel;
+
 namespace Chainsaw.Modules.Chains.Contracts;
 
 /// <summary>What became of a transaction that has left the block the case first saw it in.</summary>
@@ -34,8 +36,22 @@ public sealed record BlockSighting(long? Height, string? Hash, DateTimeOffset Se
 /// source answered (principle 2): an answer that it is not in a block, or not known, counts only from an endpoint that
 /// had come at least as far as the block the case first saw it in, since one that lags behind would say the same.
 /// </summary>
-/// <param name="Txid">The transaction.</param>
+/// <param name="TransactionId">The transaction's id as its chain writes it: a txid, or <c>0x</c> and a hash.</param>
 /// <param name="Kind">What became of it.</param>
 /// <param name="Before">The first answer that had it in a block.</param>
 /// <param name="Now">The newest answer, which differs from it.</param>
-public sealed record BlockChange(Txid Txid, BlockChangeKind Kind, BlockSighting Before, BlockSighting Now);
+public sealed record BlockChange(string TransactionId, BlockChangeKind Kind, BlockSighting Before, BlockSighting Now)
+{
+    /// <summary>Creates the change of a Bitcoin transaction.</summary>
+    /// <param name="txid">The transaction.</param>
+    /// <param name="kind">What became of it.</param>
+    /// <param name="before">The first answer that had it in a block.</param>
+    /// <param name="now">The newest answer, which differs from it.</param>
+    public BlockChange(Txid txid, BlockChangeKind kind, BlockSighting before, BlockSighting now)
+        : this(txid?.Value ?? throw new ArgumentNullException(nameof(txid)), kind, before, now)
+    {
+    }
+
+    /// <summary>Gets the chain the transaction is on: Bitcoin unless said otherwise.</summary>
+    public Chain Chain { get; init; } = Chain.Bitcoin;
+}

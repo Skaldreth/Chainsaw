@@ -88,8 +88,10 @@ public sealed partial class GraphViewModel
         }
 
         var node = Scene.Node(SelectedNode)?.Node;
-        GraphPoint? nodePlace = SelectedNode is { } key && Places.TryGetValue(key, out var place) ? place : null;
-        return Comments.Begin(CommentGeometry.PlaceOfNew(nodePlace, at), node);
+        GraphRect? nodeFrame = SelectedNode is { } key && Places.TryGetValue(key, out var place)
+            ? Scene.FrameOf(key, place)
+            : null;
+        return Comments.Begin(CommentGeometry.PlaceOfNew(nodeFrame, at), node);
     }
 
     /// <summary>Begins a comment on its own at a point of the empty surface (a double click on it).</summary>

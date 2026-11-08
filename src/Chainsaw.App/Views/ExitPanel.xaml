@@ -233,9 +233,14 @@
                             </controls:GridIcon.Style>
                         </controls:GridIcon>
                     </Grid>
-                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding RouteText}" FontSize="15" FontWeight="SemiBold"
-                               HorizontalAlignment="Center" Margin="0,7,0,0" MaxWidth="120"
-                               TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Row="1" Grid.Column="2" HorizontalAlignment="Center" Margin="0,7,0,0">
+                        <TextBlock Text="{Binding RouteText}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                   MaxWidth="120" TextTrimming="CharacterEllipsis" />
+                        <!-- While a fallen tunnel is connected again: when the next attempt is made, as the title bar says. -->
+                        <TextBlock Text="{Binding RetryText}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                   HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="110"
+                                   Margin="0,2,0,0" Visibility="{Binding IsReconnecting, Converter={StaticResource Visible}}" />
+                    </StackPanel>
 
                     <Line Grid.Column="3" Style="{StaticResource RouteLine}" />
 
