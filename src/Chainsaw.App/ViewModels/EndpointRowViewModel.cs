@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Chainsaw.App.ViewModels;
 
-/// <summary>An endpoint's dot on the page Källor (sketch KL1a).</summary>
+/// <summary>An endpoint's dot on the page Källor (sketches KL1a and KL2b).</summary>
 public enum EndpointDot
 {
     /// <summary>Green: it answered right when it was last tried.</summary>
@@ -23,11 +23,28 @@ public enum EndpointDot
     Off,
 }
 
+/// <summary>What the small mark beside an endpoint's name says, deciding its icon and colour (sketch KL2b).</summary>
+public enum EndpointNote
+{
+    /// <summary>No mark.</summary>
+    None,
+
+    /// <summary>It lags behind in height (↓ <c>3 block efter</c>, in the warning colour); only in Snabbast.</summary>
+    Behind,
+
+    /// <summary>It asked Chainsaw to wait (the clock, <c>Väntar</c>, in the warning colour).</summary>
+    Waiting,
+
+    /// <summary>It answered wrongly or not at all (×, <c>Svarar inte</c>, in the error colour).</summary>
+    Failed,
+}
+
 /// <summary>
-/// An endpoint as a row on the page Källor (sketch KL1a): the dot, the name and address, the time of the latest probe
-/// as a number and a small bar, ★ for the one used, a yellow mark for one that lags behind, the switch and ×, and in
-/// Prioriterad its place with the handle. The same instance is kept for an endpoint while the page shows its chain,
-/// so that moving it keeps its focus. It knows nothing of WPF.
+/// An endpoint on the page Källor (sketch KL2b): the dot, the name, ★ for the one used, the house for the user's own
+/// node, the mark for one behind, waiting or failing, the time of the latest probe, the height and the hash it
+/// answered, the switch and ×, and in Prioriterad its place among those switched on. The same instance is kept for an
+/// endpoint while the page shows its chain, whether it is the one used, a reserve or switched off, so that moving it
+/// keeps its focus. It knows nothing of WPF.
 /// </summary>
 /// <param name="id">The endpoint's id.</param>
 public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
@@ -35,14 +52,18 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     /// <summary>The mark of an endpoint that asked Chainsaw to wait.</summary>
     public const string WaitingText = "Väntar";
 
-    /// <summary>The longest time the bar shows; a slower answer fills it.</summary>
-    public const int BarMilliseconds = 300;
+    /// <summary>The mark of an endpoint that answered wrongly or not at all.</summary>
+    public const string FailedText = "Svarar inte";
 
-    /// <summary>The bar's width at <see cref="BarMilliseconds"/>.</summary>
-    public const double BarMaxWidth = 64;
+    /// <summary>What an endpoint that has not been tried says instead of its height.</summary>
+    public const string UntriedText = "Inte provad än";
 
-    /// <summary>The bar's narrowest width, so that a fast answer still shows one.</summary>
-    public const double BarMinWidth = 6;
+    /// <summary>What the mark <em>3 block efter</em> means, on hovering.</summary>
+    public const string BehindTip = "Används inte förrän den är i fas. Ett block efter räknas inte som efter.";
+
+    /// <summary>What the house beside a name means, on hovering.</summary>
+    public const string LocalTip =
+        "Egen nod på datorn eller ett privat nät. Uppslagen går direkt dit, aldrig genom utgången.";
 
     /// <summary>Gets the endpoint's id.</summary>
     public Guid Id { get; } = id;
@@ -67,9 +88,20 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     [ObservableProperty]
     public partial string MillisecondsText { get; private set; } = string.Empty;
 
-    /// <summary>Gets the bar's width for the time, or zero when there is none.</summary>
+    /// <summary>Gets the time of the latest probe as the number alone, such as <c>182</c>, or a dash.</summary>
     [ObservableProperty]
-    public partial double BarWidth { get; private set; }
+    public partial string MillisecondsNumber { get; private set; } = string.Empty;
+
+    /// <summary>Gets whether the latest probe has a time, so that the used card writes <c>ms</c> after it.</summary>
+    [ObservableProperty]
+    public partial bool HasMilliseconds { get; private set; }
+
+    /// <summary>
+    /// Gets what the latest probe answered: <c>Höjd 921 404 · 0000…3f2a</c> (the hash only when it was asked for), why
+    /// it failed, or that it has not been tried.
+    /// </summary>
+    [ObservableProperty]
+    public partial string AnswerText { get; private set; } = string.Empty;
 
     /// <summary>Gets whether the next lookup asks it first (★).</summary>
     [ObservableProperty]
@@ -79,7 +111,11 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     [ObservableProperty]
     public partial string InUseTip { get; private set; } = string.Empty;
 
-    /// <summary>Gets the yellow mark's words for one that lags behind, or empty.</summary>
+    /// <summary>Gets the mark's kind, which decides its icon and colour.</summary>
+    [ObservableProperty]
+    public partial EndpointNote NoteKind { get; private set; }
+
+    /// <summary>Gets the mark's words, or empty.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNote))]
     public partial string Note { get; private set; } = string.Empty;
@@ -88,17 +124,18 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     [ObservableProperty]
     public partial string NoteTip { get; private set; } = string.Empty;
 
-    /// <summary>Gets whether the yellow mark is shown.</summary>
+    /// <summary>Gets whether the mark is shown.</summary>
     public bool HasNote => Note.Length > 0;
 
-    /// <summary>Gets whether the user marked it as their own node, asked straight there and never through the
-    /// exit.</summary>
+    /// <summary>
+    /// Gets whether the user marked it as their own node, asked straight there and never through the exit.
+    /// </summary>
     [ObservableProperty]
     public partial bool IsLocal { get; private set; }
 
-    /// <summary>Gets what the mark <em>Lokal</em> means, on hovering.</summary>
-    public string LocalTip =>
-        "Egen nod på datorn eller ett privat nät. Uppslagen går direkt dit, aldrig genom utgången.";
+    /// <summary>Gets whether it sends an API key from the vault, shown as a key on a row switched off.</summary>
+    [ObservableProperty]
+    public partial bool HasKey { get; private set; }
 
     /// <summary>Gets whether the endpoint is switched on.</summary>
     [ObservableProperty]
@@ -108,7 +145,7 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     /// <summary>Gets what the switch does.</summary>
     public string SwitchTip => IsOn ? "Stäng av" : "Slå på";
 
-    /// <summary>Gets the place in the user's order, from 1.</summary>
+    /// <summary>Gets the place among those switched on, from 1; empty for one switched off.</summary>
     [ObservableProperty]
     public partial string Position { get; private set; } = string.Empty;
 
@@ -124,47 +161,69 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     [ObservableProperty]
     public partial bool CanMoveDown { get; private set; }
 
+    /// <summary>Gets the latest probe's time in milliseconds, so that Snabbast's reserves are ordered by it.</summary>
+    public int? Milliseconds { get; private set; }
+
     /// <summary>Shows the endpoint as it is now.</summary>
     /// <param name="view">The endpoint with its probe.</param>
     /// <param name="mode">The chain's mode.</param>
-    /// <param name="index">Its place in the list, from 0.</param>
-    /// <param name="count">How many the list has.</param>
-    /// <param name="timeZone">The time zone a wait's end is shown in; the computer's when <see
-    /// langword="null"/>.</param>
-    public void Show(EndpointView view, SourceMode mode, int index, int count, TimeZoneInfo? timeZone = null)
+    /// <param name="place">Its place in the list, from 0, and how many the list has.</param>
+    /// <param name="position">Its place among those switched on, from 1, or 0 when it is switched off.</param>
+    /// <param name="timeZone">
+    /// The time zone a wait's end is shown in; the computer's when <see langword="null"/>.
+    /// </param>
+    public void Show(
+        EndpointView view, SourceMode mode, (int Index, int Count) place, int position, TimeZoneInfo? timeZone = null)
     {
         ArgumentNullException.ThrowIfNull(view);
         var endpoint = view.Endpoint;
         var probe = view.Probe;
         Name = endpoint.Name;
         IsLocal = endpoint.Local;
+        HasKey = endpoint.ApiKey is not null;
         Address = endpoint.Address.AbsoluteUri.TrimEnd('/');
         IsOn = endpoint.Enabled;
         (Dot, DotTip) = DotFor(view);
-        var milliseconds = probe?.Duration is { } duration ? (int)Math.Round(duration.TotalMilliseconds) : (int?)null;
-        MillisecondsText = milliseconds is { } ms ? ms.ToString(CultureInfo.InvariantCulture) + " ms" : "–";
-        BarWidth = milliseconds is { } shown
-            ? Math.Max(BarMinWidth, Math.Min(shown, BarMilliseconds) * BarMaxWidth / BarMilliseconds)
-            : 0;
+        Milliseconds = probe?.Duration is { } duration ? (int)Math.Round(duration.TotalMilliseconds) : null;
+        HasMilliseconds = Milliseconds is not null;
+        MillisecondsNumber = Milliseconds?.ToString(CultureInfo.InvariantCulture) ?? "–";
+        MillisecondsText = HasMilliseconds ? MillisecondsNumber + " ms" : "–";
+        AnswerText = AnswerFor(probe);
         IsInUse = view.InUse;
         InUseTip = mode == SourceMode.Fastest ? "Snabbast just nu, används" : "Används nu";
-        // The mark says that Snabbast passes it over; in Prioriterad the user's order holds, so it is not shown there.
-        var behind = endpoint.Enabled && probe?.Outcome == ProbeOutcome.Behind && mode == SourceMode.Fastest;
-        Note = behind ? BehindText(probe!) : string.Empty;
-        NoteTip = behind ? probe!.Problem ?? string.Empty : string.Empty;
-
-        // A source that asked Chainsaw to wait is left for the others until then, honestly marked; it is not failed.
-        if (endpoint.Enabled && view.WaitUntil is { } until)
-        {
-            var local = TimeZoneInfo.ConvertTime(until, timeZone ?? TimeZoneInfo.Local);
-            Note = WaitingText;
-            NoteTip = $"Källan bad Chainsaw vänta till {local.ToString("HH:mm:ss", CultureInfo.InvariantCulture)}. "
-                + "De andra frågas under tiden.";
-        }
-        Position = (index + 1).ToString(CultureInfo.InvariantCulture);
+        (NoteKind, Note, NoteTip) = NoteFor(view, mode, timeZone);
+        Position = position > 0 ? position.ToString(CultureInfo.InvariantCulture) : string.Empty;
         IsPriority = mode == SourceMode.Priority;
-        CanMoveUp = index > 0;
-        CanMoveDown = index < count - 1;
+        CanMoveUp = place.Index > 0;
+        CanMoveDown = place.Index < place.Count - 1;
+    }
+
+    /// <summary>Formats a height with a space between the thousands, such as <c>921 404</c>.</summary>
+    /// <param name="height">The height.</param>
+    /// <returns>The words.</returns>
+    public static string HeightText(long height) =>
+        height.ToString("N0", CultureInfo.InvariantCulture).Replace(',', ' ');
+
+    /// <summary>Shortens a block's hash to its first eight and last four characters: <c>00000000…3f2a</c>.</summary>
+    /// <param name="hash">The hash.</param>
+    /// <returns>The short hash, or the hash as it is when it is short.</returns>
+    public static string ShortHash(string hash) => hash is { Length: > 12 } ? $"{hash[..8]}…{hash[^4..]}" : hash;
+
+    /// <summary>
+    /// Says what the latest probe answered. Only what was measured is said: the probe at the start asks only for the
+    /// height, so the hash is written only when it is known (CLAUDE.md: never show made-up data).
+    /// </summary>
+    /// <param name="probe">The probe, or <see langword="null"/>.</param>
+    /// <returns>The words.</returns>
+    private static string AnswerFor(EndpointProbe? probe)
+    {
+        if (probe?.Height is not { } height)
+        {
+            return probe?.Problem is { } problem ? "Svarade inte rätt: " + problem : UntriedText;
+        }
+
+        var text = "Höjd " + HeightText(height);
+        return probe.BlockHash is { } hash ? text + " · " + ShortHash(hash) : text;
     }
 
     /// <summary>Gives the dot and its explanation.</summary>
@@ -190,8 +249,44 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
             ProbeOutcome.Behind => (EndpointDot.Behind, "Svarar, men på en lägre höjd"),
             ProbeOutcome.Failed => (EndpointDot.Failed, "Svarade inte rätt: " + view.Probe.Problem),
             ProbeOutcome.NotSent => (EndpointDot.Untried, "Inte provad: " + view.Probe.Problem),
-            _ => (EndpointDot.Untried, "Inte provad än"),
+            _ => (EndpointDot.Untried, UntriedText),
         };
+    }
+
+    /// <summary>
+    /// Gives the mark: a wait the source asked for first, since it says when it comes back; then one that fails; then
+    /// one that lags behind, only in Snabbast, since the user's order holds in Prioriterad.
+    /// </summary>
+    /// <param name="view">The endpoint with its probe.</param>
+    /// <param name="mode">The chain's mode.</param>
+    /// <param name="timeZone">The time zone a wait's end is shown in.</param>
+    /// <returns>The kind, the words and the words on hovering.</returns>
+    private static (EndpointNote Kind, string Text, string Tip) NoteFor(
+        EndpointView view, SourceMode mode, TimeZoneInfo? timeZone)
+    {
+        if (!view.Endpoint.Enabled || mode == SourceMode.Off)
+        {
+            return (EndpointNote.None, string.Empty, string.Empty);
+        }
+
+        // A source that asked Chainsaw to wait is left for the others until then, honestly marked; it is not failed.
+        if (view.WaitUntil is { } until)
+        {
+            var local = TimeZoneInfo.ConvertTime(until, timeZone ?? TimeZoneInfo.Local);
+            var tip = $"Källan bad Chainsaw vänta till {local.ToString("HH:mm:ss", CultureInfo.InvariantCulture)}. "
+                + "De andra frågas under tiden.";
+            return (EndpointNote.Waiting, WaitingText, tip);
+        }
+
+        var probe = view.Probe;
+        if (view.FailedSince || probe?.Outcome == ProbeOutcome.Failed)
+        {
+            return (EndpointNote.Failed, FailedText, DotFor(view).Tip);
+        }
+
+        return probe?.Outcome == ProbeOutcome.Behind && mode == SourceMode.Fastest
+            ? (EndpointNote.Behind, BehindText(probe), BehindTip)
+            : (EndpointNote.None, string.Empty, string.Empty);
     }
 
     /// <summary>Says how far behind an endpoint is, such as <c>2 block efter</c>.</summary>

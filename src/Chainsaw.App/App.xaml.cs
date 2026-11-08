@@ -139,6 +139,7 @@ public partial class App : Application
                 .AddSingleton<IUiThread>(new WpfUiThread(Dispatcher))
                 .AddSingleton(store)
                 .AddSingleton(settings)
+                .AddSingleton(new AttributionSwitches(settings.AttributionProviders))
                 .AddSingleton(BuildInfo.From(typeof(App).Assembly))
                 .AddSingleton(provider => StartAutoLock(provider.GetRequiredService<IClock>(), settings))
                 .AddCasesModule()

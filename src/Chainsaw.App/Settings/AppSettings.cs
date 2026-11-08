@@ -56,6 +56,12 @@ public sealed record AppSettings
     /// </summary>
     public bool AlertOnScreen { get; init; }
 
+    /// <summary>
+    /// Gets the names of the suppliers of attribution that are on, such as <c>chainabuse</c> (decided 2026-11-08, each
+    /// with its own switch on the page Källor); none by default.
+    /// </summary>
+    public IReadOnlyList<string> AttributionProviders { get; init; } = [];
+
     /// <summary>Gets the ways a hit is said, as the background process reads them.</summary>
     public WatchAlerts Alerts =>
         (AlertInWindows ? WatchAlerts.Windows : WatchAlerts.None)
@@ -79,6 +85,7 @@ public sealed record AppSettings
             ExitRoute = Enum.IsDefined(ExitRoute) ? ExitRoute : defaults.ExitRoute,
             Currency = Enum.IsDefined(Currency) ? Currency : defaults.Currency,
             Resolution = Enum.IsDefined(Resolution) ? Resolution : defaults.Resolution,
+            AttributionProviders = AttributionProviders ?? defaults.AttributionProviders,
         };
     }
 }

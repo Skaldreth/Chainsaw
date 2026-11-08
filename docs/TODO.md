@@ -81,9 +81,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 25. **Ändra storlek på noder** (användarens önskemål 2026-11-07): vissa noder ska kunna dras till egen storlek,
     först kommentarsnoden (handtagen skissas i KN1); vilka fler (samlingsnoden?) avgörs med skissen. Storleken sparas
     med grafens läge.
-26. **Sidan Källor i inställningarna** (KL1a) ser stökig ut (användarens skärmdump 2026-11-07): kedjebrickorna,
-    lägesväljaren med förklaring, raderna med adress, stapel, ms, brytare och kryss, och *Prova alla nu* syns på en
-    gång. Komplexiteten döljs där det går men ingen information tappas. Skissas om (KL2a, KL2b).
 28. **Innehav per adress** (användarens beslut 2026-11-07, efter IN3a–d som inte blev rätt): innehavet är **dolt** på
     noden. **Alt + klick** på en nod vänder den som ett kort, och baksidan visar beloppen: det som ligger kvar i rätt
     tecken (₿, Ξ, ₮; inte ett B) och samma belopp i inställd valuta (SEK) till dagens kurs. **Inspektören** visar allt
@@ -312,8 +309,11 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
 ### Bitcoin-källan (Chains)
 - **Svarshuvuden som ursprung:** se *Utgångar*. Behövs om källans `Date` ska stå bredvid Chainsaws egen tid.
 - **Flera källor att jämföra:** samma tx från två Esplora-källor, och en varning om de skiljer sig.
-- **Endpointens namn** (etapp 24): namnet tas ur adressens värd och kan inte ändras i sidan Källor. Handtaget flyttar
-  bara med pilarna och Alt+↑/↓; att dra raden med musen är inte byggt.
+- **Endpointens namn** (etapp 24): namnet tas ur adressens värd och kan inte ändras i sidan Källor.
+- **Blockhash i provet vid start** (KL2b, 2026-11-08): kortet för den endpoint som används visar *Höjd 921 404* men
+  hashen bara när den är känd, eftersom provet vid start och *Prova alla nu* bara frågar efter höjden (bara formulärets
+  *Prova* frågar efter hashen). Skissen visar båda; provet kunde fråga efter blockets hash vid höjden också, ett uppslag
+  till per endpoint.
 - **Nyckeln som huvud** (etapp 24): Esplora skickar nyckeln som `Authorization: Bearer`. Huvudena som tillåts är
   `Authorization` och `X-Api-Key` (`ExitCredential`); en källa som vill ha något annat lägger till det i Network.
 - **Varför en endpoint fick röd prick** (etapp 24, granskningen omgång 2, M): en nyckel som saknas i valvet gör att
@@ -523,8 +523,10 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   skickas (princip 4), svaret förseglas i ärendet (princip 1) och rapporterna blir etiketter som är bedömningar med
   källa, aldrig fakta (princip 2), eftersom de skrivs in av allmänheten. **Hämtningen är byggd 2026-11-08**
   (`IAttributionProviders`, `ChainabuseProvider`): Bitcoin och Ethereum (TRON när etiketter går att sätta där), en
-  etikett *Rapporterad* per kategori, varje svar förseglat också vid avslag. Kvar: sidan i inställningarna med
-  strömbrytarna och nyckeln (skissas), och **när** Chainsaw frågar. En vanlig nyckel ger bara **10 anrop i månaden**
+  etikett *Rapporterad* per kategori, varje svar förseglat också vid avslag. **Sidan i inställningarna är byggd
+  2026-11-08** (Källor, under *Etiketter*: strömbrytaren, av som förval, och nyckeln i valvet; `AttributionSwitches`
+  har namnen på dem som är på, sparade i `settings.json`, för grafen att skicka till `LookupAsync`). Kvar: **när**
+  Chainsaw frågar. En vanlig nyckel ger bara **10 anrop i månaden**
   (partner: 5 000 i timmen), så automatiska uppslag på varje nod kräver partnernyckel; frågan till användaren är om
   det ska vara ett knapptryck i ikonlisten eller automatiskt vid expansion. Sorten *Rapporterad* ritas som okänd i
   grafen tills den har en form (rött, risk). Rapportens beskrivning, förluster och kategorier som API:t lägger till
