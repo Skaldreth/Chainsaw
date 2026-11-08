@@ -178,6 +178,42 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     }
 
     /// <inheritdoc/>
+    public async Task<BitcoinLookup<BitcoinTransaction>> VerifyInBlockAsync(
+        ICase @case, Txid txid, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txid);
+        var lookup = await GetTransactionAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        if (lookup.Value is not { Block: { } block } transaction)
+        {
+            return lookup;
+        }
+
+        var header = await _lookups.LookupAsync(@case, HeaderQuery(block.Hash), LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        var proof = await _lookups.LookupAsync(@case, MerkleQuery(txid), LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        var origins = lookup.Origins.Concat(header.Origins).Concat(proof.Origins)
+            .DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence).ToList();
+        if (header.Value is not { } read || proof.Value is not { } path)
+        {
+            var problem = header.Value is null ? header.Problem : proof.Problem;
+            var note = $"Beviset för att tx:en ligger i blocket kunde inte hämtas, så det är inte kontrollerat. {problem}";
+            return lookup with { Origins = origins, Notes = [.. lookup.Notes, note.TrimEnd()] };
+        }
+
+        if (path.Height != block.Height || path.RootFrom(txid) != read.MerkleRoot)
+        {
+            return new BitcoinLookup<BitcoinTransaction>(LookupStatus.Failed, null, origins,
+                "Källans bevis för att tx:en ligger i blocket leder inte till blockets eget huvud, som är sparat i "
+                + "ärendet; tx:ens block används inte som kontrollerat.");
+        }
+
+        return lookup with { Value = transaction with { InBlockVerified = true }, Origins = origins };
+    }
+
+    /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
         ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default)
     {
@@ -475,6 +511,21 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             body => RawTransactionReader.ParseHex(body, txid)),
         _ => null,
         NeverChanges: true);
+
+    /// <summary>
+    /// The lookup of a transaction's merkle proof, which holds once its block is deep, like the transaction itself.
+    /// </summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The query.</returns>
+    private LookupQuery<MerkleProof> MerkleQuery(Txid txid) => new(
+        ResponseKinds.MerkleProof,
+        txid.Value,
+        $"tx/{txid.Value}/merkle-proof",
+        body => MerkleProof.Parse(body),
+        proof => new ResponseIndex([], proof.Height),
+        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.MerkleProof, txid.Value),
+            body => MerkleProof.Parse(body)),
+        proof => proof.Height);
 
     /// <summary>The lookup of a block's header, which never changes.</summary>
     /// <param name="hash">The block.</param>

@@ -35,6 +35,13 @@ public sealed record BitcoinTransaction(
     /// </summary>
     public bool BytesVerified { get; init; }
 
+    /// <summary>
+    /// Gets whether Chainsaw has checked that the transaction is in its block: the source's merkle proof, sealed in
+    /// the case, leads from the txid to the merkle root in the block's own header, which meets its target. That the
+    /// block is on the chain with the most work still rests on the sources.
+    /// </summary>
+    public bool InBlockVerified { get; init; }
+
     /// <summary>Gets whether the transaction is in a block.</summary>
     public bool IsConfirmed => Block is not null;
 

@@ -44,6 +44,11 @@ public sealed class TestDataBitcoinRouter(IBitcoinSource real, Lazy<IBitcoinSour
         For(@case).VerifyTransactionAsync(@case, txid, cancellationToken);
 
     /// <inheritdoc/>
+    public Task<BitcoinLookup<BitcoinTransaction>> VerifyInBlockAsync(
+        ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
+        For(@case).VerifyInBlockAsync(@case, txid, cancellationToken);
+
+    /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
         ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default) =>
         For(@case).GetAddressSummaryAsync(@case, address, cancellationToken);

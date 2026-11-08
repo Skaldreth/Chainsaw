@@ -92,6 +92,26 @@ public interface IBitcoinSource
         ICase @case, Txid txid, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Checks that a transaction is in the block the source says it is in: the source's merkle proof
+    /// (<c>/tx/:txid/merkle-proof</c>) and the block's own header are fetched (each sealed in the case) and Chainsaw
+    /// computes the root from the txid itself. Then <see cref="BitcoinTransaction.InBlockVerified"/> is set. A
+    /// transaction not in a block has nothing to check and is given as it is.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txid">The transaction's id.</param>
+    /// <param name="cancellationToken">Stops the lookups.</param>
+    /// <returns>
+    /// The transaction, checked when the proof and the header could be had, and otherwise unchecked with the reason in
+    /// a note; a proof that does not lead to the header's root is never accepted: the answer is
+    /// <see cref="LookupStatus.Failed"/>. A source that cannot prove it answers <see cref="LookupStatus.Failed"/> and
+    /// sends nothing.
+    /// </returns>
+    Task<BitcoinLookup<BitcoinTransaction>> VerifyInBlockAsync(
+        ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new BitcoinLookup<BitcoinTransaction>(
+            LookupStatus.Failed, null, [], "Källan kan inte visa att tx:en ligger i blocket. Inget skickades."));
+
+    /// <summary>
     /// Gets what the source says about an address as a whole: its number of transactions and what it has received
     /// and spent. It always changes, so it is fetched anew (and sealed) every time; offline the case answers.
     /// </summary>
