@@ -403,7 +403,7 @@ public sealed partial class TimeStrip : FrameworkElement
             if (_sonar is null)
             {
                 _sonarStart = DateTime.UtcNow;
-                _sonar = new DispatcherTimer(SonarFrame, DispatcherPriority.Render, (_, _) => InvalidateVisual(), Dispatcher);
+                _sonar = new DispatcherTimer(SonarFrame, DispatcherPriority.Render, OnSonarFrame, Dispatcher);
             }
 
             return;
@@ -411,6 +411,17 @@ public sealed partial class TimeStrip : FrameworkElement
 
         _sonar?.Stop();
         _sonar = null;
+    }
+
+    /// <summary>Draws the sonar's next frame, unless the window is minimised.</summary>
+    /// <param name="sender">The timer.</param>
+    /// <param name="e">The arguments.</param>
+    private void OnSonarFrame(object? sender, EventArgs e)
+    {
+        if (!GraphCanvas.IsMinimised(this))
+        {
+            InvalidateVisual();
+        }
     }
 
     /// <summary>Gets whether Windows animates; when it does not, the sonar stands still.</summary>

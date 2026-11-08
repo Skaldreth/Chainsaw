@@ -89,8 +89,14 @@ internal sealed class WalletCheck : ICheckAnalysis
         var mine = proposals.Where(item => item.Evidence.Addresses.Any(members.Contains)).ToList();
         var heuristics = string.Join(
             ", ", mine.Select(item => item.Evidence.Heuristic.ToString()).Distinct(StringComparer.Ordinal));
+        // What lowered a proposal to a suggestion (for example a possible CoinJoin) is what speaks against approving it.
+        var against = string.Join(
+            " ",
+            mine.Select(item => item.Evidence.Adjustment).OfType<string>().Distinct(StringComparer.Ordinal));
         var why = $"Klustringen föreslår att {CheckText.Count(group.Count)} adresser har samma ägare "
-            + $"({heuristics}), men slog inte ihop dem: {mine[0].Evidence.Reason} Godkänner du förslaget slås "
+            + $"({heuristics}), men slog inte ihop dem: {mine[0].Evidence.Reason} "
+            + (against.Length > 0 ? $"Det som talar emot: {against} " : string.Empty)
+            + "Godkänner du förslaget slås "
             + "de ihop som din bedömning (user v1), som kan brytas upp och ångras. Ett förslag är en "
             + "bedömning, inte ett faktum.";
         return new CheckFinding(

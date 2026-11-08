@@ -69,12 +69,21 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
-    /// Drops a zoom without storing where it got to, as when the surface is about to be fitted or shown as the case
-    /// stored it, so that the place stored is the new one.
+    /// Drops a zoom, a glide after a pan and a glide to a found node without storing where they got to, as when the
+    /// surface is about to be fitted or shown as the case stored it, so that no frame moves the new place on and the
+    /// place stored is the new one.
     /// </summary>
     private void DropZoom()
     {
+        DropGlide();
+        DropFoundGlide();
         _zoom.Stop();
+        UnhookZoomFrames();
+    }
+
+    /// <summary>Unhooks the zoom's frames from the rendering, if they are hooked.</summary>
+    private void UnhookZoomFrames()
+    {
         if (_zoomFrames)
         {
             _zoomFrames = false;
@@ -85,7 +94,8 @@ public sealed partial class GraphCanvas
     /// <summary>Unhooks the frames and stores the place on screen, once, when a zoom is over.</summary>
     private void EndZoom()
     {
-        DropZoom();
+        _zoom.Stop();
+        UnhookZoomFrames();
         _model?.ViewportChanged(_viewport);
         InvalidateVisual();
     }

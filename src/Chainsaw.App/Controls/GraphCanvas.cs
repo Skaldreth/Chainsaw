@@ -107,12 +107,15 @@ public sealed partial class GraphCanvas : FrameworkElement
             if (!IsVisible)
             {
                 KeepRings(false);
+                KeepTurning(false);
                 StopZoom();
             }
             else
             {
-                // Drawn again when shown, so that rings that moved before move on.
-                InvalidateVisual();
+                // The frames stop while hidden (OnMovingFrame): a blast, a pile or a glide halfway is taken up again, so
+                // that it ends rather than stand still and keep the surface from the pointer. Drawing again also lets
+                // the rings and the cards that moved before move on.
+                KeepMoving();
             }
         };
         FocusVisualStyle = null;
@@ -204,6 +207,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         if (_model?.Scene is not { } scene)
         {
             KeepRings(false);
+            KeepTurning(false);
             return;
         }
 
@@ -212,6 +216,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         {
             DrawHeldBack(drawingContext);
             KeepRings(false);
+            KeepTurning(false);
             return;
         }
 
