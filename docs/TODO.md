@@ -126,6 +126,10 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 42. **Chainabuse frågas med en knapp nu, automatiskt senare** (användarens beslut 2026-11-08). *Knappen byggd
     2026-11-08:* skölden *Fråga om rapporter* (R) i nodens ikonlist, bara för en nod med en adress, online och när en
     underleverantör är på. Kvar: automatiska uppslag när nyckeln tillåter.
+    **Batchning är oklar** (användarens fråga 2026-11-08): ett anrop är en fråga om en adress med högst 50 rapporter
+    (en sida); `address` är en sträng och ingen batch-endpoint finns dokumenterad, fast guiden säger *one or more*.
+    Prova en gång med två adresser kommaseparerade när nyckeln finns (kostar ett anrop), eller fråga Chainabuse; går
+    det kan ett kluster frågas i ett anrop.
 40. **Två App-tester faller ibland** (`CasePickerTests.Stang_closes_the_case_and_the_picker_stays_out`,
     `SettingsTests.The_lock_screen_says_that_lookups_go_through_windows`, och tidigare en låstidstest): gröna när de
     körs om. Troligen delat tillstånd mellan tester som körs parallellt; utreds.
