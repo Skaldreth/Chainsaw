@@ -127,13 +127,16 @@ internal sealed record AccountData(
             : fee;
 
     /// <summary>
-    /// Finds the swaps the transactions show: in one transaction the account that signed it sends exactly one asset
-    /// away and receives exactly one other back. Only the signer is asked, since the pool on the other side does the
-    /// same in reverse; when the signer is not known (a history that is not its own), or it sends or receives more
-    /// than one asset so that which was swapped for which cannot be read, no swap is shown.
+    /// Finds the swaps the transactions show (<see cref="SwapOf"/>). Only the signer is asked, since the pool on the
+    /// other side does the same in reverse; when the signer is not known (a history that is not its own), no swap is
+    /// shown.
     /// </summary>
+    /// <param name="isEndpoint">
+    /// Says whether an address is one the trail must reach (an exchange, a mixer or a bridge by its label); a
+    /// transaction with one as counterparty is never read as a swap. <see langword="null"/> knows none.
+    /// </param>
     /// <returns>The swaps, in chain order.</returns>
-    public IReadOnlyList<TokenSwap> Swaps()
+    public IReadOnlyList<TokenSwap> Swaps(Func<EthereumAddress, bool>? isEndpoint = null)
     {
         var signers = Fees.ToDictionary(fee => fee.Transaction, fee => fee.Payer);
         foreach (var transaction in Transactions.Values)
@@ -144,9 +147,10 @@ internal sealed record AccountData(
         var swaps = new List<TokenSwap>();
         foreach (var transaction in Transfers.GroupBy(transfer => transfer.Transaction))
         {
-            var moves = transaction.Where(transfer => transfer.From != transfer.To).ToList();
-            if (signers.GetValueOrDefault(transaction.Key) is { } account && SwapOf(transaction.Key, account, moves)
-                is { } swap)
+            var moves = transaction.Where(transfer => transfer.From != transfer.To && transfer.Amount.Units.Sign > 0)
+                .ToList();
+            if (signers.GetValueOrDefault(transaction.Key) is { } account
+                && SwapOf(transaction.Key, account, moves, isEndpoint ?? (_ => false)) is { } swap)
             {
                 swaps.Add(swap);
             }
@@ -156,42 +160,47 @@ internal sealed record AccountData(
     }
 
     /// <summary>
-    /// Reads a swap in one transaction: the account got exactly one asset back, and what went into the swap is what it
-    /// sent in one other asset to the other side (an address that sent the bought asset, the contract the transaction
-    /// called, or the known exchange). When nothing went to the other side, the one movement in the sold asset is
-    /// taken when there is exactly one; otherwise which was swapped for which cannot be read, and no swap is shown. A
-    /// payment to a third party in the same transaction is never part of the swap.
+    /// Reads a swap in one transaction, and when in doubt reads none: a false swap would move the traced money away
+    /// from a real recipient, while a missed one only leaves the trail honestly at the pool. It is a swap when
+    /// <list type="bullet">
+    /// <item>the signer got exactly one asset back that it did not also send (what comes back in an asset it sent, a
+    /// refund, is never a purchase);</item>
+    /// <item>it sent exactly one asset, and every movement of it went to the trade's side
+    /// (<see cref="TradeSide"/>); one movement to anyone else, a third party or a fee collector, and it is no
+    /// swap;</item>
+    /// <item>no counterparty is a known bridge or mixer, or an address the trail must reach.</item>
+    /// </list>
     /// </summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="account">The account that signed it.</param>
-    /// <param name="moves">Its movements between two addresses.</param>
+    /// <param name="moves">Its movements of value between two addresses.</param>
+    /// <param name="isEndpoint">Says whether an address is one the trail must reach.</param>
     /// <returns>The swap, or <see langword="null"/>.</returns>
-    private TokenSwap? SwapOf(EthereumTxHash transaction, EthereumAddress account, List<EthereumTransfer> moves)
+    private TokenSwap? SwapOf(
+        EthereumTxHash transaction,
+        EthereumAddress account,
+        List<EthereumTransfer> moves,
+        Func<EthereumAddress, bool> isEndpoint)
     {
-        var bought = moves.Where(transfer => transfer.To == account).ToList();
-        if (bought.Select(transfer => transfer.Amount.Asset).Distinct().Count() != 1)
+        var outgoing = moves.Where(transfer => transfer.From == account).ToList();
+        var sent = outgoing.Select(transfer => transfer.Amount.Asset).ToHashSet();
+        var bought = moves.Where(transfer => transfer.To == account && !sent.Contains(transfer.Amount.Asset)).ToList();
+        if (sent.Count != 1 || bought.Select(transfer => transfer.Amount.Asset).Distinct().Count() != 1)
+        {
+            return null;
+        }
+
+        var counterparties = outgoing.Select(transfer => transfer.To).Concat(bought.Select(transfer => transfer.From));
+        if (counterparties.Any(party => isEndpoint(party)
+            || KnownContracts.Find(party)?.Category is KnownContractCategory.Bridge or KnownContractCategory.Mixer))
         {
             return null;
         }
 
         var boughtAsset = bought[0].Amount.Asset;
         var venue = VenueOf(transaction, account, moves);
-        var otherSide = bought.Select(transfer => transfer.From).ToHashSet();
-        if (Transactions.GetValueOrDefault(transaction)?.To is { } called)
-        {
-            otherSide.Add(called);
-        }
-
-        if (venue is not null)
-        {
-            otherSide.Add(venue.Address);
-        }
-
-        var outgoing = moves.Where(transfer => transfer.From == account && transfer.Amount.Asset != boughtAsset)
-            .ToList();
-        var toOtherSide = outgoing.Where(transfer => otherSide.Contains(transfer.To)).ToList();
-        var sold = toOtherSide.Count > 0 || outgoing.Count != 1 ? toOtherSide : outgoing;
-        if (sold.Count == 0 || sold.Select(transfer => transfer.Amount.Asset).Distinct().Count() != 1)
+        var side = TradeSide(transaction, account, moves, boughtAsset, venue);
+        if (!outgoing.All(transfer => side.Contains(transfer.To)))
         {
             return null;
         }
@@ -199,12 +208,60 @@ internal sealed record AccountData(
         return new TokenSwap(
             transaction,
             account.ToChainAddress(),
-            Sum(sold[0].Amount.Asset, sold),
+            Sum(outgoing[0].Amount.Asset, outgoing),
             Sum(boughtAsset, bought))
         {
             Venue = venue,
-            SoldMovements = [.. sold.Select(AccountSeed.Of)],
+            SoldMovements = [.. outgoing.Select(AccountSeed.Of)],
         };
+    }
+
+    /// <summary>
+    /// Gives the trade's side of a transaction: the contract the transaction called (when it is read whole), the
+    /// addresses that sent the bought asset to the signer, the known exchange, and every address that in the same
+    /// transaction demonstrably moved the bought asset (or, for ether, wrapped ether) to one of those, such as the
+    /// pair behind a router. What the source does not give cannot be shown, so a pair that only an internal movement
+    /// would reveal stays outside.
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="account">The signer.</param>
+    /// <param name="moves">Its movements of value between two addresses.</param>
+    /// <param name="boughtAsset">What the signer got back.</param>
+    /// <param name="venue">The known exchange, or <see langword="null"/>.</param>
+    /// <returns>The addresses on the trade's side.</returns>
+    private HashSet<EthereumAddress> TradeSide(
+        EthereumTxHash transaction,
+        EthereumAddress account,
+        List<EthereumTransfer> moves,
+        Asset boughtAsset,
+        KnownContract? venue)
+    {
+        var side = moves.Where(transfer => transfer.To == account && transfer.Amount.Asset == boughtAsset)
+            .Select(transfer => transfer.From)
+            .ToHashSet();
+        if (Transactions.GetValueOrDefault(transaction)?.To is { } called)
+        {
+            side.Add(called);
+        }
+
+        if (venue is not null)
+        {
+            side.Add(venue.Address);
+        }
+
+        var carries = boughtAsset.Kind == AssetKind.Native
+            ? new HashSet<Asset> { boughtAsset, KnownTokens.EthereumWeth }
+            : [boughtAsset];
+        for (var grew = true; grew;)
+        {
+            grew = false;
+            foreach (var move in moves.Where(move => carries.Contains(move.Amount.Asset) && side.Contains(move.To)))
+            {
+                grew |= move.From != account && side.Add(move.From);
+            }
+        }
+
+        return side;
     }
 
     /// <summary>

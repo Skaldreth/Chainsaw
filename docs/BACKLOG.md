@@ -11,9 +11,10 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   byggda). Kvar:
   - **Swappen i testärendet** (SW1a, 2026-11-08): `/testdata` har ingen Ethereum-källa, så spåret genom en swap syns
     inte där.
-  - **En swap genom en router med betalning till tredje part** (SW1a, granskningen): när det som gick in inte gick
-    till någon på bytets andra sida (poolen bakom en router som inte är känd) och adressen betalade flera i samma
-    tillgång, går det inte att läsa vad som byttes, och inget piller visas.
+  - **Swappar som inte känns igen** (SW1a, andra granskningen; hellre ingen swap än en felaktig): Uniswap V2 genom
+    routern när bara historiken är hämtad (parets WETH till routern syns först när hela tx:en läses; att läsa swappens
+    tx av sig själv vore ett uppslag per swap), och en aggregator som tar en avgift till en egen adress i samma tx (en
+    lista över aggregatorernas avgiftsadresser skulle kunna räkna dem till bytets sida).
   - **Swap genom en känd DEX:** pillret sätts på mönstret (den som signerade skickade en tillgång och fick en annan i
     samma tx), utan lista över DEX-kontrakt. En lista över kända DEX:ar och aggregatorer kan visa namnet i *Varför?*.
   - **Tx:ens plats i blocket:** källornas historik ger inte `transactionIndex`, så två tx i samma block ordnas efter

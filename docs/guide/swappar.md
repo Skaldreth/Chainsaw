@@ -56,5 +56,23 @@ slutsats för varje swap på spåren, med andelen och analysen, men aldrig ditt 
 - Att bytet faktiskt betalades med de spårade pengarna. Det är en bedömning, som FIFO och haircut.
 - Något om byten **till en annan kedja**. En brygga eller swap-tjänst som byter kedja är ett slut på spåret, och
   fortsättningen knyts för hand, se [Bryggor och swappar till en annan kedja](bryggor-och-swappar.md).
-- Något när tx:en visar flera tillgångar in eller ut. Då går det inte att läsa vad som byttes mot vad, och då står
-  inget piller.
+
+## När är det en swap?
+
+Hellre ingen swap än en felaktig: en felaktig swap flyttar de spårade pengarna från en verklig mottagare, medan en
+missad bara låter spåret sluta ärligt vid poolen som *inte expanderad*. Chainsaw läser en tx som en swap bara när
+
+- adressen fick tillbaka **en** tillgång som den inte också skickade (det som kommer tillbaka i samma tillgång, till
+  exempel en återbetald avgift, är aldrig ett köp);
+- adressen skickade **en** tillgång, och **allt** av den gick till bytets sida: kontraktet tx:en anropade, den som
+  skickade tillbaka den köpta tillgången, en känd DEX, eller en adress som i samma tx syns skicka den köpta tillgången
+  (eller WETH) vidare dit;
+- ingen motpart är en känd brygga eller mixer, eller har en etikett som börs, mixer eller brygga: dit ska spåret nå.
+
+Det gör att några riktiga byten inte syns som swappar:
+
+- **Uniswap V2 genom routern**, när bara adressens historik är hämtad: historiken visar USDT till paret och ether från
+  routern, men inte parets WETH till routern. Expandera tx:en (E på den) så att hela tx:en läses, så syns swappen.
+- **En aggregator som tar en avgift** till en egen adress i samma tx: avgiften går utanför bytets sida, så tx:en läses
+  inte som en swap.
+- **En tx med flera tillgångar in eller ut**: det går inte att läsa vad som byttes mot vad, och då står inget piller.

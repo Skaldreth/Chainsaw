@@ -33,6 +33,9 @@ internal sealed class ExposureTally
     /// <summary>The money per line.</summary>
     private readonly Dictionary<GraphEdge, BigInteger> _flows = [];
 
+    /// <summary>The subject's share of each swap its money's value followed through, as <em>Varför?</em> writes it.</summary>
+    private readonly Dictionary<TokenSwap, string> _swapShares = [];
+
     /// <summary>What reached no service, per reason.</summary>
     private readonly Dictionary<ExposureRest, BigInteger> _rest = [];
 
@@ -158,6 +161,16 @@ internal sealed class ExposureTally
         }
     }
 
+    /// <summary>
+    /// Notes how much of what went into a swap (read out) or came out of it (read in) was the subject's money, so that
+    /// <em>Varför?</em> can give the share in numbers; a later reading replaces an earlier.
+    /// </summary>
+    /// <param name="swap">The swap.</param>
+    /// <param name="money">The subject's money on that side, in its units.</param>
+    /// <param name="whole">All of that side, in its units.</param>
+    public void Swapped(TokenSwap swap, BigInteger money, BigInteger whole) =>
+        _swapShares[swap] = SwapValue.Percent(money, whole);
+
     /// <summary>Notes when a transaction was, so that a service's transactions stand in time order.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="time">Its block's time, or <see langword="null"/> while unconfirmed.</param>
@@ -242,8 +255,9 @@ internal sealed class ExposureTally
             Swaps =
             [
                 .. Graph.Account.Swaps.Where(swap => crossed.Contains(swap.Transaction.Value)
-                    && Graph.NodeOf(swap.Account)?.Key is { } swapper && path.Contains(swapper)
-                    && SwapValue.StopOf(swap, Graph.SwapStops) is null),
+                        && Graph.NodeOf(swap.Account)?.Key is { } swapper && path.Contains(swapper)
+                        && SwapValue.StopOf(swap, Graph.SwapStops) is null && _swapShares.ContainsKey(swap))
+                    .Select(swap => new ExposureSwap(swap, _swapShares[swap])),
             ],
         };
     }

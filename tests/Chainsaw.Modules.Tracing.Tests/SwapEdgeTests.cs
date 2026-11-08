@@ -75,8 +75,9 @@ public sealed class SwapEdgeTests : IDisposable
     }
 
     [Fact]
-    public async Task A_payment_to_a_third_party_in_the_swaps_transaction_is_not_part_of_the_swap()
+    public async Task A_payment_to_a_third_party_in_the_swaps_transaction_means_no_swap()
     {
+        // When in doubt, no swap: a false swap would move the traced money away from a real recipient.
         var graph = await Build(["t-swap"],
             Tx("t-victim", 101, Victim, 0m, Token(Victim, Scammer, Usdt(1000))),
             Tx("t-swap", 110, Scammer, 0m, Token(Scammer, Pool, Usdt(500)), Token(Scammer, Accomplice, Usdt(500)),
@@ -85,14 +86,11 @@ public sealed class SwapEdgeTests : IDisposable
 
         var result = await FromVictim(graph, TracingMethodKind.Fifo);
 
-        var swap = Assert.Single(graph.Account.Swaps);
-        Assert.Equal(Usdt(500), swap.Sold);
-        Assert.Equal(Usdt(500), Assert.Single(result.Ends, end => end.Reason == TrailEndReason.Swapped).Amount.Amount);
+        Assert.Empty(graph.Account.Swaps);
+        Assert.Empty(result.Swaps);
         Assert.Equal(Usdt(500), Assert.Single(result.Ends, end => end.NodeKey == Key(graph, Accomplice)).Amount.Amount);
-        Assert.Equal(Ether(0.25m), Assert.Single(result.Ends, end => end.NodeKey == Key(graph, Exchange)).Amount.Amount);
-        var toAccomplice = graph.Edges.Single(edge => edge.To == Key(graph, Accomplice));
-        Assert.DoesNotContain(toAccomplice.Transfers, swap.IsSold);
-        Assert.Equal(Usdt(500), result.Edges.Single(edge => edge.EdgeKey == toAccomplice.Key).Amount.Amount);
+        Assert.Equal(Usdt(500), Assert.Single(result.Ends, end => end.NodeKey == Key(graph, Pool)).Amount.Amount);
+        Assert.DoesNotContain(result.Ends, end => end.NodeKey == Key(graph, Exchange));
         EveryUnitEndsSomewhere(result);
     }
 

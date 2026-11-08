@@ -98,7 +98,8 @@ internal sealed class GraphBuilder
             problems)
         {
             Account = new AccountGraph(
-                account.Transfers, account.Fees, account.Transactions, account.ReadAccounts, account.Swaps())
+                account.Transfers, account.Fees, account.Transactions, account.ReadAccounts,
+                account.Swaps(IsSwapEndpoint))
             {
                 MayBeOutdated = account.MayBeOutdated,
                 PartlyRead = account.PartlyRead,
@@ -235,6 +236,16 @@ internal sealed class GraphBuilder
             AddTransfer(GraphEdgeKind.Transfer, node.Key, Receiver(transaction, output), Paid(transaction, output));
         }
     }
+
+    /// <summary>
+    /// Says whether an Ethereum address is one the trail must reach by its label (an exchange, a mixer, or a bridge or
+    /// swap service to another chain), so that a transaction with it is never read as a swap.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private bool IsSwapEndpoint(EthereumAddress address) =>
+        _knowledge.AccountEnds(address.ToChainAddress()).Any(hint =>
+            hint.Reason is TrailEndReason.Exchange or TrailEndReason.Mixer or TrailEndReason.OtherChain);
 
     /// <summary>Adds an edge to another chain for every link from a coin or an Ethereum movement in the graph.</summary>
     private void AddCrossChainLinks()

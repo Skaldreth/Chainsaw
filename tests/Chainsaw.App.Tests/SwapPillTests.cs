@@ -2,6 +2,7 @@ using Chainsaw.App.Graph;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.Modules.Requests.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 using static Chainsaw.App.Tests.EthSamples;
@@ -180,6 +181,65 @@ public sealed class SwapPillTests
         Assert.False(choice.CanUndo);
         Assert.Contains(rows, row => row.Kind == HistoryKind.Withdrawal && row.Sub == "Kim");
         Assert.Equal(new HashSet<long> { 7, 8 }, NodeHistoryData.JournalNeeds(data.SwapStops));
+    }
+
+    /// <summary>
+    /// The swap scene where the mule M is an exchange and the line to it rests on the swap, so that the request's
+    /// trail names the analysis; and the scammer's node has the swap's ends.
+    /// </summary>
+    private static GraphScene ExchangeAfterSwap()
+    {
+        var conversion = new SwapConversion(Swap, Usdt(400), Ether(0.1m), Fifo, null);
+        var subject = LabelSubject.ForAccount(M.ToChainAddress());
+        var origin = new LabelOrigin(
+            "x", LabelSource.Own, LabelSource.Own, "egen", "1", new OperatorProfile("Maja", "Analytiker", "Enheten"),
+            Morning, "Sett", null);
+        var exchange = new Label(
+            subject, LabelKind.Exchange, "Börs B", [new LabelEntry(1, subject, LabelKind.Exchange, "Börs B", origin,
+                false, 1)]);
+        var toMule = new TracedEdge(
+            EdgeKey(S, M, "USDT"), new TracedAmount(Usdt(500), Fifo, []) { Swaps = [conversion] }, false);
+        var swapped = new TraceEnd(
+            TrailEndReason.Swapped, new TracedAmount(Usdt(400), Fifo, []), null, null, Key(S), "Bytt.", [], [], false);
+        var trace = new AccountTraceResult(
+            Fifo, [AccountSeed.Of(Transfers[0])],
+            [new AssetTrace(Usdt(1_000), [toMule, SwappedLine(conversion)], [swapped, swapped])])
+        {
+            Swaps = [conversion],
+        };
+        return GraphScene.Build(new GraphSnapshot(
+            EthSamples.Graph(), new Dictionary<string, IReadOnlyList<Label>> { [Key(M)] = [exchange] },
+            TracingMethodKind.Fifo, [], null, null)
+        {
+            AccountSeeds = [AccountSeed.Of(Transfers[0])],
+            AccountTrace = trace,
+        });
+    }
+
+    [Fact]
+    public void A_requests_trail_through_a_swap_names_the_analysis_the_share_and_the_transaction()
+    {
+        var exit = Assert.Single(
+            RequestExits.Find(ExchangeAfterSwap()), found => found.Kind == RequestKind.Information);
+
+        var swap = Assert.Single(exit.Trail!.Swaps);
+        Assert.Equal((Swap.Transaction.Value, "₮ → Ξ", "100,0 %", SwapValue.Analysis),
+            (swap.Transaction, swap.Pill, swap.Share, swap.Analysis));
+    }
+
+    [Fact]
+    public void The_inspector_names_the_swap_analysis_and_never_adds_up_the_swapped_ends()
+    {
+        var scene = ExchangeAfterSwap();
+
+        var scammer = InspectorContent.ForNode(scene, scene.Node(Key(S))!).Why;
+        var mule = InspectorContent.ForNode(scene, scene.Node(Key(M))!).Why;
+
+        var swapped = Assert.Single(scammer, line => line.Text.StartsWith("Gick in i 2 swap", StringComparison.Ordinal));
+        Assert.Equal(GuideTopic.Swaps, swapped.Topic);
+        Assert.DoesNotContain(scammer, line => line.Text.Contains("800", StringComparison.Ordinal));
+        Assert.Contains(mule, line => line.Topic == GuideTopic.Swaps
+            && line.Text.Contains(SwapValue.Analysis, StringComparison.Ordinal));
     }
 
     /// <summary>The graph over fakes, showing the swap scene.</summary>

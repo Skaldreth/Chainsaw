@@ -3959,3 +3959,20 @@ Den oberoende granskningen fann inga C, tre I och fyra M; alla är rättade, och
 - **M2:** startpunkter på båda sidor av en swap vägras som startpunkter i varandras flöde.
 - **M4:** `StopAtSwap` vägrar en swap som ärendets graf inte visar; `tracing.swap_stops` har kolumnen `chain`;
   swapparnas rörelser är indexerade, och spårningen räknar om bara de tillgångar som ändrades.
+
+## Andra granskningen av SW1a rättad (2026-11-08)
+
+Inga C; två I med samma rot i hur en swap känns igen, och fyra M.
+- **Hellre ingen swap än en felaktig** (`AccountData.SwapOf`): reserven *exakt en utgående överföring* är borta. Det är
+  en swap bara när adressen fick tillbaka en tillgång den inte också skickade (en återbetalning i samma tillgång är
+  aldrig ett köp), skickade en tillgång och allt av den gick till bytets sida (`TradeSide`: det anropade kontraktet, de
+  som skickade tillbaka den köpta tillgången, en känd DEX, och adresser som i samma tx syns föra den köpta tillgången
+  eller WETH dit), och ingen motpart är en känd brygga eller mixer eller har en etikett som börs, mixer eller brygga
+  (`GraphBuilder.IsSwapEndpoint`). `KnownTokens.EthereumWeth` är ny.
+- **Tester** (`SwapRecognitionTests`): granskarens tre prober (ingen swap; pengarna når bryggans pool, handlaren och
+  paret), och positiva fall: Uniswap V2 genom routern när tx:en är läst hel, en V3-pool direkt och 1inch. V2 genom
+  routern ur bara historiken känns inte igen (parets WETH syns inte); det står i Guiden och BACKLOG, liksom en
+  aggregators avgift till en egen adress.
+- **M:** exponeringens *Varför?* ger ämnets andel i siffror per swap (`ExposureSwap`); `StopAtSwap` kontrollerar i
+  skrivtransaktionen att swappens tx finns i grafens tillstånd, utan att läsa om grafen; tester för Begärans spår
+  genom en swap och för inspektörens nya rader.

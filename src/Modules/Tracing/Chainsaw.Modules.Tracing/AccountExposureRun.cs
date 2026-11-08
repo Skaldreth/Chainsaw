@@ -84,13 +84,13 @@ internal sealed class AccountExposureRun
     private readonly Dictionary<AssetTransfer, ExposureEntry> _continues = [];
 
     /// <summary>The swaps on the graph's lines, with the transfers that went in and came out.</summary>
-    private readonly List<ExposureSwap> _swaps = [];
+    private readonly List<SwapSides> _swaps = [];
 
     /// <summary>The swap each transfer that went into one belongs to.</summary>
-    private readonly Dictionary<ExposureEntry, ExposureSwap> _soldIn = [];
+    private readonly Dictionary<ExposureEntry, SwapSides> _soldIn = [];
 
     /// <summary>The swap each transfer that came out of one belongs to.</summary>
-    private readonly Dictionary<ExposureEntry, ExposureSwap> _boughtOut = [];
+    private readonly Dictionary<ExposureEntry, SwapSides> _boughtOut = [];
 
     /// <summary>The actors in the queue, so that one is queued once however much reaches it before it is read.</summary>
     private readonly HashSet<string> _pending = new(StringComparer.Ordinal);
@@ -193,7 +193,7 @@ internal sealed class AccountExposureRun
 
             var inSwap = (ExposureEntry entry) => entry.Transfer.Transaction.Id == swap.Transaction.Value;
             var goesIn = (ExposureEntry entry) => SwapValue.GoesIn(swap, entry.Transfer, graph.CrossChainLinks);
-            var found = new ExposureSwap(
+            var found = new SwapSides(
                 swap,
                 [.. Of(_out, account).Where(goesIn)],
                 [.. Of(_in, account).Where(entry => inSwap(entry) && entry.Asset == swap.Bought.Asset)],
@@ -293,6 +293,7 @@ internal sealed class AccountExposureRun
             : (swap.Bought, swap.Sold, swap.Swap.Bought);
         var money = from.Aggregate(BigInteger.Zero, (sum, side) => sum + Money(side));
         var value = from.Aggregate(BigInteger.Zero, (sum, side) => sum + Value(side));
+        _tally.Swapped(swap.Swap, money, whole.Units);
         var through = from.SelectMany(side => _through.GetValueOrDefault(side, [])).ToHashSet();
         var otherWhole = to.Aggregate(BigInteger.Zero, (sum, side) => sum + side.Units);
         var shared = BigInteger.Zero;
@@ -631,6 +632,6 @@ internal sealed class AccountExposureRun
     /// <param name="Sold">The transfers the account sent into it.</param>
     /// <param name="Bought">The transfers that came out of it to the account.</param>
     /// <param name="Follows">Whether the value follows through it (the user has not chosen otherwise).</param>
-    private sealed record ExposureSwap(
+    private sealed record SwapSides(
         TokenSwap Swap, List<ExposureEntry> Sold, List<ExposureEntry> Bought, bool Follows);
 }

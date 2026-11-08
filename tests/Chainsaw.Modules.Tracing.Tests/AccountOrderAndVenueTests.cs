@@ -69,13 +69,29 @@ public sealed class AccountOrderAndVenueTests
     }
 
     [Fact]
-    public void A_mixer_on_the_other_side_never_names_a_swap()
+    public void A_mixer_or_a_bridge_on_the_other_side_is_never_a_swap()
     {
-        var mixer = KnownContracts.All.First(contract => contract.Category == KnownContractCategory.Mixer);
-        var swap = Tx("swap-mixer", 900, Owner, 0.001m,
-            Token(Owner, mixer.Address, Usdt(100m)), (EthereumTransferKind.Internal, mixer.Address, Owner, Ether(1m)));
+        // The trail must reach them (SW1a, the second review): a transaction with one is never read as a swap.
+        foreach (var category in new[] { KnownContractCategory.Mixer, KnownContractCategory.Bridge })
+        {
+            var other = KnownContracts.All.First(contract => contract.Category == category);
+            var swap = Tx("swap-" + category, 900, Owner, 0.001m,
+                Token(Owner, other.Address, Usdt(100m)),
+                (EthereumTransferKind.Internal, other.Address, Owner, Ether(1m)));
 
-        Assert.Null(Assert.Single(Whole(swap).Swaps()).Venue);
+            Assert.Empty(Whole(swap).Swaps());
+        }
+    }
+
+    [Fact]
+    public void An_address_whose_label_ends_the_trail_is_never_a_swaps_other_side()
+    {
+        var pool = Address("labelled-exchange");
+        var swap = Tx("swap-exchange", 900, Owner, 0.001m,
+            Token(Owner, pool, Usdt(100m)), (EthereumTransferKind.Internal, pool, Owner, Ether(1m)));
+
+        Assert.Single(Whole(swap).Swaps());
+        Assert.Empty(Whole(swap).Swaps(address => address == pool));
     }
 
     private static EthereumTransfer Transfer(string label, EthereumAddress from, EthereumAddress to, decimal ether) =>

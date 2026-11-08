@@ -25,6 +25,13 @@ public static class KnownTokens
     public static Asset EthereumUsdc { get; } =
         Asset.Token(Chain.Ethereum, "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "USDC", 6);
 
+    /// <summary>
+    /// Wrapped ether (WETH9) on Ethereum, 18 decimals: ether as a token, which an exchange's pool holds and its router
+    /// unwraps to ether, so that a swap to ether moves WETH inside the transaction.
+    /// </summary>
+    public static Asset EthereumWeth { get; } =
+        Asset.Token(Chain.Ethereum, "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", "WETH", 18);
+
     /// <summary>Tether's USDT on TRON (TRC-20), 6 decimals, for when TRON is built.</summary>
     public static Asset TronUsdt { get; } =
         Asset.Token(Chain.Tron, "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", "USDT", 6);

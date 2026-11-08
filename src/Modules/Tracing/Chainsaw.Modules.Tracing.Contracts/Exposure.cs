@@ -128,7 +128,20 @@ public sealed record ExposureReach(
     /// Gets the swaps on the way, where the money's value followed into another asset by <see cref="SwapValue"/>;
     /// empty when the way went through none.
     /// </summary>
-    public IReadOnlyList<TokenSwap> Swaps { get; init; } = [];
+    public IReadOnlyList<ExposureSwap> Swaps { get; init; } = [];
+}
+
+/// <summary>A swap on the way to a service, with how much of what went into it was the subject's money.</summary>
+/// <param name="Swap">The swap.</param>
+/// <param name="Share">
+/// The subject's share of what went in (read out) or came out (read in), for example <c>62,2 %</c>, as a conclusion
+/// by the method; the same share of the other side follows the value.
+/// </param>
+public sealed record ExposureSwap(TokenSwap Swap, string Share)
+{
+    /// <summary>Writes the swap's step, for example <c>0x… (62,2 %)</c>.</summary>
+    /// <returns>The step.</returns>
+    public override string ToString() => $"{Swap.Transaction.Value} ({Share})";
 }
 
 /// <summary>How much of the subject's money moved along one of the graph's lines, by the method.</summary>
@@ -209,10 +222,9 @@ public sealed record ExposureResult(
         if (reach.Swaps.Count > 0)
         {
             text.Append(CultureInfo.InvariantCulture,
-                $" Vägen går genom {reach.Swaps.Count} swap(par), i tx "
-                + $"{string.Join(", ", reach.Swaps.Select(swap => swap.Transaction.Value))}, där värdet följer med "
-                + $"enligt {SwapValue.Analysis}: samma andel av det som kom ut som av det som gick in, räknat i "
-                + $"{Total.Asset.Symbol}.");
+                $" Vägen går genom {reach.Swaps.Count} swap(par), i tx {string.Join(", ", reach.Swaps)} med "
+                + $"ämnets andel av det som gick in inom parentes; där följer värdet med enligt {SwapValue.Analysis}: "
+                + $"samma andel av det som kom ut, räknat i {Total.Asset.Symbol}.");
         }
 
         text.Append(reach.Amount.Asset.Chain.Model() == LedgerModel.Utxo
