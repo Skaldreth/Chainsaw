@@ -171,7 +171,9 @@ public partial class App : Application
                 .AddSingleton<IShellCommand, VerifyCommand>()
                 .AddSingleton<IShellCommand, LockCommand>()
                 .AddSingleton<CommandRegistry>()
-                .AddSingleton<IFilePicker, WpfFilePicker>()
+                .AddSingleton<WpfFilePicker>()
+                .AddSingleton<IFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
+                .AddSingleton<ISaveFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
                 .AddSingleton<SanctionListImport>()
                 .AddSingleton<ExitWay>()
                 .AddSingleton<ExitPanelViewModel>()
@@ -194,6 +196,7 @@ public partial class App : Application
                 .AddSingleton<WatchBoard>()
                 .AddSingleton<WatchFormViewModel>()
                 .AddSingleton<MonitoringViewModel>()
+                .AddSingleton<RequestsViewModel>()
                 .AddSingleton<IBackgroundProcess, WindowsBackgroundProcess>()
                 .AddSingleton<IAutostart, RunKeyAutostart>()
                 .AddSingleton(provider => new BackgroundParts(

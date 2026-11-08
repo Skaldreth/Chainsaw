@@ -127,6 +127,7 @@ public partial class MainWindow : Window
         GuidePanel.Attach(guidePanel);
         WireGuide(graph, guide);
         WireWatches(shell, graph, monitoring);
+        WireRequests(shell, graph);
         WireEmptyGraph(shell, graph.Start);
         watchRunner.Start();
         shell.Settings.SettingsChanged += (_, settings) => _ = background.ApplyAsync(settings);
@@ -201,6 +202,39 @@ public partial class MainWindow : Window
             graph.ShowWatch(watch);
         };
         monitoring.Board.HitsFound += (_, hits) => graph.TellHits(hits);
+    }
+
+    /// <summary>
+    /// Wires the view Begäran (sketch BG1b): its list follows the graph shown, the graph's <em>Begäran …</em> and the
+    /// inspector's <em>Begäran om frysning …</em> show it with the node chosen, and the page takes the keyboard when it
+    /// is shown, so that Ctrl+S reaches it.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    private void WireRequests(ShellViewModel shell, GraphViewModel graph)
+    {
+        if (shell.Requests is not { } requests)
+        {
+            return;
+        }
+
+        RequestsPage.Attach(requests);
+        requests.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                requests.Update(graph.Scene);
+            }
+        };
+        graph.RequestWanted += (_, wanted) => shell.OpenRequest(wanted);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.IsRequestsShown) && shell.IsRequestsShown)
+            {
+                Dispatcher.BeginInvoke(() => RequestsPage.Focus(), DispatcherPriority.Input);
+            }
+        };
     }
 
     /// <summary>

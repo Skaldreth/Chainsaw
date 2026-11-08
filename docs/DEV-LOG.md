@@ -3157,3 +3157,51 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - Tester: `GraphReachTests` (14) i App.Tests; `TestCaseLayoutTests` mäter nu nodernas verkliga bredd.
 - **Återstår:** *Sortera grafen* (`TidyLayout`) räknar med 132 px breda noder, och en ny kommentar vid en bred nod
   (`CommentGeometry.PlaceOfNew`) placeras efter samma bredd. Båda står i `docs/TODO.md`.
+
+## Begäran, BG1b (2026-11-08)
+
+- **Modulen Requests:** `IRequestService` (Compose, Export, ListExports, ContactsFor) med mallar på svenska och
+  engelska (`RequestTexts`, `RequestTemplates`). Dokumentet är block (`RequestBlock`: titel, rubrik, stycke, notering,
+  tabell), och både förhandsvisningen och filen görs av samma block, så att det som syns är det som exporteras.
+  Markdown skrivs av `RequestMarkdown`, som escapar det en etikett kunde göra till markup.
+- **Bara det begäran behöver** (princip 4): mottagaren, adresserna, de valda insättningarna (tid lokal med offset och
+  UTC till sekunden, exakt belopp, adress, hela txid, blockhöjd och blockhash), spåret i en mening om det tas med,
+  ärendenumret och operatörsprofilen. Aldrig ärendets titel, offrets namn eller anteckningar.
+- **Spårets steg** är förkortade adresser och bara slutet heter med sitt namn (`RequestExits`), så att ett offers
+  eller en misstänkts namn aldrig kan hamna i en begäran. Skissen skriver *Kluster 7*; eget beslut av sekretesskäl.
+- **Export:** `RequestFiles.WriteNew` skriver med `FileMode.CreateNew` och tar nästa nummer, `(2)`, `(3)`, när namnet
+  är taget (spara-dialogen frågar aldrig om att skriva över). SHA-256 av filens byte journalförs
+  (`requests.exported`) och förseglas i kedjan `requests.exports` i samma transaktion; misslyckas det tas filen bort
+  igen, så att ingen fil finns som ärendet inte känner till.
+- **Kontaktvägar:** katalogen (`ExchangeContacts.Catalogue`) är tom. Inga börsers sidor för myndigheter gick att
+  hämta och kontrollera från molnmiljön, och ingen väg läggs in ur minnet. Vyn säger ärligt att ingen verifierad
+  kontaktväg finns.
+- **Frysning** (TK1a): en egen sorts begäran till utgivaren (Tether, Circle) med token, kontrakt och det som ligger
+  kvar enligt ärendets historik, sagt som en bedömning. Den nås med inspektörens *Begäran om frysning …* och står
+  som en isblå rad efter uttagen i listan (ett tillägg till skissen).
+- **Vyn** (`RequestsView`, `RequestsViewModel`, `Controls/RequestPreview`) följer grafens scen: uttag är de blå
+  sorterna som en spårad linje når, också aktörer som ligger i en hög. Det slängda (soptunnan) är inte med.
+  Insättningarna är fakta ur grafens linjer; spårad är en insättning vars mynt spåret håller (Bitcoin) eller vars
+  linje bär spårade pengar (Ethereum, som spåras per linje).
+- **Avsteg från skissen:** språkknappen *Svenska/English* bredvid Exportera (skissen har ett språk); raden under
+  förhandsvisningen om kontaktvägen; förhandsvisningen rullar när dokumentet är längre än rutan; tider skrivs ISO
+  (`2026-10-28 21:14:05 +01:00`) i stället för *28 okt 2026 21:14*, så att en börs kan söka i sina loggar.
+  Grafens menyrad *Begäran …* har ingen tangent, eftersom R är underleverantörernas.
+- **Inte byggt:** börsens markering i grafens hörn när en begäran är exporterad (grafen byggdes om samtidigt av en
+  annan agent), se `docs/TODO.md`.
+- Tester: 35 i `Chainsaw.Modules.Requests.Tests` (mallar, Markdown, export utan överskrivning, försegling, journal,
+  verifiering, kontaktvägar) och `RequestsTests` i App.Tests (uttagen ur scenen, spåret utan namn, vymodellen,
+  exporten, pillret).
+- **Efter granskningen (två I, åtta M):**
+  - **I1:** en begäran gäller bara de adresser spårade pengar nått i uttaget (`RequestExits.Reached`), och de
+    insättningar som gick dit, också ospårade till samma adress. Klustrets andra adresser och andra kunders
+    insättningar kommer aldrig med; `Draft()` bygger mottagarens adresser av de valda insättningarna.
+  - **I2:** ett namn i en begäran kommer bara ur den etikett som gjorde aktören till ett uttag (`SafeName`), annars
+    den förkortade adressen. Detsamma gäller spårets slut i en frysning, så ett offers namn kan inte nå utgivaren.
+  - **M1–M9:** en transaktionsnod (CoinJoin) är varken steg eller hopp; radens nyckel är kind och adress, och
+    *Exporterad* matchar alla aktörens adresser; en frysning per token, och exporten förseglas under adress och token
+    (`RequestDraft.ExportKey`); `~`, `&` och radinledande `-`, `+` och `1.` escapas och noter trimmas; en fil som
+    inte kunde skrivas klart tas bort; exporten skriver *upprättad* med förhandsvisningens tid (`MadeUtc`); knappen
+    *Begäran om frysning …* syns bara när det finns en frysning; begäran säger att mottagarens sort och spåret är
+    bedömningar. `RequestExits.Find` cachas per scen (M8); `Compose` körs fortfarande på UI-tråden
+    (`docs/BACKLOG.md`).
