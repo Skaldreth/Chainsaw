@@ -18,6 +18,7 @@ using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
 using Chainsaw.App.Interop;
 using Chainsaw.App.Links;
+using Chainsaw.App.Navigation;
 using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
 using Chainsaw.SharedKernel;
@@ -54,6 +55,15 @@ public partial class App : Application
     {
         base.OnStartup(e);
         CrashGuard.Guard(this);
+        if (AlertCard.FromArguments(e.Args, SingleInstance.IsRunning(), DateTimeOffset.Now) is { } card)
+        {
+            // Started by the background process as only the message in the middle of the screen (sketch BV4a): no
+            // host, no vault and no hold on being the one Chainsaw; it ends when the card is closed.
+            ShutdownMode = ShutdownMode.OnLastWindowClose;
+            new Views.AlertCardWindow(card).Show();
+            return;
+        }
+
         var argument = e.Args.Length > 0 ? e.Args[0] : string.Empty;
         _instance = SingleInstance.TryAcquire();
         if (_instance is null)
@@ -184,6 +194,9 @@ public partial class App : Application
                 .AddSingleton(provider => new LinkRegistration(
                     provider.GetRequiredService<ILinkRegistry>(),
                     Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Chainsaw.exe")))
+                .AddSingleton<AboutViewModel>()
+                .AddSingleton<IAlertPreview>(provider => new WpfAlertPreview(
+                    () => provider.GetRequiredService<ShellViewModel>().Show(AppView.Monitoring)))
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphEditor, GraphEditor>()

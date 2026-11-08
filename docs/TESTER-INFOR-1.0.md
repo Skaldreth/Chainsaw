@@ -1739,3 +1739,30 @@ några steg).
 - [ ] Ett stort ärende (tusentals adresser): raden hänger aldrig medan man skriver.
 - [ ] */help* listar */guide*, och */gu* med Tab fyller i kommandot.
 
+## Inställningarna mot 1.0 (BV4a, ST2a, FS2a och UT3b)
+
+- **Låsning › När en bevakning slår till:** tre rader med ikon (Avisering i Windows, Ljud, Meddelande mitt på
+  skärmen). Brickan blir terrakotta när sättet är på. *Lyssna* spelar mynt-swooshet, *Prova* visar kortet mitt på
+  skärmen. Slå av alla tre: en gul rad säger att en träff bara syns i Bevakning.
+- **Kortet mitt på skärmen:** ett litet kort med ögat och tre ringar som går ut (stilla med animeringar avstängda),
+  ingenting mörkas. Det ligger överst över alla fönster, går att dra, Esc stänger och Enter tar åtgärden. *Prova*:
+  *Visa* öppnar Bevakning.
+- **Kortet från bakgrunden:** slå på *Meddelande mitt på skärmen*, stäng Chainsaw och kör `Chainsaw.Watcher.exe
+  --test-alert`. Kortet visar *Chainsaw · Bevakning* uppe till vänster och *Öppna Chainsaw*. Med Chainsaw igång (öppet
+  eller låst) står *Visa Chainsaw*, och Enter tar fram fönstret. Bara ett kort åt gången.
+- **Om Chainsaw (inställningarna):** fingeravtrycket i fyra rader om fyra grupper, *Kopiera* blir *Kopierat* med en
+  bock, och klistrat är det gruppat. Utan inbyggd nyckel: *Ingen nyckel* och en gul streckad varning. Lägg en rad
+  `REVOKED <fingeravtryck>` i nyckelfilen: den står överstruken under *Återkallade*, hela på hovring.
+- **Om Chainsaw från låsskärmen:** *Om Chainsaw · commit* i hörnet öppnar samma sida utan menyn, med raden *Visas före
+  upplåsningen …*. Esc, × och ett klick på det mörka stänger den, och tangentbordet går tillbaka till fältet.
+- **Förstagångens steg Utgång:** Windows är förvalt, med vägen grön (Datorn, Windows, Blockkedjor) och *Fortsätt*.
+  Utan nät: rött och streckat, *Fortsätt offline*. VPN: det streckade fältet för en WireGuard-fil (släpp en fil på det
+  eller klicka), sedan raden med filen, × och strömknappen; ansluten blir vägen grön med utgångens namn. Efter
+  *Fortsätt* står samma val i Inställningar › Nätverk.
+- **Nätverk › utgångarna som tabell:** kolumnerna Utgång, Plats och Syns som. Ett klick fäller ut raden med namn,
+  land (listan) och stad, som sparas när fältet lämnas eller med Enter, och rutan *Kontroll*. *Kontrollera nu* går
+  bara på en ansluten utgång och visar adressen och landet; fel land blir gult. *Ta bort utgången …* frågar först,
+  och Esc ångrar.
+- **Kontrollera vid anslutning:** på från början. Anslut en utgång vars land är satt till något annat än där den
+  faktiskt går ut: toastern varnar en gång. Slå av: ingen fråga när den ansluts.
+

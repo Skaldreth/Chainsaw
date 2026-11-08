@@ -3341,3 +3341,25 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
   utanför grafen, Guiden och `/guide`, korta ord, avbrott, 200 000 poster, vymodellens val, pilar, Tab, okänd och
   känd adress, utan ärende, ny graf, klick, Enter i skalet).
 
+
+## Inställningarna mot 1.0: BV4a, ST2a, FS2a och UT3b (2026-11-08)
+
+- **BV4a:** de tre sätten är rader under Låsning med ikon på en bricka. Kortet mitt på skärmen är ett eget fönster
+  (`AlertCardWindow`), överst och utan mörkning. Bakgrundsprocessen är inte WPF, så den startar `Chainsaw.exe
+  --watch-alert`, som bara visar kortet (inget valv, ingen värd, ingen spärr för en enda instans). Utan Chainsaws
+  program bredvid visas Windows ruta som förut. Kortet vet inte om Chainsaw är låst, bara om det är igång, och säger
+  därför *Detaljerna står i Bevakning, efter upplåsning* med *Visa Chainsaw*. Raden *Bevaka när Chainsaw är stängt*
+  står kvar ovanför sätten (skissen har den inte, men valet finns). *Meddelande mitt på skärmen* är av från början,
+  eftersom det täcker arbetet (skissen har alla tre på); *Prova* och *Lyssna* finns, utan skissens *Prova*-lägen.
+- **ST2a:** `ICaseStore.RevokedRecoveryKeys` läser de återkallade ur Cases nyckelfil. *Om Chainsaw* är en egen vy
+  (`AboutPage`, `AboutViewModel`) som både inställningarna och låsskärmen visar; låsskärmens version saknar menyn.
+- **FS2a:** Windows är förvalt och väljs när steget lämnas eller ett kort väljs (genom inställningarna, så det sparas).
+  Steget stannar kvar när filen är tillagd, med strömknappen; *Senare* är borttaget, eftersom *Fortsätt utan utgång*
+  säger samma sak.
+- **UT3b:** `IExitStore.Describe` byter namn och plats, `IExitCheck` frågar `https://1.1.1.1/cdn-cgi/trace` genom
+  `IExitHttp` och sparar det senaste svaret per utgång i valvet (`network/exit-sightings/<id>`), aldrig i ärendet; det
+  tas bort med utgången. Platsen är *land · stad*, med landet ur en lista (`ExitPlace`). Bara en ansluten utgång kan
+  kontrolleras. *Kontrollera vid anslutning* (`AppSettings.CheckExitOnConnect`, på) frågar en gång per anslutning, och
+  fel land säger toastern.
+- **Kvar:** se *Inställningarnas rester* i `docs/TODO.md`.
+

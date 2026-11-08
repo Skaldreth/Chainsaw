@@ -37,6 +37,14 @@
     <SolidColorBrush x:Key="Brush.Accent" Color="{StaticResource Color.Accent}" />
     <SolidColorBrush x:Key="Brush.AccentHover" Color="#CD7158" />
     <SolidColorBrush x:Key="Brush.OnAccent" Color="#FBF6F0" />
+    <!-- The accent as a faint tint under a chosen card or a way that is on (sketches BV4a, FS2a). -->
+    <SolidColorBrush x:Key="Brush.AccentTint" Color="#3A2E2A" />
+    <!-- Success, the warning and the error as faint tints under a tag (sketches ST2a, UT3b). -->
+    <SolidColorBrush x:Key="Brush.SuccessTint" Color="#2F3A33" />
+    <SolidColorBrush x:Key="Brush.PendingTint" Color="#3A3630" />
+    <SolidColorBrush x:Key="Brush.PendingEdge" Color="#6B5A3A" />
+    <SolidColorBrush x:Key="Brush.ErrorTint" Color="#3A2E31" />
+    <SolidColorBrush x:Key="Brush.ErrorEdge" Color="#6B4547" />
 
     <SolidColorBrush x:Key="Brush.Success" Color="#8CC98F" />
     <SolidColorBrush x:Key="Brush.Error" Color="#EC8C8C" />

@@ -91,6 +91,7 @@ public partial class GateView : UserControl
         }
 
         AboutPopup.IsOpen = false;
+        _gate.LockScreen.CloseAbout();
         switch (_gate.Mode)
         {
             case GateMode.Locked:
@@ -114,7 +115,7 @@ public partial class GateView : UserControl
     private IInputElement FirstFieldOfStep() => _gate?.FirstRun.Step switch
     {
         FirstRunStep.MasterKey => FirstKey,
-        FirstRunStep.Exit => AddExitButton,
+        FirstRunStep.Exit => WindowsCard,
         FirstRunStep.FirstCase => CaseNumberBox,
         _ => NameBox,
     };
@@ -183,11 +184,6 @@ public partial class GateView : UserControl
     /// <param name="e">The click.</param>
     private void OnBack(object sender, RoutedEventArgs e) => _gate?.FirstRun.Back();
 
-    /// <summary>Leaves the exit for later.</summary>
-    /// <param name="sender">The button.</param>
-    /// <param name="e">The click.</param>
-    private void OnLater(object sender, RoutedEventArgs e) => _gate?.FirstRun.Later();
-
     /// <summary>Skips the first case.</summary>
     /// <param name="sender">The button.</param>
     /// <param name="e">The click.</param>
@@ -210,10 +206,103 @@ public partial class GateView : UserControl
         }
     }
 
-    /// <summary>Shows or hides what *Om Chainsaw* tells.</summary>
+    /// <summary>
+    /// Shows <em>Om Chainsaw</em> over the lock screen (sketch ST2a), or only the version where the page cannot be
+    /// shown.
+    /// </summary>
     /// <param name="sender">The button.</param>
     /// <param name="e">The click.</param>
-    private void OnAbout(object sender, RoutedEventArgs e) => AboutPopup.IsOpen = !AboutPopup.IsOpen;
+    private void OnAbout(object sender, RoutedEventArgs e)
+    {
+        if (_gate?.LockScreen.About is null)
+        {
+            AboutPopup.IsOpen = !AboutPopup.IsOpen;
+            return;
+        }
+
+        _gate.LockScreen.OpenAbout();
+        FocusLater(AboutClose);
+    }
+
+    /// <summary>Closes <em>Om Chainsaw</em> and gives the keyboard back to the form.</summary>
+    private void CloseAbout()
+    {
+        if (_gate is null || !_gate.LockScreen.IsAboutOpen)
+        {
+            return;
+        }
+
+        _gate.LockScreen.CloseAbout();
+        FocusLater(_gate.Mode == GateMode.FirstRun ? FirstFieldOfStep() : LockKey);
+    }
+
+    /// <summary>Closes <em>Om Chainsaw</em> with ×.</summary>
+    /// <param name="sender">The button.</param>
+    /// <param name="e">The click.</param>
+    private void OnAboutClose(object sender, RoutedEventArgs e) => CloseAbout();
+
+    /// <summary>Closes <em>Om Chainsaw</em> with a click on the dark around it.</summary>
+    /// <param name="sender">The dark.</param>
+    /// <param name="e">The click.</param>
+    private void OnAboutDimClicked(object sender, MouseButtonEventArgs e) => CloseAbout();
+
+    /// <summary>Esc closes <em>Om Chainsaw</em> when it is shown.</summary>
+    /// <param name="sender">The page.</param>
+    /// <param name="e">The key.</param>
+    private void OnGateKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _gate is { LockScreen.IsAboutOpen: true })
+        {
+            e.Handled = true;
+            CloseAbout();
+        }
+    }
+
+    /// <summary>Chooses Windows as the way out on the step Utgång.</summary>
+    /// <param name="sender">The card.</param>
+    /// <param name="e">The click.</param>
+    private void OnChooseWindows(object sender, RoutedEventArgs e) =>
+        _gate?.FirstRun.ChooseRoute(Modules.Network.Contracts.ExitRoute.Windows);
+
+    /// <summary>Chooses VPN as the way out on the step Utgång.</summary>
+    /// <param name="sender">The card.</param>
+    /// <param name="e">The click.</param>
+    private void OnChooseVpn(object sender, RoutedEventArgs e) =>
+        _gate?.FirstRun.ChooseRoute(Modules.Network.Contracts.ExitRoute.Vpn);
+
+    /// <summary>Stores a WireGuard file dropped on the field as the exit.</summary>
+    /// <param name="sender">The field.</param>
+    /// <param name="e">The drop.</param>
+    private async void OnExitFileDropped(object sender, DragEventArgs e)
+    {
+        if (_gate is not null && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files)
+        {
+            e.Handled = true;
+            await _gate.FirstRun.AddExitAsync(files[0]);
+        }
+    }
+
+    /// <summary>Connects or disconnects the stored exit.</summary>
+    /// <param name="sender">The button.</param>
+    /// <param name="e">The click.</param>
+    private async void OnToggleExit(object sender, RoutedEventArgs e)
+    {
+        if (_gate is not null)
+        {
+            await _gate.FirstRun.ToggleExitAsync();
+        }
+    }
+
+    /// <summary>Takes the stored exit away again.</summary>
+    /// <param name="sender">The button.</param>
+    /// <param name="e">The click.</param>
+    private async void OnRemoveExit(object sender, RoutedEventArgs e)
+    {
+        if (_gate is not null)
+        {
+            await _gate.FirstRun.RemoveExitAsync();
+        }
+    }
 
     /// <summary>Minimises the window.</summary>
     /// <param name="sender">The button.</param>

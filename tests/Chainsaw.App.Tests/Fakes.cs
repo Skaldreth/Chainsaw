@@ -248,6 +248,11 @@ internal sealed class TestExitStore : IExitStore
         return new ExitInfo(Guid.NewGuid(), name, place, kind);
     }
 
+    public ExitInfo Describe(Guid id, string name, string place) =>
+        Known.FirstOrDefault(exit => exit.Id == id) is { } exit
+            ? exit with { Name = name, Place = place }
+            : throw new ArgumentException("No exit has the id.", nameof(id));
+
     public Task<bool> RemoveAsync(Guid id) => Task.FromResult(false);
 
     public ExitInfo? FindSelected() => null;
@@ -339,6 +344,8 @@ internal sealed class TestCaseStore : ICaseStore
     public string Directory => "Ärenden";
 
     public RecoveryPublicKey? RecoveryKey { get; set; }
+
+    public IReadOnlyList<string> RevokedRecoveryKeys { get; set; } = [];
 
     /// <summary>When set, <see cref="List"/> throws it, as a folder that cannot be read.</summary>
     public Exception? ListFailure { get; set; }
@@ -618,7 +625,7 @@ internal sealed class GateRig
             Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui, toaster: Toaster);
         Links = new LinkInbox(Shell);
         LockScreen = new LockViewModel(Vault, Way, AutoLock, Build);
-        FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow);
+        FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow, Way, Settings, Exit);
         Gate = new GateViewModel(Vault, LockScreen, FirstRun, Shell, Session, AutoLock, Links, LockSignal, Ui);
     }
 
