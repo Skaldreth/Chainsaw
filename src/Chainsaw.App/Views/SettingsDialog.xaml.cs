@@ -94,14 +94,11 @@ public partial class SettingsDialog : UserControl
             return;
         }
 
-        try
+        // Through the case clipboard, which keeps the copy out of the clipboard history and the cloud clipboard; when
+        // another program holds the clipboard, nothing is copied.
+        if (Interop.CaseClipboard.TrySetText(box.CopyText))
         {
-            Clipboard.SetText(box.CopyText);
             box.MarkCopied();
-        }
-        catch (System.Runtime.InteropServices.ExternalException)
-        {
-            // The clipboard is held by another program; nothing is copied.
         }
     }
 
