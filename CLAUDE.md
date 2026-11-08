@@ -320,6 +320,12 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   släpper länkarna, och den sista länkens två stänger fortsätter som en **dubbelspiral** med stängernas bredd, som vidgas
   mot nederkanten, med basparen som streck mellan strängarna. Figuren är ritad som **vektor**, utan teckenfält bakom;
   bara **partiklar** i tecken (och ibland en bas) lossnar från spiralen och driver ut.
+  **Figuren blir ID8f** (användarens beslut 2026-11-08, ersätter ID8c): **kedja, DNA och kedja vågrätt under
+  formuläret**. Vid start glider kättingarna in från var sin sida, länken mellan dem sträcks och darrar, och släpper
+  sedan med en fjädrande knyck till en spiral som är bredast på mitten, medan den högra kättingen snurrar ett helt varv
+  runt sin axel. Strängarna tonas efter djupet. Bandet hänger som ett **stramt rep** fäst vid fönstrets kanter, med ett
+  litet häng: när fönstret dras svajar det som en båge och stannar fort. Med animeringar avstängda står figuren
+  färdig och stilla.
 - **Färger: ID9b, terrakotta och skiffer** (användarens beslut 2026-11-07, ersätter Gawks gråskala och Magenta): en
   sval blågrå skiffer som botten (bakgrund `#22262A`, paneler `#2B2E32`, upphöjt `#33373A`, markerat `#404346`, kanter
   `#33373A` / `#45474A`), text i kräm och grått (`#FBF6F0` / `#9AA2A6` / `#7C8387`), lyckat `#8CC98F`, fel `#EC8C8C`,
@@ -590,7 +596,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | Sida | Skisser | Läge |
 | --- | --- | --- |
 | **Stil och ikoner** | ID1 (Bitcoin-myntet), ID3 (sågkedjan), ID5 (kättingen); ID6 (accentfärgen), GR3a och GR3c (bildspråket); ID9a–c (accentfärgen i varma jordtoner); IK1 (grafens ikon) | ID1 och ID3 avvisade, ID5 ersatt av loggan i `assets/logo/`; ID6 Magenta ersatt, GR3a och GR3c godkända; ID9b vald och byggd; IK1 kandidat 2, *Förgrening*, vald och byggd |
-| **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA); ID8e, ID8f (startanimationen och ett spänt rep som svajar när fönstret skakas) | ID8c (ersätter ID7a) och FS1a valda och byggda; ID8e och ID8f väntar på användaren |
+| **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA); ID8e, ID8f (startanimationen och ett spänt rep som svajar när fönstret skakas) | ID8c (ersätter ID7a) och FS1a valda och byggda; ID8f vald 2026-11-08, stram (ersätter ID8c), inte byggd |
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog); NC2a, NC2b (startpunkterna som lista som förhandshämtar) | NC2a vald 2026-11-08 och byggd (ersätter NC1a) |
