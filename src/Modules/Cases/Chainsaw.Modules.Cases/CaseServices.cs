@@ -9,6 +9,10 @@ namespace Chainsaw.Modules.Cases;
 /// <param name="Vault">The vault, for its state.</param>
 /// <param name="PurposeKeys">The vault's keys per purpose, for this vault's envelopes.</param>
 /// <param name="Profiles">The operator profile, for the journal.</param>
+/// <param name="Secrets">
+/// The vault's named secrets, for the generation of this computer's anchors; every host must register them, so that
+/// the check against an older anchor file is never left out without a word.
+/// </param>
 /// <param name="Clock">The clock, for the journal.</param>
 /// <param name="Options">The options.</param>
 /// <param name="Catalog">The modules' schemas and sealed chains.</param>
@@ -16,6 +20,7 @@ internal sealed record CaseServices(
     IVault Vault,
     IPurposeKeys PurposeKeys,
     IOperatorProfileStore Profiles,
+    IVaultSecrets Secrets,
     IClock Clock,
     CasesOptions Options,
     SchemaCatalog Catalog);

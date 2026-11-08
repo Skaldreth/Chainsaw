@@ -446,6 +446,7 @@ public sealed class HeldBackTests
 
         Assert.Null(graph.HeldBack);
         Assert.Null(graph.OpeningClue);
-        Assert.Contains(toasts, toast => toast.Title == GraphViewModel.HeldBackFailedText);
+        var failed = Assert.Single(toasts, toast => toast.Title == GraphViewModel.HeldBackFailedText);
+        Assert.Empty(failed.Text);
     }
 }

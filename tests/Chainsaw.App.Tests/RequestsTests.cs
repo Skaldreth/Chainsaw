@@ -47,6 +47,18 @@ internal sealed class TestRequests : IRequestService
         }
 
         Exported.Add((draft, path));
+        lock (Exports)
+        {
+            return Add(draft, path);
+        }
+    }
+
+    /// <summary>Records an export, under the lock on the exports.</summary>
+    /// <param name="draft">The draft.</param>
+    /// <param name="path">The file.</param>
+    /// <returns>The export.</returns>
+    private RequestExport Add(RequestDraft draft, string path)
+    {
         var export = new RequestExport(
             Exports.Count + 1, draft.Kind, draft.Language, draft.Target.Key, draft.Target.Name,
             System.IO.Path.GetFileName(path), path, new string('c', 64),
@@ -56,7 +68,42 @@ internal sealed class TestRequests : IRequestService
         return export;
     }
 
-    public IReadOnlyList<RequestExport> ListExports(ICase @case) => [.. Exports];
+    /// <summary>Gets or sets what reading the exports throws, as when the case closed meanwhile.</summary>
+    public Exception? ListFailure { get; set; }
+
+
+    /// <summary>A wait that the next listing (only) holds on after it has read, or none.</summary>
+    private Task? _holdNextListing;
+
+    /// <summary>Gets a task that completes when a listing has begun to hold.</summary>
+    public TaskCompletionSource ListingHeld { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Makes the next listing hold until the wait is over.</summary>
+    /// <param name="wait">The wait.</param>
+    public void HoldNextListing(Task wait) => _holdNextListing = wait;
+
+    public IReadOnlyList<RequestExport> ListExports(ICase @case)
+    {
+        if (ListFailure is { } failure)
+        {
+            throw failure;
+        }
+
+        List<RequestExport> listed;
+        lock (Exports)
+        {
+            listed = [.. Exports];
+        }
+
+        // Held after it has read, so that what it answers is older than anything done meanwhile.
+        if (Interlocked.Exchange(ref _holdNextListing, null) is { } hold)
+        {
+            ListingHeld.SetResult();
+            hold.Wait();
+        }
+
+        return listed;
+    }
 
     public IReadOnlyList<ExchangeContact> ContactsFor(string name) =>
         [.. Contacts.Where(contact => contact.Recipient == name)];
@@ -301,7 +348,26 @@ public sealed class RequestsViewModelTests
         Assert.Equal("2026-11-07 14:20", row.When);
         Assert.True(model.Exits[0].IsExported);
         Assert.Equal("Exporterad 2026-11-07 14:20", model.Exits[0].ExportedText);
+        Assert.Equal([model.Exits[0].Exit.NodeKey], model.ExportedNodes);
         Assert.Contains(_toaster.Toasts, toast => toast.Title == RequestsViewModel.ExportedTitle);
+    }
+
+    [Fact]
+    public async Task A_listing_begun_before_an_export_never_hides_it()
+    {
+        // The listing begun when the case is opened ends last: it is older than the export and must be dropped.
+        var opened = new TaskCompletionSource();
+        _requests.HoldNextListing(opened.Task);
+        var model = Model();
+        var first = model.ExportsRead;
+        await _requests.ListingHeld.Task;
+
+        await model.ExportAsync();
+        opened.SetResult();
+        await first;
+
+        Assert.Single(model.Exports);
+        Assert.True(model.Exits[0].IsExported);
     }
 
     [Fact]
@@ -324,7 +390,8 @@ public sealed class RequestsViewModelTests
 
         await model.ExportAsync();
 
-        Assert.Contains(_toaster.Toasts, toast => toast.Title == RequestsViewModel.ExportFailedTitle);
+        Assert.Contains(_toaster.Toasts, toast => toast.Title == RequestsViewModel.ExportFailedTitle
+            && toast.Text == "Filen gick inte att skriva.");
         Assert.False(model.IsExporting);
     }
 
@@ -388,6 +455,33 @@ public sealed class RequestsViewModelTests
 
         Assert.Equal(["b.md", "a.md"], model.Exports.Select(row => row.FileName));
         Assert.Equal("Exporterad 2026-11-06 09:00", model.Exits[0].ExportedText);
+        Assert.Equal([model.Exits[0].Exit.NodeKey], model.ExportedNodes);
+    }
+
+    [Fact]
+    public async Task Another_case_forgets_the_marks_of_the_case_before_also_when_its_exports_cannot_be_read()
+    {
+        _requests.Exports.Add(new RequestExport(
+            1, RequestKind.Information, RequestLanguage.Swedish, RequestTarget.KeyOf(E.ToChainAddress()), "Börs A",
+            "a.md", "/a.md", new string('a', 64), [], new DateTimeOffset(2026, 11, 6, 8, 0, 0, TimeSpan.Zero), 3));
+        var model = Model();
+        await model.ExportsRead;
+        Assert.NotEmpty(model.ExportedNodes);
+        _requests.ListFailure = new CaseException(CaseError.Closed);
+
+        _session.Open(new TestCase("2026-0118"));
+        await model.ExportsRead;
+
+        Assert.Empty(model.ExportedNodes);
+        Assert.Empty(model.Exports);
+    }
+
+    [Fact]
+    public void Without_an_export_no_cash_out_is_marked_in_the_graph()
+    {
+        var model = Model();
+
+        Assert.Empty(model.ExportedNodes);
     }
 }
 

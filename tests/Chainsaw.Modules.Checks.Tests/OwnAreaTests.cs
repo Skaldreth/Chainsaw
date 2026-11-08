@@ -82,6 +82,28 @@ public sealed class OwnAreaTests
             harness.Service.AddArea(harness.Case, Draft() with { Members = ["address:nonsense"] }));
         Assert.Throws<ArgumentException>(() =>
             harness.Service.AddArea(harness.Case, Draft() with { Members = ["cluster:x"] }));
+        Assert.Throws<ArgumentException>(() =>
+            harness.Service.AddArea(harness.Case, Draft() with { Members = ["address:0x12"] }));
         Assert.Equal(0, harness.Count("checks_areas"));
+    }
+
+    [Fact]
+    public void An_area_holds_ethereum_accounts_beside_bitcoin_addresses_and_reads_them_back_with_their_chain()
+    {
+        using var harness = new Harness();
+        var account = new Chainsaw.SharedKernel.ChainAddress(
+            Chainsaw.SharedKernel.Chain.Ethereum, "0x" + new string('a', 40));
+        var bitcoin = Wpkh("a");
+
+        var area = harness.Service.AddArea(harness.Case, Draft() with
+        {
+            Members = [CheckRules.MemberOf(account), CheckRules.MemberOf(bitcoin)],
+        });
+
+        Assert.Equal(
+            [account, bitcoin.ToChainAddress()], area.Members.Select(member => CheckRules.AddressOf(member)));
+        Assert.Equal(CheckRules.MemberOf(bitcoin), CheckRules.MemberOf(bitcoin.ToChainAddress()));
+        Assert.Null(CheckRules.AddressOf(CheckRules.MemberOf(Txid("t"))));
+        Assert.True(harness.Verify().IsIntact);
     }
 }

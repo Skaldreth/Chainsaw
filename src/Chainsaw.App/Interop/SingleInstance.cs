@@ -1,6 +1,7 @@
 using System.IO.Pipes;
 using System.Security.Principal;
 using System.Text;
+using Chainsaw.App.Links;
 
 namespace Chainsaw.App.Interop;
 
@@ -19,6 +20,12 @@ namespace Chainsaw.App.Interop;
 /// dropped. What arrives is only text: the receiver reads it with <c>ChainsawLink</c>, which refuses everything that
 /// is not exactly a link to a start point, and a link never does anything by itself.
 /// </para>
+/// <para>
+/// The pipe listens from the moment this Chainsaw becomes the one, before the host is built, and what arrives until
+/// the receiver is there is held (<see cref="MessageHold"/>), so that a link from a second start during a slow start
+/// is not lost. The next instance of the pipe is made before a connected sender is read, so that there is always an
+/// instance of this user's, and no other user can make the pipe of that name between two senders.
+/// </para>
 /// </remarks>
 public sealed class SingleInstance : IDisposable
 {
@@ -31,17 +38,34 @@ public sealed class SingleInstance : IDisposable
     /// <summary>How long the running Chainsaw waits for a connected sender to finish its message.</summary>
     private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(2);
 
+    /// <summary>The most messages held until the receiver is there.</summary>
+    private const int HeldMessages = 16;
+
+    /// <summary>The instances of the pipe that may exist at once: the one being read and the next.</summary>
+    private const int PipeInstances = 2;
+
+    /// <summary>The messages that wait for the receiver.</summary>
+    private readonly MessageHold _hold = new(HeldMessages);
+
     /// <summary>The mutex that this Chainsaw holds while it runs.</summary>
     private readonly Mutex _mutex;
 
     /// <summary>Stops the listening loop.</summary>
     private readonly CancellationTokenSource _stop = new();
 
-    /// <summary>Takes the held mutex.</summary>
+    /// <summary>Takes the held mutex and starts listening, holding what arrives.</summary>
     /// <param name="mutex">The mutex, owned.</param>
-    private SingleInstance(Mutex mutex) => _mutex = mutex;
+    private SingleInstance(Mutex mutex)
+    {
+        _mutex = mutex;
+        var stop = _stop.Token;
+        _ = Task.Run(() => ListenAsync(_hold.Arrive, stop));
+    }
 
-    /// <summary>Becomes the one Chainsaw of this user and session, unless another already runs.</summary>
+    /// <summary>
+    /// Becomes the one Chainsaw of this user and session, unless another already runs, and starts listening for
+    /// links at once.
+    /// </summary>
     /// <returns>The instance, or <see langword="null"/> when another Chainsaw runs.</returns>
     public static SingleInstance? TryAcquire()
     {
@@ -96,15 +120,11 @@ public sealed class SingleInstance : IDisposable
     }
 
     /// <summary>
-    /// Listens for messages on a background thread until disposed, and hands each to <paramref name="received"/> on
-    /// that thread; the receiver posts it to the UI thread.
+    /// Hands every message that has arrived, and each one that arrives until disposed, to
+    /// <paramref name="received"/> on the pipe's thread; the receiver posts it to the UI thread.
     /// </summary>
     /// <param name="received">Called with each message's text.</param>
-    public void Listen(Action<string> received)
-    {
-        ArgumentNullException.ThrowIfNull(received);
-        _ = Task.Run(() => ListenAsync(received, _stop.Token));
-    }
+    public void Listen(Action<string> received) => _hold.Attach(received);
 
     /// <summary>Stops listening and lets go of the mutex; on the thread that acquired it.</summary>
     public void Dispose()
@@ -123,36 +143,74 @@ public sealed class SingleInstance : IDisposable
         _mutex.Dispose();
     }
 
-    /// <summary>Accepts one sender at a time and reads its message, until stopped.</summary>
+    /// <summary>
+    /// Accepts one sender at a time and reads its message, until stopped. The next instance of the pipe is made as
+    /// soon as a sender has connected, before its message is read, so that the name is never without an instance of
+    /// this user's.
+    /// </summary>
     /// <param name="received">Called with each message's text.</param>
     /// <param name="stop">Stops the loop.</param>
     /// <returns>A task that completes when the loop stops.</returns>
     private static async Task ListenAsync(Action<string> received, CancellationToken stop)
     {
-        while (!stop.IsCancellationRequested)
+        NamedPipeServerStream? waiting = null;
+        try
         {
-            try
+            while (!stop.IsCancellationRequested)
             {
-                await using var pipe = new NamedPipeServerStream(
-                    PipeName(), PipeDirection.In, 1, PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
-                await pipe.WaitForConnectionAsync(stop);
-                if (await ReadAsync(pipe, stop) is { } text)
+                try
                 {
-                    received(text);
+                    waiting ??= NewInstance();
+                    await waiting.WaitForConnectionAsync(stop).ConfigureAwait(false);
+                    await using var connected = waiting;
+                    waiting = null;
+                    waiting = NewInstance();
+                    if (await ReadAsync(connected, stop).ConfigureAwait(false) is { } text)
+                    {
+                        received(text);
+                    }
+                }
+                catch (OperationCanceledException) when (stop.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // A sender that broke off, or a pipe of that name that is not ours: wait a moment and listen
+                    // again with a new instance. A stop during the wait ends the wait quietly, and the loop then ends.
+                    if (waiting is not null)
+                    {
+                        await waiting.DisposeAsync().ConfigureAwait(false);
+                        waiting = null;
+                    }
+
+                    await Task.Delay(TimeSpan.FromSeconds(1), stop)
+                        .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
                 }
             }
-            catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        {
+            // Stopped while waiting to listen again.
+        }
+        finally
+        {
+            if (waiting is not null)
             {
-                return;
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                // A sender that broke off, or a pipe of that name that is not ours: wait a moment and listen again.
-                await Task.Delay(TimeSpan.FromSeconds(1), stop).ConfigureAwait(false);
+                await waiting.DisposeAsync().ConfigureAwait(false);
             }
         }
     }
+
+    /// <summary>Makes an instance of the pipe that only this Windows user can connect to.</summary>
+    /// <returns>The instance, not yet connected.</returns>
+    private static NamedPipeServerStream NewInstance() =>
+        new(
+            PipeName(),
+            PipeDirection.In,
+            PipeInstances,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
     /// <summary>Reads one message, at most <see cref="MaximumMessageBytes"/> bytes, within the read timeout.</summary>
     /// <param name="pipe">The connected pipe.</param>

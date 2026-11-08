@@ -29,7 +29,9 @@ public enum CaseError
 
     /// <summary>
     /// A working copy from an interrupted session belongs to another file and was left untouched for a person to
-    /// look at.
+    /// look at; or, when saving, the case file was changed or replaced outside Chainsaw while the case was open, so it
+    /// was not replaced, and the working copy keeps the session's work beside it (see
+    /// <see cref="CaseSaveState.FileReplaced"/>).
     /// </summary>
     Conflict,
 
@@ -47,4 +49,22 @@ public enum CaseError
 
     /// <summary>The case has been closed (also when the vault was locked).</summary>
     Closed,
+
+    /// <summary>
+    /// The file was written by an older build in a format this build no longer reads (before 1.0, old cases need not
+    /// open).
+    /// </summary>
+    OutdatedFormat,
+
+    /// <summary>
+    /// The vault was locked while the case was being saved: the file was written and is complete, but the case is
+    /// closed now and the caller must not take the operation for one that went on.
+    /// </summary>
+    LockedWhileSaving,
+
+    /// <summary>
+    /// The file already holds as many key envelopes as a file may, so another would make it unreadable; nothing was
+    /// changed.
+    /// </summary>
+    TooManyEnvelopes,
 }

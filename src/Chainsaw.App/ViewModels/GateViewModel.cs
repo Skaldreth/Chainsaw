@@ -192,7 +192,7 @@ public sealed partial class GateViewModel : ObservableObject
     {
         Mode = GateMode.Locked;
         _links.Close();
-        _shell.ClearCommand();
+        _shell.ClearForLock();
         _shell.DismissAll();
         _shell.NewCase.Dismiss();
         _session.Forget();

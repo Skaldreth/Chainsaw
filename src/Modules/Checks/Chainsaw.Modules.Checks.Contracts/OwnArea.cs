@@ -93,6 +93,42 @@ public static class CheckRules
         return AddressMember + address.Value;
     }
 
+    /// <summary>
+    /// Gives the member that stands for an address on any chain: <c>address:</c> and the address as its chain writes
+    /// it (an Ethereum address in lower case), so that a Bitcoin address gives the same member as
+    /// <see cref="MemberOf(Chains.Contracts.BitcoinAddress)"/>.
+    /// </summary>
+    /// <param name="address">The address with its chain.</param>
+    /// <returns>For example <c>address:0x…</c>.</returns>
+    public static string MemberOf(SharedKernel.ChainAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return AddressMember + address.Value;
+    }
+
+    /// <summary>
+    /// Reads the address an address member stands for: a Bitcoin address, or an Ethereum address (<c>0x</c> and 40
+    /// hex digits).
+    /// </summary>
+    /// <param name="member">The member.</param>
+    /// <returns>The address with its chain, or <see langword="null"/> when the member is not an address.</returns>
+    public static SharedKernel.ChainAddress? AddressOf(string member)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        if (!member.StartsWith(AddressMember, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var text = member[AddressMember.Length..];
+        if (Chains.Contracts.EthereumAddress.TryParse(text, out var account))
+        {
+            return account.ToChainAddress();
+        }
+
+        return Chains.Contracts.BitcoinAddress.TryParse(text, out var address) ? address.ToChainAddress() : null;
+    }
+
     /// <summary>Gives the member that stands for a transaction that is an actor of its own.</summary>
     /// <param name="txid">The transaction.</param>
     /// <returns>For example <c>tx:4a5e…</c>.</returns>

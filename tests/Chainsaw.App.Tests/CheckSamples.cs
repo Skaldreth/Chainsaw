@@ -108,6 +108,9 @@ internal sealed class TestCheckSource : ICheckSource
 
     public Exception? RunFailure { get; set; }
 
+    /// <summary>Gets what a run says it could not do, as a run with an unreadable part does.</summary>
+    public List<string> RunProblems { get; } = [];
+
     /// <summary>Holds the next decision until the test lets it go.</summary>
     public TaskCompletionSource? HoldDecision { get; set; }
 
@@ -131,7 +134,8 @@ internal sealed class TestCheckSource : ICheckSource
         return RunFailure is { } failure
             ? throw failure
             : new CheckRun(
-                checks, 0, graph.Transactions.Count, new DateTimeOffset(2026, 11, 7, 13, 2, 0, TimeSpan.Zero), []);
+                checks, 0, graph.Transactions.Count, new DateTimeOffset(2026, 11, 7, 13, 2, 0, TimeSpan.Zero),
+                [.. RunProblems]);
     }
 
     /// <summary>Gets or sets what the next decision throws, as the module does when it refuses; then cleared.</summary>

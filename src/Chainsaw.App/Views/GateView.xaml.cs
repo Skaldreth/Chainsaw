@@ -379,6 +379,7 @@ public partial class GateView : UserControl
             Title = "Lägg till en WireGuard-fil",
             Filter = "WireGuard-konfiguration (*.conf)|*.conf|Alla filer (*.*)|*.*",
             CheckFileExists = true,
+            AddToRecent = false,
         };
         if (_gate is not null && dialog.ShowDialog(Window.GetWindow(this)) == true)
         {

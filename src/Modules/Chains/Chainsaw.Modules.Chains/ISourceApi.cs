@@ -16,6 +16,12 @@ internal interface ISourceApi
     /// <summary>Gets the endpoints the chain starts with until the user changes them.</summary>
     IReadOnlyList<SourceEndpoint> Defaults { get; }
 
+    /// <summary>
+    /// Gets the chain and network its endpoints answer for, as the sealed responses name it (for example
+    /// <c>bitcoin-mainnet</c>), against which a probe checks an endpoint (<see cref="ChainLimits"/>).
+    /// </summary>
+    string ChainName { get; }
+
     /// <summary>Builds the request that asks only for the chain's height.</summary>
     /// <param name="address">The endpoint's base address.</param>
     /// <returns>The request, without a key.</returns>

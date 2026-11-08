@@ -101,7 +101,8 @@ public interface ICase : IDisposable
     /// The password, at least <see cref="SharingPasswordRules.MinimumLength"/> characters.
     /// </param>
     /// <exception cref="CaseException">
-    /// <see cref="CaseError.PasswordTooShort"/> or <see cref="CaseError.Closed"/>.
+    /// <see cref="CaseError.PasswordTooShort"/>, <see cref="CaseError.TooManyEnvelopes"/> or
+    /// <see cref="CaseError.Closed"/>.
     /// </exception>
     void SetSharingPassword(ReadOnlySpan<char> password);
 
@@ -117,7 +118,8 @@ public interface ICase : IDisposable
     /// it, and saves the file. Nothing happens when this vault already has one.
     /// </summary>
     /// <exception cref="CaseException">
-    /// <see cref="CaseError.VaultLocked"/> or <see cref="CaseError.Closed"/>.
+    /// <see cref="CaseError.VaultLocked"/>, <see cref="CaseError.TooManyEnvelopes"/> or
+    /// <see cref="CaseError.Closed"/>.
     /// </exception>
     void AddOperatorAccess();
 
@@ -133,13 +135,23 @@ public interface ICase : IDisposable
     IReadOnlyList<CaseEnvelope> DescribeEnvelopes();
 
     /// <summary>Writes the working copy back into the case file, atomically.</summary>
-    /// <exception cref="CaseException"><see cref="CaseError.Closed"/>.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Closed"/>, or <see cref="CaseError.LockedWhileSaving"/> when the vault was locked while the
+    /// file was written: the file is saved, but the case is closing.
+    /// </exception>
     void Save();
 
     /// <summary>
-    /// Saves, closes the database, removes the working copy and clears the file key from memory. Closing twice is
-    /// harmless. If the save fails, the working copy is kept so that the next opening recovers it, and the failure
-    /// is thrown.
+    /// Raised when a save in the background fails, with how many have failed in a row, and when a save (in the
+    /// background, by <see cref="Save"/> or at closing) succeeds after such failures, with none. Raised on the thread
+    /// that saved, with the case's gate held: a handler must not call into the case, only note it and return.
+    /// </summary>
+    event EventHandler<CaseSaveState>? SaveStateChanged;
+
+    /// <summary>
+    /// Saves what was written since the last save (a case only read is not written again), closes the database,
+    /// removes the working copy and clears the file key from memory. Closing twice is harmless. If the save fails, the
+    /// working copy is kept so that the next opening recovers it, and the failure is thrown.
     /// </summary>
     void Close();
 }

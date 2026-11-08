@@ -57,7 +57,9 @@ internal sealed class AttributionProviders(
         ArgumentNullException.ThrowIfNull(address);
         ArgumentNullException.ThrowIfNull(enabled);
         var results = new List<ProviderLookup>();
-        foreach (var provider in _providers.Where(provider => enabled.Contains(provider.Info.Name)))
+        // Compared as the settings' switches compare them, so that a switch the graph shows as on is asked.
+        foreach (var provider in _providers.Where(
+            provider => enabled.Contains(provider.Info.Name, StringComparer.OrdinalIgnoreCase)))
         {
             results.Add(await AskAsync(@case, provider, address, cancellationToken).ConfigureAwait(false));
         }
@@ -101,9 +103,10 @@ internal sealed class AttributionProviders(
         {
             response = await http.SendAsync(provider.Request(address, key), cancellationToken).ConfigureAwait(false);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitNotConnectedException exception)
         {
-            return Missing(name, ProviderLookupStatus.Offline, "Offline: ingen utgång är ansluten. Inget skickades.");
+            // Said as the way out says it: no exit connected with VPN, or no network with Windows.
+            return Missing(name, ProviderLookupStatus.Offline, $"Offline: {exception.Message} Inget skickades.");
         }
         catch (ExitException exception)
         {

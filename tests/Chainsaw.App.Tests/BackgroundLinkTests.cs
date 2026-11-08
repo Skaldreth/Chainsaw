@@ -31,7 +31,7 @@ public sealed class BackgroundLinkTests
         var plan = _fakes.Plan.Plan;
         Assert.True(plan.Enabled);
         Assert.Equal(ExitRoute.Windows, plan.Route);
-        Assert.Equal(WatchAlerts.Windows | WatchAlerts.Sound, plan.Alerts);
+        Assert.Equal(WatchAlerts.Windows | WatchAlerts.Sound | WatchAlerts.Screen, plan.Alerts);
         Assert.Equal([session.Current!.Info.Id], plan.Cases.Select(@case => @case.CaseId));
         Assert.Equal(BackgroundFakes.Command, _fakes.Autostart.Command);
         Assert.Equal(1, _fakes.Process.Starts);
@@ -66,6 +66,25 @@ public sealed class BackgroundLinkTests
         Assert.Null(_fakes.Autostart.Command);
         Assert.Equal(1, _fakes.Process.Stops);
         Assert.Equal(BackgroundMode.Off, link.Mode);
+    }
+
+    [Fact]
+    public async Task A_plan_that_cannot_be_written_still_stops_the_background_when_VPN_is_chosen()
+    {
+        var (_, link) = Link(Windows);
+        await link.WriteCaseAsync();
+        _fakes.Plan.Fails = true;
+
+        await link.ApplyAsync(new AppSettings());
+        await link.RefreshAsync();
+
+        // The file still says Windows, but nothing more is looked up through it, and it is not started again.
+        Assert.Equal(ExitRoute.Windows, _fakes.Plan.Plan.Route);
+        Assert.False(_fakes.Process.Running);
+        Assert.Equal(1, _fakes.Process.Stops);
+        Assert.Equal(1, _fakes.Process.Starts);
+        Assert.Null(_fakes.Autostart.Command);
+        Assert.Equal(BackgroundMode.NeedsWindows, link.Mode);
     }
 
     [Fact]
@@ -116,14 +135,31 @@ public sealed class BackgroundLinkTests
     }
 
     [Fact]
-    public async Task What_the_background_saw_is_brought_into_the_open_case_and_its_hits_told()
+    public async Task A_case_let_go_is_written_into_the_plan_first_so_the_background_never_watches_what_was_taken_back()
+    {
+        var (session, link) = Link(Windows);
+        link.Start();
+        await link.WriteCaseAsync();
+        Assert.Single(_fakes.Plan.Plan.Cases);
+
+        // The last watch is taken back, and the case closed before the board's change reached the plan.
+        _fakes.Watches.Active = false;
+        await session.CloseAsync();
+
+        Assert.Empty(_fakes.Plan.Plan.Cases);
+        link.Dispose();
+    }
+
+    [Fact]
+    public async Task What_the_background_saw_is_brought_into_the_open_case_and_its_hits_never_told_as_hits()
     {
         var (session, link) = Link(Windows);
         var board = link.Board;
         var watch = _source.Add(WatchSamples.Subject(GraphSamples.Address(1)), WatchSamples.Filter());
-        var hit = new WatchHit(9, watch.Id, Chain.Bitcoin,
-            WatchSamples.Out(WatchSamples.On(GraphSamples.Address(2)), 0.1m), [1], 2, TestWatchSource.At);
-        _fakes.Watches.Result = new BackgroundImport(1, 2, [hit], []);
+        var tip = new WatchTip(9, watch.Id, Chain.Bitcoin,
+            WatchSamples.Out(WatchSamples.On(GraphSamples.Address(2)), 0.1m), Guid.NewGuid(), [1], 2,
+            TestWatchSource.At);
+        _fakes.Watches.Result = new BackgroundImport(1, 2, [tip], []);
         IReadOnlyList<WatchHit>? told = null;
         board.HitsFound += (_, hits) => told = hits;
 
@@ -133,8 +169,9 @@ public sealed class BackgroundLinkTests
         _fakes.Queue.Entries[session.Current!.Info.Id] = [Guid.NewGuid()];
         await link.ImportAsync(session.Current!);
 
+        // A tip is no hit until the runner's own lookup gives it; only then is it told.
         Assert.Equal(1, _fakes.Watches.Imports);
-        Assert.Equal([hit], told);
+        Assert.Null(told);
     }
 
     [Fact]
@@ -267,7 +304,7 @@ public sealed class BackgroundLinkTests
         var defaults = new AppSettings();
 
         Assert.True(defaults.WatchInBackground);
-        Assert.Equal(WatchAlerts.Windows | WatchAlerts.Sound, defaults.Alerts);
+        Assert.Equal(WatchAlerts.Windows | WatchAlerts.Sound | WatchAlerts.Screen, defaults.Alerts);
         Assert.Equal(WatchAlerts.Screen, (defaults with
         {
             AlertInWindows = false,
@@ -374,7 +411,10 @@ internal sealed class BackgroundFakes
 
         public DateTimeOffset? WrittenAt() => null;
 
-        public BackgroundPlan Update(Func<BackgroundPlan, BackgroundPlan> change) => Plan = change(Plan);
+        public bool Fails { get; set; }
+
+        public BackgroundPlan Update(Func<BackgroundPlan, BackgroundPlan> change) =>
+            Fails ? throw new IOException("Held by a scanner.") : Plan = change(Plan);
     }
 
     internal sealed class FakeHolds : ICaseHolds

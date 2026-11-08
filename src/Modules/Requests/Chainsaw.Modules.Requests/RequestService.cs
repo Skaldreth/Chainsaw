@@ -65,7 +65,8 @@ internal sealed class RequestService(IClock clock, IOperatorProfileStore profile
     /// <summary>Reads the exports, oldest first.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>The exports.</returns>
-    internal static IReadOnlyList<RequestExport> ReadExports(ICaseReader reader)
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/>: a row cannot be read.</exception>
+    internal static IReadOnlyList<RequestExport> ReadExports(ICaseReader reader) => Readable(() =>
     {
         using var command = reader.CreateCommand("""
             SELECT sequence, kind, language, target_key, target_name, file_name, path, sha256, transactions,
@@ -91,6 +92,27 @@ internal sealed class RequestService(IClock clock, IOperatorProfileStore profile
         }
 
         return exports;
+    });
+
+    /// <summary>
+    /// Reads rows of the case that another program may have written (a colleague's file, a later version), so that
+    /// a row that cannot be read says the case is damaged instead of throwing something the view does not expect.
+    /// </summary>
+    /// <typeparam name="T">What is read.</typeparam>
+    /// <param name="read">Reads the rows.</param>
+    /// <returns>What was read.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/>: a row cannot be read.</exception>
+    internal static T Readable<T>(Func<T> read)
+    {
+        try
+        {
+            return read();
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException or JsonException
+            or InvalidCastException)
+        {
+            throw new CaseException(CaseError.Corrupt, exception);
+        }
     }
 
     /// <summary>Records the export in the journal and seals it, in the case's transaction.</summary>

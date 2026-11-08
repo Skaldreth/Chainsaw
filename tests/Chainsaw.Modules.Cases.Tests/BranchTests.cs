@@ -457,7 +457,7 @@ public sealed class BranchTests : IDisposable
                 transaction.AppendJournal(new JournalDraft("test.note", new string('x', 500)));
             }
 
-            journal = File.ReadAllBytes(other + ".work-journal");
+            journal = CaseFileSurgery.ReadOpenFile(other + ".work-journal");
             return 0;
         });
         Assert.NotNull(journal);
@@ -470,6 +470,55 @@ public sealed class BranchTests : IDisposable
     /// saved, but whose record of the working copy's file no longer matches, as when the file was saved elsewhere:
     /// a conflict without a rollback of the file.
     /// </summary>
+    [Fact]
+    public void A_conflict_says_where_the_branches_went_apart_and_touches_neither()
+    {
+        var store = _fixture.CreateStore();
+        MakeConflict(store);
+        var file = File.ReadAllBytes(CasePath);
+        var workingCopy = File.ReadAllBytes(CasePath + ".work");
+
+        var conflict = store.FindConflict("A1")!;
+
+        var divergence = Assert.IsType<CaseDivergence>(conflict.Divergence);
+        Assert.Equal(0, divergence.FileEntries);
+        Assert.Equal(2, divergence.CopyEntries);
+        Assert.True(divergence.Sequence > 0);
+        Assert.Equal(64, divergence.Hash.Length);
+        Assert.Equal(file, File.ReadAllBytes(CasePath));
+        Assert.Equal(workingCopy, File.ReadAllBytes(CasePath + ".work"));
+        Assert.Empty(Directory.GetFiles(_fixture.Directory, "*.diverge*"));
+
+        // The file as it is now ends at the shared entry: opened as it is, its journal's last entry is that one.
+        using var opened = store.OpenSettingAsideWorkingCopy("A1");
+        var shared = opened.ReadJournal().Single(entry => entry.Sequence == divergence.Sequence);
+        Assert.Equal(divergence.Hash, shared.Hash);
+    }
+
+    [Fact]
+    public void Without_the_vault_a_conflict_has_no_divergence()
+    {
+        var store = _fixture.CreateStore();
+        MakeConflict(store);
+        _fixture.Vault.Lock();
+
+        Assert.Null(store.FindConflict("A1")!.Divergence);
+    }
+
+    [Fact]
+    public void Two_journals_are_compared_entry_by_entry()
+    {
+        byte[] Hash(byte value) => Enumerable.Repeat(value, 32).ToArray();
+
+        var divergence = BranchDivergence.Compare(
+            [(1, Hash(1)), (2, Hash(2)), (3, Hash(3))],
+            [(1, Hash(1)), (2, Hash(2)), (3, Hash(9)), (4, Hash(4))]);
+
+        Assert.Equal(new CaseDivergence(2, Convert.ToHexStringLower(Hash(2)), 1, 2), divergence);
+        Assert.Equal(
+            new CaseDivergence(0, string.Empty, 1, 1), BranchDivergence.Compare([(1, Hash(1))], [(1, Hash(2))]));
+    }
+
     private void MakeConflictWithoutRollback(CaseStore store)
     {
         using (store.Create("A1"))

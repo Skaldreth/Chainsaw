@@ -17,6 +17,7 @@ public sealed partial class GuideSectionsTests
         ("Säkerhet och utgångar",
             ["huvudnyckeln", "lasning", "utgangen", "vpn-utgangar", "kallor", "aterstallningsnyckeln"]),
         ("Klustring", ["bryta-upp-kluster"]),
+        ("Spårning", ["vyn-tidslinje", "flodet"]),
         ("Arbeta i grafen",
             ["inspektoren", "rora-sig-i-grafen", "tidslinjen", "det-som-holls-tillbaka", "historik", "annan-kedja",
                 "dolda-utgangar", "soptunnan", "kommentarer"]),
@@ -52,7 +53,9 @@ public sealed partial class GuideSectionsTests
     {
         foreach (var id in Expected.SelectMany(entry => entry.Sections))
         {
-            var text = File.ReadAllText(Path.Combine(GraphSceneTests.Root(), "docs", "guide", id + ".md"));
+            // A checkout on Windows may have CRLF line endings.
+            var text = File.ReadAllText(Path.Combine(GraphSceneTests.Root(), "docs", "guide", id + ".md"))
+                .ReplaceLineEndings("\n");
             var firstBlock = text.Split("\n\n", StringSplitOptions.RemoveEmptyEntries)[1];
             Assert.StartsWith("> **Som i vardagen:**", firstBlock, StringComparison.Ordinal);
         }

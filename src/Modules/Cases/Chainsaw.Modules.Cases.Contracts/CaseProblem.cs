@@ -16,8 +16,8 @@ public enum CaseProblem
     CaseInfoChanged,
 
     /// <summary>
-    /// This computer's record of how far each chain had come (the anchors) cannot be read or has been changed, so a
-    /// rolled-back or shortened case could not be checked.
+    /// This computer's record of how far each chain had come (the anchors) cannot be read, has been changed or is
+    /// older than the last one this vault wrote, so a rolled-back or shortened case could not be checked.
     /// </summary>
     AnchorsUnreadable,
 
@@ -27,4 +27,11 @@ public enum CaseProblem
     /// <see cref="CaseJournalKinds.AnchorsReplaced"/> entries say what.
     /// </summary>
     AnchorsReplaced,
+
+    /// <summary>
+    /// The database holds a trigger that Chainsaw never makes (only the triggers that protect sealed tables and the
+    /// Cases module's own are Chainsaw's). Someone with the file key put it there; it runs on every later write in
+    /// this case, for example to drop or change rows that are not sealed, so it changes what is recorded from now on.
+    /// </summary>
+    TriggerAdded,
 }

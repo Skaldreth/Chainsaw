@@ -24,4 +24,10 @@ public sealed class ExitConnectException : Exception
 
     /// <summary>Gets why the tunnel could not be started.</summary>
     public ExitFailure Failure { get; }
+
+    /// <summary>
+    /// Gets the line of the configuration that was refused, counted from 1, or <see langword="null"/> when the
+    /// failure concerns no single line.
+    /// </summary>
+    public int? Line { get; init; }
 }

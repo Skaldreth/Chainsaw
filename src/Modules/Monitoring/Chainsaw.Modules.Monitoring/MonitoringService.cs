@@ -34,6 +34,21 @@ internal sealed class MonitoringService(
     /// <summary>How much earlier than its pace a watch may be checked (<see cref="WatchSchedule.Tolerance"/>).</summary>
     public static readonly TimeSpan Tolerance = WatchSchedule.Tolerance;
 
+    /// <summary>The journal line when Chainsaw's own lookup gave a hit the background said it saw.</summary>
+    public const string TipConfirmedText =
+        "Bevakningen av {0} slog till (bakgrundens träff, kontrollerad mot kedjan): {1}";
+
+    /// <summary>The journal line when the case already had the hit a tip from the background was about.</summary>
+    public const string TipKnownText = "Bakgrundens träff för bevakningen av {0} fanns redan i ärendet: {1}";
+
+    /// <summary>The journal line when a tip from the background did not match the chain.</summary>
+    public const string TipRejectedText =
+        "Bakgrundens träff för bevakningen av {0} stämde inte med kedjan och förseglades inte: {1}";
+
+    /// <summary>The journal line when a tip from the background was not checked: its watch changed first.</summary>
+    public const string TipDroppedText =
+        "Bakgrundens träff för bevakningen av {0} kontrollerades inte, bevakningen ändrades eller togs bort: {1}";
+
     /// <summary>What a check says when a cluster's addresses could not be read.</summary>
     public const string NoClusterText = "Klustrets adresser kunde inte läsas; bara {0} kontrollerades.";
 
@@ -56,6 +71,13 @@ internal sealed class MonitoringService(
     {
         ArgumentNullException.ThrowIfNull(@case);
         return @case.Read(WatchStore.ReadHits);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<WatchTip> GetTips(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(WatchStore.ReadTips);
     }
 
     /// <inheritdoc/>
@@ -208,10 +230,10 @@ internal sealed class MonitoringService(
 
         var watches = GetWatches(@case).Where(w => w.Chain == chain && w.State == WatchState.Active).ToList();
         Start(@case, watches.Where(watch => watch.StartHeight is null).ToList(), height);
+        var outcomes = await CheckTipsAsync(@case, chain, cancellationToken).ConfigureAwait(false);
         var known = GetHits(@case).Select(hit => WatchCodec.Key(hit.WatchId, hit.Match))
             .ToHashSet(StringComparer.Ordinal);
         var checkedBefore = GetChecked(@case);
-        var outcomes = new List<WatchOutcome>();
         var now = clock.UtcNow;
         var due = watches.Where(watch => watch.StartHeight is not null
             && IsDue(watch, checkedBefore.GetValueOrDefault(watch.Id), height, now));
@@ -232,6 +254,151 @@ internal sealed class MonitoringService(
 
         return new WatchRun(chain, open, height, outcomes, clock.UtcNow);
     }
+
+    /// <summary>
+    /// Checks the background's waiting tips on a chain against the chain (decided 2026-11-08): each tip of an active
+    /// watch has its transaction looked up through the case's own source, and the watch's check runs on that answer. A
+    /// tip the answer gives is sealed as a hit from Chainsaw's own answer; one it does not give, or whose transaction
+    /// is not on the chain, is closed with a line in the journal and no hit; one of a watch taken back or changed is
+    /// closed unchecked; and one that cannot be looked up now, or of a paused watch, waits for the next check.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="chain">The chain, whose gate is open.</param>
+    /// <param name="cancellationToken">Stops the lookups.</param>
+    /// <returns>One outcome per watch that got a hit from its tips.</returns>
+    private async Task<List<WatchOutcome>> CheckTipsAsync(
+        ICase @case, Chain chain, CancellationToken cancellationToken)
+    {
+        var outcomes = new List<WatchOutcome>();
+        var waiting = GetTips(@case).Where(tip => tip.Chain == chain && tip.State == WatchTipState.Pending).ToList();
+        if (waiting.Count == 0)
+        {
+            return outcomes;
+        }
+
+        var watches = @case.Read(WatchStore.ReadRecords).GroupBy(record => record.Watch.Id)
+            .ToDictionary(group => group.Key, group => group.Last().Watch, StringComparer.Ordinal);
+        foreach (var tip in waiting)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var watch = watches.GetValueOrDefault(tip.WatchId);
+            if (watch is { State: WatchState.Paused })
+            {
+                continue;
+            }
+
+            var filter = @case.Read(reader => WatchStore.ReadTipFilter(reader, tip));
+            if (watch is not { State: WatchState.Active, StartHeight: { } start }
+                || WatchCodec.Encode(watch.Filter with { Pace = WatchPace.EveryBlock })
+                    != WatchCodec.Encode(filter with { Pace = WatchPace.EveryBlock }))
+            {
+                CloseTip(@case, tip, watch, null);
+                continue;
+            }
+
+            var finding = await TipLookup.ReadAsync(
+                check, bitcoin, ethereum, @case, tip, AddressesOf(@case, watch).Addresses.ToHashSet(), filter, start,
+                cancellationToken).ConfigureAwait(false);
+            if (finding.Verdict == TipVerdict.Wait)
+            {
+                continue;
+            }
+
+            if (CloseTip(@case, tip, watch, finding) is { } hit)
+            {
+                outcomes.Add(new WatchOutcome(watch.Id, WatchFeedStatus.Read, [hit], []));
+            }
+        }
+
+        return outcomes;
+    }
+
+    /// <summary>
+    /// Closes a tip in one write: sealed as a hit from Chainsaw's own answer when the finding confirms it (unless the
+    /// case has the hit already), closed as not matching the chain when it rejects it, and as not checked when there is
+    /// no finding. A tip closed meanwhile is left as it is.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="tip">The tip.</param>
+    /// <param name="watch">Its watch, or <see langword="null"/> when there is none.</param>
+    /// <param name="finding">What Chainsaw's lookup found, or <see langword="null"/> when it was not checked.</param>
+    /// <returns>The hit sealed now, or <see langword="null"/>.</returns>
+    private WatchHit? CloseTip(ICase @case, WatchTip tip, Watch? watch, TipFinding? finding) =>
+        @case.Write(transaction => CloseTip(transaction, tip, watch, finding));
+
+    /// <summary>Closes a tip in the case's write, as the method that takes the case says.</summary>
+    /// <param name="transaction">The case's write.</param>
+    /// <param name="tip">The tip.</param>
+    /// <param name="watch">Its watch, or <see langword="null"/>.</param>
+    /// <param name="finding">What Chainsaw's own lookup found, or <see langword="null"/>.</param>
+    /// <returns>The hit sealed now, or <see langword="null"/>.</returns>
+    private static WatchHit? CloseTip(ICaseTransaction transaction, WatchTip tip, Watch? watch, TipFinding? finding)
+    {
+        if (WatchStore.ReadTips(transaction).FirstOrDefault(each => each.Sequence == tip.Sequence) is not
+            { State: WatchTipState.Pending })
+        {
+            return null;
+        }
+
+        // A watch removed, paused or changed while its tip was looked up gets nothing from the lookup: the next check
+        // looks at the tip again as the watch is then.
+        var now = WatchStore.ReadWatches(transaction).FirstOrDefault(each => each.Id == tip.WatchId);
+        if (finding is not null && (now is null || watch is null || now.State != WatchState.Active
+            || WatchCodec.Encode(now.Filter) != WatchCodec.Encode(watch.Filter)))
+        {
+            return null;
+        }
+
+        var name = watch?.Subject.Name ?? tip.WatchId;
+        var claimed = WatchTexts.Hits([tip.Match]);
+        if (finding is { Verdict: TipVerdict.Confirmed, Match: { } match } && watch is not null)
+        {
+            var key = WatchSchedule.Key(watch.Id, match);
+            var known = WatchStore.ReadHits(transaction)
+                .FirstOrDefault(hit => WatchSchedule.Key(hit.WatchId, hit.Match) == key);
+            if (known is not null)
+            {
+                // The open check sealed it first: the tip points at that hit, and nothing is told twice.
+                WatchStore.CloseTip(transaction, tip, WatchTipState.Confirmed, known.Sequence, Journal(
+                    transaction, MonitoringJournalKinds.Tip, string.Format(
+                        CultureInfo.InvariantCulture, TipKnownText, name, claimed), tip, finding));
+                return null;
+            }
+
+            var journal = Journal(transaction, MonitoringJournalKinds.Hit, string.Format(
+                CultureInfo.InvariantCulture, TipConfirmedText, name, WatchTexts.Hits([match])), tip, finding);
+            var sealedHit = WatchStore.SealHit(transaction, watch, match, finding.Origins, journal);
+            WatchStore.CloseTip(transaction, tip, WatchTipState.Confirmed, sealedHit.Sequence, journal);
+            return sealedHit;
+        }
+
+        var (state, kind, text) = finding is null
+            ? (WatchTipState.Dropped, MonitoringJournalKinds.TipDropped, TipDroppedText)
+            : (WatchTipState.Rejected, MonitoringJournalKinds.TipRejected, TipRejectedText);
+        WatchStore.CloseTip(transaction, tip, state, null, Journal(
+            transaction, kind, string.Format(CultureInfo.InvariantCulture, text, name, claimed), tip, finding));
+        return null;
+    }
+
+    /// <summary>Writes the journal line that closes a tip, with the tip and Chainsaw's own responses.</summary>
+    /// <param name="transaction">The case's write.</param>
+    /// <param name="kind">The journal code.</param>
+    /// <param name="summary">The line.</param>
+    /// <param name="tip">The tip.</param>
+    /// <param name="finding">What Chainsaw's own lookup found, or <see langword="null"/>.</param>
+    /// <returns>The journal entry.</returns>
+    private static JournalEntry Journal(
+        ICaseTransaction transaction, string kind, string summary, WatchTip tip, TipFinding? finding) =>
+        transaction.AppendJournal(new JournalDraft(kind, summary, JsonSerializer.Serialize(new
+        {
+            watch = tip.WatchId,
+            tip = tip.Sequence,
+            entry = tip.Entry,
+            tx = tip.Match.Transaction,
+            verdict = finding?.Verdict.ToString(),
+            origins = finding?.Origins ?? [],
+            backgroundOrigins = tip.Origins,
+        })));
 
     /// <summary>
     /// Says whether a watch is due: a new block has come since it was last checked, and its pace's time has passed

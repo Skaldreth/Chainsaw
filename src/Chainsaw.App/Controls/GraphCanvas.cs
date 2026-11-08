@@ -522,6 +522,9 @@ public sealed partial class GraphCanvas : FrameworkElement
             case Key.Escape when _model.Timeline.IsChosen:
                 _model.Timeline.ToNow();
                 break;
+            case Key.Escape when _model.ReturnsOnEscape:
+                _model.Return();
+                break;
             case Key.Escape:
                 _model.Choose(null, null);
                 break;
@@ -674,7 +677,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         Cursor = hit.Node is not null || hit.Edge is not null || guideTip is not null ? Cursors.Hand : null;
         var chainTip = BlockMarkTipAt(surface) ?? CardTipAt(surface);
         Cursor = chainTip is not null ? Cursors.Hand : Cursor;
-        var text = guideTip ?? chainTip ?? model.AmountTipAt(surface) ?? model.Scene?.Node(hit.Node)?.ToolTip;
+        var text = guideTip ?? chainTip ?? PendingTipAt(surface) ?? model.AmountTipAt(surface)
+            ?? model.Scene?.Node(hit.Node)?.ToolTip;
         if (text == _hoverTip.Content as string)
         {
             return;
@@ -1243,9 +1247,10 @@ public sealed partial class GraphCanvas : FrameworkElement
     private void DrawMarks(DrawingContext dc, NodeView node, GraphPoint place)
     {
         var ring = new Pen(GraphPalette.Find(this, "Brush.Background"), 2);
-        for (var index = 0; index < node.Badges.Count; index++)
+        var marks = _model!.MarksOf(node);
+        for (var index = 0; index < marks.Count; index++)
         {
-            var badge = node.Badges[index];
+            var badge = marks[index];
             var (disc, icon) = GraphPalette.Mark(this, badge);
             var centre = new Point(
                 place.X + node.Width + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),

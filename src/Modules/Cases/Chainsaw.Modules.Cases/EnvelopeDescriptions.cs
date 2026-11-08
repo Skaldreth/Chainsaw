@@ -61,7 +61,10 @@ internal static class EnvelopeDescriptions
         {
             var isYours = KeyEnvelopes.TryOpenOne(envelope, caseId, wrappingKey, opened)
                 && (fileKey.IsEmpty || CryptographicOperations.FixedTimeEquals(opened, fileKey));
-            return new CaseEnvelope(isYours ? CaseEnvelopeKind.Yours : CaseEnvelopeKind.OtherVault);
+            return new CaseEnvelope(isYours ? CaseEnvelopeKind.Yours : CaseEnvelopeKind.OtherVault)
+            {
+                Name = EnvelopeLabels.Read(envelope, caseId, fileKey),
+            };
         }
 
         if (KeyEnvelopes.IsKind(envelope, KeyEnvelopes.PasswordKind))
@@ -71,7 +74,25 @@ internal static class EnvelopeDescriptions
 
         return RecoveryEnvelopes.FingerprintOf(envelope) is { } fingerprint
             ? new CaseEnvelope(CaseEnvelopeKind.Recovery, fingerprint, RecoveryKeyOf(fingerprint, options))
-            : new CaseEnvelope(CaseEnvelopeKind.Unknown);
+            : new CaseEnvelope(CaseEnvelopeKind.Unknown) { UnknownKind = KindOf(envelope) };
+    }
+
+    /// <summary>
+    /// Gives the kind an unknown envelope says it is, shortened and without control characters, since it is text from
+    /// the file that the user is shown.
+    /// </summary>
+    /// <param name="envelope">The envelope.</param>
+    /// <returns>The kind, or <see langword="null"/> when it is not a text.</returns>
+    private static string? KindOf(JsonObject envelope)
+    {
+        const int Longest = 32;
+        if (envelope[KeyEnvelopes.KindField] is not JsonValue value || !value.TryGetValue<string>(out var kind))
+        {
+            return null;
+        }
+
+        var clean = new string([.. kind.Where(character => !char.IsControl(character)).Take(Longest)]);
+        return clean.Length > 0 ? clean : null;
     }
 
     /// <summary>Tells which recovery key a fingerprint belongs to, as this build sees it.</summary>

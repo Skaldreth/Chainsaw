@@ -4,7 +4,7 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
-/// The analysis <em>exposure v1</em> (sketch EP1b). It picks the tracing method registered for the asset's chain, by
+/// The analysis <em>exposure v2</em> (sketch EP1b). It picks the tracing method registered for the asset's chain, by
 /// its scope, and reads the money in that chain's model: coin by coin on a UTXO chain (<see cref="UtxoExposureRun"/>),
 /// so that it never says otherwise than the graph about where a coin went, and wallet by wallet on an account chain
 /// (<see cref="AccountExposureRun"/>). What both find is gathered by <see cref="ExposureTally"/>.

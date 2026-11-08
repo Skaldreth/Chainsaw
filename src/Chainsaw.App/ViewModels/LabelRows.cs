@@ -222,9 +222,6 @@ public sealed partial class LabelRowViewModel : ObservableObject
     /// <summary>Gets the chosen label's heading: its node's name, or what it says outside the graph.</summary>
     public string Heading => NodeName.Length > 0 ? NodeName : Title;
 
-    /// <summary>Gets whether the chosen label's own words stand under the heading, as they differ from it.</summary>
-    public bool ShowsTitle => NodeName.Length > 0;
-
     /// <summary>Gets the address shortened, as the list writes it.</summary>
     public required string Address { get; init; }
 

@@ -15,8 +15,17 @@ namespace Chainsaw.Modules.Network;
 internal sealed class WindowsHandlerFactory(NetworkOptions options) : IWindowsHandlerFactory
 {
     /// <inheritdoc />
+    /// <remarks>
+    /// The pipeline is wrapped in <see cref="ProxiedNameGuard"/>, so that a name the system's proxy would resolve is
+    /// held to the same rule as one the pipeline resolves itself.
+    /// </remarks>
     public HttpMessageHandler Create() =>
-        new SocketsHttpHandler
+        new ProxiedNameGuard(CreateSockets(), ProxiedNameGuard.SystemProxyFor, Dns.GetHostAddressesAsync);
+
+    /// <summary>Builds the socket pipeline itself.</summary>
+    /// <returns>The handler.</returns>
+    private SocketsHttpHandler CreateSockets() =>
+        new()
         {
             // No proxy of its own: HttpClient.DefaultProxy, which on Windows is the system's proxy (also from a PAC
             // file or automatic detection), or none. Its credentials are never sent on their own (see DEV-LOG, etapp

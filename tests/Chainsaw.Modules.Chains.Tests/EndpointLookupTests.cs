@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains.Tests;
@@ -52,6 +53,23 @@ public sealed class EndpointLookupTests : IDisposable
         Assert.Equal("esplora.test", Assert.Single(lookup.Origins).Endpoint);
         Assert.True(_harness.Sources.Get(Chain.Bitcoin).Endpoints[0].FailedSince);
         Assert.Equal("esplora.test", _harness.Sources.Get(Chain.Bitcoin).InUse!.Endpoint.Name);
+    }
+
+    [Fact]
+    public async Task An_exit_lost_in_flight_is_not_the_endpoint_s_failure_in_a_lookup_or_a_probe()
+    {
+        _harness.AnswerAll();
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        _harness.Http.Failure = ExitError.ConnectionLost;
+
+        var lookup = await _harness.Source.GetTipHeightAsync(_harness.Case);
+        var round = await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+
+        Assert.Equal(LookupStatus.Failed, lookup.Status);
+        Assert.Equal(ProbeRun.NotSent, round);
+        var endpoint = Assert.Single(_harness.Sources.Get(Chain.Bitcoin).Endpoints);
+        Assert.False(endpoint.FailedSince);
+        Assert.Equal(ProbeOutcome.Answered, endpoint.Probe!.Outcome);
     }
 
     [Fact]

@@ -79,6 +79,9 @@
     <SolidColorBrush x:Key="Brush.Mark.OnCashOut" Color="#0F1C2E" />
     <SolidColorBrush x:Key="Brush.Mark.OtherCase" Color="#45474A" />
     <SolidColorBrush x:Key="Brush.Mark.OnSanctioned" Color="#2A0F0F" />
+    <!-- Tidigare sanktionerad: the sanctioned mark toned down, a dim red disc with a muted red icon. -->
+    <SolidColorBrush x:Key="Brush.Mark.FormerlySanctioned" Color="#5A3D3D" />
+    <SolidColorBrush x:Key="Brush.Mark.OnFormerlySanctioned" Color="#D9A3A3" />
     <!-- Kan frysas (sketch TK1a): a pale ice-blue disc with a dark snowflake. -->
     <SolidColorBrush x:Key="Brush.Mark.Freeze" Color="#A9DCF2" />
     <SolidColorBrush x:Key="Brush.Mark.OnFreeze" Color="#0E2633" />

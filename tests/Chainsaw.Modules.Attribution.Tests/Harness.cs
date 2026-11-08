@@ -27,6 +27,7 @@ internal sealed class Harness : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys>(Keys);
         services.AddSingleton<IOperatorProfileStore>(Profiles);
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(Clock);
         Http = new FakeExitHttp(Clock);
         services.AddSingleton<IExitHttp>(Http);
@@ -65,6 +66,8 @@ internal sealed class Harness : IDisposable
     public IAttributionService Labels => _provider.GetRequiredService<IAttributionService>();
 
     public ISanctionLists Sanctions => _provider.GetRequiredService<ISanctionLists>();
+
+    public IKnownContractLabels KnownContracts => _provider.GetRequiredService<IKnownContractLabels>();
 
     public ILabelLibrary Library => _provider.GetRequiredService<ILabelLibrary>();
 

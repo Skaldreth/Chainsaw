@@ -27,8 +27,38 @@ public class ExitException : Exception
         Error = error;
     }
 
+    /// <summary>
+    /// Creates the exception for a reason on a known way out, so that the message names the way the request took: a
+    /// request through Windows never says that it went through an exit.
+    /// </summary>
+    /// <param name="error">Why the request failed.</param>
+    /// <param name="route">The way out the request took.</param>
+    /// <param name="innerException">The failure that caused it.</param>
+    public ExitException(ExitError error, ExitRoute route, Exception innerException)
+        : base(MessageFor(error, route), innerException)
+    {
+        Error = error;
+        Route = route;
+    }
+
     /// <summary>Gets why the request failed.</summary>
     public ExitError Error { get; }
+
+    /// <summary>Gets the way out the request took, or <see langword="null"/> when it is not known.</summary>
+    public ExitRoute? Route { get; }
+
+    /// <summary>Gives the message for a reason on a way out.</summary>
+    /// <param name="error">The reason.</param>
+    /// <param name="route">The way out.</param>
+    /// <returns>The message for the user.</returns>
+    private static string MessageFor(ExitError error, ExitRoute route) => (error, route) switch
+    {
+        (ExitError.Timeout, ExitRoute.Windows) => "Svaret kom inte i tid genom datorns nät.",
+        (ExitError.RequestFailed, ExitRoute.Windows) => "Uppslaget misslyckades på vägen genom datorns nät.",
+        (ExitError.ConnectionLost, ExitRoute.Windows) =>
+            "Vägen ut byttes medan uppslaget pågick, så det avbröts. Försök igen.",
+        _ => MessageFor(error),
+    };
 
     /// <summary>Gives the fixed Swedish message for a reason.</summary>
     /// <param name="error">The reason.</param>

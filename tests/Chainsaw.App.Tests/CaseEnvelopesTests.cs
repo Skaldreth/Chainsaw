@@ -36,6 +36,7 @@ public sealed class CaseEnvelopesTests
         dialogs.Shown += (_, _) => shown++;
 
         var reply = await _rig.Workflow.OpenAsync("A1");
+        await dialogs.Showing;
 
         Assert.True(reply.IsError);
         Assert.Equal(1, shown);
@@ -174,6 +175,18 @@ public sealed class CaseEnvelopesTests
         var problem = await dialogs.PickAndOpenFileAsync();
 
         Assert.Equal(CaseWorkflow.NotCaseFileText, problem);
+        Assert.False(dialogs.IsAnyOpen);
+    }
+
+    [Fact]
+    public async Task A_chosen_file_that_is_gone_is_said_without_its_path()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "chainsaw-gone-" + Guid.NewGuid().ToString("N"), "B8.cut");
+        var dialogs = Dialogs(new TestCasePicker(file));
+
+        var problem = await dialogs.PickAndOpenFileAsync();
+
+        Assert.Equal(CaseWorkflow.UnreadableFileText, problem);
         Assert.False(dialogs.IsAnyOpen);
     }
 
@@ -321,12 +334,19 @@ public sealed class CaseEnvelopesTests
         var opened = await OpenCaseAsync();
         var dialogs = Dialogs();
         await dialogs.ShowPropertiesAsync();
+        var changes = 0;
+        _rig.Session.Changed += (_, _) => changes++;
 
         dialogs.Properties.TitleText = "Investeringsbedrägeri via chatt";
         await dialogs.Properties.SaveTitleAsync();
 
         Assert.Equal("Investeringsbedrägeri via chatt", opened.Title);
         Assert.Equal("A1 · Investeringsbedrägeri via chatt", _rig.Session.DisplayName);
+        Assert.Equal("A1 · Investeringsbedrägeri via chatt", _rig.Shell.CaseTitle);
+
+        // The same case: the graph, the checks and the requests must not start over for a new title.
+        Assert.Equal(0, changes);
+        Assert.True(dialogs.Properties.IsOpen);
     }
 
     [Fact]
@@ -371,6 +391,37 @@ public sealed class CaseEnvelopesTests
         Assert.Equal("6 nov 18:51", branch.CopyWhen);
         Assert.True(branch.ChoosesCopy);
         Assert.Equal("Spara som A1-B", branch.GoText);
+        Assert.Equal(CaseBranchViewModel.ApartWords, branch.ApartText);
+        Assert.Null(branch.ApartHash);
+        Assert.Empty(branch.FileGrowth);
+    }
+
+    [Fact]
+    public void The_fork_says_where_the_journals_went_apart_and_how_far_each_branch_went_on()
+    {
+        var branch = Dialogs().Branch;
+        var hash = new string('a', 64);
+
+        branch.Show(Conflict() with { Divergence = new CaseDivergence(41, hash, 1, 3) });
+
+        Assert.Equal("Gick isär vid rad 41", branch.ApartText);
+        Assert.Equal(hash, branch.ApartHash);
+        Assert.Equal("+1 rad · ", branch.FileGrowth);
+        Assert.Equal("+3 rader · ", branch.CopyGrowth);
+    }
+
+    [Fact]
+    public void A_colleagues_envelope_with_a_name_shows_it_and_an_unknown_one_its_kind()
+    {
+        var cards = CasePropertiesViewModel.CardsFor(
+            [
+                new(CaseEnvelopeKind.Yours),
+                new(CaseEnvelopeKind.OtherVault) { Name = "Kollega Kollegasson" },
+                new(CaseEnvelopeKind.Unknown) { UnknownKind = "fido2" },
+            ]);
+
+        Assert.Contains(cards, card => card.Kind == EnvelopeCardKind.OtherVault && card.Title == "Kollega Kollegasson");
+        Assert.Contains(cards, card => card.Kind == EnvelopeCardKind.Unknown && card.Subtitle == "Sort: fido2");
     }
 
     [Fact]

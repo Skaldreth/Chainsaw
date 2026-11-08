@@ -118,9 +118,11 @@ public partial class LabelsView : UserControl
     /// <param name="e">The click.</param>
     private void OnCopyAddress(object sender, RoutedEventArgs e)
     {
-        if (Model?.Selected is { } row)
+        if (Model?.Selected is not { } row)
         {
-            Clipboard.SetText(row.FullAddress);
+            return;
         }
+
+        Interop.CaseClipboard.TrySetText(row.FullAddress);
     }
 }

@@ -138,7 +138,11 @@ public partial class CaseDialogs : UserControl
         }
     }
 
-    /// <summary>Puts the caret in the first password field when the card folds them out.</summary>
+    /// <summary>
+    /// Puts the caret in the first password field when the card folds them out, and empties both fields when they are
+    /// hidden (Avbryt, Esc, the dialog closed, Chainsaw locked), so that a typed password never waits in a hidden field
+    /// and is never sent by a later Spara.
+    /// </summary>
     /// <param name="sender">The field.</param>
     /// <param name="e">The event.</param>
     private void OnPasswordFormLoaded(object sender, RoutedEventArgs e)
@@ -150,6 +154,13 @@ public partial class CaseDialogs : UserControl
                 if (box.IsVisible)
                 {
                     FocusLater(box);
+                }
+                else if (FindAncestor<StackPanel>(box, "PasswordForm") is { } form)
+                {
+                    foreach (var field in FindDescendants<PasswordBox>(form))
+                    {
+                        field.Clear();
+                    }
                 }
             };
         }

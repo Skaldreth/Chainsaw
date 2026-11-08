@@ -285,9 +285,13 @@ public sealed class ExitManageTests
         await rig.ShowAsync();
         rig.Route.Choose(ExitRoute.Windows);
 
+        // Windows itself is checked once as it comes online; connecting an exit then asks nothing more.
+        await rig.Panel.WindowsChecked;
+        var asked = rig.Check.Asked;
         rig.Connection.Set(new ExitStatus(ExitState.Connected, Stockholm.Id, null));
+        await rig.Panel.WindowsChecked;
 
-        Assert.Equal(0, rig.Check.Asked);
+        Assert.Equal(asked, rig.Check.Asked);
         Assert.Equal(ExitCheckState.NotChecked, rig.Row(Stockholm).Check);
     }
 
@@ -301,6 +305,77 @@ public sealed class ExitManageTests
 
         Assert.Equal(0, rig.Check.Asked);
         Assert.Empty(rig.Toaster.Toasts);
+    }
+
+    [Fact]
+    public void The_title_bars_tip_says_the_address_the_country_and_an_earlier_day()
+    {
+        var seen = new ExitSighting(Stockholm.Id, ExitRoute.Vpn, "185.213.154.68", "SE", Now);
+
+        Assert.Equal("syns som 185.213.154.68, Sverige", ExitCheckWords.TipText(seen, Now));
+        Assert.Equal(
+            "syns som 185.213.154.68 · " + ExitCheckWords.Day(Now, Now.AddDays(2)),
+            ExitCheckWords.TipText(seen with { CountryCode = string.Empty }, Now.AddDays(2)));
+    }
+
+    [Fact]
+    public async Task A_connected_exit_is_said_in_the_tip_as_its_last_check_saw_it()
+    {
+        var rig = new Rig();
+        rig.Check.Kept[Stockholm.Id] = new ExitSighting(Stockholm.Id, ExitRoute.Vpn, "185.213.154.68", "SE", Now);
+        rig.Check.Answer = rig.Check.Kept[Stockholm.Id];
+        await rig.ShowAsync();
+        Assert.Equal(string.Empty, rig.Panel.SeenTip);
+
+        rig.Connection.Set(new ExitStatus(ExitState.Connected, Stockholm.Id, null));
+
+        Assert.Equal("syns som 185.213.154.68, Sverige", rig.Panel.SeenTip);
+        rig.Connection.Set(ExitStatus.NotConnected);
+        Assert.Equal(string.Empty, rig.Panel.SeenTip);
+    }
+
+    [Fact]
+    public async Task Windows_as_the_way_out_is_checked_once_while_online_and_said_in_the_tip()
+    {
+        var rig = new Rig();
+        rig.Check.Answer = new ExitSighting(Guid.Empty, ExitRoute.Windows, "81.226.17.40", "SE", Now);
+
+        rig.Route.Choose(ExitRoute.Windows);
+        await rig.Panel.WindowsChecked;
+        rig.Route.Choose(ExitRoute.Windows);
+
+        Assert.Equal(1, rig.Check.Asked);
+        Assert.Equal("syns som 81.226.17.40, Sverige", rig.Panel.SeenTip);
+        Assert.Empty(rig.Check.Kept);
+    }
+
+    [Fact]
+    public async Task Windows_is_not_checked_while_the_vault_is_locked_or_checks_are_off()
+    {
+        var locked = new Rig(VaultState.Locked);
+        var off = new Rig();
+        off.Panel.ChecksOnConnect = false;
+
+        locked.Route.Choose(ExitRoute.Windows);
+        off.Route.Choose(ExitRoute.Windows);
+        await Task.WhenAll(locked.Panel.WindowsChecked, off.Panel.WindowsChecked);
+
+        Assert.Equal(0, locked.Check.Asked);
+        Assert.Equal(0, off.Check.Asked);
+        Assert.Equal(string.Empty, off.Panel.SeenTip);
+    }
+
+    [Fact]
+    public async Task A_failed_check_of_Windows_leaves_the_tip_without_an_address()
+    {
+        var rig = new Rig();
+        rig.Check.Failure = new ExitException(ExitError.RequestFailed);
+
+        rig.Route.Choose(ExitRoute.Windows);
+        await rig.Panel.WindowsChecked;
+
+        Assert.Equal(1, rig.Check.Asked);
+        Assert.Equal(string.Empty, rig.Panel.SeenTip);
     }
 
     /// <summary>The panel on the settings' page with test doubles.</summary>

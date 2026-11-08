@@ -234,9 +234,9 @@ internal sealed class CheckService : ICheckService
     /// <param name="request">The decision as asked for.</param>
     /// <param name="decision">The decision as sealed.</param>
     /// <param name="results">The sealed findings.</param>
+    /// <exception cref="SuggestionChangedException">The wallet's proposals are no longer stored.</exception>
     /// <exception cref="ArgumentException">
-    /// The wallet's proposals are no longer stored, or the clustering refuses the merge (for example because the user
-    /// has split the addresses).
+    /// The clustering refuses the merge (for example because the user has split the addresses).
     /// </exception>
     private void FollowInClustering(
         ICaseTransaction transaction,
@@ -255,8 +255,8 @@ internal sealed class CheckService : ICheckService
             var merges = WalletMerges(transaction, finding);
             if (merges.Count == 0)
             {
-                throw new ArgumentException(
-                    "The clustering no longer proposes the wallet; run the checks again.", nameof(request));
+                throw new SuggestionChangedException(
+                    "The clustering no longer proposes the wallet; run the checks again.");
             }
 
             _clustering.Merge(
@@ -285,7 +285,7 @@ internal sealed class CheckService : ICheckService
     /// <param name="reader">The case's transaction.</param>
     /// <param name="finding">The wallet, as sealed.</param>
     /// <returns>The merges.</returns>
-    /// <exception cref="ArgumentException">
+    /// <exception cref="SuggestionChangedException">
     /// The proposals no longer join the wallet the user saw; the checks are run again first.
     /// </exception>
     private List<MergeRequest> WalletMerges(ICaseReader reader, CheckFinding finding)
@@ -308,16 +308,30 @@ internal sealed class CheckService : ICheckService
 
         if (joined.Groups() is not [var only] || !only.ToHashSet().SetEquals(members))
         {
-            throw new ArgumentException(
-                "The clustering's proposals no longer join the wallet as it was shown; run the checks again.",
-                nameof(finding));
+            throw new SuggestionChangedException(
+                "The clustering's proposals no longer join the wallet as it was shown; run the checks again.");
         }
 
         return
         [
             .. proposals.Select(evidence => new MergeRequest(
-                [.. evidence.Addresses.Distinct()], evidence.Txid, evidence.Heuristic, evidence.Reason)),
+                [.. evidence.Addresses.Distinct()], evidence.Txid, evidence.Heuristic, GroundsOf(evidence))),
         ];
+    }
+
+    /// <summary>
+    /// Gives what an approved proposal said, with what lowered it to a suggestion (for example a possible CoinJoin),
+    /// so that the merge's <em>Varför?</em> says what spoke against it, as the wallet did when it was approved
+    /// (principle 3); only the proposal's reason when both would not fit in a merge's grounds.
+    /// </summary>
+    /// <param name="evidence">The proposal.</param>
+    /// <returns>The grounds.</returns>
+    private static string GroundsOf(ClusterEvidence evidence)
+    {
+        var grounds = evidence.Adjustment is { } against
+            ? $"{evidence.Reason} Det som talade emot: {against}"
+            : evidence.Reason;
+        return grounds.Length <= UserMerges.MaximumTextLength ? grounds : evidence.Reason;
     }
 
     /// <summary>
@@ -795,7 +809,7 @@ internal sealed class CheckService : ICheckService
         foreach (var member in distinct)
         {
             var valid = member.StartsWith(CheckRules.AddressMember, StringComparison.Ordinal)
-                ? BitcoinAddress.TryParse(member[CheckRules.AddressMember.Length..], out _)
+                ? CheckRules.AddressOf(member) is not null
                 : member.StartsWith(CheckRules.TransactionMember, StringComparison.Ordinal)
                     && Txid.TryParse(member[CheckRules.TransactionMember.Length..], out _);
             if (!valid)

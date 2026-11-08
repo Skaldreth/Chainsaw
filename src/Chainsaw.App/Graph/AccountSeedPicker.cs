@@ -39,7 +39,8 @@ public static class AccountSeedPicker
         }
 
         var distinct = chosen.Distinct().ToList();
-        var arrivals = distinct.ToDictionary(seed => seed, seed => Arrival(transfers, seed));
+        var ordered = transfers.OrderBy(AccountGraph.ChainOrder).ToList();
+        var arrivals = distinct.ToDictionary(seed => seed, seed => Arrival(ordered, seed));
         var kept = distinct.Where(seed => !distinct.Any(other => other != seed
                 && other.Amount.Asset == seed.Amount.Asset
                 && arrivals[other].TryGetValue(seed.From, out var arrived)
@@ -54,18 +55,17 @@ public static class AccountSeedPicker
     /// seed's reach can leave a seed out, and only when it arrives at the seed's sender before the seed leaves; that
     /// errs towards tracing less, never towards counting twice.
     /// </summary>
-    /// <param name="transfers">The graph's movements.</param>
+    /// <param name="transfers">The graph's movements, in chain order (sorted once for every seed).</param>
     /// <param name="seed">The movement.</param>
     /// <returns>The earliest arrival at each account it reaches, in chain order.</returns>
-    private static Dictionary<EthereumAddress, (long, string, long, int)> Arrival(
+    private static Dictionary<EthereumAddress, (long, long, string, long, int)> Arrival(
         IReadOnlyList<EthereumTransfer> transfers, EthereumTransfer seed)
     {
-        var arrival = new Dictionary<EthereumAddress, (long, string, long, int)>
+        var arrival = new Dictionary<EthereumAddress, (long, long, string, long, int)>
         {
             [seed.To] = AccountGraph.ChainOrder(seed),
         };
-        foreach (var transfer in transfers.Where(transfer => transfer.Amount.Asset == seed.Amount.Asset)
-            .OrderBy(AccountGraph.ChainOrder))
+        foreach (var transfer in transfers.Where(transfer => transfer.Amount.Asset == seed.Amount.Asset))
         {
             var order = AccountGraph.ChainOrder(transfer);
             if (arrival.TryGetValue(transfer.From, out var at) && at.CompareTo(order) < 0

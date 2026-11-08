@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Chainsaw.Modules.Attribution.Contracts;
@@ -145,6 +146,10 @@ public interface IGraphSource
 /// The currency chosen in the settings, which a line without a value names (<c>– kr</c>); kronor where there is none.
 /// </param>
 /// <param name="clock">The clock, which tells a block time ahead of it; the computer's where none is given.</param>
+/// <param name="knownContracts">
+/// Labels the graph's Ethereum addresses that are on Chainsaw's list of known contracts (Tornado Cash, the bridges), so
+/// that the trail ends there with the list as its reason; <see langword="null"/> where there is none.
+/// </param>
 public sealed class GraphSource(
     ITracingService tracing,
     IAttributionService attribution,
@@ -152,7 +157,8 @@ public sealed class GraphSource(
     ILabelLibrary? library = null,
     IPriceService? prices = null,
     IPriceDefaults? priceDefaults = null,
-    IClock? clock = null) : IGraphSource
+    IClock? clock = null,
+    IKnownContractLabels? knownContracts = null) : IGraphSource
 {
     /// <summary>The computer's clock, where none is given.</summary>
     private static readonly IClock SystemClockInstance = new SystemClock();
@@ -427,41 +433,77 @@ public sealed class GraphSource(
 
     /// <summary>
     /// Gives the graph's addresses the label library's labels from other cases, sealed in this case with a line in
-    /// the journal, and reads the graph again when any came in, so that its ends of the trail include them. Without a
-    /// library, with a locked vault, without an operator profile or with a library that cannot be read, the graph
-    /// stays as it is: the labels come the next time it is read.
+    /// the journal, and reads the graph again when any came in or the library took back copies whose label was
+    /// withdrawn where it was set, so that its ends of the trail follow them. Without a library, with a locked vault,
+    /// without an operator profile or with a library that cannot be read, the graph stays as it is: the labels come
+    /// the next time it is read.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="graph">The graph.</param>
     /// <param name="cancellationToken">Stops the work.</param>
-    /// <returns>The graph, read again when labels came in.</returns>
+    /// <returns>The graph, read again when the case's labels changed.</returns>
     private async Task<TraceGraph> WithSharedLabelsAsync(
         ICase @case, TraceGraph graph, CancellationToken cancellationToken)
     {
         var addresses = graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList();
         var accounts = graph.Nodes.SelectMany(node => node.Accounts).Distinct().ToList();
-        if (library is null || addresses.Count + accounts.Count == 0)
+        var labelled = LabelKnownContracts(@case, accounts);
+        var shared = 0;
+        if (library is not null)
         {
-            return graph;
+            try
+            {
+                // ShareInto counts only the labels that came in; a copy it took back (its label was withdrawn where
+                // it was set) shows as one label fewer in force, and the graph read before still ends the trail on it.
+                var before = attribution.GetEntries(@case).Count;
+                shared += addresses.Count == 0 ? 0 : library.ShareInto(@case, addresses).Count;
+                shared += accounts.Count == 0 ? 0 : library.ShareInto(@case, accounts).Count;
+                shared += attribution.GetEntries(@case).Count == before ? 0 : 1;
+            }
+            catch (Exception exception)
+                when (exception is not OutOfMemoryException and not OperationCanceledException)
+            {
+                // A locked vault, no operator profile or a library that cannot be read must never keep the case's
+                // own graph from being shown; the labels from other cases come the next time it can be read.
+                shared = 0;
+            }
+        }
+
+        return shared + labelled == 0
+            ? graph
+            : await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Labels the graph's Ethereum addresses that are known contracts (Tornado Cash, the bridges), so that the trail
+    /// ends there with Chainsaw's list as its reason; nothing is fetched for it.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="accounts">The graph's addresses on account chains.</param>
+    /// <returns>How many labels were added.</returns>
+    private int LabelKnownContracts(ICase @case, IReadOnlyCollection<ChainAddress> accounts)
+    {
+        if (knownContracts is null || accounts.Count == 0)
+        {
+            return 0;
         }
 
         try
         {
-            var shared = addresses.Count == 0 ? 0 : library.ShareInto(@case, addresses).Count;
-            shared += accounts.Count == 0 ? 0 : library.ShareInto(@case, accounts).Count;
-            if (shared == 0)
-            {
-                return graph;
-            }
+            return knownContracts.Check(@case, accounts).Count;
+        }
+        catch (CaseException)
+        {
+            // No operator profile, or a case that is closed or cannot be written, must never keep the graph from
+            // being shown; the labels are set the next time the graph is read.
+            return 0;
         }
         catch (Exception exception) when (exception is not OutOfMemoryException and not OperationCanceledException)
         {
-            // A locked vault, no operator profile or a library that cannot be read must never keep the case's own
-            // graph from being shown; the labels from other cases come the next time it can be read.
-            return graph;
+            // The same, but unexpected: only the type is logged, since the message could name the case's data.
+            Trace.TraceWarning("Labelling the known contracts failed: {0}", exception.GetType().FullName);
+            return 0;
         }
-
-        return await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -532,12 +574,16 @@ public sealed class GraphSource(
                 null));
         }
 
-        if (cluster.Splits.Count > 0)
+        // One breaking out stores a split per address that left, so the breakings out are counted, not the splits.
+        var breakings = cluster.Splits.Select(split => split.JournalSequence).Distinct().Count();
+        if (breakings > 0)
         {
             why.Add(new WhyLine(
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"Användaren har brutit upp {cluster.Splits.Count} sammanslagningar som rör klustret."),
+                breakings == 1
+                    ? "Användaren har gjort en uppbrytning som rör klustret."
+                    : string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"Användaren har gjort {breakings} uppbrytningar som rör klustret."),
                 null));
         }
 

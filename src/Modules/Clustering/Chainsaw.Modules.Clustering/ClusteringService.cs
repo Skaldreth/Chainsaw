@@ -16,6 +16,9 @@ internal sealed class ClusteringService : IClusteringService
     /// <summary>The longest reason a split may have.</summary>
     public const int MaximumReasonLength = 1_000;
 
+    /// <summary>The longest line the case's journal takes (Cases refuses a longer summary).</summary>
+    private const int JournalSummaryLength = 1_000;
+
     /// <summary>The analyses that run on Bitcoin's transactions, in the order they run.</summary>
     private readonly IReadOnlyList<IUtxoHeuristic> _heuristics;
 
@@ -387,18 +390,7 @@ internal sealed class ClusteringService : IClusteringService
         var before = Graph(transaction).MergedKeys();
         var journal = transaction.AppendJournal(new JournalDraft(
             ClusteringJournalKinds.Merged,
-            string.Format(
-                CultureInfo.InvariantCulture,
-                "Sammanslagning av användaren ({0}): {1}.",
-                UserMerges.Id,
-                string.Join(
-                    "; ",
-                    requests.Select(request => string.Format(
-                        CultureInfo.InvariantCulture,
-                        "{0} har samma ägare ({1}, tx {2})",
-                        string.Join(", ", request.Addresses.Select(address => address.Value)),
-                        request.Proposal,
-                        request.Txid.Value)))),
+            MergeSummary(requests),
             JsonSerializer.Serialize(new
             {
                 merges = requests.Select(request => new
@@ -534,6 +526,40 @@ internal sealed class ClusteringService : IClusteringService
             throw new ArgumentException(
                 "A merge says what it rests on, in at most 1 000 characters.", nameof(request));
         }
+    }
+
+    /// <summary>
+    /// Gives the journal's line for the user's merges: every part with its addresses, proposal and transaction when it
+    /// fits on the line, and otherwise how many parts and addresses, since a wallet of many proposals (a peel chain's
+    /// change) would not fit. The journal row's details always hold every part.
+    /// </summary>
+    /// <param name="requests">The merges.</param>
+    /// <returns>The line.</returns>
+    private static string MergeSummary(IReadOnlyList<MergeRequest> requests)
+    {
+        var full = string.Format(
+            CultureInfo.InvariantCulture,
+            "Sammanslagning av användaren ({0}): {1}.",
+            UserMerges.Id,
+            string.Join(
+                "; ",
+                requests.Select(request => string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0} har samma ägare ({1}, tx {2})",
+                    string.Join(", ", request.Addresses.Select(address => address.Value)),
+                    request.Proposal,
+                    request.Txid.Value))));
+        if (full.Length <= JournalSummaryLength)
+        {
+            return full;
+        }
+
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "Sammanslagning av användaren ({0}): {1} adresser i {2} delar har samma ägare; varje del står i raden.",
+            UserMerges.Id,
+            requests.SelectMany(request => request.Addresses).Distinct().Count(),
+            requests.Count);
     }
 
     /// <summary>Checks an optional reason: empty is none, and it may be at most 1 000 characters.</summary>

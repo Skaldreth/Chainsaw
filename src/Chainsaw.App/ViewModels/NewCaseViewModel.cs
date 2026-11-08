@@ -40,6 +40,12 @@ public sealed partial class NewCaseViewModel : ObservableObject
     /// <summary>Fetches the start points in advance; <see langword="null"/> where nothing is fetched.</summary>
     private readonly IStartPointPrefetch? _prefetch;
 
+    /// <summary>
+    /// Counts the times Chainsaw locked and dismissed the panel, so that a creation that was under way then does not
+    /// empty or answer a panel shown again after the unlock.
+    /// </summary>
+    private long _round;
+
     /// <summary>Stops every lookup of the panel's current filling, when it is emptied or the case is created.</summary>
     private CancellationTokenSource _lookups = new();
 
@@ -230,7 +236,9 @@ public sealed partial class NewCaseViewModel : ObservableObject
         var clean = lines.Where(parts => parts.All(part => StartPointText.Parse(part).IsRecognised)).ToList();
         if (clean.Count == 0)
         {
-            AddText = string.Join(' ', lines.SelectMany(parts => parts));
+            // The add row holds no more than its field lets the user write, whatever the clipboard held.
+            var written = string.Join(' ', lines.SelectMany(parts => parts));
+            AddText = written.Length > MaximumAddLength ? written[..MaximumAddLength] : written;
             return;
         }
 
@@ -289,6 +297,7 @@ public sealed partial class NewCaseViewModel : ObservableObject
     /// </summary>
     public void Dismiss()
     {
+        _round++;
         IsOpen = false;
         Reset();
     }
@@ -537,6 +546,7 @@ public sealed partial class NewCaseViewModel : ObservableObject
     /// <returns>A task that completes when the case is created or the reason is shown.</returns>
     private async Task CreateAsync(NewCaseRequest request, char[]? sharing)
     {
+        var round = _round;
         IsBusy = true;
         StopLookups();
         CaseCreation creation;
@@ -554,6 +564,18 @@ public sealed partial class NewCaseViewModel : ObservableObject
             }
 
             IsBusy = false;
+        }
+
+        if (round != _round)
+        {
+            // Chainsaw locked while the case was created: the panel was emptied then, and one shown again after the
+            // unlock is another's. The workflow has said what happened; nothing here is touched.
+            if (!IsOpen)
+            {
+                _prefetch?.Forget();
+            }
+
+            return;
         }
 
         if (creation.Exists || creation.IsCreated || !IsOpen)

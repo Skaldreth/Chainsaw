@@ -18,6 +18,9 @@ internal sealed class MonitoringSchema : ICaseSchemaContributor
     /// <summary>The sealed chain of hits.</summary>
     public const string HitsChain = "monitoring.hits";
 
+    /// <summary>The sealed chain of the background's tips: each comes in, and is later closed, as a record.</summary>
+    public const string TipsChain = "monitoring.tips";
+
     /// <summary>The sealed columns of a watch's record, in order.</summary>
     public static readonly IReadOnlyList<string> WatchColumns =
     [
@@ -30,6 +33,14 @@ internal sealed class MonitoringSchema : ICaseSchemaContributor
     [
         "watch_id", "chain", "txid", "block_height", "block_hash", "block_time", "direction", "asset", "amount",
         "counterparties", "origins", "journal_sequence", "recorded_utc",
+    ];
+
+    /// <summary>The sealed columns of a tip's record, in order.</summary>
+    public static readonly IReadOnlyList<string> TipColumns =
+    [
+        "action", "tip", "watch_id", "entry_id", "chain", "txid", "block_height", "block_hash", "block_time",
+        "direction", "asset", "amount", "counterparties", "filter", "origins", "hit_sequence", "journal_sequence",
+        "recorded_utc",
     ];
 
     /// <summary>The first version of the tables.</summary>
@@ -96,6 +107,36 @@ internal sealed class MonitoringSchema : ICaseSchemaContributor
         ALTER TABLE monitoring_seen ADD COLUMN seen_utc TEXT;
         """;
 
+    /// <summary>
+    /// The fourth version: the hits the background process says it saw, as tips until Chainsaw's own lookup has checked
+    /// them (decided 2026-11-08). A tip comes in as a <c>Pending</c> record with what the background claims; it is
+    /// closed by a later record (<c>Confirmed</c>, <c>Rejected</c> or <c>Dropped</c>) that names it in <c>tip</c>.
+    /// </summary>
+    private const string Version4 = """
+        CREATE TABLE monitoring_tips (
+            sequence INTEGER PRIMARY KEY,
+            action TEXT NOT NULL,
+            tip INTEGER,
+            watch_id TEXT NOT NULL,
+            entry_id TEXT,
+            chain TEXT,
+            txid TEXT,
+            block_height INTEGER,
+            block_hash TEXT,
+            block_time TEXT,
+            direction TEXT,
+            asset TEXT,
+            amount TEXT,
+            counterparties TEXT,
+            filter TEXT,
+            origins TEXT,
+            hit_sequence INTEGER,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -105,6 +146,7 @@ internal sealed class MonitoringSchema : ICaseSchemaContributor
         new(1, "Bevakningar och träffar", Version1),
         new(2, "Bakgrundens kontroller som förts in", Version2),
         new(3, "När träffarna senast sågs", Version3),
+        new(4, "Bakgrundens träffar som väntar på kontroll", Version4),
     ];
 
     /// <inheritdoc/>
@@ -112,5 +154,6 @@ internal sealed class MonitoringSchema : ICaseSchemaContributor
     [
         new(WatchesChain, "monitoring_watches", WatchColumns),
         new(HitsChain, "monitoring_hits", HitColumns),
+        new(TipsChain, "monitoring_tips", TipColumns),
     ];
 }

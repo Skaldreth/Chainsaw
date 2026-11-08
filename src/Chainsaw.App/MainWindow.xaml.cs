@@ -140,6 +140,8 @@ public partial class MainWindow : Window
         WireRequests(shell, graph);
         WireLabels(shell, graph);
         WireExposure(shell, graph);
+        WireTimeline(shell, graph, monitoring.Board);
+        WireFlow(shell, graph);
         WireReport(shell, graph, report);
         WireEmptyGraph(shell, graph.Start);
         watchRunner.Start();
@@ -241,6 +243,14 @@ public partial class MainWindow : Window
             }
         };
         graph.RequestWanted += (_, wanted) => shell.OpenRequest(wanted);
+        graph.ShowRequested(requests.ExportedNodes);
+        requests.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RequestsViewModel.ExportedNodes))
+            {
+                graph.ShowRequested(requests.ExportedNodes);
+            }
+        };
         shell.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ShellViewModel.IsRequestsShown) && shell.IsRequestsShown)
@@ -278,6 +288,20 @@ public partial class MainWindow : Window
             shell.Show(AppView.Graph);
             graph.ShowPath(path);
         };
+        graph.ReturnWanted += (_, view) => shell.Show(view);
+        graph.ExposureWanted += (_, nodeKey) =>
+        {
+            shell.Show(AppView.Exposure);
+            exposure.Open(nodeKey);
+        };
+        shell.PropertyChanged += (_, e) =>
+        {
+            // The way back points to where the graph was shown from, only while the graph is shown.
+            if (e.PropertyName == nameof(ShellViewModel.IsGraphShown) && !shell.IsGraphShown)
+            {
+                graph.ForgetReturn();
+            }
+        };
         exposure.GuideWanted += (_, request) => _guidePanel.Ask(request);
         shell.PropertyChanged += (_, e) =>
         {
@@ -295,6 +319,104 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>
+    /// Wires the view Tidslinje (sketch TL3a): it follows the graph shown and reads the case's own events (the labels,
+    /// the watches' hits and the decisions) with it, <em>Visa i grafen</em> shows the graph with the event lit,
+    /// <em>Varför?</em> opens the Guide's panel beside it, and the page takes the keyboard when it is shown.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="watches">The case's watches and their hits.</param>
+    private void WireTimeline(ShellViewModel shell, GraphViewModel graph, WatchBoard watches)
+    {
+        if (shell.Timeline is not { } timeline)
+        {
+            return;
+        }
+
+        TimelinePage.Attach(timeline);
+
+        // Read off the UI thread: the watches' snapshot and the sealed checks are replaced whole, never changed.
+        timeline.Moments = tracedGraph =>
+        [
+            .. Graph.TimelineReading.Hits(tracedGraph, watches.Snapshot.Watches, watches.Snapshot.Hits),
+            .. Graph.TimelineReading.Decisions(tracedGraph, graph.Checks.Stored),
+        ];
+        timeline.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                timeline.Update(graph.Scene);
+            }
+        };
+        watches.Changed += (_, _) => timeline.MomentsChanged();
+        graph.Checks.Changed += (_, _) => timeline.MomentsChanged();
+        timeline.PathWanted += (_, path) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.ShowPath(path);
+        };
+        timeline.GuideWanted += (_, request) => _guidePanel.Ask(request);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ShellViewModel.IsTimelineShown))
+            {
+                return;
+            }
+
+            // The reading runs only while the view is shown (principle 6).
+            timeline.IsShown = shell.IsTimelineShown;
+            if (shell.IsTimelineShown)
+            {
+                Dispatcher.BeginInvoke(() => TimelinePage.Focus(), DispatcherPriority.Input);
+            }
+        };
+    }
+
+    /// <summary>
+    /// Wires the view Flöde (sketch FL1a): it follows the graph shown, <em>Visa vägen i grafen</em> shows the graph with
+    /// the way lit, <em>Varför?</em> opens the Guide's panel beside it, and the page takes the keyboard when it is shown.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    private void WireFlow(ShellViewModel shell, GraphViewModel graph)
+    {
+        if (shell.Flow is not { } flow)
+        {
+            return;
+        }
+
+        FlowPage.Attach(flow);
+        flow.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                flow.Update(graph.Scene);
+            }
+        };
+        flow.PathWanted += (_, path) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.ShowPath(path);
+        };
+        flow.GuideWanted += (_, request) => _guidePanel.Ask(request);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ShellViewModel.IsFlowShown))
+            {
+                return;
+            }
+
+            // The flow is counted only while the view is shown (principle 6).
+            flow.IsShown = shell.IsFlowShown;
+            if (shell.IsFlowShown)
+            {
+                Dispatcher.BeginInvoke(() => FlowPage.Focus(), DispatcherPriority.Input);
+            }
+        };
+    }
 
     /// <summary>
     /// Wires the view Etiketter (sketch ET1a): its list follows the graph shown, <em>Visa i grafen</em> shows the graph
@@ -557,6 +679,12 @@ public partial class MainWindow : Window
             _shell.Show(AppView.Graph);
             _graph.ChooseFound(key);
         }
+        else if (row.Entry.IsInTrash)
+        {
+            // What lies in the trash is not drawn; it is found there, where it can be put back (sketch SO1a).
+            _shell.Show(AppView.Graph);
+            _graph.TrashView.Open();
+        }
 
         _shell.FinishSearch();
     }
@@ -569,6 +697,8 @@ public partial class MainWindow : Window
     {
         var covered = _guidePanel.IsOpen ? GuidePanel.Width : 0;
         GraphPage.MakeRoom(covered);
+        TimelinePage.MakeRoom(covered);
+        FlowPage.MakeRoom(covered);
         CommandPanel.Margin = new Thickness(CommandBarGutter, 0, covered + CommandBarGutter, 0);
     }
 
@@ -907,11 +1037,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Follows the exits' panel (sketch UT1a): the keyboard goes into it when it folds out, and back to the exit in the
-    /// title bar when it folds in while the keyboard was in it.
+    /// Follows the exits' panel (sketch UT1a): Ctrl+U folds it out and in, the keyboard goes into it when it folds
+    /// out, and back to the exit in the title bar when it folds in while the keyboard was in it.
     /// </summary>
     private void WatchExitPanel()
     {
+        if (Shortcuts.TryParse(ViewTable.ExitsGesture) is { } gesture)
+        {
+            var toggle = new RoutedCommand();
+            CommandBindings.Add(new CommandBinding(
+                toggle, (_, _) => _shell.ExitPanel.Toggle(), (_, e) => e.CanExecute = _gate.IsShellVisible));
+            InputBindings.Add(new KeyBinding(toggle, gesture));
+        }
+
         _shell.ExitPanel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(ExitPanelViewModel.IsOpen))

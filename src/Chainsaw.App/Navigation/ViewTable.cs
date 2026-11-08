@@ -15,13 +15,16 @@ public static class ViewTable
     /// <summary>The shortcut that locks Chainsaw at once: the vault, the case and everything shown.</summary>
     public const string LockGesture = "Ctrl+L";
 
+    /// <summary>The shortcut that folds the exits' panel out of the title bar, and in again (U for utgång).</summary>
+    public const string ExitsGesture = "Ctrl+U";
+
     /// <summary>Gets every view in the order of the rail.</summary>
     public static IReadOnlyList<ViewEntry> All { get; } =
     [
         new(AppView.New, "Nytt", "Icon.Plus", "Ctrl+N", RailGroup.Top),
         new(AppView.Graph, "Graf", "Icon.Graph", "Ctrl+1", RailGroup.Work, IconNeedsCase: true),
-        new(AppView.Timeline, "Tidslinje", "Icon.Timeline", "Ctrl+2", RailGroup.Work, IsBuilt: false, NeedsCase: true),
-        new(AppView.Flow, "Flöde", "Icon.Flow", "Ctrl+3", RailGroup.Work, IsBuilt: false, NeedsCase: true),
+        new(AppView.Timeline, "Tidslinje", "Icon.Timeline", "Ctrl+2", RailGroup.Work, NeedsCase: true),
+        new(AppView.Flow, "Flöde", "Icon.Flow", "Ctrl+3", RailGroup.Work, NeedsCase: true),
         new(AppView.Exposure, "Exponering", "Icon.Exposure", "Ctrl+4", RailGroup.Work, NeedsCase: true),
         new(AppView.Requests, "Begäran", "Icon.Request", "Ctrl+5", RailGroup.Work, NeedsCase: true),
         new(AppView.Monitoring, "Bevakning", "Icon.Eye", "Ctrl+6", RailGroup.Work, NeedsCase: true),

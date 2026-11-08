@@ -3,6 +3,7 @@ using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -26,6 +27,15 @@ public sealed record TestServices(
 {
     /// <summary>Gets the graph's comments (sketch KN1a); none when they are not registered.</summary>
     public IGraphCommentService? Comments { get; init; }
+
+    /// <summary>Gets the graph's trash (sketch SO1a); none when it is not registered.</summary>
+    public IGraphTrash? Trash { get; init; }
+
+    /// <summary>Gets the clustering, for a split the user made (sketch AN1b); none when it is not registered.</summary>
+    public IClusteringService? Clustering { get; init; }
+
+    /// <summary>Gets the Bitcoin source, for the transaction whose block changed (sketch GR9a), if any.</summary>
+    public IBitcoinSource? Bitcoin { get; init; }
 }
 
 /// <summary>One build of the test case: the case, the story it is built from, and what did not go as planned.</summary>

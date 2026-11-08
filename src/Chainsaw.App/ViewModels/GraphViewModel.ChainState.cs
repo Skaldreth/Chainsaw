@@ -305,15 +305,14 @@ public sealed partial class GraphViewModel
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            var failed = new NodeHoldings([], null, null, false, CardFailedText);
-            Fill(key, turn, HoldingsCards.Build(key, failed, Rates(), CardRateKind.None, null, _clock.UtcNow, Zone));
+            Fill(key, turn, HoldingsCards.Build(key, Unwired, Rates(), CardRateKind.None, null, _clock.UtcNow, Zone));
         }
     }
 
     /// <summary>What a card says when its balance could not be had for another reason than the source's.</summary>
     public const string CardFailedText = "Saldot kunde inte hämtas.";
 
-    /// <summary>What a card says when the graph has no way to the chains.</summary>
+    /// <summary>What a card says when the graph has no way to the chains, or its balance could not be had.</summary>
     private static readonly NodeHoldings Unwired = new([], null, null, false, CardFailedText);
 
     /// <summary>Puts a card's new back in place, when the card still stands turned in the same turn.</summary>

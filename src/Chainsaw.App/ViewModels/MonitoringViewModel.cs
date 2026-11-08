@@ -42,6 +42,22 @@ public sealed record WatchHitRow(WatchHit Hit, string Text, string When, bool Is
     public bool IsOut => Hit.Match.Direction == WatchDirection.Out;
 }
 
+/// <summary>
+/// A hit the background said it saw, in the chosen watch's details: grey and dashed while it waits for Chainsaw's own
+/// lookup, faint once the chain did not give it; never drawn as a hit (decided 2026-11-08).
+/// </summary>
+/// <param name="Tip">The tip.</param>
+/// <param name="Text">What the background says moved, in one line.</param>
+/// <param name="When">When and in which block, as the background said.</param>
+public sealed record WatchTipRow(WatchTip Tip, string Text, string When)
+{
+    /// <summary>Gets whether it waits for Chainsaw's own lookup (grey and dashed).</summary>
+    public bool IsPending => Tip.State == WatchTipState.Pending;
+
+    /// <summary>Gets how it stands, on hovering.</summary>
+    public string State => WatchWords.Tip(Tip);
+}
+
 /// <summary>A watch in the list of the view Bevakning (sketch BV1a).</summary>
 public sealed partial class WatchRowViewModel : ObservableObject
 {
@@ -85,9 +101,6 @@ public sealed partial class WatchRowViewModel : ObservableObject
     public string Short => Watch.Subject.Kind == WatchSubjectKind.Cluster
         ? "Kluster · " + WatchWords.Short(Watch.Subject.Anchor)
         : WatchWords.Short(Watch.Subject.Anchor);
-
-    /// <summary>Gets whether the node is a cluster rather than an address.</summary>
-    public bool IsCluster => Watch.Subject.Kind == WatchSubjectKind.Cluster;
 
     /// <summary>
     /// Gets how the watched node is drawn, as in the graph (sketch BV1a): its sort's icon and colour, round for an actor
@@ -227,6 +240,17 @@ public sealed partial class MonitoringViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HitsTitle), nameof(HasNoHits))]
     public partial IReadOnlyList<WatchHitRow> Hits { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the chosen watch's tips from the background that are not hits: those that wait for Chainsaw's own lookup,
+    /// and those the chain did not give or that were not checked, newest first.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTips))]
+    public partial IReadOnlyList<WatchTipRow> Tips { get; private set; } = [];
+
+    /// <summary>Gets whether the chosen watch has tips to show; the list is hidden otherwise.</summary>
+    public bool HasTips => Tips.Count > 0;
 
     /// <summary>Gets the line in the head: how many watches, active ones and new hits.</summary>
     [ObservableProperty]
@@ -453,8 +477,8 @@ public sealed partial class MonitoringViewModel : ObservableObject
     private WatchRowViewModel RowOf(WatchSnapshot snapshot, Watch watch)
     {
         var gate = _board.Gate(watch.Chain);
-        var failed = snapshot.Checked.TryGetValue(watch.Id, out var last)
-            && last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
+        var status = snapshot.Checked.TryGetValue(watch.Id, out var last) ? last.Status : (WatchFeedStatus?)null;
+        var failed = status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
         var running = gate == WatchGate.Open && watch.StartHeight is not null && !failed;
         var light = watch.State == WatchState.Paused ? WatchLight.Paused
             : running ? WatchLight.Active : WatchLight.Waiting;
@@ -466,9 +490,9 @@ public sealed partial class MonitoringViewModel : ObservableObject
         return new WatchRowViewModel(
             watch,
             light,
-            failed && watch.State == WatchState.Active && gate == WatchGate.Open
-                ? "Senaste uppslaget misslyckades"
-                : WatchWords.State(watch, gate, _board.Offline.Waiting),
+            !failed || watch.State != WatchState.Active || gate != WatchGate.Open
+                ? WatchWords.State(watch, gate, _board.Offline.Waiting)
+                : status == WatchFeedStatus.NotAsked ? WatchWords.NotAskedRowText : WatchWords.FailedRowText,
             parties,
             WatchWords.Parties(watch.Filter, Name),
             LastOf(snapshot, watch),
@@ -509,6 +533,7 @@ public sealed partial class MonitoringViewModel : ObservableObject
         {
             Facts = [];
             Hits = [];
+            Tips = [];
             return;
         }
 
@@ -517,7 +542,7 @@ public sealed partial class MonitoringViewModel : ObservableObject
         var checkedText = snapshot.Checked.TryGetValue(watch.Id, out var at) && at.Problem is { } problem
             ? $"{row.LastText} · {problem}"
             : row.LastText;
-        Facts =
+        List<WatchFact> facts =
         [
             new("Kedja", watch.Chain.ToString()),
             new("Riktning", WatchWords.Direction(watch.Filter.Direction)),
@@ -530,13 +555,23 @@ public sealed partial class MonitoringViewModel : ObservableObject
             new("Räknas från", watch.StartHeight is { } start
                 ? $"Efter block {WatchWords.Block(start)}"
                 : "Nästa kontroll"),
-            new("Källa", "Endpoint i fas"),
         ];
+        // The source is named only once a check really asked one; before that it would be the rule, not a fact.
+        if (at is { Status: WatchFeedStatus.Read or WatchFeedStatus.Partial })
+        {
+            facts.Add(new("Källa", "Endpoint i fas"));
+        }
+
+        Facts = facts;
         Hits = [.. snapshot.HitsOf(watch.Id).Select(hit => new WatchHitRow(
             hit,
             WatchWords.Hit(hit, Name),
             WhenText(hit.Match.Block),
             snapshot.IsNew(hit)))];
+        Tips = [.. snapshot.Tips
+            .Where(tip => tip.WatchId == watch.Id && tip.State != WatchTipState.Confirmed)
+            .OrderByDescending(tip => tip.Sequence)
+            .Select(tip => new WatchTipRow(tip, WatchWords.Hit(tip.Match, Name), WhenText(tip.Match.Block)))];
         OnPropertyChanged(nameof(PauseText));
     }
 

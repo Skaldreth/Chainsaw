@@ -124,6 +124,7 @@ public sealed class BackgroundLink : IDisposable
     public void Start()
     {
         _session.Changed += (_, _) => HoldOpenCase();
+        _session.Closing += (_, closing) => WriteClosing(closing);
         _board.Changed += (_, _) => WriteCaseSoon();
         HoldOpenCase();
         _ = WriteAsync(_session.Current);
@@ -145,7 +146,7 @@ public sealed class BackgroundLink : IDisposable
     public Task WriteCaseAsync() => _board.Case is { } openCase ? WriteAsync(openCase) : WriteAsync(null);
 
     /// <summary>
-    /// Brings what the background saw into the open case, off the UI thread; the window is told of the hits. Called by
+    /// Brings what the background saw into the open case, off the UI thread; the window reads the case again. Called by
     /// the runner before its checks, so that the two never write the case's watches at once.
     /// </summary>
     /// <param name="case">The open case.</param>
@@ -170,9 +171,11 @@ public sealed class BackgroundLink : IDisposable
             return;
         }
 
-        if (result.Entries > 0 || result.Hits.Count > 0)
+        // The background's hits come in as tips, never told as hits: one becomes a hit, and is told, only when the
+        // runner's own lookup gives it.
+        if (result.Entries > 0)
         {
-            _board.Checked(@case, result.Hits);
+            _board.Checked(@case, []);
         }
 
         if (result.Problems.Count > 0)
@@ -283,6 +286,33 @@ public sealed class BackgroundLink : IDisposable
         _held = id;
     }
 
+    /// <summary>
+    /// Writes a case that is being let go (closed, forgotten at a lock, or replaced) into the plan while it can still be
+    /// read, since the background takes it over as soon as the hold goes: a watch taken back, paused or changed, or a
+    /// hit sealed, just before is then never watched or told on the plan from before. It runs on the UI thread, as the
+    /// case is closed right after; starting or stopping the background follows off it.
+    /// </summary>
+    /// <param name="closing">The case being let go.</param>
+    private void WriteClosing(ICase closing)
+    {
+        _writing.Wait();
+        try
+        {
+            var described = _parts.Watches.Describe(closing, _parts.Clock.UtcNow);
+            _plan = _parts.Plan.Update(plan => plan.With(described));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // The plan keeps what it had for the case; letting the case go must never fail for it.
+        }
+        finally
+        {
+            _writing.Release();
+        }
+
+        _ = WriteAsync(null);
+    }
+
     /// <summary>Writes the open case's watches into the plan soon, off the UI thread.</summary>
     private void WriteCaseSoon()
     {
@@ -319,19 +349,33 @@ public sealed class BackgroundLink : IDisposable
                 }
 
                 var settings = _settings;
-                _plan = _parts.Plan.Update(plan => (described is null ? plan : plan.With(described)) with
+                BackgroundPlan Settled(BackgroundPlan plan) => plan with
                 {
                     Enabled = settings.WatchInBackground,
                     Route = settings.ExitRoute,
                     Alerts = settings.Alerts,
-                });
+                };
+
+                try
+                {
+                    _plan = _parts.Plan.Update(plan => Settled(described is null ? plan : plan.With(described)));
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+                    or System.Security.Cryptography.CryptographicException or PlatformNotSupportedException)
+                {
+                    // The plan could not be written; the next change tries again, and the head says what runs. The
+                    // settings hold all the same: a background that may no longer go out through Windows is stopped
+                    // now, never left to look up on the old plan (principle 4).
+                    _plan = Settled(_plan);
+                }
+
                 StartOrStop(_plan);
             }).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or System.Security.Cryptography.CryptographicException or PlatformNotSupportedException)
         {
-            // The plan could not be written; the next change tries again, and the head says what runs.
+            // Starting or stopping failed; the loop starts it again when it should run, and the head says what runs.
         }
         finally
         {

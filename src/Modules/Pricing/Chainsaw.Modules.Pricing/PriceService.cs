@@ -71,16 +71,18 @@ internal sealed class PriceService : IPriceService
     private int _fiatRequestsToday;
 
     /// <summary>
-    /// Answers from the fiat source without a final rate, by case and request, with when they came; only used inside
-    /// <see cref="_fiatGate"/>.
+    /// Answers from the fiat source without a final rate, and failed requests to it, by case and request, with when
+    /// they came; only used inside <see cref="_fiatGate"/>.
     /// </summary>
     private readonly Dictionary<string, (PriceLookup<FiatRate> Lookup, DateTimeOffset At)> _pendingFiat = [];
 
     /// <summary>
-    /// The crypto periods whose request failed lately, by subject, with when and whether the source asked to wait;
-    /// such a period is not asked for again until <see cref="PricingOptions.FailureCooldown"/> has passed.
+    /// The crypto periods whose request failed lately, or whose response had no final rate (a period before the
+    /// market's history), by subject, with when, the status and whether the source asked to wait; such a period is
+    /// not asked for again until <see cref="PricingOptions.FailureCooldown"/> has passed.
     /// </summary>
-    private readonly ConcurrentDictionary<string, (DateTimeOffset At, bool Throttled)> _failedCrypto = new();
+    private readonly ConcurrentDictionary<string, (DateTimeOffset At, PriceLookupStatus Status, bool Throttled)>
+        _failedCrypto = new();
 
     /// <summary>The source of crypto rates.</summary>
     private readonly ICryptoRateSource _crypto;
@@ -320,7 +322,8 @@ internal sealed class PriceService : IPriceService
     }
 
     /// <summary>
-    /// Answers a period whose request failed lately without asking again, until the cooldown has passed.
+    /// Answers a period whose request failed lately, or whose response had no final rate, without asking again,
+    /// until the cooldown has passed.
     /// </summary>
     /// <param name="query">The period.</param>
     /// <returns>The answer, or <see langword="null"/> when the period may be asked for.</returns>
@@ -332,22 +335,30 @@ internal sealed class PriceService : IPriceService
             return null;
         }
 
-        return new PriceLookup<CryptoRate>(
-            PriceLookupStatus.Failed, null, [], "Kursen kunde inte hämtas nyss och frågas igen om en stund. " +
-            "Inget skickades.")
+        var problem = failed.Status == PriceLookupStatus.Failed
+            ? "Kursen kunde inte hämtas nyss och frågas igen om en stund. Inget skickades."
+            : "Källan hade ingen avslutad kurs för perioden nyss och frågas igen om en stund. Inget skickades.";
+        return new PriceLookup<CryptoRate>(failed.Status, null, [], problem)
         {
             IsThrottled = failed.Throttled,
         };
     }
 
-    /// <summary>Remembers a failed request for a period, or forgets an earlier failure when it answered.</summary>
+    /// <summary>
+    /// Remembers a failed request for a period, or a response without a final rate for it, or forgets an earlier
+    /// one when it answered.
+    /// </summary>
     /// <param name="query">The period.</param>
     /// <param name="lookup">The answer.</param>
     private void RememberFailure(CandleQuery query, PriceLookup<CryptoRate> lookup)
     {
-        if (lookup.Status == PriceLookupStatus.Failed)
+        // A response that came after the period ended and still had no rate for it (before the market's history) is
+        // sealed each time it is asked, so it is not asked again at once either.
+        if (lookup.Status == PriceLookupStatus.Failed
+            || (lookup.Status == PriceLookupStatus.NotAvailable
+                && lookup.Origins.Any(origin => origin.ReceivedUtc >= query.SettlesAt)))
         {
-            _failedCrypto[query.Subject] = (_clock.UtcNow, lookup.IsThrottled);
+            _failedCrypto[query.Subject] = (_clock.UtcNow, lookup.Status, lookup.IsThrottled);
         }
         else
         {
@@ -517,11 +528,26 @@ internal sealed class PriceService : IPriceService
             var passed = PassedBefore(_clock.UtcNow);
             var key = $"{@case.Path}|{RateResponseStore.FiatSubject(series, from, to)}|" +
                 passed.ToString(RateResponseStore.DayFormat, CultureInfo.InvariantCulture);
-            if (_pendingFiat.TryGetValue(key, out var pending)
-                && _clock.UtcNow - pending.At < PendingReuse)
+            if (_pendingFiat.TryGetValue(key, out var pending))
             {
-                // The same request was answered a moment ago without a final rate; asking again cannot help yet.
-                return pending.Lookup;
+                if (pending.Lookup.Status == PriceLookupStatus.NotAvailable
+                    && _clock.UtcNow - pending.At < PendingReuse)
+                {
+                    // The same request was answered a moment ago without a final rate; asking again cannot help yet.
+                    return pending.Lookup;
+                }
+
+                if (pending.Lookup.Status == PriceLookupStatus.Failed
+                    && _clock.UtcNow - pending.At < _options.FailureCooldown)
+                {
+                    // The same request failed a moment ago: a source that is down is not asked over and over.
+                    return new PriceLookup<FiatRate>(
+                        PriceLookupStatus.Failed, null, [],
+                        "Kursen kunde inte hämtas nyss och frågas igen om en stund. Inget skickades.")
+                    {
+                        IsThrottled = Throttled(pending.Lookup.Origins),
+                    };
+                }
             }
 
             if (DailyLimitReached())
@@ -585,7 +611,10 @@ internal sealed class PriceService : IPriceService
     /// <returns>Every day before this one has passed.</returns>
     private DateOnly PassedBefore(DateTimeOffset time) => DayOf(time - DayPassMargin);
 
-    /// <summary>Remembers an answer without a final rate, so that the same request is not sent again at once.</summary>
+    /// <summary>
+    /// Remembers an answer without a final rate, or a failed request, so that the same request is not sent again at
+    /// once (<see cref="PendingReuse"/> and <see cref="PricingOptions.FailureCooldown"/>).
+    /// </summary>
     /// <param name="key">The case, the request's subject and the last day that had passed.</param>
     /// <param name="lookup">The answer.</param>
     private void RememberPending(string key, PriceLookup<FiatRate> lookup)
@@ -597,7 +626,10 @@ internal sealed class PriceService : IPriceService
             _pendingFiat.Remove(old);
         }
 
-        if (lookup.Status == PriceLookupStatus.NotAvailable)
+        // A failure is remembered only when its response was sealed, so that a source that answers with errors does
+        // not fill the case with them; a failure on the way seals nothing and is held back by the spacing alone.
+        if (lookup.Status == PriceLookupStatus.NotAvailable
+            || (lookup.Status == PriceLookupStatus.Failed && lookup.Origins.Count > 0))
         {
             _pendingFiat[key] = (lookup, now);
         }
@@ -829,10 +861,11 @@ internal sealed class PriceService : IPriceService
             sent?.Invoke();
             return new Sent(response, fetchedBy, PriceLookupStatus.Fetched, null);
         }
-        catch (ExitNotConnectedException)
+        catch (ExitNotConnectedException exception)
         {
+            // Said as the way out says it: no exit connected with VPN, or no network with Windows.
             return new Sent(null, null, PriceLookupStatus.Offline,
-                "Offline: ingen utgång är ansluten, och ärendet har inte kursen. Inget skickades.");
+                $"Offline: {exception.Message} Ärendet har inte kursen. Inget skickades.");
         }
         catch (ExitException exception)
         {

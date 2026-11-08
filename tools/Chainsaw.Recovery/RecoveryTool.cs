@@ -48,6 +48,15 @@ internal static class RecoveryTool
     /// <summary>The command that opens a case.</summary>
     private const string OpenCommand = "open";
 
+    /// <summary>The command that writes the line that revokes a key.</summary>
+    private const string RevokeCommand = "revoke";
+
+    /// <summary>The option with the file a revocation is added to.</summary>
+    private const string ToOption = "to";
+
+    /// <summary>The keyword of a revocation in <c>organization-recovery-key.pem</c>.</summary>
+    private const string RevokedKeyword = "REVOKED";
+
     /// <summary>The switches, which take no value.</summary>
     private static readonly HashSet<string> Switches = [ShareSwitch];
 
@@ -66,6 +75,7 @@ internal static class RecoveryTool
                 FingerprintCommand => Fingerprint(line, console),
                 CheckCommand => Check(line, console),
                 OpenCommand => Open(line, console),
+                RevokeCommand => Revoke(line, console),
                 _ => Usage(console),
             };
         }
@@ -194,16 +204,23 @@ internal static class RecoveryTool
 
     /// <summary>
     /// <c>check &lt;case.cut&gt; [--public &lt;public-key-file&gt;]</c>: says whether the case has an envelope for a
-    /// key, by default the one built into this Chainsaw, and lists the keys it has envelopes for.
+    /// key, by default the one built into this Chainsaw, and lists the keys it has envelopes for. With
+    /// <c>--key &lt;private-key-file&gt;</c> instead, the private key is tried on the case for real.
     /// </summary>
     /// <param name="line">The command line.</param>
     /// <param name="console">The console.</param>
     /// <returns><see cref="ExitCodes.Success"/> when it has, <see cref="ExitCodes.NotCovered"/> when not.</returns>
     private static int Check(CommandLine line, IToolConsole console)
     {
-        if (line.Positional.Count != 1 || !line.OnlyOptions(PublicOption))
+        if (line.Positional.Count != 1 || !line.OnlyOptions(PublicOption, KeyOption)
+            || (line.Has(PublicOption) && line.Has(KeyOption)))
         {
             return Usage(console);
+        }
+
+        if (line.Option(KeyOption) is { } keyFile)
+        {
+            return CheckWithPrivateKey(console, line.Positional[0], keyFile);
         }
 
         var publicFile = line.Option(PublicOption);
@@ -239,6 +256,77 @@ internal static class RecoveryTool
 
         console.Out($"Nej: ärendet har inget kuvert för {key.DisplayFingerprint}.");
         return ExitCodes.NotCovered;
+    }
+
+    /// <summary>
+    /// Tries the private key on the case for real: an envelope must open with it, and the seal over the whole file
+    /// must hold, so that a damaged envelope or file is found now and not when the case is needed. Nothing is changed.
+    /// </summary>
+    /// <param name="console">The console.</param>
+    /// <param name="casePath">The case file.</param>
+    /// <param name="keyFile">The private key's file.</param>
+    /// <returns><see cref="ExitCodes.Success"/> when it opens, <see cref="ExitCodes.NotCovered"/> when not.</returns>
+    private static int CheckWithPrivateKey(IToolConsole console, string casePath, string keyFile)
+    {
+        using var privateKey = ReadPrivateKey(console, keyFile);
+        var fingerprint = RecoveryPublicKey.FromPrivateKey(privateKey).DisplayFingerprint;
+        using var session = CaseSession.WithoutVault();
+        if (session.Store.TryRecoveryKey(Path.GetFullPath(casePath), privateKey))
+        {
+            console.Out($"Ja: ärendet öppnas med den privata nyckeln {fingerprint}, och filen är hel.");
+            return ExitCodes.Success;
+        }
+
+        console.Out($"Nej: inget kuvert i ärendet öppnas med den privata nyckeln {fingerprint}.");
+        return ExitCodes.NotCovered;
+    }
+
+    /// <summary>
+    /// <c>revoke &lt;public-key-file&gt; [--to &lt;organization-recovery-key.pem&gt;]</c>: writes the line that
+    /// revokes a key, from the key itself so that the fingerprint is never typed by hand; with <c>--to</c> the line is
+    /// added to the file, unless it is there already or the file's own key is the one revoked.
+    /// </summary>
+    /// <param name="line">The command line.</param>
+    /// <param name="console">The console.</param>
+    /// <returns>The exit code.</returns>
+    private static int Revoke(CommandLine line, IToolConsole console)
+    {
+        if (line.Positional.Count != 1 || !line.OnlyOptions(ToOption))
+        {
+            return Usage(console);
+        }
+
+        var key = KeyFiles.ReadPublic(line.Positional[0]);
+        if (key is null)
+        {
+            console.Error("Fel: filen har ingen publik nyckel (ange den publika nyckelns fil, aldrig den privata).");
+            return ExitCodes.Failed;
+        }
+
+        var revocation = $"{RevokedKeyword} {key.Fingerprint}";
+        if (line.Option(ToOption) is not { } target)
+        {
+            console.Out(revocation);
+            return ExitCodes.Success;
+        }
+
+        var text = File.ReadAllText(target);
+        if (RecoveryPublicKey.FromPem(text) is { } own && own.Equals(key))
+        {
+            console.Error("Vägrar: filens egen nyckel kan inte återkallas. Byt först nyckeln i filen.");
+            return ExitCodes.Failed;
+        }
+
+        if (text.Contains(key.Fingerprint, StringComparison.OrdinalIgnoreCase))
+        {
+            console.Out($"{key.DisplayFingerprint} är redan återkallad i {target}.");
+            return ExitCodes.Success;
+        }
+
+        var separator = text.Length == 0 || text.EndsWith('\n') ? string.Empty : Environment.NewLine;
+        File.AppendAllText(target, separator + revocation + Environment.NewLine);
+        console.Out($"{key.DisplayFingerprint} återkallas i {target}. Bygg Chainsaw för att det ska gälla.");
+        return ExitCodes.Success;
     }
 
     /// <summary>
@@ -403,6 +491,7 @@ internal static class RecoveryTool
         CaseError.NoAccess => "ärendet har inget kuvert som den här privata nyckeln öppnar.",
         CaseError.Corrupt => "ärendefilen är skadad eller ändrad utanför Chainsaw.",
         CaseError.UnsupportedVersion => "ärendefilen är från en nyare version av Chainsaw.",
+        CaseError.OutdatedFormat => "ärendefilen är från en äldre version av Chainsaw, före 1.0.",
         CaseError.InUse => "ärendet är öppet i Chainsaw; stäng det först.",
         CaseError.Conflict => "en arbetskopia från ett avbrutet pass hör till en annan fil; titta på den först.",
         CaseError.NoOperatorProfile => "operatörens valv har ingen profil.",
@@ -421,6 +510,9 @@ internal static class RecoveryTool
         console.Error($"  {FingerprintCommand} [publik.pem]               "
             + "visa fingeravtrycket (förval: den inbyggda nyckeln)");
         console.Error($"  {CheckCommand} <ärende.cut> [--public <fil>]    har ärendet ett kuvert för nyckeln?");
+        console.Error($"  {CheckCommand} <ärende.cut> --key <privat.pem>  prova den privata nyckeln på riktigt");
+        console.Error($"  {RevokeCommand} <publik.pem> [--to <fil>]       "
+            + "skriv raden som återkallar nyckeln (i filen)");
         console.Error($"  {OpenCommand} <ärende.cut> --key <privat.pem> --admin <namn> [--org <enhet>] --share");
         console.Error("                                         öppna och sätt ett nytt delningslösenord");
         console.Error($"  {OpenCommand} <ärende.cut> --key <privat.pem> --admin <namn> --vault <valvets mapp>");

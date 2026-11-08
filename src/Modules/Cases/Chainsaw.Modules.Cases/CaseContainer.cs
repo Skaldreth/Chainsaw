@@ -7,7 +7,8 @@ namespace Chainsaw.Modules.Cases;
 
 /// <summary>
 /// The layout of a case file: an 8-byte magic, the format version (16 bits, big-endian), the header length (32 bits,
-/// big-endian), the header as UTF-8 JSON and then the database, encrypted by SQLite3 Multiple Ciphers, to the end.
+/// big-endian), the header as UTF-8 JSON, the database, encrypted by SQLite3 Multiple Ciphers, and last the seal over
+/// everything before it (<see cref="CaseFileSeal"/>).
 /// </summary>
 /// <remarks>
 /// SQLite3 Multiple Ciphers encrypts every byte of the database file and has no room for envelopes of its own, so the
@@ -15,8 +16,12 @@ namespace Chainsaw.Modules.Cases;
 /// </remarks>
 internal static class CaseContainer
 {
-    /// <summary>The format version this build writes and the highest it reads.</summary>
-    public const int FormatVersion = 1;
+    /// <summary>
+    /// The format version this build writes and the only one it reads. Version 1 had no seal over the file; it is
+    /// refused rather than read without one, since a file that says it is version 1 could otherwise have had its
+    /// seal removed (before 1.0 old cases need not open).
+    /// </summary>
+    public const int FormatVersion = 2;
 
     /// <summary>The largest header that is read; a header is a few hundred bytes per envelope.</summary>
     public const int MaximumHeaderLength = 1024 * 1024;
@@ -40,7 +45,8 @@ internal static class CaseContainer
     /// <param name="stream">The case file, at its start.</param>
     /// <returns>The header.</returns>
     /// <exception cref="CaseException">
-    /// <see cref="CaseError.Corrupt"/> or <see cref="CaseError.UnsupportedVersion"/>.
+    /// <see cref="CaseError.Corrupt"/>, <see cref="CaseError.UnsupportedVersion"/> or
+    /// <see cref="CaseError.OutdatedFormat"/>.
     /// </exception>
     public static CaseHeader ReadHeader(Stream stream)
     {
@@ -60,6 +66,11 @@ internal static class CaseContainer
         if (version > FormatVersion)
         {
             throw new CaseException(CaseError.UnsupportedVersion);
+        }
+
+        if (version < FormatVersion)
+        {
+            throw new CaseException(CaseError.OutdatedFormat);
         }
 
         var length = BinaryPrimitives.ReadUInt32BigEndian(prefix[(Magic.Length + sizeof(ushort))..]);
@@ -102,6 +113,19 @@ internal static class CaseContainer
         BinaryPrimitives.WriteUInt32BigEndian(prefix[(Magic.Length + sizeof(ushort))..], (uint)json.Length);
         stream.Write(prefix);
         stream.Write(json);
+    }
+
+    /// <summary>Tells whether two headers are the same, written as this build writes them.</summary>
+    /// <param name="first">One header.</param>
+    /// <param name="second">The other.</param>
+    /// <returns><see langword="true"/> when they write the same bytes.</returns>
+    public static bool Same(CaseHeader first, CaseHeader second)
+    {
+        using var one = new MemoryStream();
+        using var other = new MemoryStream();
+        WriteHeader(one, first);
+        WriteHeader(other, second);
+        return one.ToArray().AsSpan().SequenceEqual(other.ToArray());
     }
 
     /// <summary>Parses the header JSON.</summary>

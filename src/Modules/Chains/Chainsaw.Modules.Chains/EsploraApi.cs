@@ -30,6 +30,7 @@ internal sealed class EsploraApi : ISourceApi
     {
         ArgumentNullException.ThrowIfNull(options);
         Defaults = [.. options.DefaultEndpoints.Select(Default)];
+        ChainName = RawResponseStore.NameOf(options.Network);
     }
 
     /// <inheritdoc/>
@@ -37,6 +38,9 @@ internal sealed class EsploraApi : ISourceApi
 
     /// <inheritdoc/>
     public IReadOnlyList<SourceEndpoint> Defaults { get; }
+
+    /// <inheritdoc/>
+    public string ChainName { get; }
 
     /// <inheritdoc/>
     public ExitRequest HeightRequest(Uri address) => Get(address, "blocks/tip/height");

@@ -139,6 +139,19 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <summary>The toast's title when an export failed.</summary>
     public const string ExportFailedTitle = "Rapporten kunde inte exporteras";
 
+    /// <summary>
+    /// Says why an export failed, in Swedish and never with the raw message, which may name a path or a column.
+    /// </summary>
+    /// <param name="exception">What an export threw.</param>
+    /// <returns>The line under the toast's title.</returns>
+    public static string ExportFailure(Exception exception) => exception switch
+    {
+        CaseException failure => CaseTexts.For(failure.Error),
+        UnauthorizedAccessException => "Chainsaw får inte skriva där.",
+        IOException => "Filen gick inte att skriva.",
+        _ => "Uppgifterna godtogs inte.",
+    };
+
     /// <summary>What the part <em>Belopp i SEK</em> says when no trail has a rate in the case.</summary>
     public const string NoRateText = "Ingen kurs i ärendet för spåren än";
 
@@ -201,6 +214,9 @@ public sealed partial class ReportViewModel : ObservableObject
 
     /// <summary>Counts the rebuilds, so that one overtaken by a newer is never shown.</summary>
     private int _version;
+
+    /// <summary>Counts the readings of the exports, so that one overtaken by a newer is never shown.</summary>
+    private int _exportReads;
 
     /// <summary>Creates the view.</summary>
     /// <param name="reports">The reports.</param>
@@ -406,7 +422,7 @@ public sealed partial class ReportViewModel : ObservableObject
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or ArgumentException or CaseException)
         {
-            _toaster?.Show(ToastKind.Error, ExportFailedTitle, exception.Message);
+            _toaster?.Show(ToastKind.Error, ExportFailedTitle, ExportFailure(exception));
         }
         finally
         {
@@ -638,6 +654,7 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <returns>A task that completes when they are read.</returns>
     private async Task LoadExportsAsync(ICase open)
     {
+        var read = ++_exportReads;
         IReadOnlyList<ReportExport> exports;
         try
         {
@@ -650,7 +667,8 @@ public sealed partial class ReportViewModel : ObservableObject
 
         _ui.Post(() =>
         {
-            if (ReferenceEquals(_session.Current, open))
+            // A reading begun earlier (when the case was opened) may end after one begun after an export.
+            if (read == _exportReads && ReferenceEquals(_session.Current, open))
             {
                 Exports = [.. exports.Reverse().Select(export => new ReportExportRow(export, LocalTime(export.Utc)))];
             }

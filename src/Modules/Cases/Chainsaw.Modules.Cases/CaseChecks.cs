@@ -11,13 +11,6 @@ namespace Chainsaw.Modules.Cases;
 /// </summary>
 internal static class CaseChecks
 {
-    /// <summary>The Cases module's own tables that are protected by triggers, and those triggers.</summary>
-    private static readonly (string Table, string[] Triggers)[] ProtectedCaseTables =
-    [
-        ("case_info", ["seal_case_info_no_update", "seal_case_info_no_delete"]),
-        (HashChain.RegistryTable, ["seal_sealed_chain_no_update", "seal_sealed_chain_no_delete"]),
-    ];
-
     /// <summary>Runs the checks.</summary>
     /// <param name="database">The database.</param>
     /// <param name="transaction">A read transaction.</param>
@@ -50,6 +43,11 @@ internal static class CaseChecks
         if (HasReplacedAnchors(database, transaction))
         {
             problems.Add(CaseProblem.AnchorsReplaced);
+        }
+
+        if (HasForeignTrigger(database, transaction))
+        {
+            problems.Add(CaseProblem.TriggerAdded);
         }
 
         var results = new List<ChainVerification>();
@@ -106,7 +104,7 @@ internal static class CaseChecks
     /// <returns><see langword="true"/> when it holds.</returns>
     private static bool CaseInfoHolds(CaseDatabase database, SqliteTransaction transaction, CaseInfo info)
     {
-        if (!ProtectedCaseTables.All(item => HasTriggers(database, transaction, item.Table, item.Triggers)))
+        if (!CasesSchema.ProtectingTriggers.All(trigger => HasTrigger(database, transaction, trigger)))
         {
             return false;
         }
@@ -211,29 +209,60 @@ internal static class CaseChecks
         return command.ExecuteScalar() is long count && count > 0;
     }
 
-    /// <summary>Checks that a table has its protecting triggers and that they abort.</summary>
+    /// <summary>
+    /// Checks for a trigger that Chainsaw does not make: every trigger must be one of the Cases module's protecting
+    /// triggers or a sealed table's, exactly as created. A trigger on a table that is not sealed (for example one that
+    /// drops a module's index rows with <c>RAISE(IGNORE)</c>) is otherwise seen by no check, and runs on every write.
+    /// </summary>
     /// <param name="database">The database.</param>
     /// <param name="transaction">The transaction.</param>
-    /// <param name="table">The table.</param>
-    /// <param name="triggers">The trigger names.</param>
-    /// <returns><see langword="true"/> when every trigger is there.</returns>
-    private static bool HasTriggers(
-        CaseDatabase database, SqliteTransaction transaction, string table, IReadOnlyList<string> triggers)
+    /// <returns><see langword="true"/> when there is such a trigger.</returns>
+    private static bool HasForeignTrigger(CaseDatabase database, SqliteTransaction transaction)
     {
-        var found = 0;
-        foreach (var trigger in triggers)
+        using var command = database.Command(
+            "SELECT name, tbl_name, sql FROM sqlite_schema WHERE type = 'trigger'", transaction);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
         {
-            using var command = database.Command(
-                "SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND tbl_name = $table AND name = $name "
-                + "AND sql LIKE '%RAISE(ABORT%'",
-                transaction);
-            command.Parameters.AddWithValue("$table", table);
-            command.Parameters.AddWithValue("$name", trigger);
-            found += command.ExecuteScalar() is long count ? (int)count : 0;
+            var name = reader.GetValue(0) as string ?? string.Empty;
+            var table = reader.GetValue(1) as string ?? string.Empty;
+            var sql = reader.GetValue(2) as string;
+            var known = CasesSchema.ProtectingTriggers.Any(trigger => trigger.Name == name && trigger.Table == table)
+                || HashChain.Triggers(table).Any(trigger => trigger.Name == name && trigger.Sql == sql);
+            if (!known)
+            {
+                return true;
+            }
         }
 
-        return found == triggers.Count;
+        return false;
     }
+
+    /// <summary>
+    /// Checks that a protecting trigger is in place as it was created, so that one changed to never abort (for
+    /// example with <c>WHEN 0</c>) is found as the sealed tables' are; only the spacing may differ.
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="trigger">The table, the trigger's name and its SQL.</param>
+    /// <returns><see langword="true"/> when the trigger is there, unchanged.</returns>
+    private static bool HasTrigger(
+        CaseDatabase database, SqliteTransaction transaction, (string Table, string Name, string Sql) trigger)
+    {
+        using var command = database.Command(
+            "SELECT sql FROM sqlite_schema WHERE type = 'trigger' AND tbl_name = $table AND name = $name",
+            transaction);
+        command.Parameters.AddWithValue("$table", trigger.Table);
+        command.Parameters.AddWithValue("$name", trigger.Name);
+        return command.ExecuteScalar() is string sql
+            && string.Equals(Normalized(sql), Normalized(trigger.Sql), StringComparison.Ordinal);
+    }
+
+    /// <summary>Gives SQL with every run of white space as one space and without a closing semicolon.</summary>
+    /// <param name="sql">The SQL.</param>
+    /// <returns>The normalized SQL.</returns>
+    private static string Normalized(string sql) =>
+        string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).TrimEnd(';');
 
     /// <summary>
     /// Reads the id and number the first journal entry created the case with, when its creation time is the one in

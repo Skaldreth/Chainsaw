@@ -26,6 +26,9 @@ public sealed partial class CaseWorkflow
     /// <summary>What is said when a chosen file is not a case file.</summary>
     public const string NotCaseFileText = "Filen är inte ett ärende (.cut).";
 
+    /// <summary>What is said when a chosen file cannot be read.</summary>
+    public const string UnreadableFileText = "Filen gick inte att läsa.";
+
     /// <summary>What is said when the case password does not open the file.</summary>
     public const string WrongPasswordText = "Lösenordet stämmer inte. Inget har ändrats i filen.";
 
@@ -67,7 +70,17 @@ public sealed partial class CaseWorkflow
             return await OpenAsync(number);
         }
 
-        var size = await Task.Run(() => new FileInfo(full).Length);
+        long size;
+        try
+        {
+            size = await Task.Run(() => new FileInfo(full).Length);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Gone or out of reach since it was chosen; the raw message names the path and is never shown.
+            return CommandReply.Failed(UnreadableFileText);
+        }
+
         PasswordWanted?.Invoke(this, new CaseFileOffer(full, number, size, InFolder: false));
         return CommandReply.Done(string.Empty);
     }
@@ -166,6 +179,42 @@ public sealed partial class CaseWorkflow
         });
     }
 
+    /// <summary>
+    /// Keeps both when the open case's file was changed or replaced outside Chainsaw (Explorer, a sync tool, a
+    /// colleague) and the case refused to write over it: the case is closed, its working copy staying beside the file
+    /// with the session's work, and the choice of branch is offered with the working copy saved as a case of its own
+    /// chosen (sketch ÄR1b). Nothing is done when the case is no longer the open one, or while other work runs, since
+    /// that work closes the case first and its next opening offers the choice.
+    /// </summary>
+    /// <param name="replaced">The case whose file was replaced.</param>
+    /// <returns>The answer: empty when the choice is offered.</returns>
+    public async Task<CommandReply> KeepBothAsync(ICase replaced)
+    {
+        ArgumentNullException.ThrowIfNull(replaced);
+        if (!ReferenceEquals(_session.Current, replaced) || _busy)
+        {
+            return CommandReply.Done(string.Empty);
+        }
+
+        var number = CaseSession.NumberOf(replaced);
+        return await RunAlone(async () =>
+        {
+            if (!ReferenceEquals(_session.Current, replaced))
+            {
+                return CommandReply.Done(string.Empty);
+            }
+
+            var closed = await CloseCurrentAsync();
+            if (await FindConflictAsync(number) is { } conflict)
+            {
+                ConflictFound?.Invoke(this, conflict);
+                return CommandReply.Done(string.Empty);
+            }
+
+            return CommandReply.Failed(closed.Prefix + CaseTexts.For(CaseError.Conflict));
+        });
+    }
+
     /// <summary>Makes an opened case the open one, unless Chainsaw locked meanwhile.</summary>
     /// <param name="opened">The case.</param>
     /// <param name="prefix">What to say first about the case closed before.</param>
@@ -179,6 +228,8 @@ public sealed partial class CaseWorkflow
 
         _session.Open(opened);
         _absorbing = AbsorbAsync(opened);
+        // A start point that could not be fetched before is tried again (principle 9).
+        _fetches.Start(opened);
         return CommandReply.Done($"{prefix}Ärendet {CaseSession.NameOf(opened)} är öppet.");
     }
 

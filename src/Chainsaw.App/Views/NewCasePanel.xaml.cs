@@ -118,12 +118,28 @@ public partial class NewCasePanel : UserControl
     /// </summary>
     private void PasteAnywhere()
     {
-        if (_panel is null || Keyboard.FocusedElement is TextBoxBase or PasswordBox || !Clipboard.ContainsText())
+        if (_panel is null || Keyboard.FocusedElement is TextBoxBase or PasswordBox)
         {
             return;
         }
 
-        _panel.Paste(Clipboard.GetText());
+        string text;
+        try
+        {
+            text = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            // Another program holds the clipboard; nothing is pasted.
+            return;
+        }
+
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        _panel.Paste(text);
         AddBox.Focus();
     }
 

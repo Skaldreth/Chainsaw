@@ -165,4 +165,19 @@ public interface ICaseStore
     /// <see cref="CaseError.NotFound"/>, <see cref="CaseError.Corrupt"/> or <see cref="CaseError.UnsupportedVersion"/>.
     /// </exception>
     IReadOnlyList<string> ReadRecoveryFingerprints(string path);
+
+    /// <summary>
+    /// Tries the organisation's private recovery key on a case file for real, without opening the case or changing
+    /// anything, and without the vault: an envelope must open with the key, and the seal over the whole file must
+    /// hold under the file key it gives. For the administrator's <c>check --key</c>.
+    /// </summary>
+    /// <param name="path">The path of the <c>.cut</c> file.</param>
+    /// <param name="privateKey">The organisation's private recovery key.</param>
+    /// <returns><see langword="true"/> when an envelope opens and the file is whole.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NotFound"/>, <see cref="CaseError.Corrupt"/> (also when an envelope opens but the seal
+    /// over the file does not hold), <see cref="CaseError.UnsupportedVersion"/> or
+    /// <see cref="CaseError.OutdatedFormat"/>.
+    /// </exception>
+    bool TryRecoveryKey(string path, System.Security.Cryptography.ECDiffieHellman privateKey);
 }

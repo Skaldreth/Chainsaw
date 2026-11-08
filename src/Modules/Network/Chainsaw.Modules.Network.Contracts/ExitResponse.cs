@@ -38,6 +38,18 @@ public sealed record ExitResponse(
     /// </summary>
     public TimeSpan? RetryAfter { get; init; }
 
+    /// <summary>
+    /// Gets the source's own time for the response (the <c>Date</c> header), or <see langword="null"/> when it gave
+    /// none; the source's clock, not Chainsaw's, for an origin that wants it.
+    /// </summary>
+    public DateTimeOffset? ServerDate { get; init; }
+
+    /// <summary>
+    /// Gets the source's tag for the version of what it answered (the <c>ETag</c> header, as sent), or
+    /// <see langword="null"/> when it gave none.
+    /// </summary>
+    public string? ETag { get; init; }
+
     /// <summary>Gets how long the request took.</summary>
     public TimeSpan Duration => ReceivedAt - RequestedAt;
 

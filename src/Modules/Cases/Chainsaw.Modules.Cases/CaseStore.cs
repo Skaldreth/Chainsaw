@@ -36,6 +36,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="vault">The vault.</param>
     /// <param name="purposeKeys">The vault's keys per purpose.</param>
     /// <param name="profiles">The operator profile.</param>
+    /// <param name="secrets">The vault's named secrets, for the generation of the anchors.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="options">The options.</param>
     /// <param name="contributors">Every module's schema, the Cases module's own included.</param>
@@ -43,11 +44,13 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         IVault vault,
         IPurposeKeys purposeKeys,
         IOperatorProfileStore profiles,
+        IVaultSecrets secrets,
         IClock clock,
         CasesOptions options,
         IEnumerable<ICaseSchemaContributor> contributors)
     {
-        _services = new CaseServices(vault, purposeKeys, profiles, clock, options, new SchemaCatalog(contributors));
+        _services = new CaseServices(
+            vault, purposeKeys, profiles, secrets, clock, options, new SchemaCatalog(contributors));
         vault.StateChanged += OnVaultStateChanged;
     }
 
@@ -219,6 +222,12 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
         var locks = LockCount();
         RequireUnlocked();
+        if (!WorkingCopyBranches.IsFree(target))
+        {
+            // Before the lock: a case with the number that is open here holds it, and is no other Chainsaw.
+            throw new CaseException(CaseError.AlreadyExists);
+        }
+
         System.IO.Directory.CreateDirectory(Directory);
         var lockFile = AcquireLock(target);
         var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
@@ -303,7 +312,42 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             caseNumber,
             new DateTimeOffset(File.GetLastWriteTimeUtc(paths.CaseFile), TimeSpan.Zero),
             new DateTimeOffset(File.GetLastWriteTimeUtc(paths.WorkingCopy), TimeSpan.Zero),
-            WorkingCopyBranches.SuggestBranchNumber(System.IO.Path.GetFullPath(Directory), caseNumber));
+            WorkingCopyBranches.SuggestBranchNumber(System.IO.Path.GetFullPath(Directory), caseNumber))
+        {
+            Divergence = FindDivergence(paths),
+        };
+    }
+
+    /// <summary>
+    /// Finds where the file and its working copy went apart, with this vault's key; nothing when the vault cannot
+    /// open the file. Neither is changed.
+    /// </summary>
+    /// <param name="paths">The case's files.</param>
+    /// <returns>The divergence, or <see langword="null"/>.</returns>
+    private CaseDivergence? FindDivergence(CasePaths paths)
+    {
+        if (_services.Vault.State != VaultState.Unlocked)
+        {
+            return null;
+        }
+
+        var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
+        {
+            var header = ReadHeader(paths);
+            OpenWithVault(header, fileKey);
+            var key = fileKey;
+            return BranchDivergence.Find(
+                paths, header.CaseId, fileKey, path => OpenDatabase(path, key, header.CaseId));
+        }
+        catch (CaseException)
+        {
+            return null;
+        }
+        finally
+        {
+            Clear(fileKey);
+        }
     }
 
     /// <inheritdoc />
@@ -394,11 +438,11 @@ internal sealed class CaseStore : ICaseStore, IDisposable
             var newHeader = NewHeader(Guid.NewGuid(), newKey);
             WorkingCopyBranches.CopyToBranch(paths, branch);
             RebindBranch(branch, (fileKey, header.CaseId), (newKey, newHeader.CaseId), branchNumber);
-            WorkingCopyBranches.WriteCaseFile(branch, newHeader);
+            WorkingCopyBranches.WriteCaseFile(branch, newHeader, newKey);
             WorkingCopyBranches.RemoveBranch(branch, caseFileToo: false);
-            var opened = OpenLocked(branch, branchLock, newHeader, newKey, new Opening(OpeningKind.Branch, locks));
+            var opening = new Opening(OpeningKind.Branch, locks) { Origin = origin };
+            var opened = OpenLocked(branch, branchLock, newHeader, newKey, opening);
             (branchLock, newKey) = (null, null);
-            RecordOrUndo(opened, BranchDraft(origin, opened), () => { });
             SetAsideAfterBranch(paths, caseNumber, opened);
             return opened;
         }
@@ -462,6 +506,32 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         return RecoveryEnvelopes.Fingerprints(ReadHeader(paths));
     }
 
+    /// <inheritdoc />
+    public bool TryRecoveryKey(string path, ECDiffieHellman privateKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(privateKey);
+        var paths = new CasePaths(System.IO.Path.GetFullPath(path));
+        RequireExists(paths);
+        var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
+        {
+            var header = ReadHeader(paths);
+            if (!RecoveryEnvelopes.TryOpen(header, privateKey, fileKey))
+            {
+                return false;
+            }
+
+            return CaseFiles.SealedHash(paths, header, fileKey) is not null
+                ? true
+                : throw new CaseException(CaseError.Corrupt);
+        }
+        finally
+        {
+            Clear(fileKey);
+        }
+    }
+
     /// <summary>Stops following the vault and closes every open case.</summary>
     public void Dispose()
     {
@@ -504,17 +574,13 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             // A recovered working copy must belong to the case file as it is now; if the file was replaced after the
-            // working copy was taken from it, neither is overwritten.
-            if (!recovering)
-            {
-                // A rollback journal without its working copy belongs to no database; SQLite must never roll it back
-                // into the copy made now.
-                File.Delete(paths.WorkingJournal);
-            }
-
-            var caseFileHash = recovering
-                ? CaseFiles.MatchingBase(paths) ?? throw new CaseException(CaseError.Conflict)
-                : CaseFiles.Extract(paths, header.CaseId);
+            // working copy was taken from it, neither is overwritten. A new one is extracted without a leftover
+            // rollback journal. Either way the file is checked against its seal, in the same read as its hash, and its
+            // header must be the one the key was opened from; a recorded base is only a hash, which anyone who can
+            // write in the folder can write.
+            var (caseFileHash, caseFileStamp) = recovering
+                ? RecoveredBase(paths, header, fileKey)
+                : CaseFiles.Extract(paths, header, fileKey);
 
             anchorKey = DeriveAnchorKey();
             database = OpenWorkingCopy(paths, fileKey, header.CaseId, recovering);
@@ -529,6 +595,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                     _services, paths, header, (fileKey, anchorKey), lockFile, database, info, Forget)
                 {
                     CaseFileHash = caseFileHash,
+                    CaseFileStamp = caseFileStamp,
                     LocksAtOpening = opening.Locks,
                 },
                 recovering);
@@ -548,6 +615,25 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
             throw;
         }
+    }
+
+    /// <summary>
+    /// Checks the case file a working copy left by an interrupted session is to be recovered into: its seal must hold
+    /// over the header the key was opened from, and its hash must be one the working copy belongs to.
+    /// </summary>
+    /// <param name="paths">The case's files.</param>
+    /// <param name="header">The header the file key was opened from.</param>
+    /// <param name="fileKey">The file key.</param>
+    /// <returns>The case file's SHA-256 and the stamp of the bytes read.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/> when the seal or the header does not hold, <see cref="CaseError.Conflict"/>
+    /// when the working copy belongs to another file.
+    /// </exception>
+    private static (byte[] Hash, CaseFiles.Stamp Stamp) RecoveredBase(
+        CasePaths paths, CaseHeader header, byte[] fileKey)
+    {
+        var read = CaseFiles.SealedHash(paths, header, fileKey) ?? throw new CaseException(CaseError.Corrupt);
+        return CaseFiles.IsRecordedBase(paths, read.Hash) ? read : throw new CaseException(CaseError.Conflict);
     }
 
     /// <summary>
@@ -617,6 +703,12 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         if (opening.Kind == OpeningKind.Password)
         {
             opened.AppendOwnJournal(PasswordDraft(opening.Import));
+        }
+
+        if (opening.Origin is { } origin)
+        {
+            // In the opening's own save, so that the new case is never on disk without the line that names it.
+            opened.AppendOwnJournal(BranchDraft(origin, opened));
         }
 
         if (opening.Kind == OpeningKind.Recovery)
@@ -822,14 +914,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="first">One header.</param>
     /// <param name="second">The other.</param>
     /// <returns><see langword="true"/> when they are.</returns>
-    private static bool SameHeader(CaseHeader first, CaseHeader second)
-    {
-        using var one = new MemoryStream();
-        using var other = new MemoryStream();
-        CaseContainer.WriteHeader(one, first);
-        CaseContainer.WriteHeader(other, second);
-        return one.ToArray().AsSpan().SequenceEqual(other.ToArray());
-    }
+    private static bool SameHeader(CaseHeader first, CaseHeader second) => CaseContainer.Same(first, second);
 
     /// <summary>
     /// Runs the last step of opening while the case is not yet known to the store, so that nothing else can touch it,
@@ -1117,7 +1202,8 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             Case.DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
-            List<JsonObject> envelopes = [KeyEnvelopes.CreateOperator(caseId, fileKey, wrappingKey)];
+            List<JsonObject> envelopes =
+                [KeyEnvelopes.CreateOperator(caseId, fileKey, wrappingKey, CurrentProfile().Name)];
             if (_services.Options.RecoveryKey is { } recoveryKey)
             {
                 envelopes.Add(RecoveryEnvelopes.Create(caseId, fileKey, recoveryKey));
@@ -1304,6 +1390,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     {
         /// <summary>Gets the file taken in from elsewhere, with the password, or <see langword="null"/>.</summary>
         public ImportedFile? Import { get; init; }
+
+        /// <summary>Gets the case a working copy came from, for a case of its own, or <see langword="null"/>.</summary>
+        public BranchOrigin? Origin { get; init; }
     }
 
     /// <summary>A colleague's file taken into the folder: its name and the SHA-256 of what was copied.</summary>

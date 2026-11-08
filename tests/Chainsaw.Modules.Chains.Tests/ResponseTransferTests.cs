@@ -68,6 +68,19 @@ public sealed class ResponseTransferTests : IDisposable
     }
 
     [Fact]
+    public async Task An_index_with_a_height_the_chain_cannot_have_come_to_is_sealed_but_not_used()
+    {
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+        var read = _harness.Case.Read(reader => _harness.Transfer.Read(reader, 1))!;
+        using var other = _harness.CreateCase("2026-0046");
+
+        other.Write(transaction => _harness.Transfer.Seal(transaction, read, new SealedResponseIndex(4_800_000, [])));
+
+        Assert.Null(other.Read(reader => _harness.Transfer.ReadIndex(reader, 1)));
+        Assert.True(_harness.Verify(other).IsIntact);
+    }
+
+    [Fact]
     public void A_number_with_no_response_reads_as_none()
     {
         Assert.Null(_harness.Case.Read(reader => _harness.Transfer.Read(reader, 99)));

@@ -120,6 +120,50 @@ public sealed class ExitRouteTests
 
         var exception = await Assert.ThrowsAsync<ExitException>(() => request);
         Assert.Equal(ExitError.ConnectionLost, exception.Error);
+        Assert.Equal(ExitRoute.Windows, exception.Route);
+        Assert.DoesNotContain("Utgången", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Vägen ut byttes", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_failure_through_windows_names_the_computers_network_and_not_an_exit()
+    {
+        _harness.WindowsHandlers.Answer = (_, _) => throw new HttpRequestException("refused");
+        _harness.Route.Choose(ExitRoute.Windows);
+
+        var exception = await Assert.ThrowsAsync<ExitException>(() => _harness.Http.SendAsync(ExitRequest.Get(Address)));
+
+        Assert.Equal(ExitError.RequestFailed, exception.Error);
+        Assert.Equal("Uppslaget misslyckades på vägen genom datorns nät.", exception.Message);
+    }
+
+    [Fact]
+    public void The_messages_through_an_exit_stay_as_they_were()
+    {
+        var timeout = new ExitException(ExitError.Timeout, ExitRoute.Vpn, new TimeoutException());
+
+        Assert.Equal(new ExitException(ExitError.Timeout).Message, timeout.Message);
+        Assert.Equal("Svaret kom inte i tid genom datorns nät.",
+            new ExitException(ExitError.Timeout, ExitRoute.Windows, new TimeoutException()).Message);
+    }
+
+    [Fact]
+    public async Task The_sources_date_and_tag_come_with_the_response()
+    {
+        var date = new DateTimeOffset(2026, 11, 8, 10, 0, 0, TimeSpan.Zero);
+        _harness.WindowsHandlers.Answer = (_, _) =>
+        {
+            var answer = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1]) };
+            answer.Headers.Date = date;
+            answer.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"v7\"");
+            return Task.FromResult(answer);
+        };
+        _harness.Route.Choose(ExitRoute.Windows);
+
+        var response = await _harness.Http.SendAsync(ExitRequest.Get(Address));
+
+        Assert.Equal(date, response.ServerDate);
+        Assert.Equal("\"v7\"", response.ETag);
     }
 
     [Fact]
@@ -247,7 +291,8 @@ public sealed class ExitRouteTests
     [Fact]
     public void The_windows_handler_uses_the_systems_proxy_and_sends_no_cookies_credentials_or_downloads()
     {
-        using var handler = (SocketsHttpHandler)new WindowsHandlerFactory(new NetworkOptions()).Create();
+        using var guard = (DelegatingHandler)new WindowsHandlerFactory(new NetworkOptions()).Create();
+        var handler = (SocketsHttpHandler)guard.InnerHandler!;
 
         Assert.True(handler.UseProxy);
         Assert.Null(handler.Proxy);

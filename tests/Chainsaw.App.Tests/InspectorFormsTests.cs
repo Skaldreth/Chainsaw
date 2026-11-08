@@ -471,6 +471,17 @@ public sealed class InspectorFormsTests
         Assert.Empty(rig.Editor.Splits);
     }
 
+    /// <summary>A failure is said in fixed Swedish words, never with a raw message that may name a path.</summary>
+    [Fact]
+    public void AFailureNeverShowsTheRawMessage()
+    {
+        const string Raw = @"C:\Ärenden\hemligt.case";
+
+        Assert.DoesNotContain(Raw, InspectorFormsViewModel.Failure(new IOException(Raw)), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            Raw, InspectorFormsViewModel.Failure(new ArgumentException(Raw)), StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// The cluster is read again before the splits, so a link that came after the rows were read is split too; and
     /// an address that another link still holds is said, never hidden.
@@ -583,6 +594,29 @@ public sealed class InspectorFormsTests
     }
 
     /// <summary>
+    /// Two picked addresses that share one link with an address that stays each get a split, so that the history
+    /// counts both and a later link from the second to the cluster is refused as well.
+    /// </summary>
+    [Fact]
+    public void BreakOutSplitsEveryPickedAddressInALink()
+    {
+        var a = GraphSamples.Address(20);
+        var b = GraphSamples.Address(21);
+        var c = GraphSamples.Address(22);
+        var cio = Merged(1, HeuristicNames.CommonInputOwnership, a, b, c);
+        var cluster = new Cluster(a, [], [cio], [], [], []);
+
+        var splits = InspectorForms.BreakOut(cluster, [a, b], "Skäl");
+
+        Assert.Equal(
+            [
+                new SplitRequest(a, c, HeuristicNames.CommonInputOwnership, "Skäl"),
+                new SplitRequest(b, c, HeuristicNames.CommonInputOwnership, "Skäl"),
+            ],
+            splits);
+    }
+
+    /// <summary>
     /// A merge of the user's own breaks out like a heuristic's: its split names the user's merges, and a user's link
     /// with the same sequence as a heuristic's (they are numbered in different chains) is not taken for it.
     /// </summary>
@@ -692,9 +726,10 @@ public sealed class InspectorFormsTests
         Assert.Equal(LabelKind.Victim, kinds[0]);
         Assert.Equal(LabelKind.Unknown, kinds[1]);
         Assert.Equal(LabelKind.Exchange, kinds[2]);
-        Assert.Equal(Enum.GetValues<LabelKind>().Length - 2, kinds.Distinct().Count());
+        Assert.Equal(Enum.GetValues<LabelKind>().Length - 3, kinds.Distinct().Count());
         Assert.DoesNotContain(LabelKind.Sanctioned, kinds);
         Assert.DoesNotContain(LabelKind.Reported, kinds);
+        Assert.DoesNotContain(LabelKind.FormerlySanctioned, kinds);
         Assert.Equal("CIO v1", InspectorForms.ShortName(new HeuristicId(HeuristicNames.CommonInputOwnership, 1)));
         Assert.Equal("Växel v2", InspectorForms.ShortName(new HeuristicId(HeuristicNames.ChangeAddress, 2)));
     }

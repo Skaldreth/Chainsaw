@@ -53,6 +53,25 @@ public enum ExposureRest
     /// say where it came from.
     /// </summary>
     BeforeHistory,
+
+    /// <summary>
+    /// The trail ends at the transaction it went through (or came from), for example a CoinJoin that is not counted as
+    /// a service: the graph's trace stops there, and so does the analysis.
+    /// </summary>
+    TrailEnds,
+
+    /// <summary>
+    /// What the source says about where it went does not agree with the transaction it names, so it is not followed
+    /// rather than guessed, as in the graph's trace. Expanding again, or another source, may settle it.
+    /// </summary>
+    Conflicting,
+
+    /// <summary>
+    /// It continues on another chain by the user's link: paid out, a coin linked there whose other chain is not in the
+    /// graph; got, the share of a transaction's outputs paid by an input linked there, which by the graph's trace went
+    /// on to the other chain and is no source of them.
+    /// </summary>
+    OtherChain,
 }
 
 /// <summary>What to read the exposure of, and how.</summary>
@@ -136,10 +155,13 @@ public sealed record ExposureResult(
     /// <summary>The analysis's name, as the view and <em>Varför?</em> write it.</summary>
     public const string AnalysisName = "exposure";
 
-    /// <summary>The analysis's version; raised whenever it may give other amounts.</summary>
-    public const int AnalysisVersion = 1;
+    /// <summary>
+    /// The analysis's version; raised whenever it may give other amounts. Version 2 stops money where the graph's trace
+    /// stops it: at a link to another chain, a transaction where the trail ends, and a spend that does not agree.
+    /// </summary>
+    public const int AnalysisVersion = 2;
 
-    /// <summary>Gets the analysis's name and version, for example <c>exposure v1</c>.</summary>
+    /// <summary>Gets the analysis's name and version, for example <c>exposure v2</c>.</summary>
     public static string Analysis { get; } =
         AnalysisName + " v" + AnalysisVersion.ToString(CultureInfo.InvariantCulture);
 

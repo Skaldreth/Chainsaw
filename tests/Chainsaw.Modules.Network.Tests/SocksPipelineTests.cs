@@ -78,12 +78,13 @@ public sealed class SocksPipelineTests : IAsyncLifetime
         await _harness.Http.SendAsync(ExitRequest.Get(Address));
         Assert.Equal(0, _proxy.Refused);
 
+        // With another password the proxy's proof does not hold, so Chainsaw stops before SOCKS5 and its credentials.
         _harness.Connector.Credentials = new NetworkCredential("proxy-user", "wrong-password");
         await _harness.Connection.ConnectAsync();
         var exception = await Assert.ThrowsAsync<ExitException>(() => _harness.Http.SendAsync(ExitRequest.Get(Address)));
 
         Assert.Equal(ExitError.RequestFailed, exception.Error);
-        Assert.Equal(1, _proxy.Refused);
+        Assert.Equal(0, _proxy.Refused);
         Assert.Single(_proxy.Requests);
     }
 
@@ -188,7 +189,7 @@ public sealed class SocksPipelineTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<HttpRequestException>(async () =>
             await SocksHandlerFactory.ConnectOnlyToProxyAsync(
-                proxy, new DnsEndPoint("chain.example", 443), () => true, CancellationToken.None));
+                proxy, new DnsEndPoint("chain.example", 443), Check(() => true), CancellationToken.None));
     }
 
     [Fact]
@@ -201,12 +202,65 @@ public sealed class SocksPipelineTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<HttpRequestException>(async () =>
             await SocksHandlerFactory.ConnectOnlyToProxyAsync(
-                proxy, new DnsEndPoint(proxy.Address.ToString(), proxy.Port), () => false, CancellationToken.None));
+                proxy, new DnsEndPoint(proxy.Address.ToString(), proxy.Port), Check(() => false), CancellationToken.None));
 
         using var taker = await accepting;
         var buffer = new byte[16];
         Assert.Equal(0, await taker.GetStream().ReadAsync(buffer).AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
     }
+
+    [Fact]
+    public async Task A_program_on_the_port_that_cannot_prove_it_is_the_helper_gets_nothing_but_the_nonce()
+    {
+        using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var proxy = (IPEndPoint)listener.LocalEndpoint;
+        var impostor = Task.Run(async () =>
+        {
+            using var taker = await listener.AcceptTcpClientAsync();
+            var stream = taker.GetStream();
+            var nonce = new byte[SocksHandlerFactory.ProofNonceSize];
+            await stream.ReadExactlyAsync(nonce);
+            await stream.WriteAsync(new byte[32]);
+            var rest = new byte[16];
+            return await stream.ReadAsync(rest).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        });
+
+        await Assert.ThrowsAsync<HttpRequestException>(async () =>
+            await SocksHandlerFactory.ConnectOnlyToProxyAsync(
+                proxy, new DnsEndPoint(proxy.Address.ToString(), proxy.Port), Check(() => true), CancellationToken.None));
+
+        Assert.Equal(0, await impostor);
+    }
+
+    [Fact]
+    public async Task The_helpers_proof_is_accepted()
+    {
+        using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var proxy = (IPEndPoint)listener.LocalEndpoint;
+        var credentials = new NetworkCredential("tunnel-user", "tunnel-password-1");
+        var helper = Task.Run(async () =>
+        {
+            using var taker = await listener.AcceptTcpClientAsync();
+            var stream = taker.GetStream();
+            var nonce = new byte[SocksHandlerFactory.ProofNonceSize];
+            await stream.ReadExactlyAsync(nonce);
+            await stream.WriteAsync(SocksHandlerFactory.ProofFor(credentials, nonce));
+        });
+
+        await using var stream = await SocksHandlerFactory.ConnectOnlyToProxyAsync(
+            proxy,
+            new DnsEndPoint(proxy.Address.ToString(), proxy.Port),
+            new TunnelCheck(() => true, credentials),
+            CancellationToken.None);
+
+        await helper;
+        Assert.True(stream.CanRead);
+    }
+
+    private static TunnelCheck Check(Func<bool> proxyIsTunnel) =>
+        new(proxyIsTunnel, new NetworkCredential("tunnel-user", "tunnel-password-1"));
 
     [Fact]
     public void The_proxy_setting_never_bypasses_and_takes_no_credentials()

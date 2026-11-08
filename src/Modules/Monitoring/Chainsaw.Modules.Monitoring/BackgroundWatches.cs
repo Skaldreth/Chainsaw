@@ -9,7 +9,9 @@ namespace Chainsaw.Modules.Monitoring;
 
 /// <summary>
 /// The case's side of the background watching (see <see cref="IBackgroundWatches"/>): what the plan may know of a
-/// case, and bringing the queue's entries into it with journal, hash and sealed hits.
+/// case, and bringing the queue's entries into it with journal and hash. The hits an entry carries come in as tips
+/// (<see cref="WatchTip"/>), never as hits: whoever can write the queue can also write the responses an entry carries,
+/// so only Chainsaw's own lookup makes a hit (<see cref="MonitoringService"/>).
 /// </summary>
 /// <param name="service">The watches, which say a cluster's addresses as each check does.</param>
 /// <param name="queue">The queue.</param>
@@ -20,11 +22,15 @@ internal sealed class BackgroundWatches(
 {
     /// <summary>The journal line when entries were brought in.</summary>
     public const string ImportedText =
-        "Bakgrundens bevakning förd in: {0} kontroller, {1} hämtade svar, {2} träffar";
+        "Bakgrundens bevakning förd in: {0} kontroller, {1} hämtade svar, {2} träffar som väntar på kontroll";
 
     /// <summary>What is said when an entry cannot be read.</summary>
     public const string UnreadableText =
         "En kontroll från bakgrunden kunde inte läsas och lades åt sidan; den förs inte in.";
+
+    /// <summary>The journal line when the background says a watch has hit: a tip, until Chainsaw checked it.</summary>
+    public const string TipText =
+        "Bakgrunden säger att bevakningen av {0} slog till: {1}; väntar på kontroll mot kedjan";
 
     /// <summary>The chains the background can watch.</summary>
     private static readonly IReadOnlySet<Chain> Watchable = new HashSet<Chain> { Chain.Bitcoin, Chain.Ethereum };
@@ -34,7 +40,9 @@ internal sealed class BackgroundWatches(
     {
         ArgumentNullException.ThrowIfNull(@case);
         var checkedAt = service.GetChecked(@case);
-        var hits = service.GetHits(@case);
+        var hits = service.GetHits(@case).Select(hit => (hit.WatchId, hit.Match))
+            .Concat(service.GetTips(@case).Select(tip => (tip.WatchId, tip.Match)))
+            .ToList();
         var watches = service.GetWatches(@case)
             .Where(watch => watch.State == WatchState.Active && Watchable.Contains(watch.Chain))
             .Select(watch =>
@@ -45,7 +53,7 @@ internal sealed class BackgroundWatches(
                     watch.Id, service.AddressesOf(@case, watch).Addresses, watch.Filter, watch.StartHeight, last)
                 {
                     Known = [.. hits.Where(hit => hit.WatchId == watch.Id && hit.Match.Block.Height > lookBack)
-                        .Select(hit => WatchSchedule.Key(hit.WatchId, hit.Match))],
+                        .Select(hit => WatchSchedule.Key(hit.WatchId, hit.Match)).Distinct(StringComparer.Ordinal)],
                 };
             })
             .ToList();
@@ -58,7 +66,7 @@ internal sealed class BackgroundWatches(
         ArgumentNullException.ThrowIfNull(@case);
         var caseId = @case.Info.Id;
         var done = new List<Guid>();
-        var hits = new List<WatchHit>();
+        var tips = new List<WatchTip>();
         var problems = new List<string>();
         var responses = 0;
         var entries = 0;
@@ -101,13 +109,21 @@ internal sealed class BackgroundWatches(
                 {
                     entries++;
                     responses += entry.Responses.Count;
-                    hits.AddRange(some);
+                    tips.AddRange(some);
                 }
             }
             catch (ArgumentException)
             {
-                queue.SetAside(caseId, id);
                 problems.Add(UnreadableText);
+                try
+                {
+                    queue.SetAside(caseId, id);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // The file is held just now (a scanner); it is set aside at the next round.
+                }
+
                 continue;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -123,7 +139,7 @@ internal sealed class BackgroundWatches(
         {
             @case.AppendJournal(new JournalDraft(
                 MonitoringJournalKinds.Imported,
-                string.Format(CultureInfo.InvariantCulture, ImportedText, entries, responses, hits.Count),
+                string.Format(CultureInfo.InvariantCulture, ImportedText, entries, responses, tips.Count),
                 JsonSerializer.Serialize(new { entries = done, fetchedBy = BackgroundNames.Fetcher.Name })));
         }
 
@@ -145,14 +161,14 @@ internal sealed class BackgroundWatches(
             }
         }
 
-        return new BackgroundImport(entries, responses, hits, problems);
+        return new BackgroundImport(entries, responses, tips, problems);
     }
 
     /// <summary>Brings one entry into the case in one write.</summary>
     /// <param name="transaction">The case's write.</param>
     /// <param name="entry">The entry.</param>
-    /// <returns>The hits sealed, or <see langword="null"/> when the entry was already in the case.</returns>
-    private List<WatchHit>? Bring(ICaseTransaction transaction, QueuedCheck entry)
+    /// <returns>The tips sealed, or <see langword="null"/> when the entry was already in the case.</returns>
+    private List<WatchTip>? Bring(ICaseTransaction transaction, QueuedCheck entry)
     {
         var key = entry.Id.ToString("N");
         if (WasImported(transaction, key))
@@ -176,16 +192,23 @@ internal sealed class BackgroundWatches(
 
         if (entry.Kind == QueuedKind.Started)
         {
-            Start(transaction, watch, entry);
+            if (watch.StartHeight is null)
+            {
+                Start(transaction, watch, entry.Height, entry.Utc);
+            }
+
             return [];
         }
 
-        // A check counted from another start than the case's (one the background set before a crash, say) still
-        // stands: only money above the case's own start is a hit.
-        if (watch.StartHeight is not { } start || entry.Checked is not { } checkedAt)
+        if (entry.Checked is not { } checkedAt)
         {
             return [];
         }
+
+        // A check whose start never came in (its entry was set aside) brings the start it counted from, so that its
+        // hits are not lost. A check counted from another start than the case's (one the background set before a
+        // crash, say) still stands: only money above the case's own start is a hit.
+        var start = watch.StartHeight ?? Start(transaction, watch, entry.Start, null);
 
         // How far it read counts only when it read from the case's start or lower: a check from a later start never
         // read the blocks between, and must not mark them as read.
@@ -195,7 +218,9 @@ internal sealed class BackgroundWatches(
             WatchStore.WriteChecked(transaction, watch.Id, checkedAt);
         }
 
+        // A hit the case has, or a tip it already holds in any state, is never brought in again.
         var known = WatchStore.ReadHits(transaction).Select(hit => WatchSchedule.Key(hit.WatchId, hit.Match))
+            .Concat(WatchStore.ReadTips(transaction).Select(tip => WatchSchedule.Key(tip.WatchId, tip.Match)))
             .ToHashSet(StringComparer.Ordinal);
         var fresh = entry.Matches
             .Where(match => match.Block.Height > Math.Max(start, entry.Start)
@@ -209,15 +234,16 @@ internal sealed class BackgroundWatches(
         IReadOnlyList<long> origins =
             [.. entry.Origins.Where(sequences.ContainsKey).Select(origin => sequences[origin])];
         var journal = transaction.AppendJournal(new JournalDraft(
-            MonitoringJournalKinds.Hit,
-            $"Bevakningen av {watch.Subject.Name} slog till i bakgrunden: {WatchTexts.Hits(fresh)}",
+            MonitoringJournalKinds.Tip,
+            string.Format(CultureInfo.InvariantCulture, TipText, watch.Subject.Name, WatchTexts.Hits(fresh)),
             JsonSerializer.Serialize(new
             {
                 watch = watch.Id,
                 background = true,
+                verified = false,
                 entry = entry.Id,
                 checkedUtc = WatchCodec.Text(entry.Utc),
-                hits = fresh.Select(match => new
+                tips = fresh.Select(match => new
                 {
                     tx = match.Transaction,
                     block = match.Block.Height,
@@ -227,7 +253,7 @@ internal sealed class BackgroundWatches(
                 }),
                 origins,
             })));
-        return [.. fresh.Select(match => WatchStore.SealHit(transaction, watch, match, origins, journal))];
+        return [.. fresh.Select(match => WatchStore.SealTip(transaction, watch, entry.Id, match, origins, journal))];
     }
 
     /// <summary>
@@ -241,28 +267,29 @@ internal sealed class BackgroundWatches(
         WatchCodec.Encode(watch with { Pace = WatchPace.EveryBlock })
         == WatchCodec.Encode(checkedWith with { Pace = WatchPace.EveryBlock });
 
-    /// <summary>Seals the start the background set, when the watch still has none.</summary>
+    /// <summary>Seals the start the background set, for a watch that has none.</summary>
     /// <param name="transaction">The case's write.</param>
     /// <param name="watch">The watch.</param>
-    /// <param name="entry">The entry.</param>
-    private void Start(ICaseTransaction transaction, Watch watch, QueuedCheck entry)
+    /// <param name="height">The start.</param>
+    /// <param name="checkedUtc">
+    /// When it was set, to note the watch as read to its start when nothing is noted yet; <see langword="null"/> when
+    /// the check that brings it notes how far it read.
+    /// </param>
+    /// <returns>The start.</returns>
+    private static long Start(ICaseTransaction transaction, Watch watch, long height, DateTimeOffset? checkedUtc)
     {
-        if (watch.StartHeight is not null)
-        {
-            return;
-        }
-
         var journal = transaction.AppendJournal(new JournalDraft(
             MonitoringJournalKinds.Started,
-            $"Bevakningen av {watch.Subject.Name} börjar efter block {WatchTexts.Number(entry.Height)} (i bakgrunden)",
-            JsonSerializer.Serialize(new { watch = watch.Id, start = entry.Height, background = true })));
-        var started = watch with { StartHeight = entry.Height, ChangedUtc = journal.Utc };
+            $"Bevakningen av {watch.Subject.Name} börjar efter block {WatchTexts.Number(height)} (i bakgrunden)",
+            JsonSerializer.Serialize(new { watch = watch.Id, start = height, background = true })));
+        var started = watch with { StartHeight = height, ChangedUtc = journal.Utc };
         WatchStore.Seal(transaction, WatchAction.Started, started, null, journal);
-        if (WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id) is null)
+        if (checkedUtc is { } utc && WatchStore.ReadChecked(transaction).GetValueOrDefault(watch.Id) is null)
         {
-            WatchStore.WriteChecked(
-                transaction, watch.Id, new WatchChecked(entry.Utc, entry.Height, WatchFeedStatus.Read, null));
+            WatchStore.WriteChecked(transaction, watch.Id, new WatchChecked(utc, height, WatchFeedStatus.Read, null));
         }
+
+        return height;
     }
 
     /// <summary>Says whether an entry is already in the case.</summary>

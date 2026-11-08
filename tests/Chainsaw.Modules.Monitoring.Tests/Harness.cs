@@ -33,6 +33,7 @@ internal sealed class Harness : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(Profiles);
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IWatchGate>(Gate);
         services.AddSingleton<IBitcoinSource>(Bitcoin);

@@ -389,7 +389,7 @@ internal static class AccountTraceCalculator
         /// <param name="transfer">The movement, or <see langword="null"/> for a fee.</param>
         /// <param name="entry">The entry.</param>
         /// <returns>The key.</returns>
-        private (long Block, string Transaction, long Position, int Kind) Order(
+        private (long Block, long Index, string Transaction, long Position, int Kind) Order(
             EthereumTransfer? transfer, AccountEntry entry)
         {
             if (transfer is not null)
@@ -398,7 +398,8 @@ internal static class AccountTraceCalculator
             }
 
             var fee = _graph.Account.Fees.First(fee => fee.Transaction.Value == entry.Transfer.Transaction.Id);
-            return (fee.Block?.Height ?? long.MaxValue, fee.Transaction.Value, long.MaxValue, int.MaxValue);
+            return (fee.Block?.Height ?? long.MaxValue, fee.Block?.TransactionIndex ?? long.MaxValue,
+                fee.Transaction.Value, long.MaxValue, int.MaxValue);
         }
     }
 }

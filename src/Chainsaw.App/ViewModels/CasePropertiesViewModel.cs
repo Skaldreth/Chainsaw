@@ -375,11 +375,7 @@ public sealed partial class CasePropertiesViewModel : ObservableObject
                 "Huvudnyckel",
                 "Ärendet öppnades med lösenordet. Med ett eget kuvert öppnas det med din huvudnyckel, också om "
                 + "lösenordet byts."));
-        cards.AddRange(envelopes.Where(item => item.Kind == CaseEnvelopeKind.OtherVault).Select(_ => new EnvelopeCard(
-            EnvelopeCardKind.OtherVault,
-            "Ett annat valv",
-            "Huvudnyckel",
-            "En kollegas kuvert, med kollegans valv. Kuvertet bär inget namn, så filen visar inte vems det är.")));
+        cards.AddRange(envelopes.Where(item => item.Kind == CaseEnvelopeKind.OtherVault).Select(OtherVaultCard));
         cards.Add(envelopes.Any(item => item.Kind == CaseEnvelopeKind.SharingPassword)
             ? new EnvelopeCard(
                 EnvelopeCardKind.SharingPassword,
@@ -404,10 +400,32 @@ public sealed partial class CasePropertiesViewModel : ObservableObject
                 + "att öppna."));
         }
 
-        cards.AddRange(envelopes.Where(item => item.Kind == CaseEnvelopeKind.Unknown).Select(_ => new EnvelopeCard(
-            EnvelopeCardKind.Unknown, "Okänt kuvert", "Okänd sort", EnvelopeWords.Tip(CaseEnvelopeKind.Unknown))));
+        cards.AddRange(envelopes.Where(item => item.Kind == CaseEnvelopeKind.Unknown).Select(item => new EnvelopeCard(
+            EnvelopeCardKind.Unknown,
+            "Okänt kuvert",
+            item.UnknownKind is { } kind ? $"Sort: {kind}" : "Okänd sort",
+            EnvelopeWords.Tip(CaseEnvelopeKind.Unknown))));
         return cards;
     }
+
+    /// <summary>
+    /// Builds the card of another vault's envelope: with the colleague's name when the envelope has one, which only
+    /// someone who can open the case reads.
+    /// </summary>
+    /// <param name="envelope">The envelope.</param>
+    /// <returns>The card.</returns>
+    private static EnvelopeCard OtherVaultCard(CaseEnvelope envelope) => envelope.Name is { } name
+        ? new EnvelopeCard(
+            EnvelopeCardKind.OtherVault,
+            name,
+            "Huvudnyckel",
+            "En kollegas kuvert, med kollegans valv. Namnet är krypterat med ärendets nyckel, så bara den som kan "
+            + "öppna filen ser vems det är.")
+        : new EnvelopeCard(
+            EnvelopeCardKind.OtherVault,
+            "Ett annat valv",
+            "Huvudnyckel",
+            "En kollegas kuvert, med kollegans valv. Kuvertet bär inget namn, så filen visar inte vems det är.");
 
     /// <summary>Builds the card of a recovery key's envelope, with its whole fingerprint.</summary>
     /// <param name="envelope">The envelope.</param>

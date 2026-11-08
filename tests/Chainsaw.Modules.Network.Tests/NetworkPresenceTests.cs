@@ -65,6 +65,30 @@ public sealed class NetworkPresenceTests
     }
 
     [Fact]
+    public async Task The_module_sends_no_probe_while_vpn_is_the_way_and_probes_once_windows_is_chosen()
+    {
+        var probe = new ScriptedProbe();
+        using var services = new ServiceCollection()
+            .AddSingleton<INetworkSignals>(new FakeSignals())
+            .AddSingleton<IInternetProbe>(probe)
+            .AddNetworkModule()
+            .BuildServiceProvider();
+
+        var presence = services.GetRequiredService<INetworkPresence>();
+        await Task.Delay(100);
+        Assert.Equal(0, probe.Calls);
+        Assert.True(presence.IsAvailable);
+
+        services.GetRequiredService<IExitRoute>().Choose(ExitRoute.Windows);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (probe.Calls == 0)
+        {
+            Assert.True(DateTime.UtcNow < deadline, "No probe with Windows chosen.");
+            await Task.Delay(10);
+        }
+    }
+
+    [Fact]
     public void The_module_registers_the_presence_and_keeps_one_already_registered()
     {
         var fake = new FakePresence();

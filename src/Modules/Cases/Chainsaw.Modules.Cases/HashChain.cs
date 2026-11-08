@@ -72,7 +72,10 @@ internal static class HashChain
         register.ExecuteNonQuery();
     }
 
-    /// <summary>Reads the registered chains; a definition that does not hold is given by name only.</summary>
+    /// <summary>
+    /// Reads the registered chains; a definition that does not hold, or that names one of the Cases module's own
+    /// tables (which would make the guard refuse the chains' heads), is given by name only.
+    /// </summary>
     /// <param name="database">The database.</param>
     /// <param name="transaction">The current transaction, if any.</param>
     /// <returns>The valid definitions and the names of those that are not.</returns>
@@ -85,12 +88,19 @@ internal static class HashChain
         using var reader = select.ExecuteReader();
         while (reader.Read())
         {
-            var name = reader.GetString(0);
+            // Read as values, so that a NULL or a number put there outside Chainsaw makes the definition invalid.
+            var name = reader.GetValue(0) as string ?? string.Empty;
             try
             {
-                var columns = JsonSerializer.Deserialize<List<string>>(reader.GetString(2)) ?? [];
-                var chain = new SealedChain(name, reader.GetString(1), columns);
+                var table = reader.GetValue(1) as string ?? string.Empty;
+                var columns = JsonSerializer.Deserialize<List<string>>(reader.GetValue(2) as string ?? "null") ?? [];
+                var chain = new SealedChain(name, table, columns);
                 SchemaCatalog.Validate(chain);
+                if (SchemaCatalog.CaseTables.Contains(table, StringComparer.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException($"The sealed chain {name} names a table of the Cases module.");
+                }
+
                 chains.Add(chain);
             }
             catch (Exception exception) when (exception is JsonException or ArgumentException)
@@ -113,7 +123,8 @@ internal static class HashChain
         using var reader = select.ExecuteReader();
         while (reader.Read())
         {
-            names.Add(reader.GetString(0));
+            // A NULL put there outside Chainsaw is reported as a head of no registered chain, not thrown.
+            names.Add(reader.GetValue(0) as string ?? string.Empty);
         }
 
         return names;

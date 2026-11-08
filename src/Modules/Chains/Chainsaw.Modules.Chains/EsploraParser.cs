@@ -116,7 +116,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     {
         using var document = Open(body);
         var root = Object(document.RootElement);
-        if (!string.Equals(String(root, "address"), expected.Value, StringComparison.OrdinalIgnoreCase))
+        if (!SameAddress(String(root, "address"), expected))
         {
             throw new EsploraFormatException("The response is about another address than the one asked for.");
         }
@@ -366,7 +366,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
         if (holder.TryGetProperty("scriptpubkey_address", out var reported) && reported.ValueKind != JsonValueKind.Null)
         {
             var text = reported.ValueKind == JsonValueKind.String ? reported.GetString() : null;
-            if (address is null || !string.Equals(text, address.Value, StringComparison.OrdinalIgnoreCase))
+            if (address is null || !SameAddress(text, address))
             {
                 throw new EsploraFormatException("The source's address does not match the script.");
             }
@@ -374,6 +374,17 @@ internal sealed class EsploraParser(BitcoinNetwork network)
 
         return (type, address);
     }
+
+    /// <summary>
+    /// Tells whether a source's text is an address: read as one, so that a Bech32 address may come in either case, but
+    /// a Base58 address, whose case is part of it, only exactly.
+    /// </summary>
+    /// <param name="text">The source's text.</param>
+    /// <param name="address">The address.</param>
+    /// <returns><see langword="true"/> when it is that address.</returns>
+    private static bool SameAddress(string? text, BitcoinAddress address) =>
+        BitcoinAddress.TryParse(text, out var read)
+        && string.Equals(read.Value, address.Value, StringComparison.Ordinal);
 
     /// <summary>Reads a transaction's status: its block when it is confirmed.</summary>
     /// <param name="element">The status object.</param>

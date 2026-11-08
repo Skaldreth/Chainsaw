@@ -355,9 +355,30 @@ internal sealed class TestCase(string caseNumber) : ICase
         return envelopes;
     }
 
+    /// <summary>Gets or sets what <see cref="Save"/> throws, as when the case file cannot be written.</summary>
+    public Exception? SaveFailure { get; set; }
+
+    /// <summary>Gets how many times the case was saved by hand.</summary>
+    public int Saves { get; private set; }
+
     public void Save()
     {
+        Saves++;
+        if (SaveFailure is not null)
+        {
+            throw SaveFailure;
+        }
     }
+
+    public event EventHandler<CaseSaveState>? SaveStateChanged;
+
+    /// <summary>Says, as the case's own saves would, how many have failed in a row.</summary>
+    /// <param name="failuresInARow">The failures; zero when a save succeeded again.</param>
+    public void SayHowSavesGo(int failuresInARow) =>
+        SaveStateChanged?.Invoke(this, new CaseSaveState(failuresInARow));
+
+    /// <summary>Says, as a save would, that the case file was replaced outside Chainsaw and was left alone.</summary>
+    public void SayFileReplaced() => SaveStateChanged?.Invoke(this, new CaseSaveState(0, FileReplaced: true));
 
     public void Close()
     {
@@ -375,6 +396,9 @@ internal sealed class TestCaseStore : ICaseStore
 {
     /// <summary>When set, <see cref="Create"/> runs this first, so a test can lock while a case is created.</summary>
     public Action? DuringCreate { get; set; }
+
+    /// <summary>When set, <see cref="Open"/> runs this first, so a test can lock while a case is opened.</summary>
+    public Action? DuringOpen { get; set; }
 
     public List<string> Created { get; } = [];
 
@@ -422,6 +446,8 @@ internal sealed class TestCaseStore : ICaseStore
         {
             throw Failure;
         }
+
+        DuringOpen?.Invoke();
 
         if (!Files.Any(file => file.CaseNumber == caseNumber))
         {
@@ -506,6 +532,9 @@ internal sealed class TestCaseStore : ICaseStore
         throw new NotSupportedException();
 
     public IReadOnlyList<string> ReadRecoveryFingerprints(string path) => throw new NotSupportedException();
+
+    public bool TryRecoveryKey(string path, System.Security.Cryptography.ECDiffieHellman privateKey) =>
+        throw new NotSupportedException();
 }
 
 /// <summary>Tracing as far as the window uses it: start points, remembered per case.</summary>
@@ -571,16 +600,33 @@ internal sealed class TestTracing : ITracingService
 
     public bool RemoveStartPoint(ICase @case, TraceStartPoint startPoint) => throw new NotSupportedException();
 
-    public Task<ExpansionResult> ExpandAsync(
+    /// <summary>
+    /// Gets or sets what an expansion waits for before it answers (honouring its cancellation), so that a test can
+    /// act while it runs; <see langword="null"/> answers at once.
+    /// </summary>
+    public Task? ExpandGate { get; set; }
+
+    /// <summary>Gets or sets the outcome every expansion has; <see langword="null"/> for the default rule.</summary>
+    public ExpansionOutcome? ForcedOutcome { get; set; }
+
+    public async Task<ExpansionResult> ExpandAsync(
         ICase @case, ExpansionRequest request, CancellationToken cancellationToken = default)
     {
-        Expanded.Add(request);
-        var outcome = Expanded.Count == 1 || NewPerExpansion.Count > 0
+        lock (Expanded)
+        {
+            Expanded.Add(request);
+        }
+
+        if (ExpandGate is { } gate)
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        var outcome = ForcedOutcome ?? (Expanded.Count == 1 || NewPerExpansion.Count > 0
             ? ExpansionOutcome.Expanded
-            : ExpansionOutcome.NotExpanded;
+            : ExpansionOutcome.NotExpanded);
         var problem = outcome == ExpansionOutcome.NotExpanded ? "Ingen utgång är ansluten." : null;
-        return Task.FromResult(new ExpansionResult(
-            outcome, NewPerExpansion, problem, Graph ?? throw new NotSupportedException()));
+        return new ExpansionResult(outcome, NewPerExpansion, problem, Graph ?? throw new NotSupportedException());
     }
 
     public HeldBackList? HeldBack { get; set; }
@@ -669,6 +715,9 @@ internal sealed class TestLibrary : ILabelLibrary
 
     public IReadOnlyList<LabelEntry> ToShare { get; set; } = [];
 
+    /// <summary>Gets or sets what giving labels also does in the case, as taking back withdrawn copies does.</summary>
+    public Action? Sharing { get; set; }
+
     public Exception? Failure { get; set; }
 
     public LibraryAbsorption Absorb(ICase @case)
@@ -685,6 +734,8 @@ internal sealed class TestLibrary : ILabelLibrary
             throw Failure;
         }
 
+        Sharing?.Invoke();
+        Sharing = null;
         var given = ToShare;
         ToShare = [];
         return given;

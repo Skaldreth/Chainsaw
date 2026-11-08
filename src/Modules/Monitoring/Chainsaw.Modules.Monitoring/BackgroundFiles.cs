@@ -78,7 +78,13 @@ internal sealed class BackgroundPlanFile(BackgroundFolder folder) : IBackgroundP
         ArgumentNullException.ThrowIfNull(change);
         lock (_writing)
         {
-            var plan = change(Read());
+            // A plan that cannot be read just now is not taken as empty: that would drop every other case's watches.
+            if (!TryRead(out var written))
+            {
+                throw new IOException("The plan cannot be read just now.");
+            }
+
+            var plan = change(written);
             folder.WriteProtected(FilePath, BackgroundPurposes.Plan, BackgroundCodec.Encode(plan));
             return plan;
         }

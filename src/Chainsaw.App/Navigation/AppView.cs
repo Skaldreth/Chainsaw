@@ -9,10 +9,10 @@ public enum AppView
     /// <summary>The graph, where most of the work is done (sketch GR4).</summary>
     Graph,
 
-    /// <summary>Every transaction of the case in time order.</summary>
+    /// <summary>Every transaction of the case in time order, a lane per actor (sketch TL3a).</summary>
     Timeline,
 
-    /// <summary>Money in and out as bands (Sankey).</summary>
+    /// <summary>The victims' money as bands, hop by hop (Sankey, sketch FL1a).</summary>
     Flow,
 
     /// <summary>Which services the money has reached, the cash-outs first.</summary>

@@ -166,6 +166,9 @@ public sealed partial class RequestsViewModel : ObservableObject
     /// <summary>The exports of the open case, oldest first.</summary>
     private IReadOnlyList<RequestExport> _exports = [];
 
+    /// <summary>Counts the readings of the exports, so that one overtaken by a newer is never shown.</summary>
+    private int _exportReads;
+
     /// <summary>
     /// Gets the reading of the open case's exports, which runs off the UI thread when a case is opened; complete when
     /// none is running.
@@ -257,6 +260,14 @@ public sealed partial class RequestsViewModel : ObservableObject
 
     /// <summary>Gets whether any request has been exported.</summary>
     public bool HasExports => Exports.Count > 0;
+
+    /// <summary>
+    /// Gets the cash-outs in the graph shown that a request for information has been exported to, by node key, for
+    /// the blue mark in the graph (sketch BG1b). A freeze is not a request to the cash-out and gives no mark.
+    /// </summary>
+    [ObservableProperty]
+    public partial IReadOnlySet<string> ExportedNodes { get; private set; } =
+        new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>Gets whether an export is being written.</summary>
     [ObservableProperty]
@@ -377,7 +388,7 @@ public sealed partial class RequestsViewModel : ObservableObject
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or ArgumentException or CaseException)
         {
-            _toaster?.Show(ToastKind.Error, ExportFailedTitle, exception.Message);
+            _toaster?.Show(ToastKind.Error, ExportFailedTitle, ReportViewModel.ExportFailure(exception));
         }
         finally
         {
@@ -494,6 +505,8 @@ public sealed partial class RequestsViewModel : ObservableObject
         _withoutTrail.Clear();
         if (_session.Current is { } open)
         {
+            // The case before's exports go at once, so that no mark or row of it stands while the new are read.
+            ShowExports([]);
             ExportsRead = LoadExportsAsync(open);
         }
         else
@@ -508,6 +521,7 @@ public sealed partial class RequestsViewModel : ObservableObject
     /// <returns>A task that completes when they are read.</returns>
     private async Task LoadExportsAsync(ICase open)
     {
+        var read = ++_exportReads;
         IReadOnlyList<RequestExport> exports;
         try
         {
@@ -521,7 +535,9 @@ public sealed partial class RequestsViewModel : ObservableObject
 
         _ui.Post(() =>
         {
-            if (ReferenceEquals(_session.Current, open))
+            // A reading begun earlier (when the case was opened) may end after one begun after an export; it is
+            // older, and would hide the export.
+            if (read == _exportReads && ReferenceEquals(_session.Current, open))
             {
                 ShowExports(exports);
             }
@@ -537,13 +553,24 @@ public sealed partial class RequestsViewModel : ObservableObject
         MarkExported();
     }
 
-    /// <summary>Puts the green mark on every row a request has been exported to.</summary>
+    /// <summary>
+    /// Puts the green mark on every row a request has been exported to, and gives the graph the cash-outs to mark.
+    /// </summary>
     private void MarkExported()
     {
         foreach (var row in Exits)
         {
             var last = _exports.LastOrDefault(row.Exit.IsExportedBy);
             row.ExportedText = last is null ? string.Empty : "Exporterad " + LocalTime(last.Utc);
+        }
+
+        var marked = Exits
+            .Where(row => row.IsExported && row.Exit.Kind == RequestKind.Information)
+            .Select(row => row.Exit.NodeKey)
+            .ToHashSet(StringComparer.Ordinal);
+        if (!marked.SetEquals(ExportedNodes))
+        {
+            ExportedNodes = marked;
         }
     }
 

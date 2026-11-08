@@ -57,8 +57,17 @@ public sealed class TestChain
     /// <summary>The blocks by height, once sealed.</summary>
     private readonly Dictionary<long, TestBlock> _blocks = [];
 
-    /// <summary>The blocks by hash, once sealed.</summary>
+    /// <summary>The blocks by hash, once sealed, and the orphaned blocks once made.</summary>
     private readonly Dictionary<string, TestBlock> _blocksByHash = new(StringComparer.Ordinal);
+
+    /// <summary>The orphaned block at each height, once made.</summary>
+    private readonly Dictionary<long, TestBlock> _orphans = [];
+
+    /// <summary>Guards the orphaned blocks and which transaction is shown in one.</summary>
+    private readonly Lock _gate = new();
+
+    /// <summary>The transaction shown in an orphaned block for the moment, or <see langword="null"/>.</summary>
+    private string? _orphaned;
 
     /// <summary>Creates an empty chain.</summary>
     /// <param name="firstHeight">The lowest block the chain has.</param>
@@ -108,10 +117,76 @@ public sealed class TestChain
     /// <returns>The block, or <see langword="null"/>.</returns>
     public TestBlock? BlockAt(long height) => _blocks.GetValueOrDefault(height);
 
-    /// <summary>Finds a block by hash.</summary>
+    /// <summary>Finds a block by hash, also an orphaned one.</summary>
     /// <param name="hash">The hash, as shown.</param>
     /// <returns>The block, or <see langword="null"/>.</returns>
-    public TestBlock? Block(string hash) => _blocksByHash.GetValueOrDefault(hash);
+    public TestBlock? Block(string hash)
+    {
+        lock (_gate)
+        {
+            return _blocksByHash.GetValueOrDefault(hash);
+        }
+    }
+
+    /// <summary>
+    /// Gives the block a transaction is answered in: its own block, or, while <see cref="Orphaning"/> shows it so, an
+    /// orphaned block at the same height.
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns>The block.</returns>
+    /// <exception cref="InvalidOperationException">The chain is not sealed up to the transaction.</exception>
+    public TestBlock BlockOf(TestTransaction transaction)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        lock (_gate)
+        {
+            if (_orphaned == transaction.Label)
+            {
+                return OrphanAt(transaction.Height);
+            }
+        }
+
+        return BlockAt(transaction.Height)
+            ?? throw new InvalidOperationException("The made-up chain is not sealed up to the transaction.");
+    }
+
+    /// <summary>
+    /// Answers a transaction in an orphaned block, at the same height as its own, until the result is disposed: what a
+    /// source answered before a reorganisation, when the block the transaction was first seen in fell out of the chain.
+    /// Only <c>/testdata</c> uses it, while it builds the test case, so that the case has a transaction whose block
+    /// changed (sketch GR9a).
+    /// </summary>
+    /// <param name="label">The transaction's label.</param>
+    /// <returns>Ends the orphaned answers.</returns>
+    public IDisposable Orphaning(string label)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(label);
+        lock (_gate)
+        {
+            _orphaned = this[label].Label;
+        }
+
+        return new OrphaningEnd(this);
+    }
+
+    /// <summary>Gives the orphaned block at a height, made the first time it is asked for.</summary>
+    /// <param name="height">The height.</param>
+    /// <returns>The block: the same previous block as the real one, another merkle root and so another hash.</returns>
+    /// <remarks>Called with <see cref="_gate"/> held.</remarks>
+    private TestBlock OrphanAt(long height)
+    {
+        if (_orphans.TryGetValue(height, out var known))
+        {
+            return known;
+        }
+
+        var real = BlockAt(height)
+            ?? throw new InvalidOperationException("The made-up chain is not sealed up to the transaction.");
+        var orphan = MakeBlock(height, real.Previous, "orphan:" + height);
+        _orphans[height] = orphan;
+        _blocksByHash[orphan.Hash] = orphan;
+        return orphan;
+    }
 
     /// <summary>Gives an address's transactions, the newest first, as Esplora orders them.</summary>
     /// <param name="script">The address's script.</param>
@@ -202,14 +277,22 @@ public sealed class TestChain
     /// easiest target.</summary>
     /// <param name="height">The height.</param>
     /// <param name="previous">The previous block's hash.</param>
+    /// <param name="other">
+    /// What an orphaned block's own coinbase is made from, so that it differs from the real block at the height; or
+    /// <see langword="null"/> for the real block.
+    /// </param>
     /// <returns>The block.</returns>
-    private TestBlock MakeBlock(long height, string previous)
+    private TestBlock MakeBlock(long height, string previous, string? other = null)
     {
         var txids = _transactions.Where(transaction => transaction.Height == height)
             .OrderBy(transaction => transaction.IsCoinbase ? 0 : 1)
             .Select(transaction => transaction.Txid)
             .ToList();
-        if (!_transactions.Any(transaction => transaction.Height == height && transaction.IsCoinbase))
+        if (other is not null)
+        {
+            txids.Insert(0, TestTransaction.DisplayHash(TestAddress.Hash(other)));
+        }
+        else if (!_transactions.Any(transaction => transaction.Height == height && transaction.IsCoinbase))
         {
             txids.Insert(0, TestTransaction.DisplayHash(TestAddress.Hash("coinbase:" + height)));
         }
@@ -257,6 +340,20 @@ public sealed class TestChain
         var root = level[0].ToArray();
         Array.Reverse(root);
         return Convert.ToHexStringLower(root);
+    }
+
+    /// <summary>Ends the orphaned answers of <see cref="Orphaning"/>.</summary>
+    /// <param name="chain">The chain.</param>
+    private sealed class OrphaningEnd(TestChain chain) : IDisposable
+    {
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            lock (chain._gate)
+            {
+                chain._orphaned = null;
+            }
+        }
     }
 }
 

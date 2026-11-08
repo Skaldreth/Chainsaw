@@ -129,7 +129,7 @@ func run(stdin io.Reader, stdout io.Writer, keep func(net.Listener)) int {
 		cancel()
 	}()
 
-	endpoint, err := resolveEndpoint(ctx, cfg.peer.endpoint)
+	endpoints, err := resolveEndpoints(ctx, cfg.peer.endpoint)
 	if err != nil {
 		out.fail(codeEndpoint, err)
 		return 3
@@ -142,7 +142,7 @@ func run(stdin io.Reader, stdout io.Writer, keep func(net.Listener)) int {
 	}
 	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelSilent, ""))
 	defer dev.Close()
-	if err := dev.IpcSet(cfg.uapi(endpoint)); err != nil {
+	if err := dev.IpcSet(cfg.uapi(endpoints[0])); err != nil {
 		out.fail(codeDevice, err)
 		return 3
 	}
@@ -151,7 +151,7 @@ func run(stdin io.Reader, stdout io.Writer, keep func(net.Listener)) int {
 		return 3
 	}
 
-	if !waitForHandshake(ctx, dev) {
+	if !handshakeOnAny(ctx, dev, cfg, endpoints) {
 		if ctx.Err() == nil {
 			out.fail(codeHandshake, nil)
 		}
@@ -211,42 +211,71 @@ func readStart(input *bufio.Reader) (*startRequest, error) {
 	return &start, nil
 }
 
-// resolveEndpoint gives the server's address. A name is resolved with the computer's resolver: it is the one
-// lookup that cannot go through the tunnel, since the tunnel does not exist yet. It shows only the exit's own
-// server name, as any VPN client does; IPv4 is preferred, as most exits' servers answer on it.
-func resolveEndpoint(ctx context.Context, endpoint string) (netip.AddrPort, error) {
+// resolveEndpoints gives the server's addresses to try, in order. A name is resolved with the computer's resolver: it
+// is the one lookup that cannot go through the tunnel, since the tunnel does not exist yet. It shows only the exit's
+// own server name, as any VPN client does. The first IPv4 address comes first, as most exits' servers answer on it,
+// and then the first IPv6 address, so that a server that only answers on IPv6 is still reached.
+func resolveEndpoints(ctx context.Context, endpoint string) ([]netip.AddrPort, error) {
 	host, portText, err := net.SplitHostPort(endpoint)
 	if err != nil {
-		return netip.AddrPort{}, err
+		return nil, err
 	}
 	port, err := strconv.ParseUint(portText, 10, 16)
 	if err != nil {
-		return netip.AddrPort{}, err
+		return nil, err
 	}
 	if address, err := netip.ParseAddr(host); err == nil {
-		return netip.AddrPortFrom(address.Unmap(), uint16(port)), nil
+		return []netip.AddrPort{netip.AddrPortFrom(address.Unmap(), uint16(port))}, nil
 	}
 
 	lookup, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	addresses, err := net.DefaultResolver.LookupNetIP(lookup, "ip", host)
 	if err != nil || len(addresses) == 0 {
-		return netip.AddrPort{}, errors.New("the endpoint's name cannot be resolved")
+		return nil, errors.New("the endpoint's name cannot be resolved")
 	}
-	chosen := addresses[0]
+	return orderEndpoints(addresses, uint16(port)), nil
+}
+
+// orderEndpoints keeps the first IPv4 and the first IPv6 address of a name, IPv4 first.
+func orderEndpoints(addresses []netip.Addr, port uint16) []netip.AddrPort {
+	var four, six []netip.AddrPort
 	for _, address := range addresses {
-		if address.Unmap().Is4() {
-			chosen = address
-			break
+		address = address.Unmap()
+		switch {
+		case address.Is4() && len(four) == 0:
+			four = append(four, netip.AddrPortFrom(address, port))
+		case address.Is6() && len(six) == 0:
+			six = append(six, netip.AddrPortFrom(address, port))
 		}
 	}
-	return netip.AddrPortFrom(chosen.Unmap(), uint16(port)), nil
+	return append(four, six...)
+}
+
+// handshakeOnAny tries the endpoints in turn until the peer answers a handshake, sharing handshakeWait between them,
+// so that Chainsaw's own limit for the start still holds. It gives false when none answered.
+func handshakeOnAny(ctx context.Context, dev *device.Device, cfg *config, endpoints []netip.AddrPort) bool {
+	each := handshakeWait / time.Duration(len(endpoints))
+	for index, endpoint := range endpoints {
+		if index > 0 {
+			if err := dev.IpcSet(cfg.uapiEndpoint(endpoint)); err != nil {
+				return false
+			}
+		}
+		if waitForHandshake(ctx, dev, each) {
+			return true
+		}
+		if ctx.Err() != nil {
+			return false
+		}
+	}
+	return false
 }
 
 // waitForHandshake waits until the peer has answered a handshake, so that Chainsaw is only told the tunnel is up
 // when it is. It gives false when the wait ends first.
-func waitForHandshake(ctx context.Context, dev *device.Device) bool {
-	deadline := time.Now().Add(handshakeWait)
+func waitForHandshake(ctx context.Context, dev *device.Device, wait time.Duration) bool {
+	deadline := time.Now().Add(wait)
 	for time.Now().Before(deadline) {
 		if age, ok := handshakeAge(dev); ok && age < staleHandshake {
 			return true

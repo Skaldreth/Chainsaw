@@ -35,7 +35,7 @@ internal static class KeyEnvelopes
     private const string NonceField = "nonce";
 
     /// <summary>The field with the wrapped file key.</summary>
-    private const string KeyField = "key";
+    public const string KeyField = "key";
 
     /// <summary>The field with the tag.</summary>
     private const string TagField = "tag";
@@ -58,21 +58,25 @@ internal static class KeyEnvelopes
     /// </summary>
     private const int MaximumIterations = 2_000_000;
 
-    /// <summary>Wraps the file key for a vault.</summary>
+    /// <summary>Wraps the file key for a vault, with the operator's name encrypted under the file key.</summary>
     /// <param name="caseId">The case id.</param>
     /// <param name="fileKey">The file key.</param>
     /// <param name="wrappingKey">The vault's purpose key.</param>
+    /// <param name="name">The operator's name (see <see cref="EnvelopeLabels"/>), or none.</param>
     /// <returns>The envelope.</returns>
-    public static JsonObject CreateOperator(Guid caseId, ReadOnlySpan<byte> fileKey, ReadOnlySpan<byte> wrappingKey)
+    public static JsonObject CreateOperator(
+        Guid caseId, ReadOnlySpan<byte> fileKey, ReadOnlySpan<byte> wrappingKey, string? name)
     {
         var (nonce, ciphertext, tag) = CaseCrypto.Wrap(wrappingKey, fileKey, OperatorData(caseId));
-        return new JsonObject
+        var envelope = new JsonObject
         {
             [KindField] = OperatorKind,
             [NonceField] = Convert.ToBase64String(nonce),
             [KeyField] = Convert.ToBase64String(ciphertext),
             [TagField] = Convert.ToBase64String(tag),
         };
+        EnvelopeLabels.Add(envelope, caseId, fileKey, name);
+        return envelope;
     }
 
     /// <summary>Wraps the file key with a sharing password under a new salt.</summary>
@@ -108,25 +112,38 @@ internal static class KeyEnvelopes
         }
     }
 
-    /// <summary>Tries every vault envelope with this vault's purpose key.</summary>
+    /// <summary>
+    /// Tries every vault envelope with this vault's purpose key; a malformed one does not keep the others from being
+    /// tried.
+    /// </summary>
     /// <param name="header">The header.</param>
     /// <param name="wrappingKey">The vault's purpose key.</param>
     /// <param name="fileKey">Receives the file key when an envelope opens.</param>
     /// <returns><see langword="true"/> when an envelope opened.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when an envelope is malformed.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/> when none opened and an envelope is malformed.
+    /// </exception>
     public static bool TryOpenOperator(CaseHeader header, ReadOnlySpan<byte> wrappingKey, Span<byte> fileKey)
     {
         var associatedData = OperatorData(header.CaseId);
+        var malformed = false;
         foreach (var envelope in OfKind(header, OperatorKind))
         {
-            var (nonce, ciphertext, tag) = ReadSealed(envelope);
-            if (CaseCrypto.TryUnwrap(wrappingKey, nonce, ciphertext, tag, associatedData, fileKey))
+            try
             {
-                return true;
+                var (nonce, ciphertext, tag) = ReadSealed(envelope);
+                if (CaseCrypto.TryUnwrap(wrappingKey, nonce, ciphertext, tag, associatedData, fileKey))
+                {
+                    return true;
+                }
+            }
+            catch (CaseException exception) when (exception.Error == CaseError.Corrupt)
+            {
+                malformed = true;
             }
         }
 
-        return false;
+        return malformed ? throw new CaseException(CaseError.Corrupt) : false;
     }
 
     /// <summary>

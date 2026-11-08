@@ -248,6 +248,29 @@ public sealed class WatchGraphTests
     }
 
     [Fact]
+    public async Task A_row_says_the_source_was_not_asked_and_names_the_source_only_after_a_real_lookup()
+    {
+        var watch = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
+        var (_, board) = WatchSamples.Board(_source);
+        var view = new MonitoringViewModel(board, new WatchFormViewModel(board), new TestClock());
+        await board.ReloadAsync();
+        Assert.DoesNotContain(view.Facts, fact => fact.Key == "Källa");
+
+        _source.Checked[watch.Id] = new WatchChecked(TestWatchSource.At, 900_000, WatchFeedStatus.NotAsked, "i fas");
+        await board.ReloadAsync();
+        Assert.Equal(WatchWords.NotAskedRowText, view.Rows[0].StateText);
+        Assert.DoesNotContain(view.Facts, fact => fact.Key == "Källa");
+
+        _source.Checked[watch.Id] = new WatchChecked(TestWatchSource.At, 900_000, WatchFeedStatus.Failed, "fel");
+        await board.ReloadAsync();
+        Assert.Equal(WatchWords.FailedRowText, view.Rows[0].StateText);
+
+        _source.Checked[watch.Id] = new WatchChecked(TestWatchSource.At, 900_000, WatchFeedStatus.Read, null);
+        await board.ReloadAsync();
+        Assert.Contains(view.Facts, fact => fact.Key == "Källa");
+    }
+
+    [Fact]
     public async Task A_failed_height_waits_its_minute_also_for_a_new_watch()
     {
         _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(), start: null);
