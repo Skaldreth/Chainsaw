@@ -187,6 +187,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   vem som spenderar en output jämförs inte med det förra.
 
 ## Klustring och heuristiker
+- **PayJoin v2 och en plånbok som byter adresstyp** (slutgranskningen 2026-11-08, M1): en Taproot-plånbok som spenderar
+  ett gammalt P2WPKH-mynt och ett P2TR-mynt, betalar till P2WPKH och lägger växeln på P2TR har samma form som BIP78 och
+  ger ett förslag i stället för en sammanslagning (sonden i granskningen). Sällsynt och bara falskt negativt; lägg
+  fallet som test och nämn det i `docs/guide/payjoin.md`. Ett eget test för ett ärende som vägts med v2 och sedan
+  drar tillbaka v2 saknas också (M2).
 - **Fler tecken för växeln** (fingeravtrycket är byggt i `change-address v2`): jämna belopp i SEK eller USD vid tx:ens
   tid (kräver kurser i klustringen, som i dag inte läser Pricing), ordningen på outputs som en del av fingeravtrycket,
   och adressens hela historik från källan i stället för bara det ärendet känner till (*ny adress* är nu *inte sedd i
