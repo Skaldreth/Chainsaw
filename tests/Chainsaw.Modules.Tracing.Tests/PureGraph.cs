@@ -9,7 +9,14 @@ namespace Chainsaw.Modules.Tracing.Tests;
 /// </summary>
 internal static class PureGraph
 {
-    public static TraceGraph Of(IEnumerable<BitcoinTransaction> transactions, params TraceStartPoint[] starts)
+    public static TraceGraph Of(IEnumerable<BitcoinTransaction> transactions, params TraceStartPoint[] starts) =>
+        Of(transactions, [], starts);
+
+    /// <summary>Builds the graph with the user's links to other chains.</summary>
+    public static TraceGraph Of(
+        IEnumerable<BitcoinTransaction> transactions,
+        IReadOnlyList<CrossChainLink> links,
+        params TraceStartPoint[] starts)
     {
         var list = transactions.ToList();
         var spentBy = list.SelectMany(tx => tx.Inputs.Where(input => !input.IsCoinbase).Select(input =>
@@ -18,7 +25,8 @@ internal static class PureGraph
             .GroupBy(pair => pair.Coin)
             .ToDictionary(group => group.Key, group => group.OrderBy(pair => pair.Spend.Block is null).First().Spend);
         var data = new GraphData(
-            new GraphState(starts, [], [], new Dictionary<string, IReadOnlyDictionary<GraphLayout, StoredPosition>>()),
+            new GraphState(
+                starts, [], links, new Dictionary<string, IReadOnlyDictionary<GraphLayout, StoredPosition>>()),
             list.ToDictionary(tx => tx.Txid, tx => new GraphTransaction(tx, LookupStatus.FromCase, null)),
             list.ToDictionary(tx => tx.Txid, tx => new OutputSpendsAnswer(
                 [.. tx.Outputs.Select(output => new BitcoinOutputSpend(

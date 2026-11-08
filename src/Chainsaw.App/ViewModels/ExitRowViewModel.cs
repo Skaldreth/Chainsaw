@@ -143,6 +143,9 @@ public sealed partial class ExitRowViewModel : ObservableObject
     [ObservableProperty]
     public partial string SeenTip { get; private set; } = ExitCheckWords.NotCheckedTip;
 
+    /// <summary>Gets the latest answer of the exit's check, or <see langword="null"/> when there is none.</summary>
+    public ExitSighting? Sighting => _sighting;
+
     /// <summary>Gets the lines of the box <em>Kontroll</em>.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<ExitFact> Facts { get; private set; } = ExitCheckWords.NotCheckedFacts();

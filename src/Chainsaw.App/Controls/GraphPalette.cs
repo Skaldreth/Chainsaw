@@ -38,7 +38,7 @@ public static class GraphPalette
     /// <returns>The disc's key and the icon's.</returns>
     public static (string Disc, string Icon) MarkKeys(NodeBadge badge) => badge switch
     {
-        NodeBadge.CashOutFound => ("Brush.Kind.CashOut", "Brush.Mark.OnCashOut"),
+        NodeBadge.CashOutFound or NodeBadge.RequestExported => ("Brush.Kind.CashOut", "Brush.Mark.OnCashOut"),
         NodeBadge.Sanctioned => ("Brush.Kind.Sanctioned", "Brush.Mark.OnSanctioned"),
         NodeBadge.StartPoint => ("Brush.Mark.Start", "Brush.Background"),
         NodeBadge.CanBeFrozen => ("Brush.Mark.Freeze", "Brush.Mark.OnFreeze"),

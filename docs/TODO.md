@@ -79,35 +79,26 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
 - **Allt som byggdes 2026-11-08** är osett: KF2b, NC2a, KN1a, SO1a, GR7a, TL1a/TL2a, IN4a, GR9a, BG1b, ET1a, EP1b,
   RP1b, KU1a, BV4a, ST2a, FS2a, UT3b, ÄR1b, KR1a, Spara ofta, plånböckerna och soptunnan för lappar och högar.
 
-### 2. Rester som byggs nu [pågår]
-
-**Vyerna och inställningarna**
-- **Begäran:** börsens blå markering i grafen när en begäran är exporterad.
-- **Säga till när sparningen inte går:** en varning i toastern med *Försök igen* när Spara ofta misslyckats några
-  gånger i rad (en händelse på `ICase`).
-- **Godkänna en plånbok:** ett förslag som ändrats sedan det förseglades ska säga att kontrollerna behöver köras igen.
-- **Exponering (EP1b):** kronorna under beloppen, mixerns godkända utgångar som streckade förslag bortom mixern,
-  *Tillbaka · Esc* i grafen och *Exponering …* i nodens meny; vägen ska stanna på samma ställen som grafen.
-- **Inställningarna:** *Syns som* på utgångens tips i titelraden, och kontrollen av Windows som utgång.
-- **Sökningen (KR1a):** det slängda i soptunnan söks, med *Lägg tillbaka*.
-- **Det instabila testet** i App.Tests.
-
-### 3. Kvar efter omgången
+### 2. Kvar efter omgång 4
 
 - **Spårningen efter en tx som inte finns** [etapp]: linjerna och aktörerna efter den ritas streckade, men Tracing
   läser fortfarande det sparade svaret, så de spårade beloppen och *Spårat* räknar med den.
 - **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*; vilken
   tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
-- **Ångra en godkänd plånbok** [skiss]: Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås
-  ihop igen; det gör bara *Historik*.
+- **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
+- **Spåret genom en swap** (SW1a, vald) [etapp]: värdet följer med, och valet per swap i pillret.
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
-  [etapp].
+  [etapp]; *Lägg tillbaka* direkt på raden *I soptunnan* [direkt] (nu öppnar Enter soptunnan).
+- **Exponering, mixerns troliga utgångar** [direkt, efter EP1b]: godkända troliga utgångar ur en mixer som streckade
+  förslag bortom mixern (en streckad rund nod, en prickad linje och *förslag* i stället för andelen). Ringarna
+  (`Controls/ExposureRings`) har varken streckade linjer eller kandidater i dag, kandidaterna bär inget belopp
+  (`CandidateLine`), och en mixer i tredje ringen har ingen ring bortom sig.
 - **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa
   och datum) och fler mallar per börs, om kryptospåraren vill det.
 - **Chainabuse automatiskt** [etapp], när en partnernyckel finns: en vanlig nyckel ger tio anrop i månaden, så nu
   frågas den bara med R.
 
-### 4. Backloggen (användarens beslut 2026-11-08: allt före 1.0)
+### 3. Backloggen (användarens beslut 2026-11-08: allt före 1.0)
 
 Hela `docs/BACKLOG.md` byggs före 1.0, i omgångar där agenterna inte rör samma filer. Varje omgång tar bort det den
 byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.

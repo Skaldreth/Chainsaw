@@ -355,9 +355,27 @@ internal sealed class TestCase(string caseNumber) : ICase
         return envelopes;
     }
 
+    /// <summary>Gets or sets what <see cref="Save"/> throws, as when the case file cannot be written.</summary>
+    public Exception? SaveFailure { get; set; }
+
+    /// <summary>Gets how many times the case was saved by hand.</summary>
+    public int Saves { get; private set; }
+
     public void Save()
     {
+        Saves++;
+        if (SaveFailure is not null)
+        {
+            throw SaveFailure;
+        }
     }
+
+    public event EventHandler<CaseSaveState>? SaveStateChanged;
+
+    /// <summary>Says, as the case's own saves would, how many have failed in a row.</summary>
+    /// <param name="failuresInARow">The failures; zero when a save succeeded again.</param>
+    public void SayHowSavesGo(int failuresInARow) =>
+        SaveStateChanged?.Invoke(this, new CaseSaveState(failuresInARow));
 
     public void Close()
     {

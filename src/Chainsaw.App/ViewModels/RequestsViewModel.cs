@@ -258,6 +258,14 @@ public sealed partial class RequestsViewModel : ObservableObject
     /// <summary>Gets whether any request has been exported.</summary>
     public bool HasExports => Exports.Count > 0;
 
+    /// <summary>
+    /// Gets the cash-outs in the graph shown that a request for information has been exported to, by node key, for
+    /// the blue mark in the graph (sketch BG1b). A freeze is not a request to the cash-out and gives no mark.
+    /// </summary>
+    [ObservableProperty]
+    public partial IReadOnlySet<string> ExportedNodes { get; private set; } =
+        new HashSet<string>(StringComparer.Ordinal);
+
     /// <summary>Gets whether an export is being written.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
@@ -494,6 +502,8 @@ public sealed partial class RequestsViewModel : ObservableObject
         _withoutTrail.Clear();
         if (_session.Current is { } open)
         {
+            // The case before's exports go at once, so that no mark or row of it stands while the new are read.
+            ShowExports([]);
             ExportsRead = LoadExportsAsync(open);
         }
         else
@@ -537,13 +547,24 @@ public sealed partial class RequestsViewModel : ObservableObject
         MarkExported();
     }
 
-    /// <summary>Puts the green mark on every row a request has been exported to.</summary>
+    /// <summary>
+    /// Puts the green mark on every row a request has been exported to, and gives the graph the cash-outs to mark.
+    /// </summary>
     private void MarkExported()
     {
         foreach (var row in Exits)
         {
             var last = _exports.LastOrDefault(row.Exit.IsExportedBy);
             row.ExportedText = last is null ? string.Empty : "Exporterad " + LocalTime(last.Utc);
+        }
+
+        var marked = Exits
+            .Where(row => row.IsExported && row.Exit.Kind == RequestKind.Information)
+            .Select(row => row.Exit.NodeKey)
+            .ToHashSet(StringComparer.Ordinal);
+        if (!marked.SetEquals(ExportedNodes))
+        {
+            ExportedNodes = marked;
         }
     }
 

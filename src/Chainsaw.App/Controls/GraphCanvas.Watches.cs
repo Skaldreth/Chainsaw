@@ -132,7 +132,7 @@ public sealed partial class GraphCanvas
             return;
         }
 
-        var index = node.Badges.Count;
+        var index = _model.MarksOf(node).Count;
         var centre = new Point(
             place.X + node.Width + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
             place.Y - MarkOverhang + (MarkSize / 2));

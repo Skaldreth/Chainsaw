@@ -27,6 +27,9 @@ public sealed partial class CommandSearchViewModel : ObservableObject
     /// <summary>What Enter does with a Guide row.</summary>
     public const string OpenGuideText = "öppnar Guiden";
 
+    /// <summary>What Enter does with a row that lies in the trash.</summary>
+    public const string OpenTrashText = "öppnar soptunnan";
+
     /// <summary>What Enter does with an address or a tx the case does not have.</summary>
     public const string AddText = "lägger till";
 
@@ -148,6 +151,7 @@ public sealed partial class CommandSearchViewModel : ObservableObject
     {
         { GuideSection: not null } => OpenGuideText,
         { NodeKey: not null } => ShowInGraphText,
+        { Entry.IsInTrash: true } => OpenTrashText,
         not null => CloseText,
         _ when IsUnknown => AddText,
         _ => string.Empty,

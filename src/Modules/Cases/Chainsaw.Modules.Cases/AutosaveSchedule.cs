@@ -134,14 +134,17 @@ internal sealed class AutosaveSchedule : IDisposable
     }
 
     /// <summary>Records that the case file now holds everything, and stops the timer.</summary>
-    public void Saved()
+    /// <returns><see langword="true"/> when saves had failed before this one, so that the case can say so.</returns>
+    public bool Saved()
     {
         lock (_sync)
         {
+            var hadFailed = _failures > 0;
             _dirty = false;
             _notBefore = DateTimeOffset.MinValue;
             _failures = 0;
             Arm(Timeout.InfiniteTimeSpan);
+            return hadFailed;
         }
     }
 
@@ -185,13 +188,15 @@ internal sealed class AutosaveSchedule : IDisposable
     /// The save failed; the writes stay unsaved and the next attempt waits the maximum delay, doubled for each
     /// failure in a row up to <see cref="MaximumFailureWait"/>.
     /// </summary>
-    public void Failed()
+    /// <returns>How many saves have failed in a row, this one included.</returns>
+    public int Failed()
     {
         lock (_sync)
         {
             _failures++;
             _notBefore = _time.GetUtcNow() + FailureWait(_failures);
             ArmForNextSave();
+            return _failures;
         }
     }
 

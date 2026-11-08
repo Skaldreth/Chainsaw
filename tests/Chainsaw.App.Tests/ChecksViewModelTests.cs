@@ -103,6 +103,57 @@ public sealed class ChecksViewModelTests
     }
 
     [Fact]
+    public async Task A_wallet_that_changed_since_it_was_sealed_runs_the_checks_again_and_says_so()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Clear();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
+        var runs = rig.Source.Runs;
+        rig.Source.DecideFailure = new SuggestionChangedException();
+        rig.Checks.StartReview(null);
+
+        await rig.Checks.ApproveAsync();
+
+        Assert.Equal(ChecksViewModel.ChangedText, rig.Checks.Problem);
+        Assert.Equal(runs + 1, rig.Source.Runs);
+        Assert.Empty(rig.Source.Decisions);
+        Assert.False(rig.Checks.IsBusy);
+    }
+
+    [Fact]
+    public async Task A_changed_wallet_says_both_that_it_changed_and_what_the_new_run_said()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Clear();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
+        rig.Source.DecideFailure = new SuggestionChangedException();
+        rig.Source.RunProblems.Add("En del kunde inte läsas.");
+        rig.Checks.StartReview(null);
+
+        await rig.Checks.ApproveAsync();
+
+        Assert.Equal(ChecksViewModel.ChangedText + " En del kunde inte läsas.", rig.Checks.Problem);
+    }
+
+    [Fact]
+    public async Task A_changed_wallet_whose_checks_cannot_run_again_says_that_they_could_not()
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Clear();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
+        rig.Source.DecideFailure = new SuggestionChangedException();
+        rig.Source.RunFailure = new InvalidOperationException("Kunde inte köras.");
+        rig.Checks.StartReview(null);
+
+        await rig.Checks.ApproveAsync();
+
+        Assert.Equal(ChecksViewModel.RunFailedText, rig.Checks.Problem);
+    }
+
+    [Fact]
     public async Task Dismissing_a_wallet_leaves_the_clusters_alone()
     {
         var rig = new Rig();

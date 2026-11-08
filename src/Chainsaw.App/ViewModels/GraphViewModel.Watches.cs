@@ -52,6 +52,9 @@ public enum NodeMenuAction
 
     /// <summary>Begäran …: the view Begäran with the request to this cash-out chosen (sketch BG1b).</summary>
     Request,
+
+    /// <summary>Exponering …: the view Exponering with this cluster or address in the centre (sketch EP1b).</summary>
+    Exposure,
 }
 
 /// <summary>A row of the node's menu.</summary>
@@ -216,6 +219,7 @@ public sealed partial class GraphViewModel
             new(NodeMenuAction.Watch, "Bevaka …", "B", "Icon.Eye", CanWatch(node)),
             new(NodeMenuAction.Comment, CommentToolText + " …", CommentKey, "Icon.Note", true),
             .. RequestRow(node.Key),
+            .. ExposureRow(node.Key),
             new(NodeMenuAction.Expand, "Expandera", "E", "Icon.Plus", CanExpand, HasGapBefore: true),
             new(NodeMenuAction.Copy, "Kopiera adress", "Ctrl+C", "Icon.Copy", hasAddress),
         ];
@@ -270,6 +274,9 @@ public sealed partial class GraphViewModel
                 break;
             case NodeMenuAction.Request:
                 WantRequest(SelectedNode, RequestKind.Information);
+                break;
+            case NodeMenuAction.Exposure:
+                WantExposure(SelectedNode);
                 break;
             default:
                 CopyAddress();

@@ -169,6 +169,19 @@ public sealed class AutosaveScheduleTests : IDisposable
     }
 
     [Fact]
+    public void Failures_are_counted_in_a_row_and_a_save_says_whether_it_ended_a_run_of_them()
+    {
+        _schedule.Start();
+        _schedule.Written();
+
+        Assert.Equal(1, _schedule.Failed());
+        Assert.Equal(2, _schedule.Failed());
+        Assert.True(_schedule.Saved());
+        Assert.False(_schedule.Saved());
+        Assert.Equal(1, _schedule.Failed());
+    }
+
+    [Fact]
     public void A_successful_save_after_a_failure_lets_the_next_write_be_saved_after_the_quiet_period()
     {
         _schedule.Start();

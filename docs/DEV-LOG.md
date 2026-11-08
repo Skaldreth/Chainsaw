@@ -3762,3 +3762,59 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   *Små rättelser* är fördelade på sina områden. Sonaren står kvar i valvyn (EX2) och tidslinjen (TL1a), där
   CLAUDE.md fortfarande säger den.
 - **Kvar:** se `docs/BACKLOG.md`, *Testärendet (/testdata)*.
+
+## Resterna efter valen, omgång 4 (Begäran, sparningen, plånboken, Exponering, utgången, sökningen, 2026-11-08)
+
+- **Börsens markering (BG1b):** ett nytt märke `NodeBadge.RequestExported` (blått, `Icon.Request`, *Begäran
+  exporterad* i bildspråkets ruta). Det ritas inte ur scenen utan ur ärendets exporter: `RequestsViewModel.ExportedNodes`
+  (uttag med en exporterad begäran om uppgifter, inte frysningar) ges grafen med `GraphViewModel.ShowRequested`, och
+  `MarksOf` lägger märket efter scenens; ögat och kandidatens bock räknar med det.
+- **Sparningen som inte går:** `ICase.SaveStateChanged` (`CaseSaveState`, antalet misslyckade i rad, noll när en
+  sparning går igen) höjs från bakgrundssparningen och när en sparning lyckas efter misslyckanden.
+  `AutosaveSchedule.Failed` och `Saved` säger antalet och om det var misslyckat förut. `SaveAlarm` i appen visar en
+  varning med *Försök igen* efter tre i rad (`FailuresBeforeWarning`, ungefär 7 minuter), en gång, tar bort den när en
+  sparning går och säger *Ärendet är sparat igen*. *Försök igen* sparar på trådpoolen. Eget beslut: tre i rad.
+- **Ett ändrat förslag:** `SuggestionChangedException` (en `ArgumentException`, i Checks.Contracts) när klustringens
+  förslag inte längre fogar ihop plånboken; panelen kör kontrollerna igen och säger `ChangedText`. Bekräftelsen vid
+  Ctrl+Z väntar på en skiss (`docs/TODO.md`).
+- **Exponering, kronorna (KU1a):** `ExposureValues` värderar pengarna på linjerna in till tjänsten efter linjens värde
+  vid tiden (`GraphSnapshot.Values`), i proportion till pengarnas del av linjen; saknar en linje värde står inga
+  kronor. Skrivs efter beloppet i den valda tjänsten (`0,2500 BTC · ≈ 23 400 kr`, som i skissen) och i tipset på
+  andelarna per färg. Avsteg: skissen har kronorna också i tipset på ringarnas noder; det tipset finns inte i appen.
+- **Exponering, vägen tillbaka:** `GraphViewModel.ReturnTo` (en vy) med en knapp *‹ Exponering Esc* i grafens huvud
+  som skissen, och Esc i grafen; glöms när grafen lämnas. Allmän, så att Rapportens *← Rapport* kan använda den.
+- **Exponering i nodens meny:** raden *Exponering …* (`NodeMenuAction.Exposure`) för ett kluster eller en adress som
+  betalat eller fått (`ExposureMap.Subjects`); den öppnar vyn med noden i mitten.
+- **Exponeringens stoppregler:** `SpendRules` är regeln en gång för `TraceCalculator` och `UtxoExposureRun`: en
+  länk till annan kedja (pengarna når den andra kedjans nod, med linjen dit), `TransactionEnds` (CoinJoin som inte
+  räknas som tjänst) och en spend som inte går ihop. Två nya skäl i `ExposureRest`: `TrailEnds` och `Conflicting`.
+  Bakåt (*Fått från*) stoppar en tx där spåret tar slut och en ingång vars spend pekar annanstans; länken gäller bara
+  framåt, eftersom den säger vart myntets pengar fortsatte, inte varifrån utgångarna kom. På kontokedjan går en länkad
+  överföring till den andra kedjan i stället för in i plånboken, som `AccountTraceCalculator`. `exposure v2`.
+- **Utgångens tips (UT3b):** `ExitPanelViewModel.SeenTip` (`ExitCheckWords.TipText`), och titelradens tips slutar med
+  `syns som <adress>, <land>`. Windows som utgång kontrolleras en gång när datorn är online och Chainsaw upplåst, om
+  *Kontrollera vid anslutning* är på; svaret hålls bara i sessionen. Avsteg: raden *Kontrollera vid anslutning* står
+  under VPN i inställningarna, så den ändras där också för Windows.
+- **Sökningen och soptunnan (KR1a, SO1a):** det slängda söks (`SceneEntries.ReadTrashed`), raden säger *I soptunnan*
+  och Enter öppnar soptunnan. *Lägg tillbaka* på raden är inte byggt.
+- **Det instabila testet:** `CaseEnvelopesTests.A_case_this_vault_cannot_open_asks_for_its_case_password` föll ungefär
+  en gång av åtta: dialogen läser kuverten med `Task.Run`, och utan UI-tråd i testet ritades korten om på trådpoolen
+  medan testet läste dem. `CaseDialogsViewModel.Showing` håller visningen, och testet väntar på den.
+- **Inte byggt:** mixerns troliga utgångar i Exponering (skrivet som [skiss] i `docs/TODO.md`).
+- Tester: 7 i `SaveAlarmTests`, nya i `ExitManageTests` (5), `ExposureTests` (3), `RequestsTests` (1),
+  `GraphViewModelTests`, `ChecksViewModelTests` och `CommandSearchTests` (1 vardera) i App.Tests; 2 i
+  `Chainsaw.Modules.Cases.Tests`; 4 i `Chainsaw.Modules.Tracing.Tests`.
+- **Granskningen (ett I, sex M), rättad:**
+  - **I1:** en länkad Bitcoin-coin går till den andra kedjan också när mottagaren är en tjänst eller ligger bortom
+    djupet (`LinkedOn` före `goesOn`). I *Fått från* räknas en länkad ingång inte som källa: den får vikt noll i
+    uppdelningen, som en länkad överföring utanför plånboken på kontokedjan. Betalades en utgång bara av länkade
+    ingångar räknas dess pengar som *Nådde ingen tjänst*. **Omgranskningen:** den länkade ingången behåller sin vikt i
+    uppdelningen, och dess andel blir ett eget skäl, `ExposureRest.OtherChain` (*Fortsätter på annan kedja*), så att
+    ingen annan ingång får mer än den betalade; samma skäl när den andra kedjans nod saknas. *De är körda igen* står
+    före det den nya körningen själv sa.
+  - **M1:** en varning som användaren stängt glöms, så att nästa misslyckande varnar igen. **M2:**
+    `SaveStateChanged` höjs för varje lyssnare för sig (`SayHowSavesGo`), och en lyssnare som kastar räknas aldrig
+    som en misslyckad sparning. **M3:** *Försök igen* fångar alla fel (utom minnesbrist), noterar bara feltypen med
+    `Trace` och visar varningen igen. **M4:** *De är körda igen* sägs bara när kontrollerna gick att köra. **M5:**
+    Begärans exporter töms när ärendet byts. **M6:** Esc i grafen släpper först det valda och går tillbaka först när
+    inget är valt (`ReturnsOnEscape`).

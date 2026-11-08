@@ -163,6 +163,14 @@ internal sealed class MemoryCase : IMemoryCase
     }
 
     /// <inheritdoc/>
+    /// <remarks>A case in memory is never saved, so the event is never raised.</remarks>
+    public event EventHandler<CaseSaveState>? SaveStateChanged
+    {
+        add { }
+        remove { }
+    }
+
+    /// <inheritdoc/>
     public void Close()
     {
         lock (_gate)

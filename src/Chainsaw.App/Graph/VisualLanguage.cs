@@ -142,6 +142,12 @@ public enum NodeBadge
     /// <summary>A cash-out that traced money reaches: the withdrawal point is found.</summary>
     CashOutFound,
 
+    /// <summary>
+    /// A request for information to the cash-out has been exported from the view Begäran (sketch BG1b): a small blue
+    /// mark beside the cash-out's own. It is drawn from the case's exports, after the scene's marks.
+    /// </summary>
+    RequestExported,
+
     /// <summary>The label came from another case through the library.</summary>
     FromOtherCase,
 
@@ -227,6 +233,7 @@ public static class VisualLanguage
     [
         new(NodeBadge.StartPoint, "Startpunkt", "Icon.Flag", GraphInk.StartMark),
         new(NodeBadge.CashOutFound, "Uttag funnet", "Icon.Kind.Check", GraphInk.CashOut),
+        new(NodeBadge.RequestExported, "Begäran exporterad", "Icon.Request", GraphInk.CashOut),
         new(NodeBadge.FromOtherCase, "Etikett från ett annat ärende", "Icon.Tag", GraphInk.Cluster),
         new(NodeBadge.Sanctioned, "Sanktionerad", "Icon.Kind.Ban", GraphInk.Sanctioned),
         new(NodeBadge.Reported, "Rapporterad", "Icon.Alert", GraphInk.Risk),

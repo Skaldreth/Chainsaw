@@ -257,6 +257,26 @@ public sealed class GraphViewModelTests
         Assert.False(rig.Graph.HasCase);
     }
 
+    /// <summary>
+    /// A cash-out a request was exported to gets the blue mark after its own (sketch BG1b), and the graph draws again
+    /// only when the set changed.
+    /// </summary>
+    [Fact]
+    public void AnExportedRequestMarksTheCashOut()
+    {
+        var rig = new Rig();
+        var node = rig.Graph.Scene!.Nodes[0];
+        var redraws = 0;
+        rig.Graph.Redraw += (_, _) => redraws++;
+
+        rig.Graph.ShowRequested(new HashSet<string>(StringComparer.Ordinal) { node.Key });
+        rig.Graph.ShowRequested(new HashSet<string>(StringComparer.Ordinal) { node.Key });
+
+        Assert.Equal([.. node.Badges, NodeBadge.RequestExported], rig.Graph.MarksOf(node));
+        Assert.DoesNotContain(NodeBadge.RequestExported, rig.Graph.MarksOf(rig.Graph.Scene.Nodes[1]));
+        Assert.Equal(1, redraws);
+    }
+
     /// <summary>The inspector is there only while a case is open, since without one there is nothing to inspect.</summary>
     [Fact]
     public void InspectorFollowsTheOpenCase()

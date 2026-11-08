@@ -36,6 +36,7 @@ public sealed class CaseEnvelopesTests
         dialogs.Shown += (_, _) => shown++;
 
         var reply = await _rig.Workflow.OpenAsync("A1");
+        await dialogs.Showing;
 
         Assert.True(reply.IsError);
         Assert.Equal(1, shown);

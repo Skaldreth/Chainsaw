@@ -559,32 +559,41 @@ public sealed partial class ExposureViewModel : ObservableObject
     /// <returns>The rows.</returns>
     private ExposureSideRows SideRows(string title, ExposureResult result, string subject)
     {
-        var sums = result.Reached
+        var groups = result.Reached
             .GroupBy(reach => ExposureMap.GroupOf(_names.LookOf(reach.NodeKey)))
-            .ToDictionary(
-                group => group.Key,
-                group => group.Aggregate(AssetAmount.Zero(result.Total.Asset), (sum, reach) => sum + reach.Amount));
+            .ToDictionary(group => group.Key, group => group.ToList());
+        var sums = groups.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.Aggregate(AssetAmount.Zero(result.Total.Asset), (sum, reach) => sum + reach.Amount));
         sums[ExposureGroup.Unknown] = sums.GetValueOrDefault(ExposureGroup.Unknown, AssetAmount.Zero(result.Total.Asset))
             + result.Unknown;
         var rows = ExposureMap.Order
             .Where(group => sums.TryGetValue(group, out var sum) && sum.Units.Sign > 0)
             .Select(group => new ExposureGroupRow(
-                group, result.ShareOf(sums[group]), GroupTip(group, sums[group], result, subject)))
+                group, result.ShareOf(sums[group]), GroupTip(group, sums[group], result, subject, groups)))
             .ToList();
         return new ExposureSideRows(title, AmountText.Number(result.Total), result.Total.Asset.Symbol, rows);
     }
 
-    /// <summary>Writes a share's tooltip: the amount, and for <em>Okänt</em> where it went.</summary>
+    /// <summary>
+    /// Writes a share's tooltip: the amount and what it was worth at the time, and for <em>Okänt</em> where it went.
+    /// </summary>
     /// <param name="group">The colour.</param>
     /// <param name="sum">Its amount.</param>
     /// <param name="result">The side.</param>
     /// <param name="subject">The word for the subject.</param>
+    /// <param name="groups">The services per colour.</param>
     /// <returns>The tooltip.</returns>
-    private static string GroupTip(ExposureGroup group, AssetAmount sum, ExposureResult result, string subject)
+    private string GroupTip(
+        ExposureGroup group,
+        AssetAmount sum,
+        ExposureResult result,
+        string subject,
+        IReadOnlyDictionary<ExposureGroup, List<ExposureReach>> groups)
     {
         if (group != ExposureGroup.Unknown)
         {
-            return AmountText.WithUnit(sum);
+            return ExposureValues.After(AmountText.WithUnit(sum), ValueOf(result, groups[group]));
         }
 
         var parts = result.Rest.Select(
@@ -605,6 +614,9 @@ public sealed partial class ExposureViewModel : ObservableObject
         ExposureRest.StillMoving => "Gick runt fler varv än analysen följer",
         ExposureRest.Returned => "Gick tillbaka till " + subject,
         ExposureRest.BeforeHistory => "Kom före historiken i grafen",
+        ExposureRest.TrailEnds => "Spåret tar slut i en tx, till exempel en CoinJoin",
+        ExposureRest.Conflicting => "Uppgifterna om vart pengarna gick går inte ihop",
+        ExposureRest.OtherChain => "Fortsätter på annan kedja",
         _ => depth == 1 ? "Gick vidare till en aktör som inte följs" : $"Nådde ingen tjänst inom {depth} hopp",
     };
 
@@ -667,13 +679,25 @@ public sealed partial class ExposureViewModel : ObservableObject
         return new ExposureDetail(
             _names.LookOf(reach.NodeKey),
             _names.NameOf(reach.NodeKey),
-            AmountText.WithUnit(reach.Amount),
+            ExposureValues.After(AmountText.WithUnit(reach.Amount), ValueOf(result, [reach])),
             ExposureMap.Percent(result.ShareOf(reach.Amount)),
             result.Direction == ExposureDirection.Out ? "av det som gått ut" : "av det som kommit in",
             crumbs,
             TransactionsText(reach),
             BasisOf(result, reach.NodeKey));
     }
+
+    /// <summary>
+    /// Gives what the money that reached some services was worth at the time (sketch KU1a), or an empty text when the
+    /// graph has no value for a line it moved on.
+    /// </summary>
+    /// <param name="result">The side.</param>
+    /// <param name="reaches">The services.</param>
+    /// <returns>For example <c>≈ 23 400 kr</c>, or an empty text.</returns>
+    private string ValueOf(ExposureResult result, IReadOnlyList<ExposureReach> reaches) => _scene is { } scene
+        ? ExposureValues.OfServices(
+            scene.Snapshot, result, reaches.Select(reach => reach.NodeKey).ToHashSet(StringComparer.Ordinal))
+        : string.Empty;
 
     /// <summary>Writes the transactions on the way, each shortened.</summary>
     /// <param name="reach">The service.</param>

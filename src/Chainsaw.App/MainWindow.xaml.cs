@@ -240,6 +240,14 @@ public partial class MainWindow : Window
             }
         };
         graph.RequestWanted += (_, wanted) => shell.OpenRequest(wanted);
+        graph.ShowRequested(requests.ExportedNodes);
+        requests.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RequestsViewModel.ExportedNodes))
+            {
+                graph.ShowRequested(requests.ExportedNodes);
+            }
+        };
         shell.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ShellViewModel.IsRequestsShown) && shell.IsRequestsShown)
@@ -276,6 +284,20 @@ public partial class MainWindow : Window
         {
             shell.Show(AppView.Graph);
             graph.ShowPath(path);
+        };
+        graph.ReturnWanted += (_, view) => shell.Show(view);
+        graph.ExposureWanted += (_, nodeKey) =>
+        {
+            shell.Show(AppView.Exposure);
+            exposure.Open(nodeKey);
+        };
+        shell.PropertyChanged += (_, e) =>
+        {
+            // The way back points to where the graph was shown from, only while the graph is shown.
+            if (e.PropertyName == nameof(ShellViewModel.IsGraphShown) && !shell.IsGraphShown)
+            {
+                graph.ForgetReturn();
+            }
         };
         exposure.GuideWanted += (_, request) => _guidePanel.Ask(request);
         shell.PropertyChanged += (_, e) =>
@@ -555,6 +577,12 @@ public partial class MainWindow : Window
         {
             _shell.Show(AppView.Graph);
             _graph.ChooseFound(key);
+        }
+        else if (row.Entry.IsInTrash)
+        {
+            // What lies in the trash is not drawn; it is found there, where it can be put back (sketch SO1a).
+            _shell.Show(AppView.Graph);
+            _graph.TrashView.Open();
         }
 
         _shell.FinishSearch();

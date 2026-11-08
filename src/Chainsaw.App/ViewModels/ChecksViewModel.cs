@@ -137,6 +137,13 @@ public sealed partial class ChecksViewModel : ObservableObject
     public const string BreaksMergeText =
         "Plånboken skulle bryta upp ett kluster genom en uppbrytning du gjort. Ångra uppbrytningen i Historik först.";
 
+    /// <summary>
+    /// What the panel says when a suggestion has changed in the case since it was sealed, after the checks have been
+    /// run again so that the suggestion shown is the one that stands now.
+    /// </summary>
+    public const string ChangedText =
+        "Förslaget har ändrats sedan kontrollerna kördes. De är körda igen; se över förslaget och besluta på nytt.";
+
     /// <summary>What the form says when the own area it renames or removes is gone already.</summary>
     public const string GoneText = "Ytan finns inte längre i ärendet.";
 
@@ -1098,6 +1105,17 @@ public sealed partial class ChecksViewModel : ObservableObject
             catch (MergeRefusedException refused)
             {
                 Problem = refused.Refusal == MergeRefusal.BreaksMerge ? BreaksMergeText : SplitFirstText;
+                return null;
+            }
+            catch (SuggestionChangedException)
+            {
+                await FollowAsync(_scene);
+                if (Problem != RunFailedText)
+                {
+                    // Said only when the checks did run again, before what the new run itself said, if anything.
+                    Problem = Problem.Length == 0 ? ChangedText : $"{ChangedText} {Problem}";
+                }
+
                 return null;
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
