@@ -5,7 +5,7 @@ namespace Chainsaw.App.Tests;
 /// <summary>
 /// The graph surface's frames, read from its source since WPF does not run in the tests: a fit drops every motion that
 /// would move the new place on, the frames stop while the surface is hidden and are taken up again when it is shown,
-/// and the timers skip their frames while the window is minimised.
+/// the loop skips its frames while the window is minimised, and only the loop holds frames.
 /// </summary>
 public sealed class CanvasFramesTests
 {
@@ -36,16 +36,40 @@ public sealed class CanvasFramesTests
         Assert.Contains("KeepMoving();", handler, StringComparison.Ordinal);
     }
 
-    /// <summary>No timer of the surface or the time strip draws on a frame of its own while the window is minimised.</summary>
+    /// <summary>No frame of the surface or the time strip is drawn while the window is minimised.</summary>
     [Fact]
-    public void Timers_skip_frames_while_minimised()
+    public void Frames_are_skipped_while_minimised()
     {
-        Assert.Contains("OnFrameWhileShown", Read("GraphCanvas.Cards.cs"), StringComparison.Ordinal);
-        Assert.Contains("IsMinimised(this)", Body(Read("GraphCanvas.Watches.cs"), "private void OnFrameWhileShown"),
+        Assert.Contains("IsMinimised(this)", Body(Read("GraphCanvas.Frames.cs"), "private void OnFrame("),
             StringComparison.Ordinal);
         Assert.Contains("IsMinimised(this)", Body(Read("TimeStrip.cs"), "private void OnSonarFrame"),
             StringComparison.Ordinal);
         Assert.DoesNotMatch(new Regex(@"DispatcherTimer\([^)]*=> InvalidateVisual"), Read("TimeStrip.cs"));
+    }
+
+    /// <summary>
+    /// The surface has one frame loop (GraphCanvas.Frames.cs): no other part of it holds the screen's frames, runs a
+    /// timer of its own or asks WPF to draw; they ask the loop for a change or start a motion.
+    /// </summary>
+    [Fact]
+    public void Only_the_frame_loop_holds_frames_and_asks_WPF_to_draw()
+    {
+        var controls = Path.Combine(GraphSceneTests.Root(), "src", "Chainsaw.App", "Controls");
+        foreach (var path in Directory.GetFiles(controls, "GraphCanvas*.cs"))
+        {
+            var name = Path.GetFileName(path);
+            var source = File.ReadAllText(path);
+            Assert.DoesNotContain("DispatcherTimer", source, StringComparison.Ordinal);
+            if (name != "GraphCanvas.Frames.cs")
+            {
+                Assert.DoesNotContain("CompositionTarget.Rendering", source, StringComparison.Ordinal);
+            }
+
+            if (name is not ("GraphCanvas.Frames.cs" or "GraphCanvas.Scene.cs"))
+            {
+                Assert.DoesNotContain("InvalidateVisual()", source, StringComparison.Ordinal);
+            }
+        }
     }
 
     /// <summary>Reads a control's source.</summary>

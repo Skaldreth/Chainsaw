@@ -31,17 +31,11 @@ public sealed partial class GraphCanvas
     /// <summary>The ring's thickness, on the surface.</summary>
     private const double FoundRingThickness = 2;
 
-    /// <summary>The time between the glide's frames.</summary>
-    private readonly FrameClock _foundClock = new();
-
     /// <summary>Where the glide started, and where it goes.</summary>
     private (Viewport From, Viewport To) _foundGlide = (Viewport.Initial, Viewport.Initial);
 
     /// <summary>How far into the glide it is, in seconds.</summary>
     private double _foundElapsed;
-
-    /// <summary>Whether the glide's frames are hooked to the rendering.</summary>
-    private bool _foundFrames;
 
     /// <summary>Follows the search: a node to glide to.</summary>
     /// <param name="model">The view model.</param>
@@ -71,30 +65,20 @@ public sealed partial class GraphCanvas
 
         _foundGlide = (_viewport, target);
         _foundElapsed = 0;
-        _foundClock.Reset();
-        if (!_foundFrames)
-        {
-            _foundFrames = true;
-            CompositionTarget.Rendering += OnFoundFrame;
-        }
+        StartMotion(GraphMotion.FoundGlide);
     }
 
-    /// <summary>Moves the glide one frame, eased out, by the rendering time.</summary>
-    /// <param name="sender">The rendering.</param>
-    /// <param name="e">The frame.</param>
-    private void OnFoundFrame(object? sender, EventArgs e)
+    /// <summary>Moves the glide one step, eased out, by the time since the last step.</summary>
+    /// <param name="seconds">The time since the last step.</param>
+    /// <returns>What changed: the view, or the scene when the glide has landed.</returns>
+    private GraphChange FoundStep(double seconds)
     {
-        if (_foundClock.Tick(((RenderingEventArgs)e).RenderingTime) is not { } seconds)
-        {
-            return;
-        }
-
         _foundElapsed += seconds;
         var t = Math.Min(1, _foundElapsed / FoundGlideSeconds);
         if (t >= 1)
         {
             EndFoundGlide(_foundGlide.To);
-            return;
+            return GraphChange.Scene;
         }
 
         var eased = 1 - Math.Pow(1 - t, 3);
@@ -103,7 +87,7 @@ public sealed partial class GraphCanvas
             from.OffsetX + ((to.OffsetX - from.OffsetX) * eased),
             from.OffsetY + ((to.OffsetY - from.OffsetY) * eased),
             from.Zoom + ((to.Zoom - from.Zoom) * eased));
-        MoveView();
+        return GraphChange.View;
     }
 
     /// <summary>Ends the glide where it was going, and stores the place on screen.</summary>
@@ -116,15 +100,8 @@ public sealed partial class GraphCanvas
         Redraw();
     }
 
-    /// <summary>Unhooks the glide's frames where it is, without storing the place.</summary>
-    private void DropFoundGlide()
-    {
-        if (_foundFrames)
-        {
-            _foundFrames = false;
-            CompositionTarget.Rendering -= OnFoundFrame;
-        }
-    }
+    /// <summary>Stops the glide where it is, without storing the place.</summary>
+    private void DropFoundGlide() => _frames.Stop(GraphMotion.FoundGlide);
 
     /// <summary>Draws the ring around the found node, and its pulse, on the surface.</summary>
     /// <param name="dc">Where to draw, with the surface's transform pushed.</param>

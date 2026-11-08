@@ -39,9 +39,6 @@ public sealed partial class GraphCanvas
     /// <summary>How far the rings move outwards in one beat.</summary>
     private const double RingTravel = 12;
 
-    /// <summary>The time between two frames of the rings.</summary>
-    private static readonly TimeSpan RingFrame = TimeSpan.FromMilliseconds(66);
-
     /// <summary>The time of one beat of the rings.</summary>
     private static readonly TimeSpan RingBeat = TimeSpan.FromSeconds(1.6);
 
@@ -50,9 +47,6 @@ public sealed partial class GraphCanvas
 
     /// <summary>The dots of a watch line and a ray (dotted, never dashed: dashed always means uncertain).</summary>
     private static readonly DashStyle WatchDots = Frozen(new DashStyle([0.01, 2.6], 0));
-
-    /// <summary>Moves the rings while a hit is unseen; stopped otherwise.</summary>
-    private DispatcherTimer? _rings;
 
     /// <summary>Whether moving rings were drawn on screen this frame, so that the frames run only then.</summary>
     private bool _ringsOnScreen;
@@ -302,50 +296,27 @@ public sealed partial class GraphCanvas
             PenLineCap.Round);
 
     /// <summary>
-    /// Starts the rings' frames while moving rings are on screen and animations are on, and stops them otherwise, so
-    /// that the graph is drawn again only while something it shows moves (principle 6).
+    /// Starts the rings while moving rings are on screen and animations are on, and stops them otherwise, so that the
+    /// graph is drawn again only while something it shows moves (principle 6).
     /// </summary>
     /// <param name="moves">Whether moving rings were drawn on screen.</param>
     private void KeepRings(bool moves)
     {
-        if (moves && AnimationsOn && IsVisible)
+        if (moves && !_frames.IsRunning(GraphMotion.Rings))
         {
-            if (_rings is null)
-            {
-                _ringStart = DateTime.UtcNow;
-                _rings = new DispatcherTimer(RingFrame, DispatcherPriority.Render, OnRingFrame, Dispatcher);
-            }
-
-            return;
+            _ringStart = DateTime.UtcNow;
         }
 
-        _rings?.Stop();
-        _rings = null;
+        KeepMotion(GraphMotion.Rings, moves);
     }
 
-    /// <summary>Moves the rings one frame and draws again.</summary>
-    /// <param name="sender">The timer.</param>
-    /// <param name="e">The arguments.</param>
-    private void OnRingFrame(object? sender, EventArgs e)
+    /// <summary>Moves the rings one step, by the time since they started.</summary>
+    /// <param name="seconds">The time since the last step; the beat follows the clock.</param>
+    /// <returns>What changed: the scene.</returns>
+    private GraphChange RingStep(double seconds)
     {
-        if (IsMinimised(this))
-        {
-            return;
-        }
-
         _ringPhase = (DateTime.UtcNow - _ringStart).TotalMilliseconds / RingBeat.TotalMilliseconds % 1;
-        Redraw();
-    }
-
-    /// <summary>Draws again on a timer's frame, unless the window is minimised.</summary>
-    /// <param name="sender">The timer.</param>
-    /// <param name="e">The arguments.</param>
-    private void OnFrameWhileShown(object? sender, EventArgs e)
-    {
-        if (!IsMinimised(this))
-        {
-            Redraw();
-        }
+        return GraphChange.Scene;
     }
 
     /// <summary>

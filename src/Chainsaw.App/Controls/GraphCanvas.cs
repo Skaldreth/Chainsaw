@@ -113,7 +113,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             }
             else
             {
-                // The frames stop while hidden (OnMovingFrame): a blast, a pile or a glide halfway is taken up again, so
+                // The frames stop while hidden (BlastStep): a blast, a pile or a glide halfway is taken up again, so
                 // that it ends rather than stand still and keep the surface from the pointer. Drawing again also lets
                 // the rings and the cards that moved before move on.
                 KeepMoving();
@@ -122,6 +122,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         FocusVisualStyle = null;
         ClipToBounds = true;
         HostScene();
+        SetUpFrames();
         SizeChanged += (_, _) => FitIfPending();
     }
 
@@ -152,7 +153,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         if (_model is not { Places.Count: > 0 } model)
         {
             _viewport = Viewport.Initial;
-            InvalidateVisual();
+            Request(GraphChange.View);
             return;
         }
 
@@ -165,7 +166,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var bounds = frames.Skip(1).Aggregate(frames[0], (all, frame) => all.Union(frame));
         _viewport = Viewport.Fit(bounds, ActualWidth, ActualHeight);
-        InvalidateVisual();
+        Request(GraphChange.View);
     }
 
     /// <summary>Zooms around the middle of the screen, smoothly unless Windows has animations turned off.</summary>
@@ -229,7 +230,6 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         ShowScene(scene);
         DrawOverScene(over);
-        KeepRings(_ringsOnScreen && _blast == BlastPhase.None);
     }
 
     /// <summary>Presses on the surface: takes hold of a node, or of the surface to pan it.</summary>
@@ -689,7 +689,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             {
                 DropZoom();
                 _viewport = stored;
-                InvalidateVisual();
+                Request(GraphChange.View);
                 return;
             }
 

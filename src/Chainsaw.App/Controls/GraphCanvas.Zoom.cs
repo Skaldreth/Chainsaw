@@ -15,11 +15,8 @@ public sealed partial class GraphCanvas
     /// <summary>The zoom under way: where it is going and around which point.</summary>
     private readonly ZoomMotion _zoom = new();
 
-    /// <summary>The time between the zoom's frames.</summary>
-    private readonly FrameClock _zoomClock = new();
-
-    /// <summary>Whether the zoom's frames are hooked to the rendering.</summary>
-    private bool _zoomFrames;
+    /// <summary>Gets whether a zoom is under way on the frames.</summary>
+    private bool IsZooming => _frames.IsRunning(GraphMotion.Zoom);
 
     /// <summary>
     /// Zooms by a factor around a point on screen: eased over the next frames, or at once without animations.
@@ -38,29 +35,19 @@ public sealed partial class GraphCanvas
         }
 
         // A step against a limit changes nothing, and nothing is stored for it.
-        if (_zoomFrames || _viewport != before)
+        if (IsZooming || _viewport != before)
         {
             EndZoom();
         }
     }
 
-    /// <summary>Hooks the zoom's frames to the rendering, unless they already are.</summary>
-    private void StartZoomFrames()
-    {
-        if (_zoomFrames)
-        {
-            return;
-        }
-
-        _zoomFrames = true;
-        _zoomClock.Reset();
-        CompositionTarget.Rendering += OnZoomFrame;
-    }
+    /// <summary>Starts the zoom's frames, unless they already run.</summary>
+    private void StartZoomFrames() => StartMotion(GraphMotion.Zoom);
 
     /// <summary>Stops a zoom where it is, as when the surface is taken hold of, and stores the place it reached.</summary>
     private void StopZoom()
     {
-        if (!_zoomFrames)
+        if (!IsZooming)
         {
             return;
         }
@@ -81,15 +68,8 @@ public sealed partial class GraphCanvas
         UnhookZoomFrames();
     }
 
-    /// <summary>Unhooks the zoom's frames from the rendering, if they are hooked.</summary>
-    private void UnhookZoomFrames()
-    {
-        if (_zoomFrames)
-        {
-            _zoomFrames = false;
-            CompositionTarget.Rendering -= OnZoomFrame;
-        }
-    }
+    /// <summary>Stops the zoom's frames, if they run.</summary>
+    private void UnhookZoomFrames() => _frames.Stop(GraphMotion.Zoom);
 
     /// <summary>Unhooks the frames and stores the place on screen, once, when a zoom is over.</summary>
     private void EndZoom()
@@ -97,24 +77,20 @@ public sealed partial class GraphCanvas
         _zoom.Stop();
         UnhookZoomFrames();
         _model?.ViewportChanged(_viewport);
-        InvalidateVisual();
+        Request(GraphChange.View);
     }
 
-    /// <summary>Moves the zoom one frame, by the rendering time rather than counting frames.</summary>
-    /// <param name="sender">The rendering.</param>
-    /// <param name="e">The frame.</param>
-    private void OnZoomFrame(object? sender, EventArgs e)
+    /// <summary>Moves the zoom one step, by the time since the last step.</summary>
+    /// <param name="seconds">The time since the last step.</param>
+    /// <returns>What changed: the view.</returns>
+    private GraphChange ZoomStep(double seconds)
     {
-        if (_zoomClock.Tick(((RenderingEventArgs)e).RenderingTime) is not { } seconds)
-        {
-            return;
-        }
-
         _viewport = _zoom.Step(_viewport, seconds);
-        MoveView();
         if (!_zoom.IsRunning)
         {
             EndZoom();
         }
+
+        return GraphChange.View;
     }
 }

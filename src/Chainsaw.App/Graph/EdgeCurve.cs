@@ -139,7 +139,15 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
     /// Gives a rectangle that holds the whole curve: a Bézier curve always lies within its four points.
     /// </summary>
     /// <returns>The rectangle.</returns>
-    public GraphRect Bounds() => GraphRect.Around([Start, Control1, Control2, End]);
+    public GraphRect Bounds()
+    {
+        // Without a list of the four points: this is asked for every line in every hit test and every scene drawn.
+        var left = Math.Min(Math.Min(Start.X, Control1.X), Math.Min(Control2.X, End.X));
+        var top = Math.Min(Math.Min(Start.Y, Control1.Y), Math.Min(Control2.Y, End.Y));
+        var right = Math.Max(Math.Max(Start.X, Control1.X), Math.Max(Control2.X, End.X));
+        var bottom = Math.Max(Math.Max(Start.Y, Control1.Y), Math.Max(Control2.Y, End.Y));
+        return new GraphRect(left, top, right - left, bottom - top);
+    }
 
     /// <summary>Gives the shortest distance from a point to the curve, measured along straight pieces of it.</summary>
     /// <param name="point">The point.</param>

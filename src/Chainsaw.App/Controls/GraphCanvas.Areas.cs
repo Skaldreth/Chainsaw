@@ -292,7 +292,7 @@ public sealed partial class GraphCanvas
         DropZoom();
         _viewport = Viewport.Fit(bounds.Inflate(AreaGeometry.TimePadding), ActualWidth, ActualHeight);
         _model.ViewportChanged(_viewport);
-        InvalidateVisual();
+        Request(GraphChange.View);
     }
 
     /// <summary>

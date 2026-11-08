@@ -23,9 +23,6 @@ public sealed partial class GraphCanvas
     /// <summary>How strong the box's frame is.</summary>
     private const double BoxEdgeOpacity = 0.8;
 
-    /// <summary>The time between the frames of the scrolling at the edge.</summary>
-    private readonly FrameClock _boxClock = new();
-
     /// <summary>Where a press on the empty surface began, on screen, that may become a box; null otherwise.</summary>
     private GraphPoint? _boxFrom;
 
@@ -70,8 +67,7 @@ public sealed partial class GraphCanvas
             _boxing = true;
             _boxAnchor = _viewport.ToSurface(from);
             _model!.BeginBox(_boxMode);
-            _boxClock.Reset();
-            CompositionTarget.Rendering += OnBoxFrame;
+            StartMotion(GraphMotion.BoxScroll);
         }
 
         _boxPointer = at;
@@ -120,8 +116,8 @@ public sealed partial class GraphCanvas
     {
         if (_boxing)
         {
-            CompositionTarget.Rendering -= OnBoxFrame;
-            InvalidateVisual();
+            _frames.Stop(GraphMotion.BoxScroll);
+            Request(GraphChange.Overlay);
         }
 
         _boxing = false;
@@ -132,26 +128,26 @@ public sealed partial class GraphCanvas
     private void PickWithBox()
     {
         _model?.BoxTo(BoxSelection.Between(_boxAnchor, _viewport.ToSurface(_boxPointer)));
-        InvalidateVisual();
+        Request(GraphChange.Overlay);
     }
 
     /// <summary>
-    /// Scrolls the surface one frame while the pointer is at its edge, by the rendering time rather than counting
-    /// frames, and picks again with the box that grew.
+    /// Scrolls the surface one step while the pointer is at its edge, by the time since the last step, and picks
+    /// again with the box that grew.
     /// </summary>
-    /// <param name="sender">The rendering.</param>
-    /// <param name="e">The frame.</param>
-    private void OnBoxFrame(object? sender, EventArgs e)
+    /// <param name="seconds">The time since the last step.</param>
+    /// <returns>What changed: the view, or nothing while the pointer is away from the edge.</returns>
+    private GraphChange BoxStep(double seconds)
     {
         var speed = BoxSelection.ScrollSpeed(_boxPointer, ActualWidth, ActualHeight);
-        var seconds = _boxClock.Tick(((RenderingEventArgs)e).RenderingTime);
-        if (seconds is not { } step || (speed.X == 0 && speed.Y == 0))
+        if (speed.X == 0 && speed.Y == 0)
         {
-            return;
+            return GraphChange.None;
         }
 
-        _viewport = _viewport.Pan(-speed.X * step, -speed.Y * step);
+        _viewport = _viewport.Pan(-speed.X * seconds, -speed.Y * seconds);
         PickWithBox();
+        return GraphChange.View;
     }
 
     /// <summary>Draws the box, on screen: a thin frame in the accent and a faint fill of the same tone.</summary>

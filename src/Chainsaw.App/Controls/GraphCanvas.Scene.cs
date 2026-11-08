@@ -55,7 +55,8 @@ public sealed partial class GraphCanvas
     /// Says whether the scene is drawn again in every frame anyway (rings, a card that turns, an hourglass, a blast or
     /// a fan), when the margin around the screen would only cost each frame more.
     /// </summary>
-    private bool SceneMovesByItself => !SceneIsStill || _rings is not null || _turnTimer is not null;
+    private bool SceneMovesByItself =>
+        !SceneIsStill || _frames.IsRunning(GraphMotion.Rings) || _frames.IsRunning(GraphMotion.Cards);
 
     /// <summary>Puts the scene's layer and the one over it on the surface, under the notes.</summary>
     private void HostScene()
@@ -66,25 +67,14 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
-    /// Makes the scene's drawing stale and draws again: everything that changes what the scene shows calls this; a
-    /// pan, a glide or a zoom calls <see cref="UIElement.InvalidateVisual"/> alone, which moves the drawing.
-    /// </summary>
-    private void Redraw()
-    {
-        _sceneWindow.Forget();
-        _sceneChanged = true;
-        InvalidateVisual();
-    }
-
-    /// <summary>
     /// Follows a pan, a glide or a zoom under way: when the scene's drawing still covers the screen, the layer is
     /// moved and what stands over it drawn again at once, without asking WPF for a new layout; otherwise the surface
     /// is drawn again as usual.
     /// </summary>
-    private void MoveView()
+    private void FollowView()
     {
         if (_model?.Scene is not { } scene || GraphHidden || !_sceneMade || !SceneIsStill
-            || !_sceneWindow.Covers(_viewport.Visible(ActualWidth, ActualHeight), _viewport.Zoom, _zoomFrames))
+            || !_sceneWindow.Covers(_viewport.Visible(ActualWidth, ActualHeight), _viewport.Zoom, IsZooming))
         {
             InvalidateVisual();
             return;
@@ -116,7 +106,7 @@ public sealed partial class GraphCanvas
     private void ShowScene(GraphScene scene)
     {
         var visible = _viewport.Visible(ActualWidth, ActualHeight);
-        if (!SceneIsStill || !_sceneWindow.Covers(visible, _viewport.Zoom, _zoomFrames))
+        if (!SceneIsStill || !_sceneWindow.Covers(visible, _viewport.Zoom, IsZooming))
         {
             var margin = _sceneChanged || SceneMovesByItself ? 0 : SceneWindow.Margin;
             var region = _sceneWindow.Take(visible, _viewport.Zoom, margin);
@@ -129,6 +119,10 @@ public sealed partial class GraphCanvas
 
             KeepMarkCentres();
             _sceneMade = true;
+
+            // What the scene drew that moves by itself keeps its frames running; drawing never starts them.
+            KeepRings(_ringsOnScreen && _blast == BlastPhase.None);
+            KeepTurning(_cardsMove);
         }
 
         var matrix = new Matrix(_viewport.Zoom, 0, 0, _viewport.Zoom, _viewport.OffsetX, _viewport.OffsetY);

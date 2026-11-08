@@ -4190,3 +4190,20 @@ Användaren bad om så många bildrutor som möjligt i grafen. Inget provat på 
 - **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Grafens fart*). Räcker det inte är nästa steg
   grafytan med SkiaSharp på grafikkortet (`docs/TODO.md`).
 
+### Granskningen och den eventstyrda slingan (samma dag)
+
+- **Granskningen** (inga C): lagren tar inte emot träfftester (WPF gick annars igenom hela scenen vid varje
+  musrörelse), en ändring ritas utan marginal (nästa panorering tar den), ringar och timglas håller bildrutor bara
+  när de syns på skärmen, och bevakningens vaktlinje använder den sparade kurvan.
+- **En bildruteslinga** (användarens krav: strukturerat och eventstyrt): `FramePump` samlar det som begärs
+  (`GraphChange`) och rörelserna (`GraphMotion`: glidning, zoom, sökningens glidning, rutans rullning, valvy och hög,
+  ringar, kort). Varje rörelse är ett steg som flyttar sitt läge med tiden sedan förra steget och säger vad som
+  ändrades. Den ersätter fem egna krokar på `CompositionTarget.Rendering` och två `DispatcherTimer`. Ritkoden noterar
+  bara vad som rör sig, och slingan startar och stoppar rörelserna efter att scenen ritats. Pekarens rörelser under en
+  panorering slås ihop till en per bildruta. Ett test läser källan och vaktar att ingen annan del håller bildrutor,
+  kör timrar eller anropar `InvalidateVisual`.
+- **Smått:** en kurvas gränser räknas utan att fyra punkter läggs i en lista (det görs för varje linje i varje
+  träfftest och varje scen).
+- **Återstår:** när en nod dras ritas hela scenen om i varje ruta. Nästa steg är ett eget draglager för de dragna
+  noderna och deras linjer, så att resten står still.
+

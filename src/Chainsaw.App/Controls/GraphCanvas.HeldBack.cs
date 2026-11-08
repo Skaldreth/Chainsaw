@@ -76,9 +76,6 @@ public sealed partial class GraphCanvas
     /// <summary>Whether a press in the view is under way.</summary>
     private bool _viewPressed;
 
-    /// <summary>Whether the canvas is called every frame while something moves.</summary>
-    private bool _moving;
-
     /// <summary>Gets the view's centre on screen in the mode shown.</summary>
     private GraphPoint ViewCentre => _model?.HeldBack is { IsTimeArc: true }
         ? new GraphPoint((ActualWidth / 2) + ViewRightOfMiddle, ActualHeight * ArcCentreShare)
@@ -200,28 +197,27 @@ public sealed partial class GraphCanvas
     /// </summary>
     private void KeepMoving()
     {
-        if (!_moving && AnimationsOn)
+        if (AnimationsOn)
         {
-            _moving = true;
-            CompositionTarget.Rendering += OnMovingFrame;
+            StartMotion(GraphMotion.Blast);
         }
 
         Redraw();
     }
 
-    /// <summary>Moves what moves one frame and draws again.</summary>
-    /// <param name="sender">WPF's rendering.</param>
-    /// <param name="e">The arguments.</param>
-    private void OnMovingFrame(object? sender, EventArgs e)
+    /// <summary>Moves the blast and the fan one step, and stops when neither moves or the surface is hidden.</summary>
+    /// <param name="seconds">The time since the last step; the two move by the clock of their own.</param>
+    /// <returns>What changed: the scene.</returns>
+    private GraphChange BlastStep(double seconds)
     {
         var fan = StepFan();
         var blast = StepBlast();
-        Redraw();
         if ((!fan && !blast) || !IsVisible)
         {
-            _moving = false;
-            CompositionTarget.Rendering -= OnMovingFrame;
+            _frames.Stop(GraphMotion.Blast);
         }
+
+        return GraphChange.Scene;
     }
 
     /// <summary>Gives where a node is during the blast out or back.</summary>

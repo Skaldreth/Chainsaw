@@ -210,6 +210,12 @@ den låses upp, och användaren väljer ärende.
 - Central pakethantering (`Directory.Packages.props`), `TreatWarningsAsErrors`, nullable på. Lösning: `Chainsaw.slnx`.
 - **Allt dokumenteras** (användarens krav 2026-11-06): varje typ och metod, också `internal` och `private`, har
   XML-dokumentation som säger vad den gör och, där det inte är självklart, varför.
+- **Grafens rendering är eventstyrd** (användarens krav 2026-11-08): grafytan har **en enda bildruteslinga**
+  (`FramePump` och `GraphCanvas.Frames.cs`). Indata, vymodellens `Redraw` och rörelserna begär en ändring
+  (`GraphChange`: Scene, View, Overlay), och slingan gör det minsta arbete som rutans ändringar kräver tillsammans.
+  Scenen ritas i ett eget lager som bara flyttas vid panorering och zoom (`SceneWindow`), och det som står på skärmen
+  över den ritas i ett andra lager. Ritkoden begär aldrig omritning och startar inga rörelser; ingen annan del håller
+  bildrutor, kör egna timrar eller anropar `InvalidateVisual` (ett test vaktar det).
 - **Varje förmåga är ett steg** med tydlig in- och utdata, som kan köras i bakgrunden och misslyckas för sig, och vars
   resultat vet varifrån det kommer (steg, version, data och tid). Det gör att heuristiker, analyser och senare en lokal
   modell kan läggas till på samma sätt.

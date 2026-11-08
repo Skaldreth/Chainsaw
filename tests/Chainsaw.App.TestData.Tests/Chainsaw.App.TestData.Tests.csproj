@@ -39,6 +39,7 @@
     <Compile Include="..\..\src\Chainsaw.App\Commands\*.cs" Link="Commands\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Links\*.cs" Link="Links\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Graph\*.cs" Link="Graph\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Chainsaw.App\Motion\*.cs" Link="Motion\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Exits\*.cs" Link="Exits\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Guide\*.cs" Link="Guide\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Chainsaw.App\Search\*.cs" Link="Search\%(Filename)%(Extension)" />

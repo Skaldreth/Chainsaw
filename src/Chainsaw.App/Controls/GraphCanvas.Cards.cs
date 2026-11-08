@@ -19,9 +19,6 @@ public sealed partial class GraphCanvas
     /// <summary>How long a turn takes (sketch IN4a: 0.6 s).</summary>
     private static readonly TimeSpan TurnTime = TimeSpan.FromMilliseconds(600);
 
-    /// <summary>How often a turn or a shimmer is drawn while it moves.</summary>
-    private static readonly TimeSpan TurnFrame = TimeSpan.FromMilliseconds(16);
-
     /// <summary>The back's corner radius.</summary>
     private const double CardRadius = 12;
 
@@ -40,8 +37,8 @@ public sealed partial class GraphCanvas
     /// <summary>The turns under way, by node: when each began, and whether it turns to the back.</summary>
     private readonly Dictionary<string, (DateTime Start, bool ToBack)> _turns = new(StringComparer.Ordinal);
 
-    /// <summary>Draws the turns and the shimmer while they move.</summary>
-    private DispatcherTimer? _turnTimer;
+    /// <summary>Whether a card turned or something on a card was fetched in the scene drawn last.</summary>
+    private bool _cardsMove;
 
     /// <summary>Whether a node's front is being drawn by the card's turn, so that <see cref="DrawNode"/> draws it.</summary>
     private bool _drawingFace;
@@ -85,7 +82,7 @@ public sealed partial class GraphCanvas
         }
 
         moving |= model.Cards.Values.Any(card => card.State == CardState.Fetching || card.Rate == CardRateKind.Fetching);
-        KeepTurning(moving);
+        _cardsMove = moving;
     }
 
     /// <summary>Starts the turn of each card that was turned or turned back since the graph was last drawn.</summary>
@@ -496,20 +493,16 @@ public sealed partial class GraphCanvas
     /// <summary>Whether an hourglass was drawn, so that the frames keep it breathing.</summary>
     private bool _waitBreathes;
 
-    /// <summary>Keeps the frames running while a card turns, something on a card is fetched or an hourglass breathes.</summary>
+    /// <summary>
+    /// Keeps the cards' frames running while a card turns, something on a card is fetched or an hourglass breathes on
+    /// screen, as the scene drawn last says.
+    /// </summary>
     /// <param name="moving">Whether a card moves.</param>
     private void KeepTurning(bool moving)
     {
         moving |= _waitBreathes;
         _waitBreathes = false;
-        if (moving && AnimationsOn && IsVisible)
-        {
-            _turnTimer ??= new DispatcherTimer(TurnFrame, DispatcherPriority.Render, OnFrameWhileShown, Dispatcher);
-            return;
-        }
-
-        _turnTimer?.Stop();
-        _turnTimer = null;
+        KeepMotion(GraphMotion.Cards, moving);
     }
 
     /// <summary>
