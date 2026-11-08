@@ -59,6 +59,12 @@ internal sealed class UtxoExposureRun
     /// </summary>
     private readonly Dictionary<Outpoint, string> _stopAt = [];
 
+    /// <summary>
+    /// The coins whose money stops by a rule of the graph's trace (<see cref="SpendRules"/>) with an actor that is
+    /// followed: why, by coin.
+    /// </summary>
+    private readonly Dictionary<Outpoint, ExposureRest> _ended = [];
+
     /// <summary>The fee each transaction read took of the money.</summary>
     private readonly Dictionary<Txid, long> _fees = [];
 
@@ -76,7 +82,8 @@ internal sealed class UtxoExposureRun
         _request = request;
         _method = method;
         _tally = new ExposureTally(request);
-        foreach (var edge in request.Graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.Transfer))
+        foreach (var edge in request.Graph.Edges.Where(
+            edge => edge.Kind is GraphEdgeKind.Transfer or GraphEdgeKind.ContinuesOnOtherChain))
         {
             foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset == request.Asset && t.Coin is not null))
             {
@@ -166,14 +173,58 @@ internal sealed class UtxoExposureRun
             ? known.Transaction.Outputs.FirstOrDefault(output => output.Index == coin.Index)
             : null;
 
-    /// <summary>Gives the transaction in the graph that spends a coin, or <see langword="null"/>.</summary>
+    /// <summary>Gives the input in the graph that spends a coin, or <see langword="null"/>.</summary>
     /// <param name="coin">The coin.</param>
-    /// <returns>The transaction's id.</returns>
-    private Txid? Spender(Outpoint coin) =>
+    /// <returns>The transaction's id and the input's index.</returns>
+    private BitcoinSpend? Spender(Outpoint coin) =>
         Graph.Spends.TryGetValue(coin, out var spend) && spend.SpentBy is { } by
         && Graph.Transactions.ContainsKey(by.Txid)
-            ? by.Txid
+            ? by
             : null;
+
+    /// <summary>
+    /// Paid out: sends a followed actor's coin on as the graph's trace does (<see cref="SpendRules"/>): to the other
+    /// chain it is linked to, where it stops; not at all when the spend disagrees with its transaction or the trail
+    /// ends there; otherwise through the transaction that spends it.
+    /// </summary>
+    /// <param name="coin">The coin.</param>
+    /// <param name="owner">Its actor.</param>
+    private void GoOn(Outpoint coin, string owner)
+    {
+        if (SpendRules.Continuations(Graph, coin) is [var link, ..])
+        {
+            var node = NodeKeys.OtherChain(link.To);
+            if (Graph.Node(node) is not null)
+            {
+                _tally.Reach(node, owner);
+                _stopAt[coin] = node;
+            }
+            else
+            {
+                _ended[coin] = ExposureRest.NotReached;
+            }
+
+            return;
+        }
+
+        if (Spender(coin) is not { } by || Output(coin) is not { } output)
+        {
+            return;
+        }
+
+        if (SpendRules.IsConflicting(Graph.Transactions[by.Txid].Transaction, by.InputIndex, coin, output))
+        {
+            _ended[coin] = ExposureRest.Conflicting;
+        }
+        else if (SpendRules.EndsAt(Graph, by.Txid).Count > 0 && ServiceNodeOf(by.Txid) is null)
+        {
+            _ended[coin] = ExposureRest.TrailEnds;
+        }
+        else
+        {
+            GoThrough(coin, owner, by.Txid);
+        }
+    }
 
     /// <summary>
     /// Gives the node of a transaction drawn as a node of its own when it is a service (a CoinJoin), where the money
@@ -304,9 +355,9 @@ internal sealed class UtxoExposureRun
 
         _tally.Reach(owner, from);
         var goesOn = _seeds.Contains(coin) ? owner == Subject || _tally.Follows(owner) : _tally.Follows(owner);
-        if (goesOn && Spender(coin) is { } spender)
+        if (goesOn)
         {
-            GoThrough(coin, owner, spender);
+            GoOn(coin, owner);
         }
     }
 
@@ -363,6 +414,13 @@ internal sealed class UtxoExposureRun
             return;
         }
 
+        if (SpendRules.EndsAt(Graph, txid).Count > 0 && ServiceNodeOf(txid) is null)
+        {
+            // The graph's trace stops at the transaction; the money in its outputs is not followed back through it.
+            EndBack(txid, ExposureRest.TrailEnds);
+            return;
+        }
+
         var flow = MethodChecks.Flow(transaction);
         var shares = transaction.Inputs.Select((_, index) => _method.Propagate(flow, [
             .. flow.Inputs.Select((amount, other) => other == index ? TaintSet.FirstPart(amount) : TaintSet.None),
@@ -400,7 +458,50 @@ internal sealed class UtxoExposureRun
 
             _units[coin] = parts[index];
             _through[coin] = through[index];
+            if (SpendsElsewhere(coin, txid, index))
+            {
+                // The graph says the coin went another way than this input, as the trace would stop at it.
+                _ended[coin] = ExposureRest.Conflicting;
+                continue;
+            }
+
             SettleIn(coin, input.Address is { } address ? Graph.NodeOf(address)?.Key : null, txid);
+        }
+    }
+
+    /// <summary>
+    /// Got: says whether what the graph says about a coin's spend disagrees with the input that spends it here: it
+    /// names another transaction or input, or the input does not agree with the coin. A coin whose spend the graph
+    /// does not know is read back as the transaction says.
+    /// </summary>
+    /// <param name="coin">The coin.</param>
+    /// <param name="txid">The transaction whose input spends it.</param>
+    /// <param name="index">The input.</param>
+    /// <returns><see langword="true"/> when they disagree.</returns>
+    private bool SpendsElsewhere(Outpoint coin, Txid txid, int index)
+    {
+        if (!Graph.Spends.TryGetValue(coin, out var spend) || spend.SpentBy is not { } by)
+        {
+            return false;
+        }
+
+        return by.Txid != txid || by.InputIndex != index
+            || (Output(coin) is { } output
+                && SpendRules.IsConflicting(Graph.Transactions[txid].Transaction, index, coin, output));
+    }
+
+    /// <summary>Got: stops the money in a transaction's followed outputs there, for a reason.</summary>
+    /// <param name="txid">The transaction.</param>
+    /// <param name="why">Why the money stops.</param>
+    private void EndBack(Txid txid, ExposureRest why)
+    {
+        var transaction = Graph.Transactions[txid].Transaction;
+        foreach (var coin in transaction.Outputs.Select(output => new Outpoint(txid, output.Index)))
+        {
+            if (_passed.Remove(coin))
+            {
+                _ended[coin] = why;
+            }
         }
     }
 
@@ -522,7 +623,9 @@ internal sealed class UtxoExposureRun
             foreach (var line in _lines.GetValueOrDefault(coin, []))
             {
                 var spentIntoNode = IsTransactionNode(line.To) && (_passed.Contains(coin) || _stopAt.ContainsKey(coin));
-                if (line.To == owner || spentIntoNode)
+                var linkedOn = line.Kind == GraphEdgeKind.ContinuesOnOtherChain
+                    && _stopAt.GetValueOrDefault(coin) == line.To;
+                if (line.To == owner || spentIntoNode || linkedOn)
                 {
                     _tally.Flow(line, taint.Units);
                 }
@@ -560,8 +663,9 @@ internal sealed class UtxoExposureRun
                 continue;
             }
 
-            if (_stopAt.ContainsKey(coin))
+            if (_stopAt.ContainsKey(coin) || _ended.GetValueOrDefault(coin) == ExposureRest.TrailEnds)
             {
+                // The money came on the coin's line to its actor, from a transaction it is not followed back through.
                 var owner = Owner(coin);
                 foreach (var line in _lines.GetValueOrDefault(coin, []).Where(edge => edge.To == owner))
                 {
@@ -631,6 +735,12 @@ internal sealed class UtxoExposureRun
         if (_stopAt.TryGetValue(coin, out var node))
         {
             _tally.Arrive(node, units, through);
+            return;
+        }
+
+        if (_ended.TryGetValue(coin, out var why))
+        {
+            _tally.Rest(why, units);
             return;
         }
 

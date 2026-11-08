@@ -117,36 +117,24 @@ fungerar rättas före allt annat nedan. Särskilt:
 ### 3. Godkänt men inte byggt
 
 1. **Begäran, resterna efter BG1b** [direkt]:
-   - **Markeringen i grafen:** skissen ger börsen en liten blå markering i hörnet när en begäran är exporterad. Den
-     är inte ritad, eftersom grafen byggdes om samtidigt; listan i vyn Begäran har den gröna markeringen.
    - **Kontaktvägar:** katalogen är tom, eftersom ingen kontaktväg gick att kontrollera mot sin källa när modulen
      byggdes (`ExchangeContacts.Catalogue`). Lägg in verifierade vägar med källa och datum.
    - **Fler mallar** per börs, om kryptospåraren vill det.
 2. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
    - Knappen R finns. En vanlig nyckel ger bara tio anrop i månaden, så uppslag på varje nod kräver partnernyckel.
-3. **Säga till när sparningen inte går** [direkt]: ärendet sparar sig självt efter skrivningar (Spara ofta, byggt
-   2026-11-08), och en sparning som misslyckas provas igen efter 1, 2, 4 och sedan högst 10 minuter utan att något sägs.
-   - Arbetskopian har allt och tas tillbaka efter en krasch, så inget går förlorat, men `.cut` är då inte färsk.
-   - Förslag: en varning i toastern (TO1a) när sparningen misslyckats några gånger i rad, och *Försök igen*. Kräver en
-     händelse på `ICase` som appen lyssnar på.
-4. **Godkänna en plånbok, resterna** [direkt]:
-   - Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås ihop igen; det gör bara *Historik*.
-     Behöver en liten skiss.
-   - Ett förslag som ändrats sedan det förseglades ger det allmänna felet; det borde säga att kontrollerna behöver
-     köras igen.
+3. **Godkänna en plånbok, bekräftelsen vid Ctrl+Z** [skiss]: Ctrl+Z och *Ångra* i KF2b-panelen visar ingen
+   bekräftelse av vad som slås ihop igen; det gör bara *Historik*. Behöver en liten skiss.
 
 ### 4. Resterna efter valen 2026-11-08
 
 Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md under *Valt för 1.0*.
-- **Exponering, resterna efter EP1b** [direkt]: kronorna under beloppen (efter KU1a), mixerns godkända troliga
-  utgångar som streckade lila förslag bortom mixern, *Tillbaka · Esc* i grafen efter *Visa vägen i grafen*, och
-  *Exponering …* i nodens meny i grafen (`ExposureViewModel.Open` finns).
-- **Inställningarnas rester** [direkt] (efter BV4a, ST2a, FS2a och UT3b):
-  - Titelraden visar inte *Syns som* på utgångens tips (UT3b har det i skissen).
-  - Kontrollen av Windows som utgång (*datorns eget nät*) visas ingenstans, eftersom tabellen bara står under VPN.
-
-- **Sökningen, resterna efter KR1a** [direkt]: det slängda i soptunnan söks inte (raden kunde säga *I soptunnan* med
-  *Lägg tillbaka*), och en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret.
+- **Exponering, mixerns troliga utgångar** [skiss]: EP1b ritar godkända troliga utgångar ur en mixer som streckade
+  förslag bortom mixern (en streckad rund nod, en prickad linje och *förslag* i stället för andelen). Ringarna
+  (`Controls/ExposureRings`) har varken streckade linjer eller kandidater i dag, kandidaterna bär inget belopp i
+  appen (`CandidateLine`), och en mixer i tredje ringen har ingen ring bortom sig. Hur det ska se ut där behöver en
+  liten skiss innan det byggs (omgång 4, 2026-11-08).
+- **Sökningen, resterna efter KR1a** [direkt]: en etikett från ett annat ärende kan inte säga vilket, eftersom
+  ursprunget saknar ärendenumret. *Lägg tillbaka* direkt på raden *I soptunnan* (nu öppnar Enter soptunnan).
 
 ## Före tjänstebruk
 

@@ -21,9 +21,11 @@ public sealed class TestCaseTests : IDisposable
     /// <summary>
     /// What the built graph cannot show yet: Kan frysas needs USDT or USDC on Ethereum, whose made-up source is not
     /// built (TODO). The start point and the watch are drawn by the graph from the trace and the watches, not as a
-    /// badge, so they are checked on their own below.
+    /// badge, so they are checked on their own below. An exported request's mark is drawn from the case's exports, not
+    /// from the scene.
     /// </summary>
-    private static readonly NodeBadge[] NotAsBadges = [NodeBadge.CanBeFrozen, NodeBadge.StartPoint, NodeBadge.Watched];
+    private static readonly NodeBadge[] NotAsBadges =
+        [NodeBadge.CanBeFrozen, NodeBadge.StartPoint, NodeBadge.Watched, NodeBadge.RequestExported];
 
     private readonly Harness _harness = new();
 

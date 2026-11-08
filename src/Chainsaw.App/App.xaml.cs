@@ -77,6 +77,8 @@ public partial class App : Application
         await _host.StartAsync();
         var window = _host.Services.GetRequiredService<MainWindow>();
         MainWindow = window;
+        // The alarm follows the open case from here on and says when it cannot be saved.
+        _ = _host.Services.GetRequiredService<SaveAlarm>();
         var links = _host.Services.GetRequiredService<LinkInbox>();
         links.Receive(argument);
         _instance.Listen(text => Dispatcher.BeginInvoke(() =>
@@ -210,6 +212,7 @@ public partial class App : Application
                 .AddSingleton<ICheckSource, CheckSource>()
                 .AddSingleton<IGraphComments, GraphComments>()
                 .AddSingleton<Toaster>()
+                .AddSingleton<SaveAlarm>()
                 .AddSingleton<ITrashSource, TrashSource>()
                 .AddSingleton<CaseTrash>()
                 .AddSingleton<GraphViewModel>()

@@ -1897,3 +1897,31 @@ några steg).
 - Belopp i SEK står bara när ärendet har en kurs för tiden när pengarna rörde sig, och då för den spårade delen.
 - *Ändra i grafen* och klicket på den lilla bilden går till grafen; ändra markeringen och gå tillbaka med Ctrl+8:
   rapporten följer med.
+
+## Resterna efter valen (Begäran, sparningen, Exponering, utgången, sökningen, 2026-11-08)
+
+- **Börsens markering:** exportera en begäran i vyn Begäran och gå till grafen: börsen får en liten blå markering med
+  en sida (begäran) i hörnet, efter *Uttag funnet* och före ögat om den bevakas. Den står kvar när ärendet öppnas
+  igen. Bildspråkets *?* har raden *Begäran exporterad*.
+- **Sparningen som inte går:** lås ärendefilen för skrivning (öppna `.cut` i ett program som håller den, eller gör
+  mappen skrivskyddad) och skriv något i ärendet. Efter tre misslyckade sparningar i rad (cirka 7 minuter) står en
+  gul varning nere till höger, *Ärendet kunde inte sparas*, med *Försök igen*. Släpp låset och tryck *Försök igen*:
+  *Ärendet är sparat igen*. Släpps låset utan att trycka tas varningen bort när nästa sparning går.
+- **Ett ändrat förslag:** godkänn en plånbok i panelen Förslag efter att klustringen ändrats (bryt upp och ångra i en
+  annan ordning, eller expandera så att förslaget ändras): panelen säger att förslaget har ändrats och att
+  kontrollerna är körda igen, i stället för *Det kunde inte sparas i ärendet*.
+- **Exponering, kronorna:** med kurser i ärendet står kronorna efter beloppet för den valda tjänsten (`0,2500 BTC ·
+  ≈ 23 400 kr`) och i tipset på andelarna per färg. Utan kurs för en linje på vägen står inga kronor.
+- **Exponering, vägen tillbaka:** *Visa vägen i grafen* (G) visar grafen med *‹ Exponering Esc* uppe till vänster;
+  knappen och Esc går tillbaka till Exponering. Lämnas grafen på annat sätt försvinner knappen.
+- **Exponering i nodens meny:** högerklicka ett kluster eller en adress som betalat eller fått: *Exponering …* öppnar
+  vyn med noden i mitten. Noder utan pengar har ingen sådan rad.
+- **Exponering och spåret:** knyt en adress mynt till en annan kedja (K): Exponering för den som betalade dit visar
+  pengarna hos *Annan kedja*, inte vidare i bryggans egna tx. Pengar in i en CoinJoin som inte räknas som tjänst står
+  under *Okänt* som *Spåret tar slut i en tx*.
+- **Utgångens tips:** håll musen över utgången i titelraden med en ansluten VPN-utgång som har kontrollerats: tipset
+  slutar med `syns som <adress>, <land>`. Med Windows som utgång kontrolleras datorns eget nät en gång när datorn är
+  online (om *Kontrollera vid anslutning* är på) och tipset säger `Uppslag går genom Windows · syns som <adress>`.
+  Låst: inget frågas.
+- **Sökningen och soptunnan:** släng en adress och sök på den med Ctrl+K: raden säger *I soptunnan* och *Öppna
+  soptunnan*; Enter öppnar soptunnan.

@@ -62,6 +62,12 @@ public sealed record SearchEntry(
     public bool IsFromOtherCase { get; init; }
 
     /// <summary>
+    /// Gets whether it lies in the trash (sketch SO1a): the graph hides it, so it is not shown there, and Enter opens
+    /// the trash where it can be put back.
+    /// </summary>
+    public bool IsInTrash { get; init; }
+
+    /// <summary>
     /// Gets other words it is found by, such as a section's id and group, or a cluster's addresses; matched less
     /// well than <see cref="Text"/>.
     /// </summary>

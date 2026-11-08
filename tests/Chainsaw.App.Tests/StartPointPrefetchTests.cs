@@ -440,6 +440,12 @@ public sealed class StartPointPrefetchTests
         {
         }
 
+        public event EventHandler<CaseSaveState>? SaveStateChanged
+        {
+            add { }
+            remove { }
+        }
+
         public void Close() => IsClosed = true;
 
         public void Dispose() => Close();

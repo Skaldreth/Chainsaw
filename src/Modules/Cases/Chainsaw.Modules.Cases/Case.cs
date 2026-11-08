@@ -376,6 +376,9 @@ internal sealed class Case : ICase
     }
 
     /// <inheritdoc />
+    public event EventHandler<CaseSaveState>? SaveStateChanged;
+
+    /// <inheritdoc />
     public void Save()
     {
         lock (_gate)
@@ -649,7 +652,10 @@ internal sealed class Case : ICase
         CaseFileHash = saved;
         CaseFiles.WriteBase(_paths, [saved]);
         WriteAnchors();
-        _autosave.Saved();
+        if (_autosave.Saved())
+        {
+            SaveStateChanged?.Invoke(this, new CaseSaveState(0));
+        }
     }
 
     /// <summary>
@@ -1043,7 +1049,8 @@ internal sealed class Case : ICase
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // An exception must not leave the timer's thread; the case file is untouched until the atomic replace.
-            _autosave.Failed();
+            var failures = _autosave.Failed();
+            SaveStateChanged?.Invoke(this, new CaseSaveState(failures));
         }
     }
 

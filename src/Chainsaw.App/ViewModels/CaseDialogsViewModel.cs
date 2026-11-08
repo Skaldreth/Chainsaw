@@ -34,7 +34,7 @@ public sealed class CaseDialogsViewModel
         workflow.PasswordWanted += (_, offer) =>
         {
             CloseAll();
-            _ = password.ShowAsync(offer);
+            Showing = password.ShowAsync(offer);
             Shown?.Invoke(this, EventArgs.Empty);
         };
         workflow.ConflictFound += (_, conflict) =>
@@ -53,6 +53,12 @@ public sealed class CaseDialogsViewModel
 
     /// <summary>Gets the dialog for a colleague's file.</summary>
     public CasePasswordViewModel Password { get; }
+
+    /// <summary>
+    /// Gets the last showing of the dialog for a colleague's file, which completes once the file's envelopes are read
+    /// and shown. The window does not wait for it; it is kept so that the reading is observed and can be awaited.
+    /// </summary>
+    public Task Showing { get; private set; } = Task.CompletedTask;
 
     /// <summary>Gets the case's properties.</summary>
     public CasePropertiesViewModel Properties { get; }

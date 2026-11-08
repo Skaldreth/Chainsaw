@@ -165,6 +165,34 @@ public sealed class CommandSearchTests
         Assert.Null(best.Entry.NodeKey);
     }
 
+    /// <summary>
+    /// What lies in the trash is still found (sketch SO1a): its row says <em>I soptunnan</em>, it is not shown in the
+    /// graph, and Enter opens the trash.
+    /// </summary>
+    [Fact]
+    public void WhatLiesInTheTrashIsFoundWithItsRow()
+    {
+        var thrown = new TrashThrow(
+            1,
+            [new TrashMember(GraphSamples.UKey, null, "U", "Unknown")],
+            new OperatorProfile("Testa", "Utredare", "Enheten"),
+            DateTimeOffset.UnixEpoch,
+            1);
+        var scene = Scene().WithTrash(new TrashFilter([thrown]));
+
+        var best = SearchIndex.Build(scene, Library).Search(GraphSamples.U.Value).Best!;
+
+        Assert.True(best.Entry.IsInTrash);
+        Assert.Null(best.Entry.NodeKey);
+        Assert.EndsWith("I soptunnan", best.Entry.Sub, StringComparison.Ordinal);
+        var row = new SearchRowViewModel(best, isBest: true);
+        Assert.Equal(SearchRowViewModel.InTrashHint, row.Hint);
+        Assert.DoesNotContain(
+            "soptunnan",
+            SearchIndex.Build(Scene(), Library).Search(GraphSamples.U.Value).Best!.Entry.Sub,
+            StringComparison.Ordinal);
+    }
+
     /// <summary><c>/guide</c> searches only the Guide; a concept finds its section.</summary>
     [Fact]
     public void GuideOnlyFindsTheSection()

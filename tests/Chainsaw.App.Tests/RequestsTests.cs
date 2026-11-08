@@ -301,6 +301,7 @@ public sealed class RequestsViewModelTests
         Assert.Equal("2026-11-07 14:20", row.When);
         Assert.True(model.Exits[0].IsExported);
         Assert.Equal("Exporterad 2026-11-07 14:20", model.Exits[0].ExportedText);
+        Assert.Equal([model.Exits[0].Exit.NodeKey], model.ExportedNodes);
         Assert.Contains(_toaster.Toasts, toast => toast.Title == RequestsViewModel.ExportedTitle);
     }
 
@@ -388,6 +389,15 @@ public sealed class RequestsViewModelTests
 
         Assert.Equal(["b.md", "a.md"], model.Exports.Select(row => row.FileName));
         Assert.Equal("Exporterad 2026-11-06 09:00", model.Exits[0].ExportedText);
+        Assert.Equal([model.Exits[0].Exit.NodeKey], model.ExportedNodes);
+    }
+
+    [Fact]
+    public void Without_an_export_no_cash_out_is_marked_in_the_graph()
+    {
+        var model = Model();
+
+        Assert.Empty(model.ExportedNodes);
     }
 }
 

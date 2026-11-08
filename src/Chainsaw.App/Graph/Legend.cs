@@ -133,6 +133,7 @@ public static class Legend
     {
         [NodeBadge.StartPoint] = "Spåret börjar här. Flaggan sitter i vänstra hörnet; noden behåller sin sort.",
         [NodeBadge.CashOutFound] = "Spårade pengar når ett uttag här.",
+        [NodeBadge.RequestExported] = "En begäran om uppgifter till uttaget är exporterad och journalförd.",
         [NodeBadge.FromOtherCase] = "Etiketten kom från ett annat ärende genom biblioteket. En bedömning här.",
         [NodeBadge.Sanctioned] = "Adressen står på en sanktionslista.",
         [NodeBadge.Reported] =

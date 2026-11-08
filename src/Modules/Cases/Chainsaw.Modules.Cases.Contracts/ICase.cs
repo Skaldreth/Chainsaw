@@ -137,6 +137,13 @@ public interface ICase : IDisposable
     void Save();
 
     /// <summary>
+    /// Raised when a save in the background fails, with how many have failed in a row, and when a save (in the
+    /// background, by <see cref="Save"/> or at closing) succeeds after such failures, with none. Raised on the thread
+    /// that saved, with the case's gate held: a handler must not call into the case, only note it and return.
+    /// </summary>
+    event EventHandler<CaseSaveState>? SaveStateChanged;
+
+    /// <summary>
     /// Saves, closes the database, removes the working copy and clears the file key from memory. Closing twice is
     /// harmless. If the save fails, the working copy is kept so that the next opening recovers it, and the failure
     /// is thrown.
