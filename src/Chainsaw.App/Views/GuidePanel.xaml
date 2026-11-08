@@ -94,11 +94,28 @@
                     </DockPanel>
                 </Border>
 
-                <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" Focusable="False">
-                    <controls:GuideDocumentView Compact="True" Margin="26,20,26,40" Section="{Binding Page.Section}"
-                                                Anchor="{Binding Page.Anchor}" Library="{Binding Library}"
-                                                LinkCommand="{Binding GoCommand}" />
-                </ScrollViewer>
+                <Grid>
+                    <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" Focusable="False"
+                                  ScrollChanged="OnScrollChanged">
+                        <controls:GuideDocumentView Compact="True" Margin="26,20,26,40" Section="{Binding Page.Section}"
+                                                    Anchor="{Binding Page.Anchor}" Library="{Binding Library}"
+                                                    LinkCommand="{Binding GoCommand}" />
+                    </ScrollViewer>
+
+                    <!--
+                      The text fades out at the bottom while there is more below, instead of a hard cut; the scroll bar
+                      stays clear of it, and it is gone at the end.
+                    -->
+                    <Border x:Name="MoreBelow" Height="64" VerticalAlignment="Bottom" Margin="0,0,12,0"
+                            IsHitTestVisible="False" Opacity="0">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Offset="0" Color="Transparent" />
+                                <GradientStop Offset="1" Color="{StaticResource Color.Surface}" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                </Grid>
             </DockPanel>
         </Border>
     </Grid>

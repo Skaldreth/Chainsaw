@@ -1135,3 +1135,5 @@ ligger bredvid `Chainsaw.exe`.
 - Utan ärende: Graf-ikonen syns inte i pillret, och ingen dubbel skiljelinje. Startvyns fot säger inte *Utgång: …*,
   bara *Offline* när inga uppslag går.
 - Osäkra (streckade) linjer: korta, fina streck oavsett hur tjock linjen är, inte grova korvar.
+- Guiden bredvid arbetet (F1 eller *?*): ingen skugga över titelraden. Längst ner tonar texten ut mot panelens botten så
+  länge det finns mer att läsa; vid slutet försvinner toningen.

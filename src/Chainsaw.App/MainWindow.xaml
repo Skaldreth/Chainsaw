@@ -224,7 +224,8 @@
                     </DockPanel>
                 </Border>
 
-                <Grid Grid.Row="1">
+                <!-- Clipped at the title bar's lower edge, so that no panel's shadow ever lies over the title bar. -->
+                <Grid Grid.Row="1" ClipToBounds="True">
                     <!--
                       ===== The page. It has no header of its own (decided 2026-11-07): the pill's chosen icon says which view
                       it is, and the space is the view's. =====
