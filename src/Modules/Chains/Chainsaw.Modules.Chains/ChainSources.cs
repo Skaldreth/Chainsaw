@@ -451,16 +451,38 @@ internal sealed class ChainSources : IChainSources
         try
         {
             var key = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim();
+
+            // An address that is already an endpoint follows that endpoint's pace (etapp 25, M): Prova never asks it
+            // faster than the lookups may.
+            var known = Known(chain, checkedAddress);
             var candidate = new SourceEndpoint(
-                Guid.Empty, chain, SourceAddress.NameOf(checkedAddress), checkedAddress, sort.Info.Code, key, true)
+                known?.Id ?? Guid.Empty, chain, SourceAddress.NameOf(checkedAddress), checkedAddress,
+                sort.Info.Code, key, true)
             {
                 Local = local,
+                Interval = known?.Interval ?? (local ? SourcePace.Local : SourcePace.Public),
             };
-            return await ProbeOneAsync(candidate, sort, ProbeHash.Required, cancellationToken).ConfigureAwait(false);
+            var probe = await ProbeOneAsync(candidate, sort, ProbeHash.Required, cancellationToken)
+                .ConfigureAwait(false);
+            return probe with { EndpointId = Guid.Empty };
         }
         catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             return NotSent(Guid.Empty, exception.Message);
+        }
+    }
+
+    /// <summary>Finds the endpoint a chain already has at an address.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="address">The address.</param>
+    /// <returns>The endpoint, or <see langword="null"/> when the address is not one of its endpoints.</returns>
+    private SourceEndpoint? Known(Chain chain, Uri address)
+    {
+        lock (_gate)
+        {
+            return _chains.TryGetValue(chain, out var state)
+                ? state.Endpoints.FirstOrDefault(endpoint => endpoint.Address == address)
+                : null;
         }
     }
 
@@ -662,8 +684,8 @@ internal sealed class ChainSources : IChainSources
     }
 
     /// <summary>
-    /// Asks for the block's hash at the height. In a round (<see cref="ProbeHash.Optional"/>) the endpoint's turn is
-    /// waited for again, as for any request, and a hash that does not come leaves the probe as its height made it.
+    /// Asks for the block's hash at the height. A known endpoint's turn is waited for again, as for any request, and in a
+    /// round (<see cref="ProbeHash.Optional"/>) a hash that does not come leaves the probe as its height made it.
     /// </summary>
     /// <param name="endpoint">The endpoint.</param>
     /// <param name="request">The request for the hash.</param>
@@ -675,8 +697,9 @@ internal sealed class ChainSources : IChainSources
         SourceEndpoint endpoint, ExitRequest request, ISourceApi api, ProbeHash hashMode,
         CancellationToken cancellationToken)
     {
-        if (hashMode == ProbeHash.Optional)
+        if (endpoint.Id != Guid.Empty)
         {
+            // A second request to a known endpoint waits for its turn too.
             var (mayAsk, _) = await TurnAsync(endpoint, api, cancellationToken).ConfigureAwait(false);
             if (!mayAsk)
             {

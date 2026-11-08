@@ -35,6 +35,19 @@ public sealed class EndpointPaceTests : IDisposable
     }
 
     [Fact]
+    public async Task Trying_an_address_that_is_already_an_endpoint_follows_its_pace()
+    {
+        _harness.AnswerAll();
+
+        await _harness.Source.GetTipHeightAsync(_harness.Case);
+        var tried = await _harness.Sources.TryAsync(Chain.Bitcoin, new Uri(Fixtures.Base), "esplora", null);
+
+        // The height and the block's hash after the lookup, each a pace apart; the form's answer has no id.
+        Assert.Equal(Guid.Empty, tried.EndpointId);
+        Assert.True(_harness.Clock.Waits.Count(wait => wait == SourcePace.Public) >= 2);
+    }
+
+    [Fact]
     public async Task The_lookups_are_spread_over_the_endpoints_instead_of_waiting_for_one()
     {
         _harness.AnswerAll();
