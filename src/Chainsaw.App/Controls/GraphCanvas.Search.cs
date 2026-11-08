@@ -103,7 +103,7 @@ public sealed partial class GraphCanvas
             from.OffsetX + ((to.OffsetX - from.OffsetX) * eased),
             from.OffsetY + ((to.OffsetY - from.OffsetY) * eased),
             from.Zoom + ((to.Zoom - from.Zoom) * eased));
-        InvalidateVisual();
+        MoveView();
     }
 
     /// <summary>Ends the glide where it was going, and stores the place on screen.</summary>
@@ -113,7 +113,7 @@ public sealed partial class GraphCanvas
         DropFoundGlide();
         _viewport = target;
         _model?.ViewportChanged(_viewport);
-        InvalidateVisual();
+        Redraw();
     }
 
     /// <summary>Unhooks the glide's frames where it is, without storing the place.</summary>
@@ -136,8 +136,8 @@ public sealed partial class GraphCanvas
         }
 
         var frame = _model.FrameAt(key, place);
-        var accent = GraphPalette.Find(this, "Brush.Accent");
-        var pen = new Pen(accent, FoundRingThickness);
+        var accent = Ink("Brush.Accent");
+        var pen = PenOf(accent, FoundRingThickness);
         var radius = NodeRadius + FoundRingGap;
         dc.DrawRoundedRectangle(null, pen, Around(frame, FoundRingGap), radius, radius);
         _ringsOnScreen = true;

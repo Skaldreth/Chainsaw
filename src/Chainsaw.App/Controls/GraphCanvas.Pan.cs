@@ -132,7 +132,7 @@ public sealed partial class GraphCanvas
         _viewport = _viewport.Pan(at.X - _panLast.X, at.Y - _panLast.Y);
         _panLast = at;
         _panVelocity.Add(e.Timestamp, at.X, at.Y);
-        InvalidateVisual();
+        MoveView();
         return true;
     }
 
@@ -153,6 +153,12 @@ public sealed partial class GraphCanvas
         {
             _model?.ViewportChanged(_viewport);
             StartGlide(new Vector(x, y));
+            if (!_gliding)
+            {
+                // The scene is made again once the surface stands still, so that it never shows a moved drawing
+                // longer than the motion lasts.
+                Redraw();
+            }
         }
 
         e.Handled = moved;
@@ -196,6 +202,7 @@ public sealed partial class GraphCanvas
         if (DropGlide())
         {
             _model?.ViewportChanged(_viewport);
+            Redraw();
         }
     }
 
@@ -227,7 +234,7 @@ public sealed partial class GraphCanvas
             Easing.GlideDistance(_glideVelocity.X, seconds, GlideFade),
             Easing.GlideDistance(_glideVelocity.Y, seconds, GlideFade));
         _glideVelocity *= Easing.Fade(seconds, GlideFade);
-        InvalidateVisual();
+        MoveView();
         if (_glideVelocity.Length < GlideStopSpeed)
         {
             StopGlide();

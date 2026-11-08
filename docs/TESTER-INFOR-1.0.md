@@ -1140,6 +1140,23 @@ och K först).
 - [ ] Med animeringar avstängda i Windows: varje hack zoomar direkt ett steg, utan glidning.
 - [ ] Zooma och öppna ärendet igen: zoomnivån finns kvar (den sparas när zoomen landat, inte under den).
 
+### Grafens fart (2026-11-08)
+
+Grafen ritar scenen i ett eget lager som bara flyttas när man panorerar, glider eller zoomar, och ritar om den först
+när något ändras eller man har panorerat förbi kanten av det ritade. Provas helst med ett stort ärende (hundratals
+noder).
+
+- [ ] Panorera fort åt alla håll och släpp i farten: rörelsen är jämn, utan hack, också när nya delar av grafen kommer in.
+- [ ] Zooma med hjulet: under själva svepet kan linjer och ikoner bli en aning tjockare eller tunnare, och när zoomen
+  landar är allt skarpt igen (linjerna 1,5 px). Säg till om det syns och stör.
+- [ ] Hovra och välj noder och linjer, dra noder, vänd ett kort (Alt + klick), öppna ett blockmärke och dra en ruta:
+  allt ritas om direkt som förut.
+- [ ] Efter en panorering: hovring och klick på belopp, blockmärken och områdenas brickor träffar rätt.
+- [ ] En bevakning med träff (animerade ringar), en nod som väntar på källan (timglaset) och sökningens ring: de rör
+  sig som förut, och panorering under tiden är jämn.
+- [ ] Tidsbandens namn, ikonlisten vid den valda noden och kommentarslapparna följer med i varje bildruta.
+- [ ] Ledtrådsnodens valvy och den utfällda högen fungerar som förut.
+
 ### Välja flera med en ruta (2026-11-08, efter användarens beskrivning)
 
 - [ ] Tryck vänsterknappen på tom yta i grafen och dra: en tunn ruta i accentfärgen (terrakotta) med svag fyllning

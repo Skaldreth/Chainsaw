@@ -179,8 +179,8 @@ public sealed partial class GraphCanvas
         dc.DrawRoundedRectangle(Brushes.Black, null, shadow, CardRadius, CardRadius);
         dc.Pop();
         var chosen = _model!.SelectedNode == node.Key;
-        var edge = new Pen(GraphPalette.Find(this, chosen ? "Brush.TextMuted" : "Brush.BorderStrong"), 1.5);
-        dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Floating"), null, frame, CardRadius, CardRadius);
+        var edge = PenOf(Ink(chosen ? "Brush.TextMuted" : "Brush.BorderStrong"), 1.5);
+        dc.DrawRoundedRectangle(Ink("Brush.Floating"), null, frame, CardRadius, CardRadius);
         dc.PushClip(new RectangleGeometry(frame, CardRadius, CardRadius));
         DrawCardHead(dc, node, frame);
         var top = frame.Y + HoldingsCard.HeadHeight;
@@ -208,14 +208,14 @@ public sealed partial class GraphCanvas
     /// <param name="frame">The card.</param>
     private void DrawCardHead(DrawingContext dc, NodeView node, Rect frame)
     {
-        var ink = GraphPalette.Brush(this, node.Look.Ink);
+        var ink = InkOf(node.Look.Ink);
         var middle = frame.Y + (HoldingsCard.HeadHeight / 2);
         var shape = new Rect(frame.X + CardPadding, middle - 4, 8, 8);
         var radius = node.Look.Shape == NodeShape.Round ? 4 : 2;
-        var pen = new Pen(ink, 1.5) { DashStyle = node.Look.IsDashed ? FrameDash : DashStyles.Solid };
+        var pen = PenOf(ink, 1.5, node.Look.IsDashed ? FrameDash : null);
         dc.DrawRoundedRectangle(null, pen, shape, radius, radius);
         var room = frame.Width - (2 * CardPadding) - 15 - TurnBackBox;
-        var name = CachedFitted(node.Name, 12, GraphPalette.Find(this, "Brush.TextMuted"), FontWeights.Normal, room);
+        var name = CachedFitted(node.Name, 12, Ink("Brush.TextMuted"), FontWeights.Normal, room);
         dc.DrawText(name, new Point(shape.Right + 7, middle - (name.Height / 2)));
         // The turn back shows only while the pointer is over the card (sketch IN4a), lit when it is on it.
         if (_hoveredCard != node.Key)
@@ -226,10 +226,10 @@ public sealed partial class GraphCanvas
         var back = TurnBackRect(frame);
         if (_onTurnBack)
         {
-            dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.SurfaceSelected"), null, back, 6, 6);
+            dc.DrawRoundedRectangle(Ink("Brush.SurfaceSelected"), null, back, 6, 6);
         }
 
-        DrawGlyph(dc, "Icon.Flip", GraphPalette.Find(this, "Brush.TextMuted"),
+        DrawGlyph(dc, "Icon.Flip", Ink("Brush.TextMuted"),
             new Point(back.X + 5.5, back.Y + 5.5), 13);
     }
 
@@ -267,14 +267,14 @@ public sealed partial class GraphCanvas
     {
         DrawRule(dc, frame, top);
         var middle = top + (HoldingsCard.RowHeight / 2);
-        var ink = GraphPalette.Find(this, row.Ink);
+        var ink = Ink(row.Ink);
         var ring = new Point(frame.X + CardPadding + (AssetRing / 2), middle);
-        dc.DrawEllipse(null, new Pen(ink, 1.5), ring, (AssetRing / 2) - 0.75, (AssetRing / 2) - 0.75);
-        var glyph = CachedText(row.Glyph, 13, ink, FontWeights.Normal);
+        dc.DrawEllipse(null, PenOf(ink, 1.5), ring, (AssetRing / 2) - 0.75, (AssetRing / 2) - 0.75);
+        var glyph = Text(row.Glyph, 13, ink, FontWeights.Normal);
         dc.DrawText(glyph, new Point(ring.X - (glyph.Width / 2), ring.Y - (glyph.Height / 2)));
         var left = frame.X + CardPadding + AssetRing + 11;
-        var head = CachedText(row.Head, 14.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
-        var tail = CachedText(row.Tail, 14.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var head = Text(row.Head, 14.5, Ink("Brush.Text"), FontWeights.SemiBold);
+        var tail = Text(row.Tail, 14.5, Ink("Brush.TextDim"), FontWeights.Normal);
         var amountTop = middle - head.Height + 2;
         dc.DrawText(head, new Point(left, amountTop));
         dc.DrawText(tail, new Point(left + head.Width, amountTop));
@@ -283,14 +283,14 @@ public sealed partial class GraphCanvas
         {
             // What waits in the mempool (finding M2): a small amber clock before the snowflake's place.
             var clock = new Point(frame.Right - CardPadding - (row.CanBeFrozen ? 34 : 10), middle);
-            dc.DrawEllipse(GraphPalette.Find(this, "Brush.SurfaceSelected"), null, clock, 10, 10);
-            DrawGlyph(dc, "Icon.Clock", GraphPalette.Find(this, "Brush.Pending"),
+            dc.DrawEllipse(Ink("Brush.SurfaceSelected"), null, clock, 10, 10);
+            DrawGlyph(dc, "Icon.Clock", Ink("Brush.Pending"),
                 new Point(clock.X - 6, clock.Y - 6), 12);
         }
 
         if (row.CanBeFrozen)
         {
-            var (disc, icon) = (GraphPalette.Find(this, "Brush.Mark.Freeze"), GraphPalette.Find(this, "Brush.Mark.OnFreeze"));
+            var (disc, icon) = (Ink("Brush.Mark.Freeze"), Ink("Brush.Mark.OnFreeze"));
             var centre = new Point(frame.Right - CardPadding - 10, middle);
             dc.DrawEllipse(disc, null, centre, 10, 10);
             DrawGlyph(dc, "Icon.Snow", icon, new Point(centre.X - 5.5, centre.Y - 5.5), 11);
@@ -311,12 +311,12 @@ public sealed partial class GraphCanvas
         }
 
         var fromCase = card.Rate == CardRateKind.FromCase;
-        var ink = GraphPalette.Find(this, fromCase || row.Value is null ? "Brush.TextDim" : "Brush.TextMuted");
-        var text = CachedText(row.Value ?? HoldingsCards.NoValue, 11.5, ink, FontWeights.Normal);
+        var ink = Ink(fromCase || row.Value is null ? "Brush.TextDim" : "Brush.TextMuted");
+        var text = Text(row.Value ?? HoldingsCards.NoValue, 11.5, ink, FontWeights.Normal);
         dc.DrawText(text, at);
         if (fromCase && row.Value is not null)
         {
-            var line = new Pen(GraphPalette.Find(this, "Brush.BorderHover"), 1) { DashStyle = FrameDash };
+            var line = PenOf(Ink("Brush.BorderHover"), 1, FrameDash);
             var y = at.Y + text.Height;
             dc.DrawLine(line, new Point(at.X, y), new Point(at.X + text.Width, y));
         }
@@ -332,9 +332,9 @@ public sealed partial class GraphCanvas
         DrawRule(dc, frame, top);
         var middle = top + (HoldingsCard.EmptyHeight / 2);
         var ring = new Point(frame.X + CardPadding + (AssetRing / 2), middle);
-        var dashed = new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1.5) { DashStyle = FrameDash };
+        var dashed = PenOf(Ink("Brush.BorderStrong"), 1.5, FrameDash);
         dc.DrawEllipse(null, dashed, ring, (AssetRing / 2) - 0.75, (AssetRing / 2) - 0.75);
-        dc.DrawLine(new Pen(GraphPalette.Find(this, "Brush.TextDim"), 1.5), new Point(ring.X - 4.5, ring.Y),
+        dc.DrawLine(PenOf(Ink("Brush.TextDim"), 1.5), new Point(ring.X - 4.5, ring.Y),
             new Point(ring.X + 4.5, ring.Y));
         DrawTwoLines(dc, new Point(frame.X + CardPadding + AssetRing + 11, middle), HoldingsCards.EmptyText, since);
     }
@@ -357,7 +357,7 @@ public sealed partial class GraphCanvas
         }
         else
         {
-            DrawGlyph(dc, "Icon.Alert", GraphPalette.Find(this, "Brush.Pending"), new Point(ring.X - 8, ring.Y - 8), 16);
+            DrawGlyph(dc, "Icon.Alert", Ink("Brush.Pending"), new Point(ring.X - 8, ring.Y - 8), 16);
         }
 
         DrawTwoLines(dc, new Point(frame.X + CardPadding + AssetRing + 11, middle), title, detail, frame.Right - CardPadding);
@@ -372,10 +372,10 @@ public sealed partial class GraphCanvas
     private void DrawTwoLines(DrawingContext dc, Point at, string title, string? detail, double right = double.NaN)
     {
         var room = double.IsNaN(right) ? double.PositiveInfinity : right - at.X;
-        var first = CachedFitted(title, 13.5, GraphPalette.Find(this, "Brush.TextMuted"), FontWeights.Normal, room);
+        var first = CachedFitted(title, 13.5, Ink("Brush.TextMuted"), FontWeights.Normal, room);
         var second = detail is null
             ? null
-            : CachedFitted(detail, 11.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal, room);
+            : CachedFitted(detail, 11.5, Ink("Brush.TextDim"), FontWeights.Normal, room);
         var height = first.Height + (second?.Height ?? 0);
         dc.DrawText(first, new Point(at.X, at.Y - (height / 2)));
         if (second is not null)
@@ -394,14 +394,14 @@ public sealed partial class GraphCanvas
     private void DrawCardFoot(DrawingContext dc, HoldingsCard card, Rect frame)
     {
         var foot = new Rect(frame.X, frame.Bottom - HoldingsCard.FootHeight, frame.Width, HoldingsCard.FootHeight);
-        dc.DrawRectangle(GraphPalette.Find(this, "Brush.Surface"), null, foot);
+        dc.DrawRectangle(Ink("Brush.Surface"), null, foot);
         DrawRule(dc, frame, foot.Y);
         var middle = foot.Y + (foot.Height / 2);
-        var dim = GraphPalette.Find(this, "Brush.TextDim");
+        var dim = Ink("Brush.TextDim");
         var right = foot.Right - CardPadding;
         if (card.Block.Length > 0)
         {
-            var height = CachedText(card.Block, 11, dim, FontWeights.Normal);
+            var height = Text(card.Block, 11, dim, FontWeights.Normal);
             right -= height.Width;
             dc.DrawText(height, new Point(right, middle - (height.Height / 2)));
             right -= 15;
@@ -415,7 +415,7 @@ public sealed partial class GraphCanvas
 
         var left = foot.X + CardPadding;
         DrawRateSign(dc, card.Rate, new Point(left + 6, middle));
-        var ink = GraphPalette.Find(this, card.Rate == CardRateKind.Today ? "Brush.TextDim" : "Brush.TextMuted");
+        var ink = Ink(card.Rate == CardRateKind.Today ? "Brush.TextDim" : "Brush.TextMuted");
         var text = CachedFitted(card.RateText, 11, ink, FontWeights.Normal, right - left - 26);
         dc.DrawText(text, new Point(left + 16, middle - (text.Height / 2)));
     }
@@ -429,17 +429,17 @@ public sealed partial class GraphCanvas
         switch (rate)
         {
             case CardRateKind.Today:
-                dc.DrawEllipse(GraphPalette.Find(this, "Brush.Success"), null, centre, 3, 3);
+                dc.DrawEllipse(Ink("Brush.Success"), null, centre, 3, 3);
                 break;
             case CardRateKind.Fetching:
                 var turned = AnimationsOn ? (DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 900 % 1) * 360 : 0;
                 dc.PushTransform(new RotateTransform(turned, centre.X, centre.Y));
-                DrawGlyph(dc, "Icon.Refresh", GraphPalette.Find(this, "Brush.TextMuted"),
+                DrawGlyph(dc, "Icon.Refresh", Ink("Brush.TextMuted"),
                     new Point(centre.X - 6, centre.Y - 6), 12);
                 dc.Pop();
                 break;
             default:
-                DrawGlyph(dc, "Icon.Clock", GraphPalette.Find(this, "Brush.Pending"),
+                DrawGlyph(dc, "Icon.Clock", Ink("Brush.Pending"),
                     new Point(centre.X - 6, centre.Y - 6), 12);
                 break;
         }
@@ -450,7 +450,7 @@ public sealed partial class GraphCanvas
     /// <param name="frame">The card.</param>
     /// <param name="y">The row's top.</param>
     private void DrawRule(DrawingContext dc, Rect frame, double y) =>
-        dc.DrawLine(new Pen(GraphPalette.Find(this, "Brush.Card.Rule"), 1), new Point(frame.X, y),
+        dc.DrawLine(PenOf(Ink("Brush.Card.Rule"), 1), new Point(frame.X, y),
             new Point(frame.Right, y));
 
     /// <summary>Draws a bar that breathes while something is fetched; still when Windows does not animate.</summary>
@@ -461,7 +461,7 @@ public sealed partial class GraphCanvas
         var phase = AnimationsOn ? DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 1200 % 1 : 0.5;
         dc.PushOpacity(0.35 + (0.45 * Math.Sin(phase * Math.PI)));
         var radius = Math.Min(bar.Height, bar.Width) / 2;
-        dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.BorderStrong"), null, bar, radius, radius);
+        dc.DrawRoundedRectangle(Ink("Brush.BorderStrong"), null, bar, radius, radius);
         dc.Pop();
     }
 
@@ -484,9 +484,9 @@ public sealed partial class GraphCanvas
             place.Y + GraphSizes.NodeHeight + MarkOverhang - (MarkSize / 2));
         var phase = AnimationsOn ? DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 1800 % 1 : 0.5;
         dc.PushOpacity(0.6 + (0.4 * Math.Sin(phase * Math.PI)));
-        dc.DrawEllipse(GraphPalette.Find(this, "Brush.BorderStrong"),
-            new Pen(GraphPalette.Find(this, "Brush.Background"), 2), centre, MarkSize / 2, MarkSize / 2);
-        DrawGlyph(dc, "Icon.Hourglass", GraphPalette.Find(this, "Brush.Pending"),
+        dc.DrawEllipse(Ink("Brush.BorderStrong"),
+            PenOf(Ink("Brush.Background"), 2), centre, MarkSize / 2, MarkSize / 2);
+        DrawGlyph(dc, "Icon.Hourglass", Ink("Brush.Pending"),
             new Point(centre.X - (MarkIconSize / 2), centre.Y - (MarkIconSize / 2)), MarkIconSize);
         dc.Pop();
         _waitBreathes = true;
@@ -554,7 +554,7 @@ public sealed partial class GraphCanvas
         if (card != _hoveredCard || onBack != _onTurnBack)
         {
             (_hoveredCard, _onTurnBack) = (card, onBack);
-            InvalidateVisual();
+            Redraw();
         }
     }
 

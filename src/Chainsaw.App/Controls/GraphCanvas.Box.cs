@@ -163,7 +163,7 @@ public sealed partial class GraphCanvas
             return;
         }
 
-        var accent = GraphPalette.Find(this, "Brush.Accent");
+        var accent = Ink("Brush.Accent");
         var from = _viewport.ToScreen(_boxAnchor);
         var box = BoxSelection.Between(from, _boxPointer);
 

@@ -78,13 +78,9 @@ public sealed partial class GraphCanvas
                 continue;
             }
 
-            var pen = new Pen(GraphPalette.Find(this, "Brush.Watch"), GlowWidth)
-            {
-                StartLineCap = PenLineCap.Round,
-                EndLineCap = PenLineCap.Round,
-            };
+            var pen = PenOf(Ink("Brush.Watch"), GlowWidth, ends: PenLineCap.Round);
             dc.PushOpacity(GlowOpacity);
-            dc.DrawGeometry(null, pen, Geometry(curve));
+            dc.DrawGeometry(null, pen, CurveGeometry(curve));
             dc.Pop();
         }
     }
@@ -143,20 +139,20 @@ public sealed partial class GraphCanvas
         var centre = new Point(
             place.X + node.Width + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
             place.Y - MarkOverhang + (MarkSize / 2));
-        var idle = GraphPalette.Find(this, "Brush.Watch.Idle");
+        var idle = Ink("Brush.Watch.Idle");
         if (mark.Idle)
         {
             dc.DrawEllipse(
-                GraphPalette.Find(this, "Brush.Surface"), new Pen(idle, 1.5), centre, MarkSize / 2, MarkSize / 2);
+                Ink("Brush.Surface"), PenOf(idle, 1.5), centre, MarkSize / 2, MarkSize / 2);
             DrawGlyph(dc, "Icon.Eye", idle, new Point(centre.X - (MarkIconSize / 2), centre.Y - (MarkIconSize / 2)),
                 MarkIconSize);
             return;
         }
 
         dc.DrawEllipse(
-            GraphPalette.Find(this, "Brush.Accent"), new Pen(GraphPalette.Find(this, "Brush.Background"), 2), centre,
+            Ink("Brush.Accent"), PenOf(Ink("Brush.Background"), 2), centre,
             MarkSize / 2, MarkSize / 2);
-        DrawGlyph(dc, "Icon.Eye", GraphPalette.Find(this, "Brush.Mark.OnAccent"),
+        DrawGlyph(dc, "Icon.Eye", Ink("Brush.Mark.OnAccent"),
             new Point(centre.X - (MarkIconSize / 2), centre.Y - (MarkIconSize / 2)), MarkIconSize);
     }
 
@@ -194,9 +190,8 @@ public sealed partial class GraphCanvas
             DrawRings(dc, middle, RingRadius, line.Idle);
         }
 
-        var accent = GraphPalette.Find(this, line.Idle ? "Brush.Watch.Idle" : "Brush.Accent");
-        dc.DrawGeometry(null, new Pen(accent, 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round },
-            Geometry(curve));
+        var accent = Ink(line.Idle ? "Brush.Watch.Idle" : "Brush.Accent");
+        dc.DrawGeometry(null, PenOf(accent, 2.5, ends: PenLineCap.Round), CurveGeometry(curve));
         if (line.Label is not { } label)
         {
             return;
@@ -205,7 +200,7 @@ public sealed partial class GraphCanvas
         var text = Text(label, 11, accent, FontWeights.SemiBold);
         var box = new Rect(middle.X - (text.Width / 2) - 5, middle.Y - (text.Height / 2) - 1, text.Width + 10,
             text.Height + 2);
-        dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
+        dc.DrawRoundedRectangle(Ink("Brush.Background"), null, box, 4, 4);
         dc.DrawText(text, new Point(box.X + 5, box.Y + 1));
     }
 
@@ -217,13 +212,8 @@ public sealed partial class GraphCanvas
     /// <param name="curve">Its curve.</param>
     private void DrawPending(DrawingContext dc, EdgeCurve curve)
     {
-        var pen = new Pen(GraphPalette.Find(this, "Brush.Watch.Idle"), 2)
-        {
-            DashStyle = PendingDashes,
-            StartLineCap = PenLineCap.Flat,
-            EndLineCap = PenLineCap.Flat,
-        };
-        dc.DrawGeometry(null, pen, Geometry(curve));
+        var pen = PenOf(Ink("Brush.Watch.Idle"), 2, PendingDashes);
+        dc.DrawGeometry(null, pen, CurveGeometry(curve));
         DrawLineEye(dc, curve.Middle, idle: true);
     }
 
@@ -257,7 +247,7 @@ public sealed partial class GraphCanvas
     private void DrawRings(DrawingContext dc, Point centre, double radius, bool idle)
     {
         _ringsOnScreen = true;
-        var tint = GraphPalette.Find(this, idle ? "Brush.Watch.Idle" : "Brush.Watch");
+        var tint = Ink(idle ? "Brush.Watch.Idle" : "Brush.Watch");
         var phase = AnimationsOn ? _ringPhase : 0;
         for (var ring = 0; ring < 2; ring++)
         {
@@ -265,7 +255,7 @@ public sealed partial class GraphCanvas
             var reach = radius + (AnimationsOn ? step * RingTravel : ring * RingTravel * 0.8);
             var opacity = AnimationsOn ? 0.6 * (1 - step) : (ring == 0 ? 0.55 : 0.25);
             dc.PushOpacity(opacity);
-            dc.DrawEllipse(null, new Pen(tint, ring == 0 ? 1.5 : 1), centre, reach, reach);
+            dc.DrawEllipse(null, PenOf(tint, ring == 0 ? 1.5 : 1), centre, reach, reach);
             dc.Pop();
         }
     }
@@ -276,9 +266,9 @@ public sealed partial class GraphCanvas
     /// <param name="idle">Whether lookups cannot be made now.</param>
     private void DrawLineEye(DrawingContext dc, GraphPoint at, bool idle)
     {
-        var tint = GraphPalette.Find(this, idle ? "Brush.Watch.Idle" : "Brush.Watch");
+        var tint = Ink(idle ? "Brush.Watch.Idle" : "Brush.Watch");
         var centre = new Point(at.X, at.Y);
-        dc.DrawEllipse(GraphPalette.Find(this, "Brush.Background"), new Pen(tint, 1.2), centre, LineEyeSize / 2,
+        dc.DrawEllipse(Ink("Brush.Background"), PenOf(tint, 1.2), centre, LineEyeSize / 2,
             LineEyeSize / 2);
         const double glyph = 10;
         DrawGlyph(dc, "Icon.Eye", tint, new Point(centre.X - (glyph / 2), centre.Y - (glyph / 2)), glyph);
@@ -307,14 +297,9 @@ public sealed partial class GraphCanvas
     /// <summary>Gives the pen of a watch line or a ray.</summary>
     /// <param name="idle">Whether lookups cannot be made now (grey).</param>
     /// <returns>The pen.</returns>
-    private Pen DotPen(bool idle) => new(GraphPalette.Find(this, idle ? "Brush.Watch.Idle" : "Brush.Watch"),
-        WatchLineWidth)
-    {
-        DashStyle = WatchDots,
-        DashCap = PenLineCap.Round,
-        StartLineCap = PenLineCap.Round,
-        EndLineCap = PenLineCap.Round,
-    };
+    private Pen DotPen(bool idle) =>
+        PenOf(Ink(idle ? "Brush.Watch.Idle" : "Brush.Watch"), WatchLineWidth, WatchDots, PenLineCap.Round,
+            PenLineCap.Round);
 
     /// <summary>
     /// Starts the rings' frames while moving rings are on screen and animations are on, and stops them otherwise, so
@@ -349,7 +334,7 @@ public sealed partial class GraphCanvas
         }
 
         _ringPhase = (DateTime.UtcNow - _ringStart).TotalMilliseconds / RingBeat.TotalMilliseconds % 1;
-        InvalidateVisual();
+        Redraw();
     }
 
     /// <summary>Draws again on a timer's frame, unless the window is minimised.</summary>
@@ -359,7 +344,7 @@ public sealed partial class GraphCanvas
     {
         if (!IsMinimised(this))
         {
-            InvalidateVisual();
+            Redraw();
         }
     }
 

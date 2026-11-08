@@ -135,7 +135,7 @@ public sealed partial class GraphCanvas
             Begin(BlastPhase.Back);
         }
 
-        InvalidateVisual();
+        Redraw();
     }
 
     /// <summary>Starts the blast from a clue.</summary>
@@ -206,7 +206,7 @@ public sealed partial class GraphCanvas
             CompositionTarget.Rendering += OnMovingFrame;
         }
 
-        InvalidateVisual();
+        Redraw();
     }
 
     /// <summary>Moves what moves one frame and draws again.</summary>
@@ -216,7 +216,7 @@ public sealed partial class GraphCanvas
     {
         var fan = StepFan();
         var blast = StepBlast();
-        InvalidateVisual();
+        Redraw();
         if ((!fan && !blast) || !IsVisible)
         {
             _moving = false;
@@ -330,7 +330,7 @@ public sealed partial class GraphCanvas
     /// <param name="dc">Where to draw.</param>
     private void DrawBlastRings(DrawingContext dc)
     {
-        var pen = PenOf(GraphPalette.Find(this, "Brush.TextDim"), 1.5);
+        var pen = PenOf(Ink("Brush.TextDim"), 1.5);
         for (var ring = 0; ring < 2; ring++)
         {
             var (diameter, opacity) = HeldBackMotion.Ring(ring, BlastK);
@@ -348,7 +348,7 @@ public sealed partial class GraphCanvas
     /// <param name="centre">The view's centre.</param>
     private void DrawGuides(DrawingContext dc, HeldBackGuides guides, GraphPoint centre)
     {
-        var faint = GraphPalette.Find(this, "Brush.BorderStrong");
+        var faint = Ink("Brush.BorderStrong");
         var dots = PenOf(faint, 1.2, GuideDots, PenLineCap.Round);
         foreach (var run in guides.Dotted.Where(run => run.Count > 1))
         {
@@ -371,17 +371,17 @@ public sealed partial class GraphCanvas
 
         if (guides.Arrival is { } ray)
         {
-            var dashed = PenOf(GraphPalette.Find(this, "Brush.Accent"), 1.2, ArrivalDash);
+            var dashed = PenOf(Ink("Brush.Accent"), 1.2, ArrivalDash);
             dc.DrawLine(dashed, At(centre, ray.From), At(centre, ray.To));
         }
 
         foreach (var label in guides.Labels)
         {
-            var ink = GraphPalette.Find(this, label.IsAccent ? "Brush.Accent" : "Brush.TextDim");
-            var text = CachedText(label.Text, 10.5, ink, FontWeights.Normal);
+            var ink = Ink(label.IsAccent ? "Brush.Accent" : "Brush.TextDim");
+            var text = Text(label.Text, 10.5, ink, FontWeights.Normal);
             var at = At(centre, label.At);
             var box = new Rect(at.X - (text.Width / 2) - 4, at.Y - (text.Height / 2), text.Width + 8, text.Height);
-            dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 3, 3);
+            dc.DrawRoundedRectangle(Ink("Brush.Background"), null, box, 3, 3);
             dc.DrawText(text, new Point(box.X + 4, box.Y));
         }
     }
@@ -397,8 +397,8 @@ public sealed partial class GraphCanvas
     /// <param name="k">How far the dots have come out.</param>
     private void DrawDots(DrawingContext dc, HeldBackViewModel view, GraphPoint centre, double k)
     {
-        var background = GraphPalette.Find(this, "Brush.Background");
-        var accent = PenOf(GraphPalette.Find(this, "Brush.Accent"), 1.5);
+        var background = Ink("Brush.Background");
+        var accent = PenOf(Ink("Brush.Accent"), 1.5);
         var visible = new Rect(0, 0, ActualWidth, ActualHeight);
         for (var index = 0; index < view.Dots.Count; index++)
         {
@@ -410,7 +410,7 @@ public sealed partial class GraphCanvas
                 continue;
             }
 
-            var ink = GraphPalette.Brush(this, HeldBackChoice.InkOf(dot.First.Group));
+            var ink = InkOf(HeldBackChoice.InkOf(dot.First.Group));
             var size = dot.Size + (view.Hovered == index ? DotHoverGrowth : 0);
             dc.PushOpacity(arrived);
             if (arrived > 0.9)
@@ -426,7 +426,7 @@ public sealed partial class GraphCanvas
 
             if (dot.Count > 1)
             {
-                var count = CachedText(dot.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), 10,
+                var count = Text(dot.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), 10,
                     dot.IsOut ? background : ink, FontWeights.Bold);
                 dc.DrawText(count, new Point(at.X - (count.Width / 2), at.Y - (count.Height / 2)));
             }
@@ -500,7 +500,7 @@ public sealed partial class GraphCanvas
             var (scale, opacity) = AnimationsOn ? HeldBackMotion.Sonar(phase) : (1.45, 0.6);
             var radius = (dot.Size + 6) / 2 * scale;
             dc.PushOpacity(opacity);
-            dc.DrawEllipse(null, PenOf(GraphPalette.Find(this, key), 1.5), at, radius, radius);
+            dc.DrawEllipse(null, PenOf(Ink(key), 1.5), at, radius, radius);
             dc.Pop();
         }
     }
@@ -519,8 +519,8 @@ public sealed partial class GraphCanvas
         if (dot.First.InGraph)
         {
             dc.DrawEllipse(
-                GraphPalette.Find(this, "Brush.Background"),
-                PenOf(GraphPalette.Find(this, "Brush.Text"), 1.5),
+                Ink("Brush.Background"),
+                PenOf(Ink("Brush.Text"), 1.5),
                 corner,
                 CornerMark / 2,
                 CornerMark / 2);
@@ -542,7 +542,7 @@ public sealed partial class GraphCanvas
             }
 
             diamond.Freeze();
-            dc.DrawGeometry(GraphPalette.Find(this, "Brush.TextMuted"), null, diamond);
+            dc.DrawGeometry(Ink("Brush.TextMuted"), null, diamond);
         }
     }
 
@@ -554,19 +554,19 @@ public sealed partial class GraphCanvas
     {
         var node = _model?.Scene?.Node(_blastAnchor);
         var title = node?.Subject ?? string.Empty;
-        var name = CachedText(title, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
-        var sub = CachedText(line, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var name = Text(title, 12.5, Ink("Brush.Text"), FontWeights.SemiBold);
+        var sub = Text(line, 11, Ink("Brush.TextDim"), FontWeights.Normal);
         var width = Math.Max(CentreCardWidth, NodePadding + IconBox + NodeGap + Math.Max(name.Width, sub.Width) + 12);
         var card = new Rect(centre.X - (width / 2), centre.Y - (CentreCardHeight / 2), width, CentreCardHeight);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.SurfaceRaised"),
-            PenOf(GraphPalette.Find(this, "Brush.BorderHover"), 1),
+            Ink("Brush.SurfaceRaised"),
+            PenOf(Ink("Brush.BorderHover"), 1),
             card,
             NodeRadius,
             NodeRadius);
         var look = node?.Look ?? VisualLanguage.Of(NodeSort.Unknown);
         var iconCorner = new Point(card.X + NodePadding, card.Y + ((card.Height - IconBox) / 2));
-        DrawSmallIcon(dc, look, GraphPalette.Brush(this, look.Ink), iconCorner, IconBox, IconSize);
+        DrawSmallIcon(dc, look, InkOf(look.Ink), iconCorner, IconBox, IconSize);
         var left = iconCorner.X + IconBox + NodeGap;
         var top = card.Y + ((card.Height - name.Height - sub.Height + 2) / 2);
         dc.DrawText(name, new Point(left, top));
@@ -591,11 +591,11 @@ public sealed partial class GraphCanvas
         }
 
         geometry.Freeze();
-        var accent = GraphPalette.Find(this, "Brush.Accent");
+        var accent = Ink("Brush.Accent");
         dc.PushOpacity(0.06);
         dc.DrawGeometry(accent, null, geometry);
         dc.Pop();
-        dc.DrawGeometry(null, new Pen(accent, 1.5) { DashStyle = LassoDash, LineJoin = PenLineJoin.Round }, geometry);
+        dc.DrawGeometry(null, PenOf(accent, 1.5, LassoDash, join: PenLineJoin.Round), geometry);
     }
 
     /// <summary>
@@ -611,13 +611,13 @@ public sealed partial class GraphCanvas
         var (head, sub, lines) = view.TipOf(dot);
         var texts = new List<(FormattedText Text, Brush? Dot)>
         {
-            (CachedText(head, 12, GraphPalette.Find(this, "Brush.Text"), FontWeights.Normal), null),
-            (CachedText(sub, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal), null),
+            (Text(head, 12, Ink("Brush.Text"), FontWeights.Normal), null),
+            (Text(sub, 11, Ink("Brush.TextDim"), FontWeights.Normal), null),
         };
         texts.AddRange(lines.Select(line =>
         {
-            var ink = GraphPalette.Brush(this, line.Ink);
-            return (CachedText(line.Text, 11, ink, FontWeights.Normal), (Brush?)ink);
+            var ink = InkOf(line.Ink);
+            return (Text(line.Text, 11, ink, FontWeights.Normal), (Brush?)ink);
         }));
         const double Pad = 10;
         const double DotRoom = 12;
@@ -628,8 +628,8 @@ public sealed partial class GraphCanvas
         box.X = Math.Clamp(box.X, 4, Math.Max(4, ActualWidth - width - 4));
         box.Y = Math.Max(4, box.Y);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.SurfaceRaised"),
-            PenOf(GraphPalette.Find(this, "Brush.BorderStrong"), 1),
+            Ink("Brush.SurfaceRaised"),
+            PenOf(Ink("Brush.BorderStrong"), 1),
             box,
             7,
             7);
@@ -686,7 +686,7 @@ public sealed partial class GraphCanvas
         if (_lasso is not null)
         {
             _lasso.Add(Relative(at));
-            InvalidateVisual();
+            Redraw();
             return true;
         }
 
@@ -729,7 +729,7 @@ public sealed partial class GraphCanvas
             view.Click(view.DotAt(Relative(at)), (Keyboard.Modifiers & ModifierKeys.Shift) != 0);
         }
 
-        InvalidateVisual();
+        Redraw();
         return true;
     }
 

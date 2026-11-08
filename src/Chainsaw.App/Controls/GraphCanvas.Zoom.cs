@@ -111,7 +111,7 @@ public sealed partial class GraphCanvas
         }
 
         _viewport = _zoom.Step(_viewport, seconds);
-        InvalidateVisual();
+        MoveView();
         if (!_zoom.IsRunning)
         {
             EndZoom();

@@ -36,11 +36,16 @@ public sealed partial class GraphCanvas
     private GraphPoint _threadEnd;
 
     /// <inheritdoc/>
-    protected override int VisualChildrenCount => _commentLayer is null ? 0 : 1;
+    protected override int VisualChildrenCount => SceneLayers + (_commentLayer is null ? 0 : 1);
 
     /// <inheritdoc/>
-    protected override Visual GetVisualChild(int index) =>
-        index == 0 && _commentLayer is not null ? _commentLayer : throw new ArgumentOutOfRangeException(nameof(index));
+    protected override Visual GetVisualChild(int index) => index switch
+    {
+        0 => _sceneVisual,
+        1 => _overlayVisual,
+        SceneLayers when _commentLayer is not null => _commentLayer,
+        _ => throw new ArgumentOutOfRangeException(nameof(index)),
+    };
 
     /// <summary>Measures the notes' layer, which takes the whole surface.</summary>
     /// <param name="availableSize">The room.</param>
@@ -67,7 +72,7 @@ public sealed partial class GraphCanvas
         _commentLayer = new CommentLayer(this);
         AddVisualChild(_commentLayer);
         AddLogicalChild(_commentLayer);
-        _commentLayer.NoteResized += (_, _) => InvalidateVisual();
+        _commentLayer.NoteResized += (_, _) => Redraw();
         _commentLayer.Attach(model.Comments, model.FollowCommentLinkCommand);
         InvalidateMeasure();
     }
@@ -83,8 +88,16 @@ public sealed partial class GraphCanvas
             return;
         }
 
-        _commentLayer.RenderTransform = new MatrixTransform(
-            _viewport.Zoom, 0, 0, _viewport.Zoom, _viewport.OffsetX, _viewport.OffsetY);
+        var matrix = new Matrix(_viewport.Zoom, 0, 0, _viewport.Zoom, _viewport.OffsetX, _viewport.OffsetY);
+        if (_commentLayer.RenderTransform is not MatrixTransform { IsFrozen: false } transform)
+        {
+            _commentLayer.RenderTransform = new MatrixTransform(matrix);
+        }
+        else if (transform.Matrix != matrix)
+        {
+            // Changed in place, so that a pan moves the notes without laying them out again.
+            transform.Matrix = matrix;
+        }
         var shown = _model?.Scene is not null && _blast == BlastPhase.None && _model.Fan is null;
         _commentLayer.Opacity = shown ? 1 : 0;
         _commentLayer.IsHitTestVisible = shown;
@@ -100,7 +113,7 @@ public sealed partial class GraphCanvas
             return;
         }
 
-        var brush = GraphPalette.Find(this, "Brush.Note.Thread");
+        var brush = Ink("Brush.Note.Thread");
         var pen = ThreadPen(brush);
         foreach (var note in _model.Comments.Notes)
         {
@@ -246,7 +259,7 @@ public sealed partial class GraphCanvas
                 _threadNote = note;
                 _threadEnd = surface;
                 CaptureMouse();
-                InvalidateVisual();
+                Redraw();
                 return true;
             }
         }
@@ -263,7 +276,7 @@ public sealed partial class GraphCanvas
         {
             _threadEnd = surface;
             Cursor = Cursors.Hand;
-            InvalidateVisual();
+            Redraw();
             return true;
         }
 
@@ -292,7 +305,7 @@ public sealed partial class GraphCanvas
         ReleaseMouseCapture();
         var node = _model.Scene?.Node(_model.HitTest(surface, Tolerance).Node)?.Node;
         _ = _model.Comments.TieAsync(note, node);
-        InvalidateVisual();
+        Redraw();
         return true;
     }
 

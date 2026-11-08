@@ -4167,3 +4167,26 @@ Användaren provade på Windows: kedjan ryckte konstigt när den kom in, och rö
 - **Darret** när den långa länken spänns är lugnare: 8 svängningar i sekunden och 0,9 px i stället för 15 och 1,4 px,
   som vid 60 bilder i sekunden bara fick fyra bilder per svängning och såg ut som skakigt brus.
 
+## Grafens fart (2026-11-08)
+
+Användaren bad om så många bildrutor som möjligt i grafen. Inget provat på Windows än.
+
+- **Scenen i ett eget lager:** allt som ritas på grafens enheter (hoppkolumner, tidsband, områden, linjer, belopp,
+  bevakningar, noder och kort) ritas i en egen `DrawingVisual` över skärmen och en marginal runt den (en fjärdedel av
+  bredden och höjden åt varje håll). Panorering, glidning och zoom ändrar bara lagrets transform
+  (`GraphCanvas.MoveView`, utan ny layout), så renderingstråden får en matris i stället för hela grafen.
+  `SceneWindow` avgör när scenen ritas om: när något ändras (`Redraw`), när skärmen lämnar det ritade, och när en
+  zoom landar. Under själva zoomen skalas den färdiga ritningen.
+- **Eget lager, inte `OnRender`:** WPF släpper det förra `OnRender` ritade innan det tar emot det nya, så en ritning
+  som sparas mellan rutorna skickas ändå om i sin helhet om den ritas där. Det som står på skärmen över scenen
+  (dygnens namn, rutan, blockmärkets ruta, valvyn) ritas i ett andra lager i varje ruta, och lapparna ligger
+  överst som förut.
+- **Inget görs per ruta som kan göras en gång:** temats penslar slås upp en gång och fryses (`Ink`), ikonerna slås
+  upp en gång (`GlyphOf`), alla pennor i ritvägen är frysta och sparade (`PenOf`, `RoundPen`), texterna mäts en gång
+  (`Text`, också nodernas namn, som förut mättes om i en slinga i varje ruta), och varje linjes kurva görs en gång.
+  Textcachen rymmer 16 384 texter, så att ett stort ärende inte tömmer den varje ruta.
+- **Avsteg:** en scen ritas om med marginal, så en ändring (hovring, val) ritar lite mer än skärmen. Medan något
+  rör sig av sig självt (ringar, ett kort som vänds, timglaset, valvyn, högen) ritas utan marginal, som förut.
+- **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Grafens fart*). Räcker det inte är nästa steg
+  grafytan med SkiaSharp på grafikkortet (`docs/TODO.md`).
+
