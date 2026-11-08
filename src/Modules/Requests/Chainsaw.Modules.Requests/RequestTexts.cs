@@ -118,6 +118,8 @@ internal sealed record RequestTexts(
             + "enligt spårningsmetoden; insättningarna i tabellen är fakta på kedjan.",
         DecimalSeparator: ",")
     {
+        SwapText = "Genom swappen {0} i tx {1} följer värdet med enligt {2}: {3} av det som gick in var spårat, och "
+            + "samma andel av det som kom ut räknas som spårat. Det är en bedömning, inte ett faktum på kedjan.",
         Kinds = new Dictionary<RequestTargetKind, string>
         {
             [RequestTargetKind.Exchange] = "Börs",
@@ -173,6 +175,8 @@ internal sealed record RequestTexts(
             + "assessment by the tracing method; the deposits in the table are facts on the chain.",
         DecimalSeparator: ".")
     {
+        SwapText = "Through the swap {0} in tx {1} the value follows by {2}: {3} of what went in was traced, and the "
+            + "same share of what came out is counted as traced. It is an assessment, not a fact on the chain.",
         Kinds = new Dictionary<RequestTargetKind, string>
         {
             [RequestTargetKind.Exchange] = "Exchange",
@@ -197,6 +201,12 @@ internal sealed record RequestTexts(
     /// <summary>Gets the names of the recipients' sorts in this language.</summary>
     public IReadOnlyDictionary<RequestTargetKind, string> Kinds { get; init; } =
         new Dictionary<RequestTargetKind, string>();
+
+    /// <summary>
+    /// Gets the sentence for a swap on the trail: <c>{0}</c> is what was swapped for what, <c>{1}</c> the
+    /// transaction, <c>{2}</c> the analysis with its version and <c>{3}</c> the traced share.
+    /// </summary>
+    public string SwapText { get; init; } = string.Empty;
 
     /// <summary>Names a recipient's sort in this language.</summary>
     /// <param name="kind">The sort.</param>

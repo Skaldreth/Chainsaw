@@ -135,7 +135,7 @@ public interface ITracingService
     /// <param name="swap">The swap, from <see cref="AccountGraph.Swaps"/>.</param>
     /// <param name="reason">Why, at most 1 000 characters; optional (the user's decision 2026-11-07).</param>
     /// <returns>The choice, or the one already in force when the swap is already not followed.</returns>
-    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="ArgumentException">The reason is too long, or the swap is not in the case's graph.</exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
     /// </exception>

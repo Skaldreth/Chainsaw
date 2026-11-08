@@ -192,9 +192,10 @@ internal sealed class AccountExposureRun
             }
 
             var inSwap = (ExposureEntry entry) => entry.Transfer.Transaction.Id == swap.Transaction.Value;
+            var goesIn = (ExposureEntry entry) => SwapValue.GoesIn(swap, entry.Transfer, graph.CrossChainLinks);
             var found = new ExposureSwap(
                 swap,
-                [.. Of(_out, account).Where(entry => inSwap(entry) && entry.Asset == swap.Sold.Asset)],
+                [.. Of(_out, account).Where(goesIn)],
                 [.. Of(_in, account).Where(entry => inSwap(entry) && entry.Asset == swap.Bought.Asset)],
                 SwapValue.StopOf(swap, graph.SwapStops) is null);
             if (found.Sold.Count == 0 || found.Bought.Count == 0)

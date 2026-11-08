@@ -300,6 +300,15 @@ internal sealed class TracingService : ITracingService
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(swap);
         reason = OptionalReason(reason);
+
+        // Only a swap the case's own graph shows is chosen for, so that no choice is sealed about something the case
+        // does not hold. The graph is read from the case, off the calling thread, as it always is.
+        var graph = LoadAsync(@case).GetAwaiter().GetResult();
+        if (!graph.Account.Swaps.Contains(swap))
+        {
+            throw new ArgumentException("The swap is not in the case's graph.", nameof(swap));
+        }
+
         return @case.Write(transaction =>
         {
             // One choice in force per swap; choosing again leaves the one there, so that a double click seals once.

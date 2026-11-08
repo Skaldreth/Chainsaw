@@ -233,6 +233,18 @@ internal sealed class ExposureTally
             .OrderBy(tx => _times.GetValueOrDefault(tx) ?? DateTimeOffset.MaxValue)
             .ThenBy(tx => tx.Id, StringComparer.Ordinal)
             .ToList();
-        return new ExposureReach(service, amount, Hops[service], path, edges, transactions);
+        var crossed = transactions.Where(tx => tx.Chain == Chain.Ethereum).Select(tx => tx.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        return new ExposureReach(service, amount, Hops[service], path, edges, transactions)
+        {
+            // The swaps whose value carried the money on: by an account on the way, in a transaction the money went
+            // through, and followed.
+            Swaps =
+            [
+                .. Graph.Account.Swaps.Where(swap => crossed.Contains(swap.Transaction.Value)
+                    && Graph.NodeOf(swap.Account)?.Key is { } swapper && path.Contains(swapper)
+                    && SwapValue.StopOf(swap, Graph.SwapStops) is null),
+            ],
+        };
     }
 }

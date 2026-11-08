@@ -145,27 +145,66 @@ internal sealed record AccountData(
         foreach (var transaction in Transfers.GroupBy(transfer => transfer.Transaction))
         {
             var moves = transaction.Where(transfer => transfer.From != transfer.To).ToList();
-            if (signers.GetValueOrDefault(transaction.Key) is { } account)
+            if (signers.GetValueOrDefault(transaction.Key) is { } account && SwapOf(transaction.Key, account, moves)
+                is { } swap)
             {
-                var sold = moves.Where(transfer => transfer.From == account).GroupBy(transfer => transfer.Amount.Asset)
-                    .ToList();
-                var bought = moves.Where(transfer => transfer.To == account).GroupBy(transfer => transfer.Amount.Asset)
-                    .ToList();
-                if (sold.Count == 1 && bought.Count == 1 && sold[0].Key != bought[0].Key)
-                {
-                    swaps.Add(new TokenSwap(
-                        transaction.Key,
-                        account.ToChainAddress(),
-                        Sum(sold[0].Key, sold[0]),
-                        Sum(bought[0].Key, bought[0]))
-                    {
-                        Venue = VenueOf(transaction.Key, account, moves),
-                    });
-                }
+                swaps.Add(swap);
             }
         }
 
         return swaps;
+    }
+
+    /// <summary>
+    /// Reads a swap in one transaction: the account got exactly one asset back, and what went into the swap is what it
+    /// sent in one other asset to the other side (an address that sent the bought asset, the contract the transaction
+    /// called, or the known exchange). When nothing went to the other side, the one movement in the sold asset is
+    /// taken when there is exactly one; otherwise which was swapped for which cannot be read, and no swap is shown. A
+    /// payment to a third party in the same transaction is never part of the swap.
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="account">The account that signed it.</param>
+    /// <param name="moves">Its movements between two addresses.</param>
+    /// <returns>The swap, or <see langword="null"/>.</returns>
+    private TokenSwap? SwapOf(EthereumTxHash transaction, EthereumAddress account, List<EthereumTransfer> moves)
+    {
+        var bought = moves.Where(transfer => transfer.To == account).ToList();
+        if (bought.Select(transfer => transfer.Amount.Asset).Distinct().Count() != 1)
+        {
+            return null;
+        }
+
+        var boughtAsset = bought[0].Amount.Asset;
+        var venue = VenueOf(transaction, account, moves);
+        var otherSide = bought.Select(transfer => transfer.From).ToHashSet();
+        if (Transactions.GetValueOrDefault(transaction)?.To is { } called)
+        {
+            otherSide.Add(called);
+        }
+
+        if (venue is not null)
+        {
+            otherSide.Add(venue.Address);
+        }
+
+        var outgoing = moves.Where(transfer => transfer.From == account && transfer.Amount.Asset != boughtAsset)
+            .ToList();
+        var toOtherSide = outgoing.Where(transfer => otherSide.Contains(transfer.To)).ToList();
+        var sold = toOtherSide.Count > 0 || outgoing.Count != 1 ? toOtherSide : outgoing;
+        if (sold.Count == 0 || sold.Select(transfer => transfer.Amount.Asset).Distinct().Count() != 1)
+        {
+            return null;
+        }
+
+        return new TokenSwap(
+            transaction,
+            account.ToChainAddress(),
+            Sum(sold[0].Amount.Asset, sold),
+            Sum(boughtAsset, bought))
+        {
+            Venue = venue,
+            SoldMovements = [.. sold.Select(AccountSeed.Of)],
+        };
     }
 
     /// <summary>

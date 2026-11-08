@@ -561,16 +561,35 @@ public sealed record InspectorContent(
                 GuideTopic.Methods);
         }
 
+        var viaSwap = scene.Edges
+            .Where(edge => edge.Edge.To == node.Key && edge.TracedEdge?.Amount.RestsOnSwap == true)
+            .Select(edge => edge.Traced.Asset)
+            .ToHashSet();
         foreach (var amount in node.TracedIns)
         {
-            yield return new WhyLine(
-                $"Spårat hit: {AmountWithMark(amount)} enligt {method}, räknat för sig per tillgång i "
-                + "kontomodellen. Det är en bedömning enligt metoden, inte ett faktum på kedjan.",
-                GuideTopic.AccountModel);
+            yield return viaSwap.Contains(amount.Asset)
+                ? new WhyLine(
+                    $"Spårat hit: {AmountWithMark(amount)} enligt {method}, av ett värde som följt med genom en swap "
+                    + $"enligt {SwapValue.Analysis}. Det är en bedömning, inte ett faktum på kedjan.",
+                    GuideTopic.Swaps)
+                : new WhyLine(
+                    $"Spårat hit: {AmountWithMark(amount)} enligt {method}, räknat för sig per tillgång i "
+                    + "kontomodellen. Det är en bedömning enligt metoden, inte ett faktum på kedjan.",
+                    GuideTopic.AccountModel);
         }
 
-        var ends = (scene.Snapshot.Trace?.Ends ?? []).Concat(scene.Snapshot.AccountTrace?.Ends ?? []);
-        foreach (var end in ends.Where(end => end.NodeKey == node.Key)
+        var ends = (scene.Snapshot.Trace?.Ends ?? []).Concat(scene.Snapshot.AccountTrace?.Ends ?? []).ToList();
+        var swapped = ends.Count(end => end.NodeKey == node.Key && end.Reason == TrailEndReason.Swapped);
+        if (swapped > 0)
+        {
+            // The same money can go through several swaps here, back and forth, so the amounts are never added.
+            yield return new WhyLine(
+                $"Gick in i {swapped} swap(par) här och följer med i den nya tillgången enligt {SwapValue.Analysis}; "
+                + "samma pengar kan gå genom flera swappar, så beloppen läggs inte ihop. Det är inget slut på spåret.",
+                GuideTopic.Swaps);
+        }
+
+        foreach (var end in ends.Where(end => end.NodeKey == node.Key && end.Reason != TrailEndReason.Swapped)
             .GroupBy(end => (end.Reason, end.Amount.Amount.Asset)))
         {
             var amount = end.Skip(1).Aggregate(end.First().Amount.Amount, (sum, item) => sum + item.Amount.Amount);

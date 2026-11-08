@@ -54,12 +54,14 @@ internal sealed class TracingSchema : ICaseSchemaContributor
 
     /// <summary>
     /// The sealed columns of a choice or its taking back, in order: <c>action</c> is <c>stop</c> or <c>follow</c>,
-    /// <c>stop_sequence</c> names the choice a taking back concerns, and <c>transaction_hash</c> and <c>account</c>
-    /// name the swap (its hash and the account that swapped, as Ethereum writes them).
+    /// <c>stop_sequence</c> names the choice a taking back concerns, <c>chain</c> the swap's chain, and
+    /// <c>transaction_hash</c> and <c>account</c> name the swap (its hash and the account that swapped, as the chain
+    /// writes them).
     /// </summary>
     public static readonly IReadOnlyList<string> SwapStopColumns =
     [
-        "action", "stop_sequence", "transaction_hash", "account", "reason", "journal_sequence", "recorded_utc",
+        "action", "stop_sequence", "chain", "transaction_hash", "account", "reason", "journal_sequence",
+        "recorded_utc",
     ];
 
     /// <summary>The first version of the tables.</summary>
@@ -182,6 +184,7 @@ internal sealed class TracingSchema : ICaseSchemaContributor
             sequence INTEGER PRIMARY KEY,
             action TEXT NOT NULL,
             stop_sequence INTEGER,
+            chain TEXT NOT NULL,
             transaction_hash TEXT NOT NULL,
             account TEXT NOT NULL,
             reason TEXT NOT NULL,

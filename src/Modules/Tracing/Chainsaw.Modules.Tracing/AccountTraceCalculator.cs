@@ -16,6 +16,13 @@ namespace Chainsaw.Modules.Tracing;
 /// </summary>
 internal static class AccountTraceCalculator
 {
+    /// <summary>
+    /// Why a trace is refused when its seeds lie in each other's flow, also across a swap: money would be counted
+    /// twice.
+    /// </summary>
+    private const string SeedsInFlowText =
+        "The seeds lie in each other's flow, so money would be counted twice; trace from one of them.";
+
     /// <summary>Traces the seeds.</summary>
     /// <param name="graph">The graph.</param>
     /// <param name="method">The method for accounts.</param>
@@ -86,7 +93,11 @@ internal static class AccountTraceCalculator
         Dictionary<Asset, AssetTracer> tracers, SwapSteps swaps, int transfers, CancellationToken cancellationToken)
     {
         var rounds = transfers + (2 * swaps.All.Count) + 2;
-        for (var round = 0; ; round++)
+
+        // Only the assets whose traced money changed are carried again: an asset changes by its own accounts or by a
+        // swap that feeds it.
+        var dirty = tracers.Keys.ToHashSet();
+        for (var round = 0; dirty.Count > 0; round++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (round == rounds)
@@ -94,23 +105,30 @@ internal static class AccountTraceCalculator
                 throw new InvalidOperationException("The traced money did not settle between the accounts.");
             }
 
-            var changed = tracers.Values.Aggregate(false, (any, tracer) => tracer.CarryRound() | any);
-            foreach (var step in swaps.All.Where(step => step.Follows))
+            var next = dirty.Where(asset => tracers[asset].CarryRound()).ToHashSet();
+            foreach (var step in swaps.All.Where(step => step.Follows && dirty.Contains(step.Swap.Sold.Asset)))
             {
-                if (tracers.TryGetValue(step.Swap.Sold.Asset, out var sold)
-                    && tracers.TryGetValue(step.Swap.Bought.Asset, out var bought))
+                if (tracers.TryGetValue(step.Swap.Bought.Asset, out var bought)
+                    && FeedSwap(tracers[step.Swap.Sold.Asset], bought, step))
                 {
-                    var traced = sold.TracedOf(step.SoldTransfers);
-                    changed = step.BoughtTransfers.Aggregate(changed, (any, transfer) => bought.SwapIn(
-                        transfer, SwapValue.Follow(traced, step.Swap.Sold, transfer.Amount.Units)) | any);
+                    next.Add(step.Swap.Bought.Asset);
                 }
             }
 
-            if (!changed)
-            {
-                return;
-            }
+            dirty = next;
         }
+    }
+
+    /// <summary>Puts the traced value that went into a followed swap on what came out of it.</summary>
+    /// <param name="sold">The tracer of the sold asset.</param>
+    /// <param name="bought">The tracer of the bought asset.</param>
+    /// <param name="step">The swap.</param>
+    /// <returns>Whether what came out changed.</returns>
+    private static bool FeedSwap(AssetTracer sold, AssetTracer bought, SwapStep step)
+    {
+        var traced = sold.TracedOf(step.SoldTransfers);
+        return step.BoughtTransfers.Aggregate(false, (any, transfer) => bought.SwapIn(
+            transfer, SwapValue.Follow(traced, step.Swap.Sold, transfer.Amount.Units)) | any);
     }
 
     /// <summary>Gives what the rule did at each swap the traced money reached.</summary>
@@ -187,17 +205,50 @@ internal static class AccountTraceCalculator
     /// The graph's swaps, each with the movements that went in and came out and whether the user chose that the
     /// value does not follow.
     /// </summary>
-    /// <param name="All">The swaps, in chain order.</param>
-    private sealed record SwapSteps(IReadOnlyList<SwapStep> All)
+    private sealed class SwapSteps
     {
-        /// <summary>Reads the swaps of a graph.</summary>
+        /// <summary>The swap each movement went into, followed or not.</summary>
+        private readonly Dictionary<EthereumTransfer, SwapStep> _soldIn = [];
+
+        /// <summary>The movements that came out of a followed swap.</summary>
+        private readonly HashSet<EthereumTransfer> _followedOut = [];
+
+        /// <summary>Indexes the swaps.</summary>
+        /// <param name="all">The swaps, in chain order.</param>
+        private SwapSteps(IReadOnlyList<SwapStep> all)
+        {
+            All = all;
+            foreach (var step in all)
+            {
+                foreach (var transfer in step.SoldTransfers)
+                {
+                    _soldIn.TryAdd(transfer, step);
+                }
+
+                if (step.Follows)
+                {
+                    _followedOut.UnionWith(step.BoughtTransfers);
+                }
+            }
+        }
+
+        /// <summary>Gets the swaps, in chain order.</summary>
+        public IReadOnlyList<SwapStep> All { get; }
+
+        /// <summary>
+        /// Reads the swaps of a graph: what went in by <see cref="SwapValue.GoesIn"/>, so that a movement the user
+        /// linked to another chain is never part of a swap, and what came out.
+        /// </summary>
         /// <param name="graph">The graph.</param>
         /// <returns>The swaps.</returns>
         public static SwapSteps Of(TraceGraph graph) => new(
         [
             .. graph.Account.Swaps.Select(swap => new SwapStep(
                 swap,
-                [.. graph.Account.Transfers.Where(swap.IsSold)],
+                [
+                    .. graph.Account.Transfers.Where(transfer => SwapValue.GoesIn(
+                        swap, AssetTransfer.OfEthereum(transfer, null), graph.CrossChainLinks)),
+                ],
                 [.. graph.Account.Transfers.Where(swap.IsBought)],
                 SwapValue.StopOf(swap, graph.SwapStops))),
         ]);
@@ -229,14 +280,12 @@ internal static class AccountTraceCalculator
         /// <summary>Gives the swap a movement went into, followed or not, or <see langword="null"/>.</summary>
         /// <param name="transfer">The movement.</param>
         /// <returns>The swap.</returns>
-        public SwapStep? SoldIn(EthereumTransfer transfer) =>
-            All.FirstOrDefault(step => step.SoldTransfers.Contains(transfer));
+        public SwapStep? SoldIn(EthereumTransfer transfer) => _soldIn.GetValueOrDefault(transfer);
 
         /// <summary>Says whether a movement came out of a followed swap.</summary>
         /// <param name="transfer">The movement.</param>
         /// <returns><see langword="true"/> when it did.</returns>
-        public bool IsFollowedOut(EthereumTransfer transfer) =>
-            All.Any(step => step.Follows && step.BoughtTransfers.Contains(transfer));
+        public bool IsFollowedOut(EthereumTransfer transfer) => _followedOut.Contains(transfer);
     }
 
     /// <summary>One swap with what went in and came out.</summary>
@@ -375,8 +424,11 @@ internal static class AccountTraceCalculator
         {
             if (_seeds.Contains(transfer))
             {
-                // A seed is traced whole by the user's choice; a swap adds nothing to it.
-                return false;
+                // A seed is traced whole by the user's choice. Traced value that reaches it through a swap would be
+                // counted twice, as when one seed lies in another's flow, so the trace is refused the same way.
+                return units.Sign > 0
+                    ? throw new InvalidOperationException(SeedsInFlowText)
+                    : false;
             }
 
             _swappedIn[transfer] = units;
@@ -458,8 +510,7 @@ internal static class AccountTraceCalculator
                 .Aggregate(BigInteger.Zero, (sum, transfer) => sum + Applied(transfer));
             if (ends.Aggregate(BigInteger.Zero, (sum, end) => sum + end.Amount.Amount.Units) != traced + swappedIn)
             {
-                throw new InvalidOperationException(
-                    "The seeds lie in each other's flow, so money would be counted twice; trace from one of them.");
+                throw new InvalidOperationException(SeedsInFlowText);
             }
 
             return new AssetTrace(new AssetAmount(_asset, traced), Edges(conversions), ends)

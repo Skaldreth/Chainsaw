@@ -83,17 +83,45 @@ public sealed record TokenSwap(EthereumTxHash Transaction, ChainAddress Account,
     public KnownContract? Venue { get; init; }
 
     /// <summary>
-    /// Says whether a movement is part of what the account sent into the swap: in the swap's transaction, from the
-    /// account to another address, in the sold asset.
+    /// Gets the movements the account sent into the swap: only those to the other side of the swap (an address that
+    /// sent the bought asset back, the contract the transaction called, or the known exchange), or the one movement
+    /// in the sold asset when the transaction says no more. A payment to a third party in the same transaction is not
+    /// part of the swap and is followed as any other.
+    /// </summary>
+    public IReadOnlyList<AccountSeed> SoldMovements { get; init; } = [];
+
+    /// <summary>
+    /// Says whether a movement is part of what the account sent into the swap (<see cref="SoldMovements"/>).
     /// </summary>
     /// <param name="transfer">The movement.</param>
     /// <returns><see langword="true"/> when it is.</returns>
     public bool IsSold(EthereumTransfer transfer)
     {
         ArgumentNullException.ThrowIfNull(transfer);
-        return transfer.Transaction == Transaction && transfer.From != transfer.To
-            && transfer.From.ToChainAddress() == Account && transfer.Amount.Asset == Sold.Asset;
+        return SoldMovements.Any(movement => movement.Is(transfer));
     }
+
+    /// <summary>Says whether a transfer on one of the graph's lines is part of what went into the swap.</summary>
+    /// <param name="transfer">The transfer.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public bool IsSold(AssetTransfer transfer)
+    {
+        ArgumentNullException.ThrowIfNull(transfer);
+        return SoldMovements.Any(movement => movement.Is(transfer));
+    }
+
+    /// <summary>
+    /// Says whether another reading is the same swap: one transaction and one account make at most one swap, so they
+    /// name it, whatever else was read with it.
+    /// </summary>
+    /// <param name="other">The other swap.</param>
+    /// <returns><see langword="true"/> when it is the same swap.</returns>
+    public bool Equals(TokenSwap? other) =>
+        other is not null && other.Transaction == Transaction && other.Account == Account;
+
+    /// <summary>Gives the hash of the swap's identity: its transaction and account.</summary>
+    /// <returns>The hash.</returns>
+    public override int GetHashCode() => HashCode.Combine(Transaction, Account);
 
     /// <summary>
     /// Says whether a movement is part of what came out of the swap: in the swap's transaction, from another address
@@ -131,6 +159,16 @@ public sealed record AccountSeed(EthereumTxHash Transaction, EthereumTransferKin
     {
         ArgumentNullException.ThrowIfNull(transfer);
         return transfer.Transaction == Transaction && transfer.Kind == Kind && transfer.Position == Position;
+    }
+
+    /// <summary>Says whether a transfer on one of the graph's lines is this movement.</summary>
+    /// <param name="transfer">The transfer.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public bool Is(AssetTransfer transfer)
+    {
+        ArgumentNullException.ThrowIfNull(transfer);
+        return transfer.Movement == Kind && transfer.Position == Position
+            && transfer.Transaction.Chain == Chain.Ethereum && transfer.Transaction.Id == Transaction.Value;
     }
 }
 

@@ -58,6 +58,25 @@ public sealed class TemplateTests
     }
 
     [Fact]
+    public void A_trail_through_a_swap_names_the_analysis_the_share_and_the_swaps_transaction()
+    {
+        var swap = new RequestSwap("0x" + new string('5', 64), "₮ → Ξ", "62,2 %", "swap-value v1");
+        var trail = Samples.Trail() with { Swaps = [swap] };
+
+        var swedish = RequestTemplates.Compose(Samples.Information(trail: trail), Context).Markdown;
+        var english = RequestTemplates.Compose(
+            Samples.Information(RequestLanguage.English, trail), Context).Markdown;
+
+        Assert.Contains(
+            "Genom swappen ₮ → Ξ i tx 0x" + new string('5', 64) + " följer värdet med enligt swap-value v1: 62,2 %",
+            swedish,
+            StringComparison.Ordinal);
+        Assert.Contains("the value follows by swap-value v1", english, StringComparison.Ordinal);
+        Assert.DoesNotContain("swap-value", RequestTemplates.Compose(
+            Samples.Information(trail: Samples.Trail()), Context).Markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Times_are_written_local_with_their_offset_and_in_UTC()
     {
         var document = RequestTemplates.Compose(Samples.Information(), Context);

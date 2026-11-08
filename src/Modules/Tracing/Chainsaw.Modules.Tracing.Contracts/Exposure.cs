@@ -122,7 +122,14 @@ public sealed record ExposureReach(
     int Hops,
     IReadOnlyList<string> Path,
     IReadOnlyList<string> PathEdges,
-    IReadOnlyList<ChainTransactionRef> Transactions);
+    IReadOnlyList<ChainTransactionRef> Transactions)
+{
+    /// <summary>
+    /// Gets the swaps on the way, where the money's value followed into another asset by <see cref="SwapValue"/>;
+    /// empty when the way went through none.
+    /// </summary>
+    public IReadOnlyList<TokenSwap> Swaps { get; init; } = [];
+}
 
 /// <summary>How much of the subject's money moved along one of the graph's lines, by the method.</summary>
 /// <param name="EdgeKey">The line.</param>
@@ -199,6 +206,15 @@ public sealed record ExposureResult(
             ? "."
             : string.Create(CultureInfo.InvariantCulture,
                 $", genom {reach.Transactions.Count} tx: {string.Join(", ", reach.Transactions.Select(t => t.Id))}."));
+        if (reach.Swaps.Count > 0)
+        {
+            text.Append(CultureInfo.InvariantCulture,
+                $" Vägen går genom {reach.Swaps.Count} swap(par), i tx "
+                + $"{string.Join(", ", reach.Swaps.Select(swap => swap.Transaction.Value))}, där värdet följer med "
+                + $"enligt {SwapValue.Analysis}: samma andel av det som kom ut som av det som gick in, räknat i "
+                + $"{Total.Asset.Symbol}.");
+        }
+
         text.Append(reach.Amount.Asset.Chain.Model() == LedgerModel.Utxo
             ? " Metoden följer varje mynt genom tx:erna, som i grafen."
             : " Varje aktör räknas som en plånbok där metoden säger hur mycket som följer med varje överföring.");

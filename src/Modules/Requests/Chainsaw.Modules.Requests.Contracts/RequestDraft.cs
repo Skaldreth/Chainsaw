@@ -143,7 +143,23 @@ public sealed record RequestTrail(IReadOnlyList<string> Steps, string Method)
 
     /// <summary>Gets how many hops the trail has.</summary>
     public int Hops => Steps.Count - 1;
+
+    /// <summary>
+    /// Gets the swaps on the trail where the traced value followed into another asset (a judgement by an analysis);
+    /// empty when it went through none.
+    /// </summary>
+    public IReadOnlyList<RequestSwap> Swaps { get; init; } = [];
 }
+
+/// <summary>
+/// A swap on a request's trail: the traced value followed through it into another asset by an analysis, a judgement
+/// that the request says with its name, version and share, never a fact.
+/// </summary>
+/// <param name="Transaction">The swap's transaction.</param>
+/// <param name="Pill">What was swapped for what, for example <c>₮ → Ξ</c>.</param>
+/// <param name="Share">The traced share of what went in, for example <c>62,2 %</c>.</param>
+/// <param name="Analysis">The analysis with its version, for example <c>swap-value v1</c>.</param>
+public sealed record RequestSwap(string Transaction, string Pill, string Share, string Analysis);
 
 /// <summary>
 /// What a freeze asks for: the token, its issuer and how much is left at the address by the case's history (a

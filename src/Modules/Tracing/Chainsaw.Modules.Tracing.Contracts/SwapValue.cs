@@ -38,6 +38,23 @@ public static class SwapValue
     }
 
     /// <summary>
+    /// Says whether a transfer's money goes into a swap, the one rule the trace and the exposure share: it is part of
+    /// what the account sent into the swap (<see cref="TokenSwap.SoldMovements"/>), and the user has not linked it to
+    /// another chain, since a link says the money continues there and it is never counted twice.
+    /// </summary>
+    /// <param name="swap">The swap.</param>
+    /// <param name="transfer">The transfer, on one of the graph's lines.</param>
+    /// <param name="links">The user's links to other chains in force.</param>
+    /// <returns><see langword="true"/> when the money goes into the swap.</returns>
+    public static bool GoesIn(TokenSwap swap, AssetTransfer transfer, IEnumerable<CrossChainLink> links)
+    {
+        ArgumentNullException.ThrowIfNull(swap);
+        ArgumentNullException.ThrowIfNull(transfer);
+        ArgumentNullException.ThrowIfNull(links);
+        return swap.IsSold(transfer) && !links.Any(link => link.FromTransfer?.Is(transfer) == true);
+    }
+
+    /// <summary>
     /// Gives how much of one transfer that came out of a swap follows the traced money: the traced share of what went
     /// in, of the transfer's amount, rounded down to whole units so that the rule never creates traced money.
     /// </summary>

@@ -193,6 +193,12 @@ internal static class RequestTemplates
         blocks.Add(new RequestBlock(RequestBlockKind.Heading, words.TrailHeading));
         var sentence = string.Join(" → ", trail.Steps) + ": "
             + string.Format(CultureInfo.InvariantCulture, words.TrailText, trail.Hops, trail.Method);
+        foreach (var swap in trail.Swaps)
+        {
+            sentence += " " + string.Format(
+                CultureInfo.InvariantCulture, words.SwapText, swap.Pill, swap.Transaction, swap.Analysis, swap.Share);
+        }
+
         blocks.Add(new RequestBlock(RequestBlockKind.Paragraph, sentence));
     }
 

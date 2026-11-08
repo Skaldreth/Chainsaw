@@ -3941,3 +3941,21 @@ inte gör det (skissen SW1a).
   Golden-facit för Bitcoin är omskrivet bara för schemats version och den nya kedjan.
 - **Kvar:** testärendet har ingen Ethereum-källa, så swappen syns inte i `/testdata`. Exponeringens *Varför?* säger
   inte när vägen gick genom en swap (bara analysens version).
+
+## Granskningen av SW1a rättad (2026-11-08)
+
+Den oberoende granskningen fann inga C, tre I och fyra M; alla är rättade, och granskarens prober är tester
+(`SwapEdgeTests`).
+- **I1, tredje part i swappens tx:** bara det som gick till bytets andra sida (en adress som skickade tillbaka den
+  köpta tillgången, kontraktet tx:en anropade eller den kända DEX:en) räknas som insatt; finns ingen sådan och bara en
+  överföring i den sålda tillgången, är det den. Annars visas ingen swap. `TokenSwap.SoldMovements` säger vilka
+  rörelser det är, och pillret sitter bara på deras linje. En swap identifieras av tx och konto.
+- **I2, en länkad överföring:** `SwapValue.GoesIn` är regeln på ett ställe för spårningen och exponeringen: en
+  överföring som användaren länkat till annan kedja är aldrig en del av en swap.
+- **I3 och M3:** Begäran nämner `swap-value v1`, andelen och swappens tx för varje swap på spåret dit
+  (`RequestTrail.Swaps`), och exponeringens *Varför?* säger när vägen gick genom en swap (`ExposureReach.Swaps`).
+- **M1:** inspektörens *Spårat hit* nämner analysen när beloppet kom genom en swap, och *Följer med genom en swap*
+  skrivs som antal swappar, aldrig som ett summerat belopp som *stannar här*.
+- **M2:** startpunkter på båda sidor av en swap vägras som startpunkter i varandras flöde.
+- **M4:** `StopAtSwap` vägrar en swap som ärendets graf inte visar; `tracing.swap_stops` har kolumnen `chain`;
+  swapparnas rörelser är indexerade, och spårningen räknar om bara de tillgångar som ändrades.

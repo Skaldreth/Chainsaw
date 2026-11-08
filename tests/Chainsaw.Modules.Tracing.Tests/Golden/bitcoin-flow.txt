@@ -225,7 +225,7 @@ table sealed_chain 11
   clustering.splits | clustering_splits | ["first_address","second_address","heuristic","reason","journal_sequence","recorded_utc"]
   tracing.comments | tracing_comments | ["action","comment_id","body","anchor","x","y","set_by","journal_sequence","recorded_utc"]
   tracing.cross_chain | tracing_cross_chain | ["action","link_sequence","from_txid","from_output","to_chain","to_id","reason","journal_sequence","recorded_utc"]
-  tracing.swap_stops | tracing_swap_stops | ["action","stop_sequence","transaction_hash","account","reason","journal_sequence","recorded_utc"]
+  tracing.swap_stops | tracing_swap_stops | ["action","stop_sequence","chain","transaction_hash","account","reason","journal_sequence","recorded_utc"]
   tracing_trash.records | tracing_trash | ["action","throw_sequence","members","operator","journal_sequence","recorded_utc"]
 table tracing_comment_places 0
 table tracing_comments 0

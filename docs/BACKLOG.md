@@ -9,9 +9,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   stället räknas fram på nytt ur svaret av källan (en tolk per sort av svar), så att det aldrig tas emot utifrån.
 - **Ethereum efter etapp 23b** (grafen, inspektören, startpunkterna, swap-pillret och kurserna för USDT och USDC är
   byggda). Kvar:
-  - **Swappen i testärendet och Exponeringens *Varför?*** (SW1a, 2026-11-08): `/testdata` har ingen Ethereum-källa, så
-    spåret genom en swap syns inte där; och exponeringens förklaring säger inte när vägen gick genom en swap, bara
-    `exposure v3`.
+  - **Swappen i testärendet** (SW1a, 2026-11-08): `/testdata` har ingen Ethereum-källa, så spåret genom en swap syns
+    inte där.
+  - **En swap genom en router med betalning till tredje part** (SW1a, granskningen): när det som gick in inte gick
+    till någon på bytets andra sida (poolen bakom en router som inte är känd) och adressen betalade flera i samma
+    tillgång, går det inte att läsa vad som byttes, och inget piller visas.
   - **Swap genom en känd DEX:** pillret sätts på mönstret (den som signerade skickade en tillgång och fick en annan i
     samma tx), utan lista över DEX-kontrakt. En lista över kända DEX:ar och aggregatorer kan visa namnet i *Varför?*.
   - **Tx:ens plats i blocket:** källornas historik ger inte `transactionIndex`, så två tx i samma block ordnas efter

@@ -646,9 +646,8 @@ public sealed record GraphScene(
     private static IReadOnlyList<TokenSwap> SwapsOn(GraphEdge edge, IReadOnlyList<TokenSwap> swaps) =>
     [
         .. swaps.Where(swap => edge.Kind == GraphEdgeKind.Transfer
-            && edge.Amount.Asset == swap.Sold.Asset
             && edge.From == AccountKey(swap.Account)
-            && edge.Transfers.Any(transfer => transfer.Transaction.Id == swap.Transaction.Value)),
+            && edge.Transfers.Any(swap.IsSold)),
     ];
 
     /// <summary>

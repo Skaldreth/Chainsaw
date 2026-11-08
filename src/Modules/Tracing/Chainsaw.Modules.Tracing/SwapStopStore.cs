@@ -29,8 +29,8 @@ internal static class SwapStopStore
     {
         var record = transaction.AppendSealed(
             TracingSchema.SwapStopsChain,
-            [StopAction, null, swap.Transaction.Value, swap.Account.Value, reason ?? string.Empty, journal.Sequence,
-                Text(journal.Utc)]);
+            [StopAction, null, swap.Account.Chain.ToString(), swap.Transaction.Value, swap.Account.Value,
+                reason ?? string.Empty, journal.Sequence, Text(journal.Utc)]);
         return new SwapStop(record.Sequence, swap.Transaction, swap.Account, reason, journal.Sequence, journal.Utc);
     }
 
@@ -42,8 +42,8 @@ internal static class SwapStopStore
     public static void SealUndo(ICaseTransaction transaction, SwapStop stop, string? reason, JournalEntry journal) =>
         transaction.AppendSealed(
             TracingSchema.SwapStopsChain,
-            [FollowAction, stop.Sequence, stop.Transaction.Value, stop.Account.Value, reason ?? string.Empty,
-                journal.Sequence, Text(journal.Utc)]);
+            [FollowAction, stop.Sequence, stop.Account.Chain.ToString(), stop.Transaction.Value, stop.Account.Value,
+                reason ?? string.Empty, journal.Sequence, Text(journal.Utc)]);
 
     /// <summary>Reads the choices in force: those not taken back.</summary>
     /// <param name="reader">The case's reader.</param>
@@ -57,7 +57,8 @@ internal static class SwapStopStore
     public static List<SwapStopHistoryEntry> ReadHistory(ICaseReader reader)
     {
         using var command = reader.CreateCommand("""
-            SELECT sequence, action, stop_sequence, transaction_hash, account, reason, journal_sequence, recorded_utc
+            SELECT sequence, action, stop_sequence, chain, transaction_hash, account, reason, journal_sequence,
+                   recorded_utc
             FROM tracing_swap_stops ORDER BY sequence
             """);
         using var rows = command.ExecuteReader();
@@ -65,22 +66,22 @@ internal static class SwapStopStore
         var undone = new Dictionary<long, SwapStopUndo>();
         while (rows.Read())
         {
-            var reason = rows.GetString(5);
+            var reason = rows.GetString(6);
             var given = reason.Length == 0 ? null : reason;
             var utc = DateTimeOffset.Parse(
-                rows.GetString(7), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+                rows.GetString(8), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
             if (rows.GetString(1) == FollowAction)
             {
-                undone.TryAdd(rows.GetInt64(2), new SwapStopUndo(rows.GetInt64(0), given, rows.GetInt64(6), utc));
+                undone.TryAdd(rows.GetInt64(2), new SwapStopUndo(rows.GetInt64(0), given, rows.GetInt64(7), utc));
                 continue;
             }
 
             stops.Add(new SwapStop(
                 rows.GetInt64(0),
-                EthereumTxHash.Parse(rows.GetString(3)),
-                new ChainAddress(Chain.Ethereum, rows.GetString(4)),
+                EthereumTxHash.Parse(rows.GetString(4)),
+                new ChainAddress(Enum.Parse<Chain>(rows.GetString(3)), rows.GetString(5)),
                 given,
-                rows.GetInt64(6),
+                rows.GetInt64(7),
                 utc));
         }
 

@@ -267,6 +267,8 @@ public sealed class SwapValueTests : IDisposable
         Assert.Equal(Usdt(1_000), followed.Total);
         Assert.Equal(Usdt(1_000), reach.Amount);
         Assert.Equal(2, reach.Hops);
+        Assert.Contains(SwapValue.Analysis, followed.Explain(reach), StringComparison.Ordinal);
+        Assert.Equal(2, reach.Swaps.Count);
         Assert.Empty(stopped.Reached);
         Assert.Equal(Usdt(1_000), stopped.Rest[ExposureRest.TrailEnds]);
     }
