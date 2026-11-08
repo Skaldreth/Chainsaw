@@ -254,9 +254,12 @@ public sealed class ShellViewModelTests
         rig.Exits.Known.Add(exit);
 
         rig.Exit.Set(new ExitStatus(ExitState.Connected, exit.Id, null));
-        Assert.True(SpinWait.SpinUntil(() => rig.Shell.ExitText == "Stockholm", TimeSpan.FromSeconds(5)));
+        // The name is read off the UI thread and shown in one step that writes both lines; the test's inline UI thread
+        // runs that step beside the test, so the test waits for both lines and never for the first alone.
+        Assert.True(SpinWait.SpinUntil(
+            () => rig.Shell is { ExitText: "Stockholm", SourceText: "Uppslag går genom utgången Stockholm" },
+            TimeSpan.FromSeconds(5)));
         Assert.True(rig.Shell.IsExitLive);
-        Assert.Equal("Uppslag går genom utgången Stockholm", rig.Shell.SourceText);
 
         rig.Exit.Set(new ExitStatus(ExitState.Failed, exit.Id, ExitFailure.ConnectionLost));
         Assert.False(rig.Shell.IsExitLive);

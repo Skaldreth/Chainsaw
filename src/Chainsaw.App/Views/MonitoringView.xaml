@@ -46,10 +46,10 @@
         <DockPanel Grid.Column="0" Margin="84,16,24,80">
             <!-- The head shows only beside watches: the empty state has its own button, and a count of nothing is
                  noise (principle 7). -->
-            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12" Height="32"
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12" Height="30"
                        Visibility="{Binding ShowsHead, Converter={StaticResource Visible}}">
-                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Graph}" BorderThickness="1.5" Height="32"
-                        Command="{Binding NewCommand}" ToolTip="Ny bevakning · B" Margin="18,0,0,0">
+                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Graph}" Foreground="{StaticResource Brush.Text}"
+                        Command="{Binding NewCommand}" ToolTip="Ny bevakning · B" Margin="10,0,0,0">
                     <StackPanel Orientation="Horizontal">
                         <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}" Margin="0,0,7,0" />
                         <TextBlock Text="Ny bevakning …" FontSize="13.5" VerticalAlignment="Center" />
@@ -57,46 +57,71 @@
                                    VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <!-- The honest state of the watching (sketch BV1a), as a quiet dot and words: it runs (green), waits
-                     for the exit (yellow) or the background is off (grey). The tooltip says why. -->
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
-                            Background="Transparent" ToolTip="{Binding BackgroundTip}">
-                    <Ellipse Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center">
-                        <Ellipse.Style>
-                            <Style TargetType="Ellipse">
-                                <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
+                <!-- The honest state of the watching (sketch BV1a), as a dot and words in a rounded frame: it runs
+                     (green, a whole frame), waits for the exit (yellow, dashed) or the background is off (grey,
+                     dashed), since dashed always means uncertain. The tooltip says why. -->
+                <Grid DockPanel.Dock="Right" ToolTip="{Binding BackgroundTip}">
+                    <Border CornerRadius="15" Background="{StaticResource Brush.Surface}" BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsWaiting}" Value="True">
-                                        <Setter Property="Fill" Value="{StaticResource Brush.Pending}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsOff}" Value="True">
-                                        <Setter Property="Fill" Value="{StaticResource Brush.TextFaint}" />
+                                    <DataTrigger Binding="{Binding IsFrameDashed}" Value="True">
+                                        <Setter Property="BorderBrush" Value="Transparent" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Ellipse.Style>
-                    </Ellipse>
-                    <TextBlock Text="{Binding BackgroundText}" FontSize="13" VerticalAlignment="Center">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                        </Border.Style>
+                    </Border>
+                    <Rectangle RadiusX="15" RadiusY="15" StrokeThickness="1" StrokeDashArray="4 3" SnapsToDevicePixels="True"
+                               Visibility="{Binding IsFrameDashed, Converter={StaticResource Visible}}">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Stroke" Value="{StaticResource Brush.BorderStrong}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsWaiting}" Value="True">
-                                        <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsOff}" Value="True">
-                                        <Setter Property="Foreground" Value="{StaticResource Brush.TextFaint}" />
+                                        <Setter Property="Stroke" Value="{StaticResource Brush.Pending}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </StackPanel>
+                        </Rectangle.Style>
+                    </Rectangle>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
+                        <Ellipse Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource Brush.Pending}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsOff}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource Brush.TextDim}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding BackgroundText}" FontSize="13" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsOff}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
                 <TextBlock Text="{Binding Summary}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
                            VerticalAlignment="Center" />
             </DockPanel>
-            <TextBlock DockPanel.Dock="Top" Text="{Binding Problem}" FontSize="13" Foreground="{StaticResource Brush.Error}"
-                       Margin="0,0,0,8" TextWrapping="Wrap" />
 
             <Grid DockPanel.Dock="Top" Margin="12,0,12,4" Visibility="{Binding HasRows, Converter={StaticResource Visible}}">
                 <Grid.ColumnDefinitions>
@@ -168,20 +193,24 @@
                                     </Grid.ColumnDefinitions>
                                     <Ellipse Style="{StaticResource Dot}" ToolTip="{Binding StateText}" HorizontalAlignment="Left" />
                                     <DockPanel Grid.Column="1">
+                                        <!-- The watched node as the graph draws it: its sort's icon and colour, round
+                                             or square. -->
                                         <Border DockPanel.Dock="Left" Width="24" Height="24" BorderThickness="1.5" Margin="0,0,9,0"
-                                                BorderBrush="{StaticResource Brush.Kind.Unknown}">
+                                                BorderBrush="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
+                                                ToolTip="{Binding Look.Name}">
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <Setter Property="CornerRadius" Value="12" />
+                                                    <Setter Property="CornerRadius" Value="7" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsCluster}" Value="True">
-                                                            <Setter Property="CornerRadius" Value="7" />
+                                                        <DataTrigger Binding="{Binding IsRound}" Value="True">
+                                                            <Setter Property="CornerRadius" Value="12" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Eye}"
-                                                               Foreground="{StaticResource Brush.TextMuted}" />
+                                            <controls:GridIcon Size="14"
+                                                               Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
+                                                               Foreground="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
                                         </Border>
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
@@ -195,10 +224,10 @@
                                     </Border>
                                     <StackPanel Grid.Column="3" Orientation="Horizontal" ToolTip="{Binding DirectionText}"
                                                 VerticalAlignment="Center" Background="Transparent">
-                                        <controls:GridIcon Size="14" Data="{StaticResource Icon.Dir.In}" Margin="0,0,2,0"
+                                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Dir.In}" Margin="0,0,2,0"
                                                            Foreground="{StaticResource Brush.TextMuted}"
                                                            Visibility="{Binding WatchesIn, Converter={StaticResource Visible}}" />
-                                        <controls:GridIcon Size="14" Data="{StaticResource Icon.Dir.Out}"
+                                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Dir.Out}"
                                                            Foreground="{StaticResource Brush.TextMuted}"
                                                            Visibility="{Binding WatchesOut, Converter={StaticResource Visible}}" />
                                     </StackPanel>
@@ -211,12 +240,24 @@
                                                 </ItemsPanelTemplate>
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
+                                                <!-- A counterparty with the way the money goes: out to a receiver, in
+                                                     from a sender. -->
                                                 <DataTemplate DataType="{x:Type vm:WatchRowParty}">
-                                                    <Border Height="20" Padding="7,0" Margin="0,0,4,0" CornerRadius="10" BorderThickness="1"
+                                                    <Border Height="20" Padding="6,0,7,0" Margin="0,0,4,0" CornerRadius="10" BorderThickness="1"
                                                             BorderBrush="{StaticResource Brush.BorderStrong}">
-                                                        <TextBlock Text="{Binding Text}" FontSize="12.5" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource Brush.TextMuted}" />
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <controls:GridIcon x:Name="Way" Size="12" Data="{StaticResource Icon.Dir.In}"
+                                                                               Foreground="{StaticResource Brush.TextDim}" Margin="0,0,3,0"
+                                                                               VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding Text}" FontSize="12.5" VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource Brush.TextMuted}" />
+                                                        </StackPanel>
                                                     </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsOut}" Value="True">
+                                                            <Setter TargetName="Way" Property="Data" Value="{StaticResource Icon.Dir.Out}" />
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
@@ -285,12 +326,48 @@
             <Grid>
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
-                        <TextBlock Text="{Binding Selected.Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <Ellipse DataContext="{Binding Selected}" Style="{StaticResource Dot}" Width="7" Height="7"
-                                     Margin="0,0,6,0" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding Selected.StateText}" FontSize="13" Foreground="{StaticResource Brush.TextMuted}" />
-                        </StackPanel>
+                        <!-- The watched node as the graph draws it, its name, and its state in the state's colour. -->
+                        <DockPanel DataContext="{Binding Selected}">
+                            <Border DockPanel.Dock="Left" Width="30" Height="30" BorderThickness="1.5" Margin="0,0,10,0"
+                                    VerticalAlignment="Center" ToolTip="{Binding Look.Name}"
+                                    BorderBrush="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="8" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsRound}" Value="True">
+                                                <Setter Property="CornerRadius" Value="15" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <controls:GridIcon Size="16"
+                                                   Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
+                                                   Foreground="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <Ellipse Style="{StaticResource Dot}" Width="7" Height="7" Margin="0,0,6,0"
+                                             VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding StateText}" FontSize="13">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource Brush.Success}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Light}" Value="{x:Static vm:WatchLight.Waiting}">
+                                                        <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Light}" Value="{x:Static vm:WatchLight.Paused}">
+                                                        <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </StackPanel>
+                        </DockPanel>
                         <TextBlock Text="{Binding Selected.Watch.Subject.Anchor.Value}" FontFamily="{StaticResource Font.Mono}"
                                    FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}" TextWrapping="Wrap" Margin="0,14,0,0" />
                         <ItemsControl ItemsSource="{Binding Facts}" Margin="0,12,0,0" Focusable="False">
@@ -328,9 +405,12 @@
                                         ToolTip="Enter" Content="Ta tillbaka" />
                             </StackPanel>
                         </StackPanel>
+                        <!-- At the bottom of the panel (sketch BV1a): Öppna i grafen leads, a step lighter than the
+                             others, which stay quiet. -->
                         <StackPanel Orientation="Horizontal">
                             <Button Style="{StaticResource Button.Graph}" Height="28" FontSize="13" Padding="10,0" Margin="0,0,6,0"
-                                    Command="{Binding OpenInGraphCommand}">
+                                    Background="{StaticResource Brush.SurfaceSelected}" BorderBrush="{StaticResource Brush.BorderHover}"
+                                    Foreground="{StaticResource Brush.Text}" Command="{Binding OpenInGraphCommand}">
                                 <StackPanel Orientation="Horizontal">
                                     <controls:GridIcon Size="14" Data="{StaticResource Icon.Graph}" Margin="0,0,6,0" />
                                     <TextBlock Text="Öppna i grafen" />

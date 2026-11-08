@@ -75,6 +75,12 @@ public sealed partial class Toast : ObservableObject
     /// <summary>Gets whether the toast stays until closed: errors and warnings do, the others fade out by themselves.</summary>
     public bool IsSticky => Kind is ToastKind.Error or ToastKind.Warning;
 
+    /// <summary>
+    /// Gets whether the line along the bottom edge runs down with the time left (sketch TO1a): only for a toast that
+    /// fades out by itself. For one that stays until closed, the line stands still the whole width.
+    /// </summary>
+    public bool CountsDown => !IsSticky;
+
     /// <summary>Gets how long the toast stands before it fades out, when it is not sticky.</summary>
     public TimeSpan TimeShown => Request.Lingers ? Toaster.TimeLingering : Toaster.TimeShown;
 

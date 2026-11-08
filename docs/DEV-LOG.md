@@ -2680,3 +2680,27 @@ Geometrin står utan WPF i `Graph/TimeAxis.cs`, `Graph/TimeBands.cs`, `Graph/Tim
   `MixerDeposits` ger samma resultat (samma tester gröna); att kedjans text aldrig kallar ett steg ett faktum.
 - **Återstår:** se TODO (testärendet, andra bästa kombinationen, okända mixers mitt i en kedja, delar som går in i
   nästa mixer tillsammans).
+
+## BV1a, TO1a och de instabila App-testerna (2026-11-08)
+
+- **BV1a punkt för punkt:** bakgrundens läge står i en rundad ram i vyns huvud, hel när bevakningen går och streckad
+  (gul när den väntar, grå när bakgrunden är av), eftersom streckat alltid betyder osäkert (`IsFrameDashed`). Varje rad
+  och högerpanelens huvud ritar den bevakade noden som grafen gör (sortens ikon, färg och form, `SortLook` genom
+  `GraphViewModel.LookIn`); finns noden inte i grafen ritas den som kluster eller okänd. Motparternas brickor har en
+  pil för riktningen, läget i panelen står i lägets färg, och *Öppna i grafen* leder bland knapparna längst ner.
+  Vyns röda felrad är borta: ett problem sägs en gång som en toast (TO1a).
+- **TO1a punkt för punkt:** strecket i nederkanten finns på alla toasts, krymper för lyckat och information och står
+  stilla för fel och varningar (`Toast.CountsDown`); ikonen 15 px på sin tonade skiva, texten överst bredvid ikonen,
+  krysset dämpat och toasterna 76 px upp som i skissen, så att hörnets *?* går att nå.
+- **De instabila testerna** hade tre orsaker, alla tester som läste tillstånd medan bakgrundsarbete fortfarande skrev:
+  - `CaseWorkflow.RunAlone` listade ärendena i bakgrunden utan att vänta (`_ = RefreshCasesAsync()`), och
+    ärendeväljaren och skalet listade en gång till. Med testernas UI-tråd som kör direkt fyllde två listningar
+    väljarens rader samtidigt. Nu väntar `RunAlone` in sin listning innan svaret kommer, och de dubbla listningarna
+    är borttagna.
+  - `SettingsTests.Dispose` tog bort inställningsmappen medan inställningarna skrevs i bakgrunden (*Directory not
+    empty*). `SettingsViewModel.Saving` ger skrivningen, och testerna väntar in den.
+  - `ShellViewModelTests` väntade på utgångens namn men läste raden under, som skrivs strax efter; testet väntar nu på
+    båda. Samma mönster i profilens tester (`WaitForTheProfile`).
+  `tests/Chainsaw.App.Tests` kördes 60 gånger, två processer i taget, utan fel.
+- Avsteg från skissen: huvudets räknare säger inte *sedan 09:10* (se TODO); storlekarna följer appens text, ett steg
+  större än skissens.

@@ -34,8 +34,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 
 **Användarens lista 2026-11-07, tas i tur och ordning** (ingen punkt går före någon annan; så polerar användaren):
 1. **TO1a, toastern** (godkänd): fel, varning, lyckat och information nere till höger, högst fem, staplas uppåt och
-   tonar ut. Tar över grafens Notice, och fel som ingen fångat. *Byggd 2026-11-07*; sidornas egna felrader (Källor,
-   Bevakning) går över till toastern när de sidorna ses över.
+   tonar ut. Tar över grafens Notice, och fel som ingen fångat. *Byggd 2026-11-07*, och följer skissen
+   punkt för punkt sedan 2026-11-08. Bevakningens felrad är en toast sedan 2026-11-08; Källors egen felrad går över
+   till toastern när den sidan ses över.
 2. **IN2b, ikonlisten vid noden:** *byggd 2026-11-07*, med bara de åtgärder som går att använda.
 3. **IN1b, formulären vid noden:** *byggd 2026-11-07* för Etikett, Bryt upp och Annan kedja.
 4. **Expansionen ger *Inget nytt att hämta*** med mempool vald. *Rättat 2026-11-07, väntar på prov på Windows:* med
@@ -118,8 +119,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
        tokenmärket som liten rund bricka; swappen som piller på linjen; rubrikerna för kedjornas delar av ytan.
     4. **Bildspråkets ruta GR7a**: *byggd 2026-11-08*.
     5. **Guiden** (GD1b): skissens små diagram inne i avsnitten saknas.
-    6. Små: BV1a (kedjan som bricka, bakgrundens läge i ram, knapparna längst ner), TO1a (färgat streck i nederkanten
-       för fel och varningar).
 41. **Källor är KL2b** (användarens beslut 2026-11-08), utan den färgade kanten vid det valda, strecken vid
     svarstiderna och strecket under endpointen som används (*mindre AI-slop*). Chainabuse får en rad under
     *Etiketter* i samma lista. Byggs.
@@ -130,9 +129,6 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     (en sida); `address` är en sträng och ingen batch-endpoint finns dokumenterad, fast guiden säger *one or more*.
     Prova en gång med två adresser kommaseparerade när nyckeln finns (kostar ett anrop), eller fråga Chainabuse; går
     det kan ett kluster frågas i ett anrop.
-40. **Två App-tester faller ibland** (`CasePickerTests.Stang_closes_the_case_and_the_picker_stays_out`,
-    `SettingsTests.The_lock_screen_says_that_lookups_go_through_windows`, och tidigare en låstidstest): gröna när de
-    körs om. Troligen delat tillstånd mellan tester som körs parallellt; utreds.
 34. **Linjer genom noder** (kvar efter att testärendets trängsel rättades 2026-11-08): när ett hopp med fler än åtta
     aktörer sprids över två kolumner går en linje till den andra kolumnen rakt genom en nod i den första (i
     testärendet linjen till CoinJoin). Beloppen hålls redan undan; linjerna kunde böjas runt noderna, eller aktörer med
@@ -818,6 +814,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 
 ### Bevakning (etapp 26)
+- **Huvudets räknare efter BV1a** (2026-11-08): skissen säger *2 nya träffar sedan 09:10*; vyn säger bara antalet,
+  eftersom när användaren senast tittade inte sparas som en tid. Spara den med *sedd* om den ska stå där.
 - **Starten från en höjd i fas** (granskningen omgång 1, M5): starten är kedjans höjd från `GetTipHeightAsync`, som
   frågar vilken endpoint som helst; ligger den ett block efter kan pengar i det nyaste blocket före bevakningen räknas
   som en träff. Höjden borde komma från en endpoint i fas (eller provets högsta höjd).

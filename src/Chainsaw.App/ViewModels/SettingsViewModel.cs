@@ -390,6 +390,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Gets the settings in force.</summary>
     public AppSettings Current => _settings;
 
+    /// <summary>
+    /// Gets a task that completes when every change made so far is written to the settings' file, or its failure is
+    /// shown, since the file is written off the UI thread.
+    /// </summary>
+    public Task Saving => _saving;
+
     /// <summary>Turns the watching when Chainsaw is closed on or off (the switch).</summary>
     [RelayCommand]
     public void ToggleWatchInBackground() => Save(_settings with { WatchInBackground = !_settings.WatchInBackground });

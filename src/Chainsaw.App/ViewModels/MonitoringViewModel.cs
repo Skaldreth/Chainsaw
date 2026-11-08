@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Chainsaw.App.Graph;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -52,11 +53,17 @@ public sealed partial class WatchRowViewModel : ObservableObject
     /// <param name="partiesText">Its counterparties in words.</param>
     /// <param name="lastText">When it was last checked.</param>
     /// <param name="newHits">How many hits the user has not seen.</param>
+    /// <param name="look">
+    /// The look of the watched node in the graph (sketch GR3c); <see langword="null"/> when it is not there, and the row
+    /// draws a cluster or an address of unknown sort.
+    /// </param>
     public WatchRowViewModel(
         Watch watch, WatchLight light, string stateText, IReadOnlyList<WatchRowParty> parties, string partiesText,
-        string lastText, int newHits)
+        string lastText, int newHits, SortLook? look = null)
     {
         Watch = watch;
+        Look = look ?? VisualLanguage.Of(
+            watch.Subject.Kind == WatchSubjectKind.Cluster ? NodeSort.Cluster : NodeSort.Unknown);
         Light = light;
         StateText = stateText;
         Parties = parties;
@@ -79,8 +86,17 @@ public sealed partial class WatchRowViewModel : ObservableObject
         ? "Kluster · " + WatchWords.Short(Watch.Subject.Anchor)
         : WatchWords.Short(Watch.Subject.Anchor);
 
-    /// <summary>Gets whether the node is a cluster (a square icon) rather than an address (a round one).</summary>
+    /// <summary>Gets whether the node is a cluster rather than an address.</summary>
     public bool IsCluster => Watch.Subject.Kind == WatchSubjectKind.Cluster;
+
+    /// <summary>
+    /// Gets how the watched node is drawn, as in the graph (sketch BV1a): its sort's icon and colour, round for an actor
+    /// we know nothing of and square for a service or a cluster.
+    /// </summary>
+    public SortLook Look { get; }
+
+    /// <summary>Gets whether the node's frame is round, as in the graph.</summary>
+    public bool IsRound => Look.Shape == NodeShape.Round;
 
     /// <summary>Gets the chain's name.</summary>
     public string ChainName => Watch.Chain.ToString();
@@ -150,8 +166,13 @@ public sealed partial class MonitoringViewModel : ObservableObject
     /// <param name="form">The form, shared with the graph.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="background">The background watching, whose state the head says; none in some tests.</param>
+    /// <param name="toaster">The toaster that says a problem; none in some tests.</param>
     public MonitoringViewModel(
-        WatchBoard board, WatchFormViewModel form, IClock clock, BackgroundLink? background = null)
+        WatchBoard board,
+        WatchFormViewModel form,
+        IClock clock,
+        BackgroundLink? background = null,
+        Toaster? toaster = null)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(form);
@@ -159,6 +180,7 @@ public sealed partial class MonitoringViewModel : ObservableObject
         _board = board;
         _clock = clock;
         _background = background;
+        _toaster = toaster;
         Form = form;
         board.Changed += (_, _) => Show();
         if (background is not null)
@@ -185,6 +207,12 @@ public sealed partial class MonitoringViewModel : ObservableObject
     /// Gets names for addresses: the graph's node names, set by the window; the address shortened otherwise.
     /// </summary>
     public Func<ChainAddress, string?> Names { get; set; } = _ => null;
+
+    /// <summary>
+    /// Gets the looks of addresses: the graph's node's sort, set by the window; <see langword="null"/> when the address
+    /// is not in the graph.
+    /// </summary>
+    public Func<ChainAddress, SortLook?> Looks { get; set; } = _ => null;
 
     /// <summary>Gets the chosen row, or <see langword="null"/>.</summary>
     [ObservableProperty]
@@ -214,14 +242,25 @@ public sealed partial class MonitoringViewModel : ObservableObject
 
     /// <summary>Gets whether the watching waits (yellow, dashed) rather than runs.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFrameDashed))]
     public partial bool IsWaiting { get; private set; }
 
     /// <summary>Gets whether the background is off (grey, dashed): it watches only while Chainsaw is open.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFrameDashed))]
     public partial bool IsOff { get; private set; }
+
+    /// <summary>
+    /// Gets whether the frame around the watching's state in the head is dashed (sketch BV1a): it is whole only while
+    /// the watching runs, since dashed always means uncertain.
+    /// </summary>
+    public bool IsFrameDashed => IsWaiting || IsOff;
 
     /// <summary>The background watching, or <see langword="null"/>.</summary>
     private readonly BackgroundLink? _background;
+
+    /// <summary>The toaster that says a problem (sketch TO1a), or <see langword="null"/> in some tests.</summary>
+    private readonly Toaster? _toaster;
 
     /// <summary>Gets whether the removal's confirmation is open.</summary>
     [ObservableProperty]
@@ -231,7 +270,10 @@ public sealed partial class MonitoringViewModel : ObservableObject
     [ObservableProperty]
     public partial string RemoveReason { get; set; } = string.Empty;
 
-    /// <summary>Gets the problem, or an empty text.</summary>
+    /// <summary>
+    /// Gets the problem, or an empty text. It is said in the toaster when it comes (sketch TO1a), not in a line of the
+    /// view's own.
+    /// </summary>
     [ObservableProperty]
     public partial string Problem { get; private set; } = string.Empty;
 
@@ -430,7 +472,18 @@ public sealed partial class MonitoringViewModel : ObservableObject
             parties,
             WatchWords.Parties(watch.Filter, Name),
             LastOf(snapshot, watch),
-            snapshot.HitsOf(watch.Id).Count(snapshot.IsNew));
+            snapshot.HitsOf(watch.Id).Count(snapshot.IsNew),
+            Looks(watch.Subject.Anchor));
+    }
+
+    /// <summary>Says a new problem in the toaster, once: the same problem read again is not said again.</summary>
+    /// <param name="value">The problem, or an empty text.</param>
+    partial void OnProblemChanged(string value)
+    {
+        if (value.Length > 0)
+        {
+            _toaster?.Show(ToastKind.Error, value);
+        }
     }
 
     /// <summary>Writes when a watch was last checked.</summary>

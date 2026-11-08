@@ -395,7 +395,6 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         Show(ViewTable.Start);
-        await _workflow.RefreshCasesAsync();
     }
 
     /// <summary>

@@ -204,6 +204,7 @@ public sealed class BackgroundLinkTests
         Assert.Equal(mode, link.Mode);
         Assert.Equal(text, view.BackgroundText);
         Assert.Equal((waiting, off), (view.IsWaiting, view.IsOff));
+        Assert.Equal(waiting || off, view.IsFrameDashed);
     }
 
     [Theory]
