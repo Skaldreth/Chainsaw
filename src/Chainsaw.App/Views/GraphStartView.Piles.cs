@@ -449,8 +449,8 @@ public partial class GraphStartView
     }
 
     /// <summary>
-    /// Drops what is lifted: a case on the bin is thrown; otherwise on a case or a pile it does what the model says
-    /// (<see cref="GraphStartViewModel.DropOn"/>), and elsewhere nothing.
+    /// Drops what is lifted: a case or a whole pile on the bin is thrown; otherwise on a case or a pile it does what the
+    /// model says (<see cref="GraphStartViewModel.DropOn"/>), and elsewhere nothing.
     /// </summary>
     /// <param name="sender">The view.</param>
     /// <param name="e">The release.</param>
@@ -464,7 +464,7 @@ public partial class GraphStartView
 
         e.Handled = true;
         var target = _dropTarget?.Tag as IStartRingItem;
-        if (lift.Item is RecentCaseItem lifted && _model?.DropOnBin(lifted.CaseNumber) == true)
+        if (ThrowLifted(lift.Item))
         {
             // Thrown in the trash (sketch SO1a): nothing else takes the drop.
             EndLift();
@@ -478,9 +478,19 @@ public partial class GraphStartView
         }
     }
 
+    /// <summary>Throws what was lifted when it was let go on the bin: a case, or a whole pile.</summary>
+    /// <param name="item">What was lifted.</param>
+    /// <returns><see langword="true"/> when it went in the trash.</returns>
+    private bool ThrowLifted(IStartRingItem item) => item switch
+    {
+        RecentCaseItem lifted => _model?.DropOnBin(lifted.CaseNumber) == true,
+        CasePileItem pile => _model?.DropPileOnBin(pile.Id) == true,
+        _ => false,
+    };
+
     /// <summary>
-    /// Lifts a case or a pile: a turned picture of it follows the pointer, and its node goes faint. Only a case makes the
-    /// bin grow; a whole pile cannot be thrown yet.
+    /// Lifts a case or a pile: a turned picture of it follows the pointer, and its node goes faint. Both make the bin
+    /// grow, and a pile dropped there is thrown whole (sketch SO1a).
     /// </summary>
     /// <param name="node">Its node on the ring.</param>
     /// <param name="item">The case or the pile.</param>
@@ -499,6 +509,10 @@ public partial class GraphStartView
         if (item is RecentCaseItem lifted)
         {
             _model?.Lift(lifted.CaseNumber);
+        }
+        else if (item is CasePileItem pile)
+        {
+            _model?.LiftPile(pile.Id);
         }
     }
 
@@ -713,7 +727,7 @@ public partial class GraphStartView
             Width = PileFanLayout.TileWidth, Height = PileFanLayout.TileHeight,
             CornerRadius = new CornerRadius(CardRadius),
             Child = inside, Cursor = Cursors.Hand, Tag = card,
-            ToolTip = "Öppna ärendet · Shift-klick väljer · dra ut på ytan",
+            ToolTip = "Öppna ärendet · Shift-klick väljer · dra ut på ytan eller till soptunnan",
         };
         AutomationProperties.SetName(element, card.CaseNumber);
         ShowChosen(element, card);
@@ -727,7 +741,11 @@ public partial class GraphStartView
         element.MouseLeftButtonDown += (_, e) => PressCard(element, card, e);
         element.MouseMove += (_, e) => DragCards(element, e);
         element.MouseLeftButtonUp += (_, e) => ReleaseCard(element, card, e);
-        element.LostMouseCapture += (_, _) => ForgetCardPress();
+        element.LostMouseCapture += (_, _) =>
+        {
+            ForgetCardPress();
+            _model?.Bin.EndDrag();
+        };
         _cards[card.CaseNumber] = element;
         return element;
     }
@@ -782,6 +800,8 @@ public partial class GraphStartView
                 Fan.Move(card, new Point(at.X, at.Y + (index * DraggedStep)));
             }
         }
+
+        _model?.CardsNear(Bin.DistanceFrom(e.GetPosition(this), this));
     }
 
     /// <summary>
@@ -801,8 +821,16 @@ public partial class GraphStartView
         e.Handled = true;
         var dragged = _dragged;
         var at = e.GetPosition(Fan);
+
+        // Asked before the capture goes, which ends the bin's drag: on the bin the cards are thrown (sketch SO1a).
+        var thrown = dragged.Count > 0 && _model?.DropCardsOnBin(dragged) == true;
         ForgetCardPress();
         element.ReleaseMouseCapture();
+        if (thrown)
+        {
+            return;
+        }
+
         if (dragged.Count > 0)
         {
             DropCards(dragged, at);
@@ -847,8 +875,8 @@ public partial class GraphStartView
     }
 
     /// <summary>
-    /// The piles' keys: Esc puts a lifted case back or folds the fan, and Enter takes the chosen cards out, as in the
-    /// graph's fan.
+    /// The piles' keys: Esc puts a lifted case back or folds the fan, Enter takes the chosen cards out and Delete throws
+    /// them in the trash, as in the graph's fan.
     /// </summary>
     /// <param name="sender">The view.</param>
     /// <param name="e">The key.</param>
@@ -868,6 +896,11 @@ public partial class GraphStartView
         {
             e.Handled = true;
             model.ClosePile();
+        }
+        else if (e.Key == Key.Delete && model.IsPileOpen)
+        {
+            // Delete throws the chosen cards, as in the graph's pile (sketch SO1a).
+            e.Handled = model.ThrowChosenCards();
         }
         else if (e.Key == Key.Enter && model.IsPileOpen)
         {

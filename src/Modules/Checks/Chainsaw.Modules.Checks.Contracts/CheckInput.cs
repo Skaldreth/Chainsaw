@@ -32,7 +32,31 @@ public sealed record CheckInput(
 
     /// <summary>Gets the dismissals in force; empty when none.</summary>
     public IReadOnlyList<DismissedDecision> Dismissed { get; init; } = Dismissed ?? [];
+
+    /// <summary>
+    /// Gets the wallets whose approval is in force, with the merges it made in the clustering; empty when none. The
+    /// wallet analysis shows each as approved and suggests only what is new around it.
+    /// </summary>
+    public IReadOnlyList<ApprovedWallet> ApprovedWallets { get; init; } = [];
 }
+
+/// <summary>
+/// A wallet the user approved (<see cref="CheckAnalysisNames.Wallets"/>), and not taken back, as the clustering holds
+/// it: the addresses its merges (<c>user v1</c>) joined and whether they still stand together.
+/// </summary>
+/// <param name="Analysis">The analysis and version whose suggestion was approved.</param>
+/// <param name="FindingKey">The suggestion's key.</param>
+/// <param name="Addresses">The addresses the approval's merges in force hold, in order.</param>
+/// <param name="Basis">The transactions the merges rest on.</param>
+/// <param name="IsBroken">
+/// Whether the user has broken the merge up since (the addresses no longer stand in one cluster).
+/// </param>
+public sealed record ApprovedWallet(
+    HeuristicId Analysis,
+    string FindingKey,
+    IReadOnlyList<BitcoinAddress> Addresses,
+    IReadOnlyList<Txid> Basis,
+    bool IsBroken);
 
 /// <summary>An actor that a label says is a mixer: its addresses and which service the label names.</summary>
 /// <param name="Addresses">The mixer's known addresses; never empty.</param>

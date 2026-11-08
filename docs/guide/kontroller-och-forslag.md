@@ -51,6 +51,26 @@ eftersom den kan ha räknat på ett annat sätt.
 
 Ett godkänt förslag är fortfarande en bedömning, din. Det står kvar streckat i grafen.
 
+## En plånbok att godkänna
+
+`wallet-proposals v1` föreslår en **plånbok**: adresser som en heuristik tror har samma ägare, men som klustringen inte
+slog ihop av sig själv, till exempel inputs i en tx som kan vara en CoinJoin. Godkänner du förslaget slår Chainsaw ihop
+adresserna som **din sammanslagning**, `user v1`, förseglad med vem, när, skälet om du skrev ett och den tx den bygger
+på. Klustringen respekterar den: ingen heuristik tar tillbaka den, och den räknas före heuristikernas länkar.
+
+Den är ändå en bedömning, och den går att ändra som klustringens egna sammanslagningar:
+
+- **Bryt upp** klustret i inspektören (**U**), som vilken sammanslagning som helst. Uppbrytningen kan ångras.
+- **Ångra** godkännandet i listan (**Ctrl+Z**) eller sammanslagningen under *Historik* i inspektören. Båda tar
+  tillbaka godkännandet och sammanslagningen tillsammans, så att förslaget väntar igen.
+
+Efter godkännandet heter förslaget *Godkänd plånbok*. Kommer det fram en ny adress som hör ihop med plånboken blir den
+ett **nytt förslag**, så att ett godkännande aldrig gäller en adress du inte såg.
+
+Har du brutit isär adresserna tidigare, eller skulle sammanslagningen bryta upp ett annat kluster genom en uppbrytning
+du gjort, går förslaget inte att godkänna förrän uppbrytningen är ångrad. Att ångra sammanslagningen under *Historik*
+visar först vad klustringen slår ihop igen.
+
 ## Läs mer
 
 - [Mixerns troliga utgångar](mixerns-kandidater.md)

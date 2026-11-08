@@ -135,6 +135,15 @@ public sealed record InspectorContent(
     /// </summary>
     public bool IsStartPoint { get; init; }
 
+    /// <summary>
+    /// Gets whether a comment is chosen (sketch KN1a): it has no <em>Varför?</em>, since it is the user's own words and
+    /// rests on nothing Chainsaw worked out, and a button that cannot be used is not shown (principle 7).
+    /// </summary>
+    public bool IsComment { get; init; }
+
+    /// <summary>Gets whether the heading shows <em>Varför?</em>.</summary>
+    public bool HasWhy => !IsComment;
+
     /// <summary>Gives the inspector's content for a node.</summary>
     /// <param name="scene">The scene.</param>
     /// <param name="node">The node.</param>
@@ -223,6 +232,40 @@ public sealed record InspectorContent(
     /// <param name="number">The number.</param>
     /// <returns>For example <c>974 990</c>.</returns>
     private static string Count(long number) => number.ToString("#,##0", Swedish);
+
+    /// <summary>What the line under a chosen comment's heading says (sketch KN1a).</summary>
+    public const string CommentWord = "Kommentar";
+
+    /// <summary>What a comment's thread says when it goes to no node.</summary>
+    public const string NoThreadText = "Ingen nod";
+
+    /// <summary>
+    /// Gives the inspector's content for a chosen comment (sketch KN1a): its first line as the heading, who wrote it and
+    /// when, who changed it last, and the node its thread goes to. The inspector only reads; the note is written in on
+    /// the surface, and its history is under <em>Historik</em>.
+    /// </summary>
+    /// <param name="comment">The comment.</param>
+    /// <param name="thread">The name of the node its thread goes to, or <see langword="null"/> when none is shown.</param>
+    /// <returns>The content.</returns>
+    public static InspectorContent ForComment(GraphComment comment, string? thread)
+    {
+        ArgumentNullException.ThrowIfNull(comment);
+        var title = CommentRules.Title(comment.Text);
+        var facts = new List<InspectorFact>
+        {
+            new("Skriven av", comment.CreatedBy.Name),
+            new("Skriven", Time(comment.CreatedUtc)),
+            new("Senast ändrad av", comment.ChangedBy.Name),
+            new("Senast ändrad", Time(comment.ChangedUtc)),
+            new("Tråd till", thread ?? NoThreadText),
+        };
+        return new InspectorContent(
+            title.Length > 0 ? title : CommentWord, "Icon.Note", GraphInk.Unknown, NodeShape.Square, facts, [], [], [])
+        {
+            Subtitle = CommentWord,
+            IsComment = true,
+        };
+    }
 
     /// <summary>Gives the inspector's content for a line.</summary>
     /// <param name="scene">The scene.</param>

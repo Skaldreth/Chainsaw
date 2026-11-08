@@ -8,8 +8,8 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Clustering;
 
 /// <summary>
-/// Runs the analyses, stores what they conclude with a journal entry per run, and builds the clusters from the
-/// stored conclusions and the user's splits.
+/// Runs the analyses, stores what they conclude with a journal entry per run, stores the user's own merges and
+/// splits, and builds the clusters from the stored conclusions, merges and splits.
 /// </summary>
 internal sealed class ClusteringService : IClusteringService
 {
@@ -190,9 +190,10 @@ internal sealed class ClusteringService : IClusteringService
             throw new ArgumentException("An address cannot be split from itself.", nameof(request));
         }
 
-        if (!Heuristics.Any(heuristic => heuristic.Name == request.Heuristic))
+        if (request.Heuristic != UserMerges.Name && !Heuristics.Any(heuristic => heuristic.Name == request.Heuristic))
         {
-            throw new ArgumentException("A split names one of the analyses that run.", nameof(request));
+            throw new ArgumentException(
+                "A split names one of the analyses that run, or the user's merges.", nameof(request));
         }
 
         // The reason is the user's choice (the user's decision 2026-11-07); only its length is checked.
@@ -207,12 +208,7 @@ internal sealed class ClusteringService : IClusteringService
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(splitSequences);
-        var checkedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-        if (checkedReason?.Length > MaximumReasonLength)
-        {
-            throw new ArgumentException("A reason is at most 1 000 characters.", nameof(reason));
-        }
-
+        var checkedReason = OptionalReason(reason);
         var wanted = splitSequences.ToHashSet();
         return @case.Write(transaction =>
         {
@@ -252,8 +248,10 @@ internal sealed class ClusteringService : IClusteringService
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(splitSequences);
         var wanted = splitSequences.ToHashSet();
-        var (evidence, history) = @case.Read(reader =>
-            (EvidenceStore.ReadLatest(reader, withFindings: false).Evidence, EvidenceStore.ReadSplitHistory(reader)));
+        var (evidence, merges, history) = @case.Read(reader => (
+            EvidenceStore.ReadLatest(reader, withFindings: false).Evidence,
+            MergeStore.ReadInForce(reader),
+            EvidenceStore.ReadSplitHistory(reader)));
         var named = history.Where(entry => wanted.Contains(entry.Split.Sequence)).ToList();
         if (named.Count == 0)
         {
@@ -267,8 +265,8 @@ internal sealed class ClusteringService : IClusteringService
         }
 
         var inForce = history.Where(entry => !entry.IsUndone).Select(entry => entry.Split).ToList();
-        var before = new ClusterGraph(evidence, inForce);
-        var after = new ClusterGraph(evidence, [.. inForce.Where(split => !wanted.Contains(split.Sequence))]);
+        var before = new ClusterGraph(evidence, merges, inForce);
+        var after = new ClusterGraph(evidence, merges, [.. inForce.Where(split => !wanted.Contains(split.Sequence))]);
         var sides = undone.SelectMany(split => new[] { split.First, split.Second }).ToList();
         var anchor = from is not null && sides.Any(side => before.ClusterOf(side).Contains(from)) ? from : sides[0];
         var now = before.ClusterOf(anchor).Addresses.ToHashSet();
@@ -352,6 +350,202 @@ internal sealed class ClusteringService : IClusteringService
         ArgumentNullException.ThrowIfNull(txid);
         var (evidence, findings) = @case.Read(reader => EvidenceStore.ReadLatest(reader, txid));
         return new TransactionConclusions(txid, evidence, findings);
+    }
+
+    /// <inheritdoc/>
+    public TransactionConclusions GetConclusions(ICaseReader reader, Txid txid)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        ArgumentNullException.ThrowIfNull(txid);
+        var (evidence, findings) = EvidenceStore.ReadLatest(reader, txid);
+        return new TransactionConclusions(txid, evidence, findings);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<ClusterMerge> Merge(
+        ICaseTransaction transaction, IReadOnlyList<MergeRequest> requests, string? reason, MergeOrigin? origin)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(requests);
+        if (requests.Count == 0)
+        {
+            throw new ArgumentException("A merge has at least one part.", nameof(requests));
+        }
+
+        foreach (var request in requests)
+        {
+            CheckMerge(request);
+        }
+
+        var checkedReason = OptionalReason(reason);
+        if (origin is not null && string.IsNullOrWhiteSpace(origin.Chain))
+        {
+            throw new ArgumentException("A merge's origin names its chain.", nameof(origin));
+        }
+
+        // The clusters as they stand, before the merges: what holds now must hold after them too (see below).
+        var before = Graph(transaction).MergedKeys();
+        var journal = transaction.AppendJournal(new JournalDraft(
+            ClusteringJournalKinds.Merged,
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "Sammanslagning av användaren ({0}): {1}.",
+                UserMerges.Id,
+                string.Join(
+                    "; ",
+                    requests.Select(request => string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0} har samma ägare ({1}, tx {2})",
+                        string.Join(", ", request.Addresses.Select(address => address.Value)),
+                        request.Proposal,
+                        request.Txid.Value)))),
+            JsonSerializer.Serialize(new
+            {
+                merges = requests.Select(request => new
+                {
+                    addresses = request.Addresses.Select(address => address.Value),
+                    txid = request.Txid.Value,
+                    proposal = request.Proposal.ToString(),
+                }),
+                reason = checkedReason,
+                origin = origin is null ? null : new { chain = origin.Chain, sequence = origin.Sequence },
+            })));
+        var merges = requests
+            .Select(request => MergeStore.Append(transaction, request, checkedReason, origin, journal))
+            .ToList();
+
+        // Read in the same transaction, with the new merges. One that a split in force would refuse merges nothing,
+        // and one that makes another link stop merging would break up a cluster the user never broke up (the user's
+        // merges come first): either is refused here, and the whole transaction rolls back.
+        var after = Graph(transaction);
+        var refused = after.RefusedMerges();
+        if (merges.Any(merge => refused.Contains(merge.Sequence)))
+        {
+            throw new MergeRefusedException(MergeRefusal.AcrossSplit);
+        }
+
+        if (!before.IsSubsetOf(after.MergedKeys()))
+        {
+            throw new MergeRefusedException(MergeRefusal.BreaksMerge);
+        }
+
+        return merges;
+    }
+
+    /// <inheritdoc/>
+    public int UndoMerges(ICaseTransaction transaction, IReadOnlyCollection<long> mergeSequences, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(mergeSequences);
+        var checkedReason = OptionalReason(reason);
+        var wanted = mergeSequences.ToHashSet();
+        var merges = MergeStore.ReadInForce(transaction).Where(merge => wanted.Contains(merge.Sequence)).ToList();
+        if (merges.Count == 0)
+        {
+            return 0;
+        }
+
+        var journal = transaction.AppendJournal(new JournalDraft(
+            ClusteringJournalKinds.MergeUndone,
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "Sammanslagning av användaren ångrad: {0}.",
+                string.Join(
+                    "; ", merges.Select(merge => string.Join(", ", merge.Addresses.Select(address => address.Value))))),
+            JsonSerializer.Serialize(new { merges = merges.Select(merge => merge.Sequence), reason = checkedReason })));
+        foreach (var merge in merges)
+        {
+            MergeStore.AppendUndo(transaction, merge, checkedReason, journal);
+        }
+
+        return merges.Count;
+    }
+
+    /// <inheritdoc/>
+    public UndoMergePreview? PreviewUndoMerges(ICase @case, IReadOnlyCollection<long> mergeSequences)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(mergeSequences);
+        var wanted = mergeSequences.ToHashSet();
+        var (evidence, history, splits) = @case.Read(reader => (
+            EvidenceStore.ReadLatest(reader, withFindings: false).Evidence,
+            MergeStore.ReadHistory(reader),
+            EvidenceStore.ReadSplits(reader)));
+        var named = history.Where(entry => wanted.Contains(entry.Merge.Sequence)).ToList();
+        if (named.Count == 0)
+        {
+            return null;
+        }
+
+        var undone = named.Where(entry => !entry.IsUndone).Select(entry => entry.Merge).ToList();
+        if (undone.Count == 0)
+        {
+            return new UndoMergePreview([], [], []);
+        }
+
+        var inForce = history.Where(entry => !entry.IsUndone).Select(entry => entry.Merge).ToList();
+        var now = new ClusterGraph(evidence, inForce, splits).MergedKeys();
+        var later = new ClusterGraph(evidence, [.. inForce.Where(merge => !wanted.Contains(merge.Sequence))], splits)
+            .MergedLinks()
+            .Where(link => !now.Contains(ClusterGraph.KeyOf(link.Evidence)))
+            .ToList();
+        var rejoined = later
+            .SelectMany(link => link.Evidence.Addresses.Distinct()
+                .Select(address => new ClusterMember(address, link, null)))
+            .DistinctBy(member => member.Address)
+            .ToList();
+        var heuristics = later.Select(link => link.Evidence.Heuristic).Distinct().ToList();
+        return new UndoMergePreview(undone, rejoined, heuristics);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(MergeStore.ReadHistory);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICaseReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        return MergeStore.ReadHistory(reader);
+    }
+
+    /// <summary>Checks a merge before anything is stored.</summary>
+    /// <param name="request">The merge.</param>
+    /// <exception cref="ArgumentException">
+    /// It has fewer than two different addresses, too many, or grounds that are empty or too long.
+    /// </exception>
+    private static void CheckMerge(MergeRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Txid);
+        ArgumentNullException.ThrowIfNull(request.Proposal);
+        if (request.Addresses is null || request.Addresses.Any(address => address is null)
+            || request.Addresses.Count < 2 || request.Addresses.Count > UserMerges.MaximumAddresses
+            || request.Addresses.Distinct().Count() != request.Addresses.Count)
+        {
+            throw new ArgumentException("A merge has at least two different addresses.", nameof(request));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Grounds) || request.Grounds.Length > UserMerges.MaximumTextLength)
+        {
+            throw new ArgumentException(
+                "A merge says what it rests on, in at most 1 000 characters.", nameof(request));
+        }
+    }
+
+    /// <summary>Checks an optional reason: empty is none, and it may be at most 1 000 characters.</summary>
+    /// <param name="reason">The reason.</param>
+    /// <returns>The reason trimmed, or <see langword="null"/>.</returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    private static string? OptionalReason(string? reason)
+    {
+        var checkedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        return checkedReason?.Length > MaximumReasonLength
+            ? throw new ArgumentException("A reason is at most 1 000 characters.", nameof(reason))
+            : checkedReason;
     }
 
     /// <summary>
@@ -492,10 +686,16 @@ internal sealed class ClusteringService : IClusteringService
     private static ClusterGraph Graph(ICase @case)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        var (evidence, splits) = @case.Read(reader =>
-            (EvidenceStore.ReadLatest(reader, withFindings: false).Evidence, EvidenceStore.ReadSplits(reader)));
-        return new ClusterGraph(evidence, splits);
+        return @case.Read(Graph);
     }
+
+    /// <summary>Builds the clusters from what the case has stored, in a transaction the caller holds.</summary>
+    /// <param name="reader">The case's reader or write transaction.</param>
+    /// <returns>The clusters.</returns>
+    private static ClusterGraph Graph(ICaseReader reader) => new(
+        EvidenceStore.ReadLatest(reader, withFindings: false).Evidence,
+        MergeStore.ReadInForce(reader),
+        EvidenceStore.ReadSplits(reader));
 
     /// <summary>Writes the journal's line for a run, in Swedish.</summary>
     /// <param name="transactions">How many transactions were analysed.</param>

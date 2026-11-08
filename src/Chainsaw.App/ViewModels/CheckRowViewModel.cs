@@ -105,6 +105,18 @@ public sealed record SuggestionWords(
         "ADRESS",
         "TID");
 
+    /// <summary>The words of a wallet the clustering proposes (<c>wallet-proposals</c>).</summary>
+    public static SuggestionWords Wallets { get; } = new(
+        [
+            new("Icon.Kind.Wallet", "Samma ägare troligt", "En heuristik föreslår att adresserna har samma ägare, "
+                + "men slog inte ihop dem"),
+            new("Icon.Check", "Din bedömning", "Godkänner du slås adresserna ihop som din bedömning (user v1); den "
+                + "kan brytas upp och ångras"),
+        ],
+        "Plånboken",
+        "ADRESS",
+        "TID");
+
     /// <summary>Gives an analysis's words.</summary>
     /// <param name="analysis">The analysis's name.</param>
     /// <returns>Its words, or <see cref="Plain"/>.</returns>
@@ -113,6 +125,7 @@ public sealed record SuggestionWords(
         "mixer-outputs" => MixerOutputs,
         "mixer-parts" => MixerParts,
         "mixer-chain" => MixerChain,
+        CheckAnalysisNames.Wallets => Wallets,
         _ => Plain,
     };
 }

@@ -880,6 +880,28 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
   Journalen har en rad för varje.
 - Esc stänger formuläret, sedan menyn, sedan panelen, sedan valet av aktörer.
 
+## Godkänna en plånbok (2026-11-08, KF2b)
+
+- Öppna ett ärende med en tx som kan vara en CoinJoin (två inputs, två lika stora utgångar). *Förslag · N* har ett
+  förslag *Samma plånbok troligt* utan kandidater, med brickorna *Samma ägare troligt* och *Din bedömning*.
+- Tryck Enter (*Godkänn*), gärna med ett skäl: toasten säger *Förslaget godkänt*, grafen läses om och adresserna står
+  som ett kluster. Inspektörens *Varför?* på klustret säger `user v1` och *Användaren godkände förslaget från …*, och
+  *Historik* har raden *Sammanslagen av användaren* (streckad) med vem och antal adresser. Journalen har två rader:
+  beslutet och sammanslagningen.
+- Ctrl+Z (eller *Ångra* i loggen): klustret delas igen, förslaget väntar igen, och historiken har *Ångrad:
+  sammanslagningen*.
+- Godkänn igen och ångra i stället från *Historik* (*Ångra* på raden, valfritt skäl): samma resultat, och förslaget
+  väntar igen i listan.
+- *Bryt upp* (U) klustret: adressen går ut, uppbrytningen står i historiken som *Uppbruten · 1 ut* (med *Egen*), och den
+  kan ångras så att klustret är helt igen.
+- Avfärda ett plånboksförslag (X): inget slås ihop och området försvinner.
+- Efter godkännandet heter raden *Godkänd plånbok* under *Avgjort*, och *Varför?* säger *Du godkände …*. Bryt upp
+  klustret: raden heter *Godkänd plånbok, uppbruten*.
+- Bryt ut en adress ur plånboken (U) och försök sedan godkänna ett förslag som för ihop dem igen: panelen säger att
+  uppbrytningen måste ångras först, och inget sparas.
+- Hämta en tx som för en ny adress till en godkänd plånbok: ett nytt förslag med bara den nya biten väntar.
+- *Ångra* på *Sammanslagen av användaren* i *Historik* visar *Slås ihop igen* innan något sparas.
+
 ## Ethereum, första delen (etapp 23)
 
 Grafen för Ethereum är inte byggd än; det som går att prova är källan, startpunkterna, Källor och Guiden.
@@ -1346,8 +1368,7 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Pennan i den utfällda högen byter namn på den.
 - [ ] Dra en hög och släpp den på en annan hög: den andra växer lite medan den tar emot, och de blir en hög med den
       dragnas ärenden överst och namnet från högen man släppte på (eller den dragnas, om den saknade namn). Släpp en
-      hög på ett löst ärende: ärendet hamnar i högen. Soptunnan växer inte när en hög dras (en hel hög går inte att
-      slänga än).
+      hög på ett löst ärende: ärendet hamnar i högen.
 - [ ] Tab når högarna som ärendena, med en terrakottaram runt den som har tangentbordet. Enter eller blanksteg fäller
       ut den, F2 skriver namnet.
 - [ ] En hög som töms försvinner.
@@ -1539,7 +1560,36 @@ några steg).
 - Släng en nod med en kommentarslapp: lappen försvinner med noden och kommer tillbaka med den.
 - Tryck Delete två gånger snabbt på samma nod: den slängs en gång.
 
+### Kommentarer, egna ytor och högar i soptunnan (2026-11-08)
+
+- [ ] Klicka på en kommentarslapp och tryck Delete: lappen och dess prickade tråd försvinner, toasten säger *Slängde 1
+      kommentar* med *Ångra · Ctrl+Z*, och Ctrl+Z lägger tillbaka den där den stod med samma text.
+- [ ] Dra en lapp mot soptunnan: soptunnan växer som för en nod, och ett släpp på den slänger lappen. Släppt utanför
+      står lappen där den släpptes.
+- [ ] Töm all text i en lapp och klicka utanför: lappen slängs (inte borttagen), och *Lägg tillbaka* i soptunnans vy ger
+      tillbaka den gamla texten.
+- [ ] Soptunnans vy visar lappen med lappens ikon i en fyrkant och dess första rad som namn, och raden räknar *1
+      kommentar*, inte *1 aktör*. Huvudets *dolda i grafen* räknar med lappen.
+- [ ] Välj en egen yta (klicka på dess bricka) och tryck Delete: ytan försvinner men aktörerna står kvar; toasten säger
+      *Slängde 1 yta*, och *Lägg tillbaka* i soptunnans vy (ytans ikon) ger tillbaka den. Krysset på brickan tar
+      fortfarande bort ytan med skäl, som förut.
+- [ ] Stäng och öppna ärendet: slängda lappar och ytor är fortfarande dolda. `/verify` säger att allt är orört.
+- [ ] Startvyn: lyft en hel hög och dra den mot soptunnan; soptunnan växer, och ett släpp slänger hela högen. Toasten
+      säger *Högen … ligger i soptunnan* med *Ångra*, som ger tillbaka högen hel med namn och ordning.
+- [ ] Fäll ut en hög och dra ett kort mot soptunnan (den syns över det dimmade): kortet slängs och högen fälls ihop med
+      ett ärende mindre. Shift-klicka flera kort och tryck Delete: alla slängs. *Ångra* lägger tillbaka dem i högen.
+- [ ] Soptunnans vy under *Ärenden från startsidan*: en slängd hög står som en rad med högens ikon, namn och antal, och
+      ärendena hängda under med ├ och └. *Lägg tillbaka högen* ger tillbaka hela, *Lägg tillbaka* på ett ärende bara
+      det, i högen.
+- [ ] Starta om Chainsaw: en slängd hög är fortfarande dold och kommer tillbaka hel (`%LOCALAPPDATA%\Chainsaw\trash.json`).
+
 ## Kommentarsnoden (KN1a)
+- [ ] Klicka på en lapp: inspektören öppnas med lappens första rad som rubrik, *Kommentar* under, utan *Varför?*, och
+      fakta om vem som skrev den, när, vem som ändrade den sist och vilken nod tråden går till. En vald nod släpps.
+- [ ] Fliken *Historik* på lappen: *Kommentar skriven*, *Texten ändrad* (med början av den nya texten), *Tråd till …*,
+      *Tråden lossad*, *Slängd i soptunnan* och *Lagd tillbaka ur soptunnan*, i tidsordning med vem och tid, utan
+      knappar. Skriv i lappen och lämna den: rubriken och historiken följer med.
+- [ ] Välj en nod medan en lapp är vald: inspektören visar noden och lappen släpps. Krysset eller Esc stänger.
 - [ ] Välj en nod och tryck **N** (eller ikonen *Kommentar* i listen över noden, eller *Kommentar …* i högerklicket):
       en lapp öppnas uppe till höger om noden med en tunn prickad tråd till den och en prick vid noden. Tomma lappen är
       en streckad kontur med *Skriv … # **fet** - lista*, och markören står i den.
