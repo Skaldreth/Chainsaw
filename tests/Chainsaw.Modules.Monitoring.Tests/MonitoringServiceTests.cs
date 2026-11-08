@@ -107,6 +107,34 @@ public sealed class MonitoringServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_hit_found_in_another_block_after_a_reorganisation_is_sealed_again_and_said()
+    {
+        _harness.WatchBitcoin(Node);
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_000);
+        var first = Synthetic.Tx("hit", 900_001).In(Node, 20_000).Out(Exchange, 19_000).Build();
+        _harness.Bitcoin.Holds(Node, first);
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_001);
+
+        // The block was replaced: the same transaction is mined again one block higher, under another hash.
+        var again = Synthetic.Tx("hit", 900_002).In(Node, 20_000).Out(Exchange, 19_000).Build();
+        _harness.Bitcoin.Holds(Node, again);
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_002);
+        var quiet = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_003);
+        _harness.Reopen();
+
+        Assert.Empty(run.Hits);
+        Assert.Empty(quiet.Hits);
+        var hit = Assert.Single(_harness.Service.GetHits(_harness.Case));
+        Assert.Equal(again.Block!.Hash.Value, hit.Match.Block.Hash);
+        Assert.Equal(first.Block!.Hash.Value, hit.MovedFrom!.Hash);
+        Assert.Equal(900_001, hit.MovedFrom.Height);
+        var line = Assert.Single(_harness.Journal(MonitoringJournalKinds.HitMoved));
+        Assert.Contains("förut i block 900 001 (omorganisation)", line.Summary, StringComparison.Ordinal);
+        Assert.Single(_harness.Journal(MonitoringJournalKinds.Hit));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
     public async Task A_hit_is_sealed_once_however_often_it_is_seen()
     {
         _harness.WatchBitcoin(Node);
