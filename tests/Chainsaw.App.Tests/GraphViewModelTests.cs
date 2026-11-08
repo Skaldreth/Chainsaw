@@ -1,11 +1,14 @@
 using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
+using Chainsaw.App.Settings;
 using Chainsaw.App.ViewModels;
+using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Tests;
 
@@ -150,7 +153,8 @@ public sealed class GraphViewModelTests
         {
             Workflow = new CaseWorkflow(new TestCaseStore(), Tracing, new TestVault(VaultState.Unlocked), Session);
             Graph = new GraphViewModel(
-                Session, Workflow, Source, TestWays.For(Exit), new InlineUi(), Editor, new TestClock());
+                Session, Workflow, Source, TestWays.For(Exit), new InlineUi(), Editor, new TestClock(),
+                suppliers: Suppliers, switches: Switches);
             Graph.FitWanted += (_, _) => Fits++;
             Graph.GuideWanted += (_, request) => Guides.Add(request);
             Graph.WhyChanged += (_, request) => Followed.Add(request);
@@ -167,6 +171,10 @@ public sealed class GraphViewModelTests
         public CaseWorkflow Workflow { get; }
 
         public TestGraphSource Source { get; } = new();
+
+        public TestSuppliers Suppliers { get; } = new();
+
+        public AttributionSwitches Switches { get; } = new();
 
         public TestGraphEditor Editor { get; } = new();
 
@@ -469,6 +477,40 @@ public sealed class GraphViewModelTests
         Assert.Equal(GraphSamples.KKey, rig.Graph.SelectedNode);
     }
 
+    /// <summary>
+    /// The suppliers' icon (Chainabuse) shows only while one is on and the node is one address; it asks with the
+    /// address and the names that are on, and says what came back.
+    /// </summary>
+    [Fact]
+    public async Task TheSuppliersAreAskedOnlyWhenOneIsOnAndAboutOneAddress()
+    {
+        var rig = new Rig();
+        rig.Exit.Set(new ExitStatus(ExitState.Connected, Guid.NewGuid(), null));
+        var toasts = new List<ToastRequest>();
+        rig.Graph.ToastWanted += (_, request) => toasts.Add(request);
+
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        Assert.False(rig.Graph.IsOffline);
+        Assert.DoesNotContain(rig.Graph.NodeTools, tool => tool.Action == NodeMenuAction.AskSuppliers);
+
+        rig.Switches.Set("chainabuse", on: true);
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        Assert.Contains(rig.Graph.NodeTools, tool => tool.Action == NodeMenuAction.AskSuppliers);
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        Assert.DoesNotContain(rig.Graph.NodeTools, tool => tool.Action == NodeMenuAction.AskSuppliers);
+
+        rig.Graph.Choose(GraphSamples.UKey, null);
+        rig.Graph.AskSuppliers();
+        await rig.Suppliers.Asked;
+
+        var (address, enabled) = Assert.Single(rig.Suppliers.Calls);
+        Assert.Equal(Chain.Bitcoin, address.Chain);
+        Assert.Equal(["chainabuse"], enabled);
+        var toast = Assert.Single(toasts);
+        Assert.Equal(ToastKind.Information, toast.Kind);
+        Assert.Contains(GraphViewModel.NothingReportedText, toast.Title, StringComparison.Ordinal);
+    }
+
     /// <summary>The chosen node's actions over it (sketch IN2b) are only those that apply, Expandera first.</summary>
     [Fact]
     public void TheNodesActionsAreOnlyThoseThatApply()
@@ -764,5 +806,29 @@ public sealed class GraphViewModelTests
             TracingMethodKind method,
             CancellationToken cancellationToken) =>
             inner.TakeHeldBackAsync(@case, address, transactions, method, cancellationToken);
+    }
+}
+
+/// <summary>The suppliers of attribution, without network: records what is asked and answers that nothing is reported.</summary>
+internal sealed class TestSuppliers : IAttributionProviders
+{
+    private readonly TaskCompletionSource _asked = new();
+
+    public List<(ChainAddress Address, IReadOnlyCollection<string> Enabled)> Calls { get; } = [];
+
+    public Task Asked => _asked.Task;
+
+    public IReadOnlyList<AttributionProviderInfo> Providers { get; } =
+        [new("chainabuse", "Chainabuse", "Chainabuse", [Chain.Bitcoin, Chain.Ethereum])];
+
+    public Task<IReadOnlyList<ProviderLookup>> LookupAsync(
+        ICase @case, ChainAddress address, IReadOnlyCollection<string> enabled,
+        CancellationToken cancellationToken = default)
+    {
+        Calls.Add((address, enabled));
+        _asked.TrySetResult();
+        IReadOnlyList<ProviderLookup> answers =
+            [new("chainabuse", ProviderLookupStatus.Answered, [], 0, 1, null)];
+        return Task.FromResult(answers);
     }
 }

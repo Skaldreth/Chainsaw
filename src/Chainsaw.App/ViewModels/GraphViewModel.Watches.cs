@@ -30,6 +30,12 @@ public enum NodeMenuAction
 
     /// <summary>Lägg tillbaka i högen: an actor picked out of a pile goes back into it (sketch EX2b).</summary>
     ReturnToPile,
+
+    /// <summary>
+    /// Fråga underleverantörerna (R): asks the suppliers of attribution that are on, Chainabuse first, about the
+    /// node's address (the user's decision 2026-11-08: a button for now, automatic later).
+    /// </summary>
+    AskSuppliers,
 }
 
 /// <summary>A row of the node's menu.</summary>
@@ -101,6 +107,7 @@ public sealed partial class GraphViewModel
         Add(CanWatch(node), NodeMenuAction.Watch, "Bevaka", "B", "Icon.Eye");
         Add(Forms.CanSplit, NodeMenuAction.Split, "Bryt upp", "U", "Icon.Split");
         Add(Forms.CanCrossChain, NodeMenuAction.CrossChain, "Annan kedja", "K", "Icon.Link");
+        Add(CanAskSuppliers(node), NodeMenuAction.AskSuppliers, SuppliersToolText, "R", "Icon.Shield");
         Add(node.Node.Addresses.Count > 0, NodeMenuAction.Copy, "Kopiera adress", "Ctrl+C", "Icon.Copy");
         Add(CanReturnToPile, NodeMenuAction.ReturnToPile, "Lägg tillbaka i högen", "", "Icon.Layers");
         NodeTools = tools;
@@ -202,6 +209,9 @@ public sealed partial class GraphViewModel
                 break;
             case NodeMenuAction.ReturnToPile:
                 _ = ReturnToPileAsync();
+                break;
+            case NodeMenuAction.AskSuppliers:
+                _ = AskSuppliersAsync();
                 break;
             default:
                 CopyAddress();

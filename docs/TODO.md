@@ -126,8 +126,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 41. **Källor är KL2b** (användarens beslut 2026-11-08), utan den färgade kanten vid det valda, strecken vid
     svarstiderna och strecket under endpointen som används (*mindre AI-slop*). Chainabuse får en rad under
     *Etiketter* i samma lista. Byggs.
-42. **Chainabuse frågas med en knapp nu, automatiskt senare** (användarens beslut 2026-11-08): en ikon i nodens
-    ikonlist (IN2b) som frågar de underleverantörer som är på om adressen; automatiska uppslag när nyckeln tillåter.
+42. **Chainabuse frågas med en knapp nu, automatiskt senare** (användarens beslut 2026-11-08). *Knappen byggd
+    2026-11-08:* skölden *Fråga om rapporter* (R) i nodens ikonlist, bara för en nod med en adress, online och när en
+    underleverantör är på. Kvar: automatiska uppslag när nyckeln tillåter.
 40. **Två App-tester faller ibland** (`CasePickerTests.Stang_closes_the_case_and_the_picker_stays_out`,
     `SettingsTests.The_lock_screen_says_that_lookups_go_through_windows`, och tidigare en låstidstest): gröna när de
     körs om. Troligen delat tillstånd mellan tester som körs parallellt; utreds.

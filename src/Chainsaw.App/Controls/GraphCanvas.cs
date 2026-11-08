@@ -448,6 +448,9 @@ public sealed partial class GraphCanvas : FrameworkElement
             case Key.E:
                 _model.ExpandCommand.Execute(null);
                 break;
+            case Key.R:
+                _model.AskSuppliers();
+                break;
             case Key.F:
                 Fit();
                 _model.ViewportChanged(_viewport);

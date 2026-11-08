@@ -1199,3 +1199,7 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] *Ta bort*: nyckeln försvinner ur valvet och fältet kommer tillbaka.
 - [ ] Starta om Chainsaw: Chainabuse är fortfarande på (`"AttributionProviders": [ "chainabuse" ]` i
       `%LOCALAPPDATA%\Chainsaw\settings.json`). Stäng av: listan blir tom.
+- Chainabuse med en knapp: slå på Chainabuse under Inställningar › Källor › Etiketter och spara en nyckel. Välj en nod
+  med en adress (Bitcoin eller Ethereum): ikonen *Fråga om rapporter* (skölden) står i ikonlisten, och R gör samma sak.
+  Ett kluster, offline eller med Chainabuse av: ikonen syns inte. Svaret kommer som en toast; finns rapporter får noden
+  en röd markering *Rapporterad* och etiketten står i Historik med Chainabuse som källa.

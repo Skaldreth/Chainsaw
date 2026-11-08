@@ -1,6 +1,8 @@
 using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
 using Chainsaw.App.Navigation;
+using Chainsaw.App.Settings;
+using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
@@ -107,6 +109,8 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="checks">
     /// The checks, suggestions and own areas (sketches KF1a and KF1b); none when the graph is built without them.
     /// </param>
+    /// <param name="suppliers">The suppliers of attribution (Chainabuse first); none where they are not wired.</param>
+    /// <param name="switches">Which suppliers are on, from the page Källor; none where they are not wired.</param>
     public GraphViewModel(
         CaseSession session,
         CaseWorkflow workflow,
@@ -115,8 +119,17 @@ public sealed partial class GraphViewModel : ObservableObject
         IUiThread ui,
         IGraphEditor editor,
         IClock clock,
-        ICheckSource? checks = null)
+        ICheckSource? checks = null,
+        IAttributionProviders? suppliers = null,
+        AttributionSwitches? switches = null)
     {
+        _suppliers = suppliers;
+        _switches = switches;
+        if (switches is not null)
+        {
+            // A supplier switched on or off on the page Källor shows or hides its icon over the chosen node.
+            switches.Changed += (_, _) => ui.Post(ShowNodeTools);
+        }
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(exit);
         ArgumentNullException.ThrowIfNull(ui);
