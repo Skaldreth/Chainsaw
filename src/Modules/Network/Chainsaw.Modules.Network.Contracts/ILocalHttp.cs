@@ -26,4 +26,20 @@ public interface ILocalHttp
     /// </exception>
     /// <exception cref="OperationCanceledException">The caller cancelled the request.</exception>
     Task<ExitResponse> SendAsync(ExitRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the certificate the user's own node shows, without trusting it and without sending a request: only the
+    /// TLS handshake is made, the same way a request goes (only in the user's own network, never through a proxy),
+    /// so that the user can compare it and pin it (sketch KL3b).
+    /// </summary>
+    /// <param name="address">The node's address: absolute https, in the user's own network.</param>
+    /// <param name="cancellationToken">Stops the reading.</param>
+    /// <returns>The certificate.</returns>
+    /// <exception cref="ExitException">
+    /// <see cref="ExitError.NotLocal"/>: the name points only outside the user's own network; or the node did not
+    /// answer, or showed no certificate.
+    /// </exception>
+    /// <exception cref="ArgumentException">The address is not https or not in the user's own network.</exception>
+    /// <exception cref="OperationCanceledException">The caller cancelled the reading.</exception>
+    Task<NodeCertificate> ReadCertificateAsync(Uri address, CancellationToken cancellationToken = default);
 }

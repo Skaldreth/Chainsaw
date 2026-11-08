@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Network.Contracts;
+using Chainsaw.SharedKernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -36,18 +37,37 @@ public static class NetworkModule
         services.AddSingleton<ExitConnection>();
         services.AddSingleton<IExitConnection>(provider => provider.GetRequiredService<ExitConnection>());
         services.AddSingleton<IExitStore, ExitStore>();
-        services.AddSingleton<IWindowsHandlerFactory, WindowsHandlerFactory>();
-        services.AddSingleton<ExitRouteChoice>();
+        // The proxy Windows is set up with, and the user's choice to log in to it (sketch PX1a).
+        services.TryAddSingleton<IWindowsProxyReader, WinHttpProxyReader>();
+        services.AddSingleton(provider => new WindowsProxyLogin(
+            provider.GetRequiredService<IWindowsProxyReader>(),
+            provider.GetRequiredService<NetworkOptions>(),
+            provider.GetService<IClock>() ?? new SystemClock()));
+        services.AddSingleton<IWindowsProxy>(provider => provider.GetRequiredService<WindowsProxyLogin>());
+        services.AddSingleton<IWindowsHandlerFactory>(provider => new WindowsHandlerFactory(
+            provider.GetRequiredService<NetworkOptions>(), provider.GetRequiredService<WindowsProxyLogin>()));
+        services.AddSingleton(provider => new ExitRouteChoice(
+            provider.GetRequiredService<NetworkOptions>(),
+            provider.GetRequiredService<IWindowsHandlerFactory>(),
+            provider.GetRequiredService<WindowsProxyLogin>()));
         services.AddSingleton<IExitRoute>(provider => provider.GetRequiredService<ExitRouteChoice>());
         services.TryAddSingleton<INetworkSignals, WindowsNetworkSignals>();
         services.TryAddSingleton<IInternetProbe>(provider => new InternetProbe(
-            provider.GetRequiredService<IWindowsHandlerFactory>(), TimeProvider.System));
+            provider.GetRequiredService<IWindowsHandlerFactory>(),
+            TimeProvider.System,
+            provider.GetRequiredService<WindowsProxyLogin>()));
         services.TryAddSingleton<INetworkPresence>(provider => new NetworkPresence(
             provider.GetRequiredService<INetworkSignals>(),
             provider.GetRequiredService<IInternetProbe>(),
             provider.GetRequiredService<IExitRoute>(),
             TimeProvider.System));
-        services.AddSingleton<IExitHttp, ExitHttp>();
+        services.AddSingleton<IExitHttp>(provider => new ExitHttp(
+            provider.GetRequiredService<ExitConnection>(),
+            provider.GetRequiredService<ExitRouteChoice>(),
+            provider.GetRequiredService<INetworkPresence>(),
+            provider.GetRequiredService<NetworkOptions>(),
+            provider.GetRequiredService<IClock>(),
+            provider.GetRequiredService<WindowsProxyLogin>()));
         services.AddSingleton<IExitCheck, ExitCheck>();
 
         // A tunnel that falls, for example after the computer has slept, is connected again by itself.

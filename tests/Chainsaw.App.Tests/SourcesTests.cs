@@ -429,6 +429,19 @@ public sealed class SourcesTests
     /// <summary>Bitcoin's sources in memory: two endpoints in Snabbast, probes the test sets.</summary>
     private sealed class TestChainSources : IChainSources
     {
+        public event EventHandler<SourceEndpoint>? CertificateRefused
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<Chainsaw.Modules.Network.Contracts.NodeCertificate> ReadCertificateAsync(
+            Chain chain, Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task PinAsync(Chain chain, Guid id, string fingerprint, string by) => Task.CompletedTask;
+
+        public Task UnpinAsync(Chain chain, Guid id, string by) => Task.CompletedTask;
+
         public List<SourceEndpoint> Endpoints { get; } =
         [
             new(MempoolId, Chain.Bitcoin, "mempool.space", new Uri("https://mempool.space/api/"), "esplora", null, true),

@@ -30,6 +30,13 @@ public sealed record AppSettings
     /// </summary>
     public ExitRoute ExitRoute { get; init; } = ExitRoute.Vpn;
 
+    /// <summary>
+    /// Gets the proxy set by hand in Windows that Chainsaw may log in to with the Windows account, as <c>host:port</c>
+    /// (sketch PX1a, the user's decision 2026-11-08); <see langword="null"/>, off, by default. It applies only while
+    /// Windows' proxy is still set by hand to that address; the background follows it.
+    /// </summary>
+    public string? ProxyLoginFor { get; init; }
+
     /// <summary>Gets the currency amounts are counted in; Swedish kronor by default.</summary>
     public FiatCurrency Currency { get; init; } = FiatCurrency.Sek;
 

@@ -34,6 +34,9 @@ internal sealed class WatcherLoop
     /// <summary>The gate, which follows the plan's way out.</summary>
     private readonly WatcherGate _gate;
 
+    /// <summary>The login to Windows' proxy, set from the plan (sketch PX1a); none in some tests.</summary>
+    private readonly IWindowsProxy? _proxy;
+
     /// <summary>Makes the case in memory of a round.</summary>
     private readonly Func<IMemoryCase> _scratch;
 
@@ -69,10 +72,12 @@ internal sealed class WatcherLoop
     /// <param name="route">The way out.</param>
     /// <param name="gate">The gate.</param>
     /// <param name="scratch">Makes a case in memory.</param>
-    public WatcherLoop(WatcherParts parts, IExitRoute route, WatcherGate gate, Func<IMemoryCase> scratch)
+    /// <param name="proxy">The login to Windows' proxy, which follows the plan; none in some tests.</param>
+    public WatcherLoop(
+        WatcherParts parts, IExitRoute route, WatcherGate gate, Func<IMemoryCase> scratch, IWindowsProxy? proxy = null)
     {
         ArgumentNullException.ThrowIfNull(parts);
-        (_parts, _route, _gate, _scratch) = (parts, route, gate, scratch);
+        (_parts, _route, _gate, _scratch, _proxy) = (parts, route, gate, scratch, proxy);
         _progress = parts.Progress.Read().ToDictionary(each => (each.CaseId, each.WatchId));
     }
 
@@ -101,6 +106,7 @@ internal sealed class WatcherLoop
         }
 
         _gate.Route = _plan.Route;
+        FollowProxyLogin();
         _route.Choose(_plan.Route);
         if (_plan.Route != ExitRoute.Windows)
         {
@@ -134,6 +140,27 @@ internal sealed class WatcherLoop
         KeepProgress();
         Say(StateOf(round, work.Count), round.InStepWith);
         return true;
+    }
+
+    /// <summary>
+    /// Follows the user's choice to log in to Windows' proxy (sketch PX1a), as Chainsaw does: the same gate, so the
+    /// account goes only to that proxy set by hand. An address that cannot be read turns the login off.
+    /// </summary>
+    private void FollowProxyLogin()
+    {
+        if (_proxy is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _proxy.AllowLogin(_plan.ProxyLoginFor);
+        }
+        catch (ArgumentException)
+        {
+            _proxy.AllowLogin(null);
+        }
     }
 
     /// <summary>Gives what to say after a round.</summary>

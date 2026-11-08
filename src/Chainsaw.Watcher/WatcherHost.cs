@@ -142,7 +142,8 @@ internal static class WatcherServices
             provider.GetRequiredService<WatcherParts>(),
             provider.GetRequiredService<IExitRoute>(),
             provider.GetRequiredService<WatcherGate>(),
-            provider.GetRequiredService<Func<IMemoryCase>>()));
+            provider.GetRequiredService<Func<IMemoryCase>>(),
+            provider.GetRequiredService<IWindowsProxy>()));
 
         // Last, so that what a test puts in place wins.
         configure?.Invoke(services);

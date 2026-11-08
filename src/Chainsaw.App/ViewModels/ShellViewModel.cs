@@ -162,6 +162,12 @@ public sealed partial class ShellViewModel : ObservableObject
         _way = exit;
         Settings = settings;
         exitPanel.SettingsWanted += (_, _) => Show(AppView.Settings, SettingsPage.Network);
+        if (settings.Sources is { } sources)
+        {
+            // The toaster's Visa for a node whose certificate changed (sketch KL3b) opens its box at Källor.
+            sources.PinWanted += (_, _) => Show(AppView.Settings, SettingsPage.Sources);
+        }
+
         _session = session;
         _sanctions = sanctions;
         _commands = commands;

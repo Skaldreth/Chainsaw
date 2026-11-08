@@ -99,6 +99,12 @@ internal sealed class ChainSources : IChainSources
     /// <summary>Each chain's state.</summary>
     private readonly Dictionary<Chain, ChainState> _chains = [];
 
+    /// <summary>
+    /// The endpoints and pins whose refused certificate has been told, so that it is told once (guarded by
+    /// <see cref="_gate"/>).
+    /// </summary>
+    private readonly HashSet<(Guid Id, string Pin)> _refused = [];
+
     /// <summary>Creates the sources from the file, with each chain's defaults where the file says nothing.</summary>
     /// <param name="apis">The sorts of API Chainsaw speaks.</param>
     /// <param name="http">The only way out.</param>
@@ -140,6 +146,9 @@ internal sealed class ChainSources : IChainSources
     public event EventHandler<Chain>? Changed;
 
     /// <inheritdoc/>
+    public event EventHandler<SourceEndpoint>? CertificateRefused;
+
+    /// <inheritdoc/>
     public IReadOnlyList<Chain> Chains { get; }
 
     /// <summary>Gets each endpoint's pace and its requests to wait, shared by the lookups and the probes.</summary>
@@ -167,6 +176,7 @@ internal sealed class ChainSources : IChainSources
                 endpoint.Id == first)
             {
                 WaitUntil = Pacer.WaitUntil(endpoint.Id),
+                CertificateRefused = endpoint.Pin is { } pin && _refused.Contains((endpoint.Id, pin.Fingerprint)),
             }).ToList();
             var now = _clock.UtcNow;
             var waiting = state.Waits.Where(until => until > now).DefaultIfEmpty().Max();
@@ -221,9 +231,144 @@ internal sealed class ChainSources : IChainSources
     public Task<ExitResponse> SendAsync(
         SourceEndpoint endpoint, ExitRequest request, CancellationToken cancellationToken) =>
         endpoint.Local
-            ? _local?.SendAsync(request, cancellationToken)
-                ?? Task.FromException<ExitResponse>(new ExitException(ExitError.RequestFailed))
+            ? SendToOwnNodeAsync(endpoint, request, cancellationToken)
             : _http.SendAsync(request, cancellationToken);
+
+    /// <summary>
+    /// Sends a request straight to the user's own node with the endpoint's pinned certificate, if any (sketch KL3b),
+    /// and tells the first refusal of a certificate that has changed.
+    /// </summary>
+    /// <param name="endpoint">The endpoint, marked local.</param>
+    /// <param name="request">The request under its address.</param>
+    /// <param name="cancellationToken">Stops the request.</param>
+    /// <returns>The response.</returns>
+    /// <exception cref="ExitException">The request failed, or there is no way to the own node.</exception>
+    private async Task<ExitResponse> SendToOwnNodeAsync(
+        SourceEndpoint endpoint, ExitRequest request, CancellationToken cancellationToken)
+    {
+        if (_local is null)
+        {
+            throw new ExitException(ExitError.RequestFailed);
+        }
+
+        try
+        {
+            var pinned = request with { CertificatePin = endpoint.Pin?.Fingerprint };
+            return await _local.SendAsync(pinned, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ExitException exception) when (exception.Error == ExitError.CertificateChanged)
+        {
+            TellRefused(endpoint);
+            throw;
+        }
+    }
+
+    /// <summary>Tells that an endpoint's node showed another certificate, once per endpoint and pin.</summary>
+    /// <param name="endpoint">The endpoint.</param>
+    private void TellRefused(SourceEndpoint endpoint)
+    {
+        lock (_gate)
+        {
+            if (!_refused.Add((endpoint.Id, endpoint.Pin?.Fingerprint ?? string.Empty)))
+            {
+                return;
+            }
+        }
+
+        foreach (var handler in CertificateRefused?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                ((EventHandler<SourceEndpoint>)handler)(this, endpoint);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // The lookup goes on to the other endpoints; a listener's failure is its own.
+            }
+        }
+
+        Tell(endpoint.Chain);
+    }
+
+    /// <inheritdoc/>
+    public async Task<NodeCertificate> ReadCertificateAsync(
+        Chain chain, Guid id, CancellationToken cancellationToken = default)
+    {
+        var endpoint = LocalEndpoint(chain, id);
+        if (_local is null)
+        {
+            throw new ExitException(ExitError.RequestFailed);
+        }
+
+        return await _local.ReadCertificateAsync(endpoint.Address, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public Task PinAsync(Chain chain, Guid id, string fingerprint, string by)
+    {
+        if (!CertificatePin.IsValid(fingerprint))
+        {
+            throw new ArgumentException("Not a certificate's fingerprint.", nameof(fingerprint));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(by);
+        LocalEndpoint(chain, id);
+        var now = _clock.UtcNow;
+        return Change(chain, state => Repin(state, id, new EndpointCertificate(fingerprint, now, by.Trim()), by, now));
+    }
+
+    /// <inheritdoc/>
+    public Task UnpinAsync(Chain chain, Guid id, string by)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(by);
+        var now = _clock.UtcNow;
+        return Change(chain, state => Repin(state, id, null, by, now));
+    }
+
+    /// <summary>
+    /// Replaces an endpoint's pin, keeping the one it had first among the former ones with when and by whom, and
+    /// forgetting that the old pin's refusal was told, so that a new change is told again.
+    /// </summary>
+    /// <param name="state">The chain's state.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <param name="pin">The new pin, or <see langword="null"/> to remove it.</param>
+    /// <param name="by">Who makes the change.</param>
+    /// <param name="now">When, in UTC.</param>
+    private void Repin(ChainState state, Guid id, EndpointCertificate? pin, string by, DateTimeOffset now)
+    {
+        var index = state.Endpoints.FindIndex(endpoint => endpoint.Id == id);
+        if (index < 0 || !state.Endpoints[index].Local)
+        {
+            return;
+        }
+
+        var endpoint = state.Endpoints[index];
+        var former = endpoint.Pin is { } old
+            ? [old with { EndedAt = now, EndedBy = by.Trim() }, .. endpoint.FormerPins]
+            : endpoint.FormerPins;
+        state.Endpoints[index] = endpoint with
+        {
+            Pin = pin,
+            FormerPins = [.. former.Take(EndpointCertificate.MaximumFormer)],
+        };
+        _refused.RemoveWhere(refusal => refusal.Id == id);
+        state.FailedSince.Remove(id);
+        state.Probes.Remove(id);
+    }
+
+    /// <summary>Finds an endpoint marked local.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <returns>The endpoint.</returns>
+    /// <exception cref="ArgumentException">It is not there or not marked local.</exception>
+    private SourceEndpoint LocalEndpoint(Chain chain, Guid id)
+    {
+        lock (_gate)
+        {
+            return State(chain).Endpoints.FirstOrDefault(endpoint => endpoint.Id == id && endpoint.Local)
+                ?? throw new ArgumentException("No endpoint marked local with that id.", nameof(id));
+        }
+    }
 
     /// <summary>Waits for an endpoint's turn.</summary>
     /// <param name="wait">How long.</param>
@@ -810,7 +955,8 @@ internal sealed class ChainSources : IChainSources
     /// <param name="exception">The failure.</param>
     /// <returns><see langword="true"/> when it is the way out's.</returns>
     internal static bool IsTheWayOuts(ExitException exception) =>
-        exception is ExitNotConnectedException || exception.Error == ExitError.ConnectionLost;
+        exception is ExitNotConnectedException
+        || exception.Error is ExitError.ConnectionLost or ExitError.ProxyLoginRequired;
 
     /// <summary>
     /// Tells whether a probe sent nothing only because of a wait (the endpoint's or Chainsaw's own pace): it says

@@ -70,6 +70,13 @@ public sealed record BackgroundCase(Guid CaseId, IReadOnlyList<BackgroundWatch> 
 public sealed record BackgroundPlan(
     bool Enabled, ExitRoute Route, WatchAlerts Alerts, IReadOnlyList<BackgroundCase> Cases)
 {
+    /// <summary>
+    /// Gets the proxy set by hand in Windows that the user let Chainsaw log in to with the Windows account (sketch
+    /// PX1a), as <c>host:port</c>, or <see langword="null"/> when the login is off: the background follows the
+    /// choice, through the same gate as Chainsaw (never a proxy found with WPAD, never another address).
+    /// </summary>
+    public string? ProxyLoginFor { get; init; }
+
     /// <summary>Gets the plan when none is written: off, through VPN, nothing to watch.</summary>
     public static BackgroundPlan Empty { get; } = new(false, ExitRoute.Vpn, WatchAlerts.None, []);
 
