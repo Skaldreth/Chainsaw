@@ -74,6 +74,14 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
             .ThenBy(entry => entry.Output.Index)
             .ToList();
         var (change, (signs, seenIn)) = scored[0];
+
+        // The spenders are basis only when the fingerprint sign holds for an output: otherwise the result is the same
+        // without them, and a spender that is fetched must not make it be sealed again.
+        if (scored.Any(entry => entry.Signs.Signs.Contains(ChangeSign.SameFingerprintSpent)))
+        {
+            seenIn = [.. seenIn.Concat(sightings.Spenders).Distinct()];
+        }
+
         var against = scored.Skip(1).Max(entry => entry.Signs.Signs.Count);
         if (signs.Count == 0 || signs.Count <= against)
         {
@@ -171,17 +179,16 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
     /// By output index, whether the transaction that spends it has the same wallet fingerprint as this one; empty
     /// unless the case knows a spender of every output, since only then can the fingerprint sign be tested.
     /// </param>
-    /// <param name="Basis">
-    /// The earlier transactions any output's address was seen in, and the spenders when the fingerprint was tested,
-    /// each once.
-    /// </param>
+    /// <param name="Basis">The earlier transactions any output's address was seen in, each once.</param>
+    /// <param name="Spenders">The transactions that spend the outputs, when the fingerprint was tested.</param>
     private sealed record Sightings(
         IReadOnlySet<BitcoinAddress> InputAddresses,
         BitcoinScriptType? InputType,
         Satoshi? SmallestInput,
         IReadOnlyDictionary<int, BitcoinTransaction?> Seen,
         IReadOnlyDictionary<int, bool> SameWallet,
-        List<Txid> Basis)
+        List<Txid> Basis,
+        IReadOnlyList<Txid> Spenders)
     {
         /// <summary>Reads what a transaction and the case say about its outputs.</summary>
         /// <param name="transaction">The transaction.</param>
@@ -197,11 +204,10 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
         {
             var seen = outputs.ToDictionary(
                 output => output.Index, output => context.SeenBefore(output.Address!, transaction));
-            var spenders = readsFingerprint ? Spenders(transaction, outputs, context) : [];
+            var spenders = readsFingerprint ? FindSpenders(transaction, outputs, context) : [];
             var fingerprint = transaction.Fingerprint();
             var basis = outputs.Select(output => seen[output.Index])
                 .OfType<BitcoinTransaction>()
-                .Concat(spenders.Values)
                 .Select(other => other.Txid)
                 .Distinct()
                 .ToList();
@@ -211,7 +217,8 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
                 transaction.SmallestInput(),
                 seen,
                 spenders.ToDictionary(entry => entry.Key, entry => entry.Value.Fingerprint() == fingerprint),
-                basis);
+                basis,
+                [.. spenders.Values.Select(spender => spender.Txid)]);
         }
 
         /// <summary>
@@ -223,7 +230,7 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
         /// <param name="outputs">Its outputs with an address.</param>
         /// <param name="context">What the case knows.</param>
         /// <returns>The spender of each output by index, or none.</returns>
-        private static Dictionary<int, BitcoinTransaction> Spenders(
+        private static Dictionary<int, BitcoinTransaction> FindSpenders(
             BitcoinTransaction transaction, IReadOnlyList<BitcoinOutput> outputs, IHeuristicContext context)
         {
             var spenders = new Dictionary<int, BitcoinTransaction>();

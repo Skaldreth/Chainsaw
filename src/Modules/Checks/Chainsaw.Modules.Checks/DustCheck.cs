@@ -34,6 +34,12 @@ internal sealed class DustCheck : ICheckAnalysis
     /// </summary>
     public const int LookAlikeCharacters = 4;
 
+    /// <summary>
+    /// The amounts inscriptions (ordinals) are usually sent with: 330 satoshi (the smallest for SegWit) and 546 (the
+    /// smallest for P2PKH). Dust of only these amounts is said to be possibly inscriptions.
+    /// </summary>
+    public static readonly IReadOnlySet<long> InscriptionPostage = new HashSet<long> { 330, 546 };
+
     /// <inheritdoc/>
     public HeuristicId Id { get; } = new(Name, 1);
 
@@ -69,16 +75,21 @@ internal sealed class DustCheck : ICheckAnalysis
     private CheckFinding DescribeDusting(BitcoinTransaction transaction, IReadOnlyList<BitcoinOutput> dusted)
     {
         var count = CheckText.Count(dusted.Select(output => output.Address).Distinct().Count());
+        var postage = dusted.All(output => InscriptionPostage.Contains(output.Amount.Value));
+        var maybeInscriptions = postage
+            ? " Alla belopp är 330 eller 546 satoshi, de vanliga beloppen för inskriptioner (ordinals), så det kan "
+                + "lika gärna vara inskriptioner som skickas ut som damm."
+            : string.Empty;
         var why = $"Analysen {this.Named()} ser att tx {CheckText.Short(transaction.Txid)} skickar högst "
             + $"{CheckText.Count((int)DustLimit)} satoshi var till {count} adresser. Så små belopp är damm: den som "
             + "skickar det hoppas att mottagarna spenderar det tillsammans med andra mynt, så att adresserna kan "
-            + "slås ihop. Spåret ska inte följa dammet, och ett damm-mynt som spenderas tillsammans med andra är ett "
-            + "svagare tecken på samma ägare. Det är en bedömning, inte ett faktum.";
+            + $"slås ihop.{maybeInscriptions} Spåret ska inte följa dammet, och ett damm-mynt som spenderas "
+            + "tillsammans med andra är ett svagare tecken på samma ägare. Det är en bedömning, inte ett faktum.";
         return new CheckFinding(
             "dust:" + transaction.Txid.Value,
             CheckKind.Check,
             AreaSort.Obfuscation,
-            $"Damm till {count} adresser",
+            postage ? $"Damm eller inskriptioner till {count} adresser" : $"Damm till {count} adresser",
             $"Högst {CheckText.Count((int)DustLimit)} satoshi var",
             why,
             [.. transaction.InputAddresses()],

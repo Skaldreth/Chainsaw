@@ -1614,8 +1614,13 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
   pengarna låg still minst tre dygn).
 - **Damm och förgiftning:** damm till minst tio adresser ger *Damm till N adresser*; en liknande adress med ett litet
   belopp ger *Trolig adressförgiftning* med båda adresserna i området.
-- **PayJoin:** en tx med en onödig input ger ett grått område *Möjlig PayJoin*.
-- **Tidsmönster:** en ägare med minst åtta tx ger *Aktiv kl. HH–HH UTC* med en trolig tidszon i raden under.
+- **PayJoin:** en tx med en onödig input ger ett grått område *Möjlig PayJoin*, och dess inputs står som förslag i
+  klustret, inte sammanslagna.
+- **Tidsmönster:** en ägare med minst tjugo tx som bara spenderar på dagtid ger *Aktiv kl. HH–HH UTC* med en trolig
+  tidszon i raden under; *Varför?* säger hur ofta slumpen ger lika lång tystnad.
+- **Tjänst ur beteende** kräver många kunder: minst två svep, tio insättningar från tio avsändare över minst ett dygn.
+  Ett ärende där bedragaren sveper några offers betalningar får ingen *Trolig tjänst*.
+- **Damm:** utgångar på 330 eller 546 satoshi heter *Damm eller inskriptioner*.
 - Ikonerna på brickorna: sammanslagna mixade mynt (Join, rött), uppdelning (Split, sand), många hopp (Layers, sand),
   damm (mynt, sand); tjänst, plånbok och tid har sortens ikon.
 - **Snabbhet:** öppna ett stort ärende och se att *Förslag · N* inte blir märkbart långsammare än förut.

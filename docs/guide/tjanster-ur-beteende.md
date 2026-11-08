@@ -12,11 +12,17 @@ Chainsaw känner igen två sådana mönster av sig själv, med kontrollen `servi
 Varje kund hos en börs får en egen **insättningsadress**. Kunden betalar dit från sin egen plånbok, och börsen tömmer
 sedan många insättningsadresser på en gång till sin **hot wallet** (ett *svep*). Kontrollen ser:
 
-- en tx som betalar **en enda adress**,
-- och som tömmer **minst tre adresser** som var och en fick en betalning från **en egen avsändare** i grafen.
+- **minst två svep** till samma adress (en tx som betalar en enda adress och tömmer minst två insättningsadresser),
+- **minst tio insättningsadresser** i alla svepen, betalda av **minst tio olika avsändare** (ägare, som klustringen
+  räknar dem),
+- och betalningarna in **utspridda över minst ett dygn**.
 
-Då markeras hot walleten och insättningsadresserna med ett blått område och titeln *Trolig tjänst*. Insättningsadresserna
-är de viktiga: varje insättning är en kund hos tjänsten, och en [begäran](begaran.md) gäller just dem.
+En bedragare som samlar ihop några offers betalningar och sveper dem ser likadan ut i liten skala. Därför räknas
+aldrig en adress som en **startpunkt** eller ett **offer** (en etikett) betalade, eller som är en av dem, som en kunds
+insättning.
+
+Då markeras hot walleten och insättningsadresserna med ett blått område och titeln *Trolig tjänst*. Är det en tjänst är
+insättningsadresserna troligen kundernas hos den, och en [begäran](begaran.md) kan gälla dem.
 
 ## Utbetalningar i batch
 

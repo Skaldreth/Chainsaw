@@ -83,9 +83,7 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
         var extra = transaction.Inputs.Count - 1;
         var reason = Reason(before.Count + 1, length, hop, extra);
 
-        // What became of the output that does not go on can decide which one does, so it is basis too.
-        var peelSpender = _followsMore ? context.FindSpender(transaction.Txid, hop.Peel.Index)?.Txid : null;
-        var basis = before.Concat(after).Append(peelSpender).OfType<Txid>().Distinct().ToList();
+        var basis = before.Concat(after).Concat(DecidingSpenders(transaction, context)).Distinct().ToList();
         var finding = new PeelChainFinding(
             reason, hop.Continuing.Index, hop.Peel.Index, before.Count, after.Count,
             [.. basis.Select(txid => txid.Value)], extra);
@@ -101,6 +99,30 @@ internal sealed class PeelChainHeuristic : IUtxoHeuristic
                     hop.Continuing.Index),
             ];
         return new HeuristicResult(Id, transaction.Txid, proposals, [finding]) { Basis = basis };
+    }
+
+    /// <summary>
+    /// Gives the spenders that decided which output goes on, so that they are basis: the spenders of both outputs, but
+    /// only when the case knows that a transaction that is no hop spends the larger output, since only then can the
+    /// smaller go on (<see cref="Hop"/>). Otherwise what becomes of the outputs cannot change the conclusion, and a
+    /// spender that is fetched must not make it be sealed again.
+    /// </summary>
+    /// <param name="transaction">The hop.</param>
+    /// <param name="context">What the case knows.</param>
+    /// <returns>The deciding spenders; none in version 1.</returns>
+    private IEnumerable<Txid> DecidingSpenders(BitcoinTransaction transaction, IHeuristicContext context)
+    {
+        if (!_followsMore || Shape(transaction) is not { } outputs)
+        {
+            return [];
+        }
+
+        var spenders = outputs.OrderByDescending(output => output.Amount.Value)
+            .Select(output => context.FindSpender(transaction.Txid, output.Index))
+            .ToList();
+        return spenders[0] is { } largeSpender && Shape(largeSpender) is null
+            ? spenders.OfType<BitcoinTransaction>().Select(spender => spender.Txid)
+            : [];
     }
 
     /// <summary>Writes the reason in plain Swedish.</summary>

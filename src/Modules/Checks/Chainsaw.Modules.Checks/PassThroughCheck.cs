@@ -106,6 +106,7 @@ internal sealed class PassThroughCheck : ICheckAnalysis
         var addresses = row.Select(hop => hop.Inputs[0].Address).OfType<BitcoinAddress>()
             .Append(row[^1].Outputs[0].Address!)
             .Distinct();
+        // Keyed by the first hop, so that the key holds when the row is followed further forward.
         return new CheckFinding(
             row[0].Txid.Value,
             CheckKind.Check,

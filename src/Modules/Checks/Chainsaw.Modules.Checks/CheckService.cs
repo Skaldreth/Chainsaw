@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
@@ -24,12 +25,23 @@ internal sealed class CheckService : ICheckService
     /// <summary>The clock, for when a run was made.</summary>
     private readonly IClock _clock;
 
+    /// <summary>The labels, for the victims; <see langword="null"/> when the module is not registered.</summary>
+    private readonly IAttributionService? _attribution;
+
     /// <summary>Creates the service.</summary>
     /// <param name="analyses">Every registered analysis; those for Bitcoin run, in the order registered.</param>
     /// <param name="clustering">The clustering.</param>
     /// <param name="clock">The clock.</param>
+    /// <param name="attribution">
+    /// The labels, so that the victims are known (<see cref="CheckInput.Protected"/>); <see langword="null"/> when
+    /// Attribution is not registered, and then only the start points are.
+    /// </param>
     /// <exception cref="InvalidOperationException">Two analyses have the same name.</exception>
-    public CheckService(IEnumerable<ICheckAnalysis> analyses, IClusteringService clustering, IClock clock)
+    public CheckService(
+        IEnumerable<ICheckAnalysis> analyses,
+        IClusteringService clustering,
+        IClock clock,
+        IAttributionService? attribution = null)
     {
         ArgumentNullException.ThrowIfNull(analyses);
         var all = analyses.ToList();
@@ -46,6 +58,7 @@ internal sealed class CheckService : ICheckService
 
         _clustering = clustering;
         _clock = clock;
+        _attribution = attribution;
     }
 
     /// <inheritdoc/>
@@ -67,6 +80,7 @@ internal sealed class CheckService : ICheckService
         };
         var problems = new List<string>();
         var raw = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding)>();
+        var found = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding, string Content)>();
         foreach (var analysis in _analyses)
         {
             try
@@ -77,9 +91,10 @@ internal sealed class CheckService : ICheckService
                         finding))
                     .ToList();
 
-                // Encoded here once, so that a finding that cannot be sealed fails its analysis alone.
-                _ = Keep(mine, results, decisions);
+                // Kept and encoded per analysis, so that a finding that cannot be sealed fails its analysis alone.
+                var kept = Keep(mine, results, decisions);
                 raw.AddRange(mine);
+                found.AddRange(kept);
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
@@ -89,11 +104,12 @@ internal sealed class CheckService : ICheckService
             }
         }
 
-        var found = Keep(raw, results, decisions);
         var sealedCount = 0;
         if (found.Any(item => !Same(results, item.Key, item.Content)))
         {
-            (results, decisions, found, sealedCount) = @case.Write(transaction => SealNew(transaction, raw, input));
+            var stamp = StampOf(results, decisions);
+            (results, decisions, found, sealedCount) = @case.Write(
+                transaction => SealNew(transaction, raw, found, stamp, input));
         }
 
         var checks = found.Select(item =>
@@ -631,7 +647,31 @@ internal sealed class CheckService : ICheckService
         {
             Services = services,
             Owners = OwnersOf(@case, transactions),
+            Protected = ProtectedOf(@case, graph),
         };
+    }
+
+    /// <summary>
+    /// Gives the addresses an analysis must never count as a service's business: the start points' (and the payers of
+    /// a start transaction) and the victims' that labels name.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <returns>The addresses.</returns>
+    private HashSet<BitcoinAddress> ProtectedOf(ICase @case, TraceGraph graph)
+    {
+        var starts = graph.Nodes.Where(node => node.IsStartPoint).ToList();
+        var startPayers = starts.Select(node => node.Transaction)
+            .OfType<Txid>()
+            .Select(txid => graph.Transactions.TryGetValue(txid, out var known) ? known.Transaction : null)
+            .OfType<BitcoinTransaction>()
+            .SelectMany(transaction => transaction.Inputs.Select(input => input.Address))
+            .OfType<BitcoinAddress>();
+        var victims = _attribution?.GetLabels(@case)
+            .Where(label => label.Kind == LabelKind.Victim)
+            .Select(label => label.Subject.Address)
+            .OfType<BitcoinAddress>() ?? [];
+        return [.. starts.SelectMany(node => node.GraphAddresses).Concat(startPayers).Concat(victims)];
     }
 
     /// <summary>
@@ -724,6 +764,18 @@ internal sealed class CheckService : ICheckService
         node.Ends.First(end => end.Reason == TrailEndReason.Mixer).Explanation;
 
     /// <summary>
+    /// Gives the newest sealed record and decision, so that a write can tell whether anything was sealed since they
+    /// were read.
+    /// </summary>
+    /// <param name="results">The latest records.</param>
+    /// <param name="decisions">The decisions.</param>
+    /// <returns>The highest sequence of each, 0 when none.</returns>
+    private static (long Results, long Decisions) StampOf(
+        Dictionary<ResultKey, SealedResult> results, Dictionary<ResultKey, List<CheckDecision>> decisions) =>
+        (results.Values.Select(result => result.Sequence).DefaultIfEmpty().Max(),
+            decisions.Values.SelectMany(made => made).Select(decision => decision.Sequence).DefaultIfEmpty().Max());
+
+    /// <summary>
     /// Keeps each finding's candidates the way the list shows them (<see cref="KeepCandidates"/>), with the decided
     /// candidates of the latest sealed record that the run no longer gives, and encodes it.
     /// </summary>
@@ -740,10 +792,13 @@ internal sealed class CheckService : ICheckService
         [
             .. raw.Select(item =>
             {
-                var before = results.TryGetValue(item.Key, out var sealedBefore)
+                // The last sealed record is read only for a finding with decisions, whose decided candidates may
+                // need to be carried over.
+                var made = decisions.GetValueOrDefault(item.Key) ?? [];
+                var before = made.Count > 0 && results.TryGetValue(item.Key, out var sealedBefore)
                     ? FindingCodec.Decode(sealedBefore.Content)
                     : null;
-                var kept = KeepCandidates(item.Finding, decisions.GetValueOrDefault(item.Key) ?? [], before);
+                var kept = KeepCandidates(item.Finding, made, before);
                 return (item.Analysis, item.Key, kept, FindingCodec.Encode(kept));
             }),
         ];
@@ -756,6 +811,8 @@ internal sealed class CheckService : ICheckService
     /// </summary>
     /// <param name="transaction">The case's transaction.</param>
     /// <param name="raw">What the analyses found, with all their candidates.</param>
+    /// <param name="kept">The findings as kept from what was read before the write.</param>
+    /// <param name="stamp">The newest record and decision read before the write (<see cref="StampOf"/>).</param>
     /// <param name="input">What the run ran on.</param>
     /// <returns>The latest records, the decisions, the findings as kept, and how many were sealed now.</returns>
     private (
@@ -765,11 +822,15 @@ internal sealed class CheckService : ICheckService
         int Sealed) SealNew(
         ICaseTransaction transaction,
         IReadOnlyList<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding)> raw,
+        List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding, string Content)> kept,
+        (long Results, long Decisions) stamp,
         CheckInput input)
     {
         var results = CheckStore.ReadResults(transaction);
         var decisions = CheckStore.ReadDecisions(transaction);
-        var found = Keep(raw, results, decisions);
+
+        // The candidates are kept again only when something was sealed since they were read.
+        var found = StampOf(results, decisions) == stamp ? kept : Keep(raw, results, decisions);
         var fresh = found.Where(item => !Same(results, item.Key, item.Content)).ToList();
         if (fresh.Count == 0)
         {
@@ -869,6 +930,7 @@ internal sealed class CheckService : ICheckService
         }
 
         var txids = carried.Select(candidate => candidate.Txid).ToHashSet();
+        // The first basis entry is the anchor's (the deposit's transaction); only the candidates' entries are carried.
         var basis = sealedBefore!.Basis.Skip(1).Where(entry => txids.Contains(entry.Txid));
         return finding with
         {

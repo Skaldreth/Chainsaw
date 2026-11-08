@@ -126,7 +126,8 @@ internal static class EvidenceStore
         }
 
         return latest
-            .Where(entry => !(weighedWithWithdrawn.TryGetValue(entry.Key.Item1, out var at) && entry.Value.Journal < at))
+            .Where(entry =>
+                !(weighedWithWithdrawn.TryGetValue(entry.Key.Item1, out var at) && entry.Value.Journal < at))
             .ToDictionary(entry => entry.Key, entry => entry.Value.Result);
     }
 
@@ -476,7 +477,9 @@ internal static class EvidenceStore
         return new VersionWithdrawal(record.Sequence, heuristic, reason, journal.Sequence, journal.Utc);
     }
 
-    /// <summary>Seals that a withdrawal is taken back, under its journal entry; the withdrawal is never touched.</summary>
+    /// <summary>
+    /// Seals that a withdrawal is taken back, under its journal entry; the withdrawal is never touched.
+    /// </summary>
     /// <param name="transaction">The case's write transaction.</param>
     /// <param name="withdrawal">The withdrawal.</param>
     /// <param name="reason">Why, or <see langword="null"/>.</param>

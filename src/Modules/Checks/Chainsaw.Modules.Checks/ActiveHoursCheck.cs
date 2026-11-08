@@ -10,7 +10,9 @@ namespace Chainsaw.Modules.Checks;
 /// Reads a time pattern (CLAUDE.md, <em>Förvirringstekniker</em>): the hours of the day when an owner, as the
 /// clustering counts it, spends, and the longest run of hours without, which is likely when the owner sleeps and so
 /// hints at a time zone. A check with an area of the sort Time; a judgement, never a fact (principle 2), and a weak
-/// one, since the time is the block's.
+/// one, since the time is the block's. A run of quiet hours is only a pattern when it is unlikely to be chance: the
+/// share of random days, with as many transactions at random hours, that give as long a run must be at most
+/// <see cref="MostChance"/> (a permutation test with a fixed seed, so that the same input always gives the same).
 /// </summary>
 internal sealed class ActiveHoursCheck : ICheckAnalysis
 {
@@ -18,7 +20,16 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
     public const string Name = "active-hours";
 
     /// <summary>How many confirmed transactions an owner must have spent in, for the hours to say anything.</summary>
-    public const int MinimumTransactions = 8;
+    public const int MinimumTransactions = 20;
+
+    /// <summary>The largest chance that random hours give as long a quiet run: one in a hundred.</summary>
+    public const double MostChance = 0.01;
+
+    /// <summary>How many random draws the chance is counted from.</summary>
+    public const int Draws = 2_000;
+
+    /// <summary>The random draws' fixed seed, so that the test is the same every time.</summary>
+    private const int Seed = 20_261_108;
 
     /// <summary>How many hours in a row without a transaction a pattern needs.</summary>
     public const int MinimumQuietHours = 6;
@@ -53,9 +64,11 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
         foreach (var owner in byOwner)
         {
             var spent = owner.DistinctBy(transaction => transaction.Txid).ToList();
-            if (spent.Count >= MinimumTransactions && QuietRun(spent) is { } quiet)
+            if (spent.Count >= MinimumTransactions
+                && QuietRun(spent) is { } quiet
+                && Chance(spent.Count, quiet.Length) is var chance and <= MostChance)
             {
-                findings.Add(Describe(owner.Key, spent, quiet, input));
+                findings.Add(Describe(owner.Key, spent, quiet, chance, input));
             }
         }
 
@@ -76,6 +89,44 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
             busy[transaction.Block!.Time.UtcDateTime.Hour] = true;
         }
 
+        var best = Longest(busy);
+        return best.Length is >= MinimumQuietHours and < HoursPerDay ? best : null;
+    }
+
+    /// <summary>
+    /// Counts the chance that as many transactions at random hours leave a quiet run at least as long: the share of
+    /// <see cref="Draws"/> random days, drawn with a fixed seed, that do.
+    /// </summary>
+    /// <param name="transactions">How many transactions.</param>
+    /// <param name="quiet">The quiet run's length in hours.</param>
+    /// <returns>The chance, from 0 to 1.</returns>
+    private static double Chance(int transactions, int quiet)
+    {
+        var random = new Random(Seed);
+        var asLong = 0;
+        var busy = new bool[HoursPerDay];
+        for (var draw = 0; draw < Draws; draw++)
+        {
+            Array.Clear(busy);
+            for (var i = 0; i < transactions; i++)
+            {
+                busy[random.Next(HoursPerDay)] = true;
+            }
+
+            if (Longest(busy).Length >= quiet)
+            {
+                asLong++;
+            }
+        }
+
+        return (double)asLong / Draws;
+    }
+
+    /// <summary>Finds the longest run of hours that are not busy, around midnight too.</summary>
+    /// <param name="busy">Whether each hour of the day had a transaction.</param>
+    /// <returns>The run's first hour and length.</returns>
+    private static (int Start, int Length) Longest(bool[] busy)
+    {
         var best = (Start: 0, Length: 0);
         for (var start = 0; start < HoursPerDay; start++)
         {
@@ -91,17 +142,22 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
             }
         }
 
-        return best.Length is >= MinimumQuietHours and < HoursPerDay ? best : null;
+        return best;
     }
 
     /// <summary>Describes an owner's hours.</summary>
     /// <param name="owner">The owner key.</param>
     /// <param name="spent">The owner's transactions.</param>
     /// <param name="quiet">The longest quiet run.</param>
+    /// <param name="chance">The chance that random hours give as long a run.</param>
     /// <param name="input">The input, for the owner's addresses.</param>
     /// <returns>The check.</returns>
     private CheckFinding Describe(
-        BitcoinAddress owner, IReadOnlyList<BitcoinTransaction> spent, (int Start, int Length) quiet, CheckInput input)
+        BitcoinAddress owner,
+        IReadOnlyList<BitcoinTransaction> spent,
+        (int Start, int Length) quiet,
+        double chance,
+        CheckInput input)
     {
         var activeFrom = (quiet.Start + quiet.Length) % HoursPerDay;
         var activeTo = (quiet.Start + HoursPerDay - 1) % HoursPerDay;
@@ -113,14 +169,21 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
         var count = CheckText.Count(spent.Count);
         var why = $"Analysen {this.Named()} ser att ägaren, som klustringen räknar den, spenderade i {count} tx bara "
             + $"mellan kl. {hours} UTC, och aldrig under {CheckText.Count(quiet.Length)} timmar i rad. Är det när "
-            + $"ägaren sover pekar det på en tidszon runt {zone}. Det är en svag bedömning, inte ett faktum: tiden är "
+            + $"ägaren sover pekar det på en tidszon runt {zone}. Att slumpen ger så lång tystnad med lika många tx "
+            + $"händer i {CheckText.Percent(chance)} av fallen. Det är en svag bedömning, inte ett faktum: tiden är "
             + "blockets, som kommer minuter till timmar efter att tx:en skickades, en tjänst eller ett skript kan "
             + "skicka åt ägaren, och klustret kan ha fler ägare.";
         var addresses = spent.SelectMany(transaction => transaction.InputAddresses())
             .Where(address => input.OwnerOf(address) == owner)
             .Distinct();
+        // Keyed by the address that spent first, so that the key holds when the cluster grows forward.
+        var first = spent.OrderBy(transaction => transaction.Block!.Height)
+            .ThenBy(transaction => transaction.Txid.Value, StringComparer.Ordinal)
+            .First()
+            .InputAddresses()
+            .First(address => input.OwnerOf(address) == owner);
         return new CheckFinding(
-            "hours:" + owner.Value,
+            "hours:" + first.Value,
             CheckKind.Check,
             AreaSort.Time,
             $"Aktiv kl. {hours} UTC",

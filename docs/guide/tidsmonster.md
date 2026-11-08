@@ -9,8 +9,10 @@ aldrig gör det, kan man ana när den sover, och därmed i vilken **tidszon** de
 ## Hur Chainsaw läser det
 
 Kontrollen `active-hours v1` tar varje ägare som [klustringen](common-input-ownership.md) räknar den, och tittar på de
-bekräftade tx där ägaren spenderar. Har ägaren **minst åtta** sådana tx, och finns det **minst sex timmar i rad** utan
-någon, markeras ägaren med titeln *Aktiv kl. 08–22 UTC* och en trolig tidszon. Tidszonen räknas som att den tysta
+bekräftade tx där ägaren spenderar. Har ägaren **minst tjugo** sådana tx, och finns det **minst sex timmar i rad**
+utan någon, prövar Chainsaw om tystnaden kan vara slumpen: av 2 000 slumpade dygn med lika många tx vid slumpade timmar
+får högst **en procent** en lika lång tystnad. Först då markeras ägaren med titeln *Aktiv kl. 08–22 UTC* och en trolig
+tidszon, och *Varför?* säger hur ofta slumpen ger lika lång tystnad. Tidszonen räknas som att den tysta
 perioden är natten, med mitten runt halv fyra på morgonen i ägarens tid.
 
 ## Det är en svag bedömning

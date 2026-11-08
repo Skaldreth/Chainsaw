@@ -35,15 +35,21 @@ och frågan tas bort härifrån.
    Sedan 2026-11-08 följs också hopp som fylls på med fler inputs, och kedjor där den mindre outputen går vidare.
 6b. **De nya kontrollernas gränser** (2026-11-08). Stämmer de med det ni ser?
    - **CoinJoin:** Whirlpools pooler 0,001, 0,01, 0,025, 0,05, 0,25 och 0,5 BTC (0,025 och 0,25 är Ashigarus, som
-     bör kontrolleras mot en aktuell källa); Wasabi 2 när minst hälften av utgångarna har standardbelopp.
-   - **Tjänst ur beteende:** minst tre insättningsadresser från olika avsändare som sveps till samma adress; en batch
+     bör kontrolleras mot en aktuell källa); Wasabi 2 när minst hälften av utgångarna har standardbelopp och minst
+     två av beloppen är potenser av 2 eller 3.
+   - **Tjänst ur beteende:** minst två svep till samma adress, minst tio insättningsadresser från minst tio olika
+     avsändare, utspridda över minst ett dygn, och aldrig adresser som en startpunkt eller ett offer betalade; en batch
      är minst åtta mottagare från högst två adresser.
    - **Uppdelning:** minst fem delar med högst tio procents skillnad; delarna följs högst tre mellanled.
    - **Många hopp:** minst tre hopp i rad, högst två procent bort per hopp; fördröjning från tre dygn.
    - **Damm:** högst 1 000 satoshi till minst tio adresser; förgiftning när fyra tecken i början och slutet är lika och
      beloppet är högst 10 000 satoshi.
-   - **Tidsmönster:** minst åtta tx och sex tysta timmar i rad; natten antas ha sin mitt kl. 03.30.
-   - **Växeln:** fingeravtrycket (version, låsning, RBF) är ett av sex tecken.
+   - **Tidsmönster:** minst tjugo tx och sex tysta timmar i rad, och högst en procents chans att slumpen ger lika
+     lång tystnad; natten antas ha sin mitt kl. 03.30.
+   - **Växeln:** fingeravtrycket (version, låsning, RBF) är ett av sex tecken och räknas aldrig för att slå ihop.
+   - **PayJoin:** en tx med en input som inte behövdes får sina sammanslagningar som förslag. Slår det bort för många
+     vanliga sammanslagningar i era ärenden?
+   - **Damm:** 330 och 546 satoshi sägs kunna vara inskriptioner.
 
 ## Mixers och förvirring
 

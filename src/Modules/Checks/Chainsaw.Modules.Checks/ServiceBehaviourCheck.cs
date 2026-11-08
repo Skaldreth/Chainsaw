@@ -7,23 +7,44 @@ namespace Chainsaw.Modules.Checks;
 
 /// <summary>
 /// Recognises a service from how it behaves (CLAUDE.md, <em>Attribuera</em>): deposit addresses that each get a
-/// payment from a sender of their own and are then swept together into one address (an exchange's hot wallet), and
-/// payouts in a batch to many recipients. A check with an area of the sort Service; it says <em>trolig</em>, never
-/// which service, and is a judgement, never a fact (principle 2).
+/// payment from a sender of their own and are then swept together into one address (an exchange's hot wallet), again
+/// and again, and payouts in a batch to many recipients. A check with an area of the sort Service; it says
+/// <em>trolig</em>, never which service, and is a judgement, never a fact (principle 2).
 /// </summary>
+/// <remarks>
+/// A scammer who collects several victims' payments and sweeps them together has the same shape on a small scale, so
+/// the sweeps must be several, from many independent senders and over time, and an address that a start point or a
+/// victim (a label) paid is never counted as a customer's deposit.
+/// </remarks>
 internal sealed class ServiceBehaviourCheck : ICheckAnalysis
 {
     /// <summary>The analysis's stable name.</summary>
     public const string Name = "service-behaviour";
 
-    /// <summary>How many deposit addresses a sweep must empty to count: one or two are a wallet's own coins.</summary>
-    public const int MinimumDeposits = 3;
+    /// <summary>How many deposit addresses a sweep must empty to count at all.</summary>
+    public const int MinimumDepositsPerSweep = 2;
+
+    /// <summary>How many sweeps must go to the same address: a service sweeps again and again.</summary>
+    public const int MinimumSweeps = 2;
+
+    /// <summary>How many deposit addresses the sweeps into one address must empty in all.</summary>
+    public const int MinimumDeposits = 10;
+
+    /// <summary>
+    /// How many independent senders (owners, as the clustering counts them) must have paid the deposits.
+    /// </summary>
+    public const int MinimumSenders = 10;
 
     /// <summary>How many recipients a payout must have to be a batch.</summary>
     public const int MinimumBatchRecipients = 8;
 
     /// <summary>The most different input addresses a batch payout may have: a hot wallet pays from few.</summary>
     public const int MostBatchPayers = 2;
+
+    /// <summary>
+    /// How long the payments into the deposits must be spread over: a service has customers over time.
+    /// </summary>
+    public static readonly TimeSpan MinimumSpread = TimeSpan.FromDays(1);
 
     /// <inheritdoc/>
     public HeuristicId Id { get; } = new(Name, 1);
@@ -40,11 +61,13 @@ internal sealed class ServiceBehaviourCheck : ICheckAnalysis
         ArgumentNullException.ThrowIfNull(input);
         var byId = input.ById();
         var coinJoins = input.CoinJoins();
+        var protectedOwners = input.Protected.Select(input.OwnerOf).ToHashSet();
         var sweeps = input.Transactions
             .Where(transaction => !coinJoins.ContainsKey(transaction.Txid))
-            .Select(transaction => Sweep(transaction, byId))
+            .Select(transaction => Sweep(transaction, byId, input, protectedOwners))
             .OfType<SweepRead>()
             .GroupBy(sweep => sweep.HotWallet)
+            .Where(group => IsService([.. group]))
             .Select(group => Describe(group.Key, [.. group]))
             .ToList();
         var hotWallets = sweeps.Select(finding => finding.Addresses[0]).ToHashSet();
@@ -55,14 +78,20 @@ internal sealed class ServiceBehaviourCheck : ICheckAnalysis
     }
 
     /// <summary>
-    /// Reads a transaction as a sweep: it pays one address, and at least <see cref="MinimumDeposits"/> of its inputs
-    /// spend a deposit, a coin that a transaction in the graph paid to an address that did not pay it, from as many
-    /// different senders.
+    /// Reads a transaction as a sweep: it pays one address, and at least <see cref="MinimumDepositsPerSweep"/> of its
+    /// inputs spend a deposit, a coin that a transaction in the graph paid to an address that did not pay it. A
+    /// deposit that is, or was paid by, a start point or a victim is left out.
     /// </summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="byId">The graph's transactions.</param>
+    /// <param name="input">The input, for the owners.</param>
+    /// <param name="protectedOwners">The owners of the start points and the victims.</param>
     /// <returns>The sweep, or <see langword="null"/> when it is none.</returns>
-    private static SweepRead? Sweep(BitcoinTransaction transaction, Dictionary<Txid, BitcoinTransaction> byId)
+    private static SweepRead? Sweep(
+        BitcoinTransaction transaction,
+        Dictionary<Txid, BitcoinTransaction> byId,
+        CheckInput input,
+        IReadOnlySet<BitcoinAddress> protectedOwners)
     {
         var paying = transaction.PayingOutputs();
         if (paying.Count != 1)
@@ -70,23 +99,41 @@ internal sealed class ServiceBehaviourCheck : ICheckAnalysis
             return null;
         }
 
-        var deposits = new List<(BitcoinAddress Address, BitcoinTransaction Funding)>();
+        var deposits = new List<Deposit>();
         foreach (var spent in transaction.Inputs)
         {
             if (spent is { PreviousTxid: { } txid, Address: { } address }
                 && byId.TryGetValue(txid, out var funding)
-                && !funding.InputAddresses().Contains(address)
-                && funding.InputAddresses().FirstOrDefault() is not null)
+                && funding.InputAddresses() is [var sender, ..] payers
+                && !payers.Contains(address)
+                && !protectedOwners.Contains(input.OwnerOf(address))
+                && payers.All(payer => !protectedOwners.Contains(input.OwnerOf(payer))))
             {
-                deposits.Add((address, funding));
+                deposits.Add(new Deposit(address, funding, input.OwnerOf(sender)));
             }
         }
 
-        var senders = deposits.Select(deposit => deposit.Funding.InputAddresses()[0]).Distinct().Count();
-        var addresses = deposits.Select(deposit => deposit.Address).Distinct().ToList();
-        return addresses.Count >= MinimumDeposits && senders >= MinimumDeposits
-            ? new SweepRead(transaction, paying[0].Address!, addresses, [.. deposits.Select(d => d.Funding).Distinct()])
+        return deposits.Select(deposit => deposit.Address).Distinct().Count() >= MinimumDepositsPerSweep
+            ? new SweepRead(transaction, paying[0].Address!, deposits)
             : null;
+    }
+
+    /// <summary>
+    /// Says whether the sweeps into one address look like a service: at least <see cref="MinimumSweeps"/> sweeps,
+    /// <see cref="MinimumDeposits"/> deposit addresses from <see cref="MinimumSenders"/> independent senders, paid
+    /// over at least <see cref="MinimumSpread"/>.
+    /// </summary>
+    /// <param name="sweeps">The sweeps.</param>
+    /// <returns><see langword="true"/> when they do.</returns>
+    private static bool IsService(IReadOnlyList<SweepRead> sweeps)
+    {
+        var deposits = sweeps.SelectMany(sweep => sweep.Deposits).ToList();
+        var times = deposits.Select(deposit => deposit.Funding.Block?.Time).OfType<DateTimeOffset>().ToList();
+        return sweeps.Count >= MinimumSweeps
+            && deposits.Select(deposit => deposit.Address).Distinct().Count() >= MinimumDeposits
+            && deposits.Select(deposit => deposit.Sender).Distinct().Count() >= MinimumSenders
+            && times.Count > 0
+            && times.Max() - times.Min() >= MinimumSpread;
     }
 
     /// <summary>Describes the sweeps into one hot wallet.</summary>
@@ -95,15 +142,18 @@ internal sealed class ServiceBehaviourCheck : ICheckAnalysis
     /// <returns>The check.</returns>
     private CheckFinding Describe(BitcoinAddress hotWallet, IReadOnlyList<SweepRead> sweeps)
     {
-        var deposits = sweeps.SelectMany(sweep => sweep.Deposits).Distinct().ToList();
+        var all = sweeps.SelectMany(sweep => sweep.Deposits).ToList();
+        var deposits = all.Select(deposit => deposit.Address).Distinct().ToList();
+        var senders = CheckText.Count(all.Select(deposit => deposit.Sender).Distinct().Count());
         var swept = sweeps.Aggregate(Satoshi.Zero, (sum, sweep) => sum + sweep.Transaction.PayingOutputs()[0].Amount);
         var count = CheckText.Count(deposits.Count);
-        var times = sweeps.Count == 1 ? "en tx" : CheckText.Count(sweeps.Count) + " tx";
-        var why = $"Analysen {this.Named()} ser {count} adresser som var och en fick en betalning från en egen "
-            + $"avsändare och sedan tömdes, tillsammans med andra, till {CheckText.Short(hotWallet)} i {times}. "
-            + "Så sveper en börs eller en annan tjänst kundernas insättningsadresser till en hot wallet, och insättningsadresserna "
-            + "är då kundernas hos tjänsten: en begäran gäller dem. Det är en bedömning, inte ett faktum: en "
-            + "plånbok som samlar ihop egna mynt kan se likadan ut, och vilken tjänst det är säger bara en etikett.";
+        var times = CheckText.Count(sweeps.Count) + " tx";
+        var why = $"Analysen {this.Named()} ser {count} adresser som fick betalningar från {senders} olika "
+            + $"avsändare över tid och sedan tömdes, tillsammans med andra, till {CheckText.Short(hotWallet)} i "
+            + $"{times}. Så sveper en börs eller en annan tjänst kundernas insättningsadresser till en hot wallet. Är "
+            + "det en tjänst är insättningsadresserna troligen kundernas hos den, och en begäran kan gälla dem. Det "
+            + "är en bedömning, inte ett faktum: en plånbok som samlar ihop egna mynt kan se likadan ut, adresser som "
+            + "en startpunkt eller ett offer betalade räknas inte, och vilken tjänst det är säger bara en etikett.";
         return new CheckFinding(
             "sweep:" + hotWallet.Value,
             CheckKind.Check,
@@ -115,7 +165,7 @@ internal sealed class ServiceBehaviourCheck : ICheckAnalysis
             [],
             [
                 .. sweeps.Select(sweep => CheckBasis.Of(sweep.Transaction)),
-                .. sweeps.SelectMany(sweep => sweep.Fundings).Distinct().Select(CheckBasis.Of),
+                .. all.Select(deposit => deposit.Funding).Distinct().Select(CheckBasis.Of),
             ],
             []);
     }
@@ -165,14 +215,16 @@ internal sealed class ServiceBehaviourCheck : ICheckAnalysis
             []);
     }
 
+    /// <summary>A deposit as read.</summary>
+    /// <param name="Address">The deposit address.</param>
+    /// <param name="Funding">The transaction that paid into it.</param>
+    /// <param name="Sender">The owner of its first payer, as the clustering counts it.</param>
+    private sealed record Deposit(BitcoinAddress Address, BitcoinTransaction Funding, BitcoinAddress Sender);
+
     /// <summary>A sweep as read.</summary>
     /// <param name="Transaction">The sweep.</param>
     /// <param name="HotWallet">The address it pays.</param>
-    /// <param name="Deposits">The deposit addresses it empties.</param>
-    /// <param name="Fundings">The transactions that paid into the deposits.</param>
+    /// <param name="Deposits">The deposits it empties.</param>
     private sealed record SweepRead(
-        BitcoinTransaction Transaction,
-        BitcoinAddress HotWallet,
-        IReadOnlyList<BitcoinAddress> Deposits,
-        IReadOnlyList<BitcoinTransaction> Fundings);
+        BitcoinTransaction Transaction, BitcoinAddress HotWallet, IReadOnlyList<Deposit> Deposits);
 }

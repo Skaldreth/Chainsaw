@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
 using static Chainsaw.Modules.Checks.Tests.Synthetic;
 
 namespace Chainsaw.Modules.Checks.Tests;
@@ -26,21 +27,43 @@ public sealed class RoundFourChecksTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public void Deposits_swept_into_one_address_are_a_likely_service()
+    public void Many_customers_deposits_swept_again_and_again_into_one_address_are_a_likely_service()
     {
-        var deposits = Patterns.Deposits();
-        var sweep = Patterns.Sweep(deposits);
+        var (deposits, sweeps) = Exchange("ex", customers: 12, sweeps: 2);
 
-        var check = Single(_harness.Run([.. deposits, sweep]), ServiceBehaviourCheck.Name, "sweep:");
+        var check = Single(_harness.Run([.. deposits, .. sweeps]), ServiceBehaviourCheck.Name, "sweep:");
 
         Assert.Equal(CheckKind.Check, check.Finding.Kind);
         Assert.Equal(AreaSort.Service, check.Finding.Area);
-        Assert.Equal("Trolig tjänst, 5 insättningar", check.Finding.Title);
-        Assert.Equal(Pkh("hot-wallet"), check.Finding.Addresses[0]);
-        Assert.Equal(6, check.Finding.Addresses.Count);
-        Assert.Contains(check.Finding.Basis, basis => basis.Txid == sweep.Txid);
+        Assert.Equal("Trolig tjänst, 12 insättningar", check.Finding.Title);
+        Assert.Equal(Pkh("ex-hot-wallet"), check.Finding.Addresses[0]);
+        Assert.Equal(13, check.Finding.Addresses.Count);
+        Assert.Contains(check.Finding.Basis, basis => basis.Txid == sweeps[1].Txid);
         Assert.Contains(check.Finding.Basis, basis => basis.Txid == deposits[0].Txid);
+        Assert.Contains("kan gälla dem", check.Finding.Why, StringComparison.Ordinal);
         AssertJudgement(check, "service-behaviour v1");
+    }
+
+    [Fact]
+    public void A_scammer_who_sweeps_three_victims_payments_together_is_no_service()
+    {
+        var deposits = Patterns.Deposits().Take(3).ToList();
+        var sweep = deposits.Aggregate(Tx("scam-sweep", 900_010), (tx, deposit) => tx.Spend(deposit, 0))
+            .Out(Pkh("scammer"), 14_990_000).Build();
+
+        Assert.DoesNotContain(
+            _harness.Run([.. deposits, sweep]).Checks, check => check.Analysis.Name == ServiceBehaviourCheck.Name);
+    }
+
+    [Fact]
+    public void Deposits_that_the_start_points_paid_are_never_a_services_customers()
+    {
+        var (deposits, sweeps) = Exchange("victims", customers: 12, sweeps: 2);
+        var victims = Enumerable.Range(0, 12).Select(i => Wpkh($"victims-customer-{i}")).ToArray();
+
+        Assert.DoesNotContain(
+            _harness.RunWithStarts([.. deposits, .. sweeps], victims).Checks,
+            check => check.Analysis.Name == ServiceBehaviourCheck.Name && check.Finding.Key.StartsWith("sweep:"));
     }
 
     [Fact]
@@ -159,8 +182,8 @@ public sealed class RoundFourChecksTests : IDisposable
     [Fact]
     public void Dust_to_many_addresses_is_dusting_and_a_few_dust_outputs_are_not()
     {
-        var dusting = Dusting("dusting", 12);
-        var few = Dusting("few", 9);
+        var dusting = Dusting("dusting", 12, 600);
+        var few = Dusting("few", 9, 600);
 
         var run = _harness.Run([dusting, few]);
 
@@ -168,6 +191,17 @@ public sealed class RoundFourChecksTests : IDisposable
         Assert.Equal("dust:" + dusting.Txid.Value, check.Finding.Key);
         Assert.Equal("Damm till 12 adresser", check.Finding.Title);
         AssertJudgement(check, "dust v1");
+    }
+
+    [Fact]
+    public void Outputs_of_330_or_546_satoshi_are_said_to_be_possibly_inscriptions()
+    {
+        var postage = Dusting("postage", 12, 546);
+
+        var check = Single(_harness.Run([postage]), DustCheck.Name, "dust:");
+
+        Assert.Equal("Damm eller inskriptioner till 12 adresser", check.Finding.Title);
+        Assert.Contains("ordinals", check.Finding.Why, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -222,8 +256,8 @@ public sealed class RoundFourChecksTests : IDisposable
     [Fact]
     public void An_owner_who_spends_only_by_day_has_a_time_pattern_with_a_likely_time_zone()
     {
-        var spends = Enumerable.Range(0, 8)
-            .Select(day => Tx($"day-{day}", AtHour(day, 8 + (2 * Math.Min(day, 6)) + (day == 7 ? 1 : 0)))
+        var spends = Enumerable.Range(0, 24)
+            .Select(day => Tx($"day-{day}", AtHour(day, 8 + (day % 14)))
                 .In(Wpkh("worker"), 1_000_000).Out(Wpkh($"worker-paid-{day}"), 990_000).Build())
             .ToList();
 
@@ -233,13 +267,45 @@ public sealed class RoundFourChecksTests : IDisposable
         Assert.Equal("Aktiv kl. 08–22 UTC", check.Finding.Title);
         Assert.Contains("UTC+0", check.Finding.Summary, StringComparison.Ordinal);
         Assert.Equal([Wpkh("worker")], check.Finding.Addresses);
+        Assert.Equal("hours:" + Wpkh("worker").Value, check.Finding.Key);
         AssertJudgement(check, "active-hours v1");
+    }
+
+    [Fact]
+    public void Spends_at_random_hours_give_no_time_pattern()
+    {
+        var random = new Random(7);
+        var spends = Enumerable.Range(0, 30)
+            .Select(day => Tx($"random-{day}", AtHour(day, random.Next(24)))
+                .In(Wpkh("random"), 1_000_000).Out(Wpkh($"random-paid-{day}"), 990_000).Build())
+            .ToList();
+
+        Assert.DoesNotContain(_harness.Run(spends).Checks, check => check.Analysis.Name == ActiveHoursCheck.Name);
+    }
+
+    [Fact]
+    public void Random_hours_hardly_ever_give_a_time_pattern()
+    {
+        var analysis = new ActiveHoursCheck();
+        var random = new Random(11);
+        var patterns = 0;
+        for (var owner = 0; owner < 100; owner++)
+        {
+            var spends = Enumerable.Range(0, 25)
+                .Select(day => Tx($"o{owner}-{day}", AtHour(day, random.Next(24)))
+                    .In(Wpkh($"owner-{owner}"), 1_000_000).Out(Wpkh($"o{owner}-paid-{day}"), 990_000).Build())
+                .ToList();
+            patterns += analysis.Run(new CheckInput(spends, [], new Dictionary<Txid, TransactionConclusions>()))
+                .Count;
+        }
+
+        Assert.True(patterns <= 3, $"{patterns} av 100 slumpade ägare fick ett tidsmönster.");
     }
 
     [Fact]
     public void Too_few_transactions_or_every_hour_busy_give_no_time_pattern()
     {
-        var few = Enumerable.Range(0, 7)
+        var few = Enumerable.Range(0, ActiveHoursCheck.MinimumTransactions - 1)
             .Select(day => Tx($"few-{day}", AtHour(day, 9)).In(Wpkh("rare"), 1_000_000)
                 .Out(Wpkh($"rare-paid-{day}"), 990_000).Build());
         var always = Enumerable.Range(0, 24)
@@ -313,15 +379,40 @@ public sealed class RoundFourChecksTests : IDisposable
     }
 
     /// <summary>A transaction that sends 546 satoshi to each of many addresses.</summary>
-    private static BitcoinTransaction Dusting(string label, int recipients)
+    private static BitcoinTransaction Dusting(string label, int recipients, long satoshi)
     {
         var tx = Tx(label, 900_700).In(Wpkh(label + "-duster"), 100_000);
         for (var i = 0; i < recipients; i++)
         {
-            tx.Out(Wpkh($"{label}-target-{i}"), 546);
+            tx.Out(Wpkh($"{label}-target-{i}"), satoshi);
         }
 
         return tx.Build();
+    }
+
+    /// <summary>
+    /// An exchange: each customer pays a deposit address of its own, a few hours apart over two days, and the
+    /// deposits are swept into one hot wallet in several sweeps.
+    /// </summary>
+    private static (List<BitcoinTransaction> Deposits, List<BitcoinTransaction> Sweeps) Exchange(
+        string label, int customers, int sweeps)
+    {
+        var deposits = Enumerable.Range(0, customers)
+            .Select(i => Tx($"{label}-deposit-{i}", 900_000 + (i * 30))
+                .In(Wpkh($"{label}-customer-{i}"), 3_000_000)
+                .Out(Wpkh($"{label}-deposit-{i}"), 1_000_000 + (i * 1_111))
+                .Out(Wpkh($"{label}-customer-{i}-change"), 1_990_000 - (i * 1_111))
+                .Build())
+            .ToList();
+        var perSweep = customers / sweeps;
+        var swept = Enumerable.Range(0, sweeps)
+            .Select(s => deposits.Skip(s * perSweep).Take(perSweep)
+                .Aggregate(
+                    Tx($"{label}-sweep-{s}", 900_000 + (customers * 30) + s), (tx, deposit) => tx.Spend(deposit, 0))
+                .Out(Pkh($"{label}-hot-wallet"), perSweep * 1_000_000)
+                .Build())
+            .ToList();
+        return (deposits, swept);
     }
 
     /// <summary>Gives the block height whose time is the given hour (UTC) of a day in the synthetic chain.</summary>

@@ -21,7 +21,9 @@ CoinJoin-analysen (`coinjoin v2`) tittar bara på tx:en själv, utan etiketter:
     (0,001, 0,01, 0,025, 0,05, 0,25 eller 0,5 BTC), alla P2WPKH.
   - *Wasabi 2*: många deltagare (minst 20 inputs och outputs), bara SegWit-outputs, och minst hälften av utgångarna
     med Wasabi 2:s standardbelopp (potenser av 2 och 3, två gånger potenser av 3, och 1, 2 och 5 gånger potenser av
-    10, från 5 000 satoshi), med minst tre olika sådana belopp. Beloppen behöver inte komma i lika stora grupper.
+    10, från 5 000 satoshi), med minst tre olika sådana belopp, varav minst två utanför serien 1, 2 och 5 gånger en
+    tiopotens. Beloppen behöver inte komma i lika stora grupper. Kravet på potenserna av 2 och 3 gör att en börs
+    utbetalning av jämna belopp (0,01, 0,05, 0,1 BTC) aldrig tas för en Wasabi 2-runda.
   - *Wasabi* (den första versionen): lika stor, och minst hälften av utgångarna i grupper med samma belopp.
   - *JoinMarket*: minst tre lika stora outputs med ett udda belopp och högst en växel per deltagare.
 - **Lika stora jämna belopp** från flera inputs utan känt mönster kan vara en CoinJoin, men lika gärna en börs som

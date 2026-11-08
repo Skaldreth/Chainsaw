@@ -15,6 +15,9 @@ adresser hoppas att mottagarna spenderar det tillsammans med sina andra mynt. D�
 Kontrollen markerar en tx som skickar damm till **minst tio adresser** som *Damm till N adresser*. Följ inte dammet,
 och se ett damm-mynt som spenderas tillsammans med andra som ett svagare tecken på samma ägare.
 
+Är alla belopp **330 eller 546 satoshi** heter den *Damm eller inskriptioner*: det är de vanliga beloppen för
+inskriptioner (*ordinals*), som skickas ut på samma sätt utan att vara damm.
+
 ## Adressförgiftning
 
 En bedragare skapar en adress som **liknar** en adress offret har använt, i början och i slutet, och skickar ett litet

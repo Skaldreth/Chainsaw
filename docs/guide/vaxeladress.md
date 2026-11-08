@@ -34,8 +34,9 @@ tecknen svagare, och varje fel skulle göra en kund till en del av börsen.
 
 Pekar två analyser ut olika outputs som växel i samma tx (till exempel växeln och peel chain) slås ingen av dem ihop.
 
-Fingeravtrycket är ett svagt tecken ensamt, eftersom många plånböcker har samma; det räknas bara när det skiljer
-outputarna åt, och bara när ärendet känner till tx:erna som spenderar dem.
+Fingeravtrycket är ett **svagt** tecken: de flesta plånböcker har samma, och samma plånbok kan byta mellan två tx.
+Det räknas bara när ärendet känner till tx:erna som spenderar **alla** outputs, och det räknas **aldrig** för att slå
+ihop automatiskt: det kan bara avgöra när tecknen annars står lika, eller stärka ett förslag.
 
 *Ny adress* betyder *inte sedd tidigare i ärendet*: Chainsaw vet bara om de tx som har hämtats, och slutsatsen säger i
 vilken tx den andra adressen sågs.

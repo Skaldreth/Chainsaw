@@ -22,14 +22,16 @@ Den stora outputen är **växeln**: samma ägare som hoppets input. De små är 
 
 ## Hur Chainsaw känner igen den
 
-`peel-chain v2` räknar ett hopp när tx:en har två outputs. Den output som går vidare är den som nästa hopp spenderar,
-när ärendet känner till det; annars den stora, när den är minst fyra gånger den lilla. När ärendet känner till **minst
+`peel-chain v2` räknar ett hopp när tx:en har två outputs. Den output som går vidare är den stora, när den är minst
+fyra gånger den lilla. När ärendet känner till **minst
 tre hopp i rad**, där den output som går vidare i ett hopp är en input i nästa, är det en peel chain:
 
 - **Hopp som fylls på:** ett hopp får ha fler inputs än myntet från hoppet före. Det är vanligt att kedjan fylls på
   med nya pengar på vägen, och slutsatsen säger hur många inputs som kom till.
-- **Växeln behöver inte vara den största:** går den mindre outputen vidare till nästa hopp är det den som följs, och
-  *Varför?* säger det.
+- **Växeln behöver inte vara den största:** den mindre följs bara när ärendet vet vad som hände med **båda**: den
+  mindre spenderas av ett hopp av samma form (där det som går vidare är minst fyra gånger det som skalas av), och den
+  större av en tx som inte är ett hopp. En betalning följs aldrig bara för att den är den enda spenderingen du har
+  hämtat, eftersom det beror på vad du har expanderat. *Varför?* säger när den mindre går vidare.
 
 - den output som går vidare i varje hopp **föreslås** som hoppets [växel](vaxeladress.md), men slås inte ihop automatiskt. Formen
   räcker inte: många vanliga betalningar ser likadana ut, så ett offers egna betalningar kan få betalningen till

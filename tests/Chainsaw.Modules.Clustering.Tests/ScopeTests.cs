@@ -16,7 +16,7 @@ public sealed class ScopeTests
     {
         using var harness = new CaseHarness();
 
-        Assert.Equal(4, harness.Service.Heuristics.Count);
+        Assert.Equal(5, harness.Service.Heuristics.Count);
         var heuristics = new ServiceCollection().AddClusteringModule().BuildServiceProvider()
             .GetServices<IClusteringHeuristic>().ToList();
         Assert.All(heuristics, heuristic => Assert.Equal(ChainScope.Only(Chain.Bitcoin), heuristic.Scope));

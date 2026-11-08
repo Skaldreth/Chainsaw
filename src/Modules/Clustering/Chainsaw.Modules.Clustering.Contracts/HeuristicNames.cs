@@ -14,4 +14,12 @@ public static class HeuristicNames
 
     /// <summary>Recognises chains where a little is peeled off in each hop and the change goes on.</summary>
     public const string PeelChain = "peel-chain";
+
+    /// <summary>
+    /// Guesses a PayJoin (an input the payment did not need) and holds the transaction's merges back as suggestions.
+    /// </summary>
+    public const string PayJoin = "payjoin";
+
+    /// <summary>The sort of <see cref="GenericFinding"/> the PayJoin analysis gives.</summary>
+    public const string PayJoinSort = "payjoin";
 }

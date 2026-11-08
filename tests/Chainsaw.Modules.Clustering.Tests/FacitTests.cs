@@ -177,7 +177,8 @@ public sealed class FacitTests : IDisposable
         var conclusions = _harness.Service.GetConclusions(_harness.Case, Txid("possible"));
         var cluster = _harness.ClusterOf(Wpkh("possible-1"));
 
-        var coinJoin = Assert.IsType<CoinJoinFinding>(Assert.Single(conclusions.Findings).Finding);
+        var coinJoin = Assert.IsType<CoinJoinFinding>(
+            Assert.Single(conclusions.Findings, found => found.Finding is CoinJoinFinding).Finding);
         Assert.Equal(CoinJoinCertainty.Possible, coinJoin.Certainty);
         Assert.Null(conclusions.TrailEnd);
         Assert.Single(cluster.Members);

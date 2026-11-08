@@ -9,8 +9,9 @@ namespace Chainsaw.Modules.Clustering;
 /// </summary>
 /// <remarks>
 /// The heuristics are registered as <see cref="IClusteringHeuristic"/>, each for the model and chains in its
-/// <see cref="IClusteringHeuristic.Scope"/> (today's four for Bitcoin); another analysis (for example a local model
-/// later, principle 5) is added by registering one more. The module adds its sealed tables to every case through an
+/// <see cref="IClusteringHeuristic.Scope"/> (today's five for Bitcoin, three of them also in an older version);
+/// another analysis (for example a local model later, principle 5) is added by registering one more. The module adds
+/// its sealed tables to every case through an
 /// <see cref="ICaseSchemaContributor"/>.
 /// </remarks>
 public static class ClusteringModule
@@ -32,6 +33,7 @@ public static class ClusteringModule
         services.AddSingleton<IClusteringHeuristic>(new ChangeAddressHeuristic(2));
         services.AddSingleton<IClusteringHeuristic>(new PeelChainHeuristic(1));
         services.AddSingleton<IClusteringHeuristic>(new PeelChainHeuristic(2));
+        services.AddSingleton<IClusteringHeuristic, PayJoinHeuristic>();
         services.AddSingleton<IClusteringService, ClusteringService>();
         return services;
     }

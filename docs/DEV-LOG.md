@@ -3805,3 +3805,28 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   en källa), JoinMarkets avgifter och fidelity bonds, adressens hela historik från källan och klustringens cache står
   kvar i BACKLOG. Ytor (dra tillbaka en version, slutsatser som hålls tillbaka, tona ned damm, fälla ihop hopp, en
   trolig tjänst som etikett) står i TODO avsnitt 4 som [skiss], och testärendet som [direkt].
+- **Rättat efter den oberoende granskningen** (1 C, 4 I, 7 M, alla rättade):
+  - **C1:** fingeravtrycket räknas aldrig för en automatisk sammanslagning (bara de starka tecknen mot
+    `AutomaticMergeSigns`); det kan bara avgöra lika läge eller stärka ett förslag, och *Varför?* säger det. Test med
+    offret och bedragaren ur granskningen.
+  - **I1:** `peel-chain v2` följer den mindre outputen bara när ärendet vet att ett hopp av samma form (efter storlek)
+    spenderar den och att en tx som inte är ett hopp spenderar den större; en betalning följs aldrig bara för att den
+    är den enda kända spenderingen. Test med offret som betalar bedragaren.
+  - **I2:** de äldre versionerna (`coinjoin`, `change-address`, `peel-chain` v1) är registrerade, och ett ärende kör
+    den högsta version det inte dragit tillbaka. Ett förslag som vägdes mot en tillbakadragen version räknas som
+    förslag (aldrig stoppat av den) och vägs om vid nästa analys. `Withdraw` tar bara registrerade versioner och aldrig
+    den sista i kraft; `TakeBackWithdrawal` tar tillbaka en tillbakadragning som egen förseglad post
+    (`clustering_withdrawal_undos`, journalrad `clustering.withdrawal-taken-back`). Ingen yta (KV1 skissas).
+  - **I3:** `service-behaviour` kräver minst två svep, tio insättningsadresser från tio oberoende avsändare och minst
+    ett dygn, och räknar aldrig adresser som en startpunkt eller ett offer (etikett) betalade (`CheckInput.Protected`,
+    offren ur Attribution när modulen finns). Texten säger *kan gälla dem*. Test med tre offer som bedragaren sveper.
+  - **I4:** `active-hours` kräver tjugo tx och ett permutationstest med fast frö (2 000 dragningar, högst 1 % chans).
+    Test med slumpade tider (fast frö) och 100 slumpade ägare.
+  - **M1:** spenderarna är underlag för växeln bara när fingeravtryckets tecken håller; peel chains spenderare bara när
+    de kan avgöra. Golden-filen har inga dubbla rader längre. **M2:** Wasabi 2 kräver minst två belopp utanför
+    1-2-5-serien. **M3:** peel chains avgörande spenderare är underlag. **M4:** `FindingTxids` borttagen, det senast
+    förseglade avkodas bara för fynd med beslut, och kandidaterna hålls om bara när något förseglats under tiden.
+    **M5:** `GenericFinding` skrivs och läses tillbaka i ett test. **M6:** `active-hours` nycklas på adressen som
+    spenderade först och `pass-through` på första hoppet, stabila när spåret följs framåt. **M7:** damm av bara 330 och
+    546 satoshi heter *Damm eller inskriptioner*; PayJoin är nu en klustringsanalys (`payjoin v1`) som håller
+    sammanslagningarna som förslag (det säkraste), och kontrollen visar den.

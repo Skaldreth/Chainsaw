@@ -53,6 +53,13 @@ public sealed record CheckInput(
     public IReadOnlyDictionary<BitcoinAddress, BitcoinAddress> Owners { get; init; } =
         new Dictionary<BitcoinAddress, BitcoinAddress>();
 
+    /// <summary>
+    /// Gets the addresses of the case's start points (and the payers of a start transaction) and of the actors a label
+    /// says are victims. An analysis never counts them, or what they paid, as part of a service's business (for
+    /// example as a customer's deposit).
+    /// </summary>
+    public IReadOnlySet<BitcoinAddress> Protected { get; init; } = new HashSet<BitcoinAddress>();
+
     /// <summary>Gives the owner of an address (<see cref="Owners"/>).</summary>
     /// <param name="address">The address.</param>
     /// <returns>Its owner key; the address itself when the clustering links it to no other.</returns>
