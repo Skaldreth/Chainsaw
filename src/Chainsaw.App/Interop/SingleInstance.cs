@@ -55,6 +55,19 @@ public sealed class SingleInstance : IDisposable
         return null;
     }
 
+    /// <summary>Says whether a Chainsaw runs for this user and session, without becoming it.</summary>
+    /// <returns><see langword="true"/> when one does.</returns>
+    public static bool IsRunning()
+    {
+        if (!Mutex.TryOpenExisting($@"Local\Chainsaw.Instance.{Identity()}", out var mutex))
+        {
+            return false;
+        }
+
+        mutex.Dispose();
+        return true;
+    }
+
     /// <summary>Sends a text (a link, or empty to only bring the window forward) to the running Chainsaw.</summary>
     /// <param name="text">The text.</param>
     /// <returns><see langword="true"/> when it was delivered.</returns>

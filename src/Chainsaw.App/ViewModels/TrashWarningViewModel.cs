@@ -111,15 +111,28 @@ public sealed partial class TrashRowViewModel : ObservableObject
         return isLast ? LastGlyph : MiddleGlyph;
     }
 
+    /// <summary>How a thrown comment is drawn in the trash: the note's icon in a square frame (sketch KN1a).</summary>
+    public static SortLook CommentLook { get; } =
+        new(NodeSort.Unknown, "Kommentar", "Icon.Note", GraphInk.Unknown, NodeShape.Square, false);
+
+    /// <summary>How a thrown own area is drawn in the trash: the area's icon in a square frame (sketch KF1b).</summary>
+    public static SortLook AreaLook { get; } =
+        new(NodeSort.Unknown, "Egen yta", "Icon.Area", GraphInk.Cluster, NodeShape.Square, false);
+
     /// <summary>
-    /// Gives the look of a sort as the trash stored it; a sort this build does not know is drawn as unknown.
+    /// Gives the look of a sort as the trash stored it: a comment's and an own area's their own, a node's its sort's;
+    /// a sort this build does not know is drawn as unknown.
     /// </summary>
     /// <param name="sort">The stored sort.</param>
     /// <returns>The look.</returns>
-    public static SortLook LookOf(string sort) => Enum.TryParse<NodeSort>(sort, out var known)
-        && VisualLanguage.Sorts.Any(look => look.Sort == known)
-        ? VisualLanguage.Of(known)
-        : VisualLanguage.Of(NodeSort.Unknown);
+    public static SortLook LookOf(string sort) => sort switch
+    {
+        TrashKeys.CommentSort => CommentLook,
+        TrashKeys.AreaSort => AreaLook,
+        _ when Enum.TryParse<NodeSort>(sort, out var known) && VisualLanguage.Sorts.Any(look => look.Sort == known)
+            => VisualLanguage.Of(known),
+        _ => VisualLanguage.Of(NodeSort.Unknown),
+    };
 
     /// <summary>Makes the rows of a tree, each with its glyph.</summary>
     /// <param name="members">The tree, in depth-first order.</param>

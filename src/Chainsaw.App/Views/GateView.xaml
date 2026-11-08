@@ -3,8 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Chainsaw.App.Controls"
              xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:views="clr-namespace:Chainsaw.App.Views"
              xmlns:cases="clr-namespace:Chainsaw.Modules.Cases.Contracts;assembly=Chainsaw.Modules.Cases.Contracts"
-             Focusable="False">
+             Focusable="False" PreviewKeyDown="OnGateKey">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
 
@@ -25,6 +26,128 @@
             <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- A card of the way out on the step Utgång (sketch FS2a): the chosen one in the accent. -->
+        <Style x:Key="Gate.Card" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1.5" CornerRadius="12" Padding="16">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The route's lines: whole and green while lookups can go, dashed and red otherwise. -->
+        <Style x:Key="Gate.RouteLine" TargetType="Line">
+            <Setter Property="Stroke" Value="{StaticResource Brush.Error}" />
+            <Setter Property="StrokeDashArray" Value="3 3" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsRouteLive}" Value="True">
+                    <Setter Property="Stroke" Value="{StaticResource Brush.Success}" />
+                    <Setter Property="StrokeDashArray" Value="{x:Null}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The way out's ring in the middle of the route, in its state's colour. -->
+        <Style x:Key="Gate.RouteRing" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Error}" />
+            <Setter Property="Background" Value="{StaticResource Brush.ErrorTint}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsRouteLive}" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource Brush.Success}" />
+                    <Setter Property="Background" Value="{StaticResource Brush.SuccessTint}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The way out's icon: the screen for Windows, the globe for an exit, in the state's colour. -->
+        <Style x:Key="Gate.RouteIcon" TargetType="controls:GridIcon">
+            <Setter Property="Data" Value="{StaticResource Icon.Monitor}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsVpnChosen}" Value="True">
+                    <Setter Property="Data" Value="{StaticResource Icon.Globe}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsRouteLive}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The verdict's first words, in the state's colour. -->
+        <Style x:Key="Gate.RouteVerdict" TargetType="Run">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsRouteLive}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The dashed field a WireGuard file is dropped on, or clicked to choose one. -->
+        <Style x:Key="Gate.DropField" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Rectangle x:Name="Frame" RadiusX="10" RadiusY="10" StrokeThickness="1.5" StrokeDashArray="4 3"
+                                       Stroke="{StaticResource Brush.BorderStrong}" Fill="Transparent" />
+                            <ContentPresenter Margin="18,0" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.BorderHover}" />
+                                <Setter TargetName="Frame" Property="Fill" Value="{StaticResource Brush.Surface}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource Brush.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The stored exit's dot: green while connected. -->
+        <Style x:Key="Gate.ExitDot" TargetType="Ellipse">
+            <Setter Property="Fill" Value="{StaticResource Brush.TextDim}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsRouteLive}" Value="True">
+                    <Setter Property="Fill" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The stored exit's round power button: on the selected surface while it is on. -->
+        <Style x:Key="Gate.Power" TargetType="Button" BasedOn="{StaticResource Button.Power}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsExitOn}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
 
@@ -178,31 +301,148 @@
                                    Visibility="{Binding IsMasterKeyChosen, Converter={StaticResource Visible}}" />
                     </StackPanel>
 
-                    <!-- Step 3: the exit -->
+                    <!-- Step 3: the way out (sketch FS2a): Windows (chosen from the start) or VPN as two cards, the route as a
+                         picture under them, and under VPN the WireGuard file. -->
                     <StackPanel Visibility="{Binding IsExit, Converter={StaticResource Visible}}">
                         <TextBlock Text="Hur Chainsaw går ut på nätet" FontSize="24" FontWeight="SemiBold" Margin="0,16,0,0" />
-                        <TextBlock Style="{StaticResource Text.Lead}" Margin="0,16,0,0"
-                                   Text="Uppslag mot kedjan går genom en VPN-utgång, eller genom Windows om du väljer det i inställningarna (Ctrl+,). Utan utgång fungerar allt som redan finns i ärendet, men inget nytt hämtas." />
-                        <Button x:Name="AddExitButton" Style="{StaticResource Button.Choice}" Margin="0,16,0,0" Click="OnAddExit"
+                        <TextBlock Style="{StaticResource Text.Lead}" Margin="0,12,0,0" FontSize="13.5"
+                                   Text="Ett uppslag skickar bara adressen eller tx:en, aldrig ärendet, och alltid över https. Du väljer vägen." />
+                        <UniformGrid Columns="2" Margin="-6,16,-6,0">
+                            <Button x:Name="WindowsCard" Margin="6,0" Click="OnChooseWindows" AutomationProperties.Name="Windows som utgång">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Gate.Card}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsWindowsChosen}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                                                <Setter Property="Background" Value="{StaticResource Brush.AccentTint}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <DockPanel>
+                                    <controls:GridIcon DockPanel.Dock="Left" Size="22" Data="{StaticResource Icon.Monitor}" VerticalAlignment="Top"
+                                                       Margin="0,0,12,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    <StackPanel>
+                                        <TextBlock Text="Windows" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource Brush.Text}" />
+                                        <TextBlock Text="Datorns eget nät, med det skydd som finns för hela datorn." FontSize="12.5"
+                                                   Foreground="{StaticResource Brush.TextDim}" Margin="0,4,0,0" TextWrapping="Wrap" LineHeight="18" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Button>
+                            <Button x:Name="VpnCard" Margin="6,0" Click="OnChooseVpn" AutomationProperties.Name="VPN som utgång">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Gate.Card}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsVpnChosen}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
+                                                <Setter Property="Background" Value="{StaticResource Brush.AccentTint}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <DockPanel>
+                                    <controls:GridIcon DockPanel.Dock="Left" Size="22" Data="{StaticResource Icon.Shield}" VerticalAlignment="Top"
+                                                       Margin="0,0,12,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    <StackPanel>
+                                        <TextBlock Text="VPN" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource Brush.Text}" />
+                                        <TextBlock Text="Bara genom en utgång i Chainsaw. Utan den görs inga uppslag." FontSize="12.5"
+                                                   Foreground="{StaticResource Brush.TextDim}" Margin="0,4,0,0" TextWrapping="Wrap" LineHeight="18" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Button>
+                        </UniformGrid>
+
+                        <!-- The route: the computer, the way out in a ring in its state's colour, and the chains. -->
+                        <Border Margin="0,14,0,0" CornerRadius="12" Background="{StaticResource Brush.Surface}"
+                                BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" Padding="20,18,20,16">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <Border Width="36" Height="36" CornerRadius="18" BorderThickness="2" BorderBrush="{StaticResource Brush.BorderStrong}"
+                                                Background="{StaticResource Brush.SurfaceRaised}" HorizontalAlignment="Center">
+                                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Laptop}" Foreground="{StaticResource Brush.TextMuted}" />
+                                        </Border>
+                                        <TextBlock Text="Datorn" FontSize="12" Foreground="{StaticResource Brush.TextDim}" Margin="0,6,0,0"
+                                                   HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                    <Line Grid.Column="1" X1="0" X2="1" Stretch="Fill" StrokeThickness="2" Margin="8,0,8,22"
+                                          VerticalAlignment="Center" Style="{StaticResource Gate.RouteLine}" />
+                                    <StackPanel Grid.Column="2">
+                                        <Border Width="52" Height="52" CornerRadius="26" BorderThickness="2" HorizontalAlignment="Center"
+                                                Style="{StaticResource Gate.RouteRing}">
+                                            <controls:GridIcon Size="24" Style="{StaticResource Gate.RouteIcon}" />
+                                        </Border>
+                                        <TextBlock Text="{Binding RouteName}" FontSize="14" FontWeight="SemiBold" Margin="0,6,0,0"
+                                                   HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                    <Line Grid.Column="3" X1="0" X2="1" Stretch="Fill" StrokeThickness="2" Margin="8,0,8,22"
+                                          VerticalAlignment="Center" Style="{StaticResource Gate.RouteLine}" />
+                                    <StackPanel Grid.Column="4">
+                                        <Border Width="36" Height="36" CornerRadius="18" BorderThickness="2" BorderBrush="{StaticResource Brush.BorderStrong}"
+                                                Background="{StaticResource Brush.SurfaceRaised}" HorizontalAlignment="Center">
+                                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Block}" Foreground="{StaticResource Brush.TextMuted}" />
+                                        </Border>
+                                        <TextBlock Text="Blockkedjor" FontSize="12" Foreground="{StaticResource Brush.TextDim}" Margin="0,6,0,0"
+                                                   HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock FontSize="13" Foreground="{StaticResource Brush.TextMuted}" TextWrapping="Wrap" LineHeight="20"
+                                           Margin="0,14,0,0">
+                                    <Run Text="{Binding RouteVerdict, Mode=OneWay}" Style="{StaticResource Gate.RouteVerdict}" />
+                                    <Run Text="{Binding RouteDetail, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Under VPN: the WireGuard file, dropped or chosen; once stored, its row with × and the power button. -->
+                        <Button x:Name="AddExitButton" Margin="0,12,0,0" Height="64" Click="OnAddExit" AllowDrop="True" Drop="OnExitFileDropped"
+                                Style="{StaticResource Gate.DropField}" AutomationProperties.Name="Lägg till en WireGuard-fil"
+                                Visibility="{Binding NeedsExitFile, Converter={StaticResource Visible}}"
                                 IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}">
                             <StackPanel Orientation="Horizontal">
-                                <controls:GridIcon Size="18" Margin="0,0,10,0" VerticalAlignment="Center"
-                                                   Data="{StaticResource Icon.Download}" />
-                                <StackPanel>
-                                    <TextBlock Text="Lägg till en WireGuard-fil" Foreground="{StaticResource Brush.Text}" />
-                                    <TextBlock Text="Konfigurationen sparas krypterad i valvet" FontSize="13"
-                                               Foreground="{StaticResource Brush.TextDim}" />
+                                <controls:GridIcon Size="20" Data="{StaticResource Icon.Download}" Foreground="{StaticResource Brush.TextMuted}"
+                                                   Margin="0,0,12,0" VerticalAlignment="Center" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Släpp en WireGuard-fil här eller välj …" FontSize="13.5" Foreground="{StaticResource Brush.Text}" />
+                                    <TextBlock Text="Sparas krypterad i valvet. Fler utgångar läggs till i Inställningar." FontSize="12"
+                                               Foreground="{StaticResource Brush.TextDim}" Margin="0,2,0,0" />
                                 </StackPanel>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource Button.Choice}" Margin="0,16,0,0" Click="OnLater"
-                                IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}">
-                            <StackPanel>
-                                <TextBlock Text="Senare" Foreground="{StaticResource Brush.Text}" />
-                                <TextBlock Text="Chainsaw arbetar offline tills en utgång finns" FontSize="13"
-                                           Foreground="{StaticResource Brush.TextDim}" />
-                            </StackPanel>
-                        </Button>
+                        <Border Margin="0,12,0,0" Height="52" CornerRadius="10" BorderThickness="1.5" Padding="16,0,9,0"
+                                BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Surface}"
+                                Visibility="{Binding HasExit, Converter={StaticResource Visible}}">
+                            <DockPanel>
+                                <Ellipse DockPanel.Dock="Left" Width="9" Height="9" Margin="0,0,12,0" VerticalAlignment="Center"
+                                         Style="{StaticResource Gate.ExitDot}" />
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Gate.Power}" Click="OnToggleExit"
+                                        ToolTip="Anslut eller koppla ner" AutomationProperties.Name="Anslut eller koppla ner utgången"
+                                        Visibility="{Binding CanConnectExit, Converter={StaticResource Visible}}">
+                                    <controls:GridIcon Size="17" Data="{StaticResource Icon.Power}"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                </Button>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Margin="0,0,6,0" Click="OnRemoveExit"
+                                        ToolTip="Ta bort filen" AutomationProperties.Name="Ta bort filen">
+                                    <controls:GridIcon Size="12" Data="{StaticResource Icon.Close}"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                </Button>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding ExitName}" FontSize="14" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock FontSize="11.5" Foreground="{StaticResource Brush.TextDim}" TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding ExitFileName, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding ExitStateText, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- Step 4: the first case, which can be skipped -->
@@ -257,6 +497,41 @@
                                Foreground="{StaticResource Brush.TextMuted}" LineHeight="18" />
                 </Border>
             </Popup>
+
+            <!-- Om Chainsaw over the lock screen (sketch ST2a): the settings' page without the menu, so that the recovery
+                 key can be checked before the unlock. -->
+            <Grid Visibility="{Binding LockScreen.IsAboutOpen, Converter={StaticResource Visible}}">
+                <Rectangle Fill="#80000000" MouseLeftButtonDown="OnAboutDimClicked" />
+                <Grid Width="660" MaxHeight="660" Margin="24" VerticalAlignment="Center">
+                    <Border CornerRadius="14" Background="{StaticResource Brush.Floating}" IsHitTestVisible="False">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="48" ShadowDepth="12" Direction="270" Opacity="0.6" Color="Black" />
+                        </Border.Effect>
+                    </Border>
+                    <Border CornerRadius="14" Background="{StaticResource Brush.Floating}" BorderBrush="{StaticResource Brush.BorderStrong}"
+                            BorderThickness="1" ClipToBounds="True" AutomationProperties.Name="Om Chainsaw">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Padding="28,22,20,18" BorderBrush="{StaticResource Brush.SubmenuHover}"
+                                    BorderThickness="0,0,0,1">
+                                <DockPanel>
+                                    <Button x:Name="AboutClose" DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Width="32" Height="32"
+                                            VerticalAlignment="Top" Click="OnAboutClose" ToolTip="Stäng (Esc)" AutomationProperties.Name="Stäng">
+                                        <controls:GridIcon Size="14" Data="{StaticResource Icon.Close}" Foreground="{StaticResource Brush.TextMuted}" />
+                                    </Button>
+                                    <StackPanel>
+                                        <TextBlock Text="Om Chainsaw" FontSize="20" FontWeight="SemiBold" />
+                                        <TextBlock Text="Visas före upplåsningen, så att nyckeln går att kontrollera." FontSize="13"
+                                                   Foreground="{StaticResource Brush.TextDim}" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                                <views:AboutPage Margin="28,4,28,24" DataContext="{Binding LockScreen.About}" />
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

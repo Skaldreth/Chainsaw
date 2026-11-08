@@ -487,6 +487,25 @@ public sealed class ExitPanelTests
             return exit;
         }
 
+        public Exception? DescribeFailure { get; set; }
+
+        public ExitInfo Describe(Guid id, string name, string place)
+        {
+            if (DescribeFailure is not null)
+            {
+                throw DescribeFailure;
+            }
+
+            var index = Known.FindIndex(exit => exit.Id == id);
+            if (index < 0)
+            {
+                throw new ArgumentException("No exit has the id.", nameof(id));
+            }
+
+            Known[index] = Known[index] with { Name = name, Place = place };
+            return Known[index];
+        }
+
         public Task<bool> RemoveAsync(Guid id) => Task.FromResult(Known.RemoveAll(exit => exit.Id == id) > 0);
 
         public ExitInfo? FindSelected() => Known.FirstOrDefault(exit => exit.Id == Selected);

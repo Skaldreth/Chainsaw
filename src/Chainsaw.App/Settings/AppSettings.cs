@@ -51,10 +51,16 @@ public sealed record AppSettings
     public bool AlertWithSound { get; init; } = true;
 
     /// <summary>
-    /// Gets whether a hit is said with a message in the middle of the screen. Built, but not offered in the settings
-    /// until its sketch is approved; off by default.
+    /// Gets whether a hit is said with a message in the middle of the screen (sketch BV4a), which stays on top until it
+    /// is closed; off by default, since it covers the user's work.
     /// </summary>
     public bool AlertOnScreen { get; init; }
+
+    /// <summary>
+    /// Gets whether an exit is checked once each time it connects (sketch UT3b): the trace is asked through it, and a
+    /// country other than its place says is told in the toaster; on by default.
+    /// </summary>
+    public bool CheckExitOnConnect { get; init; } = true;
 
     /// <summary>
     /// Gets the names of the suppliers of attribution that are on, such as <c>chainabuse</c> (decided 2026-11-08, each

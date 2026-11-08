@@ -87,6 +87,28 @@ public sealed partial class GuidePanelViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Opens the panel anew at a section by its id, as the command bar's search does for a Guide row (sketch KR1a).
+    /// </summary>
+    /// <param name="sectionId">The section's id, for example <c>utxo-modellen</c>.</param>
+    /// <returns><see langword="true"/> when the section is in the library and is shown.</returns>
+    public bool OpenSection(string? sectionId)
+    {
+        if (_library.Section(sectionId) is not { } section)
+        {
+            return false;
+        }
+
+        if (_history.Current?.Section == section.Id)
+        {
+            return true;
+        }
+
+        _history.Start(new GuidePlace(section.Id, null, null, null));
+        ShowCurrent();
+        return true;
+    }
+
+    /// <summary>
     /// Follows what is chosen while the panel is open. A choice (<see cref="GuideRequest.IsChoice"/>) shows its answer:
     /// in the stead of the current one when it is about the same thing, else as a step on, also when it is the thing
     /// chosen before a link was followed. A fuller answer that comes later only updates the answer where it lies in the

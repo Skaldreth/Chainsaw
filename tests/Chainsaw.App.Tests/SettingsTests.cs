@@ -597,21 +597,26 @@ public sealed class SettingsTests : IDisposable
     [Fact]
     public void Om_chainsaw_has_the_version_no_recovery_key_and_the_licences()
     {
-        Assert.Equal("0.1.0 · abcdef0", Settings.VersionText);
-        Assert.Equal(SettingsViewModel.NoRecoveryKeyText, Settings.RecoveryKeyText);
-        Assert.False(Settings.HasRecoveryKey);
-        Assert.NotNull(Settings.Licenses);
-        Assert.Contains("Tredje part", Settings.Licenses!.Title, StringComparison.Ordinal);
+        var about = Settings.About;
+        Assert.Equal("0.1.0 · abcdef0", about.VersionText);
+        Assert.False(about.HasKey);
+        Assert.True(about.HasNoKey);
+        Assert.Equal(AboutViewModel.NoKeyHintText, about.KeyHint);
+        Assert.Empty(about.Lines);
+        Assert.NotNull(about.Licenses);
+        Assert.Contains("Tredje part", about.Licenses!.Title, StringComparison.Ordinal);
 
-        Settings.ToggleLicenses();
-        Assert.True(Settings.IsShowingLicenses);
+        about.MarkCopied();
+        Assert.False(about.IsCopied);
+        about.ToggleLicenses();
+        Assert.True(about.IsShowingLicenses);
         Settings.Open();
         Settings.Close();
-        Assert.False(Settings.IsShowingLicenses);
+        Assert.False(about.IsShowingLicenses);
     }
 
     [Fact]
-    public void Om_chainsaw_shows_the_built_in_recovery_keys_fingerprint()
+    public void Om_chainsaw_shows_the_built_in_recovery_keys_fingerprint_in_four_lines_of_groups()
     {
         using var key = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP384);
         var recovery = RecoveryPublicKey.FromPrivateKey(key);
@@ -621,8 +626,112 @@ public sealed class SettingsTests : IDisposable
             new AppSettings(), _rig.SettingsStore, _rig.Way, _rig.ExitPanel, _rig.AutoLock, _rig.Prices,
             _rig.Profiles, _rig.Vault, cases, _rig.Build);
 
-        Assert.Equal(recovery.DisplayFingerprint, settings.RecoveryKeyText);
-        Assert.True(settings.HasRecoveryKey);
+        var about = settings.About;
+        Assert.True(about.HasKey);
+        Assert.Equal(AboutViewModel.KeyHintText, about.KeyHint);
+        Assert.Equal(recovery.DisplayFingerprint, about.Fingerprint);
+        Assert.Equal(4, about.Lines.Count);
+        Assert.All(about.Lines, line => Assert.Equal(4, line.Groups.Count));
+        var digits = string.Concat(about.Lines.SelectMany(line => line.Groups));
+        Assert.Equal(recovery.Fingerprint.ToUpperInvariant(), digits);
+        Assert.False(about.HasRevoked);
+
+        about.MarkCopied();
+        Assert.True(about.IsCopied);
+        settings.Open();
+        settings.Close();
+        Assert.False(about.IsCopied);
+    }
+
+    [Fact]
+    public void Om_chainsaw_lists_the_revoked_keys_struck_and_short()
+    {
+        using var key = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP384);
+        var revoked = new string('a', 60) + "0f9e";
+        var cases = new TestCaseStore
+        {
+            RecoveryKey = RecoveryPublicKey.FromPrivateKey(key),
+            RevokedRecoveryKeys = [revoked],
+        };
+
+        var about = new AboutViewModel(cases, _rig.Build);
+
+        Assert.True(about.HasRevoked);
+        var shown = Assert.Single(about.Revoked);
+        Assert.Equal("AAAA AAAA … 0F9E", shown.ShortText);
+        Assert.Equal(string.Join(' ', AboutViewModel.GroupsOf(revoked)), shown.FullText);
+        Assert.Equal(16, AboutViewModel.GroupsOf(revoked).Count);
+    }
+
+    [Fact]
+    public void Revoked_keys_are_not_listed_when_no_key_is_built_in_since_the_warning_says_it_all()
+    {
+        var cases = new TestCaseStore { RevokedRecoveryKeys = [new string('b', 64)] };
+
+        var about = new AboutViewModel(cases, _rig.Build);
+
+        Assert.False(about.HasRevoked);
+        Assert.True(about.HasNoKey);
+    }
+
+    [Fact]
+    public void The_screen_message_is_a_way_with_its_switch_and_the_page_says_when_none_is_chosen()
+    {
+        Assert.False(Settings.AlertsOnScreen);
+        Assert.False(Settings.HasNoAlertWay);
+
+        Settings.ToggleAlertOnScreen();
+        Assert.True(Settings.AlertsOnScreen);
+        Assert.True(Settings.Current.Alerts.HasFlag(Chainsaw.Modules.Monitoring.Contracts.WatchAlerts.Screen));
+
+        Settings.ToggleAlertOnScreen();
+        Settings.ToggleAlertInWindows();
+        Settings.ToggleAlertWithSound();
+        Assert.True(Settings.HasNoAlertWay);
+        Assert.Equal(Chainsaw.Modules.Monitoring.Contracts.WatchAlerts.None, Settings.Current.Alerts);
+    }
+
+    [Fact]
+    public void Prova_and_Lyssna_show_the_message_and_play_the_sound_where_they_can()
+    {
+        Assert.False(Settings.CanPreviewAlerts);
+        Settings.TryScreenMessage();
+        Settings.PlaySound();
+
+        var alerts = new TestAlerts();
+        var settings = new SettingsViewModel(
+            new AppSettings(), _rig.SettingsStore, _rig.Way, _rig.ExitPanel, _rig.AutoLock, _rig.Prices,
+            _rig.Profiles, _rig.Vault, _rig.Cases, _rig.Build, alerts: alerts);
+
+        Assert.True(settings.CanPreviewAlerts);
+        settings.TryScreenMessage();
+        settings.PlaySound();
+        Assert.Equal((1, 1), (alerts.Messages, alerts.Sounds));
+    }
+
+    [Fact]
+    public void Checking_an_exit_on_connecting_is_on_from_the_start_and_follows_its_switch()
+    {
+        Assert.True(Settings.ChecksExitOnConnect);
+        Assert.True(_rig.ExitPanel.ChecksOnConnect);
+
+        Settings.ToggleCheckExitOnConnect();
+
+        Assert.False(Settings.ChecksExitOnConnect);
+        Assert.False(_rig.ExitPanel.ChecksOnConnect);
+        Assert.False(Settings.Current.CheckExitOnConnect);
+    }
+
+    /// <summary>Counts what the settings asked to be shown and played.</summary>
+    private sealed class TestAlerts : IAlertPreview
+    {
+        public int Messages { get; private set; }
+
+        public int Sounds { get; private set; }
+
+        public void ShowMessage() => Messages++;
+
+        public void PlaySound() => Sounds++;
     }
 
     [Fact]

@@ -43,6 +43,17 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
     }
 
     /// <inheritdoc />
+    public ExitInfo Describe(Guid id, string name, string place)
+    {
+        RequireText(name, ExitRules.MaximumNameLength, allowEmpty: false, nameof(name));
+        RequireText(place, ExitRules.MaximumPlaceLength, allowEmpty: true, nameof(place));
+        var found = records.Find(id) ?? throw new ArgumentException("No exit has the id.", nameof(id));
+        var exit = found.Exit with { Name = name.Trim(), Place = place.Trim() };
+        records.Save(id, new StoredExit(exit.Name, exit.Place, exit.Kind, found.Configuration));
+        return exit;
+    }
+
+    /// <inheritdoc />
     public Task<bool> RemoveAsync(Guid id) =>
         connection.ChangeExitsAsync(
             leaveConnected: active => active != id,
@@ -53,6 +64,7 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
                     records.SetSelected(null);
                 }
 
+                records.RemoveSighting(id);
                 return records.Remove(id);
             });
 

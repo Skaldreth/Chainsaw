@@ -67,7 +67,7 @@ public sealed class ObfuscationChecksTests
     }
 
     [Fact]
-    public void A_proposal_the_clustering_did_not_merge_is_a_wallet_area()
+    public void A_proposal_the_clustering_did_not_merge_is_a_wallet_to_approve()
     {
         using var harness = new Harness();
 
@@ -75,7 +75,7 @@ public sealed class ObfuscationChecksTests
             harness.Run([Patterns.PossibleCoinJoin()]).Checks, c => c.Analysis.Name == WalletCheck.Name);
 
         Assert.Equal(AreaSort.Wallet, wallet.Finding.Area);
-        Assert.Equal(CheckKind.Check, wallet.Finding.Kind);
+        Assert.Equal(CheckKind.Suggestion, wallet.Finding.Kind);
         Assert.Contains(Wpkh("possible-1"), wallet.Finding.Addresses);
         Assert.Contains(Wpkh("possible-2"), wallet.Finding.Addresses);
     }

@@ -331,7 +331,7 @@ public static class InspectorForms
         var requests = new List<SplitRequest>();
         foreach (var link in cluster.Links
             .Where(link => link.State == LinkState.Merged)
-            .DistinctBy(link => link.Evidence.Sequence))
+            .DistinctBy(link => (link.Evidence.Heuristic.Name, link.Evidence.Sequence)))
         {
             var addresses = link.Evidence.Addresses;
             var goes = addresses.FirstOrDefault(leaving.Contains);
@@ -357,6 +357,7 @@ public static class InspectorForms
             HeuristicNames.ChangeAddress => "Växel",
             HeuristicNames.PeelChain => "Peel",
             HeuristicNames.CoinJoin => "CoinJoin",
+            UserMerges.Name => "Egen",
             _ => heuristic.Name,
         };
         return name + " v" + heuristic.Version.ToString(CultureInfo.InvariantCulture);

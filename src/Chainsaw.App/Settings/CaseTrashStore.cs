@@ -5,7 +5,13 @@ namespace Chainsaw.App.Settings;
 /// <summary>A case thrown in the trash on the start page (sketch SO1a): hidden there, never taken off the disk.</summary>
 /// <param name="CaseNumber">The case.</param>
 /// <param name="ThrownUtc">When it was thrown.</param>
-public sealed record TrashedCase(string CaseNumber, DateTimeOffset ThrownUtc);
+/// <param name="PileId">
+/// The pile it was thrown with, when the whole pile was thrown (sketch GR8a); <see langword="null"/> for a case thrown
+/// on its own, also one taken from a pile.
+/// </param>
+/// <param name="PileName">The pile's name when it was thrown, so that the trash's view names it; empty without one.</param>
+public sealed record TrashedCase(
+    string CaseNumber, DateTimeOffset ThrownUtc, string? PileId = null, string PileName = "");
 
 /// <summary>Keeps the cases thrown on the start page on this computer, never in the cases (like the piles).</summary>
 public interface ICaseTrashStore
@@ -61,7 +67,11 @@ public sealed class CaseTrashStore(string directory) : ICaseTrashStore
             return
             [
                 .. (file?.Cases ?? []).Where(saved => !string.IsNullOrWhiteSpace(saved?.Case))
-                    .Select(saved => new TrashedCase(saved!.Case!, saved.Thrown)),
+                    .Select(saved => new TrashedCase(
+                        saved!.Case!,
+                        saved.Thrown,
+                        string.IsNullOrWhiteSpace(saved.Pile) ? null : saved.Pile,
+                        saved.PileName ?? string.Empty)),
             ];
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
@@ -74,7 +84,8 @@ public sealed class CaseTrashStore(string directory) : ICaseTrashStore
     public bool Save(IReadOnlyList<TrashedCase> cases)
     {
         ArgumentNullException.ThrowIfNull(cases);
-        var file = new TrashFile([.. cases.Select(each => new SavedCase(each.CaseNumber, each.ThrownUtc))]);
+        var file = new TrashFile(
+            [.. cases.Select(each => new SavedCase(each.CaseNumber, each.ThrownUtc, each.PileId, each.PileName))]);
         lock (_writing)
         {
             try
@@ -93,8 +104,10 @@ public sealed class CaseTrashStore(string directory) : ICaseTrashStore
     /// <param name="Cases">The thrown cases.</param>
     private sealed record TrashFile(List<SavedCase?>? Cases);
 
-    /// <summary>A thrown case as it is written.</summary>
+    /// <summary>A thrown case as it is written; a file written before piles could be thrown has no pile.</summary>
     /// <param name="Case">The case number.</param>
     /// <param name="Thrown">When it was thrown.</param>
-    private sealed record SavedCase(string? Case, DateTimeOffset Thrown);
+    /// <param name="Pile">The pile it was thrown with, or <see langword="null"/>.</param>
+    /// <param name="PileName">The pile's name then.</param>
+    private sealed record SavedCase(string? Case, DateTimeOffset Thrown, string? Pile = null, string? PileName = null);
 }

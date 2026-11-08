@@ -19,8 +19,8 @@ public enum LinkState
     Stopped,
 
     /// <summary>
-    /// It would merge two addresses the user has split, and it comes from the heuristic the user broke; it never
-    /// merges them again.
+    /// It would merge two addresses the user has split, and it comes from the heuristic the user broke, or it is the
+    /// user's own merge (<see cref="UserMerges"/>), which any split in force breaks; it never merges them again.
     /// </summary>
     RefusedBySplit,
 
