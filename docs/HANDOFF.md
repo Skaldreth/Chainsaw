@@ -126,22 +126,21 @@ testa igen. Huvudsessionen skissar under tiden det som väntar på skiss.
 
 **Läget 2026-11-08 morgon.** Pushat i dag: Chainabuse som underleverantör (knappen R och skölden vid noden),
 KL2b, EX1/EX2/EX2b ombyggda, Esc avbryter en lång läsning, Ctrl+W, Guidens toning, inspektören bara när något är
-valt, sonarn borttagen helt, en kvalitetsgenomgång av kvällens egna commits (`6f67d1b`) och **KF2b** (sammanslagen
-`c352c7a`, byggd av en agent, inte sedd på Windows).
+valt, sonarn borttagen helt, en kvalitetsgenomgång av kvällens egna commits (`6f67d1b`) **KF2b** (sammanslagen
+`c352c7a`) och **NC2a** (sammanslagen `68bc89e`), båda byggda av agenter och inte sedda på Windows.
 
 **Att göra, i ordning:**
 1. **Granskningen av KF2b.** En oberoende granskning av Checks-modulens skrivningar (beslutet *Ångrat*
    (`CheckVerdict.Withdrawn`), avfärda hela förslaget, `IsSettled`, `DecisionFor`, köns tangenter) startades
    2026-11-08. Kommer rapporten inte till den nya sessionen: kör om den mot `git show 7f3a77f`. Rätta Critical och
    Important, lägg Minor i TODO, bygg, kör `tests/Chainsaw.App.Tests` och `tests/Chainsaw.Modules.Checks.Tests`, pusha.
-2. **NC2a (Nytt ärende med startpunkter som lista som förhandshämtar).** En agent bygger den i
-   `.claude/worktrees/agent-a36851ebd6c5773be` (gren `worktree-agent-a36851ebd6c5773be`, ännu ocommittat där).
-   När den är klar: `git merge worktree-agent-a36851ebd6c5773be`, behåll båda sidor i dokumenten, bygg, kör
-   berörda tester. **Förhandshämtningen skriver i ärendet** (princip 1 och 4): kör en oberoende granskning före
-   push, rätta det den hittar. Granska också mot skissen `NewCase2A` och användarens synpunkter (inga linjer vid
-   raderna, *betydligt mer professionellt*), eftersom agenten bara fick CLAUDE.md och uppdraget, inte samtalet.
-   Ta bort worktreen efter sammanslagningen. Är agenten borta utan att ha committat: titta på ändringarna i
-   worktreen och bygg färdigt därifrån.
+2. **Granskningen av NC2a.** Panelen är byggd av en agent och sammanslagen (`68bc89e`, commit `9302657`), inte sedd
+   på Windows. Förhandshämtningen skriver i ärendet (ärende i minnet, `IMemoryCase`, förseglat med
+   `IResponseTransfer` och journalraden `app.prefetch-sealed` när ärendet skapas), så en oberoende granskning
+   startades 2026-11-08. Kommer rapporten inte fram: kör om den mot `git show 9302657`. Rätta, bygg, kör
+   `tests/Chainsaw.App.Tests`, `Chainsaw.Modules.Cases.Tests` och `Chainsaw.Watcher.Tests`, pusha. Granska också
+   själv mot skissen `NewCase2A` och användarens synpunkter (inga linjer vid raderna, *betydligt mer professionellt*),
+   eftersom agenten bara fick CLAUDE.md och uppdraget. Det som återstår står i TODO punkt 38.
 3. **Fråga användaren om KF2b:** ett godkänt förslag är avgjort helt (kön går vidare som i skissen), så en mixer som
    betalar ut i flera delar kan bara ha en godkänd utgång i taget. Behålla, eller låta förslaget stå öppet efter ett
    godkännande? Står i TODO under *Kontroller, förslag och områden* som fråga till kryptospåraren.
