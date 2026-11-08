@@ -70,6 +70,9 @@ public enum GuideTopic
     /// that left its block (sketch GR9a).
     /// </summary>
     ChainCheck,
+
+    /// <summary><em>Spåret genom en swap</em>: the traced value follows, and the choice per swap (sketch SW1a).</summary>
+    Swaps,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -109,6 +112,7 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "sa-sparar-man",
         GuideTopic.Exposure => "exponering",
         GuideTopic.ChainCheck => "kontroll-mot-kedjan",
+        GuideTopic.Swaps => "swappar",
         _ => "utxo-modellen",
     };
 
@@ -137,6 +141,7 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "Så spårar man i Chainsaw",
         GuideTopic.Exposure => "Exponering",
         GuideTopic.ChainCheck => "Hur Chainsaw kontrollerar svaren mot kedjan",
+        GuideTopic.Swaps => "Spåret genom en swap",
         _ => "UTXO-modellen",
     };
 
@@ -183,7 +188,7 @@ public static class GuideTopics
     /// <param name="reason">The end's reason.</param>
     /// <returns>The heading as written in the text.</returns>
     public static string EndHeading(TrailEndReason reason) =>
-        reason is TrailEndReason.NotExpanded or TrailEndReason.Unspent or TrailEndReason.Conflicting
-            ? OpenEndsHeading
-            : RealEndsHeading;
+        reason.EndsTrail()
+            ? RealEndsHeading
+            : OpenEndsHeading;
 }

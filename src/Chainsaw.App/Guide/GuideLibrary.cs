@@ -26,7 +26,7 @@ public sealed class GuideLibrary
         ("Säkerhet och utgångar",
             ["huvudnyckeln", "lasning", "utgangen", "vpn-utgangar", "kallor", "aterstallningsnyckeln"]),
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan"]),
-        ("Ethereum", ["kontomodellen", "erc-20", "interna-tx", "kan-frysas"]),
+        ("Ethereum", ["kontomodellen", "erc-20", "swappar", "interna-tx", "kan-frysas"]),
         ("Klustring", ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin", "bryta-upp-kluster"]),
         ("Spårning", ["grafen", "sparningsmetoder", "sparet-tar-slut", "exponering", "kurser"]),
         ("Arbeta i grafen",

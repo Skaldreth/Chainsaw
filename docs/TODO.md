@@ -86,7 +86,6 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
 - **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*; vilken
   tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
 - **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
-- **Spåret genom en swap** (SW1a, vald) [etapp]: värdet följer med, och valet per swap i pillret.
 - **En DEX:s router i grafen** [skiss]: listan över kända kontrakt (omgång 2) har Uniswaps, 1inchs och 0x:s routrar,
   men de får ingen etikett, eftersom ingen sort i bildspråket passar: *Swap eller brygga* avslutar spåret som
   *Fortsätter på annan kedja*, och ett byte på samma kedja byter inte ägare. Namnet står i *Varför?* för swappen. En
@@ -107,8 +106,7 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
 Hela `docs/BACKLOG.md` byggs före 1.0, i omgångar där agenterna inte rör samma filer. Varje omgång tar bort det den
 byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 1. **Skisserna är valda** (2026-11-08): TL3a, FL1a, PL1b och SW1a (CLAUDE.md, *Valt för 1.0*).
-2. **Ethereum klart:** spårningen genom en swap (när regeln är beslutad), Tornado Cash och kända DEX:ar och bryggor,
-   OFAC:s ETH-adresser, kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
+2. **Ethereum klart:** Tornado Cash och kända DEX:ar och bryggor, OFAC:s ETH-adresser, kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
    och fynden från etapp 23 och 23b.
 3. **Bitcoin-källan, bevakningen och bakgrunden:** fynden under *Bitcoin-källan*, *Bevakning* och *Bevakning i
    bakgrunden*, och bevakning i realtid (websocket).
@@ -125,9 +123,8 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    (utan språkmodell, princip 5).
 10. **Vyerna Tidslinje och Flöde**, när skisserna är valda.
 
-**Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (förvalet följer värdet, utredaren väljer per
-swap; valet i pillret skissas [skiss]), VPN i bakgrunden (byggs i omgång 3) och metoderna för privacy coins
-(omgång 9). **LIFO och poison** väntar på kryptospåraren (`docs/KRYPTOSPARAREN.md`, fråga 1).
+**Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (byggd, SW1a), VPN i bakgrunden (byggs i
+omgång 3) och metoderna för privacy coins (omgång 9). **LIFO och poison** väntar på kryptospåraren (`docs/KRYPTOSPARAREN.md`, fråga 1).
 
 ## Före tjänstebruk
 

@@ -39,6 +39,9 @@ public enum HistoryKind
 
     /// <summary>A comment was written, changed, tied or thrown in the trash and put back (sketch KN1a).</summary>
     Comment,
+
+    /// <summary>The user chose that the traced value does not follow through a swap of the node's (sketch SW1a).</summary>
+    SwapStop,
 }
 
 /// <summary>What the row's button does, when the row is the user's own and still counts.</summary>
@@ -63,6 +66,11 @@ public enum HistoryUndo
     /// Undoes a merge of the user's own (<em>Ångra</em>); when an approved wallet made it, the approval is taken back.
     /// </summary>
     UndoMerge,
+
+    /// <summary>
+    /// Takes back a choice that the value does not follow through a swap (<em>Ta tillbaka</em>): it follows again.
+    /// </summary>
+    FollowSwap,
 }
 
 /// <summary>One row in the node's history (sketch AN1b).</summary>
@@ -110,6 +118,9 @@ public sealed record HistoryEvent(
     /// <summary>Gets the merges stored together, for <see cref="HistoryUndo.UndoMerge"/>.</summary>
     public IReadOnlyList<long> MergeSequences { get; init; } = [];
 
+    /// <summary>Gets the choice not to follow a swap, for <see cref="HistoryUndo.FollowSwap"/>.</summary>
+    public SwapStop? SwapStop { get; init; }
+
     /// <summary>Gets whether the row has a button: it is the user's own and still counts.</summary>
     public bool CanUndo => Undo != HistoryUndo.None && !IsWithdrawn;
 
@@ -148,6 +159,30 @@ public sealed record NodeHistoryData(
 
     /// <summary>Gets the user's merges that hold one of the node's addresses, also those undone (Clustering).</summary>
     public IReadOnlyList<MergeHistoryEntry> Merges { get; init; } = [];
+
+    /// <summary>
+    /// Gets the user's choices not to follow a swap of the node's (sketch SW1a), also those taken back (Tracing).
+    /// </summary>
+    public IReadOnlyList<SwapStopHistoryEntry> SwapStops { get; init; } = [];
+
+    /// <summary>Gets the journal entries whose writer the history names for the choices not to follow a swap.</summary>
+    /// <param name="stops">The choices.</param>
+    /// <returns>The journal sequences of each choice and its taking back.</returns>
+    public static IReadOnlySet<long> JournalNeeds(IEnumerable<SwapStopHistoryEntry> stops)
+    {
+        ArgumentNullException.ThrowIfNull(stops);
+        var needs = new HashSet<long>();
+        foreach (var entry in stops)
+        {
+            needs.Add(entry.Stop.JournalSequence);
+            if (entry.Undo is { } undo)
+            {
+                needs.Add(undo.JournalSequence);
+            }
+        }
+
+        return needs;
+    }
 
     /// <summary>Gets the journal entries whose writer the history names for the user's merges.</summary>
     /// <param name="merges">The merges.</param>
@@ -228,6 +263,9 @@ public static class NodeHistory
     /// <summary>The row of a merge of the user's own, for example an approved wallet.</summary>
     public const string MergeText = "Sammanslagen av användaren";
 
+    /// <summary>The row of a choice that the traced value does not follow through a swap (sketch SW1a).</summary>
+    public const string SwapStopText = "Följer inte genom swappen";
+
     /// <summary>Who wrote a journal entry the case could not name.</summary>
     public const string UnknownOperator = "Okänd";
 
@@ -272,6 +310,7 @@ public static class NodeHistory
         AddSplits(data, rows);
         AddMerges(data, rows);
         AddLinks(scene, node, data, rows);
+        AddSwapStops(scene, data, rows);
         AddWatches(node, data, rows);
 
         // In time order; what happened at the same moment keeps the order above, a taking back after what it concerns.
@@ -599,6 +638,40 @@ public static class NodeHistory
                 rows.Add(Withdrawal(
                     key, unlink.RecordedUtc, "Tillbakatagen: länken till " + chain,
                     Who(data, unlink.JournalSequence), unlink.Reason));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds every choice that the traced value does not follow through one of the node's swaps (sketch SW1a), with the
+    /// swap's pill in words, and every taking back of one; the reading already holds only the node's own.
+    /// </summary>
+    /// <param name="scene">The scene, for the swap's assets.</param>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddSwapStops(GraphScene scene, NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        foreach (var entry in data.SwapStops)
+        {
+            var stop = entry.Stop;
+            var pill = scene.Snapshot.Graph.Account.Swaps.FirstOrDefault(stop.Is) is { } swap
+                ? " · " + SwapMarks.Of(swap).Text
+                : string.Empty;
+            var key = "swap-stop/" + stop.Sequence.ToString(CultureInfo.InvariantCulture);
+            var who = Who(data, stop.JournalSequence);
+            var sub = stop.Reason is null ? who : $"{who} · {stop.Reason}";
+            rows.Add(new HistoryEvent(
+                key, HistoryKind.SwapStop, stop.RecordedUtc, SwapStopText + pill,
+                $"{sub} · tx {GraphScene.Shorten(stop.Transaction.Value)}", "Icon.Kind.Swap", GraphInk.Unknown,
+                IsDashed: false, IsFact: false, entry.IsTakenBack, HistoryUndo.FollowSwap)
+            {
+                SwapStop = stop,
+            });
+            if (entry.Undo is { } undo)
+            {
+                rows.Add(Withdrawal(
+                    key, undo.RecordedUtc, "Tillbakataget: värdet följer med igen",
+                    Who(data, undo.JournalSequence), undo.Reason));
             }
         }
     }

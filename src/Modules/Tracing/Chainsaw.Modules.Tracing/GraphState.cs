@@ -19,6 +19,9 @@ internal sealed record GraphState(
     /// </summary>
     public IReadOnlySet<string> Picked { get; init; } = new HashSet<string>(StringComparer.Ordinal);
 
+    /// <summary>Gets the user's choices in force not to follow a swap (sketch SW1a), oldest first.</summary>
+    public IReadOnlyList<SwapStop> SwapStops { get; init; } = [];
+
     /// <summary>
     /// Gets every transaction the graph holds: the start points' transactions and those the expansions brought in,
     /// each once, in the order they came.

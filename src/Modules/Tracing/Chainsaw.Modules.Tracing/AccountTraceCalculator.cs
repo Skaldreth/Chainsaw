@@ -6,11 +6,13 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
-/// Traces money through the account part of the graph, one asset at a time. Each account whose history the graph has
-/// read carries the traced money with the chosen method (<see cref="AccountChecks.Run"/> checks every answer); money
-/// that reaches an account whose history is not read, or one where the trail ends (an exchange, a mixer), stops
-/// there. Since an account's outgoing share depends on what came in, and money can come back, the accounts are worked
-/// through again until nothing changes.
+/// Traces money through the account part of the graph, every asset at once. Each account whose history the graph has
+/// read carries the traced money of each asset with the chosen method (<see cref="AccountChecks.Run"/> checks every
+/// answer); money that reaches an account whose history is not read, or one where the trail ends (an exchange, a
+/// mixer), stops there. Through a swap the traced value follows into the asset that came out by
+/// <see cref="SwapValue"/>, unless the user chose that it does not (<see cref="SwapStop"/>). Since an account's
+/// outgoing share depends on what came in, money can come back, and a swap feeds one asset from another, the accounts
+/// and the swaps are worked through again until nothing changes.
 /// </summary>
 internal static class AccountTraceCalculator
 {
@@ -19,7 +21,7 @@ internal static class AccountTraceCalculator
     /// <param name="method">The method for accounts.</param>
     /// <param name="seeds">The movements the money starts in.</param>
     /// <param name="cancellationToken">Stops the trace between rounds.</param>
-    /// <returns>The result per asset.</returns>
+    /// <returns>The result per asset, and what the rule did at each swap.</returns>
     /// <exception cref="ArgumentException">
     /// There are no seeds, or a seed is not in the graph or is given twice.
     /// </exception>
@@ -51,12 +53,205 @@ internal static class AccountTraceCalculator
                 $"The seed {own.Transaction} moves money from an account to itself; nothing leaves to be traced.",
                 nameof(seeds));
         }
-        var assets = seeded.Select(transfer => transfer.Amount.Asset).Distinct().ToList();
-        var traces = assets.Select(asset =>
-                new AssetTracer(graph, method, asset, [.. seeded.Where(transfer => transfer.Amount.Asset == asset)])
-                    .Run(cancellationToken))
+
+        var swaps = SwapSteps.Of(graph);
+        var seedAssets = seeded.Select(transfer => transfer.Amount.Asset).Distinct().ToList();
+        var assets = swaps.Reachable(seedAssets);
+        var tracers = assets.ToDictionary(
+            asset => asset,
+            asset => new AssetTracer(
+                graph, method, asset, [.. seeded.Where(transfer => transfer.Amount.Asset == asset)], swaps));
+        Settle(tracers, swaps, graph.Account.Transfers.Count, cancellationToken);
+        var conversions = Conversions(tracers, swaps, method.Id);
+        Provenance(tracers, swaps, conversions);
+        var traces = assets.Select(asset => tracers[asset].Result(conversions))
+            .Where((trace, index) => index < seedAssets.Count || trace.Total.Units.Sign > 0)
             .ToList();
-        return new AccountTraceResult(method.Id, seeds, traces);
+        return new AccountTraceResult(method.Id, seeds, traces)
+        {
+            Swaps = [.. swaps.All.Select(step => conversions.GetValueOrDefault(step.Swap)).OfType<SwapConversion>()],
+        };
+    }
+
+    /// <summary>
+    /// Carries the money through every asset's accounts and over every followed swap, round after round, until
+    /// nothing changes.
+    /// </summary>
+    /// <param name="tracers">The tracers, by asset.</param>
+    /// <param name="swaps">The graph's swaps.</param>
+    /// <param name="transfers">How many movements the graph has, which bounds the rounds.</param>
+    /// <param name="cancellationToken">Stops the trace between rounds.</param>
+    /// <exception cref="InvalidOperationException">The money does not settle.</exception>
+    private static void Settle(
+        Dictionary<Asset, AssetTracer> tracers, SwapSteps swaps, int transfers, CancellationToken cancellationToken)
+    {
+        var rounds = transfers + (2 * swaps.All.Count) + 2;
+        for (var round = 0; ; round++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (round == rounds)
+            {
+                throw new InvalidOperationException("The traced money did not settle between the accounts.");
+            }
+
+            var changed = tracers.Values.Aggregate(false, (any, tracer) => tracer.CarryRound() | any);
+            foreach (var step in swaps.All.Where(step => step.Follows))
+            {
+                if (tracers.TryGetValue(step.Swap.Sold.Asset, out var sold)
+                    && tracers.TryGetValue(step.Swap.Bought.Asset, out var bought))
+                {
+                    var traced = sold.TracedOf(step.SoldTransfers);
+                    changed = step.BoughtTransfers.Aggregate(changed, (any, transfer) => bought.SwapIn(
+                        transfer, SwapValue.Follow(traced, step.Swap.Sold, transfer.Amount.Units)) | any);
+                }
+            }
+
+            if (!changed)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>Gives what the rule did at each swap the traced money reached.</summary>
+    /// <param name="tracers">The settled tracers, by asset.</param>
+    /// <param name="swaps">The graph's swaps.</param>
+    /// <param name="method">The method.</param>
+    /// <returns>The conversions, by swap.</returns>
+    private static Dictionary<TokenSwap, SwapConversion> Conversions(
+        Dictionary<Asset, AssetTracer> tracers, SwapSteps swaps, TracingMethodId method)
+    {
+        var conversions = new Dictionary<TokenSwap, SwapConversion>();
+        foreach (var step in swaps.All)
+        {
+            if (!tracers.TryGetValue(step.Swap.Sold.Asset, out var sold)
+                || sold.TracedOf(step.SoldTransfers) is not { Sign: > 0 } traced)
+            {
+                continue;
+            }
+
+            var bought = step.Follows && tracers.TryGetValue(step.Swap.Bought.Asset, out var tracer)
+                ? tracer.SwappedInOf(step.BoughtTransfers)
+                : BigInteger.Zero;
+            conversions[step.Swap] = new SwapConversion(
+                step.Swap,
+                new AssetAmount(step.Swap.Sold.Asset, traced),
+                new AssetAmount(step.Swap.Bought.Asset, bought),
+                method,
+                step.Stop);
+        }
+
+        return conversions;
+    }
+
+    /// <summary>
+    /// Finds which swaps each movement's traced money may rest on: what came out of a followed swap rests on it and on
+    /// what went in; an account's outgoing movement rests on what its earlier incoming traced movements rest on. It is
+    /// generous (FIFO may have sent other money first), so that a line is drawn as uncertain whenever a swap's value
+    /// following could be behind it.
+    /// </summary>
+    /// <param name="tracers">The settled tracers, by asset.</param>
+    /// <param name="swaps">The graph's swaps.</param>
+    /// <param name="conversions">What the rule did at each swap.</param>
+    private static void Provenance(
+        Dictionary<Asset, AssetTracer> tracers, SwapSteps swaps, Dictionary<TokenSwap, SwapConversion> conversions)
+    {
+        var followed = swaps.All.Where(step => step.Follows && conversions.ContainsKey(step.Swap)).ToList();
+        if (followed.Count == 0)
+        {
+            return;
+        }
+
+        // The sets only grow, and are bounded by the swaps, so this ends.
+        for (var changed = true; changed;)
+        {
+            changed = false;
+            foreach (var step in followed)
+            {
+                if (!tracers.TryGetValue(step.Swap.Bought.Asset, out var bought))
+                {
+                    continue;
+                }
+
+                var behind = tracers[step.Swap.Sold.Asset].RestsOnOf(step.SoldTransfers);
+                behind.Add(step.Swap);
+                changed = step.BoughtTransfers.Aggregate(changed, (any, transfer) =>
+                    bought.AddRestsOn(transfer, behind) | any);
+            }
+
+            changed = tracers.Values.Aggregate(changed, (any, tracer) => tracer.SpreadRestsOn() | any);
+        }
+    }
+
+    /// <summary>
+    /// The graph's swaps, each with the movements that went in and came out and whether the user chose that the
+    /// value does not follow.
+    /// </summary>
+    /// <param name="All">The swaps, in chain order.</param>
+    private sealed record SwapSteps(IReadOnlyList<SwapStep> All)
+    {
+        /// <summary>Reads the swaps of a graph.</summary>
+        /// <param name="graph">The graph.</param>
+        /// <returns>The swaps.</returns>
+        public static SwapSteps Of(TraceGraph graph) => new(
+        [
+            .. graph.Account.Swaps.Select(swap => new SwapStep(
+                swap,
+                [.. graph.Account.Transfers.Where(swap.IsSold)],
+                [.. graph.Account.Transfers.Where(swap.IsBought)],
+                SwapValue.StopOf(swap, graph.SwapStops))),
+        ]);
+
+        /// <summary>
+        /// Gives the assets the traced money can reach: the seeds' assets, and every asset a followed swap turns one
+        /// of them into.
+        /// </summary>
+        /// <param name="seedAssets">The seeds' assets, in the order of the first seed of each.</param>
+        /// <returns>The assets; the seeds' first.</returns>
+        public List<Asset> Reachable(IReadOnlyList<Asset> seedAssets)
+        {
+            var assets = seedAssets.ToList();
+            for (var grew = true; grew;)
+            {
+                var next = All.Where(step => step.Follows && assets.Contains(step.Swap.Sold.Asset))
+                    .Select(step => step.Swap.Bought.Asset)
+                    .FirstOrDefault(asset => !assets.Contains(asset));
+                grew = next is not null;
+                if (next is not null)
+                {
+                    assets.Add(next);
+                }
+            }
+
+            return assets;
+        }
+
+        /// <summary>Gives the swap a movement went into, followed or not, or <see langword="null"/>.</summary>
+        /// <param name="transfer">The movement.</param>
+        /// <returns>The swap.</returns>
+        public SwapStep? SoldIn(EthereumTransfer transfer) =>
+            All.FirstOrDefault(step => step.SoldTransfers.Contains(transfer));
+
+        /// <summary>Says whether a movement came out of a followed swap.</summary>
+        /// <param name="transfer">The movement.</param>
+        /// <returns><see langword="true"/> when it did.</returns>
+        public bool IsFollowedOut(EthereumTransfer transfer) =>
+            All.Any(step => step.Follows && step.BoughtTransfers.Contains(transfer));
+    }
+
+    /// <summary>One swap with what went in and came out.</summary>
+    /// <param name="Swap">The swap.</param>
+    /// <param name="SoldTransfers">The movements the account sent into it.</param>
+    /// <param name="BoughtTransfers">The movements that came out of it to the account.</param>
+    /// <param name="Stop">The user's choice that the value does not follow, or <see langword="null"/>.</param>
+    private sealed record SwapStep(
+        TokenSwap Swap,
+        IReadOnlyList<EthereumTransfer> SoldTransfers,
+        IReadOnlyList<EthereumTransfer> BoughtTransfers,
+        SwapStop? Stop)
+    {
+        /// <summary>Gets whether the traced value follows through the swap.</summary>
+        public bool Follows => Stop is null;
     }
 
     /// <summary>Traces one asset.</summary>
@@ -74,11 +269,26 @@ internal static class AccountTraceCalculator
         /// <summary>The seed movements.</summary>
         private readonly IReadOnlyList<EthereumTransfer> _seeds;
 
+        /// <summary>The graph's swaps.</summary>
+        private readonly SwapSteps _swaps;
+
         /// <summary>The movements of the asset between two accounts, in chain order.</summary>
         private readonly List<EthereumTransfer> _transfers;
 
+        /// <summary>The accounts that carry money on.</summary>
+        private readonly List<ChainAddress> _carriers;
+
         /// <summary>The traced part of each movement.</summary>
         private readonly Dictionary<EthereumTransfer, BigInteger> _traced = [];
+
+        /// <summary>The traced part of each movement by its sender's ledger.</summary>
+        private readonly Dictionary<EthereumTransfer, BigInteger> _fromLedger = [];
+
+        /// <summary>The traced value a followed swap puts on each movement that came out of it, before it is capped.</summary>
+        private readonly Dictionary<EthereumTransfer, BigInteger> _swappedIn = [];
+
+        /// <summary>The swaps whose value following each movement's traced money may rest on.</summary>
+        private readonly Dictionary<EthereumTransfer, HashSet<TokenSwap>> _restsOn = [];
 
         /// <summary>
         /// The movements the user linked to another chain, with their links: their traced money continues there and
@@ -86,18 +296,32 @@ internal static class AccountTraceCalculator
         /// </summary>
         private readonly Dictionary<EthereumTransfer, List<CrossChainLink>> _linked = [];
 
+        /// <summary>
+        /// The movements that went into a swap: their traced money follows into the new asset or ends in the swap, and
+        /// never enters the receiver's ledger (the pool), so that it is never counted twice.
+        /// </summary>
+        private readonly HashSet<EthereumTransfer> _intoSwaps = [];
+
         /// <summary>The traced money each account that carries it sent to fees and keeps, by the last round.</summary>
         private readonly Dictionary<ChainAddress, AccountTaint> _taints = [];
+
+        /// <summary>Each carrying account's ledger as the method last saw it.</summary>
+        private readonly Dictionary<ChainAddress, List<(EthereumTransfer? Transfer, AccountEntry Entry)>> _ledgers = [];
 
         /// <summary>Creates a tracer.</summary>
         /// <param name="graph">The graph.</param>
         /// <param name="method">The method.</param>
         /// <param name="asset">The asset.</param>
         /// <param name="seeds">The seed movements, all of the asset.</param>
+        /// <param name="swaps">The graph's swaps.</param>
         public AssetTracer(
-            TraceGraph graph, IAccountTracingMethod method, Asset asset, IReadOnlyList<EthereumTransfer> seeds)
+            TraceGraph graph,
+            IAccountTracingMethod method,
+            Asset asset,
+            IReadOnlyList<EthereumTransfer> seeds,
+            SwapSteps swaps)
         {
-            (_graph, _method, _asset, _seeds) = (graph, method, asset, seeds);
+            (_graph, _method, _asset, _seeds, _swaps) = (graph, method, asset, seeds, swaps);
             _transfers =
             [
                 .. graph.Account.Transfers.Where(transfer =>
@@ -121,38 +345,127 @@ internal static class AccountTraceCalculator
                     links.Add(link);
                 }
             }
+
+            _intoSwaps.UnionWith(swaps.All.SelectMany(step => step.SoldTransfers)
+                .Where(transfer => transfer.Amount.Asset == asset && !_linked.ContainsKey(transfer)));
+            _carriers = Carriers();
         }
 
-        /// <summary>Carries the money through the accounts until nothing changes, and gives the result.</summary>
-        /// <param name="cancellationToken">Stops the trace between rounds.</param>
-        /// <returns>The asset's trace.</returns>
-        public AssetTrace Run(CancellationToken cancellationToken)
-        {
-            var carriers = Carriers();
-            var rounds = _transfers.Count + 2;
-            for (var round = 0; ; round++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (round == rounds)
-                {
-                    throw new InvalidOperationException("The traced money did not settle between the accounts.");
-                }
+        /// <summary>Runs the method once on every carrying account's ledger.</summary>
+        /// <returns>Whether a share changed.</returns>
+        public bool CarryRound() => _carriers.Aggregate(false, (changed, account) => Carry(account) | changed);
 
-                if (!carriers.Aggregate(false, (changed, account) => Carry(account) | changed))
+        /// <summary>Gives the traced units of some movements of the asset.</summary>
+        /// <param name="transfers">The movements.</param>
+        /// <returns>Their sum.</returns>
+        public BigInteger TracedOf(IEnumerable<EthereumTransfer> transfers) =>
+            transfers.Aggregate(BigInteger.Zero, (sum, transfer) => sum + _traced.GetValueOrDefault(transfer));
+
+        /// <summary>Gives how much of some movements' traced money came through a swap.</summary>
+        /// <param name="transfers">The movements that came out of a swap.</param>
+        /// <returns>Their sum.</returns>
+        public BigInteger SwappedInOf(IEnumerable<EthereumTransfer> transfers) =>
+            transfers.Aggregate(BigInteger.Zero, (sum, transfer) => sum + Applied(transfer));
+
+        /// <summary>Puts the traced value a followed swap carries on a movement that came out of it.</summary>
+        /// <param name="transfer">The movement.</param>
+        /// <param name="units">The traced units by the rule.</param>
+        /// <returns>Whether its traced part changed.</returns>
+        public bool SwapIn(EthereumTransfer transfer, BigInteger units)
+        {
+            if (_seeds.Contains(transfer))
+            {
+                // A seed is traced whole by the user's choice; a swap adds nothing to it.
+                return false;
+            }
+
+            _swappedIn[transfer] = units;
+            return Settle(transfer);
+        }
+
+        /// <summary>Gives the swaps some movements' traced money may rest on, as a new set.</summary>
+        /// <param name="transfers">The movements.</param>
+        /// <returns>The swaps.</returns>
+        public HashSet<TokenSwap> RestsOnOf(IEnumerable<EthereumTransfer> transfers) =>
+        [
+            .. transfers.Where(transfer => _traced.GetValueOrDefault(transfer) > 0)
+                .SelectMany(transfer => _restsOn.GetValueOrDefault(transfer) ?? []),
+        ];
+
+        /// <summary>Notes that a movement's traced money may rest on some swaps.</summary>
+        /// <param name="transfer">The movement.</param>
+        /// <param name="swaps">The swaps.</param>
+        /// <returns>Whether the movement's set grew.</returns>
+        public bool AddRestsOn(EthereumTransfer transfer, IEnumerable<TokenSwap> swaps)
+        {
+            if (Applied(transfer).IsZero)
+            {
+                return false;
+            }
+
+            if (!_restsOn.TryGetValue(transfer, out var set))
+            {
+                set = [];
+                _restsOn[transfer] = set;
+            }
+
+            var before = set.Count;
+            set.UnionWith(swaps);
+            return set.Count != before;
+        }
+
+        /// <summary>
+        /// Spreads the swaps through the carrying accounts: an outgoing movement with traced money may rest on every
+        /// swap an earlier incoming traced movement rests on.
+        /// </summary>
+        /// <returns>Whether a set grew.</returns>
+        public bool SpreadRestsOn()
+        {
+            var changed = false;
+            foreach (var ledger in _ledgers.Values)
+            {
+                var behind = new HashSet<TokenSwap>();
+                foreach (var (transfer, entry) in ledger)
                 {
-                    break;
+                    if (transfer is null || _traced.GetValueOrDefault(transfer).IsZero)
+                    {
+                        continue;
+                    }
+
+                    if (entry.Direction == TransferDirection.In)
+                    {
+                        behind.UnionWith(_restsOn.GetValueOrDefault(transfer) ?? []);
+                    }
+                    else if (behind.Count > 0)
+                    {
+                        changed |= Grow(transfer, behind);
+                    }
                 }
             }
 
-            var ends = Ends(carriers);
+            return changed;
+        }
+
+        /// <summary>Gives the asset's trace, after the money has settled.</summary>
+        /// <param name="conversions">What the rule did at each swap.</param>
+        /// <returns>The trace.</returns>
+        /// <exception cref="InvalidOperationException">The ends do not add up to what was traced.</exception>
+        public AssetTrace Result(IReadOnlyDictionary<TokenSwap, SwapConversion> conversions)
+        {
+            var ends = Ends(conversions);
             var traced = _seeds.Aggregate(BigInteger.Zero, (sum, seed) => sum + seed.Amount.Units);
-            if (ends.Aggregate(BigInteger.Zero, (sum, end) => sum + end.Amount.Amount.Units) != traced)
+            var swappedIn = _transfers.Where(_swaps.IsFollowedOut)
+                .Aggregate(BigInteger.Zero, (sum, transfer) => sum + Applied(transfer));
+            if (ends.Aggregate(BigInteger.Zero, (sum, end) => sum + end.Amount.Amount.Units) != traced + swappedIn)
             {
                 throw new InvalidOperationException(
                     "The seeds lie in each other's flow, so money would be counted twice; trace from one of them.");
             }
 
-            return new AssetTrace(new AssetAmount(_asset, traced), Edges(), ends);
+            return new AssetTrace(new AssetAmount(_asset, traced), Edges(conversions), ends)
+            {
+                SwappedIn = new AssetAmount(_asset, swappedIn),
+            };
         }
 
         /// <summary>
@@ -167,6 +480,49 @@ internal static class AccountTraceCalculator
                 .OrderBy(account => account.Value, StringComparer.Ordinal),
         ];
 
+        /// <summary>Gives how much of a movement's traced money a swap put there, within its amount.</summary>
+        /// <param name="transfer">The movement.</param>
+        /// <returns>The units.</returns>
+        private BigInteger Applied(EthereumTransfer transfer) => _seeds.Contains(transfer)
+            ? BigInteger.Zero
+            : _traced.GetValueOrDefault(transfer) - _fromLedger.GetValueOrDefault(transfer);
+
+        /// <summary>
+        /// Sets a movement's traced part from its sender's ledger and what a swap put there, never more than its amount.
+        /// </summary>
+        /// <param name="transfer">The movement.</param>
+        /// <returns>Whether it changed.</returns>
+        private bool Settle(EthereumTransfer transfer)
+        {
+            var ledger = _fromLedger.GetValueOrDefault(transfer);
+            var room = transfer.Amount.Units - ledger;
+            var traced = ledger + BigInteger.Min(_swappedIn.GetValueOrDefault(transfer), room);
+            if (_traced.GetValueOrDefault(transfer) == traced)
+            {
+                return false;
+            }
+
+            _traced[transfer] = traced;
+            return true;
+        }
+
+        /// <summary>Adds swaps to a movement's set.</summary>
+        /// <param name="transfer">The movement.</param>
+        /// <param name="swaps">The swaps.</param>
+        /// <returns>Whether the set grew.</returns>
+        private bool Grow(EthereumTransfer transfer, IEnumerable<TokenSwap> swaps)
+        {
+            if (!_restsOn.TryGetValue(transfer, out var set))
+            {
+                set = [];
+                _restsOn[transfer] = set;
+            }
+
+            var before = set.Count;
+            set.UnionWith(swaps);
+            return set.Count != before;
+        }
+
         /// <summary>Runs the method on one account's ledger and records its outgoing shares.</summary>
         /// <param name="account">The account.</param>
         /// <returns>Whether a share changed.</returns>
@@ -174,7 +530,7 @@ internal static class AccountTraceCalculator
         {
             var entries = new List<(EthereumTransfer? Transfer, AccountEntry Entry)>();
             foreach (var transfer in _transfers.Where(transfer => Touches(transfer, account)
-                && !(transfer.To.Value == account.Value && _linked.ContainsKey(transfer))))
+                && !(transfer.To.Value == account.Value && StopsBefore(transfer))))
             {
                 var incoming = transfer.To.Value == account.Value;
                 var traced = incoming ? _traced.GetValueOrDefault(transfer) : BigInteger.Zero;
@@ -198,14 +554,25 @@ internal static class AccountTraceCalculator
 
             if (entries.All(entry => entry.Entry.Traced.IsZero))
             {
+                _ledgers.Remove(account);
                 return Record(account, entries, new AccountTaint([], AssetAmount.Zero(_asset), AssetAmount.Zero(_asset)));
             }
 
             var ordered = entries.OrderBy(entry => Order(entry.Transfer, entry.Entry)).ToList();
             var taint = AccountChecks.Run(_method, new AccountLedger(
                 account, _asset, AssetAmount.Zero(_asset), [.. ordered.Select(entry => entry.Entry)]));
+            _ledgers[account] = ordered;
             return Record(account, ordered, taint);
         }
+
+        /// <summary>
+        /// Says whether a movement's traced money stops before it reaches the receiver's ledger: it was linked to
+        /// another chain, or it went into a swap.
+        /// </summary>
+        /// <param name="transfer">The movement.</param>
+        /// <returns><see langword="true"/> when it does.</returns>
+        private bool StopsBefore(EthereumTransfer transfer) =>
+            _linked.ContainsKey(transfer) || _intoSwaps.Contains(transfer);
 
         /// <summary>Records an account's answer and says whether an outgoing share changed.</summary>
         /// <param name="account">The account.</param>
@@ -228,30 +595,26 @@ internal static class AccountTraceCalculator
                     continue;
                 }
 
-                var share = index < taint.Outgoing.Count ? taint.Outgoing[index].Units : BigInteger.Zero;
-                if (_traced.GetValueOrDefault(transfer) != share)
-                {
-                    _traced[transfer] = share;
-                    changed = true;
-                }
+                _fromLedger[transfer] = index < taint.Outgoing.Count ? taint.Outgoing[index].Units : BigInteger.Zero;
+                changed |= Settle(transfer);
             }
 
             return changed;
         }
 
         /// <summary>Gives where the traced money stops.</summary>
-        /// <param name="carriers">The accounts that carry money on.</param>
+        /// <param name="conversions">What the rule did at each swap.</param>
         /// <returns>The ends.</returns>
-        private List<TraceEnd> Ends(List<ChainAddress> carriers)
+        private List<TraceEnd> Ends(IReadOnlyDictionary<TokenSwap, SwapConversion> conversions)
         {
             var ends = new List<TraceEnd>();
-            var carrying = carriers.ToHashSet();
+            var carrying = _carriers.ToHashSet();
             foreach (var (transfer, links) in _linked.Where(pair => _traced.GetValueOrDefault(pair.Key) > 0))
             {
                 var node = _graph.NodeOf(transfer.To.ToChainAddress());
                 ends.Add(new TraceEnd(
                     TrailEndReason.OtherChain,
-                    Amount(_traced[transfer], [transfer.Transaction]),
+                    Amount(_traced[transfer], [transfer.Transaction], RestsOn([transfer], conversions)),
                     null,
                     null,
                     node?.Key,
@@ -261,8 +624,9 @@ internal static class AccountTraceCalculator
                     transfer.Block is null));
             }
 
+            AddSwapEnds(ends, conversions);
             var arrived = _transfers.Where(transfer => _traced.GetValueOrDefault(transfer) > 0
-                    && !_linked.ContainsKey(transfer))
+                    && !StopsBefore(transfer))
                 .GroupBy(transfer => transfer.To.ToChainAddress());
             foreach (var group in arrived.OrderBy(group => group.Key.Value, StringComparer.Ordinal))
             {
@@ -272,13 +636,15 @@ internal static class AccountTraceCalculator
                 }
 
                 var node = _graph.NodeOf(group.Key);
-                var amount = group.Aggregate(BigInteger.Zero, (sum, transfer) => sum + _traced[transfer]);
-                var through = group.Select(transfer => transfer.Transaction).ToList();
+                var amount = Amount(
+                    group.Aggregate(BigInteger.Zero, (sum, transfer) => sum + _traced[transfer]),
+                    group.Select(transfer => transfer.Transaction),
+                    RestsOn(group, conversions));
                 var outdated = group.Any(transfer => transfer.Block is null);
                 if (node is { Ends.Count: > 0 })
                 {
                     var hint = node.Ends[0];
-                    ends.Add(End(hint.Reason, amount, node.Key, through, hint.Explanation, node.Ends, outdated));
+                    ends.Add(End(hint.Reason, amount, node.Key, hint.Explanation, node.Ends, outdated));
                 }
                 else
                 {
@@ -286,24 +652,26 @@ internal static class AccountTraceCalculator
                         ? "Adressens historik är bara delvis läst (gränsen nåddes eller ett uppslag var ofullständigt), "
                             + "så pengarna förs inte vidare genom den; det kan saknas rörelser däremellan."
                         : "Adressens historik är inte expanderad; expandera den för att spåra vidare.";
-                    ends.Add(End(TrailEndReason.NotExpanded, amount, node?.Key, through, text, [], outdated));
+                    ends.Add(End(TrailEndReason.NotExpanded, amount, node?.Key, text, [], outdated));
                 }
             }
 
-            foreach (var account in carriers)
+            foreach (var account in _carriers)
             {
                 var taint = _taints.GetValueOrDefault(account);
                 var key = _graph.NodeOf(account)?.Key;
                 var outdated = _graph.Account.MayBeOutdated.Contains(account);
+                var behind = RestsOn(_ledgers.GetValueOrDefault(account)?.Select(entry => entry.Transfer)
+                    .OfType<EthereumTransfer>() ?? [], conversions);
                 if (taint is { Remaining.Units.Sign: > 0 })
                 {
-                    ends.Add(End(TrailEndReason.Unspent, taint.Remaining.Units, key, [],
+                    ends.Add(End(TrailEndReason.Unspent, Amount(taint.Remaining.Units, [], behind), key,
                         "Ligger kvar på adressen enligt historiken i ärendet; det kan ha flyttats sedan.", [], outdated));
                 }
 
                 if (taint is { Fees.Units.Sign: > 0 })
                 {
-                    ends.Add(End(TrailEndReason.MinerFee, taint.Fees.Units, key, [],
+                    ends.Add(End(TrailEndReason.MinerFee, Amount(taint.Fees.Units, [], behind), key,
                         "Gick till avgifter (gas) som adressen betalade.", [], outdated));
                 }
             }
@@ -311,28 +679,79 @@ internal static class AccountTraceCalculator
             return ends;
         }
 
+        /// <summary>
+        /// Adds where the traced money went into a swap: on in the new asset when the value follows, the end of the
+        /// trail when the user chose that it does not.
+        /// </summary>
+        /// <param name="ends">The ends, added to.</param>
+        /// <param name="conversions">What the rule did at each swap.</param>
+        private void AddSwapEnds(List<TraceEnd> ends, IReadOnlyDictionary<TokenSwap, SwapConversion> conversions)
+        {
+            var into = _intoSwaps.Where(transfer => _traced.GetValueOrDefault(transfer) > 0)
+                .GroupBy(transfer => _swaps.SoldIn(transfer)!);
+            foreach (var group in into.OrderBy(group => group.Key.Swap.Transaction.Value, StringComparer.Ordinal))
+            {
+                var step = group.Key;
+                var conversion = conversions.GetValueOrDefault(step.Swap);
+                var behind = RestsOn(group, conversions);
+                if (conversion is not null && !behind.Contains(conversion))
+                {
+                    behind = [.. behind, conversion];
+                }
+
+                var amount = Amount(
+                    group.Aggregate(BigInteger.Zero, (sum, transfer) => sum + _traced[transfer]),
+                    [step.Swap.Transaction],
+                    behind);
+                var text = step.Follows
+                    ? $"Gick in i en swap och följer med som {step.Swap.Bought.Asset.Symbol} enligt "
+                        + $"{SwapValue.Analysis}: samma andel av det som kom ut."
+                    : "Spåret slutar i swappen, enligt användarens val att värdet inte följer med.";
+                ends.Add(End(
+                    step.Follows ? TrailEndReason.Swapped : TrailEndReason.SwapStopped,
+                    amount,
+                    _graph.NodeOf(step.Swap.Account)?.Key,
+                    text,
+                    [],
+                    group.Any(transfer => transfer.Block is null)));
+            }
+        }
+
+        /// <summary>Gives what the rule did at the swaps some movements' traced money may rest on.</summary>
+        /// <param name="transfers">The movements.</param>
+        /// <param name="conversions">What the rule did at each swap.</param>
+        /// <returns>The conversions, in chain order of the swaps.</returns>
+        private IReadOnlyList<SwapConversion> RestsOn(
+            IEnumerable<EthereumTransfer> transfers, IReadOnlyDictionary<TokenSwap, SwapConversion> conversions)
+        {
+            var swaps = RestsOnOf(transfers);
+            return swaps.Count == 0
+                ? []
+                : [.. _swaps.All.Where(step => swaps.Contains(step.Swap))
+                    .Select(step => conversions.GetValueOrDefault(step.Swap)).OfType<SwapConversion>()];
+        }
+
         /// <summary>Makes an end.</summary>
         /// <param name="reason">Why it stops.</param>
-        /// <param name="units">How much.</param>
+        /// <param name="amount">How much.</param>
         /// <param name="nodeKey">The node, if it is in the graph.</param>
-        /// <param name="through">The transactions it came in.</param>
         /// <param name="explanation">Why, in Swedish.</param>
         /// <param name="basis">The hints it rests on.</param>
         /// <param name="outdated">Whether it may have changed.</param>
         /// <returns>The end.</returns>
-        private TraceEnd End(
+        private static TraceEnd End(
             TrailEndReason reason,
-            BigInteger units,
+            TracedAmount amount,
             string? nodeKey,
-            IEnumerable<EthereumTxHash> through,
             string explanation,
             IReadOnlyList<TrailEndHint> basis,
             bool outdated) =>
-            new(reason, Amount(units, through), null, null, nodeKey, explanation, basis, [], outdated);
+            new(reason, amount, null, null, nodeKey, explanation, basis, [], outdated);
 
         /// <summary>Gives the traced money per edge of the graph.</summary>
+        /// <param name="conversions">What the rule did at each swap.</param>
         /// <returns>The edges that carry some.</returns>
-        private List<TracedEdge> Edges()
+        private List<TracedEdge> Edges(IReadOnlyDictionary<TokenSwap, SwapConversion> conversions)
         {
             var edges = new List<TracedEdge>();
             foreach (var edge in _graph.Edges.Where(edge => edge.Amount.Asset == _asset))
@@ -348,7 +767,8 @@ internal static class AccountTraceCalculator
                 var units = carried.Aggregate(BigInteger.Zero, (sum, transfer) => sum + _traced[transfer]);
                 var outdated = carried.Any(transfer => transfer.Block is null)
                     || _graph.Account.MayBeOutdated.Contains(carried[0].From.ToChainAddress());
-                edges.Add(new TracedEdge(edge.Key, Amount(units, carried.Select(t => t.Transaction)), outdated));
+                var amount = Amount(units, carried.Select(t => t.Transaction), RestsOn(carried, conversions));
+                edges.Add(new TracedEdge(edge.Key, amount, outdated));
             }
 
             return edges;
@@ -357,8 +777,10 @@ internal static class AccountTraceCalculator
         /// <summary>Makes a traced amount of the asset.</summary>
         /// <param name="units">How much.</param>
         /// <param name="through">The transactions it was counted through.</param>
+        /// <param name="swaps">The swaps it may rest on.</param>
         /// <returns>The amount.</returns>
-        private TracedAmount Amount(BigInteger units, IEnumerable<EthereumTxHash> through) =>
+        private TracedAmount Amount(
+            BigInteger units, IEnumerable<EthereumTxHash> through, IReadOnlyList<SwapConversion> swaps) =>
             new(new AssetAmount(_asset, units), _method.Id, [])
             {
                 ThroughOther =
@@ -366,6 +788,7 @@ internal static class AccountTraceCalculator
                     .. through.Distinct().OrderBy(hash => hash.Value, StringComparer.Ordinal)
                         .Select(hash => new ChainTransactionRef(Chain.Ethereum, hash.Value)),
                 ],
+                Swaps = swaps,
             };
 
         /// <summary>Says whether an edge's transfer is a movement.</summary>

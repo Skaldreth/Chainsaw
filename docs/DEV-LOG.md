@@ -3893,3 +3893,51 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   tidigare sanktion på mixern.
 - **Skriver i ärendet (granskas):** den nya etiketten (förseglad som de andra), och hämtningarna av start-tx, som nu
   också görs när ärendet öppnas och när utgången ansluts.
+
+## Spåret genom en swap, SW1a (2026-11-08)
+
+Användarens beslut 2026-11-08: genom en swap följer det spårade **värdet** med, och utredaren väljer per swap att det
+inte gör det (skissen SW1a).
+
+- **Regeln på ett ställe:** `SwapValue` (Tracing.Contracts) är analysen `swap-value v1`: den spårade andelen av det
+  som gick in i bytet (`TokenSwap.Sold`, summerat) blir samma andel av varje överföring som kom ut, avrundat nedåt
+  (`SwapValue.Follow`), så att regeln aldrig skapar spårade pengar. `TokenSwap.IsSold`/`IsBought` säger vilka rörelser
+  som hör till bytet. Spårningen, exponeringen, grafen, inspektören och rapporten använder samma regel.
+- **Spårningen:** `AccountTraceCalculator` spårar nu alla tillgångar tillsammans, runda för runda, tills inget ändras:
+  varje tillgångs konton med metoden (FIFO eller haircut, kontrollerad av `AccountChecks.Run` som förut), och sedan
+  varje följd swap, som sätter det spårade på det som kom ut. Det som gick in i en swap går aldrig in i poolens
+  plånbok (som en länk till annan kedja), så att inget räknas två gånger. Slutet för den sålda tillgången är det nya
+  `TrailEndReason.Swapped` (inte ett slut, pengarna fortsätter i den nya tillgången) eller `SwapStopped` (ett riktigt
+  slut, användarens val). `AssetTrace.SwappedIn` och `Total` säger hur mycket som kom genom swappar; ändarna summerar
+  till `Total`. `AccountTraceResult.Swaps` har en `SwapConversion` per swap som spårade pengar nådde, med in, ut,
+  metoden och valet. `TracedAmount.Swaps` säger vilka swappar ett belopp kan vila på (generöst: en utgående rörelse
+  ärver från alla tidigare spårade inkommande), och `RestsOnSwap` gör linjen streckad. `Explain()` nämner analysen.
+- **Valet:** `ITracingService.StopAtSwap`/`FollowSwap`/`GetSwapStopHistory`. Ett val och dess tillbakatagande är var
+  sin förseglad rad i den nya kedjan `tracing.swap_stops` (schemats version 6) med journalrad
+  (`tracing.swap-stopped`, `tracing.swap-followed`), som länkarna till annan kedja; skälet är frivilligt. Att välja
+  *Följer inte* igen för samma swap lämnar valet som redan gäller. `TraceGraph.SwapStops` bär valen som gäller.
+- **Exponeringen** (`exposure v3`): `AccountExposureRun` läser plånböckerna per tillgång och följer pengarna genom en
+  swap åt båda hållen (ut: det som gick in blir det som kom ut; in: det som kom ut leder tillbaka till det som gick
+  in). Varje överföring bär pengarna i sina egna enheter och deras **värde** i ämnets tillgång, som är det som räknas;
+  värdet som gick in i en swap är exakt värdet som kom ut (resten av avrundningen läggs på den sista överföringen).
+  Ämnets egna swappar läses som en plånbok i de andra tillgångarna. *Följer inte* stoppar pengarna som *Spåret tar
+  slut*. Summan av tjänsterna och resten är fortfarande exakt totalen.
+- **Grafen (SW1a):** `EdgeView.SwapStops`, `SwapConversions` och `IsSwapStopped`; en linje vars spårade belopp vilar på
+  en följd swap är streckad i accent. `GraphCanvas.Swaps.cs`: ett klick på pillret fäller ut *Följer* och *Följer
+  inte* och **?** (Guiden), hovring visar rutan med stegen (`SwapPill.Box`, utan WPF); vid *Följer inte* blir pilen ett
+  stopp (`Icon.Swap.Stop`), en person sitter i pillrets hörn och ett kort streck korsar linjen efter pillret.
+  `GraphViewModel.ChooseSwapAsync` sparar valet genom `IGraphEditor` och läser om grafen.
+- **Historik (AN1b):** adressen som bytte har raden *Följer inte genom swappen · ₮ → Ξ* med *Ta tillbaka*
+  (`HistoryUndo.FollowSwap`), och tillbakatagandet som egen rad.
+- **Rapporten:** en slutsats per swap på spåren, med andelen och analysen, eller att spåret slutar i swappen; skälet
+  tas aldrig med. Begäran följer de spårade linjerna och får därför uttag efter en swap av sig själv.
+- **Guiden:** nytt avsnitt *Spåret genom en swap* (`swappar.md`, under Ethereum); *ERC-20*, *Varför ett spår tar slut*
+  och *Bryggor och swappar* hänvisar dit.
+- **Skriver i ärendet (granskas):** valen och deras tillbakatagande (förseglade, journalförda). Spårade belopp på
+  Ethereum ändras: det som tidigare stannade som *inte expanderat* hos poolen följer nu med i den nya tillgången.
+- **Avsteg och egna beslut:** rutan säger *Ditt val* med tiden, inte namnet (namnet står i Historik, som läser
+  journalen). Skissens kortkommando F i pillret är inte byggt. Har en linje flera swappar gäller valet dem alla, och
+  rutan visar den första. Poolens överföringar som kom ut ur en swap räknas inte i poolens egen plånbok i exponeringen.
+  Golden-facit för Bitcoin är omskrivet bara för schemats version och den nya kedjan.
+- **Kvar:** testärendet har ingen Ethereum-källa, så swappen syns inte i `/testdata`. Exponeringens *Varför?* säger
+  inte när vägen gick genom en swap (bara analysens version).

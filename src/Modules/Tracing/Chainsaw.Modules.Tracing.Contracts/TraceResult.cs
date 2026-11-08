@@ -22,6 +22,15 @@ public sealed record TracedAmount(AssetAmount Amount, TracingMethodId Method, IR
     public IReadOnlyList<ChainTransactionRef> ThroughOther { get; init; } = [];
 
     /// <summary>
+    /// Gets the swaps on the way that the amount may rest on, where the traced value followed into another asset by
+    /// <see cref="SwapValue"/> (a judgement of its own); empty when it came through none.
+    /// </summary>
+    public IReadOnlyList<SwapConversion> Swaps { get; init; } = [];
+
+    /// <summary>Gets whether the amount rests on a swap's value following, so that it is drawn as uncertain.</summary>
+    public bool RestsOnSwap => Swaps.Any(swap => swap.Follows);
+
+    /// <summary>
     /// Explains the amount in plain Swedish, so that the user can ask <em>why?</em> (principle 3).
     /// </summary>
     /// <returns>For example <c>Spårat belopp 0.30000000 BTC enligt FIFO v1, räknat genom 2 tx: …</c>.</returns>
@@ -39,6 +48,13 @@ public sealed record TracedAmount(AssetAmount Amount, TracingMethodId Method, IR
             : string.Create(
                 CultureInfo.InvariantCulture,
                 $", räknat genom {through.Count} tx: {string.Join(", ", through)}."));
+        foreach (var swap in Swaps.Where(swap => swap.Follows))
+        {
+            text.Append(CultureInfo.InvariantCulture,
+                $" Genom swappen i tx {swap.Swap.Transaction.Value} följer värdet med enligt {SwapValue.Analysis}:"
+                + $" {swap.ShareText} av det som gick in var spårat, och samma andel av det som kom ut följer med.");
+        }
+
         text.Append(" Det är en bedömning enligt metoden, inte ett faktum på kedjan.");
         return text.ToString();
     }

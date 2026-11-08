@@ -304,7 +304,7 @@ public sealed class EthereumGraphTests
         Assert.Contains(swapLine.Facts, fact => fact.Name == "Swap" && fact.Value == "₮ → Ξ");
         Assert.Contains(swapLine.Facts, fact => fact.Name == "Värde" && fact.Value == InspectorContent.NoRateText);
         Assert.DoesNotContain(swapLine.Facts, fact => fact.Name == "Kontroll");
-        Assert.Contains(swapLine.Why, line => line.Topic == GuideTopic.Tokens && line.Text.Contains("Swap"));
+        Assert.Contains(swapLine.Why, line => line.Topic == GuideTopic.Swaps && line.Text.Contains("Swap"));
         Assert.Contains(swapLine.Details, line => line.StartsWith("Block 103 · 0x", StringComparison.Ordinal));
         Assert.Contains(
             valued.Facts, fact => fact.Name == "Belopp" && fact.Value.StartsWith("₮ ", StringComparison.Ordinal));

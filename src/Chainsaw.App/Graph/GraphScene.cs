@@ -270,6 +270,21 @@ public sealed record EdgeView(
     /// swap on the line; empty when it carries none.
     /// </summary>
     public IReadOnlyList<SwapMarks> SwapPairs => [.. Swaps.Select(SwapMarks.Of).Distinct()];
+
+    /// <summary>
+    /// Gets the user's choices in force that the traced value does not follow through the line's swaps (sketch
+    /// SW1a); empty when it follows, the default.
+    /// </summary>
+    public IReadOnlyList<SwapStop> SwapStops { get; init; } = [];
+
+    /// <summary>Gets what the rule <see cref="SwapValue"/> did at the line's swaps, when traced money reached them.</summary>
+    public IReadOnlyList<SwapConversion> SwapConversions { get; init; } = [];
+
+    /// <summary>
+    /// Gets whether the value does not follow through the line's swaps: the user chose so for every one of them, so
+    /// that the pill shows a stop and the person mark.
+    /// </summary>
+    public bool IsSwapStopped => Swaps.Count > 0 && Swaps.All(swap => SwapStops.Any(stop => stop.Is(swap)));
 }
 
 /// <summary>The marks of what was sold and what was bought in a swap, as its pill on the line shows them.</summary>
@@ -285,6 +300,9 @@ public sealed record SwapMarks(string Sold, string Bought)
         ArgumentNullException.ThrowIfNull(swap);
         return new(MarkOf(swap.Sold.Asset), MarkOf(swap.Bought.Asset));
     }
+
+    /// <summary>Gets the pill in words, for example <c>₮ → Ξ</c>.</summary>
+    public string Text => $"{Sold} → {Bought}";
 
     /// <summary>Gives an asset's mark, or its symbol when it has none.</summary>
     /// <param name="asset">The asset.</param>
@@ -498,7 +516,7 @@ public sealed record GraphScene(
                 ValueGap = snapshot.ValueGaps.GetValueOrDefault(edge.Key),
                 Swaps = SwapsOn(edge, swaps),
             })
-            .Select(edge => edge.Swaps.Count == 0 ? edge : edge with { Swap = SwapText(edge.Swaps) })
+            .Select(edge => edge.Swaps.Count == 0 ? edge : WithSwapChoice(edge, graph, snapshot.AccountTrace))
             .ToList();
         // The lines are found by their ends once, so that building every node stays linear in a large graph.
         var into = edges.ToLookup(edge => edge.Edge.To, StringComparer.Ordinal);
@@ -593,7 +611,9 @@ public sealed record GraphScene(
     {
         var amount = traced?.Amount.Amount ?? AssetAmount.Zero(edge.Amount.Asset);
         var otherChain = edge.Kind == GraphEdgeKind.ContinuesOnOtherChain;
-        var uncertain = traced?.MayBeOutdated == true || edge.Transfers.Any(transfer => transfer.Block is null);
+        // A line whose traced money rests on a swap's value following is a judgement (sketch SW1a): dashed.
+        var uncertain = traced?.MayBeOutdated == true || traced?.Amount.RestsOnSwap == true
+            || edge.Transfers.Any(transfer => transfer.Block is null);
         var dash = (otherChain, uncertain) switch
         {
             (true, _) => EdgeDash.OtherChain,
@@ -631,13 +651,27 @@ public sealed record GraphScene(
             && edge.Transfers.Any(transfer => transfer.Transaction.Id == swap.Transaction.Value)),
     ];
 
+    /// <summary>
+    /// Gives a line that carries swaps its pill, the user's choices on them and what the rule did there (sketch SW1a).
+    /// </summary>
+    /// <param name="edge">The line, with its swaps.</param>
+    /// <param name="graph">The graph, with the choices in force.</param>
+    /// <param name="trace">The trace on Ethereum, or <see langword="null"/>.</param>
+    /// <returns>The line.</returns>
+    private static EdgeView WithSwapChoice(EdgeView edge, TraceGraph graph, AccountTraceResult? trace) => edge with
+    {
+        Swap = SwapText(edge.Swaps),
+        SwapStops = [.. graph.SwapStops.Where(stop => edge.Swaps.Any(stop.Is))],
+        SwapConversions = [.. edge.Swaps.Select(swap => trace?.SwapOf(swap)).OfType<SwapConversion>()],
+    };
+
     /// <summary>Writes a swap's pill: the sold asset's mark, an arrow and the bought one's (<c>₮ → Ξ</c>).</summary>
     /// <param name="swaps">The swaps on the line, at least one.</param>
     /// <returns>The pill's text; several different swaps on one line are joined.</returns>
     private static string SwapText(IReadOnlyList<TokenSwap> swaps) => string.Join(" · ", swaps
         .Select(SwapMarks.Of)
         .Distinct()
-        .Select(marks => $"{marks.Sold} → {marks.Bought}"));
+        .Select(marks => marks.Text));
 
     /// <summary>Gives the key of an account's node, as Tracing writes it.</summary>
     /// <param name="account">The account.</param>

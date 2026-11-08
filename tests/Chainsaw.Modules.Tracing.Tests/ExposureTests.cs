@@ -8,7 +8,7 @@ using static Chainsaw.Modules.Tracing.Tests.Synthetic;
 namespace Chainsaw.Modules.Tracing.Tests;
 
 /// <summary>
-/// The analysis <em>exposure v2</em> (sketch EP1b) against a key of synthetic transfers: what reaches a service
+/// The analysis <em>exposure v3</em> (sketch EP1b) against a key of synthetic transfers: what reaches a service
 /// directly and over hops by FIFO and haircut, what reaches none and why, read out and in, and that the services and the
 /// rest always add up to what the subject paid or got.
 /// </summary>
@@ -201,7 +201,7 @@ public sealed class ExposureTests
 
         var text = result.Explain(result.Reached[0]);
 
-        Assert.Contains("exposure v2", text, StringComparison.Ordinal);
+        Assert.Contains("exposure v3", text, StringComparison.Ordinal);
         Assert.Contains("FIFO v1", text, StringComparison.Ordinal);
         Assert.Contains("0x" + Tx(4), text, StringComparison.Ordinal);
         Assert.Contains("bedömning", text, StringComparison.Ordinal);

@@ -103,6 +103,7 @@ internal sealed class GraphBuilder
                 MayBeOutdated = account.MayBeOutdated,
                 PartlyRead = account.PartlyRead,
             },
+            SwapStops = _data.State.SwapStops,
         };
         var (piles, clues) = PileRules.Arrange(graph, _data.State);
         return graph with { Piles = piles, HeldBack = clues };

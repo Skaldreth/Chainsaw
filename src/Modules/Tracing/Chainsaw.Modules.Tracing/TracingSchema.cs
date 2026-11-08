@@ -46,6 +46,22 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         "action", "comment_id", "body", "anchor", "x", "y", "set_by", "journal_sequence", "recorded_utc",
     ];
 
+    /// <summary>The sealed chain of the user's choices not to follow a swap (sketch SW1a).</summary>
+    public const string SwapStopsChain = "tracing.swap_stops";
+
+    /// <summary>The table of the user's choices not to follow a swap.</summary>
+    public const string SwapStopsTable = "tracing_swap_stops";
+
+    /// <summary>
+    /// The sealed columns of a choice or its taking back, in order: <c>action</c> is <c>stop</c> or <c>follow</c>,
+    /// <c>stop_sequence</c> names the choice a taking back concerns, and <c>transaction_hash</c> and <c>account</c>
+    /// name the swap (its hash and the account that swapped, as Ethereum writes them).
+    /// </summary>
+    public static readonly IReadOnlyList<string> SwapStopColumns =
+    [
+        "action", "stop_sequence", "transaction_hash", "account", "reason", "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The first version of the tables.</summary>
     private const string Version1 = """
         CREATE TABLE tracing_start_points (
@@ -157,6 +173,24 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The sixth version: the user's choices that the traced value does not follow through a swap, and their taking
+    /// back (sketch SW1a), sealed with who and when like the links to other chains.
+    /// </summary>
+    private const string Version6 = """
+        CREATE TABLE tracing_swap_stops (
+            sequence INTEGER PRIMARY KEY,
+            action TEXT NOT NULL,
+            stop_sequence INTEGER,
+            transaction_hash TEXT NOT NULL,
+            account TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -168,6 +202,7 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         new(3, "Det som hölls tillbaka vid en expansion och det som plockats ur högarna", Version3),
         new(4, "Utplockade tx ur det som hölls tillbaka, och när en expansion gjordes första gången", Version4),
         new(5, "Kommentarer i grafen, förseglade med vem och när, och var de står", Version5),
+        new(6, "Val att spåret inte följer med genom en swap, förseglade med vem och när", Version6),
     ];
 
     /// <inheritdoc/>
@@ -175,5 +210,6 @@ internal sealed class TracingSchema : ICaseSchemaContributor
     [
         new(CrossChainChain, CrossChainTable, CrossChainColumns),
         new(CommentsChain, CommentsTable, CommentColumns),
+        new(SwapStopsChain, SwapStopsTable, SwapStopColumns),
     ];
 }

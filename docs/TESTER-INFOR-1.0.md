@@ -1477,6 +1477,34 @@ Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *S
   välj TRON och klistra in en tx; en lila streckad linje går till den andra kedjans nod, och länken syns i Historik.
 - *Förslag · N* (Ctrl+J): panelen säger att kontrollerna gäller UTXO och inte körs på Ethereum.
 
+### Spåret genom en swap (SW1a)
+
+Kräver ett Ethereum-ärende där en adress som spårade pengar når (expanderad) har bytt token, till exempel USDT in till
+Uniswap och ether tillbaka i samma tx. Testärendet har ingen Ethereum-källa än, så det går inte att prova där.
+- [ ] Förvalet: linjen från poolen tillbaka till adressen och linjerna efter den med den nya tillgången är **streckade
+      i accent** med spårat belopp; pillret **₮ → Ξ** har en pil i accent. *Varför?* på linjen efter säger *Genom
+      swappen … följer värdet med enligt swap-value v1* och andelen.
+- [ ] Hovra över pillret: en ruta under pillret med *Värdet följer med genom swappen*, *Förval · en bedömning*, och fyra
+      steg (In med *varav spårat*, Andel med metoden, Ut med DEX:en, Följer med beloppet), och längst ner tx:en och
+      `swap-value v1`. Ingen vanlig verktygstips samtidigt.
+- [ ] Klicka på pillret: det fälls ut på plats till **Följer** (tänd) och **Följer inte** och ett **?**. Ett klick
+      någon annanstans fäller ihop det. **?** öppnar Guidens panel på *Spåret genom en swap*, *Följer eller följer inte*.
+- [ ] Välj **Följer inte**: pillret fälls ihop, grafen läses om, linjen efter swappen blir grå och vanlig utan spårat
+      belopp, ett kort streck korsar linjen efter pillret, pilen i pillret blir ett stopp och en liten person sitter i
+      pillrets hörn. En börs längre fram förlorar *Uttag funnet* om inget spårat längre når den. Journalen har raden
+      *Spåret följer inte med genom swappen*.
+- [ ] Hovra igen: *Värdet följer inte med*, *Ditt val · <dag och tid>*, och sista steget *Spårat: inget*.
+- [ ] Välj adressen som bytte → Historik: raden *Följer inte genom swappen · ₮ → Ξ* med vem och tx. *Ta tillbaka*
+      (med eller utan skäl) gör att värdet följer med igen; raden står kvar överstruket och en ny rad säger
+      *Tillbakataget: värdet följer med igen*. Samma sak med **Följer** i pillret.
+- [ ] Stäng och öppna ärendet: valet står kvar. `/verify` är grön.
+- [ ] Byt FIFO/haircut med en delvis spårad insats: andelen i rutan ändras, och beloppen efter swappen med den.
+- [ ] Exponering från adressen som bytte (Ut): en börs som nås efter swappen räknas med värdet i den första tillgången;
+      med *Följer inte* hamnar det i *Spåret tar slut*.
+- [ ] Rapport med aktörer före och efter swappen markerade: slutsatserna har en rad *Värdet följer med genom swappen
+      (₮ → Ξ) i tx …* med andelen och `swap-value v1`, eller *Spåret slutar i swappen* efter ditt val; skälet står aldrig
+      med.
+
 ### Grafens rester mot 1.0 (breda noder, högen, bytt block och utgångsrutan, 2026-11-08)
 - [ ] Ge några aktörer långa namn (etikett *Misstänktes plånbok* och liknande) och välj *Sortera grafen*: kolumnen
       med en bred nod flyttar nästa kolumn åt höger, så att beloppen fortfarande har luft mellan noderna och ingen nod

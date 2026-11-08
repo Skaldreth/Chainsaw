@@ -357,6 +357,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
                 HistoryUndo.RetractLabel => await _editor.RetractLabelAsync(openCase, row.Event.LabelSequence, reason),
                 HistoryUndo.UndoSplit => await _editor.UndoSplitsAsync(openCase, row.Event.SplitSequences, reason),
                 HistoryUndo.UndoMerge => await _editor.UndoMergesAsync(openCase, row.Event.MergeSequences, reason),
+                HistoryUndo.FollowSwap => await _editor.FollowSwapAsync(openCase, row.Event.SwapStop!, reason),
                 _ => await _editor.UnlinkAsync(openCase, row.Event.Link!, reason),
             };
             if (!outcome.Done)

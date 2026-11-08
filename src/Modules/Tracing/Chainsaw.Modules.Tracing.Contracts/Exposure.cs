@@ -77,7 +77,11 @@ public enum ExposureRest
 /// <summary>What to read the exposure of, and how.</summary>
 /// <param name="Graph">The graph: its actors, and the transfers between them as facts from the chain.</param>
 /// <param name="Subject">The node whose exposure is read, a cluster or an address.</param>
-/// <param name="Asset">The asset whose transfers are followed; amounts in different assets are never added.</param>
+/// <param name="Asset">
+/// The subject's asset, whose transfers are the money; amounts in different assets are never added. Money that goes
+/// through a swap on an account chain is followed into the other asset and counted by its value in this one
+/// (<see cref="SwapValue"/>).
+/// </param>
 /// <param name="Direction">Paid out or got.</param>
 /// <param name="Depth">How many hops are followed, from 1 (only direct) to <see cref="MaxDepth"/>.</param>
 /// <param name="Method">The tracing method that says how much of an actor's money goes on with each transfer.</param>
@@ -157,11 +161,12 @@ public sealed record ExposureResult(
 
     /// <summary>
     /// The analysis's version; raised whenever it may give other amounts. Version 2 stops money where the graph's trace
-    /// stops it: at a link to another chain, a transaction where the trail ends, and a spend that does not agree.
+    /// stops it: at a link to another chain, a transaction where the trail ends, and a spend that does not agree;
+    /// version 3 follows the value through a swap on an account chain by <see cref="SwapValue"/>, as the trace does.
     /// </summary>
-    public const int AnalysisVersion = 2;
+    public const int AnalysisVersion = 3;
 
-    /// <summary>Gets the analysis's name and version, for example <c>exposure v2</c>.</summary>
+    /// <summary>Gets the analysis's name and version, for example <c>exposure v3</c>.</summary>
     public static string Analysis { get; } =
         AnalysisName + " v" + AnalysisVersion.ToString(CultureInfo.InvariantCulture);
 

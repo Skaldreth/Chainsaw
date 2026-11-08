@@ -72,6 +72,12 @@ public sealed record TraceGraph(
     public AccountGraph Account { get; init; } = AccountGraph.Empty;
 
     /// <summary>
+    /// Gets the user's choices in force that the traced value does not follow through a swap (sketch SW1a); every
+    /// other swap is followed by <see cref="SwapValue"/>.
+    /// </summary>
+    public IReadOnlyList<SwapStop> SwapStops { get; init; } = [];
+
+    /// <summary>
     /// Gets the piles (sketch EX2b): the many new counterparties of an expansion, kept in one node per side of the
     /// expanded actor. Their members stay in <see cref="Nodes"/> and <see cref="Edges"/>, since they are facts; the
     /// graph draws them in the pile until the user picks them out.

@@ -146,6 +146,18 @@ internal sealed class TestGraphEditor : IGraphEditor
     public Task<UndoOutcome> UndoMergesAsync(ICase @case, IReadOnlyList<long> merges, string? reason) =>
         Undo("merge", string.Join(",", merges), reason);
 
+    /// <summary>Gets the swaps the user chose not to follow, in order.</summary>
+    public List<TokenSwap> SwapStops { get; } = [];
+
+    public Task StopAtSwapAsync(ICase @case, TokenSwap swap, string? reason)
+    {
+        SwapStops.Add(swap);
+        return Failure is { } failure ? Task.FromException(failure) : Task.CompletedTask;
+    }
+
+    public Task<UndoOutcome> FollowSwapAsync(ICase @case, SwapStop stop, string? reason) =>
+        Undo("swap", stop.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture), reason);
+
     /// <summary>Gets or sets what undoing merges would merge again; by default nothing, while they hold.</summary>
     public UndoMergePreview? MergePreview { get; set; } = new([MergeSample], [], []);
 

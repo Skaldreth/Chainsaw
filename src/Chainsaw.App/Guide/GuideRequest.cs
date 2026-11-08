@@ -45,8 +45,9 @@ public sealed record GuideRequest(GuideTopic Topic, string? Heading, GuideContex
     [
         GuideTopic.TrailEnds, GuideTopic.MixerCandidates, GuideTopic.MixerChain, GuideTopic.CoinJoin,
         GuideTopic.CommonInputOwnership, GuideTopic.ChangeAddress, GuideTopic.PeelChain, GuideTopic.StartPoints,
-        GuideTopic.Labels, GuideTopic.CanBeFrozen, GuideTopic.Methods, GuideTopic.Prices, GuideTopic.Utxo,
-        GuideTopic.AccountModel, GuideTopic.Tokens, GuideTopic.Checks, GuideTopic.Areas, GuideTopic.Graph,
+        GuideTopic.Labels, GuideTopic.Swaps, GuideTopic.CanBeFrozen, GuideTopic.Methods, GuideTopic.Prices,
+        GuideTopic.Utxo, GuideTopic.AccountModel, GuideTopic.Tokens, GuideTopic.Checks, GuideTopic.Areas,
+        GuideTopic.Graph,
     ];
 
     /// <summary>

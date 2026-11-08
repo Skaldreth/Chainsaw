@@ -1,0 +1,60 @@
+# Spåret genom en swap
+
+> **Som i vardagen:** Den som växlar sedlar på ett växelkontor har fortfarande lika mycket pengar, bara i en annan
+> valuta. Var hälften av sedlarna stulna är hälften av det som kom ut stulet också. Så tänker en utredare om en swap,
+> och så räknar Chainsaw.
+
+En **swap** är ett byte av en tillgång mot en annan i en och samma tx, oftast hos en DEX (en börs som är ett kontrakt,
+till exempel Uniswap). Adressen skickar till exempel USDT till DEX:ens pool och får ether tillbaka. Pengarna byter
+token men **inte ägare**, så spåret tar inte slut där. I grafen är swappen ett litet piller på linjen, **₮ → Ξ**.
+
+## Värdet följer med
+
+Kedjan säger bara att adressen skickade en tillgång och fick en annan. Att det ena betalade det andra är en
+**bedömning**, och Chainsaw räknar den så här (analysen heter `swap-value v1`):
+
+1. **In:** hur mycket som gick in i bytet, och hur mycket av det som var spårat enligt spårningsmetoden (FIFO eller
+   haircut).
+2. **Andel:** det spårade delat med allt som gick in, till exempel 62,2 %.
+3. **Ut:** hur mycket som kom ut i den nya tillgången, och genom vilken DEX när Chainsaw känner kontraktet.
+4. **Följer:** samma andel av det som kom ut räknas som spårat, avrundat nedåt så att inget spårat skapas.
+
+Därefter spåras den nya tillgången som vanligt, och flera swappar i rad går att följa på samma sätt. Pengarna som gick
+in i bytet räknas aldrig hos poolen: de har bytts, inte skickats vidare.
+
+## I grafen
+
+- Linjen **efter** swappen, och allt längre fram som vilar på den, är **streckad** i accent: beloppet bygger på en
+  bedömning, som alltid när något är osäkert.
+- **Hovra** över pillret, så visas stegen: in, andel, ut och vad som följer, med tx:en och analysens namn.
+- *Varför?* på linjen och på det som kommer efter förklarar samma steg i klartext.
+
+## Följer eller följer inte
+
+Ibland vet du mer än kedjan: bytet kanske gjordes med andra pengar, eller hör inte till brottet. **Klicka** på pillret,
+så fälls det ut på plats till två val:
+
+- **Följer:** värdet följer med genom swappen. Det är förvalet.
+- **Följer inte:** spåret slutar i swappen. Linjen efter blir grå och vanlig utan spårat belopp, ett litet streck över
+  linjen säger att spåret slutar här, pilen i pillret blir ett stopp, och en liten **person** i hörnet visar att det är
+  ditt val och inte förvalet. En börs längre fram förlorar *Uttag funnet* om inget spårat längre når dit.
+
+**?** i pillret öppnar det här avsnittet.
+
+Valet sparas i ärendet med vem och när, förseglat och journalfört. Det syns under **Historik** för adressen som bytte,
+där det kan tas tillbaka som andra egna beslut; det gamla står kvar överstruket. Att välja **Följer** i pillret gör
+samma sak.
+
+## Exponering och rapport
+
+[Exponering](exponering.md) följer samma regel: pengar som går in i en swap räknas vidare i den nya tillgången, värda
+lika mycket i den första. Valet *Följer inte* stoppar pengarna där, som *Spåret tar slut*. Rapporten tar med en
+slutsats för varje swap på spåren, med andelen och analysen, men aldrig ditt skäl.
+
+## Vad regeln inte säger
+
+- Att bytet faktiskt betalades med de spårade pengarna. Det är en bedömning, som FIFO och haircut.
+- Något om byten **till en annan kedja**. En brygga eller swap-tjänst som byter kedja är ett slut på spåret, och
+  fortsättningen knyts för hand, se [Bryggor och swappar till en annan kedja](bryggor-och-swappar.md).
+- Något när tx:en visar flera tillgångar in eller ut. Då går det inte att läsa vad som byttes mot vad, och då står
+  inget piller.

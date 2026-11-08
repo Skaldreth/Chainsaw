@@ -625,10 +625,30 @@ public sealed record InspectorContent(
             yield return new WhyLine(
                 $"Swap i tx {swap.Transaction}: adressen skickade {AmountText.WithUnit(swap.Sold)} och fick "
                 + $"{AmountText.WithUnit(swap.Bought)} tillbaka i samma tx{VenueText(swap)}. Pengarna bytte token men "
-                + "inte ägare, så det är inget slut på spåret. Att det var en swap är en läsning av rörelserna; "
-                + "spårningen följer inte bytet än, utan räknar varje tillgång för sig.",
-                GuideTopic.Tokens);
+                + "inte ägare. Att det var en swap är en läsning av rörelserna. " + SwapChoiceWhy(edge, swap),
+                GuideTopic.Swaps);
         }
+    }
+
+    /// <summary>
+    /// Says what the rule <see cref="SwapValue"/> did at a swap (sketch SW1a): the steps when the traced value
+    /// follows, the user's choice when it does not, or that no traced money reached it.
+    /// </summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="swap">One of its swaps.</param>
+    /// <returns>The answer.</returns>
+    private static string SwapChoiceWhy(EdgeView edge, TokenSwap swap)
+    {
+        if (edge.SwapStops.FirstOrDefault(stop => stop.Is(swap)) is { } stop)
+        {
+            var reason = stop.Reason is null ? string.Empty : $" ({stop.Reason})";
+            return $"Spåret slutar i swappen: du valde {NodeHistory.Short(stop.RecordedUtc)} att värdet inte följer "
+                + $"med{reason}. Valet kan tas tillbaka i pillret eller under Historik.";
+        }
+
+        return edge.SwapConversions.FirstOrDefault(found => found.Swap == swap) is { } conversion
+            ? conversion.Explain()
+            : $"Värdet följer med enligt {SwapValue.Analysis} (förval), men inga spårade pengar nådde swappen.";
     }
 
     /// <summary>Says which known exchange a swap went through, when Chainsaw knows the contract.</summary>

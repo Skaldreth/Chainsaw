@@ -295,6 +295,92 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
+    public SwapStop StopAtSwap(ICase @case, TokenSwap swap, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(swap);
+        reason = OptionalReason(reason);
+        return @case.Write(transaction =>
+        {
+            // One choice in force per swap; choosing again leaves the one there, so that a double click seals once.
+            if (SwapValue.StopOf(swap, SwapStopStore.ReadInForce(transaction)) is { } already)
+            {
+                return already;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                TracingJournalKinds.SwapStopped,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Spåret följer inte med genom swappen: {0} ({1} → {2})",
+                    swap.Transaction.Value,
+                    swap.Sold.Asset.Symbol,
+                    swap.Bought.Asset.Symbol),
+                JsonSerializer.Serialize(new
+                {
+                    transaction = swap.Transaction.Value,
+                    account = swap.Account.Value,
+                    sold = swap.Sold.Asset.Symbol,
+                    bought = swap.Bought.Asset.Symbol,
+                    analysis = SwapValue.Analysis,
+                    reason,
+                })));
+            return SwapStopStore.Seal(transaction, swap, reason, journal);
+        });
+    }
+
+    /// <inheritdoc/>
+    public bool FollowSwap(ICase @case, SwapStop stop, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(stop);
+        reason = OptionalReason(reason);
+        return @case.Write(transaction =>
+        {
+            // The stored choice is what is taken back, whatever the caller's copy says.
+            var stored = SwapStopStore.ReadInForce(transaction)
+                .FirstOrDefault(current => current.Sequence == stop.Sequence);
+            if (stored is null)
+            {
+                return false;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                TracingJournalKinds.SwapFollowed,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Värdet följer med genom swappen igen: {0}",
+                    stored.Transaction.Value),
+                JsonSerializer.Serialize(new { stop = stored.Sequence, analysis = SwapValue.Analysis, reason })));
+            SwapStopStore.SealUndo(transaction, stored, reason, journal);
+            return true;
+        });
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SwapStopHistoryEntry> GetSwapStopHistory(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(SwapStopStore.ReadHistory);
+    }
+
+    /// <summary>Trims an optional reason and checks its length; an empty one is none.</summary>
+    /// <param name="reason">The reason, or <see langword="null"/>.</param>
+    /// <returns>The reason, or <see langword="null"/>.</returns>
+    /// <exception cref="ArgumentException">It is too long.</exception>
+    private static string? OptionalReason(string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return null;
+        }
+
+        var trimmed = reason.Trim();
+        CheckReason(trimmed);
+        return trimmed;
+    }
+
+    /// <inheritdoc/>
     public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position)
     {
         ArgumentNullException.ThrowIfNull(@case);

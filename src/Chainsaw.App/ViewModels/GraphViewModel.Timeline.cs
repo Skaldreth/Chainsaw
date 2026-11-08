@@ -16,7 +16,11 @@ public sealed partial class GraphViewModel
 
     /// <summary>Gives the time line the times of each new graph.</summary>
     /// <param name="value">The graph, or <see langword="null"/>.</param>
-    partial void OnSceneChanged(GraphScene? value) => Timeline.Show(value);
+    partial void OnSceneChanged(GraphScene? value)
+    {
+        Timeline.Show(value);
+        KeepOpenSwap();
+    }
 
     /// <summary>Makes the time line, which draws the graph again when its times change.</summary>
     /// <returns>The time line.</returns>

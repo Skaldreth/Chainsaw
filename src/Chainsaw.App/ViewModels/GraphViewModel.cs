@@ -67,6 +67,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>The modules, off the UI thread.</summary>
     private readonly IGraphSource _source;
 
+    /// <summary>Where the graph's own choices are stored in the case, such as the choice per swap (sketch SW1a).</summary>
+    private readonly IGraphEditor _editor;
+
     /// <summary>The clock, which says when <em>now</em> is for what is not confirmed yet.</summary>
     private readonly IClock _clock;
 
@@ -162,6 +165,7 @@ public sealed partial class GraphViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(ui);
         _session = session;
         _source = source;
+        _editor = editor;
         _clock = clock;
         Start = new GraphStartViewModel(session, workflow, ui, clock);
         Start.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
