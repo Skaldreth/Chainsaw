@@ -6,8 +6,8 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Checks;
 
 /// <summary>
-/// Recognises coins out of recognised CoinJoins that are spent together again: two or more outputs of CoinJoins (the same round
-/// or different ones), or a mixed output together with the round's change (toxic change). Whoever does that shows
+/// Recognises coins out of recognised CoinJoins that are spent together again: two or more outputs of CoinJoins
+/// (the same round or different ones), or a mixed output together with the round's change (toxic change). Whoever does that shows
 /// that the coins probably have one owner, and the mix no longer hides them, so the trail can go on there. A check
 /// with an area of the sort Obfuscation; a judgement, never a fact (principle 2).
 /// </summary>
@@ -35,7 +35,8 @@ internal sealed class CoinJoinMergeCheck : ICheckAnalysis
         // Only a recognised CoinJoin mixes; a possible one may be a batch of payouts, whose outputs have different
         // owners anyway.
         var all = input.CoinJoins();
-        var coinJoins = all.Where(entry => entry.Value.EndsTrail).ToDictionary(entry => entry.Key, entry => entry.Value);
+        var coinJoins = all.Where(entry => entry.Value.EndsTrail)
+            .ToDictionary(entry => entry.Key, entry => entry.Value);
         if (coinJoins.Count == 0)
         {
             return [];

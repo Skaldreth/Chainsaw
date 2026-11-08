@@ -47,7 +47,8 @@ public sealed class RoundFourChecksTests : IDisposable
     public void A_wallet_that_consolidates_coins_from_outside_the_graph_is_no_service()
     {
         Assert.DoesNotContain(
-            _harness.Run([Patterns.Consolidation()]).Checks, check => check.Analysis.Name == ServiceBehaviourCheck.Name);
+            _harness.Run([Patterns.Consolidation()]).Checks,
+            check => check.Analysis.Name == ServiceBehaviourCheck.Name);
     }
 
     [Fact]

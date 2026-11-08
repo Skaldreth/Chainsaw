@@ -70,6 +70,24 @@ public enum GuideTopic
     /// that left its block (sketch GR9a).
     /// </summary>
     ChainCheck,
+
+    /// <summary><em>Tjänster ur beteende</em>: deposits swept to a hot wallet and payouts in a batch.</summary>
+    ServiceBehaviour,
+
+    /// <summary><em>Uppdelning i många små belopp</em>: an amount split into parts that meet again.</summary>
+    Splitting,
+
+    /// <summary><em>Fördröjning och många hopp</em>: money that only passes through, and lies still between.</summary>
+    Layering,
+
+    /// <summary><em>Damm och adressförgiftning</em>: tiny amounts sent to link addresses or to fool the victim.</summary>
+    Dust,
+
+    /// <summary><em>PayJoin</em>: two owners' inputs in one transaction, which the clustering cannot see.</summary>
+    PayJoin,
+
+    /// <summary><em>Tidsmönster</em>: the hours an owner is active, and the time zone they hint at.</summary>
+    TimePattern,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -109,6 +127,12 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "sa-sparar-man",
         GuideTopic.Exposure => "exponering",
         GuideTopic.ChainCheck => "kontroll-mot-kedjan",
+        GuideTopic.ServiceBehaviour => "tjanster-ur-beteende",
+        GuideTopic.Splitting => "uppdelning",
+        GuideTopic.Layering => "fordrojning-och-hopp",
+        GuideTopic.Dust => "damm-och-forgiftning",
+        GuideTopic.PayJoin => "payjoin",
+        GuideTopic.TimePattern => "tidsmonster",
         _ => "utxo-modellen",
     };
 
@@ -137,6 +161,12 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "Så spårar man i Chainsaw",
         GuideTopic.Exposure => "Exponering",
         GuideTopic.ChainCheck => "Hur Chainsaw kontrollerar svaren mot kedjan",
+        GuideTopic.ServiceBehaviour => "Tjänster ur beteende",
+        GuideTopic.Splitting => "Uppdelning i många små belopp",
+        GuideTopic.Layering => "Fördröjning och många hopp",
+        GuideTopic.Dust => "Damm och adressförgiftning",
+        GuideTopic.PayJoin => "PayJoin",
+        GuideTopic.TimePattern => "Tidsmönster",
         _ => "UTXO-modellen",
     };
 

@@ -12,7 +12,8 @@ namespace Chainsaw.Modules.Clustering;
 /// </summary>
 /// <remarks>
 /// Version 2 adds Wasabi 2's standard amounts (which need not come in equal groups) and the pools of Whirlpool's
-/// successor Ashigaru (0.025 and 0.25 BTC). The rules err towards seeing a CoinJoin: a CoinJoin that is missed would merge strangers into one cluster, while
+/// successor Ashigaru (0.025 and 0.25 BTC).
+/// The rules err towards seeing a CoinJoin: a CoinJoin that is missed would merge strangers into one cluster, while
 /// a transaction wrongly taken for one only leaves some addresses unmerged.
 /// </remarks>
 internal sealed class CoinJoinHeuristic : IUtxoHeuristic

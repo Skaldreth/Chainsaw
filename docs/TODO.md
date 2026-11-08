@@ -130,6 +130,22 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    (utan språkmodell, princip 5).
 10. **Vyerna Tidslinje och Flöde**, när skisserna är valda.
 
+**Ur omgång 4 (klustring, förvirring och kontroller), väntar på en yta** [skiss]:
+- **Dra tillbaka en version:** `IClusteringService.Withdraw` finns, men ingen knapp eller rad i gränssnittet; var
+  den står (inspektörens *Varför?*, Guiden eller Inställningar) och hur bekräftelsen ser ut skissas.
+- **Slutsatser som hålls tillbaka** (`ClusteringRun.HeldBack`): när en körning saknar en tx som en sparad slutsats
+  bygger på står den gamla slutsatsen kvar; gränssnittet bör visa det (en obekräftad tx som ersatts kan aldrig
+  skickas med igen).
+- **Uppbrytning av ett par som inte hör ihop:** gränssnittet bör föreslå länken på vägen mellan dem
+  (`ExplainConnection`) och varna när de inte är i samma kluster.
+- **Damm och den liknande adressen tonas ned** i grafen (`dust v1` markerar dem med ett område men tonar inte ned).
+- **Många hopp fälls ihop** till en länk i grafen (`pass-through v1` markerar raden med ett område).
+- **En trolig tjänst blir en etikett:** `service-behaviour v1` är en kontroll; att godkänna den som en egen etikett
+  (med namn) behöver en form.
+- **Testärendet** (`/testdata`) visar inte de nya kontrollerna än: en uppdelning med delar som möts, damm, en
+  adressförgiftning, ett svep till Sydbörsens hot wallet och en möjlig PayJoin behöver läggas in i berättelsen
+  (`TestStoryChain`) med stegen som hämtar dem [direkt].
+
 **Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (förvalet följer värdet, utredaren väljer per
 swap; valet i pillret skissas [skiss]), VPN i bakgrunden (byggs i omgång 3) och metoderna för privacy coins
 (omgång 9). **LIFO och poison** väntar på kryptospåraren (`docs/KRYPTOSPARAREN.md`, fråga 1).

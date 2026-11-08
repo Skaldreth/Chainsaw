@@ -32,6 +32,18 @@ och frågan tas bort härifrån.
    Känns det rimligt?
 6. **Vad skiljer en riktig peel chain** från någon som bara gör vanliga betalningar? Chainsaw föreslår i dag bara, och
    slår inte ihop. Är det samma skripttyp i varje hopp, en liknande andel som skalas av, eller kort tid mellan hoppen?
+   Sedan 2026-11-08 följs också hopp som fylls på med fler inputs, och kedjor där den mindre outputen går vidare.
+6b. **De nya kontrollernas gränser** (2026-11-08). Stämmer de med det ni ser?
+   - **CoinJoin:** Whirlpools pooler 0,001, 0,01, 0,025, 0,05, 0,25 och 0,5 BTC (0,025 och 0,25 är Ashigarus, som
+     bör kontrolleras mot en aktuell källa); Wasabi 2 när minst hälften av utgångarna har standardbelopp.
+   - **Tjänst ur beteende:** minst tre insättningsadresser från olika avsändare som sveps till samma adress; en batch
+     är minst åtta mottagare från högst två adresser.
+   - **Uppdelning:** minst fem delar med högst tio procents skillnad; delarna följs högst tre mellanled.
+   - **Många hopp:** minst tre hopp i rad, högst två procent bort per hopp; fördröjning från tre dygn.
+   - **Damm:** högst 1 000 satoshi till minst tio adresser; förgiftning när fyra tecken i början och slutet är lika och
+     beloppet är högst 10 000 satoshi.
+   - **Tidsmönster:** minst åtta tx och sex tysta timmar i rad; natten antas ha sin mitt kl. 03.30.
+   - **Växeln:** fingeravtrycket (version, låsning, RBF) är ett av sex tecken.
 
 ## Mixers och förvirring
 

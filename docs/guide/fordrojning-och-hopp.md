@@ -30,7 +30,11 @@ En [peel chain](peel-chain.md) är ett närliggande mönster, där en liten del 
   [Bevakning](bevakning.md)).
 - **Ett spår som inte är expanderat** är blekt och säger *Inte expanderad ännu*: det är aldrig slut av sig självt.
 
-## Det som inte är byggt än
+## Kontrollen Många hopp
 
-En kontroll som känner igen hopp där pengarna bara passerar, och som kan fälla ihop dem till en kedja i grafen, är
-**inte byggd än**. Den kommer som en analys med namn och version, se [Kontroller och förslag](kontroller-och-forslag.md).
+Kontrollen `pass-through v1` känner igen **minst tre hopp i rad** där varje tx tar ett mynt och skickar nästan allt
+(högst två procent bort, avgiften) vidare till en ny adress. Den lägger ett område runt hoppen och säger hur länge
+pengarna var på väg. Låg de still **minst tre dygn** mellan två hopp säger titeln *med fördröjning*, och *Varför?* säger
+det längsta uppehållet.
+
+Att fälla ihop raden till en enda länk i grafen är **inte byggt än**; det skissas först.

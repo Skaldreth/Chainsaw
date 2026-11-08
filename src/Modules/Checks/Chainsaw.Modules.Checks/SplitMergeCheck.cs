@@ -188,7 +188,9 @@ internal sealed class SplitMergeCheck : ICheckAnalysis
     {
         var sum = joined.Aggregate(Satoshi.Zero, (total, spent) => total + (spent.Amount ?? Satoshi.Zero));
         var (count, of) = (CheckText.Count(joined.Count), CheckText.Count(split.Parts.Count));
-        var hops = path.Count == 0 ? "direkt" : $"genom {CheckText.Count(path.Count)} mellanled som bara skickar vidare";
+        var hops = path.Count == 0
+            ? "direkt"
+            : $"genom {CheckText.Count(path.Count)} mellanled som bara skickar vidare";
         var why = $"Analysen {this.Named()} ser att tx {CheckText.Short(transaction.Txid)} samlar {count} av de "
             + $"{of} delarna ur uppdelningen i tx {CheckText.Short(split.Transaction.Txid)} igen, {hops}. Delarna "
             + "möts alltså, och summan kan följas härifrån i stället för varje del för sig. Det är en bedömning, "

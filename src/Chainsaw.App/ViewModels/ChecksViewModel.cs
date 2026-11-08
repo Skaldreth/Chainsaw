@@ -950,8 +950,14 @@ public sealed partial class ChecksViewModel : ObservableObject
     {
         "mixer-outputs" => GuideTopic.MixerCandidates,
         "mixer-parts" or "mixer-chain" => GuideTopic.MixerChain,
-        "coinjoin-area" => GuideTopic.CoinJoin,
+        "coinjoin-area" or "coinjoin-merge" => GuideTopic.CoinJoin,
         "peel-chain-area" => GuideTopic.PeelChain,
+        "service-behaviour" => GuideTopic.ServiceBehaviour,
+        "split-merge" => GuideTopic.Splitting,
+        "pass-through" => GuideTopic.Layering,
+        "dust" => GuideTopic.Dust,
+        "payjoin-hint" => GuideTopic.PayJoin,
+        "active-hours" => GuideTopic.TimePattern,
         _ => GuideTopic.Areas,
     };
 

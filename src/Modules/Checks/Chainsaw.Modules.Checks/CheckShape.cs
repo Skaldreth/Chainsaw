@@ -63,7 +63,7 @@ internal static class CheckShape
             .GroupBy(found => found.Transaction.Txid)
             .ToDictionary(group => group.Key, group => group.First().Finding);
 
-    /// <summary>Gives the name of the analysis that stored a conclusion, with its version, as the texts say it.</summary>
+    /// <summary>Gives an analysis's name with its version, as the texts say it.</summary>
     /// <param name="analysis">The analysis.</param>
     /// <returns>For example <c>split-merge v1</c>.</returns>
     public static string Named(this ICheckAnalysis analysis) => analysis.Id.ToString();

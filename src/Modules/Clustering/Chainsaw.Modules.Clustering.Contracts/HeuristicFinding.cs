@@ -99,7 +99,8 @@ public enum CoinJoinCertainty
 /// How many kinds of sign the version checks, so that the score can be read (for example 3 of 5).
 /// </param>
 /// <param name="SeenIn">
-/// The txids of the earlier transactions where the outputs' addresses were seen; the fresh-address sign rests on them.
+/// The txids of the earlier transactions where the outputs' addresses were seen, which the fresh-address sign rests
+/// on, and from <c>change-address v2</c> of the later ones that spend an output, which the fingerprint sign rests on.
 /// </param>
 public sealed record ChangeFinding(
     string Reason,

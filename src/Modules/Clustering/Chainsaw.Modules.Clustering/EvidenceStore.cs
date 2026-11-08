@@ -200,7 +200,8 @@ internal static class EvidenceStore
     }
 
     /// <summary>
-    /// Reads the records that count now (<see cref="ReadLatest(ICaseReader, Txid?, bool)"/>) for many transactions at once, read once.
+    /// Reads the records that count now (<see cref="ReadLatest(ICaseReader, Txid?, bool)"/>) for many transactions
+    /// at once, read once.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txids">The transactions.</param>

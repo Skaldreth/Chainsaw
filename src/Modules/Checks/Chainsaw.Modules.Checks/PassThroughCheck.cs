@@ -18,7 +18,7 @@ internal sealed class PassThroughCheck : ICheckAnalysis
     /// <summary>How many hops in a row must only pass the money on to count.</summary>
     public const int MinimumHops = 3;
 
-    /// <summary>The largest share of a hop's coin that may go elsewhere than on (the fee): 0.02 is two percent.</summary>
+    /// <summary>The largest share of a hop's coin that may be lost on the way (the fee): 0.02 is two percent.</summary>
     public const double MostLostShare = 0.02;
 
     /// <summary>A pause between two hops at least this long is a delay.</summary>

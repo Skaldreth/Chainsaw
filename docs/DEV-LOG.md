@@ -3762,3 +3762,46 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   *Små rättelser* är fördelade på sina områden. Sonaren står kvar i valvyn (EX2) och tidslinjen (TL1a), där
   CLAUDE.md fortfarande säger den.
 - **Kvar:** se `docs/BACKLOG.md`, *Testärendet (/testdata)*.
+
+## Omgång 4: klustring, förvirring och kontroller (2026-11-08)
+
+- **Klustringen** (Bitcoin):
+  - `coinjoin v2`: Wasabi 2 känns igen på standardbeloppen (potenser av 2 och 3, 2·3ⁿ, 1, 2 och 5 gånger tiopotenser,
+    5 000 satoshi till 2³⁷), minst hälften av utgångarna och minst tre olika belopp; Whirlpool har också Ashigarus
+    pooler 0,025 och 0,25 BTC. Nytt mönster `CoinJoinPattern.Wasabi2`.
+  - `change-address v2`: tecknet `SameFingerprintSpent` (version, sorts låsning, RBF): den output som spenderas av en
+    tx med samma fingeravtryck, när de andra spenderas av en med ett annat. Spenderarna räknas till underlaget.
+  - `peel-chain v2`: ett hopp får fyllas på med fler inputs (`PeelChainFinding.ExtraInputs`), och den output som nästa
+    hopp spenderar går vidare även när den är den mindre. Förslaget gäller adressen som kom från hoppet före.
+  - `GenericFinding`: en ny analys kan spara ett fynd med sort och JSON utan att Contracts ändras.
+  - **En version dras tillbaka** (`IClusteringService.Withdraw`, `GetWithdrawals`, tabellen `clustering_withdrawals`,
+    förseglad, schema 4): dess slutsatser räknas inte längre, inget tas bort, och den högsta version som inte dragits
+    tillbaka räknas i stället. Journalraden `clustering.version-withdrawn`.
+  - `GetConclusions` för många tx i en läsning; en körning som bara håller tillbaka något skriver inte i journalen.
+- **Kontrollerna** (alla `CheckKind.Check`, Bitcoin, med område, *Varför?* och Guide-text):
+  `service-behaviour v1` (svep av insättningsadresser till en hot wallet, utbetalning i batch), `coinjoin-merge v1`
+  (mixade mynt och toxic change som spenderas tillsammans), `split-merge v1` (uppdelning i lika delar och delarna som
+  möts igen, genom högst tre mellanled), `pass-through v1` (många hopp och fördröjning), `dust v1` (damm och
+  adressförgiftning), `payjoin-hint v1` (en onödig input bland sammanslagna inputs), `active-hours v1` (aktiva timmar
+  och trolig tidszon per ägare) och `peel-chain-area v2` (*Peel chain till börs*, påfyllda hopp).
+  `CheckInput` har nu `Services` (aktörer med etiketten börs eller tjänst) och `Owners` (klustrets minsta adress).
+- **Fynden under Kontroller:** en avgjord kandidat som analysen inte längre ger följer med ur det senast förseglade;
+  besluten och resultaten läses om i skrivningen, så att ett beslut som förseglats under tiden får sin kandidat i
+  listan; slutsatserna läses i en fråga för alla tx.
+- **Appen:** Guidens ämnen för de nya analyserna (`GuideTopic`, `TopicOf`), ikonerna och färgerna i `AreaLooks`, och
+  Guidens nya avsnitt *Tjänster ur beteende*, *PayJoin*, *Damm och adressförgiftning* och *Tidsmönster*; *CoinJoin*,
+  *Växeladress*, *Peel chain*, *Uppdelning*, *Fördröjning och många hopp* och *Börser* uppdaterade.
+- **Tester:** facit i `RoundFourTests` (Clustering, 13) och `RoundFourChecksTests` (Checks, 19), med en liknande adress
+  som malts fram så att de fyra första och sista tecknen efter `bc1q` är lika. Golden-filen i Tracing är omskriven för
+  de nya versionerna (bara versionerna och växelns nya underlag skiljer).
+- **Egna beslut:** alla nya analyser är kontroller, inte förslag, eftersom inget i KF2b ännu kan göra något av ett
+  godkännande av dem (en etikett ur en trolig tjänst kräver en form, TODO [skiss]). `coinjoin-merge` räknar bara
+  kända CoinJoins, inte möjliga, som kan vara batchutbetalningar. `service-behaviour` säger *trolig tjänst*, aldrig
+  *börs*. Gränsvärdena står som frågor till kryptospåraren (6b).
+- **Skriver i ärendet** (granskas oberoende): klustringens nya versioner förseglar nya resultat, tillbakadragandet är
+  en ny förseglad tabell med journalrad, de nya kontrollerna förseglas som de andra, och `CheckService.Run` läser och
+  förseglar nu besluten och resultaten i samma skrivning.
+- **Avsteg och kvar:** jämna belopp i fiat (kräver kurser i kontrollerna), centrala mixers med kända avgifter (kräver
+  en källa), JoinMarkets avgifter och fidelity bonds, adressens hela historik från källan och klustringens cache står
+  kvar i BACKLOG. Ytor (dra tillbaka en version, slutsatser som hålls tillbaka, tona ned damm, fälla ihop hopp, en
+  trolig tjänst som etikett) står i TODO avsnitt 4 som [skiss], och testärendet som [direkt].

@@ -1594,6 +1594,32 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
 - Hämta en tx som för en ny adress till en godkänd plånbok: ett nytt förslag med bara den nya biten väntar.
 - *Ångra* på *Sammanslagen av användaren* i *Historik* visar *Slås ihop igen* innan något sparas.
 
+### Klustring, förvirring och kontroller (omgång 4, 2026-11-08)
+
+Testärendet visar inte alla nya kontroller än (TODO, avsnitt 4); prova dem i ett ärende med riktiga adresser där
+mönstret finns. Varje kontroll står under *GJORT AV SIG SJÄLVT* i *Förslag · N* med sitt område, och *Varför?* säger
+analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
+- **CoinJoin:** en Whirlpool-mix ur en av Ashigarus pooler (0,025 eller 0,25 BTC) och en Wasabi 2-runda heter
+  *CoinJoin, Whirlpool* och *CoinJoin, Wasabi 2*. En tx som spenderar två utgångar ur samma CoinJoin får ett rött
+  område med *Mixade mynt slås ihop* (*… med växeln* när växeln ur rundan är med).
+- **Växeln:** *Varför?* på en sammanslagen växel säger *av 6 tecken*; när ärendet känner till tx:erna som spenderar
+  utgångarna kan tecknet *spenderas senare av samma sorts plånbok* stå med.
+- **Peel chain:** ett hopp som fylls på med fler inputs följs, och *Varför?* säger hur många. Går den sista växeln
+  till en börs (etikett) heter kontrollen *Peel chain till börs*.
+- **Tjänst ur beteende:** ett svep av minst tre insättningsadresser till en hot wallet ger ett blått område *Trolig
+  tjänst, N insättningar*; en utbetalning till många ger *Trolig utbetalning i batch*.
+- **Uppdelning:** en tx som delar ett belopp i minst fem lika delar ger *Uppdelning i N delar*, och en senare tx som
+  samlar några av dem *Delarna samlas igen, k av N*.
+- **Många hopp:** minst tre hopp i rad som bara skickar vidare ger *Många hopp, N i rad* (*med fördröjning* när
+  pengarna låg still minst tre dygn).
+- **Damm och förgiftning:** damm till minst tio adresser ger *Damm till N adresser*; en liknande adress med ett litet
+  belopp ger *Trolig adressförgiftning* med båda adresserna i området.
+- **PayJoin:** en tx med en onödig input ger ett grått område *Möjlig PayJoin*.
+- **Tidsmönster:** en ägare med minst åtta tx ger *Aktiv kl. HH–HH UTC* med en trolig tidszon i raden under.
+- Ikonerna på brickorna: sammanslagna mixade mynt (Join, rött), uppdelning (Split, sand), många hopp (Layers, sand),
+  damm (mynt, sand); tjänst, plånbok och tid har sortens ikon.
+- **Snabbhet:** öppna ett stort ärende och se att *Förslag · N* inte blir märkbart långsammare än förut.
+
 ## Etiketter
 
 ### Etiketterna (etapp 8, Attribution)

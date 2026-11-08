@@ -100,8 +100,8 @@ internal sealed class ServiceBehaviourCheck : ICheckAnalysis
         var count = CheckText.Count(deposits.Count);
         var times = sweeps.Count == 1 ? "en tx" : CheckText.Count(sweeps.Count) + " tx";
         var why = $"Analysen {this.Named()} ser {count} adresser som var och en fick en betalning från en egen "
-            + $"avsändare och sedan tömdes, tillsammans med andra, till {CheckText.Short(hotWallet)} i {times}. Så sveper en "
-            + "börs eller en annan tjänst kundernas insättningsadresser till en hot wallet, och insättningsadresserna "
+            + $"avsändare och sedan tömdes, tillsammans med andra, till {CheckText.Short(hotWallet)} i {times}. "
+            + "Så sveper en börs eller en annan tjänst kundernas insättningsadresser till en hot wallet, och insättningsadresserna "
             + "är då kundernas hos tjänsten: en begäran gäller dem. Det är en bedömning, inte ett faktum: en "
             + "plånbok som samlar ihop egna mynt kan se likadan ut, och vilken tjänst det är säger bara en etikett.";
         return new CheckFinding(
