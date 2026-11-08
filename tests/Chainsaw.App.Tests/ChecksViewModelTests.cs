@@ -79,6 +79,29 @@ public sealed class ChecksViewModelTests
         Assert.Equal("Förslaget godkänt", toast!.Title);
     }
 
+    [Theory]
+    [InlineData(Modules.Clustering.Contracts.MergeRefusal.AcrossSplit, ChecksViewModel.SplitFirstText)]
+    [InlineData(Modules.Clustering.Contracts.MergeRefusal.BreaksMerge, ChecksViewModel.BreaksMergeText)]
+    public async Task A_refused_wallet_says_why_and_reads_nothing_again(
+        Modules.Clustering.Contracts.MergeRefusal refusal, string text)
+    {
+        var rig = new Rig();
+        rig.Source.Checks.Clear();
+        rig.Source.Checks.Add(Wallet());
+        await rig.Follow();
+        var changed = 0;
+        rig.Checks.ClustersChanged += (_, _) => changed++;
+        rig.Source.DecideFailure = new Modules.Clustering.Contracts.MergeRefusedException(refusal);
+        rig.Checks.StartReview(null);
+
+        await rig.Checks.ApproveAsync();
+
+        Assert.Equal(text, rig.Checks.Problem);
+        Assert.Empty(rig.Source.Decisions);
+        Assert.Equal(0, changed);
+        Assert.Equal(1, rig.Checks.WaitingCount);
+    }
+
     [Fact]
     public async Task Dismissing_a_wallet_leaves_the_clusters_alone()
     {

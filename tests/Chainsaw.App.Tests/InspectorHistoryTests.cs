@@ -191,12 +191,56 @@ public sealed class InspectorHistoryTests
         rig.Graph.Choose(GraphSamples.UKey, null);
         rig.History.Toggle(Assert.Single(rig.History.Rows));
         Assert.Equal(NodeHistory.UndoText, rig.History.SubmitText);
+        Assert.True(rig.History.IsMergeOpen);
+        Assert.True(rig.History.IsConfirmOpen);
+        Assert.False(rig.History.IsSplitOpen);
+        Assert.True(rig.History.CanSubmit);
+        Assert.Empty(rig.History.Rejoined);
         rig.History.Reason = "  Fel plånbok ";
+        var runs = rig.Checks.Runs;
 
         await rig.History.SubmitCommand.ExecuteAsync(null);
 
         Assert.Equal(("merge", "3", (string?)"Fel plånbok"), Assert.Single(rig.Editor.Undone));
         Assert.False(rig.History.IsOpen);
+
+        // The approval is taken back with the merge, so the panel KF2b is read again with the graph.
+        Assert.True(rig.Checks.Runs > runs);
+    }
+
+    /// <summary>
+    /// Undoing a merge of the user's that held a heuristic's link back shows first what merges again (AN1b); a merge
+    /// that no longer holds says so and cannot be stored.
+    /// </summary>
+    [Fact]
+    public void UndoingAMergeShowsWhatMergesAgainFirst()
+    {
+        var rig = new Rig();
+        var merge = Merge(3, GraphSamples.U, GraphSamples.E, Morning, 5);
+        var link = new ClusterLink(
+            new ClusterEvidence(
+                9, new HeuristicId(HeuristicNames.CommonInputOwnership, 1), GraphSamples.Tx[1],
+                [GraphSamples.E, GraphSamples.K1], EvidenceStrength.Merge, "Inputs i samma tx.", null, null, 6,
+                Morning),
+            LinkState.Merged);
+        rig.Editor.MergePreview = new UndoMergePreview(
+            [merge], [new ClusterMember(GraphSamples.K1, link, null)], [link.Evidence.Heuristic]);
+        rig.Editor.History = Data() with { Merges = [new(merge, null)] };
+        rig.Graph.Choose(GraphSamples.UKey, null);
+
+        rig.History.Toggle(Assert.Single(rig.History.Rows));
+
+        Assert.Equal("CIO v1", Assert.Single(rig.History.Rejoined).Heuristic);
+        Assert.Equal("CIO v1", rig.History.RejoinHeuristics);
+        Assert.True(rig.History.CanSubmit);
+
+        rig.Editor.MergePreview = new UndoMergePreview([], [], []);
+        rig.History.Cancel();
+        rig.History.Toggle(Assert.Single(rig.History.Rows));
+
+        Assert.Empty(rig.History.Rejoined);
+        Assert.NotEmpty(rig.History.RejoinNotice);
+        Assert.False(rig.History.CanSubmit);
     }
 
     /// <summary>A breaking out reads the same from the address that went out, before and after an undo.</summary>
@@ -590,7 +634,7 @@ public sealed class InspectorHistoryTests
                 new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), Session);
             Graph = new GraphViewModel(
                 Session, workflow, Source, TestWays.For(new TestExitConnection()), new InlineUi(), Editor,
-                new TestClock());
+                new TestClock(), Checks);
             Session.Open(new TestCase("2026-0001"));
         }
 
@@ -599,6 +643,8 @@ public sealed class InspectorHistoryTests
         public TestGraphSource Source { get; } = new();
 
         public TestGraphEditor Editor { get; } = new();
+
+        public TestCheckSource Checks { get; } = new();
 
         public GraphViewModel Graph { get; }
 

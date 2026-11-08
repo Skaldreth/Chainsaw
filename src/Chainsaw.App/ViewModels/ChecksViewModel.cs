@@ -5,6 +5,7 @@ using Chainsaw.App.Guide;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -127,6 +128,14 @@ public sealed partial class ChecksViewModel : ObservableObject
 
     /// <summary>What the list says when a decision or an area could not be stored.</summary>
     public const string SaveFailedText = "Det kunde inte sparas i ärendet.";
+
+    /// <summary>What the panel says when a wallet is not approved because the user has split its addresses.</summary>
+    public const string SplitFirstText =
+        "Adresserna är uppbrutna. Ångra uppbrytningen i Historik först, så kan plånboken godkännas.";
+
+    /// <summary>What the panel says when approving a wallet would break up a cluster the user never broke up.</summary>
+    public const string BreaksMergeText =
+        "Plånboken skulle bryta upp ett kluster genom en uppbrytning du gjort. Ångra uppbrytningen i Historik först.";
 
     /// <summary>What the form says when the own area it renames or removes is gone already.</summary>
     public const string GoneText = "Ytan finns inte längre i ärendet.";
@@ -1083,6 +1092,11 @@ public sealed partial class ChecksViewModel : ObservableObject
             {
                 made = await _source.DecideAsync(openCase, requests);
                 Problem = string.Empty;
+            }
+            catch (MergeRefusedException refused)
+            {
+                Problem = refused.Refusal == MergeRefusal.BreaksMerge ? BreaksMergeText : SplitFirstText;
+                return null;
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {

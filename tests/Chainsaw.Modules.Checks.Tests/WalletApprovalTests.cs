@@ -145,7 +145,9 @@ public sealed class WalletApprovalTests : IDisposable
             new SplitRequest(Wpkh("possible-1"), Wpkh("possible-2"), UserMerges.Name, "Olika ägare enligt beslag"));
         var before = _harness.Case.ReadJournal().Count;
 
-        Assert.Throws<ArgumentException>(() => Approve(wallet, null));
+        var refused = Assert.Throws<MergeRefusedException>(() => Approve(wallet, null));
+
+        Assert.Equal(MergeRefusal.AcrossSplit, refused.Refusal);
 
         Assert.Equal(0, _harness.Count("checks_decisions"));
         Assert.Equal(0, _harness.Count("clustering_merges"));
@@ -179,6 +181,99 @@ public sealed class WalletApprovalTests : IDisposable
         Assert.Empty(Merges());
         Assert.Empty(_harness.Journal(ClusteringJournalKinds.Merged));
     }
+
+    [Fact]
+    public void An_approved_wallet_says_so_instead_of_suggesting_it_again()
+    {
+        var wallet = Wallet();
+        Approve(wallet, null);
+
+        var after = Wallet();
+
+        Assert.Equal(wallet.Finding.Key, after.Finding.Key);
+        Assert.Equal("Godkänd plånbok", after.Finding.Title);
+        Assert.Equal("user v1", after.Finding.Summary);
+        Assert.Contains("Du godkände", after.Finding.Why, StringComparison.Ordinal);
+        Assert.DoesNotContain("slog inte ihop", after.Finding.Why, StringComparison.Ordinal);
+        Assert.Equal(Possible[0].Txid, Assert.Single(after.Finding.Basis).Txid);
+        Assert.True(after.IsSettled);
+    }
+
+    [Fact]
+    public void An_approved_wallet_whose_merge_is_broken_up_says_so()
+    {
+        Approve(Wallet(), null);
+        _harness.Clustering.Split(
+            _harness.Case, new SplitRequest(Wpkh("possible-2"), Wpkh("possible-1"), UserMerges.Name, string.Empty));
+
+        var after = Wallet();
+
+        Assert.Equal("Godkänd plånbok, uppbruten", after.Finding.Title);
+        Assert.Contains("uppbruten sedan godkännandet", after.Finding.Why, StringComparison.Ordinal);
+        Assert.True(after.IsSettled);
+    }
+
+    [Fact]
+    public void A_wallet_that_grows_after_the_approval_suggests_only_what_is_new()
+    {
+        var first = Wallet();
+        Approve(first, null);
+
+        var run = _harness.Run([.. Possible, Growing]).Checks
+            .Where(check => check.Analysis.Name == CheckAnalysisNames.Wallets)
+            .ToList();
+
+        Assert.Equal(2, run.Count);
+        var approved = Assert.Single(run, check => check.Finding.Key == first.Finding.Key);
+        Assert.True(approved.IsSettled);
+        Assert.DoesNotContain(Wpkh("possible-3"), approved.Finding.Addresses);
+        var grown = Assert.Single(run, check => check.Finding.Key != first.Finding.Key);
+        Assert.Equal(Wpkh("possible-3").Value, grown.Finding.Key);
+        Assert.Equal(1, grown.Waiting);
+        Assert.Equal(
+            new[] { Wpkh("possible-2").Value, Wpkh("possible-3").Value }.Order(),
+            grown.Finding.Addresses.Select(address => address.Value).Order());
+
+        Approve(grown, null);
+
+        var merges = Merges();
+        Assert.Equal(2, merges.Count);
+        Assert.Equal(
+            new[] { Wpkh("possible-2").Value, Wpkh("possible-3").Value }.Order(),
+            merges[1].Merge.Addresses.Select(address => address.Value).Order());
+        Assert.Equal(Growing.Txid, merges[1].Merge.Txid);
+        Assert.Equal(3, _harness.Clustering.GetCluster(_harness.Case, Wpkh("possible-1")).Members.Count);
+    }
+
+    [Fact]
+    public void Undoing_part_of_an_approval_from_the_history_takes_the_whole_approval_back()
+    {
+        var wallet = Assert.Single(
+            _harness.Run([.. Possible, Growing]).Checks, check => check.Analysis.Name == CheckAnalysisNames.Wallets);
+        Approve(wallet, null);
+        var merges = Merges();
+        Assert.Equal(2, merges.Count);
+        Assert.Equal(merges[0].Merge.JournalSequence, merges[1].Merge.JournalSequence);
+
+        var undone = _harness.Service.TakeBackMerges(_harness.Case, [merges[0].Merge.Sequence], null);
+
+        Assert.Equal(2, undone);
+        Assert.All(Merges(), entry => Assert.True(entry.IsUndone));
+        Assert.Single(_harness.Clustering.GetCluster(_harness.Case, Wpkh("possible-2")).Members);
+        var after = Assert.Single(
+            _harness.Run([.. Possible, Growing]).Checks, check => check.Analysis.Name == CheckAnalysisNames.Wallets);
+        Assert.Equal(1, after.Waiting);
+        Assert.Equal(CheckVerdict.Withdrawn, after.Decisions[^1].Verdict);
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    /// <summary>A second possible CoinJoin that shares an input's address with the first: the wallet grows.</summary>
+    private static BitcoinTransaction Growing { get; } = Tx("possible-again")
+        .In(Wpkh("possible-2"), 3_000_000)
+        .In(Wpkh("possible-3"), 2_000_000)
+        .Out(Wpkh("possible-out-3"), 2_400_000)
+        .Out(Wpkh("possible-out-4"), 2_400_000)
+        .Build();
 
     /// <summary>Runs the checks over the possible CoinJoin and gives the wallet.</summary>
     /// <returns>The wallet.</returns>

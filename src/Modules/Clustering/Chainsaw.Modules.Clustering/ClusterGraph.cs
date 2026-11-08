@@ -194,6 +194,21 @@ internal sealed class ClusterGraph
     public static bool IsUsers(ClusterEvidence evidence) =>
         string.Equals(evidence.Heuristic.Name, UserMerges.Name, StringComparison.Ordinal);
 
+    /// <summary>Gives a link's identity across the chains: its analysis's name and its record's sequence.</summary>
+    /// <param name="evidence">The link's proposal.</param>
+    /// <returns>The key; a user's merge and a heuristic's proposal never share one.</returns>
+    public static (string Name, long Sequence) KeyOf(ClusterEvidence evidence) =>
+        (evidence.Heuristic.Name, evidence.Sequence);
+
+    /// <summary>Gives the links that merge their addresses, in the order they were placed.</summary>
+    /// <returns>The links.</returns>
+    public IReadOnlyList<ClusterLink> MergedLinks() => [.. _links.Where(link => link.State == LinkState.Merged)];
+
+    /// <summary>Gives the keys of the links that merge their addresses (see <see cref="KeyOf"/>).</summary>
+    /// <returns>The keys.</returns>
+    public HashSet<(string Name, long Sequence)> MergedKeys() =>
+        [.. MergedLinks().Select(link => KeyOf(link.Evidence))];
+
     /// <summary>
     /// Gives the user's merges that the clusters refuse, for example because a split in force would be crossed.
     /// </summary>

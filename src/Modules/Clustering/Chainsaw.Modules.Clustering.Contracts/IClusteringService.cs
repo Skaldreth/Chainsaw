@@ -170,8 +170,12 @@ public interface IClusteringService
     /// <param name="origin">The sealed record the merges came from, or <see langword="null"/>.</param>
     /// <returns>The stored merges, in the order given; they share their journal entry.</returns>
     /// <exception cref="ArgumentException">
-    /// There is no merge, one has fewer than two different addresses or empty or too long grounds, the reason is too
-    /// long, or a merge would join addresses the user has split (undo the split first).
+    /// There is no merge, one has fewer than two different addresses or empty or too long grounds, or the reason is too
+    /// long.
+    /// </exception>
+    /// <exception cref="MergeRefusedException">
+    /// A merge would join addresses the user has split, or would, with the clusters as they stand, stop a merge that
+    /// holds now (undo the split first).
     /// </exception>
     /// <exception cref="CaseException"><see cref="CaseError.NoOperatorProfile"/>.</exception>
     IReadOnlyList<ClusterMerge> Merge(
@@ -189,6 +193,16 @@ public interface IClusteringService
     /// <exception cref="ArgumentException">The reason is too long.</exception>
     /// <exception cref="CaseException"><see cref="CaseError.NoOperatorProfile"/>.</exception>
     int UndoMerges(ICaseTransaction transaction, IReadOnlyCollection<long> mergeSequences, string? reason);
+
+    /// <summary>
+    /// Says what undoing the user's merges would merge again, for the confirmation the user sees before they are
+    /// undone: a heuristic's link that a merge of the user's held back merges once the merge no longer comes first.
+    /// Nothing is stored.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="mergeSequences">The merges' <see cref="ClusterMerge.Sequence"/>.</param>
+    /// <returns>The preview, or <see langword="null"/> when none of the merges exists.</returns>
+    UndoMergePreview? PreviewUndoMerges(ICase @case, IReadOnlyCollection<long> mergeSequences);
 
     /// <summary>Reads every merge the user made, also those undone, each with its undoing, oldest first.</summary>
     /// <param name="case">The open case.</param>

@@ -134,8 +134,17 @@ internal sealed class TestCheckSource : ICheckSource
                 checks, 0, graph.Transactions.Count, new DateTimeOffset(2026, 11, 7, 13, 2, 0, TimeSpan.Zero), []);
     }
 
+    /// <summary>Gets or sets what the next decision throws, as the module does when it refuses; then cleared.</summary>
+    public Exception? DecideFailure { get; set; }
+
     public async Task<IReadOnlyList<CheckDecision>> DecideAsync(ICase @case, IReadOnlyList<DecisionRequest> requests)
     {
+        if (DecideFailure is { } failure)
+        {
+            DecideFailure = null;
+            throw failure;
+        }
+
         Batches++;
         var first = Decisions.Count;
         Decisions.AddRange(requests);

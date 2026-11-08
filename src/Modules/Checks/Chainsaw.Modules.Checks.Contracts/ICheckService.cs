@@ -62,7 +62,10 @@ public interface ICheckService
     /// <param name="case">The open case.</param>
     /// <param name="mergeSequences">The merges' sequences in the clustering.</param>
     /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
-    /// <returns>How many merges were in force and are undone now.</returns>
+    /// <returns>
+    /// How many merges were undone: those named that were in force, and the other merges of the same approval, which
+    /// is taken back as a whole.
+    /// </returns>
     /// <exception cref="ArgumentException">The reason is too long.</exception>
     int TakeBackMerges(ICase @case, IReadOnlyCollection<long> mergeSequences, string? reason);
 

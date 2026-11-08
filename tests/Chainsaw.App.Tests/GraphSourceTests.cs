@@ -147,6 +147,9 @@ internal sealed class TestClustering : IClusteringService
     public int UndoMerges(ICaseTransaction transaction, IReadOnlyCollection<long> mergeSequences, string? reason) =>
         throw new NotSupportedException();
 
+    public UndoMergePreview? PreviewUndoMerges(ICase @case, IReadOnlyCollection<long> mergeSequences) =>
+        throw new NotSupportedException();
+
     /// <summary>Gets the user's merges the case holds.</summary>
     public List<MergeHistoryEntry> MergeHistory { get; } = [];
 

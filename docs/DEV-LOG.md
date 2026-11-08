@@ -2989,12 +2989,29 @@ Byggd som en etapp, eftersom den skriver i ärendet.
 - Versionen är kvar på `wallet-proposals v1` (före 1.0 får det ändras fritt); resultat som förseglats som kontroll
   förseglas om som förslag vid nästa körning.
 
-**Tester:** `MergeTests` (13) i Clustering.Tests, `WalletApprovalTests` (10) i Checks.Tests, och i App.Tests fem i
-`ChecksViewModelTests`, två i `InspectorHistoryTests`, två i `GraphEditorTests` och en i `InspectorFormsTests`. Facit i
-`Tracing.Tests/Golden` har schemat 3.
+**Tester:** `MergeTests` (15) i Clustering.Tests, `WalletApprovalTests` (14) i Checks.Tests, och i App.Tests sex i
+`ChecksViewModelTests`, tre i `InspectorHistoryTests`, två i `GraphEditorTests`, en i `InspectorFormsTests` och en i
+`GraphSceneTests`. Facit i `Tracing.Tests/Golden` har schemat 3.
+
+**Efter granskningen (två I och sex M rättade):**
+- **I1:** en sammanslagning av användaren vägras (`MergeRefusedException`) både när den korsar en uppbrytning och
+  när den, med klustren som de står, skulle få en länk som slår ihop nu att sluta göra det; annars kunde ett
+  godkännande i tysthet bryta upp ett kluster som användaren aldrig brutit upp. Att ångra en sammanslagning i
+  *Historik* visar först vad en heuristik slår ihop igen (`PreviewUndoMerges`, samma bekräftelse som för en
+  uppbrytning), eftersom en tx som analyseras efter godkännandet kan ha hållits tillbaka av det.
+- **I2:** ett godkännande slår bara ihop förslag vars adresser alla finns i plånboken som den förseglades och visades,
+  och vägras om de inte tillsammans håller ihop hela den. `WalletCheck` visar en godkänd plånbok som *Godkänd plånbok*
+  under nyckeln den godkändes med (`CheckInput.ApprovedWallets`), drar av de förslag dess sammanslagningar täcker och
+  föreslår det nya runt den som ett eget förslag, med nyckeln efter den minsta adressen som ingen godkänd plånbok har.
+- **M1:** panelen säger varför ett godkännande vägrades. **M2:** *Varför?* på ett kluster säger *användarens
+  bedömning* när en länk är användarens. **M3:** en godkänd plånbok vars sammanslagning brutits upp heter *Godkänd
+  plånbok, uppbruten* och säger det i *Varför?*. **M4:** texten om förslaget står inte kvar efter godkännandet, och
+  ytan ritas inte när adresserna står i ett kluster. **M5:** *Ångra* i historiken läser om grafen och KF2b-panelen
+  (testat). **M6:** `TakeBackMerges` med en del av ett godkännande tar tillbaka hela och säger hur många som ångrades.
 
 **Återstår:**
-- Ett tydligare fel i panelen när godkännandet vägras för att adresserna är uppbrutna.
+- Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås ihop igen; det gör bara *Historik*. Det
+  behöver en skiss (en bekräftelse i panelen eller i toasten).
 - Att slå ihop för hand utan förslag (välja aktörer och *Slå ihop*) är inte skissat; `Merge` tar redan emot det.
 - `/testdata` har ingen godkänd plånbok än.
 

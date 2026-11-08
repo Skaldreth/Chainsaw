@@ -64,7 +64,12 @@ Den är ändå en bedömning, och den går att ändra som klustringens egna samm
 - **Ångra** godkännandet i listan (**Ctrl+Z**) eller sammanslagningen under *Historik* i inspektören. Båda tar
   tillbaka godkännandet och sammanslagningen tillsammans, så att förslaget väntar igen.
 
-Har du brutit isär adresserna tidigare går förslaget inte att godkänna förrän uppbrytningen är ångrad.
+Efter godkännandet heter förslaget *Godkänd plånbok*. Kommer det fram en ny adress som hör ihop med plånboken blir den
+ett **nytt förslag**, så att ett godkännande aldrig gäller en adress du inte såg.
+
+Har du brutit isär adresserna tidigare, eller skulle sammanslagningen bryta upp ett annat kluster genom en uppbrytning
+du gjort, går förslaget inte att godkänna förrän uppbrytningen är ångrad. Att ångra sammanslagningen under *Historik*
+visar först vad klustringen slår ihop igen.
 
 ## Läs mer
 

@@ -383,6 +383,8 @@ internal sealed class ClusteringService : IClusteringService
             throw new ArgumentException("A merge's origin names its chain.", nameof(origin));
         }
 
+        // The clusters as they stand, before the merges: what holds now must hold after them too (see below).
+        var before = Graph(transaction).MergedKeys();
         var journal = transaction.AppendJournal(new JournalDraft(
             ClusteringJournalKinds.Merged,
             string.Format(
@@ -412,13 +414,19 @@ internal sealed class ClusteringService : IClusteringService
             .Select(request => MergeStore.Append(transaction, request, checkedReason, origin, journal))
             .ToList();
 
-        // Read in the same transaction, with the new merges: one that a split in force would refuse merges nothing,
-        // so it is refused here instead of being stored without effect, and the whole transaction rolls back.
-        var refused = Graph(transaction).RefusedMerges();
+        // Read in the same transaction, with the new merges. One that a split in force would refuse merges nothing,
+        // and one that makes another link stop merging would break up a cluster the user never broke up (the user's
+        // merges come first): either is refused here, and the whole transaction rolls back.
+        var after = Graph(transaction);
+        var refused = after.RefusedMerges();
         if (merges.Any(merge => refused.Contains(merge.Sequence)))
         {
-            throw new ArgumentException(
-                "The addresses are split by the user; undo the split before merging them.", nameof(requests));
+            throw new MergeRefusedException(MergeRefusal.AcrossSplit);
+        }
+
+        if (!before.IsSubsetOf(after.MergedKeys()))
+        {
+            throw new MergeRefusedException(MergeRefusal.BreaksMerge);
         }
 
         return merges;
@@ -451,6 +459,43 @@ internal sealed class ClusteringService : IClusteringService
         }
 
         return merges.Count;
+    }
+
+    /// <inheritdoc/>
+    public UndoMergePreview? PreviewUndoMerges(ICase @case, IReadOnlyCollection<long> mergeSequences)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(mergeSequences);
+        var wanted = mergeSequences.ToHashSet();
+        var (evidence, history, splits) = @case.Read(reader => (
+            EvidenceStore.ReadLatest(reader, withFindings: false).Evidence,
+            MergeStore.ReadHistory(reader),
+            EvidenceStore.ReadSplits(reader)));
+        var named = history.Where(entry => wanted.Contains(entry.Merge.Sequence)).ToList();
+        if (named.Count == 0)
+        {
+            return null;
+        }
+
+        var undone = named.Where(entry => !entry.IsUndone).Select(entry => entry.Merge).ToList();
+        if (undone.Count == 0)
+        {
+            return new UndoMergePreview([], [], []);
+        }
+
+        var inForce = history.Where(entry => !entry.IsUndone).Select(entry => entry.Merge).ToList();
+        var now = new ClusterGraph(evidence, inForce, splits).MergedKeys();
+        var later = new ClusterGraph(evidence, [.. inForce.Where(merge => !wanted.Contains(merge.Sequence))], splits)
+            .MergedLinks()
+            .Where(link => !now.Contains(ClusterGraph.KeyOf(link.Evidence)))
+            .ToList();
+        var rejoined = later
+            .SelectMany(link => link.Evidence.Addresses.Distinct()
+                .Select(address => new ClusterMember(address, link, null)))
+            .DistinctBy(member => member.Address)
+            .ToList();
+        var heuristics = later.Select(link => link.Evidence.Heuristic).Distinct().ToList();
+        return new UndoMergePreview(undone, rejoined, heuristics);
     }
 
     /// <inheritdoc/>

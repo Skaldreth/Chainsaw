@@ -140,6 +140,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     /// <summary>Gets the row whose form is open, or <see langword="null"/>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsOpen), nameof(IsLabelOpen), nameof(IsSplitOpen), nameof(IsLinkOpen))]
+    [NotifyPropertyChangedFor(nameof(IsMergeOpen), nameof(IsConfirmOpen))]
     [NotifyPropertyChangedFor(nameof(SubmitText), nameof(CanSubmit), nameof(ReachesLibrary))]
     public partial HistoryRowViewModel? OpenRow { get; private set; }
 
@@ -151,6 +152,15 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
 
     /// <summary>Gets whether the open form undoes a breaking out, with its confirmation.</summary>
     public bool IsSplitOpen => OpenRow?.Event.Undo == HistoryUndo.UndoSplit;
+
+    /// <summary>Gets whether the open form undoes a merge of the user's own, with its confirmation.</summary>
+    public bool IsMergeOpen => OpenRow?.Event.Undo == HistoryUndo.UndoMerge;
+
+    /// <summary>
+    /// Gets whether the open form shows what merges again before it is stored: undoing a breaking out, or undoing a
+    /// merge of the user's that held a heuristic's link back (AN1b, the user's decision 2026-11-07).
+    /// </summary>
+    public bool IsConfirmOpen => IsSplitOpen || IsMergeOpen;
 
     /// <summary>Gets whether the open form takes a link to another chain back.</summary>
     public bool IsLinkOpen => OpenRow?.Event.Undo == HistoryUndo.Unlink;
@@ -198,7 +208,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     /// </summary>
     public bool CanSubmit => OpenRow is { Event.CanUndo: true } && !IsSaving && _session.Current is not null
         && Reason.Trim().Length <= InspectorForms.MostReasonLength
-        && (!IsSplitOpen || _previewRead);
+        && (!IsConfirmOpen || _previewRead);
 
     /// <summary>Shows the facts (the tab <em>Fakta</em>), closing an open form.</summary>
     [RelayCommand]
@@ -268,7 +278,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         _opened++;
         row.IsOpen = true;
         OpenRow = row;
-        if (row.Event.Undo == HistoryUndo.UndoSplit)
+        if (IsConfirmOpen)
         {
             _ = PreviewAsync(row.Event);
         }
@@ -477,7 +487,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         Notice = events.Count == 0 ? EmptyText : string.Empty;
 
         // A breaking out read again may have other splits in force: its confirmation is read again, the reason kept.
-        if (OpenRow is { Event.Undo: HistoryUndo.UndoSplit } open)
+        if (OpenRow is { Event.Undo: HistoryUndo.UndoSplit or HistoryUndo.UndoMerge } open)
         {
             _previewRead = false;
             OnPropertyChanged(nameof(CanSubmit));
@@ -503,9 +513,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         RejoinNotice = ReadingRejoinText;
         try
         {
-            var from = _node?.Node.GraphAddresses.FirstOrDefault();
-            var preview = await _editor.PreviewUndoSplitsAsync(
-                openCase, @event.SplitSequences, from, CancellationToken.None);
+            var preview = await ReadPreviewAsync(openCase, @event);
             if (opened != _previews)
             {
                 return;
@@ -522,13 +530,31 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         }
     }
 
+    /// <summary>Reads what undoing a row merges again, through the module that owns it.</summary>
+    /// <param name="openCase">The open case.</param>
+    /// <param name="event">A breaking out, or a merge of the user's.</param>
+    /// <returns>The addresses and heuristics, or <see langword="null"/> when nothing of it holds now.</returns>
+    private async Task<Rejoining?> ReadPreviewAsync(ICase openCase, HistoryEvent @event)
+    {
+        if (@event.Undo == HistoryUndo.UndoMerge)
+        {
+            var merges = await _editor.PreviewUndoMergesAsync(openCase, @event.MergeSequences, CancellationToken.None);
+            return merges is { IsInForce: true } ? new Rejoining(merges.Rejoined, merges.Heuristics) : null;
+        }
+
+        var from = _node?.Node.GraphAddresses.FirstOrDefault();
+        var splits = await _editor.PreviewUndoSplitsAsync(
+            openCase, @event.SplitSequences, from, CancellationToken.None);
+        return splits is { IsInForce: true } ? new Rejoining(splits.Rejoined, splits.Heuristics) : null;
+    }
+
     /// <summary>Shows the confirmation: each address that merges again with its heuristic.</summary>
-    /// <param name="preview">What undoing merges, or <see langword="null"/> when the splits are gone.</param>
-    private void ShowPreview(UndoSplitPreview? preview)
+    /// <param name="preview">What undoing merges again, or <see langword="null"/> when nothing of it holds now.</param>
+    private void ShowPreview(Rejoining? preview)
     {
         Rejoined.Clear();
         RejoinMore = string.Empty;
-        if (preview is not { IsInForce: true })
+        if (preview is null)
         {
             RejoinNotice = AlreadyText;
             return;
@@ -563,3 +589,8 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         return new RejoinRow(shortAddress, InspectorForms.ShortName(evidence.Heuristic), tip);
     }
 }
+
+/// <summary>What undoing a row merges again, for the confirmation (sketch AN1b).</summary>
+/// <param name="Rejoined">The addresses that merge again, each with the link that brings it in.</param>
+/// <param name="Heuristics">The heuristics that merge them again.</param>
+internal sealed record Rejoining(IReadOnlyList<ClusterMember> Rejoined, IReadOnlyList<HeuristicId> Heuristics);

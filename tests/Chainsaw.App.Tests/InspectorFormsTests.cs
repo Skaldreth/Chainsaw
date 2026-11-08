@@ -140,6 +140,18 @@ internal sealed class TestGraphEditor : IGraphEditor
     public Task<UndoOutcome> UndoMergesAsync(ICase @case, IReadOnlyList<long> merges, string? reason) =>
         Undo("merge", string.Join(",", merges), reason);
 
+    /// <summary>Gets or sets what undoing merges would merge again; by default nothing, while they hold.</summary>
+    public UndoMergePreview? MergePreview { get; set; } = new([MergeSample], [], []);
+
+    public Task<UndoMergePreview?> PreviewUndoMergesAsync(
+        ICase @case, IReadOnlyList<long> merges, CancellationToken cancellationToken) =>
+        Task.FromResult(MergePreview);
+
+    /// <summary>A merge of the user's that holds, for a preview.</summary>
+    private static ClusterMerge MergeSample => new(
+        3, [GraphSamples.U, GraphSamples.E], GraphSamples.Tx[0], UserMerges.Id, "Grund", null, null, 5,
+        DateTimeOffset.UnixEpoch);
+
     /// <summary>Records a taking back, or throws the set failure.</summary>
     /// <param name="kind">What sort.</param>
     /// <param name="what">Which.</param>

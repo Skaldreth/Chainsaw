@@ -882,6 +882,12 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
 - *Bryt upp* (U) klustret: adressen går ut, uppbrytningen står i historiken som *Uppbruten · 1 ut* (med *Egen*), och den
   kan ångras så att klustret är helt igen.
 - Avfärda ett plånboksförslag (X): inget slås ihop och området försvinner.
+- Efter godkännandet heter raden *Godkänd plånbok* under *Avgjort*, och *Varför?* säger *Du godkände …*. Bryt upp
+  klustret: raden heter *Godkänd plånbok, uppbruten*.
+- Bryt ut en adress ur plånboken (U) och försök sedan godkänna ett förslag som för ihop dem igen: panelen säger att
+  uppbrytningen måste ångras först, och inget sparas.
+- Hämta en tx som för en ny adress till en godkänd plånbok: ett nytt förslag med bara den nya biten väntar.
+- *Ångra* på *Sammanslagen av användaren* i *Historik* visar *Slås ihop igen* innan något sparas.
 
 ## Ethereum, första delen (etapp 23)
 

@@ -150,33 +150,81 @@ public sealed class MergeTests : IDisposable
         var across = new MergeRequest(
             [Wpkh("payer-1"), Wpkh("payer-change")], Payment.Txid, new(HeuristicNames.ChangeAddress, 1), "Växel");
 
-        Assert.Throws<ArgumentException>(() => Write(t => _harness.Service.Merge(t, [across], null, null)));
+        var refused = Assert.Throws<MergeRefusedException>(
+            () => Write(t => _harness.Service.Merge(t, [across], null, null)));
 
+        Assert.Equal(MergeRefusal.AcrossSplit, refused.Refusal);
         Assert.Equal(0, _harness.Count("clustering_merges"));
         Assert.Equal(before, _harness.Case.ReadJournal().Count);
         AssertMembers(_harness.ClusterOf(Wpkh("payer-1")), "payer-1", "payer-2");
     }
 
     [Fact]
-    public void A_users_merge_comes_before_the_heuristics_so_a_heuristic_never_overrules_it_across_a_split()
+    public void A_merge_that_would_break_up_a_cluster_the_user_never_broke_up_is_refused()
     {
-        // The user splits the change from the first payer, and then says the change has the same owner as the
-        // second payer. Common-input-ownership would join the two payers and so bring the split pair together: the
-        // user's merge counts first, and the heuristic's link is only shown as a suggestion.
+        // The user splits the change from the first payer, and then would say the change has the same owner as the
+        // second payer. Common-input-ownership holds the two payers together now; since the user's merges count
+        // first, the merge would push the first payer out of the cluster without the user breaking it out.
         _harness.Service.Split(
             _harness.Case,
             new SplitRequest(Wpkh("payer-change"), Wpkh("payer-1"), HeuristicNames.ChangeAddress, string.Empty));
-        Write(t => _harness.Service.Merge(
+        var before = _harness.Case.ReadJournal().Count;
+        var breaking = new MergeRequest([Wpkh("payer-2"), Wpkh("payer-change")], Payment.Txid, Cio, "Egen bedömning");
+
+        var refused = Assert.Throws<MergeRefusedException>(
+            () => Write(t => _harness.Service.Merge(t, [breaking], null, null)));
+
+        Assert.Equal(MergeRefusal.BreaksMerge, refused.Refusal);
+        Assert.Equal(0, _harness.Count("clustering_merges"));
+        Assert.Equal(before, _harness.Case.ReadJournal().Count);
+        AssertMembers(_harness.ClusterOf(Wpkh("payer-1")), "payer-1", "payer-2");
+    }
+
+    [Fact]
+    public void Undoing_a_merge_says_first_what_a_heuristic_merges_again_without_storing()
+    {
+        // In a case where only the possible CoinJoin is analysed, the user splits the change from the first payer
+        // and merges it with the second payer. The payment is analysed afterwards: its common-input-ownership link
+        // would bring the split pair together, so it only suggests while the user's merge holds.
+        using var harness = new CaseHarness();
+        harness.Analyse(Possible);
+        harness.Service.Split(
+            harness.Case,
+            new SplitRequest(Wpkh("payer-change"), Wpkh("payer-1"), HeuristicNames.ChangeAddress, string.Empty));
+        var merge = Assert.Single(harness.Case.Write(t => harness.Service.Merge(
             t,
             [new MergeRequest([Wpkh("payer-2"), Wpkh("payer-change")], Payment.Txid, Cio, "Egen bedömning")],
             null,
-            null));
+            null)));
+        harness.Analyse(Possible, Payment);
+        var journal = harness.Case.ReadJournal().Count;
 
-        AssertMembers(_harness.ClusterOf(Wpkh("payer-change")), "payer-change", "payer-2");
-        var payer = _harness.ClusterOf(Wpkh("payer-1"));
-        AssertMembers(payer, "payer-1");
-        Assert.Contains(payer.Suggestions, link => link.State == LinkState.SuggestedAfterSplit
-            && link.Evidence.Heuristic.Name == HeuristicNames.CommonInputOwnership);
+        var preview = harness.Service.PreviewUndoMerges(harness.Case, [merge.Sequence]);
+
+        Assert.NotNull(preview);
+        Assert.True(preview.IsInForce);
+        Assert.Equal(merge, Assert.Single(preview.Merges) with { Addresses = merge.Addresses });
+        Assert.Equal(
+            [Wpkh("payer-1").Value, Wpkh("payer-2").Value],
+            preview.Rejoined.Select(member => member.Address.Value).Order());
+        Assert.Equal(HeuristicNames.CommonInputOwnership, Assert.Single(preview.Heuristics).Name);
+        Assert.Equal(journal, harness.Case.ReadJournal().Count);
+        Assert.Equal(0, harness.Count("clustering_merge_undos"));
+    }
+
+    [Fact]
+    public void Undoing_a_merge_that_held_nothing_back_merges_nothing_again()
+    {
+        var merge = Merge(null);
+
+        var preview = _harness.Service.PreviewUndoMerges(_harness.Case, [merge.Sequence]);
+
+        Assert.True(preview!.IsInForce);
+        Assert.Empty(preview.Rejoined);
+        Assert.Empty(preview.Heuristics);
+        Assert.Null(_harness.Service.PreviewUndoMerges(_harness.Case, [999]));
+        Write(t => _harness.Service.UndoMerges(t, [merge.Sequence], null));
+        Assert.False(_harness.Service.PreviewUndoMerges(_harness.Case, [merge.Sequence])!.IsInForce);
     }
 
     [Fact]

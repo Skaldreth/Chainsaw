@@ -105,6 +105,14 @@ public interface IGraphEditor
     /// <param name="reason">Why, or <see langword="null"/>.</param>
     /// <returns>Whether anything was undone.</returns>
     Task<UndoOutcome> UndoMergesAsync(ICase @case, IReadOnlyList<long> merges, string? reason);
+
+    /// <summary>Says what undoing merges of the user's would merge again, without storing anything.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="merges">The merges.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The preview, or <see langword="null"/> when none of the merges exists.</returns>
+    Task<UndoMergePreview?> PreviewUndoMergesAsync(
+        ICase @case, IReadOnlyList<long> merges, CancellationToken cancellationToken);
 }
 
 /// <summary>How a taking back or an undoing went.</summary>
@@ -296,6 +304,15 @@ public sealed class GraphEditor(
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(merges);
         return Task.Run(() => new UndoOutcome(checks.TakeBackMerges(@case, merges, reason) > 0));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoMergePreview?> PreviewUndoMergesAsync(
+        ICase @case, IReadOnlyList<long> merges, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(merges);
+        return Task.Run(() => clustering.PreviewUndoMerges(@case, merges), cancellationToken);
     }
 
     /// <summary>
