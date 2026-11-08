@@ -133,6 +133,30 @@ public sealed class WatcherLoopTests : IDisposable
     }
 
     [Fact]
+    public async Task Quiet_checks_are_merged_into_one_entry_that_keeps_every_response()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync(start: 900_000);
+        _world.WritePlan();
+        _world.Height(900_010);
+        _world.Clock.UtcNow += TimeSpan.FromMinutes(5);
+        Assert.True(await Loop.RunOnceAsync());
+        var first = Queue.Read(_world.Case.Info.Id, Assert.Single(Queue.List(_world.Case.Info.Id)))!;
+
+        _world.Height(900_011);
+        _world.Clock.UtcNow += TimeSpan.FromMinutes(2);
+        Assert.True(await Loop.RunOnceAsync());
+
+        var merged = Queue.Read(_world.Case.Info.Id, Assert.Single(Queue.List(_world.Case.Info.Id)))!;
+        Assert.Empty(merged.Matches);
+        Assert.Equal(first.Utc, merged.Utc);
+        Assert.Equal(900_011, merged.Height);
+        Assert.True(merged.Responses.Count > first.Responses.Count);
+        Assert.All(first.Responses, response => Assert.Contains(merged.Responses, kept =>
+            kept.Sha256 == response.Sha256 && kept.Url == response.Url && kept.ReceivedUtc == response.ReceivedUtc));
+    }
+
+    [Fact]
     public async Task Without_anything_to_watch_it_says_it_stops_and_ends()
     {
         Assert.False(await Loop.RunOnceAsync());

@@ -26,6 +26,9 @@ internal sealed class WatcherLoop
     /// <summary>How long before a failed connection of the exit is tried again.</summary>
     public static readonly TimeSpan ConnectAgain = TimeSpan.FromMinutes(1);
 
+    /// <summary>How many responses a merged quiet entry holds at most before a new one is begun.</summary>
+    public const int MergedResponsesKept = 600;
+
     /// <summary>How many hits per watch it remembers having told of.</summary>
     public const int AlertedKept = 500;
 
@@ -67,6 +70,9 @@ internal sealed class WatcherLoop
 
     /// <summary>The status said last.</summary>
     private (BackgroundState, string?)? _said;
+
+    /// <summary>The last quiet entry queued per watch in this run, which the next quiet check is merged into.</summary>
+    private readonly Dictionary<(Guid, string), QuietEntry> _quiet = [];
 
     /// <summary>When the exit may be connected next, after a failed attempt.</summary>
     private DateTimeOffset _nextConnect = DateTimeOffset.MinValue;
@@ -357,7 +363,7 @@ internal sealed class WatcherLoop
             }
         }
 
-        _parts.Queue.Add(new QueuedCheck(
+        Enqueue(watch, new QueuedCheck(
             Guid.NewGuid(), caseId, watch.WatchId, QueuedKind.Checked, watch.Filter, start, height, checkedNow,
             result.Matches, result.Origins, Responses(scratch, fetched), now)
         {
@@ -381,6 +387,62 @@ internal sealed class WatcherLoop
         };
         KeepProgress();
         return true;
+    }
+
+    /// <summary>
+    /// Queues a check. A quiet check (no matches) is merged into the watch's previous quiet entry from this run, so
+    /// that the queue does not grow by one file and one journal line per check while a case stays closed (etapp 27,
+    /// M3): the merged entry keeps every response of both (nothing fetched is dropped, principle 1) and the later
+    /// check's progress, up to <see cref="MergedResponsesKept"/> responses, after which a new entry is begun.
+    /// </summary>
+    /// <param name="watch">The watch as the plan has it.</param>
+    /// <param name="entry">The check's entry.</param>
+    private void Enqueue(BackgroundWatch watch, QueuedCheck entry)
+    {
+        var key = (entry.CaseId, entry.WatchId);
+        var quiet = entry.Matches.Count == 0;
+        if (quiet && _quiet.TryGetValue(key, out var last) && ReferenceEquals(last.Filter, watch.Filter)
+            && last.Start == entry.Start && last.Responses + entry.Responses.Count <= MergedResponsesKept
+            && ReadQuiet(entry.CaseId, last.Id) is { } before)
+        {
+            var merged = entry with
+            {
+                Id = Guid.NewGuid(),
+                Utc = before.Utc,
+                Responses = [.. before.Responses, .. entry.Responses],
+            };
+            _parts.Queue.Add(merged);
+            _parts.Queue.Remove(entry.CaseId, before.Id);
+            _quiet[key] = new QuietEntry(merged.Id, watch.Filter, merged.Start, merged.Responses.Count);
+            return;
+        }
+
+        _parts.Queue.Add(entry);
+        if (quiet)
+        {
+            _quiet[key] = new QuietEntry(entry.Id, watch.Filter, entry.Start, entry.Responses.Count);
+        }
+        else
+        {
+            _quiet.Remove(key);
+        }
+    }
+
+    /// <summary>Reads a quiet entry back, when it is still in the queue and still quiet.</summary>
+    /// <param name="caseId">The case.</param>
+    /// <param name="id">The entry.</param>
+    /// <returns>The entry, or <see langword="null"/> when Chainsaw has brought it in meanwhile or it cannot be read.</returns>
+    private QueuedCheck? ReadQuiet(Guid caseId, Guid id)
+    {
+        try
+        {
+            return _parts.Queue.Read(caseId, id) is { Kind: QueuedKind.Checked, Matches.Count: 0 } entry ? entry : null;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException
+            or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Reads the responses sealed in the case in memory, to go into the queue.</summary>
@@ -563,6 +625,13 @@ internal sealed class WatcherLoop
         /// <summary>Gets or sets the endpoint in step asked first.</summary>
         public string? InStepWith { get; set; }
     }
+
+    /// <summary>A quiet entry queued in this run.</summary>
+    /// <param name="Id">The entry.</param>
+    /// <param name="Filter">The filter it was checked with, as the plan held it.</param>
+    /// <param name="Start">The start it counted from.</param>
+    /// <param name="Responses">How many responses it holds.</param>
+    private sealed record QuietEntry(Guid Id, WatchFilter Filter, long Start, int Responses);
 
     /// <summary>What the loop knows about one chain.</summary>
     private sealed class ChainState
