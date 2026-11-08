@@ -2,103 +2,614 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
              xmlns:cases="clr-namespace:Chainsaw.Modules.Cases.Contracts;assembly=Chainsaw.Modules.Cases.Contracts"
              Focusable="False" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Cycle">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- The case number (NC2a): 50 px, large and semibold, on the page's ground, the frame in the accent on focus. -->
+        <Style x:Key="TextBox.CaseNumber" TargetType="TextBox">
+            <Setter Property="Height" Value="50" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+            <Setter Property="CaretBrush" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="SelectionBrush" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="Background" Value="{StaticResource Brush.Background}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="FontSize" Value="21" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="12,0,40,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.5" CornerRadius="8">
+                            <Grid>
+                                <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Margin="{TemplateBinding Padding}"
+                                           Padding="2,0" VerticalAlignment="Center" FontWeight="Normal"
+                                           Foreground="{StaticResource Brush.TextFaint}" IsHitTestVisible="False"
+                                           Visibility="Collapsed" />
+                                <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A quiet field with only a line under it (the title, the add row): the line turns to the accent on focus. -->
+        <Style x:Key="TextBox.Quiet" TargetType="TextBox">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+            <Setter Property="CaretBrush" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="SelectionBrush" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <Grid>
+                                <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Padding="2,0"
+                                           VerticalAlignment="Center" FontFamily="{StaticResource Font.Ui}"
+                                           FontSize="{TemplateBinding FontSize}"
+                                           Foreground="{StaticResource Brush.TextFaint}" IsHitTestVisible="False"
+                                           Visibility="Collapsed" />
+                                <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The sharing password fields (NC2a): 38 px, rounded 8, on the page's ground. -->
+        <Style x:Key="PasswordBox.Sharing" TargetType="PasswordBox" BasedOn="{StaticResource PasswordBox.Field}">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Background" Value="{StaticResource Brush.Background}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.5" CornerRadius="8">
+                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A small square button with an icon and a grey ground on hover: × in the head and on a row. -->
+        <Style x:Key="Button.Ghost" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The sharing row (NC2a): the content to the left and a 36 × 20 switch to the right. -->
+        <Style x:Key="Toggle.Row" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="Transparent">
+                            <DockPanel>
+                                <Border x:Name="Track" DockPanel.Dock="Right" Width="36" Height="20" CornerRadius="10"
+                                        Background="{StaticResource Brush.BorderStrong}" VerticalAlignment="Center"
+                                        Margin="12,0,0,0" BorderThickness="0"
+                                        BorderBrush="{StaticResource Brush.AccentHover}">
+                                    <Ellipse x:Name="Knob" Width="14" Height="14" Fill="{StaticResource Brush.Text}"
+                                             HorizontalAlignment="Left" Margin="3,0,0,0" />
+                                </Border>
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Brush.BorderHover}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Brush.Accent}" />
+                                <Setter TargetName="Knob" Property="Margin" Value="19,0,0,0" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="IsChecked" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Brush.AccentHover}" />
+                            </MultiTrigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Track" Property="BorderThickness" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+          One start point (NC2a): the chain's badge, the value in Cascadia Mono and what it is, the red tag when the
+          sanction list names it, and under it the facts fetched in advance or a quiet line why there are none; the
+          block height to the right (its hash on hover), and × on hover (always for what is not recognised).
+        -->
+        <DataTemplate x:Key="StartPointRow" DataType="{x:Type vm:StartPointRowViewModel}">
+            <Border x:Name="Row" Height="62" Padding="12,0,10,0" Background="Transparent"
+                    BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1" ToolTip="{Binding ToolTip}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="32" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- The badge: the chain's sign, TRON's mark, or a dashed frame with a question. -->
+                    <Grid Width="32" Height="32" VerticalAlignment="Center">
+                        <Border x:Name="Badge" CornerRadius="8" Background="{StaticResource Brush.SurfaceRaised}" />
+                        <Rectangle x:Name="Dashed" RadiusX="8" RadiusY="8" Stroke="{StaticResource Brush.BorderStrong}"
+                                   StrokeThickness="1.5" StrokeDashArray="2.5 2" Visibility="Collapsed" />
+                        <TextBlock Text="{Binding Glyph}" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush.Text}" HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                        <controls:GridIcon Size="17" Data="{StaticResource Icon.Chain.Tron}"
+                                           Foreground="{StaticResource Brush.Text}" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Visibility="{Binding IsTron, Converter={StaticResource Visible}}" />
+                        <controls:GridIcon Size="14" Data="{StaticResource Icon.Question}"
+                                           Foreground="{StaticResource Brush.TextDim}" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Visibility="{Binding IsNotRecognised, Converter={StaticResource Visible}}" />
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="Value" Text="{Binding Short}" FontFamily="{StaticResource Font.Mono}"
+                                       FontSize="12.5" Foreground="{StaticResource Brush.Text}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding KindText}" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                       Margin="8,0,0,0" VerticalAlignment="Center" />
+                            <Grid Margin="8,0,0,0" Height="18" VerticalAlignment="Center"
+                                  ToolTip="{Binding Preview.SanctionTip}"
+                                  Visibility="{Binding IsSanctioned, Converter={StaticResource Visible}}">
+                                <Border CornerRadius="9" Background="{StaticResource Brush.Kind.Sanctioned}"
+                                        Opacity="0.12" />
+                                <StackPanel Orientation="Horizontal" Margin="5,0,7,0" VerticalAlignment="Center">
+                                    <controls:GridIcon Size="12" Data="{StaticResource Icon.Kind.Ban}"
+                                                       Foreground="{StaticResource Brush.Kind.Sanctioned}" />
+                                    <TextBlock Text="Sanktionerad" FontSize="11" Margin="4,0,0,0"
+                                               Foreground="{StaticResource Brush.Kind.Sanctioned}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- The facts fetched in advance, apart with small dots. -->
+                        <ItemsControl ItemsSource="{Binding Preview.Facts}" Margin="0,6,0,0" Focusable="False"
+                                      AlternationCount="100"
+                                      Visibility="{Binding IsFetched, Converter={StaticResource Visible}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:PreviewFact}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse x:Name="Dot" Width="3" Height="3" Margin="8,0,8,0"
+                                                 Fill="{StaticResource Brush.TextFaint}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Value}" FontSize="12" Opacity="0.82"
+                                                   Foreground="{StaticResource Brush.Text}" />
+                                        <TextBlock Text="{Binding Unit}" FontSize="12"
+                                                   Foreground="{StaticResource Brush.TextDim}" />
+                                    </StackPanel>
+                                    <DataTemplate.Triggers>
+                                        <!-- No dot before the first fact. -->
+                                        <DataTrigger Value="0"
+                                                     Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource TemplatedParent}}">
+                                            <Setter TargetName="Dot" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- While fetching: three faint bars that pulse where the facts will be. -->
+                        <StackPanel x:Name="Shimmer" Orientation="Horizontal" Height="14" Margin="0,6,0,0"
+                                    Visibility="{Binding IsFetching, Converter={StaticResource Visible}}">
+                            <Border Width="64" Height="8" CornerRadius="4" Background="{StaticResource Brush.SurfaceRaised}" />
+                            <Border Width="38" Height="8" CornerRadius="4" Margin="10,0"
+                                    Background="{StaticResource Brush.SurfaceRaised}" />
+                            <Border Width="108" Height="8" CornerRadius="4" Background="{StaticResource Brush.SurfaceRaised}" />
+                        </StackPanel>
+
+                        <!-- Why there are no facts: waiting for the exit, not built, failed or not recognised. -->
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0"
+                                    Visibility="{Binding HasLine, Converter={StaticResource Visible}}">
+                            <controls:GridIcon Size="13" Data="{StaticResource Icon.Clock}" Margin="0,0,6,0"
+                                               Foreground="{StaticResource Brush.TextDim}"
+                                               Visibility="{Binding IsWaiting, Converter={StaticResource Visible}}" />
+                            <TextBlock Text="{Binding LineText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Background="Transparent" ToolTip="{Binding Preview.HeightTip}"
+                                    Visibility="{Binding IsFetched, Converter={StaticResource Visible}}">
+                            <controls:GridIcon Size="12" Data="{StaticResource Icon.Block}"
+                                               Foreground="{StaticResource Brush.TextDim}" />
+                            <TextBlock Text="{Binding HeightText}" FontSize="11" Margin="5,0,0,0"
+                                       Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Path x:Name="Spinner" Width="14" Height="14" Stretch="None" StrokeThickness="1.5"
+                              Stroke="{StaticResource Brush.TextMuted}" StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round" Data="M7,1 A6,6 0 0 1 13,7" RenderTransformOrigin="0.5,0.5"
+                              Visibility="{Binding IsFetching, Converter={StaticResource Visible}}">
+                            <Path.RenderTransform>
+                                <RotateTransform Angle="0" />
+                            </Path.RenderTransform>
+                        </Path>
+                        <Button x:Name="Remove" Style="{StaticResource Button.Ghost}" Width="24" Height="24"
+                                Margin="6,0,0,0" Opacity="0" Click="OnRemove" ToolTip="Ta bort"
+                                AutomationProperties.Name="Ta bort startpunkten">
+                            <controls:GridIcon Size="13" Data="{StaticResource Icon.Close}"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.Floating}" />
+                    <Setter TargetName="Remove" Property="Opacity" Value="1" />
+                </Trigger>
+                <Trigger SourceName="Remove" Property="IsKeyboardFocused" Value="True">
+                    <Setter TargetName="Remove" Property="Opacity" Value="1" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsNotRecognised}" Value="True">
+                    <Setter TargetName="Remove" Property="Opacity" Value="1" />
+                    <Setter TargetName="Badge" Property="Background" Value="Transparent" />
+                    <Setter TargetName="Dashed" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Value" Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                </DataTrigger>
+                <!-- The pulse and the spinner move only when Windows has animations on. -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsFetching}" Value="True" />
+                        <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <MultiDataTrigger.EnterActions>
+                        <BeginStoryboard x:Name="Fetching">
+                            <Storyboard>
+                                <!-- The shimmer bars pulse, and nothing else of the row. -->
+                                <DoubleAnimation Storyboard.TargetName="Shimmer" Storyboard.TargetProperty="Opacity"
+                                                 From="1" To="0.45" Duration="0:0:0.7" AutoReverse="True"
+                                                 RepeatBehavior="Forever" />
+                                <DoubleAnimation Storyboard.TargetName="Spinner"
+                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                 From="0" To="360" Duration="0:0:1" RepeatBehavior="Forever" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </MultiDataTrigger.EnterActions>
+                    <MultiDataTrigger.ExitActions>
+                        <StopStoryboard BeginStoryboardName="Fetching" />
+                    </MultiDataTrigger.ExitActions>
+                </MultiDataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
     </UserControl.Resources>
 
     <!--
-      Nytt ärende (sketch NC1a): the rest of the window darkens, and the panel comes in from the right, 470 px wide.
+      Nytt ärende (sketch NC2a): the rest of the window darkens, and the panel comes in from the right, 520 px wide.
       A click on the dark part closes the panel, as Avbryt and Esc do.
     -->
     <!-- Clipped, so that the panel's shadow falls on the darkened work only and never over the title bar. -->
     <Grid ClipToBounds="True">
         <Rectangle Fill="#8C000000" MouseLeftButtonDown="OnDimClicked" />
-        <Border HorizontalAlignment="Right" Width="470" Background="{StaticResource Brush.Surface}"
-                BorderBrush="{StaticResource Brush.Border}" BorderThickness="1,0,0,0">
+        <Border HorizontalAlignment="Right" Width="520" Background="{StaticResource Brush.Surface}"
+                BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1,0,0,0">
             <Border.Effect>
-                <DropShadowEffect BlurRadius="40" ShadowDepth="0" Opacity="0.35" Color="Black" />
+                <DropShadowEffect BlurRadius="48" ShadowDepth="0" Opacity="0.35" Color="Black" />
             </Border.Effect>
             <DockPanel>
                 <!-- The head: the name, its shortcut and × -->
-                <Border DockPanel.Dock="Top" Height="56" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1"
-                        Padding="24,0,16,0">
+                <Border DockPanel.Dock="Top" Height="60" Padding="28,0,14,0">
                     <DockPanel>
-                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Window}" Width="30" Height="30"
-                                Click="OnCancel" AutomationProperties.Name="Stäng" ToolTip="Stäng (Esc)">
-                            <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" StrokeThickness="1"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" Width="30" Height="30"
+                                Click="OnCancel" AutomationProperties.Name="Stäng" ToolTip="Stäng · Esc">
+                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Close}"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </Button>
-                        <TextBlock DockPanel.Dock="Right" Text="Ctrl+N" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
-                                   VerticalAlignment="Center" Margin="0,0,12,0" />
-                        <TextBlock Text="Nytt ärende" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock DockPanel.Dock="Right" Text="Ctrl+N" FontSize="11.5"
+                                   Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center"
+                                   Margin="0,0,10,0" />
+                        <TextBlock Text="Nytt ärende" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
                     </DockPanel>
                 </Border>
 
-                <!-- The foot: the shortcut, Avbryt and Skapa ärende -->
-                <Border DockPanel.Dock="Bottom" Height="68" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0"
-                        Padding="24,0">
+                <!-- The foot: Ctrl+Enter, Avbryt and Skapa ärende, dimmed until a case number is written. -->
+                <Border DockPanel.Dock="Bottom" Height="68" BorderBrush="{StaticResource Brush.Border}"
+                        BorderThickness="0,1,0,0" Padding="28,0">
                     <DockPanel VerticalAlignment="Center">
-                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="38" Padding="18,0"
-                                Content="Skapa ärende" Click="OnCreate" Margin="10,0,0,0" ToolTip="Skapa ärende (Ctrl+Enter)"
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="36"
+                                Padding="18,0" FontSize="13.5" Content="Skapa ärende" Click="OnCreate"
+                                Margin="10,0,0,0" ToolTip="Skapa ärende · Ctrl+Enter"
+                                IsEnabled="{Binding CanCreate}" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="36"
+                                Padding="14,0" FontSize="13.5" Content="Avbryt" Click="OnCancel" ToolTip="Avbryt · Esc"
                                 IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}" />
-                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="38" Padding="14,0"
-                                Content="Avbryt" Click="OnCancel" ToolTip="Avbryt (Esc)"
-                                IsEnabled="{Binding IsBusy, Converter={x:Static controls:InvertConverter.Instance}}" />
-                        <TextBlock Text="Ctrl+Enter skapar" FontSize="12.5" Foreground="{StaticResource Brush.TextDim}"
-                                   VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Height="20" Padding="6,0" CornerRadius="5" BorderThickness="1"
+                                    BorderBrush="{StaticResource Brush.BorderStrong}">
+                                <TextBlock Text="Ctrl+Enter" FontSize="11.5" Foreground="{StaticResource Brush.TextMuted}"
+                                           VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="skapar" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                       Margin="6,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
                     </DockPanel>
                 </Border>
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
-                    <StackPanel Margin="24,22,24,22">
-                        <TextBlock Text="Ärendenummer" Style="{StaticResource Text.Label}" />
-                        <TextBox x:Name="CaseNumberBox" Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Ärendenummer"
-                                 MaxLength="{x:Static cases:CaseNumberRules.MaximumLength}"
-                                 Text="{Binding CaseNumber, UpdateSourceTrigger=PropertyChanged}" />
+                    <StackPanel Margin="28,6,28,20">
+                        <!-- The case number, the only thing needed, with a check once it can be a new file. -->
+                        <TextBlock Text="Ärendenummer" FontSize="12" Foreground="{StaticResource Brush.TextMuted}"
+                                   Margin="0,0,0,7" />
+                        <Grid>
+                            <TextBox x:Name="CaseNumberBox" Style="{StaticResource TextBox.CaseNumber}"
+                                     Tag="t.ex. 2026-0117" AutomationProperties.Name="Ärendenummer"
+                                     MaxLength="{x:Static cases:CaseNumberRules.MaximumLength}"
+                                     Text="{Binding CaseNumber, UpdateSourceTrigger=PropertyChanged}" />
+                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Check}" HorizontalAlignment="Right"
+                                               VerticalAlignment="Center" Margin="0,0,16,0"
+                                               Foreground="{StaticResource Brush.Success}"
+                                               Visibility="{Binding IsNumberValid, Converter={StaticResource Visible}}" />
+                        </Grid>
+                        <!-- The file it becomes, quietly; or that a case already has the number. -->
+                        <Grid Height="22">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom"
+                                        Visibility="{Binding IsNumberValid, Converter={StaticResource Visible}}">
+                                <controls:GridIcon Size="12" Data="{StaticResource Icon.Lock}"
+                                                   Foreground="{StaticResource Brush.TextDim}" />
+                                <TextBlock FontSize="11.5" Margin="6,0,0,0" Foreground="{StaticResource Brush.TextDim}"
+                                           VerticalAlignment="Center">
+                                    <Run Text="Krypterad fil" />
+                                    <Run Text="{Binding FileName, Mode=OneWay}" Foreground="{StaticResource Brush.TextMuted}" />
+                                </TextBlock>
+                            </StackPanel>
+                            <TextBlock Text="Ett ärende med numret finns redan" FontSize="11.5" VerticalAlignment="Bottom"
+                                       Foreground="{StaticResource Brush.Error}"
+                                       Visibility="{Binding IsNumberTaken, Converter={StaticResource Visible}}" />
+                        </Grid>
 
-                        <TextBlock Text="Titel" Style="{StaticResource Text.Label}" Margin="0,16,0,6" />
-                        <TextBox Style="{StaticResource TextBox.Field}" AutomationProperties.Name="Titel"
+                        <!-- The title, a quiet line. -->
+                        <TextBox Style="{StaticResource TextBox.Quiet}" Height="38" FontSize="14.5" Margin="0,14,0,0"
+                                 Tag="Titel, valfri" AutomationProperties.Name="Titel"
                                  MaxLength="{x:Static cases:CaseTitleRules.MaximumLength}"
                                  Text="{Binding CaseTitle, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Text="Startpunkter" Style="{StaticResource Text.Label}" Margin="0,16,0,6" />
-                        <TextBox Style="{StaticResource TextBox.Area}" AutomationProperties.Name="Startpunkter"
-                                 ToolTip="En adress eller tx per rad"
-                                 Text="{Binding StartPointsText, UpdateSourceTrigger=PropertyChanged}" />
-                        <ItemsControl ItemsSource="{Binding StartPoints}" ItemTemplate="{StaticResource StartPointLine}"
-                                      Focusable="False" />
+                        <!-- The start points' heading, their number and the way out as a small tag. -->
+                        <DockPanel Margin="0,30,0,0">
+                            <Border DockPanel.Dock="Right" x:Name="ExitChip" Height="22" Padding="9,0" CornerRadius="11"
+                                    BorderThickness="1" ToolTip="{Binding ExitChipTip}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+                                        <Setter Property="TextElement.Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsExitLive}" Value="False">
+                                                <Setter Property="BorderBrush" Value="{StaticResource Brush.Error}" />
+                                                <Setter Property="TextElement.Foreground" Value="{StaticResource Brush.Error}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <controls:GridIcon Size="12">
+                                        <controls:GridIcon.Style>
+                                            <Style TargetType="controls:GridIcon">
+                                                <Setter Property="Data" Value="{StaticResource Icon.Shield}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsExitWindows}" Value="True">
+                                                        <Setter Property="Data" Value="{StaticResource Icon.Monitor}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsExitLive}" Value="False">
+                                                        <Setter Property="Data" Value="{StaticResource Icon.Offline}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </controls:GridIcon.Style>
+                                    </controls:GridIcon>
+                                    <TextBlock Text="{Binding ExitChipText}" FontSize="11.5" Margin="6,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Startpunkter" FontSize="13.5" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding RowCountText}" FontSize="12" Margin="8,0,0,0"
+                                           Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center"
+                                           Visibility="{Binding HasRows, Converter={StaticResource Visible}}" />
+                            </StackPanel>
+                        </DockPanel>
 
-                        <Border Height="1" Background="{StaticResource Brush.Border}" Margin="0,18,0,16" />
-
-                        <ToggleButton Style="{StaticResource Toggle.Switch}" IsChecked="{Binding IsShared}"
-                                      AutomationProperties.Name="Kan öppnas av en kollega">
+                        <!-- The list: a row per start point, and last the row that adds one. -->
+                        <Border Margin="0,10,0,0" CornerRadius="10" Background="{StaticResource Brush.Background}"
+                                BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" ClipToBounds="True">
                             <StackPanel>
-                                <TextBlock Text="Kan öppnas av en kollega" FontSize="14" />
-                                <TextBlock Text="Ett ärendelösenord som du ger kollegan" FontSize="13.5"
-                                           Foreground="{StaticResource Brush.TextMuted}" Margin="0,2,0,0" />
+                                <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource StartPointRow}"
+                                              Focusable="False" />
+                                <Border x:Name="AddRow" Height="52" Padding="12,0" Background="Transparent"
+                                        Cursor="IBeam" MouseLeftButtonDown="OnAddRowClicked">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="32" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid Width="32" Height="32">
+                                            <Rectangle x:Name="Plus" RadiusX="8" RadiusY="8" StrokeThickness="1.5"
+                                                       Stroke="{StaticResource Brush.BorderStrong}" StrokeDashArray="2.5 2"
+                                                       Fill="Transparent" />
+                                            <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}"
+                                                               Foreground="{StaticResource Brush.TextMuted}"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <TextBox x:Name="AddBox" Grid.Column="1" Style="{StaticResource TextBox.Quiet}"
+                                                 BorderThickness="0" Margin="12,0" FontSize="13"
+                                                 FontFamily="{StaticResource Font.Mono}"
+                                                 Tag="Lägg till adress eller tx"
+                                                 MaxLength="{x:Static vm:NewCaseViewModel.MaximumAddLength}"
+                                                 AutomationProperties.Name="Lägg till adress eller tx"
+                                                 Text="{Binding AddText, UpdateSourceTrigger=PropertyChanged}"
+                                                 PreviewKeyDown="OnAddKey" />
+                                        <TextBlock Grid.Column="2" Text="Ctrl+V klistrar in flera" FontSize="11"
+                                                   Foreground="{StaticResource Brush.TextFaint}"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
                             </StackPanel>
-                        </ToggleButton>
-                        <Grid Margin="0,12,0,0" Visibility="{Binding IsShared, Converter={StaticResource Visible}}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="10" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Ärendelösenord" Style="{StaticResource Text.Label}" />
-                                <PasswordBox x:Name="SharingBox" Style="{StaticResource PasswordBox.Field}"
-                                             AutomationProperties.Name="Ärendelösenord" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Upprepa" Style="{StaticResource Text.Label}" />
-                                <PasswordBox x:Name="RepeatBox" Style="{StaticResource PasswordBox.Field}"
-                                             AutomationProperties.Name="Upprepa ärendelösenordet" />
-                            </StackPanel>
-                        </Grid>
+                        </Border>
 
-                        <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" Margin="0,16,0,0" />
+                        <!-- Without an exit, said once under the list. -->
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0"
+                                    Visibility="{Binding IsOfflineNoteShown, Converter={StaticResource Visible}}">
+                            <controls:GridIcon Size="13" Data="{StaticResource Icon.Offline}"
+                                               Foreground="{StaticResource Brush.Error}" />
+                            <TextBlock Text="Offline: hämtas när utgången är ansluten. Ärendet kan skapas ändå."
+                                       FontSize="12" Margin="8,0,0,0" Foreground="{StaticResource Brush.TextMuted}"
+                                       TextWrapping="Wrap" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Before the first start point: the forms that are recognised, and what is sent. -->
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0"
+                                    Visibility="{Binding HasRows, Converter={x:Static controls:InvertVisibility.Instance}}">
+                            <Border Height="22" Padding="8,0" CornerRadius="6" BorderThickness="1"
+                                    BorderBrush="{StaticResource Brush.Border}">
+                                <TextBlock FontSize="11.5" VerticalAlignment="Center" Foreground="{StaticResource Brush.TextMuted}">
+                                    <Run Text="₿" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
+                                    <Run Text="Bitcoin" />
+                                </TextBlock>
+                            </Border>
+                            <Border Height="22" Padding="8,0" CornerRadius="6" BorderThickness="1" Margin="8,0,0,0"
+                                    BorderBrush="{StaticResource Brush.Border}">
+                                <TextBlock FontSize="11.5" VerticalAlignment="Center" Foreground="{StaticResource Brush.TextMuted}">
+                                    <Run Text="Ξ" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
+                                    <Run Text="Ethereum" />
+                                </TextBlock>
+                            </Border>
+                            <Border Height="22" Padding="8,0" CornerRadius="6" BorderThickness="1" Margin="8,0,0,0"
+                                    BorderBrush="{StaticResource Brush.Border}">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <controls:GridIcon Size="12" Data="{StaticResource Icon.Chain.Tron}"
+                                                       Foreground="{StaticResource Brush.Text}" />
+                                    <TextBlock Text="TRON" FontSize="11.5" Margin="6,0,0,0"
+                                               Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="Bara adressen eller tx:en skickas." FontSize="11.5" Margin="12,0,0,0"
+                                       Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Kan öppnas av en kollega, and its two password fields when it is on. -->
+                        <Border Margin="0,26,0,0" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0"
+                                Padding="0,18,0,0">
+                            <StackPanel>
+                                <ToggleButton Style="{StaticResource Toggle.Row}" IsChecked="{Binding IsShared}"
+                                              AutomationProperties.Name="Kan öppnas av en kollega">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="8"
+                                                Background="{StaticResource Brush.SurfaceRaised}" Margin="0,0,12,0">
+                                            <controls:GridIcon x:Name="ShareIcon" Size="16" Data="{StaticResource Icon.People}">
+                                                <controls:GridIcon.Style>
+                                                    <Style TargetType="controls:GridIcon">
+                                                        <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsShared}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </controls:GridIcon.Style>
+                                            </controls:GridIcon>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Kan öppnas av en kollega" FontSize="13.5" />
+                                            <TextBlock Text="Med ett ärendelösenord som du lämnar över" FontSize="12"
+                                                       Foreground="{StaticResource Brush.TextDim}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </ToggleButton>
+                                <Grid Margin="44,14,0,0" Visibility="{Binding IsShared, Converter={StaticResource Visible}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Ärendelösenord" FontSize="12" Margin="0,0,0,6"
+                                                   Foreground="{StaticResource Brush.TextMuted}" />
+                                        <PasswordBox x:Name="SharingBox" Style="{StaticResource PasswordBox.Sharing}"
+                                                     AutomationProperties.Name="Ärendelösenord" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Upprepa" FontSize="12" Margin="0,0,0,6"
+                                                   Foreground="{StaticResource Brush.TextMuted}" />
+                                        <PasswordBox x:Name="RepeatBox" Style="{StaticResource PasswordBox.Sharing}"
+                                                     AutomationProperties.Name="Upprepa ärendelösenordet" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="12.5"
+                                   Margin="0,16,0,0" />
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>

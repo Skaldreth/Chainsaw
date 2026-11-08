@@ -1227,3 +1227,37 @@ ligger bredvid `Chainsaw.exe`.
   en röd markering *Rapporterad* och etiketten står i Historik med Chainabuse som källa.
 - Klicka på en ledtråd `+N tx` vid en adress med lång historik och tryck Esc medan *Läser historiken …* står: läsningen
   stoppas, grafen kommer tillbaka och en toast säger att det som redan hämtats ligger kvar i ärendet. Inget fel visas.
+
+## Nytt ärende NC2a (2026-11-08)
+
+- [ ] Ctrl+N: panelen från höger är 520 px bred, resten mörkas. Rubriken *Nytt ärende*, *Ctrl+N* och × (Esc). Markören står
+      i det stora fältet *Ärendenummer* med *t.ex. 2026-0117* svagt; ramen är i accenten medan fältet har tangentbordet.
+- [ ] Skriv `2026-0117`: en grön bock i fältet och under det hänglåset och *Krypterad fil 2026-0117.cut*. Ett nummer som redan finns
+      ger ingen bock utan *Ett ärende med numret finns redan* i rött. *Skapa ärende* är nedtonad tills ett nummer finns.
+- [ ] *Titel, valfri* är en tyst rad med bara en linje under, som blir accent med tangentbordet.
+- [ ] Utan startpunkter: listan har bara raden *+ Lägg till adress eller tx · Ctrl+V klistrar in flera*, och under den
+      brickorna ₿ Bitcoin, Ξ Ethereum, TRON och *Bara adressen eller tx:en skickas.* Vid rubriken *Startpunkter* står
+      *via Windows* (skärmen) eller *via <utgången>* (skölden); hovra för vad som skickas.
+- [ ] Skriv en Bitcoin-adress i raden: när du slutar skriva (knappt en sekund) blir den en rad, och fältet töms. Enter gör
+      det direkt. Raden skimrar (tre pulserande streck och en snurra till höger) och fylls sedan med saldo i BTC, antal
+      tx och *mars 2024 → 29 okt* (eller *senast 29 okt* när adressen har fler än de nyaste tx:erna), och kuben med
+      blockhöjden till höger. Hovra kuben: *Hämtat vid block …*, *Senaste tx i block …* och blockets hash.
+- [ ] Jämför saldot och antalet tx med mempool.space för samma adress. Inget visas som källan inte gav.
+- [ ] En Ethereum-adress visar antal tx (med `+` när det finns äldre) och aktiviteten, inget saldo (källan ger inget). En
+      Bitcoin-tx visar beloppet ut, antal in och ut och dagen; en Ethereum-tx ether, antal överföringar och dagen.
+- [ ] En TRON-adress får TRON-märket och *TRON hämtas inte, inte byggt än*. Skriv `hej` och Enter: en rad med streckad
+      ruta, *?* och *Känns inte igen som adress eller tx*, och × syns hela tiden. *Skapa ärende* säger då vilken rad.
+- [ ] Kopiera fyra adresser på var sin rad och tryck Ctrl+V i raden (eller var som helst i panelen utom i ett fält): fyra
+      rader. Samma adress två gånger blir en rad. Text som inte känns igen sägs i en rad längst ner.
+- [ ] Hovra en rad: den ljusnar och × kommer fram; × tar bort raden.
+- [ ] En adress på den importerade sanktionslistan får den röda brickan *Sanktionerad*; hovra för listan, datumet och
+      namnet. Efter *Skapa ärende* har adressen etiketten Sanktionerad i grafen.
+- [ ] Offline (VPN vald och inte ansluten, eller Windows utan nät): brickan säger *Offline* i rött, raderna klockan och *Väntar på
+      utgången*, och under listan en gång *Offline: hämtas när utgången är ansluten. Ärendet kan skapas ändå.* Anslut:
+      raderna hämtas utan att något görs. Kontrollera i utgångens logg att inget gick ut medan den var nere.
+- [ ] Skapa ärendet efter att raderna hämtats: journalen har *N råsvar som hämtades i Nytt ärende innan ärendet fanns
+      förseglades i ärendet* (`app.prefetch-sealed`) och `/verify` säger att inget har ändrats.
+- [ ] Avbryt efter hämtningar: ingen fil skapas i Ärenden och inget ligger kvar i `%TEMP%` eller `%LOCALAPPDATA%`.
+- [ ] *Kan öppnas av en kollega*: ikonen med två personer, reglaget till höger; påslaget fäller ut *Ärendelösenord* och
+      *Upprepa* (38 px, rundade) indragna under texten.
+- [ ] Med Windows animeringar avstängda står skimret och snurran stilla.

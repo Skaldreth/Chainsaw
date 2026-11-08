@@ -5,16 +5,18 @@ using Chainsaw.Modules.Cases.Contracts;
 using Microsoft.Data.Sqlite;
 using SQLitePCL;
 
-namespace Chainsaw.Watcher;
+namespace Chainsaw.Modules.Cases;
 
 /// <summary>
-/// A case in memory, for one round of the background watching: it has the modules' tables, so that the chains'
-/// sources answer, pace and seal their raw responses exactly as in a real case, and nothing more. It has no file, no
-/// journal and no key, and is thrown away after the round, once the responses are in the protected queue. It never
-/// touches a real case or the vault (CLAUDE.md, <em>Bevaka</em>).
+/// A case in memory (see <see cref="IMemoryCase"/>): it has the modules' tables, so that the chains' sources answer,
+/// pace and seal their raw responses exactly as in a real case, and nothing more. It has no file, no journal and no
+/// key, and is thrown away when disposed. It never touches a real case, the vault or the disk.
 /// </summary>
-internal sealed class ScratchCase : ICase
+internal sealed class MemoryCase : IMemoryCase
 {
+    /// <summary>The case number a case in memory goes by; it is never a file.</summary>
+    internal const string MemoryCaseNumber = "minne";
+
     /// <summary>The one connection; SQLite in memory lives as long as it.</summary>
     private readonly SqliteConnection _connection;
 
@@ -28,14 +30,14 @@ internal sealed class ScratchCase : ICase
     private readonly List<(string Chain, long Sequence)> _sealed = [];
 
     /// <summary>Loads SQLite once per process.</summary>
-    static ScratchCase()
+    static MemoryCase()
     {
         Batteries_V2.Init();
     }
 
     /// <summary>Creates the case with the modules' tables.</summary>
     /// <param name="contributors">The modules' tables.</param>
-    public ScratchCase(IEnumerable<ICaseSchemaContributor> contributors)
+    public MemoryCase(IEnumerable<ICaseSchemaContributor> contributors)
     {
         ArgumentNullException.ThrowIfNull(contributors);
         _connection = new SqliteConnection("Data Source=:memory:");
@@ -55,7 +57,7 @@ internal sealed class ScratchCase : ICase
             }
         }
 
-        Info = new CaseInfo(Guid.NewGuid(), "bakgrund", DateTimeOffset.UtcNow);
+        Info = new CaseInfo(Guid.NewGuid(), MemoryCaseNumber, DateTimeOffset.UtcNow);
     }
 
     /// <inheritdoc/>
@@ -76,10 +78,7 @@ internal sealed class ScratchCase : ICase
     /// <inheritdoc/>
     public IReadOnlyList<string> RecoveryFingerprints => [];
 
-    /// <summary>Gives the records of one sealed chain sealed after a mark, oldest first.</summary>
-    /// <param name="chain">The chain.</param>
-    /// <param name="mark">The mark, from <see cref="Mark"/>.</param>
-    /// <returns>Their numbers.</returns>
+    /// <inheritdoc/>
     public IReadOnlyList<long> SealedSince(string chain, int mark)
     {
         lock (_gate)
@@ -88,8 +87,7 @@ internal sealed class ScratchCase : ICase
         }
     }
 
-    /// <summary>Gives a mark for <see cref="SealedSince"/>: how many records are sealed now.</summary>
-    /// <returns>The mark.</returns>
+    /// <inheritdoc/>
     public int Mark()
     {
         lock (_gate)
@@ -134,7 +132,9 @@ internal sealed class ScratchCase : ICase
     }
 
     /// <inheritdoc/>
-    /// <exception cref="NotSupportedException">The background keeps no journal; the case it reports to does.</exception>
+    /// <exception cref="NotSupportedException">
+    /// A case in memory keeps no journal; the case it is brought into does.
+    /// </exception>
     public JournalEntry AppendJournal(JournalDraft draft) => throw NoJournal();
 
     /// <inheritdoc/>
@@ -217,7 +217,7 @@ internal sealed class ScratchCase : ICase
     }
 
     /// <summary>
-    /// Hashes a record over the previous hash and its content. The scratch chain is never verified; the hash only
+    /// Hashes a record over the previous hash and its content. The chain in memory is never verified; the hash only
     /// keeps the table's form, and the response is sealed for real in the case it is brought into.
     /// </summary>
     /// <param name="previous">The previous hash.</param>
@@ -253,12 +253,12 @@ internal sealed class ScratchCase : ICase
     /// <summary>The error for a journal line.</summary>
     /// <returns>The error.</returns>
     private static NotSupportedException NoJournal() =>
-        new("The background keeps no journal; the case it reports to does.");
+        new("A case in memory keeps no journal; the case it is brought into does.");
 
-    /// <summary>A read or write in the scratch case.</summary>
+    /// <summary>A read or write in the case in memory.</summary>
     /// <param name="owner">The case.</param>
     /// <param name="transaction">The transaction.</param>
-    private sealed class Scope(ScratchCase owner, SqliteTransaction transaction) : ICaseTransaction
+    private sealed class Scope(MemoryCase owner, SqliteTransaction transaction) : ICaseTransaction
     {
         /// <inheritdoc/>
         public DbCommand CreateCommand(string sql)

@@ -161,6 +161,7 @@ public partial class App : Application
                 .AddSingleton<CaseSession>()
                 .AddSingleton<CaseWorkflow>()
                 .AddSingleton<LockSignal>()
+                .AddSingleton<IStartPointPrefetch, StartPointPrefetch>()
                 .AddSingleton<NewCaseViewModel>()
                 .AddSingleton<StartPointInput>()
                 .AddSingleton<IShellCommand, NewCaseCommand>()

@@ -25,6 +25,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Chainsaw.SharedKernel\Chainsaw.SharedKernel.csproj" />
+    <ProjectReference Include="..\Modules\Cases\Chainsaw.Modules.Cases\Chainsaw.Modules.Cases.csproj" />
     <ProjectReference Include="..\Modules\Security\Chainsaw.Modules.Security\Chainsaw.Modules.Security.csproj" />
     <ProjectReference Include="..\Modules\Network\Chainsaw.Modules.Network\Chainsaw.Modules.Network.csproj" />
     <ProjectReference Include="..\Modules\Chains\Chainsaw.Modules.Chains\Chainsaw.Modules.Chains.csproj" />

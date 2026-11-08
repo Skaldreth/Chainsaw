@@ -1,3 +1,5 @@
+using Chainsaw.Modules.Cases;
+using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Monitoring;
@@ -129,19 +131,18 @@ internal static class WatcherServices
             provider.GetRequiredService<IResponseTransfer>(),
             provider.GetRequiredService<IAlerts>(),
             provider.GetRequiredService<IClock>()));
-        services.AddSingleton<Func<ScratchCase>>(provider =>
+        services.AddMemoryCases();
+        services.AddSingleton<Func<IMemoryCase>>(provider =>
         {
             // Only the chains' tables: the round's case in memory holds the raw responses and nothing else.
-            var tables = provider.GetServices<Modules.Cases.Contracts.ICaseSchemaContributor>()
-                .Where(each => each.SealedChains.Any(chain => chain.Name == SealedResponses.Chain))
-                .ToList();
-            return () => new ScratchCase(tables);
+            var cases = provider.GetRequiredService<IMemoryCases>();
+            return () => cases.Create(SealedResponses.Chain);
         });
         services.AddSingleton(provider => new WatcherLoop(
             provider.GetRequiredService<WatcherParts>(),
             provider.GetRequiredService<IExitRoute>(),
             provider.GetRequiredService<WatcherGate>(),
-            provider.GetRequiredService<Func<ScratchCase>>()));
+            provider.GetRequiredService<Func<IMemoryCase>>()));
 
         // Last, so that what a test puts in place wins.
         configure?.Invoke(services);

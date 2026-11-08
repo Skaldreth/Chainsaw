@@ -388,7 +388,7 @@
                                       Margin="100,4,0,0" />
                 </Grid>
 
-                <!-- Nytt ärende (NC1a): over everything under the title bar, with the rest darkened. -->
+                <!-- Nytt ärende (NC2a): over everything under the title bar, with the rest darkened. -->
                 <views:NewCasePanel x:Name="NewCasePanel" Grid.Row="1" />
 
                 <!-- The settings (ST1a): a dialog in the middle, over everything under the title bar, the rest darkened. -->

@@ -93,7 +93,17 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 31. **Sonarn är borttagen** (användarens beslut 2026-11-08: *det blev inte bra alls*): ingen puls runt *Nytt ärende*,
     i första gången-läget eller runt den tomma startpunkten, och `SonarRing` är borttagen. Markeringarna i grafen som
     CLAUDE.md kallar sonar (EX2:s intressanta kort) får en egen, lugn form när de byggs, efter en skiss.
-38. **Nytt ärende är NC2a** (användarens beslut 2026-11-08). Byggs.
+38. **Nytt ärende är NC2a** (användarens beslut 2026-11-08). Byggt 2026-11-08; det som återstår:
+    - **Ethereums saldo:** källan ger inget saldo för en adress, så raden visar bara antal tx och aktivitet. Ett
+      uppslag av saldot (ETH och tokens) i `IEthereumSource` behövs för att visa det.
+    - **Kedjans hash vid höjden:** `GetTipHeightAsync` ger bara höjden, så hashen i raden är den senaste tx:ens block.
+      `/blocks/tip/hash` (Esplora) och motsvarande för Blockscout skulle ge hashen för det saldot bygger på.
+    - **Det förhandshämtade som cache:** råsvaren förseglas i ärendet som underlag (`IResponseTransfer`), men läggs
+      inte i uppslagens index, så grafens första expansion hämtar adressen igen. Ett eget steg i Chains kunde låta
+      dem svara som cache för det som inte kan ha ändrats.
+    - **Sanktionslistans Ethereum-adresser** kontrolleras inte än (som i Attribution), så brickan visas bara för
+      Bitcoin.
+    - **Platshållare i *Upprepa*** (*Samma igen* i skissen): `PasswordBox` har ingen, och den är inte byggd.
 39. **Granskning av alla byggda vyer mot skisserna** (användarens synpunkt 2026-11-08: många delar är kraftigt
     förenklade). Gjord 2026-11-08. Skalet och dialogerna följer skisserna nära; förenklingarna sitter i grafens
     arbetsytor. Att bygga om, i ordning:
