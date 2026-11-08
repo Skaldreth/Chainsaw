@@ -506,10 +506,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   nästa del med ett klick. Historiken läses högst 2 000 tx bakåt (`HeldBackList.Most`), och högst 500 till runt den
   spårade ankomsten när grafen har en tx vid adressen att läsa bakåt från; längre historik behöver ett tidsfönster
   mot källan (se *Tidsfönster för en adress historik*).
-- **En lång läsning av historiken går inte att avbryta** (användarens beslut 2026-11-08: Esc avbryter; utplockningen
-  journalförs inte, den är grafens läge) (upp till 2 000 tx i källans takt, några dussin uppslag):
-  stöten och *Läser …* står kvar tills den är klar. Lägg en *Avbryt* (Esc) vid ledtråden som avbryter läsningen; det
-  som redan hämtats ligger förseglat i ärendet ändå.
 - **Avsteg från skissen:** pillen står där hopplayouten lägger den i adressens kolumn, inte alltid rakt under adressen;
   högens linje har summan mitt på linjen, inte vid högen; inspektörens kolumn står kvar bredvid valvyn; motpartens
   grupp *Spel* omfattar all gul sort (spel, handel, presentkort) som i skissen. Etiketten *Rapporterad* (Chainabuse)

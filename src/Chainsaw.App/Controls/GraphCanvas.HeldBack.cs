@@ -733,6 +733,12 @@ public sealed partial class GraphCanvas
     /// <returns><see langword="true"/> when the view took it.</returns>
     private bool HeldBackKey(Key key)
     {
+        // Esc while the history is still read stops the read (the user's decision 2026-11-08).
+        if (key == Key.Escape && _model?.StopHeldBackRead() == true)
+        {
+            return true;
+        }
+
         if (_model?.HeldBack is not { } view)
         {
             return false;

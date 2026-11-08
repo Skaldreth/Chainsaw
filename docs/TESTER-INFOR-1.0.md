@@ -1213,3 +1213,5 @@ ligger bredvid `Chainsaw.exe`.
   med en adress (Bitcoin eller Ethereum): ikonen *Fråga om rapporter* (skölden) står i ikonlisten, och R gör samma sak.
   Ett kluster, offline eller med Chainabuse av: ikonen syns inte. Svaret kommer som en toast; finns rapporter får noden
   en röd markering *Rapporterad* och etiketten står i Historik med Chainabuse som källa.
+- Klicka på en ledtråd `+N tx` vid en adress med lång historik och tryck Esc medan *Läser historiken …* står: läsningen
+  stoppas, grafen kommer tillbaka och en toast säger att det som redan hämtats ligger kvar i ärendet. Inget fel visas.

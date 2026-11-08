@@ -401,6 +401,33 @@ public sealed class HeldBackTests
     }
 
     [Fact]
+    public async Task Esc_stops_a_long_read_and_says_that_what_was_fetched_stays()
+    {
+        var source = new TestGraphSource { ReadUntilCancelled = true };
+        var session = new CaseSession();
+        var workflow = new CaseWorkflow(
+            new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), session);
+        var graph = new GraphViewModel(
+            session, workflow, source, TestWays.For(new TestExitConnection()), new InlineUi(), new TestGraphEditor(),
+            new TestClock());
+        var toasts = new List<ToastRequest>();
+        graph.ToastWanted += (_, toast) => toasts.Add(toast);
+        session.Open(new TestCase("2026-0001"));
+        await graph.ReloadAsync(fit: true);
+
+        var reading = graph.OpenHeldBackAsync(Clue);
+        Assert.NotNull(graph.OpeningClue);
+        Assert.True(graph.StopHeldBackRead());
+        await reading;
+
+        Assert.Null(graph.OpeningClue);
+        Assert.Null(graph.HeldBack);
+        Assert.False(graph.StopHeldBackRead());
+        Assert.Contains(toasts, toast => toast.Title == GraphViewModel.HeldBackStoppedText);
+        Assert.DoesNotContain(toasts, toast => toast.Title == GraphViewModel.HeldBackFailedText);
+    }
+
+    [Fact]
     public async Task A_history_that_cannot_be_read_says_so_and_opens_nothing()
     {
         var source = new TestGraphSource();

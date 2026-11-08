@@ -66,9 +66,15 @@ internal sealed class TestGraphSource : IGraphSource
     /// <summary>The transactions brought in from what was held back, per pick.</summary>
     public List<IReadOnlyCollection<Txid>> Taken { get; } = [];
 
+    /// <summary>A read that waits until it is cancelled, when set.</summary>
+    public bool ReadUntilCancelled { get; set; }
+
     public Task<HeldBackChoices> ListHeldBackAsync(
         ICase @case, HeldBackClue clue, GraphScene scene, CancellationToken cancellationToken) =>
-        HeldBack is { } make
+        ReadUntilCancelled
+            ? Task.Delay(Timeout.Infinite, cancellationToken).ContinueWith<HeldBackChoices>(
+                _ => throw new OperationCanceledException(cancellationToken), TaskScheduler.Default)
+            : HeldBack is { } make
             ? Task.FromResult(make(clue))
             : Task.FromException<HeldBackChoices>(new InvalidOperationException("Offline"));
 

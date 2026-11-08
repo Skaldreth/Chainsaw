@@ -51,6 +51,12 @@ public sealed partial class GraphViewModel
     /// <summary>Gets whether a pile is fanned out.</summary>
     public bool HasFan => Fan is not null;
 
+    /// <summary>What the toast says when Esc stopped a read of the history.</summary>
+    public const string HeldBackStoppedText = "Läsningen avbröts. Det som redan hämtats ligger kvar i ärendet.";
+
+    /// <summary>Stops the read of the history under way, or <see langword="null"/> when none is.</summary>
+    private CancellationTokenSource? _reading;
+
     /// <summary>
     /// Gets the clue whose held-back transactions are being read, so that the graph is sent out in the circular blast
     /// at once (sketch EX1) while they come; <see langword="null"/> otherwise.
@@ -166,6 +172,41 @@ public sealed partial class GraphViewModel
     public async Task OpenHeldBackAsync(HeldBackClue clue)
     {
         ArgumentNullException.ThrowIfNull(clue);
+        using var reading = CancellationTokenSource.CreateLinkedTokenSource(_work.Token);
+        _reading = reading;
+        try
+        {
+            await OpenHeldBackCoreAsync(clue, reading.Token);
+        }
+        finally
+        {
+            _reading = null;
+        }
+    }
+
+    /// <summary>
+    /// Esc while the history is read (the user's decision 2026-11-08): stops the read, brings the graph back and says
+    /// that what was already fetched stays sealed in the case.
+    /// </summary>
+    /// <returns><see langword="true"/> when a read was under way and is stopped.</returns>
+    public bool StopHeldBackRead()
+    {
+        if (OpeningClue is null || _reading is not { } reading)
+        {
+            return false;
+        }
+
+        reading.Cancel();
+        Tell(ToastKind.Information, HeldBackStoppedText);
+        return true;
+    }
+
+    /// <summary>Opens the selection view, reading the history with a token that Esc can stop.</summary>
+    /// <param name="clue">The clue.</param>
+    /// <param name="token">Stops the read.</param>
+    /// <returns>A task that completes when the view is open, or could not be.</returns>
+    private async Task OpenHeldBackCoreAsync(HeldBackClue clue, CancellationToken token)
+    {
         if (clue.Address is null)
         {
             await ExpandClueAsync(clue);
@@ -184,7 +225,7 @@ public sealed partial class GraphViewModel
         HeldBackChoices choices;
         try
         {
-            choices = await _source.ListHeldBackAsync(openCase, clue, scene, _work.Token);
+            choices = await _source.ListHeldBackAsync(openCase, clue, scene, token);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
