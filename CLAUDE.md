@@ -512,10 +512,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     kuvert, egenskaperna har fliken *Kuvert*, och efter en krasch väljer man gren (filen eller arbetskopian).
   - **KR1a:** sökningen i kommandoraden är en lista med *Bästa träff* överst och grupperna Etiketter, Adresser, Tx,
     Kluster och Guide; den valda raden visas direkt i grafen.
-  - **TL3a** (vald 2026-11-08): vyn Tidslinje har en vågrät bana per aktör, en tx är ett lodrätt streck mellan banorna,
+  - **TL3a** (vald och byggd 2026-11-08): vyn Tidslinje har en vågrät bana per aktör, en tx är ett lodrätt streck mellan banorna,
     tx som ligger tätt samlas med en siffra som zoomar till timmar, ärendets egna händelser står på en egen bana, och
     en inspektör till höger visar fakta ur kedjan.
-  - **FL1a** (vald 2026-11-08): vyn Flöde är en Sankey med en kolumn per hopp från vänster till höger, varje band delat
+  - **FL1a** (vald och byggd 2026-11-08): vyn Flöde är en Sankey med en kolumn per hopp från vänster till höger, varje band delat
     i trådar i färgen för var pengarna till sist hamnade, det som ligger kvar som en stump, och spårningsmetoden som
     räknar om delningen.
   - **PL1b** (vald 2026-11-08): att ångra en godkänd plånbok (Ctrl+Z eller *Ångra* i KF2b) bekräftas i grafen, där

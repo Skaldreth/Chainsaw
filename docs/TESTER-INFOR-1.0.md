@@ -2754,6 +2754,47 @@ ligger bredvid `Chainsaw.exe`.
   linje dit. Hovra *Okänt*: en aktör som inte är expanderad sägs som *Aktören är inte expanderad*.
 - Släng en börs i soptunnan och öppna Exponering: börsen räknas fortfarande som en tjänst.
 
+### Tidslinje (TL3a)
+
+- Öppna `/testdata` och tryck **Ctrl+2**: pillrets ikon *Tidslinje* är inte nedtonad. En bana per aktör står till
+  vänster med sortens lilla nod, namnet och en svag rad under, i ungefär hoppens ordning, och **Ärendet** sist under en
+  tunn linje.
+- Varje tx är ett lodrätt streck från avsändarens bana till mottagarens, med en prick där pengarna lämnar och en ring
+  där de kommer fram, tjockare ju större beloppet är och i färgen för vad pengarna blev (accent, blått, gult, rött,
+  lila, grått). Förslaget ur mixern och bytaren till Ethereum är streckade.
+- **Dygn:** dygnen står prickade med *tis 13 okt* ovanför (siffran ljusare), långa tomma sträckor är ett smalt band med
+  sicksack och antalet dygn, och *nu* står i accent när det syns. Tx som ligger tätt står med en siffra i en liten
+  rund bricka; ett klick zoomar till **timmar** runt dem, med `‹ N` och `N ›` för det som ligger utanför. Ctrl+− och
+  Ctrl++ byter också.
+- Ärendets bana: etiketterna (lapp), besluten (bock) och bevakningens träff (ögat), med en prickad tråd upp till
+  aktören; träffen har ögat med ringar och beloppet på den bevakade aktörens bana.
+- Slå av brickor i huvudet (till exempel allt utom *Uttag* och *Risk och slut*): strecken tonas nästan bort, brickan
+  stryks över och räknaren nere till vänster säger *N av M händelser*.
+- Listen längst ner visar hela ärendet med ett streck per händelse och en ljus ruta runt det som syns ovanför.
+- Klicka ett streck: inspektören till höger visar *avsändare → mottagare*, beloppet stort med kronor (när kursen
+  finns), blocktid lokalt och i UTC, block, blockhash och txid i Cascadia Mono med Kopiera, *PÅ BANAN* med
+  händelserna på mottagarens bana, och det som är bedömning (metoden, förslaget, bevakningen) i en streckad ruta med
+  *Varför?*, som öppnar Guidens panel. Ett grått streck (inte spårat) har ingen streckad ruta.
+- ← och → stegar mellan händelserna; hjulet rullar banorna när de inte får plats.
+- *Visa i grafen* (eller G): grafen visas med tx:ens två aktörer och linje markerade och ett meddelande.
+
+### Flöde (FL1a)
+
+- Öppna `/testdata` och tryck **Ctrl+3**: offret står till vänster under *Offren*, en kolumn per hopp, en stapel per
+  aktör lika hög som pengarna genom den, och banden mellan dem lika breda som beloppet.
+- Banden är delade i trådar i färgen för var pengarna **till sist** hamnade (blått börserna, gult spelsajten och
+  butiken, rött mixern och darknet, lila bytaren); det som ligger kvar står som en kort stump i accent med *ligger kvar
+  · belopp*. Bortom mixerns godkända troliga utgång är trådarna randiga och streckade, och nyckeln *förslag* står i
+  huvudet.
+- **Metoden** står i en streckad ruta (FIFO och Haircut): byt till Haircut, och delningen räknas om; pengar som inte är
+  offrens blir grå trådar i fler band. *?* bredvid öppnar Guidens avsnitt om spårningsmetoderna.
+- Till höger *FRÅN OFFREN* med summan och en rad per färg med andel. Klicka ett band eller en stapel: trådarna där
+  lyser och resten tonas ner; nere står var de hamnade, andelen av offrens, de största vägarna som brickor med tx:erna,
+  *+N vägar*, underlaget (`FIFO v1`, `flow v1`, *Klustring*, *Förslag*) och *Varför?*.
+- *Visa vägen i grafen* (eller G): grafen visas med vägen markerad.
+- BTC och SEK uppe till höger syns bara när varje del har en kurs; byt och se att beloppen skrivs i kronor.
+- Ett ärende utan startpunkt och utan offer: vyn säger ärligt att flödet börjar hos offren.
+
 ### Rapporten (RP1b)
 
 - Pillret har *Rapport* sist bland vyerna, med Ctrl+8, och bara med ett ärende öppet.

@@ -3893,3 +3893,31 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   tidigare sanktion på mixern.
 - **Skriver i ärendet (granskas):** den nya etiketten (förseglad som de andra), och hämtningarna av start-tx, som nu
   också görs när ärendet öppnas och när utgången ansluts.
+
+## Vyerna Tidslinje (TL3a) och Flöde (FL1a) (2026-11-08)
+
+- **Byggt:** vyn *Tidslinje* (Ctrl+2) med en bana per aktör, en tx som ett lodrätt streck i färgen för vad pengarna
+  blev och tjockt som beloppet, dygn med tomma sträckor bortklippta (sicksack och antal dygn), täta tx samlade med en
+  siffra som zoomar till timmar, ärendets egna händelser (egna etiketter, beslut om förslag och bevakningens träffar)
+  på en egen bana, brickor som döljer sorter, listen med hela ärendet och inspektören med fakta ur kedjan, *PÅ BANAN*,
+  bedömningen i en streckad ruta med *Varför?* och *Visa i grafen*. Vyn *Flöde* (Ctrl+3) som Sankey: en kolumn per
+  hopp, trådar i färgen för var pengarna till sist hamnade, grå trådar för pengar som inte är offrens, stumpen för det
+  som ligger kvar, randigt och streckat bortom något osäkert, metoden som räknar om delningen, *FRÅN OFFREN*, vägarna
+  med tx:erna och underlaget, *Varför?* och *Visa vägen i grafen*. Båda läser utanför UI-tråden bara medan de syns,
+  skriver inget i ärendet och visar ärligt när det inte finns något. `Graph/TimelineReading`, `TimelineScale`,
+  `TimelineLayout`, `TimelinePicture`, `FlowReading`, `FlowLayout`; vymodellerna `TimelineViewModel` och
+  `FlowViewModel`; kontrollerna `TimelineChart`, `TimelineStripView` och `FlowChart`. Guiden har avsnitten *Vyn
+  Tidslinje* och *Flödet*. 26 nya tester i `TimelineViewTests` och `FlowViewTests`.
+- **Egna beslut:** flödet är en egen analys, `flow v1`, som läser varje aktör som en plånbok och följer grafens
+  överföringar i tidsordning med Tracings metod (FIFO eller haircut); varje del behåller sin väg, så att tråden kan
+  färgas efter var den hamnade. Offren är startpunkterna och aktörerna med etiketten offer; pengar från någon annan
+  som når ett offer räknas som offrets, eftersom spåret börjar där. Pengar som aldrig möter offrens tas inte med.
+  En aktör med fler än 120 delar slår ihop de minsta (och vyn säger det), och delar under 0,2 % ritas inte men räknas.
+  Kronorna i flödet räknas per del ur kursen på dess första linje och visas bara när varje del har en.
+  Tidslinjens banor ordnas efter hopp och sedan första händelse; ett tomt avsnitt längre än två dygn klipps bort.
+  Besluten läses ur `ChecksViewModel.Stored`, bevakningens träffar ur `WatchBoard`.
+- **Avsteg från skisserna:** metodens val har bara FIFO och Haircut, eftersom LIFO och poison inte finns i Tracing
+  (TODO, fråga 1 till kryptospåraren). Avgiften är ingen egen tråd: den ligger kvar hos den som betalade. Tidslinjens
+  bevakningsträff har bevakningens egen turkos ton (`Brush.Watch`) i stället för skissens dova guld. En obekräftad tx
+  står vid dygnens högra kant, streckad. *Varför?* i tidslinjen öppnar Guidens nya avsnitt i stället för klustringens.
+- **Kvar:** se `docs/BACKLOG.md`, *Tidslinje och Flöde, efter bygget*.
