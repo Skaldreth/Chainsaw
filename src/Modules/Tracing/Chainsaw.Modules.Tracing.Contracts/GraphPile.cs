@@ -62,6 +62,21 @@ public sealed record HeldBackClue(
     /// <summary>The prefix of a clue's key.</summary>
     public const string KeyPrefix = "held-back:";
 
+    /// <summary>
+    /// Gets the address whose history can be read for what was held back (sketch EX1), or <see langword="null"/> when
+    /// the clue is a transaction's or an Ethereum address's, where the next part is brought in instead.
+    /// </summary>
+    public Chains.Contracts.BitcoinAddress? Address { get; init; }
+
+    /// <summary>Gets how many held-back transactions the user picked out (sketch EX2).</summary>
+    public int Chosen { get; init; }
+
+    /// <summary>
+    /// Gets the date the clue says under its count: the oldest picked transaction's when some were picked, else the
+    /// oldest brought in, since what was held back is older; <see langword="null"/> when no time is known.
+    /// </summary>
+    public DateTimeOffset? Oldest { get; init; }
+
     /// <summary>How many more transactions one press on a clue brings in, the same as a first expansion.</summary>
     public const int NextPart = 50;
 }

@@ -167,7 +167,7 @@ end CoinJoin 670000 haircut v1 [092c843523ed690b2c4d873ac5870d28937d4112c574166a
 end Unspent 79296666 haircut v1 [092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45, 119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab, 387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc, 3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0] coin=092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45:1 tx= node=address:bc1q08c8d27arxn49kmjv7ll7tusygtp6ysdud76zd True basis=[] links=0 Myntet var ospenderat när ärendet senast frågade; det kan ha flyttats sedan.
   why Spårat belopp 0.79296666 BTC enligt haircut v1, räknat genom 4 tx: 092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45, 119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab, 387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc, 3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0. Det är en bedömning enligt metoden, inte ett faktum på kedjan.
 # journal
-1 case.created Ärendet 2026-0077 skapades av Testa Testsson {"caseId":"<case>","caseNumber":"2026-0077","createdUtc":"2026-11-07T01:02:03.0000000\u002B00:00","schema":{"cases":2,"clustering":2,"tracing":3},"recoveryKey":null}
+1 case.created Ärendet 2026-0077 skapades av Testa Testsson {"caseId":"<case>","caseNumber":"2026-0077","createdUtc":"2026-11-07T01:02:03.0000000\u002B00:00","schema":{"cases":2,"clustering":2,"tracing":4},"recoveryKey":null}
 2 tracing.start-point-added Startpunkt för spårningen: a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e {"kind":"transaction","subject":"a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e"}
 3 clustering.analysed Klustring av 2 tx: 1 sammanslagningar, 1 förslag, 0 stoppade, 0 CoinJoin. {"transactions":2,"results":2,"heuristics":["coinjoin v1","common-input-ownership v1","change-address v1","peel-chain v1"],"merges":1,"suggestions":1,"stopped":0,"coinJoins":[],"failed":[],"heldBack":[]}
 4 clustering.analysed Klustring av 3 tx: 0 sammanslagningar, 1 förslag, 0 stoppade, 0 CoinJoin. {"transactions":3,"results":1,"heuristics":["coinjoin v1","common-input-ownership v1","change-address v1","peel-chain v1"],"merges":0,"suggestions":1,"stopped":0,"coinJoins":[],"failed":[],"heldBack":[]}
@@ -201,7 +201,7 @@ table clustering_evidence 16
 table clustering_split_undos 0
 table clustering_splits 0
 table journal 7
-  1 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | case.created | Ärendet 2026-0077 skapades av Testa Testsson | {"caseId":"<case>","caseNumber":"2026-0077","createdUtc":"2026-11-07T01:02:03.0000000\u002B00:00","schema":{"cases":2,"clustering":2,"tracing":3},"recoveryKey":null} | <hash>
+  1 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | case.created | Ärendet 2026-0077 skapades av Testa Testsson | {"caseId":"<case>","caseNumber":"2026-0077","createdUtc":"2026-11-07T01:02:03.0000000\u002B00:00","schema":{"cases":2,"clustering":2,"tracing":4},"recoveryKey":null} | <hash>
   2 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | tracing.start-point-added | Startpunkt för spårningen: a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e | {"kind":"transaction","subject":"a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e"} | <hash>
   3 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | clustering.analysed | Klustring av 2 tx: 1 sammanslagningar, 1 förslag, 0 stoppade, 0 CoinJoin. | {"transactions":2,"results":2,"heuristics":["coinjoin v1","common-input-ownership v1","change-address v1","peel-chain v1"],"merges":1,"suggestions":1,"stopped":0,"coinJoins":[],"failed":[],"heldBack":[]} | <hash>
   4 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | clustering.analysed | Klustring av 3 tx: 0 sammanslagningar, 1 förslag, 0 stoppade, 0 CoinJoin. | {"transactions":3,"results":1,"heuristics":["coinjoin v1","common-input-ownership v1","change-address v1","peel-chain v1"],"merges":0,"suggestions":1,"stopped":0,"coinJoins":[],"failed":[],"heldBack":[]} | <hash>
@@ -211,7 +211,7 @@ table journal 7
 table schema_version 3
   cases | 2
   clustering | 2
-  tracing | 3
+  tracing | 4
 table sealed_chain 6
   cases.journal | journal | ["utc","local","time_zone","operator_name","operator_title","operator_organization","kind","summary","details"]
   cases.title | case_title | ["utc","title"]
@@ -221,11 +221,11 @@ table sealed_chain 6
   tracing.cross_chain | tracing_cross_chain | ["action","link_sequence","from_txid","from_output","to_chain","to_id","reason","journal_sequence","recorded_utc"]
 table tracing_cross_chain 0
 table tracing_expansions 5
-  transaction | 092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45 | ["092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45","c751e0f41c333c3001b3958c67036040a752d2d3d425709f9b59997fbd90a412"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  | 
-  transaction | 119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab | ["119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab","387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc","cb72d5db2fd1eeedea8a2c9aaef863914ccf9a63f096641f9a3b84731968db35"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  | 
-  transaction | 387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc | ["387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc","092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45","edeb522e93cc7a69b9b38d871537143bcb9f6e04547166d54f33a3040b375d34"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  | 
-  transaction | 3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0 | ["3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0","119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  | 
-  transaction | a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e | ["a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e","3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  | 
+  transaction | 092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45 | ["092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45","c751e0f41c333c3001b3958c67036040a752d2d3d425709f9b59997fbd90a412"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  |  | [] | 2026-11-07T01:02:03.0000000+00:00
+  transaction | 119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab | ["119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab","387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc","cb72d5db2fd1eeedea8a2c9aaef863914ccf9a63f096641f9a3b84731968db35"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  |  | [] | 2026-11-07T01:02:03.0000000+00:00
+  transaction | 387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc | ["387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc","092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45","edeb522e93cc7a69b9b38d871537143bcb9f6e04547166d54f33a3040b375d34"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  |  | [] | 2026-11-07T01:02:03.0000000+00:00
+  transaction | 3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0 | ["3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0","119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  |  | [] | 2026-11-07T01:02:03.0000000+00:00
+  transaction | a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e | ["a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e","3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0"] | 1 | 2026-11-07T01:02:03.0000000+00:00 | 0 |  |  | [] | 2026-11-07T01:02:03.0000000+00:00
 table tracing_picked 0
 table tracing_positions 0
 table tracing_start_points 1

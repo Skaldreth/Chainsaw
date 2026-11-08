@@ -148,7 +148,10 @@ internal static class GraphStateStore
     /// <summary>
     /// Stores an expansion. An earlier expansion of the same address or transaction keeps what it brought in: the
     /// graph only grows when the user expands, and expanding again with a lower limit or after newer history never
-    /// takes transactions out of it. Whether it is complete is what the newest expansion says.
+    /// takes transactions out of it. Whether it is complete is what the newest expansion says. What was held back
+    /// stays when the newest expansion did not read the whole history (a lookup failed midway, or the user only picked
+    /// some transactions out), so that the clue never goes for good; the picked transactions add up, and the first
+    /// expansion's time keeps the expansion's place in the order.
     /// </summary>
     /// <param name="transaction">The case's transaction.</param>
     /// <param name="expansion">The expansion.</param>
@@ -160,13 +163,19 @@ internal static class GraphStateStore
             KindOf(stored) == kind && stored.Subject == expansion.Subject);
         if (earlier is not null)
         {
+            var readAll = expansion.IsComplete && expansion.Chosen.Count == 0;
             expansion = expansion with
             {
                 Transactions = [.. expansion.Transactions.Concat(earlier.Transactions).Distinct()],
                 EthereumTransactions =
                     [.. expansion.EthereumTransactions.Concat(earlier.EthereumTransactions).Distinct()],
+                Chosen = [.. expansion.Chosen.Concat(earlier.Chosen).Distinct()],
+                HeldBack = expansion.HeldBack ?? (readAll ? null : earlier.HeldBack),
+                FirstExpandedUtc = earlier.FirstExpandedUtc ?? earlier.ExpandedUtc,
             };
         }
+
+        expansion = expansion with { FirstExpandedUtc = expansion.FirstExpandedUtc ?? expansion.ExpandedUtc };
 
         IEnumerable<string> brought = kind is EthereumAddressKind or EthereumTransactionKind
             ? expansion.EthereumTransactions.Select(hash => hash.Value)
@@ -174,11 +183,12 @@ internal static class GraphStateStore
 
         using var command = transaction.CreateCommand("""
             INSERT INTO tracing_expansions (kind, subject, transactions, complete, expanded_utc, held_back,
-                held_back_taken, held_back_available)
-            VALUES ($kind, $subject, $transactions, $complete, $utc, $held, $taken, $available)
+                held_back_taken, held_back_available, chosen, first_expanded_utc)
+            VALUES ($kind, $subject, $transactions, $complete, $utc, $held, $taken, $available, $chosen, $first)
             ON CONFLICT (kind, subject) DO UPDATE SET transactions = excluded.transactions,
                 complete = excluded.complete, expanded_utc = excluded.expanded_utc, held_back = excluded.held_back,
-                held_back_taken = excluded.held_back_taken, held_back_available = excluded.held_back_available
+                held_back_taken = excluded.held_back_taken, held_back_available = excluded.held_back_available,
+                chosen = excluded.chosen, first_expanded_utc = excluded.first_expanded_utc
             """);
         command
             .AddParameter("$kind", kind)
@@ -188,7 +198,9 @@ internal static class GraphStateStore
             .AddParameter("$utc", Text(expansion.ExpandedUtc))
             .AddParameter("$held", expansion.HeldBack is null ? 0L : 1L)
             .AddParameter("$taken", (long?)expansion.HeldBack?.Taken)
-            .AddParameter("$available", expansion.HeldBack?.Available);
+            .AddParameter("$available", expansion.HeldBack?.Available)
+            .AddParameter("$chosen", JsonSerializer.Serialize(expansion.Chosen.Select(txid => txid.Value)))
+            .AddParameter("$first", Text(expansion.FirstExpandedUtc!.Value));
         command.ExecuteNonQuery();
         return expansion;
     }
@@ -385,14 +397,14 @@ internal static class GraphStateStore
 
     /// <summary>Reads the expansions.</summary>
     /// <param name="reader">The case's reader.</param>
-    /// <returns>The expansions, in the order they were last expanded.</returns>
+    /// <returns>The expansions, in the order they were first expanded.</returns>
     private static List<Expansion> ReadExpansions(ICaseReader reader)
     {
         using var command = reader.CreateCommand("""
             SELECT kind, subject, transactions, complete, expanded_utc, held_back, held_back_taken,
-                   held_back_available
+                   held_back_available, chosen, first_expanded_utc
             FROM tracing_expansions
-            ORDER BY expanded_utc, kind, subject
+            ORDER BY COALESCE(first_expanded_utc, expanded_utc), kind, subject
             """);
         using var rows = command.ExecuteReader();
         var expansions = new List<Expansion>();
@@ -423,7 +435,12 @@ internal static class GraphStateStore
                     EthereumTransactions = [.. transactions.Select(EthereumTxHash.Parse)],
                 },
                 _ => new Expansion(null, Txid.Parse(subject), [.. transactions.Select(Txid.Parse)], complete, utc),
-            }) with { HeldBack = heldBack });
+            }) with
+            {
+                HeldBack = heldBack,
+                Chosen = [.. (JsonSerializer.Deserialize<List<string>>(rows.GetString(8)) ?? []).Select(Txid.Parse)],
+                FirstExpandedUtc = rows.IsDBNull(9) ? utc : Time(rows, 9),
+            });
         }
 
         return expansions;

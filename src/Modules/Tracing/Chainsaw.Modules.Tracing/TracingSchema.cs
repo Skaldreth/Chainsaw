@@ -100,6 +100,15 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The fourth version: which held-back transactions the user picked out of an expansion (sketch EX2), and when a
+    /// subject was first expanded, so that an expansion done again keeps its place in the order the piles follow.
+    /// </summary>
+    private const string Version4 = """
+        ALTER TABLE tracing_expansions ADD COLUMN chosen TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE tracing_expansions ADD COLUMN first_expanded_utc TEXT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -109,6 +118,7 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         new(1, "Spårningens graf (start, expanderat, platser) och länkar till andra kedjor", Version1),
         new(2, "Grafens läge: spårningsmetod, vy, belopp och det som syns", Version2),
         new(3, "Det som hölls tillbaka vid en expansion och det som plockats ur högarna", Version3),
+        new(4, "Utplockade tx ur det som hölls tillbaka, och när en expansion gjordes första gången", Version4),
     ];
 
     /// <inheritdoc/>

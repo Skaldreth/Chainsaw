@@ -1,3 +1,4 @@
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.Modules.Tracing;
@@ -69,7 +70,7 @@ internal static class PileRules
             .ThenBy(pair => pair.Key.Side)
             .Select(pair => Pile(pair.Key.Anchor, pair.Key.Side, pair.Value, state))
             .ToList();
-        return (piles, Clues(graph, state));
+        return (piles, Clues(graph, state, facts));
     }
 
     /// <summary>Gives a pile's key: the side and the expanded actor's position key.</summary>
@@ -181,10 +182,11 @@ internal static class PileRules
     /// </summary>
     /// <param name="graph">The graph.</param>
     /// <param name="state">The graph's state.</param>
+    /// <param name="facts">The transfers by transaction.</param>
     /// <returns>The clues.</returns>
-    private static List<HeldBackClue> Clues(TraceGraph graph, GraphState state)
+    private static List<HeldBackClue> Clues(TraceGraph graph, GraphState state, TransferIndex facts)
     {
-        var clues = new List<(string Anchor, long? Remaining, ExpansionRequest Next)>();
+        var clues = new List<(string Anchor, long? Remaining, ExpansionRequest Next, Expansion Expansion)>();
         foreach (var expansion in state.Expansions)
         {
             if (expansion.HeldBack is not { } heldBack || AnchorOf(graph, expansion) is not { } anchor)
@@ -192,25 +194,51 @@ internal static class PileRules
                 continue;
             }
 
-            var taken = Math.Max(heldBack.Taken, expansion.Transactions.Count + expansion.EthereumTransactions.Count);
+            var taken = Math.Max(heldBack.Taken, Brought(expansion));
             long? remaining = heldBack.Available is { } available ? available - taken : null;
             if (remaining <= 0 || NextOf(expansion, taken + HeldBackClue.NextPart) is not { } next)
             {
                 continue;
             }
 
-            clues.Add((anchor.Key, remaining, next));
+            clues.Add((anchor.Key, remaining, next, expansion));
         }
 
         return
         [
-            .. clues.GroupBy(clue => clue.Anchor, StringComparer.Ordinal).Select(group => new HeldBackClue(
-                ClueKey(group.Key),
-                group.Key,
-                group.All(clue => clue.Remaining is not null) ? group.Sum(clue => clue.Remaining!.Value) : null,
-                [.. group.Select(clue => clue.Next)],
-                PlacesOf(ClueKey(group.Key), state))),
+            .. clues.GroupBy(clue => clue.Anchor, StringComparer.Ordinal).Select(group =>
+            {
+                var expansions = group.Select(clue => clue.Expansion).ToList();
+                var chosen = expansions.SelectMany(expansion => expansion.Chosen).Select(txid => txid.Value).ToList();
+                var dated = chosen.Count > 0
+                    ? chosen
+                    : [.. expansions.SelectMany(expansion => expansion.Transactions).Select(txid => txid.Value)];
+                return new HeldBackClue(
+                    ClueKey(group.Key),
+                    group.Key,
+                    group.All(clue => clue.Remaining is not null) ? group.Sum(clue => clue.Remaining!.Value) : null,
+                    [.. group.Select(clue => clue.Next)],
+                    PlacesOf(ClueKey(group.Key), state))
+                {
+                    Address = expansions.Select(expansion => expansion.Address).OfType<BitcoinAddress>()
+                        .FirstOrDefault(),
+                    Chosen = chosen.Count,
+                    Oldest = facts.Oldest(dated),
+                };
+            }),
         ];
+    }
+
+    /// <summary>
+    /// Gives how many transactions an expansion brought in past its subject: a transaction's expansion holds the
+    /// transaction itself besides its spenders, and the spenders are what its limit counts.
+    /// </summary>
+    /// <param name="expansion">The expansion.</param>
+    /// <returns>The count.</returns>
+    private static int Brought(Expansion expansion)
+    {
+        var all = expansion.Transactions.Count + expansion.EthereumTransactions.Count;
+        return expansion.Txid is { } own && expansion.Transactions.Contains(own) ? all - 1 : all;
     }
 
     /// <summary>Gives the lookup that expands the same subject again with a higher limit.</summary>
@@ -271,6 +299,15 @@ internal static class PileRules
                     }
                 }
             }
+        }
+
+        /// <summary>Gives the oldest confirmation time among transactions.</summary>
+        /// <param name="ids">The transactions' ids.</param>
+        /// <returns>The time, or <see langword="null"/> when none is known.</returns>
+        public DateTimeOffset? Oldest(IEnumerable<string> ids)
+        {
+            var times = ids.Where(_times.ContainsKey).Select(id => _times[id]).ToList();
+            return times.Count == 0 ? null : times.Min();
         }
 
         /// <summary>Gives the actors that take part in a transaction.</summary>
