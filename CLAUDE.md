@@ -339,8 +339,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   `#33373A` / `#45474A`), text i kräm och grått (`#FBF6F0` / `#9AA2A6` / `#7C8387`), lyckat `#8CC98F`, fel `#FF6B5E` (ett klart rött, inte rosa;
   användarens beslut 2026-11-08),
   och **accenten terrakotta `#C55A3D`** med kräm på. Stegen räknas ut ur paletten i `Themes/Colors.xaml`. Accenten
-  betyder alltid offrens pengar och det valda; den ligger nära risk (rött) och spenderas (gult), som får hållas isär
-  på ljushet.
+  betyder alltid offrens pengar och det valda; den ligger nära risk (rött, `#FF5A4E`, inte rosa: användarens beslut
+  2026-11-08) och spenderas (gult), som får hållas isär på ljushet.
 - **Typsnitt:** Segoe UI Variable, Cascadia Mono bara för hashar, txid och adresser i inspektören samt terminalen.
 - **Grafen är hjärtat.** Det är där man arbetar mest. Den bygger på idéerna från Gawks Byggare (en duk med noder, portar och
   kopplingar), anpassad för spårning. Scrubbern, tidslinjen och kolumner med kort tas över i formen.

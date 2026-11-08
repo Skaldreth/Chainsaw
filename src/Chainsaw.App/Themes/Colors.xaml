@@ -62,8 +62,9 @@
     <!-- The graph's colours by what happens to the money (sketches GR3a and GR3c). -->
     <SolidColorBrush x:Key="Brush.Kind.CashOut" Color="#8DBAFF" />
     <SolidColorBrush x:Key="Brush.Kind.Spent" Color="#E0B872" />
-    <SolidColorBrush x:Key="Brush.Kind.Risk" Color="#EC8C8C" />
-    <SolidColorBrush x:Key="Brush.Kind.Sanctioned" Color="#FF7A7A" />
+    <!-- Risk and the end of the trail: a clear red, not pink (the user's decision 2026-11-08), lighter than the accent. -->
+    <SolidColorBrush x:Key="Brush.Kind.Risk" Color="#FF5A4E" />
+    <SolidColorBrush x:Key="Brush.Kind.Sanctioned" Color="#FF4545" />
     <SolidColorBrush x:Key="Brush.Kind.OtherChain" Color="#C8A6E8" />
     <SolidColorBrush x:Key="Brush.Kind.Cluster" Color="#9AA2A6" />
     <SolidColorBrush x:Key="Brush.Kind.Unknown" Color="#7C8387" />
@@ -72,7 +73,7 @@
     <SolidColorBrush x:Key="Brush.Graph.Lane" Color="#262A2E" />
     <SolidColorBrush x:Key="Brush.Graph.LaneText" Color="#747575" />
     <SolidColorBrush x:Key="Brush.Graph.Untraced" Color="#676969" />
-    <SolidColorBrush x:Key="Brush.Graph.DashedFrame" Color="#6B4040" />
+    <SolidColorBrush x:Key="Brush.Graph.DashedFrame" Color="#7A3B36" />
     <SolidColorBrush x:Key="Brush.Graph.ChainFrame" Color="#5A4870" />
     <!-- The marks' discs and the icons on them (sketches GR3a and GR3c). -->
     <SolidColorBrush x:Key="Brush.Mark.OnCashOut" Color="#0F1C2E" />
@@ -110,7 +111,7 @@
     <Color x:Key="Color.Graph.HourLine">#55585C</Color>
     <SolidColorBrush x:Key="Brush.Strip.HeldBack" Color="#6A6D71" />
     <!-- The areas behind the actors (sketch KF1b): drawn faint as fill and a little stronger as edge. -->
-    <SolidColorBrush x:Key="Brush.Area.Red" Color="#EC8C8C" />
+    <SolidColorBrush x:Key="Brush.Area.Red" Color="#FF5A4E" />
     <SolidColorBrush x:Key="Brush.Area.Sand" Color="#D6C4A0" />
     <SolidColorBrush x:Key="Brush.Area.Grey" Color="#C8C8C8" />
     <SolidColorBrush x:Key="Brush.Area.Lila" Color="#C8A6E8" />

@@ -3776,5 +3776,8 @@ Byggt efter skisserna ID8f och LS1b (omgång 2) och användarens beslut samma da
   fönster.
 - Partiklarna tonas inte röda vid pulsen (de ritas med färdiga tecken i accenten).
 
-**Återstår:** att prova allt på Windows (`docs/TESTER-INFOR-1.0.md`). Grafens risk (`Kind.Risk`, `Area.Red`) är
-fortfarande den ljusa rosa tonen; det är ett eget beslut om grafens färger.
+- **Risken också röd** (användarens beslut samma dag): `Kind.Risk` och `Area.Red` är `#FF5A4E` (4,95:1 mot botten,
+  ljusare än accenten), `Kind.Sanctioned` är `#FF4545` och den streckade ramen vid slutet på spåret `#7A3B36`.
+
+**Återstår:** att prova allt på Windows (`docs/TESTER-INFOR-1.0.md`). Risken och sanktionerad ligger nära varandra i
+ljushet; sanktionerad skiljs fortfarande av sin markering i hörnet.

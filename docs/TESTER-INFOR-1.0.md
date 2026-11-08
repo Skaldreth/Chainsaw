@@ -1928,5 +1928,8 @@ några steg).
 - Fel är nu ett klart rött (`#FF6B5E`), inte rosa: felraden på låsskärmen och i formulären, toasterna för fel, vägen och
   ringen i utgångsrutan när inga uppslag går, och Guidens figurer för fel (kontrollsumma, offline, endpoints). Texten
   ska gå lätt att läsa på mörk botten.
-- Grafens risk är oförändrad: aktörer med negativ etikett i det som hölls tillbaka och i högen har riskfärgen, inte
-  felfärgen.
+- Grafens risk är också röd (`#FF5A4E`), inte rosa: darknet, mixer, CoinJoin och andra riskaktörer, det röda området
+  bakom aktörerna, rutan *Risk och slut* i bildspråket, etiketterna i vyn Etiketter och Exponeringens andelar.
+  Sanktionerad är ett renare rött med sin markering. Kontrollera att risken går att skilja från accenten (offrens
+  pengar) i grafen, på ljusheten.
+- Aktörer med negativ etikett i det som hölls tillbaka och i högen har riskfärgen, inte felfärgen.
