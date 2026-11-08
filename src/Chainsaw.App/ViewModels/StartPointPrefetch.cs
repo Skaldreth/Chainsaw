@@ -52,6 +52,9 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// <summary>Ethereum's source.</summary>
     private readonly IEthereumSource _ethereum;
 
+    /// <summary>TRON's source, or <see langword="null"/> where it is not registered.</summary>
+    private readonly ITronSource? _tron;
+
     /// <summary>The imported sanction lists.</summary>
     private readonly ISanctionLists _sanctions;
 
@@ -74,18 +77,21 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// <param name="ethereum">Ethereum's source.</param>
     /// <param name="sanctions">The imported sanction lists.</param>
     /// <param name="clock">The clock.</param>
+    /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
     public StartPointPrefetch(
         IMemoryCases memory,
         IResponseTransfer transfer,
         IBitcoinSource bitcoin,
         IEthereumSource ethereum,
         ISanctionLists sanctions,
-        IClock clock)
+        IClock clock,
+        ITronSource? tron = null)
     {
         _memory = memory;
         _transfer = transfer;
         _bitcoin = bitcoin;
         _ethereum = ethereum;
+        _tron = tron;
         _sanctions = sanctions;
         _clock = clock;
     }
@@ -276,16 +282,24 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     private Task<StartPointPreview> FetchAsync(
         IMemoryCase memory, ChainStartPoint startPoint, CancellationToken cancellationToken)
     {
-        if (startPoint.Chain == Chain.Ethereum)
+        if (startPoint.Chain is Chain.Ethereum or Chain.Tron)
         {
-            if (startPoint.EthereumAccount is { } address)
+            IAccountSource? source = startPoint.Chain == Chain.Ethereum ? _ethereum : _tron;
+            if (source is null)
             {
-                return EthereumAddressAsync(memory, address, cancellationToken);
+                // Where no source for the chain is registered, nothing is asked, and the row says so honestly.
+                return Task.FromResult(StartPointPreview.Only(PreviewState.NotBuilt));
             }
 
-            return EthereumTxHash.TryParse(startPoint.Value, out var hash)
-                ? EthereumTransactionAsync(memory, hash, cancellationToken)
+            if (startPoint.EthereumAccount is { } address)
+            {
+                return EthereumAddressAsync(source, memory, address, cancellationToken);
+            }
+
+            return startPoint.AccountTransaction is { } hash
+                ? EthereumTransactionAsync(source, memory, hash, cancellationToken)
                 : Task.FromResult(StartPointPreview.Only(PreviewState.NotRecognised));
+
         }
 
         return startPoint.Bitcoin switch
@@ -372,27 +386,29 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     }
 
     /// <summary>
-    /// An Ethereum address: its ether and the USDT and USDC it holds (other tokens are a contract's own claim, and
-    /// anyone can send one to any address, so they are left out of the row), the number of transactions on its newest
-    /// page of transactions (with <c>+</c> when there are older ones), their first and last activity, and the chain's
-    /// newest block. A balance the source could not give is left out rather than made up.
+    /// An address on an account chain (Ethereum or TRON): its coin (ether or TRX) and the USDT and USDC it holds
+    /// (other tokens are a contract's own claim, and anyone can send one to any address, so they are left out of the
+    /// row), the number of transactions on its newest page of transactions (with <c>+</c> when there are older ones),
+    /// their first and last activity, and the chain's newest block. A balance the source could not give is left out
+    /// rather than made up.
     /// </summary>
+    /// <param name="source">The chain's source.</param>
     /// <param name="memory">The case in memory.</param>
     /// <param name="address">The address.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>What to show.</returns>
     private async Task<StartPointPreview> EthereumAddressAsync(
-        IMemoryCase memory, EthereumAddress address, CancellationToken cancellationToken)
+        IAccountSource source, IMemoryCase memory, EthereumAddress address, CancellationToken cancellationToken)
     {
-        var tip = await _ethereum.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
-        var lookup = await _ethereum.GetAddressHistoryAsync(
+        var tip = await source.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
+        var lookup = await source.GetAddressHistoryAsync(
             memory, address, EthereumHistory.Transactions, cancellationToken: cancellationToken).ConfigureAwait(false);
         if (Unanswered(lookup) is { } failed)
         {
             return failed;
         }
 
-        var balance = await _ethereum.GetBalanceAsync(memory, address, cancellationToken).ConfigureAwait(false);
+        var balance = await source.GetBalanceAsync(memory, address, cancellationToken).ConfigureAwait(false);
         var page = lookup.Value!;
         var transactions = page.Transfers.Select(each => (each.Transaction, each.Block))
             .Concat(page.Fees.Select(each => (each.Transaction, each.Block)))
@@ -421,18 +437,19 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     }
 
     /// <summary>
-    /// An Ethereum transaction: the ether it sent, how many movements of value it holds, its block and the chain's
-    /// newest block.
+    /// A transaction on an account chain (Ethereum or TRON): the coin it sent, how many movements of value it holds,
+    /// its block and the chain's newest block.
     /// </summary>
+    /// <param name="source">The chain's source.</param>
     /// <param name="memory">The case in memory.</param>
     /// <param name="hash">The transaction's hash.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>What to show.</returns>
     private async Task<StartPointPreview> EthereumTransactionAsync(
-        IMemoryCase memory, EthereumTxHash hash, CancellationToken cancellationToken)
+        IAccountSource source, IMemoryCase memory, EthereumTxHash hash, CancellationToken cancellationToken)
     {
-        var tip = await _ethereum.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
-        var lookup = await _ethereum.GetTransactionAsync(memory, hash, LookupMode.AsNeeded, cancellationToken)
+        var tip = await source.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
+        var lookup = await source.GetTransactionAsync(memory, hash, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (Unanswered(lookup) is { } failed)
         {
@@ -608,7 +625,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             else if (startPoint.EthereumAccount is { } ethereum)
             {
                 match = _sanctions.Find(ethereum);
-                onChain = SanctionCurrency.OnEthereum.Contains;
+                onChain = SanctionCurrency.OnAccountChain;
             }
             else
             {
@@ -627,7 +644,8 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return string.Empty;
         }
 
-        var listedAs = hit.Currency is SanctionCurrency.Bitcoin or SanctionCurrency.Ether
+        var listedAs = hit.Currency is SanctionCurrency.Bitcoin or SanctionCurrency.Ether or SanctionCurrency.Tronix
+
             ? string.Empty
             : $" (listad som {hit.Currency})";
         return $"Sanktionerad enligt {match.List.Name} {match.List.PublishDate:yyyy-MM-dd} · {hit.EntryName}{listedAs}"

@@ -330,6 +330,9 @@ internal sealed class WatcherLoop
                 var height = await _parts.Ethereum.GetTipHeightAsync(scratch, cancellationToken)
                     .ConfigureAwait(false);
                 return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
+            case Chain.Tron when _parts.Tron is not null:
+                var newest = await _parts.Tron.GetTipHeightAsync(scratch, cancellationToken).ConfigureAwait(false);
+                return newest.Status == LookupStatus.Fetched ? newest.Value?.Height : null;
             default:
                 return null;
         }
@@ -507,6 +510,7 @@ internal sealed class WatcherLoop
 /// <param name="Sources">The chains' endpoints.</param>
 /// <param name="Bitcoin">Bitcoin's source.</param>
 /// <param name="Ethereum">Ethereum's source.</param>
+/// <param name="Tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="Transfer">Reads the responses out of the case in memory.</param>
 /// <param name="Alerts">Says that a watch has hit.</param>
 /// <param name="Clock">The clock.</param>
@@ -523,4 +527,6 @@ internal sealed record WatcherParts(
     IEthereumSource Ethereum,
     IResponseTransfer Transfer,
     IAlerts Alerts,
-    IClock Clock);
+    IClock Clock,
+    ITronSource? Tron = null);
+

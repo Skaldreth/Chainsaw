@@ -38,6 +38,7 @@ internal static class TipLookup
     /// <param name="check">The check.</param>
     /// <param name="bitcoin">Bitcoin's source.</param>
     /// <param name="ethereum">Ethereum's source.</param>
+    /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
     /// <param name="case">The open case the answer is sealed in.</param>
     /// <param name="tip">The tip.</param>
     /// <param name="addresses">The watch's addresses now.</param>
@@ -49,6 +50,7 @@ internal static class TipLookup
         IWatchCheck check,
         IBitcoinSource bitcoin,
         IEthereumSource ethereum,
+        ITronSource? tron,
         ICase @case,
         WatchTip tip,
         IReadOnlySet<ChainAddress> addresses,
@@ -56,8 +58,14 @@ internal static class TipLookup
         long after,
         CancellationToken cancellationToken)
     {
-        var (status, transaction, origins, problem, complete) = tip.Chain == Chain.Ethereum
-            ? await EthereumAsync(ethereum, @case, tip.Match.Transaction, cancellationToken).ConfigureAwait(false)
+        IAccountSource? account = tip.Chain switch
+        {
+            Chain.Ethereum => ethereum,
+            Chain.Tron => tron,
+            _ => null,
+        };
+        var (status, transaction, origins, problem, complete) = account is not null
+            ? await EthereumAsync(account, @case, tip.Match.Transaction, cancellationToken).ConfigureAwait(false)
             : await BitcoinAsync(bitcoin, @case, tip.Match.Transaction, cancellationToken).ConfigureAwait(false);
         if (status == LookupStatus.NotFound)
         {
@@ -109,16 +117,16 @@ internal static class TipLookup
         return (lookup.Status, transaction, Sequences(lookup.Origins), lookup.Problem, true);
     }
 
-    /// <summary>Looks an Ethereum transaction up, with every movement of value in it.</summary>
-    /// <param name="source">Ethereum's source.</param>
+    /// <summary>Looks a transaction on an account chain up, with every movement of value in it.</summary>
+    /// <param name="source">The chain's source.</param>
     /// <param name="case">The open case.</param>
     /// <param name="id">The transaction's hash as the tip gave it.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The answer in the check's form; a block without its hash counts as not in a block.</returns>
     private static async Task<(LookupStatus, WatchTransaction?, IReadOnlyList<long>, string?, bool)> EthereumAsync(
-        IEthereumSource source, ICase @case, string id, CancellationToken cancellationToken)
+        IAccountSource source, ICase @case, string id, CancellationToken cancellationToken)
     {
-        if (!EthereumTxHash.TryParse(id, out var hash))
+        if (!EthereumTxHash.TryParse(source.Chain, id, out var hash))
         {
             return (LookupStatus.NotFound, null, [], null, true);
         }
@@ -132,9 +140,10 @@ internal static class TipLookup
 
         var block = value.Block is { Hash: { } blockHash } at ? new WatchBlock(at.Height, blockHash, at.Time) : null;
         var flows = value.Transfers.Select(transfer => new WatchFlow(
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.From.Value), transfer.Amount)],
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.To.Value), transfer.Amount)]));
-        var transaction = new WatchTransaction(Chain.Ethereum, value.Hash.Value, block, [.. flows]);
+            [new WatchLeg(transfer.From.ToChainAddress(), transfer.Amount)],
+            [new WatchLeg(transfer.To.ToChainAddress(), transfer.Amount)]));
+        var transaction = new WatchTransaction(source.Chain, value.Hash.Value, block, [.. flows]);
+
         return (lookup.Status, transaction, Sequences(lookup.Origins), lookup.Problem, value.IsComplete);
     }
 

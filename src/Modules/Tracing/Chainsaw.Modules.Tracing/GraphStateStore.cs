@@ -23,6 +23,12 @@ internal static class GraphStateStore
     /// <summary>The kind of a start point or expansion at an Ethereum transaction.</summary>
     public const string EthereumTransactionKind = "ethereum-transaction";
 
+    /// <summary>The kind of a start point or expansion at a TRON address.</summary>
+    public const string TronAddressKind = "tron-address";
+
+    /// <summary>The kind of a start point or expansion at a TRON transaction.</summary>
+    public const string TronTransactionKind = "tron-transaction";
+
     /// <summary>The action of a sealed record that links a coin to another chain.</summary>
     public const string LinkAction = "link";
 
@@ -99,9 +105,13 @@ internal static class GraphStateStore
             return (TransactionKind, txid.Value);
         }
 
-        return startPoint.EthereumAddress is { } account
-            ? (EthereumAddressKind, account.Value)
-            : (EthereumTransactionKind, startPoint.EthereumTransaction!.Value);
+        if (startPoint.EthereumAddress is { } account)
+        {
+            return (AccountKind(account.Chain, address: true), account.Value);
+        }
+
+        var hash = startPoint.EthereumTransaction!;
+        return (AccountKind(hash.Chain, address: false), hash.Value);
     }
 
     /// <summary>Says whether a start point is stored.</summary>
@@ -177,7 +187,7 @@ internal static class GraphStateStore
 
         expansion = expansion with { FirstExpandedUtc = expansion.FirstExpandedUtc ?? expansion.ExpandedUtc };
 
-        IEnumerable<string> brought = kind is EthereumAddressKind or EthereumTransactionKind
+        IEnumerable<string> brought = AccountChainOf(kind) is not null
             ? expansion.EthereumTransactions.Select(hash => hash.Value)
             : expansion.Transactions.Select(txid => txid.Value);
 
@@ -349,7 +359,12 @@ internal static class GraphStateStore
         }
 
         var kind = Enum.Parse<EthereumTransferKind>(text[..colon], ignoreCase: true);
-        return (null, new AccountSeed(EthereumTxHash.Parse(text[(colon + 1)..]), kind, index));
+        // Ethereum's hashes begin with 0x and TRON's do not, so the stored text says its chain.
+        var hash = text[(colon + 1)..];
+        return (null, new AccountSeed(
+            EthereumTxHash.TryParse(hash, out var ethereum) ? ethereum : EthereumTxHash.Parse(Chain.Tron, hash),
+            kind,
+            index));
     }
 
     /// <summary>
@@ -382,12 +397,14 @@ internal static class GraphStateStore
         var startPoints = new List<TraceStartPoint>();
         while (rows.Read())
         {
-            var subject = rows.GetString(1);
-            startPoints.Add(rows.GetString(0) switch
+            var (kind, subject) = (rows.GetString(0), rows.GetString(1));
+            startPoints.Add(kind switch
             {
                 AddressKind => TraceStartPoint.ForAddress(BitcoinAddress.Parse(subject)),
-                EthereumAddressKind => TraceStartPoint.ForEthereumAddress(EthereumAddress.Parse(subject)),
-                EthereumTransactionKind => TraceStartPoint.ForEthereumTransaction(EthereumTxHash.Parse(subject)),
+                EthereumAddressKind or TronAddressKind => TraceStartPoint.ForEthereumAddress(
+                    EthereumAddress.Parse(AccountChainOf(kind)!.Value, subject)),
+                EthereumTransactionKind or TronTransactionKind => TraceStartPoint.ForEthereumTransaction(
+                    EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject)),
                 _ => TraceStartPoint.ForTransaction(Txid.Parse(subject)),
             });
         }
@@ -424,15 +441,15 @@ internal static class GraphStateStore
             {
                 AddressKind => new Expansion(
                     BitcoinAddress.Parse(subject), null, [.. transactions.Select(Txid.Parse)], complete, utc),
-                EthereumAddressKind => new Expansion(null, null, [], complete, utc)
+                EthereumAddressKind or TronAddressKind => new Expansion(null, null, [], complete, utc)
                 {
-                    EthereumAddress = EthereumAddress.Parse(subject),
-                    EthereumTransactions = [.. transactions.Select(EthereumTxHash.Parse)],
+                    EthereumAddress = EthereumAddress.Parse(AccountChainOf(kind)!.Value, subject),
+                    EthereumTransactions = AccountHashes(kind, transactions),
                 },
-                EthereumTransactionKind => new Expansion(null, null, [], complete, utc)
+                EthereumTransactionKind or TronTransactionKind => new Expansion(null, null, [], complete, utc)
                 {
-                    EthereumTransaction = EthereumTxHash.Parse(subject),
-                    EthereumTransactions = [.. transactions.Select(EthereumTxHash.Parse)],
+                    EthereumTransaction = EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject),
+                    EthereumTransactions = AccountHashes(kind, transactions),
                 },
                 _ => new Expansion(null, Txid.Parse(subject), [.. transactions.Select(Txid.Parse)], complete, utc),
             }) with
@@ -542,7 +559,43 @@ internal static class GraphStateStore
             return TransactionKind;
         }
 
-        return expansion.EthereumAddress is not null ? EthereumAddressKind : EthereumTransactionKind;
+        return expansion.EthereumAddress is { } account
+            ? AccountKind(account.Chain, address: true)
+            : AccountKind(expansion.EthereumTransaction!.Chain, address: false);
+    }
+
+    /// <summary>Gives the kind of a start point or expansion on an account chain.</summary>
+    /// <param name="chain">The chain: Ethereum or TRON.</param>
+    /// <param name="address">Whether it is at an address; otherwise at a transaction.</param>
+    /// <returns>The kind.</returns>
+    /// <exception cref="ArgumentException">The chain is not an account chain Chainsaw reads.</exception>
+    private static string AccountKind(Chain chain, bool address) => (chain, address) switch
+    {
+        (Chain.Ethereum, true) => EthereumAddressKind,
+        (Chain.Ethereum, false) => EthereumTransactionKind,
+        (Chain.Tron, true) => TronAddressKind,
+        (Chain.Tron, false) => TronTransactionKind,
+        _ => throw new ArgumentException("Not an account chain Chainsaw reads.", nameof(chain)),
+    };
+
+    /// <summary>Gives the account chain a stored kind is on.</summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns>The chain, or <see langword="null"/> for Bitcoin's kinds.</returns>
+    private static Chain? AccountChainOf(string kind) => kind switch
+    {
+        EthereumAddressKind or EthereumTransactionKind => Chain.Ethereum,
+        TronAddressKind or TronTransactionKind => Chain.Tron,
+        _ => null,
+    };
+
+    /// <summary>Reads the stored transactions of an expansion on an account chain.</summary>
+    /// <param name="kind">The expansion's kind.</param>
+    /// <param name="transactions">The stored transactions.</param>
+    /// <returns>The transactions on the kind's chain.</returns>
+    private static List<EthereumTxHash> AccountHashes(string kind, IEnumerable<string> transactions)
+    {
+        var chain = AccountChainOf(kind)!.Value;
+        return [.. transactions.Select(hash => EthereumTxHash.Parse(chain, hash))];
     }
 
     /// <summary>Writes a time the way the module stores times: round-trip ISO 8601.</summary>

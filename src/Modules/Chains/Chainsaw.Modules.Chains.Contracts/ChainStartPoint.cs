@@ -31,12 +31,6 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     /// <summary>The longest text that is looked at; no address or txid on any known chain is longer.</summary>
     public const int MaximumLength = 128;
 
-    /// <summary>The version byte of a TRON address in Base58Check.</summary>
-    private const byte TronVersion = 0x41;
-
-    /// <summary>The length of a TRON address's version byte and payload.</summary>
-    private const int TronAddressBytes = 21;
-
     /// <summary>The number of hex digits in a transaction hash on every known chain.</summary>
     private const int TransactionDigits = 64;
 
@@ -44,18 +38,31 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     private static readonly System.Buffers.SearchValues<char> HexDigits =
         System.Buffers.SearchValues.Create("0123456789abcdefABCDEF");
 
-    /// <summary>Gets whether Chainsaw can trace from this start point now: Bitcoin and Ethereum are built.</summary>
-    public bool IsSupported => Chain is SharedKernel.Chain.Bitcoin or SharedKernel.Chain.Ethereum;
+    /// <summary>Gets whether Chainsaw can trace from this start point now: Bitcoin, Ethereum and TRON are built.</summary>
+    public bool IsSupported =>
+        Chain is SharedKernel.Chain.Bitcoin or SharedKernel.Chain.Ethereum or SharedKernel.Chain.Tron;
 
     /// <summary>Gets whether the text was recognised on some chain.</summary>
     public bool IsRecognised => Kind != StartPointKind.Unknown;
 
-    /// <summary>Gets the Ethereum address, when the start point is one; otherwise <see langword="null"/>.</summary>
+    /// <summary>
+    /// Gets the address on an account chain (Ethereum or TRON), when the start point is one; otherwise
+    /// <see langword="null"/>.
+    /// </summary>
     public EthereumAddress? EthereumAccount =>
-        Chain == SharedKernel.Chain.Ethereum && Kind == StartPointKind.Address
-        && EthereumAddress.TryParse(Value, out var address)
+        Chain is { } chain && Kind == StartPointKind.Address && EthereumAddress.TryParse(chain, Value, out var address)
             ? address
             : null;
+
+    /// <summary>
+    /// Gets the transaction on an account chain (Ethereum or TRON), when the start point is one; otherwise
+    /// <see langword="null"/>.
+    /// </summary>
+    public EthereumTxHash? AccountTransaction =>
+        Chain is { } chain && Kind == StartPointKind.Transaction && EthereumTxHash.TryParse(chain, Value, out var hash)
+            ? hash
+            : null;
+
 
     /// <summary>
     /// Recognises a text without being told its chain. A Bitcoin address or a bare 64-digit hash (a Bitcoin txid) is
@@ -143,13 +150,15 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
             : null;
     }
 
-    /// <summary>Recognises a TRON address: Base58Check with the version byte 0x41 and 20 bytes after it.</summary>
+    /// <summary>
+    /// Recognises a TRON address: Base58Check with its checksum, the version byte 0x41 and 20 bytes after it, or the same
+    /// in hex (<c>41</c> and 40 hex digits); either is kept in Base58Check (<see cref="EthereumAddress.TryParseTron"/>).
+    /// </summary>
     /// <param name="text">The trimmed text.</param>
     /// <returns>The result, or <see langword="null"/>.</returns>
     private static ChainStartPoint? RecogniseTronAddress(string text) =>
-        text.StartsWith('T') && Base58Check.TryDecode(text, out var data)
-            && data.Length == TronAddressBytes && data[0] == TronVersion
-            ? new(SharedKernel.Chain.Tron, StartPointKind.Address, text, null)
+        EthereumAddress.TryParseTron(text, out var address, out _)
+            ? new(SharedKernel.Chain.Tron, StartPointKind.Address, address.Value, null)
             : null;
 
     /// <summary>Recognises a TRON transaction id: 64 hex digits, as on Bitcoin.</summary>

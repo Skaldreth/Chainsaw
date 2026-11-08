@@ -69,7 +69,7 @@ public sealed record IncomingCoin(Outpoint? Coin, AssetAmount Amount, DateTimeOf
     public AccountSeed? Movement { get; init; }
 
     /// <summary>Gets the chain the money is on.</summary>
-    public Chain Chain => Movement is null ? Chain.Bitcoin : Chain.Ethereum;
+    public Chain Chain => Movement?.Transaction.Chain ?? Chain.Bitcoin;
 
     /// <summary>Gets the transaction it came in, as its chain writes it.</summary>
     public string TransactionId => Coin?.Txid.Value ?? Movement!.Transaction.Value;
@@ -224,7 +224,9 @@ public static class InspectorForms
     {
         ArgumentNullException.ThrowIfNull(transfer);
         return new AccountSeed(
-            EthereumTxHash.Parse(transfer.Transaction.Id), transfer.Movement!.Value, transfer.Position);
+            EthereumTxHash.Parse(transfer.Transaction.Chain, transfer.Transaction.Id), transfer.Movement!.Value,
+            transfer.Position);
+
     }
 
     /// <summary>Says whether a line carries the money a link leaves from.</summary>

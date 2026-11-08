@@ -45,6 +45,9 @@ internal sealed class TracingService : ITracingService
     /// <summary>Ethereum's facts, read for the graph.</summary>
     private readonly EthereumReader _ethereum;
 
+    /// <summary>TRON's facts, read for the graph, or <see langword="null"/> when no TRON source is registered.</summary>
+    private readonly EthereumReader? _tron;
+
     /// <summary>The clock.</summary>
     private readonly IClock _clock;
 
@@ -57,6 +60,9 @@ internal sealed class TracingService : ITracingService
     /// The tracing methods, for every model and chain; Bitcoin's are the UTXO methods that cover it.
     /// </param>
     /// <param name="clock">The clock.</param>
+    /// <param name="tron">
+    /// TRON's facts, or <see langword="null"/> where TRON is not registered (an expansion on TRON is then refused).
+    /// </param>
     /// <exception cref="ArgumentException">
     /// The methods are not registered properly (see <see cref="TracingMethods"/>).
     /// </exception>
@@ -66,7 +72,8 @@ internal sealed class TracingService : ITracingService
         IClusteringService clustering,
         IEnumerable<ITrailEndClassifier> classifiers,
         IEnumerable<ITracingMethod> methods,
-        IClock clock)
+        IClock clock,
+        ITronSource? tron = null)
     {
         _source = source;
         _clustering = clustering;
@@ -75,6 +82,7 @@ internal sealed class TracingService : ITracingService
         _methods = TracingMethods.For<IUtxoTracingMethod>(all, Chain.Bitcoin);
         _accountMethods = AccountMethodsFor(all, out _accountProblem);
         _ethereum = new EthereumReader(ethereum);
+        _tron = tron is null ? null : new EthereumReader(tron);
         _clock = clock;
     }
 
@@ -229,9 +237,9 @@ internal sealed class TracingService : ITracingService
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(to);
         CheckReason(reason);
-        if (to.Chain == Chain.Ethereum)
+        if (to.Chain == from.Transaction.Chain)
         {
-            throw new ArgumentException("A link to another chain leads off Ethereum.", nameof(to));
+            throw new ArgumentException("A link to another chain leads off the movement's chain.", nameof(to));
         }
 
         return @case.Write(transaction =>
@@ -561,15 +569,17 @@ internal sealed class TracingService : ITracingService
         var state = @case.Read(GraphStateStore.Read);
         var before = state.EthereumTransactions
             .Concat(state.EthereumHistories.SelectMany(expansion => expansion.EthereumTransactions)).ToHashSet();
+        var reader = ReaderFor(request.EthereumAddress?.Chain ?? request.EthereumTransaction!.Chain);
         var step = request.EthereumAddress is { } address
-            ? await _ethereum.ExpandAddressAsync(
+            ? await reader.ExpandAddressAsync(
                     @case,
                     address,
                     request.MaximumTransactions,
-                    await LowestEarlierBlockAsync(@case, state, address, cancellationToken).ConfigureAwait(false),
+                    await LowestEarlierBlockAsync(@case, state, reader, address, cancellationToken)
+                        .ConfigureAwait(false),
                     cancellationToken)
                 .ConfigureAwait(false)
-            : await _ethereum.ExpandTransactionAsync(@case, request.EthereumTransaction!, cancellationToken)
+            : await reader.ExpandTransactionAsync(@case, request.EthereumTransaction!, cancellationToken)
                 .ConfigureAwait(false);
         if (!step.Answered)
         {
@@ -597,17 +607,31 @@ internal sealed class TracingService : ITracingService
         };
     }
 
+    /// <summary>Gives the reader of an account chain.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns>The reader.</returns>
+    /// <exception cref="ArgumentException">No source for the chain is registered.</exception>
+    private EthereumReader ReaderFor(Chain chain) => chain switch
+    {
+        Chain.Ethereum => _ethereum,
+        Chain.Tron when _tron is not null => _tron,
+        _ => throw new ArgumentException($"No source for {chain} is registered.", nameof(chain)),
+    };
+
     /// <summary>
-    /// Gives the lowest block among what earlier expansions of an Ethereum address brought in, read from the case, so
-    /// that expanding it again reads every history down past it.
+    /// Gives where the oldest page of what earlier expansions of an account brought in starts, read from the case, in
+    /// the source's unit (a block on Ethereum, a block's time on TRON), so that expanding it again reads every history
+    /// down past it.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="state">The graph's state.</param>
+    /// <param name="reader">The account's chain.</param>
     /// <param name="address">The address.</param>
     /// <param name="cancellationToken">Stops the work.</param>
-    /// <returns>The block, or <see langword="null"/> when the address was not expanded before.</returns>
-    private async Task<long?> LowestEarlierBlockAsync(
-        ICase @case, GraphState state, EthereumAddress address, CancellationToken cancellationToken)
+    /// <returns>The start, or <see langword="null"/> when the address was not expanded before.</returns>
+    private static async Task<long?> LowestEarlierBlockAsync(
+        ICase @case, GraphState state, EthereumReader reader, EthereumAddress address,
+        CancellationToken cancellationToken)
     {
         var earlier = state.EthereumHistories.Where(expansion => expansion.EthereumAddress == address)
             .SelectMany(expansion => expansion.EthereumTransactions).ToHashSet();
@@ -616,11 +640,12 @@ internal sealed class TracingService : ITracingService
             return null;
         }
 
-        var data = await _ethereum.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false);
+        var data = await reader.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false);
         var heights = data.Transfers.Where(transfer => earlier.Contains(transfer.Transaction))
-            .Select(transfer => transfer.Block?.Height)
-            .Concat(data.Fees.Where(fee => earlier.Contains(fee.Transaction)).Select(fee => fee.Block?.Height))
-            .OfType<long>()
+            .Select(transfer => transfer.Block)
+            .Concat(data.Fees.Where(fee => earlier.Contains(fee.Transaction)).Select(fee => fee.Block))
+            .OfType<EthereumBlockReference>()
+            .Select(reader.PageStartOf)
             .ToList();
         return heights.Count == 0 ? null : heights.Min();
     }
@@ -905,9 +930,27 @@ internal sealed class TracingService : ITracingService
         }
 
         var account = state.EthereumTransactions.Count > 0 || state.EthereumHistories.Count > 0
-            ? await _ethereum.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false)
+            ? await ReadAccountsAsync(@case, state, cancellationToken).ConfigureAwait(false)
             : AccountData.Empty;
+
         return new GraphData(state, transactions, spends, problems) { Account = account };
+    }
+
+    /// <summary>
+    /// Reads every account chain's facts the graph's state holds, from the case only, and joins them: Ethereum's, and
+    /// TRON's when its source is registered.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="state">The graph's state.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The account data of every chain.</returns>
+    private async Task<AccountData> ReadAccountsAsync(
+        ICase @case, GraphState state, CancellationToken cancellationToken)
+    {
+        var data = await _ethereum.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false);
+        return _tron is null
+            ? data
+            : data.Merge(await _tron.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>Builds the graph with the clusters and the ends of the trail.</summary>

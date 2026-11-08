@@ -38,6 +38,7 @@ internal sealed class Harness : IDisposable
         services.AddSingleton<IWatchGate>(Gate);
         services.AddSingleton<IBitcoinSource>(Bitcoin);
         services.AddSingleton<IEthereumSource>(Ethereum);
+        services.AddSingleton<ITronSource>(Tron);
         services.AddCasesModule(options =>
         {
             options.Directory = _directory;
@@ -70,6 +71,8 @@ internal sealed class Harness : IDisposable
     public FakeBitcoinSource Bitcoin { get; } = new();
 
     public FakeEthereumSource Ethereum { get; } = new();
+
+    public FakeTronSource Tron { get; } = new();
 
     public ICaseStore Store { get; }
 

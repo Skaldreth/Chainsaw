@@ -35,7 +35,9 @@ public sealed class BitstampSourceTests
     [InlineData(Chain.Bitcoin, FiatCurrency.Sek, false)]
     [InlineData(Chain.Ethereum, FiatCurrency.Usd, true)]
     [InlineData(Chain.Ethereum, FiatCurrency.Sek, false)]
-    [InlineData(Chain.Tron, FiatCurrency.Usd, false)]
+    [InlineData(Chain.Tron, FiatCurrency.Usd, true)]
+    [InlineData(Chain.Tron, FiatCurrency.Eur, true)]
+    [InlineData(Chain.Tron, FiatCurrency.Sek, false)]
     public void Has_bitcoin_and_ether_in_dollars_and_euro_only(Chain chain, FiatCurrency quote, bool supported)
     {
         Assert.Equal(supported, _source.Supports(chain, quote));

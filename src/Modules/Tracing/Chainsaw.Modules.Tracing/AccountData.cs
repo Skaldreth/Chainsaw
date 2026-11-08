@@ -5,7 +5,7 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
-/// The Ethereum facts the graph is built from, read from the case: every movement and fee each once, the whole
+/// The account chains' facts the graph is built from (Ethereum and TRON), read from the case: every movement and fee each once, the whole
 /// transactions, the accounts whose history was read, and the blocks' hashes.
 /// </summary>
 /// <param name="Transfers">The movements, each once, in chain order (<see cref="AccountGraph.ChainOrder"/>).</param>
@@ -25,8 +25,9 @@ internal sealed record AccountData(
         [], [], new Dictionary<EthereumTxHash, EthereumTransaction>(), new HashSet<ChainAddress>(),
         new HashSet<ChainAddress>());
 
-    /// <summary>Gets each block's hash by height, where the case has it.</summary>
-    public IReadOnlyDictionary<long, string> BlockHashes { get; init; } = new Dictionary<long, string>();
+    /// <summary>Gets each block's hash by chain and height, where the case has it.</summary>
+    public IReadOnlyDictionary<(Chain Chain, long Height), string> BlockHashes { get; init; } =
+        new Dictionary<(Chain Chain, long Height), string>();
 
     /// <summary>
     /// Gets the accounts whose history was read only in part (held back at the limit or incomplete); they do not carry
@@ -84,6 +85,28 @@ internal sealed record AccountData(
             whole,
             read,
             outdated);
+    }
+
+    /// <summary>
+    /// Joins the data of two account chains (Ethereum's and TRON's), which share no transaction, account or block:
+    /// each carries its chain in its addresses, hashes and blocks.
+    /// </summary>
+    /// <param name="other">The other chain's data.</param>
+    /// <returns>The data of both.</returns>
+    public AccountData Merge(AccountData other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return new AccountData(
+            [.. Transfers.Concat(other.Transfers).OrderBy(AccountGraph.ChainOrder)],
+            [.. Fees.Concat(other.Fees)],
+            Transactions.Concat(other.Transactions).ToDictionary(),
+            ReadAccounts.Union(other.ReadAccounts).ToHashSet(),
+            MayBeOutdated.Union(other.MayBeOutdated).ToHashSet())
+        {
+            BlockHashes = BlockHashes.Concat(other.BlockHashes).ToDictionary(),
+            PartlyRead = PartlyRead.Union(other.PartlyRead).ToHashSet(),
+            Problems = [.. Problems, .. other.Problems],
+        };
     }
 
     /// <summary>
@@ -202,9 +225,10 @@ internal sealed record AccountData(
     }
 
     /// <summary>Gives a movement's block with its hash, when the case has the hash.</summary>
+    /// <param name="chain">The chain the movement is on.</param>
     /// <param name="block">The movement's block.</param>
     /// <returns>The block for the graph, or <see langword="null"/> while unconfirmed or the hash is not known.</returns>
-    public BlockReference? BlockOf(EthereumBlockReference? block)
+    public BlockReference? BlockOf(Chain chain, EthereumBlockReference? block)
     {
         if (block is null)
         {
@@ -212,8 +236,10 @@ internal sealed record AccountData(
         }
 
 
-        var text = block.Hash ?? BlockHashes.GetValueOrDefault(block.Height);
-        return BlockHash.TryParseEthereum(text, out var hash) ? new BlockReference(block.Height, hash, block.Time) : null;
+        var text = block.Hash ?? BlockHashes.GetValueOrDefault((chain, block.Height));
+        return BlockHash.TryParseEthereum(text, out var hash) || BlockHash.TryParse(text, out hash)
+            ? new BlockReference(block.Height, hash, block.Time)
+            : null;
     }
 
     /// <summary>Adds the amounts of some movements of one asset.</summary>

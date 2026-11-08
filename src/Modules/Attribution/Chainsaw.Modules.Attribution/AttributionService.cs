@@ -283,7 +283,7 @@ internal sealed class AttributionService(
         var matches = addresses.Distinct()
             .Select(address => (Address: address.ToChainAddress(), Match: sanctions.Find(address)))
             .ToList();
-        return CheckSanctions(@case, matches, SanctionCurrency.OnEthereum.Contains);
+        return CheckSanctions(@case, matches, SanctionCurrency.OnAccountChain);
     }
 
     /// <summary>

@@ -467,8 +467,9 @@ public sealed record InspectorContent(
     {
         GraphNodeKind.Address when node.Accounts.Count > 0 =>
         [
-            .. node.Accounts.Where(account => account.Chain == Chain.Ethereum)
-                .Select(account => ExpansionRequest.ForEthereumAddress(EthereumAddress.Parse(account.Value))),
+            .. node.Accounts.Where(account => account.Chain.Model() == LedgerModel.Account)
+                .Select(account => ExpansionRequest.ForEthereumAddress(
+                    EthereumAddress.Parse(account.Chain, account.Value))),
         ],
         GraphNodeKind.Address or GraphNodeKind.Cluster =>
             [.. node.GraphAddresses.Select(address => ExpansionRequest.ForAddress(address))],

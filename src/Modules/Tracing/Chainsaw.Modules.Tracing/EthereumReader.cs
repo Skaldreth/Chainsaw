@@ -7,14 +7,23 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
-/// Reads Ethereum for the graph through <see cref="IEthereumSource"/>: an address's three histories page by page
+/// Reads an account chain (Ethereum or TRON) for the graph through its <see cref="IAccountSource"/>: an address's three
+/// histories page by page
 /// (its transactions, internal transactions and token transfers), a transaction with every movement in it, and the
 /// hash of each block a movement lies in. Expanding asks the source; building the graph reads only the case
 /// (<see cref="LookupMode.CaseOnly"/>), so showing the graph again never sends anything (principles 4 and 6).
 /// </summary>
 /// <param name="source">Ethereum's facts.</param>
-internal sealed class EthereumReader(IEthereumSource source)
+internal sealed class EthereumReader(IAccountSource source)
 {
+    /// <summary>Gets the chain the reader reads.</summary>
+    public Chain Chain => source.Chain;
+
+    /// <summary>Gives where a page that goes back from a block starts, in the source's unit.</summary>
+    /// <param name="block">The block.</param>
+    /// <returns>The page's start.</returns>
+    public long PageStartOf(EthereumBlockReference block) => source.PageStartOf(block);
+
     /// <summary>The most pages of one history one read goes through, so that a source that never ends is left.</summary>
     private const int MostPages = 50;
 
@@ -109,7 +118,7 @@ internal sealed class EthereumReader(IEthereumSource source)
     {
         var problems = new List<string>();
         var whole = new Dictionary<EthereumTxHash, EthereumTransaction>();
-        foreach (var hash in state.EthereumTransactions)
+        foreach (var hash in state.EthereumTransactions.Where(hash => hash.Chain == source.Chain))
         {
             var lookup = await source.GetTransactionAsync(@case, hash, LookupMode.CaseOnly, cancellationToken)
                 .ConfigureAwait(false);
@@ -127,7 +136,8 @@ internal sealed class EthereumReader(IEthereumSource source)
         var read = new HashSet<ChainAddress>();
         var partly = new HashSet<ChainAddress>();
         var outdated = new HashSet<ChainAddress>();
-        foreach (var expansion in state.EthereumHistories)
+        foreach (var expansion in state.EthereumHistories
+            .Where(expansion => expansion.EthereumAddress!.Chain == source.Chain))
         {
             var address = expansion.EthereumAddress!;
             var wanted = expansion.EthereumTransactions.ToHashSet();
@@ -168,7 +178,12 @@ internal sealed class EthereumReader(IEthereumSource source)
         var blocks = await FetchBlocksAsync(
             @case, data.Transfers.Select(transfer => transfer.Block), LookupMode.CaseOnly, cancellationToken)
             .ConfigureAwait(false);
-        return data with { BlockHashes = blocks.Hashes, Problems = problems, PartlyRead = partly };
+        return data with
+        {
+            BlockHashes = blocks.Hashes.ToDictionary(pair => (source.Chain, pair.Key), pair => pair.Value),
+            Problems = problems,
+            PartlyRead = partly,
+        };
     }
 
     /// <summary>

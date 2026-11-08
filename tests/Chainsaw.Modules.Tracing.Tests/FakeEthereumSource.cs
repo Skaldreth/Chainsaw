@@ -6,11 +6,12 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing.Tests;
 
 /// <summary>
-/// An Ethereum source without a network: synthetic transactions in memory, paged by block as Blockscout pages them.
+/// An account chain's source without a network: synthetic transactions in memory, paged by block as Blockscout pages
+/// them.
 /// Online it answers from the chain and remembers what it gave, as the case would; with
 /// <see cref="LookupMode.CaseOnly"/> or offline it answers only what it gave before.
 /// </summary>
-internal sealed class FakeEthereumSource : IEthereumSource
+internal abstract class FakeAccountSource
 {
     /// <summary>The page size, small so that paging is tested.</summary>
     public const int PageSize = 3;
@@ -116,7 +117,7 @@ internal sealed class FakeEthereumSource : IEthereumSource
         ICase @case, long height, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
     {
         var block = new EthereumBlockReference(
-            height, HashOf(height), new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddSeconds(12 * height));
+            height, BlockHashOf(height), new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddSeconds(12 * height));
         if (mode == LookupMode.CaseOnly || !Online)
         {
             return Task.FromResult(_givenBlocks.Contains(height)
@@ -137,6 +138,9 @@ internal sealed class FakeEthereumSource : IEthereumSource
     public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
         ICase @case, CancellationToken cancellationToken = default) =>
         Task.FromResult(Answer(LookupStatus.Fetched, new EthereumTip(1_000)));
+
+    /// <summary>Gives a block's hash as the chain writes it.</summary>
+    protected virtual string BlockHashOf(long height) => HashOf(height);
 
     private static bool Kind(EthereumHistory history, EthereumTransferKind kind) => history switch
     {

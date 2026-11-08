@@ -194,8 +194,9 @@ internal static class LabelStore
 
     /// <summary>
     /// Reads a stored subject. The text is the address as <see cref="LabelSubject.Target"/> gives it: a text that is
-    /// an Ethereum address (<c>0x</c> and 40 hex digits, which no Bitcoin address can be) is an Ethereum account, any
-    /// other a Bitcoin address, so that a Bitcoin label is stored exactly as before Ethereum could be labelled.
+    /// an Ethereum address (<c>0x</c> and 40 hex digits, which no Bitcoin address can be) is an Ethereum account, one
+    /// that is a TRON address (Base58Check with TRON's version byte 0x41, which no Bitcoin address has) a TRON account,
+    /// any other a Bitcoin address, so that a Bitcoin label is stored exactly as before other chains could be labelled.
     /// </summary>
     /// <param name="kind">Address or cluster.</param>
     /// <param name="text">The stored address.</param>
@@ -206,7 +207,7 @@ internal static class LabelStore
     /// <exception cref="FormatException">The text is no address.</exception>
     public static LabelSubject Subject(LabelSubjectKind kind, string text)
     {
-        if (!EthereumAddress.TryParse(text, out var account))
+        if (!EthereumAddress.TryParse(text, out var account) && !IsTronAddress(text, out account))
         {
             return new LabelSubject(kind, BitcoinAddress.Parse(text));
         }
@@ -216,7 +217,16 @@ internal static class LabelStore
             : throw new InvalidDataException("A label on a cluster is on Bitcoin only.");
     }
 
+    /// <summary>Says whether a stored address is a TRON account, in the Base58Check form a label stores.</summary>
+    /// <param name="text">The stored address.</param>
+    /// <param name="account">The account, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when it is one.</returns>
+    private static bool IsTronAddress(
+        string text, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out EthereumAddress? account) =>
+        EthereumAddress.TryParseTron(text, out account, out _) && account.Value == text;
+
     /// <summary>Gives the identity of a label across cases: its origin and what it says.</summary>
+
     /// <param name="originId">The origin.</param>
     /// <param name="subject">What it is on.</param>
     /// <param name="kind">What it says.</param>

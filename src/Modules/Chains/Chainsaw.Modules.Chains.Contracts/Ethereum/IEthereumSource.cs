@@ -1,12 +1,36 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains.Contracts;
 
 /// <summary>
-/// Ethereum's facts for a case, in the account model: an address's history (its transactions, internal transactions
-/// and ERC-20 transfers), a transaction with every movement of value in it (ether, internal and tokens with their
-/// contract and decimals), a block and the chain's height. One contract for the kind of chain, not per source
-/// (principle 8); the first sort of API is Blockscout's, which can also be run in-house.
+/// Ethereum's facts for a case, through the account model's contract (<see cref="IAccountSource"/>); the first sort of
+/// API is Blockscout's, which can also be run in-house. The interface only names the chain, so that the container
+/// gives Ethereum's source where Ethereum is asked.
+/// </summary>
+public interface IEthereumSource : IAccountSource
+{
+    /// <summary>Gets the chain: <see cref="SharedKernel.Chain.Ethereum"/>.</summary>
+    Chain IAccountSource.Chain => Chain.Ethereum;
+}
+
+/// <summary>
+/// TRON's facts for a case, through the account model's contract (<see cref="IAccountSource"/>): TRX in sun, TRC-20
+/// tokens (USDT first) from their <c>Transfer</c> events, and TRX sent by contracts. The first sort of API is
+/// TronGrid's, whose wallet part every TRON node also answers. The interface only names the chain, so that the
+/// container gives TRON's source where TRON is asked.
+/// </summary>
+public interface ITronSource : IAccountSource
+{
+    /// <summary>Gets the chain: <see cref="SharedKernel.Chain.Tron"/>.</summary>
+    Chain IAccountSource.Chain => Chain.Tron;
+}
+
+/// <summary>
+/// An account chain's facts for a case (Ethereum and TRON): an address's history (its transactions, internal
+/// transactions and token transfers), a transaction with every movement of value in it (the coin, internal and tokens
+/// with their contract and decimals), a block and the chain's height. One contract for the kind of chain, not per
+/// source (principle 8); each chain's interface (<see cref="IEthereumSource"/>, <see cref="ITronSource"/>) names it.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,8 +46,24 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// <see cref="CaseException"/> (a closed case, or a sealed response that no longer matches its SHA-256).
 /// </para>
 /// </remarks>
-public interface IEthereumSource
+public interface IAccountSource
 {
+    /// <summary>Gets the chain the source answers for; every address and transaction it takes is on it.</summary>
+    Chain Chain { get; }
+
+    /// <summary>
+    /// Gives where a page of an address's history starts when it goes back from a block (the unit of
+    /// <see cref="EthereumAddressPage.AtOrBelow"/>): the block's number on Ethereum, whose sources page by block, and
+    /// the block's time in milliseconds since 1970 on TRON, whose sources page by time.
+    /// </summary>
+    /// <param name="block">The block.</param>
+    /// <returns>The page's start.</returns>
+    long PageStartOf(EthereumBlockReference block)
+    {
+        ArgumentNullException.ThrowIfNull(block);
+        return block.Height;
+    }
+
     /// <summary>Gets one page of an address's history of one kind, newest first.</summary>
     /// <param name="case">The open case the responses are sealed in.</param>
     /// <param name="address">The address.</param>

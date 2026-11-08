@@ -5,7 +5,8 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 
 /// <summary>
 /// Where the trace starts: an address (for example the one the victim paid to) or a transaction (for example the
-/// victim's payment), on Bitcoin or on Ethereum. Exactly one of <see cref="Address"/>, <see cref="Txid"/>,
+/// victim's payment), on Bitcoin or on an account chain (Ethereum or TRON, whose addresses and transactions carry their
+/// chain). Exactly one of <see cref="Address"/>, <see cref="Txid"/>,
 /// <see cref="EthereumAddress"/> and <see cref="EthereumTransaction"/> is set.
 /// </summary>
 public sealed record TraceStartPoint
@@ -32,7 +33,7 @@ public sealed record TraceStartPoint
     public EthereumTxHash? EthereumTransaction { get; }
 
     /// <summary>Gets the chain the start point is on.</summary>
-    public Chain Chain => EthereumAddress is not null || EthereumTransaction is not null ? Chain.Ethereum : Chain.Bitcoin;
+    public Chain Chain => EthereumAddress?.Chain ?? EthereumTransaction?.Chain ?? Chain.Bitcoin;
 
     /// <summary>Gets the address with its chain, when the start point is an address on any chain.</summary>
     public ChainAddress? Account => Address?.ToChainAddress() ?? EthereumAddress?.ToChainAddress();

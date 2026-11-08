@@ -631,7 +631,7 @@ public sealed class GraphSource(
         string? problem = null;
         if (seeds.Count + accountSeeds.Count == 0 && graph.StartPoints.Count > 0)
         {
-            problem = graph.StartPoints.All(start => start.Chain == Chain.Ethereum)
+            problem = graph.StartPoints.All(start => start.Chain.Model() == LedgerModel.Account)
                 ? NothingToTraceOnEthereumText
                 : NothingToTraceText;
         }

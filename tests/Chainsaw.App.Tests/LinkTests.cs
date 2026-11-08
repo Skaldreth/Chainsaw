@@ -24,7 +24,7 @@ public sealed class LinkTests
     {
         Assert.True(ChainsawLink.TryParse("chainsaw:tron/" + Samples.Txid, out var startPoint));
         Assert.Equal(Chain.Tron, startPoint.Chain);
-        Assert.False(startPoint.IsSupported);
+        Assert.True(startPoint.IsSupported);
     }
 
     [Theory]
@@ -136,7 +136,7 @@ public sealed class LinkTests
     }
 
     [Fact]
-    public async Task A_tron_tx_link_never_becomes_a_bitcoin_start_point()
+    public async Task A_tron_tx_link_becomes_a_tron_start_point_and_never_a_bitcoin_one()
     {
         var rig = new GateRig(VaultState.Unlocked);
 
@@ -146,9 +146,11 @@ public sealed class LinkTests
         Assert.True(rig.NewCase.Rows.Single().IsTron);
         rig.NewCase.CaseNumber = "A1";
         await rig.NewCase.CreateAsync(new TestEntry(string.Empty), new TestEntry(string.Empty));
-        Assert.Empty(rig.Tracing.Added);
-        Assert.Equal(AppJournalKinds.StartPointNoted, rig.Cases.Cases[0].Journal.Single().Kind);
+        var added = Assert.Single(rig.Tracing.Added).StartPoint;
+        Assert.Equal(Chain.Tron, added.Chain);
+        Assert.Null(added.Txid);
     }
+
 
     [Fact]
     public void A_link_never_replaces_what_is_written_in_the_bar()

@@ -1,0 +1,32 @@
+{
+ "txID": "c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4",
+ "raw_data": {
+  "contract": [
+   {
+    "parameter": {
+     "value": {
+      "data": "00",
+      "owner_address": "411111111111111111111111111111111111111111",
+      "contract_address": "415555555555555555555555555555555555555555",
+      "call_value": 5000000
+     },
+     "type_url": "type.googleapis.com/protocol.TriggerSmartContract"
+    },
+    "type": "TriggerSmartContract"
+   }
+  ],
+  "ref_block_bytes": "0384",
+  "ref_block_hash": "0000000000000000",
+  "expiration": 1793872860000,
+  "timestamp": 1793872800000
+ },
+ "signature": [
+  "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+ ],
+ "raw_data_hex": "00",
+ "ret": [
+  {
+   "contractRet": "REVERT"
+  }
+ ]
+}

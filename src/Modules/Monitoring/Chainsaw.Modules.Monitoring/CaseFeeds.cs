@@ -130,19 +130,20 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
 }
 
 /// <summary>
-/// Reads an Ethereum address's newest movements for a check through <see cref="IEthereumSource"/> with
-/// <see cref="LookupMode.InStep"/>: the histories the watched asset needs (ether in the transactions and the internal
-/// ones, tokens in the ERC-20 transfers), each sealed in the case; a block whose hash a history lacks is looked up.
+/// Reads an account chain's address's newest movements for a check (Ethereum's or TRON's) through its
+/// <see cref="IAccountSource"/> with <see cref="LookupMode.InStep"/>: the histories the watched asset needs (the coin in
+/// the transactions and the internal ones, tokens in the token transfers), each sealed in the case; a block whose hash
+/// a history lacks is looked up.
 /// </summary>
-/// <param name="source">Ethereum's source.</param>
+/// <param name="source">The chain's source.</param>
 /// <param name="case">The open case.</param>
-internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IWatchFeed
+internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWatchFeed
 {
     /// <inheritdoc/>
     public async Task<WatchFeedPage> ReadAsync(
         ChainAddress address, Asset? asset, long downTo, CancellationToken cancellationToken = default)
     {
-        if (!EthereumAddress.TryParse(address.Value, out var ethereum))
+        if (address.Chain != source.Chain || !EthereumAddress.TryParse(source.Chain, address.Value, out var ethereum))
         {
             return new WatchFeedPage(
                 WatchFeedStatus.Failed, [], [], false, FeedTexts.Format(FeedTexts.NotAnAddress, address.Value));
@@ -194,7 +195,8 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
 
         var transactions = transfers.Values
             .GroupBy(transfer => transfer.Transaction.Value, StringComparer.Ordinal)
-            .Select(group => Of(group.Key, [.. group.OrderBy(t => t.Kind).ThenBy(t => t.Position)], hashes))
+            .Select(group => Of(
+                source.Chain, group.Key, [.. group.OrderBy(t => t.Kind).ThenBy(t => t.Position)], hashes))
             .ToList();
         return new WatchFeedPage(
             status, transactions, origins, completeAbove is not null,
@@ -282,7 +284,7 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
                 return (WatchFeedStatus.Partial, read.Transfers.Select(t => t.Block?.Height).Max() ?? lowest);
             }
 
-            if (read.NextAtOrBelow is not { } next || next <= downTo)
+            if (read.NextAtOrBelow is not { } next || ReachedBelow(read, next, downTo))
             {
                 return (WatchFeedStatus.Read, null);
             }
@@ -293,6 +295,28 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         var reached = lowest == long.MaxValue ? downTo : lowest;
         problems.Add(FeedTexts.Format(FeedTexts.CutShort, address.Value, WatchRules.MaximumPages, downTo + 1, reached));
         return (WatchFeedStatus.Partial, lowest == long.MaxValue ? null : lowest);
+    }
+
+    /// <summary>
+    /// Says whether a page has gone back to the block the check reads to. Ethereum's next page starts at a block, so
+    /// its start says it; TRON's starts at a time, so the oldest block among the page's movements and fees says it (a
+    /// page without one pages on, as far as <see cref="WatchRules.MaximumPages"/> reach).
+    /// </summary>
+    /// <param name="read">The page.</param>
+    /// <param name="next">Where the next page starts, in the source's unit.</param>
+    /// <param name="downTo">The block the check reads to.</param>
+    /// <returns><see langword="true"/> when nothing older is needed.</returns>
+    private bool ReachedBelow(EthereumAddressPage read, long next, long downTo)
+    {
+        if (source.Chain == Chain.Ethereum)
+        {
+            return next <= downTo;
+        }
+
+        var oldest = read.Transfers.Select(transfer => transfer.Block?.Height)
+            .Concat(read.Fees.Select(fee => fee.Block?.Height))
+            .Min();
+        return oldest is { } height && height <= downTo;
     }
 
     /// <summary>Looks up the hash of every block a movement lacks it for, in step with the chain.</summary>
@@ -342,23 +366,26 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
     }
 
     /// <summary>
-    /// Gives an Ethereum transaction's movements in the check's form: one flow per movement. A block whose hash is not
-    /// known is left out, so that the transaction waits for a check that knows it (a hit is sealed with its hash).
+    /// Gives an account chain's transaction's movements in the check's form: one flow per movement. A block whose hash
+    /// is not known is left out, so that the transaction waits for a check that knows it (a hit is sealed with its
+    /// hash).
     /// </summary>
+    /// <param name="chain">The chain.</param>
     /// <param name="hash">The transaction's hash.</param>
     /// <param name="transfers">Its movements.</param>
     /// <param name="hashes">The blocks' hashes.</param>
     /// <returns>The check's form.</returns>
     private static WatchTransaction Of(
-        string hash, IReadOnlyList<EthereumTransfer> transfers, IReadOnlyDictionary<long, string> hashes)
+        Chain chain, string hash, IReadOnlyList<EthereumTransfer> transfers, IReadOnlyDictionary<long, string> hashes)
     {
         var at = transfers.Select(transfer => transfer.Block).OfType<EthereumBlockReference>().FirstOrDefault();
         var block = at is not null && hashes.TryGetValue(at.Height, out var blockHash)
             ? new WatchBlock(at.Height, blockHash, at.Time)
             : null;
         var flows = transfers.Select(transfer => new WatchFlow(
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.From.Value), transfer.Amount)],
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.To.Value), transfer.Amount)]));
-        return new WatchTransaction(Chain.Ethereum, hash, block, [.. flows]);
+            [new WatchLeg(transfer.From.ToChainAddress(), transfer.Amount)],
+            [new WatchLeg(transfer.To.ToChainAddress(), transfer.Amount)]));
+        return new WatchTransaction(chain, hash, block, [.. flows]);
+
     }
 }

@@ -209,6 +209,59 @@ internal sealed class FakeEthereumSource : IEthereumSource
         Task.FromResult(new BitcoinLookup<EthereumTip>(LookupStatus.Fetched, new EthereumTip(21_000_100), [], null));
 }
 
+/// <summary>
+/// TRON's source from a table of synthetic movements, as <see cref="FakeEthereumSource"/>: its pages start at a time,
+/// and its blocks are asked for their hash.
+/// </summary>
+internal sealed class FakeTronSource : ITronSource
+{
+    public Dictionary<(string, EthereumHistory), List<EthereumTransfer>> Histories { get; } = [];
+
+    public Dictionary<long, string> BlockHashes { get; } = [];
+
+    public Dictionary<string, EthereumTransaction> Transactions { get; } = [];
+
+    public List<(string Address, EthereumHistory History, LookupMode Mode)> Asked { get; } = [];
+
+    public long Tip { get; set; } = 80_000_100;
+
+    public void Holds(EthereumAddress address, EthereumHistory history, params EthereumTransfer[] transfers) =>
+        Histories[(address.Value, history)] = [.. transfers];
+
+    public long PageStartOf(EthereumBlockReference block) => block.Time.ToUnixTimeMilliseconds();
+
+    public Task<BitcoinLookup<EthereumAddressPage>> GetAddressHistoryAsync(
+        ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow = null,
+        LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
+    {
+        Asked.Add((address.Value, history, mode));
+        var transfers = Histories.GetValueOrDefault((address.Value, history)) ?? [];
+        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, false);
+        return Task.FromResult(new BitcoinLookup<EthereumAddressPage>(
+            LookupStatus.Fetched, page, [FakeBitcoinSource.Origin(21)], null));
+    }
+
+    public Task<BitcoinLookup<EthereumBlockReference>> GetBlockAsync(
+        ICase @case, long height, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default) =>
+        Task.FromResult(BlockHashes.TryGetValue(height, out var hash)
+            ? new BitcoinLookup<EthereumBlockReference>(
+                LookupStatus.Fetched, new EthereumBlockReference(height, hash, DateTimeOffset.UnixEpoch),
+                [FakeBitcoinSource.Origin(22)], null)
+            : new BitcoinLookup<EthereumBlockReference>(LookupStatus.Failed, null, [], "Inget block."));
+
+    public Task<BitcoinLookup<EthereumTransaction>> GetTransactionAsync(
+        ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(Transactions.TryGetValue(hash.Value, out var transaction)
+            ? new BitcoinLookup<EthereumTransaction>(
+                LookupStatus.Fetched, transaction, [FakeBitcoinSource.Origin(23)], null)
+            : new BitcoinLookup<EthereumTransaction>(LookupStatus.NotFound, null, [], null));
+
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new BitcoinLookup<EthereumTip>(LookupStatus.Fetched, new EthereumTip(Tip), [], null));
+}
+
 /// <summary>A feed from a table of transactions per address, for the check without the case.</summary>
 internal sealed class FakeFeed : IWatchFeed
 {

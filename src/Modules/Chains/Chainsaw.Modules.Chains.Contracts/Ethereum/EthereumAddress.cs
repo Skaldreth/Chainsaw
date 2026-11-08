@@ -5,44 +5,90 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Chains.Contracts;
 
 /// <summary>
-/// An Ethereum address: <c>0x</c> and 20 bytes in hex. It can only be made by <c>TryParse</c>, which checks the
-/// EIP-55 checksum when the text has one: an address written in mixed case carries its checksum in the letters' case,
-/// and a single wrong letter makes it another address that belongs to nobody, so a mixed-case address whose case does
-/// not match is refused. All lower or all upper case has no checksum and is taken as written.
+/// An address in the account model: 20 bytes, on Ethereum or on TRON, whose virtual machine is Ethereum's and whose
+/// addresses are the same 20 bytes behind the version byte <c>0x41</c>. The type keeps Ethereum's name from when that
+/// was the only account chain (BACKLOG: renamed when no other stage touches Chains); <see cref="Chain"/> says which
+/// chain it is on, so that the same 20 bytes on the two chains are never taken for one actor.
 /// </summary>
+/// <remarks>
+/// <para>
+/// On Ethereum it is <c>0x</c> and 20 bytes in hex, read by <c>TryParse</c>, which checks the EIP-55 checksum when the
+/// text has one: an address written in mixed case carries its checksum in the letters' case, and a single wrong letter
+/// makes it another address that belongs to nobody, so a mixed-case address whose case does not match is refused. All
+/// lower or all upper case has no checksum and is taken as written.
+/// </para>
+/// <para>
+/// On TRON it is written in Base58Check (<c>T…</c>, 34 characters), whose last four bytes are a checksum (a double
+/// SHA-256), so that a wrong character is refused; or in hex as <c>41</c> and the 20 bytes, as TRON's own API writes it.
+/// <c>TryParseTron</c> reads both and keeps the Base58Check form, so that one address is never two.
+/// </para>
+/// </remarks>
 public sealed record EthereumAddress
 {
     /// <summary>The number of hex digits after <c>0x</c>.</summary>
     public const int Digits = 40;
 
+    /// <summary>The version byte before a TRON address's 20 bytes (the letter <c>T</c> in Base58Check).</summary>
+    public const byte TronVersion = 0x41;
+
+    /// <summary>The number of hex digits in a 32-byte word of the virtual machine (an event's topic).</summary>
+    private const int WordDigits = 64;
+
     /// <summary>The hex digits in both cases.</summary>
     private static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789abcdefABCDEF");
 
-    /// <summary>Creates an address from its checked lower-case form.</summary>
+    /// <summary>Creates an Ethereum address from its checked lower-case form.</summary>
     /// <param name="lower">The address in lower case with <c>0x</c>.</param>
     private EthereumAddress(string lower)
     {
-        Value = lower;
+        (Chain, Value, Hex) = (Chain.Ethereum, lower, lower);
         Checksummed = Checksum(lower);
     }
 
-    /// <summary>Gets the address in lower case, as the chain compares it, for example <c>0x5aae…</c>.</summary>
+    /// <summary>Creates a TRON address from its checked forms.</summary>
+    /// <param name="base58">The Base58Check form, <c>T…</c>.</param>
+    /// <param name="hex">The 20 bytes as <c>0x</c> and 40 hex digits in lower case.</param>
+    private EthereumAddress(string base58, string hex) =>
+        (Chain, Value, Checksummed, Hex) = (Chain.Tron, base58, base58, hex);
+
+    /// <summary>Gets the chain the address is on: <see cref="Chain.Ethereum"/> or <see cref="Chain.Tron"/>.</summary>
+    public Chain Chain { get; }
+
+    /// <summary>
+    /// Gets the address as the chain compares it: on Ethereum in lower case (<c>0x5aae…</c>), on TRON in Base58Check
+    /// (<c>T…</c>).
+    /// </summary>
     public string Value { get; }
 
-    /// <summary>Gets the address with its EIP-55 checksum in the letters' case, as it is shown.</summary>
+    /// <summary>
+    /// Gets the address as it is shown: on Ethereum with its EIP-55 checksum in the letters' case, on TRON in
+    /// Base58Check.
+    /// </summary>
     public string Checksummed { get; }
 
-    /// <summary>Gets the address as an address on any chain.</summary>
-    public ChainAddress ToChainAddress() => new(Chain.Ethereum, Value);
+    /// <summary>
+    /// Gets the 20 bytes as <c>0x</c> and 40 hex digits in lower case: Ethereum's address, and on TRON the address its
+    /// virtual machine and event logs use (without the version byte).
+    /// </summary>
+    public string Hex { get; }
 
-    /// <summary>Reads an address, checking the EIP-55 checksum when the letters are in mixed case.</summary>
+    /// <summary>
+    /// Gets the address in TRON's own hex form, <c>41</c> and 40 hex digits in lower case, as TRON's API writes it;
+    /// <see langword="null"/> on Ethereum.
+    /// </summary>
+    public string? TronHex => Chain == Chain.Tron ? "41" + Hex[2..] : null;
+
+    /// <summary>Gets the address as an address on any chain.</summary>
+    public ChainAddress ToChainAddress() => new(Chain, Value);
+
+    /// <summary>Reads an Ethereum address, checking the EIP-55 checksum when the letters are in mixed case.</summary>
     /// <param name="text">The text; white space around it is ignored.</param>
     /// <param name="address">The address, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when the text is an address.</returns>
     public static bool TryParse([NotNullWhen(true)] string? text, [NotNullWhen(true)] out EthereumAddress? address) =>
         TryParse(text, out address, out _);
 
-    /// <summary>Reads an address, and says why it is not one.</summary>
+    /// <summary>Reads an Ethereum address, and says why it is not one.</summary>
     /// <param name="text">The text; white space around it is ignored.</param>
     /// <param name="address">The address, or <see langword="null"/>.</param>
     /// <param name="problem">Why it is not an address, in Swedish, or <see langword="null"/>.</param>
@@ -74,16 +120,120 @@ public sealed record EthereumAddress
         return true;
     }
 
-    /// <summary>Reads an address that must be one, as a source's answer gives it.</summary>
+    /// <summary>Reads an Ethereum address that must be one, as a source's answer gives it.</summary>
     /// <param name="text">The text.</param>
     /// <returns>The address.</returns>
     /// <exception cref="FormatException">The text is not an address.</exception>
     public static EthereumAddress Parse(string text) =>
         TryParse(text, out var address, out var problem) ? address : throw new FormatException(problem);
 
-    /// <summary>Writes the address with its EIP-55 checksum.</summary>
-    /// <returns>The checksummed address.</returns>
+    /// <summary>Reads an address on an account chain.</summary>
+    /// <param name="chain">The chain: Ethereum or TRON.</param>
+    /// <param name="text">The text; white space around it is ignored.</param>
+    /// <param name="address">The address, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the text is an address on the chain.</returns>
+    public static bool TryParse(
+        Chain chain, [NotNullWhen(true)] string? text, [NotNullWhen(true)] out EthereumAddress? address)
+    {
+        address = null;
+        return chain switch
+        {
+            Chain.Ethereum => TryParse(text, out address),
+            Chain.Tron => TryParseTron(text, out address, out _),
+            _ => false,
+        };
+    }
+
+    /// <summary>Reads an address on an account chain that must be one, as the case or a source's answer gives it.</summary>
+    /// <param name="chain">The chain: Ethereum or TRON.</param>
+    /// <param name="text">The text.</param>
+    /// <returns>The address.</returns>
+    /// <exception cref="FormatException">The text is not an address on the chain.</exception>
+    public static EthereumAddress Parse(Chain chain, string text) =>
+        TryParse(chain, text, out var address) ? address : throw new FormatException($"Not an address on {chain}.");
+
+    /// <summary>
+    /// Reads a TRON address: Base58Check (<c>T…</c>) with its checksum and the version byte <c>0x41</c>, or hex as
+    /// <c>41</c> (or <c>0x41</c>) and 40 hex digits, as TRON's API writes it. Both give the same address, kept in
+    /// Base58Check.
+    /// </summary>
+    /// <param name="text">The text; white space around it is ignored.</param>
+    /// <param name="address">The address, or <see langword="null"/>.</param>
+    /// <param name="problem">Why it is not a TRON address, in Swedish, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the text is a TRON address.</returns>
+    public static bool TryParseTron(
+        [NotNullWhen(true)] string? text, [NotNullWhen(true)] out EthereumAddress? address, out string? problem)
+    {
+        address = null;
+        var trimmed = text?.Trim() ?? string.Empty;
+        var hex = trimmed.StartsWith("0x41", StringComparison.OrdinalIgnoreCase) ? trimmed[2..] : trimmed;
+        if (hex.Length == Digits + 2 && hex.StartsWith("41", StringComparison.Ordinal)
+            && !hex.AsSpan().ContainsAnyExcept(HexDigits))
+        {
+            problem = null;
+            address = FromTronBytes(Convert.FromHexString(hex));
+            return true;
+        }
+
+        if (!trimmed.StartsWith('T') || !Base58Check.TryDecode(trimmed, out var data))
+        {
+            problem = "En TRON-adress börjar med T och har en kontrollsumma (Base58Check), eller är 41 och 40 "
+                + "hexadecimala tecken. Ett tecken kan vara fel.";
+            return false;
+        }
+
+        if (data.Length != Digits / 2 + 1 || data[0] != TronVersion)
+        {
+            problem = "Texten har rätt kontrollsumma men är ingen TRON-adress (versionen 0x41 och 20 byte).";
+            return false;
+        }
+
+        problem = null;
+        address = FromTronBytes(data);
+        return true;
+    }
+
+    /// <summary>
+    /// Reads the TRON address in 20 bytes as TRON's virtual machine and event logs write them: 40 hex digits with or
+    /// without <c>0x</c>, or a 32-byte word (an event's topic) whose first 12 bytes are zero.
+    /// </summary>
+    /// <param name="hex">The hex.</param>
+    /// <param name="address">The address, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the hex holds an address.</returns>
+    public static bool TryFromTronWord(
+        [NotNullWhen(true)] string? hex, [NotNullWhen(true)] out EthereumAddress? address)
+    {
+        address = null;
+        var digits = hex?.Trim() ?? string.Empty;
+        digits = digits.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? digits[2..] : digits;
+        if (digits.Length == WordDigits)
+        {
+            if (digits.AsSpan(0, WordDigits - Digits).ContainsAnyExcept('0'))
+            {
+                return false;
+            }
+
+            digits = digits[(WordDigits - Digits)..];
+        }
+
+        if (digits.Length != Digits || digits.AsSpan().ContainsAnyExcept(HexDigits))
+        {
+            return false;
+        }
+
+        address = FromTronBytes([TronVersion, .. Convert.FromHexString(digits)]);
+        return true;
+    }
+
+    /// <summary>Writes the address as it is shown: EIP-55 on Ethereum, Base58Check on TRON.</summary>
+    /// <returns>The address.</returns>
     public override string ToString() => Checksummed;
+
+    /// <summary>Makes a TRON address of its version byte and 20 bytes.</summary>
+    /// <param name="data">The 21 bytes.</param>
+    /// <returns>The address.</returns>
+    private static EthereumAddress FromTronBytes(byte[] data) =>
+        new(Base58Check.Encode(data), "0x" + Convert.ToHexStringLower(data.AsSpan(1)));
 
     /// <summary>
     /// Gives the EIP-55 form: the Keccak-256 of the lower-case hex (without <c>0x</c>) decides each letter's case:

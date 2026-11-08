@@ -172,8 +172,9 @@ public sealed class TokenServiceTests : IDisposable
     [Fact]
     public async Task A_token_without_a_source_has_no_price_and_nothing_is_sent()
     {
+        var impostor = Asset.Token(Chain.Tron, "T" + new string('1', 33), "USDT", 6);
         var lookup = await _harness.Prices.GetPriceAsync(
-            _harness.Case, new PriceRequest(Chain.Tron, Fixtures.At) { Asset = KnownTokens.TronUsdt });
+            _harness.Case, new PriceRequest(Chain.Tron, Fixtures.At) { Asset = impostor });
 
         Assert.Equal(PriceLookupStatus.Unsupported, lookup.Status);
         Assert.Null(lookup.Value);
@@ -367,6 +368,9 @@ public sealed class BitstampTokenSourceTests
     private static readonly Asset Impostor =
         Asset.Token(Chain.Ethereum, "0x1111111111111111111111111111111111111111", "USDT", 6);
 
+    /// <summary>A token on TRON called USDT whose contract is not Tether's.</summary>
+    private static readonly Asset TronImpostor = Asset.Token(Chain.Tron, "T" + new string('1', 33), "USDT", 6);
+
     private readonly ICryptoRateSource _source = new BitstampRateSource(new Uri(Fixtures.Bitstamp));
 
     public static TheoryData<Asset, FiatCurrency, bool> Supported => new()
@@ -376,11 +380,14 @@ public sealed class BitstampTokenSourceTests
         { KnownTokens.EthereumUsdt, FiatCurrency.Sek, false },
         { KnownTokens.EthereumUsdc, FiatCurrency.Usd, true },
         { KnownTokens.EthereumUsdc, FiatCurrency.Eur, true },
-        { KnownTokens.TronUsdt, FiatCurrency.Usd, false },
+        { KnownTokens.TronUsdt, FiatCurrency.Usd, true },
+        { KnownTokens.TronUsdt, FiatCurrency.Sek, false },
+        { TronImpostor, FiatCurrency.Usd, false },
         { Impostor, FiatCurrency.Usd, false },
         { Asset.Bitcoin, FiatCurrency.Usd, true },
         { Asset.Ether, FiatCurrency.Eur, true },
-        { Asset.Tronix, FiatCurrency.Usd, false },
+        { Asset.Tronix, FiatCurrency.Usd, true },
+        { Asset.Tronix, FiatCurrency.Sek, false },
     };
 
     [Theory]
@@ -395,9 +402,15 @@ public sealed class BitstampTokenSourceTests
     [InlineData("USDT", FiatCurrency.Eur, "usdteur")]
     [InlineData("USDC", FiatCurrency.Usd, "usdcusd")]
     [InlineData("USDC", FiatCurrency.Eur, "usdceur")]
+    [InlineData("TRON-USDT", FiatCurrency.Eur, "usdteur")]
     public void Asks_the_tokens_own_market(string token, FiatCurrency quote, string market)
     {
-        var asset = token == "USDT" ? KnownTokens.EthereumUsdt : KnownTokens.EthereumUsdc;
+        var asset = token switch
+        {
+            "USDT" => KnownTokens.EthereumUsdt,
+            "TRON-USDT" => KnownTokens.TronUsdt,
+            _ => KnownTokens.EthereumUsdc,
+        };
 
         var uri = _source.RequestUri(asset, quote, PriceResolution.Hour, Start);
 
@@ -442,7 +455,8 @@ public sealed class BitstampTokenSourceTests
     [Fact]
     public void Has_no_market_for_an_unknown_token()
     {
-        var unknown = KnownTokens.TronUsdt;
+        var unknown = TronImpostor;
+
 
         Assert.Throws<NotSupportedException>(
             () => _source.RequestUri(unknown, FiatCurrency.Usd, PriceResolution.Hour, Start));
