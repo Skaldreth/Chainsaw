@@ -42,6 +42,15 @@ public static class TestDataServices
                 provider.GetRequiredService<TestChainHttp>(),
                 provider.GetRequiredService<IOperatorProfileStore>(),
                 provider.GetRequiredService<IClock>()))));
+        services.AddSingleton<TestTronChain>();
+        services.AddSingleton(provider => new TestTronHttp(
+            provider.GetRequiredService<TestTronChain>(), provider.GetRequiredService<IClock>()));
+        TryDecorate<ITronSource>(services, (provider, real) => new TestDataTronRouter(
+            real,
+            new Lazy<ITronSource>(() => TestDataTron.Create(
+                provider.GetRequiredService<TestTronHttp>(),
+                provider.GetRequiredService<IOperatorProfileStore>(),
+                provider.GetRequiredService<IClock>()))));
         services.AddSingleton(provider => new TestRatesHttp(provider.GetRequiredService<IClock>()));
         TryDecorate<IPriceService>(services, (provider, real) => new TestDataPriceRouter(
             real,

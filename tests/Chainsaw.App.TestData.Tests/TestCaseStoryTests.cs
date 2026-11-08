@@ -154,6 +154,25 @@ public sealed class TestCaseStoryTests : IDisposable
         Assert.Contains(result.Reached, reach => reach.Hops >= 2);
     }
 
+    [Fact]
+    public async Task The_swap_continues_on_tron_where_usdt_reaches_sydborsen_and_nothing_goes_out()
+    {
+        using var @case = await OpenAsync();
+
+        var scene = await SceneAsync(@case);
+        var graph = await _harness.Get<ITracingService>().LoadAsync(@case);
+
+        var link = Assert.Single(graph.CrossChainLinks);
+        Assert.Equal(Chain.Tron, link.To.Chain);
+        Assert.Equal(TestTronChain.Id(TestTronChain.SwapPayout), link.To.Id);
+        var mule = scene.Nodes.Single(node => node.Node.Addresses.Contains(TestTronChain.Mule.ToChainAddress()));
+        Assert.Equal(Chain.Tron, mule.Node.Chain);
+        Assert.Contains(NodeBadge.CanBeFrozen, mule.Badges);
+        Assert.Contains(graph.Edges, edge => edge.Amount.Asset == KnownTokens.TronUsdt
+            && edge.To == graph.NodeOf(TestTronChain.Exchange.ToChainAddress())!.Key);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
     private async Task<ICase> OpenAsync()
     {
         var builder = _harness.Get<TestCaseBuilder>();

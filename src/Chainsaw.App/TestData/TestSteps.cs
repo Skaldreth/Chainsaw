@@ -178,19 +178,15 @@ public sealed record ShareLabelsStep : ITestStep
 /// <summary>Links an output to the transaction it continues as on another chain (a swap).</summary>
 /// <param name="Transaction">The story's label for the transaction.</param>
 /// <param name="Output">The output that leaves the chain.</param>
-/// <param name="Seed">What the made-up Ethereum transaction's hash is made from.</param>
-public sealed record LinkOtherChainStep(string Transaction, int Output, string Seed) : ITestStep
+/// <param name="To">The made-up transaction on the other chain (the swap's payout on TRON).</param>
+public sealed record LinkOtherChainStep(string Transaction, int Output, ChainTransactionRef To) : ITestStep
 {
     /// <inheritdoc/>
     public Task RunAsync(TestRun run, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(run);
-        var hash = "0x" + Convert.ToHexStringLower(TestAddress.Hash(Seed));
         run.Services.Tracing.LinkCrossChain(
-            run.Case,
-            new Outpoint(run.TxidOf(Transaction), Output),
-            new ChainTransactionRef(Chain.Ethereum, hash),
-            TestStory.LabelReason);
+            run.Case, new Outpoint(run.TxidOf(Transaction), Output), To, TestStory.LabelReason);
         return Task.CompletedTask;
     }
 }

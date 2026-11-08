@@ -2,6 +2,7 @@
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.TestData;
 
@@ -20,7 +21,7 @@ namespace Chainsaw.App.TestData;
 public static class TestStory
 {
     /// <summary>The story's version, in the journal and as the made-up labels' source version.</summary>
-    public const string Version = "2";
+    public const string Version = "3";
 
     /// <summary>The made-up open source the test case's labels come from.</summary>
     public const string LabelSource = "testdata (påhittad)";
@@ -66,7 +67,10 @@ public static class TestStory
             .. Expansions(),
             new SanctionCheckStep(),
             new ShareLabelsStep(),
-            new LinkOtherChainStep(TestStoryChain.HubPayment, SwapOutput, "eth:bytarens-swap"),
+            new LinkOtherChainStep(
+                TestStoryChain.HubPayment, SwapOutput,
+                new ChainTransactionRef(Chain.Tron, TestTronChain.Id(TestTronChain.SwapPayout))),
+            .. OnTron(),
             new WatchStep(actors.Consolidated, "Bedragarens andra plånbok", WatchDirection.In),
             new WatchCheckStep(),
             new ChecksStep(),
@@ -133,6 +137,21 @@ public static class TestStory
 
         // A supplier's report of fraud (as from Chainabuse): a red mark beside the node's own sort.
         new LabelStep(actors.Scammer, LabelKind.Reported, "Nätfiske"),
+    ];
+
+    /// <summary>
+    /// Gives the part on TRON (round 8): the swap service's payout of USDT to the scammer, labelled as the made-up
+    /// open source names it, the scammer's TRON address as a start point, and the scammer and the mule expanded, so
+    /// that USDT reaches Sydbörsen's deposit on TRON with its snowflake (Tether can freeze it there).
+    /// </summary>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> OnTron() =>
+    [
+        new TronLabelStep(TestTronChain.Swap, LabelKind.SwapBridge, "Bytaren (TRON)"),
+        new TronLabelStep(TestTronChain.Exchange, LabelKind.Exchange, "Sydbörsen (TRON)"),
+        new TronStartPointStep(TestTronChain.Scammer),
+        new TronExpandStep(TestTronChain.Scammer),
+        new TronExpandStep(TestTronChain.Mule),
     ];
 
     /// <summary>
