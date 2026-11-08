@@ -139,6 +139,8 @@ public partial class MainWindow : Window
         WireRequests(shell, graph);
         WireLabels(shell, graph);
         WireExposure(shell, graph);
+        WireTimeline(shell, graph, monitoring.Board);
+        WireFlow(shell, graph);
         WireReport(shell, graph, report);
         WireEmptyGraph(shell, graph.Start);
         watchRunner.Start();
@@ -294,6 +296,104 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>
+    /// Wires the view Tidslinje (sketch TL3a): it follows the graph shown and reads the case's own events (the labels,
+    /// the watches' hits and the decisions) with it, <em>Visa i grafen</em> shows the graph with the event lit,
+    /// <em>Varför?</em> opens the Guide's panel beside it, and the page takes the keyboard when it is shown.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="watches">The case's watches and their hits.</param>
+    private void WireTimeline(ShellViewModel shell, GraphViewModel graph, WatchBoard watches)
+    {
+        if (shell.Timeline is not { } timeline)
+        {
+            return;
+        }
+
+        TimelinePage.Attach(timeline);
+
+        // Read off the UI thread: the watches' snapshot and the sealed checks are replaced whole, never changed.
+        timeline.Moments = tracedGraph =>
+        [
+            .. Graph.TimelineReading.Hits(tracedGraph, watches.Snapshot.Watches, watches.Snapshot.Hits),
+            .. Graph.TimelineReading.Decisions(tracedGraph, graph.Checks.Stored),
+        ];
+        timeline.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                timeline.Update(graph.Scene);
+            }
+        };
+        watches.Changed += (_, _) => timeline.MomentsChanged();
+        graph.Checks.Changed += (_, _) => timeline.MomentsChanged();
+        timeline.PathWanted += (_, path) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.ShowPath(path);
+        };
+        timeline.GuideWanted += (_, request) => _guidePanel.Ask(request);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ShellViewModel.IsTimelineShown))
+            {
+                return;
+            }
+
+            // The reading runs only while the view is shown (principle 6).
+            timeline.IsShown = shell.IsTimelineShown;
+            if (shell.IsTimelineShown)
+            {
+                Dispatcher.BeginInvoke(() => TimelinePage.Focus(), DispatcherPriority.Input);
+            }
+        };
+    }
+
+    /// <summary>
+    /// Wires the view Flöde (sketch FL1a): it follows the graph shown, <em>Visa vägen i grafen</em> shows the graph with
+    /// the way lit, <em>Varför?</em> opens the Guide's panel beside it, and the page takes the keyboard when it is shown.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    private void WireFlow(ShellViewModel shell, GraphViewModel graph)
+    {
+        if (shell.Flow is not { } flow)
+        {
+            return;
+        }
+
+        FlowPage.Attach(flow);
+        flow.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                flow.Update(graph.Scene);
+            }
+        };
+        flow.PathWanted += (_, path) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.ShowPath(path);
+        };
+        flow.GuideWanted += (_, request) => _guidePanel.Ask(request);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ShellViewModel.IsFlowShown))
+            {
+                return;
+            }
+
+            // The flow is counted only while the view is shown (principle 6).
+            flow.IsShown = shell.IsFlowShown;
+            if (shell.IsFlowShown)
+            {
+                Dispatcher.BeginInvoke(() => FlowPage.Focus(), DispatcherPriority.Input);
+            }
+        };
+    }
 
     /// <summary>
     /// Wires the view Etiketter (sketch ET1a): its list follows the graph shown, <em>Visa i grafen</em> shows the graph
@@ -568,6 +668,8 @@ public partial class MainWindow : Window
     {
         var covered = _guidePanel.IsOpen ? GuidePanel.Width : 0;
         GraphPage.MakeRoom(covered);
+        TimelinePage.MakeRoom(covered);
+        FlowPage.MakeRoom(covered);
         CommandPanel.Margin = new Thickness(CommandBarGutter, 0, covered + CommandBarGutter, 0);
     }
 

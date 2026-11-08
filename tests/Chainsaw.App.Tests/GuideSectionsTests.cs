@@ -17,6 +17,7 @@ public sealed partial class GuideSectionsTests
         ("Säkerhet och utgångar",
             ["huvudnyckeln", "lasning", "utgangen", "vpn-utgangar", "kallor", "aterstallningsnyckeln"]),
         ("Klustring", ["bryta-upp-kluster"]),
+        ("Spårning", ["vyn-tidslinje", "flodet"]),
         ("Arbeta i grafen",
             ["inspektoren", "rora-sig-i-grafen", "tidslinjen", "det-som-holls-tillbaka", "historik", "annan-kedja",
                 "dolda-utgangar", "soptunnan", "kommentarer"]),

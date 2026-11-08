@@ -220,6 +220,8 @@ public partial class App : Application
                 .AddSingleton<RequestsViewModel>()
                 .AddSingleton<LabelsViewModel>()
                 .AddSingleton<ExposureViewModel>()
+                .AddSingleton<TimelineViewModel>()
+                .AddSingleton<FlowViewModel>()
                 .AddSingleton<ReportViewModel>()
                 .AddSingleton<IBackgroundProcess, WindowsBackgroundProcess>()
                 .AddSingleton<IAutostart, RunKeyAutostart>()

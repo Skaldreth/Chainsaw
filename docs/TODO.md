@@ -128,7 +128,6 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 8. **TRON med USDT**, sedan **Litecoin**, **BSC**, **Solana** och den genomskinliga delen av **Zcash**.
 9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
    (utan språkmodell, princip 5).
-10. **Vyerna Tidslinje och Flöde**, när skisserna är valda.
 
 **Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (förvalet följer värdet, utredaren väljer per
 swap; valet i pillret skissas [skiss]), VPN i bakgrunden (byggs i omgång 3) och metoderna för privacy coins

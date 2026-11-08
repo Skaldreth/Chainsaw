@@ -11,7 +11,8 @@ och vad varje etapp byggde i `docs/DEV-LOG.md`.
 - **Etapperna 1–27 är byggda**, och sedan 2026-11-08 också allt som valdes på canvasens sida *Mot 1.0*:
   - Begäran (BG1b), Spara ofta, Ethereum i Nytt ärende, Godkänna en plånbok, soptunnan för lappar, ytor och högar.
   - Grafen: IN4a kortets baksida, TL2a tidslisten, GR9a bytt block och *Väntar på källan*.
-  - Vyerna Etiketter (ET1a, med *Allt följer med*), Exponering (EP1b) och Rapport (RP1b).
+  - Vyerna Etiketter (ET1a, med *Allt följer med*), Exponering (EP1b), Rapport (RP1b), Tidslinje (TL3a) och Flöde
+    (FL1a).
   - Kurserna via Riksbanken (KU1a), inställningarna (BV4a, ST2a, FS2a, UT3b), ärendets kuvert (ÄR1b) och sökningen
     i kommandoraden (KR1a).
   - Varje etapp som skriver i ärendet är granskad oberoende tills inga C eller I återstod; de mindre fynden står i
