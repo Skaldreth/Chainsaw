@@ -568,6 +568,12 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Exponering (EP1b)
 
+- **Kontokedjan och länkade insättningar** (omgranskningen 2026-11-08, M): `AccountExposureRun.Ledger` tar bort en
+  länkad insättning helt, så dess del av plånbokens utbetalningar står som *Kom före historiken* eller *Inte
+  expanderat* i stället för *Fortsätter på annan kedja* (`ExposureRest.OtherChain`), som Bitcoin säger. Beloppen stämmer.
+- **Pengar i cirkel i *Fått från*** (M, fanns före): `ReadIn` skriver `_units[coin]` för varje ingång, så ett
+  startmynt som också är ingång i en tx som läses bakåt tappar sitt belopp och analysen vägras. Test saknas.
+
 - **M4 från granskningen:** Ethereums gasavgifter finns inte som poster i grafens linjer, så plånboksläsningen räknar
   dem inte; pengar som betalade gas står som kvar hos aktören.
 - *Fått från* kör metoden en gång per inbetalning hos varje aktör på vägen; en aktör med tusentals överföringar kan
