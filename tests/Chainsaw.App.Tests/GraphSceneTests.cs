@@ -381,7 +381,8 @@ public sealed partial class GraphSceneTests
 
         Assert.Equal("Börs A", content.Title);
         Assert.Contains(new InspectorFact("Spårat in", "0,5000 BTC"), content.Facts);
-        Assert.Contains(new InspectorFact("Sort", "Börs"), content.Facts);
+        Assert.Equal("Börs · Bitcoin", content.Subtitle);
+        Assert.DoesNotContain(content.Facts, fact => fact.Name == "Sort");
         Assert.Contains(new InspectorFact("Hopp", "+2"), content.Facts);
         Assert.Equal([GraphSamples.E.Value], content.Details);
         Assert.Contains(content.Why, line => line.Topic == GuideTopic.Labels && line.Text.Contains("Bedömning", Ordinal));
@@ -401,7 +402,7 @@ public sealed partial class GraphSceneTests
         Assert.Contains(start.Why, line => line.Text.StartsWith("Inte expanderad", StringComparison.Ordinal));
         Assert.Contains(start.Why, line => line.Text.Contains("Ingen etikett", StringComparison.Ordinal));
         Assert.Equal(2, cluster.Expansion.Count);
-        Assert.Equal("Okänd", start.Facts.Single(fact => fact.Name == "Sort").Value);
+        Assert.StartsWith("Okänd · ", start.Subtitle, StringComparison.Ordinal);
         Assert.True(start.IsStartPoint);
         Assert.False(cluster.IsStartPoint);
     }

@@ -61,8 +61,8 @@ public partial class GraphView : UserControl
         Canvas.Drawn += (_, _) => PlaceOverNode();
     }
 
-    /// <summary>The inspector's width in sketch GR4, in device-independent pixels.</summary>
-    private const double InspectorWidth = 280;
+    /// <summary>The inspector's width in sketch IN2b, in device-independent pixels.</summary>
+    private const double InspectorWidth = 340;
 
     /// <summary>The width of the checks' panel where the inspector stands (sketch KF2b).</summary>
     private const double ChecksPanelWidth = 400;

@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -33,6 +34,12 @@ public sealed record GraphSnapshot(
     /// movement on it (sketch TK1a: SEK small under the amount); a line without is missing, and shows no value.
     /// </summary>
     public IReadOnlyDictionary<string, EdgeValue> Values { get; init; } = new Dictionary<string, EdgeValue>();
+
+    /// <summary>
+    /// Gets the latest rate the case has for each asset on the graph's account chains, which values what is left at an
+    /// address in the inspector (sketch TK1a); an asset without a rate is missing, and its balance shows no value.
+    /// </summary>
+    public IReadOnlyDictionary<Asset, Price> Rates { get; init; } = new Dictionary<Asset, Price>();
 
     /// <summary>Gets whether any trace was counted, on any chain.</summary>
     public bool HasTrace => Trace is not null || AccountTrace is not null;
@@ -455,7 +462,7 @@ public sealed record GraphScene(
                 .GroupBy(edge => edge.Traced.Asset)
                 .Select(group => group.Skip(1).Aggregate(group.First().Traced, (sum, edge) => sum + edge.Traced))
                 .ToList();
-        var balances = node.Chain == Chain.Bitcoin ? [] : Balances(node, snapshot.Graph, edges);
+        var balances = node.Chain == Chain.Bitcoin ? [] : Balances(node, snapshot, edges);
         var sort = SortOf(node, labels);
         var primary = labels.FirstOrDefault(label => VisualLanguage.SortOf(label.Kind) == sort);
         var badges = new List<NodeBadge>();
@@ -518,11 +525,13 @@ public sealed record GraphScene(
     /// row says so and no snowflake is set, since it would rest on a guess.
     /// </summary>
     /// <param name="node">The account's node.</param>
-    /// <param name="graph">The graph.</param>
+    /// <param name="snapshot">The graph and the case's latest rate per asset, which values what is left.</param>
     /// <param name="edges">The lines.</param>
     /// <returns>The rows, the chain's own coin first, then by symbol.</returns>
-    private static List<TokenBalanceRow> Balances(GraphNode node, TraceGraph graph, IReadOnlyList<EdgeView> edges)
+    private static List<TokenBalanceRow> Balances(
+        GraphNode node, GraphSnapshot snapshot, IReadOnlyList<EdgeView> edges)
     {
+        var graph = snapshot.Graph;
         var lines = edges.Where(edge => edge.Edge.Kind == GraphEdgeKind.Transfer).ToList();
         var assets = lines.Where(edge => edge.Edge.From == node.Key || edge.Edge.To == node.Key)
             .Select(edge => edge.Edge.Amount.Asset).Distinct()
@@ -542,8 +551,8 @@ public sealed record GraphScene(
                     .Aggregate(outgoing, (sum, fee) => sum + fee.Amount);
             }
 
-            var row = TokenMarks.Balance(incoming, outgoing);
-            rows.Add(read ? row : row with { Left = "–", Note = unknown, CanBeFrozen = false, FreezeText = null });
+            var row = TokenMarks.Balance(incoming, outgoing, snapshot.Rates.GetValueOrDefault(asset));
+            rows.Add(read ? row : Unread(row, unknown));
         }
 
         if (!rows.Any(row => row.Name == Asset.Ether.Symbol) && node.Chain == Chain.Ethereum)
@@ -553,12 +562,30 @@ public sealed record GraphScene(
             {
                 var paid = fees.Aggregate(AssetAmount.Zero(Asset.Ether), (sum, fee) => sum + fee.Amount);
                 var row = TokenMarks.Balance(AssetAmount.Zero(Asset.Ether), paid);
-                rows.Insert(0, read ? row : row with { Left = "–", Note = unknown });
+                rows.Insert(0, read ? row : Unread(row, unknown));
             }
         }
 
         return rows;
     }
+
+    /// <summary>
+    /// Makes a row say that what is left is not known, because the account's history is not read: no balance, no
+    /// value and no snowflake, which would all rest on a guess.
+    /// </summary>
+    /// <param name="row">The row as the lines in the graph give it.</param>
+    /// <param name="note">Why it is not known.</param>
+    /// <returns>The row.</returns>
+    private static TokenBalanceRow Unread(TokenBalanceRow row, string note) => row with
+    {
+        Left = TokenMarks.UnknownLeft,
+        Note = note,
+        CanBeFrozen = false,
+        FreezeText = null,
+        IsEmpty = false,
+        Value = null,
+        ValueTip = null,
+    };
 
     /// <summary>Adds the amounts of some lines in one asset.</summary>
     /// <param name="asset">The asset.</param>

@@ -1,0 +1,372 @@
+<UserControl x:Class="Chainsaw.App.Views.InspectorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:graph="clr-namespace:Chainsaw.App.Graph"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:views="clr-namespace:Chainsaw.App.Views"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance Type=vm:GraphViewModel}"
+             mc:Ignorable="d">
+
+    <!--
+      The inspector (sketches IN2b, GR5, TK1a and AN1b): pure reading. The heading has the sort's icon in its frame, the
+      name with the sort, the chain and the start point under it, and Varför? as a round icon in the corner; under it
+      the tabs Fakta and Historik, the facts in two columns, the balance per token, and the ids in full in a dark box
+      in Cascadia Mono with a copy button. The actions stand at the node, never here. Only wiring; what is shown is
+      worked out in InspectorContent and GraphViewModel.
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- Varför? in the heading's corner (sketch IN2b): a round 32 px button with the question in a ring. -->
+        <Style x:Key="Button.Why" TargetType="Button" BasedOn="{StaticResource Button.Help}">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Why}"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Copy beside an id in the dark box (sketch IN2b): a 30 px square with a 1.5 px frame on the panel's tone. -->
+        <Style x:Key="Button.Copy" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A tab (sketch IN2b): 20 px apart, its line on the row's own line under them. -->
+        <Style x:Key="Button.InspectorTab" TargetType="Button" BasedOn="{StaticResource Button.Tab}">
+            <Setter Property="Margin" Value="0,0,20,-1" />
+            <Setter Property="Height" Value="32" />
+        </Style>
+
+        <!-- A fact's name over its value, two to a row. -->
+        <Style x:Key="Text.FactName" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <TextBlock Text="Välj en aktör eller en linje." FontSize="13" Foreground="{StaticResource Brush.TextDim}"
+                   Margin="22" TextWrapping="Wrap">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasInspection}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False"
+                      Visibility="{Binding HasInspection, Converter={StaticResource Visible}}">
+            <StackPanel DataContext="{Binding Inspection}" Margin="0,0,0,22">
+
+                <!-- ===== The heading (sketches IN2b and GR5) ===== -->
+                <Grid Margin="22,22,22,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- The sort's icon in the node's own frame: round for an actor, square for a service. -->
+                    <Grid Width="38" Height="38" VerticalAlignment="Center">
+                        <Rectangle x:Name="HeadFrame" StrokeThickness="1.5"
+                                   Stroke="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}">
+                            <Rectangle.Style>
+                                <Style TargetType="Rectangle">
+                                    <Setter Property="RadiusX" Value="10" />
+                                    <Setter Property="RadiusY" Value="10" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Shape}" Value="{x:Static graph:NodeShape.Round}">
+                                            <Setter Property="RadiusX" Value="19" />
+                                            <Setter Property="RadiusY" Value="19" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsDashed}" Value="True">
+                                            <Setter Property="StrokeDashArray" Value="3 2" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Rectangle.Style>
+                        </Rectangle>
+                        <controls:GridIcon Size="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
+                                           Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                    </Grid>
+
+                    <!-- The name, in grey when it is only the address shortened (GR5), and the line under it (IN2b). -->
+                    <StackPanel Grid.Column="1" Margin="12,0,10,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding Title}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsNamed}" Value="False">
+                                            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding Subtitle}" FontSize="12.5" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"
+                                   Foreground="{StaticResource Brush.TextDim}" ToolTip="{Binding Subtitle}" />
+                    </StackPanel>
+
+                    <!-- Varför? as a round icon in the heading's corner: the Guide's answers beside the graph. -->
+                    <Button Grid.Column="2" Style="{StaticResource Button.Why}" VerticalAlignment="Center"
+                            AutomationProperties.Name="Varför?" ToolTip="Varför? Förklaringen i Guiden, bredvid grafen"
+                            Command="{Binding DataContext.AskWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                </Grid>
+
+                <!-- ===== The tabs (sketches IN2b and AN1b): Fakta and Historik, on a line of their own ===== -->
+                <Border Margin="22,18,22,0" BorderThickness="0,0,0,1" BorderBrush="{StaticResource Brush.Border}"
+                        DataContext="{Binding DataContext.History, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        Visibility="{Binding HasNode, Converter={StaticResource Visible}}">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Command="{Binding ShowFactsCommand}" AutomationProperties.Name="Fakta">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Button.InspectorTab}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFactsShown}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <TextBlock Text="Fakta" />
+                        </Button>
+                        <Button Command="{Binding ShowHistoryCommand}" AutomationProperties.Name="Historik"
+                                ToolTip="Det som hänt med noden, i tidsordning">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Button.InspectorTab}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsShown}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Historik" />
+                                <TextBlock Text="{Binding CountText}" Margin="6,0,0,0" FontSize="11.5"
+                                           VerticalAlignment="Center" Foreground="{StaticResource Brush.TextDim}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- The history (sketch AN1b), in place of the facts while its tab is chosen. -->
+                <views:InspectorHistoryView Margin="22,0,22,0"
+                    DataContext="{Binding DataContext.History, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    Visibility="{Binding IsShown, Converter={StaticResource Visible}}" />
+
+                <StackPanel Visibility="{Binding DataContext.History.IsFactsShown, Converter={StaticResource Visible},
+                                                 RelativeSource={RelativeSource AncestorType=UserControl}}">
+
+                    <!-- ===== The facts, two to a row (sketch IN2b) ===== -->
+                    <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Margin="22,16,10,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type graph:InspectorFact}">
+                                <StackPanel Margin="0,0,12,14">
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource Text.FactName}" />
+                                    <TextBlock Text="{Binding Value}" FontSize="14" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- ===== The balance per token (sketch TK1a): what is left, its worth, the issuer ===== -->
+                    <StackPanel Margin="22,0,22,10" Visibility="{Binding HasBalances, Converter={StaticResource Visible}}">
+                        <TextBlock Text="Saldo per token" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
+                                   Margin="0,0,0,4" />
+                        <ItemsControl ItemsSource="{Binding Balances}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type graph:TokenBalanceRow}">
+                                    <Border x:Name="Row" Margin="-6,0" Padding="6" CornerRadius="6" Background="Transparent"
+                                            ToolTip="{Binding ToolTip}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <!-- The token's mark in a small round badge. -->
+                                            <Border Width="22" Height="22" CornerRadius="11" BorderThickness="1"
+                                                    VerticalAlignment="Center"
+                                                    Background="{StaticResource Brush.SurfaceRaised}"
+                                                    BorderBrush="{StaticResource Brush.BorderStrong}">
+                                                <TextBlock Text="{Binding Glyph}" FontSize="11" FontWeight="SemiBold"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="9,0,8,0" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center" />
+                                                    <!-- Kan frysas: the snowflake on its pale disc, as at the node. -->
+                                                    <Border Width="18" Height="18" CornerRadius="9" Margin="6,0,0,0"
+                                                            Background="{StaticResource Brush.Mark.Freeze}"
+                                                            ToolTip="Kan frysas av utgivaren"
+                                                            Visibility="{Binding CanBeFrozen, Converter={StaticResource Visible}}">
+                                                        <controls:GridIcon Size="12" HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource Brush.Mark.OnFreeze}"
+                                                                           Data="{StaticResource Icon.Snow}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Note}" FontSize="11" Margin="0,1,0,0"
+                                                           Foreground="{StaticResource Brush.TextDim}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                <TextBlock x:Name="Left" Text="{Binding LeftWithUnit}" FontSize="13"
+                                                           HorizontalAlignment="Right" />
+                                                <TextBlock Text="{Binding Value}" FontSize="11" HorizontalAlignment="Right"
+                                                           Margin="0,1,0,0" Foreground="{StaticResource Brush.TextDim}"
+                                                           ToolTip="{Binding ValueTip}"
+                                                           Visibility="{Binding HasValue, Converter={StaticResource Visible}}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                            <Setter TargetName="Left" Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                                        </DataTrigger>
+                                        <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+                                        </Trigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!--
+                          Who can freeze what is left, and that it is asked of the issuer, not the exchange. The sketch's
+                          Begäran om frysning … is not shown: no such request can be made yet, and a button that cannot be
+                          used is not shown (principle 7).
+                        -->
+                        <Border Margin="0,8,0,0" Padding="12,10" CornerRadius="8" BorderThickness="1"
+                                Background="{StaticResource Brush.Freeze.Box}" BorderBrush="{StaticResource Brush.Freeze.Edge}"
+                                Visibility="{Binding HasFreezeText, Converter={StaticResource Visible}}">
+                            <DockPanel>
+                                <controls:GridIcon DockPanel.Dock="Left" Size="14" Margin="0,2,9,0" VerticalAlignment="Top"
+                                                   Foreground="{StaticResource Brush.Mark.Freeze}" Data="{StaticResource Icon.Snow}" />
+                                <TextBlock Text="{Binding FreezeText}" FontSize="12.5" TextWrapping="Wrap" LineHeight="19"
+                                           Foreground="{StaticResource Brush.Freeze.Text}" />
+                            </DockPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Här (sketch KF1a): the checks and suggestions that concern the chosen actor. -->
+                    <ItemsControl Focusable="False" Margin="22,0,22,10"
+                                  ItemsSource="{Binding DataContext.Checks.Here, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:HereLine}">
+                                <DockPanel Margin="0,0,0,5">
+                                    <Grid DockPanel.Dock="Left" Width="18" Height="18" Margin="0,0,8,0">
+                                        <Ellipse x:Name="Ring" StrokeThickness="1.1"
+                                                 Stroke="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                                        <controls:GridIcon Size="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="{Binding Look.TintKey, Converter={x:Static controls:ResourceKeyConverter.Instance}}"
+                                                           Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+                                    </Grid>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding State}" FontSize="12"
+                                               Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Title}" FontSize="13" TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                        <Setter TargetName="Ring" Property="StrokeDashArray" Value="2.5 2" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!--
+                      ===== The ids in full (sketch IN2b): in a dark box, in Cascadia Mono, each with copy, so that every
+                      step can be checked against the chain with any tool (principle 1) =====
+                    -->
+                    <Border Margin="22,4,22,0" Padding="12" CornerRadius="10" Background="{StaticResource Brush.Background}"
+                            Visibility="{Binding HasIds, Converter={StaticResource Visible}}">
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding Ids}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type graph:InspectorDetail}">
+                                        <DockPanel x:Name="Id" Margin="0,0,0,10">
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Copy}" Margin="10,0,0,0"
+                                                    AutomationProperties.Name="Kopiera" ToolTip="Kopiera"
+                                                    CommandParameter="{Binding Value}"
+                                                    Command="{Binding DataContext.CopyTextCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                <controls:GridIcon Size="16" Data="{StaticResource Icon.Copy}" />
+                                            </Button>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBox Text="{Binding Value, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                                         Background="Transparent" Foreground="{StaticResource Brush.TextMuted}"
+                                                         FontFamily="{StaticResource Font.Mono}" FontSize="12" Padding="0"
+                                                         TextWrapping="Wrap" SelectionBrush="{StaticResource Brush.Accent}"
+                                                         CaretBrush="{StaticResource Brush.Text}" />
+                                                <TextBox Text="{Binding Note, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                                         Background="Transparent" Foreground="{StaticResource Brush.TextDim}"
+                                                         FontFamily="{StaticResource Font.Mono}" FontSize="11" Padding="0"
+                                                         Margin="0,3,0,0" TextWrapping="Wrap"
+                                                         SelectionBrush="{StaticResource Brush.Accent}"
+                                                         CaretBrush="{StaticResource Brush.Text}"
+                                                         Visibility="{Binding HasNote, Converter={StaticResource Visible}}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding MoreIds}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                                       Visibility="{Binding HasMoreIds, Converter={StaticResource Visible}}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

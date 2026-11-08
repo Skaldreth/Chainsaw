@@ -578,7 +578,7 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
 **Startpunkten och namnen (GR5)**
 - Startpunkten har sin egen sort (rund grå om den är okänd, fyrkantig om den är ett kluster) och en liten ljus flagga
   uppe till vänster. Flaggan krockar aldrig med markeringarna uppe till höger (till exempel *Uttag funnet*). Pekaren
-  över noden säger *… · Startpunkt*. Inspektören har *Startpunkt* med flaggan under rubriken. Legenden bakom *?* har
+  över noden säger *… · Startpunkt*. Inspektören säger *… · startpunkt* under rubriken. Legenden bakom *?* har
   flaggan först bland markeringarna.
 - En nod utan namn visar adressen i ljusgrått, förkortad i mitten (`bc1qdlm…37yr`) bara så mycket som behövs. Zooma: på
   alla nivåer står början och de fyra sista tecknen kvar.
@@ -876,7 +876,7 @@ Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *S
 - Stäng av utgången och öppna ärendet igen: grafen, linjerna och värdena ritas ur ärendet utan uppslag.
 
 **Inspektören**
-- En Ethereum-nod visar *Kedja: Ethereum*, *Spårat in* per tillgång, och tabellen Token · In · Ut · Kvar med utgivaren.
+- En Ethereum-nod säger *… · Ethereum* under rubriken, *Spårat in* per tillgång, och *Saldo per token* med utgivaren.
   Har en expanderad adress USDT eller USDC kvar står snöflingan i nodens hörn, i tabellen och i en ruta som säger att
   frysning begärs hos utgivaren. En adress som inte är expanderad säger *Inte expanderad: saldot är okänt* och får
   ingen snöflinga.
@@ -1333,3 +1333,21 @@ några steg).
 - Panorera och zooma en stor graf med en vald tid: inget hackar. Öppna urvalsvyn för det som hölls tillbaka: listen
   döljs så länge den är öppen.
 
+## Inspektören (IN2b, GR5, TK1a och AN1b, 2026-11-08)
+
+- [ ] Välj startpunkten utan namn: inspektören (340 px) har sortens ikon i en rund ram (38 px), adressen förkortad i
+      grått som rubrik och *Okänd · Bitcoin · startpunkt* under. En nod med namn har namnet i krämvitt. Ett kluster
+      säger *… · 6 adresser*. *Varför?* är en rund knapp (32 px) i hörnet, med hovring; inga andra knappar i huvudet.
+- [ ] Flikarna *Fakta* och *Historik* står på en egen linje med accenten under den valda.
+- [ ] *Fakta* i två kolumner: *In*, *Ut*, *Spårat in*, *Tx*, *Hopp*, *Först in* och *Senast* (*block 974 990*, med
+      mellanslag mellan tusentalen). Ingen *Sort* och ingen *Kedja* bland fakta längre.
+- [ ] Adressen står i full längd i en mörk ruta i Cascadia Mono, med kopiera (30 px, rundad) till höger. Kopiera lägger
+      adressen i urklipp. En linje: varje txid i rutan med block och blockhash under i mindre text; fler än 12 tx ger
+      *och N till* sist.
+- [ ] En Ethereum-adress: *Saldo per token* med märket i en rund bricka, namnet med snöflingan när det kan frysas,
+      *Utgivare: Tether* under, och till höger det som ligger kvar (*20,0000 USDT*) med SEK under (*≈ 210 kr*). Hovra
+      SEK: kursen och hur det räknades. Inget kvar: beloppet är nedtonat. Utan kurs i ärendet står ingen SEK.
+- [ ] Rutan om frysning är kall blå med ljus text. *Begäran om frysning …* visas inte (den går inte att göra än).
+- [ ] *Historik*: runda markörer (18 px) på en tunn linje, tiden till höger i svag text, och *Ta tillbaka* eller
+      *Ångra* som ett litet piller under raden. Ett klick fäller ut skälet under; pillret får accentens ram så länge.
+      Det tillbakatagna står kvar överstruket och nedtonat.

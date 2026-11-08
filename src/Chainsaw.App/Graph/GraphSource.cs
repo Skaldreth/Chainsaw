@@ -537,12 +537,14 @@ public sealed class GraphSource(
             }
         }
 
-        var values = await ValuesAsync(@case, graph, rates, cancellationToken).ConfigureAwait(false);
+        var latest = new Dictionary<Asset, Price>();
+        var values = await ValuesAsync(@case, graph, rates, latest, cancellationToken).ConfigureAwait(false);
         return GraphScene.Build(new GraphSnapshot(graph, labels, method, seeds, trace, problem)
         {
             AccountSeeds = accountSeeds,
             AccountTrace = accountTrace,
             Values = values,
+            Rates = latest,
         });
     }
 
@@ -580,10 +582,17 @@ public sealed class GraphSource(
     /// <param name="case">The open case.</param>
     /// <param name="graph">The graph.</param>
     /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="latest">
+    /// Filled with the latest rate found per asset, which values what is left at an address (sketch TK1a).
+    /// </param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The values by line key.</returns>
     private async Task<IReadOnlyDictionary<string, EdgeValue>> ValuesAsync(
-        ICase @case, TraceGraph graph, PriceLookupMode mode, CancellationToken cancellationToken)
+        ICase @case,
+        TraceGraph graph,
+        PriceLookupMode mode,
+        Dictionary<Asset, Price> latest,
+        CancellationToken cancellationToken)
     {
         var values = new Dictionary<string, EdgeValue>(StringComparer.Ordinal);
         if (prices is null)
@@ -630,6 +639,14 @@ public sealed class GraphSource(
                     Math.Round(valuations.Sum(valuation => valuation.Value), 0, MidpointRounding.AwayFromZero),
                     valuations[0].Price.Currency.Code(),
                     [.. valuations.SelectMany(valuation => valuation.Steps).Distinct()]);
+            }
+        }
+
+        foreach (var price in known.Values.OfType<Price>())
+        {
+            if (!latest.TryGetValue(price.Asset, out var held) || price.At > held.At)
+            {
+                latest[price.Asset] = price;
             }
         }
 
