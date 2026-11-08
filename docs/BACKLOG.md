@@ -234,7 +234,13 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
 - **Många hopp, kvar:** bara hopp med en input och en output räknas; ett hopp som också betalar en liten avgift till
   en tjänst syns inte.
 - **Tidsmönster, kvar:** bara ägare som spenderar räknas (inte de som tar emot), och mönstret läses i UTC utan hänsyn
-  till sommartid.
+  till sommartid. Testet görs per ägare utan korrektion för att många ägare prövas samtidigt (granskningen omgång 4,
+  M): med hundra ägare kan någon få ett mönster av slumpen; en korrektion (till exempel Bonferroni eller en falsk
+  upptäcktsgrad) behövs.
+- **Tjänst ur beteende, kvar** (granskningen omgång 4, M): en bedragare med tio eller fler offer som inte är märkta
+  (varken startpunkt eller etikett) och betalningar över mer än ett dygn ser fortfarande ut som en tjänst. Fler
+  tecken behövs, till exempel insättningsadresser som bara används en gång, utbetalningar i batch från samma hot
+  wallet, eller att avsändarna själva är vanliga plånböcker.
 
 ## Kontroller, förslag och områden (etapp 22)
 - **Mixerns kandidater ur kedjan:** `mixer-outputs v1` prövar bara det som finns i grafen. Att söka igenom blocken i

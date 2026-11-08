@@ -242,7 +242,7 @@ public sealed class RoundFourChecksTests : IDisposable
 
         Assert.Equal(AreaSort.Wallet, check.Finding.Area);
         Assert.Equal("Möjlig PayJoin", check.Finding.Title);
-        Assert.Equal("En onödig input, olika adresstyper", check.Finding.Summary);
+        Assert.Equal("Mottagarens input, inget slås ihop automatiskt", check.Finding.Summary);
         AssertJudgement(check, "payjoin-hint v1");
     }
 

@@ -9,15 +9,24 @@ ut som en vanlig betalning, men inputs har **två ägare**. Det är gjort för a
 
 ## Det syns inte på kedjan
 
-En PayJoin går inte att se säkert. Den kan bara **anas**. Klustringens analys `payjoin v1` letar efter tx med minst
+En PayJoin går inte att se säkert. Den kan bara **anas**. Klustringens analys `payjoin v2` letar efter tx med minst
 två inputs från olika adresser och två outputs, där:
 
 - **en input behövdes inte:** utan den minsta inputen räcker de andra ändå till den större utbetalningen och avgiften.
   En vanlig plånbok lägger sällan till en input den inte behöver, men i en PayJoin gör mottagaren det;
 - och, som ett extra tecken, **inputs är av olika adresstyp**, som när två olika plånböcker bidrar.
 
-Då slås **inget** i tx:en ihop automatiskt: inputs blir ett **förslag** i stället för en sammanslagning, det säkraste
-när de kan ha två ägare. Kontrollen `payjoin-hint v1` markerar tx:en som *Möjlig PayJoin* med ett grått område.
+En onödig input är vanlig också i vanliga plånböcker, så den ensam ändrar inget i klustringen; kontrollen
+`payjoin-hint v1` noterar den bara som *Onödig input*. Först vid **starka tecken** på en PayJoin slås **inget** i tx:en
+ihop automatiskt, och inputs blir ett **förslag**:
+
+- två eller tre inputs,
+- en av dem (mottagarens) har en adresstyp som ingen annan input har, men som **en** av outputarna har,
+- den outputen är större än inputen (mottagaren får betalningen och sitt eget mynt tillbaka),
+- och inputen behövdes inte.
+
+Då markeras tx:en som *Möjlig PayJoin* med ett grått område. Vill du att PayJoin aldrig ska påverka klustringen i ett
+ärende dras version 2 tillbaka; version 1 noterar bara och slår ihop som vanligt.
 
 ## I utredningen
 

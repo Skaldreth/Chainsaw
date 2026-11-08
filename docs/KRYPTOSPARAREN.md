@@ -47,8 +47,8 @@ och frågan tas bort härifrån.
    - **Tidsmönster:** minst tjugo tx och sex tysta timmar i rad, och högst en procents chans att slumpen ger lika
      lång tystnad; natten antas ha sin mitt kl. 03.30.
    - **Växeln:** fingeravtrycket (version, låsning, RBF) är ett av sex tecken och räknas aldrig för att slå ihop.
-   - **PayJoin:** en tx med en input som inte behövdes får sina sammanslagningar som förslag. Slår det bort för många
-     vanliga sammanslagningar i era ärenden?
+   - **PayJoin:** sammanslagningarna blir förslag bara vid starka tecken (två eller tre inputs, mottagarens input av en
+     egen adresstyp som en output har, den outputen större än inputen, och inputen onödig). Missar det PayJoins ni ser?
    - **Damm:** 330 och 546 satoshi sägs kunna vara inskriptioner.
 
 ## Mixers och förvirring

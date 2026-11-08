@@ -7,10 +7,10 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Checks;
 
 /// <summary>
-/// Shows the clustering's guesses of a PayJoin (<c>payjoin v1</c>) as checks with an area of the sort Wallet: a
-/// transaction where an input was not needed for either payment, so its inputs may have two owners. The clustering has
-/// already held the transaction's merges back as suggestions; this check says so where the user works. It finds
-/// nothing of its own, and is a judgement, never a fact (principle 2).
+/// Shows the clustering's PayJoin findings (<c>payjoin</c>) as checks with an area of the sort Wallet: a transaction
+/// where an input was not needed for either payment. On the strong signs of a PayJoin the clustering has held the
+/// transaction's merges back as suggestions (<em>Möjlig PayJoin</em>); otherwise it merged as usual and the check only
+/// notes the unneeded input. It finds nothing of its own, and is a judgement, never a fact (principle 2).
 /// </summary>
 internal sealed class PayJoinCheck : ICheckAnalysis
 {
@@ -38,10 +38,10 @@ internal sealed class PayJoinCheck : ICheckAnalysis
         ];
     }
 
-    /// <summary>Reads from the finding's data whether the inputs were of different address types.</summary>
+    /// <summary>Reads from the finding's data whether the clustering saw the strong signs of a PayJoin.</summary>
     /// <param name="data">The finding's JSON, or <see langword="null"/>.</param>
-    /// <returns><see langword="true"/> when they were.</returns>
-    private static bool MixedTypes(string? data)
+    /// <returns><see langword="true"/> when it did.</returns>
+    private static bool IsStrong(string? data)
     {
         if (data is null)
         {
@@ -49,8 +49,15 @@ internal sealed class PayJoinCheck : ICheckAnalysis
         }
 
         using var json = JsonDocument.Parse(data);
-        return json.RootElement.TryGetProperty("mixedTypes", out var mixed) && mixed.ValueKind == JsonValueKind.True;
+        return json.RootElement.TryGetProperty("strong", out var strong) && strong.ValueKind == JsonValueKind.True;
     }
+
+    /// <summary>Says what the user can do about it.</summary>
+    /// <param name="strong">Whether the clustering saw the strong signs.</param>
+    /// <returns>The advice, in Swedish.</returns>
+    private static string Advice(bool strong) => strong
+        ? "Godkänn sammanslagningen bara om du vet att inputs har samma ägare."
+        : "Visar det sig vara en PayJoin, bryt upp sammanslagningen.";
 
     /// <summary>Describes a possible PayJoin.</summary>
     /// <param name="transaction">The transaction.</param>
@@ -59,16 +66,16 @@ internal sealed class PayJoinCheck : ICheckAnalysis
     /// <returns>The check.</returns>
     private CheckFinding Describe(BitcoinTransaction transaction, StoredFinding stored, GenericFinding finding)
     {
-        var mixedTypes = MixedTypes(finding.Data);
+        var strong = IsStrong(finding.Data);
         var why = $"Analysen {this.Named()} visar klustringens {stored.Heuristic} för tx "
-            + $"{CheckText.Short(transaction.Txid)}: {finding.Reason} Godkänn sammanslagningen bara om du vet att "
-            + "inputs har samma ägare. Det är en bedömning, inte ett faktum.";
+            + $"{CheckText.Short(transaction.Txid)}: {finding.Reason} {Advice(strong)} Det är en bedömning, inte ett "
+            + "faktum.";
         return new CheckFinding(
             transaction.Txid.Value,
             CheckKind.Check,
             AreaSort.Wallet,
-            "Möjlig PayJoin",
-            mixedTypes ? "En onödig input, olika adresstyper" : "En onödig input",
+            strong ? "Möjlig PayJoin" : "Onödig input",
+            strong ? "Mottagarens input, inget slås ihop automatiskt" : "Klustringen slår ihop som vanligt",
             why,
             [.. transaction.InputAddresses()],
             [transaction.Txid],

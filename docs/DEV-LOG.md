@@ -3828,5 +3828,10 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
     förseglade avkodas bara för fynd med beslut, och kandidaterna hålls om bara när något förseglats under tiden.
     **M5:** `GenericFinding` skrivs och läses tillbaka i ett test. **M6:** `active-hours` nycklas på adressen som
     spenderade först och `pass-through` på första hoppet, stabila när spåret följs framåt. **M7:** damm av bara 330 och
-    546 satoshi heter *Damm eller inskriptioner*; PayJoin är nu en klustringsanalys (`payjoin v1`) som håller
-    sammanslagningarna som förslag (det säkraste), och kontrollen visar den.
+    546 satoshi heter *Damm eller inskriptioner*; PayJoin är nu en klustringsanalys som kontrollen visar.
+  - **Andra granskningen (I):** `payjoin` håller sammanslagningar som förslag bara vid starka tecken (`payjoin v2`:
+    två eller tre inputs, mottagarens input av en adresstyp som ingen annan input har men som exakt en output har, den
+    outputen större än inputen, och inputen onödig). Den breda regeln (en onödig input) ändrar aldrig klustringen och
+    syns bara som *Onödig input*. `payjoin v1` noterar utan veto, så ett ärende stänger av vetot genom att dra
+    tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
+    en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.

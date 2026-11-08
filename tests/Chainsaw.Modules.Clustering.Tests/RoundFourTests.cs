@@ -326,6 +326,57 @@ public sealed class RoundFourTests : IDisposable
     }
 
     [Fact]
+    public void A_payjoin_where_the_payee_adds_a_coin_of_its_own_type_holds_the_merge_back()
+    {
+        var payJoin = PayJoin();
+
+        _harness.Analyse(payJoin);
+
+        Assert.False(_harness.ClusterOf(Wpkh("pj-sender")).Contains(Tr("pj-receiver")));
+        var common = Assert.Single(
+            _harness.Service.GetConclusions(_harness.Case, payJoin.Txid).Evidence,
+            evidence => evidence.Heuristic.Name == HeuristicNames.CommonInputOwnership);
+        Assert.Equal(EvidenceStrength.Suggestion, common.Strength);
+        Assert.Contains("PayJoin", common.Adjustment, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("scammer")]
+    [InlineData("wallet")]
+    public void An_ordinary_payment_with_an_unneeded_input_is_still_merged(string label)
+    {
+        // The scammer pays an exchange from three victims' deposits, one of them not needed; or a wallet pays a shop
+        // from two coins of its own type, one of them not needed.
+        var payment = label == "scammer"
+            ? Tx("pj-ord", 901_000).In(Wpkh("dep-1"), 3_000_000).In(Wpkh("dep-2"), 2_500_000)
+                .In(Wpkh("dep-3"), 200_000).Out(Wpkh("exch"), 5_000_000).Out(Wpkh("chg"), 690_000).Build()
+            : Tx("pj-wallet", 901_001).In(Wpkh("w-1"), 3_000_000).In(Wpkh("w-2"), 1_000_000)
+                .Out(Pkh("w-shop"), 2_000_000).Out(Wpkh("w-change"), 1_990_000).Build();
+
+        _harness.Analyse(payment);
+
+        var first = payment.Inputs[0].Address!;
+        Assert.True(_harness.ClusterOf(first).Contains(payment.Inputs[1].Address!));
+        var finding = Assert.IsType<GenericFinding>(Assert.Single(
+            _harness.Service.GetConclusions(_harness.Case, payment.Txid).Findings,
+            found => found.Heuristic.Name == HeuristicNames.PayJoin).Finding);
+        Assert.Contains("\"strong\":false", finding.Data, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_case_can_switch_the_payjoin_veto_off_by_drawing_version_2_back()
+    {
+        _harness.Service.Withdraw(_harness.Case, new HeuristicId(HeuristicNames.PayJoin, 2), "Inte i det här ärendet.");
+
+        _harness.Analyse(PayJoin());
+
+        Assert.True(_harness.ClusterOf(Wpkh("pj-sender")).Contains(Tr("pj-receiver")));
+        Assert.Contains(
+            _harness.Service.GetConclusions(_harness.Case, Txid("pj-real")).Findings,
+            found => found.Heuristic == new HeuristicId(HeuristicNames.PayJoin, 1));
+    }
+
+    [Fact]
     public void A_batch_payout_of_round_amounts_is_never_a_wasabi_2_round()
     {
         var tx = Tx("round-payout");
@@ -360,6 +411,14 @@ public sealed class RoundFourTests : IDisposable
         Assert.Equal(("prov", "{\"outputs\":2}", "Ett prov."), (found.Sort, found.Data, found.Reason));
         Assert.True(harness.Verify().IsIntact);
     }
+
+    /// <summary>
+    /// A PayJoin: the payer pays from a P2WPKH coin, the payee adds a P2TR coin of its own and gets the payment and its
+    /// coin back to a P2TR address; the payer's change goes back to P2WPKH.
+    /// </summary>
+    private static BitcoinTransaction PayJoin() => Tx("pj-real", 901_100)
+        .In(Wpkh("pj-sender"), 3_000_000).In(Tr("pj-receiver"), 1_000_000)
+        .Out(Wpkh("pj-change"), 1_490_000).Out(Tr("pj-paid"), 2_500_000).Build();
 
     /// <summary>An analysis that gives a finding of a sort of its own.</summary>
     private sealed class GenericProbe : IUtxoHeuristic

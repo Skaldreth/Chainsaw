@@ -27,7 +27,7 @@ public sealed class ClusteringModuleTests
 
         var service = provider.GetRequiredService<IClusteringService>();
         Assert.Equal(
-            ["coinjoin v2", "common-input-ownership v1", "change-address v2", "peel-chain v2", "payjoin v1"],
+            ["coinjoin v2", "common-input-ownership v1", "change-address v2", "peel-chain v2", "payjoin v2"],
             service.Heuristics.Select(heuristic => heuristic.ToString()));
         var schema = Assert.Single(provider.GetServices<ICaseSchemaContributor>());
         Assert.Equal("clustering", schema.Module);
