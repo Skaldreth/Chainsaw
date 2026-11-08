@@ -51,8 +51,14 @@ public static class ChainLink
     /// <summary>The straight link between two joints, so that the link's hole shows (decided 2026-11-07).</summary>
     public const double LinkStraight = 40;
 
-    /// <summary>Where the bars end below the joint's centre, where the chain gives way to the helix.</summary>
-    public const double BarsEnd = 100.5;
+    /// <summary>Where the bars start below the joint's centre, two units inside the joint.</summary>
+    public const double BarsStart = 58;
+
+    /// <summary>
+    /// Where the last link's bars end below its joint's centre, where the chain gives way to the helix. The last link is
+    /// shorter than the others, so that the strands' gentle start does not make it look drawn out (decided 2026-11-08).
+    /// </summary>
+    public const double BarsEnd = 72;
 
     /// <summary>
     /// How far a bar's centre lies from the middle between the bars, on either side; the helix's strands start there.

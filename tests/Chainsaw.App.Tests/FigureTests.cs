@@ -146,8 +146,39 @@ public sealed class DnaFigureTests
 
         Assert.NotEmpty(Sketch.Front);
         Assert.NotEmpty(Sketch.Back);
-        Assert.All(all, stretch => Assert.True(stretch.Count > 1));
-        Assert.Contains(all, stretch => stretch.Any(p => p.X < 0 || p.Y > 864));
+        Assert.All(all, stretch => Assert.True(stretch.Points.Count > 1));
+        Assert.Contains(all, stretch => stretch.Points.Any(p => p.X < 0 || p.Y > 864));
+    }
+
+    [Fact]
+    public void A_strand_fades_into_the_dark_behind_in_small_steps_instead_of_at_once()
+    {
+        var shades = Sketch.Front.Concat(Sketch.Back).Select(s => s.Shade).Distinct().Order().ToList();
+        Assert.Equal(DnaFigure.Darkest, shades[0], 6);
+        Assert.Equal(1, shades[^1], 6);
+        Assert.True(shades.Count >= DnaFigure.Shades / 2, $"Only {shades.Count} shades were used.");
+        Assert.All(shades.Zip(shades.Skip(1)), pair =>
+            Assert.True(pair.Second - pair.First <= (1 - DnaFigure.Darkest) / (DnaFigure.Shades - 1) + 1e-9));
+        Assert.All(Sketch.Back, stretch => Assert.True(stretch.Shade < 1));
+    }
+
+    [Fact]
+    public void Stretches_overlap_so_that_no_seam_shows_between_two_shades()
+    {
+        var all = Sketch.Front.Concat(Sketch.Back).ToList();
+
+        // Every stretch but the two that start the strands begins with the last step of the stretch before it.
+        var joined = all.Count(stretch => all.Any(other => other != stretch
+            && other.Points[^2] == stretch.Points[0] && other.Points[^1] == stretch.Points[1]));
+        Assert.Equal(all.Count - 2, joined);
+    }
+
+    [Fact]
+    public void The_last_link_is_shorter_than_the_others_and_its_bars_are_the_strands_start()
+    {
+        Assert.All(Sketch.Joints.SkipLast(1), joint => Assert.True(joint.HasBars));
+        Assert.False(Sketch.Joints[^1].HasBars);
+        Assert.True(ChainLink.BarsEnd - ChainLink.JointHeight / 2 < ChainLink.LinkStraight);
     }
 
     [Fact]
@@ -176,7 +207,7 @@ public sealed class DnaFigureTests
     {
         var tiny = new DnaFigure(40, 30);
 
-        Assert.All(tiny.Front.Concat(tiny.Back).SelectMany(s => s), p =>
+        Assert.All(tiny.Front.Concat(tiny.Back).SelectMany(s => s.Points), p =>
         {
             Assert.False(double.IsNaN(p.X));
             Assert.False(double.IsNaN(p.Y));

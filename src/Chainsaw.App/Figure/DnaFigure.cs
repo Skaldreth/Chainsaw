@@ -49,7 +49,19 @@ public sealed class DnaFigure
     /// How far the strands run straight on from the bars before they start to twist and widen, in pixels, so that the
     /// chain lets go of them without a bend at the bars' ends.
     /// </summary>
-    private const double CalmLength = 18;
+    private const double CalmLength = 4;
+
+    /// <summary>How many shades the strands are drawn in, from the darkest behind to the accent in front.</summary>
+    public const int Shades = 16;
+
+    /// <summary>A strand's colour where it lies deepest behind, as a share of the accent.</summary>
+    public const double Darkest = 0.55;
+
+    /// <summary>The depth at which a strand is darkest; deeper it stays so.</summary>
+    private const double DarkFrom = -0.6;
+
+    /// <summary>The depth at which a strand has reached the accent; nearer it stays so.</summary>
+    private const double LightFrom = 0.2;
 
     /// <summary>How much the second strand's turn falls behind half a turn once twisted: the helix's two grooves.</summary>
     private const double GrooveShare = 0.28;
@@ -129,8 +141,8 @@ public sealed class DnaFigure
         _turns = SumTurns();
 
         Joints = Enumerable.Range(0, joints + 1)
-            .Select(k => At(first + k * pitch, 0))
-            .Select(p => new JointPlacement(p.X, p.Y, Slant, Scale))
+            .Select(k => (Place: At(first + k * pitch, 0), HasBars: k < joints))
+            .Select(j => new JointPlacement(j.Place.X, j.Place.Y, Slant, Scale, j.HasBars))
             .ToList();
         (Front, Back) = Strands();
         Rungs = LayRungs();
@@ -154,14 +166,17 @@ public sealed class DnaFigure
     /// <summary>Gets the direction across the axis.</summary>
     public FigurePoint Across => _across;
 
-    /// <summary>Gets the chain's joints, each with its link's bars below it, from the top.</summary>
+    /// <summary>
+    /// Gets the chain's joints from the top, each with its link's bars below it but the last, whose short bars are the
+    /// strands' start.
+    /// </summary>
     public IReadOnlyList<JointPlacement> Joints { get; }
 
-    /// <summary>Gets the stretches of the strands in front, drawn last, in the accent.</summary>
-    public IReadOnlyList<IReadOnlyList<FigurePoint>> Front { get; }
+    /// <summary>Gets the stretches of the strands in front, drawn last, shaded by their depth.</summary>
+    public IReadOnlyList<StrandStretch> Front { get; }
 
-    /// <summary>Gets the stretches of the strands behind the other, drawn first and darker.</summary>
-    public IReadOnlyList<IReadOnlyList<FigurePoint>> Back { get; }
+    /// <summary>Gets the stretches of the strands behind the other, drawn first, shaded by their depth.</summary>
+    public IReadOnlyList<StrandStretch> Back { get; }
 
     /// <summary>Gets the rungs between the strands: the base pairs.</summary>
     public IReadOnlyList<Rung> Rungs { get; }
@@ -260,39 +275,60 @@ public sealed class DnaFigure
     }
 
     /// <summary>
-    /// Traces both strands from inside the last bars down off the page, cut where a strand passes behind the other, so
-    /// that the stretches behind can be drawn first and darker.
+    /// Gives a strand's shade at a depth, as a share of the accent: dark behind, the accent in front and a smooth step
+    /// between, so that a strand fades as it turns away instead of changing colour at once. Until the twist is under way
+    /// both strands lie in front, as the bars they leave.
+    /// </summary>
+    /// <param name="depth">The strand's depth, from -1 behind to 1 in front.</param>
+    /// <param name="twist">How far the twist has started.</param>
+    /// <returns>The shade's step, from 0 for the darkest to <see cref="Shades"/> - 1 for the accent.</returns>
+    private static int ShadeStep(double depth, double twist)
+    {
+        var seen = twist * depth + (1 - twist);
+        return (int)Math.Round(Smooth(DarkFrom, LightFrom, seen) * (Shades - 1));
+    }
+
+    /// <summary>Gives the share of the accent a shade's step stands for.</summary>
+    /// <param name="step">The step.</param>
+    /// <returns>The share, from <see cref="Darkest"/> to 1.</returns>
+    private static double ShadeOf(int step) => Darkest + (1 - Darkest) * step / (Shades - 1);
+
+    /// <summary>
+    /// Traces both strands from inside the last bars down off the page, cut where the shade steps or where a strand
+    /// passes behind the other. Each stretch reaches one step into the next, so that no seam shows between them, and the
+    /// stretches behind can be drawn first.
     /// </summary>
     /// <returns>The stretches in front and behind.</returns>
-    private (List<IReadOnlyList<FigurePoint>> Front, List<IReadOnlyList<FigurePoint>> Back) Strands()
+    private (List<StrandStretch> Front, List<StrandStretch> Back) Strands()
     {
-        var front = new List<IReadOnlyList<FigurePoint>>();
-        var back = new List<IReadOnlyList<FigurePoint>>();
+        var front = new List<StrandStretch>();
+        var back = new List<StrandStretch>();
+        var overlap = (ChainLink.BarsEnd - ChainLink.BarsStart) * Scale;
         foreach (var strand in new[] { 1, -1 })
         {
-            // A strand starts a little inside its bar, so that the two run together without a seam.
-            var points = new List<FigurePoint> { At(Start - 8 * Scale, _middle + strand * _radius) };
-            bool? inFront = null;
+            // A strand starts inside the last joint, where the last link's bars would start, and runs on as its bars.
+            var points = new List<FigurePoint> { At(Start - overlap, _middle + strand * _radius) };
+            (int Step, bool InFront)? current = null;
             for (var along = Start; along <= End; along += StrandStep)
             {
                 var slice = Helix(along);
                 var point = At(along, strand > 0 ? slice.First : slice.Second);
                 var depth = strand > 0 ? slice.FirstDepth : slice.SecondDepth;
-                var isFront = depth >= -0.05 || slice.Twist < BehindFrom;
-                if (inFront is { } was && was != isFront)
+                var key = (ShadeStep(depth, slice.Twist), depth >= -0.05 || slice.Twist < BehindFrom);
+                if (current is { } was && was != key)
                 {
                     points.Add(point);
-                    (was ? front : back).Add(points);
-                    points = [];
+                    (was.InFront ? front : back).Add(new StrandStretch(points, ShadeOf(was.Step)));
+                    points = [points[^2]];
                 }
 
-                inFront = isFront;
+                current = key;
                 points.Add(point);
             }
 
-            if (points.Count > 1)
+            if (points.Count > 1 && current is { } last)
             {
-                (inFront ?? true ? front : back).Add(points);
+                (last.InFront ? front : back).Add(new StrandStretch(points, ShadeOf(last.Step)));
             }
         }
 
@@ -338,7 +374,13 @@ public readonly record struct FigurePoint(double X, double Y);
 /// <param name="Y">The joint's centre, from the page's top edge.</param>
 /// <param name="Angle">Its turn clockwise from upright, in degrees.</param>
 /// <param name="Scale">The logo's units to pixels.</param>
-public readonly record struct JointPlacement(double X, double Y, double Angle, double Scale);
+/// <param name="HasBars">Whether its link's bars are drawn below it; the last joint's are the strands' start.</param>
+public readonly record struct JointPlacement(double X, double Y, double Angle, double Scale, bool HasBars);
+
+/// <summary>A stretch of one strand in one shade.</summary>
+/// <param name="Points">Its points, from the top.</param>
+/// <param name="Shade">Its colour as a share of the accent, from <see cref="DnaFigure.Darkest"/> to 1.</param>
+public sealed record StrandStretch(IReadOnlyList<FigurePoint> Points, double Shade);
 
 /// <summary>A rung between the strands: a light half from strand one and a darker half from strand two.</summary>
 /// <param name="First">Where it leaves strand one.</param>

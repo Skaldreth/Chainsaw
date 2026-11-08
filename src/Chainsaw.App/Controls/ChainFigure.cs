@@ -125,8 +125,8 @@ public sealed class ChainFigure : FrameworkElement
     }
 
     /// <summary>
-    /// Puts the figure's shapes together, back to front as the sketch: the chain, the strands behind (darker), the
-    /// rungs (light from strand one, darker from strand two) and the strands in front.
+    /// Puts the figure's shapes together, back to front as the sketch: the chain, the strands behind, the rungs (light
+    /// from strand one, darker from strand two) and the strands in front, each strand shaded by its depth.
     /// </summary>
     /// <param name="figure">The figure.</param>
     /// <param name="accent">The accent.</param>
@@ -143,11 +143,15 @@ public sealed class ChainFigure : FrameworkElement
             place.Translate(joint.X, joint.Y);
             var link = new DrawingGroup { Transform = new MatrixTransform(place) };
             link.Children.Add(new GeometryDrawing(light, null, Joint));
-            link.Children.Add(new GeometryDrawing(light, null, Bars));
+            if (joint.HasBars)
+            {
+                link.Children.Add(new GeometryDrawing(light, null, Bars));
+            }
+
             group.Children.Add(link);
         }
 
-        AddStrands(group, figure.Back, Brush(Darker(accent, 0.55)));
+        AddStrands(group, figure.Back, accent);
         var rungs = Pen(light, DnaFigure.RungThickness, PenLineCap.Round);
         var darkRungs = Pen(Brush(Darker(accent, 0.62)), DnaFigure.RungThickness, PenLineCap.Round);
         foreach (var rung in figure.Rungs)
@@ -156,25 +160,32 @@ public sealed class ChainFigure : FrameworkElement
             group.Children.Add(new GeometryDrawing(null, darkRungs, Line(rung.Middle, rung.Second)));
         }
 
-        AddStrands(group, figure.Front, light);
+        AddStrands(group, figure.Front, accent);
         group.Freeze();
         return group;
     }
 
-    /// <summary>Adds the stretches of strand in one colour.</summary>
+    /// <summary>Adds the stretches of strand, each in its shade of the accent, with one pen per shade.</summary>
     /// <param name="group">The drawing.</param>
     /// <param name="stretches">The stretches.</param>
-    /// <param name="brush">Their colour.</param>
-    private static void AddStrands(DrawingGroup group, IEnumerable<IReadOnlyList<FigurePoint>> stretches, Brush brush)
+    /// <param name="accent">The accent the shades are taken from.</param>
+    private static void AddStrands(DrawingGroup group, IEnumerable<StrandStretch> stretches, Color accent)
     {
-        var pen = Pen(brush, DnaFigure.StrandThickness, PenLineCap.Flat);
+        var pens = new Dictionary<double, Pen>();
         foreach (var stretch in stretches)
         {
+            if (!pens.TryGetValue(stretch.Shade, out var pen))
+            {
+                pen = Pen(Brush(Darker(accent, stretch.Shade)), DnaFigure.StrandThickness, PenLineCap.Flat);
+                pens[stretch.Shade] = pen;
+            }
+
+            var points = stretch.Points;
             var geometry = new StreamGeometry();
             using (var context = geometry.Open())
             {
-                context.BeginFigure(new Point(stretch[0].X, stretch[0].Y), false, false);
-                context.PolyLineTo(stretch.Skip(1).Select(p => new Point(p.X, p.Y)).ToList(), true, true);
+                context.BeginFigure(new Point(points[0].X, points[0].Y), false, false);
+                context.PolyLineTo(points.Skip(1).Select(p => new Point(p.X, p.Y)).ToList(), true, true);
             }
 
             geometry.Freeze();
