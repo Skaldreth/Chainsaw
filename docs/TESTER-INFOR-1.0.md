@@ -3107,4 +3107,8 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
 - Under en tunn linje: fakta i två kolumner, saldot per token (Ethereum), *Här* och adresserna med kopiera.
 - Dra panelens kant: titelradens hörn följer med. Stäng med × eller Esc: panelen glider ut, titelraden och grafen fyller
   bredden och fönstrets knappar står på titelraden igen. Byt till en annan vy: titelraden går över hela bredden.
+- **Andra paneler under arbetet:** öppna Guidens panel (*Varför?* eller *?*), förslagen (Ctrl+J), och välj något i
+  Bevakning, Tidslinje, Flöde, Exponering och Etiketter. Varje panel till höger ligger i full höjd under arbetet som
+  inspektören: mörkare ton, skugga och rundat hörn mot arbetet, texten fri från skuggan, titelraden slutar där panelen
+  börjar och fönstrets knappar står på panelen. Stäng panelen: titelraden går över hela bredden igen.
 

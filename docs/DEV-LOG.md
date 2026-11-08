@@ -4167,3 +4167,20 @@ Användaren provade på Windows: kedjan ryckte konstigt när den kom in, och rö
 - **Darret** när den långa länken spänns är lugnare: 8 svängningar i sekunden och 0,9 px i stället för 15 och 1,4 px,
   som vid 60 bilder i sekunden bara fick fyra bilder per svängning och såg ut som skakigt brus.
 
+## Panelerna under arbetet (2026-11-08)
+
+Användarens krav: allt som står på inspektörens plats ska ligga under arbetet som IN5a.
+
+- **`Controls/UnderPanel`** är en `Decorator` som ritar panelens ton (`Brush.Underlay`), bladets skugga längs
+  vänsterkanten (en toning, inte en effekt, så att texten förblir skarp) och bladets rundade hörn vid foten, och
+  lägger innehållet med 40 px luft till vänster. De paneler som visas räknas, och `UnderPanel.Reach` säger hur långt in
+  från fönstrets högerkant de når; `MainWindow.ShowSheet` tar det största av det och grafens inspektör, så att
+  titelraden slutar där panelen börjar och fönstrets knappar står på den.
+- **Ombyggda:** Guidens panel (GD1b), vyn Bevakningens valda bevakning, Tidslinjens inspektör, Flödets och
+  Exponeringens sidor och Etiketternas valda etikett. Vyernas sidor var kort inne i marginalen; nu står de i kanten i
+  full höjd, och vyns övriga innehåll har kvar sin luft upptill och nedtill. Förslagspanelen (KF2b) står redan i
+  grafens inspektör och har fått panelens ton och luften.
+
+**Egna beslut:** Nytt ärende (NC2a) och dialogerna mörkar resten och ligger över arbetet; de är oförändrade.
+Begärans och Rapportens förhandsvisningar är dokument, inte inspektörer, och står kvar som kort.
+

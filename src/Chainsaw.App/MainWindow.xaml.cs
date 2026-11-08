@@ -149,6 +149,7 @@ public partial class MainWindow : Window
         background.Start();
         gate.PropertyChanged += OnGateChanged;
         GraphPage.InspectorReachChanged += (_, _) => ShowSheet();
+        UnderPanel.Changed += (_, _) => Dispatcher.BeginInvoke(ShowSheet, DispatcherPriority.Render);
         shell.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ShellViewModel.IsGraphShown))
@@ -760,14 +761,15 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Lets the title bar stop where the graph's inspector starts (sketch IN5a): over an open inspector the window's top
-    /// is the inspector's darker panel with the window's buttons on it, and the title bar ends in a rounded corner with
+    /// Lets the title bar stop where the graph's inspector, or any other panel under the work, starts (sketch IN5a): over
+    /// an open one the window's top is the panel's darker underlay with the window's buttons on it, and the title bar ends in a rounded corner with
     /// its shadow over the panel, as the graph's sheet does below it. Without the inspector the title bar spans the
     /// window under the buttons.
     /// </summary>
     private void ShowSheet()
     {
-        var reach = _shell.IsGraphShown ? GraphPage.InspectorReach : 0;
+        var graph = _shell.IsGraphShown ? GraphPage.InspectorReach : 0;
+        var reach = Math.Max(graph, UnderPanel.Reach(ShellRoot));
         var open = reach >= WindowButtonsWidth;
         var corner = open ? new CornerRadius(0, GraphView.SheetCorner, 0, 0) : default;
         var margin = open ? new Thickness(0, 0, reach, 0) : default;

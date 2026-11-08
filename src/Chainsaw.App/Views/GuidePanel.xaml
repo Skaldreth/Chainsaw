@@ -73,15 +73,8 @@
         <KeyBinding Key="Escape" Command="{Binding CloseCommand}" />
     </UserControl.InputBindings>
 
-    <Grid>
-        <!-- The shadow lies in a layer of its own, as under the pill, so that the text is not blurred. -->
-        <Border Background="{StaticResource Brush.Surface}">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="40" ShadowDepth="0" Direction="180" Opacity="0.35" Color="Black" />
-            </Border.Effect>
-        </Border>
-        <Border Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.BorderStrong}"
-                BorderThickness="1,0,0,0">
+    <!-- Under the work, as the graph's inspector (sketch IN5a): 14 px more room on the left than the content's 26. -->
+    <controls:UnderPanel Padding="14,0,0,0">
             <DockPanel>
                 <!-- The header: back, the group, Öppna i Guide and close. -->
                 <Border DockPanel.Dock="Top" Height="48" Padding="8,0,10,0" BorderBrush="{StaticResource Brush.Border}"
@@ -238,13 +231,12 @@
                             IsHitTestVisible="False" Opacity="0">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Offset="0" Color="{StaticResource Color.Surface.Clear}" />
-                                <GradientStop Offset="1" Color="{StaticResource Color.Surface}" />
+                                <GradientStop Offset="0" Color="{StaticResource Color.Underlay.Clear}" />
+                                <GradientStop Offset="1" Color="{StaticResource Color.Underlay}" />
                             </LinearGradientBrush>
                         </Border.Background>
                     </Border>
                 </Grid>
             </DockPanel>
-        </Border>
-    </Grid>
+    </controls:UnderPanel>
 </UserControl>
