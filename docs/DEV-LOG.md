@@ -2737,3 +2737,29 @@ Geometrin står utan WPF i `Graph/TimeAxis.cs`, `Graph/TimeBands.cs`, `Graph/Tim
   `CommentGeometryTests` i App (utkast, lämna, misslyckad sparning, flytt och storlek, tråd, länk, nodens ikon och
   meny) och ett test av testärendets lapp. Facit i Tracings `GoldenTests` har fått schema 5 och den nya kedjan.
 - **Återstår:** se TODO, *Kommentarsnoden (KN1a)*.
+
+## Högen, ledtråden och valvyn: det som återstod (2026-11-08)
+
+- **Scenen byggs i bakgrunden:** `GraphReading` (metoden, *Visa dem* och adresserna som hålls utanför högarna) går in
+  i `IGraphSource.LoadAsync`, `ExpandAsync` och `TakeHeldBackAsync`, så att källan bygger scenen som den visas, en
+  gång och utanför UI-tråden. *Visa dem*, *Dölj dem* och en ändrad bevakning bygger om scenen ur det den redan har
+  (`GraphScene.DrawnAs`) med `Task.Run`; `Show` bygger aldrig om på UI-tråden. `TracingMethodKind` blir en
+  `GraphReading` av sig själv, så att anrop med bara metoden står kvar.
+- **Ritningen:** `DrawCache` (utan WPF, testad) håller pennor och mätta texter per det de görs av, med ett tak där den
+  börjar om; `GraphCanvas.Cache.cs` använder den för högens kort, högen, pillen, valvyns prickar, sonar, hörnmärken,
+  guider och mittkortet, och för beloppen på linjerna. Texterna mäts om när skärmens skala ändras. `AmountLayout`
+  hade redan ett rutnät för platserna; det är utbrutet till `RoomGrid` och används också av `DrawAmount`, där
+  krocktestet var O(k²).
+- **Bevakat viks aldrig in:** `GraphWatches.KeptOutOfPiles` ger bevakade adresser, motparter i filtren och motparter
+  som en träff för en gällande bevakning nådde; `GraphFold` lägger aldrig en sådan aktör i en hög. Tracing vet inget
+  om det: aktören står kvar som medlem i högen i modellen och ritas bara för sig, och går tillbaka i högen när
+  bevakningen tas bort.
+- **Ledtrådens linje** har en egen sort, `GraphEdgeKind.HeldBack`, och räknas därför aldrig som en överföring.
+- **Nycklarna:** formen på högens och ledtrådens nycklar är oförändrad (`pile:out:address:…`, `held-back:address:…`),
+  så inget sparat ändras. Nyckeln är den under vilken användaren senast flyttade högen eller pillen, ur vilken som
+  helst av ankarets adresser (`PileRules.StableKey`), och ankarets representant bara tills den flyttats. Platsen följer
+  därför med när klustret växer eller får en annan representant.
+- **Egna beslut:** en bevakad aktör hålls utanför högen också när bevakningen är pausad, så att ögat står kvar.
+- **Återstår:** markeringen för dolda OP_RETURN (kräver en skiss); den streckade guidens geometri i valvyn och
+  rombens geometri görs fortfarande per bildruta.
+- 17 nya tester (`DrawCacheTests`, `PileTests` i App och Tracing, `GraphSourceTests`).

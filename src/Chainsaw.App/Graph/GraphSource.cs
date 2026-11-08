@@ -25,21 +25,21 @@ public interface IGraphSource
 {
     /// <summary>Reads the graph from the case, with its labels and the trace by a method.</summary>
     /// <param name="case">The open case.</param>
-    /// <param name="method">The tracing method.</param>
+    /// <param name="reading">The tracing method and whether the outputs that can never be spent are drawn.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The scene.</returns>
-    Task<GraphScene> LoadAsync(ICase @case, TracingMethodKind method, CancellationToken cancellationToken);
+    Task<GraphScene> LoadAsync(ICase @case, GraphReading reading, CancellationToken cancellationToken);
 
     /// <summary>Expands the graph by one step for each lookup, one after the other, and reads it again.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="requests">The lookups.</param>
-    /// <param name="method">The tracing method.</param>
+    /// <param name="reading">The tracing method and whether the outputs that can never be spent are drawn.</param>
     /// <param name="cancellationToken">Stops the work between lookups.</param>
     /// <returns>What the expansion brought.</returns>
     Task<GraphExpansion> ExpandAsync(
         ICase @case,
         IReadOnlyList<ExpansionRequest> requests,
-        TracingMethodKind method,
+        GraphReading reading,
         CancellationToken cancellationToken);
 
     /// <summary>Explains a cluster node: which heuristic merged which addresses, from which transaction.</summary>
@@ -67,13 +67,13 @@ public interface IGraphSource
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="picks">The chosen transactions per expanded address.</param>
-    /// <param name="method">The tracing method.</param>
+    /// <param name="reading">The tracing method and whether the outputs that can never be spent are drawn.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>What came in.</returns>
     Task<GraphExpansion> TakeHeldBackAsync(
         ICase @case,
         IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Txid>> picks,
-        TracingMethodKind method,
+        GraphReading reading,
         CancellationToken cancellationToken);
 
     /// <summary>Remembers where the user put a node in a layout.</summary>
@@ -170,15 +170,16 @@ public sealed class GraphSource(
         "Inget att spåra än: startpunktens mynt finns inte i grafen. Välj startpunkten och expandera den.";
 
     /// <inheritdoc/>
-    public Task<GraphScene> LoadAsync(ICase @case, TracingMethodKind method, CancellationToken cancellationToken)
+    public Task<GraphScene> LoadAsync(ICase @case, GraphReading reading, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(reading);
         return Task.Run(
             async () =>
             {
                 var graph = await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
                 graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
-                return await ComposeAsync(@case, graph, method, PriceLookupMode.CaseOnly, cancellationToken)
+                return await ComposeAsync(@case, graph, reading, PriceLookupMode.CaseOnly, cancellationToken)
                     .ConfigureAwait(false);
             },
             cancellationToken);
@@ -188,10 +189,11 @@ public sealed class GraphSource(
     public Task<GraphExpansion> ExpandAsync(
         ICase @case,
         IReadOnlyList<ExpansionRequest> requests,
-        TracingMethodKind method,
+        GraphReading reading,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(requests);
         return Task.Run(
             async () =>
@@ -222,7 +224,7 @@ public sealed class GraphSource(
 
                 graph ??= await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
                 graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
-                var scene = await ComposeAsync(@case, graph, method, PriceLookupMode.AsNeeded, cancellationToken)
+                var scene = await ComposeAsync(@case, graph, reading, PriceLookupMode.AsNeeded, cancellationToken)
                     .ConfigureAwait(false);
                 return new GraphExpansion(scene, Combine(outcomes), added, problems);
             },
@@ -277,10 +279,11 @@ public sealed class GraphSource(
     public Task<GraphExpansion> TakeHeldBackAsync(
         ICase @case,
         IReadOnlyDictionary<BitcoinAddress, IReadOnlyList<Txid>> picks,
-        TracingMethodKind method,
+        GraphReading reading,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(reading);
         ArgumentNullException.ThrowIfNull(picks);
         return Task.Run(
             async () =>
@@ -304,7 +307,7 @@ public sealed class GraphSource(
 
                 graph ??= await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
                 graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
-                var scene = await ComposeAsync(@case, graph, method, PriceLookupMode.AsNeeded, cancellationToken)
+                var scene = await ComposeAsync(@case, graph, reading, PriceLookupMode.AsNeeded, cancellationToken)
                     .ConfigureAwait(false);
                 return new GraphExpansion(scene, Combine(outcomes), added, problems);
             },
@@ -466,17 +469,18 @@ public sealed class GraphSource(
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="graph">The graph.</param>
-    /// <param name="method">The tracing method.</param>
+    /// <param name="reading">The tracing method and whether the outputs that can never be spent are drawn.</param>
     /// <param name="rates">Whether Pricing may ask its source for the rates the lines on Ethereum lack.</param>
     /// <param name="cancellationToken">Stops the trace.</param>
     /// <returns>The scene.</returns>
     private async Task<GraphScene> ComposeAsync(
         ICase @case,
         TraceGraph graph,
-        TracingMethodKind method,
+        GraphReading reading,
         PriceLookupMode rates,
         CancellationToken cancellationToken)
     {
+        var method = reading.Method;
         var byAddress = attribution.GetLabels(
             @case, graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList());
         var labels = new Dictionary<string, IReadOnlyList<Label>>(StringComparer.Ordinal);
@@ -545,7 +549,8 @@ public sealed class GraphSource(
             AccountTrace = accountTrace,
             Values = values,
             Rates = latest,
-        });
+            KeptOutOfPiles = reading.KeptOutOfPiles,
+        }, reading.ShowUnspendable);
     }
 
     /// <summary>Adds the labels on the graph's Ethereum addresses, read once for all of them.</summary>

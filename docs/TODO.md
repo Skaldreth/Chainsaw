@@ -505,15 +505,13 @@ nollställdes, *Lägg tillbaka* under alla medlemmar, `first_expanded_utc`, hög
 som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Dolda OP_RETURN går inte att visa igen** efter att toasten tonat ut eller ärendet öppnats på nytt. Lägg en
   markering eller ikon i grafens hörnrad när några är dolda, aldrig tyst.
-- **Med *Visa dem* byggs scenen om på UI-tråden** (`GraphScene.WithUnspendable`). Skicka valet in i
-  `LoadAsync`/`ExpandAsync` så att scenen byggs i bakgrunden.
-- **Ritningen allokerar per bildruta:** högens kort och valvyns prickar gör nya `Pen` och `FormattedText` per bildruta
-  (kort utanför bild hoppas nu över), och krocktestet för beloppen (`GraphCanvas.DrawAmount`) är O(k²). Cacha per
-  kort och lägg krocktestet i ett rutnät.
-- **Bevakade noder och bevakningens motparter kan vikas in i en hög**, så att vaktlinjen och ringarna försvinner. Låt
-  `GraphFold` hålla dem utanför (rör `GraphWatches`, som en annan ändring arbetar i).
-- **Högens och ledtrådens nycklar bygger på ankarets representant**, och ledtrådens linje är en `Transfer` med
-  beloppet 0; ge den en egen sort.
+- **Byggt 2026-11-08:** scenen byggs i bakgrunden med *Visa dem* (`GraphReading`), pennor och texter i högen, valvyn
+  och beloppen cachas (`DrawCache`) och beloppens krocktest ligger i ett rutnät (`RoomGrid`), bevakade adresser och
+  bevakningarnas motparter viks aldrig in i en hög, ledtrådens linje är `GraphEdgeKind.HeldBack`, och högens och
+  ledtrådens nycklar följer var de senast flyttades i stället för ankarets representant. Kvar av det:
+  - Valvyns streckade guide och rombens hörnmärke byggs som ny geometri per bildruta; de kan cachas per vy.
+  - En bevakad aktör i en hög är kvar som medlem i Tracings hög och ritas bara för sig. Om en sådan ska räknas i
+    högens *N mottagare* i modellen (till exempel i en begäran) avgörs när det behövs.
 - **Valvyn finns bara för en Bitcoin-adress:** en tx-expansions mottagare och en Ethereum-adress hämtar fortfarande
   nästa del med ett klick. Historiken läses högst 2 000 tx bakåt (`HeldBackList.Most`), och högst 500 till runt den
   spårade ankomsten när grafen har en tx vid adressen att läsa bakåt från; längre historik behöver ett tidsfönster

@@ -2,6 +2,7 @@ using Chainsaw.App.Graph;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -240,9 +241,10 @@ public sealed class PileTests
     /// <summary>The graph's view model with a case open, and the toasts it says.</summary>
     private sealed class Rig
     {
-        public Rig(TraceGraph graph)
+        public Rig(TraceGraph graph, GraphViewState? view = null)
         {
             Source.Scene = () => Scene(graph: graph);
+            Source.View = view ?? GraphViewState.Default;
             var workflow = new CaseWorkflow(new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked),
                 Session);
             Graph = new GraphViewModel(
@@ -325,8 +327,148 @@ public sealed class PileTests
         Assert.Equal(GraphViewModel.HiddenUnspendableText(1), toast.Title);
         Assert.Equal(GraphViewModel.ShowUnspendableText, toast.ActionText);
         toast.Action!();
+        await Until(() => rig.Graph.Scene!.ShowsUnspendable);
         Assert.True(rig.Graph.Scene!.ShowsUnspendable);
         Assert.NotNull(rig.Graph.Scene.Node("coin:empty"));
         Assert.True(rig.Source.SavedViews[^1].ShowUnspendable);
+    }
+
+    [Fact]
+    public async Task The_graph_is_read_with_the_hidden_outputs_shown_when_the_view_stored_them_so()
+    {
+        var rig = new Rig(WithOpReturns(), GraphViewState.Default with { ShowUnspendable = true });
+
+        await Until(() => rig.Graph.Scene is { ShowsUnspendable: true });
+
+        // The source is asked to build the scene with them, off the UI thread, instead of the view building it again.
+        Assert.True(rig.Source.Readings[^1].ShowUnspendable);
+        Assert.Equal(TracingMethodKind.Fifo, rig.Source.Readings[^1].Method);
+        Assert.NotNull(rig.Graph.Scene!.Node("coin:empty"));
+    }
+
+    [Fact]
+    public async Task Showing_and_hiding_the_outputs_builds_a_new_scene_from_the_one_shown_and_reads_nothing_anew()
+    {
+        var rig = new Rig(WithOpReturns());
+        var hidden = rig.Graph.Scene!;
+        var loads = rig.Source.Loads.Count;
+
+        await rig.Graph.ShowUnspendableAsync(true);
+
+        Assert.NotSame(hidden, rig.Graph.Scene);
+        Assert.Same(hidden.Snapshot, rig.Graph.Scene!.Snapshot);
+        Assert.NotNull(rig.Graph.Scene.Node("coin:empty"));
+        Assert.Equal(loads, rig.Source.Loads.Count);
+
+        await rig.Graph.ShowUnspendableAsync(false);
+
+        Assert.False(rig.Graph.Scene!.ShowsUnspendable);
+        Assert.Null(rig.Graph.Scene.Node("coin:empty"));
+    }
+
+    [Fact]
+    public async Task An_expansion_asks_the_source_for_the_outputs_the_way_they_are_shown()
+    {
+        var rig = new Rig(WithOpReturns(), GraphViewState.Default with { ShowUnspendable = true });
+        await Until(() => rig.Graph.Scene is { ShowsUnspendable: true });
+        rig.Graph.Choose(VKey, null);
+
+        await rig.Graph.ExpandAsync();
+
+        Assert.True(rig.Source.ExpansionReadings[^1].ShowUnspendable);
+    }
+
+    [Fact]
+    public void A_clues_line_is_its_own_kind_carries_nothing_and_counts_as_no_transfer()
+    {
+        var scene = Scene(graph: Piled());
+
+        var line = scene.Edge(GraphFold.ClueEdgePrefix + ClueKey)!;
+
+        Assert.Equal(GraphEdgeKind.HeldBack, line.Edge.Kind);
+        Assert.True(line.Edge.Amount.IsZero);
+        Assert.Empty(line.Edge.Transfers);
+        Assert.Equal(VKey, line.Edge.From);
+        Assert.Equal(ClueKey, line.Edge.To);
+    }
+
+    [Fact]
+    public void A_click_on_a_clues_line_acts_as_a_click_on_the_clue()
+    {
+        var rig = new Rig(Piled());
+
+        rig.Graph.Choose(null, GraphFold.ClueEdgePrefix + ClueKey);
+
+        Assert.Equal([ExpansionRequest.ForAddress(V, 100)], Assert.Single(rig.Source.Expansions));
+    }
+
+    [Fact]
+    public void A_member_whose_address_is_kept_out_is_drawn_on_its_own_and_the_rest_stay_in_the_pile()
+    {
+        var graph = Piled();
+        var scene = GraphScene.Build(Scene(graph: graph).Snapshot with
+        {
+            KeptOutOfPiles = new HashSet<ChainAddress> { WatchSamples.On(Address(201)) },
+        });
+
+        Assert.NotNull(scene.Node(Member(1)));
+        Assert.Equal(11, scene.Pile(PileKey)!.Cards.Count);
+        Assert.DoesNotContain(scene.Pile(PileKey)!.Cards, card => card.Key == Member(1));
+        Assert.Contains(scene.Edges, edge => edge.Edge.From == VKey && edge.Edge.To == Member(1));
+    }
+
+    [Fact]
+    public void The_watched_their_named_counterparties_and_the_counterparties_hits_reached_are_kept_out()
+    {
+        var source = new TestWatchSource();
+        var watch = source.Add(
+            WatchSamples.Subject(V),
+            WatchSamples.Filter(WatchDirection.Both, [WatchSamples.On(Address(201))], [WatchSamples.On(Address(202))]));
+        source.Hit(watch, WatchSamples.Out(WatchSamples.On(Address(203)), 0.1m));
+        var other = source.Add(WatchSamples.Subject(Address(204)), WatchSamples.Filter());
+        var gone = new WatchHit(99, "taken-back", Chain.Bitcoin, WatchSamples.Out(WatchSamples.On(Address(205)), 1m),
+            [], 1, TestWatchSource.At);
+        var snapshot = new WatchSnapshot(
+            [watch, other], [], [.. source.Hits, gone], new Dictionary<string, WatchChecked>(),
+            new Dictionary<string, long>());
+
+        var kept = GraphWatches.KeptOutOfPiles(snapshot);
+
+        Assert.Equal(
+            new[] { V, Address(201), Address(202), Address(203), Address(204) }.Select(WatchSamples.On).ToHashSet(),
+            kept.ToHashSet());
+        Assert.Empty(GraphWatches.KeptOutOfPiles(WatchSnapshot.Empty));
+    }
+
+    [Fact]
+    public async Task A_watch_on_a_member_takes_it_out_of_the_pile_so_that_its_watch_line_stands()
+    {
+        var watchSource = new TestWatchSource();
+        watchSource.Add(
+            WatchSamples.Subject(V), WatchSamples.Filter(WatchDirection.Out, [WatchSamples.On(Address(202))]));
+        var rig = new Rig(Piled());
+        var board = new WatchBoard(rig.Session, watchSource, new InlineUi());
+        Assert.Null(rig.Graph.Scene!.Node(Member(2)));
+
+        rig.Graph.FollowWatches(board, new WatchFormViewModel(board));
+        await board.ReloadAsync();
+        await Until(() => rig.Graph.Scene!.Node(Member(2)) is not null);
+
+        Assert.NotNull(rig.Graph.Scene!.Node(Member(2)));
+        Assert.Equal(11, rig.Graph.Scene.Pile(PileKey)!.Cards.Count);
+        Assert.Contains(rig.Graph.WatchOverlay.Lines, line => line.From == VKey && line.To == Member(2));
+
+        // The next reading asks the source for the scene with the member kept out, so that it is built once.
+        await rig.Graph.ReloadAsync(fit: false);
+        Assert.Contains(WatchSamples.On(Address(202)), rig.Source.Readings[^1].KeptOutOfPiles);
+    }
+
+    /// <summary>Waits a little at a time until a condition holds, for work run in the background.</summary>
+    private static async Task Until(Func<bool> condition)
+    {
+        for (var i = 0; i < 200 && !condition(); i++)
+        {
+            await Task.Delay(10);
+        }
     }
 }

@@ -258,6 +258,12 @@ public enum GraphEdgeKind
 
     /// <summary>The money continues on another chain, linked by the user (<see cref="CrossChainLink"/>).</summary>
     ContinuesOnOtherChain,
+
+    /// <summary>
+    /// The thin dashed line from an actor to its clue of what an expansion held back (<see cref="HeldBackClue"/>,
+    /// sketch EX1). It carries no money and is never a fact of the chain: the graph draws it, Tracing never holds one.
+    /// </summary>
+    HeldBack,
 }
 
 /// <summary>Which way an edge runs relative to the hops.</summary>

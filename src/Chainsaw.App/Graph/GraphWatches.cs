@@ -129,6 +129,29 @@ public static class GraphWatches
         return new GraphWatchOverlay(marks, lines, rays);
     }
 
+    /// <summary>
+    /// Gives the addresses that must never be folded into a pile (<see cref="GraphFold"/>): each watched address and
+    /// every counterparty a watch names or a hit of a watch in force reached, so that the eye, the watch line and its
+    /// rings always have a node to stand at.
+    /// </summary>
+    /// <param name="snapshot">The case's watches.</param>
+    /// <returns>The addresses; none without watches.</returns>
+    public static IReadOnlySet<ChainAddress> KeptOutOfPiles(WatchSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Watches.Count == 0)
+        {
+            return GraphReading.NoAddresses;
+        }
+
+        var inForce = snapshot.Watches.Select(watch => watch.Id).ToHashSet(StringComparer.Ordinal);
+        var named = snapshot.Watches.SelectMany(watch =>
+            watch.Filter.Receivers.Concat(watch.Filter.Senders).Append(watch.Subject.Anchor));
+        var reached = snapshot.Hits.Where(hit => inForce.Contains(hit.WatchId))
+            .SelectMany(hit => hit.Match.Counterparties);
+        return named.Concat(reached).ToHashSet();
+    }
+
     /// <summary>Gives each address in the graph the node it belongs to.</summary>
     /// <param name="scene">The graph.</param>
     /// <returns>The nodes by address.</returns>

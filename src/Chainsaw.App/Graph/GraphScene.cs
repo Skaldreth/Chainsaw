@@ -41,6 +41,12 @@ public sealed record GraphSnapshot(
     /// </summary>
     public IReadOnlyDictionary<Asset, Price> Rates { get; init; } = new Dictionary<Asset, Price>();
 
+    /// <summary>
+    /// Gets the addresses that are never folded into a pile (<see cref="GraphFold"/>): the watched and the watches'
+    /// counterparties, so that the watch line and its rings always have a node to stand at (sketch BV2a).
+    /// </summary>
+    public IReadOnlySet<ChainAddress> KeptOutOfPiles { get; init; } = GraphReading.NoAddresses;
+
     /// <summary>Gets whether any trace was counted, on any chain.</summary>
     public bool HasTrace => Trace is not null || AccountTrace is not null;
 }
@@ -250,6 +256,37 @@ public sealed record GraphScene(
     /// <returns>The scene.</returns>
     public GraphScene WithUnspendable(bool show) => show == ShowsUnspendable ? this : Build(Snapshot, show);
 
+    /// <summary>
+    /// Says whether the scene is drawn the way a reading asks: the outputs that can never be spent shown or hidden, and
+    /// the same addresses kept out of the piles. The method is not compared, since a new method needs a new trace.
+    /// </summary>
+    /// <param name="reading">The reading.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public bool IsDrawnAs(GraphReading reading)
+    {
+        ArgumentNullException.ThrowIfNull(reading);
+        return reading.ShowUnspendable == ShowsUnspendable && Snapshot.KeptOutOfPiles.SetEquals(reading.KeptOutOfPiles);
+    }
+
+    /// <summary>
+    /// Gives the scene again, from the same snapshot, drawn the way a reading asks; itself when it already is. Nothing
+    /// is read or traced anew, so it may be built off the UI thread from what is shown.
+    /// </summary>
+    /// <param name="reading">The reading.</param>
+    /// <returns>The scene.</returns>
+    public GraphScene DrawnAs(GraphReading reading)
+    {
+        if (IsDrawnAs(reading))
+        {
+            return this;
+        }
+
+        var snapshot = Snapshot.KeptOutOfPiles.SetEquals(reading.KeptOutOfPiles)
+            ? Snapshot
+            : Snapshot with { KeptOutOfPiles = reading.KeptOutOfPiles };
+        return Build(snapshot, reading.ShowUnspendable);
+    }
+
     /// <summary>Gets the method the trace was made by, as the user sees it, or the asked method's name.</summary>
     public string MethodText =>
         Snapshot.Trace?.Method.ToString() ?? Snapshot.AccountTrace?.Method.ToString() ?? MethodName(Snapshot.Method);
@@ -304,7 +341,7 @@ public sealed record GraphScene(
             .Select(edge => edge.Swaps.Count == 0 ? edge : edge with { Swap = SwapText(edge.Swaps) })
             .ToList();
         var nodes = graph.Nodes.Select(node => BuildNode(node, snapshot, edges)).ToList();
-        var folding = GraphFold.Apply(graph, nodes, edges, showUnspendable);
+        var folding = GraphFold.Apply(graph, nodes, edges, showUnspendable, snapshot.KeptOutOfPiles);
         var (lanes, columns) = HopLayout.Arrange(folding.LayoutNodes);
         return new GraphScene(snapshot, folding.Nodes, folding.Edges, lanes, columns)
         {
