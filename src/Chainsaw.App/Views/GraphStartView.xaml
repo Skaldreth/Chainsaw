@@ -2,7 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Chainsaw.App.Controls"
-             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels">
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:local="clr-namespace:Chainsaw.App.Views">
 
     <!--
       The empty graph that guides (sketch GR6c). With no case: Nytt ärende in the middle with the latest cases around it,
@@ -284,9 +285,13 @@
         <Canvas x:Name="LiftLayer" Panel.ZIndex="3" IsHitTestVisible="False" />
 
         <!--
-          SO1a goes here: the trash in the lower left corner, which grows to a round drop area while a case is lifted
-          (GraphStartViewModel.IsLifting) and takes it out of the start page. Not built yet; see docs/TODO.md.
+          The trash in the lower left corner (sketch SO1a): it grows to a round drop area while a case is lifted
+          (GraphStartViewModel.IsLifting) and takes it off the start page; the file stays on the disk. A click opens the
+          trash's view, where a case is put back. Shown without a case; with one, the graph's own bin stands there.
         -->
+        <local:TrashBin x:Name="Bin" Panel.ZIndex="2" DataContext="{Binding Bin}"
+                        Visibility="{Binding DataContext.IsNoCase, RelativeSource={RelativeSource AncestorType=UserControl},
+                                     Converter={StaticResource Visible}}" />
 
         <!-- ===== The foot: the Guide, and offline said honestly (a connected exit stands in the title bar) ===== -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="70,0,0,78"

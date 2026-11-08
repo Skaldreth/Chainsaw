@@ -24,7 +24,7 @@ internal static class NodeKeys
     public static string Cluster(BitcoinAddress representative) => ClusterPrefix + representative.Value;
 
     /// <summary>The prefix of an address's node on an account chain.</summary>
-    public const string AccountPrefix = "account:";
+    public const string AccountPrefix = GraphPile.AccountKeyPrefix;
 
     /// <summary>The key of an address's node on an account chain: the chain and the address.</summary>
     /// <param name="address">The address.</param>

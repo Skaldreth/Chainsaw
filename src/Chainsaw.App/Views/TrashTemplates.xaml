@@ -1,0 +1,103 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+                    xmlns:graph="clr-namespace:Chainsaw.App.Graph"
+                    xmlns:controls="clr-namespace:Chainsaw.App.Controls">
+
+    <!--
+      What the trash's warning and view share (sketch SO1a): a row of a throw's tree with its glyph, the node's form
+      and colour as the graph draws it (round for an actor, square for a service, dashed when uncertain), and the
+      buttons. Never red, which means risk.
+    -->
+
+    <!-- The node's form in small: the sort's frame and icon in its colour. -->
+    <DataTemplate x:Key="Trash.Kind" DataType="{x:Type vm:TrashRowViewModel}">
+        <Grid Width="18" Height="18" VerticalAlignment="Center">
+            <Rectangle StrokeThickness="1.5"
+                       Stroke="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}">
+                <Rectangle.Style>
+                    <Style TargetType="Rectangle">
+                        <Setter Property="RadiusX" Value="4" />
+                        <Setter Property="RadiusY" Value="4" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsRound}" Value="True">
+                                <Setter Property="RadiusX" Value="9" />
+                                <Setter Property="RadiusY" Value="9" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Look.IsDashed}" Value="True">
+                                <Setter Property="StrokeDashArray" Value="2 2" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Rectangle.Style>
+            </Rectangle>
+            <controls:GridIcon Size="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
+                               Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+        </Grid>
+    </DataTemplate>
+
+    <!-- A quiet button of the trash: a grey frame, brighter on hover (Avbryt, Lägg tillbaka). -->
+    <Style x:Key="Button.TrashQuiet" TargetType="Button">
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+        <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.BorderHover}" />
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The warning's main button: the light text colour with the ground's on it, never the accent or red. -->
+    <Style x:Key="Button.TrashConfirm" TargetType="Button">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Background}" />
+        <Setter Property="Background" Value="{StaticResource Brush.Text}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Box" Background="{TemplateBinding Background}" CornerRadius="7"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="Opacity" Value="0.88" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The tree's glyph before a row: ├ or └ in a faint mono, as in the sketch. -->
+    <Style x:Key="Text.TrashGlyph" TargetType="TextBlock">
+        <Setter Property="Width" Value="14" />
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.BorderHover}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+</ResourceDictionary>

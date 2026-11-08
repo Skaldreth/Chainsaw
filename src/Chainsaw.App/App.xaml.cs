@@ -181,6 +181,8 @@ public partial class App : Application
                 .AddSingleton<IGraphEditor, GraphEditor>()
                 .AddSingleton<ICheckSource, CheckSource>()
                 .AddSingleton<Toaster>()
+                .AddSingleton<ITrashSource, TrashSource>()
+                .AddSingleton<CaseTrash>()
                 .AddSingleton<GraphViewModel>()
                 .AddSingleton<IWatchSource, WatchSource>()
                 .AddSingleton<WatchBoard>()

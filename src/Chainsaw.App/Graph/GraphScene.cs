@@ -233,6 +233,21 @@ public sealed record GraphScene(
     /// </summary>
     public bool ShowsUnspendable { get; init; }
 
+    /// <summary>Gets what the trash hides (sketch SO1a); empty when nothing.</summary>
+    public TrashFilter Trash { get; init; } = TrashFilter.Empty;
+
+    /// <summary>Gets the stubs where lines went to something in the trash.</summary>
+    public IReadOnlyList<TrashStub> TrashStubs { get; init; } = [];
+
+    /// <summary>Gets how many drawn nodes the trash hides.</summary>
+    public int Trashed { get; init; }
+
+    /// <summary>Gives the scene again with what the trash hides; itself when it is the same filter.</summary>
+    /// <param name="trash">The filter.</param>
+    /// <returns>The scene.</returns>
+    public GraphScene WithTrash(TrashFilter trash) =>
+        ReferenceEquals(trash, Trash) ? this : Build(Snapshot, ShowsUnspendable, trash);
+
     /// <summary>Gives the pile a node stands for, when it is one.</summary>
     /// <param name="key">The node's key.</param>
     /// <returns>The pile, or <see langword="null"/>.</returns>
@@ -248,7 +263,7 @@ public sealed record GraphScene(
     /// </summary>
     /// <param name="show">Whether they are shown.</param>
     /// <returns>The scene.</returns>
-    public GraphScene WithUnspendable(bool show) => show == ShowsUnspendable ? this : Build(Snapshot, show);
+    public GraphScene WithUnspendable(bool show) => show == ShowsUnspendable ? this : Build(Snapshot, show, Trash);
 
     /// <summary>Gets the method the trace was made by, as the user sees it, or the asked method's name.</summary>
     public string MethodText =>
@@ -281,8 +296,9 @@ public sealed record GraphScene(
     /// </summary>
     /// <param name="snapshot">The snapshot.</param>
     /// <param name="showUnspendable">Whether the outputs that can never be spent and carry nothing are drawn.</param>
+    /// <param name="trash">What the trash hides (sketch SO1a); <see langword="null"/> hides nothing.</param>
     /// <returns>The scene.</returns>
-    public static GraphScene Build(GraphSnapshot snapshot, bool showUnspendable = false)
+    public static GraphScene Build(GraphSnapshot snapshot, bool showUnspendable = false, TrashFilter? trash = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var graph = snapshot.Graph;
@@ -304,7 +320,8 @@ public sealed record GraphScene(
             .Select(edge => edge.Swaps.Count == 0 ? edge : edge with { Swap = SwapText(edge.Swaps) })
             .ToList();
         var nodes = graph.Nodes.Select(node => BuildNode(node, snapshot, edges)).ToList();
-        var folding = GraphFold.Apply(graph, nodes, edges, showUnspendable);
+        trash ??= TrashFilter.Empty;
+        var folding = GraphFold.Apply(graph, nodes, edges, showUnspendable, trash);
         var (lanes, columns) = HopLayout.Arrange(folding.LayoutNodes);
         return new GraphScene(snapshot, folding.Nodes, folding.Edges, lanes, columns)
         {
@@ -313,6 +330,9 @@ public sealed record GraphScene(
             Clues = folding.Clues,
             Unspendable = folding.HiddenUnspendable,
             ShowsUnspendable = showUnspendable,
+            Trash = trash,
+            TrashStubs = folding.Stubs,
+            Trashed = folding.Trashed,
         };
     }
 

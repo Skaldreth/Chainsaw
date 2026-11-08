@@ -53,7 +53,14 @@ public sealed record GraphFolding(
     IReadOnlyList<GraphNode> LayoutNodes,
     IReadOnlyDictionary<string, PileView> Piles,
     IReadOnlyDictionary<string, HeldBackClue> Clues,
-    int HiddenUnspendable);
+    int HiddenUnspendable)
+{
+    /// <summary>Gets the stubs where lines went to something in the trash (sketch SO1a).</summary>
+    public IReadOnlyList<TrashStub> Stubs { get; init; } = [];
+
+    /// <summary>Gets how many drawn nodes the trash hides.</summary>
+    public int Trashed { get; init; }
+}
 
 /// <summary>
 /// Folds the graph so that it never grows out of hand (principle 7): the actors in a pile are drawn as one square node
@@ -99,13 +106,24 @@ public static class GraphFold
     /// <param name="nodes">Every actor as the graph would draw it.</param>
     /// <param name="edges">Every line as the graph would draw it.</param>
     /// <param name="showUnspendable">Whether the outputs that can never be spent are shown.</param>
+    /// <param name="trash">
+    /// What the trash hides (sketch SO1a): its actors, piles and clues are not drawn, a pile's cards in the trash leave
+    /// the pile, and a line to anything in it becomes a stub; <see langword="null"/> hides nothing.
+    /// </param>
     /// <returns>What is drawn.</returns>
     public static GraphFolding Apply(
-        TraceGraph graph, IReadOnlyList<NodeView> nodes, IReadOnlyList<EdgeView> edges, bool showUnspendable)
+        TraceGraph graph,
+        IReadOnlyList<NodeView> nodes,
+        IReadOnlyList<EdgeView> edges,
+        bool showUnspendable,
+        TrashFilter? trash = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(nodes);
         ArgumentNullException.ThrowIfNull(edges);
+        trash ??= TrashFilter.Empty;
+        var thrown = nodes.Where(node => trash.Hides(node.Node)).Select(node => node.Key)
+            .ToHashSet(StringComparer.Ordinal);
         var byKey = nodes.ToDictionary(node => node.Key, StringComparer.Ordinal);
         var unspendable = nodes.Where(node => IsEmptyUnspendable(graph, node.Node))
             .Select(node => node.Key).ToHashSet(StringComparer.Ordinal);
@@ -120,20 +138,29 @@ public static class GraphFold
             }
 
             var cards = pile.Members.Select(byKey.GetValueOrDefault).OfType<NodeView>()
-                .Where(card => !removed.Contains(card.Key) && MayFold(card)).ToList();
+                .Where(card => !removed.Contains(card.Key) && !thrown.Contains(card.Key) && MayFold(card)).ToList();
             if (cards.Count == 0)
             {
                 continue;
             }
 
-            piles.Add((pile, cards));
+            if (trash.Hides(pile.Key))
+            {
+                // A pile in the trash takes its cards with it: they are neither drawn loose nor in a pile.
+                thrown.Add(pile.Key);
+            }
+            else
+            {
+                piles.Add((pile, cards));
+            }
+
             foreach (var card in cards)
             {
                 drawnAs[card.Key] = pile.Key;
             }
         }
 
-        var lines = Reroute(edges, drawnAs, removed);
+        var (lines, stubs) = Stub(Reroute(edges, drawnAs, removed), thrown);
         var pileViews = piles.ToDictionary(
             pair => pair.Pile.Key,
             pair => new PileView(
@@ -141,7 +168,8 @@ public static class GraphFold
                 [.. pair.Cards.Select(card => CardOf(card, pair.Pile.Anchor, edges))],
                 SumBetween(lines, pair.Pile)),
             StringComparer.Ordinal);
-        var drawn = nodes.Where(node => !drawnAs.ContainsKey(node.Key) && !removed.Contains(node.Key)).ToList();
+        var drawn = nodes.Where(node => !drawnAs.ContainsKey(node.Key) && !removed.Contains(node.Key)
+            && !thrown.Contains(node.Key)).ToList();
         var layout = drawn.Select(node => node.Node).ToList();
         foreach (var pile in pileViews.Values)
         {
@@ -150,7 +178,8 @@ public static class GraphFold
             layout.Add(node.Node);
         }
 
-        var clues = graph.HeldBack.Where(clue => byKey.ContainsKey(clue.Anchor) && !removed.Contains(clue.Anchor))
+        var clues = graph.HeldBack.Where(clue => byKey.ContainsKey(clue.Anchor) && !removed.Contains(clue.Anchor)
+                && !thrown.Contains(clue.Anchor) && !trash.Hides(clue.Key))
             .ToDictionary(clue => clue.Key, StringComparer.Ordinal);
         foreach (var clue in clues.Values)
         {
@@ -160,7 +189,52 @@ public static class GraphFold
             lines.Add(ClueLine(clue));
         }
 
-        return new GraphFolding(drawn, lines, layout, pileViews, clues, unspendable.Count);
+        return new GraphFolding(drawn, lines, layout, pileViews, clues, unspendable.Count)
+        {
+            Stubs = stubs,
+            Trashed = thrown.Count,
+        };
+    }
+
+    /// <summary>
+    /// Takes the lines to the trash out of the drawn lines: a line with one end in the trash becomes a stub at the
+    /// other end's port, once per node and side; a line with both ends in it goes.
+    /// </summary>
+    /// <param name="lines">The lines drawn so far.</param>
+    /// <param name="thrown">The drawn keys in the trash.</param>
+    /// <returns>The lines left, and the stubs.</returns>
+    private static (List<EdgeView> Lines, List<TrashStub> Stubs) Stub(List<EdgeView> lines, HashSet<string> thrown)
+    {
+        if (thrown.Count == 0)
+        {
+            return (lines, []);
+        }
+
+        var kept = new List<EdgeView>();
+        var stubs = new List<TrashStub>();
+        foreach (var line in lines)
+        {
+            var fromGone = thrown.Contains(line.Edge.From);
+            var toGone = thrown.Contains(line.Edge.To);
+            if (!fromGone && !toGone)
+            {
+                kept.Add(line);
+                continue;
+            }
+
+            if (fromGone == toGone)
+            {
+                continue;
+            }
+
+            var stub = toGone ? new TrashStub(line.Edge.From, true) : new TrashStub(line.Edge.To, false);
+            if (!stubs.Contains(stub))
+            {
+                stubs.Add(stub);
+            }
+        }
+
+        return (kept, stubs);
     }
 
     /// <summary>

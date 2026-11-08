@@ -88,6 +88,26 @@ public partial class GraphView : UserControl
         Corner.Margin = CornerMargin with { Right = CornerMargin.Right + beyond };
     }
 
+    /// <summary>
+    /// Wires the trash (sketch SO1a): a node dragged on the surface grows the bin as it comes near, the bin's click opens
+    /// the trash's view, and the warning's buttons throw or cancel. The keyboard goes back to the surface after.
+    /// </summary>
+    /// <param name="model">The view model.</param>
+    private void AttachTrash(GraphViewModel model)
+    {
+        Canvas.NodeDragged += (_, at) => model.DragNear(Bin.DistanceFrom(at, Canvas));
+        Bin.Opened += (_, _) => model.TrashView.Toggle();
+        TrashWarning.Confirmed += (_, _) => model.ConfirmThrowCommand.Execute(null);
+        TrashWarning.Cancelled += (_, _) => model.CancelThrow();
+        model.TrashView.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(TrashViewModel.IsOpen) && !model.TrashView.IsOpen)
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(Canvas));
+            }
+        };
+    }
+
     /// <summary>Attaches the graph's view model to the page and its surface.</summary>
     /// <param name="model">The view model.</param>
     public void Attach(GraphViewModel model)
@@ -95,6 +115,7 @@ public partial class GraphView : UserControl
         DataContext = model;
         Canvas.Attach(model);
         TimeStrip.Attach(model.Timeline);
+        AttachTrash(model);
         model.Checks.PropertyChanged += (_, e) =>
         {
             // The list's keys (J, K, Enter, X and ?) and Z work in the graph; the keyboard goes back to it.
