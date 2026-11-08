@@ -15,11 +15,8 @@ namespace Chainsaw.App.Views;
 /// </summary>
 public partial class GraphStartView : UserControl
 {
-    /// <summary>How far below Nytt ärende the line under it stands, clear of the sonar's rings.</summary>
+    /// <summary>How far below Nytt ärende's middle the line under it stands.</summary>
     private const double HintBelowRing = 44;
-
-    /// <summary>The corner radius of Nytt ärende's frame, which the sonar's rings start from.</summary>
-    private const double NewCaseCornerRadius = 10;
 
     /// <summary>The model shown.</summary>
     private GraphStartViewModel? _model;
@@ -100,7 +97,6 @@ public partial class GraphStartView : UserControl
     {
         Ring.Children.Clear();
         var middle = new Grid();
-        middle.Children.Add(new SonarRing { CornerRadius = NewCaseCornerRadius, Stroke = Brush("Brush.Accent") });
         middle.Children.Add(NewCaseNode());
         var hint = new TextBlock
         {
@@ -108,7 +104,7 @@ public partial class GraphStartView : UserControl
             Foreground = Brush("Brush.TextMuted"), HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false,
 
-            // Below the node and its rings, moved only where it is drawn, so that the node stays the ring's middle.
+            // Below the node, moved only where it is drawn, so that the node stays the ring's middle.
             RenderTransform = new TranslateTransform(0, HintBelowRing),
         };
         middle.Children.Add(hint);

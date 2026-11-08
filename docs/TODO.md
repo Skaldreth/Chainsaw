@@ -101,6 +101,18 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     foten; foten säger bara *Offline* när inga uppslag kan göras. *Byggt.*
 33. **Graf-ikonen utan ärende** (användarens beslut 2026-11-08): man kan inte gå in i grafen utan ett öppet ärende,
     så ikonen fälls bort ur pillret (startvyn visas ändå). *Byggt.*
+35. **Pulsen runt *Nytt ärende* borttagen** (användarens beslut 2026-11-08: *det blev inte bra alls*). `SonarRing`
+    finns kvar runt den tomma startpunkten.
+36. **Streckade linjer på Windows:** strecken mättes i linjens tjocklek, så tjocka osäkra linjer fick grova korvar.
+    Nu i pixlar som i GR3a (2 5 och 7 5). Bevakningens öga i nodens hörn har inga ringar längre (BV2a har dem bara
+    på träffens linje). *Rättat 2026-11-08.*
+37. **Kontroller och förslag (KF1a) designas om** (användarens beslut 2026-11-08: *betydligt mer professionellt*).
+    Skissas i två varianter.
+38. **Nytt ärende (NC1a) designas om** (användarens beslut 2026-11-08): startpunkterna ska vara en lista med *+*,
+    inte en stor textruta, och varje startpunkt **förhandshämtar** lite information (sort, saldo, antal tx, första
+    och senaste aktivitet) genom utgången. Skissas i två varianter.
+39. **Granskning av alla byggda vyer mot skisserna** (användarens synpunkt 2026-11-08: många delar är kraftigt
+    förenklade). En lista per skiss tas fram och byggs om i tur och ordning.
 34. **Testärendet är för trångt** (användarens skärmdump 2026-11-08): grafen i `TEST-0001` är ihoptryckt, små noder
     som ligger på varandra, belopp som krockar och alla områden ritade samtidigt över varandra. Strider mot princip 7.
     Utreds: layouten (*Använd ytan*, punkt 30) och att områdena bara visas när de väljs i menyn.

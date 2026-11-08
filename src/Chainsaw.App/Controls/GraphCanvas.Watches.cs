@@ -136,11 +136,6 @@ public sealed partial class GraphCanvas
             place.X + GraphSizes.NodeWidth + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
             place.Y - MarkOverhang + (MarkSize / 2));
         var idle = GraphPalette.Find(this, "Brush.Watch.Idle");
-        if (mark.HasNew)
-        {
-            DrawRings(dc, centre, MarkSize / 2, mark.Idle);
-        }
-
         if (mark.Idle)
         {
             dc.DrawEllipse(

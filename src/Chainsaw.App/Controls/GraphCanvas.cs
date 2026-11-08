@@ -60,11 +60,14 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <summary>How faint a line is that carries none of the traced money.</summary>
     private const double UntracedLineOpacity = 0.7;
 
-    /// <summary>The short dashes of an uncertain line, in multiples of its thickness (sketch GR3a: 2 5).</summary>
-    private static readonly DashStyle UncertainDash = Frozen(new DashStyle([1.6, 4], 0));
+    /// <summary>The short dashes of an uncertain line, in pixels on the screen (sketch GR3a: 2 5).</summary>
+    private static readonly double[] UncertainDashPixels = [2, 5];
 
-    /// <summary>The long dashes of a line to another chain (sketch GR3a: 7 5).</summary>
-    private static readonly DashStyle OtherChainDash = Frozen(new DashStyle([5, 3.5], 0));
+    /// <summary>The long dashes of a line to another chain, in pixels on the screen (sketch GR3a: 7 5).</summary>
+    private static readonly double[] OtherChainDashPixels = [7, 5];
+
+    /// <summary>The lines' dashes made so far, by pattern and width, so that each is made and frozen once.</summary>
+    private static readonly Dictionary<(EdgeDash Dash, double Width), DashStyle> LineDashes = [];
 
     /// <summary>The dashes of a frame that is uncertain or ends the trail.</summary>
     private static readonly DashStyle FrameDash = Frozen(new DashStyle([3, 2], 0));
@@ -558,6 +561,36 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <returns>The same point.</returns>
     private static GraphPoint ToGraph(Point point) => new(point.X, point.Y);
 
+    /// <summary>
+    /// Gives a line's dashes. WPF measures dashes in multiples of the pen's thickness, so a fixed pattern grows with
+    /// the line and a thick line got long, heavy dashes; the sketch's pattern is in pixels, so it is divided by the
+    /// width here. The round caps add the width to each dash, as in the sketch's SVG.
+    /// </summary>
+    /// <param name="dash">The pattern.</param>
+    /// <param name="width">The line's width in pixels.</param>
+    /// <returns>The frozen dashes.</returns>
+    private static DashStyle LineDash(EdgeDash dash, double width)
+    {
+        var pixels = dash switch
+        {
+            EdgeDash.Uncertain => UncertainDashPixels,
+            EdgeDash.OtherChain => OtherChainDashPixels,
+            _ => null,
+        };
+        if (pixels is null || width <= 0)
+        {
+            return DashStyles.Solid;
+        }
+
+        if (!LineDashes.TryGetValue((dash, width), out var style))
+        {
+            style = Frozen(new DashStyle(pixels.Select(length => length / width), 0));
+            LineDashes[(dash, width)] = style;
+        }
+
+        return style;
+    }
+
     /// <summary>Freezes a dash style, so that it can be shared.</summary>
     /// <param name="style">The style.</param>
     /// <returns>The frozen style.</returns>
@@ -620,12 +653,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round,
             DashCap = PenLineCap.Round,
-            DashStyle = edge.Dash switch
-            {
-                EdgeDash.Uncertain => UncertainDash,
-                EdgeDash.OtherChain => OtherChainDash,
-                _ => DashStyles.Solid,
-            },
+            DashStyle = LineDash(edge.Dash, edge.Width),
         };
         var opacity = LineOpacity(edge, near);
         var geometry = new StreamGeometry();

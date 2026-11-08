@@ -55,8 +55,11 @@ public sealed record GraphWatchOverlay(
     /// <summary>Gets an overlay with nothing.</summary>
     public static GraphWatchOverlay Empty { get; } = new([], [], []);
 
-    /// <summary>Gets whether any hit is unseen, so that the rings move.</summary>
-    public bool Moves => Lines.Any(line => line.IsNew) || Marks.Any(mark => mark.HasNew);
+    /// <summary>
+    /// Gets whether a hit's line is unseen, so that its rings move; the eye on the node has no rings (sketch BV2a), so
+    /// an unseen hit without a line in the graph keeps nothing moving.
+    /// </summary>
+    public bool Moves => Lines.Any(line => line.IsNew);
 
     /// <summary>Gives the eye of a node, or <see langword="null"/>.</summary>
     /// <param name="nodeKey">The node.</param>
