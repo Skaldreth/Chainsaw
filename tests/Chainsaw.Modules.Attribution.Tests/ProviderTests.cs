@@ -35,7 +35,8 @@ public sealed class ProviderTests : IDisposable
         return $$"""
             {"id":"{{id}}","trusted":{{(trusted ? "true" : "false")}},"checked":{{(@checked ? "true" : "false")}},
              "scamCategory":{{categoryJson}},"createdAt":"{{created}}",
-             "addresses":[{"address":"{{address}}","chain":"BTC","domain":null},{"address":null,"chain":null,"domain":"x.example"}]}
+             "addresses":[{"address":"{{address}}","chain":"BTC","domain":null},
+                          {"address":null,"chain":null,"domain":"x.example"}]}
             """;
     }
 
@@ -64,7 +65,8 @@ public sealed class ProviderTests : IDisposable
         var request = Assert.Single(_harness.Http.Sent);
         Assert.Equal(Url(_address, "BTC"), request.Uri.AbsoluteUri);
         Assert.Equal("Authorization", request.Credential!.Header);
-        Assert.Equal("Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Key}:{Key}")), request.Credential.Value);
+        var basic = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Key}:{Key}"));
+        Assert.Equal("Basic " + basic, request.Credential.Value);
         Assert.DoesNotContain(Key, request.Uri.AbsoluteUri, StringComparison.Ordinal);
     }
 
@@ -99,7 +101,8 @@ public sealed class ProviderTests : IDisposable
     public async Task A_report_that_does_not_name_the_address_is_not_used()
     {
         var other = Synthetic.Wpkh("someone else").ToChainAddress();
-        _harness.Http.Answer(Url(_address, "BTC"), Reports(Report("r1", "PHISHING", "2026-01-02T10:00:00Z", other.Value)));
+        _harness.Http.Answer(
+            Url(_address, "BTC"), Reports(Report("r1", "PHISHING", "2026-01-02T10:00:00Z", other.Value)));
 
         var result = Assert.Single(await Lookup());
 
@@ -124,7 +127,8 @@ public sealed class ProviderTests : IDisposable
     [Fact]
     public async Task A_label_taken_back_is_not_set_again()
     {
-        _harness.Http.Answer(Url(_address, "BTC"), Reports(Report("r1", "PHISHING", "2026-01-02T10:00:00Z", _address.Value)));
+        _harness.Http.Answer(
+            Url(_address, "BTC"), Reports(Report("r1", "PHISHING", "2026-01-02T10:00:00Z", _address.Value)));
         var label = Assert.Single(Assert.Single(await Lookup()).Added);
 
         Assert.True(_harness.Labels.Retract(_harness.Case, label.Sequence, "Fel adress i rapporten"));
@@ -206,6 +210,31 @@ public sealed class ProviderTests : IDisposable
         Assert.NotNull(result.Problem);
         Assert.Empty(result.Added);
         Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public async Task After_a_429_nothing_is_sent_until_the_wait_is_over()
+    {
+        _harness.Http.Answer(Url(_address, "BTC"), """{"reason":"slow down"}""", 429, TimeSpan.FromHours(1));
+
+        await Lookup();
+        var again = Assert.Single(await Lookup());
+
+        Assert.Equal(ProviderLookupStatus.RateLimited, again.Status);
+        Assert.Null(again.ResponseSequence);
+        Assert.Single(_harness.Http.Sent);
+    }
+
+    [Fact]
+    public async Task A_report_that_cannot_be_read_is_left_out_and_the_rest_used()
+    {
+        _harness.Http.Answer(Url(_address, "BTC"), Reports(
+            """{"trusted":true,"addresses":[]}""",
+            Report("r2", "PIG_BUTCHERING", "2026-01-02T10:00:00Z", _address.Value)));
+
+        var result = Assert.Single(await Lookup());
+
+        Assert.Equal("Pig butchering", Assert.Single(result.Added).Name);
     }
 
     [Fact]

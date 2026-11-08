@@ -35,27 +35,29 @@ internal sealed class ChainabuseProvider(Uri baseUri) : IAttributionProvider
         [Chain.Ethereum] = "ETH",
     };
 
-    /// <summary>The categories the API documents, in Swedish; others are shown as the API writes them.</summary>
+    /// <summary>
+    /// The categories the API documents, by their key (<see cref="CategoryKey"/>), in Swedish; others are shown as the
+    /// API writes them.
+    /// </summary>
     private static readonly Dictionary<string, string> Categories = new(StringComparer.Ordinal)
     {
         ["PHISHING"] = "Nätfiske",
         ["RANSOMWARE"] = "Ransomware",
         ["SEXTORTION"] = "Sextortion",
-        ["RUG_PULL"] = "Rug pull",
+        ["RUGPULL"] = "Rug pull",
         ["PIGBUTCHERING"] = "Pig butchering",
-        ["PIG_BUTCHERING"] = "Pig butchering",
         ["IMPERSONATION"] = "Identitetsbedrägeri",
-        ["FAKE_PROJECT"] = "Falskt projekt",
-        ["FAKE_RETURNS"] = "Falsk avkastning",
-        ["INVESTMENT_SCAM"] = "Investeringsbedrägeri",
+        ["FAKEPROJECT"] = "Falskt projekt",
+        ["FAKERETURNS"] = "Falsk avkastning",
+        ["INVESTMENTSCAM"] = "Investeringsbedrägeri",
         ["ROMANCE"] = "Romansbedrägeri",
         ["BLACKMAIL"] = "Utpressning",
         ["DONATION"] = "Falsk insamling",
         ["AIRDROP"] = "Falsk airdrop",
-        ["CONTRACT_EXPLOIT"] = "Utnyttjat kontrakt",
+        ["CONTRACTEXPLOIT"] = "Utnyttjat kontrakt",
         ["HACK"] = "Intrång",
-        ["SIM_SWAP"] = "SIM-kapning",
-        ["UKRAINE_SCAM"] = "Falsk insamling för Ukraina",
+        ["SIMSWAP"] = "SIM-kapning",
+        ["UKRAINESCAM"] = "Falsk insamling för Ukraina",
         ["OTHER"] = "Annat",
     };
 
@@ -96,9 +98,14 @@ internal sealed class ChainabuseProvider(Uri baseUri) : IAttributionProvider
                 throw new FormatException("Chainabuse's answer has no reports.");
             }
 
-            var about = reports.EnumerateArray().Select(Report).Where(report => Names(report, address)).ToList();
+            // A report that cannot be read is left out rather than spoiling the answer; the raw response is sealed.
+            var about = reports.EnumerateArray()
+                .Select(TryReport)
+                .OfType<Reported>()
+                .Where(report => Names(report, address))
+                .ToList();
             var findings = about
-                .GroupBy(report => report.Category ?? "OTHER", StringComparer.Ordinal)
+                .GroupBy(report => CategoryKey(report.Category), StringComparer.Ordinal)
                 .OrderBy(group => group.Key, StringComparer.Ordinal)
                 .Select(group => Finding(address, group.Key, [.. group.OrderBy(report => report.Created)]))
                 .ToList();
@@ -124,6 +131,31 @@ internal sealed class ChainabuseProvider(Uri baseUri) : IAttributionProvider
         }
 
         return uri.AbsoluteUri.EndsWith('/') ? uri : new Uri(uri.AbsoluteUri + "/");
+    }
+
+    /// <summary>
+    /// Gives a category as it is compared and kept in a label's origin: upper case without separators, so that
+    /// <c>PIG_BUTCHERING</c> and <c>PIGBUTCHERING</c> are one, and a missing category is <c>OTHER</c>.
+    /// </summary>
+    /// <param name="category">The API's category, or <see langword="null"/>.</param>
+    /// <returns>The key.</returns>
+    private static string CategoryKey(string? category) =>
+        category is null ? "OTHER" : category.Replace("_", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+
+    /// <summary>Reads one report, or gives <see langword="null"/> when it cannot be read.</summary>
+    /// <param name="item">The report.</param>
+    /// <returns>What Chainsaw uses of it, or <see langword="null"/>.</returns>
+    private static Reported? TryReport(JsonElement item)
+    {
+        try
+        {
+            return Report(item);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException
+            or FormatException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Reads one report.</summary>
@@ -164,7 +196,9 @@ internal sealed class ChainabuseProvider(Uri baseUri) : IAttributionProvider
     /// <returns><see langword="true"/> when the report names it.</returns>
     private static bool Names(Reported report, ChainAddress address)
     {
-        var comparison = address.Chain == Chain.Ethereum ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var comparison = address.Chain == Chain.Ethereum
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
         return report.Addresses.Any(named => string.Equals(named.Trim(), address.Value, comparison));
     }
 
@@ -176,6 +210,7 @@ internal sealed class ChainabuseProvider(Uri baseUri) : IAttributionProvider
     private static ProviderFinding Finding(ChainAddress address, string category, IReadOnlyList<Reported> reports)
     {
         var name = Categories.TryGetValue(category, out var swedish) ? swedish : category;
+        var subject = LabelSubject.ForAccount(address).Target.Value;
         var first = reports[0].Created.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var last = reports[^1].Created.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var when = first == last ? first : $"{first} – {last}";
@@ -184,7 +219,8 @@ internal sealed class ChainabuseProvider(Uri baseUri) : IAttributionProvider
         var more = reports.Count > NamedReports ? $" och {reports.Count - NamedReports} till" : string.Empty;
         var reason = string.Format(
             CultureInfo.InvariantCulture,
-            "{0} på Chainabuse om adressen som {1} ({2}); {3} granskade av moderator, {4} från betrodda rapportörer. "
+            "{0} på Chainabuse om adressen som {1} ({2}); {3} granskade av moderator, "
+                + "{4} från betrodda rapportörer. "
                 + "Rapporterna skrivs in av allmänheten. Id: {5}{6}.",
             count,
             name,
@@ -194,7 +230,7 @@ internal sealed class ChainabuseProvider(Uri baseUri) : IAttributionProvider
             ids,
             more);
         return new ProviderFinding(
-            $"{ChainCodes[address.Chain]}:{address.Value}/{category}", LabelKind.Reported, name, reason);
+            $"{ChainCodes[address.Chain]}:{subject}/{category}", LabelKind.Reported, name, reason);
     }
 
     /// <summary>What Chainsaw uses of one report.</summary>

@@ -391,6 +391,7 @@ public static class NodeHistory
                 LabelSource.SanctionList => origin.SourceName,
                 LabelSource.OpenSource => origin.SourceName,
                 LabelSource.Behaviour => origin.SourceName,
+                LabelSource.Provider => origin.SourceName,
                 _ => null,
             };
             var key = "label/" + label.Sequence.ToString(CultureInfo.InvariantCulture);
@@ -398,7 +399,7 @@ public static class NodeHistory
                 key, HistoryKind.Label, origin.SetUtc, "Etikett · " + what,
                 source is null ? origin.SetBy.Name : $"{origin.SetBy.Name} · {source}", look.Icon, look.Ink,
                 IsDashed: false, IsFact: false, entry.IsRetracted,
-                entry.IsUsersOwn ? HistoryUndo.RetractLabel : HistoryUndo.None)
+                entry.CanRetract || entry.IsUsersOwn ? HistoryUndo.RetractLabel : HistoryUndo.None)
             {
                 LabelSequence = label.Sequence,
                 ReachesLibrary = !label.DoNotSpread && label.Kind != LabelKind.Victim,

@@ -155,6 +155,12 @@ public enum NodeBadge
     Watched,
 
     /// <summary>
+    /// A supplier of attribution (Chainabuse) has reports of fraud or other abuse about the address: a red mark, so
+    /// that the node keeps its sort and the reports stay a judgement beside it (principle 2).
+    /// </summary>
+    Reported,
+
+    /// <summary>
     /// <em>Kan frysas</em> (a snowflake): USDT or USDC is left at the address according to the history in the case,
     /// and its issuer can freeze it on request (CLAUDE.md, sketch TK1a).
     /// </summary>
@@ -223,6 +229,7 @@ public static class VisualLanguage
         new(NodeBadge.CashOutFound, "Uttag funnet", "Icon.Kind.Check", GraphInk.CashOut),
         new(NodeBadge.FromOtherCase, "Etikett från ett annat ärende", "Icon.Tag", GraphInk.Cluster),
         new(NodeBadge.Sanctioned, "Sanktionerad", "Icon.Kind.Ban", GraphInk.Sanctioned),
+        new(NodeBadge.Reported, "Rapporterad", "Icon.Alert", GraphInk.Risk),
         new(NodeBadge.CanBeFrozen, "Kan frysas", "Icon.Snow", GraphInk.Freeze),
         new(NodeBadge.Watched, "Bevakad", "Icon.Eye", GraphInk.Accent),
     ];

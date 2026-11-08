@@ -25,6 +25,15 @@ internal sealed class AttributionProviders(
     /// <summary>The ordered suppliers.</summary>
     private readonly IReadOnlyList<IAttributionProvider> _providers = [.. providers];
 
+    /// <summary>
+    /// When each supplier that asked Chainsaw to wait (429) may be asked again, so that its limit is always kept and
+    /// nothing is sent before then (CLAUDE.md, <em>Rate limits respekteras alltid</em>).
+    /// </summary>
+    private readonly Dictionary<string, DateTimeOffset> _waitUntil = new(StringComparer.Ordinal);
+
+    /// <summary>How long Chainsaw waits after a 429 that does not say how long.</summary>
+    private static readonly TimeSpan DefaultWait = TimeSpan.FromMinutes(15);
+
     /// <summary>Creates the service with the computer's own time zone.</summary>
     /// <param name="providers">The suppliers.</param>
     /// <param name="http">The exit.</param>
@@ -72,6 +81,15 @@ internal sealed class AttributionProviders(
                 $"{provider.Info.DisplayName} frågas inte om adresser på den här kedjan. Inget skickades.");
         }
 
+        if (Waiting(name) is { } until)
+        {
+            return Missing(name, ProviderLookupStatus.RateLimited, string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} bad Chainsaw vänta till {1:HH:mm} UTC. Inget skickades.",
+                provider.Info.DisplayName,
+                until.UtcDateTime));
+        }
+
         var (key, fetchedBy, problem) = Credentials(provider);
         if (key is null || fetchedBy is null)
         {
@@ -94,6 +112,11 @@ internal sealed class AttributionProviders(
 
         // Every response is sealed, also a refusal, so that what was asked and answered can always be shown.
         var (status, answer, readProblem) = Interpret(provider, response, address);
+        if (status == ProviderLookupStatus.RateLimited)
+        {
+            Wait(name, response);
+        }
+
         return await Task.Run(
             () => @case.Write(transaction =>
             {
@@ -105,6 +128,28 @@ internal sealed class AttributionProviders(
                     name, status, added, answer?.Reports ?? 0, sealedResponse.Sequence, readProblem);
             }),
             CancellationToken.None).ConfigureAwait(false);
+    }
+
+    /// <summary>Gives when a supplier that asked Chainsaw to wait may be asked again, if it is not yet.</summary>
+    /// <param name="provider">The supplier's name.</param>
+    /// <returns>The time, or <see langword="null"/> when it may be asked now.</returns>
+    private DateTimeOffset? Waiting(string provider)
+    {
+        lock (_waitUntil)
+        {
+            return _waitUntil.TryGetValue(provider, out var until) && until > DateTimeOffset.UtcNow ? until : null;
+        }
+    }
+
+    /// <summary>Remembers how long a supplier asked Chainsaw to wait.</summary>
+    /// <param name="provider">The supplier's name.</param>
+    /// <param name="response">The 429 response, with its <c>Retry-After</c> when it gave one.</param>
+    private void Wait(string provider, ExitResponse response)
+    {
+        lock (_waitUntil)
+        {
+            _waitUntil[provider] = DateTimeOffset.UtcNow + (response.RetryAfter ?? DefaultWait);
+        }
     }
 
     /// <summary>Gets whether an address can carry labels: Bitcoin and Ethereum so far.</summary>
@@ -164,7 +209,8 @@ internal sealed class AttributionProviders(
                 return (ProviderLookupStatus.Refused, null, $"{display} godtog inte nyckeln i valvet.");
             case 429:
                 var wait = response.RetryAfter is { } delay
-                    ? $" Försök igen om {Math.Ceiling(delay.TotalMinutes).ToString(CultureInfo.InvariantCulture)} min."
+                    ? $" Försök igen om {Math.Ceiling(delay.TotalMinutes).ToString(CultureInfo.InvariantCulture)}"
+                        + " min."
                     : string.Empty;
                 return (ProviderLookupStatus.RateLimited, null,
                     $"{display} ber Chainsaw vänta: nyckelns anrop är slut för stunden.{wait}");
@@ -226,8 +272,8 @@ internal sealed class AttributionProviders(
         var stored = LabelStore.Read(transaction);
         var fresh = answer.Findings
             .Select(finding => (Finding: finding, Origin: $"{info.Name}/{finding.Key}"))
-            .Where(found => !stored.Has(
-                LabelStore.Key(found.Origin, subject, found.Finding.Kind, found.Finding.Name), LabelSource.Provider))
+            // Any way in counts: a copy from another case through the library is the same finding, never a second one.
+            .Where(found => !stored.Has(LabelStore.Key(found.Origin, subject, found.Finding.Kind, found.Finding.Name)))
             .ToList();
         var journal = transaction.AppendJournal(new JournalDraft(
             AttributionJournalKinds.ProviderAsked,

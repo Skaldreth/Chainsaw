@@ -474,6 +474,11 @@ public sealed record GraphScene(
             badges.Add(NodeBadge.Sanctioned);
         }
 
+        if (labels.Any(label => label.Kind == LabelKind.Reported))
+        {
+            badges.Add(NodeBadge.Reported);
+        }
+
         if (balances.Any(row => row.CanBeFrozen))
         {
             badges.Add(NodeBadge.CanBeFrozen);

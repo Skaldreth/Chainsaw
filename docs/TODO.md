@@ -513,7 +513,11 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   (partner: 5 000 i timmen), så automatiska uppslag på varje nod kräver partnernyckel; frågan till användaren är om
   det ska vara ett knapptryck i ikonlisten eller automatiskt vid expansion. Sorten *Rapporterad* ritas som okänd i
   grafen tills den har en form (rött, risk). Rapportens beskrivning, förluster och kategorier som API:t lägger till
-  läses inte än.
+  läses inte än. Efter granskningen 2026-11-08: etikettens skäl står kvar med det första antalet rapporter när fler
+  kommer in (bara journalen och det nya förseglade svaret visar det nya antalet); en tillbakatagen rapport hålls
+  borta ur biblioteket för alla ärenden, också för senare rapporter i samma kategori; ett ärende som stängs mitt i ett
+  uppslag tappar svaret utan att försegla det. *Rapporterad* är en röd markering i hörnet (`NodeBadge.Reported`),
+  inte en sort, så att noden behåller sin sort.
 - **Flera attributionskällor samtidigt, var och en med en strömbrytare** (användarens beslut 2026-11-08): Chainsaw
   hämtar från alla källor som är på, inte bara en, och varje källa kan stängas av.
 - **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster). Varje källa granskas för licens och kvalitet innan den byggs in. `LabelSource.OpenSource`

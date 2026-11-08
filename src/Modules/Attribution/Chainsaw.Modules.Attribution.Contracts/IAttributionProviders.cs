@@ -22,7 +22,9 @@ public interface IAttributionProviders
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="address">The address with its chain.</param>
-    /// <param name="enabled">The names of the suppliers that are on (<see cref="AttributionProviderInfo.Name"/>).</param>
+    /// <param name="enabled">
+    /// The names of the suppliers that are on (<see cref="AttributionProviderInfo.Name"/>).
+    /// </param>
     /// <param name="cancellationToken">Stops the lookups.</param>
     /// <returns>What each supplier that is on answered, in <see cref="Providers"/>' order.</returns>
     Task<IReadOnlyList<ProviderLookup>> LookupAsync(
@@ -44,7 +46,9 @@ public enum ProviderLookupStatus
     /// <summary>The supplier answered; <see cref="ProviderLookup.Added"/> holds the new labels, if any.</summary>
     Answered,
 
-    /// <summary>The supplier is not asked about the chain, or the chain cannot carry labels yet; nothing was sent.</summary>
+    /// <summary>
+    /// The supplier is not asked about the chain, or the chain cannot carry labels yet; nothing was sent.
+    /// </summary>
     NotSupported,
 
     /// <summary>No key for the supplier is stored in the vault, or the vault is locked; nothing was sent.</summary>
@@ -56,7 +60,10 @@ public enum ProviderLookupStatus
     /// <summary>The supplier refused the key (401 or 403); the response is sealed.</summary>
     Refused,
 
-    /// <summary>The supplier asked Chainsaw to wait (429); the response is sealed.</summary>
+    /// <summary>
+    /// The supplier asked Chainsaw to wait (429); the response is sealed, and until the wait is over nothing more is
+    /// sent to it.
+    /// </summary>
     RateLimited,
 
     /// <summary>The lookup failed on the way or the response could not be read.</summary>
@@ -68,7 +75,9 @@ public enum ProviderLookupStatus
 /// <param name="Status">What the lookup came to.</param>
 /// <param name="Added">The labels set from the answer.</param>
 /// <param name="Reports">How many reports the answer held about the address, also those already labelled.</param>
-/// <param name="ResponseSequence">The sealed response's sequence, or <see langword="null"/> when nothing came back.</param>
+/// <param name="ResponseSequence">
+/// The sealed response's sequence, or <see langword="null"/> when nothing came back.
+/// </param>
 /// <param name="Problem">Why there is no answer, in Swedish, or <see langword="null"/>.</param>
 public sealed record ProviderLookup(
     string Provider,
