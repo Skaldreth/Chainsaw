@@ -596,7 +596,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | Sida | Skisser | Läge |
 | --- | --- | --- |
 | **Stil och ikoner** | ID1 (Bitcoin-myntet), ID3 (sågkedjan), ID5 (kättingen); ID6 (accentfärgen), GR3a och GR3c (bildspråket); ID9a–c (accentfärgen i varma jordtoner); IK1 (grafens ikon) | ID1 och ID3 avvisade, ID5 ersatt av loggan i `assets/logo/`; ID6 Magenta ersatt, GR3a och GR3c godkända; ID9b vald och byggd; IK1 kandidat 2, *Förgrening*, vald och byggd |
-| **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA); ID8e, ID8f (startanimationen och ett spänt rep som svajar när fönstret skakas) | ID8c (ersätter ID7a) och FS1a valda och byggda; ID8f vald 2026-11-08, stram (ersätter ID8c), inte byggd |
+| **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA); ID8e, ID8f (startanimationen och ett spänt rep som svajar när fönstret skakas); LS1a, LS1b (formuläret ovanför bandet, kedjan som svarar på nyckeln och spiralen som blir noden Nytt ärende) | ID8c (ersätter ID7a) och FS1a valda och byggda; ID8f vald 2026-11-08, stram (ersätter ID8c), inte byggd; LS1a och LS1b väntar på användaren |
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog); NC2a, NC2b (startpunkterna som lista som förhandshämtar) | NC2a vald 2026-11-08 och byggd (ersätter NC1a) |
