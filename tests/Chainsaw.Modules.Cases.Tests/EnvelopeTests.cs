@@ -96,7 +96,7 @@ public sealed class EnvelopeTests : IDisposable
     }
 
     [Fact]
-    public void An_own_envelope_lets_the_colleague_open_the_file_with_the_master_key_also_after_the_password_is_changed()
+    public void An_own_envelope_opens_the_file_with_the_master_key_also_after_the_password_is_changed()
     {
         var source = CreateShared();
         using (var opened = _colleague.CreateStore().ImportWithPassword(source, CaseFixture.Password))

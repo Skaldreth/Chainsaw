@@ -402,6 +402,9 @@
                 <!-- The settings (ST1a): a dialog in the middle, over everything under the title bar, the rest darkened. -->
                 <views:SettingsDialog x:Name="SettingsDialog" Grid.Row="1" />
 
+                <!-- The case's envelopes (ÄR1b): a colleague's file, the properties and the choice after a crash. -->
+                <views:CaseDialogs x:Name="CaseDialogsView" Grid.Row="1" />
+
                 <!-- The toaster (TO1a): at the lower right, over everything under the title bar, dialogs too. -->
                 <views:ToastHost x:Name="Toasts" Grid.Row="1" />
             </Grid>

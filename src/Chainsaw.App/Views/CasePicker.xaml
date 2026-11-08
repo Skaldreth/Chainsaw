@@ -126,6 +126,15 @@
                         <Button Style="{StaticResource Button.Secondary}" Height="30" Padding="12,0" FontSize="13.5"
                                 Margin="8,0,0,0" Content="Stäng" Command="{Binding CloseCaseCommand}"
                                 ToolTip="Sparar och stänger ärendet · Ctrl+W" />
+                        <Button Style="{StaticResource Button.Secondary}" Height="30" Padding="10,0" FontSize="13.5"
+                                Margin="8,0,0,0" Command="{Binding PropertiesCommand}"
+                                ToolTip="Ärendets titel och kuvert: vem som kan öppna filen (Ctrl+I)">
+                            <StackPanel Orientation="Horizontal">
+                                <controls:GridIcon Size="16" Data="{StaticResource Icon.Envelope}" Margin="0,0,6,0"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                <TextBlock Text="Egenskaper" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                     <Border Height="1" Margin="10,0" Background="{StaticResource Brush.BorderStrong}" />
                 </StackPanel>
@@ -176,6 +185,14 @@
                         <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}" Foreground="{StaticResource Brush.TextMuted}"
                                            Margin="0,0,10,0" />
                         <TextBlock Text="Nytt ärende …" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Button>
+                <Button Style="{StaticResource Button.MenuItem}" Margin="4,0,4,4" Command="{Binding OpenFileCommand}"
+                        ToolTip="Öppna en kollegas ärendefil med ärendelösenordet; den kopieras till Ärenden">
+                    <DockPanel>
+                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Envelope}"
+                                           Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,10,0" />
+                        <TextBlock Text="Öppna en kollegas fil …" VerticalAlignment="Center" />
                     </DockPanel>
                 </Button>
             </StackPanel>

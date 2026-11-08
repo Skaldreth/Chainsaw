@@ -13,7 +13,7 @@ namespace Chainsaw.App.Controls;
 /// </summary>
 /// <param name="autoLock">The automatic lock, held while the dialog is open.</param>
 /// <param name="vault">The vault, which says whether Chainsaw is still unlocked when the dialog closes.</param>
-public sealed class WpfFilePicker(AutoLock autoLock, IVault vault) : IFilePicker, ISaveFilePicker
+public sealed class WpfFilePicker(AutoLock autoLock, IVault vault) : IFilePicker, ISaveFilePicker, ICaseFilePicker
 {
     /// <summary>The dialog's filter for a request: Markdown.</summary>
     private const string RequestFilter = "Markdown (*.md)|*.md";
@@ -49,6 +49,12 @@ public sealed class WpfFilePicker(AutoLock autoLock, IVault vault) : IFilePicker
 
     /// <inheritdoc />
     public string? PickWireGuardFile() => Pick("Lägg till WireGuard-fil", WireGuardFilter);
+
+    /// <summary>The dialog's filter for a case file.</summary>
+    private const string CaseFileFilter = "Ärende (*.cut)|*.cut";
+
+    /// <inheritdoc />
+    public string? PickCaseFile() => Pick("Öppna en kollegas fil", CaseFileFilter);
 
     /// <summary>Shows Windows' dialog with the lock held, and drops a file chosen after Chainsaw was locked.</summary>
     /// <param name="title">The dialog's title.</param>

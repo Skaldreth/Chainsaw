@@ -505,6 +505,16 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   bara för ägaren; med omdirigerad indata läses lösenordet som en `string` som inte kan nollställas; punkten på kurvan
   kontrolleras av plattformen (OpenSSL, CNG), inte av en egen kontroll (granskningen etapp 9, M).
 
+- **Två grenar av samma ärende (ÄR1b):** en arbetskopia som sparas som eget ärende behåller ärendets id och filnyckel
+  (kuverten kan bara öppna den nyckeln, och `case_info` kan inte ändras), så de två filerna delar ankare på datorn.
+  Varannan öppning journalförs därför som *ankarna ersattes*. Ett eget id för grenen kräver omkryptering och nya kuvert
+  för alla valv, och går bara för de kuvert som kan öppnas här.
+- **Var grenarna gick isär (ÄR1b):** skissen visar journalens rad och hash där filen och arbetskopian gick isär och hur
+  många rader som tillkommit på varje gren. Att räkna ut det kräver att båda öppnas; i dag visas bara när var och en
+  skrevs senast.
+- **Namn på kuverten (ÄR1b):** skissen visar kollegans namn på hennes kuvert. Kuverten bär medvetet inget namn, så
+  kortet heter *Ett annat valv*; ett namn ur journalen (*operator-access-added*) kan inte knytas säkert till ett kuvert.
+- **Okänt kuvert:** ett kuvert av en okänd sort visas som *Okänt kuvert* utan detaljer.
 - **Ankra hashkedjan utanför ärendet:** verifieringen ger varje kedjas sista hash. Den bör stå i rapporter och underlag
   (och kanske i en egen logg utanför ärendet), så att den som har filnyckeln inte kan skriva om hela kedjan oupptäckt.
 - **Stora ärenden:** att öppna och spara kopierar hela databasen. Mät när ärendena blir stora (hundratals MB) och

@@ -152,7 +152,6 @@ Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md
 - **Kurserna KU1a** [etapp]: kronorna via Riksbanken.
 - **Inställningarna** [direkt]: BV4a meddelandet mitt på skärmen, ST2a återställningsnyckeln, FS2a steget Utgång
   (Windows förvalt) och UT3b utgångarna med kontrollen.
-- **Ärendet ÄR1b** [etapp]: kollegans fil, egenskaperna med kuverten och konflikten med arbetskopian.
 - **Sökningen KR1a** [direkt].
 
 ## Före tjänstebruk

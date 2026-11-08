@@ -3217,3 +3217,37 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - **M5:** `tokenlist` med status 2 ger ett ofullständigt saldo med en anteckning.
 - **M6:** tester för en skräptoken som heter USDT, wei över `long.MaxValue` och toppen följd av överföring med
   registret på både Bitcoin och Ethereum. M2 står i `docs/BACKLOG.md`.
+
+
+## Ärendets kuvert, ÄR1b (2026-11-08)
+
+Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, och valet av gren efter en krasch.
+
+- **Cases:** `ICaseStore.ImportWithPassword` provar lösenordet där filen ligger (fel lösenord kopierar inget), kopierar
+  till Ärenden utan att skriva över (`.tmp` och flytt utan överskrivning), kontrollerar att kopian har samma id och
+  öppnar den med samma filnyckel; en kopia som inte kan öppnas tas bort, källan rörs aldrig. `DescribeEnvelopes`
+  (på filen och på ett öppet ärende) beskriver kuverten utan att ändra dem: ditt (bara om det öppnar till ärendets
+  filnyckel), andra valv, delning, återställningsnycklar (inbyggd, återkallad, annan) och okända. Varje filnyckel som
+  öppnas på vägen nollställs.
+- **Konflikten:** `FindConflict` (utan valv), `OpenSettingAsideWorkingCopy` flyttar arbetskopian, dess journal, bas
+  och `.tmp` orörda till `Återställda/<nummer> <UTC>Z/` (ett nytt namn om det finns) och öppnar filen med journalraden
+  `case.working-copy-set-aside` (mappen och arbetskopians SHA-256). En arbetskopia som hör till filen tas tillbaka som
+  vanligt i stället. `SaveWorkingCopyAsCase` skriver ett nytt ärende med filens huvud (samma kuvert) och arbetskopian,
+  flyttar arbetskopian dit och öppnar det som en återtagning med `case.branch-saved`; misslyckas öppningen flyttas allt
+  tillbaka. Valvets kuvert krävs för båda valen.
+- **Härdning:** en rollback-journal utan arbetskopia tas bort innan en ny arbetskopia görs, så att SQLite aldrig rullar
+  in en främmande journal.
+- **App:** `CaseDialogsViewModel` med `CasePasswordViewModel`, `CasePropertiesViewModel` och `CaseBranchViewModel`, och
+  vyn `CaseDialogs`. `CaseWorkflow.OpenAsync` erbjuder lösenordet vid `NoAccess` och grenarna vid `Conflict`. Ett
+  lösenord läses bara ur `PasswordBox` när det används (`ISecretEntry`) och nollställs direkt. Ärendeväljaren har
+  *Egenskaper* (Ctrl+I) och *Öppna en kollegas fil …*. Ett ärende heter efter sin fil (`CaseSession.NumberOf`), så
+  att en gren heter `-B`.
+- **Egna beslut:** arbetskopians gren är förvald, som i skissen (inget går förlorat med något av valen). Kollegans
+  fil öppnas först och det öppna ärendet stängs efteråt, så att ett fel lösenord inte kostar något. Egenskaper har
+  också flikarna *Egenskaper* (titeln) och *Information* (filen och id:t).
+- **Avsteg från skissen:** kollegans kuvert heter *Ett annat valv* (kuverten bär inget namn); grenbilden visar inte
+  journalraden och hashen där grenarna gick isär eller antalet rader per gren; datum för när kuverten lades till visas
+  inte. Se `docs/BACKLOG.md`.
+- Tester: 26 i `Chainsaw.Modules.Cases.Tests` (`EnvelopeTests`, `BranchTests`) och 31 i App.Tests
+  (`CaseEnvelopesTests`).
+

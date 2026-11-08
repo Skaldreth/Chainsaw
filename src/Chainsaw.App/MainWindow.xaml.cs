@@ -88,6 +88,7 @@ public partial class MainWindow : Window
     /// The background watching: the plan, the hold on the open case and its state, started here.
     /// </param>
     /// <param name="toaster">The toaster (sketch TO1a), which every part can say something through.</param>
+    /// <param name="caseDialogs">The case's envelopes (sketch ÄR1b).</param>
     public MainWindow(
         ShellViewModel shell,
         GateViewModel gate,
@@ -97,7 +98,8 @@ public partial class MainWindow : Window
         MonitoringViewModel monitoring,
         WatchRunner watchRunner,
         BackgroundLink background,
-        Toaster toaster)
+        Toaster toaster,
+        CaseDialogsViewModel caseDialogs)
     {
         InitializeComponent();
         _shell = shell;
@@ -111,6 +113,7 @@ public partial class MainWindow : Window
         ExitPanelView.Attach(shell.ExitPanel);
         WatchCasePicker();
         SettingsDialog.Attach(shell.Settings);
+        WireCaseDialogs(caseDialogs, toaster);
         GraphPage.Attach(graph);
         Toasts.Attach(toaster);
         CrashGuard.Toaster = toaster;

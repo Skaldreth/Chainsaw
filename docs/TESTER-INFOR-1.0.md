@@ -1138,6 +1138,22 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] *Nytt ärende … Ctrl+N* stänger rutan och öppnar panelen Nytt ärende.
 - [ ] Ärendeväljaren, utgångarnas ruta och kommandoraden är aldrig öppna samtidigt, och ärendeväljaren stängs när Chainsaw låses.
 
+## Ärendets kuvert (ÄR1b)
+- [ ] Lägg en kollegas ärendefil (skapad i ett annat valv, med ärendelösenord) i mappen Ärenden och öppna den i ärendeväljaren: rutan *Öppna med ärendelösenordet* kommer i mitten med kuverten som små kort (*Ett annat valv*, *Ärendelösenord* som lyser i accent, *Organisationen* och ett streckat *Du*), och ärendeväljaren fälls in.
+- [ ] *Öppna en kollegas fil …* längst ner i ärendeväljaren öppnar Windows filruta (bara `.cut`); en fil utanför mappen visas som *Från en annan plats · 4,2 MB · kopieras till Ärenden*.
+- [ ] Fel lösenord: rött *Lösenordet stämmer inte. Inget har ändrats i filen.*, ingen kopia i Ärenden och det öppna ärendet står kvar. Markören står kvar i fältet.
+- [ ] Rätt lösenord med *Lägg till ett kuvert för mig* ikryssad: filen kopieras till Ärenden, *Du* blir grönt och *Ditt kuvert ligger i filen. Nästa gång räcker huvudnyckeln.*; Enter eller *Till grafen* stänger. Stäng ärendet och öppna det igen: inget lösenord frågas.
+- [ ] Utan krysset: ärendet öppnas och rutan säger att lösenordet behövs igen nästa gång.
+- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert med flik som ett kuvert, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
+- [ ] *Skapa lösenord …* och *Byt …* fäller ut två fält i kortet; olika lösenord ger *Lösenorden är inte lika.*, för kort ger felet om längden; Enter eller *Spara* sparar, Esc eller *Avbryt* fäller in.
+- [ ] *Ta bort* på lösenordet i en kollegas fil utan eget kuvert vägras med en förklaring; efter *Lägg till mitt kuvert* går det.
+- [ ] Titeln överst ändras och sparas när fältet lämnas eller med Enter; titelraden följer med. Fliken *Information* visar filen och ärendets id.
+- [ ] Varje ändring av kuverten står i journalen (`/verify` är grön efteråt).
+- [ ] Krasch med en arbetskopia som inte hör till filen (öppna ärendet, döda Chainsaw i Aktivitetshanteraren, lägg tillbaka en äldre kopia av `.cut`): när ärendet öppnas kommer *<nummer> gick åt två håll* med de två grenarna, arbetskopian vald och *Spara som <nummer>-B*.
+- [ ] *Filen* + *Öppna filen*: arbetskopian ligger orörd i `Ärenden\Återställda\<nummer> <tid>Z\`, och journalen säger var.
+- [ ] *Arbetskopian* + *Spara som …*: ett nytt ärende `<nummer>-B.cut` öppnas med journalen fram till kraschen, och ursprungsfilen är orörd. Titelraden och ärendeväljaren visar `-B`.
+- [ ] Låses Chainsaw medan en av rutorna är öppen stängs den.
+
 ## Ikonlisten vid noden och zoomen (polering 2026-11-07)
 - [ ] Välj en nod och zooma ut: ikonlisten ovanför noden krymper med grafen ner till tre fjärdedelar av sin storlek, och står kvar centrerad över noden.
 - [ ] Zooma ut ännu mer (under ungefär 45 %): listen försvinner; E, L, B och de andra tangenterna fungerar ändå, och listen kommer tillbaka när man zoomar in.

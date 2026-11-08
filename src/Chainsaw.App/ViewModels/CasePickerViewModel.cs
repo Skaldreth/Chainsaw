@@ -120,6 +120,12 @@ public sealed partial class CasePickerViewModel : ObservableObject
     /// <summary>Raised when <em>Nytt ärende …</em> is chosen; the shell opens the panel from the right.</summary>
     public event EventHandler? NewCaseWanted;
 
+    /// <summary>Raised when <em>Egenskaper</em> is chosen; the shell shows the properties (sketch ÄR1b).</summary>
+    public event EventHandler? PropertiesWanted;
+
+    /// <summary>Raised when <em>Öppna en kollegas fil …</em> is chosen; the shell asks for the file.</summary>
+    public event EventHandler? OpenFileWanted;
+
     /// <summary>Gets the case files that match the search, newest first.</summary>
     public ObservableCollection<CasePickerRow> Rows { get; } = [];
 
@@ -302,6 +308,22 @@ public sealed partial class CasePickerViewModel : ObservableObject
         NewCaseWanted?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Egenskaper: folds the picker in and asks for the open case's properties.</summary>
+    [RelayCommand]
+    public void Properties()
+    {
+        Close();
+        PropertiesWanted?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Öppna en kollegas fil …: folds the picker in and asks for a case file.</summary>
+    [RelayCommand]
+    public void OpenFile()
+    {
+        Close();
+        OpenFileWanted?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Filters the list anew while the search is typed.</summary>
     /// <param name="value">The search.</param>
     partial void OnSearchTextChanged(string value) => ShowRows();
@@ -369,7 +391,7 @@ public sealed partial class CasePickerViewModel : ObservableObject
     private void ShowRows()
     {
         var chosen = Chosen?.CaseNumber;
-        var open = _session.Current?.Info.CaseNumber;
+        var open = _session.Current is { } current ? CaseSession.NumberOf(current) : null;
         var search = SearchText.Trim();
         var now = _clock.UtcNow;
         Rows.Clear();
