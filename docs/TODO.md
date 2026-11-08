@@ -536,6 +536,13 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   skrivs i zoomar inte grafen.
 - **Länkar:** `chainsaw:` till något som inte finns i grafen säger det bara; kanske ska det kunna bli en startpunkt.
 - **N med vald nod** knyter lappen till noden (skissen säger det bara om ikonen i nodens list). Fråga användaren.
+- **Kvar efter granskningen av KN1a 2026-11-08:** `CommentGeometry.Resolve` tolkar bara Bitcoin, och en lapp vars
+  adress ligger i en hög får ingen tråd (den borde gå till högen); Delete tar bort en lapp förseglat direkt, utan
+  soptunna; när en hög eller valvy är utfälld döljs lagret med `Opacity=0` men fokus kan ligga kvar i en dold
+  redigerare, `PlaceComments` gör en ny `MatrixTransform` per omritning och `DropShadowEffect` per lapp kostar vid
+  panorering med många lappar.
+- **En skrivning i kö när ärendet stängs:** lappen som skrivs i förseglas innan ärendet släpps, men en skrivning som
+  redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
 ### Attribution
 - **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.

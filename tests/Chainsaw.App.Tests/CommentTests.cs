@@ -29,6 +29,15 @@ internal sealed class TestGraphComments : IGraphComments
     /// <summary>When set, writing a comment throws this.</summary>
     public Exception? Failure { get; set; }
 
+    /// <summary>When set, changing a comment's text throws this.</summary>
+    public Exception? EditFailure { get; set; }
+
+    /// <summary>When set, storing a place throws this.</summary>
+    public Exception? PlaceFailure { get; set; }
+
+    /// <summary>When set, writing and changing a comment wait for it, as a slow disk does.</summary>
+    public TaskCompletionSource? Hold { get; set; }
+
     public IReadOnlyList<GraphComment> Stored => [.. _comments.Values];
 
     public GraphComment Seed(string text, string? anchor = null, NodePosition place = default)
@@ -41,23 +50,38 @@ internal sealed class TestGraphComments : IGraphComments
     public Task<IReadOnlyList<GraphComment>> GetAsync(ICase @case, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<GraphComment>>([.. _comments.Values]);
 
-    public Task<GraphComment> AddAsync(ICase @case, GraphCommentDraft draft)
+    public async Task<GraphComment> AddAsync(ICase @case, GraphCommentDraft draft)
     {
+        if (Hold is { } hold)
+        {
+            await hold.Task;
+        }
+
         if (Failure is { } failure)
         {
-            return Task.FromException<GraphComment>(failure);
+            throw failure;
         }
 
         Added.Add(draft);
         var comment = Comment(Guid.NewGuid().ToString("N"), draft.Text, draft.Anchor, draft.Place);
         _comments[comment.Id] = comment;
-        return Task.FromResult(comment);
+        return comment;
     }
 
-    public Task<GraphComment?> EditAsync(ICase @case, string id, string text)
+    public async Task<GraphComment?> EditAsync(ICase @case, string id, string text)
     {
+        if (Hold is { } hold)
+        {
+            await hold.Task;
+        }
+
+        if (EditFailure is { } failure)
+        {
+            throw failure;
+        }
+
         Edited.Add((id, text));
-        return Task.FromResult(Change(id, comment => comment with { Text = text }));
+        return Change(id, comment => comment with { Text = text });
     }
 
     public Task<GraphComment?> AnchorAsync(ICase @case, string id, string? anchor)
@@ -74,6 +98,11 @@ internal sealed class TestGraphComments : IGraphComments
 
     public Task<bool> SavePlaceAsync(ICase @case, string id, NodePosition place, CommentSize? size)
     {
+        if (PlaceFailure is { } failure)
+        {
+            return Task.FromException<bool>(failure);
+        }
+
         Placed.Add((id, place, size));
         return Task.FromResult(Change(id, comment => comment with { Place = place, Size = size }) is not null);
     }
@@ -380,6 +409,210 @@ public sealed class CommentTests
         Assert.Contains(second, graph.Comments.Notes);
         Assert.True(second.IsEditing);
         Assert.Equal(2, graph.Comments.Notes.Count);
+    }
+}
+
+/// <summary>
+/// The comments' writes after the independent review: nothing written is lost when the case closes, a write fails or
+/// writes overlap, and a sealed draft is never sealed twice.
+/// </summary>
+public sealed class CommentWriteTests
+{
+    private readonly TestGraphComments _comments = new();
+
+    private readonly CaseSession _session = new();
+
+    private readonly List<ToastRequest> _toasts = [];
+
+    private async Task<GraphViewModel> Graph()
+    {
+        var workflow = new CaseWorkflow(
+            new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), _session);
+        var graph = new GraphViewModel(
+            _session, workflow, new TestGraphSource(), TestWays.For(new TestExitConnection()), new InlineUi(),
+            new TestGraphEditor(), new TestClock(), comments: _comments);
+        graph.ToastWanted += (_, toast) => _toasts.Add(toast);
+        _session.Open(new TestCase("2026-0043"));
+        await graph.ReloadAsync(fit: false);
+        return graph;
+    }
+
+    [Fact]
+    public async Task A_draft_being_written_is_sealed_before_the_case_closes()
+    {
+        var graph = await Graph();
+        var draft = graph.BeginLooseComment(default)!;
+        draft.Writing = "Skrivet före låsningen";
+
+        await _session.CloseAsync();
+
+        Assert.Equal("Skrivet före låsningen", Assert.Single(_comments.Added).Text);
+        Assert.Empty(graph.Comments.Notes);
+        Assert.False(draft.IsEditing);
+        Assert.Null(graph.Comments.Editing);
+    }
+
+    [Fact]
+    public async Task A_stored_note_being_written_is_sealed_when_the_case_is_forgotten_at_a_lock()
+    {
+        var seeded = _comments.Seed("Först");
+        var graph = await Graph();
+        var note = Assert.Single(graph.Comments.Notes);
+        graph.Comments.Edit(note);
+        note.Writing = "Ändrad före låsningen";
+
+        _session.Forget();
+
+        Assert.Equal((seeded.Id, "Ändrad före låsningen"), Assert.Single(_comments.Edited));
+        Assert.False(note.IsEditing);
+    }
+
+    [Fact]
+    public async Task A_failed_change_gives_the_text_back_to_write_in()
+    {
+        _comments.Seed("Först");
+        var graph = await Graph();
+        var note = Assert.Single(graph.Comments.Notes);
+        _comments.EditFailure = new InvalidOperationException("Disken är full.");
+        graph.Comments.Edit(note);
+        note.Writing = "Viktig ändring";
+
+        await graph.Comments.LeaveAsync(note);
+
+        Assert.True(note.IsEditing);
+        Assert.Equal("Viktig ändring", note.Writing);
+        Assert.Equal("Först", note.Text);
+        Assert.Contains(_toasts, toast => toast.Title == CommentsViewModel.SaveFailedText);
+    }
+
+    [Fact]
+    public async Task A_new_note_keeps_a_draft_being_stored_and_its_text_if_the_store_fails()
+    {
+        var graph = await Graph();
+        var first = graph.BeginLooseComment(new GraphPoint(1, 1))!;
+        first.Writing = "Under sparning";
+        var hold = _comments.Hold = new TaskCompletionSource();
+
+        var second = graph.BeginLooseComment(new GraphPoint(2, 2))!;
+
+        Assert.True(first.IsStoring);
+        Assert.Contains(first, graph.Comments.Notes);
+        _comments.Failure = new InvalidOperationException("Disken är full.");
+        hold.SetResult();
+        await first.Pending;
+
+        Assert.Contains(first, graph.Comments.Notes);
+        Assert.True(first.IsEditing);
+        Assert.Equal("Under sparning", first.Writing);
+        Assert.DoesNotContain(second, graph.Comments.Notes);
+    }
+
+    [Fact]
+    public async Task Writes_of_a_note_wait_for_each_other_and_it_opens_with_the_latest_text()
+    {
+        var seeded = _comments.Seed("A");
+        var graph = await Graph();
+        var note = Assert.Single(graph.Comments.Notes);
+        var hold = _comments.Hold = new TaskCompletionSource();
+        graph.Comments.Edit(note);
+        note.Writing = "B";
+        var first = graph.Comments.LeaveAsync(note);
+
+        graph.Comments.Edit(note);
+        Assert.Equal("B", note.Writing);
+        note.Writing = "C";
+        var second = graph.Comments.LeaveAsync(note);
+        Assert.Empty(_comments.Edited);
+        hold.SetResult();
+        await Task.WhenAll(first, second);
+
+        Assert.Equal([(seeded.Id, "B"), (seeded.Id, "C")], _comments.Edited);
+        Assert.Equal("C", note.Text);
+        Assert.False(note.IsStoring);
+    }
+
+    [Fact]
+    public async Task A_draft_opened_again_while_it_is_stored_keeps_what_was_written()
+    {
+        var graph = await Graph();
+        var draft = graph.BeginLooseComment(default)!;
+        draft.Writing = "Text";
+        var hold = _comments.Hold = new TaskCompletionSource();
+        var leaving = graph.Comments.LeaveAsync(draft);
+
+        graph.Comments.Edit(draft);
+        Assert.Equal("Text", draft.Writing);
+        hold.SetResult();
+        await leaving;
+        await graph.Comments.LeaveAsync(draft);
+
+        Assert.Single(_comments.Added);
+        Assert.Empty(_comments.Edited);
+    }
+
+    [Fact]
+    public async Task A_sealed_draft_whose_size_could_not_be_stored_is_never_sealed_again()
+    {
+        var graph = await Graph();
+        var draft = graph.BeginLooseComment(default)!;
+        graph.Comments.Resize(draft, 400, 200);
+        draft.Writing = "Stor lapp";
+        _comments.PlaceFailure = new InvalidOperationException("Disken är full.");
+
+        await graph.Comments.LeaveAsync(draft);
+        graph.Comments.Edit(draft);
+        await graph.Comments.LeaveAsync(draft);
+
+        Assert.Single(_comments.Added);
+        Assert.False(draft.IsDraft);
+        Assert.Contains(_toasts, toast => toast.Title == CommentsViewModel.PlaceFailedText);
+        Assert.DoesNotContain(_toasts, toast => toast.Title == CommentsViewModel.SaveFailedText);
+    }
+
+    [Fact]
+    public async Task A_text_that_is_too_long_is_said_and_kept_without_a_write()
+    {
+        var graph = await Graph();
+        var draft = graph.BeginLooseComment(default)!;
+        var text = new string('x', CommentRules.MaximumTextLength + 1);
+        draft.Writing = text;
+
+        await graph.Comments.LeaveAsync(draft);
+
+        Assert.Empty(_comments.Added);
+        Assert.True(draft.IsEditing);
+        Assert.Equal(text, draft.Writing);
+        Assert.Contains(_toasts, toast => toast.Title == CommentsViewModel.TooLongText);
+    }
+
+    [Fact]
+    public async Task A_move_while_a_change_is_stored_is_not_reset_by_it()
+    {
+        _comments.Seed("A");
+        var graph = await Graph();
+        var note = Assert.Single(graph.Comments.Notes);
+        var hold = _comments.Hold = new TaskCompletionSource();
+        graph.Comments.Edit(note);
+        note.Writing = "B";
+        var leaving = graph.Comments.LeaveAsync(note);
+
+        graph.Comments.Move(note, new GraphPoint(500, 600));
+        hold.SetResult();
+        await leaving;
+
+        Assert.Equal(new GraphPoint(500, 600), note.Place);
+    }
+
+    [Fact]
+    public void A_link_whose_text_names_another_address_shows_where_it_goes()
+    {
+        var a = "chainsaw:bitcoin/" + K1.Value;
+        var b = "chainsaw:bitcoin/" + K2.Value;
+
+        Assert.True(Links.NoteLinks.Misleads(a, b));
+        Assert.True(Links.NoteLinks.Misleads(K1.Value, b));
+        Assert.False(Links.NoteLinks.Misleads("tx 9f3c…a1", b));
+        Assert.False(Links.NoteLinks.Misleads(" " + b, b));
     }
 }
 

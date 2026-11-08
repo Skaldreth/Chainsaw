@@ -255,4 +255,48 @@ public sealed class MarkdownTests
         Assert.Equal(new MarkdownSpan("0,42 BTC", MarkdownStyle.Bold), blocks[1].Spans[1]);
         Assert.Equal(new MarkdownSpan("tx 9f3c…a1", Target: "chainsaw:btc/9f3ca1"), Assert.Single(blocks[3].Spans));
     }
+
+    [Theory]
+    [InlineData("[", "a", "](x)")]
+    [InlineData("**", "a", "**")]
+    [InlineData("*", "a", "*")]
+    public void Parse_ReadsDeepNestingOnASmallStackWithoutLosingText(string open, string middle, string close)
+    {
+        // The UI thread has a 1 MB stack; a sealed comment like this is read every time its case opens.
+        var count = 19_000 / (open.Length + close.Length);
+        var text = string.Concat(Enumerable.Repeat(open, count)) + middle
+            + string.Concat(Enumerable.Repeat(close, count));
+        IReadOnlyList<MarkdownBlock>? blocks = null;
+        var thread = new Thread(() => blocks = Markdown.Parse(text), 1024 * 1024);
+
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(10)));
+
+        var block = Assert.Single(blocks!);
+        Assert.Contains(middle, block.PlainText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ParseInline_ReadsLinksOnlyToTheDeepestNesting()
+    {
+        var depth = Markdown.MaxNesting + 5;
+        var text = string.Concat(Enumerable.Repeat("[", depth)) + "a" + string.Concat(Enumerable.Repeat("](x)", depth));
+
+        var spans = Markdown.ParseInline(text);
+
+        Assert.Contains(spans, span => span.Target == "x");
+        Assert.Contains("[", string.Concat(spans.Select(span => span.Text)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ParseInline_ReadsALongLineOfBracketsQuickly()
+    {
+        var text = string.Concat(Enumerable.Repeat("[a", 10_000));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var span = Assert.Single(Markdown.ParseInline(text));
+
+        Assert.Equal(text, span.Text);
+        Assert.True(clock.ElapsedMilliseconds < 1_000, $"{clock.ElapsedMilliseconds} ms");
+    }
 }

@@ -373,7 +373,7 @@ public partial class GraphView : UserControl
     private bool PasteStartPoint(KeyEventArgs e, GraphStartViewModel start)
     {
         if (e.Key != Key.V || Keyboard.Modifiers != ModifierKeys.Control || !start.IsNoStartPoint
-            || Keyboard.FocusedElement is TextBox)
+            || Keyboard.FocusedElement is TextBox or ICSharpCode.AvalonEdit.Editing.TextArea)
         {
             return false;
         }

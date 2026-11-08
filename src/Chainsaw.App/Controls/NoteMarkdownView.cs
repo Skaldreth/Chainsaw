@@ -195,7 +195,7 @@ public sealed class NoteMarkdownView : StackPanel
             return run;
         }
 
-        if (!IsFollowed(target))
+        if (!NoteLinks.IsFollowed(target))
         {
             run.Foreground = Brush(MutedBrush);
             return new Span(run) { ToolTip = target + " · följs inte från Chainsaw" };
@@ -203,6 +203,12 @@ public sealed class NoteMarkdownView : StackPanel
 
         run.TextDecorations = _dotted ??= DottedLine(Brush(TextBrush));
         var link = new Span(run) { Cursor = Cursors.Hand, ToolTip = target };
+        if (NoteLinks.Misleads(span.Text, target))
+        {
+            // A text that names another address than the link goes to says where the link really goes.
+            link.Inlines.Add(new Run(" → " + target) { Foreground = Brush(MutedBrush) });
+        }
+
         link.MouseLeftButtonDown += (_, e) =>
         {
             if (LinkCommand is { } command && command.CanExecute(target))
@@ -214,11 +220,6 @@ public sealed class NoteMarkdownView : StackPanel
         };
         return link;
     }
-
-    /// <summary>Reads whether an address is followed: only a <c>chainsaw:</c> link to a start point.</summary>
-    /// <param name="target">The address.</param>
-    /// <returns><see langword="true"/> when it is followed.</returns>
-    public static bool IsFollowed(string target) => ChainsawLink.TryParse(target, out _);
 
     /// <summary>Finds a brush of the theme.</summary>
     /// <param name="key">Its key.</param>
