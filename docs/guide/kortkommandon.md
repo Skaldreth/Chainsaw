@@ -32,13 +32,17 @@ Varje knapp i Chainsaw har sitt kortkommando i tipset när du håller pekaren ö
 | R | Fråga Chainabuse om rapporter |
 | Ctrl+C | Kopiera adressen |
 | Z | Egen yta runt de valda aktörerna |
+| N | Ny kommentar, knuten till den valda noden, se [Kommentarer i grafen](kommentarer.md) |
+| Dubbelklick på tom yta | Ny kommentar där |
+| Delete | Släng det valda i soptunnan (en vald kommentar tas bort), se [Soptunnan](soptunnan.md) |
+| Ctrl+Z | Ångra den senaste slängningen |
 | Ctrl+J | Förslag, se [Kontroller och förslag](kontroller-och-forslag.md) |
 | F | Passa in hela grafen |
 | + och − | Zooma; mushjulet gör samma sak |
 | Ctrl+klick | Välj flera |
 | Höger- eller mittknappen | Panorera |
 | Ctrl+V | Klistra in en startpunkt på den tomma grafen |
-| Esc | Stäng formuläret, lämna en vald tid, välj inget |
+| Esc | Stäng formuläret, lämna en vald tid, stäng inspektören |
 
 I formulären sparar **Enter** och **Esc** avbryter. Skälet är alltid frivilligt.
 

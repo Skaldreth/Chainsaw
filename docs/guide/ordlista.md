@@ -37,6 +37,7 @@
 - **Huvudnyckel:** lösenordet som låser upp valvet. Lagras aldrig. Se [Huvudnyckeln och valvet](huvudnyckeln.md).
 - **Insättningsadress:** en adress som en börs ger en enda kund. Den viktigaste punkten i en begäran.
 - **Kluster:** adresser som bedöms ha samma ägare, en plånbok. Se [Bryta upp ett kluster](bryta-upp-kluster.md).
+- **Kommentar:** en lapp i grafen med din egen text, knuten till en nod. Se [Kommentarer i grafen](kommentarer.md).
 - **Kontomodellen:** hur Ethereum och TRON håller pengar, som saldon på konton. Se [Kontomodellen](kontomodellen.md).
 - **KYC:** *know your customer*, att en tjänst kontrollerar sina kunders identitet.
 
@@ -52,6 +53,7 @@
 - **Privacy coin:** en valuta som döljer vem, till vem och hur mycket. Se [Privacy coins](privacy-coins.md).
 - **Råsvar:** exakt det en källa svarade, sparat i ärendet med SHA-256.
 - **Satoshi:** den minsta delen av en bitcoin, en hundramiljondel.
+- **Soptunnan:** där det som inte hör till utredningen döljs, utan att något tas bort. Se [Soptunnan](soptunnan.md).
 - **Stablecoin:** en token som ska vara värd en dollar, till exempel USDT. Se [USDT på TRON](usdt-pa-tron.md).
 - **Startpunkt:** där spåret börjar, en adress eller en tx. Se [Nytt ärende och startpunkterna](nytt-arende.md).
 - **Swap:** ett byte från en tillgång till en annan, på samma kedja eller mellan kedjor.
