@@ -175,13 +175,70 @@
                             <Button DockPanel.Dock="Right" Style="{StaticResource Button.TrashQuiet}"
                                     Command="{Binding RestoreAllCasesCommand}" Content="Lägg tillbaka allt"
                                     ContentTemplate="{StaticResource BackLabel}" VerticalAlignment="Center"
-                                    ToolTip="Lägger tillbaka alla ärenden på startsidan" />
+                                    ToolTip="Lägger tillbaka alla ärenden och högar på startsidan" />
                             <TextBlock FontSize="12.5" VerticalAlignment="Center" Foreground="{StaticResource Brush.TextDim}">
                                 <Run Text="{x:Static vm:TrashViewModel.CasesTitle}" Foreground="{StaticResource Brush.TextMuted}" />
                                 <Run Text=" · " /><Run Text="{x:Static vm:TrashViewModel.CasesText}" />
                             </TextBlock>
                         </DockPanel>
                     </Border>
+                    <!-- A pile thrown whole (sketch GR8a): the pile on top, its cases hung under it as a tree. -->
+                    <ItemsControl ItemsSource="{Binding Piles}" Focusable="False" Margin="0,4,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:TrashPileRow}">
+                                <StackPanel>
+                                    <Border Style="{StaticResource Row}">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Left" Width="22" Height="22" CornerRadius="5"
+                                                    BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}"
+                                                    Margin="0,0,10,0" VerticalAlignment="Center">
+                                                <controls:GridIcon Size="13" Data="{StaticResource Icon.Stack}"
+                                                                   Foreground="{StaticResource Brush.TextMuted}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.RowBack}"
+                                                    Command="{Binding DataContext.RestorePileCommand,
+                                                              RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}" Content="Lägg tillbaka högen"
+                                                    ContentTemplate="{StaticResource BackLabel}" VerticalAlignment="Center"
+                                                    ToolTip="Lägger tillbaka högen med alla ärenden i den på startsidan" />
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
+                                                <TextBlock FontSize="11.5" Margin="10,0,0,0" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource Brush.TextFaint}">
+                                                    <Run Text="{Binding CountText, Mode=OneWay}" />
+                                                    <Run Text=" · " /><Run Text="{Binding When, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <ItemsControl ItemsSource="{Binding Cases}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:TrashCaseRow}">
+                                                <Border Style="{StaticResource Row}">
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" Width="18"
+                                                                   Style="{StaticResource Text.TrashGlyph}" FontSize="13"
+                                                                   Margin="10,0,0,0" />
+                                                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.RowBack}"
+                                                                Command="{Binding DataContext.RestoreCaseCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}" Content="Lägg tillbaka"
+                                                                ContentTemplate="{StaticResource BackLabel}"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip="Lägger tillbaka ärendet i högen på startsidan" />
+                                                        <TextBlock Text="{Binding CaseNumber}" FontSize="13"
+                                                                   VerticalAlignment="Center" Margin="4,0,0,0" />
+                                                    </DockPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
                     <ItemsControl ItemsSource="{Binding Cases}" Focusable="False" Margin="0,4,0,0">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:TrashCaseRow}">

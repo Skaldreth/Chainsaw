@@ -117,8 +117,13 @@ public sealed partial class GraphStartViewModel
     [NotifyPropertyChangedFor(nameof(IsLifting))]
     public partial string? LiftedCase { get; private set; }
 
-    /// <summary>Gets whether a case is lifted on the ring.</summary>
-    public bool IsLifting => LiftedCase is not null;
+    /// <summary>Gets the pile that is lifted on the ring, or <see langword="null"/>; it grows the bin as a case does.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLifting))]
+    public partial string? LiftedPile { get; private set; }
+
+    /// <summary>Gets whether a case or a pile is lifted on the ring.</summary>
+    public bool IsLifting => LiftedCase is not null || LiftedPile is not null;
 
     /// <summary>Gets the latest write of the piles, so that the window and the tests can wait for it.</summary>
     public Task PilesSaved { get; private set; } = Task.CompletedTask;
@@ -149,8 +154,16 @@ public sealed partial class GraphStartViewModel
     /// <param name="caseNumber">The case.</param>
     public void Lift(string caseNumber) => LiftedCase = caseNumber;
 
-    /// <summary>Puts the lifted case down, wherever it was dropped.</summary>
-    public void Drop() => LiftedCase = null;
+    /// <summary>Lifts a pile on the ring, while it is dragged.</summary>
+    /// <param name="pileId">The pile.</param>
+    public void LiftPile(string pileId) => LiftedPile = pileId;
+
+    /// <summary>Puts the lifted case or pile down, wherever it was dropped.</summary>
+    public void Drop()
+    {
+        LiftedCase = null;
+        LiftedPile = null;
+    }
 
     /// <summary>Whether a case can be dropped on another to make a pile: both loose, and not the same.</summary>
     /// <param name="dragged">The case dragged.</param>
@@ -414,7 +427,7 @@ public sealed partial class GraphStartViewModel
     private void ShowFanHint()
     {
         var chosen = OpenCards.Count(card => card.IsSelected);
-        FanHint = chosen == 0 ? FanHintText : $"{chosen} valda · dra ut dem tillsammans";
+        FanHint = chosen == 0 ? FanHintText : $"{chosen} valda · dra ut dem tillsammans · Delete slänger";
     }
 
     /// <summary>Shows the open pile anew after its name changed, keeping the cards and what is chosen.</summary>
@@ -473,13 +486,20 @@ public sealed partial class GraphStartViewModel
         return new CasePileItem(pile.Id, pile.Name, cases.Count, changed, NamingPileId == pile.Id);
     }
 
-    /// <summary>Gives the cases of a pile that are in the folder, in the pile's order.</summary>
+    /// <summary>
+    /// Gives the cases of a pile that are in the folder and not in the trash, in the pile's order; a pile whose every
+    /// case lies in the trash is not on the ring (sketch SO1a).
+    /// </summary>
     /// <param name="pile">The pile.</param>
     /// <returns>The cases.</returns>
     private List<CaseFileInfo> ExistingCases(CasePile pile)
     {
         var files = FilesByNumber();
-        return [.. pile.CaseNumbers.Where(files.ContainsKey).Select(number => files[number])];
+        return
+        [
+            .. pile.CaseNumbers.Where(files.ContainsKey).Select(number => files[number])
+                .Where(file => !IsThrown(file)),
+        ];
     }
 
     /// <summary>Gives the case files by number, the latest written when a number is listed twice.</summary>

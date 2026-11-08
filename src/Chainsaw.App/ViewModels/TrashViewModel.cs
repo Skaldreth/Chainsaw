@@ -1,4 +1,6 @@
 using System.Globalization;
+using Chainsaw.App.Graph;
+using Chainsaw.App.Settings;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -18,7 +20,27 @@ public sealed record TrashThrowGroup(
 /// <summary>A case thrown on the start page, as the trash's view lists it.</summary>
 /// <param name="CaseNumber">The case.</param>
 /// <param name="When">When it was thrown.</param>
-public sealed record TrashCaseRow(string CaseNumber, string When);
+public sealed record TrashCaseRow(string CaseNumber, string When)
+{
+    /// <summary>Gets the glyph that hangs it under its pile (sketch SO1a), or empty for a case thrown on its own.</summary>
+    public string Glyph { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// A pile thrown whole on the start page (sketches GR8a and SO1a), as the trash's view lists it: the pile on top, its
+/// cases under it as a tree.
+/// </summary>
+/// <param name="PileId">The pile.</param>
+/// <param name="Name">Its name when it was thrown, or <see cref="GraphStartViewModel.UnnamedPileText"/>.</param>
+/// <param name="When">When it was thrown.</param>
+/// <param name="Cases">Its cases in the trash, each hung under it.</param>
+public sealed record TrashPileRow(string PileId, string Name, string When, IReadOnlyList<TrashCaseRow> Cases)
+{
+    /// <summary>Gets how many cases lie in it, for example <c>3 ärenden</c>.</summary>
+    public string CountText => Cases.Count == 1
+        ? "1 ärende"
+        : string.Create(CultureInfo.InvariantCulture, $"{Cases.Count} ärenden");
+}
 
 /// <summary>
 /// The trash's own view (sketch SO1a), opened by a click on the bin: an indented tree per throw, the newest first, with
@@ -82,10 +104,15 @@ public sealed partial class TrashViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasThrows), nameof(IsEmpty), nameof(HeadText))]
     public partial IReadOnlyList<TrashThrowGroup> Groups { get; private set; } = [];
 
-    /// <summary>Gets the cases thrown on the start page, the latest first.</summary>
+    /// <summary>Gets the cases thrown on their own on the start page, the latest first.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCases), nameof(IsEmpty))]
     public partial IReadOnlyList<TrashCaseRow> Cases { get; private set; } = [];
+
+    /// <summary>Gets the piles thrown whole on the start page, the latest first.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCases), nameof(IsEmpty))]
+    public partial IReadOnlyList<TrashPileRow> Piles { get; private set; } = [];
 
     /// <summary>Gets how many nodes the trash hides in the graph now.</summary>
     [ObservableProperty]
@@ -95,8 +122,8 @@ public sealed partial class TrashViewModel : ObservableObject
     /// <summary>Gets whether any throw lies in the trash.</summary>
     public bool HasThrows => Groups.Count > 0;
 
-    /// <summary>Gets whether any case lies in the trash.</summary>
-    public bool HasCases => Cases.Count > 0;
+    /// <summary>Gets whether any case or pile from the start page lies in the trash.</summary>
+    public bool HasCases => Cases.Count > 0 || Piles.Count > 0;
 
     /// <summary>Gets whether nothing lies in the trash.</summary>
     public bool IsEmpty => !HasThrows && !HasCases;
@@ -137,7 +164,7 @@ public sealed partial class TrashViewModel : ObservableObject
                 each,
                 When(each.Utc),
                 each.By.Name,
-                CountText(each.Members.Count),
+                CountText(each.Members),
                 TrashRowViewModel.Tree(
                     each.Members, member => each.DepthOf(member.Key), watchesOf, each.Sequence))),
         ];
@@ -176,16 +203,64 @@ public sealed partial class TrashViewModel : ObservableObject
         }
     }
 
-    /// <summary>Puts every case back on the start page.</summary>
+    /// <summary>Puts a pile back on the start page, whole.</summary>
+    /// <param name="row">The pile.</param>
+    [RelayCommand]
+    public void RestorePile(TrashPileRow? row)
+    {
+        if (row is not null)
+        {
+            _cases.RestorePile(row.PileId);
+        }
+    }
+
+    /// <summary>Puts every case and pile back on the start page.</summary>
     [RelayCommand]
     public void RestoreAllCases() => _cases.RestoreAll();
 
     /// <summary>Writes how many: <c>1 aktör</c> or <c>5 aktörer</c>.</summary>
     /// <param name="count">How many.</param>
     /// <returns>The text.</returns>
-    public static string CountText(int count) => count == 1
-        ? "1 aktör"
-        : string.Create(CultureInfo.InvariantCulture, $"{count} aktörer");
+    public static string CountText(int count) => Counted(count, "aktör", "aktörer");
+
+    /// <summary>
+    /// Writes how many of each the members are: actors, comments and own areas, for example <c>1 kommentar</c> or
+    /// <c>3 aktörer och 1 yta</c>, so that a comment is never called an actor.
+    /// </summary>
+    /// <param name="members">The members.</param>
+    /// <returns>The text; <c>0 aktörer</c> when there are none.</returns>
+    public static string CountText(IReadOnlyCollection<TrashMember> members)
+    {
+        ArgumentNullException.ThrowIfNull(members);
+        var comments = members.Count(TrashKeys.IsComment);
+        var areas = members.Count(TrashKeys.IsArea);
+        var actors = members.Count - comments - areas;
+        var parts = new List<string>();
+        if (actors > 0 || members.Count == 0)
+        {
+            parts.Add(CountText(actors));
+        }
+
+        if (comments > 0)
+        {
+            parts.Add(Counted(comments, "kommentar", "kommentarer"));
+        }
+
+        if (areas > 0)
+        {
+            parts.Add(Counted(areas, "yta", "ytor"));
+        }
+
+        return parts.Count == 1 ? parts[0] : string.Join(", ", parts[..^1]) + " och " + parts[^1];
+    }
+
+    /// <summary>Writes a count with the word in the singular or the plural.</summary>
+    /// <param name="count">How many.</param>
+    /// <param name="one">The word for one.</param>
+    /// <param name="many">The word for more, or none.</param>
+    /// <returns>For example <c>1 yta</c> or <c>2 ytor</c>.</returns>
+    private static string Counted(int count, string one, string many) =>
+        string.Create(CultureInfo.InvariantCulture, $"{count} {(count == 1 ? one : many)}");
 
     /// <summary>Writes when: <c>i dag 21:14</c>, <c>i går 09:02</c> or <c>4 nov 21:14</c>.</summary>
     /// <param name="utc">The time.</param>
@@ -211,7 +286,34 @@ public sealed partial class TrashViewModel : ObservableObject
             : day + " " + local.Year.ToString(CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Lists the cases thrown on the start page, the latest first.</summary>
-    private void ShowCases() =>
-        Cases = [.. _cases.Cases.Reverse().Select(each => new TrashCaseRow(each.CaseNumber, When(each.ThrownUtc)))];
+    /// <summary>
+    /// Lists what was thrown on the start page, the latest first: the cases thrown on their own, and each pile thrown
+    /// whole with its cases under it.
+    /// </summary>
+    private void ShowCases()
+    {
+        var latest = _cases.Cases.Reverse().ToList();
+        Cases = [.. latest.Where(each => each.PileId is null).Select(each => new TrashCaseRow(
+            each.CaseNumber, When(each.ThrownUtc)))];
+        Piles =
+        [
+            .. latest.Where(each => each.PileId is not null)
+                .GroupBy(each => each.PileId!, StringComparer.Ordinal)
+                .Select(PileRow),
+        ];
+    }
+
+    /// <summary>Makes a thrown pile's row, with its cases hung under it in the order they lie in the trash.</summary>
+    /// <param name="pile">The pile's thrown cases, the latest first.</param>
+    /// <returns>The row.</returns>
+    private TrashPileRow PileRow(IGrouping<string, TrashedCase> pile)
+    {
+        var cases = pile.Reverse().ToList();
+        var rows = cases.Select((each, index) => new TrashCaseRow(each.CaseNumber, When(each.ThrownUtc))
+        {
+            Glyph = index == cases.Count - 1 ? TrashRowViewModel.LastGlyph : TrashRowViewModel.MiddleGlyph,
+        });
+        var name = cases[0].PileName.Length > 0 ? cases[0].PileName : GraphStartViewModel.UnnamedPileText;
+        return new TrashPileRow(pile.Key, name, When(cases.Max(each => each.ThrownUtc)), [.. rows]);
+    }
 }

@@ -651,7 +651,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   adress med en spårad ankomst, en mixer och en utbetalning nära det spårade beloppet bland det som hölls tillbaka
   saknas, så att markeringen och tidsfönstret runt ankomsten syns i `/testdata`.
 - **Det som byggts 2026-11-08** saknas: en insättning som betalas ut i delar (`mixer-parts`), mixer efter mixer
-  (`mixer-chain`), något i soptunnan, en kommentarsnod och en egen yta.
+  (`mixer-chain`), något i soptunnan (också en slängd kommentar och en slängd egen yta), en kommentarsnod med en
+  ändrad text så att dess historik har något att visa, och en egen yta.
 
 ## Övrigt
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` och byggs in i programmet. Ett nytt avsnitt
@@ -666,3 +667,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Plånböcker, efter granskningen 2026-11-08:** en avfärdad plånbok dras inte av som en godkänd, så en ny adress i
   samma grupp föreslås aldrig (`WalletCheck.KeyOf`); ett godkänt fynd utan tx i grafen har tomt underlag (prova på
   Windows); `PreviewUndoMerges` visar inte heuristiklänkar som slutar slå ihop efter en senare uppbrytning.
+- **Soptunnan för lappar och högar, efter granskningen 2026-11-08:** en lapp som töms precis före Ctrl+W slängs inte
+  (`SealBeforeClose` väntar inte på köade skrivningar); en lapp som redan slängts från ett annat fönster läser inte om
+  soptunnan; en slängd hög kommer tillbaka till hälften när ett av dess ärenden sparas igen (`ForgetRewritten`); en
+  lapp som tappar musgreppet lämnar soptunnan förstorad (`LostMouseCapture`); historiken säger *en nod utanför
+  grafen* för en nod i soptunnan; `IGraphCommentService.RemoveComment` saknar anropare.

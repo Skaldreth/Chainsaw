@@ -126,6 +126,29 @@ public sealed record TrashThrow(
         key is null ? null : Members.FirstOrDefault(member => member.Key == key);
 }
 
+/// <summary>What a record in the trash did.</summary>
+public enum TrashAction
+{
+    /// <summary>Threw something in the trash.</summary>
+    Thrown,
+
+    /// <summary>Put something back from the trash.</summary>
+    Restored,
+}
+
+/// <summary>
+/// One sealed record of the trash about one thing in it, for its history (sketch AN1b): that it was thrown, or put
+/// back, by whom and when.
+/// </summary>
+/// <param name="Sequence">The record's place in the sealed chain.</param>
+/// <param name="Action">What it did.</param>
+/// <param name="ThrowSequence">The throw it belongs to: its own sequence for a throw, the throw put back from.</param>
+/// <param name="By">Who.</param>
+/// <param name="Utc">When.</param>
+/// <param name="JournalSequence">The line in the journal that records it.</param>
+public sealed record TrashRecord(
+    long Sequence, TrashAction Action, long ThrowSequence, OperatorProfile By, DateTimeOffset Utc, long JournalSequence);
+
 /// <summary>One step of what follows with a throw: a node and the node it hangs under.</summary>
 /// <param name="Key">The node.</param>
 /// <param name="Parent">The node it is reached through, or <see langword="null"/> for what is thrown.</param>
@@ -329,4 +352,13 @@ public interface IGraphTrash
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
     /// </exception>
     IReadOnlyList<TrashMember> Restore(ICase @case, long throwSequence, string? key);
+
+    /// <summary>
+    /// Reads every throw and putting back of one thing, also those long put back, oldest first, so that its history
+    /// can show them (sketch AN1b).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="key">The thing's key, as it was thrown (<see cref="TrashMember.Key"/>).</param>
+    /// <returns>The records; none when it was never thrown.</returns>
+    IReadOnlyList<TrashRecord> GetHistory(ICase @case, string key);
 }

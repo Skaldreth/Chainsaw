@@ -162,13 +162,16 @@ public sealed partial class GraphViewModel : ObservableObject
         Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
         Checks.ToastWanted += (_, toast) => ToastWanted?.Invoke(this, toast);
         Checks.ClustersChanged += (_, _) => _ = RefreshAsync();
-        Comments = new CommentsViewModel(session, comments ?? NoGraphComments.Instance);
+        Comments = new CommentsViewModel(session, comments ?? NoGraphComments.Instance, trash);
         WireComments();
         WireTidy();
         Forms = new InspectorFormsViewModel(session, editor, clock);
         Forms.Saved += (_, _) => _ = RefreshAsync();
         Forms.Failed += (_, text) => Tell(ToastKind.Error, text);
-        History = new InspectorHistoryViewModel(session, editor);
+        History = new InspectorHistoryViewModel(session, editor)
+        {
+            Comments = new CommentHistorySource(comments ?? NoGraphComments.Instance, trash),
+        };
         History.Saved += (_, notice) => _ = RefreshThenSayAsync(notice);
         History.Failed += (_, text) => Tell(ToastKind.Error, text);
 
@@ -340,7 +343,8 @@ public sealed partial class GraphViewModel : ObservableObject
     /// the checks and suggestions that open where it stands (sketch KF1a). An empty panel is removed (principle 7,
     /// the user's decision 2026-11-08).
     /// </summary>
-    public bool IsInspectorShown => HasCase && (SelectedNode is not null || SelectedEdge is not null || Checks.IsOpen);
+    public bool IsInspectorShown =>
+        HasCase && (SelectedNode is not null || SelectedEdge is not null || Checks.IsOpen || HasChosenComment);
 
     /// <summary>Gets the line under the pointer, whose amount is always written, or <see langword="null"/>.</summary>
     public string? HoveredEdge { get; private set; }
@@ -663,6 +667,12 @@ public sealed partial class GraphViewModel : ObservableObject
         {
             nodeKey = null;
             edgeKey = null;
+        }
+
+        if (!_keepComment && Comments.Selected is not null)
+        {
+            // Choosing in the graph lets go of a chosen comment, so that the inspector shows one thing.
+            Comments.Select(null);
         }
 
         var node = Scene?.Node(nodeKey);
@@ -1221,15 +1231,26 @@ public sealed partial class GraphViewModel : ObservableObject
         var scene = Scene;
         var node = scene?.Node(SelectedNode);
         var edge = scene?.Edge(SelectedEdge);
+        var comment = node is null && edge is null ? Comments.Selected?.Comment : null;
+        _inspectedComment = comment;
         Inspection = (scene, node, edge) switch
         {
             ({ } s, { } n, _) => InspectorContent.ForNode(s, n),
             ({ } s, null, { } e) => InspectorContent.ForEdge(s, e),
+            _ when comment is not null => InspectorContent.ForComment(comment, ThreadName(Comments.Selected!)),
             _ => null,
         };
         Why = Inspection?.Why ?? [];
         Forms.Follow(scene, node);
-        History.Follow(scene, node);
+        if (comment is not null)
+        {
+            History.FollowComment(scene, comment);
+        }
+        else
+        {
+            History.Follow(scene, node);
+        }
+
         Checks.Inspect(node?.Key);
         if (node is { Node.Kind: GraphNodeKind.Cluster } && _session.Current is { } openCase)
         {

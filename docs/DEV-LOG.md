@@ -3284,3 +3284,34 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - **M5:** `tokenlist` med status 2 ger ett ofullständigt saldo med en anteckning.
 - **M6:** tester för en skräptoken som heter USDT, wei över `long.MaxValue` och toppen följd av överföring med
   registret på både Bitcoin och Ethereum. M2 står i `docs/BACKLOG.md`.
+
+## Det som inte gick att slänga och kommentarsnodens historik (2026-11-08, SO1a, GR8a, KN1a och AN1b)
+
+- **Kommentarer i soptunnan:** Delete, ett drag mot soptunnan och en lapp som töms slänger den i grafens soptunna
+  (`IGraphTrash`) med nyckeln `comment:<id>` och sorten `Comment`, i stället för den förseglade borttagningen. Lappen
+  döljs bara (`CommentNote.IsInTrash`, också tråden), och *Lägg tillbaka* ger den tillbaka med den text som är
+  sparad. `CommentsViewModel.ThrowAsync` gör kastet i lappens skrivkö och säger det med `Thrown`, som grafen visar med
+  toast och Ctrl+Z. En lapp som töms medan ärendet stängs slängs innan det stängs. `IGraphComments.RemoveAsync` är
+  borta ur appen; modulens `RemoveComment` och raden *Borttagen* i historiken finns kvar för äldre ärenden.
+- **Egna ytor i soptunnan:** Delete med en egen yta vald (dess bricka) slänger den med nyckeln `own:<id>` och sorten
+  `Area`; `GraphAreas` hoppar över en slängd yta, aktörerna står kvar. **Eget beslut:** krysset på brickan tar
+  fortfarande bort ytan förseglat med skäl (KF1b); soptunnan är det andra sättet, som kan läggas tillbaka.
+- **Soptunnans vy och räkningen:** `TrashRowViewModel.LookOf` ritar en lapp och en yta i egen form (`Icon.Note`,
+  `Icon.Area`), och `TrashViewModel.CountText(members)` säger *1 kommentar*, *2 ytor*, *3 aktörer och 1 yta*, så att
+  en lapp aldrig kallas aktör. *Dolda i grafen* räknar med lappar och ytor.
+- **Historiken i modulen:** `IGraphTrash.GetHistory(case, key)` läser varje kast och tillbakaläggning av en nyckel,
+  också de som lagts tillbaka för länge sedan (`TrashRecord`). Inget nytt schema; posterna fanns redan förseglade.
+- **Kommentarens inspektör och historik (AN1b):** en vald lagrad lapp visas i inspektören (`InspectorContent.ForComment`:
+  första raden som rubrik, *Kommentar* under, vem och när, tråden), utan *Varför?* (`HasWhy`). En vald nod och en vald
+  lapp utesluter varandra. Fliken *Historik* (`InspectorHistoryViewModel.FollowComment`, `CommentHistory.Build`) visar
+  *Kommentar skriven*, *Texten ändrad*, *Tråd till …*, *Tråden lossad*, *Slängd i soptunnan* och *Lagd tillbaka ur
+  soptunnan* i tidsordning. **Eget beslut:** raderna har inga knappar; en lapp läggs tillbaka från soptunnans vy, där
+  den ligger, och att ångra en textändring har ingen skiss.
+- **Startvyn:** en lyft hög får soptunnan att växa och slängs hel (`CaseTrash.ThrowPile`, posterna bär högens id och
+  namn i `trash.json`); högen själv står kvar i `piles.json` och kommer tillbaka hel. Kort i en utfälld hög slängs med
+  drag mot soptunnan eller Shift-klick och Delete; de stannar i högen, dolda, och kommer tillbaka dit. Soptunnans vy
+  visar en slängd hög som ett träd under *Ärenden från startsidan* med *Lägg tillbaka högen*. **Avsteg:** SO1a har ingen
+  ruta för högar; formen följer grafens träd i samma vy.
+- Tester: `GraphThrowMoreTests`, `CommentInspectorTests` och `StartPileTrashTests` (33) i App.Tests, två nya i
+  Tracing.Tests (`TrashTests`), och de befintliga kommentarstesterna följer slängningen.
+- **Återstår:** testärendet saknar en slängd lapp och yta (`docs/BACKLOG.md`, *Testärendet*).

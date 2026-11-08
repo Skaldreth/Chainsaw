@@ -95,15 +95,8 @@ fungerar rättas före allt annat nedan. Särskilt:
   placeras efter samma bredd.
 
 **Soptunnan och startvyn (SO1a, GR8a)**
-- **Det som ännu inte går att slänga** [etapp]:
-  - Kommentarsnoder och egna ytor. Delete tar i dag bort en lapp förseglat direkt, utan soptunna.
-  - En hel hög i startvyn, och ett ärende som ligger i en hög.
 - **Grafens samlingsnod trycks inte ut** [direkt]: stöten och centreringen är som startvyns, men ytan bakom trycks
   inte ut lite som i `FanOutLayer` (grafen ritas i en `DrawingContext`, så det kräver en egen skalning av det dimmade).
-
-**Kommentarsnoden (KN1a)**
-- **Historiken** [etapp]: lappens förseglade poster syns inte i inspektörens *Historik* (AN1b), och en borttagen lapp
-  kan inte läggas tillbaka.
 
 **Inspektören, Nytt ärende och Guiden**
 - **Kortets baksida i dagens kurs** [direkt]: efter fråga 2 ovan.
