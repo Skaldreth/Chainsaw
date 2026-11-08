@@ -4160,6 +4160,10 @@ Användaren provade på Windows: kedjan ryckte konstigt när den kom in, och rö
   nyans, ton och bredd.
 - **Bandet räknas ut en gång per ruta** (`BandMotion.Current`) och återanvänds när rutan ritas. Modellen tar ungefär
   0,5 ms per ruta på en sida som är 1920 px bred.
+- **Partiklarna ritas som former**, inte som text: WPF lägger text på hela bildpunkter, så ett tecken som driver några
+  bildpunkter i sekunden hoppade en bildpunkt med några rutors mellanrum och såg ut som 25 bilder i sekunden när den
+  stora animationen var klar. Tecknens former (`FormattedText.BuildGeometry`) görs en gång och står mellan
+  bildpunkterna; styrkan ligger i penseln.
 - **Darret** när den långa länken spänns är lugnare: 8 svängningar i sekunden och 0,9 px i stället för 15 och 1,4 px,
   som vid 60 bilder i sekunden bara fick fyra bilder per svängning och såg ut som skakigt brus.
 

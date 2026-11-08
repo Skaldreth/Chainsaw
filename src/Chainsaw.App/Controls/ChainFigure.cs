@@ -48,7 +48,10 @@ public sealed class ChainFigure : FrameworkElement
     private readonly DrawingGroup _frame = new();
 
     /// <summary>The particles' characters by strength, made once per screen scale.</summary>
-    private readonly Dictionary<(char Character, bool IsBase, int Strength), FormattedText> _glyphs = [];
+    private readonly Dictionary<(char Character, bool IsBase), Geometry> _glyphs = [];
+
+    /// <summary>The particles' brushes by strength, made once each.</summary>
+    private readonly Dictionary<(Color Accent, int Strength), SolidColorBrush> _strengths = [];
 
     /// <summary>The brushes of the accent's shades, by shade and red tint, made once each.</summary>
     private readonly Dictionary<(int Shade, int Tint), SolidColorBrush> _brushes = [];
@@ -356,8 +359,10 @@ public sealed class ChainFigure : FrameworkElement
     private Color Accent() => TryFindResource("Color.Accent") is Color color ? color : FallbackAccent;
 
     /// <summary>
-    /// Draws every particle at its strength, centred on its place, with the strength in the character's own colour,
-    /// so that no particle needs a layer of its own.
+    /// Draws every particle at its strength, centred on its place. The characters are drawn as shapes, not as text:
+    /// WPF lays text on whole pixels, so a character drifting a few pixels a second would jump a pixel every few frames
+    /// and look like a low frame rate. A shape stands where it is, between pixels too. The strength is in the brush, so
+    /// no particle needs a layer of its own.
     /// </summary>
     /// <param name="drawingContext">The drawing context.</param>
     /// <param name="accent">The accent.</param>
@@ -371,34 +376,53 @@ public sealed class ChainFigure : FrameworkElement
                 continue;
             }
 
-            var glyph = Glyph(particle.Character, particle.IsBase, strength, accent);
-            drawingContext.DrawText(glyph, new Point(particle.X - (glyph.Width / 2), particle.Y - (glyph.Height / 2)));
+            drawingContext.PushTransform(new TranslateTransform(particle.X, particle.Y));
+            drawingContext.DrawGeometry(StrengthBrush(accent, strength), null, Glyph(particle.Character, particle.IsBase));
+            drawingContext.Pop();
         }
     }
 
-    /// <summary>Gives a particle's character in the mono font and the accent at a strength, made once per screen scale.</summary>
+    /// <summary>Gives the accent at a particle's strength, made once each.</summary>
+    /// <param name="accent">The accent.</param>
+    /// <param name="strength">The strength, from 1 to <see cref="Strengths"/>.</param>
+    /// <returns>The frozen brush.</returns>
+    private SolidColorBrush StrengthBrush(Color accent, int strength)
+    {
+        if (_strengths.TryGetValue((accent, strength), out var known))
+        {
+            return known;
+        }
+
+        var alpha = (byte)Math.Round(255.0 * strength / Strengths);
+        var brush = new SolidColorBrush(Color.FromArgb(alpha, accent.R, accent.G, accent.B));
+        brush.Freeze();
+        _strengths[(accent, strength)] = brush;
+        return brush;
+    }
+
+    /// <summary>
+    /// Gives a particle's character in the mono font as a shape centred on its origin, made once per screen scale.
+    /// </summary>
     /// <param name="character">The character.</param>
     /// <param name="isBase">Whether it is a base, drawn a little bolder.</param>
-    /// <param name="strength">Its strength, from 1 to <see cref="Strengths"/>.</param>
-    /// <param name="accent">The accent.</param>
-    /// <returns>The character's text.</returns>
-    private FormattedText Glyph(char character, bool isBase, int strength, Color accent)
+    /// <returns>The character's frozen shape.</returns>
+    private Geometry Glyph(char character, bool isBase)
     {
-        if (_glyphs.TryGetValue((character, isBase, strength), out var known))
+        if (_glyphs.TryGetValue((character, isBase), out var known))
         {
             return known;
         }
 
         var family = TryFindResource("Font.Mono") as FontFamily ?? new FontFamily("Consolas");
         var weight = isBase ? FontWeights.SemiBold : FontWeights.Medium;
-        var brush = new SolidColorBrush(Color.FromArgb((byte)Math.Round(255.0 * strength / Strengths), accent.R, accent.G, accent.B));
-        brush.Freeze();
         var text = new FormattedText(
             character.ToString(), CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal), 11, brush,
+            new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal), 11, Brushes.Black,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
-        _glyphs[(character, isBase, strength)] = text;
-        return text;
+        var shape = text.BuildGeometry(new Point(-text.Width / 2, -text.Height / 2));
+        shape.Freeze();
+        _glyphs[(character, isBase)] = shape;
+        return shape;
     }
 
     /// <summary>Follows Windows' animations being turned on or off.</summary>
