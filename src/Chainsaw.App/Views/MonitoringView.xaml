@@ -157,8 +157,9 @@
             </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:WatchRowViewModel}">
+                            <!-- The row is a button, whose own foreground is Windows' black: the text takes the theme's. -->
                             <Button Height="52" Margin="0,0,0,4" Cursor="Hand" FocusVisualStyle="{x:Null}"
-                                    HorizontalContentAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch" Foreground="{StaticResource Brush.Text}"
                                     Command="{Binding DataContext.ChooseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}">
                                 <Button.Template>

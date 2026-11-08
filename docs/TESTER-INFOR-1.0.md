@@ -3107,3 +3107,19 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
 - Dra panelens kant: titelradens hörn följer med. Stäng med × eller Esc: panelen glider ut, titelraden och grafen fyller
   bredden och fönstrets knappar står på titelraden igen. Byt till en annan vy: titelraden går över hela bredden.
 
+
+### Soptunnans vy (SO2a)
+
+- [ ] Öppna soptunnan (klick på ikonen nere till vänster) med några slängningar i `/testdata`: ett kort per slängning,
+      med det slängda som små noder lagda som en kortlek, titeln (*K7 och 2 till*) och när, vem och hur många under.
+- [ ] Ett klick på kortets huvud fäller ihop och ut trädet, och pilen vänder. Trädets grenlinjer går obrutna från
+      föräldern till varje rad, också i flera led.
+- [ ] *Lägg tillbaka* syns först när musen är över kortet, och den runda ikonen på en rad först när musen är över
+      raden. Båda lägger tillbaka det de ska.
+- [ ] *bevakas* står i kortets huvud och ögat på raden när något i slängningen är bevakat.
+- [ ] Utan ärende: bara *På startsidan*, med ärendena som rutor och en hög med två kort bakom sig. Hovra: rutan lyfts
+      en pixel och kanten ljusnar ett steg. *Lägg tillbaka allt* i huvudet lägger tillbaka allt.
+- [ ] Tom soptunna: en stor ikon nersänkt i ytan mitt i vyn, *Soptunnan är tom* och raden under.
+- [ ] Vyn Bevakning: namnet på varje rad är ljust, inte svart.
+- [ ] *Förslag* i grafens huvud: siffran står mitt i den runda bubblan.
+- [ ] Inställningar › Källor: att klicka på ett läge lämnar ingen orange ram; Tab ger ramen.
