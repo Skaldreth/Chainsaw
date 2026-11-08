@@ -786,6 +786,18 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
 - Stäng och öppna ärendet: besluten står kvar; ett godkänt förslag kommer inte tillbaka i samma version.
 - Inspektören visar under *Här* vilka kontroller och förslag som gäller den valda aktören.
 
+**Delarna tillsammans och mixer efter mixer (2026-11-08)**
+- Ett ärende där mixern betalar ut en insättning i två till fyra delar (var och en minst en tiondel, tillsammans
+  insättningen minus några procent, inom en vecka): förslaget *Delarna tillsammans* med brickorna *Delarna
+  tillsammans*, *Tid*, *Spridda block*, *Adresstyp*, en kandidat per del (*Del 1 av 3 …* i *Varför?*) och *trolig
+  avgift* mot alla delar, med antalet delar. Avfärda en del: avgiften räknas om mot de andra.
+- En utgång ur mixern som skickas in i en mixer igen: kontrollen *Mixer efter mixer, N steg* under *Gjort av sig
+  självt*, rött mixerområde, och *Varför?* som räknar upp stegen med belopp, avgifter och om det är samma mixer igen
+  eller en annan. Den nya insättningen har ett eget förslag *Troliga utgångar ur mixern*.
+- Godkänn en annan kandidat i mixerns förslag som också går in i en mixer: kedjan följer den godkända och säger
+  *godkänd* i stället för *trolig*. `/verify` är hel efteråt.
+- *Varför?* på båda öppnar Guiden vid *Mixer efter mixer och delarna*.
+
 **Områdena (KF1b)**
 - Svaga ytor bakom aktörerna: rött för mixer och CoinJoin, sand för peel chain, grått för plånböcker, prickat för tid.
   Ett förslag som väntar har streckad kant. Ingen aktör har två fyllningar; ett inre område syns bara som kant.

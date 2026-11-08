@@ -55,8 +55,16 @@ public sealed record SuggestionFlow(string InText, string FeeText, IReadOnlyList
 /// <param name="CandidateNoun">What one candidate is called, for the toast, for example <c>Trolig utgång</c>.</param>
 /// <param name="FirstColumn">The table's first column's heading.</param>
 /// <param name="TimeColumn">The table's time column's heading.</param>
+/// <param name="CandidatesAreParts">
+/// Whether the candidates are parts of one combination (<c>mixer-parts</c>), so that the fee is the deposit against
+/// all the parts that are not dismissed, not against the chosen one alone.
+/// </param>
 public sealed record SuggestionWords(
-    IReadOnlyList<BasisChip> Chips, string CandidateNoun, string FirstColumn, string TimeColumn)
+    IReadOnlyList<BasisChip> Chips,
+    string CandidateNoun,
+    string FirstColumn,
+    string TimeColumn,
+    bool CandidatesAreParts = false)
 {
     /// <summary>The words of an analysis this table does not know: no chips, plain headings.</summary>
     public static SuggestionWords Plain { get; } = new([], "Kandidaten", "ADRESS", "TID");
@@ -72,12 +80,39 @@ public sealed record SuggestionWords(
         "ADRESS",
         "TID");
 
+    /// <summary>The words of a deposit paid out in parts (<c>mixer-parts</c>).</summary>
+    public static SuggestionWords MixerParts { get; } = new(
+        [
+            new("Icon.Split", "Delarna tillsammans", "Två till fyra utbetalningar som tillsammans är insättningen "
+                + "minus mixerns avgift"),
+            new("Icon.Clock", "Tid", "Ju kortare tid efter insättningen, desto högre poäng"),
+            new("Icon.Block", "Spridda block", "Delar i olika block väger mer än delar i samma tx"),
+            new("Icon.Layers", "Adresstyp", "Samma adresstyp som insättarens väger in"),
+        ],
+        "Trolig del",
+        "ADRESS",
+        "TID",
+        CandidatesAreParts: true);
+
+    /// <summary>The words of mixer after mixer (<c>mixer-chain</c>).</summary>
+    public static SuggestionWords MixerChain { get; } = new(
+        [
+            new("Icon.Link", "Mixer efter mixer", "En utgång ur en mixer går in i en mixer eller en CoinJoin igen"),
+            new("Icon.Check", "Godkänd före trolig", "Kedjan följer de utgångar du godkänt, annars de troligaste"),
+            new("Icon.Amounts", "Avgifter längs kedjan", "Beloppet in och avgifterna i varje mixer summeras"),
+        ],
+        "Steg",
+        "ADRESS",
+        "TID");
+
     /// <summary>Gives an analysis's words.</summary>
     /// <param name="analysis">The analysis's name.</param>
     /// <returns>Its words, or <see cref="Plain"/>.</returns>
     public static SuggestionWords Of(string analysis) => analysis switch
     {
         "mixer-outputs" => MixerOutputs,
+        "mixer-parts" => MixerParts,
+        "mixer-chain" => MixerChain,
         _ => Plain,
     };
 }
@@ -463,8 +498,9 @@ public sealed partial class CheckRowViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Writes the chosen candidate's fee against what came in, for example <c>−1 % trolig avgift</c>: only if the
-    /// candidate is right, so it says <em>trolig</em> (principle 2).
+    /// Writes the chosen candidate's fee against what came in, for example <c>−1 % trolig avgift</c>, or, when the
+    /// candidates are parts, the fee of all the parts not dismissed together (<c>−2 % trolig avgift, 3 delar</c>):
+    /// only if the candidates are right, so it says <em>trolig</em> (principle 2).
     /// </summary>
     /// <returns>The fee, or an empty text when what came in is not known or nothing is chosen.</returns>
     private string FeeText()
@@ -474,7 +510,24 @@ public sealed partial class CheckRowViewModel : ObservableObject
             return string.Empty;
         }
 
-        var fee = (double)(amount.Value - chosen.Candidate.Amount.Value) / amount.Value;
+        if (!Words.CandidatesAreParts)
+        {
+            return FeeWords(amount, chosen.Candidate.Amount.Value);
+        }
+
+        var parts = Candidates.Where(c => !c.IsDismissed).ToList();
+        var count = parts.Count.ToString(CultureInfo.InvariantCulture);
+        return FeeWords(amount, parts.Sum(c => c.Candidate.Amount.Value)) + ", "
+            + (parts.Count == 1 ? count + " del" : count + " delar");
+    }
+
+    /// <summary>Writes a fee as the share of what came in that did not come out.</summary>
+    /// <param name="incoming">What came in.</param>
+    /// <param name="paid">What came out, in satoshi.</param>
+    /// <returns>For example <c>−1 % trolig avgift</c>.</returns>
+    private static string FeeWords(Satoshi incoming, long paid)
+    {
+        var fee = (double)(incoming.Value - paid) / incoming.Value;
         return "−" + Math.Round(fee * 100, 1).ToString("0.#", Swedish) + " % trolig avgift";
     }
 

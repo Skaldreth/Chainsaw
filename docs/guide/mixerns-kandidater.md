@@ -41,5 +41,6 @@ bedömning, streckad, med vem och när.
 ## Tänk på
 
 - Mixers med fasta avgifter och fasta belopp ger många kandidater med samma poäng. Då säger tiden och adresstypen mest.
-- En lång fördröjning eller uppdelning i många utbetalningar syns inte i v1, som bara jämför en utbetalning med en
-  insättning.
+- `mixer-outputs v1` jämför bara en utbetalning med en insättning. Uppdelning i flera utbetalningar prövas av
+  [Delarna tillsammans](mixer-efter-mixer.md), och en utgång som går in i en mixer igen visas av
+  [Mixer efter mixer](mixer-efter-mixer.md).

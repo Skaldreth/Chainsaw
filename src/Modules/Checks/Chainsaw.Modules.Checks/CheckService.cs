@@ -56,11 +56,11 @@ internal sealed class CheckService : ICheckService
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(graph);
-        var input = InputOf(@case, graph);
-        var problems = new List<string>();
-        var found = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding, string Content)>();
         var (results, decisions) = @case.Read(
             reader => (CheckStore.ReadResults(reader), CheckStore.ReadDecisions(reader)));
+        var input = InputOf(@case, graph) with { Approved = ApprovedOf(results, decisions) };
+        var problems = new List<string>();
+        var found = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding, string Content)>();
         foreach (var analysis in _analyses)
         {
             try
@@ -398,6 +398,46 @@ internal sealed class CheckService : ICheckService
         }
 
         return new CheckInput(transactions, mixers, conclusions);
+    }
+
+    /// <summary>
+    /// Gives the candidates whose approval is in force, ordered by analysis, suggestion and coin, so that an analysis
+    /// that follows the user's judgements (<c>mixer-chain</c>) runs on the same input every time.
+    /// </summary>
+    /// <param name="results">The sealed findings.</param>
+    /// <param name="decisions">The decisions, by finding.</param>
+    /// <returns>The approved candidates.</returns>
+    private static IReadOnlyList<ApprovedCandidate> ApprovedOf(
+        Dictionary<ResultKey, SealedResult> results, Dictionary<ResultKey, List<CheckDecision>> decisions)
+    {
+        var approved = new List<ApprovedCandidate>();
+        foreach (var (key, made) in decisions)
+        {
+            var inForce = made.Where(decision => decision.CandidateKey is not null)
+                .GroupBy(decision => decision.CandidateKey!, StringComparer.Ordinal)
+                .Where(group => group.Last().Verdict == CheckVerdict.Approved)
+                .Select(group => group.Key)
+                .ToHashSet(StringComparer.Ordinal);
+            if (inForce.Count == 0 || !results.TryGetValue(key, out var result))
+            {
+                continue;
+            }
+
+            var analysis = new HeuristicId(key.Analysis, (int)key.Version);
+            approved.AddRange(FindingCodec.Decode(result.Content).Candidates
+                .Where(candidate => inForce.Contains(candidate.Key))
+                .Select(candidate => new ApprovedCandidate(analysis, key.FindingKey, candidate.Txid, candidate.Output)));
+        }
+
+        return
+        [
+            .. approved
+                .OrderBy(a => a.Analysis.Name, StringComparer.Ordinal)
+                .ThenBy(a => a.Analysis.Version)
+                .ThenBy(a => a.FindingKey, StringComparer.Ordinal)
+                .ThenBy(a => a.Txid.Value, StringComparer.Ordinal)
+                .ThenBy(a => a.Output),
+        ];
     }
 
     /// <summary>Seals every finding that is new or changed, with one line in the journal.</summary>

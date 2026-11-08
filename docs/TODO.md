@@ -432,10 +432,9 @@ bildspråkets *?* är tydligt; greppet mitt på inspektörens kant med en linje 
 Allt som används för att förvirra spårningen ska kännas igen och analyseras, med så mycket automatiska kontroller och
 förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Katalogen, med det som redan står ovan och under Spårning:
 - **Centrala mixers:** kända adresser och mönster per mixer, troliga utgångar ur belopp minus avgift och tid.
-- **Mixer efter mixer** (chaining, användarens fråga 2026-11-08): en godkänd utgång ur en mixer som går in i en mixer
-  till (eller samma mixer igen, eller en CoinJoin) är ett vanligt sätt att lägga lager på lager. Kontroll: en kandidat
-  vars pengar når en ny mixer markeras som *mixer efter mixer*, och mixerns förslag körs då på nytt från den
-  insättningen, så att kedjan kan följas steg för steg; beloppet och avgifterna summeras längs kedjan.
+- **Mixer efter mixer** (byggt 2026-11-08 som `mixer-chain v1`). Återstår: en mixer utan etikett mitt i kedjan syns
+  inte (förslag: känna igen en trolig mixer ur beteende); när flera delar går in i nästa mixer tillsammans följs bara
+  en av dem, och stegets belopp är den delen; kedjan grenar sig inte när två utgångar går till olika mixers.
 - **CoinJoin** (Wasabi, Whirlpool och efterföljare, JoinMarket): finns som heuristik (etapp 6), fler mönster ovan.
   Förslag: utgångar ur CoinJoin som slås ihop igen efteråt (toxic change, ihopslagning av mixade mynt).
 - **Tornado Cash och andra zk-mixers:** under *Kedjor och data*.
@@ -459,16 +458,18 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
 ### Kontroller, förslag och områden (etapp 22)
 - **Mixerns kandidater ur kedjan:** `mixer-outputs v1` prövar bara det som finns i grafen. Att söka igenom blocken i
   tidsfönstret efter insättningen (genom utgången, med gränser) behövs för att hitta kandidater som inte är hämtade.
-  Också kända avgifter och belopp per mixer, och en insättning som betalas ut i flera delar.
+  Också kända avgifter och belopp per mixer.
 - **En godkänd kandidat i spårningen:** att godkänna en kandidat förseglar beslutet men gör den inte till en
   startpunkt eller en kant i spåret. Ska en godkänd kandidat kunna bli en ny startpunkt (med beloppet), och hur visas det?
 - **Godkänna en plånbok:** plånböckernas områden (`wallet-proposals v1`) är bara kontroller, eftersom en sammanslagning
   av användaren inte finns i Clustering (se *Godkänna ett förslag och ångra en uppbrytning* ovan).
 - **Lasso** för att välja aktörer till en egen yta (KF1b): bara Ctrl+klick är byggt.
 - **Formuläret för en egen yta** står under grafens hörn, inte vid de valda aktörerna som i skissen.
-- **Delarna tillsammans:** flera kandidater kan godkännas (byggt 2026-11-08), men analysen väger varje utgång mot
-  hela insättningen. En analys som prövar kombinationer (två eller flera utbetalningar som tillsammans blir beloppet
-  minus avgift, spridda över tid) och visar summan av de godkända mot insättningen behövs.
+- **Delarna tillsammans** (byggt 2026-11-08 som `mixer-parts v1`). Återstår: bara den bästa kombinationen visas (den
+  näst bästa kunde visas när en del avfärdas); fler än fyra delar och fler än de 20 första utbetalningarna prövas
+  inte; samma utbetalning kan stå både som hel utgång i `mixer-outputs` och, för en annan insättning, som del.
+- **Testärendet** (`/testdata`) har ingen insättning som betalas ut i delar och ingen mixer efter mixer än; lades inte
+  till 2026-11-08 eftersom testärendets layout byggdes om samtidigt.
 - **Växeladressen i KF2b** (bandens bredd efter belopp, kolumnen *SEDD*) är inte byggd: det finns ingen analys som
   föreslår växeladresser som förslag (Clustering gör det själv). Bilden kan bara rita band efter poäng.
 - **Brickorna under förslaget** står i en tabell i appen per analys (`SuggestionWords`), utan siffror (skissens *48 h*

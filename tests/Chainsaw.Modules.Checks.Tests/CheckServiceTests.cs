@@ -359,12 +359,15 @@ public sealed class CheckServiceTests
     }
 
     [Fact]
-    public void The_module_registers_the_four_analyses_in_order()
+    public void The_module_registers_the_six_analyses_in_order()
     {
         using var harness = new Harness();
 
         Assert.Equal(
-            [MixerOutputsCheck.Name, CoinJoinCheck.Name, PeelChainCheck.Name, WalletCheck.Name],
+            [
+                MixerOutputsCheck.Name, MixerPartsCheck.Name, MixerChainCheck.Name, CoinJoinCheck.Name,
+                PeelChainCheck.Name, WalletCheck.Name,
+            ],
             harness.Service.Analyses.Select(analysis => analysis.Name));
     }
 
