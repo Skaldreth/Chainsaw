@@ -196,7 +196,8 @@ fungerar rättas före allt annat nedan. Särskilt:
   - SEK på Bitcoins linjer, som Ethereums redan har.
   - Stegen bakom *Varför?*.
   - Valet av valuta och upplösning i inställningarna.
-- **Förstagångsinställningens steg Utgång:** i dag erbjuds bara en WireGuard-fil eller *Senare*, och VPN är förvalt.
+- **Förstagångsinställningens steg Utgång** (FS2a eller FS2b): Windows förvalt (beslutat 2026-11-08). I dag erbjuds
+  bara en WireGuard-fil eller *Senare*, och VPN är förvalt.
   Steget behöver valet *Windows* eller *VPN* som de två korten i ST1a.
 - **Utgångarna:**
   - Ta bort en utgång, byta dess namn och ange platsen (`ExitInfo.Place`).

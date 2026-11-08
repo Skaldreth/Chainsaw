@@ -141,7 +141,9 @@ fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händ
   råsvar sparas med hash (princip 1).
 - **Mellanhänder bara när de ger något kedjan inte har:** kurser och attribution. Kurser hämtas från en källa som anger
   kursen vid en tidpunkt, och kursen sparas i ärendet med källa. Valutan att räkna i ställs in (SEK som förval).
-  Källan är **Bitstamp** (användarens beslut 2026-11-07).
+  Källan är **Bitstamp** (användarens beslut 2026-11-07). Bitstamp har ingen SEK, så **kronkursen följer
+  Riksbanken** (användarens beslut 2026-11-08): kursen i euro från Bitstamp räknas om med Riksbankens dagskurs, och
+  båda kurserna sparas i ärendet med källa och tid.
 - **Attributionskällor** (användarens beslut 2026-11-08): Chainsaw hämtar etiketter från **flera källor samtidigt**,
   var och en med en **strömbrytare** i inställningarna. **Chainabuse** (TRM Labs) är den första underleverantören,
   eftersom den samarbetar med brottsbekämpande myndigheter; dess rapporter är bedömningar med källa (princip 2).
@@ -457,6 +459,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   ärendenumret stort, titeln frivillig, och **startpunkterna som en lista med *+***, där varje rad visar kedjan, värdet och
   det som **hämtats i förväg** genom utgången (saldo, antal tx, första och senaste aktivitet, blockhöjd, sanktion) och
   ärligt sitt läge (hämtar, klar, väntar på utgången, inte igenkänd). *Skapa ärende* är nedtonad tills numret finns.
+  **Förstagångsinställningens steg Utgång** har *Windows* eller *VPN* som de två korten i ST1a, med **Windows
+  förvalt** (användarens beslut 2026-11-08); WireGuard-filen läggs till under VPN.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
   Etiketter och Guide (Terminal är borttagen).
