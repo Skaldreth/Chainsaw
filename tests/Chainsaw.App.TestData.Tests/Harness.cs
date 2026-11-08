@@ -40,6 +40,7 @@ internal sealed class Harness : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore, FakeProfiles>();
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(new FakeClock());
         services.AddSingleton<IWatchGate>(new ClosedGate());
         services.AddCasesModule(options =>

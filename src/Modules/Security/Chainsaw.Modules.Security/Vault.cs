@@ -329,8 +329,10 @@ internal sealed class Vault : IVault, IDisposable
             VaultCrypto.Open(wrappingKey, document.DataKey, VaultDocument.DataKeyAssociatedData, dataKey);
             return dataKey;
         }
-        catch (AuthenticationTagMismatchException)
+        catch (Exception exception) when (exception is AuthenticationTagMismatchException or ArgumentException)
         {
+            // A key with a lone surrogate cannot be derived as typed (PBKDF2 encodes strictly), so no key written
+            // before the normalization had one; it simply does not open that way.
             CryptographicOperations.ZeroMemory(dataKey);
             return null;
         }
@@ -561,15 +563,17 @@ internal sealed class Vault : IVault, IDisposable
             return document;
         }
 
-        var kdf = NewKdf();
-        var strengthened = document with { Kdf = kdf, DataKey = WrapDataKey(masterKey, kdf, dataKey) };
         try
         {
+            var kdf = NewKdf();
+            var strengthened = document with { Kdf = kdf, DataKey = WrapDataKey(masterKey, kdf, dataKey) };
             _file.Write(strengthened);
             return strengthened;
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or ArgumentException)
         {
+            // The old file still opens with the key that just opened it; it is wrapped again at a later unlock.
             return document;
         }
     }

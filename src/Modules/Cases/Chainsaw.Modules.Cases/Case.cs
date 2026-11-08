@@ -933,7 +933,7 @@ internal sealed class Case : ICase
     {
         try
         {
-            var value = _services.Secrets?.Find(AnchorStore.CounterName(Info.Id, _anchorKey));
+            var value = _services.Secrets.Find(AnchorStore.CounterName(Info.Id, _anchorKey));
             return long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var generation)
                 ? generation
                 : 0;
@@ -953,7 +953,7 @@ internal sealed class Case : ICase
     {
         try
         {
-            _services.Secrets?.Save(
+            _services.Secrets.Save(
                 AnchorStore.CounterName(Info.Id, _anchorKey), generation.ToString(CultureInfo.InvariantCulture));
         }
         catch (Exception exception) when (exception is VaultException or IOException or UnauthorizedAccessException)

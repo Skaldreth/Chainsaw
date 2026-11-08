@@ -36,7 +36,7 @@ public static class CasesModule
             provider.GetRequiredService<Security.Contracts.IVault>(),
             provider.GetRequiredService<Security.Contracts.IPurposeKeys>(),
             provider.GetRequiredService<Security.Contracts.IOperatorProfileStore>(),
-            provider.GetService<Security.Contracts.IVaultSecrets>(),
+            provider.GetRequiredService<Security.Contracts.IVaultSecrets>(),
             provider.GetRequiredService<IClock>(),
             options,
             provider.GetServices<ICaseSchemaContributor>()));

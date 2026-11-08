@@ -115,6 +115,19 @@ internal static class CaseContainer
         stream.Write(json);
     }
 
+    /// <summary>Tells whether two headers are the same, written as this build writes them.</summary>
+    /// <param name="first">One header.</param>
+    /// <param name="second">The other.</param>
+    /// <returns><see langword="true"/> when they write the same bytes.</returns>
+    public static bool Same(CaseHeader first, CaseHeader second)
+    {
+        using var one = new MemoryStream();
+        using var other = new MemoryStream();
+        WriteHeader(one, first);
+        WriteHeader(other, second);
+        return one.ToArray().AsSpan().SequenceEqual(other.ToArray());
+    }
+
     /// <summary>Parses the header JSON.</summary>
     /// <param name="json">The UTF-8 JSON.</param>
     /// <returns>The header.</returns>

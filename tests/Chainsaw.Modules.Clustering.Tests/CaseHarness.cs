@@ -24,6 +24,7 @@ internal sealed class CaseHarness : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(Profiles);
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(new FakeClock());
         services.AddCasesModule(options =>
         {

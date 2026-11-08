@@ -29,6 +29,18 @@ public sealed class SecretTextTests
     }
 
     [Fact]
+    public void A_lone_surrogate_becomes_the_replacement_character_and_is_not_refused()
+    {
+        const string Lone = "nyckel\uD800mitt i\uDC00";
+
+        var normalized = new string(SecretText.Normalize(Lone));
+
+        Assert.Equal("nyckel\uFFFDmitt i\uFFFD", normalized);
+        Assert.False(SecretText.IsNormalized(Lone));
+        Assert.Equal("a\uD83D\uDE00", new string(SecretText.Normalize("a\uD83D\uDE00")));
+    }
+
+    [Fact]
     public void An_empty_secret_stays_empty()
     {
         Assert.Empty(SecretText.Normalize(string.Empty));

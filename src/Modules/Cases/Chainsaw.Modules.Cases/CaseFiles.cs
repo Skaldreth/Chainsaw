@@ -33,19 +33,23 @@ internal static class CaseFiles
     /// checking the seal over the whole file (<see cref="CaseFileSeal"/>) before the working copy gets its name.
     /// </summary>
     /// <param name="paths">The case's files.</param>
-    /// <param name="caseId">The case id the key was opened for; the header must still say it.</param>
+    /// <param name="expected">
+    /// The header the file key was opened from; the header read here, the one the seal covers, must be the same, so
+    /// that the case never uses a header that was not checked.
+    /// </param>
     /// <param name="fileKey">The file key, which the seal is derived from.</param>
     /// <returns>The SHA-256 of the case file the working copy was taken from.</returns>
     /// <exception cref="Contracts.CaseException">
     /// <see cref="Contracts.CaseError.Corrupt"/> when the file changed in between, is cut short or its seal does not
     /// hold.
     /// </exception>
-    public static byte[] Extract(CasePaths paths, Guid caseId, ReadOnlySpan<byte> fileKey)
+    public static byte[] Extract(CasePaths paths, CaseHeader expected, ReadOnlySpan<byte> fileKey)
     {
+        var caseId = expected.CaseId;
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using var seal = CaseFileSeal.Begin(fileKey, caseId);
         using var input = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
-        if (CaseContainer.ReadHeader(input).CaseId != caseId)
+        if (!CaseContainer.Same(CaseContainer.ReadHeader(input), expected))
         {
             throw new Contracts.CaseException(Contracts.CaseError.Corrupt);
         }
@@ -137,35 +141,47 @@ internal static class CaseFiles
         return holds;
     }
 
-    /// <summary>Checks the seal over a whole case file, reading it once and writing nothing.</summary>
+    /// <summary>
+    /// Checks the seal over a whole case file and hashes it, in one read and writing nothing; the header the seal
+    /// covers must be the expected one.
+    /// </summary>
     /// <param name="paths">The case's files.</param>
-    /// <param name="caseId">The case id the key was opened for; the header must still say it.</param>
+    /// <param name="expected">The header the file key was opened from.</param>
     /// <param name="fileKey">The file key.</param>
-    /// <returns><see langword="true"/> when the seal holds.</returns>
+    /// <returns>The file's SHA-256 when the seal holds over that header; otherwise <see langword="null"/>.</returns>
     /// <exception cref="Contracts.CaseException">
-    /// <see cref="Contracts.CaseError.Corrupt"/> when the header does not hold.
+    /// <see cref="Contracts.CaseError.Corrupt"/> when the header cannot be read.
     /// </exception>
-    public static bool SealHolds(CasePaths paths, Guid caseId, ReadOnlySpan<byte> fileKey)
+    public static byte[]? SealedHash(CasePaths paths, CaseHeader expected, ReadOnlySpan<byte> fileKey)
     {
-        using var seal = CaseFileSeal.Begin(fileKey, caseId);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var seal = CaseFileSeal.Begin(fileKey, expected.CaseId);
         using var input = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
-        if (CaseContainer.ReadHeader(input).CaseId != caseId)
+        if (!CaseContainer.Same(CaseContainer.ReadHeader(input), expected))
         {
-            return false;
+            return null;
         }
 
         var sealedLength = input.Length - CaseFileSeal.TrailerLength;
         if (sealedLength <= input.Position)
         {
-            return false;
+            return null;
         }
 
         input.Position = 0;
-        CopySealing(input, Stream.Null, sealedLength, hash: null, seal);
+        CopySealing(input, Stream.Null, sealedLength, hash, seal);
         var trailer = new byte[CaseFileSeal.TrailerLength];
         input.ReadExactly(trailer);
-        return CaseFileSeal.Holds(trailer, seal);
+        hash.AppendData(trailer);
+        return CaseFileSeal.Holds(trailer, seal) ? hash.GetHashAndReset() : null;
     }
+
+    /// <summary>Tells whether a case file's hash is one the working copy is recorded to belong to.</summary>
+    /// <param name="paths">The case's files.</param>
+    /// <param name="caseFileHash">The case file's SHA-256.</param>
+    /// <returns><see langword="true"/> when it is recorded.</returns>
+    public static bool IsRecordedBase(CasePaths paths, byte[] caseFileHash) =>
+        ReadBase(paths).Any(hash => CryptographicOperations.FixedTimeEquals(hash, caseFileHash));
 
     /// <summary>
     /// Writes a whole case file: the header, the database and the seal over both, adding every byte written to a

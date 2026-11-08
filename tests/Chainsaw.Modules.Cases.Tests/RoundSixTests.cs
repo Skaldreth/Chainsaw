@@ -35,6 +35,45 @@ public sealed class RoundSixTests : IDisposable
     }
 
     [Fact]
+    public void A_header_changed_without_the_key_is_refused_also_when_a_working_copy_is_taken_back()
+    {
+        var store = _fixture.CreateStore();
+        var path = _fixture.CaseFile("A1");
+        using (var created = store.Create("A1"))
+        {
+            created.SetSharingPassword(CaseFixture.Password);
+        }
+
+        ((Case)store.Open("A1")).Abandon();
+        var workingCopy = File.ReadAllBytes(path + ".work");
+
+        // Someone who can write in the folder takes the sharing envelope out and records the changed file as the base.
+        CaseFileSurgery.RewriteHeaderWithoutKey(path, header => header.WithEnvelopes(
+            header.Envelopes.Where(item => !KeyEnvelopes.IsKind(item, KeyEnvelopes.PasswordKind))));
+        File.WriteAllBytes(path + ".work.base", SHA256.HashData(File.ReadAllBytes(path)));
+
+        Assert.Equal(CaseError.Corrupt, Assert.Throws<CaseException>(() => store.Open("A1")).Error);
+        Assert.Equal(workingCopy, File.ReadAllBytes(path + ".work"));
+    }
+
+    [Fact]
+    public void A_working_copy_is_still_taken_back_into_a_sound_file()
+    {
+        var store = _fixture.CreateStore();
+        using (store.Create("A1"))
+        {
+        }
+
+        var crashed = (Case)store.Open("A1");
+        crashed.AppendJournal(new JournalDraft("test.note", "Före kraschen"));
+        crashed.Abandon();
+
+        using var recovered = store.Open("A1");
+        Assert.Contains(recovered.ReadJournal(), entry => entry.Summary == "Före kraschen");
+        Assert.Contains(recovered.ReadJournal(), entry => entry.Kind == CaseJournalKinds.Recovered);
+    }
+
+    [Fact]
     public void An_older_page_of_the_same_case_swapped_in_is_refused()
     {
         var store = _fixture.CreateStore(new TestSchema());

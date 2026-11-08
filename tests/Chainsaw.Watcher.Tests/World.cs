@@ -41,6 +41,7 @@ internal sealed class World : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(new FakeProfiles());
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IExitHttp>(new FakeExitHttp(Clock));
         services.AddSingleton<IWatchGate>(new FakeGate());

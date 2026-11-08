@@ -65,6 +65,25 @@ public sealed class MasterKeyNormalizationTests : IDisposable
     }
 
     [Fact]
+    public void A_key_with_a_lone_surrogate_is_wrong_for_an_old_vault_and_never_throws()
+    {
+        WriteLegacyVault(Composed);
+
+        VaultFixture.AssertFails(
+            VaultError.WrongMasterKey, () => _fixture.NewVault().Unlock("nyckel med \uD800 i mitten"));
+    }
+
+    [Fact]
+    public void A_key_with_a_lone_surrogate_makes_and_opens_a_new_vault()
+    {
+        const string Lone = "nyckel med \uD800 i mitten";
+
+        _fixture.Vault.Create(Lone);
+
+        _fixture.NewVault().Unlock(Lone);
+    }
+
+    [Fact]
     public void A_wrong_key_is_still_wrong_for_an_old_vault_and_leaves_the_file_alone()
     {
         WriteLegacyVault(Composed);

@@ -3811,3 +3811,14 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
 - **Avsteg och det som återstår:** se BACKLOG (det som väntar på beslut eller hör till andra omgångar) och TODO
   avsnitt 4 (det som behöver skissas). *Vem som förseglade en post* är inte byggd: varje moduls sätt att försegla
   måste ändras, vilket görs när ingen annan omgång arbetar i modulerna.
+- **Granskningen (inga C, ett I, tre M), rättad:**
+  - **I1:** en arbetskopia som tas tillbaka kontrolleras nu också mot sigillet: filens hash räknas i samma läsning
+    som sigillet (`CaseFiles.SealedHash`), och först därefter jämförs den med basen. Ett huvud som ändrats utan nyckeln
+    med en egen hash i basen är `Corrupt`, och arbetskopian ligger kvar.
+  - **M1:** huvudet som läses i samma läsning som sigillet måste vara det som nyckeln öppnades ur
+    (`CaseContainer.Same`), både vid uttaget och vid återtagandet.
+  - **M2:** ett ensamt surrogattecken blir U+FFFD före normaliseringen i stället för ett undantag; PBKDF2 vägrade
+    sådana förut, så inget äldre valv kan ha en sådan nyckel. Ett försök med en sådan nyckel mot ett äldre valv ger
+    *fel huvudnyckel*, och `StrengthenIfWeak` behåller den gamla filen vid fel.
+  - **M3:** `IVaultSecrets` krävs av `AddCasesModule` (`GetRequiredService`); bevakningsprocessen registrerar redan sin
+    egen, och testernas värdar har fått en i minnet.

@@ -44,7 +44,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         IVault vault,
         IPurposeKeys purposeKeys,
         IOperatorProfileStore profiles,
-        IVaultSecrets? secrets,
+        IVaultSecrets secrets,
         IClock clock,
         CasesOptions options,
         IEnumerable<ICaseSchemaContributor> contributors)
@@ -516,7 +516,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 return false;
             }
 
-            return CaseFiles.SealHolds(paths, header.CaseId, fileKey)
+            return CaseFiles.SealedHash(paths, header, fileKey) is not null
                 ? true
                 : throw new CaseException(CaseError.Corrupt);
         }
@@ -576,9 +576,12 @@ internal sealed class CaseStore : ICaseStore, IDisposable
                 File.Delete(paths.WorkingJournal);
             }
 
+            // Either way the file is checked against its seal, in the same read as its hash, and its header must be the
+            // one the key was opened from; a recorded base is only a hash, which anyone who can write in the folder
+            // can write.
             var caseFileHash = recovering
-                ? CaseFiles.MatchingBase(paths) ?? throw new CaseException(CaseError.Conflict)
-                : CaseFiles.Extract(paths, header.CaseId, fileKey);
+                ? RecoveredBase(paths, header, fileKey)
+                : CaseFiles.Extract(paths, header, fileKey);
 
             anchorKey = DeriveAnchorKey();
             database = OpenWorkingCopy(paths, fileKey, header.CaseId, recovering);
@@ -612,6 +615,24 @@ internal sealed class CaseStore : ICaseStore, IDisposable
 
             throw;
         }
+    }
+
+    /// <summary>
+    /// Checks the case file a working copy left by an interrupted session is to be recovered into: its seal must hold
+    /// over the header the key was opened from, and its hash must be one the working copy belongs to.
+    /// </summary>
+    /// <param name="paths">The case's files.</param>
+    /// <param name="header">The header the file key was opened from.</param>
+    /// <param name="fileKey">The file key.</param>
+    /// <returns>The case file's SHA-256.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/> when the seal or the header does not hold, <see cref="CaseError.Conflict"/>
+    /// when the working copy belongs to another file.
+    /// </exception>
+    private static byte[] RecoveredBase(CasePaths paths, CaseHeader header, byte[] fileKey)
+    {
+        var sealedHash = CaseFiles.SealedHash(paths, header, fileKey) ?? throw new CaseException(CaseError.Corrupt);
+        return CaseFiles.IsRecordedBase(paths, sealedHash) ? sealedHash : throw new CaseException(CaseError.Conflict);
     }
 
     /// <summary>
@@ -886,14 +907,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
     /// <param name="first">One header.</param>
     /// <param name="second">The other.</param>
     /// <returns><see langword="true"/> when they are.</returns>
-    private static bool SameHeader(CaseHeader first, CaseHeader second)
-    {
-        using var one = new MemoryStream();
-        using var other = new MemoryStream();
-        CaseContainer.WriteHeader(one, first);
-        CaseContainer.WriteHeader(other, second);
-        return one.ToArray().AsSpan().SequenceEqual(other.ToArray());
-    }
+    private static bool SameHeader(CaseHeader first, CaseHeader second) => CaseContainer.Same(first, second);
 
     /// <summary>
     /// Runs the last step of opening while the case is not yet known to the store, so that nothing else can touch it,

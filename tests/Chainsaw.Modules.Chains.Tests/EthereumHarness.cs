@@ -45,6 +45,7 @@ internal sealed class EthereumHarness : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(Profiles);
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IExitHttp>(Http);
         services.AddCasesModule(options =>
