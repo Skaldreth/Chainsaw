@@ -119,6 +119,35 @@ aldrig skickar riktiga uppslag (listan i `docs/BACKLOG.md`, *Testärendet*).
 - **Chainabuse automatiskt** [etapp], när en partnernyckel finns: en vanlig nyckel ger tio anrop i månaden, så nu
   frågas den bara med R.
 
+### 4. Backloggen (användarens beslut 2026-11-08: allt före 1.0)
+
+Hela `docs/BACKLOG.md` byggs före 1.0, i omgångar där agenterna inte rör samma filer. Varje omgång tar bort det den
+byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
+1. **Skisser** [skiss]: vyerna **Tidslinje** och **Flöde (Sankey)**, och bekräftelsen när en godkänd plånbok ångras.
+2. **Ethereum klart:** spårningen genom en swap (när regeln är beslutad), Tornado Cash och kända DEX:ar och bryggor,
+   OFAC:s ETH-adresser, kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
+   och fynden från etapp 23 och 23b.
+3. **Bitcoin-källan, bevakningen och bakgrunden:** fynden under *Bitcoin-källan*, *Bevakning* och *Bevakning i
+   bakgrunden*, och bevakning i realtid (websocket).
+4. **Klustring, förvirring och kontroller:** tjänster ur beteende, fler tecken för växeln, CoinJoin och peel chain,
+   centrala mixers, damm och adressförgiftning, jämna belopp och tidsmönster, och fynden under *Kontroller*.
+5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
+   *Attribution* och *Kurser*.
+6. **Säkerhet, ärenden och utgångar:** hashkedjan ankrad utanför ärendet, hela filen autentiserad, *Vem har
+   tillgång*, och fynden under *Säkerhet*, *Ärenden*, *Utgångar* och *Ärenden i appen*.
+7. **Vyerna och appen:** fynden under Exponering, Begäran, Rapport, Undermenyerna, Låsskärmen, Historiken,
+   Kommentarsnoden, Spårning, Testärendet och *Vyerna efter 1.0*; grafens prestanda vid tusentals noder.
+8. **TRON med USDT**, sedan **Litecoin**, **BSC**, **Solana** och den genomskinliga delen av **Zcash**.
+9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
+   (utan språkmodell, princip 5).
+10. **Vyerna Tidslinje och Flöde**, när skisserna är valda.
+
+**Väntar på beslut innan de byggs** (står också under *Väntar på dig*):
+- **Spårning genom en swap:** hur stor del av ett byte som räknas som spårat.
+- **LIFO och poison:** definitionerna (kryptospåraren, `docs/KRYPTOSPARAREN.md`).
+- **VPN i bakgrunden:** WireGuard-filen under DPAPI utanför valvet.
+- **Privacy coins:** vilka forskningsmetoder som ska med, utöver *Spåret tar slut här*.
+
 ## Före tjänstebruk
 
 Inte kod, men klart innan Chainsaw används i tjänsten:

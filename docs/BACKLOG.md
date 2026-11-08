@@ -1,7 +1,7 @@
 # Backlog
 
-Det som kommer efter 1.0: nya förmågor och de mindre fynden (M) från granskningarna, per område. Det som ska vara
-klart till 1.0 står i `docs/TODO.md`. En punkt här flyttas dit om den visar sig behövas, och tas bort när den byggs.
+Nya förmågor och de mindre fynden (M) från granskningarna, per område. **Allt här görs före 1.0** (användarens
+beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En punkt tas bort när den byggs.
 ## Kedjor och data
 - **Registret som anroparen ger till `IResponseTransfer.Seal(…, SealedResponseIndex)`** (granskningen av NC2a, M2):
   höjden och tx:erna i registret litas på som de ges. Nytt ärende ger det som källan själv räknade fram i samma

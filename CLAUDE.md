@@ -465,8 +465,11 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   **Förstagångsinställningens steg Utgång** har *Windows* eller *VPN* som de två korten i ST1a, med **Windows
   förvalt** (användarens beslut 2026-11-08); WireGuard-filen läggs till under VPN.
 - **Vyer** (bekräftade 2026-11-06): Graf, Tx-inspektör, Adresskort och kluster, Bevakning, Begäran, Guide och, i 1.0
-  (användarens val 2026-11-08), **Etiketter (ET1a)**, **Exponering (EP1b)** och **Rapport (RP1b)**. Tidslinje och
-  Flöde (Sankey) kommer efter 1.0 (`docs/BACKLOG.md`). Terminal är borttagen.
+  (användarens val 2026-11-08), **Etiketter (ET1a)**, **Exponering (EP1b)** och **Rapport (RP1b)**, och
+  **Tidslinje** och **Flöde (Sankey)**, som skissas först. Terminal är borttagen.
+- **Allt i BACKLOG görs före 1.0** (användarens beslut 2026-11-08: "lika bra att vara så vältäckande som möjligt"):
+  de nya förmågorna (TRON, fler kedjor, egen nod, nya heuristiker och källor, vyerna) och de mindre fynden från
+  granskningarna. Ordningen och det som väntar på beslut står i `docs/TODO.md`.
 - **Valt för 1.0** (användarens val 2026-11-08, sidan *Mot 1.0* på canvasen):
   - **IN4a:** Alt + klick vänder noden på plats och baksidan växer till en rad per tillgång; flera kort kan stå vända.
   - **TL2a:** tidslisten är en rad där valvyns fönster förstoras som under en lins (dygn och timmar) och resten trycks
