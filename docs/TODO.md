@@ -457,9 +457,11 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   av användaren inte finns i Clustering (se *Godkänna ett förslag och ångra en uppbrytning* ovan).
 - **Lasso** för att välja aktörer till en egen yta (KF1b): bara Ctrl+klick är byggt.
 - **Formuläret för en egen yta** står under grafens hörn, inte vid de valda aktörerna som i skissen.
-- **Delarna tillsammans** (byggt 2026-11-08 som `mixer-parts v1`). Återstår: bara den bästa kombinationen visas (den
-  näst bästa kunde visas när en del avfärdas); fler än fyra delar och fler än de 20 första utbetalningarna prövas
-  inte; samma utbetalning kan stå både som hel utgång i `mixer-outputs` och, för en annan insättning, som del.
+- **Delarna tillsammans** (byggt 2026-11-08 som `mixer-parts v1`). Återstår: fler än fyra delar och fler än de 20
+  första utbetalningarna prövas inte; samma utbetalning kan stå både som hel utgång i `mixer-outputs` och, för en
+  annan insättning, som del; bara direkta spenderingar mellan delar utesluts, inte längre led.
+- **Granskningens mindre fynd M3, M4 och M8** om `mixer-parts` och `mixer-chain` (2026-11-08) är inte åtgärdade;
+  beskrivningen står i granskningen av commit 6389cd2.
 - **Testärendet** (`/testdata`) har ingen insättning som betalas ut i delar och ingen mixer efter mixer än; lades inte
   till 2026-11-08 eftersom testärendets layout byggdes om samtidigt.
 - **Växeladressen i KF2b** (bandens bredd efter belopp, kolumnen *SEDD*) är inte byggd: det finns ingen analys som

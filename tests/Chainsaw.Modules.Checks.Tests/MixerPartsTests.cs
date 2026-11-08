@@ -10,11 +10,25 @@ public sealed class MixerPartsTests
 {
     private static readonly MixerPartsCheck Analysis = new();
 
-    private static IReadOnlyList<CheckFinding> Run(IReadOnlyList<BitcoinTransaction> transactions) =>
+    private static readonly string DepositKey = $"{Txid("parts-deposit").Value}:0";
+
+    private static IReadOnlyList<CheckFinding> Run(
+        IReadOnlyList<BitcoinTransaction> transactions,
+        IReadOnlyList<ApprovedCandidate>? approved = null,
+        IReadOnlyList<DismissedDecision>? dismissed = null) =>
         Analysis.Run(new CheckInput(
             transactions,
             [new KnownMixer([Parting.Mixer])],
-            new Dictionary<Txid, TransactionConclusions>()));
+            new Dictionary<Txid, TransactionConclusions>(),
+            approved,
+            dismissed));
+
+    private static string Coin(string label) => $"{Txid(label).Value}:0";
+
+    private static ApprovedCandidate Approve(string label) =>
+        new(MixerPartsCheck.Identity, DepositKey, Txid(label), 0);
+
+    private static DismissedDecision Dismiss(string label) => new(MixerPartsCheck.Identity, DepositKey, Coin(label));
 
     private static CheckFinding Only(IReadOnlyList<BitcoinTransaction> transactions) =>
         Assert.Single(Run(transactions));
@@ -109,23 +123,87 @@ public sealed class MixerPartsTests
     }
 
     [Fact]
-    public void Parts_in_one_transaction_score_lower_than_parts_spread_over_time()
+    public void A_payment_and_its_change_in_one_transaction_are_never_parts()
     {
         var oneTx = Tx("one-tx", Parting.Height + 12)
             .In(Wpkh("one-tx-payer"), 15_000_000)
             .Out(Wpkh("one-a"), 7_400_000)
             .Out(Wpkh("one-b"), 7_300_000)
             .Build();
+
+        Assert.Empty(Run([Parting.Deposit(), oneTx]));
+    }
+
+    [Fact]
+    public void A_payout_whose_transaction_spends_another_payout_is_never_combined_with_it()
+    {
+        var first = Parting.PartA();
+        var onward = Tx("spends-a", Parting.Height + 72).Spend(first, 0).Out(Wpkh("from-a"), 5_000_000)
+            .Out(Wpkh("from-a-change"), 990_000).Build();
+
+        Assert.Empty(Run([Parting.Deposit(), first, onward, Parting.PartC()]));
+        Assert.True(MixerPartsCheck.Related(
+            new MixerPayout(onward, onward.Outputs[0], TimeSpan.FromHours(12)),
+            new MixerPayout(first, first.Outputs[0], TimeSpan.FromHours(2))));
+    }
+
+    [Fact]
+    public void Parts_in_the_same_block_score_lower_than_parts_spread_over_blocks()
+    {
+        var sameBlock = new[]
+        {
+            Parting.Payout("same-a", Wpkh("same-a"), 7_400_000, 12),
+            Parting.Payout("same-b", Wpkh("same-b"), 7_300_000, 12),
+        };
         var spread = new[]
         {
             Parting.Payout("spread-a", Wpkh("spread-a"), 7_400_000, 12),
             Parting.Payout("spread-b", Wpkh("spread-b"), 7_300_000, 24),
         };
 
-        var together = Only([Parting.Deposit(), oneTx]).Candidates[0].Score;
+        var together = Only([Parting.Deposit(), .. sameBlock]).Candidates[0].Score;
         var apart = Only([Parting.Deposit(), .. spread]).Candidates[0].Score;
 
         Assert.True(together < apart, $"{together} should be lower than {apart}");
+    }
+
+    [Fact]
+    public void A_dismissed_part_is_never_combined_and_stays_as_a_candidate_apart()
+    {
+        var later = Parting.Payout("part-d", Wpkh("part-d"), 3_800_000, 600);
+
+        var finding = Assert.Single(Run([Parting.Deposit(), .. Parting.Parts(), later], dismissed: [Dismiss("part-c")]));
+
+        Assert.Equal(
+            [Wpkh("part-a"), Wpkh("part-b"), Wpkh("part-d"), Wpkh("part-c")],
+            finding.Candidates.Select(c => c.Address));
+        Assert.Equal(0, finding.Candidates[3].Score);
+        Assert.StartsWith("Avfärdad", finding.Candidates[3].Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_combination_that_holds_the_approved_parts_is_weighed_first()
+    {
+        var later = Parting.Payout("part-d", Wpkh("part-d"), 3_800_000, 600);
+
+        var finding = Assert.Single(Run([Parting.Deposit(), .. Parting.Parts(), later], [Approve("part-d")]));
+
+        Assert.Equal([Wpkh("part-a"), Wpkh("part-b"), Wpkh("part-d")], finding.Candidates.Select(c => c.Address));
+        Assert.DoesNotContain("hör inte till", finding.Why, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_approved_part_no_combination_can_hold_stands_apart_and_the_text_says_so()
+    {
+        var large = Parting.Payout("part-large", Wpkh("part-large"), 12_000_000, 30);
+
+        var finding = Assert.Single(Run([Parting.Deposit(), .. Parting.Parts(), large], [Approve("part-large")]));
+
+        Assert.Equal(
+            [Wpkh("part-a"), Wpkh("part-b"), Wpkh("part-c"), Wpkh("part-large")],
+            finding.Candidates.Select(c => c.Address));
+        Assert.Equal(0, finding.Candidates[3].Score);
+        Assert.Contains("hör inte till den här kombinationen", finding.Why, StringComparison.Ordinal);
     }
 
     [Fact]

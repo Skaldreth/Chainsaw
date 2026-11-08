@@ -17,6 +17,9 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
     /// <summary>The analysis's stable name.</summary>
     public const string Name = "mixer-outputs";
 
+    /// <summary>The analysis's name and version, which the user's decisions about its suggestions are kept by.</summary>
+    public static readonly HeuristicId Identity = new(Name, 1);
+
     /// <summary>The highest fee weighed: an output smaller than the deposit by more is not a candidate.</summary>
     public const double MostFee = 0.10;
 
@@ -48,7 +51,7 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
     public static readonly TimeSpan Window = TimeSpan.FromDays(7);
 
     /// <inheritdoc/>
-    public HeuristicId Id { get; } = new(Name, 1);
+    public HeuristicId Id => Identity;
 
     /// <inheritdoc/>
     public string DisplayName => "Mixerutgångar";
@@ -96,7 +99,8 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
         ? 0
         : 1 - ((1 - LatestTimeScore) * (after / Window));
 
-    /// <summary>Gives the score of an address type: full for the depositor's, <see cref="OtherTypeScore"/> else.</summary>
+    /// <summary>Gives the score of an address type: full for the depositor's, else
+    /// <see cref="OtherTypeScore"/>.</summary>
     /// <param name="deposit">The deposit.</param>
     /// <param name="address">The payout's address.</param>
     /// <returns>The score.</returns>
