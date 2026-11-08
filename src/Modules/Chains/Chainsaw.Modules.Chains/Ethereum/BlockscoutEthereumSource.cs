@@ -245,7 +245,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         var balance = new EthereumBalance(address, new AssetAmount(Asset.Ether, wei.Wei), tokens.Value?.Tokens ?? [])
         {
             Skipped = tokens.Value?.Skipped ?? 0,
-            IsComplete = tokens.Value is not null,
+            IsComplete = tokens.Value is { IsIncomplete: false },
         };
         if (tokens.Value is null)
         {
@@ -256,6 +256,10 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             };
         }
 
+        IReadOnlyList<string> notes = tokens.Value.IsIncomplete
+            ? [.. ether.Notes, .. tokens.Notes, "Källan har inte läst alla adressens tokens än; fler kan finnas."]
+            : [.. ether.Notes, .. tokens.Notes];
+
         // Either answer taken from the case makes the whole balance one that may be outdated.
         var outdated = ether.Status == LookupStatus.FromCaseMayBeOutdated
             || tokens.Status == LookupStatus.FromCaseMayBeOutdated;
@@ -263,7 +267,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             outdated ? LookupStatus.FromCaseMayBeOutdated : ether.Status, balance, origins,
             ether.Problem ?? tokens.Problem)
         {
-            Notes = [.. ether.Notes, .. tokens.Notes],
+            Notes = notes,
         };
     }
 

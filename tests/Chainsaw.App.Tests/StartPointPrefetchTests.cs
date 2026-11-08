@@ -663,11 +663,15 @@ public sealed class StartPointPrefetchTests
             }
 
             var spam = Asset.Token(Chain.Ethereum, "0x" + new string('9', 40), "GRATIS", 18);
+
+            // Anyone can make a contract call its token USDT; only Tether's contract is shown in the row.
+            var fakeUsdt = Asset.Token(Chain.Ethereum, "0x" + new string('8', 40), "USDT", 6);
             return Answer(@case, new EthereumBalance(
                 address,
                 new AssetAmount(Asset.Ether, 1_204_000_000_000_000_000),
                 [
                     new AssetAmount(KnownTokens.EthereumUsdt, 12_500_000_000),
+                    new AssetAmount(fakeUsdt, 99_000_000_000),
                     new AssetAmount(spam, 1_000_000_000_000_000_000),
                 ]));
         }

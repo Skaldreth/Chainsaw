@@ -116,6 +116,15 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
 
     public void AnswerBytes(string url, byte[] body, int status) => _answers[url] = (status, body, "text/plain");
 
+    /// <summary>
+    /// Answers an address with each body in turn, one per request, before the table answers it; for a source whose
+    /// answer changes between two requests (a new block).
+    /// </summary>
+    public void AnswerInTurn(string url, params byte[][] bodies) => _inTurn[url] = new Queue<byte[]>(bodies);
+
+    /// <summary>The bodies each address answers with in turn, before the table.</summary>
+    private readonly Dictionary<string, Queue<byte[]>> _inTurn = [];
+
     /// <summary>Answers an address with a status that asks Chainsaw to wait, with or without
     /// <c>Retry-After</c>.</summary>
     public void AnswerBusy(string url, TimeSpan? retryAfter, int status = 429)
@@ -159,6 +168,11 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
         var (status, body, contentType) = _answers.TryGetValue(url, out var answer)
             ? answer
             : (404, Encoding.UTF8.GetBytes("Not found"), "text/plain");
+        if (_inTurn.TryGetValue(url, out var turns) && turns.TryDequeue(out var next))
+        {
+            (status, body, contentType) = (200, next, "text/plain");
+        }
+
         var sent = clock.UtcNow;
         return new ExitResponse(
             request.Uri, Route == ExitRoute.Vpn ? ExitId : Guid.Empty, status, contentType, body, sent,

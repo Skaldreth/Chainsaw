@@ -71,7 +71,7 @@ public sealed class TipAndCacheTests : IDisposable
     }
 
     [Fact]
-    public async Task A_newest_block_that_cannot_be_read_fails_with_both_responses()
+    public async Task A_newest_block_that_cannot_be_read_is_asked_for_once_more_then_fails_with_every_response()
     {
         Http.AnswerBytes(Fixtures.Url("blocks/tip/hash"), Encoding.ASCII.GetBytes(Tip.Value + "\n"), 200);
 
@@ -80,7 +80,25 @@ public sealed class TipAndCacheTests : IDisposable
         Assert.Null(lookup.Value);
         Assert.Equal(LookupStatus.Failed, lookup.Status);
         Assert.Contains("höjd", lookup.Problem, StringComparison.Ordinal);
-        Assert.Equal(2, lookup.Origins.Count);
+        Assert.Equal(4, lookup.Origins.Count);
+        Assert.Equal(4, Http.Sent.Count);
+    }
+
+    [Fact]
+    public async Task A_hash_whose_block_the_source_does_not_have_yet_is_asked_for_again()
+    {
+        AnswerTip();
+        var behind = BlockHash.Parse("00000000000000000001" + Fixtures.Repeat("c0", 22));
+        Http.AnswerInTurn(
+            Fixtures.Url("blocks/tip/hash"), Encoding.ASCII.GetBytes(behind.Value), Encoding.ASCII.GetBytes(Tip.Value));
+
+        var lookup = await _harness.Source.GetTipAsync(_harness.Case);
+
+        Assert.Equal(800_010, lookup.Value!.Height);
+        Assert.Equal(Tip.Value, lookup.Value.Hash);
+        Assert.Equal(
+            2, Http.Sent.Count(request => request.Uri.AbsoluteUri == Fixtures.Url("blocks/tip/hash")));
+        Assert.Contains(lookup.Origins, origin => origin.Url.AbsoluteUri == Fixtures.Url($"block/{behind.Value}"));
     }
 
     [Fact]
@@ -111,6 +129,23 @@ public sealed class TipAndCacheTests : IDisposable
         Assert.Equal(LookupStatus.FromCase, lookup.Status);
         Assert.Equal(sent, Http.Sent.Count);
         Assert.Equal(2, lookup.Origins[0].Sequence);
+        Assert.True(_harness.Verify(other).IsIntact);
+    }
+
+    [Fact]
+    public async Task A_transaction_fetched_after_the_newest_block_and_sealed_again_with_its_index_answers_there()
+    {
+        AnswerTip();
+        await _harness.Source.GetTipAsync(_harness.Case);
+        await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        using var other = _harness.CreateCase("2026-0051");
+        MoveAll(other, withIndex: true);
+        var sent = Http.Sent.Count;
+
+        var lookup = await _harness.Source.GetTransactionAsync(other, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.FromCase, lookup.Status);
+        Assert.Equal(sent, Http.Sent.Count);
         Assert.True(_harness.Verify(other).IsIntact);
     }
 

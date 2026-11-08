@@ -19,6 +19,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// </summary>
     private static readonly TimeSpan TipFreshness = TimeSpan.FromMinutes(1);
 
+    /// <summary>How many times the newest block's hash is asked for when its block cannot be had.</summary>
+    private const int TipAttempts = 2;
+
     /// <summary>The longest script that can run, in hex characters (10 000 bytes).</summary>
     private const int MaximumScriptHex = 20_000;
 
@@ -269,28 +272,45 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     public async Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        var tip = await _lookups.LookupAsync(@case, TipHashQuery(), LookupMode.AsNeeded, cancellationToken)
-            .ConfigureAwait(false);
-        if (tip.Value is not { } hash)
-        {
-            return new BitcoinLookup<ChainTip>(tip.Status, null, tip.Origins, tip.Problem);
-        }
+        var origins = new List<ResponseOrigin>();
+        BitcoinLookup<ChainTip>? failed = null;
 
-        var block = await GetBlockAsync(@case, hash, cancellationToken).ConfigureAwait(false);
-        var origins = tip.Origins.Concat(block.Origins).DistinctBy(origin => origin.Sequence)
-            .OrderBy(origin => origin.Sequence).ToList();
-        if (block.Value is not { } newest)
+        // The endpoints are spread over, so the block may be asked of another than the one that gave the hash, and
+        // one a block behind does not have it yet; the hash is then asked for once more, and its block with it.
+        for (var attempt = 0; attempt < TipAttempts; attempt++)
         {
+            var tip = await _lookups.LookupAsync(@case, TipHashQuery(), LookupMode.AsNeeded, cancellationToken)
+                .ConfigureAwait(false);
+            origins.AddRange(tip.Origins);
+            if (tip.Value is not { } hash)
+            {
+                return new BitcoinLookup<ChainTip>(tip.Status, null, Ordered(origins), tip.Problem);
+            }
+
+            var block = await GetBlockAsync(@case, hash, cancellationToken).ConfigureAwait(false);
+            origins.AddRange(block.Origins);
+            if (block.Value is { } newest)
+            {
+                return new BitcoinLookup<ChainTip>(
+                    tip.Status, new ChainTip(newest.Height, newest.Hash.Value, newest.Time), Ordered(origins),
+                    tip.Problem)
+                {
+                    Notes = [.. tip.Notes, .. block.Notes],
+                };
+            }
+
             var problem = $"Det nyaste blockets höjd kunde inte läsas. {block.Problem}".Trim();
-            return new BitcoinLookup<ChainTip>(LookupStatus.Failed, null, origins, problem);
+            failed = new BitcoinLookup<ChainTip>(LookupStatus.Failed, null, [], problem);
         }
 
-        return new BitcoinLookup<ChainTip>(
-            tip.Status, new ChainTip(newest.Height, newest.Hash.Value, newest.Time), origins, tip.Problem)
-        {
-            Notes = [.. tip.Notes, .. block.Notes],
-        };
+        return failed! with { Origins = Ordered(origins) };
     }
+
+    /// <summary>Gives sealed responses once each, in the order they were sealed.</summary>
+    /// <param name="origins">The responses.</param>
+    /// <returns>The responses.</returns>
+    private static List<ResponseOrigin> Ordered(IEnumerable<ResponseOrigin> origins) =>
+        [.. origins.DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)];
 
     /// <summary>The lookup of the newest block's hash, which always changes.</summary>
     /// <returns>The query.</returns>

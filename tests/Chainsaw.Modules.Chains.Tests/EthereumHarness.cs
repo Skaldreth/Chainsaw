@@ -75,6 +75,12 @@ internal sealed class EthereumHarness : IDisposable
 
     public CaseVerification Verify() => _provider.GetRequiredService<ICaseVerifier>().Verify(Case);
 
+    public CaseVerification Verify(ICase other) => _provider.GetRequiredService<ICaseVerifier>().Verify(other);
+
+    public IResponseTransfer Transfer => _provider.GetRequiredService<IResponseTransfer>();
+
+    public ICase CreateCase(string number) => _provider.GetRequiredService<ICaseStore>().Create(number);
+
     public static string Url(string pathAndQuery) => Base + pathAndQuery;
 
     public static string TxUrl(EthereumTxHash hash) =>
