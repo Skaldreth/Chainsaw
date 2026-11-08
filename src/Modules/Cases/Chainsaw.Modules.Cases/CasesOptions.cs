@@ -53,6 +53,27 @@ public sealed class CasesOptions
     /// </summary>
     internal int SharingIterations { get; set; } = DefaultSharingIterations;
 
+    /// <summary>The quiet after a write before an open case saves itself (<see cref="AutosaveQuietPeriod"/>).</summary>
+    internal static readonly TimeSpan DefaultAutosaveQuietPeriod = TimeSpan.FromSeconds(5);
+
+    /// <summary>The longest a write waits to be saved (see <see cref="AutosaveMaximumDelay"/>).</summary>
+    internal static readonly TimeSpan DefaultAutosaveMaximumDelay = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Gets or sets how long an open case must be quiet after a write before it writes its working copy back into the
+    /// case file by itself, so that a file that is handed on is fresh. Only tests change it.
+    /// </summary>
+    internal TimeSpan AutosaveQuietPeriod { get; set; } = DefaultAutosaveQuietPeriod;
+
+    /// <summary>
+    /// Gets or sets the longest a write waits to be saved while writes keep coming, and the wait after a save that
+    /// failed. Only tests change it.
+    /// </summary>
+    internal TimeSpan AutosaveMaximumDelay { get; set; } = DefaultAutosaveMaximumDelay;
+
+    /// <summary>Gets or sets the time the saving follows; tests move it on themselves.</summary>
+    internal TimeProvider Time { get; set; } = TimeProvider.System;
+
     /// <summary>Gets or sets the time zone for the journal's local time; tests fix it.</summary>
     internal TimeZoneInfo TimeZone { get; set; } = TimeZoneInfo.Local;
 

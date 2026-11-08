@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Chainsaw.Modules.Cases.Tests;
 
@@ -31,6 +32,9 @@ internal sealed class CaseFixture : IDisposable
 
     public FakeClock Clock { get; } = new();
 
+    /// <summary>The time the cases save themselves by; it only moves when a test moves it.</summary>
+    public FakeTimeProvider Time { get; } = new();
+
     /// <summary>The recovery key the stores get; none unless the test sets one.</summary>
     public RecoveryPublicKey? RecoveryKey { get; set; }
 
@@ -48,6 +52,7 @@ internal sealed class CaseFixture : IDisposable
             AnchorDirectory = AnchorDirectory,
             SharingIterations = 1_000,
             TimeZone = TimeZone,
+            Time = Time,
             RecoveryKey = RecoveryKey,
             RevokedRecoveryKeys = Revoked,
         };
