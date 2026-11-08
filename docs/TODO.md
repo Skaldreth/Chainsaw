@@ -73,6 +73,9 @@ byggt; det som står här är rester. Inget nytt byggs förrän det som finns k�
 
 ### 1. Provet på Windows
 
+**Bygget och testsviten går på Windows** (användarens körning 2026-11-08): 3 790 tester, alla gröna, på 119 s. Kvar är
+att prova appen för hand efter `docs/TESTER-INFOR-1.0.md`.
+
 Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTER-INFOR-1.0.md`, ordnad uppifrån och ner, och det som inte fungerar rättas före allt annat nedan. Särskilt:
 - **Kraschen vid start** (`NewCasePanel`) är rättad men inte bekräftad.
 - **Expansionen gav *Inget nytt att hämta*** med mempool vald (rättat 2026-11-07, väntar på prov).
